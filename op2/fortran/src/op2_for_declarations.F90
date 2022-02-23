@@ -152,7 +152,10 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) :: argtype
     integer(kind=c_int) :: sent
     integer(kind=c_int) :: opt
-
+! #ifdef COMM_AVOID
+    integer(kind=c_int) :: nhalos
+    integer(kind=c_int) :: nhalos_index
+! #endif
   end type op_arg
 
   ! declaration of identity and global mapping
@@ -444,6 +447,65 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: acc
 
     end function op_opt_arg_dat_c
+
+    function op_arg_dat_halo_c ( dat, idx, map, dim, type, acc, nhalos, max_map_nhalos ) BIND(C,name='op_arg_dat_halo')
+
+      use, intrinsic :: ISO_C_BINDING
+  
+      import :: op_arg
+  
+      type(op_arg) :: op_arg_dat_halo_c
+  
+      type(c_ptr), value, intent(in) :: dat
+      integer(kind=c_int), value :: idx
+      type(c_ptr), value, intent(in) :: map
+      integer(kind=c_int), value :: dim
+      character(kind=c_char,len=1) :: type(*)
+      integer(kind=c_int), value :: acc
+      integer(kind=c_int), value :: nhalos
+      integer(kind=c_int), value :: max_map_nhalos
+  
+    end function op_arg_dat_halo_c
+  
+    function op_arg_dat_halo_ptr_c ( opt, dat, idx, map, dim, type, acc, nhalos, max_map_nhalos ) BIND(C,name='op_arg_dat_halo_ptr')
+  
+      use, intrinsic :: ISO_C_BINDING
+  
+      import :: op_arg
+  
+      type(op_arg) :: op_arg_dat_halo_ptr_c
+  
+      integer(kind=c_int), value :: opt
+      type(c_ptr), value, intent(in) :: dat
+      integer(kind=c_int), value :: idx
+      type(c_ptr), value, intent(in) :: map
+      integer(kind=c_int), value :: dim
+      character(kind=c_char,len=1) :: type(*)
+      integer(kind=c_int), value :: acc
+      integer(kind=c_int), value :: nhalos
+      integer(kind=c_int), value :: max_map_nhalos
+  
+    end function op_arg_dat_halo_ptr_c
+  
+    function op_opt_arg_dat_halo_c ( opt, dat, idx, map, dim, type, acc, nhalos, max_map_nhalos ) BIND(C,name='op_opt_arg_dat_halo')
+  
+      use, intrinsic :: ISO_C_BINDING
+  
+      import :: op_arg
+  
+      type(op_arg) :: op_opt_arg_dat_halo_c
+  
+      integer(kind=c_int), value :: opt
+      type(c_ptr), value, intent(in) :: dat
+      integer(kind=c_int), value :: idx
+      type(c_ptr), value, intent(in) :: map
+      integer(kind=c_int), value :: dim
+      character(kind=c_char,len=1) :: type(*)
+      integer(kind=c_int), value :: acc
+      integer(kind=c_int), value :: nhalos
+      integer(kind=c_int), value :: max_map_nhalos
+
+    end function op_opt_arg_dat_halo_c
 
     function op_arg_gbl_c ( dat, dim, type, size, acc ) BIND(C,name='op_arg_gbl_copy')
 
@@ -810,11 +872,11 @@ module OP2_Fortran_Declarations
      type(c_ptr), value, intent(in) :: map
    end function
 
-   INTEGER(kind=c_int) function get_size_of_exec_level_c( set, level ) BIND(C,name='get_size_of_exec_level')
-      use, intrinsic :: ISO_C_BINDING
-      type(c_ptr), value, intent(in) :: set
-      integer(kind=c_int), value :: level
-   end function
+  !  INTEGER(kind=c_int) function get_size_of_exec_level_c( set, level ) BIND(C,name='get_size_of_exec_level')
+  !     use, intrinsic :: ISO_C_BINDING
+  !     type(c_ptr), value, intent(in) :: set
+  !     integer(kind=c_int), value :: level
+  !  end function
 
   end interface
 
@@ -893,6 +955,27 @@ module OP2_Fortran_Declarations
   interface op_get_data_ptr
     module procedure op_get_data_ptr_int, op_get_data_ptr_dat
   end interface op_get_data_ptr
+
+  interface op_arg_dat_halo
+    module procedure op_arg_dat_halo_python, op_arg_dat_halo_python_OP_ID, op_arg_dat_halo_real_8, op_arg_dat_halo_integer_4, &
+                    op_arg_dat_halo_real_8_2, op_arg_dat_halo_integer_4_2, &
+                    op_arg_dat_halo_real_8_3, op_arg_dat_halo_integer_4_3, &
+                    op_arg_dat_halo_real_8_4, op_arg_dat_halo_real_8_4_m2, &
+                    op_arg_dat_halo_real_8_m2, op_arg_dat_halo_integer_4_m2, &
+                    op_arg_dat_halo_real_8_2_m2, op_arg_dat_halo_integer_4_2_m2, &
+                    op_arg_dat_halo_real_8_3_m2, op_arg_dat_halo_integer_4_3_m2
+  end interface op_arg_dat_halo
+
+  interface op_opt_arg_dat_halo
+    module procedure op_opt_arg_dat_halo_python, op_opt_arg_dat_halo_python_OP_ID, op_opt_arg_dat_halo_real_8, &
+                    op_opt_arg_dat_halo_real_8_m2, op_opt_arg_dat_halo_real_8_2, &
+                    op_opt_arg_dat_halo_real_8_2_m2, op_opt_arg_dat_halo_real_8_3, &
+                    op_opt_arg_dat_halo_real_8_4_m2, op_opt_arg_dat_halo_real_8_4, &
+                    op_opt_arg_dat_halo_real_8_3_m2, op_opt_arg_dat_halo_integer_4, &
+                    op_opt_arg_dat_halo_integer_4_m2, op_opt_arg_dat_halo_integer_4_2, &
+                    op_opt_arg_dat_halo_integer_4_2_m2, op_opt_arg_dat_halo_integer_4_3, &
+                    op_opt_arg_dat_halo_integer_4_3_m2
+  end interface op_opt_arg_dat_halo
 
 
 contains
@@ -1432,6 +1515,9 @@ contains
     character(kind=c_char,len=*) :: type
     integer(kind=c_int) :: opt
     opt = 1
+
+    ! write(*,*) "op_arg_dat_real_8_2"
+
     op_arg_dat_real_8_2 = op_arg_dat_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1 )
   end function op_arg_dat_real_8_2
 
@@ -1645,6 +1731,7 @@ contains
     character(kind=c_char,len=*) :: type
     integer(kind=c_int) :: access
 
+    write(*,*) "op_arg_dat_python_OP_ID"
     if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
       print *, "Error, NULL pointer for op_dat"
       op_arg_dat_python_OP_ID = op_arg_dat_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1 )
@@ -2954,14 +3041,661 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_copy_map_to_fort
 
-  INTEGER(8) function get_size_of_exec_level ( set, level )
+  ! INTEGER(8) function get_size_of_exec_level ( set, level )
+  !   use, intrinsic :: ISO_C_BINDING
+  !   type(op_set), intent(in) :: set
+  !   integer(kind=c_int), value :: level
+
+  !   get_size_of_exec_level = get_size_of_exec_level_c( set%setCPtr, level )
+
+  ! end function get_size_of_exec_level
+
+  type(op_arg) function op_arg_dat_halo_real_8 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
     use, intrinsic :: ISO_C_BINDING
-    type(op_set), intent(in) :: set
-    integer(kind=c_int), value :: level
+    implicit none
+    real(8), dimension(*), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    write(*,*) "op_arg_dat_halo_real_8"
+    opt = 1
+    op_arg_dat_halo_real_8 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8
 
-    get_size_of_exec_level = get_size_of_exec_level_c( set%setCPtr, level )
+  type(op_arg) function op_arg_dat_halo_real_8_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_real_8_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_m2
 
-  end function get_size_of_exec_level
+  type(op_arg) function op_arg_dat_halo_real_8_2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+
+    write(*,*) "op_arg_dat_halo_real_8_2"
+
+    op_arg_dat_halo_real_8_2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_2
+
+  type(op_arg) function op_arg_dat_halo_real_8_2_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_real_8_2_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_2_m2
+
+  type(op_arg) function op_arg_dat_halo_real_8_3 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_real_8_3 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_3
+
+  type(op_arg) function op_arg_dat_halo_real_8_3_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_real_8_3_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_3_m2
+
+  type(op_arg) function op_arg_dat_halo_real_8_4_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_real_8_4_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_4_m2
+
+  type(op_arg) function op_arg_dat_halo_real_8_4 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    real(8), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_real_8_4 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_real_8_4
+
+  type(op_arg) function op_arg_dat_halo_integer_4 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4
+
+  type(op_arg) function op_arg_dat_halo_integer_4_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_m2
+
+  type(op_arg) function op_arg_dat_halo_integer_4_2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_2
+
+  type(op_arg) function op_arg_dat_halo_integer_4_2_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_2_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_2_m2
+
+  type(op_arg) function op_arg_dat_halo_integer_4_3 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_3 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_3
+
+  type(op_arg) function op_arg_dat_halo_integer_4_3_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_3_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_3_m2
+
+  type(op_arg) function op_arg_dat_halo_integer_4_4 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_4 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_4
+
+  type(op_arg) function op_arg_dat_halo_integer_4_4_m2 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(4), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt
+    opt = 1
+    op_arg_dat_halo_integer_4_4_m2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_arg_dat_halo_integer_4_4_m2
+
+  type(op_arg) function op_arg_dat_halo_python (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_dat) :: dat
+    integer(kind=c_int) :: idx
+    type(op_map) :: map
+    integer(kind=c_int) :: dim
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: access, nhalos, max_map_nhalos
+
+    ! first check if the op_dat is actually declared (HYDRA feature)
+    ! If is NULL, then return an empty op_arg
+!#ifdef OP2_WITH_CUDAFOR
+!    if (dat%dataCPtr .eq. C_NULL_PTR) then
+!#else
+    if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
+!#endif
+!      op_arg_dat_halo_python = op_arg_dat_halo_null_c (C_NULL_PTR, idx-1, C_NULL_PTR, -1, C_NULL_PTR, access-1, nhalos, max_map_nhalos)
+      print *, "Error, NULL pointer for op_dat"
+      op_arg_dat_halo_python = op_arg_dat_halo_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    else
+      if (dat%dataPtr%dim .ne. dim) then
+        print *, "Wrong dim",dim,dat%dataPtr%dim
+        stop 1
+      endif
+      ! warning: access and idx are in FORTRAN style, while the C style is required here
+      if ( map%mapPtr%dim .eq. 0 ) then
+        ! OP_ID case (does not decrement idx)
+        op_arg_dat_halo_python = op_arg_dat_halo_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+!        op_arg_dat_halo_python = op_arg_dat_halo_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+      else
+        op_arg_dat_halo_python = op_arg_dat_halo_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+!        op_arg_dat_halo_python = op_arg_dat_halo_c ( dat%dataCPtr, idx-1, map%mapCPtr,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+      endif
+    endif
+
+  end function op_arg_dat_halo_python
+
+  type(op_arg) function op_arg_dat_halo_python_OP_ID (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_dat) :: dat
+    integer(kind=c_int) :: idx
+    integer(4) :: map(2)
+    integer(kind=c_int) :: dim
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: access, nhalos, max_map_nhalos
+
+    write(*,*) "op_arg_dat_halo_python_OP_ID"
+    if ( isCNullPointer_c (dat%dataCPtr) .eqv. .true. ) then
+      print *, "Error, NULL pointer for op_dat"
+      op_arg_dat_halo_python_OP_ID = op_arg_dat_halo_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    else
+      if (dat%dataPtr%dim .ne. dim) then
+        print *, "Wrong dim",dim,dat%dataPtr%dim
+        stop 1
+      endif
+      ! warning: access and idx are in FORTRAN style, while the C style is required here
+      ! OP_ID case (does not decrement idx)
+      op_arg_dat_halo_python_OP_ID = op_arg_dat_halo_c ( dat%dataCPtr, idx, C_NULL_PTR,  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    endif
+
+  end function op_arg_dat_halo_python_OP_ID
+
+type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(*), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_2
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_2_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_2_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_2_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_3 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_3 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_3
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_3_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_3_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_3_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_4 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_4 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_4
+
+  type(op_arg) function op_opt_arg_dat_halo_real_8_4_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    real(8), dimension(:,:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_real_8_4_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_real_8_4_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_integer_4 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_integer_4
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    integer(4), dimension(*), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_integer_4_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_integer_4_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4_2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    integer(4), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_integer_4_2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_integer_4_2
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4_2_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    integer(4), dimension(:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_integer_4_2_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_integer_4_2_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4_3 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(*), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_integer_4_3 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_integer_4_3
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4_3_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    logical opt
+    integer(4), dimension(:,:,:), intent(in), target :: dat
+    integer(4), dimension(:,:), intent(in), target :: map
+     integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: opt_int
+
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    op_opt_arg_dat_halo_integer_4_3_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+  end function op_opt_arg_dat_halo_integer_4_3_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_integer_4_4 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+      use, intrinsic :: ISO_C_BINDING
+      implicit none
+      logical opt
+      integer(4), dimension(:,:,:,:), intent(in), target :: dat
+      integer(4), dimension(*), intent(in), target :: map
+       integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+      character(kind=c_char,len=*) :: type
+      integer(kind=c_int) :: opt_int
+
+      if (opt) then
+          opt_int = 1
+      else
+          opt_int = 0
+      endif
+
+      op_opt_arg_dat_halo_integer_4_4 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    end function op_opt_arg_dat_halo_integer_4_4
+
+    type(op_arg) function op_opt_arg_dat_halo_integer_4_4_m2 (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+      use, intrinsic :: ISO_C_BINDING
+      implicit none
+      logical opt
+      integer(4), dimension(:,:,:,:), intent(in), target :: dat
+      integer(4), dimension(:,:), intent(in), target :: map
+       integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
+      character(kind=c_char,len=*) :: type
+      integer(kind=c_int) :: opt_int
+
+      if (opt) then
+          opt_int = 1
+      else
+          opt_int = 0
+      endif
+
+      op_opt_arg_dat_halo_integer_4_4_m2 = op_arg_dat_halo_ptr_c (opt_int, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    end function op_opt_arg_dat_halo_integer_4_4_m2
+
+  type(op_arg) function op_opt_arg_dat_halo_python (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical :: opt
+    type(op_dat) :: dat
+    integer(kind=c_int) :: idx
+    type(op_map) :: map
+    integer(kind=c_int) :: dim
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: access, nhalos, max_map_nhalos
+
+    integer(kind=c_int) :: opt_int
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    ! warning: access and idx are in FORTRAN style, while the C style is required here
+    if (opt) then
+      if ( map%mapPtr%dim .eq. 0 ) then
+        ! OP_ID case (does not decrement idx)
+        op_opt_arg_dat_halo_python = op_opt_arg_dat_halo_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,   &
+          & dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+      else
+        op_opt_arg_dat_halo_python = op_opt_arg_dat_halo_c ( opt_int, dat%dataCPtr, idx-1, map%mapCPtr, &
+          &  dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+      endif
+    else
+      if ( map%mapPtr%dim .eq. 0 ) then
+        ! OP_ID case (does not decrement idx)
+        op_opt_arg_dat_halo_python = op_opt_arg_dat_halo_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+      else
+        op_opt_arg_dat_halo_python = op_opt_arg_dat_halo_c ( opt_int, C_NULL_PTR, idx-1, map%mapCPtr,  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+      endif
+!      op_opt_arg_dat_halo_python = op_opt_arg_dat_halo_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, C_NULL_PTR, access-1, nhalos, max_map_nhalos )
+    endif
+
+  end function op_opt_arg_dat_halo_python
+
+  type(op_arg) function op_opt_arg_dat_halo_python_OP_ID (opt, dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical :: opt
+    type(op_dat) :: dat
+    integer(kind=c_int) :: idx
+    integer(4) :: map(2)
+    integer(kind=c_int) :: dim
+    character(kind=c_char,len=*) :: type
+    integer(kind=c_int) :: access, nhalos, max_map_nhalos
+
+    integer(kind=c_int) :: opt_int
+    if (opt) then
+        opt_int = 1
+    else
+        opt_int = 0
+    endif
+
+    ! warning: access and idx are in FORTRAN style, while the C style is required here
+    if (opt) then
+      ! OP_ID case (does not decrement idx)
+      op_opt_arg_dat_halo_python_OP_ID = op_opt_arg_dat_halo_c ( opt_int, dat%dataCPtr, idx, C_NULL_PTR,   &
+        & dat%dataPtr%dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    else
+      ! OP_ID case (does not decrement idx)
+      op_opt_arg_dat_halo_python_OP_ID = op_opt_arg_dat_halo_c ( opt_int, C_NULL_PTR, idx, C_NULL_PTR,  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
+    endif
+
+  end function op_opt_arg_dat_halo_python_OP_ID
+
 
 end module OP2_Fortran_Declarations
 

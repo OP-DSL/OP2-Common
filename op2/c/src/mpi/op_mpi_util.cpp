@@ -632,6 +632,8 @@ int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos){
   for(int i = 0; i < halo_info->nhalos_count; i++){
     halo_info->nhalos_indices[halo_info->nhalos[i]] = i;
   }
+
+  printf("op_mpi_add_nhalos halo_info->max_nhalos=%d\n", halo_info->max_nhalos);
   return 1;
 }
 
@@ -645,4 +647,9 @@ int op_mpi_add_nhalos_map(op_map map, int nhalos){
   op_mpi_add_nhalos_set(map->from, nhalos);
   op_mpi_add_nhalos_set(map->to, nhalos);
   return 1;
+}
+
+int op_mpi_add_nhalos_dat(op_dat dat, int nhalos){
+  op_mpi_add_nhalos_set(dat->set, nhalos);
+  return op_mpi_add_nhalos(dat->halo_info, nhalos);
 }

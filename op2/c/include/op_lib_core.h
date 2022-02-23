@@ -170,6 +170,7 @@ typedef struct {
   int user_managed; /* indicates whether the user is managing memory */
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
   char *aug_data;   /* augmented data on host */
+  op_halo_info halo_info;
 } op_dat_core;
 
 typedef op_dat_core *op_dat;
@@ -190,8 +191,10 @@ typedef struct {
   int sent; /* flag to indicate if this argument has
                data in flight under non-blocking MPI comms*/
   int opt;  /* flag to indicate if this argument is in use */
+// #ifdef COMM_AVOID
   int nhalos;
   int nhalos_index;
+// #endif
 } op_arg;
 
 typedef struct {
@@ -275,12 +278,16 @@ void op_arg_check(op_set, int, op_arg, int *, char const *);
 
 op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
                        const char *typ, op_access acc);
-
+// #ifdef COMM_AVOID
 op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
                        const char *typ, op_access acc, int nhalos, int max_map_nhalos);
+// #endif
 
 op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
                            const char *typ, op_access acc);
+
+op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int dim,
+                           const char *typ, op_access acc, int nhalos, int max_map_nhalos);
 
 op_arg op_arg_gbl_core(int, char *, int, const char *, int, op_access);
 
@@ -323,7 +330,7 @@ void op_download_dat(op_dat dat);
 *******************************************************************************/
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
-int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos);
+int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange);
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
 

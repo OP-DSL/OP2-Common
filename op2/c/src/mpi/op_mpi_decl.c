@@ -366,14 +366,21 @@ op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
   return op_arg_dat_core(dat, idx, map, dim, type, acc);
 }
 
+// #ifdef COMM_AVOID
 op_arg op_arg_dat_halo(op_dat dat, int idx, op_map map, int dim, char const *type,
                   op_access acc, int nhalos, int max_map_nhalos) {
   return op_arg_dat_halo_core(dat, idx, map, dim, type, acc, nhalos, max_map_nhalos);
 }
+// #endif
 
 op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
                       char const *type, op_access acc) {
   return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
+}
+
+op_arg op_opt_arg_dat_halo(int opt, op_dat dat, int idx, op_map map, int dim,
+                      char const *type, op_access acc, int nhalos, int max_map_nhalos) {
+  return op_opt_arg_dat_halo_core(opt, dat, idx, map, dim, type, acc,  nhalos, max_map_nhalos);
 }
 
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,

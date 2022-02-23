@@ -93,6 +93,8 @@ op_arg op_arg_dat_halo(op_dat, int, op_map, int, char const *, op_access, int, i
 
 op_arg op_opt_arg_dat(int, op_dat, int, op_map, int, char const *, op_access);
 
+op_arg op_opt_arg_dat_halo(int, op_dat, int, op_map, int, char const *, op_access, int, int);
+
 op_arg op_arg_gbl_char(char *, int, const char *, int, op_access);
 op_arg op_opt_arg_gbl_char(int, char *, int, const char *, int, op_access);
 

@@ -59,6 +59,9 @@ extern halo_list* OP_aug_import_nonexec_lists[10];  // 10 levels for now
 extern halo_list *OP_merged_import_exec_list;
 extern halo_list *OP_merged_export_exec_list;
 
+extern halo_list *OP_merged_import_nonexec_list;
+extern halo_list *OP_merged_export_nonexec_list;
+
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int **orig_part_range;
@@ -95,6 +98,7 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
 int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos);
 int op_mpi_add_nhalos_set(op_set set, int nhalos);
 int op_mpi_add_nhalos_map(op_map map, int nhalos);
+int op_mpi_add_nhalos_dat(op_dat dat, int nhalos);
 
 #ifdef __cplusplus
 }

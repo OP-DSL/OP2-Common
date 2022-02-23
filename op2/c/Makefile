@@ -16,7 +16,7 @@
 #
 # set paths for various files
 #
-DEBUGG = 1
+DEBUGg = 1
 SRC = src
 INC = include
 LIB = lib
@@ -82,7 +82,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
-    CCFLAGS = -O0 -g -pg
+    CCFLAGS = -O0 -g -pg -rdynamic
   else
     CCFLAGS = -O3 -xHost -g #-DCOMM_PERF
   endif
@@ -216,7 +216,7 @@ mklib:
 	@mkdir -p $(LIB) $(OBJ)
 
 core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
-	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
+	$(CXX) -DCOMM_AVOID $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
@@ -346,6 +346,8 @@ mpi_comm_avoid: mklib $(INC)/op_seq.h $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_comm_avoid.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
+	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c \
+	-o $(OBJ)/op_lib_core.o
 	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_decl.c \
 	-o $(OBJ)/op_mpi_decl.o
 	$(MPICXX) -DCOMM_AVOID $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_rt_support.c \

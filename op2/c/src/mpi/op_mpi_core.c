@@ -97,6 +97,21 @@ op_export_handle *OP_export_list = NULL;
 // Timing
 double t1, t2, c1, c2;
 
+#include <execinfo.h>
+void bt1(void) {
+    int c, i;
+    void *addresses[10];
+    char **strings;
+
+    c = backtrace(addresses, 10);
+    strings = backtrace_symbols(addresses,c);
+    printf("backtrace returned: %dn", c);
+    for(i = 0; i < c; i++) {
+        // printf("%d: %X ", i, (int)addresses[i]);
+        printf("testbt %s\n", strings[i]); 
+    }
+  }
+
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
@@ -2143,6 +2158,8 @@ static void set_dirtybit(op_arg *arg, int hd) {
 
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT) &&
       (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW)) {
+    // bt1();
+    // printf("set_dirtybit argdat=%s\n", arg->dat->name);
     dat->dirtybit = 1;
     dat->dirty_hd = hd;
   }
@@ -3150,8 +3167,10 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 
   if (OP_diags > 0) {
     int dummy;
-    for (int n = 0; n < nargs; n++)
+    for (int n = 0; n < nargs; n++){
+      // printf("test n=%d set=%s dat=%s nhalo=%d nhaloindex=%d\n", n, set->name, args[n].dat->name, args[n].nhalos, args[n].nhalos_index);
       op_arg_check(set, n, args[n], &dummy, "halo_exchange mpi");
+    }
   }
 
   if (OP_hybrid_gpu) {
@@ -3212,12 +3231,14 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+  
+  // printf("test set=%s retsize=%d setsize=%d exec=%d(0=%d 1=%d)\n", set->name, size, set->size, set->exec_size, set->exec_sizes[0], set->exec_sizes[1]);
   return size;
 }
 
 #ifdef COMM_AVOID
-int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos) {
-  // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d\n", set->name, nhalos);
+int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange) {
+  // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d, exchange=%d\n", set->name, nhalos, exchange);
   int size = set->size;
   int direct_flag = 1;
 
@@ -3254,7 +3275,7 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
   }
   op_timers_core(&c1, &t1);
   for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && exchange == 1) {
       if (args[n].map == OP_ID) {
         op_exchange_halo_chained(&args[n], exec_flag);
       } else {
@@ -3285,6 +3306,9 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+
+  // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d setsize=%d exec=%d retsize=%d\n", 
+  //     set->name, nhalos, set->size , set->exec_sizes[set->halo_info->nhalos_indices[nhalos]], size);
   return size;
 }
 #endif
@@ -3360,6 +3384,7 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 
+  // printf("op_mpi_set_dirtybit nargs=%d\n", nargs);
   for (int n = 0; n < nargs; n++) {
     if (args[n].argtype == OP_ARG_DAT) {
       set_dirtybit(&args[n], 1);
