@@ -17,11 +17,6 @@ op_arg_dat({{params}})
 ({{cast}} *)arg{{idx}}.data{{offset}}
 {%- endmacro -%}
 
-{% if lh.dats|soa|length > 0 %}
-    {% block soa_strides %}
-    {% endblock %}
-{% endif %}
-
 {% block kernel %}
 {{lh.kernel_func}}
 {% endblock %}
