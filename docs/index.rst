@@ -8,6 +8,7 @@ Welcome to OP2 documentation!
 
    introduction
    getting_started
+   devapp
    api
    examples
    perf
@@ -20,4 +21,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`search`
 
-.. devapp - Developing an OP2 Application

@@ -1,18 +1,19 @@
 #include <cstdio>
-#include <cassert>
 #include <cstdlib>
 #include <math.h>
 #include <sys/time.h>
-#include <iostream>
 
+
+/* Problem mesh and iterations */
 #define FILE_NAME_PATH "new_grid.dat"
+#define NUM_ITERATIONS 1000
+
+
+/* Global Constants */
 #define CONST_GAM 1.4f
 #define CONST_MACH 0.4f
 #define CONST_P 1.0f
 #define CONST_R 1.0f
-#define NUM_ITERATIONS 1000
-#define TASK_DONE 1
-
 const double u = sqrt(CONST_GAM * CONST_P / CONST_R) * CONST_MACH;
 const double e = CONST_P / (CONST_R * (CONST_GAM - 1.0f)) + 0.5f * u * u;
 const double gam = CONST_GAM;
@@ -22,6 +23,7 @@ const double eps = 0.05f;
 const double alpha = 3.0f * atan(1.0f) / 45.0f;
 const double qinf[4] = {CONST_R, (CONST_R * u), 0.0f, (CONST_R * e)};
 
+/* wall timer routine */
 void timer(double *cpu, double *et) {
   (void)cpu;
   struct timeval t;
@@ -30,6 +32,7 @@ void timer(double *cpu, double *et) {
   *et = t.tv_sec + t.tv_usec * 1.0e-6;
 }
 
+/* main application */
 int main(int argc, char **argv)
 {
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
@@ -40,14 +43,14 @@ int main(int argc, char **argv)
   // timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
-  /** Load unstructured mesh **/
+  // Load unstructured mesh
   FILE *fp;
   if ((fp = fopen(FILE_NAME_PATH, "r")) == NULL) {
-    printf("can't open file new_grid.dat\n");
+    printf("can't open file FILE_NAME_PATH\n");
     exit(-1);
   }
   if (fscanf(fp, "%d %d %d %d \n", &nnode, &ncell, &nedge, &nbedge) != 4) {
-    printf("error reading from new_grid.dat\n");
+    printf("error reading from FILE_NAME_PATH\n");
     exit(-1);
   }
 
@@ -65,28 +68,28 @@ int main(int argc, char **argv)
 
   for (int n = 0; n < nnode; n++) {
     if (fscanf(fp, "%lf %lf \n", &x[2 * n], &x[2 * n + 1]) != 2) {
-      printf("error reading from new_grid.dat\n");
+      printf("error reading from FILE_NAME_PATH\n");
       exit(-1);
     }
   }
   for (int n = 0; n < ncell; n++) {
     if (fscanf(fp, "%d %d %d %d \n", &cell[4 * n], &cell[4 * n + 1],
                &cell[4 * n + 2], &cell[4 * n + 3]) != 4) {
-      printf("error reading from new_grid.dat\n");
+      printf("error reading from FILE_NAME_PATH\n");
       exit(-1);
     }
   }
   for (int n = 0; n < nedge; n++) {
     if (fscanf(fp, "%d %d %d %d \n", &edge[2 * n], &edge[2 * n + 1],
                &ecell[2 * n], &ecell[2 * n + 1]) != 4) {
-      printf("error reading from new_grid.dat\n");
+      printf("error reading from FILE_NAME_PATH\n");
       exit(-1);
     }
   }
   for (int n = 0; n < nbedge; n++) {
     if (fscanf(fp, "%d %d %d %d \n", &bedge[2 * n], &bedge[2 * n + 1],
                &becell[n], &bound[n]) != 4) {
-      printf("error reading from new_grid.dat\n");
+      printf("error reading from FILE_NAME_PATH\n");
       exit(-1);
     }
   }
@@ -99,12 +102,12 @@ int main(int argc, char **argv)
     }
   }
 
+  //start timer
   timer(&cpu_t1, &wall_t1);
 
   for (int iter = 1; iter <= NUM_ITERATIONS; iter++) {
 
-    for (int iteration = 0; iteration < (ncell * 4); ++iteration)
-    {
+    for (int iteration = 0; iteration < (ncell * 4); ++iteration) {
       qold[iteration] = q[iteration];
     }
 
@@ -249,8 +252,12 @@ int main(int argc, char **argv)
     }
   }
 
+  //end timer
   timer(&cpu_t2, &wall_t2);
+
+  // compute and print wall time
   double walltime = wall_t2 - wall_t1;
+  printf(" Wall time %lf \n", walltime);
 
   free(cell);
   free(edge);
