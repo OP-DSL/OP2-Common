@@ -1,6 +1,8 @@
 Developing an OP2 Application
 =============================
 
+This page provides a tutorial in the basics of using OP2 for unstructured-mesh application development.
+
 Example Application
 -------------------
 Original - Load mesh and initialization
@@ -14,7 +16,7 @@ Original - Loops over mesh
 
 Build OP2
 ---------
-Build OPS using instructions in the `Getting Started <fhttps://op2-dsl.readthedocs.io/en/latest/getting_started.html>`__. page.
+Build OP2 using instructions in the `Getting Started <fhttps://op2-dsl.readthedocs.io/en/latest/getting_started.html>`__. page.
 
 Step 1 - Preparing to use OP2
 -----------------------------
