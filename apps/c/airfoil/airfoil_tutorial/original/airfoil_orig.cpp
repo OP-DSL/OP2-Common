@@ -105,14 +105,18 @@ int main(int argc, char **argv)
   //start timer
   timer(&cpu_t1, &wall_t1);
 
+  // main time-marching loop
   for (int iter = 1; iter <= NUM_ITERATIONS; iter++) {
 
+    //save_soln : iterates over cells
     for (int iteration = 0; iteration < (ncell * 4); ++iteration) {
       qold[iteration] = q[iteration];
     }
 
+    // predictor/corrector update loop
     for (int k=0; k < 2; ++k) {
 
+      //adt_calc - calculate area/timstep : iterates over cells
       for (int iteration = 0; iteration < ncell; ++iteration) {
         int map1idx = cell[iteration * 4 + 0];
         int map2idx = cell[iteration * 4 + 1];
@@ -145,6 +149,8 @@ int main(int argc, char **argv)
         adt[iteration] = (adt[iteration]) / cfl;
       }
 
+
+      //res_calc - calculate flux residual: iterates over edges
       for (int iteration = 0; iteration < nedge; ++iteration) {
         int map1idx = edge[iteration * 2 + 0];
         int map2idx = edge[iteration * 2 + 1];
@@ -182,6 +188,7 @@ int main(int argc, char **argv)
         res[4 * map4idx + 3] -= f;
       }
 
+      //bres_calc - calculate flux residual in boundary: iterates over boundary edges
       for (int iteration = 0; iteration < nbedge; ++iteration) {
         int map1idx = bedge[iteration * 2 + 0];
         int map2idx = bedge[iteration * 2 + 1];
@@ -221,6 +228,7 @@ int main(int argc, char **argv)
         }
       }
 
+      //update = update flow field - iterates over cells
       rms = 0.0f;
       for (int iteration = 0; iteration < ncell; ++iteration) {
         double del, adti;
@@ -236,6 +244,7 @@ int main(int argc, char **argv)
       }
     }
 
+    // print iteration history
     rms = sqrt(rms / (double)ncell);
     if (iter % 100 == 0)
       printf(" %d  %10.5e \n", iter, rms);
