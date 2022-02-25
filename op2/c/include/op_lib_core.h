@@ -133,6 +133,8 @@ typedef struct {
   int *core_sizes;
   int *exec_sizes;
   int *nonexec_sizes;
+  int total_exec_size;
+  int total_nonexec_size;
   op_halo_info halo_info;
 } op_set_core;
 

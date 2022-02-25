@@ -930,7 +930,7 @@ void prepare_aug_sets(){
     op_set set = OP_set_list[s];
     int max_level = set->halo_info->max_nhalos;
 
-    printf("prepate_aug_sets set=%s exec_levels=%d\n", set->name, max_level);
+    printf("prepare_aug_sets set=%s exec_levels=%d\n", set->name, max_level);
 
     set->core_sizes =  (int *) malloc(max_level * sizeof(int));
     for(int i = 0; i < max_level; i++){
@@ -1546,7 +1546,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
           set->core_size = count;
         }
         set->core_sizes[el] = count;
-        printf("step10core my_rank=%d set=%s core_sizes[%d]=%d\n", my_rank, set->name, el, set->core_sizes[el]);
+        printf("step10 my_rank=%d set=%s core_sizes[%d]=%d\n", my_rank, set->name, el, set->core_sizes[el]);
       } else {
         temp_core_elems[set->index][el] = (int *)xmalloc(set->size * sizeof(int));
         temp_exp_elems[set->index][el] = (int *)xmalloc(0 * sizeof(int));
@@ -1557,7 +1557,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
           set->core_size = set->size;
         }
         set->core_sizes[el] = set->size;
-        printf("step10core my_rank=%d set=%s core_sizes[%d]=%d\n", my_rank, set->name, el, set->core_sizes[el]);
+        printf("step10 my_rank=%d set=%s core_sizes[%d]=%d\n", my_rank, set->name, el, set->core_sizes[el]);
       }
     }
     
@@ -1928,6 +1928,10 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
     set->nonexec_sizes = (int*)xmalloc(sizeof(int) * num_levels);
     set->exec_size = 0;
     set->nonexec_size = 0;
+
+    set->total_exec_size = 0;
+    set->total_nonexec_size = 0;
+
     for(int el = 0; el < num_levels; el++){
       int exec_levels = set->halo_info->nhalos[el];
       set->exec_sizes[el] = 0;
@@ -1947,6 +1951,9 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
         }
         
       }
+
+      set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
+      set->total_nonexec_size += OP_aug_import_nonexec_lists[el][set->index] ? OP_aug_import_nonexec_lists[el][set->index]->size : 0;
     }
     printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d) exec=%d(0=%d) non=%d(0=%d) max_halo=%d halo_count=%d\n", my_rank, set->name,
     set->size, set->core_size, set->core_sizes[0],
@@ -2051,6 +2058,7 @@ void set_dats_mgcfd(){
 }
 
 void set_maps_hydra(){
+   printf("set_maps_hydra maps and dats\n");
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map map = OP_map_list[m];
     //  op_mpi_add_nhalos_map(map, 2);
@@ -2064,89 +2072,29 @@ void set_maps_hydra(){
        printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
   }
-
-  // op_dat_entry *item;
-  // TAILQ_FOREACH(item, &OP_dat_list, entries) {
-  //   op_dat dat = item->dat;
-  //   if((strncmp("vol", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("x", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("q", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("pqp", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("pql", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("ewt", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("pidx", dat->name, strlen(dat->name)) == 0) ||
-  //      (strncmp("mz", dat->name, strlen(dat->name)) == 0)){
-  //        printf("op_mpi_add_nhalos_dat dat=%s\n", dat->name);
-  //         op_mpi_add_nhalos_dat(dat, 2);
-  //   }
-  // }
 
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    op_mpi_add_nhalos_dat(dat, 2);
-  }
-}
-
-
-void set_maps_hydra_prev(){
-  printf("set_maps_hydra selected\n");
-  // for (int s = 0; s < OP_set_index; s++) { // for each set
-  //   op_set set = OP_set_list[s];
-  //   op_mpi_add_nhalos_set(set, 2);
-  //   // op_mpi_add_nhalos_set(set, 3);
-  // }
-  // return;
-  for (int m = 0; m < OP_map_index; m++) { // for each maping table
-    op_map map = OP_map_list[m];
-    //  op_mpi_add_nhalos_map(map, 2);
-    // //  op_mpi_add_nhalos_map(map, 3);
-    if (strncmp("ne", map->name, strlen(map->name)) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-
-      op_dat_entry *item;
-      TAILQ_FOREACH(item, &OP_dat_list, entries) {
-        op_dat dat = item->dat;
-        if (compare_sets(map->from, dat->set) == 1 || compare_sets(map->to, dat->set) == 1){
+    if(
+      (strncmp("vol", dat->name, strlen(dat->name)) == 0)
+      //  (strncmp("x", dat->name, strlen(dat->name)) == 0) ||
+      //  (strncmp("q", dat->name, strlen(dat->name)) == 0) ||
+      //  (strncmp("pqp", dat->name, strlen(dat->name)) == 0) ||
+      //  (strncmp("pql", dat->name, strlen(dat->name)) == 0)
+      //  (strncmp("ewt", dat->name, strlen(dat->name)) == 0) ||
+      //  (strncmp("pidx", dat->name, strlen(dat->name)) == 0) ||
+      //  (strncmp("mz", dat->name, strlen(dat->name)) == 0)
+       ){
+         printf("op_mpi_add_nhalos_dat dat=%s\n", dat->name);
           op_mpi_add_nhalos_dat(dat, 2);
-          printf("op_mpi_add_nhalos_dat dat=%s\n", dat->name);
-        }
-      }
-    
-    }
-    if (strncmp("npe", map->name, strlen(map->name)) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-       op_dat_entry *item;
-      TAILQ_FOREACH(item, &OP_dat_list, entries) {
-        op_dat dat = item->dat;
-        if (compare_sets(map->from, dat->set) == 1 || compare_sets(map->to, dat->set) == 1){
-          op_mpi_add_nhalos_dat(dat, 2);
-          printf("op_mpi_add_nhalos_dat dat=%s\n", dat->name);
-        }
-      }
     }
   }
 
   // op_dat_entry *item;
   // TAILQ_FOREACH(item, &OP_dat_list, entries) {
   //   op_dat dat = item->dat;
-  //   op_mpi_add_nhalos_dat(dat, dat->halo_info);
-    // if((strncmp("vol", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("x", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("q", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("pqp", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("pql", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("ewt", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("pidx", dat->name, strlen(dat->name)) == 0) ||
-    //    (strncmp("mz", dat->name, strlen(dat->name)) == 0)){
-    //      printf("op_mpi_add_nhalos_dat dat=%s\n", dat->name);
-    //       op_mpi_add_nhalos_dat(dat, 2);
-    // }
-
-    // op_mpi_add_nhalos_dat(dat, 2);
-    // op_mpi_add_nhalos_dat(dat, 3);
+  //   op_mpi_add_nhalos_dat(dat, 2);
   // }
 }
 
@@ -2459,8 +2407,4 @@ int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_
   }else{
     return OP_import_nonexec_list[set->index]->size;
   }
-}
-
-int get_size_of_exec_level(op_set set, int level){
-  return OP_aug_import_exec_lists[level][set->index]->size;
 }

@@ -3136,25 +3136,25 @@ int getSetSizeFromOpArg(op_arg *arg) {
 #else
 int getSetSizeFromOpArg(op_arg *arg) {
 
-  int exec_size = 0;
-  if(arg->opt){
-    int exec_levels = arg->dat->set->halo_info->max_nhalos;
-    for(int l = 0; l < exec_levels; l++){
-      exec_size += OP_aug_import_exec_lists[l][arg->dat->set->index]->size;
-    }
-  }
+  // int exec_size = 0;
+  // if(arg->opt){
+  //   int exec_levels = arg->dat->set->halo_info->max_nhalos;
+  //   for(int l = 0; l < exec_levels; l++){
+  //     exec_size += OP_aug_import_exec_lists[l][arg->dat->set->index]->size;
+  //   }
+  // }
 
-  // by taking size of all non exec halos, returning total dat array size
-  int non_exec_size = 0;
-  if(arg->opt){
-    for(int l = 0; l < arg->dat->set->halo_info->nhalos_count; l++){
-      non_exec_size += OP_aug_import_nonexec_lists[l][arg->dat->set->index]->size;
-    }
-  }
+  // // by taking size of all non exec halos, returning total dat array size
+  // int non_exec_size = 0;
+  // if(arg->opt){
+  //   for(int l = 0; l < arg->dat->set->halo_info->nhalos_count; l++){
+  //     non_exec_size += OP_aug_import_nonexec_lists[l][arg->dat->set->index]->size;
+  //   }
+  // }
 
   return arg->opt ? (arg->dat->set->size +
-                     exec_size +
-                     non_exec_size)
+                     arg->dat->set->total_exec_size +
+                     arg->dat->set->total_nonexec_size)
                   : 0;
 }
 #endif
@@ -3202,7 +3202,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID) {
-        op_exchange_halo(&args[n], exec_flag);
+#ifdef COMM_AVOID
+        if(args[n].dat->halo_info->max_nhalos > 1){
+          op_exchange_halo_merged(&args[n], exec_flag);
+        }else
+#endif
+          op_exchange_halo(&args[n], exec_flag);
       } else {
         // Check if dat-map combination was already done or if there is a
         // mismatch (same dat, diff map)
@@ -3217,13 +3222,24 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
         // If there was a map mismatch with other argument, do full halo
         // exchange
         if (fallback)
-          op_exchange_halo(&args[n], exec_flag);
+#ifdef COMM_AVOID
+          if(args[n].dat->halo_info->max_nhalos > 1){
+            op_exchange_halo_merged(&args[n], exec_flag);
+          }else
+#endif
+            op_exchange_halo(&args[n], exec_flag);
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
           if (OP_map_partial_exchange[args[n].map->index])
             op_exchange_halo_partial(&args[n], exec_flag);
-          else
-            op_exchange_halo(&args[n], exec_flag);
+          else{
+#ifdef COMM_AVOID
+            if(args[n].dat->halo_info->max_nhalos > 1){
+              op_exchange_halo_merged(&args[n], exec_flag);
+            }else
+#endif
+              op_exchange_halo(&args[n], exec_flag);
+          }
         }
       }
     }
@@ -3232,7 +3248,8 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
   
-  // printf("test set=%s retsize=%d setsize=%d exec=%d(0=%d 1=%d)\n", set->name, size, set->size, set->exec_size, set->exec_sizes[0], set->exec_sizes[1]);
+  // printf("test set=%s retsize=%d setsize=%d exec=%d(0=%d 1=%d)\n", set->name, size, set->size, set->exec_size, set->exec_sizes[0], 
+  // (set->halo_info->nhalos_count > 1)? set->exec_sizes[1]: -1);
   return size;
 }
 
@@ -4343,4 +4360,8 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
                handle->coupling_proclist[j], 1001, OP_MPI_GLOBAL);
     }
   }
+}
+
+int get_set_size_with_nhalos(op_set set, int nhalos){
+  return set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
 }

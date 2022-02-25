@@ -217,7 +217,7 @@ else
 ifeq ($(OP2_COMPILER),intel)
   F_INC_MOD       = $(F_OP2_MOD)/intel
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  OPT             = -O3 -g -xHOST -traceback -rdynamic #-qopt-report
+  OPT             = -O3 -g -xHOST -traceback #-qopt-report
   CC              = icc
   CXX             = icpc 
   CFLAGS          = $(OPT) -std=c99 #-Wall -Werror $(DEBUG_FLAGS) -wd981

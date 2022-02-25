@@ -382,6 +382,7 @@ void op_move_to_device();
 *******************************************************************************/
 
 void op_exchange_halo(op_arg *arg, int exec_flag);
+void op_exchange_halo_merged(op_arg *arg, int exec_flag);
 void op_exchange_halo_chained(op_arg *arg, int exec_flag);
 void op_exchange_halo_partial(op_arg *arg, int exec_flag);
 void op_wait_all(op_arg *arg);
@@ -413,5 +414,7 @@ void step9(int **part_range, int my_rank, int comm_size);
 void step10(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
 void step11(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
 void step12(int **part_range, int max_time, int my_rank, int comm_size);
+
+int get_set_size_with_nhalos(op_set set, int level);
 
 #endif /* __OP_MPI_CORE_H */

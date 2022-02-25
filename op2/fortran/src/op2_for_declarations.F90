@@ -872,11 +872,11 @@ module OP2_Fortran_Declarations
      type(c_ptr), value, intent(in) :: map
    end function
 
-  !  INTEGER(kind=c_int) function get_size_of_exec_level_c( set, level ) BIND(C,name='get_size_of_exec_level')
-  !     use, intrinsic :: ISO_C_BINDING
-  !     type(c_ptr), value, intent(in) :: set
-  !     integer(kind=c_int), value :: level
-  !  end function
+   INTEGER(kind=c_int) function get_set_size_with_nhalos_c( set, nhalos ) BIND(C,name='get_set_size_with_nhalos')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: set
+      integer(kind=c_int), value :: nhalos
+   end function
 
   end interface
 
@@ -3041,14 +3041,14 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_copy_map_to_fort
 
-  ! INTEGER(8) function get_size_of_exec_level ( set, level )
-  !   use, intrinsic :: ISO_C_BINDING
-  !   type(op_set), intent(in) :: set
-  !   integer(kind=c_int), value :: level
+  INTEGER(8) function get_set_size_with_nhalos ( set, nhalos )
+    use, intrinsic :: ISO_C_BINDING
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), value :: nhalos
 
-  !   get_size_of_exec_level = get_size_of_exec_level_c( set%setCPtr, level )
+    get_set_size_with_nhalos = get_set_size_with_nhalos_c( set%setCPtr, nhalos )
 
-  ! end function get_size_of_exec_level
+  end function get_set_size_with_nhalos
 
   type(op_arg) function op_arg_dat_halo_real_8 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
     use, intrinsic :: ISO_C_BINDING
@@ -3058,7 +3058,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
      integer(kind=c_int) :: idx, dim, access, nhalos, max_map_nhalos
     character(kind=c_char,len=*) :: type
     integer(kind=c_int) :: opt
-    write(*,*) "op_arg_dat_halo_real_8"
+    ! write(*,*) "op_arg_dat_halo_real_8"
     opt = 1
     op_arg_dat_halo_real_8 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
   end function op_arg_dat_halo_real_8
@@ -3085,7 +3085,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     integer(kind=c_int) :: opt
     opt = 1
 
-    write(*,*) "op_arg_dat_halo_real_8_2"
+    ! write(*,*) "op_arg_dat_halo_real_8_2"
 
     op_arg_dat_halo_real_8_2 = op_arg_dat_halo_ptr_c ( opt, c_loc(dat), idx-1, c_loc(map),  dim, type//C_NULL_CHAR, access-1, nhalos, max_map_nhalos )
   end function op_arg_dat_halo_real_8_2

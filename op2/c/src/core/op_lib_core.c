@@ -326,6 +326,8 @@ op_set op_decl_set_core(int size, char const *name) {
   set->nonexec_sizes = NULL;
   set->halo_info = (op_halo_info)op_malloc(sizeof(op_halo_info_core));
   op_init_halo_info(set->halo_info);
+  set->total_exec_size = 0;
+  set->total_nonexec_size = 0;
   
   return set;
 }
@@ -736,14 +738,6 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
 op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
                        const char *typ, op_access acc, int nhalos, int max_map_nhalos) {
   op_arg arg;
-
-  //  printf("augdata return dat=%s set=%s idx=%d nhalos=%d max_map_nhalos=%d\n", dat->name, dat->set->name, idx, nhalos, max_map_nhalos);
-  // return op_arg_dat_core(dat, idx, map, dim, typ, acc);
-
-    //  printf("augdata return dat=%s set=%s \n", dat->name, dat->set->name);
-    // printf("augdata return dat=%s set=%s idx=%d map=%p\n", dat->name, dat->set->name, idx,  arg.map_data_d);
-    //  printf("augdata return dat=%s set=%s idx=%d dat=%p\n", dat->name, dat->set->name, idx,  arg.data_d);
-      // printf("augdata return dat=%s set=%s idx=%d mapname=%s\n", dat->name, dat->set->name, idx, map->name);
   /* index is not used for now */
   arg.index = -1;
   arg.opt = 1;
@@ -758,29 +752,10 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-
-  if(idx != -1)
-    printf("augdata dat=%s set=%s max_map_nhalos=%d index=%d\n", dat->name, dat->set->name, max_map_nhalos, map->from->halo_info->nhalos_indices[max_map_nhalos]);
-    // if(idx == -1){
-    //    printf("augdata in dat=%s set=%s \n", dat->name, dat->set->name);
-    //   printf("augdata in dat=%s set=%s idx=%d mapdatad=%p\n", dat->name, dat->set->name, idx,  arg.map_data_d);
-    //   printf("augdata in dat=%s set=%s idx=%d mapdata=%p\n", dat->name, dat->set->name, idx,  arg.map_data);
-    //   printf("augdata in dat=%s set=%s idx=%d aug=%p\n", dat->name, dat->set->name, idx,   arg.map_data);
-    // }
-    // printf("augdata new1 dat=%s set=%s idx=%d nhalos=%d max_map_nhalos=%d dat=%p\n", dat->name, dat->set->name, idx, nhalos, max_map_nhalos, arg.map_data_d);
     arg.map_data_d = (idx == -1 ? NULL : map->map_d);
     arg.map_data = (idx == -1 ? NULL : map->aug_maps[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
-    // arg.map_data = (idx == -1 ? NULL : map->aug_maps[dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos]]);
-
-    // if(idx == -1){
-    //    printf("augdata after dat=%s set=%s \n", dat->name, dat->set->name);
-    //   printf("augdata after dat=%s set=%s idx=%d mapdatad=%p\n", dat->name, dat->set->name, idx,  arg.map_data_d);
-    //   printf("augdata after dat=%s set=%s idx=%d mapdata=%p\n", dat->name, dat->set->name, idx,  arg.map_data);
-    //   printf("augdata after dat=%s set=%s idx=%d aug=%p\n", dat->name, dat->set->name, idx,   arg.map_data);
-    // }
   } else {
     /* set default values */
-    // printf("augdata indat NULL set=%s \n", dat->set->name);
     arg.size = -1;
     arg.data = NULL;
     arg.data_d = NULL;
@@ -806,7 +781,6 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;
-
   arg.nhalos = nhalos;
   arg.nhalos_index = dat->set->halo_info->nhalos_indices[nhalos];
 
