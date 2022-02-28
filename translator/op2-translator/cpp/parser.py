@@ -11,13 +11,15 @@ from store import Kernel, Location, ParseError, Program
 from util import enumRegex, safeFind
 
 
-def parseKernel(path: Path, name: str) -> Kernel:
-    translation_unit = Index.create().parse(path)
+def parseKernel(path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
+    args = [f"-I{dir}" for dir in include_dirs]
+    translation_unit = Index.create().parse(path, args=args)
+
     nodes = translation_unit.cursor.get_children()
 
     node = safeFind(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == name)
     if not node:
-        raise ParseError(f"failed to locate kernel function {name}", parseLocation(node))
+        return None
 
     params = []
     for n in node.get_children():
