@@ -118,7 +118,7 @@ By this point you need OP2 set up - take a look at the Makefile in step1, and ob
 Step 2 - OP2 Declaration
 ------------------------
 
-* Declare sets - The Airfoil application consists of four mesh element types (which we call sets): nodes, edges, cells and boundary edges. These needs to be declared using the ``op_set`` API call together with the number of elements for each of these sets:
+**Declare sets** - The Airfoil application consists of four mesh element types (which we call sets): nodes, edges, cells and boundary edges. These needs to be declared using the ``op_set`` API call together with the number of elements for each of these sets:
 
 .. code-block:: C
 
@@ -132,11 +132,62 @@ Later, we will see how the number of mesh elements can be read in directly from 
 
 When developing your own application with OP2, or indeed converting an application to use OP2, you will need to decide on what mesh element types, i.e. sets will need to be declared to define the full mesh. A good starting point for this design is to see what mesh elements are used the loops over the mesh.
 
-* Declare maps
-* Declare dats
-* Declare constants
+**Declare maps** - Looking at the original Airfoil application's loops we see that mappings between edges and nodes, edges and cells, boundary edges and nodes, boundary edges and cells, and cells and nodes are required. This can be observed by the indirect access to data in each of the loops in the main iteration loops. These connectivity information needs to be declared via the ``op_decl_map`` API call:
 
-Finally compile the step2 application and execute. You will note that the full application still runs and validates as OP2, with the sequential back-end simply uses the allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this will only work for this developer sequential version, where none of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
+.. code-block:: C
+
+  //declare maps
+  op_map pedge   = op_decl_map(edges,  nodes, 2, edge,   "pedge"  );
+  op_map pecell  = op_decl_map(edges,  cells, 2, ecell,  "pecell" );
+  op_map pbedge  = op_decl_map(bedges, nodes, 2, bedge,  "pbedge" );
+  op_map pbecell = op_decl_map(bedges, cells, 1, becell, "pbecell");
+  op_map pcell   = op_decl_map(cells,  nodes, 4, cell,   "pcell"  );
+
+The ``op_decl_map`` requires the names of the two sets for which the mapping is declared, its arity, mapping data (as in this case allocated in integer blocks of memory) and a string name.
+
+**Declare data** - All data declared on sets should be declared using the ``op_decl_dat`` API call. For Airfoil this consists of the mesh coordinates data ``x``, new and old solution ``q`` and ``q_old``, area time step ``adt``, flux residual ``res`` and boundary flag ``bound`` that indicates if the edge is a boundary edge:
+
+.. code-block:: C
+
+  //declare data on sets
+  op_dat p_bound = op_decl_dat(bedges, 1, "int",    bound, "p_bound");
+  op_dat p_x     = op_decl_dat(nodes,  2, "double", x,     "p_x"    );
+  op_dat p_q     = op_decl_dat(cells,  4, "double", q,     "p_q"    );
+  op_dat p_qold  = op_decl_dat(cells,  4, "double", qold,  "p_qold" );
+  op_dat p_adt   = op_decl_dat(cells,  1, "double", adt,   "p_adt"  );
+  op_dat p_res   = op_decl_dat(cells,  4, "double", res,   "p_res"  );
+
+**Declare constants** - Finally global constants that are used in any of the computations in the loops needs to be declared. This is required due to the fact that when using code-generation later for parallelizations such as on GPUs (e.g. using CUDA), global constants needs to be copied over to the GPUs before they can be used in a GPU kernel. Declaring them using the ``op_decl_const`` API call will indicate to the OP2 code-generator that these constants needs to be handled in a special way, generating code for copying them to the GPU for the relevant back-ends.
+
+.. code-block:: C
+
+  //declare global constants
+  op_decl_const(1, "double", &gam  );
+  op_decl_const(1, "double", &gm1  );
+  op_decl_const(1, "double", &cfl  );
+  op_decl_const(1, "double", &eps  );
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf  );
+
+Finally information about the the declared mesh can be viewed using a diagnostics level of 2 in ``op_init`` and calling ``op_diagnostic_output()`` API call:
+
+.. code-block:: C
+
+  /* main application */
+  int main(int argc, char **argv) {
+  //Initialise the OP2 library, passing runtime args, and setting diagnostics level to low (1)
+  op_init(argc, argv, 2);
+  ...
+  ... op_decl_set ...
+  ... op_decl_map ...
+  ... op_decl_dat ...
+  ... op_decl_const  ...
+  ...
+  //output mesh information
+  op_diagnostic_output();
+
+
+Now, compile the step2 application  code and execute. You will note that the full application still runs and validates as OP2, with the sequential back-end simply uses the allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this will only work for this developer sequential version, where none of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
 
 Step 3 - First parallel loop : direct loop
 ------------------------------------------

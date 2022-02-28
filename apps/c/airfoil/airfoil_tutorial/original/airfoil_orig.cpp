@@ -32,8 +32,7 @@ void timer(double *cpu, double *et) {
 }
 
 /* main application */
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
   int nnode, ncell, nedge, nbedge, niter;

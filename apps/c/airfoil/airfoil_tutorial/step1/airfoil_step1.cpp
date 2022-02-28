@@ -34,8 +34,7 @@ void timer(double *cpu, double *et) {
 }
 
 /* main application */
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   //Initialise the OP2 library, passing runtime args, and setting diagnostics level to low (1)
   op_init(argc, argv, 1);
 
