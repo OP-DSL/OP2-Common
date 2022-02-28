@@ -3,6 +3,7 @@
 #include <math.h>
 #include <sys/time.h>
 
+#include "op_seq.h"
 
 /* Problem mesh and iterations */
 #define FILE_NAME_PATH "new_grid.dat"
@@ -35,6 +36,9 @@ void timer(double *cpu, double *et) {
 /* main application */
 int main(int argc, char **argv)
 {
+  //Initialise the OP2 library, passing runtime args, and setting diagnostics level to low (1)
+  op_init(argc, argv, 1);
+
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
   int nnode, ncell, nedge, nbedge, niter;
@@ -282,6 +286,9 @@ int main(int argc, char **argv)
   free(qold);
   free(adt);
   free(res);
+
+  //Finalising the OP2 library
+  op_exit();
 
   return 0;
 }

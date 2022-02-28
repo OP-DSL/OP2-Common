@@ -3,6 +3,8 @@
 #include <math.h>
 #include <sys/time.h>
 
+#include "op_seq.h"
+
 /* Problem mesh and iterations */
 #define FILE_NAME_PATH "new_grid.dat"
 #define NUM_ITERATIONS 1000
@@ -34,6 +36,9 @@ void timer(double *cpu, double *et) {
 /* main application */
 int main(int argc, char **argv)
 {
+  //Initialise the OP2 library, passing runtime args, and setting diagnostics level to low (1)
+  op_init(argc, argv, 1);
+
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
   int nnode, ncell, nedge, nbedge, niter;
@@ -101,6 +106,34 @@ int main(int argc, char **argv)
       res[4 * n + m] = 0.0f;
     }
   }
+
+  // declare sets, pointers, datasets and global constants
+  op_set nodes = op_decl_set(nnode, "nodes");
+  op_set edges = op_decl_set(nedge, "edges");
+  op_set bedges = op_decl_set(nbedge, "bedges");
+  op_set cells = op_decl_set(ncell, "cells");
+
+  op_map pedge = op_decl_map(edges, nodes, 2, edge, "pedge");
+  op_map pecell = op_decl_map(edges, cells, 2, ecell, "pecell");
+  op_map pbedge = op_decl_map(bedges, nodes, 2, bedge, "pbedge");
+  op_map pbecell = op_decl_map(bedges, cells, 1, becell, "pbecell");
+  op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
+
+  op_dat p_bound = op_decl_dat(bedges, 1, "int", bound, "p_bound");
+  op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
+  op_dat p_q = op_decl_dat(cells, 4, "double", q, "p_q");
+  op_dat p_qold = op_decl_dat(cells, 4, "double", qold, "p_qold");
+  op_dat p_adt = op_decl_dat(cells, 1, "double", adt, "p_adt");
+  op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
+
+  op_decl_const(1, "double", &gam);
+  op_decl_const(1, "double", &gm1);
+  op_decl_const(1, "double", &cfl);
+  op_decl_const(1, "double", &eps);
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf);
+
+  op_diagnostic_output();
 
   //start timer
   timer(&cpu_t1, &wall_t1);
@@ -281,6 +314,9 @@ int main(int argc, char **argv)
   free(qold);
   free(adt);
   free(res);
+
+  //Finalising the OP2 library
+  op_exit();
 
   return 0;
 }
