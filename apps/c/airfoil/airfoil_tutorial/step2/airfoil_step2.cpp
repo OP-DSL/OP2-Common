@@ -107,18 +107,20 @@ int main(int argc, char **argv)
     }
   }
 
-  // declare sets, pointers, datasets and global constants
-  op_set nodes = op_decl_set(nnode, "nodes");
-  op_set edges = op_decl_set(nedge, "edges");
+  // declare sets
+  op_set nodes  = op_decl_set(nnode,  "nodes" );
+  op_set edges  = op_decl_set(nedge,  "edges" );
   op_set bedges = op_decl_set(nbedge, "bedges");
-  op_set cells = op_decl_set(ncell, "cells");
+  op_set cells  = op_decl_set(ncell,  "cells" );
 
+  //declare maps
   op_map pedge = op_decl_map(edges, nodes, 2, edge, "pedge");
   op_map pecell = op_decl_map(edges, cells, 2, ecell, "pecell");
   op_map pbedge = op_decl_map(bedges, nodes, 2, bedge, "pbedge");
   op_map pbecell = op_decl_map(bedges, cells, 1, becell, "pbecell");
   op_map pcell = op_decl_map(cells, nodes, 4, cell, "pcell");
 
+  //declare data on sets
   op_dat p_bound = op_decl_dat(bedges, 1, "int", bound, "p_bound");
   op_dat p_x = op_decl_dat(nodes, 2, "double", x, "p_x");
   op_dat p_q = op_decl_dat(cells, 4, "double", q, "p_q");
@@ -126,6 +128,7 @@ int main(int argc, char **argv)
   op_dat p_adt = op_decl_dat(cells, 1, "double", adt, "p_adt");
   op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
 
+  //declare global constants
   op_decl_const(1, "double", &gam);
   op_decl_const(1, "double", &gm1);
   op_decl_const(1, "double", &cfl);

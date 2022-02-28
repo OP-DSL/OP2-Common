@@ -117,10 +117,26 @@ By this point you need OP2 set up - take a look at the Makefile in step1, and ob
 
 Step 2 - OP2 Declaration
 ------------------------
-* Declare sets
+
+* Declare sets - The Airfoil application consists of four mesh element types (which we call sets): nodes, edges, cells and boundary edges. These needs to be declared using the ``op_set`` API call together with the number of elements for each of these sets:
+
+.. code-block:: C
+
+  // declare sets
+  op_set nodes  = op_decl_set(nnode,  "nodes" );
+  op_set edges  = op_decl_set(nedge,  "edges" );
+  op_set bedges = op_decl_set(nbedge, "bedges");
+  op_set cells  = op_decl_set(ncell,  "cells" );
+
+Later, we will see how the number of mesh elements can be read in directly from an hdf5 file using the ``op_set_hdf5`` call.
+
+When developing your own application with OP2, or indeed converting an application to use OP2, you will need to decide on what mesh element types, i.e. sets will need to be declared to define the full mesh. A good starting point for this design is to see what mesh elements are used the loops over the mesh.
+
 * Declare maps
 * Declare dats
 * Declare constants
+
+Finally compile the step2 application and execute. You will note that the full application still runs and validates as OP2, with the sequential back-end simply uses the allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this will only work for this developer sequential version, where none of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
 
 Step 3 - First parallel loop : direct loop
 ------------------------------------------
