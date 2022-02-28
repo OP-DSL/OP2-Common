@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Set
+from typing import Any, List, Optional, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -12,15 +12,15 @@ from store import Kernel, Location, ParseError, Program
 from util import enumRegex
 
 
-def parseKernel(path: Path, name: str) -> Kernel:
-    reader = FortranFileReader(str(path))
+def parseKernel(path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
+    reader = FortranFileReader(str(path), include_dirs=list(include_dirs))
     parser = ParserFactory().create(std="f2003")
 
     ast = parser(reader)
 
     subroutine = findSubroutine(path, ast, name)
     if subroutine is None:
-        raise ParseError(f"failed to locate kernel function {name} in {path}")
+        return None
 
     param_identifiers = parseSubroutineParameters(path, subroutine)
 
@@ -88,7 +88,7 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
 
 
 def parseProgram(path: Path, include_dirs: Set[Path]) -> Program:
-    reader = FortranFileReader(str(path))
+    reader = FortranFileReader(str(path), include_dirs=list(include_dirs))
     parser = ParserFactory().create(std="f2003")
 
     ast = parser(reader)
@@ -364,7 +364,7 @@ def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     return OP.AccessType(access_type_str)
 
 
-def parseType(typ: str, loc: Location) -> (OP.Type, bool):
+def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
     typ_clean = typ.strip().lower()
     typ_clean = re.sub(r"\s*kind\s*=\s*", "", typ_clean)
 

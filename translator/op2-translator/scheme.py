@@ -4,7 +4,7 @@ import dataclasses
 from collections import OrderedDict
 from pathlib import Path
 from types import MethodType
-from typing import ClassVar, List, Optional, Tuple, Set
+from typing import ClassVar, List, Optional, Set, Tuple
 
 from jinja2 import Environment
 
@@ -109,7 +109,7 @@ class Scheme(Findable):
     master_kernel_template: Optional[Path]
 
     def __str__(self) -> str:
-        return self.lang.name + "/" + self.opt.name
+        return f"{self.lang.name}/{self.opt.name}"
 
     def genLoopHost(
         self, include_dirs: Set[Path], env: Environment, loop: OP.Loop, app: Application, kernel_idx: int
@@ -137,8 +137,8 @@ class Scheme(Findable):
         # Generate source from the template
         return template.render(OP=OP, app=app, opt=self.opt), extension
 
-    def translateKernel(self, include_dirs: Set[Path], source: str, kernel: Kernel, app: Application) -> str:
-        return source
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return kernel.path.read_text()
 
     def matches(self, key: tuple[Lang, Opt]) -> bool:
         return self.lang == key[0] and self.opt == key[1]

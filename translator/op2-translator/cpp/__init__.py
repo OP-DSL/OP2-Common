@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from types import MethodType
-from typing import Set
+from typing import Optional, Set
 
 import clang.cindex
 from dotenv import load_dotenv
@@ -30,8 +30,8 @@ class Cpp(Lang):
     def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
         return cpp.parser.parseProgram(path, include_dirs)
 
-    def parseKernel(self, path: Path, name: str) -> Kernel:
-        return cpp.parser.parseKernel(path, name)
+    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
+        return cpp.parser.parseKernel(path, name, include_dirs)
 
     def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
         return cpp.translator.program.translateProgram(source, program, force_soa)

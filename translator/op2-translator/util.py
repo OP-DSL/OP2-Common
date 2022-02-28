@@ -165,3 +165,80 @@ class SourceBuffer:
                 delta += len(additions)
 
         return "\n".join(lines)
+
+
+@dataclass(frozen=True, order=True)
+class Location:
+    line: int
+    column: int
+
+
+@dataclass(frozen=True, order=True)
+class Span:
+    start: Location
+    end: Location
+
+    def overlaps(self, other: "Span") -> bool:
+        if other.start >= self.start:
+            return other.start < self.end
+
+        if other.start < self.start:
+            return other.end > self.start
+
+        assert False
+
+    def encloses(self, other: "Span") -> bool:
+        return other.start >= self.start and other.end <= self.end
+
+
+class Rewriter:
+    source_lines: List[str]
+    source_span: Span
+
+    updates: List[Tuple[Span, Callable[[str], str]]]
+
+    def __init__(self, source: str) -> None:
+        self.source_lines = list(map(lambda line: line + "\n", source.splitlines()))
+        self.source_span = Span(Location(1, 1), Location(len(self.source_lines), len(self.source_lines[-1]) + 1))
+
+        self.updates = []
+
+    def update(self, span: Span, replacement: Callable[[str], str]) -> None:
+        assert self.source_span.encloses(span)
+        for update in self.updates:
+            assert not span.overlaps(update[0])
+
+        self.updates.append((span, replacement))
+
+    def rewrite(self) -> str:
+        new_source = ""
+        self.updates.sort(key=lambda u: u[0])
+
+        remainder = self.source_span
+        for span, replacement in self.updates:
+            front, back = self.bisect(remainder, span)
+
+            new_source += self.extract(front)
+            new_source += replacement(self.extract(span))
+
+            remainder = back
+
+        new_source += self.extract(remainder)
+        return new_source
+
+    def extract(self, span: Span) -> str:
+        if span.start.line == span.end.line:
+            return self.source_lines[span.start.line - 1][span.start.column - 1 : span.end.column - 1]
+
+        excerpt = self.source_lines[span.start.line - 1][span.start.column - 1 :]
+
+        for line_idx in range(span.start.line + 1, span.end.line):
+            excerpt += self.source_lines[line_idx - 1]
+
+        return excerpt + self.source_lines[span.end.line - 1][: span.end.column - 1]
+
+    def bisect(self, span: Span, pivot: Span) -> Tuple[Span, Span]:
+        front = Span(span.start, pivot.start)
+        back = Span(pivot.end, span.end)
+
+        return (front, back)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, ClassVar, List, Set
+from typing import Callable, ClassVar, List, Optional, Set
 
 from op import Type
 from store import Kernel, ParseError, Program
@@ -25,7 +25,7 @@ class Lang(Findable):
         pass
 
     @abstractmethod
-    def parseKernel(self, path: Path, name: str) -> Kernel:
+    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
         pass
 
     @abstractmethod
