@@ -79,6 +79,7 @@ class Program:
 class Kernel:
     name: str
     path: Path
+
     params: List[Tuple[str, OP.Type]] = field(default_factory=list)
 
     def __str__(self) -> str:

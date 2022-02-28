@@ -78,7 +78,7 @@ def main(argv=None) -> None:
 
     # Parsing phase
     try:
-        app = parsing(args, scheme)
+        app = parse(args, scheme)
     except ParseError as e:
         exit(e)
 
@@ -96,10 +96,10 @@ def main(argv=None) -> None:
         exit(e)
 
     # Code-generation phase
-    codegen(args, scheme, app, args.force_soa)
+    codegen(args, scheme, app)
 
 
-def parsing(args: Namespace, scheme: Scheme) -> Application:
+def parse(args: Namespace, scheme: Scheme) -> Application:
     app = Application()
 
     # Collect the include directories
@@ -116,18 +116,19 @@ def parsing(args: Namespace, scheme: Scheme) -> Application:
 
     # Parse the referenced kernels
     for kernel_name in {loop.kernel for loop in app.loops()}:
+        kernel_include_name = f"{kernel_name}.{scheme.lang.include_ext}"
+        kernel_include_files = [Path(dir, kernel_include_name) for dir in include_dirs]
+        kernel_include_files = list(filter(lambda p: p.is_file(), kernel_include_files))
 
-        # Locate kernel header file
-        file_name = f"{kernel_name}.{scheme.lang.include_ext}"
-        include_paths = [os.path.join(dir, file_name) for dir in include_dirs]
-        kernel_path = safeFind(include_paths, os.path.isfile)
-        if not kernel_path:
-            exit(f"failed to locate kernel include {file_name}")
+        for path in [Path(raw_path) for raw_path in args.file_paths] + kernel_include_files:
+            kernel = scheme.lang.parseKernel(path, kernel_name, include_dirs)
 
-        # Parse kernel header file
-        kernel = scheme.lang.parseKernel(Path(kernel_path), kernel_name)
+            if kernel is not None:
+                app.kernels[kernel_name] = kernel
+                break
 
-        app.kernels[kernel_name] = kernel
+        if kernel_name not in app.kernels:
+            exit(f"Failed to locate kernel function: {kernel_name}")
 
     return app
 
@@ -149,9 +150,8 @@ def validate(args: Namespace, scheme: Scheme, app: Application) -> None:
             print("Dumped store:", store_path, end="\n\n")
 
 
-def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
+def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
     # Collect the paths of the generated files
-    generated_paths: List[Path] = []
     include_dirs = set([Path(dir) for [dir] in args.I])
 
     # Generate loop hosts
@@ -175,7 +175,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         with open(path, "w") as file:
             file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
-            generated_paths.append(path)
 
             if args.verbose:
                 print(f"Generated loop host {i} of {len(app.loops())}: {path}")
@@ -184,41 +183,20 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     if scheme.master_kernel_template != None:
         source, extension = scheme.genMasterKernel(env, app)
         appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
+
         path = None
         if scheme.lang.kernel_dir:
             Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
             path = Path(args.out, scheme.opt.name, f"{appname}_kernels.{extension}")
         else:
             path = Path(args.out, f"{appname}_{scheme.opt.name}_kernels.{extension}")
+
         with open(path, "w") as file:
             file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
-            generated_paths.append(path)
 
             if args.verbose:
                 print(f"Generated master kernel file: {path}")
-
-    # Generate program translations
-    for i, program in enumerate(app.programs, 1):
-        # Read the raw source file
-        with open(program.path, "r") as raw_file:
-
-            # Generate the source translation
-            source = scheme.lang.translateProgram(raw_file.read(), program, force_soa)
-
-            # Form output file path
-            new_file = os.path.splitext(os.path.basename(program.path))[0]
-            ext = os.path.splitext(os.path.basename(program.path))[1]
-            new_path = Path(args.out, f"{new_file}_{args.prefix}{ext}")
-
-            # Write the translated source file
-            with open(new_path, "w") as new_file:
-                new_file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-                new_file.write(source)
-                generated_paths.append(new_path)
-
-                if args.verbose:
-                    print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
 
 
 def isDirPath(path):
