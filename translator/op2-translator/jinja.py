@@ -89,7 +89,7 @@ def unpack_dat(dat):
 
 
 def test_to_filter(filter_, key=unpack_arg):
-    return lambda xs: list(filter(lambda x: env.tests[filter_](key(x)), xs))
+    return lambda xs: list(filter(lambda x: env.tests[filter_](key(x)), xs))  # type: ignore
 
 
 env.filters["direct"] = test_to_filter("direct")
