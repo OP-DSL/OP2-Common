@@ -187,15 +187,61 @@ Finally information about the the declared mesh can be viewed using a diagnostic
   op_diagnostic_output();
 
 
-Now, compile the step2 application  code and execute. You will note that the full application still runs and validates as OP2, with the sequential back-end simply uses the allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this will only work for this developer sequential version, where none of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
+Now, compile the step2 application  code and execute. You will note that the full application still runs and validates as OP2. However, this is due to all of the loops still being done via the original loops and not with the declared OP2 data structures. From the next step, all loops need to be converted to the OP2 API to get a working, validating application.
 
 Step 3 - First parallel loop : direct loop
 ------------------------------------------
-* Outline kernel
-* Declare parallel loop with ``op_par_loop``
+
+We can now convert the first loop to use the OP2 API. In this case its a direct loop called ``save_soln`` that iterates over cells and saves the previous time-iteration's solution, ``q`` to ``q_old``:
+
+.. code-block:: C
+
+  //save_soln : iterates over cells
+  for (int iteration = 0; iteration < (ncell * 4); ++iteration) {
+    qold[iteration] = q[iteration];
+  }
+
+This is a direct loops due to the fact that all data accessed in the computation are defined on the set that the loop iterates over. In this case the iteration set is cells.
+
+To convert to the OP2 API we first outline the loop body (elemental kernel) to a subroutine:
+
+.. code-block:: C
+
+  //outlined elemental kernel
+  inline void save_soln(double *q, double *qold) {
+  for (int n = 0; n < 4; n++)
+    qold[n] = q[n];
+  }
+
+  //save_soln : iterates over cells
+  for (int iteration = 0; iteration < (ncell * 4); ++iteration) {
+    save_soln(&q[iteration], &qold[iteration]);
+  }
+
+Now we can directly declare the loop with the ``op_par_loop`` API call:
+
+.. code-block:: C
+
+    op_par_loop(save_soln, "save_soln", cells,
+                op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
+                op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_WRITE));
+
+Note how we have:
+
+- indicated the elemental kernel ``save_soln`` in the first argument to ``op_par_loop``
+- used the ``op_dat``s names ``p_q`` and ``p_qold`` in the API call
+- noted the iteration set ``cells`` (3rd argument)
+- indicated the direct access of ``q`` and ``q_old`` using ``OP_ID``
+- indicated that ``p_q`` is read only (``OP_READ``) and ``q_old`` is written to only (``OP_WRITE``), by looking through the elemental kernel and identifying how they are used/accessed in the kernel.
+- given that ``p_q`` is read only we also indicate this by the key word ``const`` for ``save-soln`` elemental kernel.
+
+At this stage, the application can be compiled and executed, but given that one loop is using the internally allocated data structures of OP2, the application will not validate.
 
 Step 4 - Indirect loops
 -----------------------
+
+The next loop in the application ``adt_calc`` calculate area/timstep and iterates over cells.
+
 * Details of ``op_par_loop`` for indirect loops
 
 Step 5 - Global reductions
