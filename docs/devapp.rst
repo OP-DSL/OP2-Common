@@ -340,15 +340,78 @@ Note in this case how the indirections are specified using the mapping declared 
 
 Step 5 - Global reductions
 --------------------------
-* Details of ``op_par_loop`` for specifying global reductions
 
+At this stage almost all the remaining loops can be converted to the OP2 API. Only the final loop `update` that updates the flow field needs special handling due to its global reduction:
+
+.. code-block:: C
+
+  rms = 0.0f;
+  for (int iteration = 0; iteration < ncell; ++iteration) {
+    double del, adti;
+
+    adti = 1.0f / (adt[iteration]);
+
+    for (int n = 0; n < 4; n++) {
+      del = adti * res[iteration * 4 + n];
+      q[iteration * 4 + n] = qold[iteration * 4 + n] - del;
+      res[iteration * 4 + n] = 0.0f;
+      rms += del * del;
+    }
+  }
+
+Here, the global variable ``rms`` is used as a reduction variable to compute the rms value of the residual. The kernel can be outlined as follows:
+
+.. code-block:: C
+
+  //outlined elemental kernel - update
+  inline void update(double *qold, double *q, double *res,
+                     double *adt, double *rms) {
+    double del, adti;
+
+    adti = 1.0f / (*adt);
+
+    for (int n = 0; n < 4; n++) {
+      del = adti * res[n];
+      q[n] = qold[n] - del;
+      res[n] = 0.0f;
+      *rms += del * del;
+    }
+  }
+
+And then call it in the application:
+
+.. code-block:: C
+
+  //update = update flow field - iterates over cells
+  rms = 0.0f;
+  for (int iteration = 0; iteration < ncell; ++iteration) {
+    update(&qold[iteration * 4], &q[iteration * 4], &res[iteration * 4],
+           &adt[iteration], &rms);
+  }
+
+The global reduction requires the ``op_arg_gbl`` API call with ``OP_INC`` access mode to indicate that the variable is a global reduction:
+
+.. code-block:: C
+
+  //update = update flow field - iterates over cells
+  rms = 0.0f;
+  op_par_loop(update, "update", cells,
+              op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_READ ),
+              op_arg_dat(p_q,    -1, OP_ID, 4, "double", OP_WRITE),
+              op_arg_dat(p_res,  -1, OP_ID, 4, "double", OP_RW   ),
+              op_arg_dat(p_adt,  -1, OP_ID, 1, "double", OP_READ ),
+              op_arg_gbl(&rms,    1,           "double", OP_INC  ));
+
+At this point all the loops have been converted to use ``op_par_loop`` API and the application should be validating when executed on as sequential, single threaded CPU application.
 
 Step 6 - Handing it all to OP2
 ------------------------------
-* Now can run a sequential version and validate results
-* Partitioning call for MPI
-* Parallel file I/O
+* Dev Sequential version should be already validating
+* Add partitioning call for MPI and get Dev-MPI also working and validating.
 * details on ``op_fetch_data`` call
+* Clean up allocations if required
+* Parallel file I/O
+
 
 Step 7 - Code generation
 ------------------------
