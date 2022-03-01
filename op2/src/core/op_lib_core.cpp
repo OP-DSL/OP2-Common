@@ -395,12 +395,23 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->index = OP_dat_index;
   dat->set = set;
   dat->dim = dim;
-  // dat->data = data;
-  // printf("DATASET %s, ptr %p\n", name, data);
-  char *new_data = (char *)op_malloc((size_t)dim * (size_t)size * (size_t)(set->size+set->exec_size+set->nonexec_size) * sizeof(char));
+  size_t bytes = (size_t)dim * (size_t)size * (size_t)
+                 (set->size+set->exec_size+set->nonexec_size) * sizeof(char);
+
+#ifndef NODEALLOC
+  char *new_data = (char *)op_malloc(bytes);
   if (data != NULL)
     memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
   dat->data = new_data;
+#else
+  if (data != NULL)
+    dat->data = data;
+  else {
+    char *new_data = (char *)op_malloc(bytes);
+    dat->data = new_data;
+  }
+#endif
+
   dat->data_d = NULL;
   dat->name = copy_str(name);
   dat->type = copy_str(type);
