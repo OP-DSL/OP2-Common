@@ -186,8 +186,8 @@ Finally information about the the declared mesh can be viewed using a diagnostic
   //output mesh information
   op_diagnostic_output();
 
+Finally compile the step2 application and execute. You will note that the full application still runs and validates as OP2, with the sequential back-end simply uses the allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this will only work for this developer sequential version, where none of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
 
-Now, compile the step2 application  code and execute. You will note that the full application still runs and validates as OP2. However, this is due to all of the loops still being done via the original loops and not with the declared OP2 data structures. From the next step, all loops need to be converted to the OP2 API to get a working, validating application.
 
 Step 3 - First parallel loop : direct loop
 ------------------------------------------
@@ -222,9 +222,9 @@ Now we can directly declare the loop with the ``op_par_loop`` API call:
 
 .. code-block:: C
 
-    op_par_loop(save_soln, "save_soln", cells,
-                op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
-                op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_WRITE));
+  op_par_loop(save_soln, "save_soln", cells,
+              op_arg_dat(p_q,    -1, OP_ID, 4, "double", OP_READ ),
+              op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_WRITE));
 
 Note how we have:
 
@@ -234,15 +234,109 @@ Note how we have:
 - indicated the direct access of ``q`` and ``q_old`` using ``OP_ID``
 - indicated that ``p_q`` is read only (``OP_READ``) and ``q_old`` is written to only (``OP_WRITE``), by looking through the elemental kernel and identifying how they are used/accessed in the kernel.
 - given that ``p_q`` is read only we also indicate this by the key word ``const`` for ``save-soln`` elemental kernel.
+- The fourth argument of an ``op_arg_dat`` is the dimension of the data. For ``p_q`` and ``p_qold`` there are 4 doubles per mesh point.
 
-At this stage, the application can be compiled and executed, but given that one loop is using the internally allocated data structures of OP2, the application will not validate.
+Compile and execute the modified application (see code in ``../step3``) and check if the solution validates.
 
 Step 4 - Indirect loops
 -----------------------
 
-The next loop in the application ``adt_calc`` calculate area/timstep and iterates over cells.
+The next loop in the application ``adt_calc`` calculate area/timstep and iterates over cells. In this case we see that the loop is an indirect loop where the data ``x`` on the four nodes connected to a cell is accessed indirectly via a cells to nodes mapping. Additionally data ``adt`` are accessed directly where ``adt`` is data on the cells:
 
-* Details of ``op_par_loop`` for indirect loops
+.. code-block:: C
+
+  //adt_calc - calculate area/timstep : iterates over cells
+  for (int iteration = 0; iteration < ncell; ++iteration) {
+    int map1idx = cell[iteration * 4 + 0];
+    int map2idx = cell[iteration * 4 + 1];
+    int map3idx = cell[iteration * 4 + 2];
+    int map4idx = cell[iteration * 4 + 3];
+
+    double dx, dy, ri, u, v, c;
+
+    ri = 1.0f / q[4 * iteration + 0];
+    u = ri * q[4 * iteration + 1];
+    v = ri * q[4 * iteration + 2];
+    c = sqrt(gam * gm1 * (ri * q[4 * iteration + 3] - 0.5f * (u * u + v * v)));
+
+    dx = x[2 * map2idx + 0] - x[2 * map1idx + 0];
+    dy = x[2 * map2idx + 1] - x[2 * map1idx + 1];
+    adt[iteration] = fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    dx = x[2 * map3idx + 0] - x[2 * map2idx + 0];
+    dy = x[2 * map3idx + 1] - x[2 * map2idx + 1];
+    adt[iteration] += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    dx = x[2 * map4idx + 0] - x[2 * map3idx + 0];
+    dy = x[2 * map4idx + 1] - x[2 * map3idx + 1];
+    adt[iteration] += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    dx = x[2 * map1idx + 0] - x[2 * map4idx + 0];
+    dy = x[2 * map1idx + 1] - x[2 * map4idx + 1];
+    adt[iteration] += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    adt[iteration] = (adt[iteration]) / cfl;
+  }
+
+Similar to the direct loop, we outline the loop body and call it within the loop as follows:
+
+.. code-block:: C
+
+  //outlined elemental kernel - adt_calc
+  inline void adt_calc(double *x1, double *x2, double *x3,
+                       double *x4, double *q, double *adt) {
+    double dx, dy, ri, u, v, c;
+
+    ri = 1.0f / q[0];
+    u = ri * q[1];
+    v = ri * q[2];
+    c = sqrt(gam * gm1 * (ri * q[3] - 0.5f * (u * u + v * v)));
+
+    dx = x2[0] - x1[0];
+    dy = x2[1] - x1[1];
+    *adt = fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    dx = x3[0] - x2[0];
+    dy = x3[1] - x2[1];
+    *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    dx = x4[0] - x3[0];
+    dy = x4[1] - x3[1];
+    *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    dx = x1[0] - x4[0];
+    dy = x1[1] - x4[1];
+    *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+
+    *adt = (*adt) / cfl;
+  }
+
+  //adt_calc - calculate area/timstep : iterates over cells
+  for (int iteration = 0; iteration < ncell; ++iteration) {
+    int map1idx = cell[iteration * 4 + 0];
+    int map2idx = cell[iteration * 4 + 1];
+    int map3idx = cell[iteration * 4 + 2];
+    int map4idx = cell[iteration * 4 + 3];
+
+    adt_calc(&x[2 * map1idx], &x[2 * map2idx], &x[2 * map3idx],
+             &x[2 * map4idx], &q[4 * iteration], &adt[iteration]);
+  }
+
+Now, convert the loop to use the ``op_par_loop`` API:
+
+.. code-block:: C
+
+  //res_calc - calculate flux residual: iterates over edges
+  op_par_loop(adt_calc, "adt_calc", cells,
+              op_arg_dat(p_x,   0, pcell, 2, "double", OP_READ ),
+              op_arg_dat(p_x,   1, pcell, 2, "double", OP_READ ),
+              op_arg_dat(p_x,   2, pcell, 2, "double", OP_READ ),
+              op_arg_dat(p_x,   3, pcell, 2, "double", OP_READ ),
+              op_arg_dat(p_q,  -1, OP_ID, 4, "double", OP_READ ),
+              op_arg_dat(p_adt,-1, OP_ID, 1, "double", OP_WRITE));
+
+Note in this case how the indirections are specified using the mapping declared as OP2 map ``pcell``, indicating the to-set index (2nd argument), and access mode ``OP_READ``.
+
 
 Step 5 - Global reductions
 --------------------------
