@@ -112,7 +112,7 @@ First, include the following header files, then initialize OP2 and finalize it a
     op_exit();
   }
 
-By this point you need OP2 set up - take a look at the Makefile in step1, and observe that the include and library paths are added, and we link against ``op2_seq`` back-end library.
+By this point you need OP2 set up - take a look at the Makefile in step1, and observe that the include and library paths are added, and we link against ``op2_seq`` back-end library. Using the ``op_seq.h`` header file and linking with the sequential back-end OP2 lib produces what we call a *developer sequential* version of the application. This should be used to successively develop the rest of the application by using the OP2 API and validate its numerical output, as we do so in the next steps.
 
 
 Step 2 - OP2 Declaration
@@ -406,11 +406,75 @@ At this point all the loops have been converted to use ``op_par_loop`` API and t
 
 Step 6 - Handing it all to OP2
 ------------------------------
-* Dev Sequential version should be already validating
-* Add partitioning call for MPI and get Dev-MPI also working and validating.
+
+Once the developer sequential version has been created and the numerical output validates we can do a number of steps to make the application ready for distributed memory paralleization.
+
+(1) File I/O needs to be extended to allow distributed memory execution with MPI. The current Airfoil application simply reads the mesh data from a text file and such a simple setup will not be workable on a distributed memory system, such as a cluster and more importantly will not be scalable with MPI. The simplest solution is to use OP2's HDF5 API for declaring the mesh by replacing ``op_decl_set, op_decl_map, op_decl_dat`` and ``op_decl_const`` by its HDF5 counterparts as follows:
+
+.. code-block:: C
+
+  // declare sets
+  op_set nodes  = op_decl_set_hdf5(file,  "nodes" );
+  op_set edges  = op_decl_set_hdf5(file,  "edges" );
+  op_set bedges = op_decl_set_hdf5(file, "bedges");
+  op_set cells  = op_decl_set_hdf5(file,  "cells" );
+
+  //declare maps
+  op_map pedge   = op_decl_map_hdf5(edges,  nodes, 2, file, "pedge"  );
+  op_map pecell  = op_decl_map_hdf5(edges,  cells, 2, file, "pecell" );
+  op_map pbedge  = op_decl_map_hdf5(bedges, nodes, 2, file, "pbedge" );
+  op_map pbecell = op_decl_map_hdf5(bedges, cells, 1, file, "pbecell");
+  op_map pcell   = op_decl_map_hdf5(cells,  nodes, 4, file, "pcell"  );
+
+  //declare data on sets
+  op_dat p_bound = op_decl_dat_hdf5(bedges, 1, "int",    file, "p_bound");
+  op_dat p_x     = op_decl_dat_hdf5(nodes,  2, "double", file, "p_x"    );
+  op_dat p_q     = op_decl_dat_hdf5(cells,  4, "double", file, "p_q"    );
+  op_dat p_qold  = op_decl_dat_hdf5(cells,  4, "double", file, "p_qold" );
+  op_dat p_adt   = op_decl_dat_hdf5(cells,  1, "double", file, "p_adt"  );
+  op_dat p_res   = op_decl_dat_hdf5(cells,  4, "double", file, "p_res"  );
+
+  //declare global constants
+  op_get_const_hdf5("gam",  1, "double", (char *)&gam, "new_grid.h5");
+  op_get_const_hdf5("gm1",  1, "double", (char *)&gm1, "new_grid.h5");
+  op_get_const_hdf5("cfl",  1, "double", (char *)&cfl, "new_grid.h5");
+  op_get_const_hdf5("eps",  1, "double", (char *)&eps, "new_grid.h5");
+  op_get_const_hdf5("alpha",1, "double", (char *)&alpha, "new_grid.h5");
+  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
+
+Note here that we assume that the mesh is already available as an HDF5 file named ``new_grid.h5``. (See the ``convert_mesh.cpp`` utility application in ``OP2-Common/apps/c/airfoil/airfoil_hdf5/dp`` to understand how we can create an HDF5 file to be compatible with the OP2 API for Airfoil starting from mesh data defined in a text file.)
+
+When the application has been switched to use the HDF5 API calls, manually allocated memory for the mesh elements can be removed. Additionally all ``printf`` statements should use ``op_printf`` so that output to terminal will only be done by the ROOT mpi process.
+
+
+(2) Add the OP2 partitioner call ``op_partition`` to the code in order to signal to the MPI back-end, the point in the program that all mesh data have been defined and mesh can be partitioned and MPI halos can be created:
+
+.. code-block:: C
+
+  ...
+  ...
+  op_get_const_hdf5("alpha",1, "double", (char *)&alpha, "new_grid.h5");
+  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
+
+  //output mesh information
+  op_diagnostic_output();
+
+  //partition mesh and create mpi halos
+  op_partition("BLOCK", "ANY", edges, pecell, p_x);
+
+  //start timer
+  timer(&cpu_t1, &wall_t1);
+  ...
+  ...
+
+See the API documentation for practitioner options. In this case no special partitioner is used leaving the initial block partitioning of data at the time of file I/O through HDF5.
+
+At this point, compile the code using the Makefile in the ``\step6`` directory where a parallel executable will be created by linking to OP2's MPI back-end. You will need to have had HDF5 library installed on your system to carry out this step. The resulting executable is called a ``developer MPI`` version of the application, which should again be used to verify validity of the application by running with ``mpirun`` in the usual way of executing an MPI application.
+
+
 * details on ``op_fetch_data`` call
-* Clean up allocations if required
-* Parallel file I/O
+
+
 
 
 Step 7 - Code generation

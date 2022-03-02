@@ -6,7 +6,7 @@
 #include "op_seq.h"
 
 /* Problem mesh and iterations */
-#define FILE_NAME_PATH "new_grid.dat"
+#define FILE_NAME_PATH "new_grid.h5"
 #define NUM_ITERATIONS 1000
 
 
@@ -159,7 +159,7 @@ inline void update(double *qold, double *q, double *res,
 /* main application */
 int main(int argc, char **argv) {
   //Initialise the OP2 library, passing runtime args, and setting diagnostics level to low (1)
-  op_init(argc, argv, 2);
+  op_init(argc, argv, 3);
 
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
@@ -170,102 +170,49 @@ int main(int argc, char **argv) {
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // Load unstructured mesh
-  printf("***** Load mesh and initialization *****\n");
-  FILE *fp;
-  if ((fp = fopen(FILE_NAME_PATH, "r")) == NULL) {
-    printf("can't open file FILE_NAME_PATH\n");
-    exit(-1);
-  }
-  if (fscanf(fp, "%d %d %d %d \n", &nnode, &ncell, &nedge, &nbedge) != 4) {
-    printf("error reading from FILE_NAME_PATH\n");
-    exit(-1);
-  }
-
-  cell   = (int *)malloc(4 * ncell  * sizeof(int));
-  edge   = (int *)malloc(2 * nedge  * sizeof(int));
-  ecell  = (int *)malloc(2 * nedge  * sizeof(int));
-  bedge  = (int *)malloc(2 * nbedge * sizeof(int));
-  becell = (int *)malloc(1 * nbedge * sizeof(int));
-  bound  = (int *)malloc(1 * nbedge * sizeof(int));
-  x      = (double *)malloc(2 * nnode * sizeof(double));
-  q      = (double *)malloc(4 * ncell * sizeof(double));
-  qold   = (double *)malloc(4 * ncell * sizeof(double));
-  res    = (double *)malloc(4 * ncell * sizeof(double));
-  adt    = (double *)malloc(1 * ncell * sizeof(double));
-
-  for (int n = 0; n < nnode; n++) {
-    if (fscanf(fp, "%lf %lf \n", &x[2 * n], &x[2 * n + 1]) != 2) {
-      printf("error reading from FILE_NAME_PATH\n");
-      exit(-1);
-    }
-  }
-  for (int n = 0; n < ncell; n++) {
-    if (fscanf(fp, "%d %d %d %d \n", &cell[4 * n], &cell[4 * n + 1],
-               &cell[4 * n + 2], &cell[4 * n + 3]) != 4) {
-      printf("error reading from FILE_NAME_PATH\n");
-      exit(-1);
-    }
-  }
-  for (int n = 0; n < nedge; n++) {
-    if (fscanf(fp, "%d %d %d %d \n", &edge[2 * n], &edge[2 * n + 1],
-               &ecell[2 * n], &ecell[2 * n + 1]) != 4) {
-      printf("error reading from FILE_NAME_PATH\n");
-      exit(-1);
-    }
-  }
-  for (int n = 0; n < nbedge; n++) {
-    if (fscanf(fp, "%d %d %d %d \n", &bedge[2 * n], &bedge[2 * n + 1],
-               &becell[n], &bound[n]) != 4) {
-      printf("error reading from FILE_NAME_PATH\n");
-      exit(-1);
-    }
-  }
-  fclose(fp);
-
-  for (int n = 0; n < ncell; n++) {
-    for (int m = 0; m < 4; m++) {
-      q[4 * n + m] = qinf[m];
-      res[4 * n + m] = 0.0f;
-    }
-  }
+  op_printf("***** Load mesh and initialization *****\n");
+  char file[] = FILE_NAME_PATH;
 
   // declare sets
-  op_set nodes  = op_decl_set(nnode,  "nodes" );
-  op_set edges  = op_decl_set(nedge,  "edges" );
-  op_set bedges = op_decl_set(nbedge, "bedges");
-  op_set cells  = op_decl_set(ncell,  "cells" );
+  op_set nodes  = op_decl_set_hdf5(file,  "nodes" );
+  op_set edges  = op_decl_set_hdf5(file,  "edges" );
+  op_set bedges = op_decl_set_hdf5(file, "bedges");
+  op_set cells  = op_decl_set_hdf5(file,  "cells" );
 
   //declare maps
-  op_map pedge   = op_decl_map(edges,  nodes, 2, edge,   "pedge"  );
-  op_map pecell  = op_decl_map(edges,  cells, 2, ecell,  "pecell" );
-  op_map pbedge  = op_decl_map(bedges, nodes, 2, bedge,  "pbedge" );
-  op_map pbecell = op_decl_map(bedges, cells, 1, becell, "pbecell");
-  op_map pcell   = op_decl_map(cells,  nodes, 4, cell,   "pcell"  );
+  op_map pedge   = op_decl_map_hdf5(edges,  nodes, 2, file, "pedge"  );
+  op_map pecell  = op_decl_map_hdf5(edges,  cells, 2, file, "pecell" );
+  op_map pbedge  = op_decl_map_hdf5(bedges, nodes, 2, file, "pbedge" );
+  op_map pbecell = op_decl_map_hdf5(bedges, cells, 1, file, "pbecell");
+  op_map pcell   = op_decl_map_hdf5(cells,  nodes, 4, file, "pcell"  );
 
   //declare data on sets
-  op_dat p_bound = op_decl_dat(bedges, 1, "int",    bound, "p_bound");
-  op_dat p_x     = op_decl_dat(nodes,  2, "double", x,     "p_x"    );
-  op_dat p_q     = op_decl_dat(cells,  4, "double", q,     "p_q"    );
-  op_dat p_qold  = op_decl_dat(cells,  4, "double", qold,  "p_qold" );
-  op_dat p_adt   = op_decl_dat(cells,  1, "double", adt,   "p_adt"  );
-  op_dat p_res   = op_decl_dat(cells,  4, "double", res,   "p_res"  );
+  op_dat p_bound = op_decl_dat_hdf5(bedges, 1, "int",    file, "p_bound");
+  op_dat p_x     = op_decl_dat_hdf5(nodes,  2, "double", file, "p_x"    );
+  op_dat p_q     = op_decl_dat_hdf5(cells,  4, "double", file, "p_q"    );
+  op_dat p_qold  = op_decl_dat_hdf5(cells,  4, "double", file, "p_qold" );
+  op_dat p_adt   = op_decl_dat_hdf5(cells,  1, "double", file, "p_adt"  );
+  op_dat p_res   = op_decl_dat_hdf5(cells,  4, "double", file, "p_res"  );
 
   //declare global constants
-  op_decl_const(1, "double", &gam  );
-  op_decl_const(1, "double", &gm1  );
-  op_decl_const(1, "double", &cfl  );
-  op_decl_const(1, "double", &eps  );
-  op_decl_const(1, "double", &alpha);
-  op_decl_const(4, "double", qinf  );
+  op_get_const_hdf5("gam",  1, "double", (char *)&gam, "new_grid.h5");
+  op_get_const_hdf5("gm1",  1, "double", (char *)&gm1, "new_grid.h5");
+  op_get_const_hdf5("cfl",  1, "double", (char *)&cfl, "new_grid.h5");
+  op_get_const_hdf5("eps",  1, "double", (char *)&eps, "new_grid.h5");
+  op_get_const_hdf5("alpha",1, "double", (char *)&alpha, "new_grid.h5");
+  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
 
   //output mesh information
   op_diagnostic_output();
+
+  //partition mesh and create mpi halos
+  op_partition("BLOCK", "ANY", edges, pecell, p_x);
 
   //start timer
   timer(&cpu_t1, &wall_t1);
 
   // main time-marching loop
-  printf("***** Start Main iteration *************\n");
+  op_printf("***** Start Main iteration *************\n");
   for (int iter = 1; iter <= NUM_ITERATIONS; iter++) {
 
     //save_soln : iterates over cells
@@ -318,18 +265,18 @@ int main(int argc, char **argv) {
     // print iteration history
     rms = sqrt(rms / (double)ncell);
     if (iter % 100 == 0)
-      printf(" %d  %10.5e \n", iter, rms);
+      op_printf(" %d  %10.5e \n", iter, rms);
     if (iter % 1000 == 0 && ncell == 720000) {
       float diff = fabs((100.0 * (rms / 0.0001060114637578)) - 100.0);
-      printf("\nTest problem with %d cells is within %3.15E %% of the "
+      op_printf("\nTest problem with %d cells is within %3.15E %% of the "
               "expected solution\n",
               720000, diff);
       if (diff < 0.00001) {
-        printf("This test is considered PASSED\n");
+        op_printf("This test is considered PASSED\n");
       } else {
-        printf("This test is considered FAILED\n");
+        op_printf("This test is considered FAILED\n");
       }
-      printf("***** End Main iteration *************\n");
+      op_printf("***** End Main iteration *************\n");
     }
   }
 
@@ -340,18 +287,6 @@ int main(int argc, char **argv) {
   double walltime = wall_t2 - wall_t1;
 
   printf(" Wall time %lf \n", walltime);
-
-  free(cell);
-  free(edge);
-  free(ecell);
-  free(bedge);
-  free(becell);
-  free(bound);
-  free(x);
-  free(q);
-  free(qold);
-  free(adt);
-  free(res);
 
   //Finalising the OP2 library
   op_exit();
