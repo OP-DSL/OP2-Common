@@ -81,6 +81,7 @@ extern int OP_cache_line_size;
 extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
+extern int OP_mpi_test_frequency;
 
 /*
  * enum list for op_par_loop
@@ -341,6 +342,7 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args);
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
 
 void op_mpi_wait_all(int nargs, op_arg *args);
+void op_mpi_test_all(int nargs, op_arg *args);
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args);
 
@@ -363,6 +365,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
       unsigned size_send, unsigned size_recv);
 int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device);
 void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
+void op_mpi_test_all_grouped(int nargs, op_arg *args);
 
 
 /*******************************************************************************

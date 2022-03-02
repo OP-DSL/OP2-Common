@@ -653,3 +653,10 @@ int op_mpi_add_nhalos_dat(op_dat dat, int nhalos){
   op_mpi_add_nhalos_set(dat->set, nhalos);
   return op_mpi_add_nhalos(dat->halo_info, nhalos);
 }
+
+extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  if (recv_neigh_list.size()>0) {
+    int result;
+    MPI_Test(&recv_requests[0],&result,MPI_STATUS_IGNORE);
+  }
+}

@@ -4365,3 +4365,19 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
 int get_set_size_with_nhalos(op_set set, int nhalos){
   return set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
+
+int op_mpi_test(op_arg *arg) {
+  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
+    int result;
+    if (((op_mpi_buffer)(arg->dat->mpi_buffer))->s_num_req>0)
+      MPI_Test(((op_mpi_buffer)(arg->dat->mpi_buffer))->s_req,&result,MPI_STATUS_IGNORE);
+    return 1;
+  }
+  return 0;
+}
+
+void op_mpi_test_all(int nargs, op_arg *args) {
+  for (int n = 0; n < nargs; n++) {
+    if (op_mpi_test(&args[n])) return;
+  }
+}
