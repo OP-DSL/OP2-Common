@@ -15,6 +15,12 @@ __constant__ int op2_dat_{{dat.ptr}}_stride_d;
 {% endblock %}
 
 {% block includes %}
+    {% if user_types is not none %}
+#ifndef OP_FUN_PREFIX
+#define OP_FUN_PREFIX __host__ __device__
+#endif
+
+    {% endif %}
 {{super()}}
 #include "op_cuda_rt_support.h"
 #include "op_cuda_reduction.h"

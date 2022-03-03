@@ -27,28 +27,28 @@ class Seq(Opt):
     name = "seq"
     kernel_translation = False
 
-    config = {"grouped": False}
+    config = {"grouped": False, "device": 1}
 
 
 class Cuda(Opt):
     name = "cuda"
     kernel_translation = True
 
-    config = {"grouped": True, "atomics": True, "ind_inc": False, "inc_stage": 0}
+    config = {"grouped": True, "device": 2, "atomics": True, "ind_inc": False, "inc_stage": 0}
 
 
 class OpenMP(Opt):
     name = "openmp"
     kernel_translation = False
 
-    config = {"grouped": False, "thread_timing": False}
+    config = {"grouped": False, "device": 1, "thread_timing": False}
 
 
 class Vec(Opt):
     name = "vec"
     kernel_translation = True
 
-    config = {"grouped": False}
+    config = {"grouped": False, "device": 1}
 
 
 Opt.register(Seq)

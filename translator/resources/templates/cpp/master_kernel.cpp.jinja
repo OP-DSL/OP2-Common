@@ -10,7 +10,10 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
 {% endif %}
 
 {% block includes %}
-{# TODO: include ../user_types.h if exists #}
+    {% if user_types is not none %}
+{{user_types}}
+
+    {% endif %}
 #include "op_lib_cpp.h"
 {%- endblock %}
 
