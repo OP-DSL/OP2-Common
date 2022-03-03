@@ -31,22 +31,6 @@ def translateKernel(include_dirs: Set[Path], config: Dict[str, Any], kernel: Ker
     kernel_path = Path(kernel_ast.extent.start.file.name)
     rewriter = Rewriter(kernel_path.read_text())
 
-    function_type_span = extentToSpan(next(kernel_ast.get_tokens()).extent)
-    rewriter.update(function_type_span, lambda s: f"__device__ {s}")
-
-    for tok in kernel_ast.get_tokens():
-        if tok.spelling == kernel.name:
-            rewriter.update(extentToSpan(tok.extent), lambda s: f"{s}_gpu")
-            break
-
-    const_ptrs = set(map(lambda const: const.ptr, app.consts()))
-    for node in kernel_ast.walk_preorder():
-        if node.kind != CursorKind.DECL_REF_EXPR:
-            continue
-
-        if node.spelling in const_ptrs:
-            rewriter.update(extentToSpan(node.extent), lambda s: f"{s}_d")
-
     loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
 
     for arg_idx in range(len(loop.args)):
@@ -88,4 +72,4 @@ def insertStride(param: str, dat_ptr: str, is_vec: bool, kernel_ast: Cursor, rew
             ident, _ = next(ident.get_children()).get_children()
 
         if ident.spelling == param:
-            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * op2_dat_{dat_ptr}_stride_d")
+            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * op_dat_{dat_ptr}_stride")

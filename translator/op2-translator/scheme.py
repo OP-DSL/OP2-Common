@@ -9,6 +9,7 @@ from typing import ClassVar, List, Optional, Set, Tuple
 from jinja2 import Environment
 
 import cpp
+import cpp.translator.kernels.seq
 import cpp.translator.kernels.cuda
 import fortran
 import fortran.translator.kernels.cuda
@@ -126,16 +127,20 @@ class Scheme(Findable):
         # Generate source from the template
         return template.render(OP=OP, lh=loop_host, opt=self.opt), extension
 
-    def genMasterKernel(self, env: Environment, app: Application) -> Tuple[str, str]:
+    def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path]) -> Tuple[str, str]:
         if self.master_kernel_template is None:
             exit(f"No master kernel template registered for {self}")
+
+        user_types = None
+        if user_types_file is not None:
+            user_types = user_types_file.read_text()
 
         # Load the loop host template
         template = env.get_template(str(self.master_kernel_template))
         extension = self.master_kernel_template.suffixes[-2][1:]
 
         # Generate source from the template
-        return template.render(OP=OP, app=app, opt=self.opt), extension
+        return template.render(OP=OP, app=app, opt=self.opt, user_types=user_types), extension
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return kernel.path.read_text()
@@ -151,6 +156,8 @@ class CppSeq(Scheme):
     loop_host_template = Path("cpp/seq/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/seq/master_kernel.cpp.jinja")
 
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return cpp.translator.kernels.seq.translateKernel(include_dirs, self.opt.config, kernel, app)
 
 class CppOpenMP(Scheme):
     lang = Lang.find("cpp")
