@@ -25,29 +25,35 @@ def main(argv=None) -> None:
     parser.add_argument("-V", "--version", help="Version", action="version", version=getVersion())
     parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
-    parser.add_argument("-o", "--out", help="Output directory", type=isDirPath, default=".")
-    parser.add_argument("-p", "--prefix", help="Output File Prefix", type=isValidPrefix, default="op")
+    parser.add_argument("-o", "--out", help="Output directory", type=isDirPath)
+    parser.add_argument("-c", "--config", help="Optimisation configuration", type=json.loads, default="{}")
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
-    parser.add_argument("-t", "--thread_timing", help="Use thread timers", action="store_true")
+
+    parser.add_argument("-I", help="Header Include", type=isDirPath, action="append", nargs=1, default=[])
+
+    opt_names = [opt.name for opt in Opt.all()]
     parser.add_argument(
-        "-I",
-        help="Header Include",
-        type=isDirPath,
-        action="append",
-        nargs=1,
-        default=["."],
+        "-f", "--flavour", help="Optimisation scheme", type=str, action="append", nargs=1, choices=opt_names, default=[]
     )
 
-    # Positional args
-    opt_names = [opt.name for opt in Opt.all()]
-    parser.add_argument("optimisation", help="Optimisation scheme", type=str, choices=opt_names)
     parser.add_argument("file_paths", help="Input OP2 sources", type=isFilePath, nargs="+")
 
     # Invoke arg parser
     args = parser.parse_args(argv)
 
+    file_parents = [Path(file_path).parent for file_path in args.file_paths]
+
+    if args.out is None:
+        args.out = file_parents[0]
+
+    script_parents = list(Path(__file__).resolve().parents)
+    if len(script_parents) >= 3 and script_parents[2].stem == "OP2-Common":
+        args.I = [[str(script_parents[2].joinpath("op2/include"))]] + args.I
+
+    args.I = [[str(file_parent)] for file_parent in dict.fromkeys(file_parents).keys()] + args.I
+
     # Collect the set of file extensions
-    extensions = {os.path.splitext(path)[1][1:] for path in args.file_paths}
+    extensions = {str(Path(file_path).suffix)[1:] for file_path in args.file_paths}
 
     # Validate the file extensions
     if not extensions:
@@ -58,24 +64,37 @@ def main(argv=None) -> None:
         [extension] = extensions
 
     # Determine the target language and optimisation
-    opt = Opt.find(args.optimisation)
     lang = Lang.find(extension)
 
-    if opt.name == "omp":
-        opt.config["thread_timing"] = args.thread_timing
-
     if lang is None:
-        exit(f"Unsupported file extension: {extension}")
+        exit(f"Unknown file extension: {extension}")
 
     Type.set_formatter(lang.formatType)
 
-    scheme = Scheme.find((lang, opt))
-    if not scheme:
-        exit(f"No scheme registered for {lang} {opt}")
+    if len(args.flavour) == 0:
+        args.flavour = [[opt_name] for opt_name in opt_names]
 
-    if args.verbose:
-        print(f"Translation scheme: {scheme}")
+    for [flavour] in args.flavour:
+        opt = Opt.find(flavour)
 
+        for key in opt.config:
+            if key in args.config:
+                opt.config[key] = args.config[key]
+
+        scheme = Scheme.find((lang, opt))
+        if not scheme:
+            print(f"No scheme registered for {lang}/{opt}")
+            continue
+
+        if args.verbose:
+            print(f"Translation scheme: {scheme}")
+
+        run(args, scheme)
+        if args.verbose:
+            print()
+
+
+def run(args: Namespace, scheme: Scheme) -> None:
     # Parsing phase
     try:
         app = parse(args, scheme)
@@ -87,6 +106,7 @@ def main(argv=None) -> None:
             program.dats = [dataclasses.replace(dat, soa=True) for dat in program.dats]
 
     if args.verbose:
+        print()
         print(app)
 
     # Validation phase
@@ -96,7 +116,7 @@ def main(argv=None) -> None:
         exit(e)
 
     # Code-generation phase
-    codegen(args, scheme, app)
+    codegen(args, scheme, app, args.force_soa)
 
 
 def parse(args: Namespace, scheme: Scheme) -> Application:
@@ -150,7 +170,7 @@ def validate(args: Namespace, scheme: Scheme, app: Application) -> None:
             print("Dumped store:", store_path, end="\n\n")
 
 
-def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
+def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
     include_dirs = set([Path(dir) for [dir] in args.I])
 
@@ -181,7 +201,11 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
 
     # Generate master kernel file
     if scheme.master_kernel_template != None:
-        source, extension = scheme.genMasterKernel(env, app)
+        user_types_name = f"user_types.{scheme.lang.include_ext}"
+        user_types_candidates = [Path(dir, user_types_name) for dir in include_dirs]
+        user_types_file = safeFind(user_types_candidates, lambda p: p.is_file())
+
+        source, extension = scheme.genMasterKernel(env, app, user_types_file)
         appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
 
         path = None
@@ -198,6 +222,27 @@ def codegen(args: Namespace, scheme: Scheme, app: Application) -> None:
             if args.verbose:
                 print(f"Generated master kernel file: {path}")
 
+    # Generate program translations
+    for i, program in enumerate(app.programs, 1):
+        # Read the raw source file
+        with open(program.path, "r") as raw_file:
+
+            # Generate the source translation
+            source = scheme.lang.translateProgram(raw_file.read(), program, force_soa)
+
+            # Form output file path
+            new_file = os.path.splitext(os.path.basename(program.path))[0]
+            ext = os.path.splitext(os.path.basename(program.path))[1]
+            new_path = Path(args.out, f"{new_file}_op{ext}")
+
+            # Write the translated source file
+            with open(new_path, "w") as new_file:
+                new_file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
+                new_file.write(source)
+
+                if args.verbose:
+                    print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
+
 
 def isDirPath(path):
     if os.path.isdir(path):
@@ -211,13 +256,6 @@ def isFilePath(path):
         return path
     else:
         raise ArgumentTypeError(f"invalid file path: {path}")
-
-
-def isValidPrefix(prefix):
-    if re.compile(r"^[a-zA-Z0-9_-]+$").match(prefix):
-        return prefix
-    else:
-        raise ArgumentTypeError(f"invalid output file prefix: {prefix}")
 
 
 if __name__ == "__main__":
