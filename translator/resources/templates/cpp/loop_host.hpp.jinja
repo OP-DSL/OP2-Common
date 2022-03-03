@@ -47,70 +47,26 @@ void op_par_loop_{{lh.kernel.name}}(
     if (OP_diags > 2)
         printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.kernel.name}}\n");
 
-    {% block host_prologue_halo_exchange required %}
-    {% endblock %}
+    int set_size = op_mpi_halo_exchanges{{"_grouped" if opt.config.grouped-}}
+        (set, num_args_expanded, args_expanded{{(", %d" % opt.config.device) if opt.config.grouped}});
 
-    if (set_size == 0)
-        goto epilogue;
+    if (set_size == 0) {
+        {% block host_prologue_early_exit_cleanup %}
+        {% endblock %}
 
-{% endblock %}
-{% block host_loop %}
-    for (int n = 0; n < set_size; ++n) {
-    {% if lh is indirect %}
-        if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
-            op_mpi_test_all(num_args_expanded, args_expanded);
-
-        if (n == set->core_size)
-            op_mpi_wait_all{{"_grouped" if opt.config.grouped-}}
-                (num_args_expanded, args_expanded{{", 1" if opt.config.grouped}});
-
-    {% for map, idx in lh.maps.items() %}
-        int map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
-    {% endfor %}
-
-    {% endif %}
-    {% for arg, idx in lh.args|vec %}
-        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-        {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
-        {% endfor %}
-        };
-
-    {% endfor %}
-        {{lh.kernel.name}}(
-    {% for arg, idx in lh.args %}
-        {% if arg is not vec %}
-            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
-        {% else %}
-            arg{{idx}}_vec{{"," if not loop.last}}
-        {% endif %}
-    {% endfor %}
-        );
+        return;
     }
 {% endblock %}
 
-epilogue:
-{% block host_epilogue_cleanup %}
-    {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
-    if (set_size == 0 || set_size == set->core_size)
-        op_mpi_wait_all(num_args_expanded, args_expanded);
-
-    {% endif %}
-    {% for arg in lh.args if arg is gbl and arg is reduction %}
-    op_mpi_reduce_{{arg.typ}}(&arg{{loop.index0}}, ({{arg.typ}} *)arg{{loop.index0}}.data)
-
-    {% endfor %}
-    op_mpi_set_dirtybit(num_args_expanded, args_expanded);
+{% block host_loop required %}
 {% endblock %}
 
-{% block host_epilogue_timers %}
+{% block host_epilogue %}
     op_timers_core(&cpu_end, &wall_end);
 
     OP_kernels[{{lh.kernel_idx}}].name = name;
     OP_kernels[{{lh.kernel_idx}}].count += 1;
     OP_kernels[{{lh.kernel_idx}}].time += wall_end - wall_start;
-
-    // TODO: review kernel transfer calculation
 {% endblock %}
 }
 

@@ -63,7 +63,7 @@ class Program:
 
     def __str__(self) -> str:
         return (
-            f"Program '{self.path}':\n"
+            f"Program in '{self.path}':\n"
             f"    init: {self.init}, exit: {self.exit}\n"
             f"    consts: {', '.join([f'{c.ptr}[{c.dim}]' for c in self.consts])}\n"
             f"\n"
@@ -84,7 +84,7 @@ class Kernel:
 
     def __str__(self) -> str:
         return (
-            f"Kernel '{self.path}':\n"  # fmt: skip
+            f"Kernel in '{self.path}':\n"  # fmt: skip
             f"    {self.name}({', '.join([f'{p[0]}: {repr(p[1])}' for p in self.params])})\n"
         )
 

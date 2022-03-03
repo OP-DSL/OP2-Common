@@ -1,4 +1,4 @@
-TRANSLATOR ?= $(ROOT_DIR)/translator/c/op2.py
+TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v -soa
 
 APP_ENTRY ?= $(APP_NAME).cpp
 APP_ENTRY_MPI ?= $(APP_NAME)_mpi.cpp
@@ -71,7 +71,7 @@ clean:
 	-$(RM) $(ALL_VARIANTS)
 	-$(RM) -r seq vec openmp openmp4 cuda openacc
 	-$(RM) *_op.cpp
-	-$(RM) .generated .generated
+	-$(RM) .generated
 	-$(RM) *.d
 	-$(RM) *.o
 	-$(RM) out_grid.*
@@ -80,7 +80,7 @@ clean:
 .generated: $(APP_ENTRY) $(APP_ENTRY_MPI)
 	[ ! -f $(APP_ENTRY) ] || $(TRANSLATOR) $(APP_ENTRY)
 	[ ! -f $(APP_ENTRY_MPI) ] || [ $(APP_ENTRY_MPI) = $(APP_ENTRY) ] \
-		|| $(TRANSLATOR) $(APP_ENTRY_MPI)
+		|| : || $(TRANSLATOR) $(APP_ENTRY_MPI)
 	@touch $@
 
 SEQ_SRC := $(APP_ENTRY)
@@ -91,10 +91,10 @@ $(1)_SRC := $$(APP_ENTRY_OP) $$(subst %,$$(APP_ENTRY_BASENAME),$(2))
 MPI_$(1)_SRC := $$(APP_ENTRY_MPI_OP) $$(subst %,$$(APP_ENTRY_MPI_BASENAME),$(2))
 endef
 
-$(eval $(call SRC_template,GENSEQ,seq/%_seqkernels.cpp))
-$(eval $(call SRC_template,VEC,vec/%_veckernels.cpp))
+$(eval $(call SRC_template,GENSEQ,seq/%_kernels.cpp))
+$(eval $(call SRC_template,VEC,vec/%_kernels.cpp))
 $(eval $(call SRC_template,OPENMP,openmp/%_kernels.cpp))
-$(eval $(call SRC_template,OPENMP4,openmp4/%_omp4kernels.cpp))
+$(eval $(call SRC_template,OPENMP4,openmp4/%_kernels.cpp))
 
 #  TODO/openmp4 perhaps include this in _omp4kernels.cpp?
 OPENMP4_SRC += openmp4/$(APP_ENTRY_BASENAME)_omp4kernel_funcs.cpp
