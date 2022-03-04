@@ -481,6 +481,12 @@ module OP2_Fortran_RT_Support
 
     end function setKernelTime
 
+    INTEGER(kind=c_int) function is_dat_dirty( arg ) BIND(C,name='is_dat_dirty')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+      type(op_arg) :: arg
+    end function
+
   end interface
 
   contains

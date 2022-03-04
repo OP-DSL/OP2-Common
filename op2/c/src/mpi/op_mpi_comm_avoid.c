@@ -1379,8 +1379,10 @@ void step7_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
               dat->data,
               (set->size + exec_size + non_exec_size + i_list->size) * dat->size);
             
-          printf("step7 my_rank=%d dat=%s set=%s size=%d exec=%d non=%d list=%d total=%d\n", my_rank, dat->name, set->name, 
+          printf("step7 my_rank=%d el=%d dat=%s set=%s size=%d exec=%d non=%d list=%d total=%d\n", my_rank, el, dat->name, set->name, 
           set->size, exec_size, non_exec_size, i_list->size, set->size + exec_size + non_exec_size + i_list->size);
+          printf("dattest my_rank=%d el=%d dat=%s set=%s size=%d exec[%d]=%d non[%d]=%d\n", my_rank, el, dat->name, set->name, 
+          set->size, el, OP_aug_import_exec_lists[el][set->index]->size, el, OP_aug_import_nonexec_lists[el][set->index]->size);
 
           int init = (set->size + exec_size + non_exec_size) * dat->size;
           for (int i = 0; i < i_list->ranks_size; i++) {
@@ -2081,7 +2083,7 @@ void set_maps_hydra(){
       //  (strncmp("x", dat->name, strlen(dat->name)) == 0) ||
       //  (strncmp("q", dat->name, strlen(dat->name)) == 0) ||
       //  (strncmp("pqp", dat->name, strlen(dat->name)) == 0) ||
-      //  (strncmp("pql", dat->name, strlen(dat->name)) == 0)
+      //  (strncmp("pql", dat->name, strlen(dat->name)) == 0) ||
       //  (strncmp("ewt", dat->name, strlen(dat->name)) == 0) ||
       //  (strncmp("pidx", dat->name, strlen(dat->name)) == 0) ||
       //  (strncmp("mz", dat->name, strlen(dat->name)) == 0)

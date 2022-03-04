@@ -56,6 +56,30 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
 
 int OP_mpi_test_frequency = 1<<30;
+
+int OP_mpi_tx_exec_msg_count = 0;
+int OP_mpi_rx_exec_msg_count = 0;
+int OP_mpi_tx_nonexec_msg_count = 0;
+int OP_mpi_rx_nonexec_msg_count = 0;
+
+int OP_mpi_tx_exec_msg_count_merged = 0;
+int OP_mpi_rx_exec_msg_count_merged = 0;
+int OP_mpi_tx_nonexec_msg_count_merged = 0;
+int OP_mpi_rx_nonexec_msg_count_merged = 0;
+
+int OP_mpi_tx_exec_msg_count_chained = 0;
+int OP_mpi_rx_exec_msg_count_chained = 0;
+int OP_mpi_tx_nonexec_msg_count_chained = 0;
+int OP_mpi_rx_nonexec_msg_count_chained = 0;
+
+
+int OP_mpi_tx_exec_msg_count_org = 0;
+int OP_mpi_rx_exec_msg_count_org = 0;
+int OP_mpi_tx_nonexec_msg_count_org = 0;
+int OP_mpi_rx_nonexec_msg_count_org = 0;
+
+int OP_mpi_tx_nonexec_msg_count_partial = 0;
+int OP_mpi_rx_nonexec_msg_count_partial = 0;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */

@@ -878,6 +878,11 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: nhalos
    end function
 
+   subroutine op_mpi_halo_exchange_summary_c () BIND(C,name='op_mpi_halo_exchange_summary')
+      use, intrinsic :: ISO_C_BINDING
+
+   end subroutine op_mpi_halo_exchange_summary_c
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
@@ -3695,6 +3700,11 @@ type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type,
     endif
 
   end function op_opt_arg_dat_halo_python_OP_ID
+
+  subroutine op_mpi_halo_exchange_summary ()
+    use, intrinsic :: ISO_C_BINDING
+    call op_mpi_halo_exchange_summary_c()
+  end subroutine op_mpi_halo_exchange_summary
 
 
 end module OP2_Fortran_Declarations

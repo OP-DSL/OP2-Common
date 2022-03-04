@@ -416,5 +416,7 @@ void step11(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, 
 void step12(int **part_range, int max_time, int my_rank, int comm_size);
 
 int get_set_size_with_nhalos(op_set set, int level);
+void op_mpi_halo_exchange_summary();
+int is_dat_dirty(op_arg* arg);
 
 #endif /* __OP_MPI_CORE_H */

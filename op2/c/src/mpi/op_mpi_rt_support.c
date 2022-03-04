@@ -77,6 +77,9 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
   // redundant compute block
   if (exec_flag == 0 && arg->idx == -1)
     return;
+  
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   arg->sent = 0; // reset flag
 
@@ -122,13 +125,16 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
           buf_index++;
         }
       }
-
+      // printf("rxtxexec merged my_rank=%d dat=%s r=%d sent=%d buf_index=%d buf_start=%d\n", my_rank, dat->name, r, buf_index - buf_start, buf_index, buf_start);
+      
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_exec[buf_start * dat->size],
                 dat->size * (buf_index - buf_start), MPI_CHAR,
                 exp_exec_list->ranks[r], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
-                     ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);  
+                     ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_exec_msg_count++;
+      OP_mpi_tx_exec_msg_count_merged++;
     }
 
     int init = 0; //dat->set->size * dat->size;
@@ -138,6 +144,10 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      
+      // printf("rxtxexec merged my_rank=%d dat=%s r=%d recved=%d\n", my_rank, dat->name, i, imp_exec_list->sizes_by_rank[i]);
+      OP_mpi_rx_exec_msg_count++;
+      OP_mpi_rx_exec_msg_count_merged++;
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -150,9 +160,6 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
       printf("Error: Non-Export list and set mismatch");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
 
     set_elem_index = 0;
     buf_index = 0;
@@ -172,13 +179,15 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
         }
       }
 
+      // printf("rxtxnonexec merged my_rank=%d dat=%s r=%d sent=%d buf_index=%d buf_start=%d\n", my_rank, dat->name, r, buf_index - buf_start, buf_index, buf_start);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_nonexec[buf_start * dat->size],
                 dat->size * (buf_index - buf_start), MPI_CHAR,
                 exp_nonexec_list->ranks[r], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-        
+      OP_mpi_tx_nonexec_msg_count++;
+      OP_mpi_tx_nonexec_msg_count_merged++; 
     }
 
     int nonexec_init = 0;
@@ -192,6 +201,10 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
                 imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      
+      // printf("rxtxnonexec merged  my_rank=%d dat=%s r=%d recved=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes_by_rank[i]);
+      OP_mpi_rx_nonexec_msg_count++;
+      OP_mpi_rx_nonexec_msg_count_merged++;
     }
     // clear dirty bit
     dat->dirtybit = 0;
@@ -219,6 +232,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   // redundant compute block
   if (exec_flag == 0 && arg->idx == -1)
     return;
+
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   arg->sent = 0; // reset flag
 
@@ -271,6 +287,10 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 exp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_exec_msg_count++;
+      OP_mpi_tx_exec_msg_count_org++;
+
+      // printf("rxtxexec org my_rank=%d dat=%s r=%d sent=%d\n", my_rank, dat->name, i, exp_exec_list->sizes[i]);
     }
 
     int init = dat->set->size * dat->size;
@@ -284,6 +304,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_exec_msg_count++;
+      OP_mpi_rx_exec_msg_count_org++;
+      // printf("rxtxexec org my_rank=%d dat=%s r=%d recevd=%d\n", my_rank, dat->name, i, imp_exec_list->sizes[i]);
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -297,8 +320,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
       for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];
@@ -321,6 +343,10 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
+      OP_mpi_tx_nonexec_msg_count_org++;
+      // printf("rxtxnonexec org my_rank=%d dat=%s r=%d sent=%d\n", my_rank, dat->name, i, exp_nonexec_list->sizes[i]);
+      
     }
 
 #ifdef COMM_AVOID
@@ -339,6 +365,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))
                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_nonexec_msg_count++;
+      OP_mpi_rx_nonexec_msg_count_org++;
+      // printf("rxtxnonexec org my_rank=%d dat=%s r=%d recevd=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes[i]);
     }
     // clear dirty bit
     dat->dirtybit = 0;
@@ -433,6 +462,9 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
                 exp_exec_list->ranks[r], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_exec_msg_count++;
+      OP_mpi_tx_exec_msg_count_chained++;
+      // printf("rxtxexec chained my_rank=%d dat=%s r=%d sent=%d buf_index=%d buf_start=%d\n", my_rank, dat->name, r, buf_index - buf_start, buf_index, buf_start);
         
     }
 
@@ -443,6 +475,9 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_exec_msg_count++;
+      OP_mpi_rx_exec_msg_count_chained++;
+      // printf("rxtxexec chained my_rank=%d dat=%s r=%d recved=%d\n", my_rank, dat->name, i, imp_exec_list->sizes_by_rank[i]);
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -456,8 +491,7 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+ 
 
     set_elem_index = 0;
     buf_index = 0;
@@ -483,6 +517,9 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
                 exp_nonexec_list->ranks[r], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
+      OP_mpi_tx_nonexec_msg_count_chained++;
+      // printf("rxtxnonexec chained my_rank=%d dat=%s r=%d sent=%d buf_index=%d buf_start=%d\n", my_rank, dat->name, r, buf_index - buf_start, buf_index, buf_start);
         
     }
 
@@ -501,6 +538,9 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
                 imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_nonexec_msg_count++;
+      OP_mpi_rx_nonexec_msg_count_chained++;
+      // printf("rxtxexec chained my_rank=%d dat=%s r=%d recved=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes_by_rank[i]);
     }
 
     // clear dirty bit
@@ -568,6 +608,9 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
   }
   arg->sent = 0; // reset flag
 
+     int my_rank;
+    MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+
   // need to exchange indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
@@ -602,6 +645,9 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
+      OP_mpi_tx_nonexec_msg_count_partial++;
+      // printf("rxtxexec partial my_rank=%d dat=%s r=%d sent=%d\n", my_rank, dat->name, i, exp_nonexec_list->sizes[i]);
     }
 
     int init = exp_nonexec_list->size;
@@ -613,6 +659,9 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))
                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_nonexec_msg_count++;
+      OP_mpi_rx_nonexec_msg_count_partial++;
+      // printf("rxtxexec partial my_rank=%d dat=%s r=%d receved=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes[i]);
     }
 
     // note that we are not settinging the dirtybit to 0, since it's not a full
