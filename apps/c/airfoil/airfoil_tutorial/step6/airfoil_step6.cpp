@@ -142,7 +142,7 @@ inline void update(double *qold, double *q, double *res,
 /* main application */
 int main(int argc, char **argv) {
   //Initialise the OP2 library, passing runtime args, and setting diagnostics level to low (1)
-  op_init(argc, argv, 3);
+  op_init(argc, argv, 1);
 
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
@@ -184,6 +184,17 @@ int main(int argc, char **argv) {
   op_get_const_hdf5("eps",   1, "double", (char *)&eps,  file);
   op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,file);
   op_get_const_hdf5("qinf",  4, "double", (char *)&qinf, file);
+
+  op_decl_const(1, "double", &gam  );
+  op_decl_const(1, "double", &gm1  );
+  op_decl_const(1, "double", &cfl  );
+  op_decl_const(1, "double", &eps  );
+  op_decl_const(1, "double", &mach );
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf  );
+
+  //get global number of cells 
+  ncell = op_get_size(cells);
 
   //output mesh information
   op_diagnostic_output();
@@ -264,7 +275,7 @@ int main(int argc, char **argv) {
   }
 
   //end timer
-  op_timsers(&cpu_t2, &wall_t2);
+  op_timers(&cpu_t2, &wall_t2);
 
   // compute and print wall time
   double walltime = wall_t2 - wall_t1;
