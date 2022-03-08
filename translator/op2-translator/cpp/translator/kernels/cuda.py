@@ -53,6 +53,9 @@ def translateKernel(include_dirs: Set[Path], config: Dict[str, Any], kernel: Ker
         if not isinstance(loop.args[arg_idx], OP.ArgDat):
             continue
 
+        if loop.args[arg_idx].access_type == OP.AccessType.INC and config["atomics"]:
+            continue
+
         dat = find(app.dats(), lambda dat: dat.ptr == loop.args[arg_idx].dat_ptr)
         if not dat.soa:
             continue
