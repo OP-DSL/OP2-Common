@@ -25,13 +25,7 @@ const double alpha = 3.0f * atan(1.0f) / 45.0f;
 const double qinf[4] = {CONST_R, (CONST_R * u), 0.0f, (CONST_R * e)};
 
 /* wall timer routine */
-void timer(double *cpu, double *et) {
-  (void)cpu;
-  struct timeval t;
-
-  gettimeofday(&t, (struct timezone *)0);
-  *et = t.tv_sec + t.tv_usec * 1.0e-6;
-}
+// Now done using OP2's internal op_timers() call
 
 //outlined elemental kernel - save_soln
 inline void save_soln(const double *q, double *qold) {
@@ -194,13 +188,20 @@ int main(int argc, char **argv) {
   op_dat p_adt   = op_decl_dat_hdf5(cells,  1, "double", file, "p_adt"  );
   op_dat p_res   = op_decl_dat_hdf5(cells,  4, "double", file, "p_res"  );
 
-  //declare global constants
-  op_get_const_hdf5("gam",  1, "double", (char *)&gam, "new_grid.h5");
-  op_get_const_hdf5("gm1",  1, "double", (char *)&gm1, "new_grid.h5");
-  op_get_const_hdf5("cfl",  1, "double", (char *)&cfl, "new_grid.h5");
-  op_get_const_hdf5("eps",  1, "double", (char *)&eps, "new_grid.h5");
-  op_get_const_hdf5("alpha",1, "double", (char *)&alpha, "new_grid.h5");
-  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
+  //read and declare global constants
+  op_get_const_hdf5("gam",   1, "double", (char *)&gam,  file);
+  op_get_const_hdf5("gm1",   1, "double", (char *)&gm1,  file);
+  op_get_const_hdf5("cfl",   1, "double", (char *)&cfl,  file);
+  op_get_const_hdf5("eps",   1, "double", (char *)&eps,  file);
+  op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,file);
+  op_get_const_hdf5("qinf",  4, "double", (char *)&qinf, file);
+
+  op_decl_const(1, "double", &gam  );
+  op_decl_const(1, "double", &gm1  );
+  op_decl_const(1, "double", &cfl  );
+  op_decl_const(1, "double", &eps  );
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf  );
 
   //output mesh information
   op_diagnostic_output();
@@ -209,7 +210,7 @@ int main(int argc, char **argv) {
   op_partition("BLOCK", "ANY", edges, pecell, p_x);
 
   //start timer
-  timer(&cpu_t1, &wall_t1);
+  op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
   op_printf("***** Start Main iteration *************\n");
@@ -281,12 +282,12 @@ int main(int argc, char **argv) {
   }
 
   //end timer
-  timer(&cpu_t2, &wall_t2);
+  op_timsers(&cpu_t2, &wall_t2);
 
   // compute and print wall time
   double walltime = wall_t2 - wall_t1;
 
-  printf(" Wall time %lf \n", walltime);
+  op_printf(" Wall time %lf \n", walltime);
 
   //Finalising the OP2 library
   op_exit();

@@ -404,10 +404,10 @@ The global reduction requires the ``op_arg_gbl`` API call with ``OP_INC`` access
 
 At this point all the loops have been converted to use ``op_par_loop`` API and the application should be validating when executed on as sequential, single threaded CPU application.
 
-Step 6 - Handing it all to OP2
-------------------------------
+Step 6 - Preparing for Code-generation
+--------------------------------------
 
-Once the developer sequential version has been created and the numerical output validates we can do a number of steps to make the application ready for distributed memory paralleization.
+Once the developer sequential version has been created and the numerical output validates this code is ready to be used with the code generator to produce single node (non-distributed memory) paralelizations. However, in this step we additionally do a number of changes to the code to also facilitate generating distributed memory paralleizations.
 
 (1) File I/O needs to be extended to allow distributed memory execution with MPI. The current Airfoil application simply reads the mesh data from a text file and such a simple setup will not be workable on a distributed memory system, such as a cluster and more importantly will not be scalable with MPI. The simplest solution is to use OP2's HDF5 API for declaring the mesh by replacing ``op_decl_set, op_decl_map, op_decl_dat`` and ``op_decl_const`` by its HDF5 counterparts as follows:
 
@@ -434,18 +434,24 @@ Once the developer sequential version has been created and the numerical output 
   op_dat p_adt   = op_decl_dat_hdf5(cells,  1, "double", file, "p_adt"  );
   op_dat p_res   = op_decl_dat_hdf5(cells,  4, "double", file, "p_res"  );
 
-  //declare global constants
-  op_get_const_hdf5("gam",  1, "double", (char *)&gam, "new_grid.h5");
-  op_get_const_hdf5("gm1",  1, "double", (char *)&gm1, "new_grid.h5");
-  op_get_const_hdf5("cfl",  1, "double", (char *)&cfl, "new_grid.h5");
-  op_get_const_hdf5("eps",  1, "double", (char *)&eps, "new_grid.h5");
-  op_get_const_hdf5("alpha",1, "double", (char *)&alpha, "new_grid.h5");
-  op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
+  //read and declare global constants
+  op_get_const_hdf5("gam",   1, "double", (char *)&gam,  file);
+  op_get_const_hdf5("gm1",   1, "double", (char *)&gm1,  file);
+  op_get_const_hdf5("cfl",   1, "double", (char *)&cfl,  file);
+  op_get_const_hdf5("eps",   1, "double", (char *)&eps,  file);
+  op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,file);
+  op_get_const_hdf5("qinf",  4, "double", (char *)&qinf, file);
+
+  op_decl_const(1, "double", &gam  );
+  op_decl_const(1, "double", &gm1  );
+  op_decl_const(1, "double", &cfl  );
+  op_decl_const(1, "double", &eps  );
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf  );
 
 Note here that we assume that the mesh is already available as an HDF5 file named ``new_grid.h5``. (See the ``convert_mesh.cpp`` utility application in ``OP2-Common/apps/c/airfoil/airfoil_hdf5/dp`` to understand how we can create an HDF5 file to be compatible with the OP2 API for Airfoil starting from mesh data defined in a text file.)
 
-When the application has been switched to use the HDF5 API calls, manually allocated memory for the mesh elements can be removed. Additionally all ``printf`` statements should use ``op_printf`` so that output to terminal will only be done by the ROOT mpi process.
-
+When the application has been switched to use the HDF5 API calls, manually allocated memory for the mesh elements can be removed. Additionally all ``printf`` statements should use ``op_printf`` so that output to terminal will only be done by the ROOT mpi process. We can also replace the timer routines with OP2's ``op_timers`` which times the execution of the code the ROOT.
 
 (2) Add the OP2 partitioner call ``op_partition`` to the code in order to signal to the MPI back-end, the point in the program that all mesh data have been defined and mesh can be partitioned and MPI halos can be created:
 
@@ -469,10 +475,10 @@ When the application has been switched to use the HDF5 API calls, manually alloc
 
 See the API documentation for practitioner options. In this case no special partitioner is used leaving the initial block partitioning of data at the time of file I/O through HDF5.
 
-At this point, compile the code using the Makefile in the ``\step6`` directory where a parallel executable will be created by linking to OP2's MPI back-end. You will need to have had HDF5 library installed on your system to carry out this step. The resulting executable is called a ``developer MPI`` version of the application, which should again be used to verify validity of the application by running with ``mpirun`` in the usual way of executing an MPI application.
+Take a look at the code in the ``\step6`` for the full code changes done to the Airfoil application. However this code cannot yet be compiled to obtain parallel executables. We will need to code generate the varisou versions and compile/link to the relevant OP2 parallel back-end to do this, as detained in the next step.
 
 
-* details on ``op_fetch_data`` call
+.. * details on ``op_fetch_data`` call
 
 
 
@@ -481,7 +487,12 @@ Step 7 - Code generation
 ------------------------
 * Code-gen command
 * Link and execute parallel versions with Makefiles
+
+MPI - At this point, compile the code using the Makefile in the ``\step7`` directory where a parallel executable will be created by linking to OP2's MPI back-end. You will need to have had HDF5 library installed on your system to carry out this step. The resulting executable is called a ``developer MPI`` version of the application, which should again be used to verify validity of the application by running with ``mpirun`` in the usual way of executing an MPI application.
+
 * Use OP2's c_app Makefiles
+
+
 
 Code generated versions
 -----------------------
