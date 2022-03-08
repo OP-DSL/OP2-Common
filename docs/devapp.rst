@@ -404,10 +404,10 @@ The global reduction requires the ``op_arg_gbl`` API call with ``OP_INC`` access
 
 At this point all the loops have been converted to use ``op_par_loop`` API and the application should be validating when executed on as sequential, single threaded CPU application.
 
-Step 6 - Preparing for Code-generation
+Step 6 - Handing it all to OP2
 --------------------------------------
 
-Once the developer sequential version has been created and the numerical output validates this code is ready to be used with the code generator to produce single node (non-distributed memory) paralelizations. However, in this step we additionally do a number of changes to the code to also facilitate generating distributed memory paralleizations.
+Once the developer sequential version has been created and the numerical output validates the application can be prepared to obtain a developer distributed memory parallel version. This step can be completed to obtain a parallel executable, without code-generation if the following steps are implemented.
 
 (1) File I/O needs to be extended to allow distributed memory execution with MPI. The current Airfoil application simply reads the mesh data from a text file and such a simple setup will not be workable on a distributed memory system, such as a cluster and more importantly will not be scalable with MPI. The simplest solution is to use OP2's HDF5 API for declaring the mesh by replacing ``op_decl_set, op_decl_map, op_decl_dat`` and ``op_decl_const`` by its HDF5 counterparts as follows:
 
@@ -441,6 +441,13 @@ Once the developer sequential version has been created and the numerical output 
   op_get_const_hdf5("eps",   1, "double", (char *)&eps,  file);
   op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,file);
   op_get_const_hdf5("qinf",  4, "double", (char *)&qinf, file);
+
+  op_decl_const(1, "double", &gam  );
+  op_decl_const(1, "double", &gm1  );
+  op_decl_const(1, "double", &cfl  );
+  op_decl_const(1, "double", &eps  );
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf  );
 
 Note here that we assume that the mesh is already available as an HDF5 file named ``new_grid.h5``. (See the ``convert_mesh.cpp`` utility application in ``OP2-Common/apps/c/airfoil/airfoil_hdf5/dp`` to understand how we can create an HDF5 file to be compatible with the OP2 API for Airfoil starting from mesh data defined in a text file.)
 
