@@ -1,4 +1,4 @@
-APP_NAME := airfoil
+APP_NAME := airfoil_step7
 
 APP_ENTRY := $(APP_NAME).cpp
 APP_ENTRY_MPI := $(APP_ENTRY)
