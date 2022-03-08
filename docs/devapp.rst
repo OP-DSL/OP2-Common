@@ -490,9 +490,12 @@ The resulting executable is called a ``developer MPI`` version of the applicatio
 
 Step 7 - Code generation
 ------------------------
-* Code-gen command
+
+Now that both the sequential and MPI developer versions work and validate, its time to generate other parallel versions. Got to the ``\step7`` directory and and on the terminal type :
 
 ``python $OP2_INSTALL_PATH/../translator/c/op2.py airfoil_step7.cpp``
+
+Note that the ``python`` command assumes that it will point to Python 3.*. The above then will generate (in the same directory) parallel code under sub-directories - ``cuda, openacc, openmp,  openmp4, seq`` and  ``vec``. These correspond to on-node parallel version based on CUDA, OpenACC, OpenMP, OpenMP4.0 (and higher) and SIMD vectorized, respectively, each also capable of running with distributed memory parallelization across nodes.
 
 * Use OP2's c_app Makefiles
 * Link and execute parallel versions with Makefiles
