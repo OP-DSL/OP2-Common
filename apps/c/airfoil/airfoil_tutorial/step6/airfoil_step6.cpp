@@ -11,18 +11,7 @@
 
 
 /* Global Constants */
-#define CONST_GAM 1.4f
-#define CONST_MACH 0.4f
-#define CONST_P 1.0f
-#define CONST_R 1.0f
-const double u = sqrt(CONST_GAM * CONST_P / CONST_R) * CONST_MACH;
-const double e = CONST_P / (CONST_R * (CONST_GAM - 1.0f)) + 0.5f * u * u;
-const double gam = CONST_GAM;
-const double gm1 = CONST_GAM - 1.0f;
-const double cfl = 0.9f;
-const double eps = 0.05f;
-const double alpha = 3.0f * atan(1.0f) / 45.0f;
-const double qinf[4] = {CONST_R, (CONST_R * u), 0.0f, (CONST_R * e)};
+double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 /* wall timer routine */
 // Now done using OP2's internal op_timers() call
@@ -195,13 +184,6 @@ int main(int argc, char **argv) {
   op_get_const_hdf5("eps",   1, "double", (char *)&eps,  file);
   op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,file);
   op_get_const_hdf5("qinf",  4, "double", (char *)&qinf, file);
-
-  op_decl_const(1, "double", &gam  );
-  op_decl_const(1, "double", &gm1  );
-  op_decl_const(1, "double", &cfl  );
-  op_decl_const(1, "double", &eps  );
-  op_decl_const(1, "double", &alpha);
-  op_decl_const(4, "double", qinf  );
 
   //output mesh information
   op_diagnostic_output();

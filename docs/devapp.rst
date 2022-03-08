@@ -442,13 +442,6 @@ Once the developer sequential version has been created and the numerical output 
   op_get_const_hdf5("alpha", 1, "double", (char *)&alpha,file);
   op_get_const_hdf5("qinf",  4, "double", (char *)&qinf, file);
 
-  op_decl_const(1, "double", &gam  );
-  op_decl_const(1, "double", &gm1  );
-  op_decl_const(1, "double", &cfl  );
-  op_decl_const(1, "double", &eps  );
-  op_decl_const(1, "double", &alpha);
-  op_decl_const(4, "double", qinf  );
-
 Note here that we assume that the mesh is already available as an HDF5 file named ``new_grid.h5``. (See the ``convert_mesh.cpp`` utility application in ``OP2-Common/apps/c/airfoil/airfoil_hdf5/dp`` to understand how we can create an HDF5 file to be compatible with the OP2 API for Airfoil starting from mesh data defined in a text file.)
 
 When the application has been switched to use the HDF5 API calls, manually allocated memory for the mesh elements can be removed. Additionally all ``printf`` statements should use ``op_printf`` so that output to terminal will only be done by the ROOT mpi process. We can also replace the timer routines with OP2's ``op_timers`` which times the execution of the code the ROOT.
@@ -479,8 +472,6 @@ Take a look at the code in the ``\step6`` for the full code changes done to the 
 
 
 .. * details on ``op_fetch_data`` call
-
-
 
 
 Step 7 - Code generation
