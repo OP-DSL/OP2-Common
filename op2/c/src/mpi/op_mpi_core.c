@@ -97,6 +97,9 @@ op_export_handle *OP_export_list = NULL;
 // Timing
 double t1, t2, c1, c2;
 
+// Message counts
+int exec_message_count = 0, nonexec_message_count = 0;
+
 #include <execinfo.h>
 void bt1(void) {
     int c, i;
@@ -4397,23 +4400,27 @@ int is_dat_dirty(op_arg* arg){
 }
 
 
-
-
 void op_mpi_halo_exchange_summary(){
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   printf("op_exit my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
   my_rank, OP_mpi_tx_exec_msg_count, OP_mpi_rx_exec_msg_count, OP_mpi_tx_nonexec_msg_count, OP_mpi_rx_nonexec_msg_count);
 
-  printf("op_exit merged my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
-  my_rank, OP_mpi_tx_exec_msg_count_merged, OP_mpi_rx_exec_msg_count_merged, OP_mpi_tx_nonexec_msg_count_merged, OP_mpi_rx_nonexec_msg_count_merged);
+  // printf("op_exit merged my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
+  // my_rank, OP_mpi_tx_exec_msg_count_merged, OP_mpi_rx_exec_msg_count_merged, OP_mpi_tx_nonexec_msg_count_merged, OP_mpi_rx_nonexec_msg_count_merged);
 
-  printf("op_exit org my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
-  my_rank, OP_mpi_tx_exec_msg_count_org, OP_mpi_rx_exec_msg_count_org, OP_mpi_tx_nonexec_msg_count_org, OP_mpi_rx_nonexec_msg_count_org);
+  // printf("op_exit org my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
+  // my_rank, OP_mpi_tx_exec_msg_count_org, OP_mpi_rx_exec_msg_count_org, OP_mpi_tx_nonexec_msg_count_org, OP_mpi_rx_nonexec_msg_count_org);
 
-  printf("op_exit chained my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
-  my_rank, OP_mpi_tx_exec_msg_count_chained, OP_mpi_rx_exec_msg_count_chained, OP_mpi_tx_nonexec_msg_count_chained, OP_mpi_rx_nonexec_msg_count_chained);
+  // printf("op_exit chained my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
+  // my_rank, OP_mpi_tx_exec_msg_count_chained, OP_mpi_rx_exec_msg_count_chained, OP_mpi_tx_nonexec_msg_count_chained, OP_mpi_rx_nonexec_msg_count_chained);
 
-  printf("op_exit partial my_rank=%d nonexec_tx=%d nonexec_rx=%d\n", 
-  my_rank,  OP_mpi_tx_nonexec_msg_count_partial, OP_mpi_rx_nonexec_msg_count_partial);
+  // printf("op_exit partial my_rank=%d nonexec_tx=%d nonexec_rx=%d\n", 
+  // my_rank,  OP_mpi_tx_nonexec_msg_count_partial, OP_mpi_rx_nonexec_msg_count_partial);
+
+  MPI_Reduce(&OP_mpi_tx_exec_msg_count, &exec_message_count, 1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&OP_mpi_tx_nonexec_msg_count, &nonexec_message_count, 1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+
+  op_printf("op_mpi_halo_exchange_summary my_rank=%d exec_tx=%d nonexec_tx=%d\n", 
+  my_rank,  exec_message_count, nonexec_message_count);
 }
