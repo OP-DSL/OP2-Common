@@ -1,0 +1,191 @@
+{% extends "cpp/loop_host.hpp.jinja" %}
+
+{%- macro arg_to_pointer(arg, idx) -%}
+    {%- if arg is gbl and arg is reduction -%}
+gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
+    {%- else -%}
+        {%- if arg is gbl %}
+            {%- set cast = arg.typ -%}
+        {%- else -%}
+            {%- set cast = arg.dat_typ -%}
+        {%- endif -%}
+
+        {%- if arg is direct -%}
+            {%- set offset = " + n * %d" % arg.dat_dim -%}
+        {%- elif arg is indirect -%}
+            {%- set offset = " + map_%s[%d] * %d" % (arg.map_ptr, arg.map_idx, arg.dat_dim) if arg is indirect -%}
+        {%- endif -%}
+
+({{cast}} *)arg{{idx}}.data{{offset}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{% block host_prologue %}
+{{super()}}
+    {% if lh is indirect %}
+    int num_dats_indirect = {{lh.dats|indirect(lh)|length}};
+    int dats_indirect[{{lh.args_expanded|length}}] = {
+    {%- for arg, idx in lh.args_expanded -%}
+    {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}{{", " if not loop.last}}
+    {%- endfor -%}
+    };
+
+#ifdef OP_PART_SIZE_{{lh.kernel_idx}}
+    int part_size = OP_PART_SIZE_{{lh.kernel_idx}};
+#else
+    int part_size = OP_part_size;
+#endif
+
+    op_plan *plan = op_plan_get_stage_upload(name, set, part_size, num_args_expanded, args_expanded,
+        num_dats_indirect, dats_indirect, OP_STAGE_ALL, 0);
+    {% endif %}
+    {% if lh is direct or lh.args|gbl|reduction|length > 0 %}
+
+#ifdef _OPENMP
+    int num_threads = omp_get_max_threads();
+#else
+    int num_threads = 1;
+#endif
+    {% endif %}
+    {% for arg, idx in lh.args|gbl|reduction %}
+
+    {{arg.typ}} *arg{{idx}}_host_data = ({{arg.typ}} *)arg{{idx}}.data;
+    {{arg.typ}} gbl_{{arg.ptr}}_local[num_threads * 64];
+
+    for (int thread = 0; thread < num_threads; ++thread) {
+        for (int d = 0; d < {{arg.dim}}; ++d)
+            gbl_{{arg.ptr}}_local[thread * 64 + d] = {% if arg is inc -%}
+                ZERO_{{arg.typ}}
+            {%- else -%}
+                arg{{idx}}_host_data[d]
+            {%- endif %};
+    }
+    {% endfor %}
+{% endblock %}
+
+{% block host_prologue_early_exit_cleanup %}
+    {% if lh is indirect %}
+        op_mpi_wait_all(num_args_expanded, args_expanded);
+
+    {% endif %}
+    {% for arg, idx in lh.args|gbl|reduction %}
+        op_mpi_reduce(&arg{{idx}}, ({{arg.typ}} *)arg{{idx}}.data);
+    {% endfor %}
+        op_mpi_set_dirtybit(num_args_expanded, args_expanded);
+{% endblock %}
+
+{% block host_loop %}
+    {% if lh is direct %}
+    #pragma omp parallel for
+    for (int thread = 0; thread < num_threads; ++thread) {
+        int start = (set->size * thread) / num_threads;
+        int end = (set->size * (thread + 1))/ num_threads;
+
+        for (int n = start; n < end; ++n) {
+        {% for arg, idx in lh.args|vec %}
+            {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
+            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+                {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
+            {% endfor %}
+            };
+
+        {% endfor %}
+            {{lh.kernel.name}}(
+        {% for arg, idx in lh.args %}
+            {% if arg is not vec %}
+                {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+            {% else %}
+                arg{{idx}}_vec{{"," if not loop.last}}
+            {% endif %}
+        {% endfor %}
+            );
+        }
+    }
+    {% else %}
+    int block_offset = 0;
+    for (int col = 0; col < plan->ncolors; ++col) {
+        if (col == plan->ncolors_core)
+            op_mpi_wait_all(num_args_expanded, args_expanded);
+
+        int num_blocks = plan->ncolblk[col];
+
+        #pragma omp parallel for
+        for (int block_idx = 0; block_idx < num_blocks; ++block_idx) {
+            int block_id = plan->blkmap[block_idx + block_offset];
+            int num_elem = plan->nelems[block_id];
+            int offset = plan->offset[block_id];
+
+            for (int n = offset; n < offset + num_elem; ++n) {
+        {% for map, idx in lh.maps.items() %}
+                int *map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
+        {% endfor %}
+
+        {% for arg, idx in lh.args|vec %}
+                {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
+            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+                    {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
+            {% endfor %}
+                };
+
+        {% endfor %}
+                {{lh.kernel.name}}(
+        {% for arg, idx in lh.args %}
+            {% if arg is not vec %}
+                    {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+            {% else %}
+                    arg{{idx}}_vec{{"," if not loop.last}}
+            {% endif %}
+        {% endfor %}
+                );
+            }
+        }
+
+        block_offset += num_blocks;
+        {% if direct or lh.args|gbl|reduction|length > 0 %}
+
+        if (col != plan->ncolors_owned - 1)
+            continue;
+
+            {% for arg, idx in lh.args|gbl|reduction %}
+        for (int thread = 0; thread < num_threads; ++thread) {
+            for (int d = 0; d < {{arg.dim}}; ++d)
+                {% if arg is inc %}
+                arg{{idx}}_host_data[d] += gbl_{{arg.ptr}}_local[thread * 64 + d];
+                {% else %}
+                arg{{idx}}_host_data[d] = {{arg.access_type.name-}}
+                    (arg{{idx}}_host_data[d], gbl_{{arg.ptr}}_local[thread * 64 + d]);
+                {% endif %}
+        }
+            {% endfor %}
+        {% endif  %}
+    }
+    {% endif %}
+{% endblock %}
+
+{% block host_epilogue %}
+    {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
+    if (set_size == set->core_size)
+        op_mpi_wait_all(num_args_expanded, args_expanded);
+
+    {% endif %}
+    {% if lh is direct %}
+        {% for arg, idx in lh.args|gbl|reduction %}
+    for (int thread = 0; thread < num_threads; ++thread) {
+        for (int d = 0; d < {{arg.dim}}; ++d)
+            {% if arg is inc %}
+            arg{{idx}}_host_data[d] += gbl_{{arg.ptr}}_local[thread * 64 + d];
+            {% else %}
+            arg{{idx}}_host_data[d] = {{arg.access_type.name-}}
+                (arg{{idx}}_host_data[d], gbl_{{arg.ptr}}_local[thread * 64 + d]);
+            {% endif %}
+    }
+            {% endfor %}
+
+    {% endif %}
+    {% for arg, idx in lh.args|gbl|reduction %}
+    op_mpi_reduce(&arg{{idx}}, arg{{idx}}_host_data);
+    {% endfor %}
+    op_mpi_set_dirtybit(num_args_expanded, args_expanded);
+
+{{super()}}
+{% endblock %}
