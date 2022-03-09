@@ -44,8 +44,8 @@ void op_par_loop_{{lh.kernel.name}}(
     if (OP_diags > 2)
         printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.kernel.name}}\n");
 
-    int set_size = op_mpi_halo_exchanges{{"_grouped" if opt.config.grouped-}}
-        (set, num_args_expanded, args_expanded{{(", %d" % opt.config.device) if opt.config.grouped}});
+    int set_size = op_mpi_halo_exchanges{{"_grouped" if target.config.grouped-}}
+        (set, num_args_expanded, args_expanded{{(", %d" % target.config.device) if target.config.grouped}});
 
     if (set_size == 0) {
         {% block host_prologue_early_exit_cleanup %}

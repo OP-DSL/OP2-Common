@@ -15,9 +15,8 @@ import fortran
 import fortran.translator.kernels.cuda
 import fortran.translator.kernels.vec
 import op as OP
-import optimisation
 from language import Lang
-from optimisation import Opt
+from target import Target
 from store import Application, Kernel
 from util import Findable, find, safeFind
 
@@ -104,13 +103,13 @@ class LoopHost:
 
 class Scheme(Findable):
     lang: Lang
-    opt: Opt
+    target: Target
 
     loop_host_template: Path
     master_kernel_template: Optional[Path]
 
     def __str__(self) -> str:
-        return f"{self.lang.name}/{self.opt.name}"
+        return f"{self.lang.name}/{self.target.name}"
 
     def genLoopHost(
         self, include_dirs: Set[Path], env: Environment, loop: OP.Loop, app: Application, kernel_idx: int
@@ -125,7 +124,7 @@ class Scheme(Findable):
         loop_host = LoopHost(loop, kernel_func, kernel_idx, app, self.lang)
 
         # Generate source from the template
-        return template.render(OP=OP, lh=loop_host, opt=self.opt), extension
+        return template.render(OP=OP, lh=loop_host, target=self.target), extension
 
     def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path]) -> Tuple[str, str]:
         if self.master_kernel_template is None:
@@ -140,46 +139,46 @@ class Scheme(Findable):
         extension = self.master_kernel_template.suffixes[-2][1:]
 
         # Generate source from the template
-        return template.render(OP=OP, app=app, opt=self.opt, user_types=user_types), extension
+        return template.render(OP=OP, app=app, target=self.target, user_types=user_types), extension
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return kernel.path.read_text()
 
-    def matches(self, key: Tuple[Lang, Opt]) -> bool:
-        return self.lang == key[0] and self.opt == key[1]
+    def matches(self, key: Tuple[Lang, Target]) -> bool:
+        return self.lang == key[0] and self.target == key[1]
 
 
 class CppSeq(Scheme):
     lang = Lang.find("cpp")
-    opt = Opt.find("seq")
+    target = Target.find("seq")
 
     loop_host_template = Path("cpp/seq/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/seq/master_kernel.cpp.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.opt.config, kernel, app)
+        return cpp.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
 
 
 class CppOpenMP(Scheme):
     lang = Lang.find("cpp")
-    opt = Opt.find("openmp")
+    target = Target.find("openmp")
 
     loop_host_template = Path("cpp/openmp/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/openmp/master_kernel.cpp.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.opt.config, kernel, app)
+        return cpp.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
 
 
 class CppCuda(Scheme):
     lang = Lang.find("cpp")
-    opt = Opt.find("cuda")
+    target = Target.find("cuda")
 
     loop_host_template = Path("cpp/cuda/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/cuda/master_kernel.cu.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.cuda.translateKernel(self.lang, include_dirs, self.opt.config, kernel, app)
+        return cpp.translator.kernels.cuda.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
 
 
 Scheme.register(CppSeq)
@@ -189,7 +188,7 @@ Scheme.register(CppCuda)
 
 class FortranSeq(Scheme):
     lang = Lang.find("F95")
-    opt = Opt.find("seq")
+    target = Target.find("seq")
 
     loop_host_template = Path("fortran/seq/loop_host.F90.jinja")
     master_kernel_template = None
@@ -197,18 +196,18 @@ class FortranSeq(Scheme):
 
 class FortranVec(Scheme):
     lang = Lang.find("F95")
-    opt = Opt.find("vec")
+    target = Target.find("vec")
 
     loop_host_template = Path("fortran/vec/loop_host.F90.jinja")
     master_kernel_template = None
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return fortran.translator.kernels.vec.translateKernel(self.opt.config, kernel.path.read_text(), kernel, app)
+        return fortran.translator.kernels.vec.translateKernel(self.target.config, kernel.path.read_text(), kernel, app)
 
 
 class FortranOpenMP(Scheme):
     lang = Lang.find("F95")
-    opt = Opt.find("openmp")
+    target = Target.find("openmp")
 
     loop_host_template = Path("fortran/omp/loop_host.F90.jinja")
     master_kernel_template = None
@@ -216,13 +215,13 @@ class FortranOpenMP(Scheme):
 
 class FortranCuda(Scheme):
     lang = Lang.find("F95")
-    opt = Opt.find("cuda")
+    target = Target.find("cuda")
 
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
     master_kernel_template = None
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return fortran.translator.kernels.cuda.translateKernel(self.opt.config, kernel.path.read_text(), kernel, app)
+        return fortran.translator.kernels.cuda.translateKernel(self.target.config, kernel.path.read_text(), kernel, app)
 
 
 # Scheme.register(FortranSeq)

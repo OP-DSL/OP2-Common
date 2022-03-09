@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Dict, List
 from util import Findable
 
 
-class Opt(Findable):
+class Target(Findable):
     name: str
     kernel_translation: bool
     config: Dict[str, Any]
@@ -23,35 +23,35 @@ class Opt(Findable):
         return self.name == key.lower()
 
 
-class Seq(Opt):
+class Seq(Target):
     name = "seq"
     kernel_translation = False
 
     config = {"grouped": False, "device": 1}
 
 
-class Cuda(Opt):
+class Cuda(Target):
     name = "cuda"
     kernel_translation = True
 
     config = {"grouped": True, "device": 2, "atomics": True, "ind_inc": False, "inc_stage": 0}
 
 
-class OpenMP(Opt):
+class OpenMP(Target):
     name = "openmp"
     kernel_translation = False
 
     config = {"grouped": False, "device": 1, "thread_timing": False}
 
 
-class Vec(Opt):
+class Vec(Target):
     name = "vec"
     kernel_translation = True
 
     config = {"grouped": False, "device": 1}
 
 
-Opt.register(Seq)
-Opt.register(Cuda)
-Opt.register(OpenMP)
-Opt.register(Vec)
+Target.register(Seq)
+Target.register(Cuda)
+Target.register(OpenMP)
+Target.register(Vec)
