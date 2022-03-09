@@ -59,7 +59,7 @@ gbl_{{arg.ptr}}{{"_local" if arg.access_type != OP.AccessType.READ}}
 dat_{{arg.dat_ptr}} + n{{(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
     {%- elif arg is vec -%}
 arg{{idx}}_vec
-    {%- elif arg is inc and opt.config.atomics -%}
+    {%- elif arg is inc and target.config.atomics -%}
 arg{{idx}}_{{arg.map_idx}}_local
     {%- else -%}
 dat_{{arg.dat_ptr}} + {{map_lookup(arg)}}{{(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
@@ -79,7 +79,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl_{{arg.ptr}},
     {% endfor %}
     {%- if lh is indirect %}
-    {{-"int *col_reord," if opt.config.color2}}
+    {{-"int *col_reord," if target.config.color2}}
     int start,
     int end,
     {%- endif +%}
@@ -107,9 +107,9 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     }
     {% else %}
     if (thread_id + start < end) {
-        int n = {{"thread_id + start" if opt.config.atomics else "col_reord[thread_id + start]"}};
+        int n = {{"thread_id + start" if target.config.atomics else "col_reord[thread_id + start]"}};
 
-        {% for arg, idx in lh.args_expanded|indirect|reduction if opt.config.atomics %}
+        {% for arg, idx in lh.args_expanded|indirect|reduction if target.config.atomics %}
         {{arg.dat_typ}} arg{{idx}}_{{arg.map_idx}}_local[{{arg.dat_dim}}];
         for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
             arg{{idx}}_{{arg.map_idx}}_local[d] = ZERO_{{arg.dat_typ}};
@@ -129,7 +129,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
             {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg, idx)}}{% endcall %}{{-"," if not loop.last}}
             {% endfor %}
         );
-    {% for arg, idx in lh.args_expanded|indirect|reduction if opt.config.atomics %}
+    {% for arg, idx in lh.args_expanded|indirect|reduction if target.config.atomics %}
 
         for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
             atomicAdd(dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} + d{{stride_cuda(arg)}}, arg{{idx}}_{{arg.map_idx}}_local[d]);
@@ -164,7 +164,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 
     {% endfor %}
     {% endif %}
-    {% if opt.config.color2 %}
+    {% if target.config.color2 %}
 #ifdef OP_PART_SIZE_{{lh.kernel_idx}}
     int part_size = OP_PART_SIZE_{{lh.kernel_idx}};
 #else
@@ -172,7 +172,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 #endif
 
     {% endif %}
-    {% if opt.config.color2 and lh is indirect %}
+    {% if target.config.color2 and lh is indirect %}
     int num_args_indirect = {{lh.maps|length}};
     int args_indirect[{{lh.args_expanded|length}}] = {
         {%- for arg, idx in lh.args_expanded -%}
@@ -220,7 +220,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
         cudaMemcpyToSymbol(op2_dat_{{dat.ptr}}_stride_d, &op2_dat_{{dat.ptr}}_stride, sizeof(int));
     }
     {% endfor %}
-    {% if opt.config.atomics or lh is direct %}
+    {% if target.config.atomics or lh is direct %}
 
 #ifdef OP_BLOCK_SIZE_{{lh.kernel_idx}}
     int block_size = OP_BLOCK_SIZE_{{lh.kernel_idx}};
@@ -236,7 +236,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 
         {% if lh is direct %}
     int max_blocks = num_blocks;
-        {% elif opt.config.atomics %}
+        {% elif target.config.atomics %}
     int max_blocks = (MAX(set->core_size, set->size + set->exec_size - set->core_size) - 1) / block_size + 1;
         {% else %}
     int max_blocks = 0;
@@ -306,7 +306,7 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
     mvReductArraysToHost(reduction_bytes);
         {% endif %}
 
-    {% elif opt.config.atomics %}
+    {% elif target.config.atomics %}
     for (int round = 0; round < {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}; ++round ) {
         if (round == 1)
             op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
@@ -367,7 +367,7 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
     OP_kernels[{{lh.kernel_idx}}].transfer += (float)set->size * arg{{idx}}.size{{-" * 2.0f" if not arg is read}};
             {% endcall %}
         {% endfor %}
-    {% elif opt.config.color2 %}
+    {% elif target.config.color2 %}
     OP_kernels[{{lh.kernel_idx}}].transfer  += plan->transfer;
     OP_kernels[{{lh.kernel_idx}}].transfer2 += plan->transfer2;
     {% endif %}

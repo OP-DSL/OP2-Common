@@ -13,7 +13,7 @@ from typing import List
 from jinja import env
 from language import Lang
 from op import OpError, Type
-from optimisation import Opt
+from target import Target
 from scheme import Scheme
 from store import Application, ParseError
 from util import getVersion, safeFind
@@ -28,14 +28,21 @@ def main(argv=None) -> None:
     parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath)
-    parser.add_argument("-c", "--config", help="Optimisation configuration", type=json.loads, default="{}")
+    parser.add_argument("-c", "--config", help="Target configuration", type=json.loads, default="{}")
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
 
     parser.add_argument("-I", help="Header Include", type=isDirPath, action="append", nargs=1, default=[])
 
-    opt_names = [opt.name for opt in Opt.all()]
+    target_names = [target.name for target in Target.all()]
     parser.add_argument(
-        "-f", "--flavour", help="Optimisation scheme", type=str, action="append", nargs=1, choices=opt_names, default=[]
+        "-t",
+        "--target",
+        help="Code-generation target",
+        type=str,
+        action="append",
+        nargs=1,
+        choices=target_names,
+        default=[],
     )
 
     parser.add_argument("file_paths", help="Input OP2 sources", type=isFilePath, nargs="+")
@@ -65,7 +72,6 @@ def main(argv=None) -> None:
     else:
         [extension] = extensions
 
-    # Determine the target language and optimisation
     lang = Lang.find(extension)
 
     if lang is None:
@@ -73,8 +79,8 @@ def main(argv=None) -> None:
 
     Type.set_formatter(lang.formatType)
 
-    if len(args.flavour) == 0:
-        args.flavour = [[opt_name] for opt_name in opt_names]
+    if len(args.target) == 0:
+        args.target = [[target_name] for target_name in target_names]
 
     try:
         app = parse(args, lang)
@@ -95,16 +101,16 @@ def main(argv=None) -> None:
     except OpError as e:
         exit(e)
 
-    for [flavour] in args.flavour:
-        opt = Opt.find(flavour)
+    for [target] in args.target:
+        target = Target.find(target)
 
-        for key in opt.config:
+        for key in target.config:
             if key in args.config:
-                opt.config[key] = args.config[key]
+                target.config[key] = args.config[key]
 
-        scheme = Scheme.find((lang, opt))
+        scheme = Scheme.find((lang, target))
         if not scheme:
-            print(f"No scheme registered for {lang}/{opt}\n")
+            print(f"No scheme registered for {lang}/{target}\n")
             continue
 
         if args.verbose:
@@ -195,14 +201,14 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         # Form output file path
         path = None
         if scheme.lang.kernel_dir:
-            Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
+            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
             path = Path(
                 args.out,
-                scheme.opt.name,
+                scheme.target.name,
                 f"{loop.kernel}_kernel.{extension}",
             )
         else:
-            path = Path(args.out, f"{loop.kernel}_{scheme.opt.name}_kernel.{extension}")
+            path = Path(args.out, f"{loop.kernel}_{scheme.target.name}_kernel.{extension}")
 
         # Write the generated source file
         with open(path, "w") as file:
@@ -223,10 +229,10 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
 
         path = None
         if scheme.lang.kernel_dir:
-            Path(args.out, scheme.opt.name).mkdir(parents=True, exist_ok=True)
-            path = Path(args.out, scheme.opt.name, f"{appname}_kernels.{extension}")
+            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
+            path = Path(args.out, scheme.target.name, f"{appname}_kernels.{extension}")
         else:
-            path = Path(args.out, f"{appname}_{scheme.opt.name}_kernels.{extension}")
+            path = Path(args.out, f"{appname}_{scheme.target.name}_kernels.{extension}")
 
         with open(path, "w") as file:
             file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
