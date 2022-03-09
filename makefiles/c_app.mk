@@ -1,4 +1,12 @@
-TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v -soa
+TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v
+
+ifneq ($(OP_AUTO_SOA),)
+	TRANSLATOR += -soa
+endif
+
+ifneq ($(MPI_INC),)
+	TRANSLATOR += -I $(MPI_INC)
+endif
 
 APP_ENTRY ?= $(APP_NAME).cpp
 APP_ENTRY_MPI ?= $(APP_NAME)_mpi.cpp
@@ -80,7 +88,7 @@ clean:
 .generated: $(APP_ENTRY) $(APP_ENTRY_MPI)
 	[ ! -f $(APP_ENTRY) ] || $(TRANSLATOR) $(APP_ENTRY)
 	[ ! -f $(APP_ENTRY_MPI) ] || [ $(APP_ENTRY_MPI) = $(APP_ENTRY) ] \
-		|| : || $(TRANSLATOR) $(APP_ENTRY_MPI)
+		|| $(TRANSLATOR) $(APP_ENTRY_MPI)
 	@touch $@
 
 SEQ_SRC := $(APP_ENTRY)
