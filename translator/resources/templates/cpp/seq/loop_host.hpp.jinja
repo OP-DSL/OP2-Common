@@ -1,6 +1,25 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
+{%- macro arg_to_pointer(arg, idx) %}
+    {%- if arg is gbl %}
+        {%- set cast = arg.typ -%}
+    {%- else -%}
+        {%- set cast = arg.dat_typ -%}
+    {%- endif -%}
+
+    {%- if arg is direct -%}
+        {%- set offset = " + n * %d" % arg.dat_dim -%}
+    {%- elif arg is indirect -%}
+        {%- set offset = " + map_%s[%d] * %d" % (arg.map_ptr, arg.map_idx, arg.dat_dim) if arg is indirect -%}
+    {%- endif -%}
+
+({{cast}} *)arg{{idx}}.data{{offset}}
+{%- endmacro -%}
+
 {% block host_prologue_early_exit_cleanup %}
+    {% for arg, idx in lh.args|gbl|reduction %}
+        op_mpi_reduce(&arg{{idx}}, ({{arg.typ}} *)arg{{idx}}.data);
+    {% endfor %}
     {% if lh is indirect %}
         op_mpi_wait_all(num_args_expanded, args_expanded);
     {% endif %}
@@ -18,7 +37,7 @@
                 (num_args_expanded, args_expanded{{", 1" if opt.config.grouped}});
 
     {% for map, idx in lh.maps.items() %}
-        int map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
+        int *map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
     {% endfor %}
 
     {% endif %}
@@ -48,9 +67,8 @@
         op_mpi_wait_all(num_args_expanded, args_expanded);
 
     {% endif %}
-    {% for arg in lh.args if arg is gbl and arg is reduction %}
-    op_mpi_reduce_{{arg.typ}}(&arg{{loop.index0}}, ({{arg.typ}} *)arg{{loop.index0}}.data)
-
+    {% for arg, idx in lh.args|gbl|reduction %}
+    op_mpi_reduce(&arg{{idx}}, ({{arg.typ}} *)arg{{idx}}.data);
     {% endfor %}
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 
