@@ -33,8 +33,8 @@
             op_mpi_test_all(num_args_expanded, args_expanded);
 
         if (n == set->core_size)
-            op_mpi_wait_all{{"_grouped" if opt.config.grouped-}}
-                (num_args_expanded, args_expanded{{", 1" if opt.config.grouped}});
+            op_mpi_wait_all{{"_grouped" if target.config.grouped-}}
+                (num_args_expanded, args_expanded{{", 1" if target.config.grouped}});
 
     {% for map, idx in lh.maps.items() %}
         int *map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
