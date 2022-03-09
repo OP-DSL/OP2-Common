@@ -149,9 +149,6 @@ __global__ void op_cuda_{{lh.kernel.name}}(
         op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
         op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
         cutilSafeCall(cudaDeviceSynchronize());
-
-        OP_kernels[{{lh.kernel_idx}}].name = name;
-        OP_kernels[{{lh.kernel_idx}}].count += 1;
 {% endblock %}
 
 {% block host_prologue %}

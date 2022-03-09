@@ -9,8 +9,8 @@ from typing import ClassVar, List, Optional, Set, Tuple
 from jinja2 import Environment
 
 import cpp
-import cpp.translator.kernels.seq
 import cpp.translator.kernels.cuda
+import cpp.translator.kernels.seq
 import fortran
 import fortran.translator.kernels.cuda
 import fortran.translator.kernels.vec
@@ -29,8 +29,8 @@ class LoopHost:
 
     set_: OP.Set
 
-    args: List[tuple[OP.Arg, int]]
-    args_expanded: List[tuple[OP.Arg, int]]
+    args: List[Tuple[OP.Arg, int]]
+    args_expanded: List[Tuple[OP.Arg, int]]
 
     # Used dats and maps to the index of the first arg to reference them
     dats: OrderedDict[OP.Dat, int]
@@ -84,10 +84,10 @@ class LoopHost:
 
             self.args_expanded.append((arg_expanded, idx))
 
-    def findDat(self, dat_ptr: str) -> Optional[tuple[OP.Dat, int]]:
+    def findDat(self, dat_ptr: str) -> Optional[Tuple[OP.Dat, int]]:
         return safeFind(self.dats.items(), lambda dat: dat[0].ptr == dat_ptr)
 
-    def findMap(self, map_ptr: str) -> Optional[tuple[OP.Map, int]]:
+    def findMap(self, map_ptr: str) -> Optional[Tuple[OP.Map, int]]:
         return safeFind(self.maps.items(), lambda map_: map_[0].ptr == map_ptr)
 
     def optIdx(self, arg: OP.Arg) -> Optional[int]:
@@ -145,7 +145,7 @@ class Scheme(Findable):
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return kernel.path.read_text()
 
-    def matches(self, key: tuple[Lang, Opt]) -> bool:
+    def matches(self, key: Tuple[Lang, Opt]) -> bool:
         return self.lang == key[0] and self.opt == key[1]
 
 
@@ -159,12 +159,16 @@ class CppSeq(Scheme):
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return cpp.translator.kernels.seq.translateKernel(include_dirs, self.opt.config, kernel, app)
 
+
 class CppOpenMP(Scheme):
     lang = Lang.find("cpp")
     opt = Opt.find("openmp")
 
-    loop_host_template = Path("cpp/omp/loop_host.hpp.jinja")
-    master_kernel_template = Path("cpp/omp/master_kernel.cpp.jinja")
+    loop_host_template = Path("cpp/openmp/loop_host.hpp.jinja")
+    master_kernel_template = Path("cpp/openmp/master_kernel.cpp.jinja")
+
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return cpp.translator.kernels.seq.translateKernel(include_dirs, self.opt.config, kernel, app)
 
 
 class CppCuda(Scheme):
@@ -179,7 +183,7 @@ class CppCuda(Scheme):
 
 
 Scheme.register(CppSeq)
-# Scheme.register(CppOpenMP)
+Scheme.register(CppOpenMP)
 Scheme.register(CppCuda)
 
 

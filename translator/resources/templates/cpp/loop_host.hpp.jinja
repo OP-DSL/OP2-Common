@@ -10,13 +10,6 @@ op_arg_dat({{params}})
     {%- endif %}
 {% endmacro -%}
 
-{%- macro arg_to_pointer(arg, idx) %}
-    {% set cast = arg.typ if arg is gbl else arg.dat_typ %}
-    {% set offset = " + n * %d" % arg.dat_dim if arg is direct %}
-    {% set offset = " + map_%s[%d] * %d" % (arg.map_ptr, arg.map_idx, arg.dat_dim) if arg is indirect %}
-({{cast}} *)arg{{idx}}.data{{offset}}
-{%- endmacro -%}
-
 {% block kernel %}
 {{lh.kernel_func}}
 {% endblock %}
@@ -42,6 +35,10 @@ void op_par_loop_{{lh.kernel.name}}(
 
     double cpu_start, cpu_end, wall_start, wall_end;
     op_timing_realloc({{lh.kernel_idx}});
+
+    OP_kernels[{{lh.kernel_idx}}].name = name;
+    OP_kernels[{{lh.kernel_idx}}].count += 1;
+
     op_timers_core(&cpu_start, &wall_start);
 
     if (OP_diags > 2)
@@ -63,9 +60,6 @@ void op_par_loop_{{lh.kernel.name}}(
 
 {% block host_epilogue %}
     op_timers_core(&cpu_end, &wall_end);
-
-    OP_kernels[{{lh.kernel_idx}}].name = name;
-    OP_kernels[{{lh.kernel_idx}}].count += 1;
     OP_kernels[{{lh.kernel_idx}}].time += wall_end - wall_start;
 {% endblock %}
 }

@@ -1,0 +1,9 @@
+{% extends "cpp/master_kernel.cpp.jinja" %}
+
+{% block includes %}
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+{{super()}}
+{% endblock %}
