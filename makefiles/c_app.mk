@@ -21,20 +21,19 @@ ALL_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
 ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
 
-
 ifeq ($(HAVE_C),true)
   BASE_BUILDABLE_VARIANTS := seq genseq
 
   ifeq ($(CPP_HAS_OMP),true)
-    BASE_BUILDABLE_VARIANTS += vec openmp
+    BASE_BUILDABLE_VARIANTS += openmp # vec
   endif
 
   ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
-    BASE_BUILDABLE_VARIANTS += openmp4
+    BASE_BUILDABLE_VARIANTS += # openmp4
   endif
 
   ifeq ($(HAVE_CUDA),true)
-    BASE_BUILDABLE_VARIANTS += cuda cuda_hyb
+    BASE_BUILDABLE_VARIANTS += cuda # cuda_hyb
   endif
 endif
 
