@@ -481,7 +481,7 @@ Given that the mesh was read via HDF5, to obtain the global sizes of the mesh, O
 
 See the API documentation for practitioner options. In this case no special partitioner is used leaving the initial block partitioning of data at the time of file I/O through HDF5.
 
-Take a look at the code in the ``\step6`` for the full code changes done to the Airfoil application. The application can  now be compiled to obtain a developer distributed-memory (MPI) parallel executable using the Makefile in the same directory. Note how the executable is created by linking with the OP2 MPI back-end, ``libop2_mpi`` together with the HDF5 library ``libhdf5``. You will need to have had HDF5 library installed on your system to carry out this step.
+Take a look at the code in the ``/step6`` for the full code changes done to the Airfoil application. The application can  now be compiled to obtain a developer distributed-memory (MPI) parallel executable using the Makefile in the same directory. Note how the executable is created by linking with the OP2 MPI back-end, ``libop2_mpi`` together with the HDF5 library ``libhdf5``. You will need to have had HDF5 library installed on your system to carry out this step.
 
 The resulting executable is called a ``developer MPI`` version of the application, which should again be used to verify validity of the application by running with ``mpirun`` in the usual way of executing an MPI application.
 
@@ -491,23 +491,40 @@ The resulting executable is called a ``developer MPI`` version of the applicatio
 Step 7 - Code generation
 ------------------------
 
-Now that both the sequential and MPI developer versions work and validate, its time to generate other parallel versions. Got to the ``\step7`` directory and and on the terminal type :
+Now that both the sequential and MPI developer versions work and validate, its time to generate other parallel versions. Got to the ``/step7`` directory and on the terminal type :
 
 ``python $OP2_INSTALL_PATH/../translator/c/op2.py airfoil_step7.cpp``
 
-Note that the ``python`` command assumes that it will point to Python 3.*. The above then will generate (in the same directory) parallel code under sub-directories - ``cuda, openacc, openmp,  openmp4, seq`` and  ``vec``. These correspond to on-node parallel version based on CUDA, OpenACC, OpenMP, OpenMP4.0 (and higher) and SIMD vectorized, respectively, each also capable of running with distributed memory parallelization across nodes.
+Note that the ``python`` command assumes that it will point to Python 3.* or above. This will then generate (in the same directory) parallel code under sub-directories - ``cuda, openacc, openmp,  openmp4, seq`` and  ``vec``. They correspond to on-node parallel version based on CUDA, OpenACC, OpenMP, OpenMP4.0 (and higher) and SIMD vectorized, respectively. Each of them can also run in combination with distributed memory parallelization using MPI across nodes.
+
+The Makefile for step7 simply uses the OP2 supplied makefiles:
+
+.. code-block:: make
+
+  APP_NAME := airfoil_step7
+
+  APP_ENTRY := $(APP_NAME).cpp
+  APP_ENTRY_MPI := $(APP_ENTRY)
+
+  OP2_LIBS_WITH_HDF5 := true
+
+  include ../../../../../makefiles/common.mk
+  include ../../../../../makefiles/c_app.mk
+
+
+This will build all the currently supported parallel versions, provided that the supporting libraries are available on your system and the relevant OP2 back-end libraries have been built.
 
 * Use OP2's c_app Makefiles
 * Link and execute parallel versions with Makefiles
 
 
+Final - Code generated versions and execution
+---------------------------------------------
 
+The following parallel versions will be generated from the code generator and can be executed as follows (see ``/final`` directory for all the generated code) :
 
-
-Code generated versions
------------------------
 
 Optimizations
 -------------
-* Brief notes on runtime and optimization flags
-* Provide link to Performance tuning page in the docs
+
+See the :ref:`perf` section for a number of specific compile-time and runtime flags to obtain better performance.
