@@ -497,7 +497,7 @@ Now that both the sequential and MPI developer versions work and validate, its t
 
 Note that the ``python`` command assumes that it will point to Python 3.* or above. This will then generate (in the same directory) parallel code under sub-directories - ``cuda, openacc, openmp,  openmp4, seq`` and  ``vec``. They correspond to on-node parallel version based on CUDA, OpenACC, OpenMP, OpenMP4.0 (and higher) and SIMD vectorized, respectively. Each of them can also run in combination with distributed memory parallelization using MPI across nodes.
 
-The Makefile for step7 simply uses the OP2 supplied makefiles:
+The Makefile in ``/step7`` simply uses the OP2 supplied makefiles:
 
 .. code-block:: make
 
@@ -514,14 +514,15 @@ The Makefile for step7 simply uses the OP2 supplied makefiles:
 
 This will build all the currently supported parallel versions, provided that the supporting libraries are available on your system and the relevant OP2 back-end libraries have been built.
 
-* Use OP2's c_app Makefiles
-* Link and execute parallel versions with Makefiles
-
-
 Final - Code generated versions and execution
 ---------------------------------------------
 
 The following parallel versions will be generated from the code generator and can be executed as follows (see ``/final`` directory for all the generated code) :
+
+* developer sequential, developer mpi
+* code-gen sequential
+* MPI + code-gen sequential
+
 
 
 Optimizations
