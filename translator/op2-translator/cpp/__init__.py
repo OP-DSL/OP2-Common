@@ -1,7 +1,8 @@
 import os
+from functools import lru_cache
 from pathlib import Path
 from types import MethodType
-from typing import Optional, Set
+from typing import FrozenSet, Optional, Set
 
 import clang.cindex
 from dotenv import load_dotenv
@@ -10,7 +11,7 @@ import cpp.parser
 import cpp.translator.program
 import op as OP
 from language import Lang
-from store import Kernel, Program
+from store import Kernel, ParseError, Program
 
 # Load environment vairables set in .env and set libclang path
 load_dotenv()
@@ -27,11 +28,24 @@ class Cpp(Lang):
     com_delim = "//"
     zero_idx = True
 
+    @lru_cache(maxsize=None)
+    def parseFile(self, path: Path, include_dirs: FrozenSet[Path]) -> clang.cindex.TranslationUnit:
+        args = [f"-I{dir}" for dir in include_dirs]
+        translation_unit = clang.cindex.Index.create().parse(
+            path, args=args, options=clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+        )
+
+        error = next(iter(translation_unit.diagnostics), None)
+        if error:
+            raise ParseError(error.spelling, cpp.parser.parseLocation(error))
+
+        return translation_unit
+
     def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
-        return cpp.parser.parseProgram(path, include_dirs)
+        return cpp.parser.parseProgram(self.parseFile(path, frozenset(include_dirs)), path)
 
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
-        return cpp.parser.parseKernel(path, name, include_dirs)
+        return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs)), name, path)
 
     def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
         return cpp.translator.program.translateProgram(source, program, force_soa)

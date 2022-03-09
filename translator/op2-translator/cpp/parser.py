@@ -11,10 +11,7 @@ from store import Kernel, Location, ParseError, Program
 from util import enumRegex, safeFind
 
 
-def parseKernel(path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
-    args = [f"-I{dir}" for dir in include_dirs]
-    translation_unit = Index.create().parse(path, args=args)
-
+def parseKernel(translation_unit: TranslationUnit, name: str, path: Path) -> Optional[Kernel]:
     nodes = translation_unit.cursor.get_children()
 
     node = safeFind(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == name)
@@ -36,14 +33,7 @@ def parseKernel(path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kern
     return Kernel(name, path, params)
 
 
-def parseProgram(path: Path, include_dirs: Set[Path]) -> Program:
-    args = [f"-I{dir}" for dir in include_dirs]
-    translation_unit = Index.create().parse(path, args=args, options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
-
-    error = next(iter(translation_unit.diagnostics), None)
-    if error:
-        raise ParseError(error.spelling, parseLocation(error))
-
+def parseProgram(translation_unit: TranslationUnit, path: Path) -> Program:
     program = Program(path)
 
     macros: Dict[Location, str] = {}

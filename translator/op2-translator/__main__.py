@@ -1,6 +1,8 @@
+import cProfile
 import dataclasses
 import json
 import os
+import pstats
 import re
 import traceback
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
@@ -74,30 +76,8 @@ def main(argv=None) -> None:
     if len(args.flavour) == 0:
         args.flavour = [[opt_name] for opt_name in opt_names]
 
-    for [flavour] in args.flavour:
-        opt = Opt.find(flavour)
-
-        for key in opt.config:
-            if key in args.config:
-                opt.config[key] = args.config[key]
-
-        scheme = Scheme.find((lang, opt))
-        if not scheme:
-            print(f"No scheme registered for {lang}/{opt}")
-            continue
-
-        if args.verbose:
-            print(f"Translation scheme: {scheme}")
-
-        run(args, scheme)
-        if args.verbose:
-            print()
-
-
-def run(args: Namespace, scheme: Scheme) -> None:
-    # Parsing phase
     try:
-        app = parse(args, scheme)
+        app = parse(args, lang)
     except ParseError as e:
         exit(e)
 
@@ -111,15 +91,48 @@ def run(args: Namespace, scheme: Scheme) -> None:
 
     # Validation phase
     try:
-        validate(args, scheme, app)
+        validate(args, lang, app)
     except OpError as e:
         exit(e)
 
-    # Code-generation phase
-    codegen(args, scheme, app, args.force_soa)
+    for [flavour] in args.flavour:
+        opt = Opt.find(flavour)
+
+        for key in opt.config:
+            if key in args.config:
+                opt.config[key] = args.config[key]
+
+        scheme = Scheme.find((lang, opt))
+        if not scheme:
+            print(f"No scheme registered for {lang}/{opt}\n")
+            continue
+
+        if args.verbose:
+            print(f"Translation scheme: {scheme}")
+
+        codegen(args, scheme, app, args.force_soa)
+
+        if args.verbose:
+            print()
+
+    # Generate program translations
+    for i, program in enumerate(app.programs, 1):
+        with open(program.path, "r") as raw_file:
+            source = lang.translateProgram(raw_file.read(), program, args.force_soa)
+
+            new_file = os.path.splitext(os.path.basename(program.path))[0]
+            ext = os.path.splitext(os.path.basename(program.path))[1]
+            new_path = Path(args.out, f"{new_file}_op{ext}")
+
+        with open(new_path, "w") as new_file:
+            new_file.write(f"\n{lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
+            new_file.write(source)
+
+            if args.verbose:
+                print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
 
 
-def parse(args: Namespace, scheme: Scheme) -> Application:
+def parse(args: Namespace, lang: Lang) -> Application:
     app = Application()
 
     # Collect the include directories
@@ -131,17 +144,17 @@ def parse(args: Namespace, scheme: Scheme) -> Application:
             print(f"Parsing file {i} of {len(args.file_paths)}: {raw_path}")
 
         # Parse the program
-        program = scheme.lang.parseProgram(Path(raw_path), include_dirs)
+        program = lang.parseProgram(Path(raw_path), include_dirs)
         app.programs.append(program)
 
     # Parse the referenced kernels
     for kernel_name in {loop.kernel for loop in app.loops()}:
-        kernel_include_name = f"{kernel_name}.{scheme.lang.include_ext}"
+        kernel_include_name = f"{kernel_name}.{lang.include_ext}"
         kernel_include_files = [Path(dir, kernel_include_name) for dir in include_dirs]
         kernel_include_files = list(filter(lambda p: p.is_file(), kernel_include_files))
 
         for path in [Path(raw_path) for raw_path in args.file_paths] + kernel_include_files:
-            kernel = scheme.lang.parseKernel(path, kernel_name, include_dirs)
+            kernel = lang.parseKernel(path, kernel_name, include_dirs)
 
             if kernel is not None:
                 app.kernels[kernel_name] = kernel
@@ -153,9 +166,9 @@ def parse(args: Namespace, scheme: Scheme) -> Application:
     return app
 
 
-def validate(args: Namespace, scheme: Scheme, app: Application) -> None:
+def validate(args: Namespace, lang: Lang, app: Application) -> None:
     # Run semantic checks on the application
-    app.validate(scheme.lang)
+    app.validate(lang)
 
     # Create a JSON dump
     if args.dump:
@@ -222,27 +235,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             if args.verbose:
                 print(f"Generated master kernel file: {path}")
 
-    # Generate program translations
-    for i, program in enumerate(app.programs, 1):
-        # Read the raw source file
-        with open(program.path, "r") as raw_file:
-
-            # Generate the source translation
-            source = scheme.lang.translateProgram(raw_file.read(), program, force_soa)
-
-            # Form output file path
-            new_file = os.path.splitext(os.path.basename(program.path))[0]
-            ext = os.path.splitext(os.path.basename(program.path))[1]
-            new_path = Path(args.out, f"{new_file}_op{ext}")
-
-            # Write the translated source file
-            with open(new_path, "w") as new_file:
-                new_file.write(f"\n{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-                new_file.write(source)
-
-                if args.verbose:
-                    print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
-
 
 def isDirPath(path):
     if os.path.isdir(path):
@@ -259,4 +251,14 @@ def isFilePath(path):
 
 
 if __name__ == "__main__":
+    if os.environ.get("OP2_TRANSLATOR_PROFILE") is not None:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
     main()
+
+    if os.environ.get("OP2_TRANSLATOR_PROFILE") is not None:
+        profiler.disable()
+
+        stats = pstats.Stats(profiler)
+        stats.sort_stats(pstats.SortKey.CUMULATIVE).print_stats(10)
