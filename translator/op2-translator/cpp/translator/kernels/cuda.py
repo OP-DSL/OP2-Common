@@ -8,6 +8,7 @@ import pcpp
 from clang.cindex import Cursor, CursorKind, Index, SourceLocation, SourceRange
 
 import op as OP
+from language import Lang
 from store import Application, Kernel
 from util import Location, Rewriter, Span, find
 
@@ -19,10 +20,10 @@ def extentToSpan(extent: SourceRange) -> Span:
     return Span(start, end)
 
 
-def translateKernel(include_dirs: Set[Path], config: Dict[str, Any], kernel: Kernel, app: Application) -> str:
-    args = [f"-I{dir}" for dir in include_dirs]
-    translation_unit = Index.create().parse(kernel.path, args=args)
-
+def translateKernel(
+    lang: Lang, include_dirs: Set[Path], config: Dict[str, Any], kernel: Kernel, app: Application
+) -> str:
+    translation_unit = lang.parseFile(kernel.path, frozenset(include_dirs))
     nodes = translation_unit.cursor.get_children()
 
     kernel_ast = find(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == kernel.name)

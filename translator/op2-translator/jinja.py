@@ -96,7 +96,7 @@ def unpack(tup):
 
 
 def test_to_filter(filter_, key=unpack):
-    return lambda xs, lh=None: list(filter(lambda x: env.tests[filter_](key(x), lh), xs)) # type: ignore
+    return lambda xs, lh=None: list(filter(lambda x: env.tests[filter_](key(x), lh), xs))  # type: ignore
 
 
 env.filters["direct"] = test_to_filter("direct")

@@ -21,6 +21,10 @@ class Lang(Findable):
     zero_idx: bool
 
     @abstractmethod
+    def parseFile(self, path: Path, include_dirs: Set[Path]) -> Any:
+        pass
+
+    @abstractmethod
     def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
         pass
 

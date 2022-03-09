@@ -157,7 +157,7 @@ class CppSeq(Scheme):
     master_kernel_template = Path("cpp/seq/master_kernel.cpp.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.seq.translateKernel(include_dirs, self.opt.config, kernel, app)
+        return cpp.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.opt.config, kernel, app)
 
 
 class CppOpenMP(Scheme):
@@ -168,7 +168,7 @@ class CppOpenMP(Scheme):
     master_kernel_template = Path("cpp/openmp/master_kernel.cpp.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.seq.translateKernel(include_dirs, self.opt.config, kernel, app)
+        return cpp.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.opt.config, kernel, app)
 
 
 class CppCuda(Scheme):
@@ -179,7 +179,7 @@ class CppCuda(Scheme):
     master_kernel_template = Path("cpp/cuda/master_kernel.cu.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-        return cpp.translator.kernels.cuda.translateKernel(include_dirs, self.opt.config, kernel, app)
+        return cpp.translator.kernels.cuda.translateKernel(self.lang, include_dirs, self.opt.config, kernel, app)
 
 
 Scheme.register(CppSeq)
