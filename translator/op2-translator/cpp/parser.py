@@ -128,7 +128,7 @@ def parseMap(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
 
     from_set_ptr = parseIdentifier(args[0])
     to_set_ptr = parseIdentifier(args[1])
-    dim = parseIntLit(args[2])
+    dim = parseIntExpression(args[2])
 
     return OP.Map(loc, from_set_ptr, to_set_ptr, dim, ptr)
 
@@ -147,7 +147,7 @@ def parseDat(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
     soa = False
 
     set_ptr = parseIdentifier(args[0])
-    dim = parseIntLit(args[1])
+    dim = parseIntExpression(args[1])
 
     typ_str = parseStringLit(args[2]).strip()
 
@@ -173,7 +173,7 @@ def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
         raise ParseError("incorrect number of args passed to op_decl_const", loc)
 
     # TODO dim may not be literal
-    dim = parseIntLit(args[0])
+    dim = parseIntExpression(args[0])
     typ = parseType(parseStringLit(args[1]), loc)
     ptr = parseIdentifier(args[2])
 
@@ -220,10 +220,10 @@ def parseArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) 
 
     dat_ptr = parseIdentifier(args[0])
 
-    map_idx = parseIntLit(args[1])
+    map_idx = parseIntExpression(args[1])
     map_ptr = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
-    dat_dim = parseIntLit(args[3])
+    dat_dim = parseIntExpression(args[3])
     dat_typ = parseType(parseStringLit(args[4]), loc)
 
     access_type = parseAccessType(args[5], loc, macros)
@@ -244,7 +244,7 @@ def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) 
         raise ParseError("incorrect number of args passed to op_arg_gbl", loc)
 
     ptr = parseIdentifier(args[0])
-    dim = parseIntLit(args[1])
+    dim = parseIntExpression(args[1])
     typ = parseType(parseStringLit(args[2]), loc)
 
     access_type = parseAccessType(args[3], loc, macros)
@@ -298,18 +298,49 @@ def parseIdentifier(node: Cursor) -> str:
 
     return node.spelling
 
+def parseIntExpression(node: Cursor) -> int:
+    if node.kind == CursorKind.INTEGER_LITERAL:
+        return int(next(node.get_tokens()).spelling)
 
-def parseIntLit(node: Cursor) -> int:
-    coeff = 1
+    if node.kind == CursorKind.UNARY_OPERATOR:
+        op = next(node.get_tokens()).spelling
+        rhs = parseIntExpression(next(node.get_children()))
 
-    if node.kind == CursorKind.UNARY_OPERATOR and next(node.get_tokens()).spelling == "-":
-        coeff = -1
-        node = descend(node)
+        if op == "+":
+            return rhs
 
-    if node.kind != CursorKind.INTEGER_LITERAL:
-        raise ParseError("expected integer literal", parseLocation(node))
+        if op == "-":
+            return -rhs
 
-    return coeff * int(next(node.get_tokens()).spelling)
+        raise ParseError(f"unsupported unary operator: {op}", parseLocation(node))
+
+    if node.kind == CursorKind.BINARY_OPERATOR:
+        children = node.get_children()
+
+        lhs = parseIntExpression(next(children))
+        rhs = parseIntExpression(next(children))
+
+        lhs_token_count = len(list(next(node.get_children()).get_tokens()))
+        op = list(node.get_tokens())[lhs_token_count:][0].spelling
+
+        if op == "+":
+            return lhs + rhs
+
+        if op == "-":
+            return lhs - rhs
+
+        if op == "*":
+            return lhs * rhs
+
+        if op == "/":
+            return lhs // rhs
+
+        raise ParseError(f"unsupported binary operator: {op}", parseLocation(node))
+
+    if node.kind == CursorKind.PAREN_EXPR:
+        return parseIntExpression(next(node.get_children()))
+
+    raise ParseError(f"unsupported int expression kind: {node.kind}", parseLocation(node))
 
 
 def parseStringLit(node: Cursor) -> str:

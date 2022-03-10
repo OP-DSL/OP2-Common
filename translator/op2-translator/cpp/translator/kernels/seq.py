@@ -73,4 +73,4 @@ def insertStride(param: str, dat_ptr: str, is_vec: bool, kernel_ast: Cursor, rew
             ident, _ = next(ident.get_children()).get_children()
 
         if ident.spelling == param:
-            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * op_dat_{dat_ptr}_stride")
+            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * op2_dat_{dat_ptr}_stride")

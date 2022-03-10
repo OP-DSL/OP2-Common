@@ -16,8 +16,8 @@ import fortran.translator.kernels.cuda
 import fortran.translator.kernels.vec
 import op as OP
 from language import Lang
-from target import Target
 from store import Application, Kernel
+from target import Target
 from util import Findable, find, safeFind
 
 

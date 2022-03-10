@@ -8,13 +8,25 @@
     {%- endif -%}
 
     {%- if arg is direct -%}
-        {%- set offset = " + n * %d" % arg.dat_dim -%}
+        {%- set offset = " + n" -%}
     {%- elif arg is indirect -%}
-        {%- set offset = " + map_%s[%d] * %d" % (arg.map_ptr, arg.map_idx, arg.dat_dim) if arg is indirect -%}
+        {%- set offset = " + map_%s[%d]" % (arg.map_ptr, arg.map_idx) -%}
+    {%- endif -%}
+
+    {%- if arg is not gbl and lh.findDat(arg.dat_ptr)[0] is not soa %}
+        {%- set offset = "%s * %d" % (offset, arg.dat_dim) %}
     {%- endif -%}
 
 ({{cast}} *)arg{{idx}}.data{{offset}}
 {%- endmacro -%}
+
+
+{% block host_prologue %}
+{{super()}}
+    {% for dat, idx in lh.dats.items()|soa %}
+    op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});{{"\n" if loop.last}}
+    {% endfor %}
+{% endblock %}
 
 {% block host_prologue_early_exit_cleanup %}
     {% for arg, idx in lh.args|gbl|reduction %}
