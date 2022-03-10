@@ -6,6 +6,9 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
 
 {% if app.dats()|soa|length > 0 %}
     {% block soa_strides %}
+        {% for dat in app.dats()|soa %}
+int op2_dat_{{dat.ptr}}_stride = -1;
+        {% endfor %}
     {% endblock %}
 {% endif %}
 

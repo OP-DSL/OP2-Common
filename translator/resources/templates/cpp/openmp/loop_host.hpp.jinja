@@ -11,9 +11,13 @@ gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
         {%- endif -%}
 
         {%- if arg is direct -%}
-            {%- set offset = " + n * %d" % arg.dat_dim -%}
+            {%- set offset = " + n" -%}
         {%- elif arg is indirect -%}
-            {%- set offset = " + map_%s[%d] * %d" % (arg.map_ptr, arg.map_idx, arg.dat_dim) if arg is indirect -%}
+            {%- set offset = " + map_%s[%d]" % (arg.map_ptr, arg.map_idx) -%}
+        {%- endif -%}
+
+        {%- if arg is not gbl and lh.findDat(arg.dat_ptr)[0] is not soa %}
+            {%- set offset = "%s * %d" % (offset, arg.dat_dim) %}
         {%- endif -%}
 
 ({{cast}} *)arg{{idx}}.data{{offset}}
@@ -22,6 +26,9 @@ gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
 
 {% block host_prologue %}
 {{super()}}
+    {% for dat, idx in lh.dats.items()|soa %}
+    op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});{{"\n" if loop.last}}
+    {% endfor %}
     {% if lh is indirect %}
     int num_dats_indirect = {{lh.dats|indirect(lh)|length}};
     int dats_indirect[{{lh.args_expanded|length}}] = {

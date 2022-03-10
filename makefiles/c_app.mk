@@ -1,9 +1,5 @@
 TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v
 
-ifneq ($(OP_AUTO_SOA),)
-	TRANSLATOR += -soa
-endif
-
 ifneq ($(MPI_INC),)
 	TRANSLATOR += -I $(MPI_INC)
 endif
