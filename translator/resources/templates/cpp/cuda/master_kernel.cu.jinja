@@ -7,10 +7,10 @@ __constant__ {{const.typ}} {{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{
 {% endblock %}
 
 {% block soa_strides %}
-    {% for dat in app.dats()|soa %}
-int op2_dat_{{dat.ptr}}_stride = -1;
-__constant__ int op2_dat_{{dat.ptr}}_stride_d;
+{{super()}}
 
+    {% for dat in app.dats()|soa %}
+__constant__ int op2_dat_{{dat.ptr}}_stride_d;
     {% endfor %}
 {% endblock %}
 
