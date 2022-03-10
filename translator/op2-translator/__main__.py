@@ -13,9 +13,9 @@ from typing import List
 from jinja import env
 from language import Lang
 from op import OpError, Type
-from target import Target
 from scheme import Scheme
 from store import Application, ParseError
+from target import Target
 from util import getVersion, safeFind
 
 
@@ -49,6 +49,9 @@ def main(argv=None) -> None:
 
     # Invoke arg parser
     args = parser.parse_args(argv)
+
+    if os.environ.get("OP_AUTO_SOA") is not None:
+        args.force_soa = True
 
     file_parents = [Path(file_path).parent for file_path in args.file_paths]
 
