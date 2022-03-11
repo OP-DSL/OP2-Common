@@ -50,6 +50,7 @@
 
 {% macro map_lookup(arg) -%}
 map_{{arg.map_ptr}}[set_size * {{arg.map_idx}} + n]
+    {{-(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
 {%- endmacro %}
 
 {% macro arg_to_pointer_cuda(arg, idx) -%}
@@ -62,7 +63,7 @@ arg{{idx}}_vec
     {%- elif arg is inc and target.config.atomics -%}
 arg{{idx}}_{{arg.map_idx}}_local
     {%- else -%}
-dat_{{arg.dat_ptr}} + {{map_lookup(arg)}}{{(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
+dat_{{arg.dat_ptr}} + {{map_lookup(arg)}}
     {%- endif -%}
 {%- endmacro %}
 
@@ -173,12 +174,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 
     {% endif %}
     {% if target.config.color2 and lh is indirect %}
-    int num_args_indirect = {{lh.maps|length}};
-    int args_indirect[{{lh.args_expanded|length}}] = {
-        {%- for arg, idx in lh.args_expanded -%}
-        {{"-1" if arg is direct else lh.findMap[arg.map_ptr][1]}}{{", " if not loop.last}}
-        {%- endfor -%}
-    };
+{{indirect_dat_def()}}
 
     op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
                         args_expanded, num_args_indirect, args_indirect, OP_COLOR2);
@@ -330,7 +326,6 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
             mvReductArraysToHost(reduction_bytes);
         {% endif %}
     }
-
     {% else %}
 
     {% endif %}
