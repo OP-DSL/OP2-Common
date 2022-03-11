@@ -30,12 +30,7 @@ gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
     op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});{{"\n" if loop.last}}
     {% endfor %}
     {% if lh is indirect %}
-    int num_dats_indirect = {{lh.dats|indirect(lh)|length}};
-    int dats_indirect[{{lh.args_expanded|length}}] = {
-    {%- for arg, idx in lh.args_expanded -%}
-    {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}{{", " if not loop.last}}
-    {%- endfor -%}
-    };
+{{indirect_dat_def()}}
 
 #ifdef OP_PART_SIZE_{{lh.kernel_idx}}
     int part_size = OP_PART_SIZE_{{lh.kernel_idx}};

@@ -25,6 +25,7 @@ openacc/
 *_mpi
 *_sycl
 *_openacc
+convert_mesh
 
 # Test files
 *.dat
