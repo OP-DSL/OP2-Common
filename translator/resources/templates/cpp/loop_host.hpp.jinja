@@ -10,6 +10,18 @@ op_arg_dat({{params}})
     {%- endif %}
 {% endmacro -%}
 
+{% macro indirect_dat_def() %}
+    {% if lh is indirect %}
+    int num_dats_indirect = {{lh.dats|indirect(lh)|length}};
+    int dats_indirect[{{lh.args_expanded|length}}] = {
+        {%- for arg, idx in lh.args_expanded -%}
+            {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
+            {{-", " if not loop.last}}
+        {%- endfor -%}
+    };
+    {% endif %}
+{% endmacro %}
+
 {% block kernel %}
 {{lh.kernel_func}}
 {% endblock %}
