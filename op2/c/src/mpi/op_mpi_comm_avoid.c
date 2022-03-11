@@ -36,9 +36,13 @@ double cpu_start, cpu_stop, cpu_tick, wall_start, wall_stop, wall_tick, duration
 #define DEFAULT_HALO_COUNT 1
 
 
-void start_time(){
+void start_time(int my_rank){
+  // if(my_rank != 0)
+  //   return;
+
   op_timers(&cpu_start, &wall_start);
   duration = 0;
+  printf("start_time new my_rank=%d time=%f\n", my_rank, duration);
 }
 
 void tick_time(){
@@ -48,10 +52,51 @@ void tick_time(){
 }
 
 void stop_time(int my_rank, const char* name){
+  // if(my_rank != 0)
+  //   return;
+
   op_timers(&cpu_stop, &wall_stop);
   duration += wall_stop - wall_start;
   printf("stop_time my_rank=%d %s time=%f\n", my_rank, name, duration);
 }
+
+
+void op_single_halo_destroy(halo_list* h_list){
+
+  for (int s = 0; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
+
+    if(h_list[set->index]){
+
+      if( h_list[set->index]->disps != h_list[set->index]->disps_by_rank){
+        op_free(h_list[set->index]->disps_by_rank);
+      }
+      if( h_list[set->index]->sizes != h_list[set->index]->sizes_by_rank){
+        op_free(h_list[set->index]->sizes_by_rank);
+      }
+      op_free(h_list[set->index]->ranks);
+      op_free(h_list[set->index]->list);
+      op_free(h_list[set->index]->disps);
+      op_free(h_list[set->index]->sizes);
+
+
+      if(h_list[set->index]->ranks_sizes)
+        op_free(h_list[set->index]->ranks_sizes);
+      if(h_list[set->index]->rank_disps)
+        op_free(h_list[set->index]->rank_disps);
+      if(h_list[set->index]->level_disps)
+        op_free(h_list[set->index]->level_disps);
+      if(h_list[set->index]->level_sizes)
+        op_free(h_list[set->index]->level_sizes);
+      
+      op_free(h_list[set->index]);
+    }
+    
+  }
+  op_free(h_list);
+}
+
+
 void print_maps_new(int my_rank){
 
   
@@ -332,11 +377,23 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
   h_list->disps_by_rank = disps_by_rank;
 
   // for(int i = 0; i < count; i++){
+  //   if(h_lists[i] == NULL){
+  //     printf("hlist null d=%d\n", i);
+  //     continue;
+  //   }
+  //   printf("hlist not null d=%d\n", i);
+      
   //   op_free(h_lists[i]->ranks);
   //   op_free(h_lists[i]->disps);
   //   op_free(h_lists[i]->sizes);
   //   op_free(h_lists[i]->list);
-  //   op_free(h_lists[i]);
+    // op_free(h_lists[i]->ranks_sizes);
+    // op_free(h_lists[i]->rank_disps);
+    // op_free(h_lists[i]->level_disps);
+    // op_free(h_lists[i]->level_sizes);
+    // op_free(h_lists[i]->disps_by_rank);
+    // op_free(h_lists[i]->sizes_by_rank);
+    // op_free(h_lists[i]);
   // }
   return h_list;
 }
@@ -681,7 +738,12 @@ void exchange_aug_part_ranges(int halo_id, int **part_range, int my_rank, int co
         foreign_aug_part_range[h_list->ranks[r]][s][i] = h_list->list[h_list->disps[r] + i];
       }
     }
+    //free memory
   }
+  // printf("free memory >>>>>>>>>>>>>\n");
+  op_single_halo_destroy(OP_export_part_range_list);
+  op_single_halo_destroy(OP_import_part_range_list);
+
 
   //sorting the elements
 
@@ -956,6 +1018,13 @@ void prepare_aug_maps(){
       }
       map->aug_maps[el] = m;
     }
+  }  
+}
+
+void free_tmp_maps(){
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    op_free(map->map_org);
   }  
 }
 
@@ -1656,6 +1725,12 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     // pos += sprintf(&name[pos], "_%d", my_rank);
     // print_array(exp_elems[set->index], num_exp, name, my_rank);
 
+    for(int el = 0; el < num_levels; el++){
+      op_free(temp_core_elems[set->index][el]);
+      op_free(temp_exp_elems[set->index][el]);
+    }
+    op_free(temp_core_elems[set->index]);
+    op_free(temp_exp_elems[set->index]);
   }
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
@@ -1890,6 +1965,10 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       }
     }
   }
+
+  op_free(temp_core_elems);
+  op_free(temp_exp_elems);
+ 
 }
 
 void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_elems, int my_rank, int comm_size){
@@ -2007,27 +2086,21 @@ void merge_exec_halos(int exec_levels, int my_rank, int comm_size){
     OP_merged_export_exec_list[set->index] = NULL;
   }
 
-  halo_list* h_lists = (halo_list*) xmalloc(3 * sizeof(halo_list));
+  halo_list* import_h_lists = (halo_list*) xmalloc(exec_levels * sizeof(halo_list));
+  halo_list* export_h_lists = (halo_list*) xmalloc(exec_levels * sizeof(halo_list));
 
   for(int s = 0; s < OP_set_index; s++){
     op_set set = OP_set_list[s];
     for(int l = 0; l < exec_levels; l++){
-
-      h_lists[0] = OP_merged_import_exec_list[set->index];
-      h_lists[1] = OP_aug_import_exec_lists[l][set->index];
-      OP_merged_import_exec_list[set->index] = merge_halo_lists(2, h_lists, my_rank, comm_size);
-
-      h_lists[0] = OP_merged_export_exec_list[set->index];
-      h_lists[1] = OP_aug_export_exec_lists[l][set->index];
-      OP_merged_export_exec_list[set->index] = merge_halo_lists(2, h_lists, my_rank, comm_size);
-
-      // OP_merged_import_exec_list[set->index] = merge_halo_lists(OP_merged_import_exec_list[set->index], 
-      // OP_aug_import_exec_lists[l][set->index], 0, my_rank, comm_size);
-      // OP_merged_export_exec_list[set->index] = merge_halo_lists(OP_merged_export_exec_list[set->index], 
-      // OP_aug_export_exec_lists[l][set->index], 0, my_rank, comm_size);
+      import_h_lists[l] = OP_aug_import_exec_lists[l][set->index];
+      export_h_lists[l] = OP_aug_export_exec_lists[l][set->index];
     }
+
+    OP_merged_import_exec_list[set->index] = merge_halo_lists(exec_levels, import_h_lists, my_rank, comm_size);
+    OP_merged_export_exec_list[set->index] = merge_halo_lists(exec_levels, export_h_lists, my_rank, comm_size);
   }
-  
+  op_free(import_h_lists);
+  op_free(export_h_lists);
 }
 
 void merge_nonexec_halos(int exec_levels, int my_rank, int comm_size){
@@ -2052,6 +2125,9 @@ void merge_nonexec_halos(int exec_levels, int my_rank, int comm_size){
     }
     OP_merged_import_nonexec_list[set->index] = merge_halo_lists(num_levels, import_h_lists, my_rank, comm_size);
     OP_merged_export_nonexec_list[set->index] = merge_halo_lists(num_levels, export_h_lists, my_rank, comm_size);
+
+    op_free(import_h_lists);
+    op_free(export_h_lists);
   }
 }
 
@@ -2165,7 +2241,7 @@ int get_max_nhalos_count(){
 
 void op_halo_create_comm_avoid() {
   // declare timers
-
+  printf("op_halo_create_comm_avoid start >>>>>>>\n");
   for(int i = 0; i < 10; i++){
     OP_aug_export_exec_lists[i] = NULL;
     OP_aug_import_exec_lists[i] = NULL;
@@ -2230,24 +2306,34 @@ void op_halo_create_comm_avoid() {
   }
 
   int num_halos = get_max_nhalos();
-  // printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
+  printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
   
   for(int l = 0; l < num_halos; l++){
     /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
+    start_time(my_rank);
     OP_aug_export_exec_lists[l] = step1_create_aug_export_exec_list(l, part_range, my_rank, comm_size);
+    stop_time(my_rank, "step1");
 
     /*---- STEP 2 - construct import lists for mappings and execute sets------*/
+    start_time(my_rank);
     OP_aug_import_exec_lists[l] = create_handshake_h_list(OP_aug_export_exec_lists[l], part_range, my_rank, comm_size);
+    stop_time(my_rank, "step2");
 
     /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
+    start_time(my_rank);
     step3_exchange_exec_mappings(l, part_range, my_rank, comm_size);
+    stop_time(my_rank, "step3");
 
     /*-STEP 6 - Exchange execute set elements/data using the import/export lists--*/
+    start_time(my_rank);
     step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+    stop_time(my_rank, "step6");
 
+    start_time(my_rank);
     create_aug_part_range(l, part_range, my_rank, comm_size);
     exchange_aug_part_ranges(l, part_range, my_rank, comm_size);
+    stop_time(my_rank, "step6 exchange_part");
   }
 
   OP_export_exec_list = OP_aug_export_exec_lists[0];
@@ -2255,8 +2341,9 @@ void op_halo_create_comm_avoid() {
 
   /*-- STEP 4 - Create import lists for non-execute set elements using mapping
     table entries including the additional mapping table entries --*/
+  start_time(my_rank);
   step4_import_nonexec(num_halos, part_range, my_rank, comm_size);
-
+  stop_time(my_rank, "step4");
   /*----------- STEP 5 - construct non-execute set export lists -------------*/
   // step5(part_range, my_rank, comm_size); //this is done with other aug non exec halos
 
@@ -2278,25 +2365,35 @@ void op_halo_create_comm_avoid() {
 
   /*-STEP 7 - Exchange non-execute set elements/data using the import/export
    * lists--*/
+  start_time(my_rank);
   step7_halo(num_halos, part_range, my_rank, comm_size);
-  
+  stop_time(my_rank, "step7");
+
   /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/
+  start_time(my_rank);
   step8_renumber_mappings(num_halos, part_range, my_rank, comm_size);
+  stop_time(my_rank, "step8");
 
   // print_maps_new(my_rank);
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
+  start_time(my_rank);
   step9_halo(num_halos, part_range, my_rank, comm_size);
+  stop_time(my_rank, "step9");
    
 
   /*-STEP 10 -------------------- Separate core
    * elements------------------------*/
   int **core_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
   int **exp_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
+  start_time(my_rank);
   step10_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
+  stop_time(my_rank, "step10");
 
   /*-STEP 11 ----------- Save the original set element
    * indexes------------------*/
+  start_time(my_rank);
   step11_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
+  stop_time(my_rank, "step11");
 
 
   // This is to facilitate halo exchange in one message for multiple extended exec layers
@@ -2306,6 +2403,9 @@ void op_halo_create_comm_avoid() {
 
   /*-STEP 12 ---------- Clean up and Compute rough halo size
    * numbers------------*/
+
+  free_tmp_maps();
+
   for (int i = 0; i < OP_set_index; i++) {
     op_free(part_range[i]);
     op_free(core_elems[i]);
@@ -2338,24 +2438,9 @@ void op_halo_create_comm_avoid() {
   time = wall_t2 - wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
+  start_time(my_rank);
   step12(part_range, max_time, my_rank, comm_size);
-}
-
-void op_single_halo_destroy(halo_list* h_list){
-
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-
-    if(h_list[set->index]){
-      op_free(h_list[set->index]->ranks);
-      op_free(h_list[set->index]->disps);
-      op_free(h_list[set->index]->sizes);
-      op_free(h_list[set->index]->list);
-      op_free(h_list[set->index]);
-    }
-    
-  }
-  op_free(h_list);
+  stop_time(my_rank, "step12");
 }
 
 void op_halo_destroy_comm_avoid() {
@@ -2367,8 +2452,16 @@ void op_halo_destroy_comm_avoid() {
       op_single_halo_destroy(OP_aug_import_exec_lists[i]);
     if(OP_aug_export_exec_lists[i])
       op_single_halo_destroy(OP_aug_import_exec_lists[i]);
+    if(OP_aug_import_nonexec_lists[i])
+      op_single_halo_destroy(OP_aug_import_nonexec_lists[i]);
+    if(OP_aug_export_nonexec_lists[i])
+      op_single_halo_destroy(OP_aug_import_nonexec_lists[i]);
   }
 
+  op_single_halo_destroy(OP_merged_import_exec_list);
+  op_single_halo_destroy(OP_merged_export_exec_list);
+  op_single_halo_destroy(OP_merged_import_nonexec_list);
+  op_single_halo_destroy(OP_merged_export_nonexec_list);
 }
 
 int find_element_in(int* arr, int element){

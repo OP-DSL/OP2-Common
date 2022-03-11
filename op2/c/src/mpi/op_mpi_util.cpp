@@ -633,7 +633,7 @@ int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos){
     halo_info->nhalos_indices[halo_info->nhalos[i]] = i;
   }
 
-  printf("op_mpi_add_nhalos halo_info->max_nhalos=%d\n", halo_info->max_nhalos);
+  // printf("op_mpi_add_nhalos halo_info->max_nhalos=%d\n", halo_info->max_nhalos);
   return 1;
 }
 

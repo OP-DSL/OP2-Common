@@ -878,6 +878,12 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: nhalos
    end function
 
+   INTEGER(kind=c_int) function get_set_core_size_c( set, nhalos ) BIND(C,name='get_set_core_size')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: set
+      integer(kind=c_int), value :: nhalos
+   end function
+
    subroutine op_mpi_halo_exchange_summary_c () BIND(C,name='op_mpi_halo_exchange_summary')
       use, intrinsic :: ISO_C_BINDING
 
@@ -3054,6 +3060,15 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     get_set_size_with_nhalos = get_set_size_with_nhalos_c( set%setCPtr, nhalos )
 
   end function get_set_size_with_nhalos
+
+  INTEGER(8) function get_set_core_size ( set, nhalos )
+    use, intrinsic :: ISO_C_BINDING
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), value :: nhalos
+
+    get_set_core_size = get_set_core_size_c( set%setCPtr, nhalos )
+
+  end function get_set_core_size
 
   type(op_arg) function op_arg_dat_halo_real_8 (dat, idx, map, dim, type, access, nhalos, max_map_nhalos)
     use, intrinsic :: ISO_C_BINDING

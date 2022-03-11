@@ -317,9 +317,7 @@ void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
   h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
   h_list->level_sizes[0] = total_size;
 
-  int *sizes_by_rank = (int *)xmalloc(comm_size * sizeof(int));
   h_list->sizes_by_rank = sizes;
-  int *disps_by_rank = (int *)xmalloc(comm_size * sizeof(int));
   h_list->disps_by_rank = disps;
 }
 
@@ -356,9 +354,7 @@ void create_import_list(op_set set, int *temp_list, halo_list h_list,
   h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
   h_list->level_sizes[0] = total_size;
 
-  int *sizes_by_rank = (int *)xmalloc(comm_size * sizeof(int));
   h_list->sizes_by_rank = sizes;
-  int *disps_by_rank = (int *)xmalloc(comm_size * sizeof(int));
   h_list->disps_by_rank = disps;
 }
 
@@ -2101,53 +2097,85 @@ void op_halo_permap_create() {
 
 void op_halo_destroy() {
   // remove halos from op_dats
-  // op_dat_entry *item;
-  // TAILQ_FOREACH(item, &OP_dat_list, entries) {
-  //   op_dat dat = item->dat;
-  //   dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
-  // }
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
+  }
 
   // free lists
-  // for (int s = 0; s < OP_set_index; s++) {
-  //   op_set set = OP_set_list[s];
+  for (int s = 0; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
 
-  //   op_free(OP_import_exec_list[set->index]->ranks);
-  //   op_free(OP_import_exec_list[set->index]->disps);
-  //   op_free(OP_import_exec_list[set->index]->sizes);
-  //   op_free(OP_import_exec_list[set->index]->list);
-  //   op_free(OP_import_exec_list[set->index]);
+    op_free(OP_import_exec_list[set->index]->ranks);
+    op_free(OP_import_exec_list[set->index]->disps);
+    op_free(OP_import_exec_list[set->index]->sizes);
+    op_free(OP_import_exec_list[set->index]->list);
 
-  //   op_free(OP_import_nonexec_list[set->index]->ranks);
-  //   op_free(OP_import_nonexec_list[set->index]->disps);
-  //   op_free(OP_import_nonexec_list[set->index]->sizes);
-  //   op_free(OP_import_nonexec_list[set->index]->list);
-  //   op_free(OP_import_nonexec_list[set->index]);
+    op_free(OP_import_exec_list[set->index]->ranks_sizes);
+    op_free(OP_import_exec_list[set->index]->rank_disps);
+    op_free(OP_import_exec_list[set->index]->level_disps);
+    op_free(OP_import_exec_list[set->index]->level_sizes);
+    op_free(OP_import_exec_list[set->index]->disps_by_rank);
+    op_free(OP_import_exec_list[set->index]->sizes_by_rank);
 
-  //   op_free(OP_export_exec_list[set->index]->ranks);
-  //   op_free(OP_export_exec_list[set->index]->disps);
-  //   op_free(OP_export_exec_list[set->index]->sizes);
-  //   op_free(OP_export_exec_list[set->index]->list);
-  //   op_free(OP_export_exec_list[set->index]);
+    op_free(OP_import_exec_list[set->index]);
 
-  //   op_free(OP_export_nonexec_list[set->index]->ranks);
-  //   op_free(OP_export_nonexec_list[set->index]->disps);
-  //   op_free(OP_export_nonexec_list[set->index]->sizes);
-  //   op_free(OP_export_nonexec_list[set->index]->list);
-  //   op_free(OP_export_nonexec_list[set->index]);
-  // }
-  // op_free(OP_import_exec_list);
-  // op_free(OP_import_nonexec_list);
-  // op_free(OP_export_exec_list);
-  // op_free(OP_export_nonexec_list);
+    op_free(OP_import_nonexec_list[set->index]->ranks);
+    op_free(OP_import_nonexec_list[set->index]->disps);
+    op_free(OP_import_nonexec_list[set->index]->sizes);
+    op_free(OP_import_nonexec_list[set->index]->list);
 
-  // item = NULL;
-  // TAILQ_FOREACH(item, &OP_dat_list, entries) {
-  //   op_dat dat = item->dat;
-  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-  //   op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-  // }
+    op_free(OP_import_nonexec_list[set->index]->ranks_sizes);
+    op_free(OP_import_nonexec_list[set->index]->rank_disps);
+    op_free(OP_import_nonexec_list[set->index]->level_disps);
+    op_free(OP_import_nonexec_list[set->index]->level_sizes);
+    op_free(OP_import_nonexec_list[set->index]->disps_by_rank);
+    op_free(OP_import_nonexec_list[set->index]->sizes_by_rank);
+
+    op_free(OP_import_nonexec_list[set->index]);
+
+    op_free(OP_export_exec_list[set->index]->ranks);
+    op_free(OP_export_exec_list[set->index]->disps);
+    op_free(OP_export_exec_list[set->index]->sizes);
+    op_free(OP_export_exec_list[set->index]->list);
+
+    op_free(OP_export_exec_list[set->index]->ranks_sizes);
+    op_free(OP_export_exec_list[set->index]->rank_disps);
+    op_free(OP_export_exec_list[set->index]->level_disps);
+    op_free(OP_export_exec_list[set->index]->level_sizes);
+    op_free(OP_export_exec_list[set->index]->disps_by_rank);
+    op_free(OP_export_exec_list[set->index]->sizes_by_rank);
+
+    op_free(OP_export_exec_list[set->index]);
+
+    op_free(OP_export_nonexec_list[set->index]->ranks);
+    op_free(OP_export_nonexec_list[set->index]->disps);
+    op_free(OP_export_nonexec_list[set->index]->sizes);
+    op_free(OP_export_nonexec_list[set->index]->list);
+
+    op_free(OP_export_nonexec_list[set->index]->ranks_sizes);
+    op_free(OP_export_nonexec_list[set->index]->rank_disps);
+    op_free(OP_export_nonexec_list[set->index]->level_disps);
+    op_free(OP_export_nonexec_list[set->index]->level_sizes);
+    op_free(OP_export_nonexec_list[set->index]->disps_by_rank);
+    op_free(OP_export_nonexec_list[set->index]->sizes_by_rank);
+
+    op_free(OP_export_nonexec_list[set->index]);
+  }
+  op_free(OP_import_exec_list);
+  op_free(OP_import_nonexec_list);
+  op_free(OP_export_exec_list);
+  op_free(OP_export_nonexec_list);
+
+  item = NULL;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
+    op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
+    op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
+    op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+  }
 
   // MPI_Comm_free(&OP_MPI_WORLD);
 }
@@ -4370,6 +4398,10 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
 
 int get_set_size_with_nhalos(op_set set, int nhalos){
   return set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
+}
+
+int get_set_core_size(op_set set, int nhalos){
+  return set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
 
 int op_mpi_test(op_arg *arg) {

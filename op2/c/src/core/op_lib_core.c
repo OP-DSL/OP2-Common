@@ -326,6 +326,12 @@ void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos_indices_cap = OP_NHALOS_MAX;
 }
 
+
+void op_free_halo_info(op_halo_info halo_info){
+  op_free(halo_info->nhalos);
+  op_free(halo_info->nhalos_indices);
+}
+
 op_set op_decl_set_core(int size, char const *name) {
   if (size < 0) {
     printf(" op_decl_set error -- negative/zero size for set: %s\n", name);
@@ -573,6 +579,7 @@ void op_exit_core() {
 
   for (int i = 0; i < OP_set_index; i++) {
     free((char *)OP_set_list[i]->name);
+    op_free_halo_info(OP_set_list[i]->halo_info);
     free(OP_set_list[i]);
   }
   free(OP_set_list);
@@ -582,6 +589,7 @@ void op_exit_core() {
     if (!OP_map_list[i]->user_managed)
       free(OP_map_list[i]->map);
     free((char *)OP_map_list[i]->name);
+    op_free_halo_info(OP_map_list[i]->halo_info);
     free(OP_map_list[i]);
   }
   free(OP_map_list);
@@ -597,6 +605,7 @@ void op_exit_core() {
       free((item->dat)->data);
     free((char *)(item->dat)->name);
     free((char *)(item->dat)->type);
+    op_free_halo_info(item->dat->halo_info);
     TAILQ_REMOVE(&OP_dat_list, item, entries);
     free(item->dat);
     free(item);
