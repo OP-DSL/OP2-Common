@@ -141,8 +141,8 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
 }
 
 //outlined elemental kernel - update
-inline void update(double *qold, double *q, double *res,
-                   double *adt, double *rms) {
+inline void update(const double *qold, double *q, double *res,
+                   const double *adt, double *rms) {
   double del, adti;
 
   adti = 1.0f / (*adt);

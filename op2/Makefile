@@ -52,7 +52,8 @@ clean:
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_lib_core.o \
-	op_rt_support.o)
+	op_rt_support.o \
+	op_lib_core+nodealloc.o)
 
 OP2_FOR_BASE := $(addprefix $(OBJ)/fortran/,\
 	op2_for_declarations.o \
