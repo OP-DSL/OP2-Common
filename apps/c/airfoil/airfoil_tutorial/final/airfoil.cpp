@@ -14,7 +14,6 @@
 #include "save_soln.h"
 #include "update.h"
 
-
 /* Problem mesh and iterations */
 #define FILE_NAME_PATH "new_grid.h5"
 #define NUM_ITERATIONS 1000
