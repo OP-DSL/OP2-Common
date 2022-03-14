@@ -12,7 +12,8 @@ from store import Kernel, Location, ParseError, Program
 from util import enumRegex
 
 
-def parseKernel(ast: f2003.Program, path: Path, name: str) -> Optional[Kernel]:
+def parseKernel(ast: f2003.Program, name: str, path: Path) -> Optional[Kernel]:
+    print(f"looking for {name} in {path}")
     subroutine = findSubroutine(path, ast, name)
     if subroutine is None:
         return None

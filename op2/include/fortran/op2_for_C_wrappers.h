@@ -45,7 +45,7 @@ void op_mpi_rank (int * rank);
 void op_barrier ();
 bool isCNullPointer (void * ptr);
 void printFirstDatPosition (op_dat dat);
-int setKernelTime (int id, char name[], double kernelTime, float transfer, float transfer2, int count);
+void setKernelTime (int id, char name[], double kernelTime, float transfer, float transfer2, int count);
 void decrement_all_mappings ();
 void increment_all_mappings ();
 
