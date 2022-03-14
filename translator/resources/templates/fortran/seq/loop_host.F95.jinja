@@ -1,0 +1,182 @@
+{%- macro arg_to_pointer(arg, idx) -%}
+    {%- if arg is gbl -%}
+gbl_{{arg.ptr}}
+    {%- elif arg is direct -%}
+dat_{{arg.dat_ptr}}(1, n + 1)
+    {%- else -%}
+dat_{{arg.dat_ptr}}(1, map_{{arg.map_ptr}}({{arg.map_idx}}, n + 1) + 1)
+    {%- endif -%}
+{%- endmacro -%}
+
+MODULE {{lh.kernel.name|capitalize}}_MODULE
+
+USE ISO_C_BINDING
+
+USE OP2_FORTRAN_DECLARATIONS
+USE OP2_FORTRAN_RT_SUPPORT
+USE OP2_CONSTANTS
+
+CONTAINS
+
+{% block kernel %}
+{{lh.kernel_func}}
+{% endblock %}
+
+SUBROUTINE {{lh.kernel.name}}_wrapper( &
+{% for dat, idx in lh.dats.items() %}
+    dat_{{dat.ptr}}, &
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+    map_{{map.ptr}}, &
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+    gbl_{{arg.ptr}}, &
+{% endfor %}
+    start, &
+    finish, &
+    args_expanded, &
+    do_test &
+)
+    IMPLICIT NONE
+
+    ! Parameters
+{% for dat, idx in lh.dats.items() %}
+    {{dat.typ}}, DIMENSION({{dat.dim}}, *) :: dat_{{dat.ptr}}
+{% endfor %}
+
+{% for map, idx in lh.maps.items() %}
+    INTEGER(4), DIMENSION({{map.dim}}, *) :: map_{{map.ptr}}
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl %}
+    {{arg.typ}}, DIMENSION({{arg.dim}}) :: gbl_{{arg.ptr}}
+{% endfor %}
+
+    INTEGER(4) :: start, finish
+    TYPE(op_arg), DIMENSION({{lh.args_expanded|length}}) :: args_expanded
+    LOGICAL :: do_test
+
+    ! Locals
+    INTEGER(4) :: n, test_frequency
+
+    IF (do_test) THEN
+        test_frequency = op_mpi_get_test_frequency()
+    END IF
+
+    DO n = start, finish - 1
+        IF (do_test .AND. (MOD(n, test_frequency) .EQ. 0)) THEN
+            CALL op_mpi_test_all(SIZE(args_expanded), args_expanded)
+        END IF
+
+        CALL {{lh.kernel.name}}( &
+{% for arg, idx in lh.args %}
+            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
+{% endfor %}
+        )
+    END DO
+END SUBROUTINE
+
+SUBROUTINE {{lh.kernel.name}}_host( &
+    name, &
+    set, &
+{% for arg, idx in lh.args %}
+    arg{{idx}}{{"," if not loop.last}} & ! {{lh.kernel.params[idx][0]}}
+{% endfor %}
+)
+    IMPLICIT NONE
+
+    ! Parameters
+    CHARACTER(KIND=c_char, LEN=*) :: name
+    TYPE(op_set) :: set
+
+{% for arg, idx in lh.args %}
+    TYPE(op_arg) :: arg{{idx}}
+{% endfor %}
+
+    ! Locals
+    TYPE(op_arg), DIMENSION({{lh.args_expanded|length}}) :: args_expanded
+
+    INTEGER(4) :: set_size
+
+{% for dat, idx in lh.dats.items() %}
+    {{dat.typ}}, POINTER, DIMENSION(:) :: dat_{{dat.ptr}}
+{% endfor %}
+
+{% for map, idx in lh.maps.items() %}
+    INTEGER(4), POINTER, DIMENSION(:) :: map_{{map.ptr}}
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl %}
+    {{arg.typ}}, POINTER, DIMENSION(:) :: gbl_{{arg.ptr}}
+{% endfor %}
+
+    REAL(8) :: start_time, end_time
+    REAL(4) :: transfer
+
+{% for arg, idx in lh.args_expanded %}
+    {% set sarg = "arg%d" % idx %}
+    args_expanded({{loop.index}}) = {{sarg}}
+{% endfor %}
+
+    CALL op_timers_core(start_time)
+
+    set_size = op_mpi_halo_exchanges(set%setCPtr, SIZE(args_expanded), args_expanded)
+
+{% for dat, idx in lh.dats.items() %}
+    CALL c_f_pointer(arg{{idx}}%data, dat_{{dat.ptr}}, (/arg{{idx}}%dim * getSetSizeFromOpArg(arg{{idx}})/))
+{% endfor %}
+
+{% for map, idx in lh.maps.items() %}
+    CALL c_f_pointer(arg{{idx}}%map_data, map_{{map.ptr}}, (/set%setPtr%size * {{map.dim}}/))
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl %}
+    CALL c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/))
+{% endfor %}
+
+    CALL {{lh.kernel.name}}_wrapper( &
+{% for dat, idx in lh.dats.items() %}
+        dat_{{dat.ptr}}, &
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+        map_{{map.ptr}}, &
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+        gbl_{{arg.ptr}}, &
+{% endfor %}
+        0, &
+        set%setPtr%core_size, &
+        args_expanded, &
+        .TRUE. &
+    )
+
+    CALL {{lh.kernel.name}}_wrapper( &
+{% for dat, idx in lh.dats.items() %}
+        dat_{{dat.ptr}}, &
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+        map_{{map.ptr}}, &
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+        gbl_{{arg.ptr}}, &
+{% endfor %}
+        set%setPtr%core_size, &
+        set_size, &
+        args_expanded, &
+        .FALSE. &
+    )
+
+    IF ((set_size .EQ. 0) .OR. (set_size .EQ. set%setPtr%core_size)) THEN
+        CALL op_mpi_wait_all(SIZE(args_expanded), args_expanded)
+    END IF
+
+    CALL op_mpi_set_dirtybit(SIZE(args_expanded), args_expanded)
+    CALL op_timers_core(end_time)
+
+    transfer = 0.0
+    ! TODO: Review kernel transfer calculation
+
+    CALL setKernelTime({{lh.kernel_idx}}, name // C_NULL_CHAR, end_time - start_time, transfer, 0.0, 1)
+END SUBROUTINE
+
+END MODULE
