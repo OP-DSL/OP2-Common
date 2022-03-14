@@ -298,6 +298,7 @@ def parseIdentifier(node: Cursor) -> str:
 
     return node.spelling
 
+
 def parseIntExpression(node: Cursor) -> int:
     if node.kind == CursorKind.INTEGER_LITERAL:
         return int(next(node.get_tokens()).spelling)

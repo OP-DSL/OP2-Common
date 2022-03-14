@@ -80,7 +80,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl_{{arg.ptr}},
     {% endfor %}
     {%- if lh is indirect %}
-    {{-"int *col_reord," if target.config.color2}}
+    {{"int *col_reord," if target.config.color2}}
     int start,
     int end,
     {%- endif +%}
@@ -177,7 +177,7 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 {{indirect_dat_def()}}
 
     op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
-                        args_expanded, num_args_indirect, args_indirect, OP_COLOR2);
+                        args_expanded, num_dats_indirect, dats_indirect, OP_COLOR2);
 
     {% endif %}
     {% for arg, idx in lh.args|gbl %}
@@ -216,14 +216,12 @@ __global__ void op_cuda_{{lh.kernel.name}}(
         cudaMemcpyToSymbol(op2_dat_{{dat.ptr}}_stride_d, &op2_dat_{{dat.ptr}}_stride, sizeof(int));
     }
     {% endfor %}
-    {% if target.config.atomics or lh is direct %}
 
 #ifdef OP_BLOCK_SIZE_{{lh.kernel_idx}}
     int block_size = OP_BLOCK_SIZE_{{lh.kernel_idx}};
 #else
     int block_size = OP_block_size;
 #endif
-    {% endif %}
     {% if lh is direct %}
 
     int num_blocks = 200;
@@ -275,9 +273,9 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     {% endif %}
 {% endblock %}
 
-{% macro kernel_call() %}
+{% macro kernel_call(shared_size) %}
 op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
-{{-", reduction_size * block_size" if lh.args|gbl|reduction|length > 0}}>>>(
+{{-(", %s" % shared_size) if lh.args|gbl|reduction|length > 0}}>>>(
     {{-"\n    optflags," if lh.args|opt|length > 0 }}
     {% for dat, idx in lh.dats.items() %}
     ({{dat.typ}} *)arg{{idx}}.data_d,
@@ -296,7 +294,7 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
 
 {% block host_loop %}
     {% if lh is direct %}
-    {{kernel_call("set->size")|indent}}
+    {{kernel_call("reduction_size * block_size", "set->size")|indent}}
 
         {% if lh.args|gbl|reduction|length > 0 %}
     mvReductArraysToHost(reduction_bytes);
@@ -318,7 +316,9 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
         {% endif %}
         if (end - start > 0) {
             int num_blocks = (end - start - 1) / block_size + 1;
-            {{kernel_call("start", "end", "set->size + set->exec_size")|indent(12)}}
+
+            {{kernel_call("reduction_size * block_size",
+                "start", "end", "set->size + set->exec_size")|indent(12)}}
         }
         {% if lh.args|gbl|reduction|length > 0 %}
 
@@ -327,7 +327,22 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
         {% endif %}
     }
     {% else %}
+    for (int col = 0; col < plan->ncolors; ++col) {
+        if (col == plan->ncolors_core)
+            op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
 
+        int start = plan->col_offsets[0][col];
+        int end = plan->col_offsets[0][col + 1];
+        int num_blocks = (end - start - 1) / block_size + 1;
+
+        {{kernel_call("plan->nsharedCol[col]", "plan->col_reord",
+            "start", "end", "set->size + set->exec_size")|indent(8)}}
+        {% if lh.args|gbl|reduction|length > 0 %}
+
+        if (col == plan-> ncolors_owned - 1)
+            mvReductArraysToHost(reduction_bytes);
+        {% endif %}
+    }
     {% endif %}
 {% endblock %}
 
