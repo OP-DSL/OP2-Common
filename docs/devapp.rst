@@ -540,7 +540,7 @@ Final - Code generated versions and execution
 
 The following parallel versions will be generated from the code generator. These and the previously developed *developer* versions and can be executed as follows (see the `\/final <https://github.com/OP-DSL/OP2-APPS/tree/main/apps/c/airfoil/airfoil_tutorial/final>`__ directory in the `OP2-APPS <https://github.com/OP-DSL/OP2-APPS>`__ repository for all the generated code) :
 
-* Developer sequential and developer mpi - no code-generation required.
+(1) Developer sequential and developer mpi - no code-generation required.
 
 .. code-block:: bash
 
@@ -550,60 +550,44 @@ The following parallel versions will be generated from the code generator. These
   #developer distributed memory with mpi, on 4 mpi procs
   $MPI_INSTAL_PATH/bin/mpirun -np 4 ./airfoil_mpi_seq
 
-* Code-gen sequential
+(2) Code-gen sequential and MPI + Code-gen sequential
 
 .. code-block:: bash
 
+  # code-gen sequential
   ./aifroil_genseq
-
-* MPI + Code-gen sequential
-
-.. code-block:: bash
-
   #On 4 mpi procs
   $MPI_INSTAL_PATH/bin/mpirun -np 4 ./aifroil_mpi_genseq
 
 
-* Code-gen OpenMP, on 4 OpenMP threads, with mini-partition size of 256
+(3) Code-gen OpenMP, on 4 OpenMP threads, with mini-partition size of 256 and MPI + Code-gen OpenMP, on 4 MPI x 8 OpenMP with with mini-partition size of 256
 
 .. code-block:: bash
 
+  # on 4 OMP threads
   export OMP_NUM_THREADS=4; ./aifroil_openmp OP_PART_SIZE=256
-
-* MPI + Code-gen OpenMP, on 4 MPI x 8 OpenMP with with mini-partition size of 256
-
-.. code-block:: bash
-
   #On 4 mpi procs with each proc running 8 OpenMP threads
   export OMP_NUM_THREADS=8; $MPI_INSTAL_PATH/bin/mpirun -np 4 ./aifroil_mpi_openmp with mini-partition size of 256
 
-* Code-gen SIMD vectorized
+(4) Code-gen SIMD vectorized and MPI + Code-gen SIMD vectorized, on 4 MPI
 
 .. code-block:: bash
 
+  #SIMD vec
   ./aifroil_vec
-
-* MPI + Code-gen SIMD vectorized, on 4 MPI
-
-.. code-block:: bash
-
-  #On 4 mpi procs
+  #On 4 mpi procs with each proc running SIMD vec
   $MPI_INSTAL_PATH/bin/mpirun -np 4 ./aifroil_mpi_vec
 
-* Code-gen CUDA with mini-partition size of 128 and CUDA thread-block size of 192
+(5) Code-gen CUDA with mini-partition size of 128 and CUDA thread-block size of 192 and MPI + Code-gen CUDA
 
 .. code-block:: bash
 
+  #On a single GPU
   ./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-
-* MPI + Code-gen CUDA with mini-partition size of 128 and CUDA thread-block size of 192
-
-.. code-block:: bash
-
   #On 4 mpi procs, each proc having a GPU
   $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 
-* MPI + Code-gen hybrid CUDA with mini-partition size of 128 and CUDA thread-block size of 192
+(6) MPI + Code-gen hybrid CUDA with mini-partition size of 128 and CUDA thread-block size of 192
 
   The hybrid version can be run on both CPUs and GPUs at the same time. If there is only 4 GPUs are available the following execution will allocated 4 MPI procs to be run on 4 GPUs and 8 MPI procs allocated to the remaining CPU cores.
 
@@ -611,6 +595,15 @@ The following parallel versions will be generated from the code generator. These
 
   #On 12 mpi procs
   $MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+
+(7) Code-gen OpenACC with mini-partition size of 128 and thread-block size of 192 and MPI + Code-gen OpenACC
+
+.. code-block:: bash
+
+  #On a single GPU
+  ./airfoil_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+  #On 4 mpi procs, each proc having a GPU
+  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192
 
 
 Optimizations
