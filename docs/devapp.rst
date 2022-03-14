@@ -491,7 +491,22 @@ The resulting executable is called a ``developer MPI`` version of the applicatio
 Step 7 - Code generation
 ------------------------
 
-Now that both the sequential and MPI developer versions work and validate, its time to generate other parallel versions. Got to the ``/step7`` directory and on the terminal type :
+Now that both the sequential and MPI developer versions work and validate, its time to generate other parallel versions. However, first we should move the elemental kernels to header files so that after the code generation the modified main application will not have the same elemental kernel definitions. This is currently a limitation of the code-generator, which will be remedied in future versions.
+
+We move the elemental kernels to header files, each with the name of the kernel and include them in the ``airfoil_step7.cpp`` main file:
+
+.. code-block:: C
+
+  //
+  // kernel routines for parallel loops
+  //
+  #include "adt_calc.h"
+  #include "bres_calc.h"
+  #include "res_calc.h"
+  #include "save_soln.h"
+  #include "update.h"
+
+Now the code is ready for code-generation, go to the ``/step7`` directory and on the terminal type :
 
 ``python $OP2_INSTALL_PATH/../translator/c/op2.py airfoil_step7.cpp``
 
