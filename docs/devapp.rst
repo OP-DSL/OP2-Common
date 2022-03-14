@@ -497,6 +497,11 @@ We move the elemental kernels to header files, each with the name of the kernel 
 
 .. code-block:: C
 
+  ...
+  ...
+  /* Global Constants */
+  double gam, gm1, cfl, eps, mach, alpha, qinf[4];
+
   //
   // kernel routines for parallel loops
   //
@@ -505,6 +510,7 @@ We move the elemental kernels to header files, each with the name of the kernel 
   #include "res_calc.h"
   #include "save_soln.h"
   #include "update.h"
+  ...
 
 Now the code is ready for code-generation, go to the ``/step7`` directory and on the terminal type :
 

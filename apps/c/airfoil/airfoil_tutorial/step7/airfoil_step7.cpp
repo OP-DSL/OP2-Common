@@ -5,6 +5,14 @@
 
 #include "op_seq.h"
 
+/* Problem mesh and iterations */
+#define FILE_NAME_PATH "new_grid.h5"
+#define NUM_ITERATIONS 1000
+
+
+/* Global Constants */
+double gam, gm1, cfl, eps, mach, alpha, qinf[4];
+
 //
 // kernel routines for parallel loops
 //
@@ -13,14 +21,6 @@
 #include "res_calc.h"
 #include "save_soln.h"
 #include "update.h"
-
-/* Problem mesh and iterations */
-#define FILE_NAME_PATH "new_grid.h5"
-#define NUM_ITERATIONS 1000
-
-
-/* Global Constants */
-double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 /* main application */
 int main(int argc, char **argv) {
