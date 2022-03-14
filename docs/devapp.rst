@@ -519,7 +519,10 @@ Final - Code generated versions and execution
 
 The following parallel versions will be generated from the code generator and can be executed as follows (see ``/final`` directory for all the generated code) :
 
-* developer sequential, developer mpi
+* Developer sequential and developer mpi
+
+
+
 * code-gen sequential
 * MPI + code-gen sequential
 
