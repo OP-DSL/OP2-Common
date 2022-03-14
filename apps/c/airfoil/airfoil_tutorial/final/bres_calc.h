@@ -34,3 +34,4 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
     res1[3] += f;
   }
 }
+

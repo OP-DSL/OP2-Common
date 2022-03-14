@@ -25,4 +25,6 @@ inline void adt_calc(const double *x1, const double *x2, const double *x3,
   *adt += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   *adt = (*adt) / cfl;
+
 }
+
