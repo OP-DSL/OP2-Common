@@ -34,7 +34,7 @@ class Cuda(Target):
     name = "cuda"
     kernel_translation = True
 
-    config = {"grouped": True, "device": 2, "atomics": True, "ind_inc": False, "inc_stage": 0}
+    config = {"grouped": True, "device": 2, "atomics": True, "color2": False}
 
 
 class OpenMP(Target):
