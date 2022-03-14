@@ -190,7 +190,7 @@ class FortranSeq(Scheme):
     lang = Lang.find("F95")
     target = Target.find("seq")
 
-    loop_host_template = Path("fortran/seq/loop_host.F90.jinja")
+    loop_host_template = Path("fortran/seq/loop_host.F95.jinja")
     master_kernel_template = None
 
 
@@ -224,7 +224,7 @@ class FortranCuda(Scheme):
         return fortran.translator.kernels.cuda.translateKernel(self.target.config, kernel.path.read_text(), kernel, app)
 
 
-# Scheme.register(FortranSeq)
+Scheme.register(FortranSeq)
 # Scheme.register(FortranVec)
 # Scheme.register(FortranOpenMP)
 # Scheme.register(FortranCuda)

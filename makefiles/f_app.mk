@@ -1,4 +1,4 @@
-TRANSLATOR ?= $(ROOT_DIR)/translator/fortran/op2_fortran.py
+TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v
 
 ifneq ($(F_HAS_PARALLEL_BUILDS),true)
   .NOTPARALLEL:
@@ -65,11 +65,11 @@ endif
 KERNELS = $(patsubst %.inc,%,$(wildcard *.inc))
 KERNEL_SOURCES = $(wildcard *.inc) $(wildcard *.inc2)
 
-GEN_KERNELS_GENSEQ = $(foreach kernel,$(KERNELS),$(kernel)_seqkernel.F90)
-GEN_KERNELS_VEC = $(foreach kernel,$(KERNELS),$(kernel)_veckernel.F90)
-GEN_KERNELS_OPENMP = $(foreach kernel,$(KERNELS),$(kernel)_kernel.F90)
-GEN_KERNELS_OPENMP4 = $(foreach kernel,$(KERNELS),$(kernel)_omp4kernel.F90)
-GEN_KERNELS_CUDA = $(foreach kernel,$(KERNELS),$(kernel)_kernel.CUF)
+GEN_KERNELS_GENSEQ = $(foreach kernel,$(KERNELS),$(kernel)_seq_kernel.F95)
+GEN_KERNELS_VEC = $(foreach kernel,$(KERNELS),$(kernel)_vec_kernel.F95)
+GEN_KERNELS_OPENMP = $(foreach kernel,$(KERNELS),$(kernel)_openmp_kernel.F95)
+GEN_KERNELS_OPENMP4 = $(foreach kernel,$(KERNELS),$(kernel)_openmp4_kernel.F95)
+GEN_KERNELS_CUDA = $(foreach kernel,$(KERNELS),$(kernel)_cuda_kernel.CUF)
 
 GENERATED = \
 	$(APP_ENTRY_OP) \

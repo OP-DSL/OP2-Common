@@ -35,7 +35,7 @@ class Fortran(Lang):
         return fortran.parser.parseProgram(self.parseFile(path, frozenset(include_dirs)), path)
 
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
-        return fortran.parser.parseKernel(self.parseFile(path, frozenset(include_dirs)), name, include_dirs)
+        return fortran.parser.parseKernel(self.parseFile(path, frozenset(include_dirs)), name, path)
 
     def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
         return fortran.translator.program.translateProgram(source, program, force_soa)
@@ -45,9 +45,9 @@ class Fortran(Lang):
             if not typ.signed:
                 raise NotImplementedError("Fortran does not support unsigned integers")
 
-            return f"INTEGER(kind={int(typ.size / 8)})"
+            return f"INTEGER({int(typ.size / 8)})"
         elif isinstance(typ, OP.Float):
-            return f"REAL(kind={int(typ.size / 8)})"
+            return f"REAL({int(typ.size / 8)})"
         elif isinstance(typ, OP.Bool):
             return f"LOGICAL"
         else:
