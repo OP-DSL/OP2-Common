@@ -364,8 +364,8 @@ Here, the global variable ``rms`` is used as a reduction variable to compute the
 .. code-block:: C
 
   //outlined elemental kernel - update
-  inline void update(double *qold, double *q, double *res,
-                     double *adt, double *rms) {
+  inline void update(const double *qold, double *q, double *res,
+                     const double *adt, double *rms) {
     double del, adti;
 
     adti = 1.0f / (*adt);
