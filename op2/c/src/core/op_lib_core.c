@@ -135,6 +135,14 @@ int is_halo_required_for_set(op_set set, int halo_id){
   // return 1;
 }
 
+int is_halo_required_for_map(op_map map, int halo_id){
+  if(map->halo_info->max_nhalos > halo_id){
+    return 1;
+  }
+  return 0;
+  // return 1;
+}
+
 op_dat search_dat(op_set set, int dim, char const *type, int size,
                   char const *name) {
   op_dat_entry *item;

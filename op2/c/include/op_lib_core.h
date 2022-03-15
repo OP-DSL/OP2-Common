@@ -153,11 +153,11 @@ typedef struct {
   int exec_size;    /* number of additional imported elements to be executed */
   int nonexec_size; /* number of additional imported elements that are not
                        executed */
+  int total_exec_size;
+  int total_nonexec_size;
   int *core_sizes;
   int *exec_sizes;
   int *nonexec_sizes;
-  int total_exec_size;
-  int total_nonexec_size;
   op_halo_info halo_info;
 } op_set_core;
 
@@ -418,6 +418,7 @@ op_dat search_dat(op_set set, int dim, char const *type, int size,
 
 int op_is_root();
 int is_halo_required_for_set(op_set set, int halo_id);
+int is_halo_required_for_map(op_map map, int halo_id);
 
 /*******************************************************************************
 * Memory allocation functions

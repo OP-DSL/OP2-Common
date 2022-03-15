@@ -3328,7 +3328,10 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && exchange == 1) {
       if (args[n].map == OP_ID) {
-        op_exchange_halo_chained(&args[n], exec_flag);
+        if(args[n].nhalos > 1){
+          op_exchange_halo_chained(&args[n], exec_flag);
+        }else
+          op_exchange_halo(&args[n], exec_flag);
       } else {
         // Check if dat-map combination was already done or if there is a
         // mismatch (same dat, diff map)
@@ -3342,14 +3345,22 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
         }
         // If there was a map mismatch with other argument, do full halo
         // exchange
-        if (fallback)
-          op_exchange_halo_chained(&args[n], exec_flag);
+        if (fallback){
+          if(args[n].nhalos > 1){
+            op_exchange_halo_chained(&args[n], exec_flag);
+          }else
+            op_exchange_halo(&args[n], exec_flag);
+        }
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
           if (OP_map_partial_exchange[args[n].map->index])
             op_exchange_halo_partial(&args[n], exec_flag);  //todo: check whether this also needs h_levels
-          else
-            op_exchange_halo_chained(&args[n], exec_flag);
+          else{
+            if(args[n].nhalos > 1){
+              op_exchange_halo_chained(&args[n], exec_flag);
+            }else
+              op_exchange_halo(&args[n], exec_flag);
+            }
         }
       }
     }
@@ -4428,6 +4439,21 @@ int is_dat_dirty(op_arg* arg){
       return 1;
     else
       return 0;
+  }
+}
+
+void set_dat_dirty(op_arg* arg){
+  op_dat dat = arg->dat;
+  if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
+    // printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    dat->dirtybit = 1;
+  }
+}
+
+void init_dat_to(op_arg* arg, int init_val){
+  op_dat dat = arg->dat;
+  if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
+    memset(dat->data, init_val, (dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size) * dat->size);
   }
 }
 

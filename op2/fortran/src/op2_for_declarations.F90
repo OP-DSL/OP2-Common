@@ -63,6 +63,8 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) :: core_size    ! number of core elements in an mpi process
     integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed
     integer(kind=c_int) :: nonexec_size ! number of additional imported elements that are not executed
+    integer(kind=c_int) :: total_exec_size    ! number of additional imported elements to be executed
+    integer(kind=c_int) :: total_nonexec_size ! number of additional imported elements that are not executed
 
   end type op_set_core
 
