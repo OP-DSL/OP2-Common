@@ -16,6 +16,8 @@ int* aug_part_range_cap;
 int*** foreign_aug_part_range;
 int** foreign_aug_part_range_size;
 
+int*** elem_rank_matrix;
+
 halo_list* OP_export_part_range_list;
 halo_list* OP_import_part_range_list;
 
@@ -187,6 +189,39 @@ void print_foreign_aug_part_list(int*** aug_range, int** aug_size, int comm_size
     }
   }
   printf("foreign_aug_range end my_rank=%d\n", my_rank);
+}
+
+void create_elem_rank_matrix(int my_rank, int comm_size){
+  elem_rank_matrix = (int***)xmalloc(OP_set_index * sizeof(int**));
+
+  for(int i = 0; i < OP_set_index; i++){
+    op_set set = OP_set_list[i];
+    elem_rank_matrix[i] = (int **)xmalloc(set->size * sizeof(int *));
+    for(int j = 0; j < set->size; j++){
+      elem_rank_matrix[i][j] = (int *)xmalloc(comm_size * sizeof(int));
+      for(int k = 0; k < comm_size; k++){
+        elem_rank_matrix[i][j][k] = -1;
+      }
+    }
+  }
+}
+
+void update_elem_rank_matrix(op_set set, int elem, int rank, int comm_size){
+  elem_rank_matrix[set->index][elem][rank] = 1;
+}
+
+bool is_elem_sent(op_set set, int elem, int rank, int comm_size){
+  return elem_rank_matrix[set->index][elem][rank] == 1;
+}
+
+void free_elem_rank_matrix(int my_rank, int comm_size){
+  for(int i = 0; i < OP_set_index; i++){
+    op_set set = OP_set_list[i];
+    for(int j = 0; j < set->size; j++){
+      op_free(elem_rank_matrix[i][j]);
+    }
+    op_free(elem_rank_matrix[i]);
+  }
 }
 
 /*******************************************************************************
@@ -823,15 +858,19 @@ halo_list* step1_create_aug_export_exec_list(int halo_id, int **part_range, int 
               set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
             }
 
-            if (part != my_rank && !is_in_prev_export_exec_halos(halo_id, set->index, part, e, my_rank)) {
+            if (halo_id == 0 && part != my_rank) {
               set_list[s_i++] = part; // add to set export list
               set_list[s_i++] = e;
+              update_elem_rank_matrix(set, e, part, comm_size);
             }
 
-            for(int r = 0; r < comm_size; r++){
-              if(r != part && parts[r] == 1 && !is_in_prev_export_exec_halos(halo_id, set->index, r, e, my_rank)){
-                set_list[s_i++] = r; // add to set export list
-                set_list[s_i++] = e;
+            if(halo_id > 0){
+              for(int r = 0; r < comm_size; r++){
+                if(r != part && parts[r] == 1 && !is_elem_sent(set, e, r, comm_size)){
+                  set_list[s_i++] = r; // add to set export list
+                  set_list[s_i++] = e;
+                  update_elem_rank_matrix(set, e, r, comm_size);
+                }
               }
             }
           }
@@ -2311,6 +2350,8 @@ void op_halo_create_comm_avoid() {
     }
   }
 
+  create_elem_rank_matrix(my_rank, comm_size);
+
   int num_halos = get_max_nhalos();
   printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
   
@@ -2345,6 +2386,8 @@ void op_halo_create_comm_avoid() {
       stop_time(my_rank, "step6 exchange_part2");
     }
   }
+
+  free_elem_rank_matrix(my_rank, comm_size);
 
   OP_export_exec_list = OP_aug_export_exec_lists[0];
   OP_import_exec_list = OP_aug_import_exec_lists[0];
