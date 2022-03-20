@@ -3234,11 +3234,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID) {
 #ifdef COMM_AVOID
-        if(args[n].dat->halo_info->max_nhalos > 1){
+        // if(args[n].dat->halo_info->max_nhalos > 1){
           op_exchange_halo_merged(&args[n], exec_flag);
-        }else
-#endif
+        // }else
+#else
           op_exchange_halo(&args[n], exec_flag);
+#endif
       } else {
         // Check if dat-map combination was already done or if there is a
         // mismatch (same dat, diff map)
@@ -3254,22 +3255,24 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
         // exchange
         if (fallback)
 #ifdef COMM_AVOID
-          if(args[n].dat->halo_info->max_nhalos > 1){
+          // if(args[n].dat->halo_info->max_nhalos > 1){
             op_exchange_halo_merged(&args[n], exec_flag);
-          }else
-#endif
+          // }else
+#else
             op_exchange_halo(&args[n], exec_flag);
+#endif
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
           if (OP_map_partial_exchange[args[n].map->index])
             op_exchange_halo_partial(&args[n], exec_flag);
           else{
 #ifdef COMM_AVOID
-            if(args[n].dat->halo_info->max_nhalos > 1){
+            // if(args[n].dat->halo_info->max_nhalos > 1){
               op_exchange_halo_merged(&args[n], exec_flag);
-            }else
-#endif
+            // }else
+#else
               op_exchange_halo(&args[n], exec_flag);
+#endif
           }
         }
       }
@@ -3285,6 +3288,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
 }
 
 #ifdef COMM_AVOID
+
 int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange) {
   // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d, exchange=%d\n", set->name, nhalos, exchange);
   int size = set->size;
@@ -3328,10 +3332,10 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && exchange == 1) {
       if (args[n].map == OP_ID) {
-        if(args[n].nhalos > 1){
-          op_exchange_halo_chained(&args[n], exec_flag);
-        }else
-          op_exchange_halo(&args[n], exec_flag);
+        // if(args[n].nhalos > 1){
+          op_exchange_halo_merged(&args[n], exec_flag);
+        // }else
+        //   op_exchange_halo(&args[n], exec_flag);
       } else {
         // Check if dat-map combination was already done or if there is a
         // mismatch (same dat, diff map)
@@ -3346,20 +3350,20 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
         // If there was a map mismatch with other argument, do full halo
         // exchange
         if (fallback){
-          if(args[n].nhalos > 1){
-            op_exchange_halo_chained(&args[n], exec_flag);
-          }else
-            op_exchange_halo(&args[n], exec_flag);
+          // if(args[n].nhalos > 1){
+            op_exchange_halo_merged(&args[n], exec_flag);
+          // }else
+          //   op_exchange_halo(&args[n], exec_flag);
         }
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
           if (OP_map_partial_exchange[args[n].map->index])
             op_exchange_halo_partial(&args[n], exec_flag);  //todo: check whether this also needs h_levels
           else{
-            if(args[n].nhalos > 1){
-              op_exchange_halo_chained(&args[n], exec_flag);
-            }else
-              op_exchange_halo(&args[n], exec_flag);
+            // if(args[n].nhalos > 1){
+              op_exchange_halo_merged(&args[n], exec_flag);
+            // }else
+            //   op_exchange_halo(&args[n], exec_flag);
             }
         }
       }

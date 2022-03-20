@@ -50,8 +50,6 @@
 #include <op_mpi_core.h>
 #include <op_rt_support.h>
 
-#define DEFAULT_HALO_LEVEL_TEST 2
-
 void op_upload_dat(op_dat dat) {}
 
 void op_download_dat(op_dat dat) {}
@@ -61,6 +59,66 @@ void op_download_dat(op_dat dat) {}
  *******************************************************************************/
 
 #ifdef COMM_AVOID
+
+int get_nonexec_start(op_arg *arg){
+  int max_nhalos = arg->dat->set->halo_info->max_nhalos;
+  int nhalos_index = arg->nhalos_index;
+  switch (arg->unpack_method)
+  {
+  case OP_UNPACK_OP2:
+    // if(arg->dat->halo_info->max_nhalos > 1){
+    //   nhalos_index = arg->dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos];
+    // }
+    // return max_nhalos + nhalos_index;
+    return max_nhalos;
+  case OP_UNPACK_SINGLE_HALO:
+    return max_nhalos + nhalos_index;
+  case OP_UNPACK_ALL_HALOS:
+    return max_nhalos;
+  
+  default:
+    return -1;
+  }
+}
+
+int get_nonexec_end(op_arg *arg){
+  int max_nhalos = arg->dat->set->halo_info->max_nhalos;
+  int nhalos_index = arg->nhalos_index;
+
+  switch (arg->unpack_method)
+  {
+  case OP_UNPACK_OP2:
+    if(arg->dat->halo_info->max_nhalos > 1){
+      nhalos_index = arg->dat->halo_info->nhalos_indices[arg->dat->halo_info->max_nhalos];
+    }
+    break;
+  case OP_UNPACK_SINGLE_HALO:
+    break;
+  case OP_UNPACK_ALL_HALOS:
+    break;
+  default:
+    return -1;
+  }
+  return max_nhalos + nhalos_index + 1;
+}
+
+int get_nhalos(op_arg *arg){
+  switch (arg->unpack_method)
+  {
+  case OP_UNPACK_OP2:
+    if(arg->dat->halo_info->max_nhalos > 1){
+      return arg->dat->halo_info->max_nhalos;
+    }
+  case OP_UNPACK_SINGLE_HALO:
+  case OP_UNPACK_ALL_HALOS:
+    return arg->nhalos;
+  
+  default:
+    return -1;
+  }
+}
+
+
 void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
   op_dat dat = arg->dat;
 
@@ -78,8 +136,13 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
   if (exec_flag == 0 && arg->idx == -1)
     return;
   
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  // int my_rank;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+
+  int nhalos = get_nhalos(arg);
+  int nonexec_start = get_nonexec_start(arg);
+  int nonexec_end = get_nonexec_end(arg);
+
 
   arg->sent = 0; // reset flag
 
@@ -88,38 +151,50 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
-    halo_list imp_exec_list = OP_merged_import_exec_list[dat->set->index];
-    halo_list imp_nonexec_list = OP_merged_import_nonexec_list[dat->set->index];
-
-    halo_list exp_exec_list = OP_merged_export_exec_list[dat->set->index];
-    halo_list exp_nonexec_list = OP_merged_export_nonexec_list[dat->set->index];
+    halo_list imp_list = OP_merged_import_exec_nonexec_list[dat->set->index];
+    halo_list exp_list = OP_merged_export_exec_nonexec_list[dat->set->index];
 
     //-------first exchange exec elements related to this data array--------
 
     // sanity checks
-    if (compare_sets(imp_exec_list->set, dat->set) == 0) {
+    if (compare_sets(imp_list->set, dat->set) == 0) {
       printf("Error: Import list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-    if (compare_sets(exp_exec_list->set, dat->set) == 0) {
+    if (compare_sets(exp_list->set, dat->set) == 0) {
       printf("Error: Export list and set mismatch\n");
       MPI_Abort(OP_MPI_WORLD, 2);
     }
-    // printf("op_exchange_halo exchanged <<<<<<< dat=%s set=%s levels=%d datlevels=%d\n", arg->dat->name, arg->dat->set->name, arg->nhalos, dat->halo_info->max_nhalos);
+    // printf("op_exchange_halo_merged exchanged <<<<<<< dat=%s set=%s levels=%d datlevels=%d nonexec_start=%d nonexec_end=%d\n",
+    //  arg->dat->name, arg->dat->set->name, arg->nhalos, dat->halo_info->max_nhalos, nonexec_start, nonexec_end);
     int set_elem_index = 0;
     int buf_index = 0;
     int buf_start = 0;
 
-    for (int r = 0; r < exp_exec_list->ranks_size / exp_exec_list->num_levels; r++) {
+    for (int r = 0; r < exp_list->ranks_size / exp_list->num_levels; r++) {
       buf_start =  buf_index;
-      for(int l = 0; l < dat->halo_info->max_nhalos; l++){
-        for (int i = 0; i < exp_exec_list->sizes[exp_exec_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_exec_list->level_disps[l];
-          int disp_in_level = exp_exec_list->disps[exp_exec_list->rank_disps[l] + r];
-          set_elem_index = exp_exec_list->list[level_disp + disp_in_level + i];
+      for(int l = 0; l < nhalos; l++){
+        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
+          int level_disp = exp_list->level_disps[l];
+          int disp_in_level = exp_list->disps[exp_list->rank_disps[l] + r];
+          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
 
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-                    ->buf_exec[buf_index * dat->size],
+                    ->buf_merged[buf_index * dat->size],
+               (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+
+          buf_index++;
+        }
+      }
+
+      for(int l = nonexec_start; l < nonexec_end; l++){ // +1 is for just one non exec level
+        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
+          int level_disp = exp_list->level_disps[l];
+          int disp_in_level = exp_list->disps[exp_list->rank_disps[l] + r];
+          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
+
+          memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
+                    ->buf_merged[buf_index * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
 
           buf_index++;
@@ -128,9 +203,9 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
       // printf("rxtxexec merged my_rank=%d dat=%s r=%d sent=%d buf_index=%d buf_start=%d\n", my_rank, dat->name, r, buf_index - buf_start, buf_index, buf_start);
       
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-                     ->buf_exec[buf_start * dat->size],
+                     ->buf_merged[buf_start * dat->size],
                 dat->size * (buf_index - buf_start), MPI_CHAR,
-                exp_exec_list->ranks[r], dat->index, OP_MPI_WORLD,
+                exp_list->ranks[r], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
       OP_mpi_tx_exec_msg_count++;
@@ -138,10 +213,14 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
     }
 
     int init = 0; //dat->set->size * dat->size;
-    for (int i = 0; i < imp_exec_list->ranks_size / imp_exec_list->num_levels; i++) {
-      MPI_Irecv(&(dat->aug_data[init + imp_exec_list->disps_by_rank[i] * dat->size]),
-                dat->size * imp_exec_list->sizes_by_rank[i], MPI_CHAR,
-                imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
+    int rank_count = imp_list->ranks_size / imp_list->num_levels;
+    for (int i = 0; i < rank_count; i++) {
+      int imp_size = imp_list->level_sizes[(nhalos - 1) * rank_count + i] + 
+      imp_list->level_sizes[(nonexec_end - 1) * rank_count + i] - imp_list->level_sizes[(nonexec_start - 1) * rank_count + i];
+
+      MPI_Irecv(&(dat->aug_data[init + imp_list->disps_by_rank[i] * dat->size]),
+                dat->size * imp_size, MPI_CHAR,
+                imp_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
       
@@ -149,68 +228,13 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
       OP_mpi_rx_exec_msg_count++;
       OP_mpi_rx_exec_msg_count_merged++;
     }
-
-    //-----second exchange nonexec elements related to this data array------
-    // sanity checks
-    if (compare_sets(imp_nonexec_list->set, dat->set) == 0) {
-      printf("Error: Non-Import list and set mismatch");
-      MPI_Abort(OP_MPI_WORLD, 2);
-    }
-    if (compare_sets(exp_nonexec_list->set, dat->set) == 0) {
-      printf("Error: Non-Export list and set mismatch");
-      MPI_Abort(OP_MPI_WORLD, 2);
-    }
-
-    set_elem_index = 0;
-    buf_index = 0;
-    buf_start = 0;
-    for (int r = 0; r < exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels; r++) {
-      buf_start =  buf_index;
-      for(int l = 0; l <= dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos]; l++){
-        for (int i = 0; i < exp_nonexec_list->sizes[exp_nonexec_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_nonexec_list->level_disps[l];
-          int disp_in_level = exp_nonexec_list->disps[exp_nonexec_list->rank_disps[l] + r];
-          set_elem_index = exp_nonexec_list->list[level_disp + disp_in_level + i];
-
-          memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-                    ->buf_nonexec[buf_index * dat->size],
-               (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-          buf_index++;
-        }
-      }
-
-      // printf("rxtxnonexec merged my_rank=%d dat=%s r=%d sent=%d buf_index=%d buf_start=%d\n", my_rank, dat->name, r, buf_index - buf_start, buf_index, buf_start);
-      MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-                     ->buf_nonexec[buf_start * dat->size],
-                dat->size * (buf_index - buf_start), MPI_CHAR,
-                exp_nonexec_list->ranks[r], dat->index, OP_MPI_WORLD,
-                &((op_mpi_buffer)(dat->mpi_buffer))
-                     ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
-      OP_mpi_tx_nonexec_msg_count++;
-      OP_mpi_tx_nonexec_msg_count_merged++; 
-    }
-
-    int nonexec_init = 0;
-    // nonexec_init += (dat->set->size + imp_exec_list->size);
-    nonexec_init += (imp_exec_list->size);
-    nonexec_init *= dat->size;
-  
-    for (int i = 0; i < imp_nonexec_list->ranks_size / imp_nonexec_list->num_levels; i++) {
-      MPI_Irecv(&(dat->aug_data[nonexec_init + imp_nonexec_list->disps_by_rank[i] * dat->size]),
-                dat->size * imp_nonexec_list->sizes_by_rank[i], MPI_CHAR,
-                imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
-                &((op_mpi_buffer)(dat->mpi_buffer))
-                     ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
-      
-      // printf("rxtxnonexec merged  my_rank=%d dat=%s r=%d recved=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes_by_rank[i]);
-      OP_mpi_rx_nonexec_msg_count++;
-      OP_mpi_rx_nonexec_msg_count_merged++;
-    }
     // clear dirty bit
     dat->dirtybit = 0;
     arg->sent = 1;
+    // arg->unpack_method = OP_UNPACK_MERGED_SINGLE_DAT;
   }
 }
+
 #endif
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
@@ -233,8 +257,8 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   if (exec_flag == 0 && arg->idx == -1)
     return;
 
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  // int my_rank;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   arg->sent = 0; // reset flag
 
@@ -270,8 +294,8 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                                j * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
-      int my_rank;
-      MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+      // int my_rank;
+      // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
       // printf("export exec from %d to %d data %10s, number of elements of size %d | sending:\n ",
       //             my_rank, exp_exec_list->ranks[i],
       //             dat->name,exp_exec_list->sizes[i]);
@@ -549,6 +573,58 @@ void op_exchange_halo_chained(op_arg *arg, int exec_flag) {
   }
 }
 
+
+void op_unpack_merged_single_dat(op_arg *arg){
+
+  op_dat dat = arg->dat;
+
+  int nhalos = get_nhalos(arg);
+  int nonexec_start = get_nonexec_start(arg);
+  int nonexec_end = get_nonexec_end(arg);
+
+  // int nhalos = (arg->dat->halo_info->max_nhalos > 1) ? arg->dat->halo_info->max_nhalos : (arg->nhalos < 0) ? 1 : arg->nhalos;
+  // int nhalos_index = (arg->dat->halo_info->max_nhalos > 1) ? dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos] : (arg->nhalos_index < 0) ? 0 : arg->nhalos_index;
+  // int max_nhalos = arg->dat->set->halo_info->max_nhalos;
+  
+  //   int nonexec_start = (arg->dat->halo_info->max_nhalos > 1) ? max_nhalos : max_nhalos + nhalos_index;
+  // int nonexec_start = (arg->dat->halo_info->max_nhalos > 1) ? max_nhalos :  (arg->nhalos_index < 0) ? max_nhalos :  ;
+  // int nonexec_end = max_nhalos + nhalos_index + 1;
+
+  halo_list imp_list = OP_merged_import_exec_nonexec_list[dat->set->index];
+  int init = dat->set->size * dat->size;
+  // printf("op_unpack_merged_single_dat called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d\n", 
+  // arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos);
+  
+  int rank_count = imp_list->ranks_size / imp_list->num_levels;
+  for (int i = 0; i < rank_count; i++) {
+    int prev_exec_size = 0;
+    for(int l = 0; l < nhalos; l++){
+      
+      memcpy(&(dat->data[init + (imp_list->level_disps[l] + imp_list->disps[imp_list->rank_disps[l] + i]) * dat->size]), 
+            &(dat->aug_data[imp_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),
+                            dat->size * imp_list->sizes[imp_list->rank_disps[l] + i]);
+
+      prev_exec_size += imp_list->sizes[imp_list->rank_disps[l] + i];
+
+      // printf("op_unpack_merged_single_dat1 called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d imp_size=%d prev_exec_size=%d\n", 
+      //       arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos, imp_size, prev_exec_size);
+    }
+
+
+    for(int l = nonexec_start; l < nonexec_end; l++){
+
+      memcpy(&(dat->data[init + (imp_list->level_disps[l] + imp_list->disps[imp_list->rank_disps[l] + i]) * dat->size]), 
+            &(dat->aug_data[imp_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),
+                            dat->size * imp_list->sizes[imp_list->rank_disps[l] + i]);
+
+      prev_exec_size += imp_list->sizes[imp_list->rank_disps[l] + i];
+      // printf("op_unpack_merged_single_dat2 called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d imp_size=%d prev_exec_size=%d nonexec_start=%d nonexec_end=%d\n", 
+      //       arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos, imp_size, prev_exec_size, nonexec_start, nonexec_end);
+    }
+  }
+}
+
+
 void op_unpack_exec(op_arg *arg){
 
   op_dat dat = arg->dat;
@@ -556,7 +632,7 @@ void op_unpack_exec(op_arg *arg){
   int init = dat->set->size * dat->size;
   int nhalos = (arg->nhalos > 0) ? arg->nhalos : 
               ((dat->halo_info->nhalos_count > 1) ? dat->halo_info->max_nhalos : -1);
-  // printf("op_unpack_exec called dat=%s set=%s nhalos=%d\n", arg->dat->name, arg->dat->set->name, nhalos);
+  printf("op_unpack_exec called dat=%s set=%s nhalos=%d\n", arg->dat->name, arg->dat->set->name, nhalos);
   
   for (int i = 0; i < imp_exec_list->ranks_size / imp_exec_list->num_levels; i++) {
     int prev_exec_size = 0;
@@ -580,7 +656,7 @@ void op_unpack_nonexec(op_arg *arg){
   int nhalos_index = (arg->nhalos > 0) ? arg->nhalos_index : 
               ((dat->halo_info->nhalos_count > 1) ? dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos] : -1);
 
-  // printf("op_unpack_nonexec called dat=%s set=%s nhalos_index=%d\n", arg->dat->name, arg->dat->set->name, nhalos_index);
+  printf("op_unpack_nonexec called dat=%s set=%s nhalos_index=%d\n", arg->dat->name, arg->dat->set->name, nhalos_index);
 
   for (int i = 0; i < imp_nonexec_list->ranks_size / imp_nonexec_list->num_levels; i++) {
     int prev_nonexec_size = 0;
@@ -690,10 +766,15 @@ void op_wait_all(op_arg *arg) {
     arg->sent = 2; // set flag to indicate completed comm
 
     #ifdef COMM_AVOID
-    if(arg->nhalos > 0 || arg->dat->halo_info->nhalos_count > 1){
-      op_unpack_exec(arg);
-      op_unpack_nonexec(arg);
-    }
+    op_unpack_merged_single_dat(arg);
+    // if(arg->unpack_method == OP_UNPACK_MERGED_SINGLE_DAT){
+    //   op_unpack_merged_single_dat(arg);
+    //   // op_unpack_exec_new(arg);
+    //   // op_unpack_nonexec_new(arg);
+    // }else if(arg->nhalos > 0 || arg->dat->halo_info->nhalos_count > 1){
+    //   op_unpack_exec(arg);
+    //   op_unpack_nonexec(arg);
+    // }
     #endif
 
     if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {

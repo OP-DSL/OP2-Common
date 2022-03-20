@@ -62,6 +62,9 @@ extern halo_list *OP_merged_export_exec_list;
 extern halo_list *OP_merged_import_nonexec_list;
 extern halo_list *OP_merged_export_nonexec_list;
 
+extern halo_list *OP_merged_import_exec_nonexec_list;
+extern halo_list *OP_merged_export_exec_nonexec_list;
+
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int **orig_part_range;

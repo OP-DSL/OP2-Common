@@ -30,6 +30,9 @@ halo_list *OP_merged_export_exec_list;
 halo_list *OP_merged_import_nonexec_list;
 halo_list *OP_merged_export_nonexec_list;
 
+halo_list *OP_merged_import_exec_nonexec_list;
+halo_list *OP_merged_export_exec_nonexec_list;
+
 double cpu_start, cpu_stop, cpu_tick, wall_start, wall_stop, wall_tick, duration;
 
 #define DEFAULT_HALO_COUNT 1
@@ -373,12 +376,13 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
   int *sizes = (int *)xmalloc(new_ranks_size * sizeof(int));
 
   int* ranks_sizes = (int *)xmalloc(num_levels * sizeof(int));
-  int* level_sizes = (int *)xmalloc(num_levels * sizeof(int));
+  // int* level_sizes = (int *)xmalloc(num_levels * sizeof(int));
   int* level_disps = (int *)xmalloc(num_levels * sizeof(int));
   int* rank_disps = (int *)xmalloc(num_levels * sizeof(int));
 
   int* sizes_by_rank = (int *)xmalloc(tmp_rank_size * sizeof(int));
   int* disps_by_rank = (int *)xmalloc(tmp_rank_size * sizeof(int));
+  int* level_sizes = (int *)xmalloc(num_levels * tmp_rank_size * sizeof(int));
 
   for(int i = 0; i < tmp_rank_size; i++){
     sizes_by_rank[i] = 0;
@@ -407,8 +411,29 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
         if(rank_index >= 0){
           sizes[rank_start + r] = h_list->sizes[h_list->rank_disps[l] + rank_index];
           sizes_by_rank[r] += h_list->sizes[h_list->rank_disps[l] + rank_index];
+
+          if(level_start + l > 0){
+            level_sizes[(level_start + l) * tmp_rank_size + r] = level_sizes[((level_start + l) - 1) * tmp_rank_size + r] + h_list->sizes[h_list->rank_disps[l] + rank_index];
+            printf("test1 rank=%d set=%s tmp_rank_size=%d l=%d r=%d prev(%d)=%d size=%d val=%d\n", my_rank, set->name, 
+            tmp_rank_size, (level_start + l), r,((level_start + l) - 1) * tmp_rank_size + r,  level_sizes[((level_start + l) - 1) * tmp_rank_size + r], h_list->sizes[h_list->rank_disps[l] + rank_index],
+            level_sizes[(level_start + l) * tmp_rank_size + r]);
+          }else{
+            level_sizes[(level_start + l) * tmp_rank_size + r] = h_list->sizes[h_list->rank_disps[l] + rank_index];
+            printf("test2 rank=%d set=%s tmp_rank_size=%d l=%d r=%d size=%d val=%d\n",  my_rank, set->name,  
+            tmp_rank_size, (level_start + l), r, h_list->sizes[h_list->rank_disps[l] + rank_index],
+            level_sizes[(level_start + l) * tmp_rank_size + r]);
+          }
+            
         }else{
           sizes[rank_start + r] = 0;
+          if(level_start + l > 0){
+            level_sizes[(level_start + l) * tmp_rank_size + r] = level_sizes[((level_start + l) - 1) * tmp_rank_size + r] + 0;
+            printf("test1 >>>>>>>>>>>>>>>>>>\n");
+          } else{
+            level_sizes[(level_start + l) * tmp_rank_size + r] = 0;
+            printf("test2 <<<<<<<<<<<<<<>>>>>>>>>>>>>>n");
+          }
+          
         }
       }
 
@@ -421,7 +446,7 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
       }
 
       ranks_sizes[level_start + l] = tmp_rank_size;
-      level_sizes[level_start + l] = h_list->level_sizes[l];
+      // level_sizes[level_start + l] = h_list->level_sizes[l];
       level_disps[level_start + l] = list_start + h_list->level_disps[l];
 
       if(level_start + l > 0)
@@ -1593,6 +1618,7 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
 
     mpi_buf->buf_exec = (char *)xmalloc(exec_e_list_size * dat->size);
     mpi_buf->buf_nonexec = (char *)xmalloc(nonexec_e_list_size * dat->size);
+    mpi_buf->buf_merged = (char *)xmalloc((exec_e_list_size + nonexec_e_list_size) * dat->size);
 
     // printf("step9 my_rank=%d dat=%s set=%s exec_e_list_size=%d\n", my_rank, dat->name, dat->set->name, exec_e_list_size);
 
@@ -2185,6 +2211,44 @@ void merge_nonexec_halos(int exec_levels, int my_rank, int comm_size){
   }
 }
 
+void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
+
+  OP_merged_import_exec_nonexec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
+  OP_merged_export_exec_nonexec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
+
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    OP_merged_import_exec_nonexec_list[set->index] = NULL;
+    OP_merged_export_exec_nonexec_list[set->index] = NULL;
+  }
+
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    int max_nhalos = set->halo_info->max_nhalos;
+    int num_levels = set->halo_info->nhalos_count;
+
+    halo_list* import_h_lists = (halo_list*) xmalloc((num_levels + max_nhalos) * sizeof(halo_list));
+    halo_list* export_h_lists = (halo_list*) xmalloc((num_levels + max_nhalos) * sizeof(halo_list));
+
+    for(int l = 0; l < max_nhalos; l++){
+      import_h_lists[l] = OP_aug_import_exec_lists[l][set->index];
+      export_h_lists[l] = OP_aug_export_exec_lists[l][set->index];
+    }
+
+    for(int l = 0; l < num_levels; l++){
+      import_h_lists[max_nhalos + l] = OP_aug_import_nonexec_lists[l][set->index];
+      export_h_lists[max_nhalos + l] = OP_aug_export_nonexec_lists[l][set->index];
+    }
+
+    OP_merged_import_exec_nonexec_list[set->index] = merge_halo_lists(num_levels + max_nhalos, import_h_lists, my_rank, comm_size);
+    OP_merged_export_exec_nonexec_list[set->index] = merge_halo_lists(num_levels + max_nhalos, export_h_lists, my_rank, comm_size);
+
+    op_free(import_h_lists);
+    op_free(export_h_lists);
+  }
+ 
+}
+
 
 void set_maps_halo_extension(){
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -2444,6 +2508,7 @@ void op_halo_create_comm_avoid() {
   // This is to facilitate halo exchange in one message for multiple extended exec layers
   merge_exec_halos(num_halos, my_rank, comm_size);
   merge_nonexec_halos(num_halos, my_rank, comm_size);
+  merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
 
   /*-STEP 12 ---------- Clean up and Compute rough halo size

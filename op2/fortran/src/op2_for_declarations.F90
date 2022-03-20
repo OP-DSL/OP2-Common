@@ -157,6 +157,7 @@ module OP2_Fortran_Declarations
 ! #ifdef COMM_AVOID
     integer(kind=c_int) :: nhalos
     integer(kind=c_int) :: nhalos_index
+    integer(kind=c_int) :: unpack_method
 ! #endif
   end type op_arg
 

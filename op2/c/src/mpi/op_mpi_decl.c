@@ -174,6 +174,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
   mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list_size) * dat->size);
+  mpi_buf->buf_merged = (char *)xmalloc((exec_e_list_size + nonexec_e_list_size) * dat->size);
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *

@@ -775,8 +775,9 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
   arg.sent = 0;
 
 // #ifdef COMM_AVOID
-  arg.nhalos = -1;
-  arg.nhalos_index = -1;
+  arg.nhalos = 1;
+  arg.nhalos_index = 0;
+  arg.unpack_method = OP_UNPACK_OP2;
 // #endif
 
   return arg;
@@ -831,6 +832,7 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
   arg.sent = 0;
   arg.nhalos = nhalos;
   arg.nhalos_index = dat->set->halo_info->nhalos_indices[nhalos];
+  arg.unpack_method = OP_UNPACK_ALL_HALOS;
 
   return arg;
 }
@@ -885,8 +887,9 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   arg.sent = 0;
 
 // #ifdef COMM_AVOID
-  arg.nhalos = -1;
-  arg.nhalos_index = -1;
+  arg.nhalos = 1;
+  arg.nhalos_index = 0;
+  arg.unpack_method = OP_UNPACK_OP2;
 // #endif
 
   return arg;
@@ -942,6 +945,7 @@ op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int di
 
   arg.nhalos = nhalos;
   arg.nhalos_index = dat->set->halo_info->nhalos_indices[nhalos];
+  arg.unpack_method = OP_UNPACK_ALL_HALOS;
 
   return arg;
 }
@@ -987,8 +991,9 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
     arg.opt = 0;
 
 // #ifdef COMM_AVOID
-  arg.nhalos = -1;
-  arg.nhalos_index = -1;
+  arg.nhalos = 1;
+  arg.nhalos_index = 0;
+  arg.unpack_method = OP_UNPACK_OP2;
 // #endif
 
   return arg;

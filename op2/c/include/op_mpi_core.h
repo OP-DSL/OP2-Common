@@ -170,6 +170,8 @@ typedef struct {
   int r_num_req;
   // buffer holding received exec halo;
   char *buf_recv;
+  // buffer holding merged halo;
+  char *buf_merged;
 } op_mpi_buffer_core;
 
 typedef op_mpi_buffer_core *op_mpi_buffer;
