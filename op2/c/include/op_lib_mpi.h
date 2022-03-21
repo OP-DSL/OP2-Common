@@ -65,6 +65,14 @@ extern halo_list *OP_merged_export_nonexec_list;
 extern halo_list *OP_merged_import_exec_nonexec_list;
 extern halo_list *OP_merged_export_exec_nonexec_list;
 
+extern MPI_Request *grp_send_requests;
+extern MPI_Request *grp_recv_requests;
+
+extern char *grp_send_buffer;
+extern char *grp_recv_buffer;
+
+extern int grp_tag;
+
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int **orig_part_range;

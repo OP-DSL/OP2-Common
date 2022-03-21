@@ -33,6 +33,14 @@ halo_list *OP_merged_export_nonexec_list;
 halo_list *OP_merged_import_exec_nonexec_list;
 halo_list *OP_merged_export_exec_nonexec_list;
 
+MPI_Request *grp_send_requests;
+MPI_Request *grp_recv_requests;
+
+char *grp_send_buffer = NULL;
+char *grp_recv_buffer = NULL;
+
+int grp_tag;
+
 double cpu_start, cpu_stop, cpu_tick, wall_start, wall_stop, wall_tick, duration;
 
 #define DEFAULT_HALO_COUNT 1
@@ -2301,7 +2309,7 @@ void set_maps_hydra(){
       //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
   }
-
+  return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
@@ -2352,6 +2360,51 @@ int get_max_nhalos_count(){
     }
   }
   return max_count;
+}
+
+void set_group_halo_envt(){
+
+  grp_tag = 100;
+  int max_dat_count = 4;  // this is a temp const
+
+  int max_send_buff_size = 0;
+  int max_recv_buff_size = 0;
+
+  int max_send_rank_size = 0;
+  int max_recv_rank_size = 0;
+
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    op_set set = dat->set;
+
+    halo_list exp_list = OP_merged_export_exec_nonexec_list[set->index];
+    halo_list imp_list = OP_merged_import_exec_nonexec_list[set->index];
+    
+    int send_buff_size = exp_list->size * dat->size;
+    int recv_buff_size = imp_list->size * dat->size;
+
+    int send_rank_size = exp_list->ranks_size / exp_list->num_levels;
+    int recv_rank_size = imp_list->ranks_size / imp_list->num_levels;
+
+    if(send_buff_size > max_send_buff_size)
+      max_send_buff_size = send_buff_size;
+
+    if(recv_buff_size > max_recv_buff_size)
+      max_recv_buff_size = recv_buff_size;
+
+    if(send_rank_size > max_send_rank_size)
+      max_send_rank_size = send_rank_size;
+
+    if(recv_rank_size > max_recv_rank_size)
+      max_recv_rank_size = recv_rank_size;
+  }
+
+  grp_send_requests = (MPI_Request *)xmalloc(sizeof(MPI_Request) * max_send_rank_size * max_dat_count);
+  grp_recv_requests = (MPI_Request *)xmalloc(sizeof(MPI_Request) * max_recv_rank_size * max_dat_count);
+
+  grp_send_buffer = (char *)xmalloc(max_send_buff_size * max_dat_count);
+  grp_recv_buffer = (char *)xmalloc(max_recv_buff_size * max_dat_count);
 }
 /*******************************************************************************
  * Main MPI halo creation routine
@@ -2509,6 +2562,8 @@ void op_halo_create_comm_avoid() {
   merge_exec_halos(num_halos, my_rank, comm_size);
   merge_nonexec_halos(num_halos, my_rank, comm_size);
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
+
+  set_group_halo_envt();
 
 
   /*-STEP 12 ---------- Clean up and Compute rough halo size

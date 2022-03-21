@@ -3329,6 +3329,56 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
     }
   }
   op_timers_core(&c1, &t1);
+  op_exchange_halo_chained(nargs, args, exec_flag);
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+
+  // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d setsize=%d exec=%d retsize=%d\n", 
+  //     set->name, nhalos, set->size , set->exec_sizes[set->halo_info->nhalos_indices[nhalos]], size);
+  return size;
+}
+
+int op_mpi_halo_exchanges_chained_1(op_set set, int nargs, op_arg *args, int nhalos, int exchange) {
+  // printf("op_mpi_halo_exchanges_chained set=%s nhalos=%d, exchange=%d\n", set->name, nhalos, exchange);
+  int size = set->size;
+  int direct_flag = 1;
+
+  if (OP_diags > 0) {
+    int dummy;
+    for (int n = 0; n < nargs; n++)
+      op_arg_check(set, n, args[n], &dummy, "halo_exchange mpi");
+  }
+
+  if (OP_hybrid_gpu) {
+    for (int n = 0; n < nargs; n++)
+      if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
+          args[n].dat->dirty_hd == 2) {
+        op_download_dat(args[n].dat);
+        args[n].dat->dirty_hd = 0;
+      }
+  }
+
+  // check if this is a direct loop
+  for (int n = 0; n < nargs; n++)
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1){
+    // printf("op_mpi_halo_exchanges_chained direct set=%s %d (%d %d %d)\n", set->name, size + set->total_exec_size + set->total_nonexec_size, size , set->total_exec_size , set->total_nonexec_size);
+    return size + set->total_exec_size + set->total_nonexec_size;
+  }
+    
+
+  // not a direct loop ...
+  int exec_flag = 0;
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      size = set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
+      exec_flag = 1;
+    }
+  }
+  op_timers_core(&c1, &t1);
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && exchange == 1) {
       if (args[n].map == OP_ID) {
