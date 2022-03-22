@@ -3701,6 +3701,9 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   }
 
   // trigger halo creation routines
+  pack_time = 0.0;
+  unpack_time = 0.0;
+  halo_exch_time = 0.0;
   op_halo_create();
 
   if (partial_halo_flag == 1) // only do partial halo

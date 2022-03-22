@@ -4515,8 +4515,8 @@ void init_dat_to(op_arg* arg, int init_val){
 void op_mpi_halo_exchange_summary(){
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  printf("op_exit my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
-  my_rank, OP_mpi_tx_exec_msg_count, OP_mpi_rx_exec_msg_count, OP_mpi_tx_nonexec_msg_count, OP_mpi_rx_nonexec_msg_count);
+  // printf("op_exit my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
+  // my_rank, OP_mpi_tx_exec_msg_count, OP_mpi_rx_exec_msg_count, OP_mpi_tx_nonexec_msg_count, OP_mpi_rx_nonexec_msg_count);
 
   // printf("op_exit merged my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
   // my_rank, OP_mpi_tx_exec_msg_count_merged, OP_mpi_rx_exec_msg_count_merged, OP_mpi_tx_nonexec_msg_count_merged, OP_mpi_rx_nonexec_msg_count_merged);
@@ -4535,4 +4535,7 @@ void op_mpi_halo_exchange_summary(){
 
   op_printf("op_mpi_halo_exchange_summary my_rank=%d exec_tx=%d nonexec_tx=%d\n", 
   my_rank,  exec_message_count, nonexec_message_count);
+
+  op_printf("halo exchange summary my_rank=%d pack=%f unpack=%f halo_exch=%f\n", 
+  my_rank,  pack_time, unpack_time, halo_exch_time);
 }

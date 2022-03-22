@@ -105,6 +105,8 @@ extern int OP_mpi_rx_nonexec_msg_count_org;
 extern int OP_mpi_tx_nonexec_msg_count_partial;
 extern int OP_mpi_rx_nonexec_msg_count_partial;
 
+extern double pack_time, unpack_time, halo_exch_time;
+
 /*
  * enum list for op_par_loop
  */

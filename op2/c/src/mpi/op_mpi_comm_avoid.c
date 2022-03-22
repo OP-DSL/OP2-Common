@@ -422,24 +422,24 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
 
           if(level_start + l > 0){
             level_sizes[(level_start + l) * tmp_rank_size + r] = level_sizes[((level_start + l) - 1) * tmp_rank_size + r] + h_list->sizes[h_list->rank_disps[l] + rank_index];
-            printf("test1 rank=%d set=%s tmp_rank_size=%d l=%d r=%d prev(%d)=%d size=%d val=%d\n", my_rank, set->name, 
-            tmp_rank_size, (level_start + l), r,((level_start + l) - 1) * tmp_rank_size + r,  level_sizes[((level_start + l) - 1) * tmp_rank_size + r], h_list->sizes[h_list->rank_disps[l] + rank_index],
-            level_sizes[(level_start + l) * tmp_rank_size + r]);
+            // printf("test1 rank=%d set=%s tmp_rank_size=%d l=%d r=%d prev(%d)=%d size=%d val=%d\n", my_rank, set->name, 
+            // tmp_rank_size, (level_start + l), r,((level_start + l) - 1) * tmp_rank_size + r,  level_sizes[((level_start + l) - 1) * tmp_rank_size + r], h_list->sizes[h_list->rank_disps[l] + rank_index],
+            // level_sizes[(level_start + l) * tmp_rank_size + r]);
           }else{
             level_sizes[(level_start + l) * tmp_rank_size + r] = h_list->sizes[h_list->rank_disps[l] + rank_index];
-            printf("test2 rank=%d set=%s tmp_rank_size=%d l=%d r=%d size=%d val=%d\n",  my_rank, set->name,  
-            tmp_rank_size, (level_start + l), r, h_list->sizes[h_list->rank_disps[l] + rank_index],
-            level_sizes[(level_start + l) * tmp_rank_size + r]);
+            // printf("test2 rank=%d set=%s tmp_rank_size=%d l=%d r=%d size=%d val=%d\n",  my_rank, set->name,  
+            // tmp_rank_size, (level_start + l), r, h_list->sizes[h_list->rank_disps[l] + rank_index],
+            // level_sizes[(level_start + l) * tmp_rank_size + r]);
           }
             
         }else{
           sizes[rank_start + r] = 0;
           if(level_start + l > 0){
             level_sizes[(level_start + l) * tmp_rank_size + r] = level_sizes[((level_start + l) - 1) * tmp_rank_size + r] + 0;
-            printf("test1 >>>>>>>>>>>>>>>>>>\n");
+            // printf("test1 >>>>>>>>>>>>>>>>>>\n");
           } else{
             level_sizes[(level_start + l) * tmp_rank_size + r] = 0;
-            printf("test2 <<<<<<<<<<<<<<>>>>>>>>>>>>>>n");
+            // printf("test2 <<<<<<<<<<<<<<>>>>>>>>>>>>>>n");
           }
           
         }

@@ -58,6 +58,8 @@ void op_download_dat(op_dat dat) {}
  * Main MPI Halo Exchange Function
  *******************************************************************************/
 
+double pack_time = 0.0, unpack_time = 0.0, halo_exch_time = 0.0;
+double ca_c1,ca_c2,ca_c3,ca_c4,ca_t1,ca_t2,ca_t3,ca_t4;
 #ifdef COMM_AVOID
 
 int get_nonexec_start(op_arg *arg){
@@ -265,6 +267,9 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 
 
 void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
+
+  op_mpi_barrier();
+  op_timers_core(&ca_c1, &ca_t1);
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -319,11 +324,12 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
     for (int r = 0; r < exp_list->ranks_size / exp_list->num_levels; r++) {
       buf_start =  buf_index;
       for(int l = 0; l < nhalos; l++){
-        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_list->level_disps[l];
-          int disp_in_level = exp_list->disps[exp_list->rank_disps[l] + r];
-          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
+        int level_disp = exp_list->level_disps[l];
+        int rank_disp = exp_list->rank_disps[l];
+        int disp_in_level = exp_list->disps[rank_disp + r];
 
+        for (int i = 0; i < exp_list->sizes[rank_disp + r]; i++) {
+          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
                     ->buf_merged[buf_index * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
@@ -332,12 +338,13 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
         }
       }
 
-      for(int l = nonexec_start; l < nonexec_end; l++){ // +1 is for just one non exec level
-        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_list->level_disps[l];
-          int disp_in_level = exp_list->disps[exp_list->rank_disps[l] + r];
-          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
+      for(int l = nonexec_start; l < nonexec_end; l++){
+        int level_disp = exp_list->level_disps[l];
+        int rank_disp = exp_list->rank_disps[l];
+        int disp_in_level = exp_list->disps[rank_disp + r];
 
+        for (int i = 0; i < exp_list->sizes[rank_disp + r]; i++) {
+          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
           memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
                     ->buf_merged[buf_index * dat->size],
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
@@ -373,16 +380,25 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
       OP_mpi_rx_exec_msg_count++;
       OP_mpi_rx_exec_msg_count_merged++;
     }
+
+
     // clear dirty bit
     dat->dirtybit = 0;
     arg->sent = 1;
     // arg->unpack_method = OP_UNPACK_MERGED_SINGLE_DAT;
   }
+  op_mpi_barrier();
+  op_timers_core(&ca_c2, &ca_t2);
+  pack_time += ca_t2 - ca_t1;
+
+  op_timers_core(&ca_c3, &ca_t3);
 }
 
 #endif
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
+  op_mpi_barrier();
+  op_timers_core(&ca_c1, &ca_t1);
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -542,6 +558,12 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     dat->dirtybit = 0;
     arg->sent = 1;
   }
+
+  op_mpi_barrier();
+  op_timers_core(&ca_c2, &ca_t2);
+  pack_time += ca_t2 - ca_t1;
+
+  op_timers_core(&ca_c3, &ca_t3);
 }
 
 #ifdef COMM_AVOID
@@ -779,18 +801,9 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
 void op_unpack_merged_single_dat(op_arg *arg){
 
   op_dat dat = arg->dat;
-
   int nhalos = get_nhalos(arg);
   int nonexec_start = get_nonexec_start(arg);
   int nonexec_end = get_nonexec_end(arg);
-
-  // int nhalos = (arg->dat->halo_info->max_nhalos > 1) ? arg->dat->halo_info->max_nhalos : (arg->nhalos < 0) ? 1 : arg->nhalos;
-  // int nhalos_index = (arg->dat->halo_info->max_nhalos > 1) ? dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos] : (arg->nhalos_index < 0) ? 0 : arg->nhalos_index;
-  // int max_nhalos = arg->dat->set->halo_info->max_nhalos;
-  
-  //   int nonexec_start = (arg->dat->halo_info->max_nhalos > 1) ? max_nhalos : max_nhalos + nhalos_index;
-  // int nonexec_start = (arg->dat->halo_info->max_nhalos > 1) ? max_nhalos :  (arg->nhalos_index < 0) ? max_nhalos :  ;
-  // int nonexec_end = max_nhalos + nhalos_index + 1;
 
   halo_list imp_list = OP_merged_import_exec_nonexec_list[dat->set->index];
   int init = dat->set->size * dat->size;
@@ -799,16 +812,17 @@ void op_unpack_merged_single_dat(op_arg *arg){
   
   int rank_count = imp_list->ranks_size / imp_list->num_levels;
   for (int i = 0; i < rank_count; i++) {
-    int prev_exec_size = 0;
+    int prev_size = 0;
+    int imp_disp_by_rank = imp_list->disps_by_rank[i] * dat->size;
     for(int l = 0; l < nhalos; l++){
       
       memcpy(&(dat->data[init + (imp_list->level_disps[l] + imp_list->disps[imp_list->rank_disps[l] + i]) * dat->size]), 
-            &(dat->aug_data[imp_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),
+            &(dat->aug_data[imp_disp_by_rank + prev_size]),
                             dat->size * imp_list->sizes[imp_list->rank_disps[l] + i]);
 
-      prev_exec_size += imp_list->sizes[imp_list->rank_disps[l] + i];
+      prev_size += imp_list->sizes[imp_list->rank_disps[l] + i] * dat->size;
 
-      // printf("op_unpack_merged_single_dat1 called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d imp_size=%d prev_exec_size=%d\n", 
+      // printf("op_unpack_merged_single_daca_t1 called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d imp_size=%d prev_exec_size=%d\n", 
       //       arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos, imp_size, prev_exec_size);
     }
 
@@ -816,11 +830,11 @@ void op_unpack_merged_single_dat(op_arg *arg){
     for(int l = nonexec_start; l < nonexec_end; l++){
 
       memcpy(&(dat->data[init + (imp_list->level_disps[l] + imp_list->disps[imp_list->rank_disps[l] + i]) * dat->size]), 
-            &(dat->aug_data[imp_list->disps_by_rank[i] * dat->size + prev_exec_size * dat->size]),
+            &(dat->aug_data[imp_disp_by_rank + prev_size]),
                             dat->size * imp_list->sizes[imp_list->rank_disps[l] + i]);
 
-      prev_exec_size += imp_list->sizes[imp_list->rank_disps[l] + i];
-      // printf("op_unpack_merged_single_dat2 called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d imp_size=%d prev_exec_size=%d nonexec_start=%d nonexec_end=%d\n", 
+      prev_size += imp_list->sizes[imp_list->rank_disps[l] + i] * dat->size;
+      // printf("op_unpack_merged_single_daca_t2 called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d imp_size=%d prev_exec_size=%d nonexec_start=%d nonexec_end=%d\n", 
       //       arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos, imp_size, prev_exec_size, nonexec_start, nonexec_end);
     }
   }
@@ -972,9 +986,9 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
       exec_flag = 1;
     }
   }
-  double c1,c2,t1,t2;
-  op_timers_core(&c1, &t1);
-
+  // double ca_c1,ca_c2,ca_t1,ca_t2;
+  // op_timers_core(&ca_c1, &ca_t1);
+#ifdef COMM_AVOID
   MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
                 &grp_send_requests[0], MPI_STATUSES_IGNORE);
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
@@ -991,10 +1005,10 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   }
 
   op_unpack_merged_single_dat_chained(nargs, args, exec_flag);
-
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+#endif
+  // op_timers_core(&ca_c2, &ca_t2);
+  // if (OP_kern_max > 0)
+  //   OP_kernels[OP_kern_curr].mpi_time += ca_t2 - ca_t1;
 }
 
 void op_wait_all(op_arg *arg) {
@@ -1007,9 +1021,17 @@ void op_wait_all(op_arg *arg) {
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
     arg->sent = 2; // set flag to indicate completed comm
-
+    op_mpi_barrier();
+    op_timers_core(&ca_c4, &ca_t4);
+    halo_exch_time += ca_t4 - ca_t3;
     #ifdef COMM_AVOID
+
+    op_timers_core(&ca_c1, &ca_t1);
     op_unpack_merged_single_dat(arg);
+
+    op_mpi_barrier();
+    op_timers_core(&ca_c2, &ca_t2);
+    unpack_time += ca_t2 - ca_t1;
     // if(arg->unpack_method == OP_UNPACK_MERGED_SINGLE_DAT){
     //   op_unpack_merged_single_dat(arg);
     //   // op_unpack_exec_new(arg);
