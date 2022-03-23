@@ -8,7 +8,7 @@ dat_{{arg.dat_ptr}}(1, map_{{arg.map_ptr}}({{arg.map_idx}}, n + 1) + 1)
     {%- endif -%}
 {%- endmacro -%}
 
-MODULE {{lh.kernel.name|capitalize}}_MODULE
+MODULE {{lh.kernel.name|upper}}_MODULE
 
 USE ISO_C_BINDING
 
@@ -173,8 +173,8 @@ SUBROUTINE {{lh.kernel.name}}_host( &
     CALL op_mpi_set_dirtybit(SIZE(args_expanded), args_expanded)
     CALL op_timers_core(end_time)
 
-    transfer = 0.0
     ! TODO: Review kernel transfer calculation
+    transfer = 0.0
 
     CALL setKernelTime({{lh.kernel_idx}}, name // C_NULL_CHAR, end_time - start_time, transfer, 0.0, 1)
 END SUBROUTINE

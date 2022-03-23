@@ -1,0 +1,414 @@
+{% macro map_lookup(arg) %}
+map_{{arg.map_ptr}}({{arg.map_idx}}, n)
+{%- endmacro %}
+
+{% macro arg_to_pointer_cuda(arg, idx) -%}
+    {%- if arg is gbl -%}
+gbl_{{arg.ptr}}{{"_local" if arg is reduction}}
+    {%- elif arg is direct -%}
+dat_{{arg.dat_ptr}}(1, n)
+    {%- elif arg is inc and target.config.atomics %}
+arg{{idx}}_{{arg.map_idx}}_local
+    {%- else -%}
+dat_{{arg.dat_ptr}}(1, {{map_lookup(arg)}})
+    {%- endif -%}
+{%- endmacro %}
+
+MODULE {{lh.kernel.name|upper}}_MODULE
+
+USE ISO_C_BINDING
+USE CUDAFOR
+
+USE OP2_FORTRAN_DECLARATIONS
+USE OP2_FORTRAN_RT_SUPPORT
+USE OP2_CONSTANTS
+
+USE CUDACONFIGURATIONPARAMS
+
+IMPLICIT NONE
+
+{% for dat, idx in lh.dats.items()|soa %}
+INTEGER(4) :: op2_dat_{{dat.ptr}}_stride
+INTEGER(4), CONSTANT :: op2_dat_{{dat.ptr}}_stride_d
+{% endfor %}
+
+CONTAINS
+
+ATTRIBUTES(device) &
+{{lh.kernel_func}}
+
+ATTRIBUTES(global) SUBROUTINE op_cuda_{{lh.kernel.name}}( &
+{{"    optflags, &\n" if lh.args|opt|length > 0-}}
+{% for dat, idx in lh.dats.items() %}
+    dat_{{dat.ptr}}, &
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+    map_{{map.ptr}}, &
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+    gbl_{{arg.ptr}}, &
+{% endfor %}
+{% if lh is indirect %}
+    {{"col_reord, &\n" if target.config.color2-}}
+    start, &
+    end, &
+{% endif %}
+    set_size &
+)
+    IMPLICIT NONE
+
+    ! Parameters
+{% if lh.args|opt|length > 0 %}
+    INTEGER(4), VALUE :: optflags
+{% endif %}
+
+{% for dat, idx in lh.dats.items() %}
+    {{dat.typ}}, DIMENSION({{dat.dim}}, *) :: dat_{{dat.ptr}}
+{% endfor %}
+
+{% for map, idx in lh.maps.items() %}
+    INTEGER(4), DIMENSION({{map.dim}}, *) :: map_{{map.ptr}}
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl %}
+    {{arg.typ}}, DIMENSION({{arg.dim}}{{", *" if arg is reduction}}) :: gbl_{{arg.ptr}}
+{% endfor %}
+
+{% if lh is indirect %}
+{{-"    col_reord, &\n" if target.config.color2-}}
+    {% if target.config.color2 %}
+    INTEGER(4), DIMENSION(0:*) :: col_reord
+    {% endif %}
+
+    INTEGER(4), VALUE :: start, end
+{% endif %}
+
+    INTEGER(4), VALUE :: set_size
+
+    ! Locals
+{% for arg, idx in lh.args|gbl|reduction %}
+    {{arg.typ}}, DIMENSION({{arg.dim}}) :: gbl_{{arg.ptr}}_local
+{% endfor %}
+
+{% for arg, idx in lh.args|indirect|reduction if target.config.atomics %}
+    {{arg.dat_typ}}, DIMENSION({{arg.dat_dim}}) :: arg{{idx}}_{{arg.map_idx}}_local
+{% endfor %}
+
+    INTEGER(4) :: thread_id, d, n, ret
+
+{% for arg, idx in lh.args|gbl|reduction %}
+    {% if arg is inc %}
+    gbl_{{arg.ptr}}_local = 0
+    {% else %}
+    DO d = 1, {{arg.dim}}
+        gbl_{{arg.ptr}}_local(d) = gbl_{{arg.ptr}}(d, blockIdx%x)
+    END DO
+    {% endif %}
+
+{% endfor %}
+
+    thread_id = threadIdx%x + blockIdx%x * blockDim%x
+
+{% if lh is direct %}
+    DO n = thread_id, set_size - 1, blockDim%x * gridDim%x
+        CALL {{lh.kernel.name}}_gpu( &
+    {% for arg, idx  in lh.args %}
+            {{arg_to_pointer_cuda(arg, idx)}}{{"," if not loop.last}} &
+    {% endfor %}
+        )
+    END DO
+{% else %}
+    IF (thread_id + start < end) THEN
+        n = {{"thread_id + start" if target.config.atomics else "col_reord(thread_id + start)"}}
+
+    {% for arg, idx in lh.args|indirect|reduction if target.config.atomics %}
+        arg{{idx}}_{{arg.map_idx}}_local = 0
+    {% endfor %}
+
+        CALL {{lh.kernel.name}}_gpu( &
+    {% for arg, idx  in lh.args %}
+            {{arg_to_pointer_cuda(arg, idx)}}{{"," if not loop.last}} &
+    {% endfor %}
+        )
+
+    {% for arg, idx in lh.args|indirect|reduction if target.config.atomics %}
+        DO d = 1, {{arg.dat_dim}}
+            ret = atomicAdd(dat_{{arg.dat_ptr}}(d, {{map_lookup(arg)}}), arg{{idx}}_{{arg.map_idx}}_local(d))
+        END DO
+    {% endfor %}
+    END IF
+{% endif %}
+
+{% for arg, idx in lh.args|gbl|reduction %}
+    DO d = 1, {{arg.dim}}
+        ret = {%+ if arg is inc -%}
+        atomicAdd
+        {%- elif arg is min -%}
+        atomicMin
+        {%- elif arg is max -%}
+        atomicMax
+        {%- endif %}(gbl_{{arg.ptr}}(d, blockIdx%x), gbl_{{arg.ptr}}_local(d))
+    END DO
+{% endfor %}
+END SUBROUTINE
+
+SUBROUTINE {{lh.kernel.name}}_host( &
+    name, &
+    set, &
+{% for arg, idx in lh.args %}
+    arg{{idx}}{{"," if not loop.last}} & ! {{lh.kernel.params[idx][0]}}
+{% endfor %}
+)
+    IMPLICIT NONE
+
+    ! Parameters
+    CHARACTER(KIND=c_char, LEN=*) :: name
+    TYPE(op_set) :: set
+
+{% for arg, idx in lh.args %}
+    TYPE(op_arg) :: arg{{idx}}
+{% endfor %}
+
+    ! Locals
+    TYPE(op_arg), DIMENSION({{lh.args|length}}) :: args
+
+    INTEGER(4) :: set_size, col, block, round, dim, err
+
+{% for dat, idx in lh.dats.items() %}
+    {{dat.typ}}, DIMENSION(:), POINTER, DEVICE :: dat_{{dat.ptr}}_d
+{% endfor %}
+
+{% for map, idx in lh.maps.items() %}
+    INTEGER(4), DIMENSION(:), POINTER, DEVICE :: map_{{map.ptr}}_d
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl %}
+    {{arg.typ}}, DIMENSION(:), POINTER :: gbl_{{arg.ptr}}
+    {% if arg is reduction %}
+    {{arg.typ}}, DIMENSION(:, :), ALLOCATABLE, SAVE :: gbl_{{arg.ptr}}_h
+    {% endif %}
+    {{arg.typ}}, DIMENSION(:{{", :" if arg is not read}}), ALLOCATABLE, SAVE, DEVICE :: gbl_{{arg.ptr}}_d
+{% endfor %}
+
+    REAL(8) :: start_time, end_time
+    REAL(4) :: transfer
+
+    INTEGER(4) :: num_blocks, max_blocks, block_size
+    INTEGER(4) :: shared_size
+
+{% if lh is indirect %}
+    INTEGER(4) :: start, end
+{% endif %}
+
+{% if lh is indirect and target.config.color2 %}
+    INTEGER(4) :: num_dats_indirect
+    INTEGER(4), DIMENSION({{lh.args|length}}) :: dats_indirect
+
+    INTEGER(4) :: part_size
+
+    TYPE(op_plan), POINTER :: plan
+    INTEGER(4), DIMENSION(:), POINTER :: plan_ncolblk, plan_color2_offsets
+    INTEGER(4), DIMENSION(:), POINTER, DEVICE :: plan_col_reord
+{% endif %}
+
+{% for arg, idx in lh.args %}
+    args({{loop.index}}) = arg{{idx}}
+{% endfor %}
+
+    CALL op_timers_core(start_time)
+
+    set_size = op_mpi_halo_exchanges_grouped(set%setCPtr, SIZE(args), args, 2)
+
+    IF (set_size == 0) THEN
+        CALL op_mpi_wait_all_grouped(SIZE(args), args, 2)
+        CALL op_mpi_set_dirtybit_cuda(SIZE(args), args)
+        err = cudaDeviceSynchronize()
+
+        IF (err .NE. 0) THEN
+            print *, cudaGetErrorString(err)
+        END IF
+
+        RETURN
+    END IF
+
+    block_size = getBlockSize(name // C_NULL_CHAR, set%setPtr%size)
+
+{% if lh is direct %}
+    num_blocks = 200
+    max_blocks = num_blocks
+{% elif target.config.atomics %}
+    max_blocks = (MAX(set%setPtr%core_size, &
+        set%setPtr%size + set%setPtr%exec_size - set%setPtr%core_size) - 1) / block_size + 1
+{% elif target.config.color2 %}
+    num_dats_indirect = {{lh.dats|indirect(lh)|length}}
+    dats_indirect = (/
+    {%- for arg, idx in lh.args -%}
+        {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
+        {{-", " if not loop.last}}
+    {%- endfor -%}
+    /)
+
+    part_size = getPartitionSize(name // C_NULL_CHAR, set%setPtr%size)
+    plan = FortranPlanCaller( &
+        name // C_NULL_CHAR, &
+        set%setCPtr, &
+        part_size, &
+        SIZE(args), &
+        args, &
+        num_dats_indirect, &
+        dats_indirect &
+    )
+
+    CALL c_f_pointer(plan%ncolblk, plan_ncolblk, (/ plan%ncolors /))
+    CALL c_f_pointer(plan%color2_offsets, plan_color2_offsets, (/ plan%ncolors + 1 /))
+    CALL c_f_pointer(plan%col_reord, plan_col_reord, (/ set%setPtr%size + set%setPtr%exec_size /))
+
+    max_blocks = 0
+    DO col = 1, plan%ncolors
+        max_blocks = MAX(max_blocks, plan_ncolblk(col))
+    END DO
+{% endif %}
+
+{% for dat, idx in lh.dats.items() %}
+    CALL c_f_pointer(arg{{idx}}%data_d, dat_{{dat.ptr}}_d, (/arg{{idx}}%dim * getSetSizeFromOpArg(arg{{idx}})/))
+{% endfor %}
+
+{% for map, idx in lh.maps.items() %}
+    CALL c_f_pointer(arg{{idx}}%map_data_d, map_{{map.ptr}}_d, (/set%setPtr%size * {{map.dim}}/))
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl %}
+    CALL c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/))
+{% endfor %}
+
+{% for arg, idx in lh.args|gbl|read %}
+    IF (.NOT. ALLOCATED(gbl_{{arg.ptr}}_d) THEN
+        ALLOCATE(gbl_{{arg.ptr}}_d({{arg.dim}}))
+    END IF
+
+    gbl_{{arg.ptr}}_d = gbl_{{arg.ptr}}
+{% endfor %}
+
+    shared_size = 0
+
+{% for arg, idx in lh.args|gbl|reduction %}
+    shared_size = MAX(shared_size, block_size * SIZEOF({{arg.typ}}))
+
+    IF (.NOT. ALLOCATED(gbl_{{arg.ptr}}_d)) THEN
+        ALLOCATE(gbl_{{arg.ptr}}_d({{arg.dim}}, max_blocks))
+    END IF
+
+    {% if arg is reduction %}
+    IF (.NOT. ALLOCATED(gbl_{{arg.ptr}}_h)) THEN
+        ALLOCATE(gbl_{{arg.ptr}}_h({{arg.dim}}, max_blocks))
+    END IF
+    {% endif %}
+
+    {% if arg is inc %}
+    gbl_{{arg.ptr}}_d = 0
+    {% else %}
+    DO block = 1, max_blocks
+        gbl_{{arg.ptr}}_d(:, block) = gbl_{{arg.ptr}}
+    END DO
+    {% endif %}
+{% endfor %}
+
+{% macro kernel_call() %}
+CALL op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
+{{-", shared_size" if lh.args|gbl|reduction|length > 0}}>>>( &
+    {% for dat, idx in lh.dats.items() %}
+    dat_{{dat.ptr}}_d, &
+    {% endfor %}
+    {% for map, idx in lh.maps.items() %}
+    map_{{map.ptr}}_d, &
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl %}
+    gbl_{{arg.ptr}}_d, &
+    {% endfor %}
+    {% for extra_arg in varargs %}
+    {{extra_arg}}{{"," if not loop.last}} &
+    {% endfor %}
+)
+{% endmacro %}
+
+{% if lh is direct %}
+    {{kernel_call("set%setPtr%size")|indent}}
+{% elif target.config.atomics %}
+    DO round = 1, {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}
+        IF (round == 2) THEN
+            CALL op_mpi_wait_all_grouped(SIZE(args), args, 2)
+        END IF
+
+    {% if lh.args|gbl|reduction|length > 0 %}
+        start = MERGE(0, MERGE(set%setPtr%core_size, set%setPtr%size, round == 2), round == 1)
+        end = MERGE(set%setPtr%core_size, MERGE(set%setPtr%size, set%setPtr%size + set%setPtr%exec_size, round == 2), round == 1)
+    {% else %}
+        start = MERGE(0, set%setPtr%core_size, round == 1)
+        end = MERGE(set%setPtr%core_size, set%setPtr%size + set%setPtr%exec_size, round == 1)
+    {% endif %}
+
+        IF (end - start > 0) THEN
+            num_blocks = (end - start - 1) / block_size + 1
+            {{kernel_call("start", "end", "set%setPtr%size + set%setPtr%exec_size")|indent(12)}}
+        END IF
+    END DO
+{% else %}
+    DO col = 1, plan%ncolors
+        IF ((col - 1) == plan%ncolors_core) THEN
+            CALL (SIZE(args), args, 2)
+        END IF
+
+        start = plan_color2_offsets(col)
+        end = plan_color2_offsets(col + 1)
+
+        num_blocks = (end - start - 1) / block_size + 1
+
+        {{kernel_call("plan_col_reord", "start", "end", "set%setPtr%size + set%setPtr%exec_size")}}
+    END DO
+{% endif %}
+
+{% macro type_c(arg) -%}
+    {%- if arg.access_type is instance(OP.Int) -%}
+        int
+    {%- elif arg.access_type is instance(OP.Bool) -%}
+        bool
+    {%- elif arg.access_type.size == 32 -%}
+        float
+    {%- else -%}
+        double
+    {%- endif -%}
+{%- endmacro %}
+
+{% for arg, idx in lh.args|gbl|reduction %}
+    gbl_{{arg.ptr}}_h = gbl_{{arg.ptr}}_d
+
+    DO block = 1, max_blocks
+        DO dim = 1, {{arg.dim}}
+    {% if arg is inc %}
+            gbl_{{arg.ptr}}(dim) = gbl{{arg.ptr}}(dim) + gbl_{{arg.ptr}}_h(dim, block)
+    {% elif arg is reduction %}
+            gbl_{{arg.ptr}}(dim) = {{arg.access_type.name}}(gbl_{{arg.ptr}}(dim), gbl_{{arg.ptr}}_h(dim, block))
+    {% endif %}
+        END DO
+    END DO
+
+    CALL op_mpi_reduce_{{type_c(arg)}}(arg{{idx}}, arg{{idx}}%data)
+{% endfor %}
+
+    CALL op_mpi_set_dirtybit_cuda(SIZE(args), args)
+
+    err = cudaDeviceSynchronize()
+
+    IF (err .NE. 0) THEN
+        print *, cudaGetErrorString(err)
+    END IF
+
+    CALL op_timers_core(end_time)
+
+    ! TODO: Review kernel transfer calculation
+    transfer = 0.0
+
+    CALL setKernelTime({{lh.kernel_idx}}, name // C_NULL_CHAR, end_time - start_time, transfer, 0.0, 1)
+END SUBROUTINE
+
+END MODULE
