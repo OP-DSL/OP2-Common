@@ -17,12 +17,11 @@ ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
 ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
 
-
 ifeq ($(HAVE_F),true)
   BUILDABLE_VARIANTS := seq genseq
 
   ifeq ($(F_HAS_OMP),true)
-    BUILDABLE_VARIANTS += vec openmp
+    BUILDABLE_VARIANTS += # vec openmp
   endif
 
   # TODO/openmp4 add omp declare target
