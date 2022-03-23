@@ -150,8 +150,8 @@ halo_list exp_common_list;
 void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 
   // printf("op_exchange_halo_chained >>>>>>>>>\n");
-    int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  // int my_rank;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   imp_common_list = OP_merged_import_exec_nonexec_list[args[0].dat->set->index];  //assumption nargs > 0
   exp_common_list = OP_merged_export_exec_nonexec_list[args[0].dat->set->index];
@@ -176,7 +176,8 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 
   grp_tag++;
 
-  for (int r = 0; r < exp_common_list->ranks_size / exp_common_list->num_levels; r++) {
+  int exp_rank_count = exp_common_list->ranks_size / exp_common_list->num_levels;
+  for (int r = 0; r < exp_rank_count; r++) {
     buf_start =  prev_size;
     for(int n = 0; n < nargs; n++){
       
@@ -195,11 +196,12 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
       halo_list exp_list = OP_merged_export_exec_nonexec_list[dat->set->index];
 
       for(int l = 0; l < nhalos; l++){
-        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_list->level_disps[l];
-          int disp_in_level = exp_list->disps[exp_list->rank_disps[l] + r];
-          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
+        int level_disp = exp_list->level_disps[l];
+        int rank_disp = exp_list->rank_disps[l];
+        int disp_in_level = exp_list->disps[rank_disp + r];
 
+        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
+          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
           memcpy(&grp_send_buffer[prev_size + buf_index * dat->size],
               (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
 
@@ -208,11 +210,12 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
       }
 
       for(int l = nonexec_start; l < nonexec_end; l++){
-        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
-          int level_disp = exp_list->level_disps[l];
-          int disp_in_level = exp_list->disps[exp_list->rank_disps[l] + r];
-          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
+        int level_disp = exp_list->level_disps[l];
+        int rank_disp = exp_list->rank_disps[l];
+        int disp_in_level = exp_list->disps[rank_disp + r];
 
+        for (int i = 0; i < exp_list->sizes[exp_list->rank_disps[l] + r]; i++) {
+          set_elem_index = exp_list->list[level_disp + disp_in_level + i];
           memcpy(&grp_send_buffer[prev_size + buf_index * dat->size],
               (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
 
@@ -233,7 +236,6 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 
   }
 
-  int init = 0; //dat->set->size * dat->size;
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
   for (int i = 0; i < rank_count; i++) {
     int imp_size = 0;
@@ -252,7 +254,7 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
       imp_disp += imp_list->disps_by_rank[i] * arg->dat->size;
     }
 
-    MPI_Irecv(&grp_recv_buffer[init + imp_disp],  //adjust disps_by_rank
+    MPI_Irecv(&grp_recv_buffer[imp_disp],  //adjust disps_by_rank
               imp_size, MPI_CHAR,
               imp_common_list->ranks[i], grp_tag, OP_MPI_WORLD,
               &grp_recv_requests[i]);
@@ -268,8 +270,9 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 
 void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
 
-  op_mpi_barrier();
-  op_timers_core(&ca_c1, &ca_t1);
+  // op_mpi_barrier();
+  // op_timers_core(&ca_c1, &ca_t1);
+  
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -321,7 +324,8 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
     int buf_index = 0;
     int buf_start = 0;
 
-    for (int r = 0; r < exp_list->ranks_size / exp_list->num_levels; r++) {
+    int exp_rank_count = exp_list->ranks_size / exp_list->num_levels;
+    for (int r = 0; r < exp_rank_count; r++) {
       buf_start =  buf_index;
       for(int l = 0; l < nhalos; l++){
         int level_disp = exp_list->level_disps[l];
@@ -387,18 +391,18 @@ void op_exchange_halo_merged(op_arg *arg, int exec_flag) {
     arg->sent = 1;
     // arg->unpack_method = OP_UNPACK_MERGED_SINGLE_DAT;
   }
-  op_mpi_barrier();
-  op_timers_core(&ca_c2, &ca_t2);
-  pack_time += ca_t2 - ca_t1;
+  // op_mpi_barrier();
+  // op_timers_core(&ca_c2, &ca_t2);
+  // pack_time += ca_t2 - ca_t1;
 
-  op_timers_core(&ca_c3, &ca_t3);
+  // op_timers_core(&ca_c3, &ca_t3);
 }
 
 #endif
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
-  op_mpi_barrier();
-  op_timers_core(&ca_c1, &ca_t1);
+  // op_mpi_barrier();
+  // op_timers_core(&ca_c1, &ca_t1);
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -559,11 +563,11 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     arg->sent = 1;
   }
 
-  op_mpi_barrier();
-  op_timers_core(&ca_c2, &ca_t2);
-  pack_time += ca_t2 - ca_t1;
+  // op_mpi_barrier();
+  // op_timers_core(&ca_c2, &ca_t2);
+  // pack_time += ca_t2 - ca_t1;
 
-  op_timers_core(&ca_c3, &ca_t3);
+  // op_timers_core(&ca_c3, &ca_t3);
 }
 
 #ifdef COMM_AVOID
@@ -751,7 +755,6 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
   for (int i = 0; i < rank_count; i++) {
     int imp_disp = 0;
     
-    
     for(int n = 0; n < nargs; n++){
       op_arg* arg = &args[n];
       op_dat dat = arg->dat;
@@ -765,14 +768,11 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
       halo_list imp_list = OP_merged_import_exec_nonexec_list[dat->set->index];
       // imp_disp += imp_list->disps_by_rank[i] * dat->size;
       
-      
-      for(int l = 0; l < nhalos; l++){
-        
+      for(int l = 0; l < nhalos; l++){   
         memcpy(&(dat->data[init + (imp_list->level_disps[l] + imp_list->disps[imp_list->rank_disps[l] + i]) * dat->size]), 
-              &(grp_recv_buffer[imp_disp + prev_exec_size]),
+              &(grp_recv_buffer[prev_exec_size]),
                               dat->size * imp_list->sizes[imp_list->rank_disps[l] + i]);
 
-        
         prev_exec_size += imp_list->sizes[imp_list->rank_disps[l] + i] * dat->size;
 
         // printf("op_unpack_merged_single_dat1 called dat=%s set=%s num_levels=%d nhalos=%d imp_disp=%d prev_exec_size=%d\n", 
@@ -782,15 +782,13 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
       for(int l = nonexec_start; l < nonexec_end; l++){
 
         memcpy(&(dat->data[init + (imp_list->level_disps[l] + imp_list->disps[imp_list->rank_disps[l] + i]) * dat->size]), 
-              &(grp_recv_buffer[imp_disp + prev_exec_size]),
+              &(grp_recv_buffer[prev_exec_size]),
                               dat->size * imp_list->sizes[imp_list->rank_disps[l] + i]);
 
         prev_exec_size += imp_list->sizes[imp_list->rank_disps[l] + i] * dat->size;
         // printf("op_unpack_merged_single_dat2 called dat=%s set=%s num_levels=%d nhalos=%d imp_disp=%d prev_exec_size=%d nonexec_start=%d nonexec_end=%d\n", 
         //       arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, imp_disp, prev_exec_size, nonexec_start, nonexec_end);
       }
-
-      
 
     }
   }
@@ -1021,17 +1019,17 @@ void op_wait_all(op_arg *arg) {
     ((op_mpi_buffer)(dat->mpi_buffer))->s_num_req = 0;
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
     arg->sent = 2; // set flag to indicate completed comm
-    op_mpi_barrier();
-    op_timers_core(&ca_c4, &ca_t4);
-    halo_exch_time += ca_t4 - ca_t3;
+    // op_mpi_barrier();
+    // op_timers_core(&ca_c4, &ca_t4);
+    // halo_exch_time += ca_t4 - ca_t3;
     #ifdef COMM_AVOID
 
-    op_timers_core(&ca_c1, &ca_t1);
+    // op_timers_core(&ca_c1, &ca_t1);
     op_unpack_merged_single_dat(arg);
 
-    op_mpi_barrier();
-    op_timers_core(&ca_c2, &ca_t2);
-    unpack_time += ca_t2 - ca_t1;
+    // op_mpi_barrier();
+    // op_timers_core(&ca_c2, &ca_t2);
+    // unpack_time += ca_t2 - ca_t1;
     // if(arg->unpack_method == OP_UNPACK_MERGED_SINGLE_DAT){
     //   op_unpack_merged_single_dat(arg);
     //   // op_unpack_exec_new(arg);

@@ -2309,7 +2309,7 @@ void set_maps_hydra(){
       //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
   }
-  return;
+  // return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
