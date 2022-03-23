@@ -129,7 +129,7 @@ module OP2_Fortran_RT_Support
   interface
 
     ! C wrapper to plan function for Fortran
-    type(c_ptr) function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging) &
+    type(c_ptr) function FortranPlanCaller_c (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging) &
       & BIND(C,name='FortranPlanCaller')
 
       use, intrinsic :: ISO_C_BINDING
@@ -147,7 +147,7 @@ module OP2_Fortran_RT_Support
 
       integer(kind=c_int), value :: staging ! What to stage: 0 - nothing, 1 - OP_INCs, 2 - all indirectly accessed data
 
-    end function FortranPlanCaller
+    end function FortranPlanCaller_c
 
     subroutine op_dat_write_index_c(set, dat) BIND(C,name='op_dat_write_index')
       use, intrinsic :: ISO_C_BINDING
@@ -477,6 +477,32 @@ module OP2_Fortran_RT_Support
 
   contains
 
+  function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging) result(plan)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    character(kind=c_char), dimension(*) :: name
+    type(c_ptr), value :: set
+    integer(kind=c_int), value :: partitionSize
+    integer(kind=c_int), value :: argsNumber
+    type(op_arg), dimension(*) :: args
+    integer(kind=c_int), value :: indsNumber
+
+    integer(kind=c_int), dimension(*) :: inds
+
+    integer(kind=c_int), value :: staging
+
+    type(c_ptr) :: plan_c
+    type(op_plan), pointer :: plan
+
+    plan_c = FortranPlanCaller_c(name, set, partitionSize, argsNumber, args, indsNumber, inds, staging)
+    call c_f_pointer(plan_c, plan)
+
+  end function FortranPlanCaller
+
   subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, coords)
 
     use, intrinsic :: ISO_C_BINDING
@@ -506,8 +532,8 @@ module OP2_Fortran_RT_Support
     character(kind=c_char,len=*) :: lib_routine
 
     type(op_set) :: prime_set
-    integer*4, dimension(*), target :: prime_map
-    real*8, dimension(*), target :: coords
+    integer(4), dimension(*), target :: prime_map
+    real(8), dimension(*), target :: coords
 
     call op_partition_ptr_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, c_loc(prime_map), c_loc(coords))
 
@@ -530,7 +556,7 @@ module OP2_Fortran_RT_Support
     use, intrinsic :: ISO_C_BINDING
 
     implicit none
-    integer*4, dimension(*), target :: prime_map
+    integer(4), dimension(*), target :: prime_map
     call op_renumber_ptr_c(c_loc(prime_map))
   end subroutine
 
