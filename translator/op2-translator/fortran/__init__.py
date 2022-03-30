@@ -18,7 +18,7 @@ class Fortran(Lang):
     name = "Fortran"
 
     source_exts = ["F90", "F95"]
-    include_ext = "inc2"
+    include_ext = "inc"
     kernel_dir = False
 
     com_delim = "!"

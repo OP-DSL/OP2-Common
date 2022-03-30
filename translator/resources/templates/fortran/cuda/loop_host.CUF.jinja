@@ -6,11 +6,11 @@ map_{{arg.map_ptr}}({{arg.map_idx}}, n)
     {%- if arg is gbl -%}
 gbl_{{arg.ptr}}{{"_local" if arg is reduction}}
     {%- elif arg is direct -%}
-dat_{{arg.dat_ptr}}(1, n)
+dat_{{arg.dat_ptr}}((n - 1) * {{arg.dat_dim}} + 1)
     {%- elif arg is inc and target.config.atomics %}
 arg{{idx}}_{{arg.map_idx}}_local
     {%- else -%}
-dat_{{arg.dat_ptr}}(1, {{map_lookup(arg)}})
+dat_{{arg.dat_ptr}}({{map_lookup(arg)}} * {{arg.dat_dim}} + 1)
     {%- endif -%}
 {%- endmacro %}
 
@@ -37,7 +37,8 @@ CONTAINS
 ATTRIBUTES(device) &
 {{lh.kernel_func}}
 
-ATTRIBUTES(global) SUBROUTINE op_cuda_{{lh.kernel.name}}( &
+ATTRIBUTES(global) &
+SUBROUTINE op_cuda_{{lh.kernel.name}}( &
 {{"    optflags, &\n" if lh.args|opt|length > 0-}}
 {% for dat, idx in lh.dats.items() %}
     dat_{{dat.ptr}}, &
@@ -63,7 +64,7 @@ ATTRIBUTES(global) SUBROUTINE op_cuda_{{lh.kernel.name}}( &
 {% endif %}
 
 {% for dat, idx in lh.dats.items() %}
-    {{dat.typ}}, DIMENSION({{dat.dim}}, *) :: dat_{{dat.ptr}}
+    {{dat.typ}}, DIMENSION(*) :: dat_{{dat.ptr}}
 {% endfor %}
 
 {% for map, idx in lh.maps.items() %}
@@ -107,10 +108,10 @@ ATTRIBUTES(global) SUBROUTINE op_cuda_{{lh.kernel.name}}( &
 
 {% endfor %}
 
-    thread_id = threadIdx%x + blockIdx%x * blockDim%x
+    thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
 
 {% if lh is direct %}
-    DO n = thread_id, set_size - 1, blockDim%x * gridDim%x
+    DO n = thread_id, set_size, blockDim%x * gridDim%x
         CALL {{lh.kernel.name}}_gpu( &
     {% for arg, idx  in lh.args %}
             {{arg_to_pointer_cuda(arg, idx)}}{{"," if not loop.last}} &
@@ -118,7 +119,7 @@ ATTRIBUTES(global) SUBROUTINE op_cuda_{{lh.kernel.name}}( &
         )
     END DO
 {% else %}
-    IF (thread_id + start < end) THEN
+    IF (thread_id + start <= end) THEN
         n = {{"thread_id + start" if target.config.atomics else "col_reord(thread_id + start)"}}
 
     {% for arg, idx in lh.args|indirect|reduction if target.config.atomics %}
@@ -133,7 +134,8 @@ ATTRIBUTES(global) SUBROUTINE op_cuda_{{lh.kernel.name}}( &
 
     {% for arg, idx in lh.args|indirect|reduction if target.config.atomics %}
         DO d = 1, {{arg.dat_dim}}
-            ret = atomicAdd(dat_{{arg.dat_ptr}}(d, {{map_lookup(arg)}}), arg{{idx}}_{{arg.map_idx}}_local(d))
+            ret = atomicAdd(dat_{{arg.dat_ptr}}({{map_lookup(arg)}} * {{arg.dat_dim}} + d), &
+                arg{{idx}}_{{arg.map_idx}}_local(d))
         END DO
     {% endfor %}
     END IF
@@ -292,7 +294,7 @@ SUBROUTINE {{lh.kernel.name}}_host( &
     shared_size = 0
 
 {% for arg, idx in lh.args|gbl|reduction %}
-    shared_size = MAX(shared_size, block_size * SIZEOF({{arg.typ}}))
+    shared_size = MAX(shared_size, block_size * SIZEOF(gbl_{{arg.ptr}}(1)))
 
     IF (.NOT. ALLOCATED(gbl_{{arg.ptr}}_d)) THEN
         ALLOCATE(gbl_{{arg.ptr}}_d({{arg.dim}}, max_blocks))
@@ -385,7 +387,7 @@ CALL op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
     DO block = 1, max_blocks
         DO dim = 1, {{arg.dim}}
     {% if arg is inc %}
-            gbl_{{arg.ptr}}(dim) = gbl{{arg.ptr}}(dim) + gbl_{{arg.ptr}}_h(dim, block)
+            gbl_{{arg.ptr}}(dim) = gbl_{{arg.ptr}}(dim) + gbl_{{arg.ptr}}_h(dim, block)
     {% elif arg is reduction %}
             gbl_{{arg.ptr}}(dim) = {{arg.access_type.name}}(gbl_{{arg.ptr}}(dim), gbl_{{arg.ptr}}_h(dim, block))
     {% endif %}
