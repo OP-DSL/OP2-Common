@@ -7,7 +7,7 @@ endif
 
 PTSCOTCH_TEST = $(MPICXX) $(PTSCOTCH_INC_PATH) \
                     $(DEPS_DIR)/tests/ptscotch.cpp $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK) \
-                    -o $(DEPS_DIR)/tests/ptscotch 2> /dev/null
+                    -o $(DEPS_DIR)/tests/ptscotch $(DEP_DETECT_EXTRA)
 
 $(shell $(PTSCOTCH_TEST))
 

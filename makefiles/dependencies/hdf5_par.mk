@@ -9,7 +9,7 @@ endif
 
 HDF5_PAR_TEST = $(MPICXX) $(HDF5_PAR_INC_PATH) \
                     $(DEPS_DIR)/tests/hdf5.cpp $(HDF5_PAR_LIB_PATH) $(HDF5_PAR_LINK) \
-                    -o $(DEPS_DIR)/tests/hdf5 2> /dev/null
+                    -o $(DEPS_DIR)/tests/hdf5 $(DEP_DETECT_EXTRA)
 
 # Test for parallel HDF5
 $(shell $(HDF5_PAR_TEST))

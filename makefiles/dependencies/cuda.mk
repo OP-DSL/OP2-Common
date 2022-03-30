@@ -5,7 +5,7 @@ endif
 
 CUDA_TEST = $(CXX) $(CUDA_INC_PATH) \
                     $(DEPS_DIR)/tests/cuda.cpp $(CUDA_LIB_PATH) $(CUDA_LINK) \
-                    -o $(DEPS_DIR)/tests/cuda 2> /dev/null
+                    -o $(DEPS_DIR)/tests/cuda $(DEP_DETECT_EXTRA)
 
 $(shell $(CUDA_TEST))
 

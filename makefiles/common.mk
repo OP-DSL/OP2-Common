@@ -45,6 +45,10 @@ AR := ar rcs
 # Dependencies
 DEPS_DIR := $(MAKEFILES_DIR)/dependencies
 
+ifndef MAKE_DETECT_DEBUG
+  DEP_DETECT_EXTRA += 2> /dev/null
+endif
+
 ifneq ($(MAKECMDGOALS),clean)
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk

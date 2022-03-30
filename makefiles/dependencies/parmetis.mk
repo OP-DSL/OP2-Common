@@ -7,7 +7,7 @@ endif
 
 PARMETIS_TEST = $(MPICXX) $(PARMETIS_INC_PATH) \
                     $(DEPS_DIR)/tests/parmetis.cpp $(PARMETIS_LIB_PATH) $(PARMETIS_LINK) \
-                    -o $(DEPS_DIR)/tests/parmetis 2> /dev/null
+                    -o $(DEPS_DIR)/tests/parmetis $(DEP_DETECT_EXTRA)
 
 $(shell $(PARMETIS_TEST))
 
