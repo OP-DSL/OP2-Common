@@ -220,8 +220,8 @@ class FortranCuda(Scheme):
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
     master_kernel_template = None
 
-    # def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
-    #     return fortran.translator.kernels.cuda.translateKernel(self.target.config, kernel.path.read_text(), kernel, app)
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return fortran.translator.kernels.cuda.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
 
 
 Scheme.register(FortranSeq)
