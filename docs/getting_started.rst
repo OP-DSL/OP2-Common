@@ -63,7 +63,7 @@ Then, specify the paths to the library dependency installation directories:
 
 .. code-block:: shell
 
-   export PT_SCOTCH_INSTALL_PATH=<path/to/ptscotch>
+   export PTSCOTCH_INSTALL_PATH=<path/to/ptscotch>
    export PARMETIS_INSTALL_PATH=<path/to/parmetis>
    export HDF5_{SEQ, PAR}_INSTALL_PATH=<path/to/hdf5>
 
