@@ -87,8 +87,11 @@ endif
 config:
 	@echo > /dev/null
 
-$(MAKEFILES_DIR)/.config.mk:
-	$(MAKE) config
+ifeq ($(wildcard $(MAKEFILES_DIR)/.config.mk),)
+  $(error $(MAKEFILES_DIR)/.config.mk not found, run "make config" first)
+else
+  $(info Reading config from $(MAKEFILES_DIR)/.config.mk)
+endif
 
 include $(MAKEFILES_DIR)/.config.mk
 
