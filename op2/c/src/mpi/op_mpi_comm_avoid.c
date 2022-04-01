@@ -250,10 +250,9 @@ void create_part_range_arrays(int my_rank, int comm_size){
 }
 
 void free_part_range_arrays(int my_rank, int comm_size){
-  //already freed aug_part_range[s]
-  // for (int s = 0; s < OP_set_index; s++) {
-  //   op_free(aug_part_range[s]);
-  // }
+  for (int s = 0; s < OP_set_index; s++) {
+    op_free(aug_part_range[s]);
+  }
   op_free(aug_part_range);
   op_free(aug_part_range_size);
   op_free(aug_part_range_cap);
@@ -796,8 +795,9 @@ void exchange_aug_part_ranges(int halo_id, int **part_range, int my_rank, int co
     if(aug_part_range_size[s] > 0){
       quickSort(aug_part_range[s], 0, aug_part_range_size[s] - 1);
       aug_part_range_size[s] = removeDups(aug_part_range[s], aug_part_range_size[s]);
-      aug_part_range[s] = (int *)xrealloc(aug_part_range[s], aug_part_range_size[s] * sizeof(int));
     }
+    aug_part_range[s] = (int *)xrealloc(aug_part_range[s], aug_part_range_size[s] * sizeof(int));
+    aug_part_range_cap[s] = aug_part_range_size[s];
 
     // do an allgather to findout how many elements that each process will
     // be requesting partition information about
@@ -822,7 +822,8 @@ void exchange_aug_part_ranges(int halo_id, int **part_range, int my_rank, int co
 
     MPI_Allgatherv(aug_part_range[s], aug_part_range_size[s], MPI_INT, g_part_range, foreign_aug_part_range_size[s], displs,
                    MPI_INT, OP_MPI_WORLD);
-    op_free(aug_part_range[s]);
+    // op_free(aug_part_range[s]);
+    aug_part_range_size[s] = 0;
 
     for (int i = 0; i < comm_size; i++) {
       foreign_aug_part_range[s][i] = (int *)xmalloc(sizeof(int) * foreign_aug_part_range_size[s][i]);
@@ -2294,6 +2295,29 @@ void set_dats_mgcfd(){
   }
 }
 
+void set_maps_mgcfd(){
+   printf("set_maps_mgcfd maps and dats\n");
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    op_map map = OP_map_list[m];
+    if (strncmp("edge-->node", map->name, strlen(map->name)) == 0) {
+      op_mpi_add_nhalos_map(map, 4);
+      printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+      
+    }
+  }
+  return;
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    if(
+      (strncmp("vol", dat->name, strlen(dat->name)) == 0)
+       ){
+         printf("op_mpi_add_nhalos_dat dat=%s\n", dat->name);
+          op_mpi_add_nhalos_dat(dat, 2);
+    }
+  }
+
+}
 void set_maps_hydra(){
   //  printf("set_maps_hydra maps and dats\n");
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -2420,7 +2444,8 @@ void op_halo_create_comm_avoid() {
     OP_aug_export_nonexec_lists[i] = NULL;
     OP_aug_import_nonexec_lists[i] = NULL;
   }
-  set_maps_hydra();
+  set_maps_mgcfd();
+  // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension(); 
