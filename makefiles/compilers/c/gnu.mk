@@ -1,6 +1,6 @@
 # Compiler executables and flags
-CC := gcc
-CXX := g++
+CONFIG_CC := gcc
+CONFIG_CXX := g++
 
 BASE_CPPFLAGS := -MMD -MP -Wall -Wextra -pedantic
 
@@ -10,14 +10,14 @@ else
   BASE_CPPFLAGS += -g -Og
 endif
 
-CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
-CXXFLAGS ?= $(BASE_CPPFLAGS)
+CONFIG_CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
+CONFIG_CXXFLAGS ?= $(BASE_CPPFLAGS)
 
-CXXLINK ?= -lstdc++
+CONFIG_CXXLINK ?= -lstdc++
 
 # Available OpenMP features
-OMP_CPPFLAGS ?= -fopenmp
-CPP_HAS_OMP ?= true
+CONFIG_OMP_CPPFLAGS ?= -fopenmp
+CONFIG_CPP_HAS_OMP ?= true
 
-OMP_OFFLOAD_CPPFLAGS ?=
-CPP_HAS_OMP_OFFLOAD ?= false
+# CONFIG_OMP_OFFLOAD_CPPFLAGS ?=
+CONFIG_CPP_HAS_OMP_OFFLOAD ?= false

@@ -5,7 +5,7 @@ ifdef PARMETIS_INSTALL_PATH
   PARMETIS_LIB_PATH := -L$(PARMETIS_INSTALL_PATH)/lib
 endif
 
-PARMETIS_TEST = $(MPICXX) $(PARMETIS_INC_PATH) \
+PARMETIS_TEST = $(CONFIG_MPICXX) $(PARMETIS_INC_PATH) \
                     $(DEPS_DIR)/tests/parmetis.cpp $(PARMETIS_LIB_PATH) $(PARMETIS_LINK) \
                     -o $(DEPS_DIR)/tests/parmetis $(DEP_DETECT_EXTRA)
 
@@ -19,8 +19,8 @@ endif
 ifeq ($(.SHELLSTATUS),0)
   $(shell rm -f $(DEPS_DIR)/tests/parmetis)
 
-  HAVE_PARMETIS := true
+  CONFIG_HAVE_PARMETIS := true
 
-  PARMETIS_INC := $(strip $(PARMETIS_INC_PATH) $(PARMETIS_DEF))
-  PARMETIS_LIB := $(strip $(PARMETIS_LIB_PATH) $(PARMETIS_LINK))
+  CONFIG_PARMETIS_INC := $(strip $(PARMETIS_INC_PATH) $(PARMETIS_DEF))
+  CONFIG_PARMETIS_LIB := $(strip $(PARMETIS_LIB_PATH) $(PARMETIS_LINK))
 endif

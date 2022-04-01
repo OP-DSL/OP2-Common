@@ -1,6 +1,6 @@
 # Compiler executables and flags
-CC := icc
-CXX := icpc
+CONFIG_CC := icc
+CONFIG_CXX := icpc
 
 BASE_CPPFLAGS := -MMD -MP -Wall
 
@@ -10,14 +10,14 @@ else
   BASE_CPPFLAGS += -g -O0
 endif
 
-CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
-CXXFLAGS ?= $(BASE_CPPFLAGS)
+CONFIG_CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
+CONFIG_CXXFLAGS ?= $(BASE_CPPFLAGS)
 
-CXXLINK ?= -lstdc++ -lirc -lsvml
+CONFIG_CXXLINK ?= -lstdc++ -lirc -lsvml
 
 # Available OpenMP features
-OMP_CPPFLAGS ?= -qopenmp
-CPP_HAS_OMP ?= true
+CONFIG_OMP_CPPFLAGS ?= -qopenmp
+CONFIG_CPP_HAS_OMP ?= true
 
-OMP_OFFLOAD_CPPFLAGS ?=
-CPP_HAS_OMP_OFFLOAD ?= false
+# CONFIG_OMP_OFFLOAD_CPPFLAGS ?=
+CONFIG_CPP_HAS_OMP_OFFLOAD ?= false

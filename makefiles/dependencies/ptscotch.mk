@@ -5,7 +5,7 @@ ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_LIB_PATH := -L$(PTSCOTCH_INSTALL_PATH)/lib
 endif
 
-PTSCOTCH_TEST = $(MPICXX) $(PTSCOTCH_INC_PATH) \
+PTSCOTCH_TEST = $(CONFIG_MPICXX) $(PTSCOTCH_INC_PATH) \
                     $(DEPS_DIR)/tests/ptscotch.cpp $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK) \
                     -o $(DEPS_DIR)/tests/ptscotch $(DEP_DETECT_EXTRA)
 
@@ -19,8 +19,8 @@ endif
 ifeq ($(.SHELLSTATUS),0)
   $(shell rm -f $(DEPS_DIR)/tests/ptscotch)
 
-  HAVE_PTSCOTCH := true
+  CONFIG_HAVE_PTSCOTCH := true
 
-  PTSCOTCH_INC := $(strip $(PTSCOTCH_INC_PATH) $(PTSCOTCH_DEF))
-  PTSCOTCH_LIB := $(strip $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK))
+  CONFIG_PTSCOTCH_INC := $(strip $(PTSCOTCH_INC_PATH) $(PTSCOTCH_DEF))
+  CONFIG_PTSCOTCH_LIB := $(strip $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK))
 endif

@@ -7,7 +7,7 @@ ifdef HDF5_PAR_INSTALL_PATH
   HDF5_PAR_LIB_PATH := -L$(HDF5_PAR_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_PAR_INSTALL_PATH)/lib
 endif
 
-HDF5_PAR_TEST = $(MPICXX) $(HDF5_PAR_INC_PATH) \
+HDF5_PAR_TEST = $(CONFIG_MPICXX) $(HDF5_PAR_INC_PATH) \
                     $(DEPS_DIR)/tests/hdf5.cpp $(HDF5_PAR_LIB_PATH) $(HDF5_PAR_LINK) \
                     -o $(DEPS_DIR)/tests/hdf5 $(DEP_DETECT_EXTRA)
 
@@ -24,9 +24,9 @@ ifeq ($(.SHELLSTATUS),0)
   $(shell rm -f $(DEPS_DIR)/tests/hdf5)
 
   ifeq ($(RESULT),1)
-    HAVE_HDF5_PAR := true
+    CONFIG_HAVE_HDF5_PAR := true
 
-    HDF5_PAR_INC := $(strip $(HDF5_PAR_INC_PATH) $(HDF5_PAR_DEF))
-    HDF5_PAR_LIB := $(strip $(HDF5_PAR_LIB_PATH) $(HDF5_PAR_LINK))
+    CONFIG_HDF5_PAR_INC := $(strip $(HDF5_PAR_INC_PATH) $(HDF5_PAR_DEF))
+    CONFIG_HDF5_PAR_LIB := $(strip $(HDF5_PAR_LIB_PATH) $(HDF5_PAR_LINK))
   endif
 endif

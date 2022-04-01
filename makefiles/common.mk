@@ -15,63 +15,67 @@ SPACE +=
 
 # Get the makefiles directory (where this file is)
 MAKEFILES_DIR != dirname $(realpath \
-	$(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST)))
+  $(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST)))
 
 ROOT_DIR != realpath $(MAKEFILES_DIR)/../
 
-# Include profile
-ifdef OP2_PROFILE
-  include $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
-endif
+ifeq ($(MAKECMDGOALS),config)
+  # Include profile
+  ifdef OP2_PROFILE
+    include $(MAKEFILES_DIR)/profiles/$(OP2_PROFILE).mk
+  endif
 
-OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
+  CONFIG_OP2_BUILD_DIR ?= $(ROOT_DIR)/op2
 
-OP2_INC ?= -I$(ROOT_DIR)/op2/include
-OP2_LIB ?= -L$(OP2_BUILD_DIR)/lib
-OP2_MOD ?= -I$(OP2_BUILD_DIR)/mod
-OP2_MOD_CUDA ?= $(OP2_MOD)/cuda
+  CONFIG_OP2_INC ?= -I$(ROOT_DIR)/op2/include
+  CONFIG_OP2_LIB ?= -L$(CONFIG_OP2_BUILD_DIR)/lib
+  CONFIG_OP2_MOD ?= -I$(CONFIG_OP2_BUILD_DIR)/mod
+  CONFIG_OP2_MOD_CUDA ?= $(CONFIG_OP2_MOD)/cuda
 
-OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
-OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
+  CONFIG_AR := ar rcs
 
-OP2_LIBS_MPI := mpi mpi_cuda
-OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
+  # Dependencies
+  DEPS_DIR := $(MAKEFILES_DIR)/dependencies
 
-OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)
-OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
+  ifndef MAKE_DETECT_DEBUG
+    DEP_DETECT_EXTRA += 2> /dev/null
+  endif
 
-AR := ar rcs
-
-# Dependencies
-DEPS_DIR := $(MAKEFILES_DIR)/dependencies
-
-ifndef MAKE_DETECT_DEBUG
-  DEP_DETECT_EXTRA += 2> /dev/null
-endif
-
-ifneq ($(MAKECMDGOALS),clean)
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
 
-  ifeq ($(HAVE_C),true)
+  ifeq ($(CONFIG_HAVE_C),true)
     include $(DEPS_DIR)/hdf5_seq.mk
   endif
 
-  ifeq ($(HAVE_C_CUDA),true)
+  ifeq ($(CONFIG_HAVE_C_CUDA),true)
     include $(DEPS_DIR)/cuda.mk
   endif
 
-  ifeq ($(HAVE_MPI_C),true)
+  ifeq ($(CONFIG_HAVE_MPI_C),true)
     include $(DEPS_DIR)/hdf5_par.mk
 
     include $(DEPS_DIR)/ptscotch.mk
     include $(DEPS_DIR)/parmetis.mk
   endif
+
+  CONFIG_VARS := $(sort $(filter CONFIG_%,$(.VARIABLES)))
+
+  $(file > $(MAKEFILES_DIR)/.config.mk,# Generated at $(shell date -R))
+  $(file >> $(MAKEFILES_DIR)/.config.mk,)
+
+  $(foreach var,$(CONFIG_VARS),$(file >> $(MAKEFILES_DIR)/.config.mk,\
+    $(patsubst CONFIG_%,%,$(var)) := $($(var))))
 endif
 
-.PHONY: detect
-detect:
+.PHONY: config
+config:
 	@echo > /dev/null
+
+$(MAKEFILES_DIR)/.config.mk:
+	$(MAKE) config
+
+include $(MAKEFILES_DIR)/.config.mk
 
 ifneq ($(MAKECMDGOALS),clean)
   # Evaluates to X_LIB if HAVE_X and X_LIB is defined
@@ -108,6 +112,15 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info )
 endif
 
+OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
+OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
+
+OP2_LIBS_MPI := mpi mpi_cuda
+OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
+
+OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)
+OP2_FOR_LIBS := f_hdf5 $(OP2_FOR_LIBS_SINGLE_NODE) $(OP2_FOR_LIBS_MPI)
+
 # Generate helper variables OP2_LIB_SEQ, OP2_LIB_MPI_CUDA, ...
 define OP2_LIB_template =
 OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1) $(2)
@@ -126,10 +139,10 @@ ifeq ($(OP2_LIBS_WITH_HDF5),true)
 endif
 
 $(foreach lib,$(OP2_LIBS_SINGLE_NODE),$(eval $(call OP2_LIB_template,$(lib),\
-	$(OP2_LIB_EXTRA),$(OP2_LIB_FOR_EXTRA))))
+  $(OP2_LIB_EXTRA),$(OP2_LIB_FOR_EXTRA))))
 
 $(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),\
-	$(OP2_LIB_EXTRA_MPI),$(OP2_LIB_FOR_EXTRA_MPI))))
+  $(OP2_LIB_EXTRA_MPI),$(OP2_LIB_FOR_EXTRA_MPI))))
 
 OP2_LIB_CUDA += $(CUDA_LIB)
 OP2_LIB_MPI_CUDA += $(CUDA_LIB)
