@@ -13,6 +13,9 @@ COMMA := ,
 SPACE :=
 SPACE +=
 
+TEXT_FOUND != echo "\033[1;32mFOUND\033[0m"
+TEXT_NOTFOUND != echo "\033[1;31mNOT FOUND\033[0m"
+
 # Get the makefiles directory (where this file is)
 MAKEFILES_DIR != dirname $(realpath \
   $(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST)))
@@ -45,18 +48,27 @@ ifeq ($(MAKECMDGOALS),config)
   include $(MAKEFILES_DIR)/compilers.mk
 
   ifeq ($(CONFIG_HAVE_C),true)
+    $(info # C/C++ compilers $(TEXT_FOUND), looking for HDF5 (seq)...)
     include $(DEPS_DIR)/hdf5_seq.mk
+  else
+    $(info # C/C++ compilers $(TEXT_NOTFOUND), skipping search for HDF5 (seq))
   endif
 
   ifeq ($(CONFIG_HAVE_C_CUDA),true)
+    $(info # C/C++ CUDA compiler $(TEXT_FOUND), looking for the CUDA libraries...)
     include $(DEPS_DIR)/cuda.mk
+  else
+    $(info # C/C++ CUDA compiler $(TEXT_NOTFOUND), skipping search for CUDA libraries)
   endif
 
   ifeq ($(CONFIG_HAVE_MPI_C),true)
+    $(info # MPI C/C++ compilers $(TEXT_FOUND), looking for the HDF5 (parallel), PT-Scotch and ParMETIS...)
     include $(DEPS_DIR)/hdf5_par.mk
 
     include $(DEPS_DIR)/ptscotch.mk
     include $(DEPS_DIR)/parmetis.mk
+  else
+    $(info # MPI C/C++ compilers $(TEXT_NOTFOUND), skipping search for HDF5 (parallel), PT-Scotch and ParMETIS)
   endif
 
   CONFIG_VARS := $(sort $(filter CONFIG_%,$(.VARIABLES)))
@@ -66,6 +78,9 @@ ifeq ($(MAKECMDGOALS),config)
 
   $(foreach var,$(CONFIG_VARS),$(file >> $(MAKEFILES_DIR)/.config.mk,\
     $(patsubst CONFIG_%,%,$(var)) := $($(var))))
+
+  $(info Config written to $(MAKEFILES_DIR)/.config.mk)
+  $(info )
 endif
 
 .PHONY: config
