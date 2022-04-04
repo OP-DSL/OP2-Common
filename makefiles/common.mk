@@ -13,14 +13,25 @@ COMMA := ,
 SPACE :=
 SPACE +=
 
-TEXT_FOUND != echo "\033[1;32mFOUND\033[0m"
-TEXT_NOTFOUND != echo "\033[1;31mNOT FOUND\033[0m"
+ESC_RED != echo "\033[31m"
+ESC_GREEN != echo "\033[32m"
+ESC_DEFCOL != echo "\033[39m"
+
+ESC_BOLD != echo "\033[1m"
+ESC_RESET != echo "\033[0m"
+
+TEXT_FOUND := $(ESC_GREEN)FOUND$(ESC_DEFCOL)
+TEXT_NOTFOUND := $(ESC_RED)NOT FOUND$(ESC_DEFCOL)
 
 # Get the makefiles directory (where this file is)
 MAKEFILES_DIR != dirname $(realpath \
   $(word $(words $(MAKEFILE_LIST)), $(MAKEFILE_LIST)))
 
 ROOT_DIR != realpath $(MAKEFILES_DIR)/../
+
+define info_bold =
+$(info $(ESC_BOLD)$(1)$(ESC_RESET))
+endef
 
 ifeq ($(MAKECMDGOALS),config)
   # Include profile
@@ -48,27 +59,27 @@ ifeq ($(MAKECMDGOALS),config)
   include $(MAKEFILES_DIR)/compilers.mk
 
   ifeq ($(CONFIG_HAVE_C),true)
-    $(info # C/C++ compilers $(TEXT_FOUND), looking for HDF5 (seq)...)
+    $(call info_bold,# C/C++ compilers $(TEXT_FOUND); looking for HDF5 (seq)...)
     include $(DEPS_DIR)/hdf5_seq.mk
   else
-    $(info # C/C++ compilers $(TEXT_NOTFOUND), skipping search for HDF5 (seq))
+    $(call info_bold,# C/C++ compilers $(TEXT_NOTFOUND); skipping search for HDF5 (seq))
   endif
 
   ifeq ($(CONFIG_HAVE_C_CUDA),true)
-    $(info # C/C++ CUDA compiler $(TEXT_FOUND), looking for the CUDA libraries...)
+    $(call info_bold,# C/C++ CUDA compiler $(TEXT_FOUND); looking for the CUDA libraries...)
     include $(DEPS_DIR)/cuda.mk
   else
-    $(info # C/C++ CUDA compiler $(TEXT_NOTFOUND), skipping search for CUDA libraries)
+    $(call info_bold,# C/C++ CUDA compiler $(TEXT_NOTFOUND); skipping search for CUDA libraries)
   endif
 
   ifeq ($(CONFIG_HAVE_MPI_C),true)
-    $(info # MPI C/C++ compilers $(TEXT_FOUND), looking for the HDF5 (parallel), PT-Scotch and ParMETIS...)
+    $(call info_bold,# MPI C/C++ compilers $(TEXT_FOUND); looking for the HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS...)
     include $(DEPS_DIR)/hdf5_par.mk
 
     include $(DEPS_DIR)/ptscotch.mk
     include $(DEPS_DIR)/parmetis.mk
   else
-    $(info # MPI C/C++ compilers $(TEXT_NOTFOUND), skipping search for HDF5 (parallel), PT-Scotch and ParMETIS)
+    $(call info_bold,# MPI C/C++ compilers $(TEXT_NOTFOUND); skipping search for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
   endif
 
   CONFIG_VARS := $(sort $(filter CONFIG_%,$(.VARIABLES)))
@@ -80,11 +91,14 @@ ifeq ($(MAKECMDGOALS),config)
     $(patsubst CONFIG_%,%,$(var)) := $($(var))))
 
   $(info Config written to $(MAKEFILES_DIR)/.config.mk)
-  $(info )
 endif
 
-.PHONY: config
+.PHONY: config print_config
+
 config:
+	@echo > /dev/null
+
+print_config:
 	@echo > /dev/null
 
 ifeq ($(wildcard $(MAKEFILES_DIR)/.config.mk),)
@@ -92,6 +106,8 @@ ifeq ($(wildcard $(MAKEFILES_DIR)/.config.mk),)
 else
   $(info Reading config from $(MAKEFILES_DIR)/.config.mk)
 endif
+
+$(info )
 
 include $(MAKEFILES_DIR)/.config.mk
 
