@@ -78,11 +78,11 @@ If you are using CUDA then you may also specify a comma separated list of target
 
    export NV_ARCH={Fermi, Kepler, ..., Ampere}[,{Fermi, ...}]
 
-Verify the compiler and library setup:
+Make the build config, verifying that the compilers, libraries and flags are as you expect:
 
 .. code-block:: shell
 
-    make -C op2 detect
+    make -C op2 config
 
 Finally, build OP2 and an example app:
 
