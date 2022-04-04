@@ -1,7 +1,7 @@
 ifdef OP2_COMPILER
-  OP2_C_COMPILER := $(OP2_COMPILER)
-  OP2_F_COMPILER := $(OP2_COMPILER)
-  OP2_C_CUDA_COMPILER := nvhpc
+  OP2_C_COMPILER ?= $(OP2_COMPILER)
+  OP2_F_COMPILER ?= $(OP2_COMPILER)
+  OP2_C_CUDA_COMPILER ?= nvhpc
 endif
 
 # Process CUDA_GEN and NV_ARCH until CUDA_GEN is a whitespace separated list of

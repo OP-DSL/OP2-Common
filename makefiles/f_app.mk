@@ -17,23 +17,26 @@ ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
 ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
 
-BUILDABLE_VARIANTS := seq genseq
 
-ifeq ($(F_HAS_OMP),true)
-  BUILDABLE_VARIANTS += vec openmp
-endif
+ifeq ($(HAVE_F),true)
+  BUILDABLE_VARIANTS := seq genseq
 
-# TODO/openmp4 add omp declare target
-# ifeq ($(F_HAS_OMP_OFFLOAD),true)
-#   BUILDABLE_VARIANTS += openmp4
-# endif
+  ifeq ($(F_HAS_OMP),true)
+    BUILDABLE_VARIANTS += vec openmp
+  endif
 
-ifeq ($(F_HAS_CUDA),true)
-  BUILDABLE_VARIANTS += cuda
-endif
+  # TODO/openmp4 add omp declare target
+  # ifeq ($(F_HAS_OMP_OFFLOAD),true)
+  #   BUILDABLE_VARIANTS += openmp4
+  # endif
 
-ifeq ($(HAVE_MPI_F),true)
-  BUILDABLE_VARIANTS += $(foreach variant,$(BUILDABLE_VARIANTS),mpi_$(variant))
+  ifeq ($(F_HAS_CUDA),true)
+    BUILDABLE_VARIANTS += cuda
+  endif
+
+  ifeq ($(HAVE_MPI_F),true)
+    BUILDABLE_VARIANTS += $(foreach variant,$(BUILDABLE_VARIANTS),mpi_$(variant))
+  endif
 endif
 
 BUILDABLE_VARIANTS := $(foreach variant,$(BUILDABLE_VARIANTS),$(APP_NAME)_$(variant))
@@ -52,6 +55,11 @@ ifeq ($(OP2_LIBS_WITH_HDF5),true)
   ifneq ($(HAVE_HDF5_PAR),true)
     BUILDABLE_VARIANTS := $(filter-out $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
   endif
+endif
+
+ifneq ($(MAKECMDGOALS),clean)
+  $(info Buildable app variants: $(BUILDABLE_VARIANTS))
+  $(info )
 endif
 
 KERNELS = $(patsubst %.inc,%,$(wildcard *.inc))

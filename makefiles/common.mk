@@ -88,7 +88,7 @@ ifeq ($(MAKECMDGOALS),config)
   $(file >> $(MAKEFILES_DIR)/.config.mk,)
 
   $(foreach var,$(CONFIG_VARS),$(file >> $(MAKEFILES_DIR)/.config.mk,\
-    $(patsubst CONFIG_%,%,$(var)) := $($(var))))
+    $(patsubst CONFIG_%,%,$(var)) := $($(var))#))
 
   $(info Config written to $(MAKEFILES_DIR)/.config.mk)
 endif
@@ -100,6 +100,9 @@ config:
 
 print_config:
 	@echo > /dev/null
+
+clean_config:
+	rm -f $(MAKEFILES_DIR)/.config.mk
 
 ifeq ($(wildcard $(MAKEFILES_DIR)/.config.mk),)
   $(error $(MAKEFILES_DIR)/.config.mk not found, run "make config" first)

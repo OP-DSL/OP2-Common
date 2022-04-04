@@ -13,18 +13,21 @@ ALL_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
 ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
 
-BASE_BUILDABLE_VARIANTS := seq genseq
 
-ifeq ($(CPP_HAS_OMP),true)
-  BASE_BUILDABLE_VARIANTS += vec openmp
-endif
+ifeq ($(HAVE_C),true)
+  BASE_BUILDABLE_VARIANTS := seq genseq
 
-ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
-  BASE_BUILDABLE_VARIANTS += openmp4
-endif
+  ifeq ($(CPP_HAS_OMP),true)
+    BASE_BUILDABLE_VARIANTS += vec openmp
+  endif
 
-ifeq ($(HAVE_CUDA),true)
-  BASE_BUILDABLE_VARIANTS += cuda cuda_hyb
+  ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
+    BASE_BUILDABLE_VARIANTS += openmp4
+  endif
+
+  ifeq ($(HAVE_CUDA),true)
+    BASE_BUILDABLE_VARIANTS += cuda cuda_hyb
+  endif
 endif
 
 BUILDABLE_VARIANTS :=
@@ -53,6 +56,11 @@ ifeq ($(OP2_LIBS_WITH_HDF5),true)
   ifneq ($(HAVE_HDF5_PAR),true)
     BUILDABLE_VARIANTS := $(filter-out $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
   endif
+endif
+
+ifneq ($(MAKECMDGOALS),clean)
+  $(info Buildable app variants: $(BUILDABLE_VARIANTS))
+  $(info )
 endif
 
 .PHONY: all clean
