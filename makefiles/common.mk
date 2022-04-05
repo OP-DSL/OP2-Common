@@ -50,6 +50,7 @@ ifeq ($(MAKECMDGOALS),config)
 
   # Dependencies
   DEPS_DIR := $(MAKEFILES_DIR)/dependencies
+  DEP_BUILD_LOG := $(DEPS_DIR)/tests/.build.log
 
   ifndef MAKE_DETECT_DEBUG
     DEP_DETECT_EXTRA += 2> /dev/null
@@ -58,29 +59,42 @@ ifeq ($(MAKECMDGOALS),config)
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
 
+  $(info Looking for compilers and dependencies:)
+  $(info )
+
   ifeq ($(CONFIG_HAVE_C),true)
-    $(call info_bold,# C/C++ compilers $(TEXT_FOUND); looking for HDF5 (seq)...)
+    $(call info_bold,> C/C++ compilers $(TEXT_FOUND) ($(CONFIG_CXX)); looking for HDF5 (seq))
     include $(DEPS_DIR)/hdf5_seq.mk
   else
-    $(call info_bold,# C/C++ compilers $(TEXT_NOTFOUND); skipping search for HDF5 (seq))
+    $(call info_bold,> C/C++ compilers $(TEXT_NOTFOUND); skipping search for HDF5 (seq))
   endif
+
+  $(info )
 
   ifeq ($(CONFIG_HAVE_C_CUDA),true)
-    $(call info_bold,# C/C++ CUDA compiler $(TEXT_FOUND); looking for the CUDA libraries...)
+    $(call info_bold,> C/C++ CUDA compiler $(TEXT_FOUND) ($(CONFIG_NVCC)); looking for the CUDA libraries)
     include $(DEPS_DIR)/cuda.mk
   else
-    $(call info_bold,# C/C++ CUDA compiler $(TEXT_NOTFOUND); skipping search for CUDA libraries)
+    $(call info_bold,> C/C++ CUDA compiler $(TEXT_NOTFOUND); skipping search for CUDA libraries)
   endif
 
+  $(info )
+
   ifeq ($(CONFIG_HAVE_MPI_C),true)
-    $(call info_bold,# MPI C/C++ compilers $(TEXT_FOUND); looking for the HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS...)
+    $(call info_bold,> MPI C/C++ compilers $(TEXT_FOUND) ($(CONFIG_MPICXX)); \
+      looking for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+
     include $(DEPS_DIR)/hdf5_par.mk
 
     include $(DEPS_DIR)/ptscotch.mk
     include $(DEPS_DIR)/parmetis.mk
   else
-    $(call info_bold,# MPI C/C++ compilers $(TEXT_NOTFOUND); skipping search for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+    $(call info_bold,> MPI C/C++ compilers $(TEXT_NOTFOUND); \
+      skipping search for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
   endif
+
+  $(info )
+  $(shell rm -f $(DEP_BUILD_LOG))
 
   CONFIG_VARS := $(sort $(filter CONFIG_%,$(.VARIABLES)))
 
