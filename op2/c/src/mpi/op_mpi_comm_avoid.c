@@ -18,11 +18,11 @@ int** foreign_aug_part_range_size;
 
 int*** elem_rank_matrix;
 
-halo_list* OP_aug_export_exec_lists[10];  // 10 levels for now
-halo_list* OP_aug_import_exec_lists[10];  // 10 levels for now
+halo_list* OP_aug_export_exec_lists[30];  // 10 levels for now
+halo_list* OP_aug_import_exec_lists[30];  // 10 levels for now
 
-halo_list* OP_aug_export_nonexec_lists[10];  // 10 levels for now
-halo_list* OP_aug_import_nonexec_lists[10];  // 10 levels for now
+halo_list* OP_aug_export_nonexec_lists[30];  // 10 levels for now
+halo_list* OP_aug_import_nonexec_lists[30];  // 10 levels for now
 
 halo_list *OP_merged_import_exec_list;
 halo_list *OP_merged_export_exec_list;
@@ -2155,12 +2155,12 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
     for(int el = 0; el < max_level; el++){
        set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
     }
-    printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d 1=%d) exec=%d(0=%d 1=%d) non=%d(0=%d 1=%d) totalexec=%d total_nonexec=%d max_halo=%d halo_count=%d\n", my_rank, set->name,
-    set->size, set->core_size, set->core_sizes[0], set->core_sizes[1] ? set->core_sizes[1] : 0, 
-    set->exec_size, set->exec_sizes[0], set->exec_sizes[1] ? set->exec_sizes[1] : 0, 
-    set->nonexec_size, set->nonexec_sizes[0], set->nonexec_sizes[1] ? set->nonexec_sizes[1] : 0, 
-    set->total_exec_size, set->total_nonexec_size,
-    set->halo_info->max_nhalos, set->halo_info->nhalos_count);
+    // printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d 1=%d) exec=%d(0=%d 1=%d) non=%d(0=%d 1=%d) totalexec=%d total_nonexec=%d max_halo=%d halo_count=%d\n", my_rank, set->name,
+    // set->size, set->core_size, set->core_sizes[0], set->core_sizes[1] ? set->core_sizes[1] : 0, 
+    // set->exec_size, set->exec_sizes[0], set->exec_sizes[1] ? set->exec_sizes[1] : 0, 
+    // set->nonexec_size, set->nonexec_sizes[0], set->nonexec_sizes[1] ? set->nonexec_sizes[1] : 0, 
+    // set->total_exec_size, set->total_nonexec_size,
+    // set->halo_info->max_nhalos, set->halo_info->nhalos_count);
   }
 }
 
@@ -2444,7 +2444,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_export_nonexec_lists[i] = NULL;
     OP_aug_import_nonexec_lists[i] = NULL;
   }
-  set_maps_mgcfd();
+  // set_maps_mgcfd();
   // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
