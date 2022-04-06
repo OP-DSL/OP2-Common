@@ -2095,6 +2095,41 @@ void op_halo_permap_create() {
  *application)
  *******************************************************************************/
 
+void op_single_halo_destroy(halo_list* h_list){
+
+  for (int s = 0; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
+
+    if(h_list[set->index]){
+
+      if( h_list[set->index]->disps != h_list[set->index]->disps_by_rank){
+        op_free(h_list[set->index]->disps_by_rank);
+      }
+      if( h_list[set->index]->sizes != h_list[set->index]->sizes_by_rank){
+        op_free(h_list[set->index]->sizes_by_rank);
+      }
+      op_free(h_list[set->index]->ranks);
+      op_free(h_list[set->index]->list);
+      op_free(h_list[set->index]->disps);
+      op_free(h_list[set->index]->sizes);
+
+
+      if(h_list[set->index]->ranks_sizes)
+        op_free(h_list[set->index]->ranks_sizes);
+      if(h_list[set->index]->rank_disps)
+        op_free(h_list[set->index]->rank_disps);
+      if(h_list[set->index]->level_disps)
+        op_free(h_list[set->index]->level_disps);
+      if(h_list[set->index]->level_sizes)
+        op_free(h_list[set->index]->level_sizes);
+      
+      op_free(h_list[set->index]);
+    }
+    
+  }
+  op_free(h_list);
+}
+
 void op_halo_destroy() {
   // remove halos from op_dats
   op_dat_entry *item;
@@ -2103,70 +2138,10 @@ void op_halo_destroy() {
     dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
   }
 
-  // free lists
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-
-    op_free(OP_import_exec_list[set->index]->ranks);
-    op_free(OP_import_exec_list[set->index]->disps);
-    op_free(OP_import_exec_list[set->index]->sizes);
-    op_free(OP_import_exec_list[set->index]->list);
-
-    op_free(OP_import_exec_list[set->index]->ranks_sizes);
-    op_free(OP_import_exec_list[set->index]->rank_disps);
-    op_free(OP_import_exec_list[set->index]->level_disps);
-    op_free(OP_import_exec_list[set->index]->level_sizes);
-    op_free(OP_import_exec_list[set->index]->disps_by_rank);
-    op_free(OP_import_exec_list[set->index]->sizes_by_rank);
-
-    op_free(OP_import_exec_list[set->index]);
-
-    op_free(OP_import_nonexec_list[set->index]->ranks);
-    op_free(OP_import_nonexec_list[set->index]->disps);
-    op_free(OP_import_nonexec_list[set->index]->sizes);
-    op_free(OP_import_nonexec_list[set->index]->list);
-
-    op_free(OP_import_nonexec_list[set->index]->ranks_sizes);
-    op_free(OP_import_nonexec_list[set->index]->rank_disps);
-    op_free(OP_import_nonexec_list[set->index]->level_disps);
-    op_free(OP_import_nonexec_list[set->index]->level_sizes);
-    op_free(OP_import_nonexec_list[set->index]->disps_by_rank);
-    op_free(OP_import_nonexec_list[set->index]->sizes_by_rank);
-
-    op_free(OP_import_nonexec_list[set->index]);
-
-    op_free(OP_export_exec_list[set->index]->ranks);
-    op_free(OP_export_exec_list[set->index]->disps);
-    op_free(OP_export_exec_list[set->index]->sizes);
-    op_free(OP_export_exec_list[set->index]->list);
-
-    op_free(OP_export_exec_list[set->index]->ranks_sizes);
-    op_free(OP_export_exec_list[set->index]->rank_disps);
-    op_free(OP_export_exec_list[set->index]->level_disps);
-    op_free(OP_export_exec_list[set->index]->level_sizes);
-    op_free(OP_export_exec_list[set->index]->disps_by_rank);
-    op_free(OP_export_exec_list[set->index]->sizes_by_rank);
-
-    op_free(OP_export_exec_list[set->index]);
-
-    op_free(OP_export_nonexec_list[set->index]->ranks);
-    op_free(OP_export_nonexec_list[set->index]->disps);
-    op_free(OP_export_nonexec_list[set->index]->sizes);
-    op_free(OP_export_nonexec_list[set->index]->list);
-
-    op_free(OP_export_nonexec_list[set->index]->ranks_sizes);
-    op_free(OP_export_nonexec_list[set->index]->rank_disps);
-    op_free(OP_export_nonexec_list[set->index]->level_disps);
-    op_free(OP_export_nonexec_list[set->index]->level_sizes);
-    op_free(OP_export_nonexec_list[set->index]->disps_by_rank);
-    op_free(OP_export_nonexec_list[set->index]->sizes_by_rank);
-
-    op_free(OP_export_nonexec_list[set->index]);
-  }
-  op_free(OP_import_exec_list);
-  op_free(OP_import_nonexec_list);
-  op_free(OP_export_exec_list);
-  op_free(OP_export_nonexec_list);
+  op_single_halo_destroy(OP_import_exec_list);
+  op_single_halo_destroy(OP_import_nonexec_list);
+  op_single_halo_destroy(OP_export_exec_list);
+  op_single_halo_destroy(OP_export_nonexec_list);
 
   item = NULL;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
@@ -3109,7 +3084,8 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
  * Routine to exit an op2 mpi application -
  *******************************************************************************/
 
-void op_mpi_exit() {
+void op_mpi_destroy(){
+  
   // cleanup performance data - need to do this in some op_mpi_exit() routine
   op_mpi_kernel *kernel_entry, *tmp;
   HASH_ITER(hh, op_mpi_kernel_tab, kernel_entry, tmp) {
@@ -3121,8 +3097,6 @@ void op_mpi_exit() {
     op_free(kernel_entry);
   }
 
-  // free memory allocated to halos and mpi_buffers
-  op_halo_destroy();
   // free memory used for holding partition information
   op_partition_destroy();
   // print each mpi process's timing info for each kernel
@@ -3155,6 +3129,11 @@ void op_mpi_exit() {
     op_free(OP_export_list[i]);
   if (OP_export_list)
     op_free(OP_export_list);
+}
+
+void op_mpi_exit() {
+  op_mpi_destroy();
+  op_halo_destroy();
 }
 
 #ifndef COMM_AVOID

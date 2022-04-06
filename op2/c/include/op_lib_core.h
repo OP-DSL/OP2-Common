@@ -132,6 +132,9 @@ extern double pack_time, unpack_time, halo_exch_time;
 #define OP_UNPACK_ALL_HALOS 2
 // #define OP_UNPACK_MERGED_MULTIPLE_DATS 3
 
+#define OP_NHALOS_SIZE 30
+#define OP_NHALOS_MAX 30
+
 typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
 typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
 
@@ -139,8 +142,6 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
  * structures
  */
 
-#define OP_NHALOS_SIZE 10
-#define OP_NHALOS_MAX 10
 typedef struct op_halo_info_core{
   int *nhalos;      //array of number of halos
   int *nhalos_indices; //array of number of halos to array index. to do a reverse search

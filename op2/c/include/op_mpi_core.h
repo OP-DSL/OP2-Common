@@ -303,6 +303,10 @@ void op_halo_permap_create();
 
 void op_halo_destroy();
 
+void op_mpi_destroy();
+
+void op_single_halo_destroy(halo_list* h_list);
+
 op_dat op_mpi_get_data(op_dat dat);
 
 void fetch_data_hdf5(op_dat dat, char *usr_ptr, int low, int high);

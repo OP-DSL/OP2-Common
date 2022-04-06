@@ -36,11 +36,12 @@
 #ifdef COMM_AVOID
     #define op_halo_create(x) op_halo_create_comm_avoid(x)
     #define op_halo_destroy() op_halo_destroy_comm_avoid()
+    #define op_mpi_exit() op_mpi_exit_comm_avoid()
 #endif
 
 void op_halo_create_comm_avoid();
 void op_halo_destroy_comm_avoid();
-void op_single_halo_destroy(halo_list* h_list);
+void op_mpi_exit_comm_avoid();
 
 int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_set_to_nonexec_max);
 int get_exec_size(op_set set, int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max);
