@@ -1441,8 +1441,6 @@ void step4_import_nonexec(int max_nhalos, int **part_range, int my_rank, int com
 
       for (int m = 0; m < OP_map_index; m++) { // for each maping table
         op_map map = OP_map_list[m];
-        printf("test1 my_rank=%d map=%s from=%s to=%s el=%d\n", my_rank, map->name, map->from->name, map->to->name, el);
-        printf("test2 my_rank=%d map=%s from=%s to=%s el=%d exec_levels=%d\n", my_rank, map->name, map->from->name, map->to->name, el, map->from->halo_info->nhalos[el]);
         from_exec_levels = map->from->halo_info->nhalos[el];
         int exec_size = 0;
         for(int l = 0; l < from_exec_levels; l++){
