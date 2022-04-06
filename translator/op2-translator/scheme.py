@@ -13,6 +13,7 @@ import cpp.translator.kernels.cuda
 import cpp.translator.kernels.seq
 import fortran
 import fortran.translator.kernels.cuda
+import fortran.translator.kernels.seq
 import fortran.translator.kernels.vec
 import op as OP
 from language import Lang
@@ -192,6 +193,9 @@ class FortranSeq(Scheme):
 
     loop_host_template = Path("fortran/seq/loop_host.F95.jinja")
     master_kernel_template = None
+
+    def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
+        return fortran.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
 
 
 class FortranVec(Scheme):

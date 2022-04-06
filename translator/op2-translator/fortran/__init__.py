@@ -1,4 +1,3 @@
-from functools import lru_cache
 from pathlib import Path
 from types import MethodType
 from typing import FrozenSet, Optional, Set
@@ -24,7 +23,6 @@ class Fortran(Lang):
     com_delim = "!"
     zero_idx = False
 
-    @lru_cache(maxsize=None)
     def parseFile(self, path: Path, include_dirs: FrozenSet[Path]) -> f2003.Program:
         reader = FortranFileReader(str(path), include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")
