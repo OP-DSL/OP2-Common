@@ -68,7 +68,7 @@ SUBROUTINE {{lh.kernel.name}}_wrapper( &
             CALL op_mpi_test_all(SIZE(args_expanded), args_expanded)
         END IF
 
-        CALL {{lh.kernel.name}}( &
+        CALL {{lh.kernel.name}}_seq( &
 {% for arg, idx in lh.args %}
             {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
 {% endfor %}

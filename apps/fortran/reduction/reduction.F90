@@ -63,6 +63,9 @@ program reduction
 
     call op_timers(start_time)
 
+    cell_count_result = 0
+    edge_count_result = 0
+
     call op_par_loop_1(cell_count, cells, &
         op_arg_dat(p_res, -1, OP_ID, 4, "real(8)", OP_RW), &
         op_arg_gbl(cell_count_result, 1, "integer(4)", OP_INC))

@@ -284,7 +284,7 @@ SUBROUTINE {{lh.kernel.name}}_host( &
 {% endfor %}
 
 {% for arg, idx in lh.args|gbl|read %}
-    IF (.NOT. ALLOCATED(gbl_{{arg.ptr}}_d) THEN
+    IF (.NOT. ALLOCATED(gbl_{{arg.ptr}}_d)) THEN
         ALLOCATE(gbl_{{arg.ptr}}_d({{arg.dim}}))
     END IF
 
