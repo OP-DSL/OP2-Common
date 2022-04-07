@@ -1,5 +1,6 @@
 {% macro map_lookup(arg) %}
-map_{{arg.map_ptr}}({{arg.map_idx}}, n)
+map_{{arg.map_ptr}}({{arg.map_idx - 1}} * set_size + n)
+    {{-(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
 {%- endmacro %}
 
 {% macro arg_to_pointer_cuda(arg, idx) -%}
@@ -10,7 +11,7 @@ dat_{{arg.dat_ptr}}((n - 1) * {{arg.dat_dim}} + 1)
     {%- elif arg is inc and target.config.atomics %}
 arg{{idx}}_{{arg.map_idx}}_local
     {%- else -%}
-dat_{{arg.dat_ptr}}({{map_lookup(arg)}} * {{arg.dat_dim}} + 1)
+dat_{{arg.dat_ptr}}({{map_lookup(arg)}} + 1)
     {%- endif -%}
 {%- endmacro %}
 
@@ -68,7 +69,7 @@ SUBROUTINE op_cuda_{{lh.kernel.name}}( &
 {% endfor %}
 
 {% for map, idx in lh.maps.items() %}
-    INTEGER(4), DIMENSION({{map.dim}}, *) :: map_{{map.ptr}}
+    INTEGER(4), DIMENSION(*) :: map_{{map.ptr}}
 {% endfor %}
 
 {% for arg, idx in lh.args|gbl %}
@@ -134,7 +135,7 @@ SUBROUTINE op_cuda_{{lh.kernel.name}}( &
 
     {% for arg, idx in lh.args|indirect|reduction if target.config.atomics %}
         DO d = 1, {{arg.dat_dim}}
-            ret = atomicAdd(dat_{{arg.dat_ptr}}({{map_lookup(arg)}} * {{arg.dat_dim}} + d), &
+            ret = atomicAdd(dat_{{arg.dat_ptr}}({{map_lookup(arg)}} + d), &
                 arg{{idx}}_{{arg.map_idx}}_local(d))
         END DO
     {% endfor %}
