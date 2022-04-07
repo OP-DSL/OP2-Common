@@ -25,6 +25,11 @@ jobs:
           path: OP2-APPS
           token: ${{ secrets.OP2_APPS_TOKEN }}
 
+      - name: Configure
+        working-directory: OP2-Common/op2
+        run: |
+          make config
+
       - name: Translate apps
         run: |
           FILES=$(find OP2-Common/apps -name Makefile | xargs grep -l 'include.*[cf]_app.mk')
