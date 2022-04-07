@@ -53,6 +53,10 @@ jobs:
       #   if: ${{ matrix.optimisation == 'cuda' }}
       #   run: sudo ln -s "${{steps.install-cuda-toolkit.outputs.CUDA_PATH}}"/lib64/libcudart.so /usr/lib/libcudart.so
 
+      - name: Make build config
+        working-directory: op2
+        run: make config
+
       - name: Build OP2 backend
         working-directory: op2
         run: make -j seq openmp # TODO: Only build targets required for active the matrix config

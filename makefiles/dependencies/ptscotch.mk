@@ -5,22 +5,31 @@ ifdef PTSCOTCH_INSTALL_PATH
   PTSCOTCH_LIB_PATH := -L$(PTSCOTCH_INSTALL_PATH)/lib
 endif
 
-PTSCOTCH_TEST = $(MPICXX) $(PTSCOTCH_INC_PATH) \
+PTSCOTCH_TEST = $(CONFIG_MPICXX) $(PTSCOTCH_INC_PATH) \
                     $(DEPS_DIR)/tests/ptscotch.cpp $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK) \
-                    -o $(DEPS_DIR)/tests/ptscotch $(DEP_DETECT_EXTRA)
+                    -o $(DEPS_DIR)/tests/ptscotch
 
-$(shell $(PTSCOTCH_TEST))
+$(file > $(DEP_BUILD_LOG),$(PTSCOTCH_TEST))
+$(shell $(PTSCOTCH_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 
 ifneq ($(.SHELLSTATUS),0)
   PTSCOTCH_LINK ?= -lptscotch -lscotch -lptscotcherr
-  $(shell $(PTSCOTCH_TEST))
+
+  $(file >> $(DEP_BUILD_LOG),$(PTSCOTCH_TEST))
+  $(shell $(PTSCOTCH_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 endif
 
 ifeq ($(.SHELLSTATUS),0)
   $(shell rm -f $(DEPS_DIR)/tests/ptscotch)
 
-  HAVE_PTSCOTCH := true
+  $(call info_bold,  > PT-Scotch libraries $(TEXT_FOUND) (link flags: $(or $(PTSCOTCH_LINK),none)))
 
-  PTSCOTCH_INC := $(strip $(PTSCOTCH_INC_PATH) $(PTSCOTCH_DEF))
-  PTSCOTCH_LIB := $(strip $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK))
+  CONFIG_HAVE_PTSCOTCH := true
+
+  CONFIG_PTSCOTCH_INC := $(strip $(PTSCOTCH_INC_PATH) $(PTSCOTCH_DEF))
+  CONFIG_PTSCOTCH_LIB := $(strip $(PTSCOTCH_LIB_PATH) $(PTSCOTCH_LINK))
+else
+  $(call info_bold,  > PT-Scotch libraries $(TEXT_NOTFOUND):)
+  $(info $(file < $(DEP_BUILD_LOG)))
+  $(info )
 endif

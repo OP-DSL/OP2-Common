@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdint>
 
 #include <mpi.h>
 #include <ptscotch.h>

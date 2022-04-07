@@ -8,35 +8,42 @@ MOD_CUDA ?= $(MOD)/cuda
 INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(CUDA_INC)
 
 # Calculate the libraries that we can actually build
-OP2_BUILDABLE_LIBS := seq openmp
+ifeq ($(HAVE_C),true)
+  OP2_BUILDABLE_LIBS := seq openmp
 
-ifeq ($(HAVE_HDF5_SEQ),true)
-  OP2_BUILDABLE_LIBS += hdf5
-endif
+  ifeq ($(HAVE_HDF5_SEQ),true)
+    OP2_BUILDABLE_LIBS += hdf5
+  endif
 
-ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
-  OP2_BUILDABLE_LIBS += openmp4
-endif
+  ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
+    OP2_BUILDABLE_LIBS += openmp4
+  endif
 
-MPI_IS_BUILDABLE := false
-ifeq ($(and $(HAVE_MPI_C),$(HAVE_HDF5_PAR)),true)
-  MPI_IS_BUILDABLE := true
-endif
+  MPI_IS_BUILDABLE := false
+  ifeq ($(and $(HAVE_MPI_C),$(HAVE_HDF5_PAR)),true)
+    MPI_IS_BUILDABLE := true
+  endif
 
-ifeq ($(HAVE_CUDA),true)
-  OP2_BUILDABLE_LIBS += cuda
+  ifeq ($(HAVE_CUDA),true)
+    OP2_BUILDABLE_LIBS += cuda
+
+    ifeq ($(MPI_IS_BUILDABLE),true)
+      OP2_BUILDABLE_LIBS += mpi_cuda
+    endif
+  endif
 
   ifeq ($(MPI_IS_BUILDABLE),true)
-    OP2_BUILDABLE_LIBS += mpi_cuda
+    OP2_BUILDABLE_LIBS += mpi
+  endif
+
+  ifeq ($(HAVE_F),true)
+    OP2_BUILDABLE_LIBS += $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
   endif
 endif
 
-ifeq ($(MPI_IS_BUILDABLE),true)
-  OP2_BUILDABLE_LIBS += mpi
-endif
-
-ifeq ($(HAVE_F),true)
-  OP2_BUILDABLE_LIBS += $(foreach lib,$(OP2_BUILDABLE_LIBS),f_$(lib))
+ifneq ($(MAKECMDGOALS),clean)
+  $(info Buildable library variants: $(OP2_BUILDABLE_LIBS))
+  $(info )
 endif
 
 # Build rules

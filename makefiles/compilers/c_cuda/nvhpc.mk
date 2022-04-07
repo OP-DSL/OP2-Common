@@ -1,7 +1,7 @@
 ifdef CUDA_INSTALL_PATH
-  NVCC := $(CUDA_INSTALL_PATH)/bin/nvcc
+  CONFIG_NVCC := $(CUDA_INSTALL_PATH)/bin/nvcc
 else
-  NVCC := nvcc
+  CONFIG_NVCC := nvcc
 endif
 
 ifndef DEBUG
@@ -10,5 +10,5 @@ else
   NVCC_OPT := -g -O0
 endif
 
-NVCCFLAGS ?= $(foreach arch,$(CUDA_GEN),-gencode arch=compute_$(arch),code=sm_$(arch)) \
-			 -m64 -Xptxas=-v $(NVCC_OPT)
+CONFIG_NVCCFLAGS ?= $(foreach arch,$(CUDA_GEN),-gencode arch=compute_$(arch),code=sm_$(arch)) \
+  -m64 -Xptxas=-v $(NVCC_OPT)

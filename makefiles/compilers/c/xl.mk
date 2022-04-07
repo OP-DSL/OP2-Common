@@ -1,6 +1,6 @@
 # Compiler executables and flags
-CC := xlc_r
-CXX := xlc++_r
+CONFIG_CC := xlc_r
+CONFIG_CXX := xlc++_r
 
 BASE_CPPFLAGS := -MMD -MP -Wall -pedantic
 
@@ -10,14 +10,14 @@ else
   BASE_CPPFLAGS += -g -O0
 endif
 
-CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
-CXXFLAGS ?= $(BASE_CPPFLAGS)
+CONFIG_CFLAGS ?= -std=c99 $(BASE_CPPFLAGS)
+CONFIG_CXXFLAGS ?= $(BASE_CPPFLAGS)
 
-CXXLINK ?= -lc++
+CONFIG_CXXLINK ?= -lc++
 
 # Available OpenMP features
-OMP_CPPFLAGS ?= -qsmp=omp
-CPP_HAS_OMP ?= true
+CONFIG_OMP_CPPFLAGS ?= -qsmp=omp
+CONFIG_CPP_HAS_OMP ?= true
 
-OMP_OFFLOAD_CPPFLAGS ?=
-CPP_HAS_OMP_OFFLOAD ?= false
+# CONFIG_OMP_OFFLOAD_CPPFLAGS ?=
+CONFIG_CPP_HAS_OMP_OFFLOAD ?= false

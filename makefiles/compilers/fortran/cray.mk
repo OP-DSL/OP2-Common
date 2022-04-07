@@ -1,8 +1,6 @@
 # Compiler executables and flags
-FC := ftn
-MPIFC := ftn
-
-BASE_FFLAGS :=
+CONFIG_FC := ftn
+CONFIG_MPIFC := ftn
 
 ifndef DEBUG
   BASE_FFLAGS += -O3
@@ -10,17 +8,17 @@ else
   BASE_FFLAGS += -g -Og
 endif
 
-FFLAGS ?= $(BASE_FFLAGS)
-F_MOD_OUT_OPT ?= -em -J
-F_HAS_PARALLEL_BUILDS ?= true
+CONFIG_FFLAGS ?= $(BASE_FFLAGS)
+CONFIG_F_MOD_OUT_OPT ?= -em -J
+CONFIG_F_HAS_PARALLEL_BUILDS ?= true
 
 # Available OpenMP features
-OMP_FFLAGS ?= -fopenmp
-F_HAS_OMP ?= true
+CONFIG_OMP_FFLAGS ?= -fopenmp
+CONFIG_F_HAS_OMP ?= true
 
-OMP_OFFLOAD_FFLAGS ?=
-F_HAS_OMP_OFFLOAD ?= false
+# CONFIG_OMP_OFFLOAD_FFLAGS ?=
+CONFIG_F_HAS_OMP_OFFLOAD ?= false
 
 # Available CUDA features
-CUDA_FFLAGS ?=
-F_HAS_CUDA ?= false
+# CONFIG_CUDA_FFLAGS ?=
+CONFIG_F_HAS_CUDA ?= false
