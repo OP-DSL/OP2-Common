@@ -43,11 +43,11 @@ class Fortran(Lang):
             if not typ.signed:
                 raise NotImplementedError("Fortran does not support unsigned integers")
 
-            return f"INTEGER({int(typ.size / 8)})"
+            return f"integer({int(typ.size / 8)})"
         elif isinstance(typ, OP.Float):
-            return f"REAL({int(typ.size / 8)})"
+            return f"real({int(typ.size / 8)})"
         elif isinstance(typ, OP.Bool):
-            return f"LOGICAL"
+            return f"logical"
         else:
             assert False
 
