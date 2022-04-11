@@ -82,28 +82,29 @@ extern double OP_hybrid_balance;
 extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
 extern int OP_mpi_test_frequency;
-extern int OP_mpi_tx_exec_msg_count;
-extern int OP_mpi_rx_exec_msg_count;
-extern int OP_mpi_tx_nonexec_msg_count;
-extern int OP_mpi_rx_nonexec_msg_count;
 
-extern int OP_mpi_tx_exec_msg_count_merged;
-extern int OP_mpi_rx_exec_msg_count_merged;
-extern int OP_mpi_tx_nonexec_msg_count_merged;
-extern int OP_mpi_rx_nonexec_msg_count_merged;
+extern unsigned long OP_mpi_tx_exec_msg_count;
+extern unsigned long OP_mpi_rx_exec_msg_count;
+extern unsigned long OP_mpi_tx_nonexec_msg_count;
+extern unsigned long OP_mpi_rx_nonexec_msg_count;
 
-extern int OP_mpi_tx_exec_msg_count_chained;
-extern int OP_mpi_rx_exec_msg_count_chained;
-extern int OP_mpi_tx_nonexec_msg_count_chained;
-extern int OP_mpi_rx_nonexec_msg_count_chained;
+extern unsigned long OP_mpi_tx_exec_msg_count_merged;
+extern unsigned long OP_mpi_rx_exec_msg_count_merged;
+extern unsigned long OP_mpi_tx_nonexec_msg_count_merged;
+extern unsigned long OP_mpi_rx_nonexec_msg_count_merged;
 
-extern int OP_mpi_tx_exec_msg_count_org;
-extern int OP_mpi_rx_exec_msg_count_org;
-extern int OP_mpi_tx_nonexec_msg_count_org;
-extern int OP_mpi_rx_nonexec_msg_count_org;
+extern unsigned long OP_mpi_tx_exec_msg_count_chained;
+extern unsigned long OP_mpi_rx_exec_msg_count_chained;
+extern unsigned long OP_mpi_tx_nonexec_msg_count_chained;
+extern unsigned long OP_mpi_rx_nonexec_msg_count_chained;
 
-extern int OP_mpi_tx_nonexec_msg_count_partial;
-extern int OP_mpi_rx_nonexec_msg_count_partial;
+extern unsigned long OP_mpi_tx_exec_msg_count_org;
+extern unsigned long OP_mpi_rx_exec_msg_count_org;
+extern unsigned long OP_mpi_tx_nonexec_msg_count_org;
+extern unsigned long OP_mpi_rx_nonexec_msg_count_org;
+
+extern unsigned long OP_mpi_tx_nonexec_msg_count_partial;
+extern unsigned long OP_mpi_rx_nonexec_msg_count_partial;
 
 extern double pack_time, unpack_time, halo_exch_time;
 

@@ -1025,7 +1025,7 @@ void op_wait_all(op_arg *arg) {
     #ifdef COMM_AVOID
 
     // op_timers_core(&ca_c1, &ca_t1);
-    op_unpack_merged_single_dat(arg);
+    // op_unpack_merged_single_dat(arg);
 
     // op_mpi_barrier();
     // op_timers_core(&ca_c2, &ca_t2);

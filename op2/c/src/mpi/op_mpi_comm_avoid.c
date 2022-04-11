@@ -2436,7 +2436,7 @@ void set_group_halo_envt(){
 
 void op_halo_create_comm_avoid() {
   // declare timers
-  printf("op_halo_create_comm_avoid start >>>>>>>\n");
+  op_printf("op_halo_create_comm_avoid start >>>>>>>\n");
   for(int i = 0; i < 10; i++){
     OP_aug_export_exec_lists[i] = NULL;
     OP_aug_import_exec_lists[i] = NULL;
@@ -2484,37 +2484,37 @@ void op_halo_create_comm_avoid() {
   create_elem_rank_matrix(my_rank, comm_size);
 
   int num_halos = get_max_nhalos();
-  printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
+  op_printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
   
   for(int l = 0; l < num_halos; l++){
     /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
-    start_time(my_rank);
+    // start_time(my_rank);
     OP_aug_export_exec_lists[l] = step1_create_aug_export_exec_list(l, part_range, my_rank, comm_size);
-    stop_time(my_rank, "step1");
+    // stop_time(my_rank, "step1");
 
     /*---- STEP 2 - construct import lists for mappings and execute sets------*/
-    start_time(my_rank);
+    // start_time(my_rank);
     OP_aug_import_exec_lists[l] = create_handshake_h_list(OP_aug_export_exec_lists[l], part_range, my_rank, comm_size);
-    stop_time(my_rank, "step2");
+    // stop_time(my_rank, "step2");
 
     /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
-    start_time(my_rank);
+    // start_time(my_rank);
     step3_exchange_exec_mappings(l, part_range, my_rank, comm_size);
-    stop_time(my_rank, "step3");
+    // stop_time(my_rank, "step3");
 
     /*-STEP 6 - Exchange execute set elements/data using the import/export lists--*/
-    start_time(my_rank);
+    // start_time(my_rank);
     step6_exchange_exec_data(l, part_range, my_rank, comm_size);
-    stop_time(my_rank, "step6");
+    // stop_time(my_rank, "step6");
 
     if(l < num_halos - 1){
-      start_time(my_rank);
+      // start_time(my_rank);
       create_aug_part_range(l, part_range, my_rank, comm_size);
-      stop_time(my_rank, "step6 exchange_part1");
-      start_time(my_rank);
+      // stop_time(my_rank, "step6 exchange_part1");
+      // start_time(my_rank);
       exchange_aug_part_ranges(l, part_range, my_rank, comm_size);
-      stop_time(my_rank, "step6 exchange_part2");
+      // stop_time(my_rank, "step6 exchange_part2");
     }
   }
 
@@ -2526,9 +2526,9 @@ void op_halo_create_comm_avoid() {
 
   /*-- STEP 4 - Create import lists for non-execute set elements using mapping
     table entries including the additional mapping table entries --*/
-  start_time(my_rank);
+  // start_time(my_rank);
   step4_import_nonexec(num_halos, part_range, my_rank, comm_size);
-  stop_time(my_rank, "step4");
+  // stop_time(my_rank, "step4");
   /*----------- STEP 5 - construct non-execute set export lists -------------*/
   // step5(part_range, my_rank, comm_size); //this is done with other aug non exec halos
 
@@ -2550,37 +2550,37 @@ void op_halo_create_comm_avoid() {
 
   /*-STEP 7 - Exchange non-execute set elements/data using the import/export
    * lists--*/
-  start_time(my_rank);
+  // start_time(my_rank);
   step7_halo(num_halos, part_range, my_rank, comm_size);
-  stop_time(my_rank, "step7");
+  // stop_time(my_rank, "step7");
 
   /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/
-  start_time(my_rank);
+  // start_time(my_rank);
   step8_renumber_mappings(num_halos, part_range, my_rank, comm_size);
-  stop_time(my_rank, "step8");
+  // stop_time(my_rank, "step8");
 
   // print_maps_new(my_rank);
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
-  start_time(my_rank);
+  // start_time(my_rank);
   step9_halo(num_halos, part_range, my_rank, comm_size);
-  stop_time(my_rank, "step9");
+  // stop_time(my_rank, "step9");
    
 
   /*-STEP 10 -------------------- Separate core
    * elements------------------------*/
   int **core_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
   int **exp_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
-  start_time(my_rank);
+  // start_time(my_rank);
   step10_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
-  stop_time(my_rank, "step10");
+  // stop_time(my_rank, "step10");
 
   // print_maps_new(my_rank);
 
   /*-STEP 11 ----------- Save the original set element
    * indexes------------------*/
-  start_time(my_rank);
+  // start_time(my_rank);
   step11_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
-  stop_time(my_rank, "step11");
+  // stop_time(my_rank, "step11");
 
 
   // This is to facilitate halo exchange in one message for multiple extended exec layers
@@ -2610,9 +2610,9 @@ void op_halo_create_comm_avoid() {
   time = wall_t2 - wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
-  start_time(my_rank);
+  // start_time(my_rank);
   step12(part_range, max_time, my_rank, comm_size);
-  stop_time(my_rank, "step12");
+  // stop_time(my_rank, "step12");
 }
 
 void op_halo_destroy_comm_avoid() {

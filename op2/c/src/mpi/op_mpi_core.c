@@ -3212,13 +3212,13 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
       if (args[n].map == OP_ID) {
-#ifdef COMM_AVOID
-        // if(args[n].dat->halo_info->max_nhalos > 1){
-          op_exchange_halo_merged(&args[n], exec_flag);
-        // }else
-#else
+// #ifdef COMM_AVOID
+//         // if(args[n].dat->halo_info->max_nhalos > 1){
+//           op_exchange_halo_merged(&args[n], exec_flag);
+//         // }else
+// #else
           op_exchange_halo(&args[n], exec_flag);
-#endif
+// #endif
       } else {
         // Check if dat-map combination was already done or if there is a
         // mismatch (same dat, diff map)
@@ -3233,25 +3233,25 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
         // If there was a map mismatch with other argument, do full halo
         // exchange
         if (fallback)
-#ifdef COMM_AVOID
-          // if(args[n].dat->halo_info->max_nhalos > 1){
-            op_exchange_halo_merged(&args[n], exec_flag);
-          // }else
-#else
+// #ifdef COMM_AVOID
+//           // if(args[n].dat->halo_info->max_nhalos > 1){
+//             op_exchange_halo_merged(&args[n], exec_flag);
+//           // }else
+// #else
             op_exchange_halo(&args[n], exec_flag);
-#endif
+// #endif
         else if (!found) { // Otherwise, if partial halo exchange is enabled for
                            // this map, do it
           if (OP_map_partial_exchange[args[n].map->index])
             op_exchange_halo_partial(&args[n], exec_flag);
           else{
-#ifdef COMM_AVOID
-            // if(args[n].dat->halo_info->max_nhalos > 1){
-              op_exchange_halo_merged(&args[n], exec_flag);
-            // }else
-#else
+// #ifdef COMM_AVOID
+//             // if(args[n].dat->halo_info->max_nhalos > 1){
+//               op_exchange_halo_merged(&args[n], exec_flag);
+//             // }else
+// #else
               op_exchange_halo(&args[n], exec_flag);
-#endif
+// #endif
           }
         }
       }
@@ -4441,11 +4441,12 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
 }
 
 int get_set_size_with_nhalos(op_set set, int nhalos){
-  return set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
+  return (nhalos > set->halo_info->max_nhalos) ? set->size + set->exec_sizes[set->halo_info->nhalos_indices[set->halo_info->max_nhalos]] : 
+  set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
 
 int get_set_core_size(op_set set, int nhalos){
-  return set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
+  return (nhalos > set->halo_info->max_nhalos) ? 0 : set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
 
 int op_mpi_test(op_arg *arg) {
@@ -4509,12 +4510,12 @@ void op_mpi_halo_exchange_summary(){
   // printf("op_exit partial my_rank=%d nonexec_tx=%d nonexec_rx=%d\n", 
   // my_rank,  OP_mpi_tx_nonexec_msg_count_partial, OP_mpi_rx_nonexec_msg_count_partial);
 
-  MPI_Reduce(&OP_mpi_tx_exec_msg_count, &exec_message_count, 1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-  MPI_Reduce(&OP_mpi_tx_nonexec_msg_count, &nonexec_message_count, 1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&OP_mpi_tx_exec_msg_count, &exec_message_count, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&OP_mpi_tx_nonexec_msg_count, &nonexec_message_count, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
 
-  op_printf("op_mpi_halo_exchange_summary my_rank=%d exec_tx=%d nonexec_tx=%d\n", 
-  my_rank,  exec_message_count, nonexec_message_count);
+  op_printf("op_mpi_halo_exchange_summary my_rank=%d total=%lu exec_tx=%lu nonexec_tx=%lu\n", 
+  my_rank, exec_message_count + nonexec_message_count, exec_message_count, nonexec_message_count);
 
-  op_printf("halo exchange summary my_rank=%d pack=%f unpack=%f halo_exch=%f\n", 
-  my_rank,  pack_time, unpack_time, halo_exch_time);
+  // op_printf("halo exchange summary my_rank=%d pack=%f unpack=%f halo_exch=%f\n", 
+  // my_rank,  pack_time, unpack_time, halo_exch_time);
 }
