@@ -88,6 +88,7 @@ def read_in(dat: OP.Dat, loop_host: LoopHost) -> bool:
 env.tests["read_in"] = read_in
 env.tests["instance"] = lambda x, c: isinstance(x, c)
 
+
 def unpack(tup):
     if not isinstance(tup, tuple):
         return tup
