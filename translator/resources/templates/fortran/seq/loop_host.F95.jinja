@@ -18,9 +18,7 @@ use OP2_CONSTANTS
 
 contains
 
-{% block kernel %}
 {{lh.kernel_func}}
-{% endblock %}
 
 subroutine {{lh.kernel.name}}_wrapper( &
 {% for dat, idx in lh.dats.items() %}
@@ -41,17 +39,14 @@ subroutine {{lh.kernel.name}}_wrapper( &
 
     ! parameters
 {% for dat, idx in lh.dats.items() %}
-    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat_{{dat.ptr}}
+    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-
 {% for map, idx in lh.maps.items() %}
-    integer(4), dimension({{map.dim}}, *) :: map_{{map.ptr}}
+    integer(4), dimension({{map.dim}}, *) :: map_{{map.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-
 {% for arg, idx in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-
     integer(4) :: start, finish
     type(op_arg), dimension({{lh.args_expanded|length}}) :: args_expanded
     logical :: do_test
@@ -99,17 +94,14 @@ subroutine {{lh.kernel.name}}_host( &
     integer(4) :: set_size
 
 {% for dat, idx in lh.dats.items() %}
-    {{dat.typ}}, pointer, dimension(:) :: dat_{{dat.ptr}}
+    {{dat.typ}}, pointer, dimension(:) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-
 {% for map, idx in lh.maps.items() %}
-    integer(4), pointer, dimension(:) :: map_{{map.ptr}}
+    integer(4), pointer, dimension(:) :: map_{{map.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-
 {% for arg, idx in lh.args|gbl %}
-    {{arg.typ}}, pointer, dimension(:) :: gbl_{{arg.ptr}}
+    {{arg.typ}}, pointer, dimension(:) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-
     real(8) :: start_time, end_time
     real(4) :: transfer
 
@@ -124,16 +116,14 @@ subroutine {{lh.kernel.name}}_host( &
 
 {% for dat, idx in lh.dats.items() %}
     call c_f_pointer(arg{{idx}}%data, dat_{{dat.ptr}}, (/arg{{idx}}%dim * getsetsizefromoparg(arg{{idx}})/))
+        {{-"\n" if loop.last}}
 {% endfor %}
-
 {% for map, idx in lh.maps.items() %}
-    call c_f_pointer(arg{{idx}}%map_data, map_{{map.ptr}}, (/set%setptr%size * {{map.dim}}/))
+    call c_f_pointer(arg{{idx}}%map_data, map_{{map.ptr}}, (/set%setptr%size * {{map.dim}}/)){{"\n" if loop.last}}
 {% endfor %}
-
 {% for arg, idx in lh.args|gbl %}
-    call c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/))
+    call c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
 {% endfor %}
-
     call {{lh.kernel.name}}_wrapper( &
 {% for dat, idx in lh.dats.items() %}
         dat_{{dat.ptr}}, &
