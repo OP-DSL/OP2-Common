@@ -35,8 +35,9 @@ class Fortran(Lang):
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
         return fortran.parser.parseKernel(self.parseFile(path, frozenset(include_dirs)), name, path)
 
-    def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
-        return fortran.translator.program.translateProgram(source, program, force_soa)
+    def translateProgram(self, program: Program, include_dirs: Set[Path], force_soa: bool) -> str:
+        ast = self.parseFile(program.path, frozenset(include_dirs))
+        return fortran.translator.program.translateProgram(ast, program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         if isinstance(typ, OP.Int):

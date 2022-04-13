@@ -264,7 +264,7 @@ subroutine {{lh.kernel.name}}_host( &
     num_dats_indirect = {{lh.dats|indirect(lh)|length}}
     dats_indirect = (/
     {%- for arg, idx in lh.args -%}
-        {{lh.dats|indirect(lh)|index(lh.finddat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
+        {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
         {{-", " if not loop.last}}
     {%- endfor -%}
     /)
