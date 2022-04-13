@@ -61,14 +61,11 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info )
 endif
 
-KERNELS = $(patsubst %.inc,%,$(wildcard *.inc))
-KERNEL_SOURCES = $(wildcard *.inc) $(wildcard *.inc2)
-
-GEN_KERNELS_GENSEQ = $(foreach kernel,$(KERNELS),$(kernel)_seq_kernel.F95)
-GEN_KERNELS_VEC = $(foreach kernel,$(KERNELS),$(kernel)_vec_kernel.F95)
-GEN_KERNELS_OPENMP = $(foreach kernel,$(KERNELS),$(kernel)_openmp_kernel.F95)
-GEN_KERNELS_OPENMP4 = $(foreach kernel,$(KERNELS),$(kernel)_openmp4_kernel.F95)
-GEN_KERNELS_CUDA = $(foreach kernel,$(KERNELS),$(kernel)_cuda_kernel.CUF)
+GEN_KERNELS_GENSEQ = op2_constants_seq.F95 $(wildcard *_seq_kernel.F95)
+GEN_KERNELS_VEC = op2_constants_vec.F95 $(wildcard *_vec_kernel.F95)
+GEN_KERNELS_OPENMP = op2_constants_openmp.F95 $(wildcard *_openmp_kernel.F95)
+GEN_KERNELS_OPENMP4 = op2_constants_openmp4.F95 $(wildcard *_openmp4_kernel.F95)
+GEN_KERNELS_CUDA = op2_constants_cuda.CUF $(wildcard *_cuda_kernel.CUF)
 
 GENERATED = \
 	$(APP_ENTRY_OP) \
@@ -96,11 +93,11 @@ clean:
 mod/%:
 	@mkdir -p $@
 
-SEQ_SRC := constants.F90 $(APP_ENTRY_BASENAME)_seqfun.F90 input.F90 $(APP_ENTRY)
+SEQ_SRC := $(APP_ENTRY)
 
 # $(1) = variant name
 define SRC_template =
-$(1)_SRC := constants.F90 $$(GEN_KERNELS_$(1)) $(APP_ENTRY_BASENAME)_seqfun.F90 input.F90 $(APP_ENTRY_OP)
+$(1)_SRC := $$(GEN_KERNELS_$(1)) $(APP_ENTRY_OP)
 endef
 
 $(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\

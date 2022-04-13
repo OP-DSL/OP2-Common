@@ -1,0 +1,28 @@
+module op2_constants
+
+implicit none
+
+{% for const in app.consts() %}
+{{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}
+{% endfor %}
+
+contains
+
+{% for const in app.consts() %}
+subroutine op_decl_const_{{const.ptr}}(ptr, dim)
+    {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: ptr
+    integer(4) :: dim
+
+{% if const.dim > 1 %}
+    integer(4) :: d
+
+    do d = 1, dim
+        op2_const_{{const.ptr}}(d) = ptr
+    end do
+{% else %}
+    op2_const_{{const.ptr}} = ptr
+{% endif %}
+end subroutine
+
+{% endfor %}
+end module
