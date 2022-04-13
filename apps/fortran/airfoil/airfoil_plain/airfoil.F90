@@ -2,7 +2,6 @@ program AIRFOIL
   use OP2_FORTRAN_DECLARATIONS
 !  use OP2_FORTRAN_HDF5_DECLARATIONS
   use OP2_Fortran_Reference
-  use OP2_CONSTANTS
   use AIRFOIL_SEQ
   use IO
   use, intrinsic :: ISO_C_BINDING
@@ -21,6 +20,8 @@ program AIRFOIL
 
   integer(4) :: nnode, ncell, nbedge, nedge, niter, qdim
   real(8) :: ncellr
+
+  real(8) :: gam, gm1, cfl, eps, mach, alpha, qinf(4)
 
   ! profiling
   real(kind=c_double) :: startTime = 0

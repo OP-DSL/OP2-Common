@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 from collections import OrderedDict
 from pathlib import Path
 from types import MethodType
@@ -137,10 +138,18 @@ class Scheme(Findable):
 
         # Load the loop host template
         template = env.get_template(str(self.master_kernel_template))
+
+        appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
         extension = self.master_kernel_template.suffixes[-2][1:]
 
+        # TODO: move this into Lang somewhere
+        if self.lang.name == "Fortran":
+            name = f"op2_constants_{self.target.name}.{extension}"
+        else:
+            name = f"{appname}_kernels.{extension}"
+
         # Generate source from the template
-        return template.render(OP=OP, app=app, target=self.target, user_types=user_types), extension
+        return template.render(OP=OP, app=app, target=self.target, user_types=user_types), name
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return kernel.path.read_text()
@@ -192,7 +201,7 @@ class FortranSeq(Scheme):
     target = Target.find("seq")
 
     loop_host_template = Path("fortran/seq/loop_host.F95.jinja")
-    master_kernel_template = None
+    master_kernel_template = Path("fortran/seq/constants.F95.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return fortran.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
@@ -222,7 +231,7 @@ class FortranCuda(Scheme):
     target = Target.find("cuda")
 
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
-    master_kernel_template = None
+    master_kernel_template = Path("fortran/cuda/constants.CUF.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return fortran.translator.kernels.cuda.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
