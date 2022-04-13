@@ -27,7 +27,7 @@ def translateKernel(
     const_ptrs = set(map(lambda const: const.ptr, app.consts()))
     for name in fpu.walk(kernel_ast, f2003.Name):
         if name.string in const_ptrs:
-            name.string = name.string + "_OP2"  # "_d"
+            name.string = f"op2_const_{name.string}_d"
 
     loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
 

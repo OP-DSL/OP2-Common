@@ -16,7 +16,7 @@ program jac
 
     integer(4) :: i, j, p
 
-    real(8) :: u_sum, u_max, beta
+    real(8) :: u_sum, u_max, alpha, beta
 
     integer(4) :: nnode, nedge
     integer(4), dimension(:), allocatable :: pp
@@ -58,11 +58,7 @@ program jac
 
     alpha = 1.0
 
-#ifdef OP2_WITH_CUDAFOR
-    alpha_OP2 = alpha
-#endif
-
-    call op_decl_const(alpha, 1, "alpha")
+    call op_decl_const(alpha, 1, "real(8)")
 
     call op_timers(start_time)
 

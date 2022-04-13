@@ -33,7 +33,7 @@ class Lang(Findable):
         pass
 
     @abstractmethod
-    def translateProgram(self, source: str, program: Program) -> str:
+    def translateProgram(self, program: Program, include_dirs: Set[Path], force_soa: bool) -> str:
         pass
 
     @abstractmethod

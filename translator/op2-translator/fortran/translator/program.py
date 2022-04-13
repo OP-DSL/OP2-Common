@@ -1,35 +1,68 @@
 import re
 
+import fparser.two.Fortran2003 as f2003
+import fparser.two.utils as fpu
+
 from store import Program
 from util import SourceBuffer, safeFind
 
 
-# Augment source program to use generated kernel hosts
-def translateProgram(source: str, program: Program, force_soa: bool) -> str:
-    buffer = SourceBuffer(source)
+def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> str:
+    for call in fpu.walk(ast, f2003.Call_Stmt):
+        name = fpu.get_child(call, f2003.Name)
+        if name.string != "op_decl_const":
+            continue
 
-    # 1. Comment-out const calls
-    for const in program.consts:
-        buffer.apply(const.loc.line - 1, lambda line: "! " + line)
+        args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
+        args.items = tuple(list(args.items[:-1]))
 
-    # 2. Update loop calls
-    for loop in program.loops:
-        before, after = re.split(r"op_par_loop_[1-9]\d*", buffer.get(loop.loc.line - 1), 1)
-        after = after.replace(
-            loop.kernel, f'"{loop.kernel}"'
-        )  # TODO: This assumes that the kernel arg is on the same line as the call
-        buffer.update(loop.loc.line - 1, before + f"{loop.kernel}_host" + after)
+        const_ptr = args.items[0].string
 
-    # 3. Update headers
-    index = buffer.search(r"\s*use\s+OP2_Fortran_Reference\s*", re.IGNORECASE)
-    buffer.apply(index, lambda line: "! " + line)
-    for loop in program.loops:
-        buffer.insert(index, f"  use {loop.kernel.upper()}_MODULE")
+        name.string = f"{name.string}_{const_ptr}"
 
-    # 4. Update init call TODO: Use a line number from the program
-    source = buffer.translate()
-    if force_soa:
-        source = re.sub(r"\bop_init(\w*)\b\s*\((.*)\)", "op_init\\1_soa(\\2,1)", source)
-        source = re.sub(r"\bop_mpi_init(\w*)\b\s*\((.*)\)", "op_mpi_init\\1_soa(\\2,1)", source)
+    for call in fpu.walk(ast, f2003.Call_Stmt):
+        name = fpu.get_child(call, f2003.Name)
+        if not re.match(r"op_par_loop_\d+", name.string):
+            continue
 
-    return source
+        args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
+        arg_list = list(args.items)
+
+        kernel_name = arg_list[0].string
+
+        arg_list[0] = f2003.Char_Literal_Constant(f'"{kernel_name}"')
+        args.items = tuple(arg_list)
+
+        name.string = f"{kernel_name}_host"
+
+    for main_program in fpu.walk(ast, f2003.Main_Program):
+        spec = fpu.get_child(main_program, f2003.Specification_Part)
+        new_content = [f2003.Use_Stmt(f"USE {loop.kernel.upper()}_MODULE") for loop in program.loops]
+
+        for node in spec.content:
+            if (
+                isinstance(node, f2003.Use_Stmt)
+                and fpu.get_child(node, f2003.Name).string.upper() == "OP2_FORTRAN_REFERENCE"
+            ):
+                continue
+
+            new_content.append(node)
+
+        spec.content = new_content
+
+    if not force_soa:
+        return str(ast)
+
+    for call in fpu.walk(ast, f2003.Call_Stmt):
+        name = fpu.get_child(call, f2003.Name)
+
+        init_funcs = ["op_init", "op_init_base", "op_mpi_init"]
+        if name.string not in init_funcs:
+            continue
+
+        args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
+        args.items = tuple(list(args.items) + [f2003.Int_Literal_Constant("1")])
+
+        name.string = f"{name.string}_soa"
+
+    return str(ast)

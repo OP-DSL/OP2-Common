@@ -4,8 +4,6 @@ from typing import Any, List, Optional, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
-from fparser.common.readfortran import FortranFileReader
-from fparser.two.parser import ParserFactory
 
 import op as OP
 from store import Kernel, Location, ParseError, Program
@@ -120,7 +118,7 @@ def parseCall(name: str, args: Optional[f2003.Actual_Arg_Spec_List], loc: Locati
     elif name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
 
-    elif re.search(r"op_par_loop_\d+", name):
+    elif re.match(r"op_par_loop_\d+", name):
         program.loops.append(parseLoop(args, loc))
 
     elif name == "op_exit":
@@ -217,8 +215,10 @@ def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.
     ptr = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)  # TODO: Might not be an integer literal?
 
-    # TODO: op_decl_const has no type for Fortran?
-    return OP.Const(loc, dim, OP.Float(32), ptr)
+    typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
+    typ = parseType(typ_str, loc)
+
+    return OP.Const(loc, dim, typ, ptr)
 
 
 def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Loop:

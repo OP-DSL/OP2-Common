@@ -126,12 +126,12 @@ def main(argv=None) -> None:
 
     # Generate program translations
     for i, program in enumerate(app.programs, 1):
-        with open(program.path, "r") as raw_file:
-            source = lang.translateProgram(raw_file.read(), program, args.force_soa)
+        include_dirs = set([Path(dir) for [dir] in args.I])
+        source = lang.translateProgram(program, include_dirs, args.force_soa)
 
-            new_file = os.path.splitext(os.path.basename(program.path))[0]
-            ext = os.path.splitext(os.path.basename(program.path))[1]
-            new_path = Path(args.out, f"{new_file}_op{ext}")
+        new_file = os.path.splitext(os.path.basename(program.path))[0]
+        ext = os.path.splitext(os.path.basename(program.path))[1]
+        new_path = Path(args.out, f"{new_file}_op{ext}")
 
         with open(new_path, "w") as new_file:
             new_file.write(f"\n{lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
@@ -222,20 +222,19 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
                 print(f"Generated loop host {i} of {len(app.loops())}: {path}")
 
     # Generate master kernel file
-    if scheme.master_kernel_template != None:
+    if scheme.master_kernel_template is not None:
         user_types_name = f"user_types.{scheme.lang.include_ext}"
         user_types_candidates = [Path(dir, user_types_name) for dir in include_dirs]
         user_types_file = safeFind(user_types_candidates, lambda p: p.is_file())
 
-        source, extension = scheme.genMasterKernel(env, app, user_types_file)
-        appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
+        source, name = scheme.genMasterKernel(env, app, user_types_file)
 
         path = None
         if scheme.lang.kernel_dir:
             Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
-            path = Path(args.out, scheme.target.name, f"{appname}_kernels.{extension}")
+            path = Path(args.out, scheme.target.name, name)
         else:
-            path = Path(args.out, f"{appname}_{scheme.target.name}_kernels.{extension}")
+            path = Path(args.out, name)
 
         with open(path, "w") as file:
             file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")

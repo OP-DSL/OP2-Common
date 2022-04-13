@@ -47,8 +47,8 @@ class Cpp(Lang):
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
         return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs)), name, path)
 
-    def translateProgram(self, source: str, program: Program, force_soa: bool) -> str:
-        return cpp.translator.program.translateProgram(source, program, force_soa)
+    def translateProgram(self, program: Program, include_dirs: Set[Path], force_soa: bool) -> str:
+        return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         int_types = {
