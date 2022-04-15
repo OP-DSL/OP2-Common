@@ -17,7 +17,7 @@ subroutine op_decl_const_{{const.ptr}}(ptr, dim)
     integer(4) :: d
 
     do d = 1, dim
-        op2_const_{{const.ptr}}(d) = ptr
+        op2_const_{{const.ptr}}(d) = ptr(d)
     end do
 {% else %}
     op2_const_{{const.ptr}} = ptr
