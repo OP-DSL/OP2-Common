@@ -65,19 +65,19 @@ program jac
     beta = 1.0
 
     do i = 1, niter
-        call op_par_loop_1(res, edges, &
-            op_arg_dat(p_A, -1, OP_ID, 1, "real(8)", OP_READ), &
-            op_arg_dat(p_u, 2, ppedge, 1, "real(8)", OP_READ), &
-            op_arg_dat(p_du, 1, ppedge, 1, "real(8)", OP_INC), &
+        call op_par_loop_4(res, edges, &
+            op_arg_dat(p_A, -1, OP_ID,  1, "real(8)", OP_READ), &
+            op_arg_dat(p_u,  2, ppedge, 1, "real(8)", OP_READ), &
+            op_arg_dat(p_du, 1, ppedge, 1, "real(8)", OP_INC),  &
             op_arg_gbl(beta, 1, "real(8)", OP_READ))
 
         u_sum = 0.0
         u_max = 0.0
 
-        call op_par_loop_2(update, nodes, &
-            op_arg_dat(p_r, -1, OP_ID, 1, "real(8)", OP_READ), &
-            op_arg_dat(p_du, -1, OP_ID, 1, "real(8)", OP_RW), &
-            op_arg_dat(p_u, -1, OP_ID, 1, "real(8)", OP_INC), &
+        call op_par_loop_5(update, nodes, &
+            op_arg_dat(p_r,  -1, OP_ID, 1, "real(8)", OP_READ), &
+            op_arg_dat(p_du, -1, OP_ID, 1, "real(8)", OP_RW),   &
+            op_arg_dat(p_u,  -1, OP_ID, 1, "real(8)", OP_INC),  &
             op_arg_gbl(u_sum, 1, "real(8)", OP_INC), &
             op_arg_gbl(u_max, 1, "real(8)", OP_MAX))
 
