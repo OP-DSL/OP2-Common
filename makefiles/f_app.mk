@@ -11,6 +11,8 @@ APP_ENTRY ?= $(APP_NAME).F90
 APP_ENTRY_BASENAME := $(basename $(APP_ENTRY))
 APP_ENTRY_OP := $(APP_ENTRY_BASENAME)_op.F90
 
+APP_SRC_EXTRA_OP := $(APP_SRC_EXTRA:%.F90=%_op.F90)
+
 BASE_VARIANTS := seq genseq vec openmp cuda
 
 ALL_VARIANTS := $(BASE_VARIANTS)
@@ -69,6 +71,7 @@ GEN_KERNELS_CUDA = op2_constants_cuda.CUF $(wildcard *_cuda_kernel.CUF)
 
 GENERATED = \
 	$(APP_ENTRY_OP) \
+	$(APP_SRC_EXTRA_OP) \
 	$(GEN_KERNELS_GENSEQ) \
 	$(GEN_KERNELS_VEC) \
 	$(GEN_KERNELS_OPENMP) \
@@ -86,18 +89,18 @@ clean:
 	-$(RM) *.o
 	-$(RM) -r mod
 
-.generated: $(APP_ENTRY)
-	$(TRANSLATOR) $<
+.generated: $(APP_ENTRY) $(APP_SRC_EXTRA)
+	$(TRANSLATOR) $^
 	@touch $@
 
 mod/%:
 	@mkdir -p $@
 
-SEQ_SRC := $(APP_ENTRY)
+SEQ_SRC := $(APP_SRC_EXTRA) $(APP_ENTRY)
 
 # $(1) = variant name
 define SRC_template =
-$(1)_SRC := $$(GEN_KERNELS_$(1)) $(APP_ENTRY_OP)
+$(1)_SRC = $$(GEN_KERNELS_$(1)) $(APP_SRC_EXTRA_OP) $(APP_ENTRY_OP)
 endef
 
 $(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
