@@ -98,7 +98,7 @@ op_export_handle *OP_export_list = NULL;
 double t1, t2, c1, c2;
 
 // Message counts
-int exec_message_count = 0, nonexec_message_count = 0;
+unsigned long long exec_message_count = 0, nonexec_message_count = 0;
 
 #include <execinfo.h>
 void bt1(void) {
@@ -4510,10 +4510,10 @@ void op_mpi_halo_exchange_summary(){
   // printf("op_exit partial my_rank=%d nonexec_tx=%d nonexec_rx=%d\n", 
   // my_rank,  OP_mpi_tx_nonexec_msg_count_partial, OP_mpi_rx_nonexec_msg_count_partial);
 
-  MPI_Reduce(&OP_mpi_tx_exec_msg_count, &exec_message_count, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-  MPI_Reduce(&OP_mpi_tx_nonexec_msg_count, &nonexec_message_count, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&OP_mpi_tx_exec_msg_count, &exec_message_count, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&OP_mpi_tx_nonexec_msg_count, &nonexec_message_count, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
 
-  op_printf("op_mpi_halo_exchange_summary my_rank=%d total=%lu exec_tx=%lu nonexec_tx=%lu\n", 
+  op_printf("op_mpi_halo_exchange_summary my_rank=%d total=%llu exec_tx=%llu nonexec_tx=%llu\n", 
   my_rank, exec_message_count + nonexec_message_count, exec_message_count, nonexec_message_count);
 
   // op_printf("halo exchange summary my_rank=%d pack=%f unpack=%f halo_exch=%f\n", 

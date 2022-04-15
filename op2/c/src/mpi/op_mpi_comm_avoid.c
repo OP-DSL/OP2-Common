@@ -2389,7 +2389,7 @@ int get_max_nhalos_count(){
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 4;  // this is a temp const
+  int max_dat_count = 20;  // this is a temp const
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
