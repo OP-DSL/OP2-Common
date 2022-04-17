@@ -8,6 +8,7 @@
 
 #include <op_mpi_core.h>
 #include <limits.h>
+#include <stdlib.h>
 
 int** aug_part_range;
 int* aug_part_range_size;
@@ -2386,6 +2387,136 @@ int get_max_nhalos_count(){
   return max_count;
 }
 
+void calculate_dat_size(int my_rank, op_dat dat){
+  op_set set = dat->set;
+  halo_list exp_list = OP_merged_export_exec_nonexec_list[set->index];
+  char header_str[500];
+  char result_str[500];
+  int max_level = set->halo_info->max_nhalos;
+  int num_level = set->halo_info->nhalos_count;
+
+  int header_len = 0;
+  snprintf(&header_str[header_len], 30, "%s", "my_rank,to_rank,dat,set,"); header_len = strlen(header_str);
+  for(int i = 0; i < max_level; i++){
+    snprintf(&header_str[header_len], 20, "exec_%d,", i); header_len = strlen(header_str);
+  }
+  for(int i = 0; i < num_level; i++){
+    snprintf(&header_str[header_len], 20, "nonexec_%d,", i); header_len = strlen(header_str);
+  }
+  printf("test,%s\n", header_str);
+
+  int ind_count = 0;
+  int exec_count = 0;
+  int nonexec_count = 0;
+  int merged_count = 0;
+
+  int max_ind = 0;
+  int max_exec = 0;
+  int max_nonexec = 0;
+  int max_merged = 0;
+
+  int ind_total = 0;
+  int exec_total = 0;
+  int nonexec_total = 0;
+  int merged_total = 0;
+
+
+  for(int r = 0; r < exp_list->ranks_size / exp_list->num_levels; r++){
+    int len = 0;
+    snprintf(&result_str[len], 10, "%d,", my_rank); len = strlen(result_str);
+    snprintf(&result_str[len], 10, "%d,", exp_list->ranks[r]); len = strlen(result_str);
+    snprintf(&result_str[len], 20, "%s,", dat->name); len = strlen(result_str);
+    snprintf(&result_str[len], 20, "%s,", set->name); len = strlen(result_str);
+
+    int rank_total = 0;
+    for(int l = 0; l < max_level + num_level; l++){
+      int level_disp = exp_list->level_disps[l];
+      int rank_disp = exp_list->rank_disps[l];
+      int disp_in_level = exp_list->disps[rank_disp + r];
+
+      int size = dat->size * exp_list->sizes[exp_list->rank_disps[l] + r];
+      snprintf(&result_str[len], 10, "%d,", size);
+
+      len = strlen(result_str);
+
+      if(size > 0){
+        ind_count++;
+        ind_total += size;
+        if(max_ind < size)
+          max_ind = size;
+
+        if(l < max_level){
+          exec_count++;
+          exec_total += size;
+          if(max_exec < size)
+            max_exec = size;
+        }else{
+          nonexec_count++;
+          nonexec_total += size;
+          if(max_nonexec < size)
+            max_nonexec = size;
+        }
+        rank_total += size;
+      }
+    }
+
+    if(rank_total > 0){
+        merged_count++;
+        merged_total += rank_total;
+        if(max_merged < rank_total)
+          max_merged = rank_total;
+    }
+    printf("test,%s\n", result_str);
+    
+  }
+
+  double ind_avg = (float)ind_total/(float)ind_count;
+  double exec_avg = (float)exec_total/(float)exec_count;
+  double nonexec_avg = (float)nonexec_total/(float)nonexec_count;
+  double merged_avg = (float)merged_total/(float)merged_count;
+
+  double max_ind_avg = 0.0;
+  double max_exec_avg = 0.0;
+  double max_nonexec_avg = 0.0;
+  double max_merged_avg = 0.0;
+
+  int max_max_ind = 0;
+  int max_max_exec = 0;
+  int max_max_nonexec = 0;
+  int max_max_merged = 0;
+
+  printf("test_ind_avg,my_rank=%d,ind_avg=%f,exec_avg=%f,nonexec_avg=%f,merged_avg=%f\n", my_rank,
+  ind_avg, exec_avg, nonexec_avg, merged_avg);
+  printf("test_max_avg,my_rank=%d,max_ind=%d,max_exec=%d,max_nonexec=%d,max_merged=%d\n", my_rank,
+    max_ind, max_exec, max_nonexec, max_merged);
+
+  MPI_Reduce(&ind_avg, &max_ind_avg, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&exec_avg, &max_exec_avg, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&nonexec_avg, &max_nonexec_avg, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&merged_avg, &max_merged_avg, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+  MPI_Reduce(&max_ind, &max_max_ind, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&max_exec, &max_max_exec, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&max_nonexec, &max_max_nonexec, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(&max_merged, &max_max_merged, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+  op_printf("test_ind_avg_all,my_rank=%d,ind_avg=%f,exec_avg=%f,nonexec_avg=%f,merged_avg=%f\n", my_rank,
+  max_ind_avg, max_exec_avg, max_nonexec_avg, max_merged_avg);
+
+  op_printf("test_max_avg_all, my_rank=%d,max_ind=%d,max_exec=%d,max_nonexec=%d,max_merged=%d\n", my_rank,
+    max_max_ind, max_max_exec, max_max_nonexec, max_max_merged);
+}
+
+void calculate_dat_sizes(int my_rank){
+  int max_level = get_max_nhalos();
+  int num_level = get_max_nhalos_count();
+  op_dat_entry *item;
+  
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    calculate_dat_size(my_rank, item->dat);
+  }
+}
+
 void set_group_halo_envt(){
 
   grp_tag = 100;
@@ -2589,6 +2720,7 @@ void op_halo_create_comm_avoid() {
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
   set_group_halo_envt();
+  // calculate_dat_sizes(my_rank);
 
 
   /*-STEP 12 ---------- Clean up and Compute rough halo size
