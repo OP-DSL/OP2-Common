@@ -196,7 +196,7 @@ def parseDatHdf5(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> O
     dim = parseIntLiteral(args.items[1], loc)
     ptr = parseIdentifier(args.items[2], loc)
 
-    typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
+    typ_str = parseStringLiteral(args.items[3], loc).strip().lower()
 
     soa_regex = r":soa$"
     if re.search(soa_regex, typ_str):
