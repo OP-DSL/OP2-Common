@@ -6,7 +6,7 @@ BASE_FFLAGS := -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none 
 ifndef DEBUG
   BASE_FFLAGS += -O3
 else
-  BASE_FFLAGS += -g -Og -fcheck=all
+  BASE_FFLAGS += -g -Og -fcheck=all -ffpe-trap=invalid,zero,overflow
 endif
 
 CONFIG_FFLAGS ?= $(BASE_FFLAGS)

@@ -26,32 +26,32 @@ contains
 
         real(8) :: dx, dy, ri, u, v, c
 
-        ri = 1.0 / q(1)
+        ri = 1.0_8 / q(1)
 
         u = ri * q(2)
         v = ri * q(3)
 
-        c = sqrt(gam * gm1 * (ri * q(4) - 0.5 * (u * u + v * v)))
+        c = sqrt(gam * gm1 * (ri * q(4) - 0.5_8 * (u**2 + v**2)))
 
         dx = x2(1) - x1(1)
         dy = x2(2) - x1(2)
 
-        adt = abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+        adt = abs(u * dy - v * dx) + c * sqrt(dx**2 + dy**2)
 
         dx = x3(1) - x2(1)
         dy = x3(2) - x2(2)
 
-        adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+        adt = adt + abs(u * dy - v * dx) + c * sqrt(dx**2 + dy**2)
 
         dx = x4(1) - x3(1)
         dy = x4(2) - x3(2)
 
-        adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+        adt = adt + abs(u * dy - v * dx) + c * sqrt(dx**2 + dy**2)
 
         dx = x1(1) - x4(1)
         dy = x1(2) - x4(2)
 
-        adt = adt + abs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy)
+        adt = adt + abs(u * dy - v * dx) + c * sqrt(dx**2 + dy**2)
         adt = adt / cfl
     end subroutine
 
@@ -66,33 +66,33 @@ contains
         dx = x1(1) - x2(1)
         dy = x1(2) - x2(2)
 
-        ri = 1.0 / q1(1)
-        p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+        ri = 1.0_8 / q1(1)
+        p1 = gm1 * (q1(4) - 0.5_8 * ri * (q1(2)**2 + q1(3)**2))
 
         vol1 = ri * (q1(2) * dy - q1(3) * dx)
 
-        ri = 1.0 / q2(1)
-        p2 = gm1 * (q2(4) - 0.5 * ri * (q2(2) * q2(2) + q2(3) * q2(3)))
+        ri = 1.0_8 / q2(1)
+        p2 = gm1 * (q2(4) - 0.5_8 * ri * (q2(2)**2 + q2(3)**2))
 
         vol2 = ri * (q2(2) * dy - q2(3) * dx)
 
-        mu = 0.5 * (adt1 + adt2) * eps
-        f = 0.5 * (vol1 * q1(1) + vol2 * q2(1)) + mu * (q1(1) - q2(1))
+        mu = 0.5_8 * (adt1 + adt2) * eps
+        f = 0.5_8 * (vol1 * q1(1) + vol2 * q2(1)) + mu * (q1(1) - q2(1))
 
         res1(1) = res1(1) + f
         res2(1) = res2(1) - f
 
-        f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * q2(2) + p2 * dy) + mu * (q1(2) - q2(2))
+        f = 0.5_8 * (vol1 * q1(2) + p1 * dy + vol2 * q2(2) + p2 * dy) + mu * (q1(2) - q2(2))
 
         res1(2) = res1(2) + f
         res2(2) = res2(2) - f
 
-        f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * q2(3) - p2 * dx) + mu * (q1(3) - q2(3))
+        f = 0.5_8 * (vol1 * q1(3) - p1 * dx + vol2 * q2(3) - p2 * dx) + mu * (q1(3) - q2(3))
 
         res1(3) = res1(3) + f
         res2(3) = res2(3) - f
 
-        f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (q2(4) + p2)) + mu * (q1(4) - q2(4))
+        f = 0.5_8 * (vol1 * (q1(4) + p1) + vol2 * (q2(4) + p2)) + mu * (q1(4) - q2(4))
 
         res1(4) = res1(4) + f
         res2(4) = res2(4) - f
@@ -110,8 +110,8 @@ contains
         dx = x1(1) - x2(1)
         dy = x1(2) - x2(2)
 
-        ri = 1.0 / q1(1)
-        p1 = gm1 * (q1(4) - 0.5 * ri * (q1(2) * q1(2) + q1(3) * q1(3)))
+        ri = 1.0_8 / q1(1)
+        p1 = gm1 * (q1(4) - 0.5_8 * ri * (q1(2)**2 + q1(3)**2))
 
         if (bound == 1) then
             res1(2) = res1(2) + p1 * dy
@@ -121,22 +121,22 @@ contains
         end if
 
         vol1 = ri * (q1(2) * dy - q1(3) * dx)
-        ri = 1.0 / qinf(1)
-        p2 = gm1 * (qinf(4) - 0.5 * ri * (qinf(2) * qinf(2) + qinf(3) * qinf(3)))
+        ri = 1.0_8 / qinf(1)
+        p2 = gm1 * (qinf(4) - 0.5_8 * ri * (qinf(2)**2 + qinf(3)**2))
 
         vol2 = ri * (qinf(2) * dy - qinf(3) * dx)
         mu = adt1 * eps
 
-        f = 0.5 * (vol1 * q1(1) + vol2 * qinf(1)) + mu * (q1(1) - qinf(1))
+        f = 0.5_8 * (vol1 * q1(1) + vol2 * qinf(1)) + mu * (q1(1) - qinf(1))
         res1(1) = res1(1) + f
 
-        f = 0.5 * (vol1 * q1(2) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (q1(2) - qinf(2))
+        f = 0.5_8 * (vol1 * q1(2) + p1 * dy + vol2 * qinf(2) + p2 * dy) + mu * (q1(2) - qinf(2))
         res1(2) = res1(2) + f
 
-        f = 0.5 * (vol1 * q1(3) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (q1(3) - qinf(3))
+        f = 0.5_8 * (vol1 * q1(3) - p1 * dx + vol2 * qinf(3) - p2 * dx) + mu * (q1(3) - qinf(3))
         res1(3) = res1(3) + f
 
-        f = 0.5 * (vol1 * (q1(4) + p1) + vol2 * (qinf(4) + p2)) + mu * (q1(4) - qinf(4))
+        f = 0.5_8 * (vol1 * (q1(4) + p1) + vol2 * (qinf(4) + p2)) + mu * (q1(4) - qinf(4))
         res1(4) = res1(4) + f
     end subroutine
 
@@ -150,14 +150,14 @@ contains
         real(8) :: del, adti
         integer(4) :: i
 
-        adti = 1.0 / adt
+        adti = 1.0_8 / adt
 
         do i = 1, 4
             del = adti * res(i)
             q(i) = qold(i) - del
-            res(i) = 0.0
+            res(i) = 0.0_8
 
-            rms(2) = rms(2) + del * del
+            rms(2) = rms(2) + del**2
         end do
     end subroutine
 

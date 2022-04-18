@@ -1,6 +1,7 @@
 program airfoil
     use op2_fortran_declarations
     use op2_fortran_reference
+    use op2_fortran_rt_support
 
     use airfoil_constants
     use airfoil_input
@@ -11,7 +12,7 @@ program airfoil
     implicit none
 
     integer(4), parameter :: niter = 1000
-    integer(4) :: iter, i, j, k
+    integer(4) :: iter, i, k
 
     integer(4) :: nnode, ncell, nbedge, nedge
 
@@ -38,7 +39,7 @@ program airfoil
     allocate(adt(ncell))
 
     do i = 1, ncell
-        q(4 * (i - 1) + 1:) = qinf
+        q(4 * (i - 1) + 1:4 * (i - 1) + 4) = qinf
     end do
 
     qold = 0.0_8
@@ -131,7 +132,7 @@ program airfoil
                 op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)", OP_WRITE), &
                 op_arg_dat(p_res,  -1, OP_ID, 4, "real(8)", OP_RW),    &
                 op_arg_dat(p_adt,  -1, OP_ID, 1, "real(8)", OP_READ),  &
-                op_arg_gbl(rms, 2, "real(8)", OP_INC))
+                op_arg_gbl(rms,     2,           "real(8)", OP_INC))
         end do
 
         rms(2) = sqrt(rms(2) / real(ncell))
@@ -141,23 +142,25 @@ program airfoil
         end if
     end do
 
-    if (niter == 1000 .and. ncell == 720000) then
-        diff = abs((100.0_8 * (rms(2) / 0.0001060114637578_8)) - 100.0_8)
-
-        write (*, "(A, I0, A, E16.7, A)") "Test problem with ", ncell , &
-            " cells is within ", diff, "% of the expected solution"
-
-        if(diff < 0.00001) THEN
-            print *, "Test Passed"
-        else
-            print *, "Test Failed"
-        end if
-    end if
-
     call op_timers(end_time)
     call op_timing_output()
 
+    print *
     print *, "Time =", end_time - start_time, "seconds"
+
+    if (niter == 1000 .and. ncell == 720000) then
+        diff = abs((100.0_8 * (rms(2) / 0.0001060114637578_8)) - 100.0_8)
+
+        print *
+        write (*, "(A, I0, A, E16.7, A)") " Test problem with ", ncell , &
+            " cells is within ", diff, "% of the expected solution"
+
+        if(diff < 0.00001_8) THEN
+            print *, "Test PASSED"
+        else
+            print *, "Test FAILED"
+        end if
+    end if
 
     call op_exit()
 end program airfoil
