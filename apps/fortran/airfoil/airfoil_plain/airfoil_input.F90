@@ -38,7 +38,7 @@ contains
         end do
 
         do i = 1, nedge
-            read(file_id, *) edge(2 * (i - 1) + 1), edge(2 * (i - 1) + 2), ecell(2 * (i - 1) + 1), ecell(2 * (i - 1) + 1)
+            read(file_id, *) edge(2 * (i - 1) + 1), edge(2 * (i - 1) + 2), ecell(2 * (i - 1) + 1), ecell(2 * (i - 1) + 2)
         end do
 
         do i = 1, nbedge
