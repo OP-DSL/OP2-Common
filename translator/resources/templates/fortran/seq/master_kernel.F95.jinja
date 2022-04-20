@@ -1,0 +1,34 @@
+module op2_kernels
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    implicit none
+
+    {% for const in app.consts() %}
+    {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}{{"\n" if loop.last}}
+    {% endfor %}
+contains
+
+{% for const in app.consts() %}
+    subroutine op_decl_const_{{const.ptr}}(ptr, dim)
+        {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: ptr
+        integer(4) :: dim
+
+    {% if const.dim > 1 %}
+        integer(4) :: d
+
+        do d = 1, dim
+            op2_const_{{const.ptr}}(d) = ptr(d)
+        end do
+    {% else %}
+        op2_const_{{const.ptr}} = ptr
+    {% endif %}
+    end subroutine
+
+{% endfor %}
+{% for loop_ in app.loops() %}
+    include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
+{% endfor %}
+end module
