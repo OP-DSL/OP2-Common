@@ -142,11 +142,7 @@ class Scheme(Findable):
         appname = os.path.splitext(os.path.basename(app.programs[0].path))[0]
         extension = self.master_kernel_template.suffixes[-2][1:]
 
-        # TODO: move this into Lang somewhere
-        if self.lang.name == "Fortran":
-            name = f"op2_constants_{self.target.name}.{extension}"
-        else:
-            name = f"{appname}_kernels.{extension}"
+        name = f"{appname}_kernels.{extension}"
 
         # Generate source from the template
         return template.render(OP=OP, app=app, target=self.target, user_types=user_types), name
@@ -200,8 +196,8 @@ class FortranSeq(Scheme):
     lang = Lang.find("F95")
     target = Target.find("seq")
 
-    loop_host_template = Path("fortran/seq/loop_host.F95.jinja")
-    master_kernel_template = Path("fortran/seq/constants.F95.jinja")
+    loop_host_template = Path("fortran/seq/loop_host.inc.jinja")
+    master_kernel_template = Path("fortran/seq/master_kernel.F95.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return fortran.translator.kernels.seq.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)
@@ -211,8 +207,8 @@ class FortranVec(Scheme):
     lang = Lang.find("F95")
     target = Target.find("vec")
 
-    loop_host_template = Path("fortran/vec/loop_host.F90.jinja")
-    master_kernel_template = None
+    loop_host_template = Path("fortran/vec/loop_host.inc.jinja")
+    master_kernel_template = Path("fortran/vec/master_kernel.F95.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return fortran.translator.kernels.vec.translateKernel(self.target.config, kernel.path.read_text(), kernel, app)
@@ -222,16 +218,16 @@ class FortranOpenMP(Scheme):
     lang = Lang.find("F95")
     target = Target.find("openmp")
 
-    loop_host_template = Path("fortran/omp/loop_host.F90.jinja")
-    master_kernel_template = None
+    loop_host_template = Path("fortran/openmp/loop_host.inc.jinja")
+    master_kernel_template = Path("fortran/openmp/master_kernel.F95.jinja")
 
 
 class FortranCuda(Scheme):
     lang = Lang.find("F95")
     target = Target.find("cuda")
 
-    loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
-    master_kernel_template = Path("fortran/cuda/constants.CUF.jinja")
+    loop_host_template = Path("fortran/cuda/loop_host.inc.jinja")
+    master_kernel_template = Path("fortran/cuda/master_kernel.CUF.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], kernel: Kernel, app: Application) -> str:
         return fortran.translator.kernels.cuda.translateKernel(self.lang, include_dirs, self.target.config, kernel, app)

@@ -18,7 +18,7 @@ class Fortran(Lang):
 
     source_exts = ["F90", "F95"]
     include_ext = "inc"
-    kernel_dir = False
+    kernel_dir = True
 
     com_delim = "!"
     zero_idx = False
