@@ -45,26 +45,6 @@ call op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
     {%- endif -%}
 {%- endmacro -%}
 
-module {{lh.kernel.name|upper}}_module
-
-use ISO_C_BINDING
-use CUDAFOR
-
-use OP2_FORTRAN_DECLARATIONS
-use OP2_FORTRAN_RT_SUPPORT
-use OP2_CONSTANTS
-
-use CUDACONFIGURATIONPARAMS
-
-implicit none
-
-{% for dat, idx in lh.dats.items()|soa %}
-integer(4) :: op2_dat_{{dat.ptr}}_stride
-integer(4), constant :: op2_dat_{{dat.ptr}}_stride_d
-
-{% endfor %}
-contains
-
 attributes(device) &
 {{lh.kernel_func}}
 
@@ -399,5 +379,3 @@ subroutine {{lh.kernel.name}}_host( &
 
     call setkerneltime({{lh.kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
 end subroutine
-
-end module

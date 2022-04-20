@@ -9,9 +9,9 @@ FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
 APP_ENTRY ?= $(APP_NAME).F90
 APP_ENTRY_BASENAME := $(basename $(APP_ENTRY))
-APP_ENTRY_OP := $(APP_ENTRY_BASENAME)_op.F90
+APP_ENTRY_OP := generated/$(APP_ENTRY_BASENAME)_op.F90
 
-APP_SRC_EXTRA_OP := $(APP_SRC_EXTRA:%.F90=%_op.F90)
+APP_SRC_EXTRA_OP := $(APP_SRC_EXTRA:%.F90=generated/%_op.F90)
 
 BASE_VARIANTS := seq genseq vec openmp cuda
 
@@ -63,48 +63,34 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info )
 endif
 
-GEN_KERNELS_GENSEQ = op2_constants_seq.F95 $(wildcard *_seq_kernel.F95)
-GEN_KERNELS_VEC = op2_constants_vec.F95 $(wildcard *_vec_kernel.F95)
-GEN_KERNELS_OPENMP = op2_constants_openmp.F95 $(wildcard *_openmp_kernel.F95)
-GEN_KERNELS_OPENMP4 = op2_constants_openmp4.F95 $(wildcard *_openmp4_kernel.F95)
-GEN_KERNELS_CUDA = op2_constants_cuda.CUF $(wildcard *_cuda_kernel.CUF)
-
-GENERATED = \
-	$(APP_ENTRY_OP) \
-	$(APP_SRC_EXTRA_OP) \
-	$(GEN_KERNELS_GENSEQ) \
-	$(GEN_KERNELS_VEC) \
-	$(GEN_KERNELS_OPENMP) \
-	$(GEN_KERNELS_OPENMP4) \
-	$(GEN_KERNELS_CUDA)
-
 .PHONY: all clean
 
 all: $(BUILDABLE_VARIANTS)
 
 clean:
 	-$(RM) $(ALL_VARIANTS)
-	-$(RM) $(GENERATED)
-	-$(RM) .generated
+	-$(RM) -rf generated
 	-$(RM) *.o
 	-$(RM) -r mod
 
-.generated: $(APP_ENTRY) $(APP_SRC_EXTRA)
-	$(TRANSLATOR) $^
-	@touch $@
+generated: $(APP_ENTRY) $(APP_SRC_EXTRA)
+	@mkdir $@
+	$(TRANSLATOR) $^ -o generated
 
 mod/%:
 	@mkdir -p $@
 
-SEQ_SRC := $(APP_SRC_EXTRA) $(APP_ENTRY)
 
 # $(1) = variant name
 define SRC_template =
-$(1)_SRC = $$(GEN_KERNELS_$(1)) $(APP_SRC_EXTRA_OP) $(APP_ENTRY_OP)
+$(call UPPERCASE,$(1))_SRC := generated/$(1)/$(APP_NAME)_kernels.* $(APP_SRC_EXTRA_OP) $(APP_ENTRY_OP)
 endef
 
 $(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
-	$(eval $(call SRC_template,$(call UPPERCASE,$(variant)))))
+	$(eval $(call SRC_template,$(variant))))
+
+SEQ_SRC := $(APP_SRC_EXTRA) $(APP_ENTRY)
+GENSEQ_SRC := generated/seq/$(APP_NAME)_kernels.* $(APP_SRC_EXTRA_OP) $(APP_ENTRY_OP)
 
 # $(1) = variant name
 # $(2) = additional flags
@@ -112,11 +98,11 @@ $(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
 # $(4) = OP2 library for parallel variant
 # $(5) = extra module dependencies
 define RULE_template_base =
-$$(APP_NAME)_$(1): .generated | mod/$(1)
+$$(APP_NAME)_$(1): generated | mod/$(1)
 	$$(FC) $$(FFLAGS) $(2) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
 		$$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(3)) $$(CXXLINK) -o $$@
 
-$$(APP_NAME)_mpi_$(1): .generated | mod/mpi_$(1)
+$$(APP_NAME)_mpi_$(1): generated | mod/mpi_$(1)
 	$$(MPIFC) $$(FFLAGS) $(2) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
 		$$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(4)) $$(CXXLINK) -o $$@
 
