@@ -2,6 +2,7 @@
 .generated
 *_op.*
 
+generated/
 seq/
 vec/
 openmp/

@@ -1,22 +1,15 @@
 # OP2 Code Generation
 
-## C
-TODO
-## FORTRAN
-TODO
-## OP2-Translator
+### Requirements
+
+- Python >= 3.8
+- libclang (for Debian based systems: `sudo apt-get install libclang-dev`)
 
 ### Getting Started
 
 - Navigate to project directory `cd translator`
 - Install python packages `pip3 install -r requirements.txt`
 - Invoke the CLI with `python3 op2-translator`
-
-### Requirements
-
-- Python>=3.8
-- Clang (including pyclang : sudo apt-get install libclang-dev)
-- Java
 
 ### Brief Code Overview
 
