@@ -58,6 +58,10 @@ inline int type_error(const double *a, const char *type) {
   (void)a;
   return (strcmp(type, "double") && strcmp(type, "double:soa"));
 }
+inline int type_error(const long double *a, const char *type) {
+  (void)a;
+  return (strcmp(type, "long double") && strcmp(type, "ldouble:soa"));
+}
 inline int type_error(const float *a, const char *type) {
   (void)a;
   return (strcmp(type, "float") && strcmp(type, "float:soa"));
