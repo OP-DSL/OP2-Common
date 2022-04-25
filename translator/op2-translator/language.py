@@ -21,19 +21,19 @@ class Lang(Findable):
     zero_idx: bool
 
     @abstractmethod
-    def parseFile(self, path: Path, include_dirs: Set[Path]) -> Any:
+    def parseFile(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Any:
         pass
 
     @abstractmethod
-    def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
+    def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         pass
 
     @abstractmethod
-    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
+    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
         pass
 
     @abstractmethod
-    def translateProgram(self, program: Program, include_dirs: Set[Path], force_soa: bool) -> str:
+    def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
         pass
 
     @abstractmethod
