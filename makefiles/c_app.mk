@@ -112,6 +112,7 @@ CUDA_HYB_SRC := $(APP_ENTRY_OP) \
 MPI_CUDA_HYB_SRC := $(APP_ENTRY_MPI_OP) \
 	cuda/$(APP_NAME)_mpi_hybkernels_cpu.o cuda/$(APP_NAME)_mpi_hybkernels_gpu.o
 
+include $(MAKEFILES_DIR)/lib_helpers.mk
 
 # $(1) = variant name
 # $(2) = additional flags

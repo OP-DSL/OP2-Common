@@ -31,7 +31,8 @@ def main(argv=None) -> None:
     parser.add_argument("-c", "--config", help="Target configuration", type=json.loads, default="{}")
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
 
-    parser.add_argument("-I", help="Header Include", type=isDirPath, action="append", nargs=1, default=[])
+    parser.add_argument("-I", help="Add to include directories", type=isDirPath, action="append", nargs=1, default=[])
+    parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])
 
     target_names = [target.name for target in Target.all()]
     parser.add_argument(
@@ -113,7 +114,9 @@ def main(argv=None) -> None:
 
         scheme = Scheme.find((lang, target))
         if not scheme:
-            print(f"No scheme registered for {lang}/{target}\n")
+            if args.verbose:
+                print(f"No scheme registered for {lang}/{target}\n")
+
             continue
 
         if args.verbose:
@@ -127,7 +130,9 @@ def main(argv=None) -> None:
     # Generate program translations
     for i, program in enumerate(app.programs, 1):
         include_dirs = set([Path(dir) for [dir] in args.I])
-        source = lang.translateProgram(program, include_dirs, args.force_soa)
+        defines = [define for [define] in args.D]
+
+        source = lang.translateProgram(program, include_dirs, defines, args.force_soa)
 
         new_file = os.path.splitext(os.path.basename(program.path))[0]
         ext = os.path.splitext(os.path.basename(program.path))[1]
@@ -146,6 +151,7 @@ def parse(args: Namespace, lang: Lang) -> Application:
 
     # Collect the include directories
     include_dirs = set([Path(dir) for [dir] in args.I])
+    defines = [define for [define] in args.D]
 
     # Parse the input files
     for i, raw_path in enumerate(args.file_paths, 1):
@@ -153,7 +159,7 @@ def parse(args: Namespace, lang: Lang) -> Application:
             print(f"Parsing file {i} of {len(args.file_paths)}: {raw_path}")
 
         # Parse the program
-        program = lang.parseProgram(Path(raw_path), include_dirs)
+        program = lang.parseProgram(Path(raw_path), include_dirs, defines)
         app.programs.append(program)
 
     # Parse the referenced kernels
@@ -163,7 +169,7 @@ def parse(args: Namespace, lang: Lang) -> Application:
         kernel_include_files = list(filter(lambda p: p.is_file(), kernel_include_files))
 
         for path in [Path(raw_path) for raw_path in args.file_paths] + kernel_include_files:
-            kernel = lang.parseKernel(path, kernel_name, include_dirs)
+            kernel = lang.parseKernel(path, kernel_name, include_dirs, defines)
 
             if kernel is not None:
                 app.kernels[kernel_name] = kernel
@@ -195,11 +201,12 @@ def validate(args: Namespace, lang: Lang, app: Application) -> None:
 def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
     include_dirs = set([Path(dir) for [dir] in args.I])
+    defines = [define for [define] in args.D]
 
     # Generate loop hosts
     for i, loop in enumerate(app.loops(), 1):
         # Generate loop host source
-        source, extension = scheme.genLoopHost(include_dirs, env, loop, app, i)
+        source, extension = scheme.genLoopHost(include_dirs, defines, env, loop, app, i)
 
         # Form output file path
         path = None
