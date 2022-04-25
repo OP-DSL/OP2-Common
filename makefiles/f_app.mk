@@ -1,4 +1,4 @@
-TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v
+TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator
 
 ifneq ($(F_HAS_PARALLEL_BUILDS),true)
   .NOTPARALLEL:
@@ -7,17 +7,12 @@ endif
 PART_SIZE_ENV ?= 128
 FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
-APP_ENTRY ?= $(APP_NAME).F90
-APP_ENTRY_BASENAME := $(basename $(APP_ENTRY))
-APP_ENTRY_OP := generated/$(APP_ENTRY_BASENAME)_op.F90
-
-APP_SRC_EXTRA_OP := $(APP_SRC_EXTRA:%.F90=generated/%_op.F90)
+APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%_op.F90)
 
 BASE_VARIANTS := seq genseq vec openmp cuda
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
-ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
 
 ifeq ($(HAVE_F),true)
   BUILDABLE_VARIANTS := seq genseq
@@ -67,30 +62,38 @@ endif
 
 all: $(BUILDABLE_VARIANTS)
 
+# Only define the clean rul on first include of this makefile
+ifeq ($(words $(filter %/f_app.mk,$(MAKEFILE_LIST))),1)
 clean:
-	-$(RM) $(ALL_VARIANTS)
+	-$(RM) $(foreach variant,$(ALL_VARIANTS),*_$(variant))
 	-$(RM) -rf generated
 	-$(RM) *.o
 	-$(RM) -r mod
+endif
 
-generated: $(APP_ENTRY) $(APP_SRC_EXTRA)
-	@mkdir $@
-	$(TRANSLATOR) $^ -o generated
+define GENERATED_template =
+generated/$(APP_NAME): $(APP_SRC)
+	@mkdir -p $$@
+	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $$^ -o $$@
+endef
+
+$(eval $(call GENERATED_template))
 
 mod/%:
 	@mkdir -p $@
 
-
 # $(1) = variant name
 define SRC_template =
-$(call UPPERCASE,$(1))_SRC := generated/$(1)/$(APP_NAME)_kernels.* $(APP_SRC_EXTRA_OP) $(APP_ENTRY_OP)
+$(call UPPERCASE,$(1))_SRC := generated/$(APP_NAME)/$(1)/$(1)_kernels.* $(APP_SRC_OP)
 endef
 
 $(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
 	$(eval $(call SRC_template,$(variant))))
 
-SEQ_SRC := $(APP_SRC_EXTRA) $(APP_ENTRY)
-GENSEQ_SRC := generated/seq/$(APP_NAME)_kernels.* $(APP_SRC_EXTRA_OP) $(APP_ENTRY_OP)
+SEQ_SRC := $(APP_SRC)
+GENSEQ_SRC := generated/$(APP_NAME)/seq/seq_kernels.* $(APP_SRC_OP)
+
+include $(MAKEFILES_DIR)/lib_helpers.mk
 
 # $(1) = variant name
 # $(2) = additional flags
@@ -98,13 +101,13 @@ GENSEQ_SRC := generated/seq/$(APP_NAME)_kernels.* $(APP_SRC_EXTRA_OP) $(APP_ENTR
 # $(4) = OP2 library for parallel variant
 # $(5) = extra module dependencies
 define RULE_template_base =
-$$(APP_NAME)_$(1): generated | mod/$(1)
-	$$(FC) $$(FFLAGS) $(2) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
-		$$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(3)) $$(CXXLINK) -o $$@
+$(APP_NAME)_$(1): generated/$(APP_NAME) | mod/$(APP_NAME)/$(1)
+	$$(FC) $$(FFLAGS) $(2) $(APP_EXTRA_FLAGS) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
+		$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(3)) $$(CXXLINK) -o $$@
 
-$$(APP_NAME)_mpi_$(1): generated | mod/mpi_$(1)
-	$$(MPIFC) $$(FFLAGS) $(2) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
-		$$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(4)) $$(CXXLINK) -o $$@
+$(APP_NAME)_mpi_$(1): generated/$(APP_NAME) | mod/$(APP_NAME)/mpi_$(1)
+	$$(MPIFC) $$(FFLAGS) $(2) $(APP_EXTRA_FLAGS) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
+		$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(4)) $$(CXXLINK) -o $$@
 
 endef
 

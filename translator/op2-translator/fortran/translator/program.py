@@ -50,19 +50,36 @@ def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> s
 
         spec.content = new_content
 
-    if not force_soa:
-        return str(ast)
+    if force_soa:
+        for call in fpu.walk(ast, f2003.Call_Stmt):
+            name = fpu.get_child(call, f2003.Name)
 
-    for call in fpu.walk(ast, f2003.Call_Stmt):
-        name = fpu.get_child(call, f2003.Name)
+            init_funcs = ["op_init", "op_init_base", "op_mpi_init"]
+            if name.string not in init_funcs:
+                continue
 
-        init_funcs = ["op_init", "op_init_base", "op_mpi_init"]
-        if name.string not in init_funcs:
-            continue
+            args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
+            args.items = tuple(list(args.items) + [f2003.Int_Literal_Constant("1")])
 
-        args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
-        args.items = tuple(list(args.items) + [f2003.Int_Literal_Constant("1")])
+            name.string = f"{name.string}_soa"
 
-        name.string = f"{name.string}_soa"
+    return unindent_cpp_directives(str(ast))
 
-    return str(ast)
+
+def unindent_cpp_directives(s: str) -> str:
+    directives = [
+        "if",
+        "ifdef",
+        "ifndef",
+        "elif",
+        "else",
+        "endif",
+        "include",
+        "define",
+        "undef",
+        "line",
+        "error",
+        "warning",
+    ]
+
+    return re.sub(fr"^\s*#({'|'.join(directives)})(\s+|\s*$)", r"#\1\2", s, flags=re.MULTILINE)
