@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, Set, Tuple, List
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -12,9 +12,9 @@ from util import find
 
 
 def translateKernel(
-    lang: Lang, include_dirs: Set[Path], config: Dict[str, Any], kernel: Kernel, app: Application
+    lang: Lang, include_dirs: Set[Path], defines: List[str], config: Dict[str, Any], kernel: Kernel, app: Application
 ) -> str:
-    ast = lang.parseFile(kernel.path, frozenset(include_dirs))
+    ast = lang.parseFile(kernel.path, frozenset(include_dirs), defines)
 
     kernel_ast = findSubroutine(kernel.path, ast, kernel.name)
     assert kernel_ast is not None

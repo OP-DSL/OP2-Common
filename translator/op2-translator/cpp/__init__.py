@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from types import MethodType
-from typing import FrozenSet, Optional, Set
+from typing import FrozenSet, Optional, Set, List
 
 import clang.cindex
 from dotenv import load_dotenv
@@ -29,8 +29,10 @@ class Cpp(Lang):
     zero_idx = True
 
     @lru_cache(maxsize=None)
-    def parseFile(self, path: Path, include_dirs: FrozenSet[Path]) -> clang.cindex.TranslationUnit:
+    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: List[str]) -> clang.cindex.TranslationUnit:
         args = [f"-I{dir}" for dir in include_dirs]
+        args = args + [f"-D{define}" for define in defines]
+
         translation_unit = clang.cindex.Index.create().parse(
             path, args=args, options=clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
         )
@@ -41,13 +43,13 @@ class Cpp(Lang):
 
         return translation_unit
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path]) -> Program:
-        return cpp.parser.parseProgram(self.parseFile(path, frozenset(include_dirs)), path)
+    def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
+        return cpp.parser.parseProgram(self.parseFile(path, frozenset(include_dirs), defines), path)
 
-    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path]) -> Optional[Kernel]:
-        return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs)), name, path)
+    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
+        return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), defines), name, path)
 
-    def translateProgram(self, program: Program, include_dirs: Set[Path], force_soa: bool) -> str:
+    def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
         return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
