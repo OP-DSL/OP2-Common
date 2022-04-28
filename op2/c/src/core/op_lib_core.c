@@ -68,6 +68,7 @@ Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
 
 const char *doublestr = "double";
+const char *ldoublestr = "long double";
 const char *floatstr = "float";
 const char *intstr = "int";
 const char *boolstr = "bool";
@@ -703,6 +704,9 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
       strcmp(typ, "real*8") == 0)
     arg.type = doublestr;
+  else  if (strcmp(typ, "long double") == 0 || strcmp(typ, "r16") == 0 ||
+      strcmp(typ, "real*16") == 0)
+    arg.type = ldoublestr;
   else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
            strcmp(typ, "real*4") == 0)
     arg.type = floatstr;
@@ -738,6 +742,9 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
       strcmp(typ, "real*8") == 0)
     arg.type = doublestr;
+  else  if (strcmp(typ, "long double") == 0 || strcmp(typ, "r16") == 0 ||
+      strcmp(typ, "real*16") == 0)
+    arg.type = ldoublestr;
   else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
            strcmp(typ, "real*4") == 0)
     arg.type = floatstr;
