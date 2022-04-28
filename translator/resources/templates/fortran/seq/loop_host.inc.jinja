@@ -44,6 +44,9 @@ subroutine {{lh.kernel.name}}_wrapper( &
     ! locals
     integer(4) :: n, test_frequency
 
+    ! prevent maybe-uninit warnings
+    test_frequency = 1
+
     if (do_test) then
         test_frequency = op_mpi_get_test_frequency()
     end if

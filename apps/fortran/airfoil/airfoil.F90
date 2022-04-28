@@ -24,6 +24,7 @@ program airfoil
     integer(4) :: iter, k
 
     integer(4) :: nnode, ncell, nbedge, nedge
+    integer(4) :: ncell_total
 
 #ifdef PLAIN
     integer(4), dimension(:), allocatable, target :: ecell, bound, edge, bedge, becell, cell
@@ -64,20 +65,20 @@ program airfoil
     call op_init_base(0, 0)
 
 #ifdef HDF5
-    print *, "Declaring OP2 sets (HDF5)"
+    call op_print("Declaring OP2 sets (HDF5)")
     call op_decl_set_hdf5(nnode, nodes, file_name_h5, "nodes")
     call op_decl_set_hdf5(nedge, edges, file_name_h5, "edges")
     call op_decl_set_hdf5(nbedge, bedges, file_name_h5, "bedges")
     call op_decl_set_hdf5(ncell, cells, file_name_h5, "cells")
 
-    print *, "Declaring OP2 maps (HDF5)"
+    call op_print("Declaring OP2 maps (HDF5)")
     call op_decl_map_hdf5(edges, nodes, 2, pedge, file_name_h5, "pedge", stat)
     call op_decl_map_hdf5(edges, cells, 2, pecell, file_name_h5, "pecell", stat)
     call op_decl_map_hdf5(bedges, nodes, 2, pbedge, file_name_h5, "pbedge", stat)
     call op_decl_map_hdf5(bedges, cells, 1, pbecell, file_name_h5, "pbecell", stat)
     call op_decl_map_hdf5(cells, nodes, 4, pcell, file_name_h5, "pcell", stat)
 
-    print *, "Declaring OP2 data (HDF5)"
+    call op_print("Declaring OP2 data (HDF5)")
     call op_decl_dat_hdf5(bedges, 1, p_bound, "integer(4)", file_name_h5, "p_bound", stat)
     call op_decl_dat_hdf5(nodes, 2, p_x, "real(8)", file_name_h5, "p_x", stat)
     call op_decl_dat_hdf5(cells, 4, p_q, "real(8)", file_name_h5, "p_q", stat)
@@ -85,20 +86,20 @@ program airfoil
     call op_decl_dat_hdf5(cells, 1, p_adt, "real(8)", file_name_h5, "p_adt", stat)
     call op_decl_dat_hdf5(cells, 4, p_res, "real(8)", file_name_h5, "p_res", stat)
 #else
-    print *, "Declaring OP2 sets"
+    call op_print("Declaring OP2 sets")
     call op_decl_set(nnode, nodes, "nodes")
     call op_decl_set(nedge, edges, "edges")
     call op_decl_set(nbedge, bedges, "bedges")
     call op_decl_set(ncell, cells, "cells")
 
-    print *, "Declaring OP2 maps"
+    call op_print("Declaring OP2 maps")
     call op_decl_map(edges, nodes, 2, edge, pedge, "pedge")
     call op_decl_map(edges, cells, 2, ecell, pecell, "pecell")
     call op_decl_map(bedges, nodes, 2, bedge, pbedge, "pbedge")
     call op_decl_map(bedges, cells, 1, becell, pbecell, "pbecell")
     call op_decl_map(cells, nodes, 4, cell, pcell, "pcell")
 
-    print *, "Declaring OP2 data"
+    call op_print("Declaring OP2 data")
     call op_decl_dat(bedges, 1, "integer(4)", bound, p_bound, "p_bound")
     call op_decl_dat(nodes, 2, "real(8)", x, p_x, "p_x")
     call op_decl_dat(cells, 4, "real(8)", q, p_q, "p_q")
@@ -109,7 +110,7 @@ program airfoil
     call release_buffers()
 #endif
 
-    print *, "Declaring OP2 constants"
+    call op_print("Declaring OP2 constants")
     call op_decl_const(gam, 1, "real(8)")
     call op_decl_const(gm1, 1, "real(8)")
     call op_decl_const(cfl, 1, "real(8)")
@@ -120,6 +121,8 @@ program airfoil
 
     call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x)
     call op_timers(start_time)
+
+    ncell_total = op_get_size(cells)
 
     do iter = 1, niter
         call op_par_loop_2(save_soln, cells, &
@@ -162,9 +165,9 @@ program airfoil
                 op_arg_gbl(rms,     2,           "real(8)", OP_INC))
         end do
 
-        rms(2) = sqrt(rms(2) / real(ncell))
+        rms(2) = sqrt(rms(2) / real(ncell_total))
 
-        if (op_is_root() .eq. 1 .and. mod(iter, 100) == 0) then
+        if (op_is_root() == 1 .and. mod(iter, 100) == 0) then
             print *, iter, rms(2)
         end if
     end do
@@ -172,14 +175,16 @@ program airfoil
     call op_timers(end_time)
     call op_timing_output()
 
-    print *
-    print *, "Time =", end_time - start_time, "seconds"
+    if (op_is_root() == 1) then
+        print *
+        print *, "Time =", end_time - start_time, "seconds"
+    end if
 
-    if (niter == 1000 .and. ncell == 720000) then
+    if (op_is_root() == 1 .and. niter == 1000 .and. ncell_total == 720000) then
         diff = abs((100.0_8 * (rms(2) / 0.0001060114637578_8)) - 100.0_8)
 
         print *
-        write (*, "(A, I0, A, E16.7, A)") " Test problem with ", ncell , &
+        write (*, "(A, I0, A, E16.7, A)") " Test problem with ", ncell_total, &
             " cells is within ", diff, "% of the expected solution"
 
         if(diff < 0.00001_8) THEN
