@@ -23,7 +23,7 @@ def extentToSpan(extent: SourceRange) -> Span:
 def translateKernel(
     lang: Lang, include_dirs: Set[Path], defines: List[str], config: Dict[str, Any], kernel: Kernel, app: Application
 ) -> str:
-    translation_unit = lang.parseFile(kernel.path, frozenset(include_dirs), defines)
+    translation_unit = lang.parseFile(kernel.path, frozenset(include_dirs), frozenset(defines))
     nodes = translation_unit.cursor.get_children()
 
     kernel_ast = find(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == kernel.name)

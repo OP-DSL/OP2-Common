@@ -1,12 +1,12 @@
+import io
 from pathlib import Path
 from types import MethodType
-from typing import FrozenSet, Optional, Set, List
-import io
+from typing import FrozenSet, List, Optional, Set
 
 import fparser.two.Fortran2003 as f2003
+import pcpp
 from fparser.common.readfortran import FortranFileReader
 from fparser.two.parser import ParserFactory
-import pcpp
 
 import fortran.parser
 import fortran.translator.program
@@ -25,7 +25,7 @@ class Fortran(Lang):
     com_delim = "!"
     zero_idx = False
 
-    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: List[str]) -> f2003.Program:
+    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> f2003.Program:
         preprocessor = pcpp.Preprocessor()
         preprocessor.line_directive = None
 
@@ -53,13 +53,13 @@ class Fortran(Lang):
         return parser(reader)
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        return fortran.parser.parseProgram(self.parseFile(path, frozenset(include_dirs), defines), path)
+        return fortran.parser.parseProgram(self.parseFile(path, frozenset(include_dirs), frozenset(defines)), path)
 
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
-        return fortran.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), defines), name, path)
+        return fortran.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), frozenset(defines)), name, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
-        ast = self.parseFile(program.path, frozenset(include_dirs), defines)
+        ast = self.parseFile(program.path, frozenset(include_dirs), frozenset(defines))
         return fortran.translator.program.translateProgram(ast, program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:

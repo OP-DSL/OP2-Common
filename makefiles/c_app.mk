@@ -90,21 +90,21 @@ SEQ_SRC := $(APP_ENTRY)
 MPI_SEQ_SRC := $(APP_ENTRY_MPI)
 
 define SRC_template =
-$(1)_SRC := $$(APP_ENTRY_OP) $$(subst %,$$(APP_ENTRY_BASENAME),$(2))
-MPI_$(1)_SRC := $$(APP_ENTRY_MPI_OP) $$(subst %,$$(APP_ENTRY_MPI_BASENAME),$(2))
+$(1)_SRC := $$(APP_ENTRY_OP) $(2)
+MPI_$(1)_SRC := $$(APP_ENTRY_MPI_OP) $(2)
 endef
 
-$(eval $(call SRC_template,GENSEQ,seq/%_kernels.cpp))
-$(eval $(call SRC_template,VEC,vec/%_kernels.cpp))
-$(eval $(call SRC_template,OPENMP,openmp/%_kernels.cpp))
-$(eval $(call SRC_template,OPENMP4,openmp4/%_kernels.cpp))
+$(eval $(call SRC_template,GENSEQ,seq/seq_kernels.cpp))
+$(eval $(call SRC_template,VEC,vec/vec_kernels.cpp))
+$(eval $(call SRC_template,OPENMP,openmp/openmp_kernels.cpp))
+$(eval $(call SRC_template,OPENMP4,openmp4/openmp4_kernels.cpp))
 
 #  TODO/openmp4 perhaps include this in _omp4kernels.cpp?
 OPENMP4_SRC += openmp4/$(APP_ENTRY_BASENAME)_omp4kernel_funcs.cpp
 MPI_OPENMP4_SRC += openmp4/$(APP_ENTRY_BASENAME)_omp4kernel_funcs.cpp
 
-CUDA_SRC := $(APP_ENTRY_OP) cuda/$(APP_NAME)_kernels.o
-MPI_CUDA_SRC := $(APP_ENTRY_MPI_OP) cuda/$(APP_NAME)_mpi_kernels.o
+CUDA_SRC := $(APP_ENTRY_OP) cuda/cuda_kernels.o
+MPI_CUDA_SRC := $(APP_ENTRY_MPI_OP) cuda/cuda_kernels.o
 
 CUDA_HYB_SRC := $(APP_ENTRY_OP) \
 	cuda/$(APP_NAME)_hybkernels_cpu.o cuda/$(APP_NAME)_hybkernels_gpu.o
@@ -139,17 +139,17 @@ $(eval $(call RULE_template, openmp4,  $(OMP_OFFLOAD_CPPFLAGS) -DOP2_WITH_OMP4, 
 $(eval $(call RULE_template, cuda,,                                             CUDA,    MPI_CUDA))
 $(eval $(call RULE_template, cuda_hyb, $(OMP_CPPFLAGS),                         CUDA,    MPI_CUDA))
 
-$(APP_NAME)_cuda: cuda/$(APP_NAME)_kernels.o
-$(APP_NAME)_mpi_cuda: cuda/$(APP_NAME)_mpi_kernels.o
+$(APP_NAME)_cuda: cuda/cuda_kernels.o
+$(APP_NAME)_mpi_cuda: cuda/cuda_kernels.o
 
 $(APP_NAME)_cuda_hyb: cuda/$(APP_NAME)_hybkernels_gpu.o cuda/$(APP_NAME)_hybkernels_cpu.o
 $(APP_NAME)_mpi_cuda_hyb: cuda/$(APP_NAME)_mpi_hybkernels_gpu.o cuda/$(APP_NAME)_mpi_hybkernels_cpu.o
 
-cuda/$(APP_NAME)_kernels.o: .generated
-	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/$(APP_ENTRY_BASENAME)_kernels.cu -o $@
+cuda/cuda_kernels.o: .generated
+	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/cuda_kernels.cu -o $@
 
-cuda/$(APP_NAME)_mpi_kernels.o: .generated
-	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/$(APP_ENTRY_MPI_BASENAME)_kernels.cu -o $@
+#cuda/$(APP_NAME)_mpi_kernels.o: .generated
+#	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/$(APP_ENTRY_MPI_BASENAME)_kernels.cu -o $@
 
 cuda/$(APP_NAME)_hybkernels_gpu.o: .generated
 	$(NVCC) $(NVCCFLAGS) -DOP_HYBRID_GPU -DGPUPASS $(OP2_INC) \
