@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, ClassVar, List, Optional, Set
+from typing import Any, Callable, ClassVar, FrozenSet, List, Optional, Set
 
 from op import Type
 from store import Kernel, ParseError, Program
@@ -21,7 +21,7 @@ class Lang(Findable):
     zero_idx: bool
 
     @abstractmethod
-    def parseFile(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Any:
+    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Any:
         pass
 
     @abstractmethod

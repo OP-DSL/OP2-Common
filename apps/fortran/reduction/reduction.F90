@@ -1,19 +1,23 @@
 program reduction
 
-    use OP2_FORTRAN_DECLARATIONS
-    use OP2_FORTRAN_REFERENCE
+    use op2_fortran_declarations
+    use op2_fortran_reference
+    use op2_fortran_rt_support
 
     use, intrinsic :: ISO_C_BINDING
 
     implicit none
 
     integer(4), parameter :: file_id = 1
-    character(len = *), parameter :: file_name = "new_grid.dat"
+    character(*), parameter :: file_name = "new_grid.dat"
+    character(*), parameter :: file_name_h5 = "new_grid.h5"
 
     integer(4) :: nnode, ncell, nedge
 
+#ifndef HDF5
     integer(4), dimension(:), allocatable, target :: ecell
     real(8), dimension(:), allocatable, target :: res
+#endif
 
     type(op_set) :: edges, cells
     type(op_map) :: pecell
@@ -23,11 +27,16 @@ program reduction
 
     integer(4) :: i, cell_count_result, edge_count_result
 
+#ifndef HDF5
     integer(4) :: dummy_int
     real(8) :: dummy_real
+#else
+    integer(4) :: stat
+#endif
 
     call op_init_base(0, 0)
 
+#ifndef HDF5
     open(file_id, file = file_name)
 
     read(file_id, *) nnode, ncell, nedge, dummy_int
@@ -50,17 +59,30 @@ program reduction
 
     allocate(res(4 * ncell))
     res = 0.0
+#endif
 
-    call op_decl_set(nedge, edges, 'edges')
-    call op_decl_set(ncell, cells, 'cells')
+#ifdef HDF5
+    call op_decl_set_hdf5(nedge, edges, file_name_h5, "edges")
+    call op_decl_set_hdf5(ncell, cells, file_name_h5, "cells")
 
-    call op_decl_map(edges, cells, 2, ecell, pecell, 'pecell')
+    call op_decl_map_hdf5(edges, cells, 2, pecell, file_name_h5, "pecell", stat)
 
-    call op_decl_dat(cells, 4, 'real(8)', res, p_res, 'p_res')
+    call op_decl_dat_hdf5(cells, 4, p_res, "real(8)", file_name_h5, "p_res", stat)
+#else
+    call op_decl_set(nedge, edges, "edges")
+    call op_decl_set(ncell, cells, "cells")
 
+    call op_decl_map(edges, cells, 2, ecell, pecell, "pecell")
+
+    call op_decl_dat(cells, 4, "real(8)", res, p_res, "p_res")
+#endif
+
+#ifndef HDF5
     deallocate(ecell)
     deallocate(res)
+#endif
 
+    call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_res)
     call op_timers(start_time)
 
     cell_count_result = 0
