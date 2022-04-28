@@ -1,3 +1,5 @@
+#define UNUSED(x) if (.false.) print *, SHAPE(x)
+
 module op2_kernels
     use cudafor
     use iso_c_binding
@@ -33,6 +35,8 @@ contains
             op2_const_{{const.ptr}}_d(d) = ptr(d)
         end do
     {% else %}
+        UNUSED(dim)
+
         op2_const_{{const.ptr}} = ptr
         op2_const_{{const.ptr}}_d = ptr
     {% endif %}

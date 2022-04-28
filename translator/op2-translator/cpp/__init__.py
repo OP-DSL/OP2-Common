@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from types import MethodType
-from typing import FrozenSet, Optional, Set, List
+from typing import FrozenSet, List, Optional, Set
 
 import clang.cindex
 from dotenv import load_dotenv
@@ -29,7 +29,9 @@ class Cpp(Lang):
     zero_idx = True
 
     @lru_cache(maxsize=None)
-    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: List[str]) -> clang.cindex.TranslationUnit:
+    def parseFile(
+        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
+    ) -> clang.cindex.TranslationUnit:
         args = [f"-I{dir}" for dir in include_dirs]
         args = args + [f"-D{define}" for define in defines]
 
@@ -44,10 +46,10 @@ class Cpp(Lang):
         return translation_unit
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        return cpp.parser.parseProgram(self.parseFile(path, frozenset(include_dirs), defines), path)
+        return cpp.parser.parseProgram(self.parseFile(path, frozenset(include_dirs), frozenset(defines)), path)
 
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
-        return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), defines), name, path)
+        return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), frozenset(defines)), name, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
         return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
