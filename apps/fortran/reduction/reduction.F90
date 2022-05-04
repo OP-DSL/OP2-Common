@@ -1,6 +1,10 @@
 program reduction
-
+#ifdef HDF5
+    use op2_fortran_hdf5_declarations
+#else
     use op2_fortran_declarations
+#endif
+
     use op2_fortran_reference
     use op2_fortran_rt_support
 
@@ -9,10 +13,12 @@ program reduction
     implicit none
 
     integer(4), parameter :: file_id = 1
+
     character(*), parameter :: file_name = "new_grid.dat"
     character(*), parameter :: file_name_h5 = "new_grid.h5"
 
     integer(4) :: nnode, ncell, nedge
+    integer(4) :: ncell_total, nedge_total
 
 #ifndef HDF5
     integer(4), dimension(:), allocatable, target :: ecell
@@ -21,7 +27,7 @@ program reduction
 
     type(op_set) :: edges, cells
     type(op_map) :: pecell
-    type(op_dat) :: p_res
+    type(op_dat) :: p_res, p_dummy
 
     real(kind = c_double) :: start_time, end_time
 
@@ -82,8 +88,11 @@ program reduction
     deallocate(res)
 #endif
 
-    call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_res)
+    call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_dummy)
     call op_timers(start_time)
+
+    ncell_total = op_get_size(cells)
+    nedge_total = op_get_size(edges)
 
     cell_count_result = 0
     edge_count_result = 0
@@ -99,19 +108,21 @@ program reduction
     call op_timers(end_time)
     call op_timing_output()
 
-    print *
-    print *, "Direct reduction: cell count = ", cell_count_result, ", target = ", ncell
-    print *, "Indirect reduction: edge count = ", edge_count_result, ", target = ", nedge
-    print *
+    if (op_is_root() == 1) then
+        print *
+        print *, "Direct reduction: cell count = ", cell_count_result, ", target = ", ncell_total
+        print *, "Indirect reduction: edge count = ", edge_count_result, ", target = ", nedge_total
+        print *
 
-    if (cell_count_result == ncell .and. edge_count_result == nedge) then
-        print *, "Test PASSED"
-    else
-        print *, "Test FAILED"
+        if (cell_count_result == ncell_total .and. edge_count_result == nedge_total) then
+            print *, "Test PASSED"
+        else
+            print *, "Test FAILED"
+        end if
+
+        print *
+        print *, 'Time = ', end_time - start_time, 'seconds'
     end if
-
-    print *
-    print *, 'Time = ', end_time - start_time, 'seconds'
 
     call op_exit()
 
