@@ -60,10 +60,12 @@ class Int(Type):
     size: int
 
     def __repr__(self) -> str:
-        if self.signed:
-            return f"i{self.size}"
+        if self.signed and self.size == 32:
+            return "int"
+        elif self.size == 32:
+            return "unsigned"
         else:
-            return f"u{self.size}"
+            return f"{'i' if self.signed else 'u'}{self.size}"
 
 
 @dataclass(frozen=True)
@@ -71,7 +73,12 @@ class Float(Type):
     size: int
 
     def __repr__(self) -> str:
-        return f"f{self.size}"
+        if self.size == 32:
+            return "float"
+        elif self.size == 64:
+            return "double"
+        else:
+            return "f{self.size}"
 
 
 @dataclass(frozen=True)

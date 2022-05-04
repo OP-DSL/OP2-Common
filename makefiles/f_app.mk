@@ -103,11 +103,11 @@ include $(MAKEFILES_DIR)/lib_helpers.mk
 define RULE_template_base =
 $(APP_NAME)_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME)) | mod/$(APP_NAME)/$(1)l
 	$$(FC) $$(FFLAGS) $(2) $(APP_EXTRA_FLAGS) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
-		$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(3)) $$(CXXLINK) -o $$@
+		$($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_FOR_$(3)) $$(CXXLINK) -o $$@
 
 $(APP_NAME)_mpi_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME)) | mod/$(APP_NAME)/mpi_$(1)
 	$$(MPIFC) $$(FFLAGS) $(2) $(APP_EXTRA_FLAGS) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
-		$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_FOR_$(4)) $$(CXXLINK) -o $$@
+		$($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_FOR_$(4)) $$(CXXLINK) -o $$@
 
 endef
 
