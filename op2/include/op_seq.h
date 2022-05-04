@@ -58,7 +58,8 @@ inline void op_args_check(op_set set, int nargs, op_arg *args, int *ninds,
     op_arg_check(set, n, args[n], ninds, name);
 }
 
-#if __cplusplus >= 201103L
+//#if __cplusplus >= 201103L
+#if false
 //
 // op_par_loop routine implementation with index sequence
 //
@@ -94,6 +95,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
 
   // MPI halo exchange and dirty bit setting, if needed
   int n_upper = op_mpi_halo_exchanges(set, N, args);
+
   // loop over set elements
   int halo = 0;
 
@@ -283,6 +285,8 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(2, args);
+
+  printf("n_upper: %d, count: %d\n", n_upper, *((int*)arg1.data));
 
   // global reduction for MPI execution, if needed
   // p_a simply used to determine type for MPI reduction

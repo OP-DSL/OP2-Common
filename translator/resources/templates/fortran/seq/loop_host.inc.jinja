@@ -8,6 +8,18 @@ dat_{{arg.dat_ptr}}(1, map_{{arg.map_ptr}}({{arg.map_idx}}, n + 1) + 1)
     {%- endif -%}
 {%- endmacro -%}
 
+{%- macro type_c(arg) -%}
+    {%- if arg.access_type is instance(OP.Int) -%}
+        int
+    {%- elif arg.access_type is instance(OP.Bool) -%}
+        bool
+    {%- elif arg.access_type.size == 32 -%}
+        float
+    {%- else -%}
+        double
+    {%- endif -%}
+{%- endmacro -%}
+
 {{lh.kernel_func}}
 
 subroutine {{lh.kernel.name}}_wrapper( &
@@ -133,6 +145,8 @@ subroutine {{lh.kernel.name}}_host( &
         .true. &
     )
 
+    call op_mpi_wait_all(size(args_expanded), args_expanded)
+
     call {{lh.kernel.name}}_wrapper( &
 {% for dat, idx in lh.dats.items() %}
         dat_{{dat.ptr}}, &
@@ -153,6 +167,9 @@ subroutine {{lh.kernel.name}}_host( &
         call op_mpi_wait_all(size(args_expanded), args_expanded)
     end if
 
+{% for arg, idx in lh.args|gbl|reduction %}
+    call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{idx}}, arg{{idx}}%data){{"\n" if loop.last}}
+{% endfor %}
     call op_mpi_set_dirtybit(size(args_expanded), args_expanded)
     call op_timers_core(end_time)
 
