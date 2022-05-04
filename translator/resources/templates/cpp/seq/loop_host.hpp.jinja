@@ -17,14 +17,23 @@
         {%- set offset = "%s * %d" % (offset, arg.dat_dim) %}
     {%- endif -%}
 
+    {%- if lh is indirect and arg is gbl and arg is reduction %}
+gbl_{{arg.ptr}}
+    {%- else -%}
 ({{cast}} *)arg{{idx}}.data{{offset}}
+    {%- endif -%}
 {%- endmacro -%}
-
 
 {% block host_prologue %}
 {{super()}}
     {% for dat, idx in lh.dats.items()|soa %}
     op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});{{"\n" if loop.last}}
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
+    {{arg.typ}} gbl_{{arg.ptr}}[{{arg.dim}}] = {0};{{"\n" if loop.last}}
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl|reduction if lh is indirect and arg is not inc %}
+    memcpy(gbl_{{arg.ptr}}, arg{{idx}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
     {% endfor %}
 {% endblock %}
 
@@ -61,6 +70,14 @@
         };
 
     {% endfor %}
+    {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
+        if (n == set->size) {
+        {% for arg, idx in lh.args|gbl|reduction %}
+            memcpy(arg{{idx}}.data, gbl_{{arg.ptr}}, {{arg.dim}} * sizeof({{arg.typ}}));
+        {% endfor %}
+        }
+
+    {% endif %}
         {{lh.kernel.name}}(
     {% for arg, idx in lh.args %}
         {% if arg is not vec %}
