@@ -1,5 +1,7 @@
 {%- macro arg_to_pointer(arg, idx) -%}
-    {%- if arg is gbl -%}
+    {%- if arg is gbl and arg is reduction and lh is indirect -%}
+gbl_{{arg.ptr}}_temp
+    {%- elif arg is gbl -%}
 gbl_{{arg.ptr}}
     {%- elif arg is direct -%}
 dat_{{arg.dat_ptr}}(1, n + 1)
@@ -32,10 +34,9 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% for arg, idx in lh.args|gbl %}
     gbl_{{arg.ptr}}, &
 {% endfor %}
-    start, &
-    finish, &
-    args_expanded, &
-    do_test &
+    set_size, &
+    set, &
+    args_expanded &
 )
     implicit none
 
@@ -49,25 +50,40 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% for arg, idx in lh.args|gbl %}
     {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-    integer(4) :: start, finish
+    integer(4) :: set_size
+    type(op_set) :: set
     type(op_arg), dimension({{lh.args_expanded|length}}) :: args_expanded
-    logical :: do_test
 
     ! locals
+{% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}_temp{{"\n" if loop.last}}
+{% endfor %}
     integer(4) :: n, test_frequency
 
-    ! prevent maybe-uninit warnings
-    test_frequency = 1
+{% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
+    gbl_{{arg.ptr}}_temp = {% if arg is inc %}0{% else %}gbl_{{arg.ptr}}{% endif %}{{"\n" if loop.last}}
+{% endfor %}
+    test_frequency = op_mpi_get_test_frequency()
 
-    if (do_test) then
-        test_frequency = op_mpi_get_test_frequency()
-    end if
-
-    do n = start, finish - 1
-        if (do_test .and. (mod(n, test_frequency) .eq. 0)) then
+    do n = 0, set_size - 1
+    {% if lh is indirect %}
+        if (n > 0 .and. n < set%setptr%core_size .and. mod(n, test_frequency) == 0) then
             call op_mpi_test_all(size(args_expanded), args_expanded)
         end if
 
+        if (n == set%setptr%core_size) then
+            call op_mpi_wait_all(size(args_expanded), args_expanded)
+        end if
+
+    {% endif %}
+    {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
+        if (n == set%setptr%size) then
+        {% for arg, idx in lh.args|gbl|reduction %}
+            gbl_{{arg.ptr}} = gbl_{{arg.ptr}}_temp
+        {% endfor %}
+        end if
+
+    {% endif %}
         call {{lh.kernel.name}}_seq( &
 {% for arg, idx in lh.args %}
             {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
@@ -116,7 +132,6 @@ subroutine {{lh.kernel.name}}_host( &
 {% endfor %}
 
     call op_timers_core(start_time)
-
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args_expanded), args_expanded)
 
 {% for dat, idx in lh.dats.items() %}
@@ -139,28 +154,9 @@ subroutine {{lh.kernel.name}}_host( &
 {% for arg, idx in lh.args|gbl %}
         gbl_{{arg.ptr}}, &
 {% endfor %}
-        0, &
-        set%setptr%core_size, &
-        args_expanded, &
-        .true. &
-    )
-
-    call op_mpi_wait_all(size(args_expanded), args_expanded)
-
-    call {{lh.kernel.name}}_wrapper( &
-{% for dat, idx in lh.dats.items() %}
-        dat_{{dat.ptr}}, &
-{% endfor %}
-{% for map, idx in lh.maps.items() %}
-        map_{{map.ptr}}, &
-{% endfor %}
-{% for arg, idx in lh.args|gbl %}
-        gbl_{{arg.ptr}}, &
-{% endfor %}
-        set%setptr%core_size, &
         set_size, &
-        args_expanded, &
-        .false. &
+        set, &
+        args_expanded &
     )
 
     if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
