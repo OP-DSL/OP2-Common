@@ -36,7 +36,7 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% endfor %}
     set_size, &
     set, &
-    args_expanded &
+    args &
 )
     implicit none
 
@@ -52,7 +52,7 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% endfor %}
     integer(4) :: set_size
     type(op_set) :: set
-    type(op_arg), dimension({{lh.args_expanded|length}}) :: args_expanded
+    type(op_arg), dimension({{lh.args|length}}) :: args
 
     ! locals
 {% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
@@ -68,11 +68,11 @@ subroutine {{lh.kernel.name}}_wrapper( &
     do n = 0, set_size - 1
     {% if lh is indirect %}
         if (n > 0 .and. n < set%setptr%core_size .and. mod(n, test_frequency) == 0) then
-            call op_mpi_test_all(size(args_expanded), args_expanded)
+            call op_mpi_test_all(size(args), args)
         end if
 
         if (n == set%setptr%core_size) then
-            call op_mpi_wait_all(size(args_expanded), args_expanded)
+            call op_mpi_wait_all(size(args), args)
         end if
 
     {% endif %}
@@ -110,7 +110,7 @@ subroutine {{lh.kernel.name}}_host( &
 {% endfor %}
 
     ! locals
-    type(op_arg), dimension({{lh.args_expanded|length}}) :: args_expanded
+    type(op_arg), dimension({{lh.args|length}}) :: args
 
     integer(4) :: set_size
 
@@ -126,13 +126,13 @@ subroutine {{lh.kernel.name}}_host( &
     real(8) :: start_time, end_time
     real(4) :: transfer
 
-{% for arg, idx in lh.args_expanded %}
+{% for arg, idx in lh.args %}
     {% set sarg = "arg%d" % idx %}
-    args_expanded({{loop.index}}) = {{sarg}}
+    args({{loop.index}}) = {{sarg}}
 {% endfor %}
 
     call op_timers_core(start_time)
-    set_size = op_mpi_halo_exchanges(set%setcptr, size(args_expanded), args_expanded)
+    set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
 {% for dat, idx in lh.dats.items() %}
     call c_f_pointer(arg{{idx}}%data, dat_{{dat.ptr}}, (/arg{{idx}}%dim * getsetsizefromoparg(arg{{idx}})/))
@@ -156,17 +156,17 @@ subroutine {{lh.kernel.name}}_host( &
 {% endfor %}
         set_size, &
         set, &
-        args_expanded &
+        args &
     )
 
     if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
-        call op_mpi_wait_all(size(args_expanded), args_expanded)
+        call op_mpi_wait_all(size(args), args)
     end if
 
 {% for arg, idx in lh.args|gbl|reduction %}
     call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{idx}}, arg{{idx}}%data){{"\n" if loop.last}}
 {% endfor %}
-    call op_mpi_set_dirtybit(size(args_expanded), args_expanded)
+    call op_mpi_set_dirtybit(size(args), args)
     call op_timers_core(end_time)
 
     ! todo: review kernel transfer calculation
