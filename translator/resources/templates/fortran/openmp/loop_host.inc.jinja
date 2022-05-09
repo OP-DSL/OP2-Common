@@ -1,0 +1,176 @@
+{%- macro arg_to_pointer(arg, idx) -%}
+    {%- if arg is gbl and arg is reduction and lh is indirect -%}
+gbl_{{arg.ptr}}_temp
+    {%- elif arg is gbl -%}
+gbl_{{arg.ptr}}
+    {%- elif arg is direct -%}
+dat_{{arg.dat_ptr}}(1, n + 1)
+    {%- else -%}
+dat_{{arg.dat_ptr}}(1, map_{{arg.map_ptr}}({{arg.map_idx}}, n + 1) + 1)
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro type_c(arg) -%}
+    {%- if arg.access_type is instance(OP.Int) -%}
+        int
+    {%- elif arg.access_type is instance(OP.Bool) -%}
+        bool
+    {%- elif arg.access_type.size == 32 -%}
+        float
+    {%- else -%}
+        double
+    {%- endif -%}
+{%- endmacro -%}
+
+{{lh.kernel_func}}
+
+subroutine {{lh.kernel.name}}_wrapper( &
+{% for dat, idx in lh.dats.items() %}
+    dat_{{dat.ptr}}, &
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+    map_{{map.ptr}}, &
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+    gbl_{{arg.ptr}}, &
+{% endfor %}
+    set_size, &
+    set, &
+    args &
+)
+    implicit none
+
+    ! parameters
+{% for dat, idx in lh.dats.items() %}
+    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+    integer(4), dimension({{map.dim}}, *) :: map_{{map.ptr}}{{"\n" if loop.last}}
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
+{% endfor %}
+    integer(4) :: set_size
+    type(op_set) :: set
+    type(op_arg), dimension({{lh.args|length}}) :: args
+
+    ! locals
+{% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}_temp{{"\n" if loop.last}}
+{% endfor %}
+    integer(4) :: n, test_frequency
+
+{% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
+    gbl_{{arg.ptr}}_temp = {% if arg is inc %}0{% else %}gbl_{{arg.ptr}}{% endif %}{{"\n" if loop.last}}
+{% endfor %}
+    test_frequency = op_mpi_get_test_frequency()
+
+    do n = 0, set_size - 1
+    {% if lh is indirect %}
+        if (n > 0 .and. n < set%setptr%core_size .and. mod(n, test_frequency) == 0) then
+            call op_mpi_test_all(size(args), args)
+        end if
+
+        if (n == set%setptr%core_size) then
+            call op_mpi_wait_all(size(args), args)
+        end if
+
+    {% endif %}
+    {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
+        if (n == set%setptr%size) then
+        {% for arg, idx in lh.args|gbl|reduction %}
+            gbl_{{arg.ptr}} = gbl_{{arg.ptr}}_temp
+        {% endfor %}
+        end if
+
+    {% endif %}
+        call {{lh.kernel.name}}_seq( &
+{% for arg, idx in lh.args %}
+            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
+{% endfor %}
+        )
+    end do
+end subroutine
+
+subroutine {{lh.kernel.name}}_host( &
+    name, &
+    set, &
+{% for arg, idx in lh.args %}
+    arg{{idx}}{{"," if not loop.last}} & ! {{lh.kernel.params[idx][0]}}
+{% endfor %}
+)
+    implicit none
+
+    ! parameters
+    character(kind=c_char, len=*) :: name
+    type(op_set) :: set
+
+{% for arg, idx in lh.args %}
+    type(op_arg) :: arg{{idx}}
+{% endfor %}
+
+    ! locals
+    type(op_arg), dimension({{lh.args|length}}) :: args
+
+    integer(4) :: set_size
+
+{% for dat, idx in lh.dats.items() %}
+    {{dat.typ}}, pointer, dimension(:) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+    integer(4), pointer, dimension(:) :: map_{{map.ptr}}{{"\n" if loop.last}}
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+    {{arg.typ}}, pointer, dimension(:) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
+{% endfor %}
+    real(8) :: start_time, end_time
+    real(4) :: transfer
+
+{% for arg, idx in lh.args %}
+    {% set sarg = "arg%d" % idx %}
+    args({{loop.index}}) = {{sarg}}
+{% endfor %}
+
+    call op_timers_core(start_time)
+    set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+
+{% for dat, idx in lh.dats.items() %}
+    call c_f_pointer(arg{{idx}}%data, dat_{{dat.ptr}}, (/arg{{idx}}%dim * getsetsizefromoparg(arg{{idx}})/))
+        {{-"\n" if loop.last}}
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+    call c_f_pointer(arg{{idx}}%map_data, map_{{map.ptr}}, (/set%setptr%size * {{map.dim}}/)){{"\n" if loop.last}}
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+    call c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
+{% endfor %}
+    call {{lh.kernel.name}}_wrapper( &
+{% for dat, idx in lh.dats.items() %}
+        dat_{{dat.ptr}}, &
+{% endfor %}
+{% for map, idx in lh.maps.items() %}
+        map_{{map.ptr}}, &
+{% endfor %}
+{% for arg, idx in lh.args|gbl %}
+        gbl_{{arg.ptr}}, &
+{% endfor %}
+        set_size, &
+        set, &
+        args &
+    )
+
+    if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
+        call op_mpi_wait_all(size(args), args)
+    end if
+
+{% for arg, idx in lh.args|gbl|reduction %}
+    call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{idx}}, arg{{idx}}%data){{"\n" if loop.last}}
+{% endfor %}
+    call op_mpi_set_dirtybit(size(args), args)
+    call op_timers_core(end_time)
+
+    ! todo: review kernel transfer calculation
+    transfer = 0.0
+
+    call setkerneltime({{lh.kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
+end subroutine

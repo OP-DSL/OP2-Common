@@ -1,5 +1,5 @@
+from typing import Callable, List, Set, Optional
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -11,28 +11,44 @@ from store import Application, Kernel
 from util import find
 
 
-def translateKernel(
-    lang: Lang, include_dirs: Set[Path], defines: List[str], config: Dict[str, Any], kernel: Kernel, app: Application
-) -> str:
+def findKernel(lang: Lang, kernel: Kernel, include_dirs: Set[Path], defines: List[str]) -> f2003.Subroutine_Subprogram:
     ast = lang.parseFile(kernel.path, frozenset(include_dirs), frozenset(defines))
 
     kernel_ast = findSubroutine(kernel.path, ast, kernel.name)
     assert kernel_ast is not None
 
+    return kernel_ast
+
+
+def renameKernel(kernel_ast: f2003.Subroutine_Subprogram, replacement: Callable[[str], str]) -> None:
     subroutine_statement = fpu.get_child(kernel_ast, f2003.Subroutine_Stmt)
     kernel_name = fpu.get_child(subroutine_statement, f2003.Name)
 
-    kernel_name.string = kernel_name.string + "_seq"
+    kernel_name.string = replacement(kernel_name.string)
 
+
+def renameConsts(kernel_ast: f2003.Subroutine_Subprogram, app: Application, replacement: Callable[[str], str]) -> None:
     const_ptrs = set(map(lambda const: const.ptr, app.consts()))
+
     for name in fpu.walk(kernel_ast, f2003.Name):
         if name.string in const_ptrs:
-            name.string = f"op2_const_{name.string}"
+            name.string = replacement(name.string)
 
+
+def insertStrides(
+    kernel_ast: f2003.Subroutine_Subprogram,
+    kernel: Kernel,
+    app: Application,
+    stride: Callable[[str], str],
+    skip: Optional[Callable[[OP.ArgDat], bool]] = None,
+) -> None:
     loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
 
     for arg_idx in range(len(loop.args)):
         if not isinstance(loop.args[arg_idx], OP.ArgDat):
+            continue
+
+        if skip is not None and skip(loop.args[arg_idx]):
             continue
 
         dat = find(app.dats(), lambda dat: dat.ptr == loop.args[arg_idx].dat_ptr)
@@ -41,10 +57,10 @@ def translateKernel(
 
         insertStride(kernel.params[arg_idx][0], dat.ptr, kernel_ast)
 
-    return str(kernel_ast)
 
-
-def insertStride(param: str, dat_ptr: str, kernel_ast: f2003.Subroutine_Subprogram) -> None:
+def insertStride(
+    param: str, dat_ptr: str, kernel_ast: f2003.Subroutine_Subprogram, stride: Callable[[str], str]
+) -> None:
     for name in fpu.walk(kernel_ast, f2003.Name):
         if name.string != param:
             continue
@@ -57,5 +73,5 @@ def insertStride(param: str, dat_ptr: str, kernel_ast: f2003.Subroutine_Subprogr
 
         parent.items = (
             name,
-            f2003.Section_Subscript_List(f"((({str(subscript_list)}) - 1) * op2_dat_{dat_ptr}_stride + 1)"),
+            f2003.Section_Subscript_List(f"((({str(subscript_list)}) - 1) * {stride(dat_ptr)} + 1)"),
         )
