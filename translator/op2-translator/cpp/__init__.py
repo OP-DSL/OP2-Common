@@ -13,7 +13,6 @@ import op as OP
 from language import Lang
 from store import Kernel, ParseError, Program
 
-# Load environment vairables set in .env and set libclang path
 load_dotenv()
 clang.cindex.Config.set_library_file(os.getenv("LIBCLANG_PATH"))
 
@@ -75,3 +74,5 @@ class Cpp(Lang):
 
 
 Lang.register(Cpp)
+
+import cpp.schemes
