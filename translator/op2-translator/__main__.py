@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
+import fortran
+import cpp
 from jinja import env
 from language import Lang
 from op import OpError, Type

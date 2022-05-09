@@ -77,3 +77,5 @@ class Fortran(Lang):
 
 
 Lang.register(Fortran)
+
+import fortran.schemes
