@@ -1,6 +1,6 @@
 {%- macro arg_to_pointer(arg, idx) -%}
-    {%- if arg is gbl and arg is reduction and lh is indirect -%}
-gbl_{{arg.ptr}}_temp
+    {%- if arg is gbl and arg is reduction -%}
+gbl_{{arg.ptr}}_temp((thread - 1) * {{arg.dim|round_up(64)}} + 1)
     {%- elif arg is gbl -%}
 gbl_{{arg.ptr}}
     {%- elif arg is direct -%}
@@ -25,6 +25,7 @@ dat_{{arg.dat_ptr}}(1, map_{{arg.map_ptr}}({{arg.map_idx}}, n + 1) + 1)
 {{lh.kernel_func}}
 
 subroutine {{lh.kernel.name}}_wrapper( &
+    name, &
 {% for dat, idx in lh.dats.items() %}
     dat_{{dat.ptr}}, &
 {% endfor %}
@@ -34,13 +35,16 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% for arg, idx in lh.args|gbl %}
     gbl_{{arg.ptr}}, &
 {% endfor %}
-    set_size, &
     set, &
-    args &
+    args, &
+    num_dats_indirect, &
+    dats_indirect &
 )
     implicit none
 
     ! parameters
+    character(kind=c_char, len=*) :: name
+
 {% for dat, idx in lh.dats.items() %}
     {{dat.typ}}, dimension({{dat.dim}}, *) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
 {% endfor %}
@@ -50,46 +54,140 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% for arg, idx in lh.args|gbl %}
     {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
 {% endfor %}
-    integer(4) :: set_size
     type(op_set) :: set
     type(op_arg), dimension({{lh.args|length}}) :: args
 
+    integer(4) :: num_dats_indirect
+    integer(4), dimension({{lh.args|length}}) :: dats_indirect
+
     ! locals
-{% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}_temp{{"\n" if loop.last}}
+    integer(4) :: thread, start, end, n
+    integer(4) :: num_threads
+
+{% if lh is indirect %}
+    integer(4) :: part_size, col, block_idx, block_offset, num_blocks, block_id, num_elem, offset
+
+    type(op_plan), pointer :: plan
+    integer(4), dimension(:), pointer :: plan_ncolblk, plan_blkmap, plan_nelems, plan_offset
+{% endif %}
+
+{% for arg, idx in lh.args|gbl|reduction %}
+    {{arg.typ}}, dimension(:), allocatable :: gbl_{{arg.ptr}}_temp{{"\n" if loop.last}}
 {% endfor %}
-    integer(4) :: n, test_frequency
+{% if lh is indirect %}
+#ifdef OP_PART_SIZE_{{lh.kernel_idx}}
+    part_size = OP_PART_SIZE_{{lh.kernel_idx}}
+#else
+    part_size = 0
+#endif
 
-{% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
-    gbl_{{arg.ptr}}_temp = {% if arg is inc %}0{% else %}gbl_{{arg.ptr}}{% endif %}{{"\n" if loop.last}}
+    plan => fortranplancaller( &
+        name // c_null_char, &
+        set%setcptr, &
+        part_size, &
+        size(args), &
+        args, &
+        num_dats_indirect, &
+        dats_indirect, &
+        2 &
+    )
+
+    call c_f_pointer(plan%ncolblk, plan_ncolblk, (/ plan%ncolors /))
+    call c_f_pointer(plan%blkmap, plan_blkmap, (/ plan%nblocks /))
+    call c_f_pointer(plan%nelems, plan_nelems, (/ plan%nblocks /))
+    call c_f_pointer(plan%offset, plan_offset, (/ plan%nblocks /))
+
+{% endif %}
+{% if lh is direct or lh.args|gbl|reduction|length > 0 %}
+    num_threads = omp_get_max_threads()
+
+{% endif %}
+{% for arg, idx in lh.args|gbl|reduction %}
+    allocate(gbl_{{arg.ptr}}_temp(num_threads * {{arg.dim|round_up(64)}}))
+    {% if arg is inc %}
+    gbl_{{arg.ptr}}_temp = 0
+    {% else %}
+
+    do thread = 1, num_threads
+        start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
+        gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}}) = gbl_{{arg.ptr}}
+    end do
+    {% endif %}
+
 {% endfor %}
-    test_frequency = op_mpi_get_test_frequency()
+{% if lh is direct %}
+    !$omp parallel do private(thread, start, end, n)
+    do thread = 1, num_threads
+        start = (set%setptr%size * (thread - 1)) / num_threads
+        end = (set%setptr%size * thread) / num_threads - 1
 
-    do n = 0, set_size - 1
-    {% if lh is indirect %}
-        if (n > 0 .and. n < set%setptr%core_size .and. mod(n, test_frequency) == 0) then
-            call op_mpi_test_all(size(args), args)
-        end if
+        do n = start, end
+            call {{lh.kernel.name}}_openmp( &
+    {% for arg, idx in lh.args %}
+                {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
+    {% endfor %}
+            )
+        end do
+    end do
+{% for arg, idx in lh.args|gbl|reduction %}
 
-        if (n == set%setptr%core_size) then
+    do thread = 1, num_threads
+        start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
+    {% if arg is inc %}
+        gbl_{{arg.ptr}} = gbl_{{arg.ptr}} + gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}})
+    {% else %}
+        gbl_{{arg.ptr}} = {{arg.access_type.name-}}
+            (gbl_{{arg.ptr}}, gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}}))
+    {% endif %}
+    end do
+{% endfor %}
+{% else %}
+    block_offset = 0
+    do col = 1, plan%ncolors
+        if (col == plan%ncolors_core + 1) then
             call op_mpi_wait_all(size(args), args)
         end if
 
-    {% endif %}
-    {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
-        if (n == set%setptr%size) then
-        {% for arg, idx in lh.args|gbl|reduction %}
-            gbl_{{arg.ptr}} = gbl_{{arg.ptr}}_temp
-        {% endfor %}
-        end if
+        num_blocks = plan_ncolblk(col)
 
+        !$omp parallel do private(thread, block_idx, block_id, num_elem, offset, n)
+        do block_idx = 1, num_blocks
+            thread = omp_get_thread_num() + 1
+
+            block_id = plan_blkmap(block_idx + block_offset) + 1
+            num_elem = plan_nelems(block_id)
+            offset = plan_offset(block_id)
+
+            do n = offset, offset + num_elem - 1
+                call {{lh.kernel.name}}_openmp( &
+    {% for arg, idx in lh.args %}
+                    {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
+    {% endfor %}
+                )
+            end do
+        end do
+
+        block_offset = block_offset + num_blocks
+    {% if lh.args|gbl|reduction|length > 0 %}
+
+        if (col /= plan%ncolors_owned) then
+            cycle
+        end if
     {% endif %}
-        call {{lh.kernel.name}}_seq( &
-{% for arg, idx in lh.args %}
-            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}} &
-{% endfor %}
-        )
+    {% for arg, idx in lh.args|gbl|reduction %}
+
+        do thread = 1, num_threads
+            start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
+        {% if arg is inc %}
+            gbl_{{arg.ptr}} = gbl_{{arg.ptr}} + gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}})
+        {% else %}
+            gbl_{{arg.ptr}} = {{arg.access_type.name-}}
+                (gbl_{{arg.ptr}}, gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}}))
+        {% endif %}
+        end do
+    {% endfor %}
     end do
+{% endif %}
 end subroutine
 
 subroutine {{lh.kernel.name}}_host( &
@@ -112,6 +210,9 @@ subroutine {{lh.kernel.name}}_host( &
     ! locals
     type(op_arg), dimension({{lh.args|length}}) :: args
 
+    integer(4) :: num_dats_indirect
+    integer(4), dimension({{lh.args|length}}) :: dats_indirect
+
     integer(4) :: set_size
 
 {% for dat, idx in lh.dats.items() %}
@@ -131,6 +232,14 @@ subroutine {{lh.kernel.name}}_host( &
     args({{loop.index}}) = {{sarg}}
 {% endfor %}
 
+    num_dats_indirect = {{lh.dats|indirect(lh)|length}}
+    dats_indirect = (/
+    {%- for arg, idx in lh.args -%}
+        {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
+        {{-", " if not loop.last}}
+    {%- endfor -%}
+    /)
+
     call op_timers_core(start_time)
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
@@ -145,6 +254,7 @@ subroutine {{lh.kernel.name}}_host( &
     call c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
 {% endfor %}
     call {{lh.kernel.name}}_wrapper( &
+        name, &
 {% for dat, idx in lh.dats.items() %}
         dat_{{dat.ptr}}, &
 {% endfor %}
@@ -154,9 +264,10 @@ subroutine {{lh.kernel.name}}_host( &
 {% for arg, idx in lh.args|gbl %}
         gbl_{{arg.ptr}}, &
 {% endfor %}
-        set_size, &
         set, &
-        args &
+        args, &
+        num_dats_indirect, &
+        dats_indirect &
     )
 
     if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then

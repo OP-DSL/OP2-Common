@@ -44,6 +44,6 @@ contains
 
 {% endfor %}
 {% for loop_ in app.loops() %}
-    include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
+#include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
 {% endfor %}
 end module

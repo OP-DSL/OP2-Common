@@ -1,5 +1,6 @@
 import json
 import os
+from math import ceil
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
@@ -124,3 +125,5 @@ env.filters["read_or_write"] = test_to_filter("read_or_write")
 env.filters["reduction"] = test_to_filter("reduction")
 
 env.filters["index"] = lambda xs, x: xs.index(x)
+
+env.filters["round_up"] = lambda x, b: b * ceil(x / b)

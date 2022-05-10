@@ -81,7 +81,7 @@ gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
     #pragma omp parallel for
     for (int thread = 0; thread < num_threads; ++thread) {
         int start = (set->size * thread) / num_threads;
-        int end = (set->size * (thread + 1))/ num_threads;
+        int end = (set->size * (thread + 1)) / num_threads;
 
         for (int n = start; n < end; ++n) {
         {% for arg, idx in lh.args|vec %}

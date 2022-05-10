@@ -253,7 +253,7 @@ subroutine {{lh.kernel.name}}_host( &
     /)
 
     part_size = getpartitionsize(name // c_null_char, set%setptr%size)
-    plan = fortranplancaller( &
+    plan => fortranplancaller( &
         name // c_null_char, &
         set%setcptr, &
         part_size, &
