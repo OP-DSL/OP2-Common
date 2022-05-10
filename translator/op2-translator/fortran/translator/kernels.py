@@ -1,5 +1,5 @@
-from typing import Callable, List, Set, Optional
 from pathlib import Path
+from typing import Callable, List, Optional, Set
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
