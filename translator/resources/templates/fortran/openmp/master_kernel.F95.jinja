@@ -6,6 +6,8 @@ module op2_kernels
     use op2_fortran_declarations
     use op2_fortran_rt_support
 
+    use omp_lib
+
     implicit none
 
     {% for const in app.consts() %}
@@ -32,6 +34,6 @@ contains
 
 {% endfor %}
 {% for loop_ in app.loops() %}
-    include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
+#include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
 {% endfor %}
 end module

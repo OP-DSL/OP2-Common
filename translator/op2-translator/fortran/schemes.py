@@ -40,7 +40,7 @@ class FortranOpenMP(Scheme):
     def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
         kernel_ast = ftk.findKernel(self.lang, kernel, include_dirs, defines)
 
-        ftk.renameKernel(kernel_ast, lambda name: f"{name}_seq")
+        ftk.renameKernel(kernel_ast, lambda name: f"{name}_openmp")
         ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}")
 
         ftk.insertStrides(kernel_ast, kernel, app, lambda dat_ptr: f"op2_dat_{dat_ptr}_stride")
