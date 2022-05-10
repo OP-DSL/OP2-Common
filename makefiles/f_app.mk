@@ -18,7 +18,7 @@ ifeq ($(HAVE_F),true)
   BUILDABLE_VARIANTS := seq genseq
 
   ifeq ($(F_HAS_OMP),true)
-    BUILDABLE_VARIANTS += # vec openmp
+    BUILDABLE_VARIANTS += openmp # vec
   endif
 
   # TODO/openmp4 add omp declare target
