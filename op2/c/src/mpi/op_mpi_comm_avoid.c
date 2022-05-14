@@ -91,14 +91,14 @@ void stop_time(int my_rank, const char* name){
 //       op_free(h_list[set->index]->sizes);
 
 
-//       if(h_list[set->index]->ranks_sizes)
-//         op_free(h_list[set->index]->ranks_sizes);
-//       if(h_list[set->index]->rank_disps)
-//         op_free(h_list[set->index]->rank_disps);
-//       if(h_list[set->index]->level_disps)
-//         op_free(h_list[set->index]->level_disps);
-//       if(h_list[set->index]->level_sizes)
-//         op_free(h_list[set->index]->level_sizes);
+//       if(h_list[set->index]->ranks_sizes_by_level)
+//         op_free(h_list[set->index]->ranks_sizes_by_level);
+//       if(h_list[set->index]->ranks_disps_by_level)
+//         op_free(h_list[set->index]->ranks_disps_by_level);
+//       if(h_list[set->index]->disps_by_level)
+//         op_free(h_list[set->index]->disps_by_level);
+//       if(h_list[set->index]->sizes_upto_level_by_rank)
+//         op_free(h_list[set->index]->sizes_upto_level_by_rank);
       
 //       op_free(h_list[set->index]);
 //     }
@@ -168,17 +168,40 @@ void print_halo(halo_list h_list, const char* name, int my_rank){
   printf("print_halo my_rank=%d, name=%s\n", my_rank, name);
   printf("print_halo my_rank=%d, name=%s, set=%s, size=%d\n", my_rank, name, h_list->set->name, h_list->size);
 
-  for(int i = 0; i < h_list->ranks_size; i++){
-    printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d start>>>>>>>>>\n", my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->disps[i]);
+  for(int l = 0; l < h_list->num_levels; l++){
+    int level_disp = h_list->disps_by_level[l];
+    int rank_disp = h_list->ranks_disps_by_level[l];
+    
 
-    for(int j = h_list->disps[i]; j < h_list->disps[i] + h_list->sizes[i]; j++){
-      printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d value[%d]=%d\n", 
-      my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->disps[i], j, h_list->list[j]);
+    for (int r = 0; r < h_list->ranks_size / h_list->num_levels; r++){
+      int disp_in_level = h_list->disps[rank_disp + r];
+      for (int i = 0; i < h_list->sizes[h_list->ranks_disps_by_level[l] + r]; i++){
+        printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d value[%d]=%d\n", 
+        my_rank, name, h_list->ranks[r], h_list->sizes[h_list->ranks_disps_by_level[l] + r], 
+        level_disp + disp_in_level, i, h_list->list[level_disp + disp_in_level + i]);
+      }
     }
-
-    printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d end<<<<<<<<<<\n", my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->disps[i]);
   }
 }
+
+// void print_halo(halo_list h_list, const char* name, int my_rank){
+//   if(h_list == NULL)
+//     return;
+    
+//   printf("print_halo my_rank=%d, name=%s\n", my_rank, name);
+//   printf("print_halo my_rank=%d, name=%s, set=%s, size=%d\n", my_rank, name, h_list->set->name, h_list->size);
+
+//   for(int i = 0; i < h_list->ranks_size; i++){
+//     printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d start>>>>>>>>>\n", my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->disps[i]);
+
+//     for(int j = h_list->disps[i]; j < h_list->disps[i] + h_list->sizes[i]; j++){
+//       printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d value[%d]=%d\n", 
+//       my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->disps[i], j, h_list->list[j]);
+//     }
+
+//     printf("print_halo my_rank=%d, name=%s, to_rank=%d, size=%d, disp=%d end<<<<<<<<<<\n", my_rank, name, h_list->ranks[i], h_list->sizes[i], h_list->disps[i]);
+//   }
+// }
 
 void print_aug_part_list(int** aug_range, int* aug_size, int my_rank){
   for(int i = 0; i < OP_set_index; i++){
@@ -331,7 +354,7 @@ void check_augmented_part_range(int* parts, int set_index, int value, int my_ran
 }
 
 halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_size){
-  
+  // printf("my_rank=%d merge_halo_lists start >>>>>>>>>>\n", my_rank);
   if(count < 1){
     printf("ERROR: No elements in the list to merge. count=%d\n", count);
     return NULL;
@@ -351,6 +374,9 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
       return NULL;
     }
     init_ranks_size += (h_lists[i]) ? h_lists[i]->ranks_size : 0;
+
+    // if(h_lists[i])
+    //   print_halo(h_lists[i], "halonew", my_rank);
   }
 
   int *temp_ranks = (int *)xmalloc(init_ranks_size * sizeof(int));
@@ -380,26 +406,40 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
 
   int *list = (int *)xmalloc(new_size * sizeof(int));
   int *ranks = (int *)xmalloc(new_ranks_size * sizeof(int));
-  int *disps = (int *)xmalloc(new_ranks_size * sizeof(int));
   int *sizes = (int *)xmalloc(new_ranks_size * sizeof(int));
-
-  int* ranks_sizes = (int *)xmalloc(num_levels * sizeof(int));
-  // int* level_sizes = (int *)xmalloc(num_levels * sizeof(int));
-  int* level_disps = (int *)xmalloc(num_levels * sizeof(int));
-  int* rank_disps = (int *)xmalloc(num_levels * sizeof(int));
+  int *disps = (int *)xmalloc(new_ranks_size * sizeof(int));
+  
+  int *level_sizes = (int *)xmalloc(new_ranks_size * sizeof(int));
+  int *level_disps = (int *)xmalloc(new_ranks_size * sizeof(int));
+  
+  int* ranks_sizes_by_level = (int *)xmalloc(num_levels * sizeof(int));
+  int* disps_by_level = (int *)xmalloc(num_levels * sizeof(int));
+  int* ranks_disps_by_level = (int *)xmalloc(num_levels * sizeof(int));
 
   int* sizes_by_rank = (int *)xmalloc(tmp_rank_size * sizeof(int));
   int* disps_by_rank = (int *)xmalloc(tmp_rank_size * sizeof(int));
-  int* level_sizes = (int *)xmalloc(num_levels * tmp_rank_size * sizeof(int));
+
+  int* sizes_upto_level_by_rank = (int *)xmalloc(num_levels * num_levels * tmp_rank_size * sizeof(int));
+  int* disps_upto_level_by_rank = (int *)xmalloc(num_levels * num_levels* tmp_rank_size * sizeof(int));
 
   for(int i = 0; i < tmp_rank_size; i++){
     sizes_by_rank[i] = 0;
     disps_by_rank[i] = 0;
   }
 
+  for(int i = 0; i < num_levels * num_levels * tmp_rank_size; i++){
+    sizes_upto_level_by_rank[i] = 0;
+    disps_upto_level_by_rank[i] = 0;
+  }
+
+  for(int i = 0; i < num_levels * tmp_rank_size; i++){
+    level_sizes[i] = 0;
+    level_disps[i] = 0;
+  }
+
   if(num_levels > 0){
-    rank_disps[0] = 0;
-    level_disps[0] = 0;
+    ranks_disps_by_level[0] = 0;
+    disps_by_level[0] = 0;
   }
 
   int list_start = 0;
@@ -410,38 +450,23 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
     if(h_list == NULL)
       continue;
 
+    // print_array(h_list->sizes, h_list->ranks_size, "main_sizes", my_rank);
+    // print_array(h_list->disps, h_list->ranks_size, "main_disps", my_rank);
+    // print_array(h_list->ranks, h_list->ranks_size, "main_ranks", my_rank);
+
     memcpy(&(list[list_start]), h_list->list, h_list->size * sizeof(int));
 
     for(int l = 0; l < h_list->num_levels; l++){
       for(int r = 0; r < tmp_rank_size; r++){
-        int rank_index = binary_search(&h_list->ranks[h_list->rank_disps[l]], temp_ranks[r], 0, h_list->ranks_sizes[l] - 1);
+        int rank_index = binary_search(&h_list->ranks[h_list->ranks_disps_by_level[l]], temp_ranks[r], 0, h_list->ranks_sizes_by_level[l] - 1);
         ranks[rank_start + r] = temp_ranks[r];
+        int prev_level_size = 0;
         if(rank_index >= 0){
-          sizes[rank_start + r] = h_list->sizes[h_list->rank_disps[l] + rank_index];
-          sizes_by_rank[r] += h_list->sizes[h_list->rank_disps[l] + rank_index];
-
-          if(level_start + l > 0){
-            level_sizes[(level_start + l) * tmp_rank_size + r] = level_sizes[((level_start + l) - 1) * tmp_rank_size + r] + h_list->sizes[h_list->rank_disps[l] + rank_index];
-            // printf("test1 rank=%d set=%s tmp_rank_size=%d l=%d r=%d prev(%d)=%d size=%d val=%d\n", my_rank, set->name, 
-            // tmp_rank_size, (level_start + l), r,((level_start + l) - 1) * tmp_rank_size + r,  level_sizes[((level_start + l) - 1) * tmp_rank_size + r], h_list->sizes[h_list->rank_disps[l] + rank_index],
-            // level_sizes[(level_start + l) * tmp_rank_size + r]);
-          }else{
-            level_sizes[(level_start + l) * tmp_rank_size + r] = h_list->sizes[h_list->rank_disps[l] + rank_index];
-            // printf("test2 rank=%d set=%s tmp_rank_size=%d l=%d r=%d size=%d val=%d\n",  my_rank, set->name,  
-            // tmp_rank_size, (level_start + l), r, h_list->sizes[h_list->rank_disps[l] + rank_index],
-            // level_sizes[(level_start + l) * tmp_rank_size + r]);
-          }
-            
+          sizes[rank_start + r] = h_list->sizes[h_list->ranks_disps_by_level[l] + rank_index];
+          sizes_by_rank[r] += h_list->sizes[h_list->ranks_disps_by_level[l] + rank_index];
+          level_sizes[num_levels * r + level_start + l] = h_list->sizes[h_list->ranks_disps_by_level[l] + rank_index];
         }else{
           sizes[rank_start + r] = 0;
-          if(level_start + l > 0){
-            level_sizes[(level_start + l) * tmp_rank_size + r] = level_sizes[((level_start + l) - 1) * tmp_rank_size + r] + 0;
-            // printf("test1 >>>>>>>>>>>>>>>>>>\n");
-          } else{
-            level_sizes[(level_start + l) * tmp_rank_size + r] = 0;
-            // printf("test2 <<<<<<<<<<<<<<>>>>>>>>>>>>>>n");
-          }
-          
         }
       }
 
@@ -453,12 +478,11 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
         disps[rank_start + r] = sizes[rank_start + r - 1] + disps[rank_start + r - 1];
       }
 
-      ranks_sizes[level_start + l] = tmp_rank_size;
-      // level_sizes[level_start + l] = h_list->level_sizes[l];
-      level_disps[level_start + l] = list_start + h_list->level_disps[l];
+      ranks_sizes_by_level[level_start + l] = tmp_rank_size;
+      disps_by_level[level_start + l] = list_start + h_list->disps_by_level[l];
 
       if(level_start + l > 0)
-        rank_disps[level_start + l] = ranks_sizes[level_start + l - 1] + rank_disps[level_start + l - 1];
+        ranks_disps_by_level[level_start + l] = ranks_sizes_by_level[level_start + l - 1] + ranks_disps_by_level[level_start + l - 1];
 
       rank_start += tmp_rank_size; //h_list->ranks_size;
     }
@@ -471,6 +495,65 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
     disps_by_rank[r] = sizes_by_rank[r - 1] + disps_by_rank[r - 1];
   }
 
+  for(int r = 0; r < tmp_rank_size; r++){
+    for(int l = 0; l < num_levels; l++){
+      for(int l1 = 0; l1 < l + 1; l1++){
+
+        int prev_level_size = 0;
+        if(l > 0){
+          prev_level_size = sizes_upto_level_by_rank[r * num_levels * num_levels + (l - 1) * num_levels + l1];
+        }
+
+        int prev_rank_size = 0;
+        int prev_rank_prev_level_size = 0;
+         if(r > 0){
+          prev_rank_size = sizes_upto_level_by_rank[(r - 1) * num_levels * num_levels + l * num_levels + l1];
+
+
+          prev_rank_prev_level_size = 0;
+          if(l > 0){
+            prev_rank_prev_level_size = sizes_upto_level_by_rank[(r - 1) * num_levels * num_levels + (l - 1) * num_levels + l1];
+          }
+        }
+        int size = 0;
+        if(l1 == l){
+          size = level_sizes[r * num_levels + l1];
+        }
+        sizes_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1] = size + prev_level_size +
+        prev_rank_size - prev_rank_prev_level_size;
+      }
+      for(int l1 = l + 1; l1 < num_levels; l1++){
+        sizes_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1] = sizes_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1 - 1];
+      }
+    }
+  }
+
+
+  for(int r = 0; r < tmp_rank_size; r++){
+    for(int l = 1; l < num_levels; l++){
+      level_disps[r * num_levels + l] = level_sizes[r * num_levels + (l - 1)] + 
+                                                      level_disps[r * num_levels + (l - 1)];
+    }
+  }
+
+  for(int r = 0; r < tmp_rank_size; r++){
+    for(int l = 0; l < num_levels; l++){
+
+      for(int l1 = 0; l1 < l + 1; l1++){
+        int size = 0;
+        if(l1 <= l){
+          size = level_sizes[r * num_levels + l1];
+        }
+        disps_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1] = 
+        sizes_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1] - size;
+      }
+
+      for(int l1 = l + 1; l1 < num_levels; l1++){
+        disps_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1] = disps_upto_level_by_rank[r * num_levels * num_levels + l * num_levels + l1 - 1];
+      }
+    }
+  }
+  
   halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
 
   h_list->set = set;
@@ -481,10 +564,18 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
   h_list->sizes = sizes;
   h_list->list = list;
   h_list->num_levels = num_levels;
-  h_list->ranks_sizes = ranks_sizes;
+
   h_list->level_sizes = level_sizes;
   h_list->level_disps = level_disps;
-  h_list->rank_disps = rank_disps;
+
+  h_list->ranks_sizes_by_level = ranks_sizes_by_level;
+  h_list->ranks_disps_by_level = ranks_disps_by_level;
+
+  h_list->disps_by_level = disps_by_level;
+
+  h_list->sizes_upto_level_by_rank = sizes_upto_level_by_rank;
+  h_list->disps_upto_level_by_rank = disps_upto_level_by_rank;
+  
   h_list->sizes_by_rank = sizes_by_rank;
   h_list->disps_by_rank = disps_by_rank;
 
@@ -499,14 +590,28 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
   //   op_free(h_lists[i]->disps);
   //   op_free(h_lists[i]->sizes);
   //   op_free(h_lists[i]->list);
-    // op_free(h_lists[i]->ranks_sizes);
-    // op_free(h_lists[i]->rank_disps);
-    // op_free(h_lists[i]->level_disps);
-    // op_free(h_lists[i]->level_sizes);
-    // op_free(h_lists[i]->disps_by_rank);
-    // op_free(h_lists[i]->sizes_by_rank);
-    // op_free(h_lists[i]);
+  //   op_free(h_lists[i]->ranks_sizes_by_level);
+  //   op_free(h_lists[i]->ranks_disps_by_level);
+  //   op_free(h_lists[i]->disps_by_level);
+  //   op_free(h_lists[i]->sizes_upto_level_by_rank);
+  //   op_free(h_lists[i]->disps_by_rank);
+  //   op_free(h_lists[i]->sizes_by_rank);
+  //   op_free(h_lists[i]);
   // }
+  // print_halo(h_list, "mergedhalo", my_rank);
+  // print_array(h_list->sizes, num_levels * tmp_rank_size, "sizes", my_rank);
+  // print_array(h_list->disps, num_levels * tmp_rank_size, "disps", my_rank);
+  // print_array(h_list->ranks, num_levels * tmp_rank_size, "ranks", my_rank);
+  // print_array(h_list->level_sizes, num_levels * tmp_rank_size, "level_sizes", my_rank);
+  // print_array(h_list->level_disps, num_levels * tmp_rank_size, "level_disps", my_rank);
+  // print_array(h_list->ranks_sizes_by_level, num_levels, "ranks_sizes_by_level", my_rank);
+  // print_array(h_list->ranks_disps_by_level, num_levels, "ranks_disps_by_level", my_rank);
+  // print_array(h_list->disps_by_level, num_levels, "disps_by_level", my_rank);
+  // print_array(h_list->sizes_upto_level_by_rank, num_levels * num_levels * tmp_rank_size, "sizes_upto_level_by_rank", my_rank);
+  // print_array(h_list->disps_upto_level_by_rank, num_levels * num_levels * tmp_rank_size, "disps_upto_level_by_rank", my_rank);
+  // print_array(h_list->disps_upto_level_by_rank, num_levels * tmp_rank_size, "disps_upto_level_by_rank", my_rank);
+
+  // printf("my_rank=%d merge_halo_lists end <<<<<<<<<<<<<<\n", my_rank);
   return h_list;
 }
 
@@ -2403,7 +2508,7 @@ void calculate_dat_size(int my_rank, op_dat dat){
   for(int i = 0; i < num_level; i++){
     snprintf(&header_str[header_len], 20, "nonexec_%d,", i); header_len = strlen(header_str);
   }
-  printf("test,%s\n", header_str);
+  // printf("test,%s\n", header_str);
 
   int ind_count = 0;
   int exec_count = 0;
@@ -2430,11 +2535,11 @@ void calculate_dat_size(int my_rank, op_dat dat){
 
     int rank_total = 0;
     for(int l = 0; l < max_level + num_level; l++){
-      int level_disp = exp_list->level_disps[l];
-      int rank_disp = exp_list->rank_disps[l];
+      int level_disp = exp_list->disps_by_level[l];
+      int rank_disp = exp_list->ranks_disps_by_level[l];
       int disp_in_level = exp_list->disps[rank_disp + r];
 
-      int size = dat->size * exp_list->sizes[exp_list->rank_disps[l] + r];
+      int size = dat->size * exp_list->sizes[exp_list->ranks_disps_by_level[l] + r];
       snprintf(&result_str[len], 10, "%d,", size);
 
       len = strlen(result_str);
@@ -2466,7 +2571,7 @@ void calculate_dat_size(int my_rank, op_dat dat){
         if(max_merged < rank_total)
           max_merged = rank_total;
     }
-    printf("test,%s\n", result_str);
+    // printf("test,%s\n", result_str);
     
   }
 
@@ -2485,10 +2590,10 @@ void calculate_dat_size(int my_rank, op_dat dat){
   int max_max_nonexec = 0;
   int max_max_merged = 0;
 
-  printf("test_ind_avg,my_rank=%d,ind_avg=%f,exec_avg=%f,nonexec_avg=%f,merged_avg=%f\n", my_rank,
-  ind_avg, exec_avg, nonexec_avg, merged_avg);
-  printf("test_max_avg,my_rank=%d,max_ind=%d,max_exec=%d,max_nonexec=%d,max_merged=%d\n", my_rank,
-    max_ind, max_exec, max_nonexec, max_merged);
+  // printf("test_ind_avg,my_rank=%d,ind_avg=%f,exec_avg=%f,nonexec_avg=%f,merged_avg=%f\n", my_rank,
+  // ind_avg, exec_avg, nonexec_avg, merged_avg);
+  // printf("test_max_avg,my_rank=%d,max_ind=%d,max_exec=%d,max_nonexec=%d,max_merged=%d\n", my_rank,
+  //   max_ind, max_exec, max_nonexec, max_merged);
 
   MPI_Reduce(&ind_avg, &max_ind_avg, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
   MPI_Reduce(&exec_avg, &max_exec_avg, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
@@ -2579,7 +2684,7 @@ void op_halo_create_comm_avoid() {
   // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
-  // set_maps_halo_extension(); 
+  set_maps_halo_extension(); 
    
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;

@@ -308,17 +308,23 @@ void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
   h_list->list = list;
 
   h_list->num_levels = 1;
-  h_list->ranks_sizes = (int *)xmalloc(1 * sizeof(int));
-  h_list->ranks_sizes[0] = ranks_size;
-  h_list->rank_disps = (int *)xmalloc(1 * sizeof(int));
-  h_list->rank_disps[0] = 0;
-  h_list->level_disps = (int *)xmalloc(1 * sizeof(int));
-  h_list->level_disps[0] = 0;
-  h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
-  h_list->level_sizes[0] = total_size;
+  h_list->ranks_sizes_by_level = (int *)xmalloc(1 * sizeof(int));
+  h_list->ranks_sizes_by_level[0] = ranks_size;
+  h_list->ranks_disps_by_level = (int *)xmalloc(1 * sizeof(int));
+  h_list->ranks_disps_by_level[0] = 0;
+  h_list->disps_by_level = (int *)xmalloc(1 * sizeof(int));
+  h_list->disps_by_level[0] = 0;
+  h_list->sizes_upto_level_by_rank = (int *)xmalloc(1 * sizeof(int));
+  h_list->sizes_upto_level_by_rank[0] = total_size;
+  h_list->disps_upto_level_by_rank = disps;
 
   h_list->sizes_by_rank = sizes;
   h_list->disps_by_rank = disps;
+
+  h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_sizes[0] = total_size;
+  h_list->level_disps = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_disps[0] = 0;
 }
 
 /*******************************************************************************
@@ -345,17 +351,23 @@ void create_import_list(op_set set, int *temp_list, halo_list h_list,
   h_list->list = temp_list;
 
   h_list->num_levels = 1;
-  h_list->ranks_sizes = (int *)xmalloc(1 * sizeof(int));
-  h_list->ranks_sizes[0] = ranks_size;
-  h_list->rank_disps = (int *)xmalloc(1 * sizeof(int));
-  h_list->rank_disps[0] = 0;
-  h_list->level_disps = (int *)xmalloc(1 * sizeof(int));
-  h_list->level_disps[0] = 0;
-  h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
-  h_list->level_sizes[0] = total_size;
+  h_list->ranks_sizes_by_level = (int *)xmalloc(1 * sizeof(int));
+  h_list->ranks_sizes_by_level[0] = ranks_size;
+  h_list->ranks_disps_by_level = (int *)xmalloc(1 * sizeof(int));
+  h_list->ranks_disps_by_level[0] = 0;
+  h_list->disps_by_level = (int *)xmalloc(1 * sizeof(int));
+  h_list->disps_by_level[0] = 0;
+  h_list->sizes_upto_level_by_rank = (int *)xmalloc(1 * sizeof(int));
+  h_list->sizes_upto_level_by_rank[0] = total_size;
+  h_list->disps_upto_level_by_rank = disps;
 
   h_list->sizes_by_rank = sizes;
   h_list->disps_by_rank = disps;
+
+  h_list->level_sizes = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_sizes[0] = total_size;
+  h_list->level_disps = (int *)xmalloc(1 * sizeof(int));
+  h_list->level_disps[0] = 0;
 }
 
 /*******************************************************************************
@@ -2114,14 +2126,14 @@ void op_single_halo_destroy(halo_list* h_list){
       op_free(h_list[set->index]->sizes);
 
 
-      if(h_list[set->index]->ranks_sizes)
-        op_free(h_list[set->index]->ranks_sizes);
-      if(h_list[set->index]->rank_disps)
-        op_free(h_list[set->index]->rank_disps);
-      if(h_list[set->index]->level_disps)
-        op_free(h_list[set->index]->level_disps);
-      if(h_list[set->index]->level_sizes)
-        op_free(h_list[set->index]->level_sizes);
+      if(h_list[set->index]->ranks_sizes_by_level)
+        op_free(h_list[set->index]->ranks_sizes_by_level);
+      if(h_list[set->index]->ranks_disps_by_level)
+        op_free(h_list[set->index]->ranks_disps_by_level);
+      if(h_list[set->index]->disps_by_level)
+        op_free(h_list[set->index]->disps_by_level);
+      if(h_list[set->index]->sizes_upto_level_by_rank)
+        op_free(h_list[set->index]->sizes_upto_level_by_rank);
       
       op_free(h_list[set->index]);
     }
