@@ -82,4 +82,4 @@ def unindent_cpp_directives(s: str) -> str:
         "warning",
     ]
 
-    return re.sub(fr"^\s*#({'|'.join(directives)})(\s+|\s*$)", r"#\1\2", s, flags=re.MULTILINE)
+    return re.sub(rf"^\s*#({'|'.join(directives)})(\s+|\s*$)", r"#\1\2", s, flags=re.MULTILINE)
