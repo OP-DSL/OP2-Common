@@ -6,4 +6,9 @@
 #endif
 
 {{super()}}
+
+template<typename T, unsigned A = OP2_ALIGNMENT>
+inline T *assume_aligned(T *p) {
+    return reinterpret_cast<T *>(__builtin_assume_aligned(p, A));
+}
 {% endblock %}
