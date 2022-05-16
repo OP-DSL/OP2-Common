@@ -1,34 +1,162 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
 {%- macro arg_to_pointer(arg, idx) -%}
-    {%- if arg is gbl and arg is reduction -%}
-gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
+    {%- if arg is gbl -%}
+gbl_{{arg.ptr}}
+    {%- elif arg is direct -%}
+dat_{{arg.dat_ptr}} + n * {{arg.dat_dim}}
     {%- else -%}
-        {%- if arg is gbl %}
-            {%- set cast = arg.typ -%}
-        {%- else -%}
-            {%- set cast = arg.dat_typ -%}
-        {%- endif -%}
+dat_{{arg.dat_ptr}} + map_{{arg.map_ptr}}[n * {{lh.findMap(arg.map_ptr)[0].dim}} + {{arg.map_idx}}] * {{arg.dat_dim}}
+    {%- endif -%}
+{%- endmacro -%}
 
-        {%- if arg is direct -%}
-            {%- set offset = " + n" -%}
-        {%- elif arg is indirect -%}
-            {%- set offset = " + map_%s[%d]" % (arg.map_ptr, arg.map_idx) -%}
-        {%- endif -%}
-
-        {%- if arg is not gbl and lh.findDat(arg.dat_ptr)[0] is not soa %}
-            {%- set offset = "%s * %d" % (offset, arg.dat_dim) %}
-        {%- endif -%}
-
-({{cast}} *)arg{{idx}}.data{{offset}}
+{%- macro arg_to_pointer_local(arg, idx) -%}
+    {%- if arg is read -%}
+{{arg_to_pointer(arg, idx)}}
+    {%- else -%}
+arg{{idx}}{{"_%s" % (arg.map_idx) if arg is indirect-}}_local[lane]
     {%- endif -%}
 {%- endmacro -%}
 
 {% block host_prologue %}
-{{super()}}
-    {% for dat, idx in lh.dats.items()|soa %}
-    op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});{{"\n" if loop.last}}
+    {% if target.config.vectorise %}
+#define SIMD_LEN 8
+    {% endif %}
+
+void {{lh.kernel.name}}_wrapper(
+    {% for dat, idx in lh.dats.items() %}
+    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat_{{dat.ptr}}_u,
     {% endfor %}
+    {% for map, idx in lh.maps.items() %}
+    const int *__restrict__ map_{{map.ptr}}_u,
+    {% endfor %}
+    {% for arg, idx in lh.args|gbl %}
+    {{"const " if arg is read}}{{arg.typ}} *__restrict__ gbl_{{arg.ptr}},
+    {% endfor %}
+    int start,
+    int end
+) {
+    {% for dat, idx in lh.dats.items() %}
+    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat_{{dat.ptr}} = assume_aligned(dat_{{dat.ptr}}_u);
+    {% endfor %}
+    {% for map, idx in lh.maps.items() %}
+    const int *__restrict__ map_{{map.ptr}} = assume_aligned(map_{{map.ptr}}_u);
+    {% endfor %}
+
+    {% if target.config.vectorise %}
+    int block = start;
+    for (; block + SIMD_LEN < end; block += SIMD_LEN) {
+        {% for arg, idx in lh.args_expanded|dat if arg is not read %}
+        alignas(SIMD_LEN * 8) {{arg.dat_typ}} arg{{idx}}{{"_%s" % (arg.map_idx) if arg is indirect-}}
+            _local[SIMD_LEN][{{arg.dat_dim}}]{{-" = {0}" if arg is inc}};
+        {% endfor %}
+        {% for arg, idx in lh.args|gbl|reduction %}
+        alignas(SIMD_LEN * 8) {{arg.typ}} arg{{idx}}_local[SIMD_LEN][{{arg.dim}}]{{" = {0}" if arg is inc}};
+        {% endfor %}
+
+        for (int lane = 0; lane < SIMD_LEN; ++lane) {
+            int n = block + lane;
+
+            {% for arg, idx in lh.args_expanded|dat if arg is read_write %}
+            for (int d = 0; d < {{arg.dat_dim}}; ++d) {
+                arg{{idx}}_local[lane][d] = ({{arg_to_pointer(arg, idx)}})[d];
+            }{{"\n" if not loop.last}}
+            {% endfor %}
+            {% for arg, idx in lh.args|gbl|reduction if arg is not inc %}
+            for (int d = 0; d < {{arg.dim}}; ++d) {
+                arg{{idx}}_local[lane][d] = ({{arg_to_pointer(arg, idx)}})[d];
+            }{{"\n" if not loop.last}}
+            {% endfor %}
+        }
+
+        #pragma omp simd
+        for (int lane = 0; lane < SIMD_LEN; ++lane) {
+            int n = block + lane;
+
+        {% for arg, idx in lh.args|vec %}
+            {{"const " if arg is read}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
+            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+                {{arg_to_pointer_local(arg_expanded, idx)}}{{"," if not loop.last}}
+            {% endfor %}
+            };
+
+        {% endfor %}
+            {{lh.kernel.name}}(
+        {% for arg, idx in lh.args %}
+            {% if arg is not vec %}
+                {{arg_to_pointer_local(arg, idx)}}{{"," if not loop.last}}
+            {% else %}
+                arg{{idx}}_vec{{"," if not loop.last}}
+            {% endif %}
+        {% endfor %}
+            );
+        }
+
+        for (int lane = 0; lane < SIMD_LEN; ++lane) {
+            int n = block + lane;
+        {% for arg, idx in lh.args_expanded|dat if arg is not read %}
+
+            for (int d = 0; d < {{arg.dat_dim}}; ++d) {
+                ({{arg_to_pointer(arg, idx)}})[d] {{"+" if arg is inc-}}= {{arg_to_pointer_local(arg, idx)}}[d];
+            }
+        {% endfor %}
+        {% for arg, idx in lh.args|gbl|reduction %}
+
+            for (int d = 0; d < {{arg.dim}}; ++d) {
+            {% if arg is inc %}
+                {{arg_to_pointer(arg, idx)}}[d] += {{arg_to_pointer_local(arg, idx)}}[d];
+            {% else %}
+                {{arg_to_pointer(arg, idx)}}[d] = {{arg.access_type.name if arg is not inc-}}
+                    ({{arg_to_pointer(arg, idx)}}[d], {{arg_to_pointer_local(arg, idx)}}[d]);
+            {% endif %}
+            }
+        {% endfor %}
+        }
+    }
+
+    for (int n = block; n < end; ++n) {
+        {% for arg, idx in lh.args|vec %}
+        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
+            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
+            {% endfor %}
+        };
+
+        {% endfor %}
+        {{lh.kernel.name}}(
+        {% for arg, idx in lh.args %}
+            {% if arg is not vec %}
+            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+            {% else %}
+            arg{{idx}}_vec{{"," if not loop.last}}
+            {% endif %}
+        {% endfor %}
+        );
+    }
+    {% else %}
+    for (int n = start; n < end; ++n) {
+        {% for arg, idx in lh.args|vec %}
+        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
+            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
+            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
+            {% endfor %}
+        };
+
+        {% endfor %}
+        {{lh.kernel.name}}(
+        {% for arg, idx in lh.args %}
+            {% if arg is not vec %}
+            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+            {% else %}
+            arg{{idx}}_vec{{"," if not loop.last}}
+            {% endif %}
+        {% endfor %}
+        );
+    }
+    {% endif %}
+}
+
+{{super()}}
     {% if lh is indirect %}
 {{indirect_dat_def()}}
 
@@ -83,25 +211,20 @@ gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
         int start = (set->size * thread) / num_threads;
         int end = (set->size * (thread + 1)) / num_threads;
 
-        for (int n = start; n < end; ++n) {
-        {% for arg, idx in lh.args|vec %}
-            {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-                {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
-            {% endfor %}
-            };
-
+        {{lh.kernel.name}}_wrapper(
+        {% for dat, idx in lh.dats.items() %}
+            ({{dat.typ}} *)arg{{idx}}.data,
         {% endfor %}
-            {{lh.kernel.name}}(
-        {% for arg, idx in lh.args %}
-            {% if arg is not vec %}
-                {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+        {% for arg, idx in lh.args|gbl %}
+            {% if arg is reduction %}
+            gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num(),
             {% else %}
-                arg{{idx}}_vec{{"," if not loop.last}}
+            ({{arg.typ}} *)arg{{idx}}.data,
             {% endif %}
         {% endfor %}
-            );
-        }
+            start,
+            end
+        );
     }
     {% else %}
     int block_offset = 0;
@@ -117,29 +240,23 @@ gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num()
             int num_elem = plan->nelems[block_id];
             int offset = plan->offset[block_id];
 
-            for (int n = offset; n < offset + num_elem; ++n) {
+            {{lh.kernel.name}}_wrapper(
+        {% for dat, idx in lh.dats.items() %}
+                ({{dat.typ}} *)arg{{idx}}.data,
+        {% endfor %}
         {% for map, idx in lh.maps.items() %}
-                int *map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
+                arg{{idx}}.map_data,
         {% endfor %}
-
-        {% for arg, idx in lh.args|vec %}
-                {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-                    {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
-            {% endfor %}
-                };
-
-        {% endfor %}
-                {{lh.kernel.name}}(
-        {% for arg, idx in lh.args %}
-            {% if arg is not vec %}
-                    {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+        {% for arg, idx in lh.args|gbl %}
+            {% if arg is reduction %}
+                gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num(),
             {% else %}
-                    arg{{idx}}_vec{{"," if not loop.last}}
+                ({{arg.typ}} *)arg{{idx}}.data,
             {% endif %}
         {% endfor %}
-                );
-            }
+                offset,
+                offset + num_elem
+            );
         }
 
         block_offset += num_blocks;
