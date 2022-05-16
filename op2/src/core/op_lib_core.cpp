@@ -1186,54 +1186,35 @@ void set_maps_base(int base) {
 }
 
 void *op_malloc(size_t size) {
-#ifdef __INTEL_COMPILER
-  // return _mm_malloc(size, OP2_ALIGNMENT);
-  return memalign(OP2_ALIGNMENT, size);
-#else
-  return malloc(size);
-#endif
+  return aligned_alloc(OP2_ALIGNMENT, size);
 }
 
 // malloc to be exposed in Fortran API for use with Cray pointers
 void op_malloc2(void **data, int *size){
-    *data =(void *) malloc(*size);
+  *data = op_malloc(*size);
 }
 
 void *op_calloc(size_t num, size_t size) {
-#ifdef __INTEL_COMPILER
-  // void * ptr = _mm_malloc(num*size, OP2_ALIGNMENT);
-  void *ptr = memalign(OP2_ALIGNMENT, num * size);
-  memset(ptr, 0, num * size);
-  return ptr;
-#else
-  return calloc(num, size);
-#endif
+  void *p = op_malloc(num * size);
+  memset(p, 0, num * size);
+
+  return p;
 }
 
 void *op_realloc(void *ptr, size_t size) {
-#ifdef __INTEL_COMPILER
-  void *newptr = realloc(ptr, size);
-  if (((unsigned long)newptr & (OP2_ALIGNMENT - 1)) != 0) {
-    void *newptr2 = memalign(OP2_ALIGNMENT, size);
-    // void *newptr2 = _mm_malloc(size, OP2_ALIGNMENT);
-    memcpy(newptr2, newptr, size);
-    free(newptr);
-    return newptr2;
-  } else {
-    return newptr;
-  }
-#else
-  return realloc(ptr, size);
-#endif
+  void *new_ptr = realloc(ptr, size);
+
+  if (((unsigned long)new_ptr & (OP2_ALIGNMENT - 1)) == 0)
+    return new_ptr;
+
+  void *new_ptr2 = op_malloc(size);
+  memcpy(new_ptr2, new_ptr, size);
+
+  return new_ptr2;
 }
 
 void op_free(void *ptr) {
-#ifdef __INTEL_COMPILER
-  //_mm_free(ptr);
   free(ptr);
-#else
-  free(ptr);
-#endif
 }
 
 op_arg op_arg_dat(op_dat, int, op_map, int, char const *, op_access);
