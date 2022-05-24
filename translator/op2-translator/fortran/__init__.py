@@ -7,6 +7,7 @@ import fparser.two.Fortran2003 as f2003
 import pcpp
 from fparser.common.readfortran import FortranFileReader
 from fparser.two.parser import ParserFactory
+from fparser.two.symbol_table import SYMBOL_TABLES
 
 import fortran.parser
 import fortran.translator.program
@@ -46,6 +47,9 @@ class Fortran(Lang):
         preprocessor.write(source)
 
         source.seek(0)
+
+        # TODO: Manual workaround until fparser2 #339 is fixed
+        SYMBOL_TABLES.clear()
 
         reader = FortranFileReader(source, include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")

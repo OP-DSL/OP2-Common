@@ -41,7 +41,7 @@ class OpenMP(Target):
     name = "openmp"
     kernel_translation = False
 
-    config = {"grouped": False, "vectorise": False, "device": 1, "thread_timing": False}
+    config = {"grouped": False, "vectorise": True, "device": 1, "thread_timing": False}
 
 
 class Vec(Target):

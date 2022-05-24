@@ -57,7 +57,7 @@ void {{lh.kernel.name}}_wrapper(
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
             int n = block + lane;
 
-            {% for arg, idx in lh.args_expanded|dat if arg is read_write %}
+            {% for arg, idx in lh.args_expanded|dat|read_write %}
             for (int d = 0; d < {{arg.dat_dim}}; ++d) {
                 arg{{idx}}_local[lane][d] = ({{arg_to_pointer(arg, idx)}})[d];
             }{{"\n" if not loop.last}}
