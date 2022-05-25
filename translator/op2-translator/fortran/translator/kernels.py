@@ -40,26 +40,19 @@ def insertStrides(
     kernel: Kernel,
     app: Application,
     stride: Callable[[str], str],
-    skip: Optional[Callable[[OP.ArgDat], bool]] = None,
+    match: Callable[[OP.ArgDat], bool] = lambda arg: True,
 ) -> None:
     loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
 
     for arg_idx in range(len(loop.args)):
-        if not isinstance(loop.args[arg_idx], OP.ArgDat):
+        if not match(loop.args[arg_idx]):
             continue
 
-        if skip is not None and skip(loop.args[arg_idx]):
-            continue
-
-        dat = find(app.dats(), lambda dat: dat.ptr == loop.args[arg_idx].dat_ptr)
-        if not dat.soa:
-            continue
-
-        insertStride(kernel.params[arg_idx][0], dat.ptr, kernel_ast)
+        insertStride(kernel.params[arg_idx][0], loop.args[arg_idx], kernel_ast, stride)
 
 
 def insertStride(
-    param: str, dat_ptr: str, kernel_ast: f2003.Subroutine_Subprogram, stride: Callable[[str], str]
+    param: str, arg: OP.Arg, kernel_ast: f2003.Subroutine_Subprogram, stride: Callable[[str], str]
 ) -> None:
     for name in fpu.walk(kernel_ast, f2003.Name):
         if name.string != param:
@@ -73,5 +66,5 @@ def insertStride(
 
         parent.items = (
             name,
-            f2003.Section_Subscript_List(f"((({str(subscript_list)}) - 1) * {stride(dat_ptr)} + 1)"),
+            f2003.Section_Subscript_List(f"((({str(subscript_list)}) - 1) * {stride(arg)} + 1)"),
         )
