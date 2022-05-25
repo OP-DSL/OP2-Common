@@ -7,6 +7,7 @@ from language import Lang
 from scheme import Scheme
 from store import Application, Kernel
 from target import Target
+from util import find
 
 
 class FortranSeq(Scheme):
@@ -21,8 +22,6 @@ class FortranSeq(Scheme):
 
         ftk.renameKernel(kernel_ast, lambda name: f"{name}_seq")
         ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}")
-
-        ftk.insertStrides(kernel_ast, kernel, app, lambda dat_ptr: f"op2_dat_{dat_ptr}_stride")
 
         return str(kernel_ast)
 
@@ -43,9 +42,30 @@ class FortranOpenMP(Scheme):
         ftk.renameKernel(kernel_ast, lambda name: f"{name}_openmp")
         ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}")
 
-        ftk.insertStrides(kernel_ast, kernel, app, lambda dat_ptr: f"op2_dat_{dat_ptr}_stride")
+        if not self.target.config["vectorise"]:
+            return str(kernel_ast)
 
-        return str(kernel_ast)
+        kernel_ast2 = ftk.findKernel(self.lang, kernel, include_dirs, defines)
+
+        ftk.renameKernel(kernel_ast2, lambda name: f"{name}_openmp_simd")
+        ftk.renameConsts(kernel_ast2, app, lambda const: f"op2_const_{const}")
+
+        match_indirect = lambda arg: isinstance(arg, OP.ArgDat) and arg.map_ptr is not None
+        match_gbl_reduction = lambda arg: isinstance(arg, OP.ArgGbl) and arg.access_type in [
+            OP.AccessType.INC,
+            OP.AccessType.MIN,
+            OP.AccessType.MAX,
+        ]
+
+        ftk.insertStrides(
+            kernel_ast2,
+            kernel,
+            app,
+            lambda arg: f"SIMD_LEN",
+            match=lambda arg: match_indirect(arg) or match_gbl_reduction(arg),
+        )
+
+        return str(kernel_ast) + "\n\n" + str(kernel_ast2)
 
 
 Scheme.register(FortranOpenMP)
@@ -64,12 +84,17 @@ class FortranCuda(Scheme):
         ftk.renameKernel(kernel_ast, lambda name: f"{name}_gpu")
         ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}_d")
 
+        loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
+
+        match_soa = lambda arg: isinstance(arg, OP.ArgDat) and find(app.dats(), lambda dat: arg.dat_ptr == dat.ptr).soa
+        skip_atomic_inc = lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
+
         ftk.insertStrides(
             kernel_ast,
             kernel,
             app,
-            lambda dat_ptr: f"op2_dat_{dat_ptr}_stride_d",
-            skip=lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"],
+            lambda arg: f"op2_dat_{arg.dat_ptr}_stride_d",
+            match=lambda arg: match_soa(arg) and not skip_atomic_inc(arg),
         )
 
         return str(kernel_ast)
