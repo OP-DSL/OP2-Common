@@ -892,6 +892,11 @@ module OP2_Fortran_Declarations
 
    end subroutine op_mpi_halo_exchange_summary_c
 
+   subroutine op_backtrace_c () BIND(C,name='op_backtrace')
+    use, intrinsic :: ISO_C_BINDING
+
+   end subroutine op_backtrace_c
+
   end interface
 
   ! the two numbers at the end of the name indicate the size of the type (e.g. real(8))
@@ -3723,6 +3728,11 @@ type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type,
     use, intrinsic :: ISO_C_BINDING
     call op_mpi_halo_exchange_summary_c()
   end subroutine op_mpi_halo_exchange_summary
+
+  subroutine op_backtrace ()
+    use, intrinsic :: ISO_C_BINDING
+    call op_backtrace_c()
+  end subroutine op_backtrace
 
 
 end module OP2_Fortran_Declarations

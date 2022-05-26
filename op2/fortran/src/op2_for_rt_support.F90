@@ -504,6 +504,12 @@ module OP2_Fortran_RT_Support
       type(op_arg) :: arg
     end subroutine
 
+    subroutine unset_dat_dirty( arg ) BIND(C,name='unset_dat_dirty')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+      type(op_arg) :: arg
+    end subroutine
+
     subroutine init_dat_to( arg, init_val) BIND(C,name='init_dat_to')
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
