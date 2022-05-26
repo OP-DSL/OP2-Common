@@ -381,7 +381,6 @@ op_set op_decl_set_core(int size, char const *name) {
 
 op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
                         char const *name) {
-  printf("op_decl_map_core >>>>>>>>. \n");
   if (from == NULL) {
     printf(" op_decl_map error -- invalid 'from' set for map %s\n", name);
     exit(-1);
