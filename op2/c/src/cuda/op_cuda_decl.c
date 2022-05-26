@@ -171,6 +171,7 @@ op_set op_decl_set(int size, char const *name) {
 
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
+  printf("op_decl_map cuda >>>>>\n");
   op_map map = op_decl_map_core(from, to, dim, imap, name);
   int set_size = map->from->size + map->from->exec_size;
   int *temp_map = (int *)malloc(map->dim * set_size * sizeof(int));
@@ -193,6 +194,16 @@ op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
 op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
                       char const *type, op_access acc) {
   return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
+}
+
+op_arg op_arg_dat_halo(op_dat dat, int idx, op_map map, int dim, char const *type,
+                  op_access acc, int nhalos, int max_map_nhalos) {
+  return op_arg_dat_halo_core(dat, idx, map, dim, type, acc, nhalos, max_map_nhalos);
+}
+
+op_arg op_opt_arg_dat_halo(int opt, op_dat dat, int idx, op_map map, int dim,
+                      char const *type, op_access acc, int nhalos, int max_map_nhalos) {
+  return op_opt_arg_dat_halo_core(opt, dat, idx, map, dim, type, acc,  nhalos, max_map_nhalos);
 }
 
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,

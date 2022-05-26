@@ -101,17 +101,17 @@ double t1, t2, c1, c2;
 unsigned long long exec_message_count = 0, nonexec_message_count = 0;
 
 #include <execinfo.h>
-void bt1(void) {
+void bt1(op_dat dat) {
     int c, i;
     void *addresses[10];
     char **strings;
 
     c = backtrace(addresses, 10);
     strings = backtrace_symbols(addresses,c);
-    printf("backtrace returned: %dn", c);
+    printf("backtrace returned: %d dat=%s", c, dat->name);
     for(i = 0; i < c; i++) {
         // printf("%d: %X ", i, (int)addresses[i]);
-        printf("testbt %s\n", strings[i]); 
+        printf("testdat_dirty %s dat=%s\n", strings[i], dat->name); 
     }
   }
 
@@ -2176,7 +2176,7 @@ static void set_dirtybit(op_arg *arg, int hd) {
 
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT) &&
       (arg->acc == OP_INC || arg->acc == OP_WRITE || arg->acc == OP_RW)) {
-    // bt1();
+    // bt1(arg->dat);
     // printf("set_dirtybit argdat=%s\n", arg->dat->name);
     dat->dirtybit = 1;
     dat->dirty_hd = hd;
@@ -3307,7 +3307,8 @@ int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalo
 
   if (direct_flag == 1){
     // printf("op_mpi_halo_exchanges_chained direct set=%s %d (%d %d %d)\n", set->name, size + set->total_exec_size + set->total_nonexec_size, size , set->total_exec_size , set->total_nonexec_size);
-    return size + set->total_exec_size + set->total_nonexec_size;
+    // return size + set->total_exec_size + set->total_nonexec_size;
+    return size;
   }
     
 
@@ -3420,7 +3421,53 @@ int op_mpi_halo_exchanges_chained_1(op_set set, int nargs, op_arg *args, int nha
 }
 #endif
 
+#ifdef COMM_AVOID_CUDA
+int op_mpi_halo_exchanges_cuda_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange){
+
+  int size = set->size;
+  int direct_flag = 1;
+
+  if (OP_diags > 0) {
+    int dummy;
+    for (int n = 0; n < nargs; n++)
+      op_arg_check(set, n, args[n], &dummy, "halo_exchange cuda chained");
+  }
+
+  for (int n = 0; n < nargs; n++)
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
+        args[n].dat->dirty_hd == 1) {
+      printf("here dirtyhd\n");
+      op_upload_dat_chained(args[n].dat, nhalos);
+      args[n].dat->dirty_hd = 0;
+    }
+
+  // check if this is a direct loop
+  for (int n = 0; n < nargs; n++)
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
+      direct_flag = 0;
+
+  if (direct_flag == 1)
+    return size;
+
+  // not a direct loop ...
+  int exec_flag = 0;
+  for (int n = 0; n < nargs; n++) {
+    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
+      size = set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
+      exec_flag = 1;
+    }
+  }
+  op_timers_core(&c1, &t1);
+  op_exchange_halo_cuda_chained(nargs, args, exec_flag);
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+  return size;
+
+}
+#endif
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
+  printf("here op_mpi_halo_exchanges_cuda\n");
   int size = set->size;
   int direct_flag = 1;
 
@@ -3433,6 +3480,7 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++)
     if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
         args[n].dat->dirty_hd == 1) {
+      printf("here dirtyhd\n");
       op_upload_dat(args[n].dat);
       args[n].dat->dirty_hd = 0;
     }
@@ -3528,6 +3576,11 @@ void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
 
+#ifdef COMM_AVOID_CUDA
+void op_mpi_wait_all_cuda_chained(int nargs, op_arg *args) {
+  op_wait_all_cuda_chained(nargs, args);
+}
+#endif
 void op_mpi_reset_halos(int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     op_reset_halo(&args[n]);
@@ -4491,8 +4544,17 @@ int is_dat_dirty(op_arg* arg){
 void set_dat_dirty(op_arg* arg){
   op_dat dat = arg->dat;
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
-    // printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    printf("set_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     dat->dirtybit = 1;
+    dat->dirty_hd = 2;
+  }
+}
+
+void unset_dat_dirty(op_arg* arg){
+  op_dat dat = arg->dat;
+  if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
+    // printf("unset_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    dat->dirtybit = 0;
   }
 }
 

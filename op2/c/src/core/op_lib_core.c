@@ -95,19 +95,19 @@ const char *intstr = "int";
 const char *boolstr = "bool";
 
 #include <execinfo.h>
-void bt(void) {
-    int c, i;
-    void *addresses[10];
-    char **strings;
+void op_backtrace() {
+  int c, i;
+  void *addresses[40];
+  char **strings;
 
-    c = backtrace(addresses, 10);
-    strings = backtrace_symbols(addresses,c);
-    printf("backtrace returned: %dn", c);
-    for(i = 0; i < c; i++) {
-        // printf("%d: %X ", i, (int)addresses[i]);
-        printf("test %s\n", strings[i]); 
-    }
+  c = backtrace(addresses, 40);
+  strings = backtrace_symbols(addresses,c);
+  printf("backtrace returned: %dn", c);
+  for(i = 0; i < c; i++) {
+      // printf("%d: %X ", i, (int)addresses[i]);
+      printf("testbt %s\n", strings[i]); 
   }
+}
 
 /*
  * Utility functions
@@ -378,6 +378,7 @@ op_set op_decl_set_core(int size, char const *name) {
 
 op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
                         char const *name) {
+  printf("op_decl_map_core >>>>>>>>. \n");
   if (from == NULL) {
     printf(" op_decl_map error -- invalid 'from' set for map %s\n", name);
     exit(-1);
@@ -447,6 +448,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->user_managed = 1;
 
   map->aug_maps = NULL;
+  map->aug_maps_d = NULL;
   map->halo_info = (op_halo_info)op_malloc(sizeof(op_halo_info_core));
   op_init_halo_info(map->halo_info);
 
@@ -733,7 +735,7 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.data = dat->data;
     arg.data_d = dat->data_d;
 
-    // bt();
+    // op_backtrace();
     //   printf("augdata core dat=%s set=%s \n", dat->name, dat->set->name);
     // printf("augdata core dat=%s set=%s idx=%d map=%p\n", dat->name, dat->set->name, idx,  arg.map_data_d);
     //  printf("augdata core dat=%s set=%s idx=%d dat=%p\n", dat->name, dat->set->name, idx,  arg.data_d);
@@ -800,7 +802,18 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+    // arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+    arg.map_data_d = (idx == -1 ? NULL : map->aug_maps_d[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
+    // arg.map_data_d = (idx == -1 ? NULL : &(map->aug_maps_d[map->from->halo_info->nhalos_indices[max_map_nhalos] * 
+    //                                       map->dim * (map->from->size + map->from->total_exec_size)]));
+
+    // printf("argdat dat=%s map[%d]=%s>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<\n", dat->name, map->from->halo_info->nhalos_indices[max_map_nhalos],
+    // map->name);
+    // for(int i = 0; i < (map->from->size + map->from->total_exec_size) * map->dim; i++){
+    //   printf("argdat my_rank=%d dat=%s map[%d]=%s val[%d]=%d\n", 0, dat->name, map->from->halo_info->nhalos_indices[max_map_nhalos], 
+    //   map->name, i, map->aug_maps_d[i]);
+    // }
+    
     arg.map_data = (idx == -1 ? NULL : map->aug_maps[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
   } else {
     /* set default values */
@@ -912,8 +925,9 @@ op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int di
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    arg.map_data_d = (map == NULL ? NULL : map->map_d);
-    arg.map_data = map == NULL ? NULL : map->aug_maps[dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos]];
+    // arg.map_data_d = (map == NULL ? NULL : map->map_d);
+    arg.map_data_d = map == NULL ? NULL : map->aug_maps_d[dat->halo_info->nhalos_indices[max_map_nhalos]];
+    arg.map_data = map == NULL ? NULL : map->aug_maps[dat->halo_info->nhalos_indices[max_map_nhalos]];
   } else {
     /* set default values */
     arg.size = -1;

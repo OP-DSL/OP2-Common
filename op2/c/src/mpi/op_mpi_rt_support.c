@@ -57,6 +57,20 @@ void op_download_dat(op_dat dat) {}
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/
+#include <execinfo.h>
+void op_backtrace1(op_dat dat) {
+  int c, i;
+  void *addresses[40];
+  char **strings;
+
+  c = backtrace(addresses, 40);
+  strings = backtrace_symbols(addresses,c);
+  printf("backtrace returned: %d", c);
+  for(i = 0; i < c; i++) {
+      // printf("%d: %X ", i, (int)addresses[i]);
+      printf("testbt %s dat=%s\n", strings[i], dat->name); 
+  }
+}
 
 double pack_time = 0.0, unpack_time = 0.0, halo_exch_time = 0.0;
 double ca_c1,ca_c2,ca_c3,ca_c4,ca_t1,ca_t2,ca_t3,ca_t4;
@@ -136,7 +150,8 @@ int is_arg_valid(op_arg* arg, int exec_flag){
 
   arg->sent = 0;
 
-  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == 1 && (arg->acc == OP_READ || arg->acc == OP_RW)) {
+  // if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == 1 && (arg->acc == OP_READ || arg->acc == OP_RW)) {
+  if (arg->opt && arg->argtype == OP_ARG_DAT &&  (arg->acc == OP_READ || arg->acc == OP_RW)) {
     if (arg->idx == -1 && exec_flag == 0){
       return 0;
     }
@@ -211,6 +226,7 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
           // printf("test1new exec my_rank=%d arg=%d level=%d prev_size=%d buf_index=%d org_buf_index=%d (disp=%d disp1=%d i=%d size=%d)\n", 
           // my_rank, n, l, prev_size_1, prev_size_1 + buf_index, prev_size_2 + org_buf_index, disp_by_rank, level_disp_in_rank, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r]);
         }
+        prev_size += exp_list->sizes[exp_list->ranks_disps_by_level[l] + r] * dat->size;
       }
 
       for(int l = nonexec_start; l < nonexec_end; l++){
@@ -486,7 +502,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       // for (int el = 0; el < (dat->size * exp_exec_list->sizes[i])/8; el++)
       //   printf("%g ", b[el]);
       // printf("\n");
-      
+      // op_backtrace1(dat);
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_exec[exp_exec_list->disps[i] * dat->size],
                 dat->size * exp_exec_list->sizes[i], MPI_CHAR,
@@ -1011,8 +1027,9 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
 
  
   for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 4 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
+    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
       if (args[n].idx == -1 && exec_flag == 0) continue;
+      printf("op_mpi_wait_all_chained n=%d dat=%s\n", n, args[n].dat->name);
       args[n].sent = 2; // set flag to indicate completed comm
       args[n].dat->dirtybit = 0;
       args[n].dat->dirty_hd = device;

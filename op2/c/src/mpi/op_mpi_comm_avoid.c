@@ -9,6 +9,9 @@
 #include <op_mpi_core.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+#include <op_cuda_rt_support.h>
 
 int** aug_part_range;
 int* aug_part_range_size;
@@ -39,6 +42,15 @@ MPI_Request *grp_recv_requests;
 
 char *grp_send_buffer = NULL;
 char *grp_recv_buffer = NULL;
+
+char *grp_send_buffer_h = NULL;
+char *grp_recv_buffer_h = NULL;
+
+char *grp_send_buffer_d = NULL;
+char *grp_recv_buffer_d = NULL;
+
+int ca_grp_size_send_old = 0;
+int ca_grp_size_recv_old = 0;
 
 int grp_tag;
 
@@ -2430,16 +2442,43 @@ void set_maps_hydra(){
     op_map map = OP_map_list[m];
     //  op_mpi_add_nhalos_map(map, 2);
     // //  op_mpi_add_nhalos_map(map, 3);
-    if (strncmp("ne", map->name, strlen(map->name)) == 0) {
+    // if (strncmp("ne", map->name, strlen("ne")) == 0) {
+    //   op_mpi_add_nhalos_map(map, 2);
+    //   op_mpi_add_nhalos_map(map, 3);
+    //   op_mpi_add_nhalos_map(map, 4);
+    //   op_mpi_add_nhalos_map(map, 5);
+    //   printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    // }
+    if (strncmp("npe", map->name, strlen("npe")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
-      // printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+      // op_mpi_add_nhalos_map(map, 3);
+      // op_mpi_add_nhalos_map(map, 4);
+      // op_mpi_add_nhalos_map(map, 5);
+       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
-    if (strncmp("npe", map->name, strlen(map->name)) == 0) {
+    // if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
+    //   op_mpi_add_nhalos_map(map, 2);
+    //   op_mpi_add_nhalos_map(map, 3);
+    //   op_mpi_add_nhalos_map(map, 4);
+    //   op_mpi_add_nhalos_map(map, 5);
+    //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    // }
+    // if (strncmp("nb", map->name, strlen("nb")) == 0) {
+    //   op_mpi_add_nhalos_map(map, 2);
+    //   op_mpi_add_nhalos_map(map, 3);
+    //   op_mpi_add_nhalos_map(map, 4);
+    //   op_mpi_add_nhalos_map(map, 5);
+    //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    // }
+    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
       op_mpi_add_nhalos_map(map, 2);
-      //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+      // op_mpi_add_nhalos_map(map, 3);
+      // op_mpi_add_nhalos_map(map, 4);
+      // op_mpi_add_nhalos_map(map, 5);
+       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
   }
-  // return;
+  return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
@@ -2621,7 +2660,30 @@ void calculate_dat_sizes(int my_rank){
     calculate_dat_size(my_rank, item->dat);
   }
 }
-
+#ifdef COMM_AVOID_CUDA
+void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
+      char **send_buffer_device, char **recv_buffer_device, int device, 
+      unsigned size_send, unsigned size_recv) {
+  if (ca_grp_size_recv_old < size_recv) {
+    if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
+    cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
+    if (ca_grp_size_recv_old > 0) cutilSafeCall(cudaHostUnregister ( *recv_buffer_host ));
+    *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
+    cutilSafeCall(cudaHostRegister ( *recv_buffer_host, size_recv, cudaHostRegisterDefault ));
+    ca_grp_size_recv_old = size_recv;
+  }
+  if (ca_grp_size_send_old < size_send) {
+    //if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
+    if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
+    cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
+    //cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
+    if (ca_grp_size_send_old > 0) cutilSafeCall(cudaHostUnregister ( *send_buffer_host ));
+    *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
+    cutilSafeCall(cudaHostRegister ( *send_buffer_host, size_send, cudaHostRegisterDefault ));
+    ca_grp_size_send_old = size_send;
+  }
+}
+#endif
 void set_group_halo_envt(){
 
   grp_tag = 100;
@@ -2665,6 +2727,11 @@ void set_group_halo_envt(){
 
   grp_send_buffer = (char *)xmalloc(max_send_buff_size * max_dat_count);
   grp_recv_buffer = (char *)xmalloc(max_recv_buff_size * max_dat_count);
+#ifdef COMM_AVOID_CUDA
+  ca_realloc_comm_buffer(&grp_send_buffer_h, &grp_recv_buffer_h, 
+      &grp_send_buffer_d, &grp_recv_buffer_d, 1, 
+      max_send_buff_size * max_dat_count, max_recv_buff_size * max_dat_count);
+#endif
 }
 /*******************************************************************************
  * Main MPI halo creation routine
@@ -2672,7 +2739,7 @@ void set_group_halo_envt(){
 
 void op_halo_create_comm_avoid() {
   // declare timers
-  op_printf("op_halo_create_comm_avoid start >>>>>>>\n");
+  op_printf("op_halo_create_comm_avoid start <<<<<<<<<<<>>>>>>>\n");
   for(int i = 0; i < 10; i++){
     OP_aug_export_exec_lists[i] = NULL;
     OP_aug_import_exec_lists[i] = NULL;
@@ -2684,7 +2751,7 @@ void op_halo_create_comm_avoid() {
   // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
-  set_maps_halo_extension(); 
+  // set_maps_halo_extension(); 
    
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;

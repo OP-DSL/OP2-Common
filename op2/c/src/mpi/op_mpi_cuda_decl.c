@@ -170,6 +170,90 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   return out_dat;
 }
 
+#ifdef COMM_AVOID
+op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
+                             char const *name) {
+
+  char *d = NULL;
+  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
+
+  // create empty data block to assign to this temporary dat (including the
+  // halos)
+  int exec_levels = set->halo_info->max_nhalos; //2;
+  int halo_size = 0;
+  for(int l = 0; l < exec_levels; l++){
+    halo_size += OP_aug_import_exec_lists[l][set->index]->size;
+  }
+
+  int num_levels = set->halo_info->nhalos_count;
+  for(int l = 0; l < num_levels; l++){
+    halo_size += OP_aug_import_nonexec_lists[l][set->index]->size;
+  }
+
+  int set_size = set->size + halo_size;
+
+  printf("op_decl_dat_temp_char set=%s set_size=%d (size=%d halo=%d)\n", set->name, set_size, set->size, halo_size);
+
+  
+  // initialize data bits to 0
+  //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
+  dat->data =
+            (char *)xrealloc(dat->data, (set->size + halo_size) * dat->size);
+  for (size_t i = 0; i < (set->size + halo_size) * dim * size; i++)
+    dat->data[i] = 0;
+  dat->user_managed = 0;
+
+  op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                    dat->size * set_size);
+
+  // need to allocate mpi_buffers for this new temp_dat
+  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+  int exec_e_list_size = 0;
+  int exec_e_list_rank_size = 0;
+  int exec_i_list_rank_size = 0;
+
+  for(int l = 0; l < exec_levels; l++){
+    exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
+
+    exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size;
+    exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size;
+  }
+
+  int nonexec_e_list_size = 0;
+  int nonexec_e_list_rank_size = 0;
+  int nonexec_i_list_rank_size = 0;
+  for(int l = 0; l < num_levels; l++){
+    nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
+    nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size;
+    nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size;
+  }
+
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list_size) * dat->size);
+  mpi_buf->buf_merged = (char *)xmalloc((exec_e_list_size + nonexec_e_list_size) * dat->size);
+
+  mpi_buf->s_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
+      (exec_e_list_rank_size + nonexec_e_list_rank_size));
+  mpi_buf->r_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
+      (exec_i_list_rank_size + nonexec_i_list_rank_size));
+
+  mpi_buf->s_num_req = 0;
+  mpi_buf->r_num_req = 0;
+
+  dat->mpi_buffer = mpi_buf;
+
+  cutilSafeCall(
+      cudaMalloc((void **)&(dat->buffer_d),
+                 dat->size * (exec_e_list_size + nonexec_e_list_size)));
+
+  return dat;
+}
+
+#else
+
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
   char *data = NULL;
@@ -228,6 +312,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   return dat;
 }
+#endif
 
 int op_free_dat_temp_char(op_dat dat) {
   // need to free mpi_buffers use in this op_dat
@@ -249,10 +334,49 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
+#ifdef COMM_AVOID
+void op_mv_halo_device(op_set set, op_dat dat) {
+  int set_size = set->size + set->total_exec_size + set->total_nonexec_size;
+
+
+  op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                    dat->size * set_size);
+  
+  dat->dirty_hd = 0;
+
+  int exec_levels = set->halo_info->max_nhalos; //2;
+  int exec_size = 0;
+  for(int l = 0; l < exec_levels; l++){
+    exec_size += OP_aug_export_exec_lists[l][set->index]->size;
+  }
+
+  int nonexec_size = 0;
+  int num_levels = set->halo_info->nhalos_count;
+  for(int l = 0; l < num_levels; l++){
+    nonexec_size += OP_aug_export_nonexec_lists[l][set->index]->size;
+  }
+
+  //todo: check this for grouped comunication
+  if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
+  cutilSafeCall(
+      cudaMalloc((void **)&(dat->buffer_d),
+                 dat->size * (exec_size +
+                              nonexec_size +
+                              set_import_buffer_size[set->index])));
+  
+  printf("op_mv_halo_device new set=%s index=%d e=%d(%d) n=%d(%d) i=%d\n", set->name, set->index, 
+  OP_export_exec_list[set->index]->size, exec_size, OP_export_nonexec_list[set->index]->size, nonexec_size,
+  set_import_buffer_size[set->index]);
+}
+
+#else
+
 void op_mv_halo_device(op_set set, op_dat dat) {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+
+    printf("op_mv_halo_device ============================== if\n");
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -274,6 +398,7 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                                 OP_import_nonexec_list[set->index]->size)));
 
   } else {
+    printf("op_mv_halo_device ============================== else\n");
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       dat->size * set_size);
   }
@@ -285,6 +410,30 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                               OP_export_nonexec_list[set->index]->size +
                               set_import_buffer_size[set->index])));
 }
+#endif
+
+#ifdef COMM_AVOID
+void op_mv_halo_list_device_chained(){
+  if (export_exec_nonexec_list_d != NULL) {
+    for (int s = 0; s < OP_set_index; s++)
+      if (export_exec_nonexec_list_d[OP_set_list[s]->index] != NULL)
+        cutilSafeCall(cudaFree(export_exec_nonexec_list_d[OP_set_list[s]->index]));
+    free(export_exec_nonexec_list_d);
+  }
+  export_exec_nonexec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    export_exec_nonexec_list_d[set->index] = NULL;
+
+    op_cpHostToDevice((void **)&(export_exec_nonexec_list_d[set->index]),
+                      (void **)&(OP_merged_export_exec_nonexec_list[set->index]->list),
+                      OP_merged_export_exec_nonexec_list[set->index]->size * sizeof(int));
+
+    printf("op_mv_halo set=%s index=%d size=%d\n", set->name, set->index, OP_merged_export_exec_nonexec_list[set->index]->size);
+  }
+}
+#endif
 
 void op_mv_halo_list_device() {
   if (export_exec_list_d != NULL) {
@@ -466,6 +615,11 @@ void op_mv_halo_list_device() {
                       (void **)&(OP_import_nonexec_permap[map->index]->list),
                       OP_import_nonexec_permap[map->index]->size * sizeof(int));
   }
+
+#ifdef COMM_AVOID
+  printf("op_mv_halo_list_device_chained\n");
+  op_mv_halo_list_device_chained();
+#endif
 }
 
 op_set op_decl_set(int size, char const *name) {
@@ -474,6 +628,8 @@ op_set op_decl_set(int size, char const *name) {
 
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
+
+  printf("op_decl_map cuda >>>>> <<<<<<<<<<<\n");
   // int *m = (int *)xmalloc(from->size * dim * sizeof(int));
   //  memcpy(m, imap, from->size * dim * sizeof(int));
   op_map out_map = op_decl_map_core(from, to, dim, imap, name);
@@ -492,9 +648,19 @@ op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
   return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
 }
 
+op_arg op_arg_dat_halo(op_dat dat, int idx, op_map map, int dim, char const *type,
+                  op_access acc, int nhalos, int max_map_nhalos) {
+  return op_arg_dat_halo_core(dat, idx, map, dim, type, acc, nhalos, max_map_nhalos);
+}
+
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
                        op_access acc) {
   return op_arg_gbl_core(1, data, dim, type, size, acc);
+}
+
+op_arg op_opt_arg_dat_halo(int opt, op_dat dat, int idx, op_map map, int dim,
+                      char const *type, op_access acc, int nhalos, int max_map_nhalos) {
+  return op_opt_arg_dat_halo_core(opt, dat, idx, map, dim, type, acc,  nhalos, max_map_nhalos);
 }
 
 op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
@@ -697,6 +863,7 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
 }
 
 void op_upload_all() {
+  printf("op_upload_all >>>>>>>>>>>>>\n");
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;

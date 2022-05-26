@@ -71,6 +71,12 @@ extern MPI_Request *grp_recv_requests;
 extern char *grp_send_buffer;
 extern char *grp_recv_buffer;
 
+extern char *grp_send_buffer_h;
+extern char *grp_recv_buffer_h;
+
+extern char *grp_send_buffer_d;
+extern char *grp_recv_buffer_d;
+
 extern int grp_tag;
 
 extern int OP_part_index;
@@ -88,10 +94,14 @@ extern "C" {
 
 /** Gather halo data in buffer on the device **/
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
-                           halo_list exp_nonexec_list);
+                           halo_list exp_nonexec_list, int my_rank);
+void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag, 
+                                    int exp_rank_count, int* buf_pos, int* send_sizes, int* total_buf_size, int my_rank);
 void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list);
 void scatter_data_from_buffer(op_arg arg);
 void scatter_data_from_buffer_partial(op_arg arg);
+
+void scatter_data_from_buffer_ptr_cuda_chained(op_arg* args, int nargs, int rank_count, char *buffer, int exec_flag, int my_rank);
 
 op_set op_decl_set_hdf5(char const *file, char const *name);
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,

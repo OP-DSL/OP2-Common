@@ -201,6 +201,8 @@ extern int *set_import_buffer_size;
 extern int **import_exec_list_disps_d;
 extern int **import_nonexec_list_disps_d;
 
+extern int **export_exec_nonexec_list_d;
+
 /*******************************************************************************
 * Data Type to hold sliding planes info
 *******************************************************************************/
@@ -400,8 +402,10 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag);
 void op_exchange_halo_partial(op_arg *arg, int exec_flag);
 void op_wait_all(op_arg *arg);
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
+void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag);
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
 void op_wait_all_cuda(op_arg *arg);
+void op_wait_all_cuda_chained(int nargs, op_arg *arg);
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send);
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv);
@@ -433,6 +437,7 @@ int get_set_core_size(op_set set, int level);
 void op_mpi_halo_exchange_summary();
 int is_dat_dirty(op_arg* arg);
 void set_dat_dirty(op_arg* arg);
+void unset_dat_dirty(op_arg* arg);
 void init_dat_to(op_arg* arg, int init_val);
 
 #endif /* __OP_MPI_CORE_H */

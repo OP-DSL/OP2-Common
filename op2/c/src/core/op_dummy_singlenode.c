@@ -81,12 +81,25 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   return set->size;
 }
 
+int op_mpi_halo_exchanges_cuda_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange) {
+  (void)nargs;
+  (void)args;
+  (void)nhalos;
+  (void)exchange;
+  return set->size;
+}
+
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_wait_all_cuda_chained(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }

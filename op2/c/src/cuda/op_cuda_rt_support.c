@@ -295,6 +295,7 @@ void op_cuda_get_data(op_dat dat) {
     }
     free(temp_data);
   } else {
+    printf("op_cuda_get_data dat=%s\n", dat->name);
     cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, dat->size * set_size,
                              cudaMemcpyDeviceToHost));
     cutilSafeCall(cudaDeviceSynchronize());
@@ -341,6 +342,7 @@ void cutilDeviceInit(int argc, char **argv) {
 }
 
 void op_upload_dat(op_dat dat) {
+  printf("Uploading %s\n", dat->name);
   if (!OP_hybrid_gpu)
     return;
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
@@ -365,6 +367,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
+  printf("Downloading %s\n", dat->name);
   if (!OP_hybrid_gpu)
     return;
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
@@ -445,6 +448,11 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
+void op_mpi_wait_all_cuda_chained(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }

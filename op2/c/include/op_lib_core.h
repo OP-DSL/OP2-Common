@@ -182,6 +182,7 @@ typedef struct {
   char const *name; /* name of pointer */
   int user_managed; /* indicates whether the user is managing memory */
   int **aug_maps;   /* augmented data maps */
+  int **aug_maps_d; /* augmented data maps on device */
   int *map_org;
   op_halo_info halo_info;
 } op_map_core;
@@ -358,7 +359,11 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 
 void op_upload_dat(op_dat dat);
 
+void op_upload_dat_chained(op_dat dat, int nhalos);
+
 void op_download_dat(op_dat dat);
+
+void op_download_dat_chained(op_dat dat, int nhalos);
 
 /*******************************************************************************
 * Core MPI lib function prototypes
@@ -368,6 +373,7 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 int op_mpi_halo_exchanges_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange);
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
+int op_mpi_halo_exchanges_cuda_chained(op_set set, int nargs, op_arg *args, int nhalos, int exchange);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
@@ -377,6 +383,7 @@ void op_mpi_wait_all(int nargs, op_arg *args);
 void op_mpi_test_all(int nargs, op_arg *args);
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args);
+void op_mpi_wait_all_cuda_chained(int nargs, op_arg *args);
 
 void op_mpi_reset_halos(int nargs, op_arg *args);
 
@@ -441,6 +448,7 @@ void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
 void deviceSync();
+void op_backtrace();
 
 #ifdef __cplusplus
 }
