@@ -295,7 +295,6 @@ void op_cuda_get_data(op_dat dat) {
     }
     free(temp_data);
   } else {
-    printf("op_cuda_get_data dat=%s\n", dat->name);
     cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, dat->size * set_size,
                              cudaMemcpyDeviceToHost));
     cutilSafeCall(cudaDeviceSynchronize());

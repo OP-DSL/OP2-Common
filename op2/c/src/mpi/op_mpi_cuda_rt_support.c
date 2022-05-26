@@ -190,7 +190,7 @@ void op_upload_dat(op_dat dat) {
 #ifdef COMM_AVOID
 void op_upload_dat_chained(op_dat dat, int nhalos) {
   if (OP_import_exec_list == NULL) return;
-   printf("Uploading %s\n", dat->name);
+  //  printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
   cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, set_size * dat->size,
                             cudaMemcpyHostToDevice));
@@ -199,9 +199,13 @@ void op_upload_dat_chained(op_dat dat, int nhalos) {
 #endif
 void op_download_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-   printf("Downloading %s\n", dat->name);
+  //  printf("Downloading %s\n", dat->name);
+#ifdef COMM_AVOID
+  int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
+#else
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
+#endif
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc(dat->size * set_size * sizeof(char));
     cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, set_size * dat->size,
@@ -224,8 +228,8 @@ void op_download_dat(op_dat dat) {
 
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  int my_rank = 0;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   op_dat dat = arg->dat;
 
@@ -271,13 +275,11 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
     char *outptr_exec = NULL;
     char *outptr_nonexec = NULL;
     if (OP_gpu_direct) {
-      printf("op_exchange_halo_cuda 1\n");
       outptr_exec = arg->dat->buffer_d;
       outptr_nonexec =
           arg->dat->buffer_d + exp_exec_list->size * arg->dat->size;
       cutilSafeCall(cudaDeviceSynchronize());
     } else {
-      printf("op_exchange_halo_cuda 2\n");
       cutilSafeCall(cudaMemcpy(
           ((op_mpi_buffer)(dat->mpi_buffer))->buf_exec, arg->dat->buffer_d,
           exp_exec_list->size * arg->dat->size, cudaMemcpyDeviceToHost));
@@ -294,13 +296,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
 
-      // for (int j = 0; j <  exp_exec_list->sizes[i]; j++)
-      // {
-      //   printf("test[%d]=%f\n", j, outptr_exec[exp_exec_list->disps[i] * dat->size + j]);
-      // }
-
-      printf("ORGEXEC MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", 
-      my_rank, exp_exec_list->ranks[i], exp_exec_list->disps[i] * dat->size, dat->size * exp_exec_list->sizes[i]);
+      // printf("ORGEXEC MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", 
+      // my_rank, exp_exec_list->ranks[i], exp_exec_list->disps[i] * dat->size, dat->size * exp_exec_list->sizes[i]);
 
       MPI_Isend(&outptr_exec[exp_exec_list->disps[i] * dat->size],
                 dat->size * exp_exec_list->sizes[i], MPI_CHAR,
@@ -319,8 +316,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
                             (OP_auto_soa && arg->dat->dim > 1)))
         ptr = dat->buffer_d_r + imp_exec_list->disps[i] * dat->size;
 
-      printf("ORGEXEC MPI_Irecv my_rank=%d to=%d bufpos=%d size=%d\n", my_rank, imp_exec_list->ranks[i], 
-      imp_exec_list->disps[i] * dat->size, dat->size * imp_exec_list->sizes[i]);
+      // printf("ORGEXEC MPI_Irecv my_rank=%d to=%d bufpos=%d size=%d\n", my_rank, imp_exec_list->ranks[i], 
+      // imp_exec_list->disps[i] * dat->size, dat->size * imp_exec_list->sizes[i]);
 
       MPI_Irecv(ptr, dat->size * imp_exec_list->sizes[i], MPI_CHAR,
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
@@ -341,8 +338,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
 
-      printf("ORG MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", 
-      my_rank, exp_nonexec_list->ranks[i], exp_nonexec_list->disps[i] * dat->size, dat->size * exp_nonexec_list->sizes[i]);
+      // printf("ORG MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", 
+      // my_rank, exp_nonexec_list->ranks[i], exp_nonexec_list->disps[i] * dat->size, dat->size * exp_nonexec_list->sizes[i]);
       MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i] * dat->size],
                 dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
@@ -352,10 +349,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 
 #ifdef COMM_AVOID
     int nonexec_init = (dat->set->size + dat->set->exec_sizes[dat->set->halo_info->nhalos_count - 1]) * dat->size;
-    printf("nonexec_init=%d COMM_AVOID\n", nonexec_init);
 #else
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
-    printf("nonexec_init=%d else\n", nonexec_init);
 #endif
     for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
       ptr = OP_gpu_direct
@@ -368,8 +363,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
         ptr = dat->buffer_d_r +
               (imp_exec_list->size + imp_exec_list->disps[i]) * dat->size;
 
-      printf("ORG MPI_Irecv my_rank=%d to=%d bufpos=%d size=%d\n", my_rank, imp_nonexec_list->ranks[i], 
-      (imp_exec_list->size + imp_exec_list->disps[i]) * dat->size, dat->size * imp_nonexec_list->sizes[i]);
+      // printf("ORG MPI_Irecv my_rank=%d to=%d bufpos=%d size=%d\n", my_rank, imp_nonexec_list->ranks[i], 
+      // (imp_exec_list->size + imp_exec_list->disps[i]) * dat->size, dat->size * imp_nonexec_list->sizes[i]);
       MPI_Irecv(ptr, dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
                 imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
@@ -442,7 +437,7 @@ int get_nhalos(op_arg *arg){
 }
 
 
-int is_arg_valid(op_arg* arg, int exec_flag){
+int is_arg_valid(op_arg* arg, int exec_flag, int dirtybit_val){
 
   if (arg->opt == 0)
     return 0;
@@ -458,7 +453,7 @@ int is_arg_valid(op_arg* arg, int exec_flag){
 
   arg->sent = 0;
 
-  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == 1 && (arg->acc == OP_READ || arg->acc == OP_RW)) {
+  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == dirtybit_val && (arg->acc == OP_READ || arg->acc == OP_RW)) {
     if (arg->idx == -1 && exec_flag == 0){
       return 0;
     }
@@ -469,11 +464,12 @@ int is_arg_valid(op_arg* arg, int exec_flag){
 
 halo_list imp_common_list;
 halo_list exp_common_list;
+int exp_rank_count;
 
 void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
 
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  int my_rank = 0;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   imp_common_list = OP_merged_import_exec_nonexec_list[args[0].dat->set->index];  //assumption nargs > 0
   exp_common_list = OP_merged_export_exec_nonexec_list[args[0].dat->set->index];
@@ -485,59 +481,25 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
 
   grp_tag++;
 
-  int exp_rank_count = exp_common_list->ranks_size / exp_common_list->num_levels;
-  int buf_pos[exp_rank_count];
-  // int send_sizes[exp_rank_count];
-  int* send_sizes = (int*)malloc(exp_rank_count * sizeof(int));
-  for(int i = 0; i < exp_rank_count; i++){
-    send_sizes[i] = 0;
-    buf_pos[i] = 0;
-  }
-  int total_buf_size = 0;
-  gather_data_to_buffer_chained(nargs, args, exec_flag, exp_rank_count, buf_pos, send_sizes, &total_buf_size, my_rank);
-  cutilSafeCall(cudaDeviceSynchronize());
-  cutilSafeCall(cudaMemcpy(
-      grp_send_buffer_h, grp_send_buffer_d,
-      total_buf_size, cudaMemcpyDeviceToHost));
+  exp_rank_count = exp_common_list->ranks_size / exp_common_list->num_levels;
   
-  // for (int i = 0; i < total_buf_size; i++)
-  // {
-  //   printf("grp_send_buffer_h[%d]=%f\n", i, grp_send_buffer_h[i]);
-  // }
-
-
-
-  for (int r = 0; r < exp_rank_count; r++) {
-    printf("halo exchange cuda MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", my_rank, exp_common_list->ranks[r], buf_pos[r], send_sizes[r]);
-
-    MPI_Isend(&grp_send_buffer_h[buf_pos[r]],
-              (send_sizes[r]), MPI_CHAR,
-              exp_common_list->ranks[r], grp_tag, OP_MPI_WORLD,
-              &grp_send_requests[r]);
-    OP_mpi_tx_exec_msg_count++;
-    OP_mpi_tx_exec_msg_count_merged++;
-
-  }
-
-  free(send_sizes);
+  int total_buf_size = 0;
+  gather_data_to_buffer_chained(nargs, args, exec_flag, exp_rank_count, 
+    ca_buf_pos, ca_send_sizes, &total_buf_size, my_rank);
+  
+  op_download_buffer_async(grp_send_buffer_d, grp_send_buffer_h, total_buf_size);
 
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
   int imp_disp = 0;
-
-  int user_managed[nargs];
-  for(int n = 0; n < nargs; n++){
-    user_managed[n] = (&args[n])->dat->user_managed;
-    (&args[n])->dat->user_managed = -1;
-  }
 
   for (int i = 0; i < rank_count; i++) {
     int imp_size = 0;
     
     for(int n = 0; n < nargs; n++){
       op_arg* arg = &args[n];
-      if(is_arg_valid(arg, exec_flag) == 0 || arg->dat->user_managed == i)
+      if(is_arg_valid(arg, exec_flag, 1) == 0 || arg->dat->user_data == i)
         continue;
-      arg->dat->user_managed = i;
+      arg->dat->user_data = i;  // to avoid double counting. resetting flag will happen in waitall_chained.
 
       op_dat dat = arg->dat;
       int nhalos = get_nhalos(arg);
@@ -553,9 +515,8 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
       }
     }
 
-    printf("halo exchange cuda MPI_Irecv my_rank=%d from=%d bufpos=%d size=%d\n", my_rank, imp_common_list->ranks[i], imp_disp, imp_size);
-
-    MPI_Irecv(&grp_recv_buffer_h[imp_disp],  //adjust disps_by_rank
+    // printf("halo exchange cuda MPI_Irecv my_rank=%d from=%d bufpos=%d size=%d\n", my_rank, imp_common_list->ranks[i], imp_disp, imp_size);
+    MPI_Irecv(&grp_recv_buffer_h[imp_disp],
               imp_size, MPI_CHAR,
               imp_common_list->ranks[i], grp_tag, OP_MPI_WORLD,
               &grp_recv_requests[i]);
@@ -565,9 +526,7 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
     OP_mpi_rx_exec_msg_count++;
     OP_mpi_rx_exec_msg_count_merged++;
   }
-  for(int n = 0; n < nargs; n++){
-    (&args[n])->dat->user_managed = user_managed[n];
-  }
+
 }
 #endif
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
@@ -663,7 +622,6 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
   op_dat dat = arg->dat;
-  printf("op_exchange_halo>>>>>>>>>>>><<<<<\n");
 
   if (exec_flag == 0 && arg->idx == -1)
     return;
@@ -784,8 +742,8 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
       (dat->dirtybit == 1)) {
-    int rank;
-    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    // int rank;
+    // MPI_Comm_rank(OP_MPI_WORLD, &rank);
     halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
     halo_list exp_nonexec_list = OP_export_nonexec_permap[arg->map->index];
     //-------exchange nonexec elements related to this data array and
@@ -835,9 +793,9 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
 }
 #ifdef COMM_AVOID
 void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
-  printf("op_wait_all_cuda_chained\n");
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+
+  int my_rank = 0;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   // check if this is a direct loop
   int direct_flag = 1;
   for (int n = 0; n < nargs; n++)
@@ -854,6 +812,20 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
     }
   }
 
+  op_download_buffer_sync();
+  for (int r = 0; r < exp_rank_count; r++) {
+    // printf("halo exchange cuda MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", my_rank, exp_common_list->ranks[r], ca_buf_pos[r], ca_send_sizes[r]);
+    MPI_Isend(&grp_send_buffer_h[ca_buf_pos[r]],
+              (ca_send_sizes[r]), MPI_CHAR,
+              exp_common_list->ranks[r], grp_tag, OP_MPI_WORLD,
+              &grp_send_requests[r]);
+    
+    ca_send_sizes[r] = 0;
+    ca_buf_pos[r] = 0;
+    OP_mpi_tx_exec_msg_count++;
+    OP_mpi_tx_exec_msg_count_merged++;
+  }
+
   MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
                 &grp_send_requests[0], MPI_STATUSES_IGNORE);
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
@@ -866,42 +838,19 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
       args[n].sent = 2; // set flag to indicate completed comm
       args[n].dat->dirtybit = 4;
       args[n].dat->dirty_hd = 2;
+      args[n].dat->user_data = -1; // resetting flag before scatter
 
       total_buf_size += (args[n].dat->set->total_exec_size + args[n].dat->set->total_nonexec_size) * args[n].dat->size;
     }
   }
-
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
-
-  printf("test1234567 rank_count=%d total_buf_size=[%d]\n", rank_count, total_buf_size);
-
-  // for (int i = 0; i < total_buf_size / sizeof(double); i++)
-  // {
-  //   ((double*)grp_recv_buffer_h)[i] = -1.8765;
-  //   // printf("grp_recv_buffer_h[%d]=%f\n", i, grp_recv_buffer_h[i]);
-  // }
-
-  // op_upload_buffer_async(grp_recv_buffer_d, grp_recv_buffer_h, total_buf_size);
-  cutilSafeCall(
-              cudaMemcpyAsync(grp_recv_buffer_d, grp_recv_buffer_h,
-                              total_buf_size,
-                              cudaMemcpyHostToDevice, 0));
-  // cutilSafeCall(cudaMemcpy(grp_recv_buffer_d, grp_recv_buffer_h, total_buf_size,
-  //                            cudaMemcpyHostToDevice));
-
-  
-  
-  
-
+  op_upload_buffer_async(grp_recv_buffer_d, grp_recv_buffer_h, total_buf_size);
   scatter_data_from_buffer_ptr_cuda_chained(args, nargs, rank_count, grp_recv_buffer_d, exec_flag, my_rank);
-  // cutilSafeCall(cudaDeviceSynchronize());
-
   op_scatter_sync();
-  // op_exit();
 }
 #endif
+
 void op_wait_all_cuda(op_arg *arg) {
-  printf("op_wait_all_cuda\n");
   if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
     op_dat dat = arg->dat;
     MPI_Waitall(((op_mpi_buffer)(dat->mpi_buffer))->s_num_req,
@@ -912,7 +861,6 @@ void op_wait_all_cuda(op_arg *arg) {
     ((op_mpi_buffer)(dat->mpi_buffer))->r_num_req = 0;
 
     if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
-      printf("op_wait_all_cuda 1\n");
       halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
       int nonexec_init = OP_export_nonexec_permap[arg->map->index]->size;
       ;
@@ -924,7 +872,6 @@ void op_wait_all_cuda(op_arg *arg) {
             imp_nonexec_list->size * dat->size, cudaMemcpyHostToDevice, 0));
       scatter_data_from_buffer_partial(*arg);
     } else {
-      printf("op_wait_all_cuda 2\n");
       if (OP_gpu_direct == 0) {
         if (strstr(arg->dat->type, ":soa") != NULL ||
             (OP_auto_soa && arg->dat->dim > 1)) {
@@ -934,11 +881,9 @@ void op_wait_all_cuda(op_arg *arg) {
                                         cudaMemcpyHostToDevice, 0));
           scatter_data_from_buffer(*arg);
         } else {
-          printf("op_wait_all_cuda 3\n");
           int init = dat->set->size * dat->size;
 
           #ifdef COMM_AVOID
-          printf("op_wait_all_cuda 4\n");
           cutilSafeCall(
               cudaMemcpyAsync(dat->data_d + init, dat->data + init,
                               (dat->set->total_exec_size +
@@ -1010,7 +955,6 @@ void op_move_to_device() {
     
     // Upload maps in transposed form
     op_map map = OP_map_list[m];
-    printf("op_cpHostToDevice map=%s\n", map->name);
     int set_size = map->from->size + map->from->exec_size;
     int *temp_map = (int *)xmalloc(map->dim * set_size * sizeof(int));
     for (int i = 0; i < map->dim; i++) {
@@ -1025,8 +969,8 @@ void op_move_to_device() {
 
 #ifdef COMM_AVOID
 
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  int my_rank = 0;
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   for (int m = 0; m < OP_map_index; m++) {
     op_map map = OP_map_list[m];
@@ -1037,8 +981,6 @@ void op_move_to_device() {
       exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
     }
     map->aug_maps_d = (int **)xmalloc(sizeof(int *) * map->halo_info->nhalos_count);
-
-    printf("op_cpHostToDevice augmented map=%s\n", map->name);
     int set_size = map->from->size + exec_size;
 
     for(int el = 0; el < map->halo_info->nhalos_count; el++){

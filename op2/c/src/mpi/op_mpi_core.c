@@ -3433,13 +3433,26 @@ int op_mpi_halo_exchanges_cuda_chained(op_set set, int nargs, op_arg *args, int 
       op_arg_check(set, n, args[n], &dummy, "halo_exchange cuda chained");
   }
 
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-        args[n].dat->dirty_hd == 1) {
-      printf("here dirtyhd\n");
+  for (int n = 0; n < nargs; n++) {
+    if (/*device == 2 &&*/ args[n].opt && args[n].argtype == OP_ARG_DAT &&
+        args[n].dat->dirty_hd == 1) { //Running on device, but dirty on host
       op_upload_dat_chained(args[n].dat, nhalos);
       args[n].dat->dirty_hd = 0;
     }
+    // if (device == 1 && args[n].opt && args[n].argtype == OP_ARG_DAT &&
+    //     args[n].dat->dirty_hd == 2) { //Running on host, but dirty on device
+    //   op_download_dat(args[n].dat);
+    //   args[n].dat->dirty_hd = 0;
+    // }
+  }
+
+  // for (int n = 0; n < nargs; n++)
+  //   if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
+  //       args[n].dat->dirty_hd == 1) {
+  //     printf("here dirtyhd\n");
+  //     op_upload_dat_chained(args[n].dat, nhalos);
+  //     args[n].dat->dirty_hd = 0;
+  //   }
 
   // check if this is a direct loop
   for (int n = 0; n < nargs; n++)
@@ -3467,7 +3480,6 @@ int op_mpi_halo_exchanges_cuda_chained(op_set set, int nargs, op_arg *args, int 
 }
 #endif
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  printf("here op_mpi_halo_exchanges_cuda\n");
   int size = set->size;
   int direct_flag = 1;
 
@@ -4533,7 +4545,7 @@ void op_mpi_test_all(int nargs, op_arg *args) {
 int is_dat_dirty(op_arg* arg){
   op_dat dat = arg->dat;
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
-    printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    // printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     if(dat->dirtybit == 1)
       return 1;
     else
@@ -4544,7 +4556,7 @@ int is_dat_dirty(op_arg* arg){
 void set_dat_dirty(op_arg* arg){
   op_dat dat = arg->dat;
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
-    printf("set_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    // printf("set_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     dat->dirtybit = 1;
     dat->dirty_hd = 2;
   }

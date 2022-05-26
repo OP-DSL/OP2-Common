@@ -108,6 +108,9 @@ extern unsigned long long OP_mpi_rx_nonexec_msg_count_partial;
 
 extern double pack_time, unpack_time, halo_exch_time;
 
+extern int* ca_send_sizes;
+extern int* ca_buf_pos;
+
 /*
  * enum list for op_par_loop
  */
@@ -205,6 +208,7 @@ typedef struct {
   int user_managed; /* indicates whether the user is managing memory */
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
   char *aug_data;   /* augmented data on host */
+  int user_data;    /* custom user flag */
   op_halo_info halo_info;
 } op_dat_core;
 

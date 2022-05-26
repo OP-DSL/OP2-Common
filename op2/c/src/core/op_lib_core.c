@@ -79,6 +79,9 @@ unsigned long long OP_mpi_rx_nonexec_msg_count_org = 0;
 
 unsigned long long OP_mpi_tx_nonexec_msg_count_partial = 0;
 unsigned long long OP_mpi_rx_nonexec_msg_count_partial = 0;
+
+int* ca_send_sizes = NULL;
+int* ca_buf_pos = NULL;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -492,6 +495,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->buffer_d_r = NULL;
   dat->dirty_hd = 0;
   dat->dirtybit = 1;
+  dat->user_data = -1;
 
   char *new_aug_data = (char *)op_malloc(dim * size * (set->size+set->exec_size+set->nonexec_size) * sizeof(char));
   // if (data != NULL)

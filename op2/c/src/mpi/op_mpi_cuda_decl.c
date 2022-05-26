@@ -191,9 +191,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   }
 
   int set_size = set->size + halo_size;
-
-  printf("op_decl_dat_temp_char set=%s set_size=%d (size=%d halo=%d)\n", set->name, set_size, set->size, halo_size);
-
   
   // initialize data bits to 0
   //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
@@ -364,9 +361,9 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                               nonexec_size +
                               set_import_buffer_size[set->index])));
   
-  printf("op_mv_halo_device new set=%s index=%d e=%d(%d) n=%d(%d) i=%d\n", set->name, set->index, 
-  OP_export_exec_list[set->index]->size, exec_size, OP_export_nonexec_list[set->index]->size, nonexec_size,
-  set_import_buffer_size[set->index]);
+  // printf("op_mv_halo_device new set=%s index=%d e=%d(%d) n=%d(%d) i=%d\n", set->name, set->index, 
+  // OP_export_exec_list[set->index]->size, exec_size, OP_export_nonexec_list[set->index]->size, nonexec_size,
+  // set_import_buffer_size[set->index]);
 }
 
 #else
@@ -376,7 +373,6 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
 
-    printf("op_mv_halo_device ============================== if\n");
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -398,7 +394,6 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                                 OP_import_nonexec_list[set->index]->size)));
 
   } else {
-    printf("op_mv_halo_device ============================== else\n");
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       dat->size * set_size);
   }
@@ -430,7 +425,7 @@ void op_mv_halo_list_device_chained(){
                       (void **)&(OP_merged_export_exec_nonexec_list[set->index]->list),
                       OP_merged_export_exec_nonexec_list[set->index]->size * sizeof(int));
 
-    printf("op_mv_halo set=%s index=%d size=%d\n", set->name, set->index, OP_merged_export_exec_nonexec_list[set->index]->size);
+    // printf("op_mv_halo set=%s index=%d size=%d\n", set->name, set->index, OP_merged_export_exec_nonexec_list[set->index]->size);
   }
 }
 #endif
@@ -617,7 +612,6 @@ void op_mv_halo_list_device() {
   }
 
 #ifdef COMM_AVOID
-  printf("op_mv_halo_list_device_chained\n");
   op_mv_halo_list_device_chained();
 #endif
 }

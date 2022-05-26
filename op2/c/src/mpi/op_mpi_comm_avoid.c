@@ -2349,6 +2349,8 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
     OP_merged_export_exec_nonexec_list[set->index] = NULL;
   }
 
+  int max_exp_rank_count = 0;
+
   for(int s = 0; s < OP_set_index; s++){
     op_set set = OP_set_list[s];
     int max_nhalos = set->halo_info->max_nhalos;
@@ -2372,8 +2374,20 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
 
     op_free(import_h_lists);
     op_free(export_h_lists);
+
+    int rank_count = OP_merged_export_exec_nonexec_list[set->index]->ranks_size / OP_merged_export_exec_nonexec_list[set->index]->num_levels;
+    if(rank_count > max_exp_rank_count){
+      max_exp_rank_count = rank_count;
+    }
   }
- 
+
+  ca_buf_pos = (int*) xmalloc(max_exp_rank_count* sizeof(int));
+  ca_send_sizes = (int*) xmalloc(max_exp_rank_count* sizeof(int));
+
+  for(int i = 0; i < max_exp_rank_count; i++){
+    ca_buf_pos[i] = 0;
+    ca_send_sizes[i] = 0;
+  }
 }
 
 
