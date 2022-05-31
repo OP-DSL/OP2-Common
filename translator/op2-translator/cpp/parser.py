@@ -4,7 +4,8 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit
+from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit, TypeKind
+from clang.cindex import conf
 
 import op as OP
 from store import Kernel, Location, ParseError, Program
@@ -300,48 +301,14 @@ def parseIdentifier(node: Cursor) -> str:
 
 
 def parseIntExpression(node: Cursor) -> int:
-    if node.kind == CursorKind.INTEGER_LITERAL:
-        return int(next(node.get_tokens()).spelling)
+    if node.type.kind != TypeKind.INT:
+        raise ParseError(f"expected int expression", parseLocation(node))
 
-    if node.kind == CursorKind.UNARY_OPERATOR:
-        op = next(node.get_tokens()).spelling
-        rhs = parseIntExpression(next(node.get_children()))
+    eval_result = conf.lib.clang_Cursor_Evaluate(node)
+    val = conf.lib.clang_EvalResult_getAsInt(eval_result)
+    conf.lib.clang_EvalResult_dispose(eval_result)
 
-        if op == "+":
-            return rhs
-
-        if op == "-":
-            return -rhs
-
-        raise ParseError(f"unsupported unary operator: {op}", parseLocation(node))
-
-    if node.kind == CursorKind.BINARY_OPERATOR:
-        children = node.get_children()
-
-        lhs = parseIntExpression(next(children))
-        rhs = parseIntExpression(next(children))
-
-        lhs_token_count = len(list(next(node.get_children()).get_tokens()))
-        op = list(node.get_tokens())[lhs_token_count:][0].spelling
-
-        if op == "+":
-            return lhs + rhs
-
-        if op == "-":
-            return lhs - rhs
-
-        if op == "*":
-            return lhs * rhs
-
-        if op == "/":
-            return lhs // rhs
-
-        raise ParseError(f"unsupported binary operator: {op}", parseLocation(node))
-
-    if node.kind == CursorKind.PAREN_EXPR:
-        return parseIntExpression(next(node.get_children()))
-
-    raise ParseError(f"unsupported int expression kind: {node.kind}", parseLocation(node))
+    return val
 
 
 def parseStringLit(node: Cursor) -> str:
