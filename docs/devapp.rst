@@ -8,7 +8,7 @@ Example Application
 
 The tutorial will use the Airfoil application, a simple non-linear  2D  inviscid  airfoil code that uses an unstructured mesh. It is a finite volume application that solves the 2D Euler equations using a scalar numerical dissipation. The algorithm iterates towards the steady state solution, in each iteration using a control volume approach - for example the rate at which the mass changes within a control volume is equal to the net flux of mass into the control volume across the four faces around the cell.
 
-Airfoil consists of five loops, ``save_soln`` , ``adt_calc`` , ``res_calc`` , ``bres_calc`` and ``update``, within a time-marching iterative loop. Out of these, ``save_soln`` and ``update`` are what we classify as direct loops where all the data accessed in the loop is defined on the mesh element over which the loop iterates over. Thus for example in a direct loop a loop over edges will only access data defined on edges. The other three loops are indirect loops. In this case when looping over a given type of elements, data on other types of elements will be accessed indirectly, using mapping tables. Thus for example ``res_calc`` iterates over edges and increments data on cells, accessing them indirectly via a mapping table that gives the explicit connectivity information between edges and cells.
+Airfoil consists of five loops, ``save_soln`` , ``adt_calc`` , ``res_calc`` , ``bres_calc`` and ``update``, within a time-marching iterative loop. Out of these, ``save_soln`` and ``update`` are what we classify as direct loops where all the data accessed in the loop is defined on the mesh element over which the loop iterates over. Thus for example in a direct loop, a loop over edges will only access data defined on edges. The other three loops are indirect loops. In this case when looping over a given type of elements, data on other types of elements will be accessed indirectly, using mapping tables. Thus for example ``res_calc`` iterates over edges and increments data on cells, accessing them indirectly via a mapping table that gives the explicit connectivity information between edges and cells.
 
 The standard mesh size solved with Airfoil consists of 1.5M edges.  Here the most compute intensive loop is ``res_calc``, which is called 2000 times during the total execution of the application and performs about 100 floating-point operations per mesh edge.
 
@@ -186,8 +186,13 @@ Finally information about the the declared mesh can be viewed using a diagnostic
   //output mesh information
   op_diagnostic_output();
 
-Finally compile the step2 application and execute. You will note that the full application still runs and validates as OP2, with the sequential back-end simply uses the allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this will only work for this developer sequential version, where none of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
+Finally compile the step2 application and execute using the following runtime flag:
 
+.. code-block:: bash
+
+  ./airfoil_step2 OP_NO_REALLOC
+
+The ``OP_NO_REALLOC`` runtime flag instructs to the OP2 back-end  to simply use the already allocated memory for sets, maps and data in the declaration, without internally de-allocating them. This helps the developer to gradually build up the application with the conversion to OP2 API (as we are do here), checking for validation on each step. However, this behavior is only specified for the developer sequential version, which we are developing here. None of the parallel versions generated via the code generator nor the code generated sequential version ``gen_seq`` will work as they de-allocate the initial memory and move the mesh to obtain best parallel performance.
 
 Step 3 - First parallel loop : direct loop
 ------------------------------------------
@@ -236,7 +241,7 @@ Note how we have:
 - given that ``p_q`` is read only we also indicate this by the key word ``const`` for ``save-soln`` elemental kernel.
 - The fourth argument of an ``op_arg_dat`` is the dimension of the data. For ``p_q`` and ``p_qold`` there are 4 doubles per mesh point.
 
-Compile and execute the modified application (see code in ``../step3``) and check if the solution validates.
+Compile and execute (again using ``OP_NO_REALLOC``) the modified application (see code in ``../step3``) and check if the solution validates.
 
 Step 4 - Indirect loops
 -----------------------
@@ -402,7 +407,8 @@ The global reduction requires the ``op_arg_gbl`` API call with ``OP_INC`` access
               op_arg_dat(p_adt,  -1, OP_ID, 1, "double", OP_READ ),
               op_arg_gbl(&rms,    1,           "double", OP_INC  ));
 
-At this point all the loops have been converted to use ``op_par_loop`` API and the application should be validating when executed on as sequential, single threaded CPU application.
+At this point all the loops have been converted to use ``op_par_loop`` API and the application should be validating when executed on as sequential, single threaded CPU application. You should now also be able to run without the ``OP_NO_REALLOC`` runtime flag and still get a valid result. However, in this case you should note that OP2 will be making internal copies of the data declared for ``op_map`` and ``op_dat`` . When developing applications for performance, you should consider freeing the initial memory allocated immediately after the relevant ``op_decl_map`` and ``op_decl_dat`` calls. In the next step we avoid freeing such "application developer allocated" memory by using HDF5 file I/O so that mesh data is directly read from file to OP2 allocated internal memory.
+
 
 Step 6 - Handing it all to OP2
 --------------------------------------
