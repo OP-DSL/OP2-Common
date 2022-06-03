@@ -9,7 +9,7 @@ This repository contains the implementation of the code translation tools and ru
  * `doc`: LaTeX documentation source.
 
 ## Documentation
-Documentation is available on [Read the Docs](https://op2-dsl.readthedocs.io/en/latest/).
+Documentation is available on [Read the Docs](https://op2-dsl.readthedocs.io/en/latest/index.html).
 
 ## Quick-start
 Firstly, OP2 has a varienty of toolchain dependencies that you will likely be able to obtain from your package manager or programming environment:
