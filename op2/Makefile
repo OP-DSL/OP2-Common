@@ -52,8 +52,7 @@ clean:
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_lib_core.o \
-	op_rt_support.o \
-	op_lib_core+nodealloc.o)
+	op_rt_support.o)
 
 OP2_FOR_BASE := $(addprefix $(OBJ)/fortran/,\
 	op2_for_declarations.o \
@@ -93,9 +92,7 @@ OP2_HDF5 := $(addprefix $(OBJ)/,\
 OP2_FOR_HDF5 := $(OP2_HDF5) $(addprefix $(OBJ)/fortran/,\
 	op2_for_hdf5_declarations.o)
 
-OP2_SEQ := $(addprefix $(OBJ)/,\
-  core/op_lib_core+nodealloc.o \
-  core/op_rt_support.o \
+OP2_SEQ := $(OP2_BASE) $(addprefix $(OBJ)/,\
   core/op_dummy_singlenode.o \
   sequential/op_seq.o)
 
@@ -169,8 +166,6 @@ $(MOD)/%:
 	@mkdir -p $@
 
 # Rules for files with a specific compilation setup
-$(OBJ)/core/op_lib_core+nodealloc.o: src/core/op_lib_core.cpp | $(OBJ)
-	$(CXX) $(CXXFLAGS) $(INC) -DNODEALLOC -c $< -o $@
 
 $(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(INC) $(HDF5_SEQ_INC) -c $< -o $@

@@ -51,6 +51,7 @@ double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
 int OP_auto_soa = 0;
 int OP_maps_base_index = 0;
+int OP_realloc = 1;
 
 int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
     OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
@@ -151,6 +152,12 @@ void op_set_args(int argc, char *argv) {
     strncpy(temp, pch, 20);
     OP_part_size = atoi(temp + 13);
     op_printf("\n OP_part_size = %d \n", OP_part_size);
+  }
+  pch = strstr(argv, "OP_NO_REALLOC");
+  if (pch != NULL) {
+    strncpy(temp, pch, 20);
+    OP_realloc = 0;
+    op_printf("\n Disable user memory reallocation/internal copy\n");
   }
   pch = strstr(argv, "OP_CACHE_LINE_SIZE=");
   if (pch != NULL) {
@@ -398,19 +405,20 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   size_t bytes = (size_t)dim * (size_t)size * (size_t)
                  (set->size+set->exec_size+set->nonexec_size) * sizeof(char);
 
-#ifndef NODEALLOC
-  char *new_data = (char *)op_malloc(bytes);
-  if (data != NULL)
-    memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
-  dat->data = new_data;
-#else
-  if (data != NULL)
-    dat->data = data;
-  else {
+  if (OP_realloc) {
     char *new_data = (char *)op_malloc(bytes);
-    dat->data = new_data;
+    if (data != NULL)
+      memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
+      dat->data = new_data;
   }
-#endif
+  else {
+    if (data != NULL)
+      dat->data = data;
+    else {
+      char *new_data = (char *)op_malloc(bytes);
+      dat->data = new_data;
+    }
+  }
 
   dat->data_d = NULL;
   dat->name = copy_str(name);
