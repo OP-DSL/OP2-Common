@@ -135,7 +135,7 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
 
     dat_ptr = parseIdentifier(args[0])
 
-    map_index = parseIntExpression(args[1])
+    map_idx = parseIntExpression(args[1])
     map_ptr = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
     dat_dim = parseIntExpression(args[3])
@@ -143,7 +143,7 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
 
     access_type = parseAccessType(args[5], loc, macros)
 
-    loop.addArgDat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_index, access_type, opt)
+    loop.addArgDat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_idx, access_type, opt)
 
 
 def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
