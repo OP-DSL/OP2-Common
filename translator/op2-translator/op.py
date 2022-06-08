@@ -141,12 +141,12 @@ class ArgDat(Arg):
     dat_id: int
 
     map_id: Optional[int]
-    map_index: Optional[int]
+    map_idx: Optional[int]
 
     def __str__(self) -> str:
         return (
             f"ArgDat(id={self.id}, loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
-            f"dat_id={self.dat_id}, map_id={self.map_id}, map_index={self.map_index})"
+            f"dat_id={self.dat_id}, map_id={self.map_id}, map_idx={self.map_idx})"
         )
 
 
@@ -192,7 +192,7 @@ class Loop:
         dat_typ: Type,
         dat_soa: bool,
         map_ptr: Optional[str],
-        map_index: Optional[int],
+        map_idx: Optional[int],
         access_type: AccessType,
         opt: bool = False,
     ) -> None:
@@ -215,16 +215,16 @@ class Loop:
                 map_ = Map(map_id, map_ptr, arg_id)
                 self.maps.append(map_)
 
-        arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_index)
+        arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_idx)
         self.args.append(arg)
 
-        if map_ptr is None or map_index > 0:
+        if map_ptr is None or map_idx > 0:
             arg_expanded = dataclasses.replace(arg, id=len(self.args_expanded))
             self.args_expanded.append((arg, arg_id))
             return
 
-        for real_map_index in range(-map_index):
-            arg_expanded = dataclasses.replace(arg, map_index=real_map_index, id=len(self.args_expanded))
+        for real_map_idx in range(-map_idx):
+            arg_expanded = dataclasses.replace(arg, map_idx=real_map_idx, id=len(self.args_expanded))
             self.args_expanded.append((arg_expanded, arg_id))
 
     def addArgGbl(self, loc: Location, ptr: str, dim: int, typ: Type, access_type: AccessType, opt: bool) -> None:
