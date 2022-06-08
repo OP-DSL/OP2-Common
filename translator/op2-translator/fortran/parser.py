@@ -159,7 +159,7 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
 
     dat_ptr = parseIdentifier(args_list[0], loc)
 
-    map_index = parseIntLiteral(args_list[1], loc)
+    map_idx = parseIntLiteral(args_list[1], loc)
     map_ptr: Optional[str] = parseIdentifier(args_list[2], loc)
 
     if map_ptr == "OP_ID":
@@ -170,7 +170,7 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
 
     access_type = parseAccessType(args_list[5], loc)
 
-    loop.addArgDat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_index, access_type, opt)
+    loop.addArgDat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_idx, access_type, opt)
 
 
 def parseArgGbl(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_List], loc: Location) -> None:

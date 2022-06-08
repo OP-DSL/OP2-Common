@@ -16,86 +16,6 @@ from target import Target
 from util import Findable, find, safeFind
 
 
-class LoopHost:
-    kernel: Kernel
-    kernel_func: str
-    kernel_idx: int
-
-    set_: OP.Set
-
-    args: List[Tuple[OP.Arg, int]]
-    args_expanded: List[Tuple[OP.Arg, int]]
-
-    # Used dats and maps to the index of the first arg to reference them
-    dats: OrderedDict[OP.Dat, int]
-    maps: OrderedDict[OP.Map, int]
-
-    def __init__(self, loop: OP.Loop, kernel_func: str, kernel_idx: int, app: Application, lang: Lang) -> None:
-        self.kernel = app.kernels[loop.kernel]
-        self.kernel_func = kernel_func
-        self.kernel_idx = kernel_idx
-
-        self.set_ = find(app.sets(), lambda s: s.ptr == loop.set_ptr)
-
-        self.args = []
-        self.args_expanded = []
-
-        self.dats = OrderedDict()
-        self.maps = OrderedDict()
-
-        for arg in loop.args:
-            self.addArg(arg, app, lang)
-
-    def addArg(self, arg: OP.Arg, app: Application, lang: Lang) -> None:
-        idx = len(self.args)
-        self.args.append((arg, idx))
-
-        if isinstance(arg, OP.ArgGbl):
-            self.args_expanded.append((arg, idx))
-            return
-
-        dat = find(app.dats(), lambda d: d.ptr == arg.dat_ptr)
-        if dat not in self.dats:
-            self.dats[dat] = idx
-
-        if arg.map_ptr is None:
-            self.args_expanded.append((arg, idx))
-            return
-
-        map_ = find(app.maps(), lambda m: m.ptr == arg.map_ptr)
-        if map_ not in self.maps:
-            self.maps[map_] = idx
-
-        if arg.map_idx >= 0:
-            self.args_expanded.append((arg, idx))
-            return
-
-        for map_idx in range(-arg.map_idx):
-            arg_expanded = dataclasses.replace(arg, map_idx=map_idx)
-
-            if not lang.zero_idx:
-                arg_expanded.map_idx += 1
-
-            self.args_expanded.append((arg_expanded, idx))
-
-    def findDat(self, dat_ptr: str) -> Optional[Tuple[OP.Dat, int]]:
-        return safeFind(self.dats.items(), lambda dat: dat[0].ptr == dat_ptr)
-
-    def findMap(self, map_ptr: str) -> Optional[Tuple[OP.Map, int]]:
-        return safeFind(self.maps.items(), lambda map_: map_[0].ptr == map_ptr)
-
-    def optIdx(self, arg: OP.Arg) -> Optional[int]:
-        idx = 0
-        for arg2, _ in self.args:
-            if arg2 == arg:
-                break
-
-            if arg2.opt:
-                idx += 1
-
-        return idx
-
-
 class Scheme(Findable):
     lang: Lang
     target: Target
@@ -122,10 +42,8 @@ class Scheme(Findable):
         kernel = app.kernels[loop.kernel]
         kernel_func = self.translateKernel(include_dirs, defines, kernel, app)
 
-        loop_host = LoopHost(loop, kernel_func, kernel_idx, app, self.lang)
-
         # Generate source from the template
-        return template.render(OP=OP, lh=loop_host, target=self.target), extension
+        return template.render(OP=OP, l=loop, kernel_idx=kernel_idx, target=self.target), extension
 
     def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path]) -> Tuple[str, str]:
         if self.master_kernel_template is None:

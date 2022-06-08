@@ -7,7 +7,6 @@ from typing import Dict, List, Tuple, Union
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 import op as OP
-from scheme import LoopHost
 
 # Jinja configuration
 env = Environment(
@@ -24,8 +23,8 @@ def direct(x, lh=None) -> bool:
     if isinstance(x, OP.Dat) and lh.args[lh.findDat(x.ptr)[1]][0].map_ptr is None:
         return True
 
-    if isinstance(x, LoopHost) and len(x.maps) == 0:
-        return True
+    # if isinstance(x, LoopHost) and len(x.maps) == 0:
+    #     return True
 
     return False
 
@@ -37,8 +36,8 @@ def indirect(x, lh=None) -> bool:
     if isinstance(x, OP.Dat) and lh.args[lh.findDat(x.ptr)[1]][0].map_ptr is not None:
         return True
 
-    if isinstance(x, LoopHost) and len(x.maps) > 0:
-        return True
+    # if isinstance(x, LoopHost) and len(x.maps) > 0:
+    #     return True
 
     return False
 
@@ -75,18 +74,18 @@ env.tests["reduction"] = lambda arg, lh=None: arg.access_type in [
 ]
 
 
-def read_in(dat: OP.Dat, loop_host: LoopHost) -> bool:
-    for arg, idx in loop_host.args:
-        if not isinstance(arg, OP.ArgDat):
-            continue
+# def read_in(dat: OP.Dat, loop_host: LoopHost) -> bool:
+#     for arg, idx in loop_host.args:
+#         if not isinstance(arg, OP.ArgDat):
+#             continue
+# 
+#         if arg.dat_ptr == dat.ptr and arg.access_type != OP.AccessType.READ:
+#             return False
+# 
+#     return True
 
-        if arg.dat_ptr == dat.ptr and arg.access_type != OP.AccessType.READ:
-            return False
 
-    return True
-
-
-env.tests["read_in"] = read_in
+# env.tests["read_in"] = read_in
 env.tests["instance"] = lambda x, c: isinstance(x, c)
 
 
