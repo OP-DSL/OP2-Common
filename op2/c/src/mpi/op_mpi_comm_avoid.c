@@ -9,10 +9,11 @@
 #include <op_mpi_core.h>
 #include <limits.h>
 #include <stdlib.h>
+#ifdef COMM_AVOID_CUDA
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <op_cuda_rt_support.h>
-
+#endif
 int** aug_part_range;
 int* aug_part_range_size;
 int* aug_part_range_cap;

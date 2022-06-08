@@ -164,7 +164,7 @@ void cutilDeviceInit(int argc, char **argv) {
 
 void op_upload_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-  printf("Uploading new %s\n", dat->name);
+  // printf("Uploading new %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
@@ -296,14 +296,16 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
 
-      // printf("ORGEXEC MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", 
-      // my_rank, exp_exec_list->ranks[i], exp_exec_list->disps[i] * dat->size, dat->size * exp_exec_list->sizes[i]);
+      // printf("ORGEXEC MPI_Isend my_rank=%d to=%d bufpos=%d datsize=%d size=%d\n", 
+      // my_rank, exp_exec_list->ranks[i], exp_exec_list->disps[i] * dat->size, dat->size, exp_exec_list->sizes[i]);
 
       MPI_Isend(&outptr_exec[exp_exec_list->disps[i] * dat->size],
                 dat->size * exp_exec_list->sizes[i], MPI_CHAR,
                 exp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+
+      OP_mpi_tx_exec_msg_count++;
     }
 
     int init = dat->set->size * dat->size;
@@ -323,6 +325,7 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_exec_msg_count++;
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -338,13 +341,14 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
 
-      // printf("ORG MPI_Isend my_rank=%d to=%d bufpos=%d size=%d\n", 
-      // my_rank, exp_nonexec_list->ranks[i], exp_nonexec_list->disps[i] * dat->size, dat->size * exp_nonexec_list->sizes[i]);
+      // printf("ORGNONEXEC test MPI_Isend my_rank=%d to=%d bufpos=%d datsize=%d size=%d\n", 
+      // my_rank, exp_nonexec_list->ranks[i], exp_nonexec_list->disps[i] * dat->size, dat->size, exp_nonexec_list->sizes[i]);
       MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i] * dat->size],
                 dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
     }
 
 #ifdef COMM_AVOID
@@ -369,6 +373,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
                 imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+
+      OP_mpi_rx_nonexec_msg_count++;
     }
 
     // clear dirty bit
@@ -598,6 +604,7 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
     }
 
     int nonexec_init = OP_export_nonexec_permap[arg->map->index]->size;
@@ -614,6 +621,7 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
                 imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_nonexec_msg_count++;
     }
 
     arg->sent = 1;
@@ -672,6 +680,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 exp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_exec_msg_count++;
     }
 
     int init = dat->set->size * dat->size;
@@ -681,6 +690,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 imp_exec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_exec_msg_count++;
     }
 
     //-----second exchange nonexec elements related to this data array------
@@ -708,6 +718,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
     }
 
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
@@ -718,6 +729,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))
                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_nonexec_msg_count++;
     }
     // clear dirty bit
     dat->dirtybit = 0;
@@ -774,6 +786,7 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
+      OP_mpi_tx_nonexec_msg_count++;
     }
 
     int init = exp_nonexec_list->size;
@@ -785,6 +798,7 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))
                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
+      OP_mpi_rx_nonexec_msg_count++;
     }
     // note that we are not settinging the dirtybit to 0, since it's not a full
     // exchange
@@ -826,8 +840,6 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
     OP_mpi_tx_exec_msg_count_merged++;
   }
 
-  MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
-                &grp_send_requests[0], MPI_STATUSES_IGNORE);
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
                   &grp_recv_requests[0], MPI_STATUSES_IGNORE);
 
@@ -847,6 +859,8 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
   op_upload_buffer_async(grp_recv_buffer_d, grp_recv_buffer_h, total_buf_size);
   scatter_data_from_buffer_ptr_cuda_chained(args, nargs, rank_count, grp_recv_buffer_d, exec_flag, my_rank);
   op_scatter_sync();
+  MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
+                &grp_send_requests[0], MPI_STATUSES_IGNORE);
 }
 #endif
 
@@ -882,12 +896,16 @@ void op_wait_all_cuda(op_arg *arg) {
           scatter_data_from_buffer(*arg);
         } else {
           int init = dat->set->size * dat->size;
-
+          int my_rank = 0;
+          // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+          // printf("op_wait_all_cuda my_rank=%d dat=%s set=%s size=%d exec=%d nonexec=%d total_exec=%d total_nonexec=%d\n",
+          // my_rank, dat->name, dat->set->name, dat->set->size, dat->set->exec_size, dat->set->nonexec_size, 
+          // dat->set->total_exec_size, dat->set->total_nonexec_size);
           #ifdef COMM_AVOID
           cutilSafeCall(
               cudaMemcpyAsync(dat->data_d + init, dat->data + init,
                               (dat->set->total_exec_size +
-                               dat->set->total_nonexec_size) *
+                               dat->set->nonexec_size) *    // not total_nonexec_size
                                   arg->dat->size,
                               cudaMemcpyHostToDevice, 0));
           #else
