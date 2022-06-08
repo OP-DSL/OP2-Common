@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from os.path import basename
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 from textwrap import indent
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from typing_extensions import Protocol
 
