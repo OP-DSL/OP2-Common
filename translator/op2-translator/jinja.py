@@ -16,28 +16,28 @@ env = Environment(
 )
 
 
-def direct(x, lh=None) -> bool:
-    if isinstance(x, OP.ArgDat) and x.map_ptr is None:
+def direct(x, loop: OP.Loop = None) -> bool:
+    if isinstance(x, OP.ArgDat) and x.map_id is None:
         return True
 
-    if isinstance(x, OP.Dat) and lh.args[lh.findDat(x.ptr)[1]][0].map_ptr is None:
+    if isinstance(x, OP.Dat) and loop.args[x.arg_id].map_id is None:
         return True
 
-    # if isinstance(x, LoopHost) and len(x.maps) == 0:
-    #     return True
+    if isinstance(x, OP.Loop) and len(x.maps) == 0:
+        return True
 
     return False
 
 
-def indirect(x, lh=None) -> bool:
-    if isinstance(x, OP.ArgDat) and x.map_ptr is not None:
+def indirect(x, loop: OP.Loop = None) -> bool:
+    if isinstance(x, OP.ArgDat) and x.map_id is not None:
         return True
 
-    if isinstance(x, OP.Dat) and lh.args[lh.findDat(x.ptr)[1]][0].map_ptr is not None:
+    if isinstance(x, OP.Dat) and loop.args[x.arg_id].map_id is not None:
         return True
 
-    # if isinstance(x, LoopHost) and len(x.maps) > 0:
-    #     return True
+    if isinstance(x, OP.Loop) and len(x.maps) > 0:
+        return True
 
     return False
 
@@ -45,47 +45,47 @@ def indirect(x, lh=None) -> bool:
 env.tests["direct"] = direct
 env.tests["indirect"] = indirect
 
-env.tests["soa"] = lambda dat, lh=None: dat.soa
+env.tests["soa"] = lambda dat, loop=None: dat.soa
 
-env.tests["opt"] = lambda arg, lh=None: arg.opt
+env.tests["opt"] = lambda arg, loop=None: arg.opt
 
-env.tests["dat"] = lambda arg, lh=None: isinstance(arg, OP.ArgDat)
-env.tests["gbl"] = lambda arg, lh=None: isinstance(arg, OP.ArgGbl)
+env.tests["dat"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat)
+env.tests["gbl"] = lambda arg, loop=None: isinstance(arg, OP.ArgGbl)
 
-env.tests["vec"] = lambda arg, lh=None: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
+env.tests["vec"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
 
-env.tests["read"] = lambda arg, lh=None: arg.access_type == OP.AccessType.READ
-env.tests["write"] = lambda arg, lh=None: arg.access_type == OP.AccessType.WRITE
-env.tests["read_write"] = lambda arg, lh=None: arg.access_type == OP.AccessType.RW
+env.tests["read"] = lambda arg, loop=None: arg.access_type == OP.AccessType.READ
+env.tests["write"] = lambda arg, loop=None: arg.access_type == OP.AccessType.WRITE
+env.tests["read_write"] = lambda arg, loop=None: arg.access_type == OP.AccessType.RW
 
-env.tests["inc"] = lambda arg, lh=None: arg.access_type == OP.AccessType.INC
-env.tests["min"] = lambda arg, lh=None: arg.access_type == OP.AccessType.MIN
-env.tests["max"] = lambda arg, lh=None: arg.access_type == OP.AccessType.MAX
+env.tests["inc"] = lambda arg, loop=None: arg.access_type == OP.AccessType.INC
+env.tests["min"] = lambda arg, loop=None: arg.access_type == OP.AccessType.MIN
+env.tests["max"] = lambda arg, loop=None: arg.access_type == OP.AccessType.MAX
 
-env.tests["read_or_write"] = lambda arg, lh=None: arg.access_type in [
+env.tests["read_or_write"] = lambda arg, loop=None: arg.access_type in [
     OP.AccessType.READ,
     OP.AccessType.WRITE,
     OP.AccessType.RW,
 ]
-env.tests["reduction"] = lambda arg, lh=None: arg.access_type in [
+env.tests["reduction"] = lambda arg, loop=None: arg.access_type in [
     OP.AccessType.INC,
     OP.AccessType.MIN,
     OP.AccessType.MAX,
 ]
 
 
-# def read_in(dat: OP.Dat, loop_host: LoopHost) -> bool:
-#     for arg, idx in loop_host.args:
-#         if not isinstance(arg, OP.ArgDat):
-#             continue
-# 
-#         if arg.dat_ptr == dat.ptr and arg.access_type != OP.AccessType.READ:
-#             return False
-# 
-#     return True
+def read_in(dat: OP.Dat, loop: OP.Loop) -> bool:
+    for arg, idx in loop.args:
+        if not isinstance(arg, OP.ArgDat):
+            continue
+
+        if arg.dat_id == dat.id and arg.access_type != OP.AccessType.READ:
+            return False
+
+    return True
 
 
-# env.tests["read_in"] = read_in
+env.tests["read_in"] = read_in
 env.tests["instance"] = lambda x, c: isinstance(x, c)
 
 
@@ -97,7 +97,7 @@ def unpack(tup):
 
 
 def test_to_filter(filter_, key=unpack):
-    return lambda xs, lh=None: list(filter(lambda x: env.tests[filter_](key(x), lh), xs))  # type: ignore
+    return lambda xs, loop=None: list(filter(lambda x: env.tests[filter_](key(x), loop), xs))  # type: ignore
 
 
 env.filters["direct"] = test_to_filter("direct")
