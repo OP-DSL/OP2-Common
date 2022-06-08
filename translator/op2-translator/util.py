@@ -46,6 +46,12 @@ def find(xs: Iterable[T], p: Callable[[T], bool]) -> T:
 def safeFind(xs: Iterable[T], p: Callable[[T], bool]) -> Optional[T]:
     return next((x for x in xs if p(x)), None)
 
+def findIdx(xs: Iterable[T], p: Callable[[T], bool]) -> Optional[int]:
+    for idx, x in enumerate(xs):
+        if p(x):
+            return idx
+
+    return None
 
 def uniqueBy(xs: Iterable[T], f: Callable[[T], Any]) -> List[T]:
     s, u = set(), list()
