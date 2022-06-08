@@ -101,14 +101,19 @@ class Const:
     def __str__(self) -> str:
         return f"Const(loc={self.loc}, ptr='{self.ptr}', dim={self.dim}, typ={self.typ})"
 
+
 @dataclass(frozen=True)
 class Map:
+    id: int
+
     ptr: str
     arg_id: int
 
 
 @dataclass(frozen=True)
 class Dat:
+    id: int
+
     ptr: str
     arg_id: int
 
@@ -117,11 +122,14 @@ class Dat:
     soa: bool
 
     def __str__(self) -> str:
-        return f"Dat(ptr='{self.ptr}', arg_id={self.arg_id}, dim={self.dim}, typ={self.typ}, soa={self.soa})"
+        return (
+            f"Dat(id={self.id}, ptr='{self.ptr}', arg_id={self.arg_id}, dim={self.dim}, typ={self.typ}, soa={self.soa})"
+        )
 
 
 @dataclass(frozen=True)
 class Arg(ABDC):
+    id: int
     loc: Location
 
     access_type: AccessType
@@ -137,7 +145,7 @@ class ArgDat(Arg):
 
     def __str__(self) -> str:
         return (
-            f"ArgDat(loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
+            f"ArgDat(id={self.id}, loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
             f"dat_id={self.dat_id}, map_id={self.map_id}, map_index={self.map_index})"
         )
 
@@ -151,7 +159,7 @@ class ArgGbl(Arg):
 
     def __str__(self) -> str:
         return (
-            f"ArgGbl(loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
+            f"ArgGbl(id={self.id}, loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
             f"ptr={self.ptr}, dim={self.dim}, typ={self.typ})"
         )
 
@@ -176,7 +184,7 @@ class Loop:
         self.args = []
         self.args_expanded = []
 
-    def add_arg_dat(
+    def addArgDat(
         self,
         loc: Location,
         dat_ptr: str,
@@ -192,9 +200,9 @@ class Loop:
 
         dat_id = findIdx(self.dats, lambda d: d.ptr == dat_ptr)
         if dat_id is None:
-            dat = Dat(dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
             dat_id = len(self.dats)
 
+            dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
             self.dats.append(dat)
 
         map_id = None
@@ -202,27 +210,41 @@ class Loop:
             map_id = findIdx(self.maps, lambda m: m.ptr == map_ptr)
 
             if map_id is None:
-                map_ = Map(map_ptr, arg_id)
                 map_id = len(self.maps)
 
+                map_ = Map(map_id, map_ptr, arg_id)
                 self.maps.append(map_)
 
-        arg = ArgDat(loc, access_type, opt, dat_id, map_id, map_index)
+        arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_index)
         self.args.append(arg)
 
         if map_ptr is None or map_index > 0:
+            arg_expanded = dataclasses.replace(arg, id=len(self.args_expanded))
             self.args_expanded.append((arg, arg_id))
             return
 
         for real_map_index in range(-map_index):
-            arg_expanded = dataclasses.replace(arg, map_index=real_map_index)
-            self.args.append(arg_expanded)
+            arg_expanded = dataclasses.replace(arg, map_index=real_map_index, id=len(self.args_expanded))
+            self.args_expanded.append((arg_expanded, arg_id))
 
-    def add_arg_gbl(self, loc: Location, ptr: str, dim: int, typ: Type, access_type: AccessType, opt: bool) -> None:
-        arg = ArgGbl(loc, access_type, opt, ptr, dim, typ)
+    def addArgGbl(self, loc: Location, ptr: str, dim: int, typ: Type, access_type: AccessType, opt: bool) -> None:
+        arg_id = len(self.args)
+        arg = ArgGbl(arg_id, loc, access_type, opt, ptr, dim, typ)
 
         self.args.append(arg)
-        self.args_expanded.append(arg)
+        self.args_expanded.append((dataclasses.replace(arg, id=len(self.args_expanded)), arg_id))
+
+
+    def optIdx(self, arg: Arg) -> Optional[int]:
+        idx = 0
+        for arg2, _ in self.args:
+            if arg2 == arg:
+                break
+
+            if arg2.opt:
+                idx += 1
+
+        return idx
 
     def __str__(self) -> str:
         args = "\n    ".join([str(a) for a in self.args])
