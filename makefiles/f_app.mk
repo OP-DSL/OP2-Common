@@ -1,4 +1,4 @@
-TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator
+TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v
 
 ifneq ($(F_HAS_PARALLEL_BUILDS),true)
   .NOTPARALLEL:
