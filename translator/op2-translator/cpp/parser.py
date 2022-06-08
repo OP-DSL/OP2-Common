@@ -2,10 +2,9 @@ import dataclasses
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
-from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit, TypeKind
-from clang.cindex import conf
+from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit, TypeKind, conf
 
 import op as OP
 from store import Kernel, Location, ParseError, Program
@@ -28,8 +27,8 @@ def parseKernel(translation_unit: TranslationUnit, name: str, path: Path) -> Opt
         while param_type.get_pointee().spelling:
             param_type = param_type.get_pointee()
 
-        param = (n.spelling, parseType(param_type.spelling, parseLocation(n)))
-        params.append(param)
+        typ, _ = parseType(param_type.spelling, parseLocation(n))
+        params.append((n.spelling, typ))
 
     return Kernel(name, path, params)
 
@@ -72,101 +71,11 @@ def parseCall(node: Cursor, parent: Cursor, macros: Dict[Location, str], program
     args = list(node.get_arguments())
     loc = parseLocation(node)
 
-    if name == "op_init":
-        program.recordInit(loc)
-
-    elif name == "op_decl_set":
-        ptr = parsePtr(parent)
-        program.sets.append(parseSet(args, ptr, loc))
-
-    elif name == "op_decl_set_hdf5":
-        ptr = parsePtr(parent)
-        program.sets.append(parseSetHdf5(args, ptr, loc))
-
-    elif name == "op_decl_map":
-        ptr = parsePtr(parent)
-        program.maps.append(parseMap(args, ptr, loc))
-
-    elif name == "op_decl_map_hdf5":
-        ptr = parsePtr(parent)
-        program.maps.append(parseMapHdf5(args, ptr, loc))
-
-    elif name == "op_decl_dat":
-        ptr = parsePtr(parent)
-        program.dats.append(parseDat(args, ptr, loc))
-
-    elif name == "op_decl_dat_hdf5":
-        ptr = parsePtr(parent)
-        program.dats.append(parseDatHdf5(args, ptr, loc))
-
-    elif name == "op_decl_const":
+    if name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
 
     elif name == "op_par_loop":
         program.loops.append(parseLoop(args, loc, macros))
-
-    elif name == "op_exit":
-        program.recordExit()
-
-
-def parseSet(args: List[Cursor], ptr: str, loc: Location) -> OP.Set:
-    if len(args) != 2:
-        raise ParseError("incorrect number of args passed to op_decl_set", loc)
-
-    return OP.Set(loc, ptr)
-
-
-def parseSetHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Set:
-    if len(args) != 2:
-        raise ParseError("incorrect number of args passed to op_decl_set_hdf5", loc)
-
-    return OP.Set(loc, ptr)
-
-
-def parseMap(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
-    if len(args) != 5:
-        raise ParseError("incorrect number of args passed to op_decl_map", loc)
-
-    from_set_ptr = parseIdentifier(args[0])
-    to_set_ptr = parseIdentifier(args[1])
-    dim = parseIntExpression(args[2])
-
-    return OP.Map(loc, from_set_ptr, to_set_ptr, dim, ptr)
-
-
-def parseMapHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Map:
-    if len(args) != 5:
-        raise ParseError("incorrect number of args passed to op_decl_map_hdf5", loc)
-
-    return parseMap(args, ptr, loc)
-
-
-def parseDat(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
-    if len(args) != 5:
-        raise ParseError("incorrect number of args passed to op_decl_dat", loc)
-
-    soa = False
-
-    set_ptr = parseIdentifier(args[0])
-    dim = parseIntExpression(args[1])
-
-    typ_str = parseStringLit(args[2]).strip()
-
-    soa_regex = r":soa$"
-    if re.search(soa_regex, typ_str):
-        soa = True
-        typ_str = re.sub(soa_regex, "", typ_str)
-
-    typ = parseType(typ_str, loc)
-
-    return OP.Dat(loc, set_ptr, dim, typ, ptr, soa)
-
-
-def parseDatHdf5(args: List[Cursor], ptr: str, loc: Location) -> OP.Dat:
-    if len(args) != 5:
-        raise ParseError("incorrect number of args passed to op_decl_dat_hdf5", loc)
-
-    return parseDat(args, ptr, loc)
 
 
 def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
@@ -175,10 +84,10 @@ def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
 
     # TODO dim may not be literal
     dim = parseIntExpression(args[0])
-    typ = parseType(parseStringLit(args[1]), loc)
-    ptr = parseIdentifier(args[2])
+    typ, _ = parseType(parseStringLit(args[1]), loc)
+    ptr = parseIdentifier(args[2], raw=False)
 
-    return OP.Const(loc, dim, typ, ptr)
+    return OP.Const(loc, ptr, dim, typ)
 
 
 def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:
@@ -186,9 +95,8 @@ def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) ->
         raise ParseError("incorrect number of args passed to op_par_loop")
 
     kernel = parseIdentifier(args[0])
-    set_ptr = parseIdentifier(args[2])
+    loop = OP.Loop(loc, kernel)
 
-    loop_args = []
     for node in args[3:]:
         node = descend(descend(node))
 
@@ -198,87 +106,66 @@ def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) ->
         arg_args = list(node.get_arguments())
 
         if name == "op_arg_dat":
-            loop_args.append(parseArgDat(arg_args, arg_loc, macros))
+            parseArgDat(loop, False, arg_args, arg_loc, macros)
 
         elif name == "op_opt_arg_dat":
-            loop_args.append(parseOptArgDat(arg_args, arg_loc, macros))
+            parseArgDat(loop, True, arg_args, arg_loc, macros)
 
         elif name == "op_arg_gbl":
-            loop_args.append(parseArgGbl(arg_args, arg_loc, macros))
+            parseArgGbl(loop, False, arg_args, arg_loc, macros)
 
         elif name == "op_opt_arg_gbl":
-            loop_args.append(parseOptArgGbl(arg_args, arg_loc, macros))
+            parseOptArgGbl(loop, True, arg_args, arg_loc, macros)
 
         else:
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
 
-    return OP.Loop(loc, kernel, set_ptr, loop_args)
+    return loop
 
 
-def parseArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgDat:
-    if len(args) != 6:
+def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
+    if not opt and len(args) != 6:
         raise ParseError("incorrect number of args passed to op_arg_dat", loc)
+
+    if opt and len(args) != 7:
+        raise ParseError("incorrect number of args passed to op_opt_arg_dat", loc)
+
+    if opt:
+        args = args[1:]
 
     dat_ptr = parseIdentifier(args[0])
 
-    map_idx = parseIntExpression(args[1])
+    map_index = parseIntExpression(args[1])
     map_ptr = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
     dat_dim = parseIntExpression(args[3])
-    dat_typ = parseType(parseStringLit(args[4]), loc)
+    dat_typ, dat_soa = parseType(parseStringLit(args[4]), loc)
 
     access_type = parseAccessType(args[5], loc, macros)
 
-    return OP.ArgDat(loc, access_type, False, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
+    loop.add_arg_dat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_index, access_type, opt)
 
 
-def parseOptArgDat(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgDat:
-    if len(args) != 7:
-        ParseError("incorrect number of args passed to op_opt_arg_dat", loc)
-
-    dat = parseArgDat(args[1:], loc, macros)
-    return dataclasses.replace(dat, opt=True)
-
-
-def parseArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
-    if len(args) != 4:
+def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
+    if not opt and len(args) != 4:
         raise ParseError("incorrect number of args passed to op_arg_gbl", loc)
+
+    if opt and len(args) != 5:
+        raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
     ptr = parseIdentifier(args[0])
     dim = parseIntExpression(args[1])
-    typ = parseType(parseStringLit(args[2]), loc)
+    typ, _ = parseType(parseStringLit(args[2]), loc)
 
     access_type = parseAccessType(args[3], loc, macros)
 
-    return OP.ArgGbl(loc, access_type, False, ptr, dim, typ)
+    loop.add_arg_gbl(loc, ptr, dim, typ, access_type, opt)
 
 
-def parseOptArgGbl(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.ArgGbl:
-    if len(args) != 5:
-        raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
+def parseIdentifier(node: Cursor, raw: bool = True) -> str:
+    if raw:
+        return "".join([t.spelling for t in node.get_tokens()])
 
-    dat = parseArgGbl(args[1:], loc, macros)
-    return dataclasses.replace(dat, opt=True)
-
-
-def parsePtr(node: Cursor) -> str:
-    if node.kind == CursorKind.VAR_DECL:
-        return node.spelling
-
-    if node.kind == CursorKind.BINARY_OPERATOR:
-        children = list(node.get_children())
-        tokens = list(node.get_tokens())
-        operator = tokens[len(list(children[0].get_tokens()))].spelling
-
-        if operator != "=":
-            raise ParseError(f"unexpected binary operator {operator}", parseLocation(node))
-
-        return parseIdentifier(children[0])
-
-    raise ParseError(f"expected variable declaration or assignment", parseLocation(node))
-
-
-def parseIdentifier(node: Cursor) -> str:
     while node.kind == CursorKind.CSTYLE_CAST_EXPR:
         node = list(node.get_children())[1]
 
@@ -333,9 +220,15 @@ def parseAccessType(node: Cursor, loc: Location, macros: Dict[Location, str]) ->
     return OP.AccessType(access_type_str)
 
 
-def parseType(typ: str, loc: Location) -> OP.Type:
+def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
     typ_clean = typ.strip()
     typ_clean = re.sub(r"\s*const\s*", "", typ_clean)
+
+    soa = False
+    if re.search(r":soa", typ_clean):
+        soa = True
+
+    typ_clean = re.sub(r"\s*:soa\s*", "", typ_clean)
 
     typ_map = {
         "int": OP.Int(True, 32),
@@ -348,7 +241,7 @@ def parseType(typ: str, loc: Location) -> OP.Type:
     }
 
     if typ_clean in typ_map:
-        return typ_map[typ_clean]
+        return typ_map[typ_clean], soa
 
     raise ParseError(f'unable to parse type "{typ}"', loc)
 

@@ -77,7 +77,7 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     if type_spec is None:
         raise ParseError(f"derived types are not allowed for kernel arguments", loc)
 
-    return parseType(type_spec.tofortran(), loc)
+    return parseType(type_spec.tofortran(), loc)[0]
 
 
 def parseProgram(ast: f2003.Program, path: Path) -> Program:
@@ -93,118 +93,11 @@ def parseProgram(ast: f2003.Program, path: Path) -> Program:
 
 
 def parseCall(name: str, args: Optional[f2003.Actual_Arg_Spec_List], loc: Location, program: Program) -> None:
-    if name == "op_init_base":
-        program.recordInit(loc)
-
-    elif name == "op_decl_set":
-        program.sets.append(parseSet(args, loc))
-
-    elif name == "op_decl_set_hdf5":
-        program.sets.append(parseSetHdf5(args, loc))
-
-    elif name == "op_decl_map":
-        program.maps.append(parseMap(args, loc))
-
-    elif name == "op_decl_map_hdf5":
-        program.maps.append(parseMapHdf5(args, loc))
-
-    elif name == "op_decl_dat":
-        program.dats.append(parseDat(args, loc))
-
-    elif name == "op_decl_dat_hdf5":
-        program.dats.append(parseDatHdf5(args, loc))
-
-    elif name == "op_decl_const":
+    if name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
 
     elif re.match(r"op_par_loop_\d+", name):
         program.loops.append(parseLoop(args, loc))
-
-    elif name == "op_exit":
-        program.recordExit()
-
-
-def parseSet(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Set:
-    if args is None or len(args.items) != 3:
-        raise ParseError("incorrect number of arguments for op_decl_set", loc)
-
-    return OP.Set(loc, parseIdentifier(args.items[1], loc))
-
-
-def parseSetHdf5(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Set:
-    if args is None or len(args.items) != 4:
-        raise ParseError("incorrect number of arguments for op_decl_set_hdf5", loc)
-
-    return OP.Set(loc, parseIdentifier(args.items[1], loc))
-
-
-def parseMap(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Map:
-    if args is None or len(args.items) != 6:
-        raise ParseError("incorrect number of arguments for op_decl_map", loc)
-
-    from_set = parseIdentifier(args.items[0], loc)
-    to_set = parseIdentifier(args.items[1], loc)
-    dim = parseIntLiteral(args.items[2], loc)
-    ptr = parseIdentifier(args.items[4], loc)
-
-    return OP.Map(loc, from_set, to_set, dim, ptr)
-
-
-def parseMapHdf5(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Map:
-    if args is None or len(args.items) != 7:
-        raise ParseError("incorrect number of arguments for op_decl_map_hdf5", loc)
-
-    from_set = parseIdentifier(args.items[0], loc)
-    to_set = parseIdentifier(args.items[1], loc)
-    dim = parseIntLiteral(args.items[2], loc)
-    ptr = parseIdentifier(args.items[3], loc)
-
-    return OP.Map(loc, from_set, to_set, dim, ptr)
-
-
-def parseDat(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Dat:
-    if args is None or len(args.items) != 6:
-        raise ParseError("incorrect number of arguments for op_decl_dat", loc)
-
-    soa = False
-
-    set_ = parseIdentifier(args.items[0], loc)
-    dim = parseIntLiteral(args.items[1], loc)
-
-    typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
-
-    soa_regex = r":soa$"
-    if re.search(soa_regex, typ_str):
-        soa = True
-        typ_str = re.sub(soa_regex, "", typ_str)
-
-    typ = parseType(typ_str, loc)
-
-    ptr = parseIdentifier(args.items[4], loc)
-
-    return OP.Dat(loc, set_, dim, typ, ptr, soa)
-
-
-def parseDatHdf5(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Dat:
-    if args is None or len(args.items) != 7:
-        raise ParseError("incorrect number of arguments for op_decl_dat_hdf5", loc)
-
-    soa = False
-
-    set_ = parseIdentifier(args.items[0], loc)
-    dim = parseIntLiteral(args.items[1], loc)
-    ptr = parseIdentifier(args.items[2], loc)
-
-    typ_str = parseStringLiteral(args.items[3], loc).strip().lower()
-
-    soa_regex = r":soa$"
-    if re.search(soa_regex, typ_str):
-        soa = True
-        typ_str = re.sub(soa_regex, "", typ_str)
-
-    typ = parseType(typ_str, loc)
-
-    return OP.Dat(loc, set_, dim, typ, ptr, soa)
 
 
 def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Const:
@@ -215,9 +108,9 @@ def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.
     dim = parseIntLiteral(args.items[1], loc)  # TODO: Might not be an integer literal?
 
     typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
-    typ = parseType(typ_str, loc)
+    typ = parseType(typ_str, loc)[0]
 
-    return OP.Const(loc, dim, typ, ptr)
+    return OP.Const(loc, ptr, dim, typ)
 
 
 def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Loop:
@@ -225,9 +118,8 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
         raise ParseError("incorrect number of arguments for op_par_loop", loc)
 
     kernel = parseIdentifier(args.items[0], loc)
-    set_ptr = parseIdentifier(args.items[1], loc)
+    loop = OP.Loop(loc, kernel)
 
-    loop_args = []
     for arg_node in args.items[2:]:
         if type(arg_node) is not f2003.Structure_Constructor:
             raise ParseError("unable to parse op_par_loop argument", loc)
@@ -236,93 +128,73 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
         arg_args = fpu.get_child(arg_node, f2003.Component_Spec_List)
 
         if name == "op_arg_dat":
-            loop_args.append(parseArgDat(arg_args, loc))
+            parseArgDat(loop, False, arg_args, loc)
 
         elif name == "op_opt_arg_dat":
-            loop_args.append(parseOptArgDat(arg_args, loc))
+            parseArgDat(loop, True, arg_args, loc)
 
         elif name == "op_arg_gbl":
-            loop_args.append(parseArgGbl(arg_args, loc))
+            parseArgGbl(loop, False, arg_args, loc)
 
         elif name == "op_opt_arg_gbl":
-            loop_args.append(parseOptArgGbl(arg_args, loc))
+            parseOptArgGbl(loop, True, arg_args, loc)
 
         else:
             raise ParseError(f"invalid loop argument {name}", loc)
 
-    return OP.Loop(loc, kernel, set_ptr, loop_args)
+    return loop
 
 
-def parseArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgDat:
-    if args is None or len(args.items) != 6:
+def parseArgDat(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_List], loc: Location) -> None:
+    if args is None or (not opt and len(args.items) != 6):
         raise ParseError("incorrect number of arguments for op_arg_dat", loc)
 
-    dat_ptr = parseIdentifier(args.items[0], loc)
-
-    map_idx = parseIntLiteral(args.items[1], loc)
-    map_ptr: Optional[str] = parseIdentifier(args.items[2], loc)
-
-    if map_ptr == "OP_ID":
-        map_ptr = None
-
-    dat_dim = parseIntLiteral(args.items[3], loc)
-    dat_typ = parseType(parseStringLiteral(args.items[4], loc), loc)
-
-    access_type = parseAccessType(args.items[5], loc)
-
-    return OP.ArgDat(loc, access_type, False, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
-
-
-def parseOptArgDat(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgDat:
-    if args is None or len(args.items) != 7:
+    if args is None or (opt and len(args.items) != 7):
         raise ParseError("incorrect number of arguments for op_opt_arg_dat", loc)
 
-    dat_ptr = parseIdentifier(args.items[1], loc)
+    args_list = args.items
 
-    map_idx = parseIntLiteral(args.items[2], loc)
-    map_ptr: Optional[str] = parseIdentifier(args.items[3], loc)
+    if opt:
+        args_list = args_list[1:]
+
+    dat_ptr = parseIdentifier(args_list[0], loc)
+
+    map_index = parseIntLiteral(args_list[1], loc)
+    map_ptr: Optional[str] = parseIdentifier(args_list[2], loc)
 
     if map_ptr == "OP_ID":
         map_ptr = None
 
-    dat_dim = parseIntLiteral(args.items[4], loc)
-    dat_typ = parseType(parseStringLiteral(args.items[5], loc), loc)
+    dat_dim = parseIntLiteral(args_list[3], loc)
+    dat_typ, dat_soa = parseType(parseStringLiteral(args_list[4], loc), loc)
 
-    access_type = parseAccessType(args.items[6], loc)
+    access_type = parseAccessType(args_list[5], loc)
 
-    return OP.ArgDat(loc, access_type, True, dat_ptr, dat_dim, dat_typ, map_ptr, map_idx)
+    loop.add_arg_dat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_index, access_type, opt)
 
 
-def parseArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgGbl:
-    if args is None or len(args.items) != 4:
+def parseArgGbl(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_List], loc: Location) -> None:
+    if args is None or (not opt and len(args.items) != 4):
         raise ParseError("incorrect number of arguments for op_arg_gbl", loc)
 
-    ptr = parseIdentifier(args.items[0], loc)
-    dim = parseIntLiteral(args.items[1], loc)
-    typ = parseType(parseStringLiteral(args.items[2], loc), loc)
-
-    access_type = parseAccessType(args.items[3], loc)
-
-    return OP.ArgGbl(loc, access_type, False, ptr, dim, typ)
-
-
-def parseOptArgGbl(args: Optional[f2003.Component_Spec_List], loc: Location) -> OP.ArgGbl:
-    if args is None or len(args.items) != 5:
+    if args is None or (opt and len(args.items) != 5):
         raise ParseError("incorrect number of arguments for op_opt_arg_gbl", loc)
 
-    ptr = parseIdentifier(args.items[1], loc)
-    dim = parseIntLiteral(args.items[2], loc)
-    typ = parseType(parseStringLiteral(args.items[3], loc), loc)
+    args_list = args.items
 
-    access_type = parseAccessType(args.items[4], loc)
+    if opt:
+        args_list = args_list[1:]
 
-    return OP.ArgGbl(loc, access_type, True, ptr, dim, typ)
+    ptr = parseIdentifier(args_list[0], loc)
+    dim = parseIntLiteral(args_list[1], loc)
+    typ = parseType(parseStringLiteral(args_list[2], loc), loc)[0]
+
+    access_type = parseAccessType(args_list[3], loc)
+
+    loop.add_arg_gbl(loc, ptr, dim, typ, access_type, opt)
 
 
 def parseIdentifier(node: Any, loc: Location) -> str:
-    if type(node) is not f2003.Name and type(node) is not f2003.Type_Name:
-        raise ParseError("unable to parse identifier", loc)
-
     return node.string
 
 
@@ -359,6 +231,12 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
     typ_clean = typ.strip().lower()
     typ_clean = re.sub(r"\s*kind\s*=\s*", "", typ_clean)
 
+    soa = False
+    if re.search(r":soa", typ_clean):
+        soa = True
+
+    typ_clean = re.sub(r"\s*:soa\s*", "", typ_clean)
+
     mk_type_regex = lambda t, k: f"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
 
     integer_match = re.match(mk_type_regex("integer", "(?:ik)?(4|8)"), typ_clean)
@@ -367,7 +245,7 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
         if integer_match.groups()[0] is not None:
             size = int(integer_match.groups()[0]) * 8
 
-        return OP.Int(True, size)
+        return OP.Int(True, size), soa
 
     real_match = re.match(mk_type_regex("real", "(?:rk)?(4|8)"), typ_clean)
     if real_match is not None:
@@ -375,10 +253,10 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
         if real_match.groups()[0] is not None:
             size = int(real_match.groups()[0]) * 8
 
-        return OP.Float(size)
+        return OP.Float(size), soa
 
     logical_match = re.match(mk_type_regex("logical", "(?:lk)?"), typ_clean)
     if logical_match is not None:
-        return OP.Bool()
+        return OP.Bool(), soa
 
     raise ParseError(f'unable to parse type "{typ}"', loc)

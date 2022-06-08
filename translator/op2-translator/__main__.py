@@ -107,6 +107,8 @@ def main(argv=None) -> None:
     except OpError as e:
         exit(e)
 
+    return
+
     for [target] in args.target:
         target = Target.find(target)
 
