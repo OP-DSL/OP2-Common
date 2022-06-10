@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import dataclasses
-import os
-from collections import OrderedDict
 from pathlib import Path
-from types import MethodType
-from typing import ClassVar, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from jinja2 import Environment
 
@@ -13,7 +9,7 @@ import op as OP
 from language import Lang
 from store import Application, Kernel
 from target import Target
-from util import Findable, find, safeFind
+from util import Findable
 
 
 class Scheme(Findable):
@@ -43,7 +39,10 @@ class Scheme(Findable):
         kernel_func = self.translateKernel(include_dirs, defines, kernel, app)
 
         # Generate source from the template
-        return template.render(OP=OP, l=loop, kernel_idx=kernel_idx, target=self.target), extension
+        return (
+            template.render(OP=OP, l=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, target=self.target),
+            extension,
+        )
 
     def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path]) -> Tuple[str, str]:
         if self.master_kernel_template is None:

@@ -1,13 +1,12 @@
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Set, Tuple
+from typing import Any, List, Optional, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
 from store import Kernel, Location, ParseError, Program
-from util import enumRegex
 
 
 def parseKernel(ast: f2003.Program, name: str, path: Path) -> Optional[Kernel]:
@@ -75,7 +74,7 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     type_spec = fpu.get_child(type_declaration, f2003.Intrinsic_Type_Spec)
 
     if type_spec is None:
-        raise ParseError(f"derived types are not allowed for kernel arguments", loc)
+        raise ParseError("derived types are not allowed for kernel arguments", loc)
 
     return parseType(type_spec.tofortran(), loc)[0]
 
@@ -137,7 +136,7 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
             parseArgGbl(loop, False, arg_args, loc)
 
         elif name == "op_opt_arg_gbl":
-            parseOptArgGbl(loop, True, arg_args, loc)
+            parseArgGbl(loop, True, arg_args, loc)
 
         else:
             raise ParseError(f"invalid loop argument {name}", loc)
@@ -237,7 +236,8 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
 
     typ_clean = re.sub(r"\s*:soa\s*", "", typ_clean)
 
-    mk_type_regex = lambda t, k: f"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
+    def mk_type_regex(t, k):
+        return fr"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
 
     integer_match = re.match(mk_type_regex("integer", "(?:ik)?(4|8)"), typ_clean)
     if integer_match is not None:

@@ -1,7 +1,6 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from types import MethodType
 from typing import FrozenSet, List, Optional, Set
 
 import clang.cindex
