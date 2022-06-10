@@ -3,11 +3,9 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, Dict, Final, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, List, Optional
 
-from cached_property import cached_property
-
-from util import ABDC, find, findIdx, uniqueBy
+from util import ABDC, findIdx
 
 if TYPE_CHECKING:
     from store import Location
@@ -233,7 +231,6 @@ class Loop:
 
         self.args.append(arg)
         self.args_expanded.append((dataclasses.replace(arg, id=len(self.args_expanded)), arg_id))
-
 
     def optIdx(self, arg: Arg) -> Optional[int]:
         idx = 0

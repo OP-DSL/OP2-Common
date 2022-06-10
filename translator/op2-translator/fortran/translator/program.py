@@ -4,7 +4,6 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 from store import Program
-from util import SourceBuffer, safeFind
 
 
 def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> str:
@@ -37,7 +36,7 @@ def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> s
 
     for main_program in fpu.walk(ast, f2003.Main_Program):
         spec = fpu.get_child(main_program, f2003.Specification_Part)
-        new_content = [f2003.Use_Stmt(f"use op2_kernels")]
+        new_content = [f2003.Use_Stmt("use op2_kernels")]
 
         for node in spec.content:
             if (
