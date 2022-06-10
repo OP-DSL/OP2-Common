@@ -5,7 +5,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, TypeVar
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
 
 from cached_property import cached_property
 

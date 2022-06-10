@@ -1,6 +1,5 @@
 import io
 from pathlib import Path
-from types import MethodType
 from typing import FrozenSet, List, Optional, Set
 
 import fparser.two.Fortran2003 as f2003
@@ -75,7 +74,7 @@ class Fortran(Lang):
         elif isinstance(typ, OP.Float):
             return f"real({int(typ.size / 8)})"
         elif isinstance(typ, OP.Bool):
-            return f"logical"
+            return "logical"
         else:
             assert False
 

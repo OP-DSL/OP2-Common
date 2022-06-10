@@ -1,14 +1,12 @@
-import dataclasses
-import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from clang.cindex import Config, Cursor, CursorKind, Index, TranslationUnit, TypeKind, conf
+from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind, conf
 
 import op as OP
 from store import Kernel, Location, ParseError, Program
-from util import enumRegex, safeFind
+from util import safeFind
 
 
 def parseKernel(translation_unit: TranslationUnit, name: str, path: Path) -> Optional[Kernel]:
@@ -115,7 +113,7 @@ def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) ->
             parseArgGbl(loop, False, arg_args, arg_loc, macros)
 
         elif name == "op_opt_arg_gbl":
-            parseOptArgGbl(loop, True, arg_args, arg_loc, macros)
+            parseArgGbl(loop, True, arg_args, arg_loc, macros)
 
         else:
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
@@ -189,7 +187,7 @@ def parseIdentifier(node: Cursor, raw: bool = True) -> str:
 
 def parseIntExpression(node: Cursor) -> int:
     if node.type.kind != TypeKind.INT:
-        raise ParseError(f"expected int expression", parseLocation(node))
+        raise ParseError("expected int expression", parseLocation(node))
 
     eval_result = conf.lib.clang_Cursor_Evaluate(node)
     val = conf.lib.clang_EvalResult_getAsInt(eval_result)

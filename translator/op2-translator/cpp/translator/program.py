@@ -1,7 +1,7 @@
 import re
 
 from store import Program
-from util import SourceBuffer, safeFind
+from util import SourceBuffer
 
 
 # Augment source program to use generated kernel hosts
@@ -19,7 +19,7 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
     for loop in program.loops:
         before, after = buffer.get(loop.loc.line - 1).split("op_par_loop", 1)
         after = re.sub(
-            f"{loop.kernel}\s*,\s*", "", after, count=1
+            rf"{loop.kernel}\s*,\s*", "", after, count=1
         )  # TODO: This assumes that the kernel arg is on the same line as the call
         buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.kernel}" + after)
 
