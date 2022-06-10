@@ -3,12 +3,9 @@ import dataclasses
 import json
 import os
 import pstats
-import re
-import traceback
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 import cpp
 import fortran

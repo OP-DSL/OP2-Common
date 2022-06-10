@@ -50,18 +50,21 @@ class FortranOpenMP(Scheme):
         ftk.renameKernel(kernel_ast2, lambda name: f"{name}_openmp_simd")
         ftk.renameConsts(kernel_ast2, app, lambda const: f"op2_const_{const}")
 
-        match_indirect = lambda arg: isinstance(arg, OP.ArgDat) and arg.map_ptr is not None
-        match_gbl_reduction = lambda arg: isinstance(arg, OP.ArgGbl) and arg.access_type in [
-            OP.AccessType.INC,
-            OP.AccessType.MIN,
-            OP.AccessType.MAX,
-        ]
+        def match_indirect(arg):
+            return isinstance(arg, OP.ArgDat) and arg.map_ptr is not None
+
+        def match_gbl_reduction(arg):
+            return isinstance(arg, OP.ArgGbl) and arg.access_type in [
+                OP.AccessType.INC,
+                OP.AccessType.MIN,
+                OP.AccessType.MAX,
+            ]
 
         ftk.insertStrides(
             kernel_ast2,
             kernel,
             app,
-            lambda arg: f"SIMD_LEN",
+            lambda arg: "SIMD_LEN",
             match=lambda arg: match_indirect(arg) or match_gbl_reduction(arg),
         )
 
@@ -84,10 +87,11 @@ class FortranCuda(Scheme):
         ftk.renameKernel(kernel_ast, lambda name: f"{name}_gpu")
         ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}_d")
 
-        loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
+        def match_soa(arg):
+            return isinstance(arg, OP.ArgDat) and find(app.dats(), lambda dat: arg.dat_ptr == dat.ptr).soa
 
-        match_soa = lambda arg: isinstance(arg, OP.ArgDat) and find(app.dats(), lambda dat: arg.dat_ptr == dat.ptr).soa
-        skip_atomic_inc = lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
+        def skip_atomic_inc(arg):
+            return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
 
         ftk.insertStrides(
             kernel_ast,

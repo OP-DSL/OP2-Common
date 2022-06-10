@@ -4,13 +4,11 @@ from dataclasses import dataclass, field
 from os.path import basename
 from pathlib import Path
 from textwrap import indent
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
-
-from typing_extensions import Protocol
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 import op as OP
 from op import OpError
-from util import find, flatten, safeFind, uniqueBy
+from util import flatten, uniqueBy
 
 if TYPE_CHECKING:
     from language import Lang
@@ -46,8 +44,8 @@ class Program:
     loops: List[OP.Loop] = field(default_factory=list)
 
     def __str__(self) -> str:
-        consts_str = "\n    ".join([str(c) for c in self.consts])
-        loops_str = "\n".join([str(l) for l in self.loops])
+        consts_str = "\n    ".join([str(const) for const in self.consts])
+        loops_str = "\n".join([str(loop) for loop in self.loops])
 
         if len(self.consts) > 0:
             consts_str = f"    {consts_str}\n"
@@ -149,7 +147,7 @@ class Application:
         kernel = self.kernels[loop.kernel]
 
         if len(loop.args) != len(kernel.params):
-            raise OpError(f"number of loop arguments does not match number of kernel arguments", loop.loc)
+            raise OpError("number of loop arguments does not match number of kernel arguments", loop.loc)
 
         for loop_arg, kernel_param in zip(loop.args, kernel.params):
             if isinstance(loop_arg, OP.ArgDat) and loop.dats[loop_arg.dat_id].typ != kernel_param[1]:
