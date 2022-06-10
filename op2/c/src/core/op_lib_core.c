@@ -805,18 +805,11 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    // arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+  #ifdef COMM_AVOID_CUDA
     arg.map_data_d = (idx == -1 ? NULL : map->aug_maps_d[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
-    // arg.map_data_d = (idx == -1 ? NULL : &(map->aug_maps_d[map->from->halo_info->nhalos_indices[max_map_nhalos] * 
-    //                                       map->dim * (map->from->size + map->from->total_exec_size)]));
-
-    // printf("argdat dat=%s map[%d]=%s>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<\n", dat->name, map->from->halo_info->nhalos_indices[max_map_nhalos],
-    // map->name);
-    // for(int i = 0; i < (map->from->size + map->from->total_exec_size) * map->dim; i++){
-    //   printf("argdat my_rank=%d dat=%s map[%d]=%s val[%d]=%d\n", 0, dat->name, map->from->halo_info->nhalos_indices[max_map_nhalos], 
-    //   map->name, i, map->aug_maps_d[i]);
-    // }
-    
+  #else
+    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+  #endif
     arg.map_data = (idx == -1 ? NULL : map->aug_maps[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
   } else {
     /* set default values */
@@ -928,8 +921,11 @@ op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int di
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    // arg.map_data_d = (map == NULL ? NULL : map->map_d);
+  #ifdef COMM_AVOID_CUDA
     arg.map_data_d = map == NULL ? NULL : map->aug_maps_d[dat->halo_info->nhalos_indices[max_map_nhalos]];
+  #else
+    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+  #endif
     arg.map_data = map == NULL ? NULL : map->aug_maps[dat->halo_info->nhalos_indices[max_map_nhalos]];
   } else {
     /* set default values */

@@ -384,6 +384,8 @@ mpi_comm_avoid_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_comm_avoid.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
+	$(MPICXX) -DCOMM_AVOID_CUDA $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c \
+	-o $(OBJ)/op_lib_core.o
 	$(MPICXX) $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -DOPMPI -I$(CUDA_INSTALL_PATH)/include \
 	-c $(SRC)/cuda/op_cuda_rt_support.c \
 	-o $(OBJ)/op_cuda_rt_support.o
