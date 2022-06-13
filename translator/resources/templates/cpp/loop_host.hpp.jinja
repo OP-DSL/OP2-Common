@@ -1,70 +1,61 @@
-{% macro arg_dat_redef(arg, sarg) %}
+{% macro arg_dat_redef(arg, id) %}
     {% set params -%}
-{{sarg}}.dat, {{arg.map_idx}}, {{sarg}}.map, {{arg.dat_dim}}, "{{arg.dat_typ}}", {{arg.access_type.value}}
+arg{{id}}.dat, {{arg.map_idx}}, arg{{id}}.map, {{lh.dat(arg).dim}}, "{{lh.dat(arg).typ}}", {{arg.access_type.value}}
     {%- endset %}
 
     {%- if arg is opt -%}
-op_opt_arg_dat(sarg.opt, {{params}})
+op_opt_arg_dat(arg{{id}}.opt, {{params}})
     {%- else -%}
 op_arg_dat({{params}})
     {%- endif %}
 {% endmacro -%}
 
-{% macro indirect_dat_def() %}
+{% macro indirect_dat_descriptor_def() %}
     {% if lh is indirect %}
-    int num_dats_indirect = {{lh.dats|indirect(lh)|length}};
-    int dats_indirect[{{lh.args_expanded|length}}] = {
-        {%- for arg, idx in lh.args_expanded -%}
-            {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
-            {{-", " if not loop.last}}
+int num_dats_indirect = {{lh.dats|indirect|length}};
+int dats_indirect[{{lh.args_expanded|length}}] = {
+        {%- for arg, id in lh.args_expanded -%}
+    {{lh.dats|indirect|index(lh.dat(arg)) if arg is indirect else "-1"}}{{", " if not loop.last}}
         {%- endfor -%}
-    };
+};
     {% endif %}
 {% endmacro %}
 
 {% block kernel %}
-{{lh.kernel_func}}
+{{kernel_func}}
 {% endblock %}
 
 {%- block kernel_wrapper %}
 {% endblock -%}
 
 {% block host_prologue %}
-void op_par_loop_{{lh.kernel.name}}(
+void op_par_loop_{{lh.kernel}}(
     const char *name,
     op_set set,
-    {% for arg, idx in lh.args %}
-    op_arg arg{{idx}}{{"," if not loop.last else " "}} // {{lh.kernel.params[idx][0]}}
+    {% for arg in lh.args %}
+    op_arg arg{{arg.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
     int num_args_expanded = {{lh.args_expanded|length}};
     op_arg args_expanded[{{lh.args_expanded|length}}];
 
-    {% for arg, idx in lh.args_expanded %}
-        {% set sarg = "arg%d" % idx %}
-    args_expanded[{{loop.index0}}] = {{arg_dat_redef(arg, sarg) if lh.args[idx][0] is vec else sarg}};
+    {% for arg, id in lh.args_expanded %}
+    args_expanded[{{arg.id}}] = {{arg_dat_redef(arg, id) if lh.args[id] is vec else "arg%d" % id}};
     {% endfor %}
 
     double cpu_start, cpu_end, wall_start, wall_end;
-    op_timing_realloc({{lh.kernel_idx}});
+    op_timing_realloc({{kernel_idx}});
 
-    OP_kernels[{{lh.kernel_idx}}].name = name;
-    OP_kernels[{{lh.kernel_idx}}].count += 1;
+    OP_kernels[{{kernel_idx}}].name = name;
+    OP_kernels[{{kernel_idx}}].count += 1;
 
     op_timers_core(&cpu_start, &wall_start);
 
     if (OP_diags > 2)
-        printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.kernel.name}}\n");
+        printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.kernel}}\n");
 
     int set_size = op_mpi_halo_exchanges{{"_grouped" if target.config.grouped-}}
         (set, num_args_expanded, args_expanded{{(", %d" % target.config.device) if target.config.grouped}});
-
-    if (set_size == 0) {
-        {% block host_prologue_early_exit_cleanup %}
-        {% endblock %}
-
-        return;
-    }
 {% endblock %}
 
 {% block host_loop required %}
@@ -72,7 +63,7 @@ void op_par_loop_{{lh.kernel.name}}(
 
 {% block host_epilogue %}
     op_timers_core(&cpu_end, &wall_end);
-    OP_kernels[{{lh.kernel_idx}}].time += wall_end - wall_start;
+    OP_kernels[{{kernel_idx}}].time += wall_end - wall_start;
 {% endblock %}
 }
 

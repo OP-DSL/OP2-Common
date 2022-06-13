@@ -1,50 +1,37 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
-{%- macro arg_to_pointer(arg, idx) %}
+{%- macro arg_to_pointer(arg, id) %}
     {%- if arg is gbl %}
         {%- set cast = arg.typ -%}
     {%- else -%}
-        {%- set cast = arg.dat_typ -%}
+        {%- set cast = lh.dat(arg).typ -%}
     {%- endif -%}
 
     {%- if arg is direct -%}
         {%- set offset = " + n" -%}
     {%- elif arg is indirect -%}
-        {%- set offset = " + map_%s[%d]" % (arg.map_ptr, arg.map_idx) -%}
+        {%- set offset = " + map%s[%d]" % (arg.map_id, arg.map_idx) -%}
     {%- endif -%}
 
-    {%- if arg is not gbl and lh.findDat(arg.dat_ptr)[0] is not soa %}
-        {%- set offset = "%s * %d" % (offset, arg.dat_dim) %}
+    {%- if arg is not gbl and lh.dat(arg) is not soa %}
+        {%- set offset = "%s * %d" % (offset, lh.dat(arg).dim) %}
     {%- endif -%}
 
     {%- if lh is indirect and arg is gbl and arg is reduction %}
-gbl_{{arg.ptr}}
+arg{{id}}_local
     {%- else -%}
-({{cast}} *)arg{{idx}}.data{{offset}}
+({{cast}} *)arg{{id}}.data{{offset}}
     {%- endif -%}
 {%- endmacro -%}
 
 {% block host_prologue %}
 {{super()}}
-    {% for dat, idx in lh.dats.items()|soa %}
-    op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});{{"\n" if loop.last}}
+    {% for arg in lh.args|gbl|reduction if lh is indirect %}
+    {{arg.typ}} arg{{arg.id}}_local[{{arg.dim}}] = {0};{{"\n" if loop.last}}
     {% endfor %}
-    {% for arg, idx in lh.args|gbl|reduction if lh is indirect %}
-    {{arg.typ}} gbl_{{arg.ptr}}[{{arg.dim}}] = {0};{{"\n" if loop.last}}
+    {% for arg in lh.args|gbl|reduction if lh is indirect and arg is not inc %}
+    memcpy(arg{{arg.id}}_local, arg{{idx}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
     {% endfor %}
-    {% for arg, idx in lh.args|gbl|reduction if lh is indirect and arg is not inc %}
-    memcpy(gbl_{{arg.ptr}}, arg{{idx}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
-    {% endfor %}
-{% endblock %}
-
-{% block host_prologue_early_exit_cleanup %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-        op_mpi_reduce(&arg{{idx}}, ({{arg.typ}} *)arg{{idx}}.data);
-    {% endfor %}
-    {% if lh is indirect %}
-        op_mpi_wait_all(num_args_expanded, args_expanded);
-    {% endif %}
-        op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 {% endblock %}
 
 {% block host_loop %}
@@ -57,33 +44,33 @@ gbl_{{arg.ptr}}
             op_mpi_wait_all{{"_grouped" if target.config.grouped-}}
                 (num_args_expanded, args_expanded{{", 1" if target.config.grouped}});
 
-    {% for map, idx in lh.maps.items() %}
-        int *map_{{map.ptr}} = arg{{idx}}.map_data + n * arg{{idx}}.map->dim;
-    {% endfor %}
+        {% for map in lh.maps %}
+        int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;
+        {% endfor %}
 
     {% endif %}
-    {% for arg, idx in lh.args|vec %}
-        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-        {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
+    {% for arg in lh.args|vec %}
+        {{"const " if arg.access_type == OP.AccessType.READ}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
+        {% for arg_expanded, id in lh.args_expanded if id == arg.id %}
+            {{arg_to_pointer(arg_expanded, id)}}{{"," if not loop.last}}
         {% endfor %}
         };
 
     {% endfor %}
     {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
         if (n == set->size) {
-        {% for arg, idx in lh.args|gbl|reduction %}
-            memcpy(arg{{idx}}.data, gbl_{{arg.ptr}}, {{arg.dim}} * sizeof({{arg.typ}}));
+        {% for arg in lh.args|gbl|reduction %}
+            memcpy(arg{{arg.id}}.data, arg{{arg.id}}_local, {{arg.dim}} * sizeof({{arg.typ}}));
         {% endfor %}
         }
 
     {% endif %}
-        {{lh.kernel.name}}(
-    {% for arg, idx in lh.args %}
+        {{lh.kernel}}(
+    {% for arg in lh.args %}
         {% if arg is not vec %}
-            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
+            {{arg_to_pointer(arg, arg.id)}}{{"," if not loop.last}}
         {% else %}
-            arg{{idx}}_vec{{"," if not loop.last}}
+            arg{{arg.id}}_vec{{"," if not loop.last}}
         {% endif %}
     {% endfor %}
         );
@@ -96,8 +83,8 @@ gbl_{{arg.ptr}}
         op_mpi_wait_all(num_args_expanded, args_expanded);
 
     {% endif %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{idx}}, ({{arg.typ}} *)arg{{idx}}.data);
+    {% for arg in lh.args|gbl|reduction %}
+    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ}} *)arg{{arg.id}}.data);
     {% endfor %}
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 
