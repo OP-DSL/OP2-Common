@@ -18,15 +18,6 @@ class CppSeq(Scheme):
 
     def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
         kernel_ast, kernel_path, rewriter = ctk.findKernel(self.lang, kernel, include_dirs, defines)
-
-        ctk.insertStrides(
-            kernel_ast,
-            rewriter,
-            app,
-            kernel,
-            lambda dat_ptr: f"op2_dat_{dat_ptr}_stride",
-        )
-
         return ctk.preprocess(rewriter.rewrite(), kernel_path, include_dirs, defines)
 
 
@@ -54,7 +45,7 @@ class CppOpenMP(Scheme):
         return ctk.preprocess(rewriter.rewrite(), kernel_path, include_dirs, defines)
 
 
-Scheme.register(CppOpenMP)
+# Scheme.register(CppOpenMP)
 
 
 class CppCuda(Scheme):
@@ -83,4 +74,4 @@ class CppCuda(Scheme):
         return ctk.preprocess(rewriter.rewrite(), kernel_path, include_dirs, defines)
 
 
-Scheme.register(CppCuda)
+# Scheme.register(CppCuda)

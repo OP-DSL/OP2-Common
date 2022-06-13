@@ -40,7 +40,7 @@ class Scheme(Findable):
 
         # Generate source from the template
         return (
-            template.render(OP=OP, l=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, target=self.target),
+            template.render(OP=OP, lh=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, target=self.target),
             extension,
         )
 

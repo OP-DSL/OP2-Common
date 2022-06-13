@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Union
 
 from util import ABDC, findIdx
 
@@ -216,7 +216,7 @@ class Loop:
         arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_idx)
         self.args.append(arg)
 
-        if map_ptr is None or map_idx > 0:
+        if map_ptr is None or map_idx >= 0:
             arg_expanded = dataclasses.replace(arg, id=len(self.args_expanded))
             self.args_expanded.append((arg, arg_id))
             return
@@ -242,6 +242,24 @@ class Loop:
                 idx += 1
 
         return idx
+
+    def dat(self, x: Union[ArgDat, int]) -> Optional[Dat]:
+        if isinstance(x, Arg):
+            return self.dats[x.dat_id]
+
+        if isinstance(x, int) and x < len(self.dats):
+            return self.dats[x]
+
+        return None
+
+    def map(self, x: Union[ArgDat, int]) -> Optional[Map]:
+        if isinstance(x, ArgDat) and x.map_id is not None:
+            return self.maps[x.map_id]
+
+        if isinstance(x, int) and x < len(self.maps):
+            return self.maps[x]
+
+        return None
 
     def __str__(self) -> str:
         args = "\n    ".join([str(a) for a in self.args])
