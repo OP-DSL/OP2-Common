@@ -149,6 +149,7 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
 typedef struct op_halo_info_core{
   int *nhalos;      //array of number of halos
   int *nhalos_indices; //array of number of halos to array index. to do a reverse search
+  int *nhalos_bits; //array of required halos
   int max_nhalos;   //max number of halos
   int nhalos_count; //number of elements in nhalos
   int nhalos_cap;   //capacity of nhalos

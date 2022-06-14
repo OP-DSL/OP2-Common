@@ -130,18 +130,20 @@ int compare_sets(op_set set1, op_set set2) {
 }
 
 int is_halo_required_for_set(op_set set, int halo_id){
-  if(set->halo_info->max_nhalos > halo_id){
-    return 1;
-  }
-  return 0;
+  return set->halo_info->nhalos_bits[halo_id] == 1;
+  // if(set->halo_info->max_nhalos > halo_id){
+  //   return 1;
+  // }
+  // return 0;
   // return 1;
 }
 
 int is_halo_required_for_map(op_map map, int halo_id){
-  if(map->halo_info->max_nhalos > halo_id){
-    return 1;
-  }
-  return 0;
+  return map->halo_info->nhalos_bits[halo_id] == 1;
+  // if(map->halo_info->max_nhalos > halo_id){
+  //   return 1;
+  // }
+  // return 0;
   // return 1;
 }
 
@@ -321,14 +323,17 @@ void op_init_core(int argc, char **argv, int diags) {
 
 void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos = (int *)malloc(OP_NHALOS_SIZE * sizeof(int));
+  halo_info->nhalos_bits = (int *)malloc(OP_NHALOS_MAX * sizeof(int));
   halo_info->nhalos_indices = (int *)malloc(OP_NHALOS_MAX * sizeof(int));
   for(int i = 0; i < OP_NHALOS_SIZE; i++){
     halo_info->nhalos[i] = -1;
   }
   for(int i = 0; i < OP_NHALOS_MAX; i++){
     halo_info->nhalos_indices[i] = -1;
+    halo_info->nhalos_bits[i] = -1;
   }
   halo_info->nhalos[0] = 1; // default value: 1 halo for all sets
+  halo_info->nhalos_bits[0] = 1;  // default value: 1 halo for all sets, 0 based index, 0th exec level, 1st exec level, ...
   halo_info->nhalos_indices[1] = 0;
   halo_info->max_nhalos = 1;
   halo_info->nhalos_count = 1;
@@ -339,6 +344,7 @@ void op_init_halo_info(op_halo_info halo_info){
 
 void op_free_halo_info(op_halo_info halo_info){
   op_free(halo_info->nhalos);
+  op_free(halo_info->nhalos_bits);
   op_free(halo_info->nhalos_indices);
 }
 

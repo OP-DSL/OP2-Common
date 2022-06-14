@@ -1143,15 +1143,18 @@ void step6_exchange_exec_data(int exec_level, int **part_range, int my_rank, int
         // data array in each mpi process
 
         int prev_exec_size = 0;
+        int prev_nonexec_size = 0;
         for(int i = 0; i < exec_level; i++){
           halo_list prev_h_list = OP_aug_import_exec_lists[i][set->index];
           prev_exec_size += prev_h_list->size;
+          prev_h_list = OP_aug_import_nonexec_lists[i][set->index];
+          prev_nonexec_size += (prev_h_list) ? prev_h_list->size : 0;
         }
 
         dat->data =
-            (char *)xrealloc(dat->data, (set->size + prev_exec_size + i_list->size) * dat->size);
+            (char *)xrealloc(dat->data, (set->size + prev_exec_size + prev_nonexec_size + i_list->size) * dat->size);
 
-        int init = (set->size + prev_exec_size) * dat->size;
+        int init = (set->size + prev_exec_size + prev_nonexec_size) * dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(dat->data[init + i_list->disps[i] * dat->size]),
                    dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
@@ -1200,9 +1203,8 @@ void prepare_aug_maps(){
 
   for (int m = 0; m < OP_map_index; m++) { 
     op_map map = OP_map_list[m];
-    map->aug_maps = (int **)malloc((size_t)map->halo_info->nhalos_count * sizeof(int *));
-
     int max_level = map->halo_info->max_nhalos;
+    map->aug_maps = (int **)malloc((size_t)max_level * sizeof(int *));
 
     int exec_size = 0;
     for(int l = 0; l < max_level; l++){
@@ -1213,13 +1215,17 @@ void prepare_aug_maps(){
     map->map_org = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
     memcpy(map->map_org, map->map, (size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
 
-    for(int el = 0; el < map->halo_info->nhalos_count; el++){
-      int *m = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
-      if (m == NULL) {
-        printf(" op_decl_map_core error -- error allocating memory to map\n");
-        exit(-1);
+    for(int el = 0; el < max_level; el++){
+      if(map->halo_info->nhalos_bits[el] == 1){
+        int *m = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
+        if (m == NULL) {
+          printf(" op_decl_map_core error -- error allocating memory to map\n");
+          exit(-1);
+        }
+        map->aug_maps[el] = m;
+      }else{
+        map->aug_maps[el] = NULL;
       }
-      map->aug_maps[el] = m;
     }
   }  
 }
@@ -1261,16 +1267,22 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
       if (compare_sets(map->to, set) == 1) { // need to select
                                             // mappings TO this set
 
-        int num_levels = map->halo_info->nhalos_count;
+        // int num_levels = map->halo_info->nhalos_count;
         int max_level = map->halo_info->max_nhalos;
-        int to_max_level = map->to->halo_info->max_nhalos;  //this is = to max_level most of the times. there can be scenarios that to set max level is greater than
+        // int to_max_level = map->to->halo_info->max_nhalos;  //this is = to max_level most of the times. there can be scenarios that to set max level is greater than
                                                             // from set max level due to another map. hence it is safe to use this.
 
-        for(int el = 0; el < num_levels; el++){
+        for(int el = 0; el < max_level; el++){
 
-          int exec_levels = map->from->halo_info->nhalos[el];
+          if(map->halo_info->nhalos_bits[el] != 1)
+            continue;
 
-          halo_list nonexec_set_list = OP_aug_import_nonexec_lists[el][set->index];
+          if(map->from->halo_info->nhalos_bits[el] != 1)
+            continue;
+
+          int exec_levels = el + 1; // map->from->halo_info->nhalos[el];
+
+          halo_list nonexec_set_list = OP_aug_import_nonexec_lists[el][set->index]; // this should be not NULL
           //get exec level size
           int exec_map_len = 0;
           for(int l = 0; l < exec_levels; l++){
@@ -1329,16 +1341,21 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
                       for(int l1 = 0; l1 < l; l1++){  //take the size of prev exec levels
                         prev_exec_set_list_size += OP_aug_import_exec_lists[l1][set->index]->size;
                       }
+                      int prev_nonexec_set_list_size = 0;
+                      for(int l1 = 0; l1 < l; l1++){  //take the size of prev exec levels
+                        prev_nonexec_set_list_size += (OP_aug_import_nonexec_lists[l1][set->index]) ? 
+                                                        OP_aug_import_nonexec_lists[l1][set->index]->size : 0;
+                      }
                       if(exec_levels == DEFAULT_HALO_COUNT){
                         OP_map_list[map->index]->map[e * map->dim + j] =
-                            found + map->to->size + prev_exec_set_list_size;
+                            found + map->to->size + prev_exec_set_list_size + prev_nonexec_set_list_size;
                             // printf("renumber10 my_rank=%d map=%s set=%s size=%d orgval[%d][%d]=%d prev=%d\n", 
                             //   my_rank, map->name, map->from->name, len, e, j, map->map[e * map->dim + j], map->map_org[e * map->dim + j]);
                         
                       }
                       
                       OP_map_list[map->index]->aug_maps[el][e * map->dim + j] =
-                          found + map->to->size + prev_exec_set_list_size;
+                          found + map->to->size + prev_exec_set_list_size + prev_nonexec_set_list_size;
 
                       // printf("renumber11 my_rank=%d map=%s set=%s size=%d augval[%d][%d][%d]=%d prev=%d\n", 
                       //     my_rank, map->name, map->from->name, len, el, e, j, map->aug_maps[el][e * map->dim + j], map->map_org[e * map->dim + j]);
@@ -1350,6 +1367,8 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
                     }
                 }
                 // check in nonexec list
+                if(nonexec_set_list == NULL)  // additional check.
+                  continue;
                 int rank2 = binary_search(nonexec_set_list->ranks, part, 0,
                                           nonexec_set_list->ranks_size - 1);
 
@@ -1362,13 +1381,15 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
                                             nonexec_set_list->sizes[rank2] - 1);
                   if (found >= 0) {
                     int exec_set_list_size = 0;
-                    for(int l = 0; l < to_max_level; l++){
-                      exec_set_list_size += OP_aug_import_exec_lists[l][set->index]->size;
+                    for(int l = 0; l < exec_levels; l++){
+                      exec_set_list_size += (OP_aug_import_exec_lists[l][set->index]) ?
+                                              OP_aug_import_exec_lists[l][set->index]->size : 0;
                     }
 
                     int non_exec_set_list_size = 0;
-                    for(int l = 0; l < el; l++){
-                      non_exec_set_list_size += OP_aug_import_nonexec_lists[l][set->index]->size;
+                    for(int l = 0; l < exec_levels - 1; l++){
+                      non_exec_set_list_size += (OP_aug_import_nonexec_lists[l][set->index]) ?
+                                                  OP_aug_import_nonexec_lists[l][set->index]->size : 0;
                     }
 
                     if(exec_levels == DEFAULT_HALO_COUNT){
@@ -1547,10 +1568,15 @@ void step4_import_nonexec(int max_nhalos, int **part_range, int my_rank, int com
     // printf("step4_import_nonexec new my_rank=%d set=%s\n", my_rank, set->name);
     int from_exec_levels = 0;
     int to_exec_levels = 0;
-    int num_levels = set->halo_info->nhalos_count;
-    for(int el = 0; el < num_levels; el++){
+    int set_max_nhalos = set->halo_info->max_nhalos;
+    for(int el = 0; el < set_max_nhalos; el++){
+
+      if(set->halo_info->nhalos_bits[el] != 1){
+        OP_aug_import_nonexec_lists[el][set->index] = NULL;
+        continue;
+      }
       
-      to_exec_levels = set->halo_info->nhalos[el];
+      to_exec_levels = el + 1;
     
       // create a temporaty scratch space to hold nonexec export list for this set
       s_i = 0;
@@ -1560,7 +1586,10 @@ void step4_import_nonexec(int max_nhalos, int **part_range, int my_rank, int com
 
       for (int m = 0; m < OP_map_index; m++) { // for each maping table
         op_map map = OP_map_list[m];
-        from_exec_levels = map->from->halo_info->nhalos[el];
+        if(map->from->halo_info->nhalos_bits[el] != 1){
+          continue;
+        }
+        from_exec_levels = el + 1;
         int exec_size = 0;
         for(int l = 0; l < from_exec_levels; l++){
           exec_size += (OP_aug_import_exec_lists[l] && OP_aug_import_exec_lists[l][map->from->index]) ? 
@@ -1630,79 +1659,83 @@ void step4_import_nonexec(int max_nhalos, int **part_range, int my_rank, int com
       // OP_import_nonexec_list[set->index] = h_list;
       OP_aug_import_nonexec_lists[el][set->index] = h_list;
     }
-    for(int i = num_levels; i < max_nhalos; i++){
+    for(int i = set_max_nhalos; i < max_nhalos; i++){
       OP_aug_import_nonexec_lists[i][set->index] = NULL;
     }
   }
 }
 
-void step7_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
+void step7_halo(int exec_level, int **part_range, int my_rank, int comm_size){
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    int num_levels = set->halo_info->nhalos_count;
-    int non_exec_size = 0;
 
-    for(int el = 0; el < num_levels; el++){
-      halo_list i_list = OP_aug_import_nonexec_lists[el][set->index];
-      halo_list e_list = OP_aug_export_nonexec_lists[el][set->index];
+    halo_list i_list = OP_aug_import_nonexec_lists[exec_level][set->index];
+    halo_list e_list = OP_aug_export_nonexec_lists[exec_level][set->index];
 
-      // for each data array
-      op_dat_entry *item;
-      int d = -1; // d is just simply the tag for mpi comms
-      TAILQ_FOREACH(item, &OP_dat_list, entries) {
-        d++; // increase tag to do mpi comm for the next op_dat
-        op_dat dat = item->dat;
+    if(!i_list || !e_list)
+      continue;
 
-        if (compare_sets(set, dat->set) == 1) { // if this data array is
-                                                // defined on this set
+    // for each data array
+    op_dat_entry *item;
+    int d = -1; // d is just simply the tag for mpi comms
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      d++; // increase tag to do mpi comm for the next op_dat
+      op_dat dat = item->dat;
 
-          MPI_Request request_send[e_list->ranks_size];
+      if (compare_sets(set, dat->set) == 1) { // if this data array is
+                                              // defined on this set
 
-          // prepare non-execute set element data to be exported
-          char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
+        MPI_Request request_send[e_list->ranks_size];
 
-          for (int i = 0; i < e_list->ranks_size; i++) {
-            sbuf[i] = (char *)xmalloc(e_list->sizes[i] * dat->size);
-            for (int j = 0; j < e_list->sizes[i]; j++) {
-              int set_elem_index = e_list->list[e_list->disps[i] + j];
-              memcpy(&sbuf[i][j * dat->size],
-                    (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-            }
-            MPI_Isend(sbuf[i], dat->size * e_list->sizes[i], MPI_CHAR,
-                      e_list->ranks[i], d, OP_MPI_WORLD, &request_send[i]);
+        // prepare non-execute set element data to be exported
+        char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
+
+        for (int i = 0; i < e_list->ranks_size; i++) {
+          sbuf[i] = (char *)xmalloc(e_list->sizes[i] * dat->size);
+          for (int j = 0; j < e_list->sizes[i]; j++) {
+            int set_elem_index = e_list->list[e_list->disps[i] + j];
+            memcpy(&sbuf[i][j * dat->size],
+                  (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
           }
-
-          int exec_size = 0;
-          for(int l = 0; l < exec_levels; l++){
-            exec_size += OP_aug_import_exec_lists[l][set->index] ? 
-            OP_aug_import_exec_lists[l][set->index]->size : 0;
-          }
-          // prepare space for the incomming nonexec-data - realloc each
-          // data array in each mpi process
-          dat->data = (char *)xrealloc(
-              dat->data,
-              (set->size + exec_size + non_exec_size + i_list->size) * dat->size);
-            
-          // printf("step7 my_rank=%d el=%d dat=%s set=%s size=%d exec=%d non=%d list=%d total=%d\n", my_rank, el, dat->name, set->name, 
-          // set->size, exec_size, non_exec_size, i_list->size, set->size + exec_size + non_exec_size + i_list->size);
-          // printf("dattest my_rank=%d el=%d dat=%s set=%s size=%d exec[%d]=%d non[%d]=%d\n", my_rank, el, dat->name, set->name, 
-          // set->size, el, OP_aug_import_exec_lists[el][set->index]->size, el, OP_aug_import_nonexec_lists[el][set->index]->size);
-
-          int init = (set->size + exec_size + non_exec_size) * dat->size;
-          for (int i = 0; i < i_list->ranks_size; i++) {
-            MPI_Recv(&(dat->data[init + i_list->disps[i] * dat->size]),
-                    dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
-                    OP_MPI_WORLD, MPI_STATUS_IGNORE);
-          }
-
-          MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-          for (int i = 0; i < e_list->ranks_size; i++)
-            op_free(sbuf[i]);
-          op_free(sbuf);
+          MPI_Isend(sbuf[i], dat->size * e_list->sizes[i], MPI_CHAR,
+                    e_list->ranks[i], d, OP_MPI_WORLD, &request_send[i]);
         }
+
+        int prev_exec_size = 0;
+        int prev_nonexec_size = 0;
+        for(int i = 0; i <= exec_level; i++){
+          halo_list prev_h_list = OP_aug_import_exec_lists[i][set->index];
+          prev_exec_size += prev_h_list->size;
+        }
+        for(int i = 0; i < exec_level; i++){
+          halo_list prev_h_list = OP_aug_import_nonexec_lists[i][set->index];
+          prev_nonexec_size += (prev_h_list) ? prev_h_list->size : 0;
+        }
+
+        // prepare space for the incomming nonexec-data - realloc each
+        // data array in each mpi process
+        dat->data = (char *)xrealloc(
+            dat->data,
+            (set->size + prev_exec_size + prev_nonexec_size + i_list->size) * dat->size);
+          
+        // printf("step7 my_rank=%d el=%d dat=%s set=%s size=%d exec=%d non=%d list=%d total=%d\n", my_rank, el, dat->name, set->name, 
+        // set->size, exec_size, non_exec_size, i_list->size, set->size + exec_size + non_exec_size + i_list->size);
+        // printf("dattest my_rank=%d el=%d dat=%s set=%s size=%d exec[%d]=%d non[%d]=%d\n", my_rank, el, dat->name, set->name, 
+        // set->size, el, OP_aug_import_exec_lists[el][set->index]->size, el, OP_aug_import_nonexec_lists[el][set->index]->size);
+
+        int init = (set->size + prev_exec_size + prev_nonexec_size) * dat->size;
+        for (int i = 0; i < i_list->ranks_size; i++) {
+          MPI_Recv(&(dat->data[init + i_list->disps[i] * dat->size]),
+                  dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
+                  OP_MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+
+        MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+        for (int i = 0; i < e_list->ranks_size; i++)
+          op_free(sbuf[i]);
+        op_free(sbuf);
       }
-      non_exec_size += OP_aug_import_nonexec_lists[el][set->index]->size;
     }
   }
 }
@@ -1720,6 +1753,11 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
     int exec_i_ranks_size = 0;
     int imp_exec_size = 0;
 
+    int nonexec_e_list_size = 0;
+    int nonexec_e_ranks_size = 0;
+    int nonexec_i_ranks_size = 0;
+    int imp_nonexec_size = 0;
+
     for(int l = 0; l < exec_levels; l++){
       if(OP_aug_export_exec_lists[l][dat->set->index]){
         exec_e_list_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
@@ -1729,19 +1767,16 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
         exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
         imp_exec_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
       }
-    }
 
-    int nonexec_e_list_size = 0;
-    int nonexec_e_ranks_size = 0;
-    int nonexec_i_ranks_size = 0;
-    int imp_nonexec_size = 0;
+      if(OP_aug_export_nonexec_lists[l][dat->set->index]){
+        nonexec_e_list_size += OP_aug_export_nonexec_lists[l][dat->set->index]->size;
+        nonexec_e_ranks_size += OP_aug_export_nonexec_lists[l][dat->set->index]->ranks_size;
+      }
+      if(OP_aug_import_exec_lists[l][dat->set->index]){
+        nonexec_i_ranks_size += OP_aug_import_nonexec_lists[l][dat->set->index]->ranks_size;
+        imp_nonexec_size += OP_aug_import_nonexec_lists[l][dat->set->index]->size;
+      }
 
-    int num_levels = dat->set->halo_info->nhalos_count;
-    for(int l = 0; l < num_levels; l++){
-      nonexec_e_list_size += OP_aug_export_nonexec_lists[l][dat->set->index]->size;
-      nonexec_e_ranks_size += OP_aug_export_nonexec_lists[l][dat->set->index]->ranks_size;
-      nonexec_i_ranks_size += OP_aug_import_nonexec_lists[l][dat->set->index]->ranks_size;
-      imp_nonexec_size += OP_aug_import_nonexec_lists[l][dat->set->index]->size;
     }
 
     mpi_buf->buf_exec = (char *)xmalloc(exec_e_list_size * dat->size);
@@ -1808,13 +1843,13 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     int num_levels = set->halo_info->nhalos_count;
     int max_level = set->halo_info->max_nhalos;
 
-    temp_core_elems[set->index] = (int **)xmalloc(num_levels * sizeof(int*));
-    temp_exp_elems[set->index] = (int **)xmalloc(num_levels * sizeof(int*));
+    temp_core_elems[set->index] = (int **)xmalloc(max_level * sizeof(int*));
+    temp_exp_elems[set->index] = (int **)xmalloc(max_level * sizeof(int*));
 
-    for(int el = 0; el < num_levels; el++){
+    for(int el = 0; el < max_level; el++){
 
       temp_core_elems[set->index][el] = (int *)xmalloc(set->size * sizeof(int));
-      int exec_levels = set->halo_info->nhalos[el];
+      int exec_levels = el + 1; //set->halo_info->nhalos[el];
 
       int exec_size = 0;
       halo_list exec[exec_levels];
@@ -1877,7 +1912,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
 
     int max_core_size = -1;
     int max_core_level = -1;
-    for(int l = 0; l < num_levels; l++){
+    for(int l = 0; l < max_level; l++){
       if(min_core_size > set->core_sizes[l]){ // = not added to take the first occurance
         min_core_size = set->core_sizes[l];
         min_level = l;
@@ -1889,11 +1924,11 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     }
 
     int start = 0;
-    for(int l = num_levels - 1; l >= 0; l--){
+    for(int l = max_level - 1; l >= 0; l--){
       int size = remove_elements_from_array(set, my_rank, start, &core_elems[set->index][start],
       temp_core_elems[set->index][l], set->core_sizes[l],
-      (l == num_levels - 1) ? NULL : temp_core_elems[set->index][l + 1], 
-      (l == num_levels - 1) ? 0 : set->core_sizes[l + 1]);
+      (l == max_level - 1) ? NULL : temp_core_elems[set->index][l + 1], 
+      (l == max_level - 1) ? 0 : set->core_sizes[l + 1]);
 
        start = set->core_sizes[l];
     }
@@ -1905,8 +1940,8 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     if(max_core_size >= 0){
       for (int e = 0; e < set->size; e++) { // for each elment of this set
         found = -1;
-        for(int el = num_levels - 1; el >= 0; el--){
-          found = binary_search(core_elems[set->index], e, (el == num_levels - 1) ? 0 : set->core_sizes[el + 1], set->core_sizes[el] - 1);
+        for(int el = max_level - 1; el >= 0; el--){
+          found = binary_search(core_elems[set->index], e, (el == max_level - 1) ? 0 : set->core_sizes[el + 1], set->core_sizes[el] - 1);
           if(found >= 0){
             break;
           }
@@ -1929,7 +1964,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     // pos += sprintf(&name[pos], "_%d", my_rank);
     // print_array(exp_elems[set->index], num_exp, name, my_rank);
 
-    for(int el = 0; el < num_levels; el++){
+    for(int el = 0; el < max_level; el++){
       op_free(temp_core_elems[set->index][el]);
       op_free(temp_exp_elems[set->index][el]);
     }
@@ -1948,7 +1983,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
 
     int max_core_size = -1;
     int max_core_level = -1;
-    for(int l = 0; l < num_levels; l++){
+    for(int l = 0; l < max_level; l++){
       if(min_core_size > set->core_sizes[l]){
         min_core_size = set->core_sizes[l];
         min_level = l;
@@ -2004,7 +2039,10 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         op_free(new_map);
         
         //for aug maps
-        for(int el = 0; el < map->halo_info->nhalos_count; el++){
+        for(int el = 0; el < map->halo_info->max_nhalos; el++){
+          if(is_halo_required_for_map(map, el) != 1){
+            continue;
+          }
           int *aug_map = (int *)xmalloc(set->size * map->dim * sizeof(int));
           for (int i = 0; i < count; i++) {
             memcpy(&aug_map[i * map->dim],
@@ -2035,8 +2073,8 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         if (index < 0){ //this element can be in the core list of another
           int core_index = -1;
           int start_index = 0;
-          for(int l1 = num_levels - 1; l1 >= 0; l1--){
-            start_index = (l1 == num_levels - 1) ? 0 : set->core_sizes[l1 + 1];
+          for(int l1 = max_level - 1; l1 >= 0; l1--){
+            start_index = (l1 == max_level - 1) ? 0 : set->core_sizes[l1 + 1];
             core_index = binary_search(core_elems[set->index], exec[l]->list[i], start_index, set->core_sizes[l1] - 1);
 
             // printf("step10 3 my_rank=%d set=%s val=%d (core=%d start=%d) new=%d index=%d count=%d exp=%d l1=%d core_size=%d, num_levels=%d\n", 
@@ -2069,17 +2107,20 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       }
     }
 
-    for(int l = 0; l < num_levels; l++){
-      halo_list nonexec[num_levels];
+    for(int l = 0; l < max_level; l++){
+      halo_list nonexec[max_level];
       nonexec[l] = OP_aug_export_nonexec_lists[l][set->index];
+      if(!nonexec[l]){
+        continue;
+      }
       for (int i = 0; i < nonexec[l]->size; i++) {
         int index =
             binary_search(exp_elems[set->index], nonexec[l]->list[i], 0, num_exp - 1);
         if (index < 0){ //this element can be in the core list of another
           int core_index = -1;
           int start_index = 0;
-          for(int l1 = num_levels - 1; l1 >= 0; l1--){
-            start_index = (l1 == num_levels - 1) ? 0 : set->core_sizes[l1 + 1];
+          for(int l1 = max_level - 1; l1 >= 0; l1--){
+            start_index = (l1 == max_level - 1) ? 0 : set->core_sizes[l1 + 1];
             core_index = binary_search(core_elems[set->index], nonexec[l]->list[i], start_index, set->core_sizes[l1] - 1);
             if(core_index >= 0){
               break;
@@ -2105,9 +2146,13 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     int num_levels = map->halo_info->nhalos_count;  // = to from set levels
     int max_level = map->halo_info->max_nhalos;
 
-    int to_num_levels = map->to->halo_info->nhalos_count;
+    int to_max_level = map->to->halo_info->max_nhalos;
 
-    for(int el = 0; el < num_levels; el++){
+    for(int el = 0; el < max_level; el++){
+
+      if(map->halo_info->nhalos_bits[el] != 1)
+        continue;
+
       int exec_levels = map->from->halo_info->nhalos[el];
       int imp_exec_size = 0;
       for(int l = 0; l < exec_levels; l++){
@@ -2127,8 +2172,10 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
             if (index < 0){
               int core_index = -1;
               int start_index = 0;
-              for(int l1 = to_num_levels - 1; l1 >= 0; l1--){
-                start_index = (l1 == to_num_levels - 1) ? 0 : map->to->core_sizes[l1 + 1];
+              for(int l1 = to_max_level - 1; l1 >= 0; l1--){
+                if(map->to->halo_info->nhalos_bits[l1] != 1)
+                  continue;
+                start_index = (l1 == to_max_level - 1) ? 0 : map->to->core_sizes[l1 + 1];
                 core_index = binary_search(core_elems[map->to->index], map->aug_maps[el][e * map->dim + j], start_index, map->to->core_sizes[l1] - 1);
                 if(core_index >= 0){
                   break;
@@ -2242,16 +2289,16 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
     int num_levels = set->halo_info->nhalos_count;
     int max_level = set->halo_info->max_nhalos;
 
-    set->exec_sizes = (int*)xmalloc(sizeof(int) * num_levels);
-    set->nonexec_sizes = (int*)xmalloc(sizeof(int) * num_levels);
+    set->exec_sizes = (int*)xmalloc(sizeof(int) * max_level);
+    set->nonexec_sizes = (int*)xmalloc(sizeof(int) * max_level);
     set->exec_size = 0;
     set->nonexec_size = 0;
 
     set->total_exec_size = 0;
     set->total_nonexec_size = 0;
 
-    for(int el = 0; el < num_levels; el++){
-      int exec_levels = set->halo_info->nhalos[el];
+    for(int el = 0; el < max_level; el++){
+      int exec_levels = el + 1; //set->halo_info->nhalos[el];
       set->exec_sizes[el] = 0;
       for(int l = 0; l < exec_levels; l++){
         set->exec_sizes[el] += OP_aug_import_exec_lists[l][set->index] ? 
@@ -2261,12 +2308,13 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
             OP_aug_import_exec_lists[l][set->index]->size : 0;
         }
       }
-      set->nonexec_sizes[el] = OP_aug_import_nonexec_lists[el][set->index]->size;  //duplicate elements in the on exec. so no +=
+      set->nonexec_sizes[el] = (OP_aug_import_nonexec_lists[el][set->index]) ?
+                                OP_aug_import_nonexec_lists[el][set->index]->size : 0;  //duplicate elements in the on exec. so no +=
       if(exec_levels == DEFAULT_HALO_COUNT){
         set->nonexec_size = 0;
-        for(int l = 0; l <= el; l++){
-          set->nonexec_size += OP_aug_import_nonexec_lists[el][set->index]->size;
-        }
+        // for(int l = 0; l <= el; l++){
+          set->nonexec_size = OP_aug_import_nonexec_lists[el][set->index]->size;
+        // }
         
       }
       set->total_nonexec_size += OP_aug_import_nonexec_lists[el][set->index] ? OP_aug_import_nonexec_lists[el][set->index]->size : 0;
@@ -2274,12 +2322,12 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
     for(int el = 0; el < max_level; el++){
        set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
     }
-    // printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d 1=%d) exec=%d(0=%d 1=%d) non=%d(0=%d 1=%d) totalexec=%d total_nonexec=%d max_halo=%d halo_count=%d\n", my_rank, set->name,
-    // set->size, set->core_size, set->core_sizes[0], set->core_sizes[1] ? set->core_sizes[1] : 0, 
-    // set->exec_size, set->exec_sizes[0], set->exec_sizes[1] ? set->exec_sizes[1] : 0, 
-    // set->nonexec_size, set->nonexec_sizes[0], set->nonexec_sizes[1] ? set->nonexec_sizes[1] : 0, 
-    // set->total_exec_size, set->total_nonexec_size,
-    // set->halo_info->max_nhalos, set->halo_info->nhalos_count);
+    printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d 1=%d) exec=%d(0=%d 1=%d) non=%d(0=%d 1=%d) totalexec=%d total_nonexec=%d max_halo=%d halo_count=%d\n", my_rank, set->name,
+    set->size, set->core_size, set->core_sizes[0], set->core_sizes[1] ? set->core_sizes[1] : 0, 
+    set->exec_size, set->exec_sizes[0], set->exec_sizes[1] ? set->exec_sizes[1] : 0, 
+    set->nonexec_size, set->nonexec_sizes[0], set->nonexec_sizes[1] ? set->nonexec_sizes[1] : 0, 
+    set->total_exec_size, set->total_nonexec_size,
+    set->halo_info->max_nhalos, set->halo_info->nhalos_count);
   }
 }
 
@@ -2823,7 +2871,7 @@ void op_halo_create_comm_avoid() {
 
     /*-STEP 6 - Exchange execute set elements/data using the import/export lists--*/
     // start_time(my_rank);
-    step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+    // step6_exchange_exec_data(l, part_range, my_rank, comm_size);
     // stop_time(my_rank, "step6");
 
     if(l < num_halos - 1){
@@ -2850,7 +2898,8 @@ void op_halo_create_comm_avoid() {
   /*----------- STEP 5 - construct non-execute set export lists -------------*/
   // step5(part_range, my_rank, comm_size); //this is done with other aug non exec halos
 
-  for(int l = 0; l < get_max_nhalos_count(); l++){
+  for(int l = 0; l < num_halos; l++){
+    // step6_exchange_exec_data(l, part_range, my_rank, comm_size);
     OP_aug_export_nonexec_lists[l] = create_handshake_h_list(OP_aug_import_nonexec_lists[l], part_range, my_rank, comm_size);
   }
 
@@ -2869,7 +2918,11 @@ void op_halo_create_comm_avoid() {
   /*-STEP 7 - Exchange non-execute set elements/data using the import/export
    * lists--*/
   // start_time(my_rank);
-  step7_halo(num_halos, part_range, my_rank, comm_size);
+  for(int l = 0; l < num_halos; l++){
+    step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+    step7_halo(l, part_range, my_rank, comm_size);
+  }
+  
   // stop_time(my_rank, "step7");
 
   /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/

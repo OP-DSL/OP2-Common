@@ -571,11 +571,11 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       
     }
 
-#ifdef COMM_AVOID
-    int nonexec_init = (dat->set->size + dat->set->exec_sizes[dat->set->halo_info->nhalos_count - 1]) * dat->size;
-#else
+// #ifdef COMM_AVOID
+//     int nonexec_init = (dat->set->size + dat->set->exec_sizes[dat->set->halo_info->nhalos_count - 1]) * dat->size;
+// #else
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
-#endif
+// #endif
     for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
       //      printf("import on to %d from %d data %10s, number of elements of
       //      size %d | recieving:\n ",
