@@ -1095,7 +1095,7 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
       if (args[n].idx == -1 && exec_flag == 0) continue;
-      printf("op_mpi_wait_all_chained n=%d dat=%s\n", n, args[n].dat->name);
+      // printf("op_mpi_wait_all_chained n=%d dat=%s\n", n, args[n].dat->name);
       args[n].sent = 2; // set flag to indicate completed comm
       args[n].dat->dirtybit = 0;
       args[n].dat->dirty_hd = device;

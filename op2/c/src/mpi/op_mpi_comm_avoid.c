@@ -3048,10 +3048,12 @@ void op_halo_destroy_comm_avoid() {
       op_single_halo_destroy(OP_aug_export_nonexec_lists[i]);
   }
 
-  op_single_halo_destroy(OP_merged_import_exec_list);
-  op_single_halo_destroy(OP_merged_export_exec_list);
-  op_single_halo_destroy(OP_merged_import_nonexec_list);
-  op_single_halo_destroy(OP_merged_export_nonexec_list);
+  // op_single_halo_destroy(OP_merged_import_exec_list);
+  // op_single_halo_destroy(OP_merged_export_exec_list);
+  // op_single_halo_destroy(OP_merged_import_nonexec_list);
+  // op_single_halo_destroy(OP_merged_export_nonexec_list);
+  op_single_halo_destroy(OP_merged_import_exec_nonexec_list);
+  op_single_halo_destroy(OP_merged_export_exec_nonexec_list);
 }
 
 void op_mpi_exit_comm_avoid() {
