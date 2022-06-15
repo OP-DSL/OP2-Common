@@ -41,17 +41,9 @@ class OpenMP(Target):
     name = "openmp"
     kernel_translation = False
 
-    config = {"grouped": False, "vectorise": True, "device": 1, "thread_timing": False}
-
-
-class Vec(Target):
-    name = "vec"
-    kernel_translation = True
-
-    config = {"grouped": False, "device": 1}
+    config = {"grouped": False, "vectorise": True, "vectorise_simd_len": 8, "device": 1, "thread_timing": False}
 
 
 Target.register(Seq)
 Target.register(Cuda)
 Target.register(OpenMP)
-Target.register(Vec)

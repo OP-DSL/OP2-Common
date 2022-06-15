@@ -1,6 +1,6 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
-{%- macro arg_to_pointer(arg, id) %}
+{%- macro arg_to_pointer(arg) %}
     {%- if arg is gbl %}
         {%- set cast = arg.typ -%}
     {%- else -%}
@@ -18,9 +18,9 @@
     {%- endif -%}
 
     {%- if lh is indirect and arg is gbl and arg is reduction %}
-arg{{id}}_local
+arg{{arg.id}}_local
     {%- else -%}
-({{cast}} *)arg{{id}}.data{{offset}}
+({{cast}} *)arg{{arg.id}}.data{{offset}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -51,8 +51,8 @@ arg{{id}}_local
     {% endif %}
     {% for arg in lh.args|vec %}
         {{"const " if arg.access_type == OP.AccessType.READ}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
-        {% for arg_expanded, id in lh.args_expanded if id == arg.id %}
-            {{arg_to_pointer(arg_expanded, id)}}{{"," if not loop.last}}
+        {% for arg_expanded in lh.args_expanded if arg_expanded.id == arg.id %}
+            {{arg_to_pointer(arg_expanded)}}{{"," if not loop.last}}
         {% endfor %}
         };
 
@@ -68,7 +68,7 @@ arg{{id}}_local
         {{lh.kernel}}(
     {% for arg in lh.args %}
         {% if arg is not vec %}
-            {{arg_to_pointer(arg, arg.id)}}{{"," if not loop.last}}
+            {{arg_to_pointer(arg)}}{{"," if not loop.last}}
         {% else %}
             arg{{arg.id}}_vec{{"," if not loop.last}}
         {% endif %}

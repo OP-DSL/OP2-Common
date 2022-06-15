@@ -167,7 +167,7 @@ class Loop:
     kernel: str
 
     args: List[Arg]
-    args_expanded: List[Tuple[Arg, int]]
+    args_expanded: List[Arg]
 
     dats: List[Dat]
     maps: List[Map]
@@ -217,20 +217,19 @@ class Loop:
         self.args.append(arg)
 
         if map_ptr is None or map_idx >= 0:
-            arg_expanded = dataclasses.replace(arg, id=len(self.args_expanded))
-            self.args_expanded.append((arg, arg_id))
+            self.args_expanded.append(arg)
             return
 
         for real_map_idx in range(-map_idx):
-            arg_expanded = dataclasses.replace(arg, map_idx=real_map_idx, id=len(self.args_expanded))
-            self.args_expanded.append((arg_expanded, arg_id))
+            arg_expanded = dataclasses.replace(arg, map_idx=real_map_idx)
+            self.args_expanded.append(arg_expanded)
 
     def addArgGbl(self, loc: Location, ptr: str, dim: int, typ: Type, access_type: AccessType, opt: bool) -> None:
         arg_id = len(self.args)
         arg = ArgGbl(arg_id, loc, access_type, opt, ptr, dim, typ)
 
         self.args.append(arg)
-        self.args_expanded.append((dataclasses.replace(arg, id=len(self.args_expanded)), arg_id))
+        self.args_expanded.append(arg)
 
     def optIdx(self, arg: Arg) -> Optional[int]:
         idx = 0
