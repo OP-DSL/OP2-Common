@@ -71,7 +71,7 @@ class FortranOpenMP(Scheme):
         return str(kernel_ast) + "\n\n" + str(kernel_ast2)
 
 
-Scheme.register(FortranOpenMP)
+# Scheme.register(FortranOpenMP)
 
 
 class FortranCuda(Scheme):
@@ -104,4 +104,4 @@ class FortranCuda(Scheme):
         return str(kernel_ast)
 
 
-Scheme.register(FortranCuda)
+# Scheme.register(FortranCuda)
