@@ -237,7 +237,7 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
     typ_clean = re.sub(r"\s*:soa\s*", "", typ_clean)
 
     def mk_type_regex(t, k):
-        return fr"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
+        return rf"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
 
     integer_match = re.match(mk_type_regex("integer", "(?:ik)?(4|8)"), typ_clean)
     if integer_match is not None:
