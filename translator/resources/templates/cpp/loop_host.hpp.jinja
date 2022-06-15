@@ -1,10 +1,10 @@
-{% macro arg_dat_redef(arg, id) %}
+{% macro arg_dat_redef(arg) %}
     {% set params -%}
-arg{{id}}.dat, {{arg.map_idx}}, arg{{id}}.map, {{lh.dat(arg).dim}}, "{{lh.dat(arg).typ}}", {{arg.access_type.value}}
+arg{{arg.id}}.dat, {{arg.map_idx}}, arg{{arg.id}}.map, {{lh.dat(arg).dim}}, "{{lh.dat(arg).typ}}", {{arg.access_type.value}}
     {%- endset %}
 
     {%- if arg is opt -%}
-op_opt_arg_dat(arg{{id}}.opt, {{params}})
+op_opt_arg_dat(arg{{arg.id}}.opt, {{params}})
     {%- else -%}
 op_arg_dat({{params}})
     {%- endif %}
@@ -12,10 +12,10 @@ op_arg_dat({{params}})
 
 {% macro indirect_dat_descriptor_def() %}
     {% if lh is indirect %}
-int num_dats_indirect = {{lh.dats|indirect|length}};
+int num_dats_indirect = {{lh.dats|indirect(lh)|length}};
 int dats_indirect[{{lh.args_expanded|length}}] = {
-        {%- for arg, id in lh.args_expanded -%}
-    {{lh.dats|indirect|index(lh.dat(arg)) if arg is indirect else "-1"}}{{", " if not loop.last}}
+        {%- for arg in lh.args_expanded -%}
+    {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is indirect else "-1"}}{{", " if not loop.last}}
         {%- endfor -%}
 };
     {% endif %}
@@ -39,8 +39,8 @@ void op_par_loop_{{lh.kernel}}(
     int num_args_expanded = {{lh.args_expanded|length}};
     op_arg args_expanded[{{lh.args_expanded|length}}];
 
-    {% for arg, id in lh.args_expanded %}
-    args_expanded[{{arg.id}}] = {{arg_dat_redef(arg, id) if lh.args[id] is vec else "arg%d" % id}};
+    {% for arg in lh.args_expanded %}
+    args_expanded[{{loop.index0}}] = {{arg_dat_redef(arg) if lh.args[arg.id] is vec else "arg%d" % arg.id}};
     {% endfor %}
 
     double cpu_start, cpu_end, wall_start, wall_end;

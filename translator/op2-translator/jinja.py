@@ -72,7 +72,7 @@ env.tests["reduction"] = lambda arg, loop=None: arg.access_type in [
 
 
 def read_in(dat: OP.Dat, loop: OP.Loop) -> bool:
-    for arg, idx in loop.args:
+    for arg in loop.args:
         if not isinstance(arg, OP.ArgDat):
             continue
 
