@@ -1,70 +1,75 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
-{%- macro arg_to_pointer(arg, idx) -%}
+{%- macro arg_to_pointer(arg) -%}
     {%- if arg is gbl -%}
-gbl_{{arg.ptr}}
+gbl{{arg.id}}
     {%- elif arg is direct -%}
-dat_{{arg.dat_ptr}} + n * {{arg.dat_dim}}
+dat{{arg.dat_id}} + n * {{lh.dat(arg).dim}}
     {%- else -%}
-dat_{{arg.dat_ptr}} + map_{{arg.map_ptr}}[n * {{lh.findMap(arg.map_ptr)[0].dim}} + {{arg.map_idx}}] * {{arg.dat_dim}}
+dat{{arg.dat_id}} + map{{arg.map_id}}[n * map{{arg.map_id}}_dim + {{arg.map_idx}}] * {{lh.dat(arg).dim}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer_local(arg, idx) -%}
+{%- macro arg_local(arg) -%}
+arg{{arg.id}}{{"_%s" % (arg.map_idx) if arg is indirect}}_local
+{%- endmacro -%}
+
+{%- macro arg_to_pointer_local(arg) -%}
     {%- if arg is read -%}
-{{arg_to_pointer(arg, idx)}}
+{{arg_to_pointer(arg)}}
     {%- else -%}
-arg{{idx}}{{"_%s" % (arg.map_idx) if arg is indirect-}}_local[lane]
+{{arg_local(arg)}}[lane]
     {%- endif -%}
 {%- endmacro -%}
 
 {% block host_prologue %}
     {% if target.config.vectorise %}
-#define SIMD_LEN 8
+#define SIMD_LEN {{target.config.vectorise_simd_len}}
     {% endif %}
 
-void {{lh.kernel.name}}_wrapper(
-    {% for dat, idx in lh.dats.items() %}
-    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat_{{dat.ptr}}_u,
+void {{lh.kernel}}_wrapper(
+    {% for dat in lh.dats %}
+    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat{{dat.id}}_u,
     {% endfor %}
-    {% for map, idx in lh.maps.items() %}
-    const int *__restrict__ map_{{map.ptr}}_u,
+    {% for map in lh.maps %}
+    const int *__restrict__ map{{map.id}}_u,
+    int map{{map.id}}_dim,
     {% endfor %}
-    {% for arg, idx in lh.args|gbl %}
-    {{"const " if arg is read}}{{arg.typ}} *__restrict__ gbl_{{arg.ptr}},
+    {% for arg in lh.args|gbl %}
+    {{"const " if arg is read}}{{arg.typ}} *__restrict__ gbl{{arg.id}},
     {% endfor %}
     int start,
     int end
 ) {
-    {% for dat, idx in lh.dats.items() %}
-    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat_{{dat.ptr}} = assume_aligned(dat_{{dat.ptr}}_u);
+    {% for dat in lh.dats %}
+    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat{{dat.id}} = assume_aligned(dat{{dat.id}}_u);
     {% endfor %}
-    {% for map, idx in lh.maps.items() %}
-    const int *__restrict__ map_{{map.ptr}} = assume_aligned(map_{{map.ptr}}_u);
+    {% for map in lh.maps %}
+    const int *__restrict__ map{{map.id}} = assume_aligned(map{{map.id}}_u);
     {% endfor %}
 
     {% if target.config.vectorise %}
     int block = start;
     for (; block + SIMD_LEN < end; block += SIMD_LEN) {
-        {% for arg, idx in lh.args_expanded|dat if arg is not read %}
-        alignas(SIMD_LEN * 8) {{arg.dat_typ}} arg{{idx}}{{"_%s" % (arg.map_idx) if arg is indirect-}}
-            _local[SIMD_LEN][{{arg.dat_dim}}]{{-" = {0}" if arg is inc}};
+        {% for arg in lh.args_expanded|dat if arg is not read %}
+        alignas(SIMD_LEN * 8) {{lh.dat(arg).typ}} {{arg_local(arg)-}}
+            [SIMD_LEN][{{lh.dat(arg).dim}}]{{-" = {0}" if arg is inc}};
         {% endfor %}
-        {% for arg, idx in lh.args|gbl|reduction %}
-        alignas(SIMD_LEN * 8) {{arg.typ}} arg{{idx}}_local[SIMD_LEN][{{arg.dim}}]{{" = {0}" if arg is inc}};
+        {% for arg in lh.args|gbl|reduction %}
+        alignas(SIMD_LEN * 8) {{arg.typ}} {{arg_local(arg)}}[SIMD_LEN][{{arg.dim}}]{{" = {0}" if arg is inc}};
         {% endfor %}
 
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
             int n = block + lane;
 
-            {% for arg, idx in lh.args_expanded|dat|read_write %}
-            for (int d = 0; d < {{arg.dat_dim}}; ++d) {
-                arg{{idx}}_local[lane][d] = ({{arg_to_pointer(arg, idx)}})[d];
+            {% for arg in lh.args_expanded|dat|read_write %}
+            for (int d = 0; d < {{lh.dat(arg).dim}}; ++d) {
+                {{arg_to_pointer_local(arg)}}[d] = ({{arg_to_pointer(arg)}})[d];
             }{{"\n" if not loop.last}}
             {% endfor %}
-            {% for arg, idx in lh.args|gbl|reduction if arg is not inc %}
+            {% for arg in lh.args|gbl|reduction if arg is not inc %}
             for (int d = 0; d < {{arg.dim}}; ++d) {
-                arg{{idx}}_local[lane][d] = ({{arg_to_pointer(arg, idx)}})[d];
+                {{arg_to_pointer_local(arg)}}[d] = ({{arg_to_pointer(arg)}})[d];
             }{{"\n" if not loop.last}}
             {% endfor %}
         }
@@ -73,95 +78,75 @@ void {{lh.kernel.name}}_wrapper(
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
             int n = block + lane;
 
-        {% for arg, idx in lh.args|vec %}
-            {{"const " if arg is read}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-                {{arg_to_pointer_local(arg_expanded, idx)}}{{"," if not loop.last}}
+        {% for arg in lh.args|vec %}
+            {{"const " if arg is read}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
+            {% for arg_expanded in lh.args_expanded if arg_expanded.id == arg.id %}
+                {{arg_to_pointer_local(arg_expanded)}}{{"," if not loop.last}}
             {% endfor %}
             };
 
         {% endfor %}
-            {{lh.kernel.name}}(
-        {% for arg, idx in lh.args %}
+            {{lh.kernel}}(
+        {% for arg in lh.args %}
             {% if arg is not vec %}
-                {{arg_to_pointer_local(arg, idx)}}{{"," if not loop.last}}
-            {% else %}
-                arg{{idx}}_vec{{"," if not loop.last}}
-            {% endif %}
+                {{arg_to_pointer_local(arg)}}
+            {%- else %}
+                arg{{arg.id}}_vec
+            {%- endif %}{{"," if not loop.last}}
         {% endfor %}
             );
         }
 
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
             int n = block + lane;
-        {% for arg, idx in lh.args_expanded|dat if arg is not read %}
+        {% for arg in lh.args_expanded|dat if arg is not read %}
 
-            for (int d = 0; d < {{arg.dat_dim}}; ++d) {
-                ({{arg_to_pointer(arg, idx)}})[d] {{"+" if arg is inc-}}= {{arg_to_pointer_local(arg, idx)}}[d];
+            for (int d = 0; d < {{lh.dat(arg).dim}}; ++d) {
+                ({{arg_to_pointer(arg)}})[d] {{"+" if arg is inc-}}= {{arg_to_pointer_local(arg)}}[d];
             }
         {% endfor %}
-        {% for arg, idx in lh.args|gbl|reduction %}
+        {% for arg in lh.args|gbl|reduction %}
 
             for (int d = 0; d < {{arg.dim}}; ++d) {
             {% if arg is inc %}
-                {{arg_to_pointer(arg, idx)}}[d] += {{arg_to_pointer_local(arg, idx)}}[d];
+                {{arg_to_pointer(arg)}}[d] += {{arg_to_pointer_local(arg)}}[d];
             {% else %}
-                {{arg_to_pointer(arg, idx)}}[d] = {{arg.access_type.name if arg is not inc-}}
-                    ({{arg_to_pointer(arg, idx)}}[d], {{arg_to_pointer_local(arg, idx)}}[d]);
+                {{arg_to_pointer(arg)}}[d] = {{arg.access_type.name-}}
+                    ({{arg_to_pointer(arg)}}[d], {{arg_to_pointer_local(arg)}}[d]);
             {% endif %}
             }
         {% endfor %}
         }
     }
 
-    for (int n = block; n < end; ++n) {
-        {% for arg, idx in lh.args|vec %}
-        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
-            {% endfor %}
-        };
-
-        {% endfor %}
-        {{lh.kernel.name}}(
-        {% for arg, idx in lh.args %}
-            {% if arg is not vec %}
-            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
-            {% else %}
-            arg{{idx}}_vec{{"," if not loop.last}}
-            {% endif %}
-        {% endfor %}
-        );
-    }
-    {% else %}
-    for (int n = start; n < end; ++n) {
-        {% for arg, idx in lh.args|vec %}
-        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[] = {
-            {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-            {{arg_to_pointer(arg_expanded, idx)}}{{"," if not loop.last}}
-            {% endfor %}
-        };
-
-        {% endfor %}
-        {{lh.kernel.name}}(
-        {% for arg, idx in lh.args %}
-            {% if arg is not vec %}
-            {{arg_to_pointer(arg, idx)}}{{"," if not loop.last}}
-            {% else %}
-            arg{{idx}}_vec{{"," if not loop.last}}
-            {% endif %}
-        {% endfor %}
-        );
-    }
     {% endif %}
+    for (int n = {{"block" if target.config.vectorise else "start"}}; n < end; ++n) {
+        {% for arg in lh.args|vec %}
+        {{"const " if arg.access_type == OP.AccessType.READ}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
+            {% for arg_expanded in lh.args_expanded if arg_expanded.id == arg.id %}
+            {{arg_to_pointer(arg_expanded)}}{{"," if not loop.last}}
+            {% endfor %}
+        };
+
+        {% endfor %}
+        {{lh.kernel}}(
+        {% for arg in lh.args %}
+            {% if arg is not vec %}
+            {{arg_to_pointer(arg)}}
+            {%- else %}
+            arg{{arg.id}}_vec
+            {%- endif %}{{"," if not loop.last}}
+        {% endfor %}
+        );
+    }
 }
 
 {{super()}}
     {% if lh is indirect %}
-{{indirect_dat_def()}}
+    {{indirect_dat_descriptor_def()|indent}}
 
-#ifdef OP_PART_SIZE_{{lh.kernel_idx}}
-    int part_size = OP_PART_SIZE_{{lh.kernel_idx}};
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    int part_size = OP_PART_SIZE_{{kernel_idx}};
 #else
     int part_size = OP_part_size;
 #endif
@@ -177,17 +162,17 @@ void {{lh.kernel.name}}_wrapper(
     int num_threads = 1;
 #endif
     {% endif %}
-    {% for arg, idx in lh.args|gbl|reduction %}
+    {% for arg in lh.args|gbl|reduction %}
 
-    {{arg.typ}} *arg{{idx}}_host_data = ({{arg.typ}} *)arg{{idx}}.data;
-    {{arg.typ}} gbl_{{arg.ptr}}_local[num_threads * 64];
+    {{arg.typ}} *gbl{{arg.id}} = ({{arg.typ}} *)arg{{arg.id}}.data;
+    {{arg.typ}} gbl{{arg.id}}_local[num_threads * 64];
 
     for (int thread = 0; thread < num_threads; ++thread) {
         for (int d = 0; d < {{arg.dim}}; ++d)
-            gbl_{{arg.ptr}}_local[thread * 64 + d] = {% if arg is inc -%}
+            gbl{{arg.id}}_local[thread * 64 + d] = {% if arg is inc -%}
                 ZERO_{{arg.typ}}
             {%- else -%}
-                arg{{idx}}_host_data[d]
+                gbl{{arg.id}}[d]
             {%- endif %};
     }
     {% endfor %}
@@ -198,8 +183,8 @@ void {{lh.kernel.name}}_wrapper(
         op_mpi_wait_all(num_args_expanded, args_expanded);
 
     {% endif %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-        op_mpi_reduce(&arg{{idx}}, ({{arg.typ}} *)arg{{idx}}.data);
+    {% for arg in lh.args|gbl|reduction %}
+        op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ}} *)arg{{arg.id}}.data);
     {% endfor %}
         op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 {% endblock %}
@@ -211,15 +196,15 @@ void {{lh.kernel.name}}_wrapper(
         int start = (set->size * thread) / num_threads;
         int end = (set->size * (thread + 1)) / num_threads;
 
-        {{lh.kernel.name}}_wrapper(
-        {% for dat, idx in lh.dats.items() %}
-            ({{dat.typ}} *)arg{{idx}}.data,
+        {{lh.kernel}}_wrapper(
+        {% for dat in lh.dats %}
+            ({{dat.typ}} *)arg{{dat.arg_id}}.data,
         {% endfor %}
-        {% for arg, idx in lh.args|gbl %}
+        {% for arg in lh.args|gbl %}
             {% if arg is reduction %}
-            gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num(),
+            gbl{{arg.id}}_local + 64 * omp_get_thread_num(),
             {% else %}
-            ({{arg.typ}} *)arg{{idx}}.data,
+            ({{arg.typ}} *)arg{{arg.id}}.data,
             {% endif %}
         {% endfor %}
             start,
@@ -240,18 +225,19 @@ void {{lh.kernel.name}}_wrapper(
             int num_elem = plan->nelems[block_id];
             int offset = plan->offset[block_id];
 
-            {{lh.kernel.name}}_wrapper(
-        {% for dat, idx in lh.dats.items() %}
-                ({{dat.typ}} *)arg{{idx}}.data,
+            {{lh.kernel}}_wrapper(
+        {% for dat in lh.dats %}
+                ({{dat.typ}} *)arg{{dat.arg_id}}.data,
         {% endfor %}
-        {% for map, idx in lh.maps.items() %}
-                arg{{idx}}.map_data,
+        {% for map in lh.maps %}
+                arg{{map.arg_id}}.map_data,
+                arg{{map.arg_id}}.map->dim,
         {% endfor %}
-        {% for arg, idx in lh.args|gbl %}
+        {% for arg in lh.args|gbl %}
             {% if arg is reduction %}
-                gbl_{{arg.ptr}}_local + 64 * omp_get_thread_num(),
+                gbl{{arg.id}}_local + 64 * omp_get_thread_num(),
             {% else %}
-                ({{arg.typ}} *)arg{{idx}}.data,
+                ({{arg.typ}} *)arg{{arg.id}}.data,
             {% endif %}
         {% endfor %}
                 offset,
@@ -265,14 +251,14 @@ void {{lh.kernel.name}}_wrapper(
         if (col != plan->ncolors_owned - 1)
             continue;
 
-            {% for arg, idx in lh.args|gbl|reduction %}
+            {% for arg in lh.args|gbl|reduction %}
         for (int thread = 0; thread < num_threads; ++thread) {
             for (int d = 0; d < {{arg.dim}}; ++d)
                 {% if arg is inc %}
-                arg{{idx}}_host_data[d] += gbl_{{arg.ptr}}_local[thread * 64 + d];
+                gbl{{arg.id}}[d] += gbl{{arg.id}}_local[thread * 64 + d];
                 {% else %}
-                arg{{idx}}_host_data[d] = {{arg.access_type.name-}}
-                    (arg{{idx}}_host_data[d], gbl_{{arg.ptr}}_local[thread * 64 + d]);
+                gbl{{arg.id}}[d] = {{arg.access_type.name-}}
+                    (gbl{{arg.id}}[d], gbl{{arg.id}}_local[thread * 64 + d]);
                 {% endif %}
         }
             {% endfor %}
@@ -288,21 +274,21 @@ void {{lh.kernel.name}}_wrapper(
 
     {% endif %}
     {% if lh is direct %}
-        {% for arg, idx in lh.args|gbl|reduction %}
+        {% for arg in lh.args|gbl|reduction %}
     for (int thread = 0; thread < num_threads; ++thread) {
         for (int d = 0; d < {{arg.dim}}; ++d)
             {% if arg is inc %}
-            arg{{idx}}_host_data[d] += gbl_{{arg.ptr}}_local[thread * 64 + d];
+            gbl{{arg.id}}[d] += gbl{{arg.id}}_local[thread * 64 + d];
             {% else %}
-            arg{{idx}}_host_data[d] = {{arg.access_type.name-}}
-                (arg{{idx}}_host_data[d], gbl_{{arg.ptr}}_local[thread * 64 + d]);
+            gbl{{arg.id}}[d] = {{arg.access_type.name-}}
+                (gbl{{arg.id}}[d], gbl{{arg.id}}_local[thread * 64 + d]);
             {% endif %}
     }
             {% endfor %}
 
     {% endif %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{idx}}, arg{{idx}}_host_data);
+    {% for arg in lh.args|gbl|reduction %}
+    op_mpi_reduce(&arg{{arg.id}}, gbl{{arg.id}});
     {% endfor %}
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 
