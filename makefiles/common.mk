@@ -10,8 +10,7 @@ endef
 
 # Helper variables for comma and space substitution
 COMMA := ,
-SPACE :=
-SPACE +=
+SPACE := $() $()
 
 ESC_RED != echo "\033[31m"
 ESC_GREEN != echo "\033[32m"

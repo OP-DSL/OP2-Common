@@ -18,6 +18,9 @@ CUDA_GEN_Ampere  := 80
 NV_ARCH := $(subst $(COMMA),$(SPACE),$(NV_ARCH))
 $(foreach arch,$(NV_ARCH),$(eval CUDA_GEN += $(CUDA_GEN_$(arch))))
 
+$(info NV_ARCH: $(NV_ARCH))
+$(info CUDA_GEN: $(CUDA_GEN))
+
 # Include the relevant compiler makefiles
 ifdef OP2_C_COMPILER
   include $(MAKEFILES_DIR)/compilers/c/$(OP2_C_COMPILER).mk
