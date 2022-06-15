@@ -58,11 +58,11 @@ class CppCuda(Scheme):
             rewriter,
             app,
             kernel,
-            lambda dat_ptr: f"op2_dat_{dat_ptr}_stride_d",
+            lambda dat_id: f"op2_{kernel.name}_dat{dat_id}_stride_d",
             skip=lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"],
         )
 
         return ctk.preprocess(rewriter.rewrite(), kernel_path, include_dirs, defines)
 
 
-# Scheme.register(CppCuda)
+Scheme.register(CppCuda)
