@@ -1216,7 +1216,7 @@ void prepare_aug_maps(){
     memcpy(map->map_org, map->map, (size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
 
     for(int el = 0; el < max_level; el++){
-      if(map->halo_info->nhalos_bits[el] == 1){
+      if(is_halo_required_for_map(map, el) == 1){
         int *m = (int *)malloc((size_t)(map->from->size + exec_size) * (size_t)map->dim * sizeof(int));
         if (m == NULL) {
           printf(" op_decl_map_core error -- error allocating memory to map\n");
@@ -1274,10 +1274,10 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
 
         for(int el = 0; el < max_level; el++){
 
-          if(map->halo_info->nhalos_bits[el] != 1)
+          if(is_halo_required_for_map(map, el) != 1)
             continue;
-
-          if(map->from->halo_info->nhalos_bits[el] != 1)
+          
+          if(is_halo_required_for_set(map->from, el) != 1)
             continue;
 
           int exec_levels = el + 1; // map->from->halo_info->nhalos[el];
@@ -1571,7 +1571,7 @@ void step4_import_nonexec(int max_nhalos, int **part_range, int my_rank, int com
     int set_max_nhalos = set->halo_info->max_nhalos;
     for(int el = 0; el < set_max_nhalos; el++){
 
-      if(set->halo_info->nhalos_bits[el] != 1){
+      if(is_halo_required_for_set(set, el) != 1){
         OP_aug_import_nonexec_lists[el][set->index] = NULL;
         continue;
       }
@@ -1586,7 +1586,7 @@ void step4_import_nonexec(int max_nhalos, int **part_range, int my_rank, int com
 
       for (int m = 0; m < OP_map_index; m++) { // for each maping table
         op_map map = OP_map_list[m];
-        if(map->from->halo_info->nhalos_bits[el] != 1){
+        if(is_halo_required_for_set(map->from, el) != 1){
           continue;
         }
         from_exec_levels = el + 1;
@@ -2150,7 +2150,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
 
     for(int el = 0; el < max_level; el++){
 
-      if(map->halo_info->nhalos_bits[el] != 1)
+      if(is_halo_required_for_map(map, el) != 1)
         continue;
 
       int exec_levels = map->from->halo_info->nhalos[el];
@@ -2173,7 +2173,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
               int core_index = -1;
               int start_index = 0;
               for(int l1 = to_max_level - 1; l1 >= 0; l1--){
-                if(map->to->halo_info->nhalos_bits[l1] != 1)
+                if(is_halo_required_for_set(map->to, l1) != 1)
                   continue;
                 start_index = (l1 == to_max_level - 1) ? 0 : map->to->core_sizes[l1 + 1];
                 core_index = binary_search(core_elems[map->to->index], map->aug_maps[el][e * map->dim + j], start_index, map->to->core_sizes[l1] - 1);
@@ -2388,6 +2388,55 @@ void merge_nonexec_halos(int exec_levels, int my_rank, int comm_size){
 }
 
 void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
+
+  OP_merged_import_exec_nonexec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
+  OP_merged_export_exec_nonexec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
+
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    OP_merged_import_exec_nonexec_list[set->index] = NULL;
+    OP_merged_export_exec_nonexec_list[set->index] = NULL;
+  }
+
+  int max_exp_rank_count = 0;
+
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    int max_nhalos = set->halo_info->max_nhalos;
+
+    halo_list* import_h_lists = (halo_list*) xmalloc((2 * max_nhalos) * sizeof(halo_list));
+    halo_list* export_h_lists = (halo_list*) xmalloc((2 * max_nhalos) * sizeof(halo_list));
+
+    for(int l = 0; l < max_nhalos; l++){
+      import_h_lists[2 * l] = OP_aug_import_exec_lists[l][set->index];
+      import_h_lists[2 * l + 1] = OP_aug_import_nonexec_lists[l][set->index];
+      export_h_lists[2 * l] = OP_aug_export_exec_lists[l][set->index];
+      export_h_lists[2 * l + 1] = OP_aug_export_nonexec_lists[l][set->index];
+    }
+
+    OP_merged_import_exec_nonexec_list[set->index] = merge_halo_lists(2 * max_nhalos, import_h_lists, my_rank, comm_size);
+    OP_merged_export_exec_nonexec_list[set->index] = merge_halo_lists(2 * max_nhalos, export_h_lists, my_rank, comm_size);
+
+    op_free(import_h_lists);
+    op_free(export_h_lists);
+
+    int rank_count = OP_merged_export_exec_nonexec_list[set->index]->ranks_size / OP_merged_export_exec_nonexec_list[set->index]->num_levels;
+    if(rank_count > max_exp_rank_count){
+      max_exp_rank_count = rank_count;
+    }
+  }
+
+  ca_buf_pos = (int*) xmalloc(max_exp_rank_count* sizeof(int));
+  ca_send_sizes = (int*) xmalloc(max_exp_rank_count* sizeof(int));
+
+  for(int i = 0; i < max_exp_rank_count; i++){
+    ca_buf_pos[i] = 0;
+    ca_send_sizes[i] = 0;
+  }
+}
+
+
+void merge_exec_nonexec_halos_prev(int halo_levels, int my_rank, int comm_size){
 
   OP_merged_import_exec_nonexec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
   OP_merged_export_exec_nonexec_list = (halo_list*) xmalloc(OP_set_index * sizeof(halo_list));
@@ -2955,8 +3004,8 @@ void op_halo_create_comm_avoid() {
 
 
   // This is to facilitate halo exchange in one message for multiple extended exec layers
-  merge_exec_halos(num_halos, my_rank, comm_size);
-  merge_nonexec_halos(num_halos, my_rank, comm_size);
+  // merge_exec_halos(num_halos, my_rank, comm_size);
+  // merge_nonexec_halos(num_halos, my_rank, comm_size);
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
   set_group_halo_envt();
