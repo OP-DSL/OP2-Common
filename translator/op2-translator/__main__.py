@@ -92,7 +92,8 @@ def main(argv=None) -> None:
 
     if args.force_soa:
         for program in app.programs:
-            program.dats = [dataclasses.replace(dat, soa=True) for dat in program.dats]
+            for loop in program.loops:
+                loop.dats = [dataclasses.replace(dat, soa=True) for dat in loop.dats]
 
     if args.verbose:
         print()

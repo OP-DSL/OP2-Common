@@ -6,14 +6,6 @@ __constant__ {{const.typ}} {{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{
     {% endfor %}
 {% endblock %}
 
-{% block soa_strides %}
-{{super()}}
-
-    {% for dat in app.dats()|soa %}
-__constant__ int op2_dat_{{dat.ptr}}_stride_d;
-    {% endfor %}
-{% endblock %}
-
 {% block includes %}
     {% if user_types is not none %}
 #ifndef OP_FUN_PREFIX
