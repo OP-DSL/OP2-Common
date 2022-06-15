@@ -20,7 +20,8 @@ int dats_indirect[{{lh.args_expanded|length}}] = {
 };
     {% endif %}
 {% endmacro %}
-
+{% block prologue %}
+{% endblock %}
 {% block kernel %}
 {{kernel_func}}
 {% endblock %}

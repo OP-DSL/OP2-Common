@@ -59,7 +59,7 @@ def insertStrides(
     rewriter: Rewriter,
     app: Application,
     kernel: Kernel,
-    stride: Callable[[str], str],
+    stride: Callable[[int], str],
     skip: Optional[Callable[[OP.ArgDat], bool]] = None,
 ) -> None:
     loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
@@ -71,16 +71,16 @@ def insertStrides(
         if skip is not None and skip(loop.args[arg_idx]):
             continue
 
-        dat = find(app.dats(), lambda dat: dat.ptr == loop.args[arg_idx].dat_ptr)
+        dat = loop.dats[loop.args[arg_idx].dat_id]
         if not dat.soa:
             continue
 
         is_vec = loop.args[arg_idx].map_idx < -1
-        insertStride(kernel_ast, rewriter, kernel.params[arg_idx][0], dat.ptr, is_vec, stride)
+        insertStride(kernel_ast, rewriter, kernel.params[arg_idx][0], dat.id, is_vec, stride)
 
 
 def insertStride(
-    kernel_ast: Cursor, rewriter: Rewriter, param: str, dat_ptr: str, is_vec: bool, stride: Callable[[str], str]
+    kernel_ast: Cursor, rewriter: Rewriter, param: str, dat_id: int, is_vec: bool, stride: Callable[[int], str]
 ) -> None:
     for node in kernel_ast.walk_preorder():
         if node.kind != CursorKind.ARRAY_SUBSCRIPT_EXPR:
@@ -94,7 +94,7 @@ def insertStride(
             ident, _ = next(ident.get_children()).get_children()
 
         if ident.spelling == param:
-            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(dat_ptr)}")
+            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(dat_id)}")
 
 
 def preprocess(source: str, path: Path, include_dirs: Set[Path], defines: List[str]) -> str:

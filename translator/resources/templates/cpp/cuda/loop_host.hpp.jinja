@@ -1,24 +1,24 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
 {% macro stride_cuda(arg) -%}
-{{-(" * op2_dat_%s_stride_d" % arg.dat_ptr) if lh.findDat(arg.dat_ptr)[0] is soa-}}
+{{-" * op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
 {%- endmacro %}
 
-{% macro opt_cond(arg, idx) %}
-    {%- if arg is opt -%}arg{{idx}}.opt{%- endif -%}
+{% macro opt_cond(arg) %}
+    {%- if arg is opt -%}arg{{arg.id}}.opt{%- endif -%}
 {% endmacro %}
 
-{% macro opt_cond_comp(arg, idx) %}
-    {%- if arg is opt -%}{{opt_cond(arg, idx)}} && {% endif -%}
+{% macro opt_cond_comp(arg) %}
+    {%- if arg is opt -%}{{opt_cond(arg)}} && {% endif -%}
 {% endmacro %}
 
-{% macro opt_tern(arg, idx, alt = "NULL") %}
-    {%- if arg is opt -%}{{opt_cond(arg, idx)}} ? {{caller()}} : {{alt}}{%- else -%}{{caller()}}{%- endif -%}
+{% macro opt_tern(arg, alt = "NULL") %}
+    {%- if arg is opt -%}{{opt_cond(arg)}} ? {{caller()}} : {{alt}}{%- else -%}{{caller()}}{%- endif -%}
 {% endmacro %}
 
-{% macro opt_if(arg, idx) %}
+{% macro opt_if(arg) %}
     {% if arg is opt %}
-    if ({{opt_cond(arg, idx)}}) {
+    if ({{opt_cond(arg)}}) {
     {{caller()|indent-}}
     {{"}"|indent(first = true)}}
     {% else %}
@@ -49,35 +49,45 @@
 {% endmacro %}
 
 {% macro map_lookup(arg) -%}
-map_{{arg.map_ptr}}[set_size * {{arg.map_idx}} + n]
-    {{-(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
+map{{arg.map_id}}[set_size * {{arg.map_idx}} + n]
+    {{-(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
 {%- endmacro %}
 
-{% macro arg_to_pointer_cuda(arg, idx) -%}
+{% macro arg_to_pointer_cuda(arg) -%}
     {%- if arg is gbl -%}
-gbl_{{arg.ptr}}{{"_local" if arg.access_type != OP.AccessType.READ}}
+gbl{{arg.id}}{{"_local" if arg.access_type != OP.AccessType.READ}}
     {%- elif arg is direct -%}
-dat_{{arg.dat_ptr}} + n{{(" * %d" % arg.dat_dim) if lh.findDat(arg.dat_ptr)[0] is not soa}}
+dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
     {%- elif arg is vec -%}
-arg{{idx}}_vec
+arg{{arg.id}}_vec
     {%- elif arg is inc and target.config.atomics -%}
-arg{{idx}}_{{arg.map_idx}}_local
+arg{{arg.id}}_{{arg.map_idx}}_local
     {%- else -%}
-dat_{{arg.dat_ptr}} + {{map_lookup(arg)}}
+dat{{arg.dat_id}} + {{map_lookup(arg)}}
     {%- endif -%}
 {%- endmacro %}
 
+{% block prologue %}
+    {% for dat in lh.dats|soa %}
+int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
+    {% endfor %}
+    {% for dat in lh.dats|soa %}
+__constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
+    {% endfor %}
+
+{% endblock %}
+
 {% block kernel_wrapper %}
-__global__ void op_cuda_{{lh.kernel.name}}(
+__global__ void op_cuda_{{lh.kernel}}(
     {{-"\n    const unsigned optflags," if lh.args|opt|length > 0}}
-    {% for dat, idx in lh.dats.items() %}
-    {{"const " if dat is read_in lh}}{{dat.typ}} *__restrict dat_{{dat.ptr}},
+    {% for dat in lh.dats %}
+    {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict dat{{dat.id}},
     {% endfor %}
-    {% for map, idx in lh.maps.items() %}
-    const int *__restrict map_{{map.ptr}},
+    {% for map in lh.maps %}
+    const int *__restrict map{{map.id}},
     {% endfor %}
-    {% for arg, idx in lh.args|gbl %}
-    {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl_{{arg.ptr}},
+    {% for arg in lh.args|gbl %}
+    {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl{{arg.id}},
     {% endfor %}
     {%- if lh is indirect %}
     {{"int *col_reord," if target.config.color2}}
@@ -86,13 +96,13 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     {%- endif +%}
     int set_size
 ) {
-    {% for arg, idx in lh.args|gbl|reduction %}
-    {{arg.typ}} gbl_{{arg.ptr}}_local[{{arg.dim}}];
+    {% for arg in lh.args|gbl|reduction %}
+    {{arg.typ}} gbl{{arg.id}}_local[{{arg.dim}}];
     for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{arg.dim}}; ++d)
-        gbl_{{arg.ptr}}_local[d] = {% if arg is inc -%}
+        gbl{{arg.id}}_local[d] = {% if arg is inc -%}
             ZERO_{{arg.typ}}
         {%- else -%}
-            gbl_{{arg.ptr}}[blockIdx.x * {{arg.dim}} + d]
+            gbl{{arg.id}}[blockIdx.x * {{arg.dim}} + d]
         {%- endif -%};
 
     {% endfor %}
@@ -100,9 +110,9 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 
     {% if lh is direct %}
     for (int n = thread_id; n < set_size; n += blockDim.x * gridDim.x) {
-        {{lh.kernel.name}}_gpu(
-            {% for arg, idx in lh.args %}
-            {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg, idx)}}{% endcall %}{{-"," if not loop.last}}
+        {{lh.kernel}}_gpu(
+            {% for arg in lh.args %}
+            {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg)}}{% endcall %}{{-"," if not loop.last}}
             {% endfor %}
         );
     }
@@ -110,37 +120,37 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     if (thread_id + start < end) {
         int n = {{"thread_id + start" if target.config.atomics else "col_reord[thread_id + start]"}};
 
-        {% for arg, idx in lh.args_expanded|indirect|reduction if target.config.atomics %}
-        {{arg.dat_typ}} arg{{idx}}_{{arg.map_idx}}_local[{{arg.dat_dim}}];
-        for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
-            arg{{idx}}_{{arg.map_idx}}_local[d] = ZERO_{{arg.dat_typ}};
+        {% for arg in lh.args_expanded|indirect|reduction if target.config.atomics %}
+        {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
+        for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{lh.dat(arg).dim}}; ++d)
+            arg{{arg.id}}_{{arg.map_idx}}_local[d] = ZERO_{{lh.dat(arg).typ}};
 
         {% endfor %}
-        {% for arg, idx in lh.args|vec %}
-        {{"const " if arg.access_type == OP.AccessType.READ}}{{arg.dat_typ}} *arg{{idx}}_vec[{{arg.map_idx * -1}}];
+        {% for arg in lh.args|vec %}
+        {{"const " if arg.access_type == OP.AccessType.READ}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[{{arg.map_idx * -1}}];
             {% call opt_cuda_if(arg) %}
-                {% for arg_expanded, idx2 in lh.args_expanded if idx2 == idx %}
-        arg{{idx}}_vec[{{loop.index0}}] = {{arg_to_pointer_cuda(arg_expanded, idx)}};
+                {% for arg_expanded in lh.args_expanded if arg_expanded.id == arg.id %}
+        arg{{arg.id}}_vec[{{loop.index0}}] = {{arg_to_pointer_cuda(arg_expanded)}};
                 {% endfor %}
             {% endcall %}
 
         {% endfor %}
-        {{lh.kernel.name}}_gpu(
-            {% for arg, idx in lh.args %}
-            {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg, idx)}}{% endcall %}{{-"," if not loop.last}}
+        {{lh.kernel}}_gpu(
+            {% for arg in lh.args %}
+            {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg)}}{% endcall %}{{-"," if not loop.last}}
             {% endfor %}
         );
-    {% for arg, idx in lh.args_expanded|indirect|reduction if target.config.atomics %}
+    {% for arg in lh.args_expanded|indirect|reduction if target.config.atomics %}
 
-        for (int d = 0; {{opt_cuda_cond_comp(lh.args[idx][0])}}d < {{arg.dat_dim}}; ++d)
-            atomicAdd(dat_{{arg.dat_ptr}} + {{map_lookup(arg)}} + d{{stride_cuda(arg)}}, arg{{idx}}_{{arg.map_idx}}_local[d]);
+        for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{lh.dat(arg).dim}}; ++d)
+            atomicAdd(dat{{arg.dat_id}} + {{map_lookup(arg)}} + d{{stride_cuda(arg)}}, arg{{arg.id}}_{{arg.map_idx}}_local[d]);
     {% endfor %}
     }
     {% endif %}
-    {% for arg, idx in lh.args|gbl|reduction %}
+    {% for arg in lh.args|gbl|reduction %}
 
     for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{arg.dim}}; ++d)
-        op_reduction<{{arg.access_type.value}}>(gbl_{{arg.ptr}} + blockIdx.x * {{arg.dim}} + d, gbl_{{arg.ptr}}_local[d]);
+        op_reduction<{{arg.access_type.value}}>(gbl{{arg.id}} + blockIdx.x * {{arg.dim}} + d, gbl{{arg.id}}_local[d]);
     {% endfor %}
 }
 
@@ -158,36 +168,36 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     {% if lh.args|opt|length > 0 %}
     unsigned optflags = 0;
 
-    {% for arg, idx in lh.args|opt %}
-        {% call opt_if(arg, idx) %}
-    optflags |= 1 << {{ lh.optIdx(arg) }};
+    {% for arg in lh.args|opt %}
+        {% call opt_if(arg) %}
+    optflags |= 1 << {{lh.optIdx(arg)}};
         {% endcall %}
 
     {% endfor %}
     {% endif %}
     {% if target.config.color2 %}
-#ifdef OP_PART_SIZE_{{lh.kernel_idx}}
-    int part_size = OP_PART_SIZE_{{lh.kernel_idx}};
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    int part_size = OP_PART_SIZE_{{kernel_idx}};
 #else
     int part_size = OP_part_size;
 #endif
 
     {% endif %}
     {% if target.config.color2 and lh is indirect %}
-{{indirect_dat_def()}}
+{{indirect_dat_descriptor_def()}}
 
     op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
                         args_expanded, num_dats_indirect, dats_indirect, OP_COLOR2);
 
     {% endif %}
-    {% for arg, idx in lh.args|gbl %}
-    {{arg.typ}} *arg{{idx}}_host_data = ({{arg.typ}} *)arg{{idx}}.data;{{"\n" if loop.last}}
+    {% for arg in lh.args|gbl %}
+    {{arg.typ}} *arg{{arg.id}}_host_data = ({{arg.typ}} *)arg{{arg.id}}.data;{{"\n" if loop.last}}
     {% endfor %}
     {% if lh.args|gbl|read|length > 0 %}
     int const_bytes = 0;
 
-        {% for arg, idx in lh.args|gbl|read %}
-            {% call opt_if(arg, idx) %}
+        {% for arg in lh.args|gbl|read %}
+            {% call opt_if(arg) %}
     const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
             {% endcall %}
         {% endfor %}
@@ -195,13 +205,13 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     reallocConstArrays(const_bytes);
     const_bytes = 0;
 
-        {% for arg, idx in lh.args|gbl|read %}
-            {% call opt_if(arg, idx) %}
-    arg{{idx}}.data   = OP_consts_h + const_bytes;
-    arg{{idx}}.data_d = OP_consts_d + const_bytes;
+        {% for arg in lh.args|gbl|read %}
+            {% call opt_if(arg) %}
+    arg{{arg.id}}.data   = OP_consts_h + const_bytes;
+    arg{{arg.id}}.data_d = OP_consts_d + const_bytes;
 
     for (int d = 0; d < {{arg.dim}}; ++d)
-        (({{arg.typ}} *)arg{{idx}}.data)[d] = arg{{idx}}_host_data[d];
+        (({{arg.typ}} *)arg{{arg.id}}.data)[d] = arg{{arg.id}}_host_data[d];
 
     const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
             {% endcall %}
@@ -209,16 +219,16 @@ __global__ void op_cuda_{{lh.kernel.name}}(
         {% endfor %}
     mvConstArraysToDevice(const_bytes);
     {% endif %}
-    {% for dat, idx in lh.dats.items()|soa %}
+    {% for dat in lh.dats|soa %}
 
-    if (op2_dat_{{dat.ptr}}_stride != getSetSizeFromOpArg(&arg{{idx}})) {
-        op2_dat_{{dat.ptr}}_stride = getSetSizeFromOpArg(&arg{{idx}});
-        cudaMemcpyToSymbol(op2_dat_{{dat.ptr}}_stride_d, &op2_dat_{{dat.ptr}}_stride, sizeof(int));
+    if (op2_{{lh.kernel}}_dat{{dat.id}}_stride != getSetSizeFromOpArg(&arg{{dat.arg_id}})) {
+        op2_{{lh.kernel}}_dat{{dat.id}}_stride = getSetSizeFromOpArg(&arg{{dat.arg_id}});
+        cudaMemcpyToSymbol(op2_{{lh.kernel}}_dat{{dat.id}}_stride_d, &op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int));
     }
     {% endfor %}
 
-#ifdef OP_BLOCK_SIZE_{{lh.kernel_idx}}
-    int block_size = OP_BLOCK_SIZE_{{lh.kernel_idx}};
+#ifdef OP_BLOCK_SIZE_{{kernel_idx}}
+    int block_size = OP_BLOCK_SIZE_{{kernel_idx}};
 #else
     int block_size = OP_block_size;
 #endif
@@ -241,8 +251,8 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     int reduction_bytes = 0;
     int reduction_size = 0;
 
-        {% for arg, idx in lh.args|gbl|reduction %}
-            {% call opt_if(arg, idx) %}
+        {% for arg in lh.args|gbl|reduction %}
+            {% call opt_if(arg) %}
     reduction_bytes += ROUND_UP(max_blocks * {{arg.dim}} * sizeof({{arg.typ}}));
     reduction_size   = MAX(reduction_size, sizeof({{arg.typ}}));
             {% endcall %}
@@ -251,17 +261,17 @@ __global__ void op_cuda_{{lh.kernel.name}}(
     reallocReductArrays(reduction_bytes);
     reduction_bytes = 0;
 
-        {% for arg, idx in lh.args|gbl|reduction %}
-            {% call opt_if(arg, idx) %}
-    arg{{idx}}.data   = OP_reduct_h + reduction_bytes;
-    arg{{idx}}.data_d = OP_reduct_d + reduction_bytes;
+        {% for arg in lh.args|gbl|reduction %}
+            {% call opt_if(arg) %}
+    arg{{arg.id}}.data   = OP_reduct_h + reduction_bytes;
+    arg{{arg.id}}.data_d = OP_reduct_d + reduction_bytes;
 
     for (int b = 0; b < max_blocks; ++b) {
         for (int d = 0; d < {{arg.dim}}; ++d)
-            (({{arg.typ}} *)arg{{idx}}.data)[b * {{arg.dim}} + d] = {% if arg.access_type == OP.AccessType.INC -%}
+            (({{arg.typ}} *)arg{{arg.id}}.data)[b * {{arg.dim}} + d] = {% if arg.access_type == OP.AccessType.INC -%}
                 ZERO_{{arg.typ}}
             {%- else -%}
-                arg{{idx}}_host_data[d]
+                arg{{arg.id}}_host_data[d]
             {%- endif %};
     }
 
@@ -274,17 +284,17 @@ __global__ void op_cuda_{{lh.kernel.name}}(
 {% endblock %}
 
 {% macro kernel_call(shared_size) %}
-op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
+op_cuda_{{lh.kernel}}<<<num_blocks, block_size
 {{-(", %s" % shared_size) if lh.args|gbl|reduction|length > 0}}>>>(
     {{-"\n    optflags," if lh.args|opt|length > 0 }}
-    {% for dat, idx in lh.dats.items() %}
-    ({{dat.typ}} *)arg{{idx}}.data_d,
+    {% for dat in lh.dats %}
+    ({{dat.typ}} *)arg{{dat.arg_id}}.data_d,
     {% endfor %}
-    {% for map, idx in lh.maps.items() %}
-    arg{{idx}}.map_data_d,
+    {% for map in lh.maps %}
+    arg{{map.arg_id}}.map_data_d,
     {% endfor %}
-    {% for arg, idx in lh.args|gbl %}
-    ({{arg.typ}} *)arg{{idx}}.data_d,
+    {% for arg in lh.args|gbl %}
+    ({{arg.typ}} *)arg{{arg.id}}.data_d,
     {% endfor %}
     {% for extra_arg in varargs %}
     {{extra_arg}}{{"," if not loop.last}}
@@ -347,22 +357,22 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
 {% endblock %}
 
 {% block host_epilogue %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-    for (int b = 0; {{opt_cond_comp(arg, idx)}}b < max_blocks; ++b) {
+    {% for arg in lh.args|gbl|reduction %}
+    for (int b = 0; {{opt_cond_comp(arg)}}b < max_blocks; ++b) {
         for (int d = 0; d < {{arg.dim}}; ++d)
         {% if arg.access_type == OP.AccessType.INC %}
-            arg{{idx}}_host_data[d] += (({{arg.typ}} *)arg{{idx}}.data)[b * {{arg.dim}} + d];
+            arg{{arg.id}}_host_data[d] += (({{arg.typ}} *)arg{{arg.id}}.data)[b * {{arg.dim}} + d];
         {% elif arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX] %}
-            arg{{idx}}_host_data[d] = {{arg.access_type.name-}}
-                (arg{{idx}}_host_data[d], (({{arg.typ}} *)arg{{idx}}.data)[b * {{arg.dim}} + d]);
+            arg{{arg.id}}_host_data[d] = {{arg.access_type.name-}}
+                (arg{{arg.id}}_host_data[d], (({{arg.typ}} *)arg{{arg.id}}.data)[b * {{arg.dim}} + d]);
         {% endif %}
     }
 
     {% endfor %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-        {% call opt_if(arg, idx) %}
-    arg{{idx}}.data = (char *)arg{{idx}}_host_data;
-    op_mpi_reduce(&arg{{idx}}, arg{{idx}}_host_data);
+    {% for arg in lh.args|gbl|reduction %}
+        {% call opt_if(arg) %}
+    arg{{arg.id}}.data = (char *)arg{{arg.id}}_host_data;
+    op_mpi_reduce(&arg{{arg.id}}, arg{{arg.id}}_host_data);
         {% endcall %}
 
     {% endfor %}
@@ -372,14 +382,14 @@ op_cuda_{{lh.kernel.name}}<<<num_blocks, block_size
 {{super()}}
 
     {% if lh is direct %}
-        {% for arg, idx in lh.args_expanded|reject("gbl") %}
-            {% call opt_if(*lh.args[idx]) %}
-    OP_kernels[{{lh.kernel_idx}}].transfer += (float)set->size * arg{{idx}}.size{{-" * 2.0f" if not arg is read}};
+        {% for arg in lh.args_expanded|reject("gbl") %}
+            {% call opt_if(arg) %}
+    OP_kernels[{{kernel_idx}}].transfer += (float)set->size * arg{{arg.id}}.size{{-" * 2.0f" if not arg is read}};
             {% endcall %}
         {% endfor %}
     {% elif target.config.color2 %}
-    OP_kernels[{{lh.kernel_idx}}].transfer  += plan->transfer;
-    OP_kernels[{{lh.kernel_idx}}].transfer2 += plan->transfer2;
+    OP_kernels[{{kernel_idx}}].transfer  += plan->transfer;
+    OP_kernels[{{kernel_idx}}].transfer2 += plan->transfer2;
     {% endif %}
     {#- TODO: Transfer estimation with indirect + atomics? #}
 {% endblock %}
