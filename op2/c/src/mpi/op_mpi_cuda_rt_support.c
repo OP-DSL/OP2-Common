@@ -481,8 +481,8 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
   int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
 
 
-  imp_common_list = OP_merged_import_exec_nonexec_list[args[0].dat->set->index];  //assumption nargs > 0
-  exp_common_list = OP_merged_export_exec_nonexec_list[args[0].dat->set->index];
+  imp_common_list = OP_merged_import_exec_nonexec_list[dirty_args[0].dat->set->index];  //assumption nargs > 0
+  exp_common_list = OP_merged_export_exec_nonexec_list[dirty_args[0].dat->set->index];
 
   int set_elem_index = 0;
   int buf_index = 0;

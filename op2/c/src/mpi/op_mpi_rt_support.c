@@ -232,8 +232,8 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
   for (int i = 0; i < rank_count; i++) {
     int imp_size = 0;
     
-    for(int n = 0; n < nargs; n++){
-      op_arg* arg = &args[n];
+    for(int n = 0; n < ndirty_args; n++){
+      op_arg* arg = &dirty_args[n];
       op_dat dat = arg->dat;
       int nhalos = get_nhalos(arg);
       int nonexec_start = get_nonexec_start(arg);
