@@ -759,16 +759,16 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
   // printf("op_unpack_merged_single_dat_chained called dat=%s set=%s num_levels=%d nhalos=%d nhalos_index=%d max_nhalos=%d\n", 
   // arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos);
   
-  op_arg dirty_args[nargs];
-  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
+  // op_arg dirty_args[nargs];
+  // int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
 
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
   int prev_exec_size = 0;
   for (int i = 0; i < rank_count; i++) {
     int imp_disp = 0;
     
-    for(int n = 0; n < ndirty_args; n++){
-      op_arg* arg = &dirty_args[n];
+    for(int n = 0; n < nargs; n++){
+      op_arg* arg = &args[n];
       op_dat dat = arg->dat;
       // if(is_arg_valid(arg, exec_flag) == 0)
       //   continue;
@@ -1015,18 +1015,15 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
                   &grp_recv_requests[0], MPI_STATUSES_IGNORE);
 
- 
-  for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW)) {
-      if (args[n].idx == -1 && exec_flag == 0) continue;
-      // printf("op_mpi_wait_all_chained n=%d dat=%s\n", n, args[n].dat->name);
-      args[n].sent = 2; // set flag to indicate completed comm
-      args[n].dat->dirtybit = 0;
-      args[n].dat->dirty_hd = device;
-    }
-  }
+  op_arg dirty_args[nargs];
+  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
 
-  op_unpack_merged_single_dat_chained(nargs, args, exec_flag);
+  op_unpack_merged_single_dat_chained(ndirty_args, dirty_args, exec_flag);
+  for (int n = 0; n < ndirty_args; n++) {
+      dirty_args[n].sent = 2; // set flag to indicate completed comm
+      dirty_args[n].dat->dirtybit = 0;
+      dirty_args[n].dat->dirty_hd = device;
+  }
 #endif
   // op_timers_core(&ca_c2, &ca_t2);
   // if (OP_kern_max > 0)
