@@ -78,9 +78,6 @@ __global__ void export_halo_gather_chained(int *list, char *dat, int copy_size,
       int set_elem_index = list[level_disp + disp_in_level + id] * elem_size;
       int buf_elem_index = buf_start + level_disp_in_rank + id * elem_size; 
 
-      int arg_disp = 0;
-      int rank_disp = 0;
-      int level_disp = 0;
       int off = 0;
 
       if (elem_size % 16 == 0) {
@@ -231,88 +228,6 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
 }
 
 #ifdef COMM_AVOID
-int get_nonexec_start_chained(op_arg *arg){
-  int max_nhalos = arg->dat->set->halo_info->max_nhalos;
-  int nhalos_index = arg->nhalos_index;
-  switch (arg->unpack_method)
-  {
-  case OP_UNPACK_OP2:
-    // if(arg->dat->halo_info->max_nhalos > 1){
-    //   nhalos_index = arg->dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos];
-    // }
-    // return max_nhalos + nhalos_index;
-    return max_nhalos;
-  case OP_UNPACK_SINGLE_HALO:
-    return max_nhalos + nhalos_index;
-  case OP_UNPACK_ALL_HALOS:
-    return max_nhalos;
-  
-  default:
-    return -1;
-  }
-}
-
-int get_nonexec_end_chained(op_arg *arg){
-  int max_nhalos = arg->dat->set->halo_info->max_nhalos;
-  int nhalos_index = arg->nhalos_index;
-
-  switch (arg->unpack_method)
-  {
-  case OP_UNPACK_OP2:
-    if(arg->dat->halo_info->max_nhalos > 1){
-      nhalos_index = arg->dat->halo_info->nhalos_indices[arg->dat->halo_info->max_nhalos];
-    }
-    break;
-  case OP_UNPACK_SINGLE_HALO:
-    break;
-  case OP_UNPACK_ALL_HALOS:
-    break;
-  default:
-    return -1;
-  }
-  return max_nhalos + nhalos_index + 1;
-}
-
-int get_nhalos_chained(op_arg *arg){
-  switch (arg->unpack_method)
-  {
-  case OP_UNPACK_OP2:
-    if(arg->dat->halo_info->max_nhalos > 1){
-      return arg->dat->halo_info->max_nhalos;
-    }
-  case OP_UNPACK_SINGLE_HALO:
-  case OP_UNPACK_ALL_HALOS:
-    return arg->nhalos;
-  
-  default:
-    return -1;
-  }
-}
-
-int is_arg_valid_chained(op_arg* arg, int exec_flag, int dirtybit_val){
-
-  if (arg->opt == 0)
-    return 0;
-
-  if (arg->sent == 1) {
-    printf("Error: Halo exchange already in flight for dat %s\n", arg->dat->name);
-    fflush(stdout);
-    MPI_Abort(OP_MPI_WORLD, 2);
-  }
-
-  if (exec_flag == 0 && arg->idx == -1)
-    return 0;
-
-  arg->sent = 0;
-
-  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == dirtybit_val && (arg->acc == OP_READ || arg->acc == OP_RW)) {
-    if (arg->idx == -1 && exec_flag == 0){
-      return 0;
-    }
-    return 1;
-  }
-  return 0;
-}
 
 void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag, 
                                     int exp_rank_count, int* buf_pos, int* send_sizes, int* total_buf_size, int my_rank) {
@@ -326,33 +241,22 @@ void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag,
   for (int r = 0; r < exp_rank_count; r++) {
     
     buf_pos[r] = arg_size;
-    // printf("r=%d bufpos=%d\n", r, buf_pos[r]);
-
     for(int n = 0; n < nargs; n++){
       buf_start =  arg_size;
       buf_index = 0;
       op_arg* arg = &args[n];
-      // if(is_arg_valid_chained(arg, exec_flag, 1) == 0 || arg->dat->user_data == r)
-      //   continue;
-
-      // arg->dat->user_data = r;  // to avoid double counting
       op_dat dat = arg->dat;
 
-      int nhalos = get_nhalos_chained(arg);
-      // int nonexec_start = get_nonexec_start_chained(arg);
-      // int nonexec_end = get_nonexec_end_chained(arg);
-
+      int nhalos = get_nhalos(arg);
       halo_list exp_list = OP_merged_export_exec_nonexec_list[dat->set->index];
-
       int halo_index = 0;
+
       for(int l = 0; l < nhalos; l++){
         for(int l1 = 0; l1 < 2; l1++){ // 2 is for exec and nonexec levels   
 
           int level_disp = exp_list->disps_by_level[halo_index];
           int rank_disp = exp_list->ranks_disps_by_level[halo_index];
           int disp_in_level = exp_list->disps[rank_disp + r];
-
-          // int level_disp_in_rank = exp_list->level_disps[r * exp_list->num_levels + halo_index];
           int copy_size = exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r];
 
           // printf("gather_data my_rank=%d n=%d set=%s index=%d nhalos=%d copy_size=%d l=%d\n", 
@@ -376,28 +280,6 @@ void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag,
         }
         halo_index++;
       }
-
-      // for(int l = nonexec_start; l < nonexec_end; l++){
-        
-
-      //   int level_disp = exp_list->disps_by_level[l];
-      //   int rank_disp = exp_list->ranks_disps_by_level[l];
-      //   int disp_in_level = exp_list->disps[rank_disp + r];
-
-      //   int level_disp_in_rank = exp_list->level_disps[r * exp_list->num_levels + l];
-      //   int copy_size = exp_list->sizes[exp_list->ranks_disps_by_level[l] + r];
-
-      //   // printf("gather_data my_rank=%d n=%d dat=%s set=%s index=%d nhalos=%d copy_size=%d nonexec_start=%d nonexec_end=%d l=%d buf_start=%d level_disp_in_rank=%d\n", 
-      //   // my_rank, n, arg->dat->name, arg->dat->set->name, arg->dat->set->index, nhalos, copy_size, nonexec_start, nonexec_end, l, buf_start/arg->dat->size, level_disp_in_rank);
-
-      //   int blocks = 1 + ((copy_size - 1) / 192);
-      //   export_halo_gather_chained<<<blocks, threads>>>(export_exec_nonexec_list_d[arg->dat->set->index], arg->data_d, copy_size,
-      //                              arg->dat->size, grp_send_buffer_d, 
-      //                              nhalos, exp_list->num_levels, r, buf_start,
-      //                              level_disp, disp_in_level, 
-      //                              level_disp_in_rank, my_rank);
-      //   prev_size += copy_size * dat->size;
-      // }
       arg_size += prev_size;
       prev_size = 0;
 
@@ -409,10 +291,6 @@ void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag,
     *total_buf_size += send_sizes[r];
     // printf("my_rank=%d r=%d bufpos=%d send_sizes=%d total=%d\n", my_rank, r, buf_pos[r], send_sizes[r], *total_buf_size);
   }
-
-  // for(int n = 0; n < nargs; n++){
-  //   (&args[n])->dat->user_data = -1; // reset flag
-  // }
 }
 #endif
 
@@ -669,23 +547,16 @@ void scatter_data_from_buffer_ptr_cuda_chained(op_arg* args, int nargs, int rank
     for(int n = 0; n < nargs; n++){
       op_arg* arg = &args[n];
       op_dat dat = arg->dat;
-      // if(is_arg_valid_chained(arg, exec_flag, 4) == 0 || arg->dat->user_data == r)
-      //   continue;
-      // arg->dat->user_data = r;
-
-      int nhalos = get_nhalos_chained(arg);
-      int nonexec_start = get_nonexec_start_chained(arg);
-      int nonexec_end = get_nonexec_end_chained(arg);
+      int nhalos = get_nhalos(arg);
       int init = (dat->set->size + 0) * dat->size;
       halo_list imp_list = OP_merged_import_exec_nonexec_list[dat->set->index];
-
       int halo_index = 0;
+
       for(int l = 0; l < nhalos; l++){
         for(int l1 = 0; l1 < 2; l1++){  // 2 is for exec and nonexec levels   
           int disp_by_level = imp_list->disps_by_level[halo_index];
           int disp_in_level = imp_list->disps[imp_list->ranks_disps_by_level[halo_index] + r];
           int copy_size = imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + r];
-
           int data_init = init + (disp_by_level + disp_in_level) * dat->size;
 
           // printf("scatter exec data my_rank=%d n=%d dat=%s set=%s index=%d nhalos=%d copy_size=%d nonexec_start=%d nonexec_end=%d l=%d data_init=%d buf_init=%d\n",
@@ -706,30 +577,7 @@ void scatter_data_from_buffer_ptr_cuda_chained(op_arg* args, int nargs, int rank
         }
         halo_index++;
       }
-
-      // for(int l = nonexec_start; l < nonexec_end; l++){
-
-      //   int disp_by_level = imp_list->disps_by_level[l];
-      //   int disp_in_level = imp_list->disps[imp_list->ranks_disps_by_level[l] + r];
-      //   int copy_size = imp_list->sizes[imp_list->ranks_disps_by_level[l] + r];
-
-      //   int data_init = init + (disp_by_level + disp_in_level) * dat->size;
-      //   // printf("scatter none data my_rank=%d n=%d dat=%s set=%s index=%d nhalos=%d copy_size=%d nonexec_start=%d nonexec_end=%d l=%d data_init=%d buf_init=%d\n",
-      //   // my_rank, n, arg->dat->name, arg->dat->set->name, arg->dat->set->index, nhalos, copy_size, nonexec_start, nonexec_end, l, data_init, buf_init);
-
-      //   scatter_data_from_buffer_ptr_cuda_kernel_chained<<<1 + ((copy_size - 1) / 192), 192, 0, op2_grp_secondary>>>(dat->data_d, grp_recv_buffer_d, 
-      //     data_init, disp_by_level, disp_in_level, buf_init, arg->dat->size / arg->dat->dim, arg->dat->dim, 
-      //     copy_size, my_rank);
-
-      //   buf_init += copy_size * dat->size;
-      // }
     }
-  }
-
-  for(int n = 0; n < nargs; n++){
-    (&args[n])->sent = 2; // set flag to indicate completed comm
-    (&args[n])->dat->dirtybit = 0;
-    (&args[n])->dat->dirty_hd = 2;
   }
 }
 #endif
