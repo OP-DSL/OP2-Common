@@ -118,82 +118,6 @@ int get_nonexec_end(op_arg *arg){
   return max_nhalos + nhalos_index + 1;
 }
 
-int get_nhalos(op_arg *arg){
-  switch (arg->unpack_method)
-  {
-  case OP_UNPACK_OP2:
-    if(arg->dat->halo_info->max_nhalos > 1){
-      return arg->dat->halo_info->max_nhalos;
-    }
-  case OP_UNPACK_SINGLE_HALO:
-  case OP_UNPACK_ALL_HALOS:
-    return arg->nhalos;
-  
-  default:
-    return -1;
-  }
-}
-
-int is_arg_valid(op_arg* arg, int exec_flag){
-
-  if (arg->opt == 0)
-    return 0;
-
-  if (arg->sent == 1) {
-    printf("Error: Halo exchange already in flight for dat %s\n", arg->dat->name);
-    fflush(stdout);
-    MPI_Abort(OP_MPI_WORLD, 2);
-  }
-
-  if (exec_flag == 0 && arg->idx == -1)
-    return 0;
-
-  arg->sent = 0;
-
-  // if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == 1 && (arg->acc == OP_READ || arg->acc == OP_RW)) {
-  if (arg->opt && arg->argtype == OP_ARG_DAT &&  (arg->acc == OP_READ || arg->acc == OP_RW)) {
-    if (arg->idx == -1 && exec_flag == 0){
-      return 0;
-    }
-    return 1;
-  }
-  return 0;
-}
-
-int get_dirty_args(int nargs, op_arg *args, int exec_flag, op_arg* dirty_args){
-  int ndirty_args = 0;
-  for(int i = 0; i < nargs; i++){
-    op_arg* arg = &args[i];
-    if(is_arg_valid(arg, exec_flag) && arg->dat->user_data != 1){
-      dirty_args[ndirty_args++] = *arg;
-    }
-  }
-  for(int i = 0; i < nargs; i++){
-      (&args[i])->dat->user_data = -1;
-  }
-
-  return ndirty_args;
-}
-
-int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id){
-  if(arg->unpack_method == OP_UNPACK_SINGLE_HALO || arg->unpack_method == OP_UNPACK_OP2){
-    if(halo_id != nhalos - 1){
-       return 0;
-    }else{
-      return 1;
-    }
-  }else if(arg->unpack_method == OP_UNPACK_ALL_HALOS){
-    if(is_halo_required_for_set(arg->dat->set, halo_id) == 1){
-      return 1;
-    }else{
-      return 0;
-    }
-  }else{
-    printf("ERROR is_nonexec_halo_required Invalid unpack method\n");
-    return 0;
-  }
-}
-
 halo_list imp_common_list;
 halo_list exp_common_list;
 
@@ -204,7 +128,7 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   op_arg dirty_args[nargs];
-  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args);
+  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
 
   imp_common_list = OP_merged_import_exec_nonexec_list[dirty_args[0].dat->set->index];  //assumption nargs > 0
   exp_common_list = OP_merged_export_exec_nonexec_list[dirty_args[0].dat->set->index];
@@ -243,8 +167,8 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
       op_dat dat = arg->dat;
 
       int nhalos = get_nhalos(arg);
-      int nonexec_start = get_nonexec_start(arg);
-      int nonexec_end = get_nonexec_end(arg);
+      // int nonexec_start = get_nonexec_start(arg);
+      // int nonexec_end = get_nonexec_end(arg);
 
       
       halo_list exp_list = OP_merged_export_exec_nonexec_list[dat->set->index];
@@ -836,7 +760,7 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
   // arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, nhalos_index, max_nhalos);
   
   op_arg dirty_args[nargs];
-  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args);
+  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
 
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
   int prev_exec_size = 0;

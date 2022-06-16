@@ -120,6 +120,10 @@ int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos);
 int op_mpi_add_nhalos_set(op_set set, int nhalos);
 int op_mpi_add_nhalos_map(op_map map, int nhalos);
 int op_mpi_add_nhalos_dat(op_dat dat, int nhalos);
+int get_nhalos(op_arg *arg);
+int is_arg_valid(op_arg* arg, int exec_flag, int dirtybit_val);
+int get_dirty_args(int nargs, op_arg *args, int exec_flag, op_arg* dirty_args, int dirtybit_val);
+int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id);
 
 #ifdef __cplusplus
 }

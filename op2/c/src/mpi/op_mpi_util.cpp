@@ -662,3 +662,79 @@ extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
     MPI_Test(&recv_requests[0],&result,MPI_STATUS_IGNORE);
   }
 }
+
+int get_nhalos(op_arg *arg){
+  switch (arg->unpack_method)
+  {
+  case OP_UNPACK_OP2:
+    if(arg->dat->halo_info->max_nhalos > 1){
+      return arg->dat->halo_info->max_nhalos;
+    }
+  case OP_UNPACK_SINGLE_HALO:
+  case OP_UNPACK_ALL_HALOS:
+    return arg->nhalos;
+  
+  default:
+    return -1;
+  }
+}
+
+int is_arg_valid(op_arg* arg, int exec_flag, int dirtybit_val){
+
+  if (arg->opt == 0)
+    return 0;
+
+  if (arg->sent == 1) {
+    printf("Error: Halo exchange already in flight for dat %s\n", arg->dat->name);
+    fflush(stdout);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
+
+  if (exec_flag == 0 && arg->idx == -1)
+    return 0;
+
+  arg->sent = 0;
+
+  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == dirtybit_val && (arg->acc == OP_READ || arg->acc == OP_RW)){
+    if (arg->idx == -1 && exec_flag == 0){
+      return 0;
+    }
+    return 1;
+  }
+  return 0;
+}
+
+int get_dirty_args(int nargs, op_arg *args, int exec_flag, op_arg* dirty_args, int dirtybit_val){
+  int ndirty_args = 0;
+  for(int i = 0; i < nargs; i++){
+    op_arg* arg = &args[i];
+    if(is_arg_valid(arg, exec_flag, dirtybit_val) && arg->dat->user_data != 1){
+      dirty_args[ndirty_args++] = *arg;
+      arg->dat->user_data = 1;
+    }
+  }
+  for(int i = 0; i < nargs; i++){
+      (&args[i])->dat->user_data = -1;
+  }
+
+  return ndirty_args;
+}
+
+int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id){
+  if(arg->unpack_method == OP_UNPACK_SINGLE_HALO || arg->unpack_method == OP_UNPACK_OP2){
+    if(halo_id != nhalos - 1){
+       return 0;
+    }else{
+      return 1;
+    }
+  }else if(arg->unpack_method == OP_UNPACK_ALL_HALOS){
+    if(is_halo_required_for_set(arg->dat->set, halo_id) == 1){
+      return 1;
+    }else{
+      return 0;
+    }
+  }else{
+    printf("ERROR is_nonexec_halo_required Invalid unpack method\n");
+    return 0;
+  }
+}
