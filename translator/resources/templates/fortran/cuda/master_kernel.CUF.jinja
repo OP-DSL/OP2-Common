@@ -15,10 +15,11 @@ module op2_kernels
     {{const.typ}}, constant{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}_d
 
     {% endfor %}
-    {% for dat in app.dats()|soa %}
-    integer(4) :: op2_dat_{{dat.ptr}}_stride
-    integer(4), constant :: op2_dat_{{dat.ptr}}_stride_d
-
+    {% for loop_ in app.loops() %}
+        {% for dat in loop_.dats|soa %}
+    integer(4) :: op2_{{loop_.kernel}}_dat{{dat.id}}_stride
+    integer(4), constant :: op2_{{loop_.kernel}}_dat{{dat.id}}_stride_d
+        {% endfor %}
     {% endfor %}
 contains
 

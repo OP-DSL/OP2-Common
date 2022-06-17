@@ -87,8 +87,10 @@ class FortranCuda(Scheme):
         ftk.renameKernel(kernel_ast, lambda name: f"{name}_gpu")
         ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}_d")
 
+        loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
+
         def match_soa(arg):
-            return isinstance(arg, OP.ArgDat) and find(app.dats(), lambda dat: arg.dat_ptr == dat.ptr).soa
+            return isinstance(arg, OP.ArgDat) and loop.dat(arg).soa
 
         def skip_atomic_inc(arg):
             return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
@@ -97,11 +99,11 @@ class FortranCuda(Scheme):
             kernel_ast,
             kernel,
             app,
-            lambda arg: f"op2_dat_{arg.dat_ptr}_stride_d",
+            lambda arg: f"op2_{kernel.name}_dat{arg.dat_id}_stride_d",
             match=lambda arg: match_soa(arg) and not skip_atomic_inc(arg),
         )
 
         return str(kernel_ast)
 
 
-# Scheme.register(FortranCuda)
+Scheme.register(FortranCuda)
