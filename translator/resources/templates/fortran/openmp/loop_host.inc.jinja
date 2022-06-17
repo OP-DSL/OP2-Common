@@ -1,19 +1,19 @@
-{%- macro arg_to_pointer(arg, idx, rank1_as_scalar=false) -%}
+{%- macro arg_to_pointer(arg, rank1_as_scalar=false) -%}
     {%- if arg is gbl -%}
-gbl_{{arg.ptr}}
+gbl{{arg.id}}
     {%- elif arg is direct -%}
-dat_{{arg.dat_ptr}}({{"1" if arg.dat_dim == 1 and rank1_as_scalar else ":"}}, n + 1)
+dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 and rank1_as_scalar else ":"}}, n + 1)
     {%- else -%}
-dat_{{arg.dat_ptr}}({{"1" if arg.dat_dim == 1 and rank1_as_scalar else ":"-}}
-                    , map_{{arg.map_ptr}}({{arg.map_idx}}, n + 1) + 1)
+dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 and rank1_as_scalar else ":"-}}
+                    , map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1)
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer_local(arg, idx, rank1_as_scalar=false) -%}
+{%- macro arg_to_pointer_local(arg, rank1_as_scalar=false) -%}
     {%- if arg is indirect or (arg is gbl and arg is reduction) -%}
-arg{{idx}}_local(lane, 1)
+arg{{arg.id}}_local(lane, 1)
     {%- else -%}
-{{arg_to_pointer(arg, idx, rank1_as_scalar)}}
+{{arg_to_pointer(arg, rank1_as_scalar)}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -33,17 +33,17 @@ arg{{idx}}_local(lane, 1)
 #define SIMD_LEN 8
 
 {% endif %}
-{{lh.kernel_func}}
+{{kernel_func}}
 
-subroutine {{lh.kernel.name}}_wrapper2( &
-{% for dat, idx in lh.dats.items() %}
-    dat_{{dat.ptr}}, &
+subroutine {{lh.kernel}}_wrapper2( &
+{% for dat in lh.dats %}
+    dat{{dat.id}}, &
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-    map_{{map.ptr}}, &
+{% for map in lh.maps %}
+    map{{map.id}}, &
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-    gbl_{{arg.ptr}}, &
+{% for arg in lh.args|gbl %}
+    gbl{{arg.id}}, &
 {% endfor %}
     start, &
     end &
@@ -51,43 +51,43 @@ subroutine {{lh.kernel.name}}_wrapper2( &
     implicit none
 
     ! parameters
-{% for dat, idx in lh.dats.items() %}
-    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
+{% for dat in lh.dats %}
+    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-    integer(4), dimension({{map.dim}}, *) :: map_{{map.ptr}}{{"\n" if loop.last}}
+{% for map in lh.maps %}
+    integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
+{% for arg in lh.args|gbl %}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: start, end
 
     ! locals
     integer(4) :: n
-{% if target.config.vectorise and lh.kernel.name %}
+{% if target.config.vectorise %}
     integer(4) :: block, lane, d
 
-    {% for arg, idx in lh.args|indirect %}
-    {{arg.dat_typ}}, dimension(SIMD_LEN, {{arg.dat_dim}}) :: arg{{idx}}_local
+    {% for arg in lh.args|indirect %}
+    {{lh.dat(arg).typ}}, dimension(SIMD_LEN, {{lh.dat(arg).dim}}) :: arg{{arg.id}}_local
     {% endfor %}
-    {% for arg, idx in lh.args|gbl|reduction %}
-    {{arg.typ}}, dimension(SIMD_LEN, {{arg.dim}}) :: arg{{idx}}_local
+    {% for arg in lh.args|gbl|reduction %}
+    {{arg.typ}}, dimension(SIMD_LEN, {{arg.dim}}) :: arg{{arg.id}}_local
     {% endfor %}
 
     block = start
     do while (block + SIMD_LEN <= end)
-    {% for arg, idx in lh.args|inc %}
-        arg{{idx}}_local = 0
+    {% for arg in lh.args|inc %}
+        arg{{arg.id}}_local = 0
     {% endfor %}
 
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-    {% for arg, idx in lh.args|indirect if arg is read or arg is read_write %}
-            arg{{idx}}_local(lane, :) = {{arg_to_pointer(arg, idx)}}
+    {% for arg in lh.args|indirect if arg is read or arg is read_write %}
+            arg{{arg.id}}_local(lane, :) = {{arg_to_pointer(arg)}}
     {% endfor %}
-    {% for arg, idx in lh.args|gbl|reduction if arg is not inc %}
-            arg{{idx}}_local(lane, :) = {{arg_to_pointer(arg, idx)}}
+    {% for arg in lh.args|gbl|reduction if arg is not inc %}
+            arg{{arg.id}}_local(lane, :) = {{arg_to_pointer(arg)}}
     {% endfor %}
         end do
 
@@ -95,9 +95,9 @@ subroutine {{lh.kernel.name}}_wrapper2( &
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-            call {{lh.kernel.name}}_openmp_simd( &
-    {% for arg, idx in lh.args %}
-                {{arg_to_pointer_local(arg, idx, rank1_as_scalar=true)}}{{"," if not loop.last}} &
+            call {{lh.kernel}}_openmp_simd( &
+    {% for arg in lh.args %}
+                {{arg_to_pointer_local(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
             )
         end do
@@ -105,15 +105,15 @@ subroutine {{lh.kernel.name}}_wrapper2( &
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-    {% for arg, idx in lh.args|indirect if arg is not read %}
-            {{arg_to_pointer(arg, idx)}} = {{"%s + " % arg_to_pointer(arg, idx) if arg is inc}}arg{{idx}}_local(lane, :)
+    {% for arg in lh.args|indirect if arg is not read %}
+            {{arg_to_pointer(arg)}} = {{"%s + " % arg_to_pointer(arg) if arg is inc}}arg{{arg.id}}_local(lane, :)
     {% endfor %}
-    {% for arg, idx in lh.args|gbl|reduction %}
+    {% for arg in lh.args|gbl|reduction %}
         {% if arg is inc %}
-            {{arg_to_pointer(arg, idx)}} = {{arg_to_pointer(arg, idx)}} + arg{{idx}}_local(lane, :)
+            {{arg_to_pointer(arg)}} = {{arg_to_pointer(arg)}} + arg{{arg.id}}_local(lane, :)
         {% else %}
-            {{arg_to_pointer(arg, idx)}} = {{arg.access_type.name-}}
-                ({{arg_to_pointer(arg, idx)}}, arg{{idx}}_local(lane, :))
+            {{arg_to_pointer(arg)}} = {{arg.access_type.name-}}
+                ({{arg_to_pointer(arg)}}, arg{{arg.id}}_local(lane, :))
         {% endif %}
     {% endfor %}
         end do
@@ -122,33 +122,33 @@ subroutine {{lh.kernel.name}}_wrapper2( &
     end do
 
     do n = block, end
-        call {{lh.kernel.name}}_openmp( &
-    {% for arg, idx in lh.args %}
-            {{arg_to_pointer(arg, idx, rank1_as_scalar=true)}}{{"," if not loop.last}} &
+        call {{lh.kernel}}_openmp( &
+    {% for arg in lh.args %}
+            {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
         )
     end do
 {% else %}
     do n = start, end
-        call {{lh.kernel.name}}_openmp( &
-    {% for arg, idx in lh.args %}
-            {{arg_to_pointer(arg, idx, rank1_as_scalar=true)}}{{"," if not loop.last}} &
+        call {{lh.kernel}}_openmp( &
+    {% for arg in lh.args %}
+            {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
         )
     end do
 {% endif %}
 end subroutine
 
-subroutine {{lh.kernel.name}}_wrapper( &
+subroutine {{lh.kernel}}_wrapper( &
     name, &
-{% for dat, idx in lh.dats.items() %}
-    dat_{{dat.ptr}}, &
+{% for dat in lh.dats %}
+    dat{{dat.id}}, &
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-    map_{{map.ptr}}, &
+{% for map in lh.maps %}
+    map{{map.id}}, &
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-    gbl_{{arg.ptr}}, &
+{% for arg in lh.args|gbl %}
+    gbl{{arg.id}}, &
 {% endfor %}
     set, &
     args, &
@@ -160,14 +160,14 @@ subroutine {{lh.kernel.name}}_wrapper( &
     ! parameters
     character(kind=c_char, len=*) :: name
 
-{% for dat, idx in lh.dats.items() %}
-    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
+{% for dat in lh.dats %}
+    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-    integer(4), dimension({{map.dim}}, *) :: map_{{map.ptr}}{{"\n" if loop.last}}
+{% for map in lh.maps %}
+    integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
+{% for arg in lh.args|gbl %}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     type(op_set) :: set
     type(op_arg), dimension({{lh.args|length}}) :: args
@@ -186,12 +186,12 @@ subroutine {{lh.kernel.name}}_wrapper( &
     integer(4), dimension(:), pointer :: plan_ncolblk, plan_blkmap, plan_nelems, plan_offset
 {% endif %}
 
-{% for arg, idx in lh.args|gbl|reduction %}
-    {{arg.typ}}, dimension(:), allocatable :: gbl_{{arg.ptr}}_temp{{"\n" if loop.last}}
+{% for arg in lh.args|gbl|reduction %}
+    {{arg.typ}}, dimension(:), allocatable :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
 {% endfor %}
 {% if lh is indirect %}
-#ifdef OP_PART_SIZE_{{lh.kernel_idx}}
-    part_size = OP_PART_SIZE_{{lh.kernel_idx}}
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    part_size = OP_PART_SIZE_{{kernel_idx}}
 #else
     part_size = 0
 #endif
@@ -217,15 +217,15 @@ subroutine {{lh.kernel.name}}_wrapper( &
     num_threads = omp_get_max_threads()
 
 {% endif %}
-{% for arg, idx in lh.args|gbl|reduction %}
-    allocate(gbl_{{arg.ptr}}_temp(num_threads * {{arg.dim|round_up(64)}}))
+{% for arg in lh.args|gbl|reduction %}
+    allocate(gbl{{arg.id}}_temp(num_threads * {{arg.dim|round_up(64)}}))
     {% if arg is inc %}
-    gbl_{{arg.ptr}}_temp = 0
+    gbl{{arg.id}}_temp = 0
     {% else %}
 
     do thread = 1, num_threads
         start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
-        gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}}) = gbl_{{arg.ptr}}
+        gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}) = gbl{{arg.id}}
     end do
     {% endif %}
 
@@ -236,30 +236,30 @@ subroutine {{lh.kernel.name}}_wrapper( &
         start = (set%setptr%size * (thread - 1)) / num_threads
         end = (set%setptr%size * thread) / num_threads - 1
 
-        call {{lh.kernel.name}}_wrapper2( &
-    {% for dat, idx in lh.dats.items() %}
-            dat_{{dat.ptr}}, &
+        call {{lh.kernel}}_wrapper2( &
+    {% for dat in lh.dats %}
+            dat{{dat.id}}, &
     {% endfor %}
-    {% for arg, idx in lh.args|gbl %}
+    {% for arg in lh.args|gbl %}
         {% if arg is reduction %}
-            gbl_{{arg.ptr}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
+            gbl{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
         {% else %}
-            gbl_{{arg.ptr}}, &
+            gbl{{arg.id}}, &
         {% endif %}
     {% endfor %}
             start, &
             end &
         )
     end do
-{% for arg, idx in lh.args|gbl|reduction %}
+{% for arg in lh.args|gbl|reduction %}
 
     do thread = 1, num_threads
         start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
     {% if arg is inc %}
-        gbl_{{arg.ptr}} = gbl_{{arg.ptr}} + gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}})
+        gbl{{arg.id}} = gbl{{arg.id}} + gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}})
     {% else %}
-        gbl_{{arg.ptr}} = {{arg.access_type.name-}}
-            (gbl_{{arg.ptr}}, gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}}))
+        gbl{{arg.id}} = {{arg.access_type.name-}}
+            (gbl{{arg.id}}, gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}))
     {% endif %}
     end do
 {% endfor %}
@@ -280,18 +280,18 @@ subroutine {{lh.kernel.name}}_wrapper( &
             num_elem = plan_nelems(block_id)
             offset = plan_offset(block_id)
 
-            call {{lh.kernel.name}}_wrapper2( &
-    {% for dat, idx in lh.dats.items() %}
-                dat_{{dat.ptr}}, &
+            call {{lh.kernel}}_wrapper2( &
+    {% for dat in lh.dats %}
+                dat{{dat.id}}, &
     {% endfor %}
-    {% for map, idx in lh.maps.items() %}
-                map_{{map.ptr}}, &
+    {% for map in lh.maps %}
+                map{{map.id}}, &
     {% endfor %}
-    {% for arg, idx in lh.args|gbl %}
+    {% for arg in lh.args|gbl %}
         {% if arg is reduction %}
-                gbl_{{arg.ptr}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
+                gbl{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
         {% else %}
-                gbl_{{arg.ptr}}, &
+                gbl{{arg.id}}, &
         {% endif %}
     {% endfor %}
                 offset, &
@@ -306,15 +306,15 @@ subroutine {{lh.kernel.name}}_wrapper( &
             cycle
         end if
     {% endif %}
-    {% for arg, idx in lh.args|gbl|reduction %}
+    {% for arg in lh.args|gbl|reduction %}
 
         do thread = 1, num_threads
             start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
         {% if arg is inc %}
-            gbl_{{arg.ptr}} = gbl_{{arg.ptr}} + gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}})
+            gbl{{arg.id}} = gbl{{arg.id}} + gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}})
         {% else %}
-            gbl_{{arg.ptr}} = {{arg.access_type.name-}}
-                (gbl_{{arg.ptr}}, gbl_{{arg.ptr}}_temp(start : start + {{arg.dim - 1}}))
+            gbl{{arg.id}} = {{arg.access_type.name-}}
+                (gbl{{arg.id}}, gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}))
         {% endif %}
         end do
     {% endfor %}
@@ -322,11 +322,11 @@ subroutine {{lh.kernel.name}}_wrapper( &
 {% endif %}
 end subroutine
 
-subroutine {{lh.kernel.name}}_host( &
+subroutine {{lh.kernel}}_host( &
     name, &
     set, &
-{% for arg, idx in lh.args %}
-    arg{{idx}}{{"," if not loop.last}} & ! {{lh.kernel.params[idx][0]}}
+{% for arg in lh.args %}
+    arg{{arg.id}}{{"," if not loop.last}} &
 {% endfor %}
 )
     implicit none
@@ -335,8 +335,8 @@ subroutine {{lh.kernel.name}}_host( &
     character(kind=c_char, len=*) :: name
     type(op_set) :: set
 
-{% for arg, idx in lh.args %}
-    type(op_arg) :: arg{{idx}}
+{% for arg in lh.args %}
+    type(op_arg) :: arg{{arg.id}}
 {% endfor %}
 
     ! locals
@@ -347,27 +347,26 @@ subroutine {{lh.kernel.name}}_host( &
 
     integer(4) :: set_size
 
-{% for dat, idx in lh.dats.items() %}
-    {{dat.typ}}, pointer, dimension(:) :: dat_{{dat.ptr}}{{"\n" if loop.last}}
+{% for dat in lh.dats %}
+    {{dat.typ}}, pointer, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-    integer(4), pointer, dimension(:) :: map_{{map.ptr}}{{"\n" if loop.last}}
+{% for map in lh.maps %}
+    integer(4), pointer, dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-    {{arg.typ}}, pointer, dimension(:) :: gbl_{{arg.ptr}}{{"\n" if loop.last}}
+{% for arg in lh.args|gbl %}
+    {{arg.typ}}, pointer, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     real(8) :: start_time, end_time
     real(4) :: transfer
 
-{% for arg, idx in lh.args %}
-    {% set sarg = "arg%d" % idx %}
-    args({{loop.index}}) = {{sarg}}
+{% for arg in lh.args %}
+    args({{loop.index}}) = arg{{arg.id}}
 {% endfor %}
 
     num_dats_indirect = {{lh.dats|indirect(lh)|length}}
     dats_indirect = (/
-    {%- for arg, idx in lh.args -%}
-        {{lh.dats|indirect(lh)|index(lh.findDat(arg.dat_ptr)[0]) if arg is indirect else "-1"}}
+    {%- for arg in lh.args -%}
+        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is indirect else "-1"}}
         {{-", " if not loop.last}}
     {%- endfor -%}
     /)
@@ -375,26 +374,27 @@ subroutine {{lh.kernel.name}}_host( &
     call op_timers_core(start_time)
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
-{% for dat, idx in lh.dats.items() %}
-    call c_f_pointer(arg{{idx}}%data, dat_{{dat.ptr}}, (/arg{{idx}}%dim * getsetsizefromoparg(arg{{idx}})/))
+{% for dat in lh.dats %}
+    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat.dim}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
         {{-"\n" if loop.last}}
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-    call c_f_pointer(arg{{idx}}%map_data, map_{{map.ptr}}, (/set%setptr%size * {{map.dim}}/)){{"\n" if loop.last}}
+{% for map in lh.maps %}
+    call c_f_pointer(arg{{map.arg_id}}%map_data, map{{map.id}}, (/getmapdimfromoparg(arg{{map.arg_id}}), set%setptr%size/))
+        {{-"\n" if loop.last}}
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-    call c_f_pointer(arg{{idx}}%data, gbl_{{arg.ptr}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
+{% for arg in lh.args|gbl %}
+    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
 {% endfor %}
-    call {{lh.kernel.name}}_wrapper( &
+    call {{lh.kernel}}_wrapper( &
         name, &
-{% for dat, idx in lh.dats.items() %}
-        dat_{{dat.ptr}}, &
+{% for dat in lh.dats %}
+        dat{{dat.id}}, &
 {% endfor %}
-{% for map, idx in lh.maps.items() %}
-        map_{{map.ptr}}, &
+{% for map in lh.maps %}
+        map{{map.id}}, &
 {% endfor %}
-{% for arg, idx in lh.args|gbl %}
-        gbl_{{arg.ptr}}, &
+{% for arg in lh.args|gbl %}
+        gbl{{arg.id}}, &
 {% endfor %}
         set, &
         args, &
@@ -406,8 +406,8 @@ subroutine {{lh.kernel.name}}_host( &
         call op_mpi_wait_all(size(args), args)
     end if
 
-{% for arg, idx in lh.args|gbl|reduction %}
-    call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{idx}}, arg{{idx}}%data){{"\n" if loop.last}}
+{% for arg in lh.args|gbl|reduction %}
+    call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{arg.id}}, arg{{arg.id}}%data){{"\n" if loop.last}}
 {% endfor %}
     call op_mpi_set_dirtybit(size(args), args)
     call op_timers_core(end_time)
@@ -415,5 +415,5 @@ subroutine {{lh.kernel.name}}_host( &
     ! todo: review kernel transfer calculation
     transfer = 0.0
 
-    call setkerneltime({{lh.kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
+    call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
 end subroutine

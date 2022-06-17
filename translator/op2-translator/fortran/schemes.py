@@ -51,7 +51,7 @@ class FortranOpenMP(Scheme):
         ftk.renameConsts(kernel_ast2, app, lambda const: f"op2_const_{const}")
 
         def match_indirect(arg):
-            return isinstance(arg, OP.ArgDat) and arg.map_ptr is not None
+            return isinstance(arg, OP.ArgDat) and arg.map_id is not None
 
         def match_gbl_reduction(arg):
             return isinstance(arg, OP.ArgGbl) and arg.access_type in [
@@ -71,7 +71,7 @@ class FortranOpenMP(Scheme):
         return str(kernel_ast) + "\n\n" + str(kernel_ast2)
 
 
-# Scheme.register(FortranOpenMP)
+Scheme.register(FortranOpenMP)
 
 
 class FortranCuda(Scheme):
