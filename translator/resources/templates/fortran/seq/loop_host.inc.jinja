@@ -42,17 +42,17 @@ subroutine {{lh.kernel}}_wrapper( &
 
     ! parameters
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
+    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
     integer(4), dimension(:, :) :: map{{map.id}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    {{arg.typ}}, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: set_size
     type(op_set) :: set
-    type(op_arg), dimension(:) :: args
+    type(op_arg), dimension({{lh.args|length}}) :: args
 
     ! locals
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
@@ -134,11 +134,12 @@ subroutine {{lh.kernel}}_host( &
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
 {% for dat in lh.dats %}
-    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/arg{{dat.arg_id}}%dim, getsetsizefromoparg(arg{{dat.arg_id}})/))
+    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat.dim}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
-    call c_f_pointer(arg{{map.arg_id}}%map_data, map{{map.id}}, (/getmapdimfromoparg(arg{{map.arg_id}}), set%setptr%size/)){{"\n" if loop.last}}
+    call c_f_pointer(arg{{map.arg_id}}%map_data, map{{map.id}}, (/getmapdimfromoparg(arg{{map.arg_id}}), set%setptr%size/))
+        {{-"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
     call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
