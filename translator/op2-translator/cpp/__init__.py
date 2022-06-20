@@ -37,9 +37,15 @@ class Cpp(Lang):
             path, args=args, options=clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
         )
 
-        error = next(iter(translation_unit.diagnostics), None)
-        if error:
-            raise ParseError(error.spelling, cpp.parser.parseLocation(error))
+        diagnostic = next(iter(translation_unit.diagnostics), None)
+
+        if diagnostic.severity >= clang.cindex.Diagnostic.Error:
+            raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
+        else:
+            print(
+                f"Clang diagnostic, severity {diagnostic.severity} at "
+                f"{cpp.parser.parseLocation(diagnostic)}: {diagnostic.spelling}"
+            )
 
         return translation_unit
 
