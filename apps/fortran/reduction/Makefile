@@ -3,7 +3,7 @@ include ../../../makefiles/common.mk
 APP_NAME := reduction
 APP_SRC := reduction.F90
 
-VARIANT_FILTER_OUT := $(APP_NAME)_mpi_%
+VARIANT_FILTER_OUT := mpi_%
 
 include ../../../makefiles/f_app.mk
 
