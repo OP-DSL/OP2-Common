@@ -9,22 +9,19 @@ FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
 APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%_op.F90)
 
-BASE_VARIANTS := seq genseq vec openmp cuda
+BASE_VARIANTS := seq genseq openmp cuda
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
 
+BUILDABLE_VARIANTS :=
+
 ifeq ($(HAVE_F),true)
-  BUILDABLE_VARIANTS := seq genseq
+  BUILDABLE_VARIANTS += seq genseq
 
   ifeq ($(F_HAS_OMP),true)
-    BUILDABLE_VARIANTS += openmp # vec
+    BUILDABLE_VARIANTS += openmp
   endif
-
-  # TODO/openmp4 add omp declare target
-  # ifeq ($(F_HAS_OMP_OFFLOAD),true)
-  #   BUILDABLE_VARIANTS += openmp4
-  # endif
 
   ifeq ($(F_HAS_CUDA),true)
     BUILDABLE_VARIANTS += cuda
@@ -35,8 +32,6 @@ ifeq ($(HAVE_F),true)
   endif
 endif
 
-BUILDABLE_VARIANTS := $(foreach variant,$(BUILDABLE_VARIANTS),$(APP_NAME)_$(variant))
-
 VARIANT_FILTER ?= %
 VARIANT_FILTER_OUT ?=
 
@@ -45,24 +40,28 @@ BUILDABLE_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
 
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
   ifneq ($(HAVE_HDF5_SEQ),true)
-    BUILDABLE_VARIANTS := $(filter $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
+    BUILDABLE_VARIANTS := $(filter mpi_%,$(BUILDABLE_VARIANTS))
   endif
 
   ifneq ($(HAVE_HDF5_PAR),true)
-    BUILDABLE_VARIANTS := $(filter-out $(APP_NAME)_mpi_%,$(BUILDABLE_VARIANTS))
+    BUILDABLE_VARIANTS := $(filter-out mpi_%,$(BUILDABLE_VARIANTS))
   endif
 endif
 
 ifneq ($(MAKECMDGOALS),clean)
-  $(info Buildable app variants: $(BUILDABLE_VARIANTS))
+  $(info Buildable app variants for $(APP_NAME): $(BUILDABLE_VARIANTS))
   $(info )
 endif
 
 .PHONY: all clean
 
-all: $(BUILDABLE_VARIANTS)
+define ALL_template =
+all: $(foreach variant,$(BUILDABLE_VARIANTS),$(APP_NAME)_$(variant))
+endef
 
-# Only define the clean rul on first include of this makefile
+$(eval $(call ALL_template))
+
+# Only define the clean rule on first include of this makefile
 ifeq ($(words $(filter %/f_app.mk,$(MAKEFILE_LIST))),1)
 clean:
 	-$(RM) $(foreach variant,$(ALL_VARIANTS),*_$(variant))
@@ -116,9 +115,11 @@ define RULE_template =
 $(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
 endef
 
-$(eval $(call RULE_template, seq,,                                           SEQ,     MPI,))
-$(eval $(call RULE_template, genseq,,                                        SEQ,     MPI,))
-$(eval $(call RULE_template, vec,     $(OMP_FFLAGS) -DVECTORIZE,             SEQ,     MPI,))
-$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS),                         OPENMP,  MPI,))
-$(eval $(call RULE_template, openmp4, $(OMP_OFFLOAD_FFLAGS) -DOP2_WITH_OMP4, OPENMP4,    ,))
-$(eval $(call RULE_template, cuda,    $(CUDA_FFLAGS),                        CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))
+$(eval $(call RULE_template, seq,,                    SEQ,     MPI,))
+$(eval $(call RULE_template, genseq,,                 SEQ,     MPI,))
+$(eval $(call RULE_template, openmp,  $(OMP_FFLAGS),  OPENMP,  MPI,))
+$(eval $(call RULE_template, cuda,    $(CUDA_FFLAGS), CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))
+
+# Reset optional input variables for following includes of this Makefile
+VARIANT_FILTER := %
+VARIANT_FILTER_OUT :=
