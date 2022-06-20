@@ -98,6 +98,8 @@ def insertStride(
 
 
 def preprocess(source: str, path: Path, include_dirs: Set[Path], defines: List[str]) -> str:
+    return source
+
     preprocessor = pcpp.Preprocessor()
     preprocessor.line_directive = None
 

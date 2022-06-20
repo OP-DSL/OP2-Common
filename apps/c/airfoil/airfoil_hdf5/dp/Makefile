@@ -1,11 +1,10 @@
-APP_NAME := airfoil
+include ../../../../../makefiles/common.mk
 
-APP_ENTRY := $(APP_NAME).cpp
-APP_ENTRY_MPI := $(APP_ENTRY)
+APP_NAME := airfoil
+APP_SRC := airfoil.cpp
 
 OP2_LIBS_WITH_HDF5 := true
 
-include ../../../../../makefiles/common.mk
 include ../../../../../makefiles/c_app.mk
 
 .PHONY: clean_convert_mesh
