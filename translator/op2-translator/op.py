@@ -233,7 +233,7 @@ class Loop:
 
     def optIdx(self, arg: Arg) -> Optional[int]:
         idx = 0
-        for arg2, _ in self.args:
+        for arg2 in self.args:
             if arg2 == arg:
                 break
 
