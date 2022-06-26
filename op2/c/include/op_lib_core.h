@@ -210,7 +210,6 @@ typedef struct {
   void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
   char *aug_data;   /* augmented data on host */
   int user_data;    /* custom user flag */
-  op_halo_info halo_info;
 } op_dat_core;
 
 typedef op_dat_core *op_dat;

@@ -651,11 +651,6 @@ int op_mpi_add_nhalos_map(op_map map, int nhalos){
   return 1;
 }
 
-int op_mpi_add_nhalos_dat(op_dat dat, int nhalos){
-  op_mpi_add_nhalos_set(dat->set, nhalos);
-  return op_mpi_add_nhalos(dat->halo_info, nhalos);
-}
-
 extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
   if (recv_neigh_list.size()>0) {
     int result;
@@ -667,9 +662,6 @@ int get_nhalos(op_arg *arg){
   switch (arg->unpack_method)
   {
   case OP_UNPACK_OP2:
-    if(arg->dat->halo_info->max_nhalos > 1){
-      return arg->dat->halo_info->max_nhalos;
-    }
   case OP_UNPACK_SINGLE_HALO:
   case OP_UNPACK_ALL_HALOS:
     return arg->nhalos;

@@ -551,23 +551,6 @@ void op_wait_all(op_arg *arg) {
     // op_mpi_barrier();
     // op_timers_core(&ca_c4, &ca_t4);
     // halo_exch_time += ca_t4 - ca_t3;
-    #ifdef COMM_AVOID
-
-    // op_timers_core(&ca_c1, &ca_t1);
-    // op_unpack_merged_single_dat(arg);
-
-    // op_mpi_barrier();
-    // op_timers_core(&ca_c2, &ca_t2);
-    // unpack_time += ca_t2 - ca_t1;
-    // if(arg->unpack_method == OP_UNPACK_MERGED_SINGLE_DAT){
-    //   op_unpack_merged_single_dat(arg);
-    //   // op_unpack_exec_new(arg);
-    //   // op_unpack_nonexec_new(arg);
-    // }else if(arg->nhalos > 0 || arg->dat->halo_info->nhalos_count > 1){
-    //   op_unpack_exec(arg);
-    //   op_unpack_nonexec(arg);
-    // }
-    #endif
 
     if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
       int my_rank;

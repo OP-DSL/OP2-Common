@@ -503,9 +503,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
   dat->aug_data = new_aug_data;
 
-  dat->halo_info = (op_halo_info)op_malloc(sizeof(op_halo_info_core));
-  op_init_halo_info(dat->halo_info);
-
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry *item;
 
@@ -619,7 +616,6 @@ void op_exit_core() {
       free((item->dat)->data);
     free((char *)(item->dat)->name);
     free((char *)(item->dat)->type);
-    op_free_halo_info(item->dat->halo_info);
     TAILQ_REMOVE(&OP_dat_list, item, entries);
     free(item->dat);
     free(item);
@@ -739,19 +735,8 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-
-    // op_backtrace();
-    //   printf("augdata core dat=%s set=%s \n", dat->name, dat->set->name);
-    // printf("augdata core dat=%s set=%s idx=%d map=%p\n", dat->name, dat->set->name, idx,  arg.map_data_d);
-    //  printf("augdata core dat=%s set=%s idx=%d dat=%p\n", dat->name, dat->set->name, idx,  arg.data_d);
-
     arg.map_data_d = (idx == -1 ? NULL : map->map_d);
-
-// #ifdef COMM_AVOID
-//     arg.map_data = (idx == -1 ? NULL : map->aug_maps[dat->halo_info->nhalos_indices[dat->halo_info->max_nhalos]]);
-// #else
     arg.map_data = (idx == -1 ? NULL : map->map);
-// #endif
   } else {
     /* set default values */
     arg.size = -1;
@@ -924,11 +909,11 @@ op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int di
     arg.data = dat->data;
     arg.data_d = dat->data_d;
   #ifdef COMM_AVOID_CUDA
-    arg.map_data_d = map == NULL ? NULL : map->aug_maps_d[dat->halo_info->nhalos_indices[max_map_nhalos]];
+    arg.map_data_d = map == NULL ? NULL : map->aug_maps_d[dat->set->halo_info->nhalos_indices[max_map_nhalos]];
   #else
     arg.map_data_d = (idx == -1 ? NULL : map->map_d);
   #endif
-    arg.map_data = map == NULL ? NULL : map->aug_maps[dat->halo_info->nhalos_indices[max_map_nhalos]];
+    arg.map_data = map == NULL ? NULL : map->aug_maps[dat->set->halo_info->nhalos_indices[max_map_nhalos]];
   } else {
     /* set default values */
     arg.size = -1;
