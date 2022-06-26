@@ -1248,6 +1248,22 @@ void prepare_aug_sets(){
     for(int i = 0; i < max_level; i++){
       set->core_sizes[i] = 0;
     }
+
+    op_dat_entry *item;
+    int d = -1; // d is just simply the tag for mpi comms
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+      op_dat dat = item->dat;
+      if (compare_sets(set, dat->set) == 1) {
+        dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, max_level * sizeof(int));
+        dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, max_level * sizeof(int));
+        // printf("prepare_aug_sets set=%s exec_levels=%d\n", set->name, max_level);
+
+        for(int i = 0; i < max_level; i++){
+          dat->exec_dirtybits[i] = -1;
+          dat->nonexec_dirtybits[i] = -1;
+        }
+      }
+    }
   }
 }
 
@@ -2983,6 +2999,7 @@ void op_halo_create_comm_avoid() {
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
   // start_time(my_rank);
   step9_halo(num_halos, part_range, my_rank, comm_size);
+  // step9(part_range, my_rank, comm_size);
   // stop_time(my_rank, "step9");
    
 

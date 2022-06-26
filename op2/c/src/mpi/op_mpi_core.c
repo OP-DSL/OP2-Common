@@ -2180,6 +2180,15 @@ static void set_dirtybit(op_arg *arg, int hd) {
     // printf("set_dirtybit argdat=%s\n", arg->dat->name);
     dat->dirtybit = 1;
     dat->dirty_hd = hd;
+
+#ifdef COMM_AVOID
+    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+      dat->exec_dirtybits[i] = 1;
+      if(is_halo_required_for_set(dat->set, i) == 1){
+        dat->nonexec_dirtybits[i] = 1;
+      }
+    }
+#endif
   }
 }
 
@@ -4453,6 +4462,15 @@ void set_dat_dirty(op_arg* arg){
     // printf("set_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     dat->dirtybit = 1;
     dat->dirty_hd = 2;
+  }
+}
+
+void set_dat_dirtybit(op_arg* arg, int nhalos){
+  op_dat dat = arg->dat;
+  if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
+    // printf("set_dat_dirtybit dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    dat->exec_dirtybits[nhalos - 1] = 1;
+    dat->nonexec_dirtybits[nhalos - 1] = 1;
   }
 }
 

@@ -72,6 +72,12 @@ void op_backtrace1(op_dat dat) {
   }
 }
 
+void print_array_1(int* arr, int size, const char* name, int my_rank){
+  for(int i = 0; i < size; i++){
+    printf("array my_rank=%d name=%s size=%d value[%d]=%d\n", my_rank, name, size, i, arr[i]);
+  }
+}
+
 double pack_time = 0.0, unpack_time = 0.0, halo_exch_time = 0.0;
 double ca_c1,ca_c2,ca_c3,ca_c4,ca_t1,ca_t2,ca_t3,ca_t4;
 #ifdef COMM_AVOID
@@ -80,7 +86,7 @@ halo_list imp_common_list;
 halo_list exp_common_list;
 
 void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
-
+  // printf("test1new exec my_rank\n");
   int my_rank;
   // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
@@ -124,21 +130,23 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
       int halo_index = 0;
       
       for(int l = 0; l < nhalos; l++){
-        for(int l1 = 0; l1 < 2; l1++){ // 2 is for exec and nonexec levels   
-          int level_disp = exp_list->disps_by_level[halo_index];
-          int rank_disp = exp_list->ranks_disps_by_level[halo_index];
-          int disp_in_level = exp_list->disps[rank_disp + r];
+        for(int l1 = 0; l1 < 2; l1++){ // 2 is for exec and nonexec levels
+          if((l1 == 0 && dat->exec_dirtybits[l] == 1) || (l1 == 1 && dat->nonexec_dirtybits[l] == 1)){   
+            int level_disp = exp_list->disps_by_level[halo_index];
+            int rank_disp = exp_list->ranks_disps_by_level[halo_index];
+            int disp_in_level = exp_list->disps[rank_disp + r];
 
-          for (int i = 0; i < exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r]; i++) {
-            set_elem_index = exp_list->list[level_disp + disp_in_level + i];
-            buf_index = prev_size + i * dat->size;
-            memcpy(&grp_send_buffer[arg_size + buf_index],
-                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-            // printf("test1new exec my_rank=%d arg=%d level=%d prev_size=%d buf_index=%d ( disp1=%d i=%d size=%d) halo_index=%d exp_list=%p\n", 
-            // my_rank, n, l, prev_size / dat->size, arg_size / dat->size + buf_index / dat->size, level_disp_in_rank / dat->size, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r],
-            // halo_index, exp_list);
+            for (int i = 0; i < exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r]; i++) {
+              set_elem_index = exp_list->list[level_disp + disp_in_level + i];
+              buf_index = prev_size + i * dat->size;
+              memcpy(&grp_send_buffer[arg_size + buf_index],
+                  (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+              // printf("test1new exec my_rank=%d arg=%d level=%d prev_size=%d buf_index=%d (i=%d size=%d) halo_index=%d exp_list=%p\n", 
+              // my_rank, n, l, prev_size / dat->size, arg_size / dat->size + buf_index / dat->size, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r],
+              // halo_index, exp_list);
+            }
+            prev_size += exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r] * dat->size;
           }
-          prev_size += exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r] * dat->size;
           if(is_halo_required_for_set(dat->set, l) == 1 && l1 == 0){
             halo_index++;
           }
@@ -178,8 +186,10 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
       int halo_index = 0;
 
       for(int l1 = 0; l1 < nhalos; l1++){
-        for(int l2 = 0; l2 < 2; l2++){ // 2 is for exec and nonexec levels   
-          imp_size += imp_list->level_sizes[i * imp_list->num_levels + halo_index] * arg->dat->size;
+        for(int l2 = 0; l2 < 2; l2++){ // 2 is for exec and nonexec levels
+          if((l2 == 0 && dat->exec_dirtybits[l1] == 1) || (l2 == 1 && dat->nonexec_dirtybits[l1] == 1)){   
+            imp_size += imp_list->level_sizes[i * imp_list->num_levels + halo_index] * arg->dat->size;
+          }
           if(is_halo_required_for_set(dat->set, l1) == 1 && l2 == 0){
             halo_index++;
           }
@@ -206,6 +216,7 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 #endif
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
+  // printf("op_exchange_halo\n");
   // op_mpi_barrier();
   // op_timers_core(&ca_c1, &ca_t1);
   op_dat dat = arg->dat;
@@ -227,15 +238,19 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   if (exec_flag == 0 && arg->idx == -1)
     return;
 
-  // int my_rank;
-  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   arg->sent = 0; // reset flag
 
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
+#ifdef COMM_AVOID
+      (dat->exec_dirtybits[0] == 1)) {
+#else
       (dat->dirtybit == 1)) {
+#endif
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
@@ -360,7 +375,22 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       // printf("rxtxnonexec org my_rank=%d dat=%s r=%d recevd=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes[i]);
     }
     // clear dirty bit
+#ifdef COMM_AVOID
+    // dat->exec_dirtybits[0] = 0;
+    // dat->nonexec_dirtybits[0] = 0;
+    // print_array_1(dat->exec_dirtybits, dat->set->halo_info->max_nhalos, "execb", my_rank);
+    // print_array_1(dat->nonexec_dirtybits, dat->set->halo_info->max_nhalos, "nonexecb", my_rank);
+    unset_dirtybit(arg);
+    // printf("here0 dat=%s\n", dat->name);
+    // print_array_1(dat->exec_dirtybits, dat->set->halo_info->max_nhalos, "execa", my_rank);
+    // print_array_1(dat->nonexec_dirtybits, dat->set->halo_info->max_nhalos, "nonexeca", my_rank);
+    if(are_dirtybits_clear(arg) == 1){
+      dat->dirtybit = 0;
+      // printf("here dat=%s\n", dat->name);
+    }
+#else
     dat->dirtybit = 0;
+#endif
     arg->sent = 1;
   }
 
@@ -393,12 +423,16 @@ void op_unpack_merged_single_dat_chained(int nargs, op_arg *args, int exec_flag)
       int halo_index = 0;
 
       for(int l = 0; l < nhalos; l++){
-        for(int l1 = 0; l1 < 2; l1++){  // 2 is for exec and nonexec levels   
-          memcpy(&(dat->data[init + (imp_list->disps_by_level[halo_index] + imp_list->disps[imp_list->ranks_disps_by_level[halo_index] + i]) * dat->size]), 
-                &(grp_recv_buffer[prev_exec_size]),
-                                dat->size * imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + i]);
+        for(int l1 = 0; l1 < 2; l1++){  // 2 is for exec and nonexec levels
 
-          prev_exec_size += imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + i] * dat->size;
+          if((l1 == 0 && dat->exec_dirtybits[l] == 1) || (l1 == 1 && dat->nonexec_dirtybits[l] == 1)){
+            memcpy(&(dat->data[init + (imp_list->disps_by_level[halo_index] + imp_list->disps[imp_list->ranks_disps_by_level[halo_index] + i]) * dat->size]), 
+              &(grp_recv_buffer[prev_exec_size]),
+                              dat->size * imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + i]);
+
+            prev_exec_size += imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + i] * dat->size;
+          } 
+          
 
           // printf("op_unpack_merged_single_dat1 called dat=%s set=%s num_levels=%d nhalos=%d imp_disp=%d prev_exec_size=%d\n", 
           //       arg->dat->name, arg->dat->set->name, imp_list->num_levels, nhalos, imp_disp, prev_exec_size);
@@ -518,6 +552,8 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   // double ca_c1,ca_c2,ca_t1,ca_t2;
   // op_timers_core(&ca_c1, &ca_t1);
 #ifdef COMM_AVOID
+  int my_rank;
+  op_rank(&my_rank);
   MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
                 &grp_send_requests[0], MPI_STATUSES_IGNORE);
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
@@ -529,7 +565,17 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   op_unpack_merged_single_dat_chained(ndirty_args, dirty_args, exec_flag);
   for (int n = 0; n < ndirty_args; n++) {
       dirty_args[n].sent = 2; // set flag to indicate completed comm
-      dirty_args[n].dat->dirtybit = 0;
+
+      // print_array_1(dirty_args[n].dat->exec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
+      // print_array_1(dirty_args[n].dat->nonexec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
+      unset_dirtybit(&dirty_args[n]);
+      // print_array_1(dirty_args[n].dat->exec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
+      // print_array_1(dirty_args[n].dat->nonexec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
+      if(are_dirtybits_clear(&dirty_args[n]) == 1){
+        dirty_args[n].dat->dirtybit = 0;
+        // printf("here1 dat=%s\n", dirty_args[n].dat->name);
+      }
+      
       dirty_args[n].dat->dirty_hd = device;
   }
 #endif

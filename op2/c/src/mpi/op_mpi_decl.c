@@ -141,6 +141,15 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   for(int l = 0; l < num_levels; l++){
     halo_size += OP_aug_import_nonexec_lists[l][set->index]->size;
   }
+
+  dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, exec_levels * sizeof(int));
+  dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, exec_levels * sizeof(int));
+
+  for(int i = 0; i < exec_levels; i++){
+    dat->exec_dirtybits[i] = -1;
+    dat->nonexec_dirtybits[i] = -1;
+  }
+
   
   // initialize data bits to 0
   //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);

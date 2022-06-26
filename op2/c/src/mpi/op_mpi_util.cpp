@@ -617,6 +617,7 @@ int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos){
 
   if(nhalos >= halo_info->nhalos_indices_cap){
     halo_info->nhalos_indices = (int *)xrealloc(halo_info->nhalos_indices, (halo_info->nhalos_indices_cap + 10) * sizeof(int));
+    halo_info->nhalos_bits = (int *)xrealloc(halo_info->nhalos_bits, (halo_info->nhalos_indices_cap + 10) * sizeof(int));
     halo_info->nhalos_indices_cap += 10;
   }
 
@@ -633,7 +634,7 @@ int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos){
     halo_info->nhalos_indices[halo_info->nhalos[i]] = i;
   }
 
-  halo_info->nhalos_bits[nhalos - 1] = 1; //todo: realloc array work
+  halo_info->nhalos_bits[nhalos - 1] = 1;
 
   // printf("op_mpi_add_nhalos halo_info->max_nhalos=%d\n", halo_info->max_nhalos);
   return 1;
@@ -728,5 +729,34 @@ int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id){
   }else{
     printf("ERROR is_nonexec_halo_required Invalid unpack method\n");
     return 0;
+  }
+}
+
+int are_dirtybits_clear(op_arg *arg){
+  for(int i = 0; i < arg->dat->set->halo_info->max_nhalos; i++){
+    if(arg->dat->exec_dirtybits[i] == 1 || 
+    is_halo_required_for_set(arg->dat->set, i) == 1 && arg->dat->nonexec_dirtybits[i] == 1){
+      return 0;
+    }
+  }
+  return 1;
+}
+
+void unset_dirtybit(op_arg *arg){
+  int nhalos = get_nhalos(arg);
+  if(arg->unpack_method == OP_UNPACK_SINGLE_HALO || arg->unpack_method == OP_UNPACK_OP2){
+    for(int i = 0; i < nhalos; i++){
+      arg->dat->exec_dirtybits[i] = 0;
+    }
+    arg->dat->nonexec_dirtybits[nhalos - 1] = 0;
+  }else if(arg->unpack_method == OP_UNPACK_ALL_HALOS){
+    for(int i = 0; i < nhalos; i++){
+      arg->dat->exec_dirtybits[i] = 0;
+      if(is_halo_required_for_set(arg->dat->set, i) == 1){
+        arg->dat->nonexec_dirtybits[i] = 0;
+      }
+    }
+  }else{
+    printf("ERROR is_nonexec_halo_required Invalid unpack method\n");
   }
 }

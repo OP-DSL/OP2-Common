@@ -498,6 +498,13 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->dirtybit = 1;
   dat->user_data = -1;
 
+  dat->exec_dirtybits = (int *) malloc(1 * sizeof(int));
+  dat->nonexec_dirtybits = (int *) malloc(1 * sizeof(int));
+  for(int i = 0; i < 1; i++){
+    dat->exec_dirtybits[i] = -1;
+    dat->nonexec_dirtybits[i] = -1;
+  }
+
   char *new_aug_data = (char *)op_malloc(dim * size * (set->size+set->exec_size+set->nonexec_size) * sizeof(char));
   // if (data != NULL)
   //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
@@ -827,7 +834,7 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
   arg.sent = 0;
   arg.nhalos = nhalos;
   arg.nhalos_index = dat->set->halo_info->nhalos_indices[nhalos];
-  arg.unpack_method = OP_UNPACK_ALL_HALOS;
+  arg.unpack_method = OP_UNPACK_SINGLE_HALO;
 
   return arg;
 }
@@ -944,7 +951,7 @@ op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int di
 
   arg.nhalos = nhalos;
   arg.nhalos_index = dat->set->halo_info->nhalos_indices[nhalos];
-  arg.unpack_method = OP_UNPACK_ALL_HALOS;
+  arg.unpack_method = OP_UNPACK_SINGLE_HALO;
 
   return arg;
 }

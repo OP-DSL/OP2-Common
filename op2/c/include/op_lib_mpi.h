@@ -124,6 +124,8 @@ int get_nhalos(op_arg *arg);
 int is_arg_valid(op_arg* arg, int exec_flag, int dirtybit_val);
 int get_dirty_args(int nargs, op_arg *args, int exec_flag, op_arg* dirty_args, int dirtybit_val);
 int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id);
+int are_dirtybits_clear(op_arg *arg);
+void unset_dirtybit(op_arg *arg);
 
 #ifdef __cplusplus
 }
