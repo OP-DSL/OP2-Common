@@ -24,11 +24,10 @@ int dats_indirect[{{lh.args_expanded|length}}] = {
 {% endblock %}
 {% block kernel %}
 {{kernel_func}}
+
 {% endblock %}
-
-{%- block kernel_wrapper %}
-{% endblock -%}
-
+{% block kernel_wrapper %}
+{% endblock %}
 {% block host_prologue %}
 void op_par_loop_{{lh.kernel}}(
     const char *name,

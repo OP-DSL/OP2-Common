@@ -4,7 +4,9 @@ ifneq ($(MPI_INC),)
 	TRANSLATOR += -I $(MPI_INC)
 endif
 
-APP_SRC_OP := $(APP_SRC:%.cpp=generated/$(APP_NAME)/%_op.cpp)
+APP_SRC_OP := $(foreach src,$(APP_SRC),$(notdir $(src)))
+APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%_op.cpp)
+
 APP_INC ?= -I.
 
 BASE_VARIANTS := seq genseq openmp cuda
@@ -73,7 +75,7 @@ endif
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $$^ -o $$@
+	$(TRANSLATOR) $(APP_INC) $$^ -o $$@
 endef
 
 $(eval $(call GENERATED_template))
@@ -113,7 +115,7 @@ $(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
 $(APP_NAME)_mpi_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
 
 generated/$(APP_NAME)/cuda/cuda_kernels.o: generated/$(APP_NAME)
-	$$(NVCC) $$(NVCCFLAGS) $$(OP2_INC) -c generated/$(APP_NAME)/cuda/cuda_kernels.cu -o $$@
+	$$(NVCC) $$(NVCCFLAGS) $(APP_INC) $$(OP2_INC) -c generated/$(APP_NAME)/cuda/cuda_kernels.cu -o $$@
 endef
 
 $(eval $(call CUDA_EXTRA_RULES_template))
