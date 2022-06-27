@@ -2565,18 +2565,18 @@ void set_maps_mgcfd(){
 
 }
 void set_maps_hydra(){
-  //  printf("set_maps_hydra maps and dats\n");
+  printf("set_maps_hydra maps and dats\n");
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map map = OP_map_list[m];
     //  op_mpi_add_nhalos_map(map, 2);
     // //  op_mpi_add_nhalos_map(map, 3);
-    // if (strncmp("ne", map->name, strlen("ne")) == 0) {
-    //   op_mpi_add_nhalos_map(map, 2);
-    //   op_mpi_add_nhalos_map(map, 3);
-    //   op_mpi_add_nhalos_map(map, 4);
-    //   op_mpi_add_nhalos_map(map, 5);
-    //   printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-    // }
+    if (strncmp("ne", map->name, strlen("ne")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      // op_mpi_add_nhalos_map(map, 3);
+      // op_mpi_add_nhalos_map(map, 4);
+      // op_mpi_add_nhalos_map(map, 5);
+      printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    }
     if (strncmp("npe", map->name, strlen("npe")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
       // op_mpi_add_nhalos_map(map, 3);
@@ -2598,13 +2598,13 @@ void set_maps_hydra(){
     //   op_mpi_add_nhalos_map(map, 5);
     //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     // }
-    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
-      op_mpi_add_nhalos_map(map, 2);
-      // op_mpi_add_nhalos_map(map, 3);
-      // op_mpi_add_nhalos_map(map, 4);
-      // op_mpi_add_nhalos_map(map, 5);
-       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-    }
+    // if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
+    //   op_mpi_add_nhalos_map(map, 2);
+    //   // op_mpi_add_nhalos_map(map, 3);
+    //   // op_mpi_add_nhalos_map(map, 4);
+    //   // op_mpi_add_nhalos_map(map, 5);
+    //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    // }
   }
   return;
   op_dat_entry *item;
@@ -2876,7 +2876,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  // set_maps_hydra();
+  set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension(); 

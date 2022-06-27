@@ -517,6 +517,13 @@ module OP2_Fortran_RT_Support
       integer(kind=c_int), value :: init_val
     end subroutine
 
+    subroutine set_dat_dirtybit( arg , nhalos) BIND(C,name='set_dat_dirtybit')
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+      type(op_arg) :: arg
+      integer(kind=c_int), value :: nhalos
+    end subroutine
+
   end interface
 
   contains

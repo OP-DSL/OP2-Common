@@ -688,7 +688,8 @@ int is_arg_valid(op_arg* arg, int exec_flag, int dirtybit_val){
 
   arg->sent = 0;
 
-  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == dirtybit_val && (arg->acc == OP_READ || arg->acc == OP_RW)){
+  // if (arg->opt && arg->argtype == OP_ARG_DAT && arg->dat->dirtybit == dirtybit_val && (arg->acc == OP_READ || arg->acc == OP_RW)){
+  if (arg->opt && arg->argtype == OP_ARG_DAT && (arg->acc == OP_READ || arg->acc == OP_RW)){
     if (arg->idx == -1 && exec_flag == 0){
       return 0;
     }
@@ -701,7 +702,7 @@ int get_dirty_args(int nargs, op_arg *args, int exec_flag, op_arg* dirty_args, i
   int ndirty_args = 0;
   for(int i = 0; i < nargs; i++){
     op_arg* arg = &args[i];
-    if(is_arg_valid(arg, exec_flag, dirtybit_val) && arg->dat->user_data != 1){
+    if(is_arg_valid(arg, exec_flag, dirtybit_val) && arg->dat->user_data != 1 && are_dirtybits_clear(arg) != 1){
       dirty_args[ndirty_args++] = *arg;
       arg->dat->user_data = 1;
     }

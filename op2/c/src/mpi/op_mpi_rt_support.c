@@ -246,11 +246,11 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
-#ifdef COMM_AVOID
-      (dat->exec_dirtybits[0] == 1)) {
-#else
+// #ifdef COMM_AVOID
+//       (dat->exec_dirtybits[0] == 1)) {
+// #else
       (dat->dirtybit == 1)) {
-#endif
+// #endif
     //    printf("Exchanging Halo of data array %10s\n",dat->name);
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
@@ -271,6 +271,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     }
 
     int set_elem_index;
+#ifdef COMM_AVOID
+    if(dat->exec_dirtybits[0] == 1){
+#endif
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
@@ -317,6 +320,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       OP_mpi_rx_exec_msg_count_org++;
       // printf("rxtxexec org my_rank=%d dat=%s r=%d recevd=%d\n", my_rank, dat->name, i, imp_exec_list->sizes[i]);
     }
+#ifdef COMM_AVOID
+    }
+#endif
 
     //-----second exchange nonexec elements related to this data array------
     // sanity checks
@@ -329,7 +335,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
-    
+#ifdef COMM_AVOID
+    if(dat->nonexec_dirtybits[0] == 1){
+#endif
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
       for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];
@@ -374,6 +382,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       OP_mpi_rx_nonexec_msg_count_org++;
       // printf("rxtxnonexec org my_rank=%d dat=%s r=%d recevd=%d\n", my_rank, dat->name, i, imp_nonexec_list->sizes[i]);
     }
+#ifdef COMM_AVOID
+    }
+#endif
     // clear dirty bit
 #ifdef COMM_AVOID
     // dat->exec_dirtybits[0] = 0;

@@ -4448,7 +4448,10 @@ void op_mpi_test_all(int nargs, op_arg *args) {
 int is_dat_dirty(op_arg* arg){
   op_dat dat = arg->dat;
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
-    // printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
+    for(int i = 0; i < arg->dat->set->halo_info->max_nhalos; i++){
+      printf("is_dat_dirty dat=%s exec_dirty[%d]=%d nonexec_dirty[%d]=%d\n", dat->name, i, dat->exec_dirtybits[i], i, dat->nonexec_dirtybits[i]);
+    }
     if(dat->dirtybit == 1)
       return 1;
     else
