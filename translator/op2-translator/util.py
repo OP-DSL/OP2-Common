@@ -198,40 +198,82 @@ class Span:
     def encloses(self, other: "Span") -> bool:
         return other.start >= self.start and other.end <= self.end
 
+    def merge(self, other: "Span") -> "Span":
+        assert self.overlaps(other)
+
+        start = min(self.start, other.start)
+        end = max(self.end, other.end)
+
+        return Span(start, end)
+
 
 class Rewriter:
     source_lines: List[str]
-    source_span: Span
+    source_spans: List[Span]
 
     updates: List[Tuple[Span, Callable[[str], str]]]
 
-    def __init__(self, source: str) -> None:
+    def __init__(self, source: str, spans: Optional[List[Span]] = None) -> None:
         self.source_lines = list(map(lambda line: line + "\n", source.splitlines()))
-        self.source_span = Span(Location(1, 1), Location(len(self.source_lines), len(self.source_lines[-1]) + 1))
+        self.source_spans = []
+
+        if spans is not None:
+            for span in spans:
+                self.extend(span)
+        else:
+            self.extend(Span(Location(1, 1), Location(len(self.source_lines), len(self.source_lines[-1]) + 1)))
 
         self.updates = []
 
+    def extend(self, span: Span) -> None:
+        original_source_spans = self.source_spans
+
+        for source_span in original_source_spans:
+            if not source_span.overlaps(span):
+                continue
+
+            new_span = span.merge(source_span)
+            self.source_spans.remove(source_span)
+
+            self.extend(new_span)
+            return
+
+        self.source_spans.append(span)
+
     def update(self, span: Span, replacement: Callable[[str], str]) -> None:
-        assert self.source_span.encloses(span)
+        enclosed = False
+        for source_span in self.source_spans:
+            if source_span.encloses(span):
+                enclosed = True
+                break
+
+        assert enclosed
+
         for update in self.updates:
-            assert not span.overlaps(update[0])
+            assert not span.overlaps(update[0]), (
+                f'Overlapping spans: new span {span} "{self.extract(span)}", '
+                f'conflicts with update {update[0]} "{self.extract(update[0])}"'
+            )
 
         self.updates.append((span, replacement))
 
     def rewrite(self) -> str:
         new_source = ""
         self.updates.sort(key=lambda u: u[0])
+        self.source_spans.sort()
 
-        remainder = self.source_span
-        for span, replacement in self.updates:
-            front, back = self.bisect(remainder, span)
+        for source_span in self.source_spans:
+            remainder = source_span
+            for span, replacement in filter(lambda u: source_span.encloses(u[0]), self.updates):
+                front, back = self.bisect(remainder, span)
 
-            new_source += self.extract(front)
-            new_source += replacement(self.extract(span))
+                new_source += self.extract(front)
+                new_source += replacement(self.extract(span))
 
-            remainder = back
+                remainder = back
 
-        new_source += self.extract(remainder)
+            new_source += self.extract(remainder)
+
         return new_source
 
     def extract(self, span: Span) -> str:
