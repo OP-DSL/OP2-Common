@@ -29,7 +29,9 @@ arg{{arg.id}}_local(lane, 1)
     {%- endif -%}
 {%- endmacro -%}
 
-{% if target.config.vectorise %}
+{% set vectorise = target.config.vectorise.enable and lh.kernel not in target.config.vectorise.blacklist %}
+
+{% if vectorise %}
 #define SIMD_LEN 8
 
 {% endif %}
@@ -64,7 +66,7 @@ subroutine {{lh.kernel}}_wrapper2( &
 
     ! locals
     integer(4) :: n
-{% if target.config.vectorise %}
+{% if vectorise %}
     integer(4) :: block, lane, d
 
     {% for arg in lh.args|indirect %}
