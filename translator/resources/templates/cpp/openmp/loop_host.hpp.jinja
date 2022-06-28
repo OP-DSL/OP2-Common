@@ -22,9 +22,11 @@ arg{{arg.id}}{{"_%s" % (arg.map_idx) if arg is indirect}}_local
     {%- endif -%}
 {%- endmacro -%}
 
+{% set vectorise = target.config.vectorise.enable and lh.kernel not in target.config.vectorise.blacklist %}
+
 {% block host_prologue %}
-    {% if target.config.vectorise %}
-#define SIMD_LEN {{target.config.vectorise_simd_len}}
+    {% if vectorise %}
+#define SIMD_LEN {{target.config.vectorise.simd_len}}
     {% endif %}
 
 void {{lh.kernel}}_wrapper(
@@ -48,7 +50,7 @@ void {{lh.kernel}}_wrapper(
     const int *__restrict__ map{{map.id}} = assume_aligned(map{{map.id}}_u);
     {% endfor %}
 
-    {% if target.config.vectorise %}
+    {% if vectorise %}
     int block = start;
     for (; block + SIMD_LEN < end; block += SIMD_LEN) {
         {% for arg in lh.args_expanded|dat if arg is not read %}
@@ -120,7 +122,7 @@ void {{lh.kernel}}_wrapper(
     }
 
     {% endif %}
-    for (int n = {{"block" if target.config.vectorise else "start"}}; n < end; ++n) {
+    for (int n = {{"block" if vectorise else "start"}}; n < end; ++n) {
         {% for arg in lh.args|vec %}
         {{"const " if arg.access_type == OP.AccessType.READ}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
             {% for arg_expanded in lh.args_expanded if arg_expanded.id == arg.id %}
