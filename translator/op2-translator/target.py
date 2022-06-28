@@ -41,7 +41,12 @@ class OpenMP(Target):
     name = "openmp"
     kernel_translation = False
 
-    config = {"grouped": False, "vectorise": True, "vectorise_simd_len": 8, "device": 1, "thread_timing": False}
+    config = {
+        "grouped": False,
+        "vectorise": {"enable": True, "simd_len": 8, "blacklist": []},
+        "device": 1,
+        "thread_timing": False,
+    }
 
 
 Target.register(Seq)
