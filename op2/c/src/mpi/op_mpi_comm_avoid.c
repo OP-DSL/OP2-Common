@@ -579,18 +579,26 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
   h_list->num_levels = num_levels;
 
   h_list->level_sizes = level_sizes;
-  h_list->level_disps = level_disps;
+  // h_list->level_disps = level_disps;
 
   h_list->ranks_sizes_by_level = ranks_sizes_by_level;
   h_list->ranks_disps_by_level = ranks_disps_by_level;
 
   h_list->disps_by_level = disps_by_level;
 
-  h_list->sizes_upto_level_by_rank = sizes_upto_level_by_rank;
-  h_list->disps_upto_level_by_rank = disps_upto_level_by_rank;
+  // h_list->sizes_upto_level_by_rank = sizes_upto_level_by_rank;
+  // h_list->disps_upto_level_by_rank = disps_upto_level_by_rank;
   
-  h_list->sizes_by_rank = sizes_by_rank;
-  h_list->disps_by_rank = disps_by_rank;
+  // h_list->sizes_by_rank = sizes_by_rank;
+  // h_list->disps_by_rank = disps_by_rank;
+
+// free unused arrays
+  op_free(level_disps);
+  op_free(sizes_upto_level_by_rank);
+  op_free(disps_upto_level_by_rank);
+  op_free(sizes_by_rank);
+  op_free(disps_by_rank);
+
 
   // for(int i = 0; i < count; i++){
   //   if(h_lists[i] == NULL){
@@ -1234,6 +1242,7 @@ void free_tmp_maps(){
   for (int m = 0; m < OP_map_index; m++) {
     op_map map = OP_map_list[m];
     op_free(map->map_org);
+    map->map_org = NULL;
   }  
 }
 
@@ -1777,19 +1786,23 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
     for(int l = 0; l < exec_levels; l++){
       if(OP_aug_export_exec_lists[l][dat->set->index]){
         exec_e_list_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
-        exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size;
+        exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size / 
+        OP_aug_export_exec_lists[l][dat->set->index]->num_levels;
       }
       if(OP_aug_import_exec_lists[l][dat->set->index]){
-        exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size;
+        exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size / 
+        OP_aug_import_exec_lists[l][dat->set->index]->num_levels;
         imp_exec_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
       }
 
       if(OP_aug_export_nonexec_lists[l][dat->set->index]){
         nonexec_e_list_size += OP_aug_export_nonexec_lists[l][dat->set->index]->size;
-        nonexec_e_ranks_size += OP_aug_export_nonexec_lists[l][dat->set->index]->ranks_size;
+        nonexec_e_ranks_size += OP_aug_export_nonexec_lists[l][dat->set->index]->ranks_size / 
+        OP_aug_export_nonexec_lists[l][dat->set->index]->num_levels;
       }
       if(OP_aug_import_exec_lists[l][dat->set->index]){
-        nonexec_i_ranks_size += OP_aug_import_nonexec_lists[l][dat->set->index]->ranks_size;
+        nonexec_i_ranks_size += OP_aug_import_nonexec_lists[l][dat->set->index]->ranks_size / 
+        OP_aug_import_nonexec_lists[l][dat->set->index]->num_levels;
         imp_nonexec_size += OP_aug_import_nonexec_lists[l][dat->set->index]->size;
       }
 
@@ -1797,7 +1810,6 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
 
     mpi_buf->buf_exec = (char *)xmalloc(exec_e_list_size * dat->size);
     mpi_buf->buf_nonexec = (char *)xmalloc(nonexec_e_list_size * dat->size);
-    mpi_buf->buf_merged = (char *)xmalloc((exec_e_list_size + nonexec_e_list_size) * dat->size);
 
     // printf("step9 my_rank=%d dat=%s set=%s exec_e_list_size=%d\n", my_rank, dat->name, dat->set->name, exec_e_list_size);
 
@@ -1813,10 +1825,6 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
     mpi_buf->s_num_req = 0;
     mpi_buf->r_num_req = 0;
     dat->mpi_buffer = mpi_buf;
-
-    char *new_aug_data = (char *)op_malloc(dat->size * (dat->set->size + imp_exec_size + 
-    imp_nonexec_size) * sizeof(char));
-    dat->aug_data = new_aug_data;
   }
 
   // set dirty bits of all data arrays to 0
@@ -2815,7 +2823,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 20;  // this is a temp const
+  int max_dat_count = 8;  // this is a temp const
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -3032,7 +3040,7 @@ void op_halo_create_comm_avoid() {
   /*-STEP 12 ---------- Clean up and Compute rough halo size
    * numbers------------*/
 
-  // free_tmp_maps();
+  free_tmp_maps();
 
   for (int i = 0; i < OP_set_index; i++) {
     op_free(part_range[i]);

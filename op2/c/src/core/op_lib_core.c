@@ -505,11 +505,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     dat->nonexec_dirtybits[i] = -1;
   }
 
-  char *new_aug_data = (char *)op_malloc(dim * size * (set->size+set->exec_size+set->nonexec_size) * sizeof(char));
-  // if (data != NULL)
-  //   memcpy(new_aug_data, data, dim * size * set->size * sizeof(char));
-  dat->aug_data = new_aug_data;
-
   /* Create a pointer to an item in the op_dats doubly linked list */
   op_dat_entry *item;
 

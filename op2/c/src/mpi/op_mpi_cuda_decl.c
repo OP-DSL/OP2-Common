@@ -213,8 +213,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   for(int l = 0; l < exec_levels; l++){
     exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
 
-    exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size;
-    exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size;
+    exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size / OP_aug_export_exec_lists[l][set->index]->num_levels;
+    exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size / OP_aug_import_exec_lists[l][set->index]->num_levels;
   }
 
   int nonexec_e_list_size = 0;
@@ -222,13 +222,12 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int nonexec_i_list_rank_size = 0;
   for(int l = 0; l < num_levels; l++){
     nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
-    nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size;
-    nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size;
+    nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size / OP_aug_export_nonexec_lists[l][set->index]->num_levels;
+    nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size / OP_aug_import_nonexec_lists[l][set->index]->num_levels;
   }
 
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
   mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list_size) * dat->size);
-  mpi_buf->buf_merged = (char *)xmalloc((exec_e_list_size + nonexec_e_list_size) * dat->size);
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
