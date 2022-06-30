@@ -88,7 +88,7 @@ halo_list exp_common_list;
 void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
   // printf("test1new exec my_rank\n");
   int my_rank;
-  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   op_arg dirty_args[nargs];
   int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
@@ -164,11 +164,10 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
               (arg_size - buf_start), MPI_CHAR,
               exp_common_list->ranks[r], grp_tag, OP_MPI_WORLD,
               &grp_send_requests[r]);
-    OP_mpi_tx_exec_msg_count++;
-    OP_mpi_tx_exec_msg_count_merged++;
+    OP_mpi_tx_msg_count_chained++;
 
     // printf("rxtxexec merged my_rank=%d dat=%s r=%d sent=%d buf_start=%d prev_size=%d\n", my_rank, "test", 
-    // exp_common_list->ranks[r], arg_size_1 - buf_start_1, buf_start_1, arg_size_1);
+    // exp_common_list->ranks[r], arg_size- buf_start, buf_start, arg_size);
 
   }
 
@@ -208,8 +207,7 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
     imp_disp += imp_size;
 
     // printf("rxtxexec merged my_rank=%d dat=%s r=%d recved=%d  imp_disp=%d\n", my_rank, "test", imp_common_list->ranks[i], imp_size_1, imp_disp_1);
-    OP_mpi_rx_exec_msg_count++;
-    OP_mpi_rx_exec_msg_count_merged++;
+    OP_mpi_rx_msg_count_chained++;
   }
 }
 
@@ -389,6 +387,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 #ifdef COMM_AVOID
     // dat->exec_dirtybits[0] = 0;
     // dat->nonexec_dirtybits[0] = 0;
+    // printf("here0 dat=%s\n", dat->name);
     // print_array_1(dat->exec_dirtybits, dat->set->halo_info->max_nhalos, "execb", my_rank);
     // print_array_1(dat->nonexec_dirtybits, dat->set->halo_info->max_nhalos, "nonexecb", my_rank);
     unset_dirtybit(arg);
@@ -397,7 +396,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     // print_array_1(dat->nonexec_dirtybits, dat->set->halo_info->max_nhalos, "nonexeca", my_rank);
     if(are_dirtybits_clear(arg) == 1){
       dat->dirtybit = 0;
-      // printf("here dat=%s\n", dat->name);
+      // printf("here clear===== dat=%s\n", dat->name);
     }
 #else
     dat->dirtybit = 0;
@@ -576,7 +575,7 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   op_unpack_merged_single_dat_chained(ndirty_args, dirty_args, exec_flag);
   for (int n = 0; n < ndirty_args; n++) {
       dirty_args[n].sent = 2; // set flag to indicate completed comm
-
+      // printf("here0 dat=%s\n", dirty_args[n].dat->name);
       // print_array_1(dirty_args[n].dat->exec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
       // print_array_1(dirty_args[n].dat->nonexec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
       unset_dirtybit(&dirty_args[n]);
@@ -584,7 +583,7 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
       // print_array_1(dirty_args[n].dat->nonexec_dirtybits, dirty_args[n].dat->set->halo_info->max_nhalos, dirty_args[n].dat->name, my_rank);
       if(are_dirtybits_clear(&dirty_args[n]) == 1){
         dirty_args[n].dat->dirtybit = 0;
-        // printf("here1 dat=%s\n", dirty_args[n].dat->name);
+        // printf("here1 clear dat=%s\n", dirty_args[n].dat->name);
       }
       
       dirty_args[n].dat->dirty_hd = device;

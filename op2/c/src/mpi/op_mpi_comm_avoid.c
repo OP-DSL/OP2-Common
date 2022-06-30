@@ -1268,8 +1268,12 @@ void prepare_aug_sets(){
         // printf("prepare_aug_sets set=%s exec_levels=%d\n", set->name, max_level);
 
         for(int i = 0; i < max_level; i++){
-          dat->exec_dirtybits[i] = -1;
-          dat->nonexec_dirtybits[i] = -1;
+          dat->exec_dirtybits[i] = 1;
+          if(is_halo_required_for_set(dat->set, i) == 1){
+            dat->nonexec_dirtybits[i] = 1;
+          }else{
+            dat->nonexec_dirtybits[i] = -1;
+          }
         }
       }
     }
@@ -2823,7 +2827,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 8;  // this is a temp const
+  int max_dat_count = 20;  // this is a temp const
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -2884,7 +2888,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  set_maps_hydra();
+  // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension(); 

@@ -67,8 +67,8 @@ unsigned long long OP_mpi_rx_exec_msg_count_merged = 0;
 unsigned long long OP_mpi_tx_nonexec_msg_count_merged = 0;
 unsigned long long OP_mpi_rx_nonexec_msg_count_merged = 0;
 
-unsigned long long OP_mpi_tx_exec_msg_count_chained = 0;
-unsigned long long OP_mpi_rx_exec_msg_count_chained = 0;
+unsigned long long OP_mpi_tx_msg_count_chained = 0;
+unsigned long long OP_mpi_rx_msg_count_chained = 0;
 unsigned long long OP_mpi_tx_nonexec_msg_count_chained = 0;
 unsigned long long OP_mpi_rx_nonexec_msg_count_chained = 0;
 
@@ -501,8 +501,8 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->exec_dirtybits = (int *) malloc(1 * sizeof(int));
   dat->nonexec_dirtybits = (int *) malloc(1 * sizeof(int));
   for(int i = 0; i < 1; i++){
-    dat->exec_dirtybits[i] = -1;
-    dat->nonexec_dirtybits[i] = -1;
+    dat->exec_dirtybits[i] = 1;
+    dat->nonexec_dirtybits[i] = 1;
   }
 
   /* Create a pointer to an item in the op_dats doubly linked list */

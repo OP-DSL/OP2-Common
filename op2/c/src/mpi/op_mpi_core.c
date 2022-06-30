@@ -98,7 +98,7 @@ op_export_handle *OP_export_list = NULL;
 double t1, t2, c1, c2;
 
 // Message counts
-unsigned long long exec_message_count = 0, nonexec_message_count = 0;
+unsigned long long exec_message_count = 0, nonexec_message_count = 0, chained_message_count = 0;
 
 #include <execinfo.h>
 void bt1(op_dat dat) {
@@ -4465,6 +4465,12 @@ void set_dat_dirty(op_arg* arg){
     // printf("set_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     dat->dirtybit = 1;
     dat->dirty_hd = 2;
+    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+      dat->exec_dirtybits[i] = 1;
+      if(is_halo_required_for_set(dat->set, i) == 1){
+        dat->nonexec_dirtybits[i] = 1;
+      }
+    }
   }
 }
 
@@ -4506,16 +4512,17 @@ void op_mpi_halo_exchange_summary(){
   // my_rank, OP_mpi_tx_exec_msg_count_org, OP_mpi_rx_exec_msg_count_org, OP_mpi_tx_nonexec_msg_count_org, OP_mpi_rx_nonexec_msg_count_org);
 
   // printf("op_exit chained my_rank=%d exec_tx=%d exec_rx=%d nonexec_tx=%d nonexec_rx=%d\n", 
-  // my_rank, OP_mpi_tx_exec_msg_count_chained, OP_mpi_rx_exec_msg_count_chained, OP_mpi_tx_nonexec_msg_count_chained, OP_mpi_rx_nonexec_msg_count_chained);
+  // my_rank, OP_mpi_tx_msg_count_chained, OP_mpi_rx_msg_count_chained, OP_mpi_tx_nonexec_msg_count_chained, OP_mpi_rx_nonexec_msg_count_chained);
 
   // printf("op_exit partial my_rank=%d nonexec_tx=%d nonexec_rx=%d\n", 
   // my_rank,  OP_mpi_tx_nonexec_msg_count_partial, OP_mpi_rx_nonexec_msg_count_partial);
 
+  MPI_Reduce(&OP_mpi_tx_msg_count_chained, &chained_message_count, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
   MPI_Reduce(&OP_mpi_tx_exec_msg_count, &exec_message_count, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
   MPI_Reduce(&OP_mpi_tx_nonexec_msg_count, &nonexec_message_count, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
 
-  op_printf("op_mpi_halo_exchange_summary my_rank=%d total=%llu exec_tx=%llu nonexec_tx=%llu\n", 
-  my_rank, exec_message_count + nonexec_message_count, exec_message_count, nonexec_message_count);
+  op_printf("op_mpi_halo_exchange_summary my_rank=%d total=%llu chained=%llu exec_tx=%llu nonexec_tx=%llu\n", 
+  my_rank, chained_message_count + exec_message_count + nonexec_message_count, chained_message_count, exec_message_count, nonexec_message_count);
 
   // op_printf("halo exchange summary my_rank=%d pack=%f unpack=%f halo_exch=%f\n", 
   // my_rank,  pack_time, unpack_time, halo_exch_time);

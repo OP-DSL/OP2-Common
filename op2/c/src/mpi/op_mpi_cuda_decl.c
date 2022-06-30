@@ -191,6 +191,19 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   }
 
   int set_size = set->size + halo_size;
+
+  dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, exec_levels * sizeof(int));
+  dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, exec_levels * sizeof(int));
+
+  for(int i = 0; i < exec_levels; i++){
+    dat->exec_dirtybits[i] = 1;
+    if(is_halo_required_for_set(dat->set, i) == 1){
+      dat->nonexec_dirtybits[i] = 1;
+    }else{
+      dat->nonexec_dirtybits[i] = -1;
+    }
+    
+  }
   
   // initialize data bits to 0
   //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
@@ -342,15 +355,17 @@ void op_mv_halo_device(op_set set, op_dat dat) {
 
   int exec_levels = set->halo_info->max_nhalos; //2;
   int exec_size = 0;
+   int nonexec_size = 0;
   for(int l = 0; l < exec_levels; l++){
     exec_size += OP_aug_export_exec_lists[l][set->index]->size;
+    nonexec_size += (OP_aug_export_nonexec_lists[l][set->index])? OP_aug_export_nonexec_lists[l][set->index]->size : 0;
   }
 
-  int nonexec_size = 0;
-  int num_levels = set->halo_info->nhalos_count;
-  for(int l = 0; l < num_levels; l++){
-    nonexec_size += OP_aug_export_nonexec_lists[l][set->index]->size;
-  }
+  // int nonexec_size = 0;
+  // int num_levels = set->halo_info->nhalos_count;
+  // for(int l = 0; l < num_levels; l++){
+  //   nonexec_size += OP_aug_export_nonexec_lists[l][set->index]->size;
+  // }
 
   //todo: check this for grouped comunication
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));

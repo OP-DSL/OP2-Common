@@ -215,15 +215,29 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
         arg.dat->buffer_d + exp_exec_list->size * arg.dat->size, set_size,
         arg.dat->dim);
   } else {
+    
+#ifdef COMM_AVOID
+    if(arg.dat->exec_dirtybits[0] == 1){
+#endif
     export_halo_gather<<<blocks, threads>>>(
         export_exec_list_d[arg.dat->set->index], arg.data_d,
         exp_exec_list->size, arg.dat->size, arg.dat->buffer_d, my_rank);
+#ifdef COMM_AVOID
+    }
+#endif
 
+#ifdef COMM_AVOID
+    if(arg.dat->nonexec_dirtybits[0] == 1){
+#endif
     int blocks2 = 1 + ((exp_nonexec_list->size - 1) / 192);
     export_halo_gather<<<blocks2, threads>>>(
         export_nonexec_list_d[arg.dat->set->index], arg.data_d,
         exp_nonexec_list->size, arg.dat->size,
         arg.dat->buffer_d + exp_exec_list->size * arg.dat->size, my_rank);
+
+#ifdef COMM_AVOID
+    }
+#endif
   }
 }
 
@@ -253,22 +267,23 @@ void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag,
 
       for(int l = 0; l < nhalos; l++){
         for(int l1 = 0; l1 < 2; l1++){ // 2 is for exec and nonexec levels   
+          if((l1 == 0 && dat->exec_dirtybits[l] == 1) || (l1 == 1 && dat->nonexec_dirtybits[l] == 1)){   
+            int level_disp = exp_list->disps_by_level[halo_index];
+            int rank_disp = exp_list->ranks_disps_by_level[halo_index];
+            int disp_in_level = exp_list->disps[rank_disp + r];
+            int copy_size = exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r];
 
-          int level_disp = exp_list->disps_by_level[halo_index];
-          int rank_disp = exp_list->ranks_disps_by_level[halo_index];
-          int disp_in_level = exp_list->disps[rank_disp + r];
-          int copy_size = exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r];
+            // printf("gather_data my_rank=%d n=%d set=%s dat=%s index=%d nhalos=%d copy_size=%d l=%d l1=%d\n", 
+            // my_rank, n, arg->dat->set->name, dat->name, arg->dat->set->index, nhalos, copy_size, l, l1);
 
-          // printf("gather_data my_rank=%d n=%d set=%s index=%d nhalos=%d copy_size=%d l=%d\n", 
-          // my_rank, n, arg->dat->set->name, arg->dat->set->index, nhalos, copy_size, l);
-
-          int blocks = 1 + ((copy_size - 1) / 192);
-          export_halo_gather_chained<<<blocks, threads>>>(export_exec_nonexec_list_d[arg->dat->set->index], arg->data_d, copy_size,
-                                    arg->dat->size, grp_send_buffer_d, 
-                                    nhalos, exp_list->num_levels, r, buf_start,
-                                    level_disp, disp_in_level, 
-                                    prev_size, my_rank);
-          prev_size += copy_size * dat->size;
+            int blocks = 1 + ((copy_size - 1) / 192);
+            export_halo_gather_chained<<<blocks, threads>>>(export_exec_nonexec_list_d[arg->dat->set->index], arg->data_d, copy_size,
+                                      arg->dat->size, grp_send_buffer_d, 
+                                      nhalos, exp_list->num_levels, r, buf_start,
+                                      level_disp, disp_in_level, 
+                                      prev_size, my_rank);
+            prev_size += copy_size * dat->size;
+          }
 
           if(is_halo_required_for_set(dat->set, l) == 1 && l1 == 0){
             halo_index++;
@@ -553,20 +568,22 @@ void scatter_data_from_buffer_ptr_cuda_chained(op_arg* args, int nargs, int rank
       int halo_index = 0;
 
       for(int l = 0; l < nhalos; l++){
-        for(int l1 = 0; l1 < 2; l1++){  // 2 is for exec and nonexec levels   
-          int disp_by_level = imp_list->disps_by_level[halo_index];
-          int disp_in_level = imp_list->disps[imp_list->ranks_disps_by_level[halo_index] + r];
-          int copy_size = imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + r];
-          int data_init = init + (disp_by_level + disp_in_level) * dat->size;
+        for(int l1 = 0; l1 < 2; l1++){  // 2 is for exec and nonexec levels
+          if((l1 == 0 && dat->exec_dirtybits[l] == 1) || (l1 == 1 && dat->nonexec_dirtybits[l] == 1)){  
+            int disp_by_level = imp_list->disps_by_level[halo_index];
+            int disp_in_level = imp_list->disps[imp_list->ranks_disps_by_level[halo_index] + r];
+            int copy_size = imp_list->sizes[imp_list->ranks_disps_by_level[halo_index] + r];
+            int data_init = init + (disp_by_level + disp_in_level) * dat->size;
 
-          // printf("scatter exec data my_rank=%d n=%d dat=%s set=%s index=%d nhalos=%d copy_size=%d nonexec_start=%d nonexec_end=%d l=%d data_init=%d buf_init=%d\n",
-          // my_rank, n, arg->dat->name, arg->dat->set->name, arg->dat->set->index, nhalos, copy_size, nonexec_start, nonexec_end, l, data_init, buf_init);
+            // printf("scatter exec data my_rank=%d n=%d dat=%s set=%s index=%d nhalos=%d copy_size=%d l=%d l1=%d data_init=%d buf_init=%d\n",
+            // my_rank, n, arg->dat->name, arg->dat->set->name, arg->dat->set->index, nhalos, copy_size, l, l1, data_init, buf_init);
 
-          scatter_data_from_buffer_ptr_cuda_kernel_chained<<<1 + ((copy_size - 1) / 192), 192, 0, op2_grp_secondary>>>(dat->data_d, grp_recv_buffer_d, 
-            data_init, disp_by_level, disp_in_level, buf_init, arg->dat->size / arg->dat->dim, arg->dat->dim, 
-            copy_size, my_rank);
+            scatter_data_from_buffer_ptr_cuda_kernel_chained<<<1 + ((copy_size - 1) / 192), 192, 0, op2_grp_secondary>>>(dat->data_d, grp_recv_buffer_d, 
+              data_init, disp_by_level, disp_in_level, buf_init, arg->dat->size / arg->dat->dim, arg->dat->dim, 
+              copy_size, my_rank);
 
-          buf_init += copy_size * dat->size;
+            buf_init += copy_size * dat->size;
+          }
           if(is_halo_required_for_set(dat->set, l) == 1 && l1 == 0){
             halo_index++;
           }

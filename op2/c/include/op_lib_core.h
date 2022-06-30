@@ -93,8 +93,8 @@ extern unsigned long long OP_mpi_rx_exec_msg_count_merged;
 extern unsigned long long OP_mpi_tx_nonexec_msg_count_merged;
 extern unsigned long long OP_mpi_rx_nonexec_msg_count_merged;
 
-extern unsigned long long OP_mpi_tx_exec_msg_count_chained;
-extern unsigned long long OP_mpi_rx_exec_msg_count_chained;
+extern unsigned long long OP_mpi_tx_msg_count_chained;
+extern unsigned long long OP_mpi_rx_msg_count_chained;
 extern unsigned long long OP_mpi_tx_nonexec_msg_count_chained;
 extern unsigned long long OP_mpi_rx_nonexec_msg_count_chained;
 
