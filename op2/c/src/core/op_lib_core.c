@@ -498,11 +498,17 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->dirtybit = 1;
   dat->user_data = -1;
 
-  dat->exec_dirtybits = (int *) malloc(1 * sizeof(int));
-  dat->nonexec_dirtybits = (int *) malloc(1 * sizeof(int));
-  for(int i = 0; i < 1; i++){
+  // printf("DATASET %s, ptr %p set=%s hinfo=%d\n", name, data, set->name, set->halo_info->max_nhalos);
+  dat->exec_dirtybits = (int *) malloc(set->halo_info->max_nhalos * sizeof(int));
+  dat->nonexec_dirtybits = (int *) malloc(set->halo_info->max_nhalos * sizeof(int));
+  for(int i = 0; i < set->halo_info->max_nhalos; i++){
     dat->exec_dirtybits[i] = 1;
-    dat->nonexec_dirtybits[i] = 1;
+    if(is_halo_required_for_set(set, i) == 1){
+      dat->nonexec_dirtybits[i] = 1;
+    }else{
+      dat->nonexec_dirtybits[i] = -1;
+    }
+    
   }
 
   /* Create a pointer to an item in the op_dats doubly linked list */

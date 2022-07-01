@@ -196,9 +196,9 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, exec_levels * sizeof(int));
 
   for(int i = 0; i < exec_levels; i++){
-    dat->exec_dirtybits[i] = 1;
+    dat->exec_dirtybits[i] = dat->dirtybit;
     if(is_halo_required_for_set(dat->set, i) == 1){
-      dat->nonexec_dirtybits[i] = 1;
+      dat->nonexec_dirtybits[i] = dat->dirtybit;
     }else{
       dat->nonexec_dirtybits[i] = -1;
     }

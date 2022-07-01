@@ -736,7 +736,7 @@ int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id){
 int are_dirtybits_clear(op_arg *arg){
   for(int i = 0; i < arg->dat->set->halo_info->max_nhalos; i++){
     if(arg->dat->exec_dirtybits[i] == 1 || 
-    is_halo_required_for_set(arg->dat->set, i) == 1 && arg->dat->nonexec_dirtybits[i] == 1){
+    (is_halo_required_for_set(arg->dat->set, i) == 1 && arg->dat->nonexec_dirtybits[i] == 1)){
       return 0;
     }
   }

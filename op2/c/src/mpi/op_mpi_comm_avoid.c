@@ -1265,12 +1265,12 @@ void prepare_aug_sets(){
       if (compare_sets(set, dat->set) == 1) {
         dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, max_level * sizeof(int));
         dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, max_level * sizeof(int));
-        // printf("prepare_aug_sets set=%s exec_levels=%d\n", set->name, max_level);
+        // printf("prepare_aug_sets dat=%s dirtybit=%d\n", dat->name, dat->dirtybit);
 
         for(int i = 0; i < max_level; i++){
-          dat->exec_dirtybits[i] = 1;
+          dat->exec_dirtybits[i] = dat->dirtybit;
           if(is_halo_required_for_set(dat->set, i) == 1){
-            dat->nonexec_dirtybits[i] = 1;
+            dat->nonexec_dirtybits[i] = dat->dirtybit;
           }else{
             dat->nonexec_dirtybits[i] = -1;
           }
@@ -1837,6 +1837,18 @@ void step9_halo(int exec_levels, int **part_range, int my_rank, int comm_size){
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     dat->dirtybit = 0;
+
+    // printf("step9 dat=%s dirtybit=%d\n", dat->name, dat->dirtybit);
+
+    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+      dat->exec_dirtybits[i] = dat->dirtybit;
+      if(is_halo_required_for_set(dat->set, i) == 1){
+        dat->nonexec_dirtybits[i] = dat->dirtybit;
+      }
+      // else{
+      //   dat->nonexec_dirtybits[i] = -1;
+      // }
+    }
   }
 }
 
@@ -2891,7 +2903,7 @@ void op_halo_create_comm_avoid() {
   // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
-  // set_maps_halo_extension(); 
+  // set_maps_halo_extension();
    
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;

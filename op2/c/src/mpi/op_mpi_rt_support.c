@@ -214,7 +214,6 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 #endif
 
 void op_exchange_halo(op_arg *arg, int exec_flag) {
-  // printf("op_exchange_halo\n");
   // op_mpi_barrier();
   // op_timers_core(&ca_c1, &ca_t1);
   op_dat dat = arg->dat;

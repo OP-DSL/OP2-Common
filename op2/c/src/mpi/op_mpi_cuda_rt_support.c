@@ -245,12 +245,15 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
     MPI_Abort(OP_MPI_WORLD, 2);
   }
 
+  // printf("op_exchange_halo_cuda my_rank=%d dat=%s exec_flag=%d dirtybit=%d db=%d\n", 
+  //     my_rank, dat->name, exec_flag, dat->dirtybit, dat->exec_dirtybits[0]);
+
   // For a directly accessed op_dat do not do halo exchanges if not executing
   // over
   // redundant compute block
   if (exec_flag == 0 && arg->idx == -1)
     return;
-
+  
   arg->sent = 0; // reset flag
   // need to exchange both direct and indirect data sets if they are dirty
   if ((arg->opt) &&
@@ -305,8 +308,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 #endif
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
 
-      // printf("ORGEXEC MPI_Isend my_rank=%d to=%d bufpos=%d datsize=%d size=%d\n", 
-      // my_rank, exp_exec_list->ranks[i], exp_exec_list->disps[i] * dat->size, dat->size, exp_exec_list->sizes[i]);
+      // printf("ORGEXEC MPI_Isend my_rank=%d to=%d dat=%s bufpos=%d datsize=%d size=%d\n", 
+      // my_rank, exp_exec_list->ranks[i], dat->name, exp_exec_list->disps[i] * dat->size, dat->size, exp_exec_list->sizes[i]);
 
       MPI_Isend(&outptr_exec[exp_exec_list->disps[i] * dat->size],
                 dat->size * exp_exec_list->sizes[i], MPI_CHAR,
@@ -355,8 +358,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 #endif
     for (int i = 0; i < exp_nonexec_list->ranks_size; i++) {
 
-      // printf("ORGNONEXEC test MPI_Isend my_rank=%d to=%d bufpos=%d datsize=%d size=%d\n", 
-      // my_rank, exp_nonexec_list->ranks[i], exp_nonexec_list->disps[i] * dat->size, dat->size, exp_nonexec_list->sizes[i]);
+      // printf("ORGNONEXEC test MPI_Isend my_rank=%d to=%d dat=%s bufpos=%d datsize=%d size=%d\n", 
+      // my_rank, exp_nonexec_list->ranks[i], dat->name, exp_nonexec_list->disps[i] * dat->size, dat->size, exp_nonexec_list->sizes[i]);
       MPI_Isend(&outptr_nonexec[exp_nonexec_list->disps[i] * dat->size],
                 dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
