@@ -542,7 +542,7 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {}
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
  *******************************************************************************/
 
-void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
+void op_wait_all_chained(int nargs, op_arg *args, int device) {
   // check if this is a direct loop
   int direct_flag = 1;
   for (int n = 0; n < nargs; n++)
@@ -560,7 +560,7 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   }
   // double ca_c1,ca_c2,ca_t1,ca_t2;
   // op_timers_core(&ca_c1, &ca_t1);
-#ifdef COMM_AVOID
+// #ifdef COMM_AVOID
   int my_rank;
   op_rank(&my_rank);
   MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
@@ -587,7 +587,7 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
       
       dirty_args[n].dat->dirty_hd = device;
   }
-#endif
+// #endif
   // op_timers_core(&ca_c2, &ca_t2);
   // if (OP_kern_max > 0)
   //   OP_kernels[OP_kern_curr].mpi_time += ca_t2 - ca_t1;
