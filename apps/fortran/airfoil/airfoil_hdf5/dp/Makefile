@@ -73,6 +73,20 @@ ifeq ($(OP2_COMPILER),gnu)
                 airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
                 airfoil_hdf5_mpi_openmp
 else
+ifeq ($(OP2_COMPILER),clang)
+  CC = clang
+  FC = flang
+  MPI_LIB = -L$(MPI_INSTALL_PATH)/lib -lmpi -lmpi_cxx
+  MPI_INC = -I$(MPI_INSTALL_PATH)/include
+  MPIF90 = $(FC) #$(MPI_INC) $(MPI_LIB)
+  OPT = -Ofast -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
+  OPENMP = -fopenmp
+  OMP_OFFLOAD = -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx908
+  CPPLINK = -lstdc++
+  ALL_TARGETS = airfoil_hdf5_seq airfoil_hdf5_openmp \
+                airfoil_hdf5_mpi airfoil_hdf5_mpi_genseq \
+                airfoil_hdf5_mpi_openmp
+else
 ifeq ($(OP2_COMPILER),pgi)
   CC = pgc++
   FC = pgfortran
@@ -136,6 +150,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 print:
 	echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif

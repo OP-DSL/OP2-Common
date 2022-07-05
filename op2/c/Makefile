@@ -80,6 +80,9 @@ ifeq ($(OP2_COMPILER),gnu)
   MPICXX   = $(MPICPP_PATH)
   MPIFLAGS = $(CXXFLAGS)
   HIPCC = hipcc
+	CXX = aompcc
+	OMP4FLAGS = -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx908 -Ofast
+
 else
 ifeq ($(OP2_COMPILER),intel)
   ifdef DEBUG
@@ -91,6 +94,7 @@ ifeq ($(OP2_COMPILER),intel)
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICXX_PATH)
   MPIFLAGS  = $(CXXFLAGS)
+  HIPCC = hipcc
 else
 ifeq ($(OP2_COMPILER),xl)
   ifdef DEBUG

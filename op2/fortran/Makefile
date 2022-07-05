@@ -160,6 +160,27 @@ ifeq ($(OP2_COMPILER),gnu)
   NO_MPI_MACRO    = -DNO_MPI
   ALLTARGETS      = core hdf5 f_seq f_openmp f_mpi_seq
 else
+ifeq ($(OP2_COMPILER),clang)
+  F_INC_MOD       = $(F_OP2_MOD)/clang
+  F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
+  CC              = clang
+  CXX             = clang++
+  CFLAGS          = -g -O3 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  CFLAGS_SLOW     = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FC              = flang
+	PGFC						= $(FC)
+  FFLAGS          = -g -O0 -module $(F_INC_MOD) -Mfree -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+  FMPI_FLAGS	  = -module $(F_MPI_INC_MOD) -Mfree -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
+	OMP_OFFLOAD			= -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx908
+  MPICC           = mpicc
+  MPICXX          = mpicxx
+  MPIF90          = mpif90
+  NO_MPI_MACRO    = -DNO_MPI
+  PGCFLAGS        = $(CFLAGS)
+  PGFFLAGS        = $(FFLAGS)
+  PGMPI_FFLAGS    = $(FMPI_FLAGS)
+  ALLTARGETS      = core hdf5 f_seq f_openmp f_mpi_seq f_openmp4
+else
 ifeq ($(OP2_COMPILER),pgi)
   F_INC_MOD       = $(F_OP2_MOD)/pgi
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
@@ -249,6 +270,7 @@ ifeq ($(OP2_COMPILER),cray)
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER"
+endif
 endif
 endif
 endif
