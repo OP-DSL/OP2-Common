@@ -337,6 +337,7 @@ void op_partition_external(op_set primary_set, op_dat partvec);
 
 void op_partition_inertial(op_dat x);
 
+
 #ifdef HAVE_PARMETIS
 /*******************************************************************************
 * ParMetis wrapper prototypes
@@ -344,11 +345,18 @@ void op_partition_inertial(op_dat x);
 
 void op_partition_geom(op_dat coords);
 
-void op_partition_kway(op_map primary_map);
-
 void op_partition_geomkway(op_dat coords, op_map primary_map);
 
 void op_partition_meshkway(op_map primary_map); // does not work
+#endif
+
+#if defined(HAVE_KAHIP) || defined(HAVE_PARMETIS)
+/*******************************************************************************
+* K-way partitioning prototype
+*******************************************************************************/
+
+void op_partition_kway(op_map primary_map);
+
 #endif
 
 #ifdef HAVE_PTSCOTCH

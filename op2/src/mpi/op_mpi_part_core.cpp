@@ -68,6 +68,14 @@ typedef int idx_t;
 #endif
 #endif
 
+// kaHIP header
+#ifdef HAVE_KAHIP
+#include <parhip_interface.h>
+
+typedef idxtype idx_t;
+typedef float real_t;
+#endif
+
 #include <op_lib_mpi.h>
 
 // double min/max
@@ -1685,6 +1693,10 @@ void op_partition_geom(op_dat coords) {
     printf("Max total geometric partitioning time = %lf\n", max_time);
 }
 
+#endif
+
+#if defined(HAVE_KAHIP) || defined(HAVE_PARMETIS)
+
 /*******************************************************************************
  * Wrapper routine to partition a given set Using ParMETIS PartKway()
  *******************************************************************************/
@@ -2028,12 +2040,25 @@ void op_partition_kway(op_map primary_map) {
 
   if (my_rank == MPI_ROOT) {
     printf("-----------------------------------------------------------\n");
+#ifdef HAVE_KAHIP
+    printf("ParHIPPartitionKWay Output\n");
+#else
     printf("ParMETIS_V3_PartKway Output\n");
+#endif
     printf("-----------------------------------------------------------\n");
   }
+
+#ifdef HAVE_KAHIP
+  double imb = 0.03;
+  ParHIPPartitionKWay(vtxdist, xadj, adjncy, NULL, NULL, (int*) &comm_size_pm, 
+                  &imb, false, 1, ULTRAFASTMESH, (int*) &edge_cut, partition_pm, 
+                  &OP_PART_WORLD);
+#else
   ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag,
                        &ncon, &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
                        partition_pm, &OP_PART_WORLD);
+#endif
+
   if (my_rank == MPI_ROOT)
     printf("-----------------------------------------------------------\n");
   op_free(vtxdist);
@@ -2081,6 +2106,10 @@ void op_partition_kway(op_map primary_map) {
 
   free(request_send);
 }
+
+#endif
+
+#ifdef HAVE_PARMETIS
 
 /*******************************************************************************
  * Wrapper routine to use ParMETIS PartGeomKway() which partitions the to-set
@@ -2489,6 +2518,10 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   free(request_send);
 }
 
+#endif
+
+#ifdef HAVE_PARMETIS
+
 /*******************************************************************************
  * Wrapper routine to use ParMETIS PartMeshKway() which partitions a the to-set
  * of an op_map using the from-set of the op_map
@@ -2627,6 +2660,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   ParMETIS_V3_PartMeshKway(elemdist, eptr, eind, NULL, &wgtflag, &numflag,
                            &ncon, &ncommonnodes, &comm_size_pm, tpwgts, ubvec,
                            options, &edge_cut, partition, &OP_PART_WORLD);
+
   if (my_rank == MPI_ROOT)
     printf("-----------------------------------------------------------\n");
   op_free(elemdist);
@@ -3560,7 +3594,39 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   if (lib_routine == NULL)
     lib_routine = "NULL";
 
-  if (strcmp(lib_name, "PTSCOTCH") == 0) {
+  if (strcmp(lib_name, "KAHIP") == 0) {
+#ifdef HAVE_KAHIP
+    op_printf("Selected Partitioning Routine : %s\n", lib_routine);
+    if (strcmp(lib_routine, "KWAY") == 0) {
+      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
+      if (prime_map != NULL)
+        op_partition_kway(prime_map); // use ptscotch kaway partitioning
+      else {
+        op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
+        op_printf("Reverting to trivial block partitioning\n");
+        partial_halo_flag = 0;
+      }
+    } else {
+      op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
+      op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
+    }
+#else
+    /*  Suppress warning */
+    (void)data;
+    op_printf("OP2 Library Not built with Partitioning Library : %s\n",
+              lib_name);
+    op_printf("Ignoring input routine : %s\n", lib_routine);
+    if (prime_set != NULL)
+      op_printf("Ignoring input set : %s\n", prime_set->name);
+    if (prime_map != NULL)
+      op_printf("Ignoring input mapping : %s\n", prime_map->name);
+    if (data != NULL)
+      op_printf("Ignoring input coordinates : %s\n", data->name);
+    op_printf("Reverting to trivial block partitioning\n");
+    partial_halo_flag = 0;
+#endif
+  } else if (strcmp(lib_name, "PTSCOTCH") == 0) {
 #ifdef HAVE_PTSCOTCH
     op_printf("Selected Partitioning Library : %s\n", lib_name);
     if (strcmp(lib_routine, "KWAY") == 0) {
