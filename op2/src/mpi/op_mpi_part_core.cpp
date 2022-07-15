@@ -1698,10 +1698,11 @@ void op_partition_geom(op_dat coords) {
 #if defined(HAVE_KAHIP) || defined(HAVE_PARMETIS)
 
 /*******************************************************************************
- * Wrapper routine to partition a given set Using ParMETIS PartKway()
+ * Wrapper routine to partition a given set Using 
+ * ParHIPPartitionKWay or ParMETIS PartKway()
  *******************************************************************************/
 
-void op_partition_kway(op_map primary_map) {
+void op_partition_kway(op_map primary_map, bool use_kahip) {
   // declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
@@ -2040,24 +2041,25 @@ void op_partition_kway(op_map primary_map) {
 
   if (my_rank == MPI_ROOT) {
     printf("-----------------------------------------------------------\n");
-#ifdef HAVE_KAHIP
-    printf("ParHIPPartitionKWay Output\n");
-#else
-    printf("ParMETIS_V3_PartKway Output\n");
-#endif
+    if (use_kahip) printf("ParHIPPartitionKWay Output\n");
+    else printf("ParMETIS_V3_PartKway Output\n");
     printf("-----------------------------------------------------------\n");
   }
 
+  if (use_kahip) {
 #ifdef HAVE_KAHIP
   double imb = 0.03;
   ParHIPPartitionKWay(vtxdist, xadj, adjncy, NULL, NULL, (int*) &comm_size_pm, 
                   &imb, false, 1, ULTRAFASTMESH, (int*) &edge_cut, partition_pm, 
                   &OP_PART_WORLD);
-#else
+#endif
+  } else {
+#ifdef HAVE_PARMETIS
   ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag,
                        &ncon, &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
                        partition_pm, &OP_PART_WORLD);
 #endif
+  }
 
   if (my_rank == MPI_ROOT)
     printf("-----------------------------------------------------------\n");
@@ -3600,7 +3602,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_kway(prime_map); // use ptscotch kaway partitioning
+        op_partition_kway(prime_map, true); // use ptscotch kaway partitioning
       else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
@@ -3662,7 +3664,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_kway(prime_map); // use parmetis kaway partitioning
+        op_partition_kway(prime_map, false); // use parmetis kaway partitioning
       else {
         op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner "
                   "Specification\n");

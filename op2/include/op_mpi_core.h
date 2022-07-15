@@ -355,7 +355,7 @@ void op_partition_meshkway(op_map primary_map); // does not work
 * K-way partitioning prototype
 *******************************************************************************/
 
-void op_partition_kway(op_map primary_map);
+void op_partition_kway(op_map primary_map, bool use_kahip);
 
 #endif
 
