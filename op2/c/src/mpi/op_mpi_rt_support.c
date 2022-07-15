@@ -88,7 +88,7 @@ halo_list exp_common_list;
 void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
   // printf("test1new exec my_rank\n");
   int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   op_arg dirty_args[nargs];
   int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
@@ -236,7 +236,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     return;
 
   int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  // MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 
   arg->sent = 0; // reset flag
 
@@ -560,9 +560,9 @@ void op_wait_all_chained(int nargs, op_arg *args, int device) {
   }
   // double ca_c1,ca_c2,ca_t1,ca_t2;
   // op_timers_core(&ca_c1, &ca_t1);
-// #ifdef COMM_AVOID
+#ifdef COMM_AVOID
   int my_rank;
-  op_rank(&my_rank);
+  // op_rank(&my_rank);
   MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
                 &grp_send_requests[0], MPI_STATUSES_IGNORE);
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
@@ -587,7 +587,7 @@ void op_wait_all_chained(int nargs, op_arg *args, int device) {
       
       dirty_args[n].dat->dirty_hd = device;
   }
-// #endif
+#endif
   // op_timers_core(&ca_c2, &ca_t2);
   // if (OP_kern_max > 0)
   //   OP_kernels[OP_kern_curr].mpi_time += ca_t2 - ca_t1;
@@ -609,7 +609,7 @@ void op_wait_all(op_arg *arg) {
 
     if (arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]) {
       int my_rank;
-      op_rank(&my_rank);
+      // op_rank(&my_rank);
       halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
       int init = OP_export_nonexec_permap[arg->map->index]->size;
       char *buffer =
