@@ -3602,7 +3602,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_kway(prime_map, true); // use ptscotch kaway partitioning
+        op_partition_kway(prime_map, true); // use kahip k-way partitioning
       else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
