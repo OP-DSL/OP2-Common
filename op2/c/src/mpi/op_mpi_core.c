@@ -1076,6 +1076,18 @@ void step9(int **part_range, int my_rank, int comm_size){
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     dat->dirtybit = 0;
+
+// #if defined COMM_AVOID || defined COMM_AVOID_CUDA
+    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+      dat->exec_dirtybits[i] = dat->dirtybit;
+      if(is_halo_required_for_set(dat->set, i) == 1){
+        dat->nonexec_dirtybits[i] = dat->dirtybit;
+      }
+      // else{
+      //   dat->nonexec_dirtybits[i] = -1;
+      // }
+    }
+// #endif
   }
 }
 
@@ -2884,6 +2896,12 @@ void op_compute_moment(double t, double *first, double *second) {
   *second = times_reduced[1] / (double)comm_size;
 }
 
+void op_compute_halo_data(double halo_data, double *total_halo_data) {
+  int comm_size;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  MPI_Reduce(&halo_data, total_halo_data, 1, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
+}
+
 void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros, double *first, double *second) {
   double times_moment[2] = {0.0f, 0.0f};
 
@@ -3481,7 +3499,7 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
 
-// #ifdef COMM_AVOID
+#ifdef COMM_AVOID
 void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   op_timers_core(&c1, &t1);
   op_wait_all_chained(nargs, args, device);
@@ -3489,7 +3507,7 @@ void op_mpi_wait_all_chained(int nargs, op_arg *args, int device) {
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
-// #endif
+#endif
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   op_timers_core(&c1, &t1);

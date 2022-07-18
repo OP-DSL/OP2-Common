@@ -247,7 +247,9 @@ typedef struct {
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
-  double mpi_time;   /* time spent in MPI calls */
+  double mpi_time;  /* time spent in MPI calls */
+  float halo_data;  /* bytes of halo exchange data*/
+  float halo_data2; /* bytes of halo exchange data h2d and d2h*/
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
@@ -353,6 +355,8 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name);
 void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name);
 
 void op_compute_moment(double t, double *first, double *second);
+
+void op_compute_halo_data(double halo_data, double *total_halo_data);
 
 void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros, double *first, double *second);
 

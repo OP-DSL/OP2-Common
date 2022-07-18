@@ -166,6 +166,9 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
               &grp_send_requests[r]);
     OP_mpi_tx_msg_count_chained++;
 
+    if (OP_kern_max > 0)
+      OP_kernels[OP_kern_curr].halo_data += arg_size - buf_start;
+
     // printf("rxtxexec merged my_rank=%d dat=%s r=%d sent=%d buf_start=%d prev_size=%d\n", my_rank, "test", 
     // exp_common_list->ranks[r], arg_size- buf_start, buf_start, arg_size);
 
@@ -299,6 +302,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       OP_mpi_tx_exec_msg_count++;
       OP_mpi_tx_exec_msg_count_org++;
 
+      if (OP_kern_max > 0)
+        OP_kernels[OP_kern_curr].halo_data += dat->size * exp_exec_list->sizes[i];
+
       // printf("rxtxexec org my_rank=%d dat=%s r=%d sent=%d\n", my_rank, dat->name, i, exp_exec_list->sizes[i]);
     }
 
@@ -359,6 +365,9 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
       OP_mpi_tx_nonexec_msg_count++;
       OP_mpi_tx_nonexec_msg_count_org++;
+
+      if (OP_kern_max > 0)
+        OP_kernels[OP_kern_curr].halo_data += dat->size * exp_nonexec_list->sizes[i];
       // printf("rxtxnonexec org my_rank=%d dat=%s r=%d sent=%d\n", my_rank, dat->name, i, exp_nonexec_list->sizes[i]);
       
     }

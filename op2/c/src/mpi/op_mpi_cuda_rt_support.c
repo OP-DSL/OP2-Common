@@ -259,8 +259,11 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
   if ((arg->opt) &&
       (arg->acc == OP_READ ||
        arg->acc == OP_RW /* good for debug || arg->acc == OP_INC*/) &&
+#ifdef COMM_AVOID
+      (dat->exec_dirtybits[0] == 1 || dat->nonexec_dirtybits[0] == 1)){
+#else
       (dat->dirtybit == 1)) {
-
+#endif
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
 
@@ -298,6 +301,13 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
           arg->dat->buffer_d + exp_exec_list->size * arg->dat->size,
           exp_nonexec_list->size * arg->dat->size, cudaMemcpyDeviceToHost));
 
+      if (OP_kern_max > 0){
+        OP_kernels[OP_kern_curr].halo_data2 += exp_exec_list->size * arg->dat->size;
+        OP_kernels[OP_kern_curr].halo_data2 += exp_nonexec_list->size * arg->dat->size;
+        printf("test current=%d dat=%s set=%s exec=%d nonexec=%d\n", 
+        OP_kern_curr, dat->name, dat->set->name, exp_exec_list->size, exp_nonexec_list->size);
+      }
+
       cutilSafeCall(cudaDeviceSynchronize());
       outptr_exec = ((op_mpi_buffer)(dat->mpi_buffer))->buf_exec;
       outptr_nonexec = ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec;
@@ -318,6 +328,11 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
 
       OP_mpi_tx_exec_msg_count++;
+
+      if (OP_kern_max > 0){
+        OP_kernels[OP_kern_curr].halo_data += dat->size * exp_exec_list->sizes[i];
+      }
+      
     }
 
     int init = dat->set->size * dat->size;
@@ -366,6 +381,10 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
       OP_mpi_tx_nonexec_msg_count++;
+
+      if (OP_kern_max > 0){
+        OP_kernels[OP_kern_curr].halo_data += dat->size * exp_nonexec_list->sizes[i];
+      }
     }
 
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
@@ -440,6 +459,10 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
     ca_buf_pos, ca_send_sizes, &total_buf_size, my_rank);
   
   op_download_buffer_async(grp_send_buffer_d, grp_send_buffer_h, total_buf_size);
+
+  if (OP_kern_max > 0){
+    OP_kernels[OP_kern_curr].halo_data2 += total_buf_size;
+  }
 
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
   int imp_disp = 0;
@@ -782,6 +805,10 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
               (ca_send_sizes[r]), MPI_CHAR,
               exp_common_list->ranks[r], grp_tag, OP_MPI_WORLD,
               &grp_send_requests[r]);
+
+    if (OP_kern_max > 0){
+      OP_kernels[OP_kern_curr].halo_data += ca_send_sizes[r];
+    }
     
     ca_send_sizes[r] = 0;
     ca_buf_pos[r] = 0;
@@ -796,6 +823,10 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
 
   op_upload_buffer_async(grp_recv_buffer_d, grp_recv_buffer_h, total_halo_size);
+
+  if (OP_kern_max > 0){
+    OP_kernels[OP_kern_curr].halo_data2 += total_halo_size;
+  }
   scatter_data_from_buffer_ptr_cuda_chained(dirty_args, ndirty_args, rank_count, grp_recv_buffer_d, exec_flag, my_rank);
   op_scatter_sync();
 
@@ -857,6 +888,11 @@ void op_wait_all_cuda(op_arg *arg) {
                                OP_import_nonexec_list[dat->set->index]->size) *
                                   arg->dat->size,
                               cudaMemcpyHostToDevice, 0));
+          
+          if (OP_kern_max > 0){
+            OP_kernels[OP_kern_curr].halo_data2 += (OP_import_exec_list[dat->set->index]->size +
+                               OP_import_nonexec_list[dat->set->index]->size) * arg->dat->size;
+          }
         }
       } else if (strstr(arg->dat->type, ":soa") != NULL ||
                  (OP_auto_soa && arg->dat->dim > 1))

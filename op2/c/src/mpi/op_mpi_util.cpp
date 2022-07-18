@@ -743,6 +743,31 @@ int are_dirtybits_clear(op_arg *arg){
   return 1;
 }
 
+// int are_dirtybits_clear(op_arg *arg){
+//   int nhalos = get_nhalos(arg);
+//   if(arg->unpack_method == OP_UNPACK_SINGLE_HALO || arg->unpack_method == OP_UNPACK_OP2){
+//     for(int i = 0; i < nhalos; i++){
+//       if(arg->dat->exec_dirtybits[i] == 1)
+//         return 0;
+//     }
+//     if(arg->dat->nonexec_dirtybits[nhalos - 1] == 1)
+//       return 0;
+//   }else if(arg->unpack_method == OP_UNPACK_ALL_HALOS){
+//     for(int i = 0; i < nhalos; i++){
+//       if(arg->dat->exec_dirtybits[i] == 1)
+//         return 0;
+//       if(is_halo_required_for_set(arg->dat->set, i) == 1){
+//         if(arg->dat->nonexec_dirtybits[i] == 1)
+//           return 0;
+//       }
+//     }
+//   }else{
+//     printf("ERROR is_nonexec_halo_required Invalid unpack method\n");
+//     return 0;
+//   }
+//   return 1;
+// }
+
 void unset_dirtybit(op_arg *arg){
   int nhalos = get_nhalos(arg);
   if(arg->unpack_method == OP_UNPACK_SINGLE_HALO || arg->unpack_method == OP_UNPACK_OP2){

@@ -2362,7 +2362,12 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
     for(int el = 0; el < max_level; el++){
        set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
     }
-    // printf("step11 my_rank=%d set=%s size=%d core=%d(0=%d 1=%d) exec=%d(0=%d 1=%d) non=%d(0=%d 1=%d) totalexec=%d total_nonexec=%d max_halo=%d halo_count=%d\n", my_rank, set->name,
+
+    for(int i = 0; i < set->halo_info->max_nhalos; i++){
+      printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
+        i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
+    }
+    // printf("step11 new my_rank=%d set=%s size=%d core=%d(0=%d 1=%d) exec=%d(0=%d 1=%d) non=%d(0=%d 1=%d) totalexec=%d total_nonexec=%d max_halo=%d halo_count=%d\n", my_rank, set->name,
     // set->size, set->core_size, set->core_sizes[0], set->core_sizes[1] ? set->core_sizes[1] : 0, 
     // set->exec_size, set->exec_sizes[0], set->exec_sizes[1] ? set->exec_sizes[1] : 0, 
     // set->nonexec_size, set->nonexec_sizes[0], set->nonexec_sizes[1] ? set->nonexec_sizes[1] : 0, 
@@ -2534,6 +2539,15 @@ void set_maps_halo_extension(){
     op_map map = OP_map_list[m];
     if (strncmp("pecell", map->name, strlen("pecell")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
+      printf("haloextension map dat dat=%s\n", map->name);
+    }
+    if (strncmp("pedge", map->name, strlen("pedge")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      printf("haloextension1 map dat dat=%s\n", map->name);
+    }
+    if (strncmp("pcell", map->name, strlen("pcell")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      printf("haloextension1 map dat dat=%s\n", map->name);
     }
   }
 }
@@ -2940,7 +2954,6 @@ void op_halo_create_comm_avoid() {
 
   int num_halos = get_max_nhalos();
   op_printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
-  
   for(int l = 0; l < num_halos; l++){
     /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
