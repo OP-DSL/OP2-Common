@@ -107,7 +107,7 @@ endef
 
 $(eval $(call RULE_template, seq,,                      SEQ,     MPI))
 $(eval $(call RULE_template, genseq,,                   SEQ,     MPI))
-$(eval $(call RULE_template, openmp,   $(OMP_CPPFLAGS), OPENMP,  MPI))
+$(eval $(call RULE_template, openmp,   $(OMP_CXXFLAGS), OPENMP,  MPI))
 $(eval $(call RULE_template, cuda,,                     CUDA,    MPI_CUDA))
 
 define CUDA_EXTRA_RULES_template =
