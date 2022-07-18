@@ -27,9 +27,9 @@ Basic compiler setup:
  * `CXXLINK`: Any additional libraries required for linking objects produced by `CXX` (e.g. `-lstdc++`).
 
 Available OpenMP features:
- * `OMP_CPPFLAGS`: The flags to enable compilation of OpenMP pragmas (e.g. `-fopenmp`).
+ * `OMP_CXXFLAGS`: The flags to enable compilation of OpenMP pragmas (e.g. `-fopenmp`).
  * `CPP_HAS_OMP`: Set to `true` if the C and C++ compilers support OpenMP.
- * `OMP_OFFLOAD_CPPFLAGS`: The flags to enable the compilation of OpenMP 4.0 offload pragmas (e.g. `-foffload=nvptx-none`).
+ * `OMP_OFFLOAD_CXXFLAGS`: The flags to enable the compilation of OpenMP 4.0 offload pragmas (e.g. `-foffload=nvptx-none`).
  * `CPP_HAS_OMP_OFFLOAD`: Set to `true` if the C and C++ compilers support OpenMP 4.0 offload.
 
 #### `compilers/c_cuda`: The C/C++ CUDA compilers
