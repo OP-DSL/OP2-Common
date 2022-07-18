@@ -5,6 +5,10 @@ BASE_FFLAGS := -Wall -pedantic -ffixed-line-length-none -ffree-line-length-none 
 
 ifndef DEBUG
   BASE_FFLAGS += -O3
+
+  ifeq ($(TARGET_HOST),true)
+    BASE_FFLAGS += -march=native
+  endif
 else
   BASE_FFLAGS += -g -Og -fcheck=all -ffpe-trap=invalid,zero,overflow
 endif
