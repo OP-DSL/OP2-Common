@@ -3,6 +3,10 @@ CONFIG_FC := nvfortran
 
 ifndef DEBUG
   BASE_FFLAGS += -O3
+
+  ifeq ($(TARGET_HOST),true)
+    BASE_FFLAGS += -fast
+  endif
 else
   BASE_FFLAGS += -g -O0
 endif

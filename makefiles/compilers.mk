@@ -18,6 +18,8 @@ CUDA_GEN_Ampere  := 80
 NV_ARCH := $(subst $(COMMA),$(SPACE),$(NV_ARCH))
 $(foreach arch,$(NV_ARCH),$(eval CUDA_GEN += $(CUDA_GEN_$(arch))))
 
+TARGET_HOST ?= true
+
 # Include the relevant compiler makefiles
 ifdef OP2_C_COMPILER
   include $(MAKEFILES_DIR)/compilers/c/$(OP2_C_COMPILER).mk
@@ -68,17 +70,11 @@ ifneq ($(and $(shell which $(CONFIG_MPICC) 2>/dev/null),$(shell which $(CONFIG_M
   CONFIG_HAVE_MPI_C := true
 
   # Anti MPI C++ binding measures
-  CONFIG_CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H -no-multibyte-chars
-  CONFIG_CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H -no-multibyte-chars
+  CONFIG_CFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
+  CONFIG_CXXFLAGS += -DOMPI_SKIP_MPICXX -DMPICH_IGNORE_CXX_SEEK -DMPIPP_H
 endif
 
 ifneq ($(shell which $(CONFIG_MPIFC) 2> /dev/null),)
   CONFIG_MPIFC != which $(CONFIG_MPIFC)
   CONFIG_HAVE_MPI_F := true
 endif
-
-CONFIG_CC += -no-multibyte-chars
-CONFIG_CXX += -no-multibyte-chars
-CONFIG_MPICC += -no-multibyte-chars
-CONFIG_MPICXX += -no-multibyte-chars
-CONFIG_MPIFC += -no-multibyte-chars
