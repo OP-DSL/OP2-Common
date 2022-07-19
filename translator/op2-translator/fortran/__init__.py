@@ -47,9 +47,6 @@ class Fortran(Lang):
 
         source.seek(0)
 
-        # TODO: Manual workaround until fparser2 #339 is fixed
-        SYMBOL_TABLES.clear()
-
         reader = FortranFileReader(source, include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")
 

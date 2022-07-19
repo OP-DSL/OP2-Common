@@ -11,11 +11,11 @@ from util import find
 
 
 class FortranSeq(Scheme):
-    lang = Lang.find("F95")
+    lang = Lang.find("F90")
     target = Target.find("seq")
 
     loop_host_template = Path("fortran/seq/loop_host.inc.jinja")
-    master_kernel_template = Path("fortran/seq/master_kernel.F95.jinja")
+    master_kernel_template = Path("fortran/seq/master_kernel.F90.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
         kernel_ast = ftk.findKernel(self.lang, kernel, include_dirs, defines)
@@ -30,11 +30,11 @@ Scheme.register(FortranSeq)
 
 
 class FortranOpenMP(Scheme):
-    lang = Lang.find("F95")
+    lang = Lang.find("F90")
     target = Target.find("openmp")
 
     loop_host_template = Path("fortran/openmp/loop_host.inc.jinja")
-    master_kernel_template = Path("fortran/openmp/master_kernel.F95.jinja")
+    master_kernel_template = Path("fortran/openmp/master_kernel.F90.jinja")
 
     def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
         kernel_ast = ftk.findKernel(self.lang, kernel, include_dirs, defines)
@@ -75,7 +75,7 @@ Scheme.register(FortranOpenMP)
 
 
 class FortranCuda(Scheme):
-    lang = Lang.find("F95")
+    lang = Lang.find("F90")
     target = Target.find("cuda")
 
     loop_host_template = Path("fortran/cuda/loop_host.inc.jinja")

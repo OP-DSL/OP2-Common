@@ -1,6 +1,6 @@
 import os
-from io import StringIO
 from functools import lru_cache
+from io import StringIO
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
 
@@ -12,7 +12,7 @@ import cpp.parser
 import cpp.translator.program
 import op as OP
 from language import Lang
-from store import Kernel, ParseError, Program, Location
+from store import Kernel, Location, ParseError, Program
 
 load_dotenv()
 clang.cindex.Config.set_library_file(os.getenv("LIBCLANG_PATH"))
