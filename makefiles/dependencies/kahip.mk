@@ -1,10 +1,8 @@
 KAHIP_DEF ?= -DHAVE_KAHIP
 
 ifdef KAHIP_INSTALL_PATH
-  KAHIP_INC_PATH := -I$(KAHIP_INSTALL_PATH)/parallel/parallel_src/interface \
-                    -I$(KAHIP_INSTALL_PATH)/interface
-  KAHIP_LIB_PATH := -L$(KAHIP_INSTALL_PATH)/build/parallel/parallel_src \
-                    -L$(KAHIP_INSTALL_PATH)/build
+  KAHIP_INC_PATH := -I$(KAHIP_INSTALL_PATH)/include
+  KAHIP_LIB_PATH := -L$(KAHIP_INSTALL_PATH)/lib
 endif
 
 KAHIP_TEST = $(CONFIG_MPICXX) $(KAHIP_INC_PATH) \
