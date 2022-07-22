@@ -27,6 +27,7 @@ These may also be provided from various package managers and modules, however th
 
 - (Optional) `(PT-)Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_: Used for mesh partitioning. You must build both the sequential Scotch and parallel PT-Scotch with 32-bit indicies (``-DIDXSIZE=32``) and without threading support (remove ``-DSCOTCH_PTHREAD``).
 - (Optional) `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_: Used for mesh partitioning.
+- (Optional) `KaHIP <https://kahip.github.io/>`_: Used for mesh partitioning.
 - (Optional) `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_: Used for HDF5 I/O. You may build with and without ``--enable-parallel`` (depending on if you need MPI), and then specify both builds via the environment variables listed below.
 
 .. note::
@@ -65,6 +66,7 @@ Then, specify the paths to the library dependency installation directories:
 
    export PTSCOTCH_INSTALL_PATH=<path/to/ptscotch>
    export PARMETIS_INSTALL_PATH=<path/to/parmetis>
+   export KAHIP_INSTALL_PATH=<path/to/kahip>
    export HDF5_{SEQ, PAR}_INSTALL_PATH=<path/to/hdf5>
 
    export CUDA_INSTALL_PATH=<path/to/cuda/toolkit>
