@@ -1697,11 +1697,11 @@ void op_partition_geom(op_dat coords) {
 void op_partition_kway(op_map primary_map, bool use_kahip) {
   if (use_kahip) {
 #ifdef HAVE_KAHIP
-  op_partition_kway_generic<idxtype>(primary_map, use_kahip);
+    op_partition_kway_generic<idxtype>(primary_map, use_kahip);
 #endif
   } else {
 #ifdef HAVE_PARMETIS
-  op_partition_kway_generic<idx_t>(primary_map, use_kahip);
+    op_partition_kway_generic<idx_t>(primary_map, use_kahip);
 #endif
   }
 }
@@ -3445,7 +3445,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
  * Initialise partitioning data structures with the current (block)
 *  partitioning information
  *******************************************************************************/
-int** initialise(int my_rank, int comm_size) {
+int **initialise(int my_rank, int comm_size) {
   // Compute global partition range information for each set
   int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
@@ -3481,8 +3481,8 @@ int** initialise(int my_rank, int comm_size) {
 /*******************************************************************************
  * Create export list
  *******************************************************************************/
-halo_list create_exp_list(op_map primary_map, int** part_range, 
-                                                  int my_rank, int comm_size) {
+halo_list create_exp_list(op_map primary_map, int **part_range, int my_rank,
+                          int comm_size) {
   //
   // create export list
   //
@@ -3519,8 +3519,9 @@ halo_list create_exp_list(op_map primary_map, int** part_range,
 /*******************************************************************************
  * Create import list
  *******************************************************************************/
-std::tuple<halo_list, MPI_Request*> create_imp_list(op_map primary_map, 
-                              int my_rank, int comm_size, halo_list exp_list) {
+std::tuple<halo_list, MPI_Request *> create_imp_list(op_map primary_map,
+                                                     int my_rank, int comm_size,
+                                                     halo_list exp_list) {
   //
   // create import list
   //
@@ -3574,9 +3575,10 @@ std::tuple<halo_list, MPI_Request*> create_imp_list(op_map primary_map,
  * Construct adjacency list of the to-set of the primary_map given
  * import and export lists
  *******************************************************************************/
-std::tuple<int**, int*, int*> 
-construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list, 
-      MPI_Request* request_send, int my_rank, int comm_size, int** part_range) {
+std::tuple<int **, int *, int *>
+construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
+                   MPI_Request *request_send, int my_rank, int comm_size,
+                   int **part_range) {
   //
   // Exchange mapping table entries using the import/export lists
   //
@@ -3681,9 +3683,9 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
  * Setup variables for k-way partitioning
  *******************************************************************************/
 template <class T>
-std::tuple<T*, T*, T*, T*, T, T, real_t*, real_t*> 
-setup_part_data(op_map primary_map, int my_rank, int comm_size, 
-                      int** adj, int* adj_i, int* adj_cap, int **part_range) {
+std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
+setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
+                int *adj_i, int *adj_cap, int **part_range) {
   T comm_size_pm = comm_size;
 
   T *vtxdist = (T *)xmalloc(sizeof(T) * (comm_size + 1));
@@ -3767,14 +3769,16 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size,
   real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
-  return std::make_tuple(vtxdist, xadj, adjncy, partition_pm, comm_size_pm, ncon, tpwgts, ubvec);
+  return std::make_tuple(vtxdist, xadj, adjncy, partition_pm, comm_size_pm,
+                         ncon, tpwgts, ubvec);
 }
 
 /*******************************************************************************
  * Check partitioning was performed as expected
  *******************************************************************************/
 template <class T>
-void check_partition(op_map primary_map, T* partition_pm, int my_rank, int comm_size) {
+void check_partition(op_map primary_map, T *partition_pm, int my_rank,
+                     int comm_size) {
   int *partition = (int *)xmalloc(sizeof(int) * primary_map->to->size);
   for (int i = 0; i < primary_map->to->size; i++) {
     // sanity check to see if all elements were partitioned
@@ -3798,26 +3802,30 @@ void check_partition(op_map primary_map, T* partition_pm, int my_rank, int comm_
  *******************************************************************************/
 
 #ifdef HAVE_PARMETIS
-void perform_kway_partition(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy, 
-            idx_t *wgtflag, idx_t *numflag, idx_t *ncon, idx_t *nparts,real_t *tpwgts, 
-            real_t *ubvec, idx_t *options, idx_t *edgecut, idx_t *part, MPI_Comm *comm) {
-  ParMETIS_V3_PartKway( vtxdist, xadj, adjncy, NULL, NULL, wgtflag, numflag, ncon, 
-                        nparts, tpwgts, ubvec, options, edgecut, part, comm);
+void perform_kway_partition(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
+                            idx_t *wgtflag, idx_t *numflag, idx_t *ncon,
+                            idx_t *nparts, real_t *tpwgts, real_t *ubvec,
+                            idx_t *options, idx_t *edgecut, idx_t *part,
+                            MPI_Comm *comm) {
+  ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, NULL, NULL, wgtflag, numflag,
+                       ncon, nparts, tpwgts, ubvec, options, edgecut, part,
+                       comm);
 }
 #endif
 
 #ifdef HAVE_KAHIP
-void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy, 
-            idxtype *, idxtype *, idxtype *, idxtype *nparts, real_t *, real_t *, idxtype *, 
-            idxtype *edgecut, idxtype *part, MPI_Comm *comm) {
+void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
+                            idxtype *, idxtype *, idxtype *, idxtype *nparts,
+                            real_t *, real_t *, idxtype *, idxtype *edgecut,
+                            idxtype *part, MPI_Comm *comm) {
   double imb = 0.03;
-  ParHIPPartitionKWay( vtxdist, xadj, adjncy, NULL, NULL, (int*) nparts, &imb, 
-                       false, 1, ULTRAFASTMESH, (int*) edgecut, part, comm);
+  ParHIPPartitionKWay(vtxdist, xadj, adjncy, NULL, NULL, (int *)nparts, &imb,
+                      false, 1, ULTRAFASTMESH, (int *)edgecut, part, comm);
 }
 #endif
 
 /*******************************************************************************
- * Wrapper routine to partition a given set Using 
+ * Wrapper routine to partition a given set Using
  * ParHIPPartitionKWay or ParMETIS PartKway()
  *******************************************************************************/
 template <class T>
@@ -3846,24 +3854,28 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
 
   /*--STEP 0 - initialise partitioning data structures with the current (block)
     partitioning information */
-  int** part_range = initialise(my_rank, comm_size);
+  int **part_range = initialise(my_rank, comm_size);
 
   /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
    * -------*/
-  halo_list exp_list = create_exp_list(primary_map, part_range, my_rank, comm_size);
+  halo_list exp_list =
+      create_exp_list(primary_map, part_range, my_rank, comm_size);
   halo_list imp_list;
-  MPI_Request* request_send;
-  std::tie(imp_list, request_send) = create_imp_list(primary_map, my_rank, comm_size, exp_list);
+ MPI_Request *request_send;
+  std::tie(imp_list, request_send) =
+      create_imp_list(primary_map, my_rank, comm_size, exp_list);
 
   int **adj, *adj_i, *adj_cap;
-  std::tie(adj, adj_i, adj_cap) = construct_adj_list(primary_map, exp_list, imp_list, 
-                                                  request_send, my_rank, comm_size, part_range);
+  std::tie(adj, adj_i, adj_cap) =
+      construct_adj_list(primary_map, exp_list, imp_list, request_send, my_rank,
+                         comm_size, part_range);
 
   T *vtxdist, *xadj, *adjncy, *partition_pm;
   T comm_size_pm, ncon;
   real_t *tpwgts, *ubvec;
-  std::tie(vtxdist, xadj, adjncy, partition_pm, comm_size_pm, ncon, tpwgts, ubvec) = 
-    setup_part_data<T>(primary_map, my_rank, comm_size, adj, adj_i, adj_cap, part_range);
+  std::tie(vtxdist, xadj, adjncy, partition_pm, comm_size_pm, ncon, tpwgts,
+           ubvec) = setup_part_data<T>(primary_map, my_rank, comm_size, adj,
+                                       adj_i, adj_cap, part_range);
 
   T edge_cut = 0;
   T numflag = 0;
@@ -3893,9 +3905,9 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
     printf("-----------------------------------------------------------\n");
   }
 
-  perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag,
-                  &ncon, &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
-                  partition_pm, &OP_PART_WORLD);
+  perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
+                         &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
+                         partition_pm, &OP_PART_WORLD);
 
   if (my_rank == MPI_ROOT)
     printf("-----------------------------------------------------------\n");
@@ -3910,7 +3922,7 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
    * tables-*/
 
-   // partition all other sets
+  // partition all other sets
   partition_all(primary_map->to, my_rank, comm_size);
 
   // migrate data, sort elements
