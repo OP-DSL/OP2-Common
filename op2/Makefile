@@ -5,7 +5,7 @@ OBJ ?= $(OP2_BUILD_DIR)/obj
 MOD ?= $(OP2_BUILD_DIR)/mod
 MOD_CUDA ?= $(MOD)/cuda
 
-INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(CUDA_INC)
+INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC)
 
 # Calculate the libraries that we can actually build
 ifeq ($(HAVE_C),true)

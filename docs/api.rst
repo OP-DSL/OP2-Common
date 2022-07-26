@@ -99,7 +99,7 @@ Initialisation and Termination
 .. c:function:: op_map op_decl_map(op_set from, op_set to, int dim, int *imap, char *name)
 
    This routine defines a mapping between sets.
-
+         
    :param from: Source set.
    :param to: Destination set.
    :param dim: Number of mappings per source element.
@@ -111,7 +111,7 @@ Initialisation and Termination
    This routine controls the partitioning of the sets used for distributed memory parallel execution.
 
    :param lib_name: The partitioning library to use, see below.
-   :param lib_routine: The partitioning algorithm to use. Required if using :c:expr:`"PTSCOTCH"` or :c:expr:`"PARMETIS"` as the **lib_name**.
+   :param lib_routine: The partitioning algorithm to use. Required if using :c:expr:`"PTSCOTCH"`, :c:expr:`"PARMETIS"` or https://kahip.github.io/ as the **lib_name**.
    :param prime_set: Specifies the set to be partitioned.
    :param prime_map: Specifies the map to be used to create adjacency lists for the **prime_set**. Required if using :c:expr:`"KWAY"` or :c:expr:`"GEOMKWAY"`.
    :param coords: Specifies the geometric coordinates of the **prime_set**. Required if using :c:expr:`"GEOM"` or :c:expr:`"GEOMKWAY"`.
@@ -120,11 +120,12 @@ Initialisation and Termination
 
    - :c:expr:`"PTSCOTCH"`: The `PT-Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_ library.
    - :c:expr:`"PARMETIS"`: The `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_ library.
+   - :c:expr:`"KAHIP"`: The `KaHIP <https://kahip.github.io/>`_ library.
    - :c:expr:`"INERTIAL"`: Internal 3D recursive inertial bisection partitioning.
    - :c:expr:`"EXTERNAL"`: External partitioning optionally read in when using HDF5 I/O.
    - :c:expr:`"RANDOM"`: Random partitioning, intended for debugging purposes.
 
-   The options for **lib_routine** when using :c:expr:`"PTSCOTCH"` are:
+   The options for **lib_routine** when using :c:expr:`"PTSCOTCH"` or :c:expr:`"KAHIP"` are:
 
    - :c:expr:`"KWAY"`: K-way graph partitioning.
 

@@ -88,6 +88,7 @@ ifeq ($(MAKECMDGOALS),config)
 
     include $(DEPS_DIR)/ptscotch.mk
     include $(DEPS_DIR)/parmetis.mk
+    include $(DEPS_DIR)/kahip.mk
   else
     $(call info_bold,> MPI C/C++ compilers $(TEXT_NOTFOUND); \
       skipping search for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
@@ -154,6 +155,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info MPI partitioners:)
   $(info .   PT-Scotch: $(call I_STR,PTSCOTCH))
   $(info .   ParMETIS: $(call I_STR,PARMETIS))
+  $(info .   KaHIP: $(call I_STR,KAHIP))
   $(info )
   $(info Compilation flags:)
   $(info .   C: $(CFLAGS))
@@ -178,8 +180,8 @@ OP2_LIB_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_$(1) $(2)
 OP2_LIB_FOR_$(call UPPERCASE,$(1)) := $(OP2_LIB) -lop2_for_$(1) $(3)
 endef
 
-OP2_LIB_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB)
-OP2_LIB_FOR_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB)
+OP2_LIB_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(KAHIP_LIB)
+OP2_LIB_FOR_EXTRA_MPI += $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(KAHIP_LIB)
 
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
   OP2_LIB_EXTRA += -lop2_hdf5 $(HDF5_SEQ_LIB)

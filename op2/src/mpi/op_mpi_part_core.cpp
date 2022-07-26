@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <tuple>
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -61,13 +62,16 @@
 // parmetis header
 #ifdef HAVE_PARMETIS
 #include <parmetis.h>
-#ifdef PARMETIS_VER_4
-typedef idx_t idxtype;
-#else
+#if !defined(PARMETIS_VER_4)
 typedef int idx_t;
 #endif
 #endif
 
+// kaHIP header
+#ifdef HAVE_KAHIP
+#include <parhip_interface.h>
+typedef float real_t;
+#endif
 #include <op_lib_mpi.h>
 
 // double min/max
@@ -76,6 +80,9 @@ typedef int idx_t;
 extern int *OP_map_partial_exchange; // flag for each map ..
 // used for checking if partial halo exchanges
 // are to be performed
+
+template <class T>
+void op_partition_kway_generic(op_map primary_map, bool use_kahip);
 
 #ifdef __cplusplus
 extern "C" {
@@ -1685,402 +1692,21 @@ void op_partition_geom(op_dat coords) {
     printf("Max total geometric partitioning time = %lf\n", max_time);
 }
 
-/*******************************************************************************
- * Wrapper routine to partition a given set Using ParMETIS PartKway()
- *******************************************************************************/
-
-void op_partition_kway(op_map primary_map) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-#ifdef DEBUG
-  // check if the  primary_map is an on to map from the from-set to the to-set
-  if (is_onto_map(primary_map) != 1) {
-    printf("Map %s is an not an onto map from set %s to set %s \n",
-           primary_map->name, primary_map->from->name, primary_map->to->name);
-    MPI_Abort(OP_PART_WORLD, 2);
-  }
 #endif
 
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
-  // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
+void op_partition_kway(op_map primary_map, bool use_kahip) {
+  if (use_kahip) {
+#ifdef HAVE_KAHIP
+    op_partition_kway_generic<idxtype>(primary_map, use_kahip);
+#endif
+  } else {
+#ifdef HAVE_PARMETIS
+    op_partition_kway_generic<idx_t>(primary_map, use_kahip);
+#endif
   }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
-
-  /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
-   * -------*/
-
-  //
-  // create export list
-  //
-  int c = 0;
-  int cap = 1000;
-  int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
-
-  for (int e = 0; e < primary_map->from->size; e++) { // for each
-                                                      // maping table entry
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(primary_map->map[e * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size);
-      if (c >= cap) {
-        cap = cap * 2;
-        list = (int *)xrealloc(list, cap * sizeof(int));
-      }
-
-      if (part != my_rank) {
-        list[c++] = part; // add to export list
-        list[c++] = e;
-      }
-    }
-  }
-  halo_list exp_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_export_list(primary_map->from, list, exp_list, c, comm_size, my_rank);
-  op_free(list); // free temp list
-
-  //
-  // create import list
-  //
-  int *neighbors, *sizes;
-  int ranks_size;
-
-  //-----Discover neighbors-----
-  ranks_size = 0;
-  neighbors = (int *)xmalloc(comm_size * sizeof(int));
-  sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  // halo_list list = OP_export_exec_list[set->index];
-  find_neighbors_set(exp_list, neighbors, sizes, &ranks_size, my_rank,
-                     comm_size, OP_PART_WORLD);
-  //  MPI_Request request_send[exp_list->ranks_size];
-  MPI_Request *request_send =
-      (MPI_Request *)xmalloc(exp_list->ranks_size * sizeof(MPI_Request));
-
-  int *rbuf, index = 0;
-  cap = 0;
-
-  for (int i = 0; i < exp_list->ranks_size; i++) {
-    int *sbuf = &exp_list->list[exp_list->disps[i]];
-    MPI_Isend(sbuf, exp_list->sizes[i], MPI_INT, exp_list->ranks[i],
-              primary_map->index, OP_PART_WORLD, &request_send[i]);
-  }
-
-  for (int i = 0; i < ranks_size; i++)
-    cap = cap + sizes[i];
-  int *temp = (int *)xmalloc(cap * sizeof(int));
-
-  // import this list from those neighbors
-  for (int i = 0; i < ranks_size; i++) {
-    rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-    MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], primary_map->index,
-             OP_PART_WORLD, MPI_STATUS_IGNORE);
-    memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
-    index = index + sizes[i];
-    op_free(rbuf);
-  }
-  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-
-  halo_list imp_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_import_list(primary_map->from, temp, imp_list, index, neighbors, sizes,
-                     ranks_size, comm_size, my_rank);
-
-  //
-  // Exchange mapping table entries using the import/export lists
-  //
-
-  // prepare bits of the mapping tables to be exported
-  int **sbuf = (int **)xmalloc(exp_list->ranks_size * sizeof(int *));
-
-  for (int i = 0; i < exp_list->ranks_size; i++) {
-    sbuf[i] =
-        (int *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(int));
-    for (int j = 0; j < exp_list->sizes[i]; j++) {
-      for (int p = 0; p < primary_map->dim; p++) {
-        sbuf[i][j * primary_map->dim + p] =
-            primary_map->map[primary_map->dim *
-                                 (exp_list->list[exp_list->disps[i] + j]) +
-                             p];
-      }
-    }
-    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], MPI_INT,
-              exp_list->ranks[i], primary_map->index, OP_PART_WORLD,
-              &request_send[i]);
-  }
-
-  // prepare space for the incomming mapping tables
-  int *foreign_maps =
-      (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
-
-  for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
-             primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
-             primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
-  }
-
-  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-  for (int i = 0; i < exp_list->ranks_size; i++)
-    op_free(sbuf[i]);
-  op_free(sbuf);
-
-  int **adj = (int **)xmalloc(primary_map->to->size * sizeof(int *));
-  int *adj_i = (int *)xmalloc(primary_map->to->size * sizeof(int));
-  int *adj_cap = (int *)xmalloc(primary_map->to->size * sizeof(int));
-
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj_i[i] = 0;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj_cap[i] = primary_map->dim;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj[i] = (int *)xmalloc(adj_cap[i] * sizeof(int));
-
-  // go through each from-element of local primary_map and construct adjacency
-  // list
-  for (int i = 0; i < primary_map->from->size; i++) {
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(primary_map->map[i * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size);
-
-      if (part == my_rank) {
-        for (int k = 0; k < primary_map->dim; k++) {
-          if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
-          }
-          adj[local_index][adj_i[local_index]++] =
-              primary_map->map[i * primary_map->dim + k];
-        }
-      }
-    }
-  }
-  // go through each from-element of foreign primary_map and add to adjacency
-  // list
-  for (int i = 0; i < imp_list->size; i++) {
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(foreign_maps[i * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size);
-
-      if (part == my_rank) {
-        for (int k = 0; k < primary_map->dim; k++) {
-          if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
-          }
-          adj[local_index][adj_i[local_index]++] =
-              foreign_maps[i * primary_map->dim + k];
-        }
-      }
-    }
-  }
-  op_free(foreign_maps);
-
-  //
-  // Setup data structures for ParMetis PartKway
-  //
-  idx_t comm_size_pm = comm_size;
-
-  idx_t *vtxdist = (idx_t *)xmalloc(sizeof(idx_t) * (comm_size + 1));
-  for (int i = 0; i < comm_size; i++) {
-    vtxdist[i] = part_range[primary_map->to->index][2 * i];
-  }
-  vtxdist[comm_size] =
-      part_range[primary_map->to->index][2 * (comm_size - 1) + 1] + 1;
-
-  idx_t *xadj = (idx_t *)xmalloc(sizeof(idx_t) * (primary_map->to->size + 1));
-  cap = (primary_map->to->size) * primary_map->dim;
-
-  idx_t *adjncy = (idx_t *)xmalloc(sizeof(idx_t) * cap);
-  int count = 0;
-  int prev_count = 0;
-  for (int i = 0; i < primary_map->to->size; i++) {
-    int g_index = get_global_index(
-        i, my_rank, part_range[primary_map->to->index], comm_size);
-    quickSort(adj[i], 0, adj_i[i] - 1);
-    adj_i[i] = removeDups(adj[i], adj_i[i]);
-
-    if (adj_i[i] < 2) {
-      printf("The from set: %s of primary map: %s is not an on to set of "
-             "to-set: %s\n",
-             primary_map->from->name, primary_map->name, primary_map->to->name);
-      printf("Need to select a different primary map\n");
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-
-    adj[i] = (int *)xrealloc(adj[i], adj_i[i] * sizeof(int));
-    for (int j = 0; j < adj_i[i]; j++) {
-      if (adj[i][j] != g_index) {
-        if (count >= cap) {
-          cap = cap * 2;
-          adjncy = (idx_t *)xrealloc(adjncy, sizeof(idx_t) * cap);
-        }
-        adjncy[count++] = (idx_t)adj[i][j];
-      }
-    }
-    if (i != 0) {
-      xadj[i] = prev_count;
-      prev_count = count;
-    } else {
-      xadj[i] = 0;
-      prev_count = count;
-    }
-  }
-  xadj[primary_map->to->size] = count;
-
-  // printf("On rank %d\n", my_rank);
-  /* for(int i = 0; i<primary_map->to->size; i++)
-    {
-    if(xadj[i+1]-xadj[i]>8)printf("On rank %d, element %d, Size = %d\n",
-    my_rank, i, xadj[i+1]-xadj[i]);
-    }*/
-  // printf("\n\n");
-
-  for (int i = 0; i < primary_map->to->size; i++)
-    op_free(adj[i]);
-  op_free(adj_i);
-  op_free(adj_cap);
-  op_free(adj);
-
-  idx_t *partition_pm = (idx_t *)xmalloc(sizeof(idx_t) * primary_map->to->size);
-  for (int i = 0; i < primary_map->to->size; i++) {
-    partition_pm[i] = -99;
-  }
-
-  idx_t edge_cut = 0;
-  idx_t numflag = 0;
-  idx_t wgtflag = 0;
-  idx_t options[3] = {1, 3, 15};
-
-  int *hybrid_flags = (int *)xmalloc(comm_size * sizeof(int));
-  MPI_Allgather(&OP_hybrid_gpu, 1, MPI_INT, hybrid_flags, 1, MPI_INT,
-                OP_PART_WORLD);
-  double total = 0;
-  for (int i = 0; i < comm_size; i++)
-    total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
-
-  idx_t ncon = 1;
-  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
-  for (int i = 0; i < comm_size * ncon; i++)
-    tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance / total : 1.0 / total;
-
-  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
-  *ubvec = 1.05;
-
-  // clean up before calling ParMetis
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-  op_free(imp_list->list);
-  op_free(imp_list->disps);
-  op_free(imp_list->ranks);
-  op_free(imp_list->sizes);
-  op_free(exp_list->list);
-  op_free(exp_list->disps);
-  op_free(exp_list->ranks);
-  op_free(exp_list->sizes);
-  op_free(imp_list);
-  op_free(exp_list);
-
-  if (my_rank == MPI_ROOT) {
-    printf("-----------------------------------------------------------\n");
-    printf("ParMETIS_V3_PartKway Output\n");
-    printf("-----------------------------------------------------------\n");
-  }
-  ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag,
-                       &ncon, &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
-                       partition_pm, &OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("-----------------------------------------------------------\n");
-  op_free(vtxdist);
-  op_free(xadj);
-  op_free(adjncy);
-  op_free(ubvec);
-  op_free(tpwgts);
-
-  int *partition = (int *)xmalloc(sizeof(int) * primary_map->to->size);
-  for (int i = 0; i < primary_map->to->size; i++) {
-    // sanity check to see if all elements were partitioned
-    if (partition_pm[i] < 0 || partition_pm[i] >= comm_size) {
-      printf("Partitioning problem: on rank %d, set %s element %d not assigned "
-             "a partition\n",
-             my_rank, primary_map->to->name, i);
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-    partition[i] = partition_pm[i];
-  }
-  free(partition_pm);
-
-  // initialise primary set as partitioned
-  OP_part_list[primary_map->to->index]->elem_part = partition;
-  OP_part_list[primary_map->to->index]->is_partitioned = 1;
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(primary_map->to, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total Kway partitioning time = %lf\n", max_time);
-
-  free(request_send);
 }
+
+#ifdef HAVE_PARMETIS
 
 /*******************************************************************************
  * Wrapper routine to use ParMETIS PartGeomKway() which partitions the to-set
@@ -2489,6 +2115,10 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   free(request_send);
 }
 
+#endif
+
+#ifdef HAVE_PARMETIS
+
 /*******************************************************************************
  * Wrapper routine to use ParMETIS PartMeshKway() which partitions a the to-set
  * of an op_map using the from-set of the op_map
@@ -2627,6 +2257,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   ParMETIS_V3_PartMeshKway(elemdist, eptr, eind, NULL, &wgtflag, &numflag,
                            &ncon, &ncommonnodes, &comm_size_pm, tpwgts, ubvec,
                            options, &edge_cut, partition, &OP_PART_WORLD);
+
   if (my_rank == MPI_ROOT)
     printf("-----------------------------------------------------------\n");
   op_free(elemdist);
@@ -3560,7 +3191,39 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   if (lib_routine == NULL)
     lib_routine = "NULL";
 
-  if (strcmp(lib_name, "PTSCOTCH") == 0) {
+  if (strcmp(lib_name, "KAHIP") == 0) {
+#ifdef HAVE_KAHIP
+    op_printf("Selected Partitioning Routine : %s\n", lib_routine);
+    if (strcmp(lib_routine, "KWAY") == 0) {
+      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
+      if (prime_map != NULL)
+        op_partition_kway(prime_map, true); // use kahip k-way partitioning
+      else {
+        op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
+        op_printf("Reverting to trivial block partitioning\n");
+        partial_halo_flag = 0;
+      }
+    } else {
+      op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
+      op_printf("Reverting to trivial block partitioning\n");
+      partial_halo_flag = 0;
+    }
+#else
+    /*  Suppress warning */
+    (void)data;
+    op_printf("OP2 Library Not built with Partitioning Library : %s\n",
+              lib_name);
+    op_printf("Ignoring input routine : %s\n", lib_routine);
+    if (prime_set != NULL)
+      op_printf("Ignoring input set : %s\n", prime_set->name);
+    if (prime_map != NULL)
+      op_printf("Ignoring input mapping : %s\n", prime_map->name);
+    if (data != NULL)
+      op_printf("Ignoring input coordinates : %s\n", data->name);
+    op_printf("Reverting to trivial block partitioning\n");
+    partial_halo_flag = 0;
+#endif
+  } else if (strcmp(lib_name, "PTSCOTCH") == 0) {
 #ifdef HAVE_PTSCOTCH
     op_printf("Selected Partitioning Library : %s\n", lib_name);
     if (strcmp(lib_routine, "KWAY") == 0) {
@@ -3596,7 +3259,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_kway(prime_map); // use parmetis kaway partitioning
+        op_partition_kway(prime_map, false); // use parmetis kaway partitioning
       else {
         op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner "
                   "Specification\n");
@@ -3777,3 +3440,504 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
 #ifdef __cplusplus
 }
 #endif
+
+/*******************************************************************************
+ * Initialise partitioning data structures with the current (block)
+*  partitioning information
+ *******************************************************************************/
+int **initialise(int my_rank, int comm_size) {
+  // Compute global partition range information for each set
+  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
+
+  // save the original part_range for future partition reversing
+  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  for (int s = 0; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
+    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+    for (int j = 0; j < comm_size; j++) {
+      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
+      orig_part_range[set->index][2 * j + 1] =
+          part_range[set->index][2 * j + 1];
+    }
+  }
+
+  // allocate memory for list
+  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
+
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    // printf("set %s size = %d\n", set.name, set.size);
+    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
+    for (int i = 0; i < set->size; i++)
+      g_index[i] =
+          get_global_index(i, my_rank, part_range[set->index], comm_size);
+    decl_partition(set, g_index, NULL);
+  }
+  
+  return part_range;
+}
+
+/*******************************************************************************
+ * Create export list
+ *******************************************************************************/
+halo_list create_exp_list(op_map primary_map, int **part_range, int my_rank,
+                          int comm_size) {
+  //
+  // create export list
+  //
+  int c = 0;
+  int cap = 1000;
+  int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
+
+  for (int e = 0; e < primary_map->from->size; e++) { // for each
+                                                      // maping table entry
+    int part, local_index;
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
+      part = get_partition(primary_map->map[e * primary_map->dim + j],
+                           part_range[primary_map->to->index], &local_index,
+                           comm_size);
+      if (c >= cap) {
+        cap = cap * 2;
+        list = (int *)xrealloc(list, cap * sizeof(int));
+      }
+
+      if (part != my_rank) {
+        list[c++] = part; // add to export list
+        list[c++] = e;
+      }
+    }
+  }
+  halo_list exp_list = (halo_list)xmalloc(sizeof(halo_list_core));
+  create_export_list(primary_map->from, list, exp_list, c, comm_size, my_rank);
+  op_free(list); // free temp list
+
+  return exp_list;
+}
+
+/*******************************************************************************
+ * Create import list
+ *******************************************************************************/
+std::tuple<halo_list, MPI_Request *> create_imp_list(op_map primary_map,
+                                                     int my_rank, int comm_size,
+                                                     halo_list exp_list) {
+  //
+  // create import list
+  //
+  int *neighbors, *sizes;
+  int ranks_size;
+
+  //-----Discover neighbors-----
+  ranks_size = 0;
+  neighbors = (int *)xmalloc(comm_size * sizeof(int));
+  sizes = (int *)xmalloc(comm_size * sizeof(int));
+
+  // halo_list list = OP_export_exec_list[set->index];
+  find_neighbors_set(exp_list, neighbors, sizes, &ranks_size, my_rank,
+                     comm_size, OP_PART_WORLD);
+  //  MPI_Request request_send[exp_list->ranks_size];
+  MPI_Request *request_send =
+      (MPI_Request *)xmalloc(exp_list->ranks_size * sizeof(MPI_Request));
+
+  int *rbuf, index = 0;
+  int cap = 0;
+
+  for (int i = 0; i < exp_list->ranks_size; i++) {
+    int *sbuf = &exp_list->list[exp_list->disps[i]];
+    MPI_Isend(sbuf, exp_list->sizes[i], MPI_INT, exp_list->ranks[i],
+              primary_map->index, OP_PART_WORLD, &request_send[i]);
+  }
+
+  for (int i = 0; i < ranks_size; i++)
+    cap = cap + sizes[i];
+  int *temp = (int *)xmalloc(cap * sizeof(int));
+
+  // import this list from those neighbors
+  for (int i = 0; i < ranks_size; i++) {
+    rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
+    MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], primary_map->index,
+             OP_PART_WORLD, MPI_STATUS_IGNORE);
+    memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
+    index = index + sizes[i];
+    op_free(rbuf);
+  }
+  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+
+  halo_list imp_list = (halo_list)xmalloc(sizeof(halo_list_core));
+  create_import_list(primary_map->from, temp, imp_list, index, neighbors, sizes,
+                     ranks_size, comm_size, my_rank);
+
+  return std::make_tuple(imp_list, request_send);
+}
+
+/*******************************************************************************
+ * Construct adjacency list of the to-set of the primary_map given
+ * import and export lists
+ *******************************************************************************/
+std::tuple<int **, int *, int *>
+construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
+                   MPI_Request *request_send, int my_rank, int comm_size,
+                   int **part_range) {
+  //
+  // Exchange mapping table entries using the import/export lists
+  //
+
+  // prepare bits of the mapping tables to be exported
+  int **sbuf = (int **)xmalloc(exp_list->ranks_size * sizeof(int *));
+
+  for (int i = 0; i < exp_list->ranks_size; i++) {
+    sbuf[i] =
+        (int *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(int));
+    for (int j = 0; j < exp_list->sizes[i]; j++) {
+      for (int p = 0; p < primary_map->dim; p++) {
+        sbuf[i][j * primary_map->dim + p] =
+            primary_map->map[primary_map->dim *
+                                 (exp_list->list[exp_list->disps[i] + j]) +
+                             p];
+      }
+    }
+    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], MPI_INT,
+              exp_list->ranks[i], primary_map->index, OP_PART_WORLD,
+              &request_send[i]);
+  }
+
+  // prepare space for the incomming mapping tables
+  int *foreign_maps =
+      (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
+
+  for (int i = 0; i < imp_list->ranks_size; i++) {
+    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
+             primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
+             primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
+  }
+
+  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+  for (int i = 0; i < exp_list->ranks_size; i++)
+    op_free(sbuf[i]);
+  op_free(sbuf);
+
+  int **adj = (int **)xmalloc(primary_map->to->size * sizeof(int *));
+  int *adj_i = (int *)xmalloc(primary_map->to->size * sizeof(int));
+  int *adj_cap = (int *)xmalloc(primary_map->to->size * sizeof(int));
+
+  for (int i = 0; i < primary_map->to->size; i++)
+    adj_i[i] = 0;
+  for (int i = 0; i < primary_map->to->size; i++)
+    adj_cap[i] = primary_map->dim;
+  for (int i = 0; i < primary_map->to->size; i++)
+    adj[i] = (int *)xmalloc(adj_cap[i] * sizeof(int));
+
+  // go through each from-element of local primary_map and construct adjacency
+  // list
+  for (int i = 0; i < primary_map->from->size; i++) {
+    int part, local_index;
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
+      part = get_partition(primary_map->map[i * primary_map->dim + j],
+                           part_range[primary_map->to->index], &local_index,
+                           comm_size);
+
+      if (part == my_rank) {
+        for (int k = 0; k < primary_map->dim; k++) {
+          if (adj_i[local_index] >= adj_cap[local_index]) {
+            adj_cap[local_index] = adj_cap[local_index] * 2;
+            adj[local_index] = (int *)xrealloc(
+                adj[local_index], adj_cap[local_index] * sizeof(int));
+          }
+          adj[local_index][adj_i[local_index]++] =
+              primary_map->map[i * primary_map->dim + k];
+        }
+      }
+    }
+  }
+  // go through each from-element of foreign primary_map and add to adjacency
+  // list
+  for (int i = 0; i < imp_list->size; i++) {
+    int part, local_index;
+    for (int j = 0; j < primary_map->dim; j++) { // for each element
+                                                 // pointed at by this entry
+      part = get_partition(foreign_maps[i * primary_map->dim + j],
+                           part_range[primary_map->to->index], &local_index,
+                           comm_size);
+
+      if (part == my_rank) {
+        for (int k = 0; k < primary_map->dim; k++) {
+          if (adj_i[local_index] >= adj_cap[local_index]) {
+            adj_cap[local_index] = adj_cap[local_index] * 2;
+            adj[local_index] = (int *)xrealloc(
+                adj[local_index], adj_cap[local_index] * sizeof(int));
+          }
+          adj[local_index][adj_i[local_index]++] =
+              foreign_maps[i * primary_map->dim + k];
+        }
+      }
+    }
+  }
+  op_free(foreign_maps);
+
+  return std::make_tuple(adj, adj_i, adj_cap);
+}
+
+/*******************************************************************************
+ * Setup variables for k-way partitioning
+ *******************************************************************************/
+template <class T>
+std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
+setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
+                int *adj_i, int *adj_cap, int **part_range) {
+  T comm_size_pm = comm_size;
+
+  T *vtxdist = (T *)xmalloc(sizeof(T) * (comm_size + 1));
+  for (int i = 0; i < comm_size; i++) {
+    vtxdist[i] = part_range[primary_map->to->index][2 * i];
+  }
+  vtxdist[comm_size] =
+      part_range[primary_map->to->index][2 * (comm_size - 1) + 1] + 1;
+
+  T *xadj = (T *)xmalloc(sizeof(T) * (primary_map->to->size + 1));
+  int cap = (primary_map->to->size) * primary_map->dim;
+
+  T *adjncy = (T *)xmalloc(sizeof(T) * cap);
+  int count = 0;
+  int prev_count = 0;
+  for (int i = 0; i < primary_map->to->size; i++) {
+    int g_index = get_global_index(
+        i, my_rank, part_range[primary_map->to->index], comm_size);
+    quickSort(adj[i], 0, adj_i[i] - 1);
+    adj_i[i] = removeDups(adj[i], adj_i[i]);
+
+    if (adj_i[i] < 2) {
+      printf("The from set: %s of primary map: %s is not an on to set of "
+             "to-set: %s\n",
+             primary_map->from->name, primary_map->name, primary_map->to->name);
+      printf("Need to select a different primary map\n");
+      MPI_Abort(OP_PART_WORLD, 2);
+    }
+
+    adj[i] = (int *)xrealloc(adj[i], adj_i[i] * sizeof(int));
+    for (int j = 0; j < adj_i[i]; j++) {
+      if (adj[i][j] != g_index) {
+        if (count >= cap) {
+          cap = cap * 2;
+          adjncy = (T *)xrealloc(adjncy, sizeof(T) * cap);
+        }
+        adjncy[count++] = (T)adj[i][j];
+      }
+    }
+    if (i != 0) {
+      xadj[i] = prev_count;
+      prev_count = count;
+    } else {
+      xadj[i] = 0;
+      prev_count = count;
+    }
+  }
+  xadj[primary_map->to->size] = count;
+
+  // printf("On rank %d\n", my_rank);
+  /* for(int i = 0; i<primary_map->to->size; i++)
+    {
+    if(xadj[i+1]-xadj[i]>8)printf("On rank %d, element %d, Size = %d\n",
+    my_rank, i, xadj[i+1]-xadj[i]);
+    }*/
+  // printf("\n\n");
+
+  for (int i = 0; i < primary_map->to->size; i++)
+    op_free(adj[i]);
+  op_free(adj_i);
+  op_free(adj_cap);
+  op_free(adj);
+
+  T *partition_pm = (T *)xmalloc(sizeof(T) * primary_map->to->size);
+  for (int i = 0; i < primary_map->to->size; i++) {
+    partition_pm[i] = -99;
+  }
+
+  int *hybrid_flags = (int *)xmalloc(comm_size * sizeof(int));
+  MPI_Allgather(&OP_hybrid_gpu, 1, MPI_INT, hybrid_flags, 1, MPI_INT,
+                OP_PART_WORLD);
+  double total = 0;
+  for (int i = 0; i < comm_size; i++)
+    total += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
+
+  T ncon = 1;
+  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
+  for (int i = 0; i < comm_size * ncon; i++)
+    tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance / total : 1.0 / total;
+
+  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
+  *ubvec = 1.05;
+
+  return std::make_tuple(vtxdist, xadj, adjncy, partition_pm, comm_size_pm,
+                         ncon, tpwgts, ubvec);
+}
+
+/*******************************************************************************
+ * Check partitioning was performed as expected
+ *******************************************************************************/
+template <class T>
+void check_partition(op_map primary_map, T *partition_pm, int my_rank,
+                     int comm_size) {
+  int *partition = (int *)xmalloc(sizeof(int) * primary_map->to->size);
+  for (int i = 0; i < primary_map->to->size; i++) {
+    // sanity check to see if all elements were partitioned
+    if (partition_pm[i] < 0 || partition_pm[i] >= comm_size) {
+      printf("Partitioning problem: on rank %d, set %s element %d not assigned "
+             "a partition\n",
+             my_rank, primary_map->to->name, i);
+      MPI_Abort(OP_PART_WORLD, 2);
+    }
+    partition[i] = partition_pm[i];
+  }
+  free(partition_pm);
+
+  // initialise primary set as partitioned
+  OP_part_list[primary_map->to->index]->elem_part = partition;
+  OP_part_list[primary_map->to->index]->is_partitioned = 1;
+}
+
+/*******************************************************************************
+ * Generic wrapper for kway-partition functions
+ *******************************************************************************/
+
+#ifdef HAVE_PARMETIS
+void perform_kway_partition(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
+                            idx_t *wgtflag, idx_t *numflag, idx_t *ncon,
+                            idx_t *nparts, real_t *tpwgts, real_t *ubvec,
+                            idx_t *options, idx_t *edgecut, idx_t *part,
+                            MPI_Comm *comm) {
+  ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, NULL, NULL, wgtflag, numflag,
+                       ncon, nparts, tpwgts, ubvec, options, edgecut, part,
+                       comm);
+}
+#endif
+
+#ifdef HAVE_KAHIP
+void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
+                            idxtype *, idxtype *, idxtype *, idxtype *nparts,
+                            real_t *, real_t *, idxtype *, idxtype *edgecut,
+                            idxtype *part, MPI_Comm *comm) {
+  double imb = 0.03;
+  ParHIPPartitionKWay(vtxdist, xadj, adjncy, NULL, NULL, (int *)nparts, &imb,
+                      false, 1, ULTRAFASTMESH, (int *)edgecut, part, comm);
+}
+#endif
+
+/*******************************************************************************
+ * Wrapper routine to partition a given set Using
+ * ParHIPPartitionKWay or ParMETIS PartKway()
+ *******************************************************************************/
+template <class T>
+void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
+  // declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+
+  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
+
+  // create new communicator for partitioning
+  int my_rank, comm_size;
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
+  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+  MPI_Comm_size(OP_PART_WORLD, &comm_size);
+
+#ifdef DEBUG
+  // check if the  primary_map is an on to map from the from-set to the to-set
+  if (is_onto_map(primary_map) != 1) {
+    printf("Map %s is an not an onto map from set %s to set %s \n",
+           primary_map->name, primary_map->from->name, primary_map->to->name);
+    MPI_Abort(OP_PART_WORLD, 2);
+  }
+#endif
+
+  /*--STEP 0 - initialise partitioning data structures with the current (block)
+    partitioning information */
+  int **part_range = initialise(my_rank, comm_size);
+
+  /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
+   * -------*/
+  halo_list exp_list =
+      create_exp_list(primary_map, part_range, my_rank, comm_size);
+  halo_list imp_list;
+ MPI_Request *request_send;
+  std::tie(imp_list, request_send) =
+      create_imp_list(primary_map, my_rank, comm_size, exp_list);
+
+  int **adj, *adj_i, *adj_cap;
+  std::tie(adj, adj_i, adj_cap) =
+      construct_adj_list(primary_map, exp_list, imp_list, request_send, my_rank,
+                         comm_size, part_range);
+
+  T *vtxdist, *xadj, *adjncy, *partition_pm;
+  T comm_size_pm, ncon;
+  real_t *tpwgts, *ubvec;
+  std::tie(vtxdist, xadj, adjncy, partition_pm, comm_size_pm, ncon, tpwgts,
+           ubvec) = setup_part_data<T>(primary_map, my_rank, comm_size, adj,
+                                       adj_i, adj_cap, part_range);
+
+  T edge_cut = 0;
+  T numflag = 0;
+  T wgtflag = 0;
+  T options[3] = {1, 3, 15};
+
+  // clean up before calling ParMetis
+  for (int i = 0; i < OP_set_index; i++)
+    op_free(part_range[i]);
+  op_free(part_range);
+  op_free(imp_list->list);
+  op_free(imp_list->disps);
+  op_free(imp_list->ranks);
+  op_free(imp_list->sizes);
+  op_free(exp_list->list);
+  op_free(exp_list->disps);
+  op_free(exp_list->ranks);
+  op_free(exp_list->sizes);
+  op_free(imp_list);
+  op_free(exp_list);
+
+  if (my_rank == MPI_ROOT) {
+    printf("-----------------------------------------------------------\n");
+    if (use_kahip) {
+      printf("ParHIPPartitionKWay Output\n");
+    } else printf("ParMETIS_V3_PartKway Output\n");
+    printf("-----------------------------------------------------------\n");
+  }
+
+  perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
+                         &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
+                         partition_pm, &OP_PART_WORLD);
+
+  if (my_rank == MPI_ROOT)
+    printf("-----------------------------------------------------------\n");
+  op_free(vtxdist);
+  op_free(xadj);
+  op_free(adjncy);
+  op_free(ubvec);
+  op_free(tpwgts);
+
+  check_partition(primary_map, partition_pm, my_rank, comm_size);
+
+  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
+   * tables-*/
+
+  // partition all other sets
+  partition_all(primary_map->to, my_rank, comm_size);
+
+  // migrate data, sort elements
+  migrate_all(my_rank, comm_size);
+
+  // renumber mapping tables
+  renumber_maps(my_rank, comm_size);
+
+  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
+  // printf time for partitioning
+  time = wall_t2 - wall_t1;
+  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
+  MPI_Comm_free(&OP_PART_WORLD);
+  if (my_rank == MPI_ROOT)
+    printf("Max total Kway partitioning time = %lf\n", max_time);
+
+  free(request_send);
+}
