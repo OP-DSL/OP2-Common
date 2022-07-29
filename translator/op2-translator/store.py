@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from os.path import basename
 from pathlib import Path
 from textwrap import indent
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Any
 
 import op as OP
 from op import OpError
@@ -37,15 +38,75 @@ class ParseError(Exception):
 
 
 @dataclass
+class Entity:
+    name: str
+    ast: Any
+
+    program: Program
+    scope: List[str] = field(default_factory=list)
+    depends: Set[str] = field(default_factory=set)
+
+    # Deep-copy everything but the program reference
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+
+        setattr(result, "program", self.program)
+
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if hasattr(result, k):
+                continue
+
+            setattr(result, k, copy.deepcopy(v, memo))
+
+        return result
+
+
+@dataclass
+class Type(Entity):
+    def __str__(self):
+        return f"Type(name='{self.name}', scope={self.scope}, depends={self.depends})"
+
+
+@dataclass
+class Function(Entity):
+    parameters: List[Tuple[str, OP.Type]] = field(default_factory=list)
+    returns: Optional[OP.Type] = None
+
+    def __str__(self):
+        return f"Function(name='{self.name}', scope={self.scope}, depends={self.depends})"
+
+
+@dataclass
 class Program:
     path: Path
+
+    ast: Any
+    source: str
 
     consts: List[OP.Const] = field(default_factory=list)
     loops: List[OP.Loop] = field(default_factory=list)
 
+    entities: List[Entity] = field(default_factory=list)
+
+    def findEntities(self, name: str, scope: List[str] = []) -> List[Entity]:
+        def in_scope(e):
+            return len(e.scope) <= len(scope) and all(map(lambda s1, s2: s1 == s2, zip(e.scope, scope)))
+
+        candidates = list(filter(lambda e: e.name == name and in_scope(e), self.entities))
+        if len(candidates) == 0:
+            return []
+
+        candidates.sort(key=lambda e: len(e.scope), reverse=True)
+        min_scope = len(candidates[0].scope)
+
+        return list(filter(lambda e: len(e.scope) == min_scope, candidates))
+
     def __str__(self) -> str:
         consts_str = "\n    ".join([str(const) for const in self.consts])
         loops_str = "\n".join([str(loop) for loop in self.loops])
+        entities_str = "\n".join([str(entity) for entity in self.entities])
 
         if len(self.consts) > 0:
             consts_str = f"    {consts_str}\n"
@@ -53,7 +114,10 @@ class Program:
         if len(self.loops) > 0:
             loops_str = indent(f"\n{loops_str}", "    ")
 
-        return f"Program in '{self.path}':\n" + consts_str + loops_str
+        if len(self.entities) > 0:
+            entities_str = indent(f"\n{entities_str}\n", "    ")
+
+        return f"Program in '{self.path}':\n" + consts_str + loops_str + entities_str
 
 
 @dataclass
@@ -88,13 +152,32 @@ class Application:
 
         return programs_str + "\n" + kernels_str
 
+    def findEntities(self, name: str, program: Program = None, scope: List[str] = []) -> List[Entity]:
+        candidates = []
+
+        if program is not None:
+            candidates = program.findEntities(name, scope)
+
+        if len(candidates) > 0:
+            return candidates
+
+        for program2 in self.programs:
+            if program2 == program:
+                continue
+
+            candidates = program2.findEntities(name)
+            if len(candidates) > 0:
+                break
+
+        return candidates
+
     def consts(self) -> List[OP.Const]:
         consts = flatten(program.consts for program in self.programs)
         return uniqueBy(consts, lambda c: c.ptr)
 
     def loops(self) -> List[OP.Loop]:
-        loops = flatten(program.loops for program in self.programs)
-        return uniqueBy(loops, lambda l: l.kernel)
+        loops = flatten(map(lambda l: (l, p), p.loops) for p in self.programs)
+        return uniqueBy(loops, lambda l: l[0].kernel)
 
     def validate(self, lang: Lang) -> None:
         self.validateConsts(lang)
@@ -113,7 +196,7 @@ class Application:
                 raise OpError(f"invalid const dimension: {const.dim}", const.dim)
 
     def validateLoops(self, lang: Lang) -> None:
-        for loop in self.loops():
+        for loop, _ in self.loops():
             num_opts = len([arg for arg in loop.args if arg.opt])
             if num_opts > 32:
                 raise OpError(f"number of optional arguments exceeds 32: {num_opts}", loop.loc)
