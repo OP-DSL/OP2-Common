@@ -15,7 +15,7 @@ module op2_kernels
     {{const.typ}}, constant{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}_d
 
     {% endfor %}
-    {% for loop_ in app.loops() %}
+    {% for loop_, _ in app.loops() %}
         {% for dat in loop_.dats|soa %}
     integer(4) :: op2_{{loop_.kernel}}_dat{{dat.id}}_stride
     integer(4), constant :: op2_{{loop_.kernel}}_dat{{dat.id}}_stride_d
@@ -44,7 +44,7 @@ contains
     end subroutine
 
 {% endfor %}
-{% for loop_ in app.loops() %}
+{% for loop_, _ in app.loops() %}
 #include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
 {% endfor %}
 end module

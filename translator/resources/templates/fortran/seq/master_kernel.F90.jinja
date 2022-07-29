@@ -31,7 +31,7 @@ contains
     end subroutine
 
 {% endfor %}
-{% for loop_ in app.loops() %}
+{% for loop_, _ in app.loops() %}
 #include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
 {% endfor %}
 end module

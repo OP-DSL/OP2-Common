@@ -110,7 +110,7 @@ __global__ void op_cuda_{{lh.kernel}}(
 
     {% if lh is direct %}
     for (int n = thread_id; n < set_size; n += blockDim.x * gridDim.x) {
-        {{lh.kernel}}_gpu(
+        op2_k{{kernel_idx}}::{{lh.kernel}}(
             {% for arg in lh.args %}
             {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg)}}{% endcall %}{{-"," if not loop.last}}
             {% endfor %}
@@ -135,7 +135,7 @@ __global__ void op_cuda_{{lh.kernel}}(
             {% endcall %}
 
         {% endfor %}
-        {{lh.kernel}}_gpu(
+        op2_k{{kernel_idx}}::{{lh.kernel}}(
             {% for arg in lh.args %}
             {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg)}}{% endcall %}{{-"," if not loop.last}}
             {% endfor %}

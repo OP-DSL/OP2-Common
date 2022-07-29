@@ -62,7 +62,10 @@ class Cpp(Lang):
                 preprocessor.add_path(str(dir.resolve()))
 
             for define in defines:
-                preprocessor.define(str)
+                if "=" not in define:
+                    define = f"{define}=1"
+
+                preprocessor.define(define.replace("=", " ", 1))
 
             preprocessor.parse(source, str(path.resolve()))
             source_io = StringIO()
@@ -90,7 +93,15 @@ class Cpp(Lang):
         return translation_unit, source
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        return cpp.parser.parseProgram(self.parseFile(path, frozenset(include_dirs), frozenset(defines))[0], path)
+        ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
+        ast_pp, source_pp = self.parseFile(path, frozenset(include_dirs), frozenset(defines), preprocess=True)
+
+        program = Program(path, ast_pp, source_pp)
+
+        cpp.parser.parseLoops(ast, program)
+        cpp.parser.parseMeta(ast_pp.cursor, program)
+
+        return program
 
     def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
         return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), frozenset(defines))[0], name, path)
@@ -114,6 +125,8 @@ class Cpp(Lang):
             return float_types[typ.size]
         elif isinstance(typ, OP.Bool):
             return "bool"
+        elif isinstance(typ, OP.Custom):
+            return typ.name
         else:
             assert False
 

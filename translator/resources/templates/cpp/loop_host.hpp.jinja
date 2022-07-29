@@ -23,7 +23,9 @@ int dats_indirect[{{lh.args_expanded|length}}] = {
 {% block prologue %}
 {% endblock %}
 {% block kernel %}
+namespace op2_k{{kernel_idx}} {
 {{kernel_func}}
+}
 
 {% endblock %}
 {% block kernel_wrapper %}
