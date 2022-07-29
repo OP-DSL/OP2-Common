@@ -1,12 +1,10 @@
-from pathlib import Path
-from typing import Callable, List, Optional, Set, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from clang.cindex import Cursor, CursorKind, SourceRange
 
 import op as OP
-from language import Lang
-from store import Application, Kernel
-from util import Location, Rewriter, Span, find
+from store import Application, Kernel, Entity, Type, Function
+from util import Location, Rewriter, Span, find, safeFind
 
 
 def extentToSpan(extent: SourceRange) -> Span:
@@ -16,168 +14,55 @@ def extentToSpan(extent: SourceRange) -> Span:
     return Span(start, end)
 
 
-def findKernel(lang: Lang, kernel: Kernel, include_dirs: Set[Path], defines: List[str]) -> Tuple[Cursor, Rewriter]:
-    translation_unit, source = lang.parseFile(kernel.path, frozenset(include_dirs), frozenset(defines), preprocess=True)
-    nodes = translation_unit.cursor.get_children()
+def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[Entity, Rewriter]]:
+    unprocessed_entities = list(entities)
+    extracted_entities = []
 
-    kernel_ast = find(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == kernel.name)
-    kernel_ast = kernel_ast.get_definition()
+    while len(unprocessed_entities) > 0:
+        entity = unprocessed_entities.pop(0)
 
-    kernel_path = Path(kernel_ast.extent.start.file.name)
-    rewriter = Rewriter(source, [extentToSpan(kernel_ast.extent)])
-
-    return (kernel_ast, kernel_path, rewriter)
-
-
-def renameType(def_ast: Cursor, asts: List[Cursor], rewriter: Rewriter, name: str, replacement: str) -> None:
-    renameTypeDefinition(def_ast, rewriter, replacement)
-
-    for ast in asts:
-        renameTypeRefs(ast, rewriter, name, replacement)
-
-
-def renameFunction(def_ast: Cursor, asts: List[Cursor], rewriter: Rewriter, name: str, replacement: str) -> None:
-    renameFunctionDefinition(def_ast, rewriter, replacement)
-
-    for ast in asts:
-        renameFunctionCalls(ast, rewriter, name, replacement)
-
-
-def extractTypes(kernel_ast: Cursor, rewriter: Rewriter, exclude: List[str] = []) -> List[Tuple[str, Cursor]]:
-    seen = []
-    defs = []
-
-    for node in kernel_ast.walk_preorder():
-        if node.kind != CursorKind.TYPE_REF:
+        if safeFind(extracted_entities, lambda e: e[0] == entity):
             continue
 
-        definition = node.get_definition()
+        for dependency in entity.depends:
+            dependency_entities = app.findEntities(dependency, entity.program)
+            unprocessed_entities.extend(dependency_entities)
 
-        if definition is not None and definition.spelling not in seen and definition.spelling not in exclude:
-            seen.append(definition.spelling)
-            defs.append(definition)
+        rewriter = Rewriter(entity.program.source, [extentToSpan(entity.ast.extent)])
+        extracted_entities.insert(0, (entity, rewriter))
 
-            span = extentToSpan(definition.extent)
-            rewriter.extend(span)
-            rewriter.update(Span(span.end, span.end), lambda s: ";\n\n")
-
-    sub_types = []
-    for type_def in defs:
-        sub_types.extend(extractTypes(type_def, rewriter, exclude + seen))
-
-    return sub_types + list(zip(seen, defs))
+    return extracted_entities
 
 
-def renameTypeDefinition(ast: Cursor, rewriter: Rewriter, replacement: str) -> None:
-    for tok in ast.get_tokens():
-        if tok.spelling == ast.spelling:
-            rewriter.update(extentToSpan(tok.extent), lambda _: replacement)
-            break
+def updateFunctionTypes(entities: List[Tuple[Entity, Rewriter]], replacement: Callable[[str, Entity], str]) -> None:
+    for entity, rewriter in filter(lambda e: isinstance(e[0], Function), entities):
+        function_type_span = extentToSpan(next(entity.ast.get_tokens()).extent)
+        rewriter.update(function_type_span, lambda s: replacement(s, entity))
 
 
-def renameTypeRefs(ast: Cursor, rewriter: Rewriter, name: str, replacement: str) -> None:
-    seen = []
-
-    for node in ast.walk_preorder():
-        if node.kind != CursorKind.TYPE_REF:
-            continue
-
-        if node.spelling != name and node.spelling != f"struct {name}" and node.spelling != f"class {name}":
-            continue
-
-        if extentToSpan(node.extent) in seen:
-            continue
-
-        seen.append(extentToSpan(node.extent))
-        rewriter.update(extentToSpan(node.extent), lambda _: replacement)
-
-
-def extractFunctions(ast: Cursor, rewriter: Rewriter, exclude: List[str] = []) -> List[Tuple[str, Cursor]]:
-    seen = []
-    defs = []
-
-    for node in ast.walk_preorder():
-        if node.kind != CursorKind.CALL_EXPR:
-            continue
-
-        # TODO: we seem to get type refs here without this check?
-        if next(node.get_children(), None) is None:
-            continue
-
-        definition = node.get_definition()
-
-        if definition is None or str(definition.extent.start.file) != str(ast.extent.start.file):
-            continue
-
-        if definition.spelling not in seen and definition.spelling not in exclude:
-            seen.append(definition.spelling)
-            defs.append(definition)
-
-            span = extentToSpan(definition.extent)
-            rewriter.extend(span)
-            rewriter.update(Span(span.end, span.end), lambda s: "\n\n")
-
-    sub_calls = []
-    for func_def in defs:
-        sub_calls.extend(extractFunctions(func_def, rewriter, exclude + seen))
-
-    return sub_calls + list(zip(seen, defs))
-
-
-def renameFunctionDefinition(function_ast: Cursor, rewriter: Rewriter, replacement: str) -> None:
-    for tok in function_ast.get_tokens():
-        if tok.spelling == function_ast.spelling:
-            rewriter.update(extentToSpan(tok.extent), lambda _: replacement)
-            break
-
-
-def renameFunctionCalls(ast: Cursor, rewriter: Rewriter, name: str, replacement: str) -> None:
-    for node in ast.walk_preorder():
-        if node.kind != CursorKind.CALL_EXPR:
-            continue
-
-        if node.spelling != name:
-            continue
-
-        children = list(node.get_children())
-        if len(children) < 1:
-            continue
-
-        rewriter.update(extentToSpan(children[0].extent), lambda _: replacement)
-
-
-def updateFunctionType(kernel_ast: Cursor, rewriter: Rewriter, replacement: Callable[[str], str]) -> None:
-    function_type_span = extentToSpan(next(kernel_ast.get_tokens()).extent)
-    rewriter.update(function_type_span, replacement)
-
-
-def renameKernel(kernel_ast: Cursor, rewriter: Rewriter, kernel: Kernel, replacement: Callable[[str], str]) -> None:
-    for tok in kernel_ast.get_tokens():
-        if tok.spelling == kernel.name:
-            rewriter.update(extentToSpan(tok.extent), replacement)
-            break
-
-
-def renameConsts(ast: Cursor, rewriter: Rewriter, app: Application, replacement: Callable[[str], str]) -> None:
+def renameConsts(
+    entities: List[Tuple[Entity, Rewriter]], app: Application, replacement: Callable[[str, Entity], str]
+) -> None:
     const_ptrs = set(map(lambda const: const.ptr, app.consts()))
 
-    for node in ast.walk_preorder():
-        if node.kind != CursorKind.DECL_REF_EXPR:
-            continue
+    for entity, rewriter in entities:
+        for node in entity.ast.walk_preorder():
+            if node.kind != CursorKind.DECL_REF_EXPR:
+                continue
 
-        if node.spelling in const_ptrs:
-            rewriter.update(extentToSpan(node.extent), replacement)
+            if node.spelling in const_ptrs:
+                rewriter.update(extentToSpan(node.extent), lambda s: replacement(s, entity))
 
 
 def insertStrides(
-    kernel_ast: Cursor,
+    entity: Entity,
     rewriter: Rewriter,
     app: Application,
     kernel: Kernel,
     stride: Callable[[int], str],
     skip: Optional[Callable[[OP.ArgDat], bool]] = None,
 ) -> None:
-    loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
+    loop = find(app.loops(), lambda loop: loop[0].kernel == kernel.name)[0]
 
     for arg_idx in range(len(loop.args)):
         if not isinstance(loop.args[arg_idx], OP.ArgDat):
@@ -191,13 +76,13 @@ def insertStrides(
             continue
 
         is_vec = loop.args[arg_idx].map_idx < -1
-        insertStride(kernel_ast, rewriter, kernel.params[arg_idx][0], dat.id, is_vec, stride)
+        insertStride(entity.ast, rewriter, kernel.params[arg_idx][0], dat.id, is_vec, stride)
 
 
 def insertStride(
-    kernel_ast: Cursor, rewriter: Rewriter, param: str, dat_id: int, is_vec: bool, stride: Callable[[int], str]
+    ast: Cursor, rewriter: Rewriter, param: str, dat_id: int, is_vec: bool, stride: Callable[[int], str]
 ) -> None:
-    for node in kernel_ast.walk_preorder():
+    for node in ast.walk_preorder():
         if node.kind != CursorKind.ARRAY_SUBSCRIPT_EXPR:
             continue
 
@@ -210,3 +95,30 @@ def insertStride(
 
         if ident.spelling == param:
             rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(dat_id)}")
+
+
+def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
+    source = ""
+    while len(entities) > 0:
+        for i in range(len(entities)):
+            entity, rewriter = entities[i]
+            resolved = True
+
+            for dependency in entity.depends:
+                if safeFind(entities, lambda e: e[0].name == dependency):
+                    resolved = False
+                    break
+
+            if resolved:
+                entities.pop(i)
+                if source == "":
+                    source = rewriter.rewrite()
+                else:
+                    source = source + "\n\n" + rewriter.rewrite()
+
+                if isinstance(entity, Type):
+                    source = source + ";"
+
+                break
+
+    return source

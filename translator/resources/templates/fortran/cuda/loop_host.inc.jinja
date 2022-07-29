@@ -114,7 +114,7 @@ subroutine op_cuda_{{lh.kernel}}( &
 
 {% if lh is direct %}
     do n = thread_id, set_size, blockdim%x * griddim%x
-        call {{lh.kernel}}_gpu( &
+        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
     {% for arg  in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -127,7 +127,7 @@ subroutine op_cuda_{{lh.kernel}}( &
     {% for arg in lh.args|indirect|reduction if target.config.atomics %}
         arg{{arg.id}}_{{arg.map_idx}}_local = 0{{"\n" if loop.last}}
     {% endfor %}
-        call {{lh.kernel}}_gpu( &
+        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
     {% for arg  in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
     {% endfor %}

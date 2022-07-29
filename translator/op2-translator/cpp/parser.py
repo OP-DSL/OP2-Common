@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind, conf
 
 import op as OP
-from store import Kernel, Location, ParseError, Program
+from store import Kernel, Location, ParseError, Program, Function, Type
 from util import safeFind
 
 
@@ -31,9 +31,81 @@ def parseKernel(translation_unit: TranslationUnit, name: str, path: Path) -> Opt
     return Kernel(name, path, params)
 
 
-def parseProgram(translation_unit: TranslationUnit, path: Path) -> Program:
-    program = Program(path)
+def parseMeta(node: Cursor, program: Program) -> None:
+    if node.kind == CursorKind.TYPE_REF:
+        parseTypeRef(node, program)
 
+    if node.kind == CursorKind.FUNCTION_DECL:
+        parseFunction(node, program)
+
+    for child in node.get_children():
+        parseMeta(child, program)
+
+
+def parseTypeRef(node: Cursor, program: Program) -> None:
+    node = node.get_definition()
+
+    if node is None or Path(str(node.location.file)) != program.path:
+        return
+
+    matching_entities = program.findEntities(node.spelling)
+    for entity in matching_entities:
+        if entity.ast == node:
+            return
+
+    typ = Type(node.spelling, node, program)
+
+    for n in node.walk_preorder():
+        if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:
+            continue
+
+        n = n.get_definition()
+
+        if n is None or Path(str(n.location.file)) != program.path:
+            continue
+
+        typ.depends.add(n.spelling)
+
+    program.entities.append(typ)
+
+
+def parseFunction(node: Cursor, program: Program) -> None:
+    node = node.get_definition()
+
+    if node is None or Path(str(node.location.file)) != program.path:
+        return
+
+    matching_entities = program.findEntities(node.spelling)
+    for entity in matching_entities:
+        if entity.ast == node:
+            return
+
+    function = Function(node.spelling, node, program)
+
+    for n in node.get_children():
+        if n.kind != CursorKind.PARM_DECL:
+            continue
+
+        param_type = n.type.get_canonical()
+
+        typ, _ = parseType(param_type.spelling, parseLocation(n), True)
+        function.parameters.append((n.spelling, typ))
+
+    for n in node.walk_preorder():
+        if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:
+            continue
+
+        n = n.get_definition()
+
+        if n is None or Path(str(n.location.file)) != program.path:
+            continue
+
+        function.depends.add(n.spelling)
+
+    program.entities.append(function)
+
+
+def parseLoops(translation_unit: TranslationUnit, program: Program) -> None:
     macros: Dict[Location, str] = {}
     nodes: List[Cursor] = []
 
@@ -51,20 +123,14 @@ def parseProgram(translation_unit: TranslationUnit, path: Path) -> Program:
         nodes.append(node)
 
     for node in nodes:
-        parseNode(node, translation_unit.cursor, macros, program)
+        for child in node.walk_preorder():
+            if child.kind == CursorKind.CALL_EXPR:
+                parseCall(child, macros, program)
 
     return program
 
 
-def parseNode(node: Cursor, parent: Cursor, macros: Dict[Location, str], program: Program) -> None:
-    if node.kind == CursorKind.CALL_EXPR:
-        parseCall(node, parent, macros, program)
-
-    for child in node.get_children():
-        parseNode(child, node, macros, program)
-
-
-def parseCall(node: Cursor, parent: Cursor, macros: Dict[Location, str], program: Program) -> None:
+def parseCall(node: Cursor, macros: Dict[Location, str], program: Program) -> None:
     name = node.spelling
     args = list(node.get_arguments())
     loc = parseLocation(node)
@@ -208,17 +274,17 @@ def parseStringLit(node: Cursor) -> str:
 
 
 def parseAccessType(node: Cursor, loc: Location, macros: Dict[Location, str]) -> OP.AccessType:
-    access_type_str = macros.get(parseLocation(node))
+    access_type_raw = parseIntExpression(node)
 
-    if access_type_str not in OP.AccessType.values():
+    if access_type_raw not in OP.AccessType.values():
         raise ParseError(
-            f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc
+            f"invalid access type {access_type_raw}, expected one of {', '.join(OP.AccessType.values())}", loc
         )
 
-    return OP.AccessType(access_type_str)
+    return OP.AccessType(access_type_raw)
 
 
-def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
+def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, bool]:
     typ_clean = typ.strip()
     typ_clean = re.sub(r"\s*const\s*", "", typ_clean)
 
@@ -240,6 +306,9 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
 
     if typ_clean in typ_map:
         return typ_map[typ_clean], soa
+
+    if include_custom:
+        return typ_clean, soa
 
     raise ParseError(f'unable to parse type "{typ}"', loc)
 

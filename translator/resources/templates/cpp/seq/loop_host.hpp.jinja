@@ -65,7 +65,7 @@ arg{{arg.id}}_local
         }
 
     {% endif %}
-        {{lh.kernel}}(
+        op2_k{{kernel_idx}}::{{lh.kernel}}(
     {% for arg in lh.args %}
         {% if arg is not vec %}
             {{arg_to_pointer(arg)}}{{"," if not loop.last}}

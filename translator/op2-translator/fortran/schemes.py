@@ -1,11 +1,11 @@
+import copy
 from pathlib import Path
-from typing import List, Set
 
 import fortran.translator.kernels as ftk
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, Kernel
+from store import Application, Kernel, Program, ParseError
 from target import Target
 from util import find
 
@@ -17,13 +17,26 @@ class FortranSeq(Scheme):
     loop_host_template = Path("fortran/seq/loop_host.inc.jinja")
     master_kernel_template = Path("fortran/seq/master_kernel.F90.jinja")
 
-    def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
-        kernel_ast = ftk.findKernel(self.lang, kernel, include_dirs, defines)
+    def translateKernel(
+        self,
+        kernel: Kernel,
+        program: Program,
+        app: Application,
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(kernel.name, program, [])  # TODO: Loop scope
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel function: {kernel.name}")
 
-        ftk.renameKernel(kernel_ast, lambda name: f"{name}_seq")
-        ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}")
+        dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
-        return str(kernel_ast)
+        kernel_entities = copy.deepcopy(kernel_entities)
+        dependencies = copy.deepcopy(dependencies)
+
+        ftk.renameEntities(kernel_entities + dependencies, lambda name: f"op2_k{kernel_idx}_{name}")
+        ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
+
+        return ftk.writeSource(kernel_entities + dependencies)
 
 
 Scheme.register(FortranSeq)
@@ -36,19 +49,32 @@ class FortranOpenMP(Scheme):
     loop_host_template = Path("fortran/openmp/loop_host.inc.jinja")
     master_kernel_template = Path("fortran/openmp/master_kernel.F90.jinja")
 
-    def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
-        kernel_ast = ftk.findKernel(self.lang, kernel, include_dirs, defines)
+    def translateKernel(
+        self,
+        kernel: Kernel,
+        program: Program,
+        app: Application,
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(kernel.name, program, [])  # TODO: Loop scope
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel function: {kernel.name}")
 
-        ftk.renameKernel(kernel_ast, lambda name: f"{name}_openmp")
-        ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}")
+        dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
+
+        kernel_entities = copy.deepcopy(kernel_entities)
+        dependencies = copy.deepcopy(dependencies)
+
+        ftk.renameEntities(kernel_entities + dependencies, lambda name: f"op2_k{kernel_idx}_{name}")
+        ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
         if not self.target.config["vectorise"]:
-            return str(kernel_ast)
+            return ftk.writeSource(kernel_entities + dependencies)
 
-        kernel_ast2 = ftk.findKernel(self.lang, kernel, include_dirs, defines)
+        simd_kernel_entities = copy.deepcopy(kernel_entities)
 
-        ftk.renameKernel(kernel_ast2, lambda name: f"{name}_openmp_simd")
-        ftk.renameConsts(kernel_ast2, app, lambda const: f"op2_const_{const}")
+        ftk.renameEntities(simd_kernel_entities, lambda name: f"op2_k{kernel_idx}_simd_{name}")
+        ftk.renameConsts(simd_kernel_entities, app, lambda const: f"op2_const_{const}")
 
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
@@ -60,15 +86,16 @@ class FortranOpenMP(Scheme):
                 OP.AccessType.MAX,
             ]
 
-        ftk.insertStrides(
-            kernel_ast2,
-            kernel,
-            app,
-            lambda arg: "SIMD_LEN",
-            match=lambda arg: match_indirect(arg) or match_gbl_reduction(arg),
-        )
+        for simd_kernel_entity in simd_kernel_entities:
+            ftk.insertStrides(
+                simd_kernel_entity,
+                kernel,
+                app,
+                lambda arg: "SIMD_LEN",
+                match=lambda arg: match_indirect(arg) or match_gbl_reduction(arg),
+            )
 
-        return str(kernel_ast) + "\n\n" + str(kernel_ast2)
+        return ftk.writeSource(kernel_entities + simd_kernel_entities + dependencies)
 
 
 Scheme.register(FortranOpenMP)
@@ -81,29 +108,43 @@ class FortranCuda(Scheme):
     loop_host_template = Path("fortran/cuda/loop_host.inc.jinja")
     master_kernel_template = Path("fortran/cuda/master_kernel.CUF.jinja")
 
-    def translateKernel(self, include_dirs: Set[Path], defines: List[str], kernel: Kernel, app: Application) -> str:
-        kernel_ast = ftk.findKernel(self.lang, kernel, include_dirs, defines)
+    def translateKernel(
+        self,
+        kernel: Kernel,
+        program: Program,
+        app: Application,
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(kernel.name, program, [])  # TODO: Loop scope
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel function: {kernel.name}")
 
-        ftk.renameKernel(kernel_ast, lambda name: f"{name}_gpu")
-        ftk.renameConsts(kernel_ast, app, lambda const: f"op2_const_{const}_d")
+        dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
-        loop = find(app.loops(), lambda loop: loop.kernel == kernel.name)
+        kernel_entities = copy.deepcopy(kernel_entities)
+        dependencies = copy.deepcopy(dependencies)
+
+        ftk.renameEntities(kernel_entities + dependencies, lambda name: f"op2_k{kernel_idx}_{name}")
+        ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
+
+        loop = find(app.loops(), lambda loop: loop[0].kernel == kernel.name)[0]
 
         def match_soa(arg):
             return isinstance(arg, OP.ArgDat) and loop.dat(arg).soa
 
-        def skip_atomic_inc(arg):
+        def match_atomic_inc(arg):
             return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
 
-        ftk.insertStrides(
-            kernel_ast,
-            kernel,
-            app,
-            lambda arg: f"op2_{kernel.name}_dat{arg.dat_id}_stride_d",
-            match=lambda arg: match_soa(arg) and not skip_atomic_inc(arg),
-        )
+        for kernel_entity in kernel_entities:
+            ftk.insertStrides(
+                kernel_entity,
+                kernel,
+                app,
+                lambda arg: f"op2_{kernel.name}_dat{arg.dat_id}_stride_d",
+                match=lambda arg: match_soa(arg) and not match_atomic_inc(arg),
+            )
 
-        return str(kernel_ast)
+        return ftk.writeSource(kernel_entities + dependencies)
 
 
 Scheme.register(FortranCuda)

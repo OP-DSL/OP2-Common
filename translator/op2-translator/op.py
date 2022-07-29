@@ -12,15 +12,13 @@ if TYPE_CHECKING:
 
 
 class AccessType(Enum):
-    ID = "OP_ID"
+    READ = 0
+    WRITE = 1
+    RW = 2
 
-    READ = "OP_READ"
-    WRITE = "OP_WRITE"
-    RW = "OP_RW"
-
-    INC = "OP_INC"
-    MIN = "OP_MIN"
-    MAX = "OP_MAX"
+    INC = 3
+    MIN = 4
+    MAX = 5
 
     @staticmethod
     def values() -> List[str]:
@@ -86,6 +84,14 @@ class Bool(Type):
 
     def __repr__(self) -> str:
         return "bool"
+
+
+@dataclass(frozen=True)
+class Custom(Type):
+    name: str
+
+    def __repr__(self) -> str:
+        return self.name
 
 
 @dataclass(frozen=True)
