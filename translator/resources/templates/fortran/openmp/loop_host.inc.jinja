@@ -97,7 +97,7 @@ subroutine {{lh.kernel}}_wrapper2( &
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-            call {{lh.kernel}}_openmp_simd( &
+            call op2_k{{kernel_idx}}_simd_{{lh.kernel}}( &
     {% for arg in lh.args %}
                 {{arg_to_pointer_local(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -124,7 +124,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     end do
 
     do n = block, end
-        call {{lh.kernel}}_openmp( &
+        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
     {% for arg in lh.args %}
             {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -132,7 +132,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     end do
 {% else %}
     do n = start, end
-        call {{lh.kernel}}_openmp( &
+        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
     {% for arg in lh.args %}
             {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}

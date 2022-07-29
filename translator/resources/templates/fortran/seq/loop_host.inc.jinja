@@ -84,7 +84,7 @@ subroutine {{lh.kernel}}_wrapper( &
         end if
 
     {% endif %}
-        call {{lh.kernel}}_seq( &
+        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% for arg in lh.args %}
             {{arg_to_pointer(arg)}}{{"," if not loop.last}} &
 {% endfor %}

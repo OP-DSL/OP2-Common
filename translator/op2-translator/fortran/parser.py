@@ -6,7 +6,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Kernel, Location, ParseError, Program
+from store import Kernel, Location, ParseError, Program, Function
 
 
 def parseKernel(ast: f2003.Program, name: str, path: Path) -> Optional[Kernel]:
@@ -79,19 +79,54 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     return parseType(type_spec.tofortran(), loc)[0]
 
 
-def parseProgram(ast: f2003.Program, path: Path) -> Program:
-    program = Program(path)
-
-    for call in fpu.walk(ast, f2003.Call_Stmt):
-        loc = Location(str(path), call.item.span[0], 0)
-        name = parseIdentifier(fpu.get_child(call, f2003.Name), loc)
-
-        parseCall(name, fpu.get_child(call, f2003.Actual_Arg_Spec_List), loc, program)
+def parseProgram(ast: f2003.Program, source: str, path: Path) -> Program:
+    program = Program(path, ast, source)
+    parseNode(ast, program)
 
     return program
 
 
-def parseCall(name: str, args: Optional[f2003.Actual_Arg_Spec_List], loc: Location, program: Program) -> None:
+def parseNode(node: Any, program: Program) -> None:
+    if isinstance(node, f2003.Call_Stmt):
+        parseCall(node, program)
+
+    if isinstance(node, f2003.Subroutine_Subprogram):
+        parseSubroutine(node, program)
+
+    if not isinstance(node, f2003.Base):
+        return
+
+    for child in node.children:
+        parseNode(child, program)
+
+
+def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program) -> None:
+    subroutine_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
+    name_node = fpu.get_child(subroutine_statement, f2003.Name)
+
+    loc = Location(str(program.path), 0, 0)
+
+    name = parseIdentifier(name_node, loc)
+    function = Function(name, node, program)
+
+    param_identifiers = parseSubroutineParameters(program.path, node)
+
+    for param in param_identifiers:
+        typ = parseParamType(program.path, node, param)
+        function.parameters.append((param, typ))
+
+    for call in fpu.walk(node, f2003.Call_Stmt):
+        name = parseIdentifier(fpu.get_child(call, f2003.Name), loc)
+        function.depends.add(name)
+
+    program.entities.append(function)
+
+
+def parseCall(node: f2003.Call_Stmt, program: Program) -> None:
+    loc = Location(str(program.path), node.item.span[0], 0)
+    name = parseIdentifier(fpu.get_child(node, f2003.Name), loc)
+    args = fpu.get_child(node, f2003.Actual_Arg_Spec_List)
+
     if name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
 
@@ -218,12 +253,22 @@ def parseStringLiteral(node: Any, loc: Location) -> str:
 def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     access_type_str = parseIdentifier(node, loc)
 
-    if access_type_str not in OP.AccessType.values():
+    access_type_map = {
+        "OP_READ": 0,
+        "OP_WRITE": 1,
+        "OP_RW": 2,
+        "OP_INC": 3,
+        "OP_MIN": 4,
+        "OP_MAX": 5
+    }
+
+    if access_type_str not in access_type_map:
         raise ParseError(
-            f"invalid access type {access_type_str}, expected one of {', '.join(OP.AccessType.values())}", loc
+            f"invalid access type {access_type_str}, expected one of {', '.join(access_type_map.keys())}", loc
         )
 
-    return OP.AccessType(access_type_str)
+    access_type_raw = access_type_map[access_type_str]
+    return OP.AccessType(access_type_raw)
 
 
 def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:

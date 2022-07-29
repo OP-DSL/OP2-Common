@@ -163,7 +163,7 @@ def parse(args: Namespace, lang: Lang) -> Application:
         app.programs.append(program)
 
     # Parse the referenced kernels
-    for kernel_name in {loop.kernel for loop in app.loops()}:
+    for kernel_name in {loop[0].kernel for loop in app.loops()}:
         kernel_include_name = f"{kernel_name}.{lang.include_ext}"
         kernel_include_files = [Path(dir, kernel_include_name) for dir in include_dirs]
         kernel_include_files = list(filter(lambda p: p.is_file(), kernel_include_files))
@@ -204,9 +204,9 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     defines = [define for [define] in args.D]
 
     # Generate loop hosts
-    for i, loop in enumerate(app.loops(), 1):
+    for i, (loop, program) in enumerate(app.loops(), 1):
         # Generate loop host source
-        source, extension = scheme.genLoopHost(include_dirs, defines, env, loop, app, i)
+        source, extension = scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i)
 
         # Form output file path
         path = None
