@@ -1,17 +1,11 @@
 #define UNUSED(x) if (.false.) print *, SHAPE(x)
 
-module op2_kernels
-    use iso_c_binding
-
-    use op2_fortran_declarations
-    use op2_fortran_rt_support
-
-    use omp_lib
+module op2_consts
 
     implicit none
 
     {% for const in app.consts() %}
-    {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}{{"\n" if loop.last}}
+    {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}
     {% endfor %}
 contains
 
@@ -33,7 +27,25 @@ contains
     end subroutine
 
 {% endfor %}
+end module
+
+#define SIMD_LEN {{target.config.vectorise.simd_len}}
+
 {% for loop_, _ in app.loops() %}
-#include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
+#include "{{loop_.kernel}}_kernel.inc"
 {% endfor %}
+
+module op2_kernels
+
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    use op2_consts
+
+{% for loop_, _ in app.loops() %}
+    use op2_k{{loop.index}} ! {{loop_.kernel}}
+{% endfor %}
+
 end module

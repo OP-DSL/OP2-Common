@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from os.path import basename
 from pathlib import Path
 from textwrap import indent
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import op as OP
 from op import OpError
