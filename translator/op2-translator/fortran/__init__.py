@@ -23,10 +23,13 @@ def base_deepcopy(self, memo):
     memo[id(self)] = result
 
     for k, v in self.__dict__.items():
+        if k == "parent":
+            continue
+
         setattr(result, k, copy.deepcopy(v, memo))
 
     if hasattr(result, "items"):
-        _set_parent(self, result.items)
+        _set_parent(result, result.items)
 
     return result
 

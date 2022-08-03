@@ -58,6 +58,7 @@ module op2_k{{kernel_idx}}
 
     implicit none
 
+    private
     public :: {{lh.kernel}}_host
 
 {% for dat in lh.dats|soa %}
