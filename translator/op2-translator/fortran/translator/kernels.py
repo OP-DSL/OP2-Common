@@ -4,7 +4,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Application, Kernel, Entity
+from store import Application, Entity, Kernel
 from util import find, safeFind
 
 

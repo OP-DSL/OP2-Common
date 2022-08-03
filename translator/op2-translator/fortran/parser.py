@@ -6,7 +6,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Kernel, Location, ParseError, Program, Function
+from store import Function, Kernel, Location, ParseError, Program
 
 
 def parseKernel(ast: f2003.Program, name: str, path: Path) -> Optional[Kernel]:
@@ -253,14 +253,7 @@ def parseStringLiteral(node: Any, loc: Location) -> str:
 def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     access_type_str = parseIdentifier(node, loc)
 
-    access_type_map = {
-        "OP_READ": 0,
-        "OP_WRITE": 1,
-        "OP_RW": 2,
-        "OP_INC": 3,
-        "OP_MIN": 4,
-        "OP_MAX": 5
-    }
+    access_type_map = {"OP_READ": 0, "OP_WRITE": 1, "OP_RW": 2, "OP_INC": 3, "OP_MIN": 4, "OP_MAX": 5}
 
     if access_type_str not in access_type_map:
         raise ParseError(

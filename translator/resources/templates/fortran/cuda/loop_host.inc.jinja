@@ -45,6 +45,27 @@ call op_cuda_{{lh.kernel}}<<<num_blocks, block_size
     {%- endif -%}
 {%- endmacro -%}
 
+module op2_k{{kernel_idx}}
+
+    use cudafor
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+    use cudaconfigurationparams
+
+    use op2_consts
+
+    implicit none
+
+    public :: {{lh.kernel}}_host
+
+{% for dat in lh.dats|soa %}
+    integer(4) :: op2_dat{{dat.id}}_stride
+    integer(4), constant :: op2_dat{{dat.id}}_stride_d{{"\n" if loop.last}}
+{% endfor %}
+contains
+
 attributes(device) &
 {{kernel_func}}
 
@@ -114,7 +135,7 @@ subroutine op_cuda_{{lh.kernel}}( &
 
 {% if lh is direct %}
     do n = thread_id, set_size, blockdim%x * griddim%x
-        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
+        call {{lh.kernel}}( &
     {% for arg  in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -127,7 +148,7 @@ subroutine op_cuda_{{lh.kernel}}( &
     {% for arg in lh.args|indirect|reduction if target.config.atomics %}
         arg{{arg.id}}_{{arg.map_idx}}_local = 0{{"\n" if loop.last}}
     {% endfor %}
-        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
+        call {{lh.kernel}}( &
     {% for arg  in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -383,3 +404,5 @@ subroutine {{lh.kernel}}_host( &
 
     call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
 end subroutine
+
+end module
