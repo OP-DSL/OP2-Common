@@ -91,7 +91,7 @@ def insertStride(entity: Entity, param: str, arg: OP.Arg, stride: Callable[[str]
 
         parent.items = (
             name,
-            f2003.Section_Subscript_List(f"((({str(subscript_list)}) - 1) * {stride(arg)} + 1)"),
+            f2003.Section_Subscript_List(f"(({str(subscript_list)}) - 1) * {stride(arg)} + 1"),
         )
 
 

@@ -43,6 +43,7 @@ module op2_k{{kernel_idx}}
 
     implicit none
 
+    private
     public :: {{lh.kernel}}_host
 
 contains
@@ -90,7 +91,7 @@ subroutine {{lh.kernel}}_wrapper2( &
 
     block = start
     do while (block + SIMD_LEN <= end)
-    {% for arg in lh.args|inc %}
+    {% for arg in lh.args|inc if arg is not direct %}
         arg{{arg.id}}_local = 0
     {% endfor %}
 

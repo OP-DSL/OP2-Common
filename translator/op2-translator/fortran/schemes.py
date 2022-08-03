@@ -70,9 +70,7 @@ class FortranOpenMP(Scheme):
             return ftk.writeSource(kernel_entities + dependencies)
 
         simd_kernel_entities = copy.deepcopy(kernel_entities)
-
         ftk.renameEntities(simd_kernel_entities, lambda name: f"{name}_simd")
-        ftk.renameConsts(simd_kernel_entities, app, lambda const: f"op2_const_{const}")
 
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
