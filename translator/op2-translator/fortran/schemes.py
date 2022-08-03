@@ -5,7 +5,7 @@ import fortran.translator.kernels as ftk
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, Kernel, Program, ParseError
+from store import Application, Kernel, ParseError, Program
 from target import Target
 from util import find
 
@@ -33,7 +33,6 @@ class FortranSeq(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameEntities(kernel_entities + dependencies, lambda name: f"op2_k{kernel_idx}_{name}")
         ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
         return ftk.writeSource(kernel_entities + dependencies)
@@ -65,7 +64,6 @@ class FortranOpenMP(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameEntities(kernel_entities + dependencies, lambda name: f"op2_k{kernel_idx}_{name}")
         ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
         if not self.target.config["vectorise"]:
@@ -73,7 +71,7 @@ class FortranOpenMP(Scheme):
 
         simd_kernel_entities = copy.deepcopy(kernel_entities)
 
-        ftk.renameEntities(simd_kernel_entities, lambda name: f"op2_k{kernel_idx}_simd_{name}")
+        ftk.renameEntities(simd_kernel_entities, lambda name: f"{name}_simd")
         ftk.renameConsts(simd_kernel_entities, app, lambda const: f"op2_const_{const}")
 
         def match_indirect(arg):
@@ -124,7 +122,6 @@ class FortranCuda(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameEntities(kernel_entities + dependencies, lambda name: f"op2_k{kernel_idx}_{name}")
         ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
 
         loop = find(app.loops(), lambda loop: loop[0].kernel == kernel.name)[0]
@@ -140,7 +137,7 @@ class FortranCuda(Scheme):
                 kernel_entity,
                 kernel,
                 app,
-                lambda arg: f"op2_{kernel.name}_dat{arg.dat_id}_stride_d",
+                lambda arg: f"op2_dat{arg.dat_id}_stride_d",
                 match=lambda arg: match_soa(arg) and not match_atomic_inc(arg),
             )
 

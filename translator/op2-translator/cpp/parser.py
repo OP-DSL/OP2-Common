@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind, conf
 
 import op as OP
-from store import Kernel, Location, ParseError, Program, Function, Type
+from store import Function, Kernel, Location, ParseError, Program, Type
 from util import safeFind
 
 

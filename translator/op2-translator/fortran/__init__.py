@@ -1,7 +1,7 @@
+import copy
 import io
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
-import copy
 
 import fparser.two.Fortran2003 as f2003
 import pcpp
@@ -13,7 +13,7 @@ import fortran.parser
 import fortran.translator.program
 import op as OP
 from language import Lang
-from store import Kernel, Program, Location, ParseError
+from store import Kernel, Location, ParseError, Program
 
 
 def base_deepcopy(self, memo):
@@ -83,7 +83,9 @@ class Fortran(Lang):
     com_delim = "!"
     zero_idx = False
 
-    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Tuple[f2003.Program, str]:
+    def parseFile(
+        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
+    ) -> Tuple[f2003.Program, str]:
         preprocessor = Preprocessor()
 
         for dir in include_dirs:
