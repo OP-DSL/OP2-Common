@@ -31,10 +31,22 @@ arg{{arg.id}}_local(lane, 1)
 
 {% set vectorise = target.config.vectorise.enable and lh.kernel not in target.config.vectorise.blacklist %}
 
-{% if vectorise %}
-#define SIMD_LEN 8
+module op2_k{{kernel_idx}}
 
-{% endif %}
+    use iso_c_binding
+    use omp_lib
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    use op2_consts
+
+    implicit none
+
+    public :: {{lh.kernel}}_host
+
+contains
+
 {{kernel_func}}
 
 subroutine {{lh.kernel}}_wrapper2( &
@@ -97,7 +109,7 @@ subroutine {{lh.kernel}}_wrapper2( &
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-            call op2_k{{kernel_idx}}_simd_{{lh.kernel}}( &
+            call {{lh.kernel}}_simd( &
     {% for arg in lh.args %}
                 {{arg_to_pointer_local(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -124,7 +136,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     end do
 
     do n = block, end
-        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
+        call {{lh.kernel}}( &
     {% for arg in lh.args %}
             {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -132,7 +144,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     end do
 {% else %}
     do n = start, end
-        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
+        call {{lh.kernel}}( &
     {% for arg in lh.args %}
             {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"," if not loop.last}} &
     {% endfor %}
@@ -419,3 +431,5 @@ subroutine {{lh.kernel}}_host( &
 
     call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
 end subroutine
+
+end module

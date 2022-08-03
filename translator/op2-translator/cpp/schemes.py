@@ -4,7 +4,7 @@ import cpp.translator.kernels as ctk
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, Kernel, Program, ParseError
+from store import Application, Kernel, ParseError, Program
 from target import Target
 
 

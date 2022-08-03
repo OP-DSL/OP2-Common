@@ -22,6 +22,21 @@ dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{
     {%- endif -%}
 {%- endmacro -%}
 
+module op2_k{{kernel_idx}}
+
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    use op2_consts
+
+    implicit none
+
+    public :: {{lh.kernel}}_host
+
+contains
+
 {{kernel_func}}
 
 subroutine {{lh.kernel}}_wrapper( &
@@ -84,7 +99,7 @@ subroutine {{lh.kernel}}_wrapper( &
         end if
 
     {% endif %}
-        call op2_k{{kernel_idx}}_{{lh.kernel}}( &
+        call {{lh.kernel}}( &
 {% for arg in lh.args %}
             {{arg_to_pointer(arg)}}{{"," if not loop.last}} &
 {% endfor %}
@@ -174,3 +189,5 @@ subroutine {{lh.kernel}}_host( &
 
     call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
 end subroutine
+
+end module

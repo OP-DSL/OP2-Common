@@ -1,12 +1,8 @@
 #define UNUSED(x) if (.false.) print *, SHAPE(x)
 
-module op2_kernels
-    use cudafor
-    use iso_c_binding
+module op2_consts
 
-    use op2_fortran_declarations
-    use op2_fortran_rt_support
-    use cudaconfigurationparams
+    use cudafor
 
     implicit none
 
@@ -14,12 +10,6 @@ module op2_kernels
     {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}
     {{const.typ}}, constant{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: op2_const_{{const.ptr}}_d
 
-    {% endfor %}
-    {% for loop_, _ in app.loops() %}
-        {% for dat in loop_.dats|soa %}
-    integer(4) :: op2_{{loop_.kernel}}_dat{{dat.id}}_stride
-    integer(4), constant :: op2_{{loop_.kernel}}_dat{{dat.id}}_stride_d
-        {% endfor %}
     {% endfor %}
 contains
 
@@ -44,7 +34,23 @@ contains
     end subroutine
 
 {% endfor %}
+end module
+
 {% for loop_, _ in app.loops() %}
-#include "{{loop_.kernel}}_kernel.inc"{{"\n" if loop.last}}
+#include "{{loop_.kernel}}_kernel.inc"
 {% endfor %}
+
+module op2_kernels
+
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    use op2_consts
+
+{% for loop_, _ in app.loops() %}
+    use op2_k{{loop.index}} ! {{loop_.kernel}}
+{% endfor %}
+
 end module

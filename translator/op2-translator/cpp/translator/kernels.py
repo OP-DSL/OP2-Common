@@ -3,7 +3,7 @@ from typing import Callable, List, Optional, Tuple
 from clang.cindex import Cursor, CursorKind, SourceRange
 
 import op as OP
-from store import Application, Kernel, Entity, Type, Function
+from store import Application, Entity, Function, Kernel, Type
 from util import Location, Rewriter, Span, find, safeFind
 
 
