@@ -196,7 +196,14 @@ class Application:
             raise OpError(f"invalid access type for dat argument: {arg.access_type}", arg.loc)
 
     def validateArgGbl(self, arg: OP.ArgGbl, loop: OP.Loop, lang: Lang) -> None:
-        valid_access_types = [OP.AccessType.READ, OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
+        valid_access_types = [
+            OP.AccessType.READ,
+            OP.AccessType.WRITE,
+            OP.AccessType.RW,
+            OP.AccessType.INC,
+            OP.AccessType.MIN,
+            OP.AccessType.MAX,
+        ]
         if arg.access_type not in valid_access_types:
             raise OpError(f"invalid access type for gbl argument: {arg.access_type}", arg.loc)
 
