@@ -4,7 +4,7 @@ import cpp.translator.kernels as ctk
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, Kernel, ParseError, Program
+from store import Application, ParseError, Program
 from target import Target
 
 
@@ -17,14 +17,14 @@ class CppSeq(Scheme):
 
     def translateKernel(
         self,
-        kernel: Kernel,
+        loop: OP.Loop,
         program: Program,
         app: Application,
         kernel_idx: int,
     ) -> str:
-        kernel_entities = app.findEntities(kernel.name, program)
+        kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {kernel.name}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}")
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
         return ctk.writeSource(extracted_entities)
@@ -42,14 +42,14 @@ class CppOpenMP(Scheme):
 
     def translateKernel(
         self,
-        kernel: Kernel,
+        loop: OP.Loop,
         program: Program,
         app: Application,
         kernel_idx: int,
     ) -> str:
-        kernel_entities = app.findEntities(kernel.name, program)
+        kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {kernel.name}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}")
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
         return ctk.writeSource(extracted_entities)
@@ -67,14 +67,14 @@ class CppCuda(Scheme):
 
     def translateKernel(
         self,
-        kernel: Kernel,
+        loop: OP.Loop,
         program: Program,
         app: Application,
         kernel_idx: int,
     ) -> str:
-        kernel_entities = app.findEntities(kernel.name, program)
+        kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {kernel.name}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}")
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -87,7 +87,7 @@ class CppCuda(Scheme):
                 rewriter,
                 app,
                 kernel,
-                lambda dat_id: f"op2_{kernel.name}_dat{dat_id}_stride_d",
+                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"],
             )
 

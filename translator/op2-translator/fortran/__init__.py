@@ -13,7 +13,7 @@ import fortran.parser
 import fortran.translator.program
 import op as OP
 from language import Lang
-from store import Kernel, Location, ParseError, Program
+from store import Location, ParseError, Program
 
 
 def base_deepcopy(self, memo):
@@ -53,17 +53,32 @@ def file_reader_deepcopy(self, memo):
 
 
 # Patch the fparser2 Base class to allow deepcopies
-setattr(Base, "__deepcopy__", base_deepcopy)
-setattr(FortranFileReader, "__deepcopy__", file_reader_deepcopy)
+Base.__deepcopy__ = base_deepcopy
+FortranFileReader.__deepcopy__ = file_reader_deepcopy
+
+
+kind_selector_aliases = {"*PS": "*8"}
+
+
+def kind_selector_match(string):
+    if string in kind_selector_aliases:
+        string = kind_selector_aliases[string]
+
+    return f2003.Kind_Selector.match_(string)
+
+
+f2003.Kind_Selector.match_ = f2003.Kind_Selector.match
+f2003.Kind_Selector.match = staticmethod(kind_selector_match)
 
 
 class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
+
         self.line_directive = None
 
     def on_comment(self, tok: str) -> bool:
-        return True
+        return tok.type == self.t_COMMENT2
 
     def on_error(self, file: str, line: int, msg: str) -> None:
         loc = Location(file, line, 0)
@@ -73,7 +88,7 @@ class Preprocessor(pcpp.Preprocessor):
         if is_system_include:
             raise pcpp.OutputDirective(pcpp.Action.IgnoreAndPassThrough)
 
-        super.on_include_not_found(is_malformed, is_system_include, curdir, includepath)
+        super(Preprocessor, self).on_include_not_found(is_malformed, is_system_include, curdir, includepath)
 
 
 class Fortran(Lang):
@@ -109,18 +124,32 @@ class Fortran(Lang):
 
         source.seek(0)
 
+        import re
+
+        s = source.read()
+        s = re.sub(r"^cop2rep.*", "", s, flags=re.MULTILINE)
+
+        s = re.sub(r"__FILE__", f'"{path}"', s)
+        s = re.sub(r"__LINE__", "0", s)
+
+        source.seek(0)
+        source.truncate()
+        source.write(s)
+        source.seek(0)
+
         reader = FortranFileReader(source, include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")
+
+        with open("preprocessed.F90", "w") as pp:
+            pp.write(source.read())
+
+        source.seek(0)
 
         return parser(reader), source
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
         return fortran.parser.parseProgram(ast, source, path)
-
-    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
-        ast, _ = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
-        return fortran.parser.parseKernel(ast, name, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
         ast, _ = self.parseFile(program.path, frozenset(include_dirs), frozenset(defines))
