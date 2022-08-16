@@ -55,7 +55,7 @@ map{{arg.map_id}}[set_size * {{arg.map_idx}} + n]
 
 {% macro arg_to_pointer_cuda(arg) -%}
     {%- if arg is gbl -%}
-gbl{{arg.id}}{{"_local" if arg.access_type != OP.AccessType.READ}}
+gbl{{arg.id}}{{"_local" if arg is reduction}}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
     {%- elif arg is vec -%}
@@ -193,10 +193,10 @@ __global__ void op_cuda_{{lh.kernel}}(
     {% for arg in lh.args|gbl %}
     {{arg.typ}} *arg{{arg.id}}_host_data = ({{arg.typ}} *)arg{{arg.id}}.data;{{"\n" if loop.last}}
     {% endfor %}
-    {% if lh.args|gbl|read|length > 0 %}
+    {% if lh.args|gbl|read_or_write|length > 0 %}
     int const_bytes = 0;
 
-        {% for arg in lh.args|gbl|read %}
+        {% for arg in lh.args|gbl|read_or_write %}
             {% call opt_if(arg) %}
     const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
             {% endcall %}
@@ -205,7 +205,7 @@ __global__ void op_cuda_{{lh.kernel}}(
     reallocConstArrays(const_bytes);
     const_bytes = 0;
 
-        {% for arg in lh.args|gbl|read %}
+        {% for arg in lh.args|gbl|read_or_write %}
             {% call opt_if(arg) %}
     arg{{arg.id}}.data   = OP_consts_h + const_bytes;
     arg{{arg.id}}.data_d = OP_consts_d + const_bytes;
@@ -357,6 +357,17 @@ op_cuda_{{lh.kernel}}<<<num_blocks, block_size
 {% endblock %}
 
 {% block host_epilogue %}
+    {% if lh.args|gbl|read_write|length > 0 or lh.args|gbl|write|length > 0 %}
+    mvConstArraysToHost(const_bytes);
+    
+        {% for arg in lh.args|gbl if arg is write or arg is read_write %}
+    for (int d = 0; d < {{arg.dim}}; ++d)
+        arg{{arg.id}}_host_data[d]; = (({{arg.typ}} *)arg{{arg.id}}.data)[d];
+        {% endfor %}
+    {% endif %}
+    {% for arg in lh.args|gbl|read_or_write %}
+    arg{{arg.id}}.data = (char *)arg{{arg.id}}_host_data;{{"\n" if loop.last}}
+    {% endfor %}
     {% for arg in lh.args|gbl|reduction %}
     for (int b = 0; {{opt_cond_comp(arg)}}b < max_blocks; ++b) {
         for (int d = 0; d < {{arg.dim}}; ++d)
