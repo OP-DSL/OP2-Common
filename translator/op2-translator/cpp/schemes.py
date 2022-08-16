@@ -86,7 +86,7 @@ class CppCuda(Scheme):
                 entity,
                 rewriter,
                 app,
-                kernel,
+                loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"],
             )

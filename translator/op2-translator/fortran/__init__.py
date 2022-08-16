@@ -140,12 +140,7 @@ class Fortran(Lang):
         reader = FortranFileReader(source, include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")
 
-        with open("preprocessed.F90", "w") as pp:
-            pp.write(source.read())
-
-        source.seek(0)
-
-        return parser(reader), source
+        return parser(reader), s
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
