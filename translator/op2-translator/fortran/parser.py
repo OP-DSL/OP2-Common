@@ -6,53 +6,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Function, Kernel, Location, ParseError, Program
-
-
-def parseKernel(ast: f2003.Program, name: str, path: Path) -> Optional[Kernel]:
-    subroutine = findSubroutine(path, ast, name)
-    if subroutine is None:
-        return None
-
-    param_identifiers = parseSubroutineParameters(path, subroutine)
-
-    params = []
-    for param in param_identifiers:
-        typ = parseParamType(path, subroutine, param)
-        params.append((param, typ))
-
-    return Kernel(name, path, params)
-
-
-def findSubroutine(path: Path, ast: f2003.Program, name: str) -> Optional[f2003.Subroutine_Subprogram]:
-    subroutine = None
-
-    for candidate_routine in fpu.walk(ast, f2003.Subroutine_Subprogram):
-        subroutine_statement = fpu.get_child(candidate_routine, f2003.Subroutine_Stmt)
-        name_node = fpu.get_child(subroutine_statement, f2003.Name)
-        loc = Location(str(path), subroutine_statement.item.span[0], 0)
-
-        if parseIdentifier(name_node, loc) == name:
-            subroutine = candidate_routine
-            break
-
-    return subroutine
-
-
-def parseSubroutineParameters(path: Path, subroutine: f2003.Subroutine_Subprogram) -> List[str]:
-    subroutine_statement = fpu.get_child(subroutine, f2003.Subroutine_Stmt)
-    arg_list = fpu.get_child(subroutine_statement, f2003.Dummy_Arg_List)
-
-    if arg_list is None:
-        return []
-
-    loc = Location(str(path), subroutine_statement.item.span[0], 0)
-
-    parameters = []
-    for item in arg_list.items:
-        parameters.append(parseIdentifier(item, loc))
-
-    return parameters
+from store import Function, Location, ParseError, Program
 
 
 def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: str) -> OP.Type:
@@ -76,35 +30,41 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
     if type_spec is None:
         raise ParseError("derived types are not allowed for kernel arguments", loc)
 
-    return parseType(type_spec.tofortran(), loc)[0]
+    return parseType(type_spec.tofortran(), loc, True)[0]
 
 
 def parseProgram(ast: f2003.Program, source: str, path: Path) -> Program:
     program = Program(path, ast, source)
-    parseNode(ast, program)
+    parseNode(ast, program, Location(str(program.path), 0, 0))
 
     return program
 
 
-def parseNode(node: Any, program: Program) -> None:
+def parseNode(node: Any, program: Program, loc: Location) -> None:
     if isinstance(node, f2003.Call_Stmt):
-        parseCall(node, program)
+        parseCall(node, program, loc)
 
     if isinstance(node, f2003.Subroutine_Subprogram):
-        parseSubroutine(node, program)
+        parseSubroutine(node, program, loc)
 
     if not isinstance(node, f2003.Base):
         return
 
     for child in node.children:
-        parseNode(child, program)
+        if child is None:
+            continue
+
+        child_loc = loc
+
+        if hasattr(child, "item") and child.item is not None:
+            child_loc = Location(str(program.path), child.item.span[0], 0)
+
+        parseNode(child, program, child_loc)
 
 
-def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program) -> None:
+def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Location) -> None:
     subroutine_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
     name_node = fpu.get_child(subroutine_statement, f2003.Name)
-
-    loc = Location(str(program.path), 0, 0)
 
     name = parseIdentifier(name_node, loc)
     function = Function(name, node, program)
@@ -122,8 +82,23 @@ def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program) -> None
     program.entities.append(function)
 
 
-def parseCall(node: f2003.Call_Stmt, program: Program) -> None:
-    loc = Location(str(program.path), node.item.span[0], 0)
+def parseSubroutineParameters(path: Path, subroutine: f2003.Subroutine_Subprogram) -> List[str]:
+    subroutine_statement = fpu.get_child(subroutine, f2003.Subroutine_Stmt)
+    arg_list = fpu.get_child(subroutine_statement, f2003.Dummy_Arg_List)
+
+    if arg_list is None:
+        return []
+
+    loc = Location(str(path), subroutine_statement.item.span[0], 0)
+
+    parameters = []
+    for item in arg_list.items:
+        parameters.append(parseIdentifier(item, loc))
+
+    return parameters
+
+
+def parseCall(node: f2003.Call_Stmt, program: Program, loc: Location) -> None:
     name = parseIdentifier(fpu.get_child(node, f2003.Name), loc)
     args = fpu.get_child(node, f2003.Actual_Arg_Spec_List)
 
@@ -232,15 +207,75 @@ def parseIdentifier(node: Any, loc: Location) -> str:
     return node.string
 
 
+literal_aliases = {
+    "npdes": 6,
+    "npdesdpl": 4,
+    "mpdes": 1000,
+    "ntqmu": 3,
+    # Global dims - known
+    "nzone": 0,
+    "ngrp": 0,
+    "mints": 22,
+    "igrp": 1000,
+    "mpdesdpl": 40,
+    "mspl": 500,
+    # Global dims - unknown
+    "ncline": 64,
+    "ncfts": 64,
+    "ncftm": 64,
+    "ncline": 64,
+    "ntline": 64,
+}
+
+literal_aliases["njaca"] = literal_aliases["npdes"] - 5
+
+literal_aliases["nspdes"] = literal_aliases["npdes"]
+literal_aliases["njacs"] = literal_aliases["nspdes"] - 5
+
+literal_aliases["ngrad"] = 3 * literal_aliases["npdes"]
+literal_aliases["ndets"] = 6 + 3 * (literal_aliases["npdes"] - 4)
+
+
 def parseIntLiteral(node: Any, loc: Location) -> int:
+    if type(node) is f2003.Parenthesis:
+        return parseIntLiteral(node.items[1], loc)
+
     if type(node) is f2003.Signed_Int_Literal_Constant or type(node) is f2003.Int_Literal_Constant:
         return int(node.items[0])
 
-    if type(node) is f2003.Level_2_Unary_Expr:
-        coeff = -1 if node.items[0] == "-" else 1
-        return coeff * int(node.items[1].items[0])
+    if issubclass(type(node), f2003.UnaryOpBase):
+        val = parseIntLiteral(node.items[1], loc)
+        op = node.items[0]
 
-    raise ParseError("unable to parse int literal", loc)
+        if op == "+":
+            return val
+        elif op == "-":
+            return -val
+
+    if issubclass(type(node), f2003.BinaryOpBase):
+        lhs = parseIntLiteral(node.items[0], loc)
+        rhs = parseIntLiteral(node.items[2], loc)
+
+        op = node.items[1]
+
+        if op == "+":
+            return lhs + rhs
+        elif op == "-":
+            return lhs - rhs
+        elif op == "*":
+            return lhs * rhs
+        elif op == "/":
+            return int(lhs / rhs)
+        elif op == "**":
+            return int(lhs**rhs)
+
+    if type(node) is f2003.Name:
+        ident = parseIdentifier(node, loc)
+
+        if ident in literal_aliases:
+            return literal_aliases[ident]
+
+    raise ParseError(f"unable to parse int literal: {node}", loc)
 
 
 def parseStringLiteral(node: Any, loc: Location) -> str:
@@ -264,7 +299,7 @@ def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     return OP.AccessType(access_type_raw)
 
 
-def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
+def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, bool]:
     typ_clean = typ.strip().lower()
     typ_clean = re.sub(r"\s*kind\s*=\s*", "", typ_clean)
 
@@ -273,28 +308,48 @@ def parseType(typ: str, loc: Location) -> Tuple[OP.Type, bool]:
         soa = True
 
     typ_clean = re.sub(r"\s*:soa\s*", "", typ_clean)
+    typ_clean = re.sub(r"\s*", "", typ_clean)
 
     def mk_type_regex(t, k):
-        return rf"{t}(?:\s*\(\s*{k}\s*\))?\s*$"
+        return rf"{t}(?:\((?:kind=)?{k}\)|\*{k})?$"
+
+    aliases = {
+        "i4": OP.Int(True, 32),
+        "i8": OP.Int(True, 64),
+        "r4": OP.Float(32),
+        "r8": OP.Float(64),
+    }
+
+    if typ_clean in aliases:
+        return aliases[typ_clean], soa
 
     integer_match = re.match(mk_type_regex("integer", "(?:ik)?(4|8)"), typ_clean)
     if integer_match is not None:
         size = 32
-        if integer_match.groups()[0] is not None:
-            size = int(integer_match.groups()[0]) * 8
+
+        groups = integer_match.groups()
+        size_match = groups[0] or groups[1]
+        if size_match is not None:
+            size = int(size_match) * 8
 
         return OP.Int(True, size), soa
 
     real_match = re.match(mk_type_regex("real", "(?:rk)?(4|8)"), typ_clean)
     if real_match is not None:
         size = 32
-        if real_match.groups()[0] is not None:
-            size = int(real_match.groups()[0]) * 8
+
+        groups = real_match.groups()
+        size_match = groups[0] or groups[1]
+        if size_match is not None:
+            size = int(size_match) * 8
 
         return OP.Float(size), soa
 
-    logical_match = re.match(mk_type_regex("logical", "(?:lk)?"), typ_clean)
+    logical_match = re.match(mk_type_regex("logical", "(?:lk)?(1|2|4)"), typ_clean)
     if logical_match is not None:
         return OP.Bool(), soa
+
+    if include_custom:
+        return OP.Custom(typ_clean), soa
 
     raise ParseError(f'unable to parse type "{typ}"', loc)

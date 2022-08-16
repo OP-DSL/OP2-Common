@@ -7,7 +7,7 @@ from jinja2 import Environment
 
 import op as OP
 from language import Lang
-from store import Application, Kernel, Program
+from store import Application, Program
 from target import Target
 from util import Findable
 
@@ -36,8 +36,7 @@ class Scheme(Findable):
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
 
-        kernel = app.kernels[loop.kernel]
-        kernel_func = self.translateKernel(kernel, program, app, kernel_idx)
+        kernel_func = self.translateKernel(loop, program, app, kernel_idx)
 
         # Generate source from the template
         return (
@@ -64,12 +63,12 @@ class Scheme(Findable):
 
     def translateKernel(
         self,
-        kernel: Kernel,
+        loop: OP.Loop,
         program: Program,
         app: Application,
         kernel_idx: int,
     ) -> str:
-        return kernel.path.read_text()
+        pass
 
     def matches(self, key: Tuple[Lang, Target]) -> bool:
         return self.lang == key[0] and self.target == key[1]
