@@ -4,7 +4,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Application, Entity, Kernel
+from store import Application, Entity, Function
 from util import find, safeFind
 
 
@@ -64,18 +64,19 @@ def renameConsts(entities: List[Entity], app: Application, replacement: Callable
 
 def insertStrides(
     entity: Entity,
-    kernel: Kernel,
+    loop: OP.Loop,
     app: Application,
     stride: Callable[[str], str],
     match: Callable[[OP.ArgDat], bool] = lambda arg: True,
 ) -> None:
-    loop = find(app.loops(), lambda loop: loop[0].kernel == kernel.name)[0]
+    if not isinstance(entity, Function):
+        return
 
     for arg_idx in range(len(loop.args)):
         if not match(loop.args[arg_idx]):
             continue
 
-        insertStride(entity, kernel.params[arg_idx][0], loop.args[arg_idx], stride)
+        insertStride(entity, entity.parameters[arg_idx][0], loop.args[arg_idx], stride)
 
 
 def insertStride(entity: Entity, param: str, arg: OP.Arg, stride: Callable[[str], str]) -> None:

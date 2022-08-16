@@ -162,22 +162,6 @@ def parse(args: Namespace, lang: Lang) -> Application:
         program = lang.parseProgram(Path(raw_path), include_dirs, defines)
         app.programs.append(program)
 
-    # Parse the referenced kernels
-    for kernel_name in {loop[0].kernel for loop in app.loops()}:
-        kernel_include_name = f"{kernel_name}.{lang.include_ext}"
-        kernel_include_files = [Path(dir, kernel_include_name) for dir in include_dirs]
-        kernel_include_files = list(filter(lambda p: p.is_file(), kernel_include_files))
-
-        for path in [Path(raw_path) for raw_path in args.file_paths] + kernel_include_files:
-            kernel = lang.parseKernel(path, kernel_name, include_dirs, defines)
-
-            if kernel is not None:
-                app.kernels[kernel_name] = kernel
-                break
-
-        if kernel_name not in app.kernels:
-            exit(f"Failed to locate kernel function: {kernel_name}")
-
     return app
 
 
