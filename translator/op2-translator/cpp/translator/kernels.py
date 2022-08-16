@@ -3,7 +3,7 @@ from typing import Callable, List, Optional, Tuple
 from clang.cindex import Cursor, CursorKind, SourceRange
 
 import op as OP
-from store import Application, Entity, Function, Kernel, Type
+from store import Application, Entity, Function, Type
 from util import Location, Rewriter, Span, find, safeFind
 
 
@@ -58,11 +58,12 @@ def insertStrides(
     entity: Entity,
     rewriter: Rewriter,
     app: Application,
-    kernel: Kernel,
+    loop: OP.Loop,
     stride: Callable[[int], str],
     skip: Optional[Callable[[OP.ArgDat], bool]] = None,
 ) -> None:
-    loop = find(app.loops(), lambda loop: loop[0].kernel == kernel.name)[0]
+    if not isinstance(entity, Function):
+        return
 
     for arg_idx in range(len(loop.args)):
         if not isinstance(loop.args[arg_idx], OP.ArgDat):
@@ -76,7 +77,7 @@ def insertStrides(
             continue
 
         is_vec = loop.args[arg_idx].map_idx < -1
-        insertStride(entity.ast, rewriter, kernel.params[arg_idx][0], dat.id, is_vec, stride)
+        insertStride(entity.ast, rewriter, entity.parameters[arg_idx][0], dat.id, is_vec, stride)
 
 
 def insertStride(

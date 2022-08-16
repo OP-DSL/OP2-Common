@@ -5,30 +5,8 @@ from typing import Dict, List, Optional, Tuple
 from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind, conf
 
 import op as OP
-from store import Function, Kernel, Location, ParseError, Program, Type
+from store import Function, Location, ParseError, Program, Type
 from util import safeFind
-
-
-def parseKernel(translation_unit: TranslationUnit, name: str, path: Path) -> Optional[Kernel]:
-    nodes = translation_unit.cursor.get_children()
-
-    node = safeFind(nodes, lambda n: n.kind == CursorKind.FUNCTION_DECL and n.spelling == name)
-    if not node:
-        return None
-
-    params = []
-    for n in node.get_children():
-        if n.kind != CursorKind.PARM_DECL:
-            continue
-
-        param_type = n.type.get_canonical()
-        while param_type.get_pointee().spelling:
-            param_type = param_type.get_pointee()
-
-        typ, _ = parseType(param_type.spelling, parseLocation(n))
-        params.append((n.spelling, typ))
-
-    return Kernel(name, path, params)
 
 
 def parseMeta(node: Cursor, program: Program) -> None:
@@ -308,7 +286,7 @@ def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, b
         return typ_map[typ_clean], soa
 
     if include_custom:
-        return typ_clean, soa
+        return OP.Custom(typ_clean), soa
 
     raise ParseError(f'unable to parse type "{typ}"', loc)
 

@@ -121,23 +121,8 @@ class Program:
 
 
 @dataclass
-class Kernel:
-    name: str
-    path: Path
-
-    params: List[Tuple[str, OP.Type]] = field(default_factory=list)
-
-    def __str__(self) -> str:
-        return (
-            f"Kernel in '{self.path}':\n"  # fmt: skip
-            f"    {self.name}({', '.join([f'{p[0]}: {repr(p[1])}' for p in self.params])})\n"
-        )
-
-
-@dataclass
 class Application:
     programs: List[Program] = field(default_factory=list)
-    kernels: Dict[str, Kernel] = field(default_factory=dict)
 
     def __str__(self) -> str:
         if len(self.programs) > 0:
@@ -145,12 +130,7 @@ class Application:
         else:
             programs_str = "No programs"
 
-        if len(self.kernels) > 0:
-            kernels_str = "\n".join([str(k) for k in self.kernels.values()])
-        else:
-            kernels_str = "No kernels"
-
-        return programs_str + "\n" + kernels_str
+        return programs_str
 
     def findEntities(self, name: str, program: Program = None, scope: List[str] = []) -> List[Entity]:
         candidates = []
@@ -175,7 +155,7 @@ class Application:
         consts = flatten(program.consts for program in self.programs)
         return uniqueBy(consts, lambda c: c.ptr)
 
-    def loops(self) -> List[OP.Loop]:
+    def loops(self) -> List[Tuple[OP.Loop, Program]]:
         loops = flatten(map(lambda l: (l, p), p.loops) for p in self.programs)
         return uniqueBy(loops, lambda l: l[0].kernel)
 
@@ -196,7 +176,7 @@ class Application:
                 raise OpError(f"invalid const dimension: {const.dim}", const.dim)
 
     def validateLoops(self, lang: Lang) -> None:
-        for loop, _ in self.loops():
+        for loop, program in self.loops():
             num_opts = len([arg for arg in loop.args if arg.opt])
             if num_opts > 32:
                 raise OpError(f"number of optional arguments exceeds 32: {num_opts}", loop.loc)
@@ -208,7 +188,7 @@ class Application:
                 if isinstance(arg, OP.ArgGbl):
                     self.validateArgGbl(arg, loop, lang)
 
-            self.validateKernel(loop, lang)
+            # self.validateKernel(loop, program, lang) TODO
 
     def validateArgDat(self, arg: OP.ArgDat, loop: OP.Loop, lang: Lang) -> None:
         valid_access_types = [OP.AccessType.READ, OP.AccessType.WRITE, OP.AccessType.RW, OP.AccessType.INC]
@@ -226,8 +206,9 @@ class Application:
         if arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
 
-    def validateKernel(self, loop: OP.Loop, lang: Lang) -> None:
-        kernel = self.kernels[loop.kernel]
+    # TODO: Re-do kernel validation
+    def validateKernel(self, loop: OP.Loop, program: Program, lang: Lang) -> None:
+        kernel_entities = self.findEntities(loop.kernel, program)  # TODO: Loop scope
 
         if len(loop.args) != len(kernel.params):
             raise OpError("number of loop arguments does not match number of kernel arguments", loop.loc)

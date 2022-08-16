@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, FrozenSet, List, Optional, Set
 
 from op import Type
-from store import Kernel, Program
+from store import Program
 from util import Findable
 
 
@@ -25,10 +25,6 @@ class Lang(Findable):
 
     @abstractmethod
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        pass
-
-    @abstractmethod
-    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
         pass
 
     @abstractmethod

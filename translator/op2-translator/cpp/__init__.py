@@ -6,16 +6,16 @@ from typing import FrozenSet, List, Optional, Set, Tuple
 
 import clang.cindex
 import pcpp
-from dotenv import load_dotenv
 
 import cpp.parser
 import cpp.translator.program
 import op as OP
 from language import Lang
-from store import Kernel, Location, ParseError, Program
+from store import Location, ParseError, Program
 
-load_dotenv()
-clang.cindex.Config.set_library_file(os.getenv("LIBCLANG_PATH"))
+libclang_path = os.getenv("LIBCLANG_PATH")
+if libclang_path is not None:
+    clang.cindex.Config.set_library_file(libclang_path)
 
 
 class Preprocessor(pcpp.Preprocessor):
@@ -102,9 +102,6 @@ class Cpp(Lang):
         cpp.parser.parseMeta(ast_pp.cursor, program)
 
         return program
-
-    def parseKernel(self, path: Path, name: str, include_dirs: Set[Path], defines: List[str]) -> Optional[Kernel]:
-        return cpp.parser.parseKernel(self.parseFile(path, frozenset(include_dirs), frozenset(defines))[0], name, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
         return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
