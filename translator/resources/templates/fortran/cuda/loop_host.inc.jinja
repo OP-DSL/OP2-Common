@@ -210,7 +210,7 @@ subroutine {{lh.kernel}}_host( &
     {% if arg is reduction %}
     {{arg.typ}}, dimension(:, :), allocatable, save :: gbl{{arg.id}}_h
     {% endif %}
-    {{arg.typ}}, dimension(:{{", :" if arg is not read}}), allocatable, save, device :: gbl{{arg.id}}_d
+    {{arg.typ}}, dimension(:{{", :" if arg is reduction}}), allocatable, save, device :: gbl{{arg.id}}_d
 
 {% endfor %}
     real(8) :: start_time, end_time
@@ -306,12 +306,13 @@ subroutine {{lh.kernel}}_host( &
 {% for arg in lh.args|gbl %}
     call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg.dim}}/)){{-"\n" if loop.last}}
 {% endfor %}
-{% for arg in lh.args|gbl|read %}
+{% for arg in lh.args|gbl|read_or_write %}
     if (.not. allocated(gbl{{arg.id}}_d)) then
         allocate(gbl{{arg.id}}_d({{arg.dim}}))
     end if
-
+    {% if arg is not write %}
     gbl{{arg.id}}_d = gbl{{arg.id}}
+    {% endif %}
 
 {% endfor %}
     shared_size = 0
@@ -374,6 +375,9 @@ subroutine {{lh.kernel}}_host( &
     end do
 {% endif %}
 
+{% for arg in lh.args|gbl if arg is write or arg is read_write %}
+    gbl{{arg.id}} = gbl{{arg.id}}_d{{"\n" if loop.last}}
+{% endfor %}
 {% for arg in lh.args|gbl|reduction %}
     gbl{{arg.id}}_h = gbl{{arg.id}}_d
 
