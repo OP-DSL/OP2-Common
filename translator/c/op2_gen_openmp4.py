@@ -90,7 +90,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -785,6 +785,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
             line += '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
       if maps[g_m] == OP_GBL:
         line += '&arg%d_l' % g_m
+      if maps[g_m] == OP_IDX:
+        if idxs[g_m] != '-1':
+          line = line + '&map'+str(mapinds[g_m])+'idx'
+        else:
+          line = line + '&n_op'
       if len(line):
         line += ';'
         code(line)

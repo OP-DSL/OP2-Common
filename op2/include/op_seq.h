@@ -25,7 +25,7 @@ template <size_t... Is> struct build_indices<0, Is...> : indices<Is...> {};
 #endif
 
 // scratch space to use for double counting in indirect reduction
-static int blank_args_size = 512;
+static int blank_args_size = 512+4;
 static char *blank_args = (char *)op_malloc(blank_args_size);
 
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo) {
@@ -34,6 +34,11 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo) {
   if (arg.argtype == OP_ARG_GBL) {
     if (halo && (arg.acc != OP_READ))
       *p_arg = blank_args;
+  } else if (arg.argtype == OP_ARG_IDX) {
+    if (arg.map == NULL || arg.opt == 0)
+      *p_arg = &blank_args[blank_args_size-sizeof(int)]; //this where we'll put the loop counter
+    else
+      *p_arg = (char*)&arg.map->map[arg.idx + n * arg.map->dim];
   } else {
     if (arg.map == NULL || arg.opt == 0) // identity mapping
       *p_arg += arg.size * n;
@@ -70,7 +75,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   (void)std::initializer_list<char *>{
       ((arguments.argtype == OP_ARG_GBL && arguments.size > blank_args_size)
            ? (blank_args_size = arguments.size,
-              blank_args = (char *)op_malloc(blank_args_size))
+              blank_args = (char *)op_malloc(blank_args_size+sizeof(int)))
            : nullptr)...};
   // consistency checks
   int ninds = 0;
@@ -93,6 +98,8 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
+    //for op_arg_idx, set loop counter
+    *(int*)(&blank_args[blank_args_size-sizeof(int)]) = n;
     if (n == set->core_size)
       op_mpi_wait_all(20, args);
     if (n == set->size)

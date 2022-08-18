@@ -98,7 +98,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -219,7 +219,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         if do_gen_direct_simd_arrays:
           do_gen_simd_array_arg = maps[i] != OP_GBL
         else:
-          do_gen_simd_array_arg = maps[i] != OP_GBL and maps[i] != OP_ID
+          do_gen_simd_array_arg = maps[i] != OP_GBL and (maps[i] != OP_ID or maps[i] == OP_IDX)
         if do_gen_simd_array_arg:
           #remove * and add [*][SIMD_VEC]
           var = var.replace('*','')
@@ -319,7 +319,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
     comm('create aligned pointers for dats')
     for g_m in range (0,nargs):
-        if maps[g_m] != OP_GBL:
+        if maps[g_m] != OP_GBL and maps[g_m] != OP_IDX:
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
             code('ALIGNED_<TYP>       <TYP> * __restrict__ ptr'+\
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
@@ -395,6 +395,12 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           elif accs[g_m] == OP_READ:
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
+        if maps[g_m] == OP_IDX:
+          code('int dat{0}[1][SIMD_VEC];'.format(g_m))
+          if idxs[g_m] == '-1':
+            FOR('i','0','SIMD_VEC')
+            code('dat{0}[0][i] = n+i;'.format(g_m))
+            ENDFOR()
 
       code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
       code('  op_mpi_test_all(nargs,args);')
@@ -419,20 +425,26 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       FOR('i','0','SIMD_VEC')
       if nmaps > 0:
         for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP :
+          if maps[g_m] == OP_MAP: 
             if (accs[g_m] in [OP_READ, OP_RW, OP_WRITE]):#and (not mapinds[g_m] in k):
               code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
           elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID :
             code(idx_id_template.format(g_m))
+          elif (maps[g_m] == OP_IDX and idxs[g_m]!='-1'):
+            code(idx_map_template.format(g_m, g_m, idxs[g_m]))
+
       code('')
 
       init_dat_template = "dat{0}[{1}][i] = (ptr{0})[idx{0}_<DIM> + {1}];"
+      init_idx_template = "dat{0}[{1}][i] = idx{0}_<DIM>;"
       zero_dat_template = "dat{0}[{1}][i] = 0.0;"
       for g_m in range(0,nargs):
+        if  maps[g_m] == OP_IDX and idxs[g_m] != '-1':
+          code(init_idx_template.format(g_m, 0))
         if do_gen_direct_simd_arrays:
           ## also 'gather' directly-accessed data, because SOME compilers
           ## struggle to vectorise otherwise (e.g. Clang).
-          if maps[g_m] != OP_GBL :
+          if maps[g_m] != OP_GBL and maps[g_m] != OP_IDX :
             if accs[g_m] in [OP_READ, OP_RW]:
               for d in range(0,int(dims[g_m])):
                 code(init_dat_template.format(g_m, d))
@@ -576,6 +588,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+        if maps[g_m] == OP_IDX:
+          if idxs[g_m] != '-1':
+            line = line + indent +'&map'+str(mapinds[g_m])+'idx'
+          else:
+            line = line + indent +'&n'
         if g_m < nargs-1:
           line = line +','
         else:
@@ -592,8 +609,15 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('#pragma novector')
       FOR2('n','0','(exec_size/SIMD_VEC)*SIMD_VEC','SIMD_VEC')
 
+      if any(ele == OP_IDX for ele in maps):
+        code('int idx[SIMD_VEC];')
+        FOR('i','0','SIMD_VEC')
+        code('idx[i] = n + i;')
+        ENDFOR()
+
 	  #initialize globals
       for g_m in range(0,nargs):
+  
         if maps[g_m] == OP_GBL:
           code('<TYP> dat{0}[SIMD_VEC];'.format(g_m))
           FOR('i','0','SIMD_VEC')
@@ -618,6 +642,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'&dat'+str(g_m)+'[i]'
+        if maps[g_m] == OP_IDX:
+          line = line + indent +'&idx[i]'
         if g_m < nargs-1:
           line = line +','
         else:
@@ -652,6 +678,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           line = line + indent + '&(ptr'+str(g_m)+')['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+        if maps[g_m] == OP_IDX:
+          line = line + indent +'&n'
         if g_m < nargs-1:
           line = line +','
         else:

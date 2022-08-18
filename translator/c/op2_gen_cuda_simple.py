@@ -99,7 +99,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -113,9 +113,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   for nk in range (0,len(kernels)):
 
 #Optimization settings
-    inc_stage=0
+    inc_stage=1
     op_color2_force=0
-    atomics=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -620,6 +620,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 #
 # kernel call
 #
+    if ninds>0 and any(ele == OP_IDX for ele in maps):
+      code('int idx = n+offset_b;')
     code('')
     comm('user-supplied kernel call')
     line = name+'_gpu('
@@ -666,6 +668,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           else:
             line += rep(indent+'<ARG>+n*<DIM>,\n',m)
           a =a+1
+      elif maps[m] == OP_IDX:
+        if idxs[m] != '-1':
+          line = line + indent +'&map'+str(mapinds[m])+'idx,\n'
+        elif ninds > 0:
+          line = line + indent +'&idx,\n'
+        else:
+          line = line + indent +'&n,\n'
       else:
         print('internal error 1 ')
 
@@ -1076,7 +1085,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             k = k + [mapnames[g_m]]
             code('arg'+str(g_m)+'.map_data_d, ')
       for g_m in range(0,nargs):
-        if inds[g_m]==0:
+        if inds[g_m]==0 and maps[g_m] != OP_IDX:
           code('(<TYP>*)<ARG>.data_d,')
 
       if inc_stage==1 and ind_inc:
@@ -1145,7 +1154,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             k = k + [mapnames[g_m]]
             code('arg'+str(g_m)+'.map_data_d, ')
       for g_m in range(0,nargs):
-        if inds[g_m]==0:
+        if inds[g_m]==0 and maps[g_m] != OP_IDX:
           code('(<TYP>*)<ARG>.data_d,')
       code('start,end,set->size+set->exec_size);')
       ENDIF()
@@ -1167,6 +1176,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if nopts > 0:
         code(indent+'optflags,')
       for g_m in range(0,nargs):
+        if maps[g_m] == OP_IDX:
+          continue
         if g_m > 0:
           code(indent+'(<TYP> *) <ARG>.data_d,')
         else:

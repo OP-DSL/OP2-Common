@@ -90,7 +90,7 @@ def op2_gen_openacc(master, date, consts, kernels):
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX=4;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -501,6 +501,11 @@ def op2_gen_openacc(master, date, consts, kernels):
               line = line + indent + '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'&arg'+str(g_m)+'_l'
+        if maps[g_m] == OP_IDX:
+          if idxs[g_m] != '-1':
+            line = line + indent +'&map'+str(mapinds[g_m])+'idx'
+          else:
+            line = line + indent +'&n'
         if g_m < nargs-1:
           if g_m+1 in unique_args and not g_m+1 == unique_args[-1]:
             line = line +','
@@ -559,6 +564,8 @@ def op2_gen_openacc(master, date, consts, kernels):
             line = line + indent + '&data'+str(g_m)+'['+str(dims[g_m])+'*n]'
         if maps[g_m] == OP_GBL:
           line = line + indent +'&arg'+str(g_m)+'_l'
+        if maps[g_m] == OP_IDX:
+          line = line + indent +'&n'
         if g_m < nargs-1:
           line = line +','
         else:
