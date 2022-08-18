@@ -164,7 +164,10 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_A, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_dat(p_u, 1, ppedge, 1, "double", OP_READ),
                 op_arg_dat(p_du, 0, ppedge, 1, "double", OP_INC),
-                op_arg_gbl(&beta, 1, "double", OP_READ));
+                op_arg_gbl(&beta, 1, "double", OP_READ),
+                op_arg_idx(-1, OP_ID),
+                op_arg_idx(0, ppedge),
+                op_arg_idx(1, ppedge));
 
     u_sum = 0.0f;
     u_max = 0.0f;
@@ -172,6 +175,7 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_r, -1, OP_ID, 1, "double", OP_READ),
                 op_arg_dat(p_du, -1, OP_ID, 1, "double", OP_RW),
                 op_arg_dat(p_u, -1, OP_ID, 1, "double", OP_INC),
+                op_arg_idx(-1, OP_ID),
                 op_arg_gbl(&u_sum, 1, "double", OP_INC),
                 op_arg_gbl(&u_max, 1, "double", OP_MAX));
     op_printf("\n u max/rms = %f %f \n\n", u_max, sqrt(u_sum / nnode));
