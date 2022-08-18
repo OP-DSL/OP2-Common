@@ -97,6 +97,7 @@ extern int OP_partial_exchange;
 
 #define OP_ARG_GBL 0
 #define OP_ARG_DAT 1
+#define OP_ARG_IDX 2
 
 #define OP_STAGE_NONE 0
 #define OP_STAGE_INC 1
@@ -105,7 +106,7 @@ extern int OP_partial_exchange;
 #define OP_COLOR2 4
 
 typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
-typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
+typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX
 
 /*
  * structures

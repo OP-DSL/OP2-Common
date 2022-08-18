@@ -641,6 +641,33 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.data == NULL)
       op_err_print("NULL pointer for global data", m, name);
   }
+
+  if (arg.argtype == OP_ARG_IDX) {
+    if (arg.idx == -1 && arg.map != NULL)
+      op_err_print("op_arg_idx with -1 index but non-OP_ID map", m, name);
+    if (arg.idx != -1 && arg.map == NULL)
+      op_err_print("op_arg_idx map index not -1, but no valid map given", m, name);
+  }
+}
+
+op_arg op_arg_idx(int idx, op_map map) {
+  op_arg arg;
+  arg.index = -1;
+  arg.opt = 1;
+  arg.argtype = OP_ARG_IDX;
+  arg.dat = NULL;
+  arg.map = map;
+  arg.idx = idx;
+  arg.dim = 1;
+  arg.size = sizeof(int);
+  arg.data = NULL;
+  arg.data_d = NULL;
+  arg.map_data_d = (idx == -1 ? NULL : map->map_d);
+  arg.map_data = (idx == -1 ? NULL : map->map);
+  arg.type = intstr;
+  arg.acc = OP_READ;
+  arg.sent = 0;
+  return arg;
 }
 
 op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
