@@ -670,6 +670,24 @@ op_arg op_arg_idx(int idx, op_map map) {
   return arg;
 }
 
+op_arg op_arg_idx_ptr(int idx, int *map) {
+  op_map item_map = NULL;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_ptr_list[i] == map) {
+      item_map = OP_map_list[i];
+      break;
+    }
+  }
+  if (item_map == NULL && idx == -2)
+    idx = -1;
+  if (item_map == NULL && idx != -1) {
+    printf("ERROR: op_map not found for %p pointer\n", map);
+    for (int i = 0; i < OP_map_index; i++)
+      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+  }
+  return op_arg_idx(idx, item_map);
+}
+
 op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
                        const char *typ, op_access acc) {
   op_arg arg;
