@@ -83,7 +83,7 @@ ninit = 0; nexit = 0; npart = 0; nhdf5 = 0; nconsts  = 0; nkernels = 0;
 consts = []
 kernels = []
 
-OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
 
 OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
 OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -422,6 +422,34 @@ def get_opt_arg_gbl(arg_string, k):
 
   return temp_gbl
 
+def get_arg_idx(arg_string, k):
+  loc = arg_parse(arg_string,k+1)
+  idx_args_string = arg_string[arg_string.find('(',k)+1:loc]
+
+  #remove comments
+  idx_args_string = comment_remover(idx_args_string)
+  idx_args_string = idx_args_string.replace('&','')
+
+  gbl_args = arg_parse2('('+idx_args_string+')',0)
+  #check for syntax errors
+  if len(gbl_args) != 2:
+    print('Error parsing op_arg_idx(%s): must have four arguments' \
+          % idx_args_string)
+    return
+
+  # split the idx_args_string into  2 and create a struct with the elements
+  # and type as op_arg_gbl
+  temp_idx = {'type':'op_arg_idx',
+  'idx': idx_args_string.split(',')[0].strip(),
+  'map': idx_args_string.split(',')[1].strip(),
+  'data':'',
+  'dim':'1',
+  'typ':'integer(4)',
+  'acc':'OP_READ',
+  'opt':''}
+
+  return temp_idx
+
 def append_init_soa(text):
   text = re.sub('\\bop_init(\\w*)\\b\\s*\((.*)\)','op_init\\1_soa(\\2,1)', text)
   text = re.sub('\\bop_mpi_init(\\w*)\\b\\s*\((.*)\)','op_mpi_init\\1_soa(\\2,1)', text)
@@ -448,13 +476,15 @@ def op_par_loop_parse(text):
       search3 = "op_arg_gbl"
       search4 = "op_opt_arg_dat"
       search5 = "op_opt_arg_gbl"
+      search6 = "op_arg_idx"
       j = arg_string.find(search2)
       k = arg_string.find(search3)
       l = arg_string.find(search4)
       p = arg_string.find(search5)
+      q = arg_string.find(search6)
 
-      while j > -1 or k > -1 or l > -1 or p > -1:
-        index = min(j if (j > -1) else sys.maxsize,k if (k > -1) else sys.maxsize,l if (l > -1) else sys.maxsize, p if (p > -1) else sys.maxsize)
+      while j > -1 or k > -1 or l > -1 or p > -1 or q > -1:
+        index = min(j if (j > -1) else sys.maxsize,k if (k > -1) else sys.maxsize,l if (l > -1) else sys.maxsize, p if (p > -1) else sys.maxsize, q if (q > -1) else sys.maxsize)
 
         if index == j:
           temp_dat = get_arg_dat(arg_string,j)
@@ -480,6 +510,12 @@ def op_par_loop_parse(text):
           temp_args.append(temp_dat)
           num_args = num_args + 1
           p = arg_string.find(search5, p+15)
+        elif  index == q :
+          temp_idx = get_arg_idx(arg_string,q)
+          #append this struct to a temporary list/array
+          temp_args.append(temp_idx)
+          num_args = num_args + 1
+          q = arg_string.find(search6, q+11)
 
       temp = {'loc':i,
               'name1':parloop_args[0].strip(),
@@ -666,8 +702,14 @@ for a in range(init_ctr,len(sys.argv)):
         else:
           optflags[m] = 0
 
-      if arg_type.strip() == 'op_arg_gbl' or arg_type.strip() == 'op_opt_arg_gbl':
-        maps[m] = OP_GBL
+      if arg_type.strip() == 'op_arg_gbl' or arg_type.strip() == 'op_opt_arg_gbl' or arg_type.strip() == 'op_arg_idx':
+        if arg_type.strip() == 'op_arg_idx':
+          maps[m] = OP_IDX
+          idxs[m] = args['idx']
+          if str(args['map']).strip() != 'OP_ID':
+            mapnames[m] = str(args['map']).strip()
+        else:
+          maps[m] = OP_GBL
         var[m] = args['data']
         dims[m] = args['dim']
         typs[m] = args['typ'][1:-1]
@@ -736,7 +778,7 @@ for a in range(init_ctr,len(sys.argv)):
       for i in range(0,nargs):
         mapinds[i] = i
         for j in range(0,i):
-          if (maps[i] == OP_MAP) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
+          if (maps[i] == OP_MAP or maps[i] == OP_IDX) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
             mapinds[i] = mapinds[j]
 #
 # check for repeats
@@ -942,6 +984,8 @@ for a in range(init_ctr,len(sys.argv)):
          elif elem['type'] == 'op_opt_arg_gbl':
             line = line + indent + cont + elem['type'] + '(' + elem['opt']+','+ elem['data'] + ','+ elem['dim'] \
             +','+ typechange(elem['typ'])+','+ elem['acc']
+         elif elem['type'] == 'op_arg_idx':
+            line = line + indent + cont + elem['type'] + '('+ elem['idx'] + ','+ elem['map']
 
          if arguments != loop_args[curr_loop]['nargs'] - 1:
            line = line + '), '+cont_end+'\n'
