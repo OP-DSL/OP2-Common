@@ -55,7 +55,9 @@
 int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
-char blank_args[512]; // scratch space to use for blank args
+static unsigned int blank_args_size = sizeof(int);  // scratch space to use for blank args
+static int blank_arg_init[1];
+static char *blank_args = (char *)&blank_arg_init[0];
 
 inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
   if (arg.opt == 0)
@@ -68,6 +70,11 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
 
   if (arg.argtype==OP_ARG_GBL) {
     if (halo && (arg.acc != OP_READ)) *p_arg = blank_args;
+  } else if (arg.argtype == OP_ARG_IDX) {
+    if (arg.map == NULL || arg.opt == 0)
+      *p_arg = &blank_args[blank_args_size-sizeof(int)]; //this where we'll put the loop counter
+    else
+      *p_arg = (char*)&arg.map->map[arg.idx + n * arg.map->dim];
   } else if ( arg.argtype == OP_ARG_DAT ) {
     if (arg.map==NULL)         // identity mapping
       *p_arg += arg.size*n;
@@ -119,6 +126,9 @@ void op_args_check(op_set set, int nargs, op_arg *args,
 #define ALLOC_POINTER_LIST(N) SEMI_LIST(N,ALLOC_POINTER)
 #define ALLOC_POINTER(x) if (arg##x->idx < -1) { p_a[x-1] = (char *) malloc (-1*args[x-1].idx*arg##x->dim);}
 
+#define BLANK_REALLOC_LIST(N) SEMI_LIST(N,BLANK_REALLOC)
+#define BLANK_REALLOC(x) if (arg##x->argtype == OP_ARG_GBL && arg##x->size+sizeof(int) > blank_args_size) { blank_args_size = arg##x->size+sizeof(int);blank_args = (char *)op_malloc(blank_args_size);}
+
 #define FREE_LIST(N) SEMI_LIST(N,FREE)
 #define FREE(x) if (arg##x->idx < -1) {free (p_a[x-1]);}
 
@@ -157,8 +167,9 @@ void op_args_check(op_set set, int nargs, op_arg *args,
     if (OP_diags>0) op_args_check(set,N,args,&ninds);                   \
     int halo = 0;                                                       \
     int n_upper;                                                        \
+    BLANK_REALLOC_LIST(N)                                               \
     ALLOC_POINTER_LIST(N)                                               \
-    n_upper = op_mpi_halo_exchanges (set, N, args);			\
+    n_upper = op_mpi_halo_exchanges (set, N, args);			                \
     if ( n_upper == 0 ) {                                               \
       op_mpi_wait_all (N,args);                                         \
       op_mpi_set_dirtybit (N, args);                                    \
@@ -166,6 +177,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
       return;                                                           \
     }                                                                   \
     for ( int n=0; n<n_upper; n++ ) {                                   \
+      *(int*)(&blank_args[blank_args_size-sizeof(int)]) = n;            \
       if ( n==set->core_size ) {                                        \
         op_mpi_wait_all (N,args);                                       \
       }                                                                 \
