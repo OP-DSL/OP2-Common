@@ -478,6 +478,24 @@ module OP2_Fortran_Declarations
 
     end function op_arg_gbl_ptr_c
 
+    function op_arg_idx_c(idx, map) BIND(C,name='op_arg_idx')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_arg
+      type(op_arg) :: op_arg_idx_c
+      integer(kind=c_int), value :: idx
+      type(c_ptr), value, intent(in) :: map
+    end function op_arg_idx_c
+
+    function op_arg_idx_ptr_c(idx, map) BIND(C,name='op_arg_idx_ptr')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_arg
+      type(op_arg) :: op_arg_idx_ptr_c
+      integer(kind=c_int), value :: idx
+      type(c_ptr), value, intent(in) :: map
+    end function op_arg_idx_ptr_c
+
     subroutine print_type (type) BIND(C,name='print_type')
 
       use, intrinsic :: ISO_C_BINDING
@@ -830,6 +848,10 @@ module OP2_Fortran_Declarations
        & op_arg_gbl_python_i4_2dim, op_arg_gbl_python_logical_2dim, &
        & op_arg_gbl_python_r8_3dim
   end interface op_arg_gbl
+
+  interface op_arg_idx
+      module procedure op_arg_idx_struct, op_arg_idx_ptr
+  end interface op_arg_idx
 
   interface op_decl_const
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
@@ -2546,6 +2568,23 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
 
   end function op_opt_arg_gbl_python_logical_2dim
+
+  type(op_arg) function op_arg_idx_struct(idx, map)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(kind=c_int) :: idx
+    type(op_map) :: map
+    op_arg_idx_struct = op_arg_idx_c(idx,map%mapCPtr)
+  end function op_arg_idx_struct
+
+  type(op_arg) function op_arg_idx_ptr(idx, map)
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+    integer(kind=c_int) :: idx
+    integer(4), dimension(*), intent(in), target :: map
+    op_arg_idx_ptr = op_arg_idx_ptr_c(idx,c_loc(map))
+  end function op_arg_idx_ptr
+  
 
   subroutine op_get_dat ( opdat )
 

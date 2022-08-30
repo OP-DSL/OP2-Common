@@ -73,8 +73,8 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   op_arg args[N] = {arguments...};
   // allocate scratch mememory to do double counting in indirect reduction
   (void)std::initializer_list<char *>{
-      ((arguments.argtype == OP_ARG_GBL && arguments.size > blank_args_size)
-           ? (blank_args_size = arguments.size,
+      ((arguments.argtype == OP_ARG_GBL && arguments.size+sizeof(int) > blank_args_size)
+           ? (blank_args_size = arguments.size+sizeof(int),
               blank_args = (char *)op_malloc(blank_args_size+sizeof(int)))
            : nullptr)...};
   // consistency checks
