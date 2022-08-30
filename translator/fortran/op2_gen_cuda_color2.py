@@ -175,7 +175,7 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
   header_text = ''
   body_text = ''
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -936,6 +936,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
                 line = line + indent +'& reductionArrayDevice'+str(g_m+1)+name
             else:
               line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
+        if maps[g_m] == OP_IDX:
+          if idxs[g_m] != '-1':
+            line = line + indent +'& map'+str(mapinds[g_m]+1)+'idx'
+          else:
+            line = line + indent +'& i3'
         if g_m < nargs-1:
           line = line +', &'
         else:
@@ -982,6 +987,8 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
                 line = line + indent +'& reductionArrayDevice'+str(g_m+1)+name
             else:
               line = line + indent +'& opGblDat'+str(g_m+1)+'Device'+name
+        elif maps[g_m] == OP_IDX:
+          line = line + indent +'& i1'
         else:
           if dims[g_m].isdigit() and int(dims[g_m]) == 1:
             line = line + indent +'& opDat'+str(g_m+1)+'Device'+name+'(i1 + 1)'

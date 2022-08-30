@@ -152,7 +152,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -451,7 +451,7 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
       code('& opDat'+str(invinds[g_m]+1)+'Size, &')
     for g_m in range(0,nargs):
-      if maps[g_m] != OP_MAP:
+      if maps[g_m] != OP_MAP and maps[g_m] != OP_IDX:
         if g_m in needDimList:
           code('& opDat'+str(g_m+1)+'Dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
@@ -667,6 +667,11 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
               line = line + indent +'& opDat'+str(g_m+1)+'LocalArr'
         else:
           line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
+      if maps[g_m] == OP_IDX:
+        if idxs[g_m] != '-1':
+          line = line + indent +'& map'+str(mapinds[g_m]+1)+'idx'
+        else:
+          line = line + indent +'& i1'
       if g_m < nargs-1:
         line = line +', &'
       else:
