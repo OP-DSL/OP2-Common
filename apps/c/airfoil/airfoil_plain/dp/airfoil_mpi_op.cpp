@@ -432,7 +432,7 @@ int main(int argc, char **argv) {
 
   op_diagnostic_output();
 
-  for(int l = 1; l <= 1; l++){
+  for(int l = 1; l <= 2; l++){
     op_mpi_add_nhalos_map(pcell, l);
     op_mpi_add_nhalos_map(pedge, l);
     op_mpi_add_nhalos_map(pecell, l);
@@ -450,8 +450,8 @@ int main(int argc, char **argv) {
 
   #ifdef SLOPE
 
-  int nhalos = 1;
-  int map_index = 1;
+  int nhalos = 2;
+  int map_index = 2;
 
   int set_size = 0;
   op_arg args0[6];
@@ -542,10 +542,10 @@ int main(int argc, char **argv) {
   inspector_t* insp = insp_init(avgTileSize, OMP_MPI); //, COL_DEFAULT, &meshMaps);
   insp->meshMaps = &meshMaps;
 
-  insp_add_parloop (insp, "adtCalc", sl_cells, &adtCalcDesc);
-  insp_add_parloop (insp, "resCalc", sl_edges, &resCalcDesc);
-  insp_add_parloop (insp, "bresCalc", sl_bedges, &bresCalcDesc);
-  insp_add_parloop (insp, "update", sl_cells, &updateDesc);
+  insp_add_parloop (insp, "adtCalc", sl_cells, &adtCalcDesc, 2);
+  insp_add_parloop (insp, "resCalc", sl_edges, &resCalcDesc, 1);
+  insp_add_parloop (insp, "bresCalc", sl_bedges, &bresCalcDesc, 1);
+  insp_add_parloop (insp, "update", sl_cells, &updateDesc, 2);
  
   insp_run (insp, seedTilePoint);
 
@@ -556,7 +556,7 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < comm_size; i++) {
     if (i == my_rank) {
-      insp_print (insp, LOW);
+      // insp_print (insp, LOW);
       // generate_vtk (insp, HIGH, vertices, mesh->coords, DIM2, rank);
     }
     MPI_Barrier(MPI_COMM_WORLD);
