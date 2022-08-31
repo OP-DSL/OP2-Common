@@ -24,3 +24,4 @@ extern double qinf[4];
 #include "res_calc_kernel.cpp"
 #include "bres_calc_kernel.cpp"
 #include "update_kernel.cpp"
+#include "update1_kernel.cpp"

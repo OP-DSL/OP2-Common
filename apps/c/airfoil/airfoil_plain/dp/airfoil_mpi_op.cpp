@@ -68,6 +68,12 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_mpi.h"
 #include  "op_lib_cpp.h"
 
+#ifdef SLOPE
+#include "executor.h"
+#include "inspector.h"
+#define TILE_SIZE 5000
+#endif
+
 //
 // op_par_loop declarations
 //
@@ -111,6 +117,12 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg,
+  op_arg );
+
+void op_par_loop_update1(char const *, op_set,
+  op_arg,
+  op_arg,
+  op_arg,
   op_arg,
   op_arg );
 #ifdef OPENACC
@@ -129,6 +141,7 @@ void op_par_loop_update(char const *, op_set,
 #include "res_calc.h"
 #include "save_soln.h"
 #include "update.h"
+#include "update1.h"
 
 //
 // user declared functions
@@ -195,6 +208,13 @@ static void check_scan(int items_received, int items_expected) {
   }
 }
 
+void print_op_map(op_map map, int halo_index){
+  printf("op_map=%s from=%s to=%s from[halo=%d](core=%d size=%d exec=%d nonexec=%d) to[halo=%d](core=%d size=%d exec=%d nonexec=%d)\n", map->name, map->from->name, map->to->name, halo_index, map->from->core_sizes[halo_index], map->from->size, map->from->exec_sizes[halo_index], map->from->nonexec_sizes[halo_index], halo_index, map->to->core_sizes[halo_index], map->to->size, map->to->exec_sizes[halo_index], map->to->nonexec_sizes[halo_index]);
+}
+
+void print_sl_map(map_t* map, int halo_index){
+  printf("sl_map=%s size=%d from=%s to=%s from[halo=%d](core=%d size=%d exec=%d nonexec=%d) to[halo=%d](core=%d size=%d exec=%d nonexec=%d)\n", map->name.c_str(), map->size, map->inSet->name.c_str(), map->outSet->name.c_str(), halo_index, map->inSet->core, map->inSet->size, map->inSet->execHalo, map->inSet->nonExecHalo, halo_index, map->outSet->core, map->outSet->size, map->outSet->execHalo, map->outSet->nonExecHalo);
+}
 //
 // main program
 //
@@ -412,14 +432,144 @@ int main(int argc, char **argv) {
 
   op_diagnostic_output();
 
+  for(int l = 1; l <= 1; l++){
+    op_mpi_add_nhalos_map(pcell, l);
+    op_mpi_add_nhalos_map(pedge, l);
+    op_mpi_add_nhalos_map(pecell, l);
+    op_mpi_add_nhalos_map(pbedge, l);
+    op_mpi_add_nhalos_map(pbecell, l);
+  }
+
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
+  op_partition("DONOT", "KWAY", cells, pecell, p_x);
+  // op_renumber(pcell);
+
   // op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
 
   // initialise timers for total execution wall time
+
+  #ifdef SLOPE
+
+  int nhalos = 1;
+  int map_index = 1;
+
+  int set_size = 0;
+  op_arg args0[6];
+  args0[0] = op_arg_dat_halo(p_x,0,pcell,2,"double",OP_READ,nhalos,map_index);
+  args0[1] = op_arg_dat_halo(p_x,1,pcell,2,"double",OP_READ,nhalos,map_index);
+  args0[2] = op_arg_dat_halo(p_x,2,pcell,2,"double",OP_READ,nhalos,map_index);
+  args0[3] = op_arg_dat_halo(p_x,3,pcell,2,"double",OP_READ,nhalos,map_index);
+  args0[4] = op_arg_dat_halo(p_q,-1,OP_ID,4,"double",OP_READ,nhalos,map_index);
+  args0[5] = op_arg_dat_halo(p_adt,-1,OP_ID,1,"double",OP_WRITE,nhalos,map_index);
+
+  op_arg args1[8];
+  args1[0] = op_arg_dat_halo(p_x,0,pedge,2,"double",OP_READ,nhalos,map_index);
+  args1[1] = op_arg_dat_halo(p_x,1,pedge,2,"double",OP_READ,nhalos,map_index);
+  args1[2] = op_arg_dat_halo(p_q,0,pecell,4,"double",OP_READ,nhalos,map_index);
+  args1[3] = op_arg_dat_halo(p_q,1,pecell,4,"double",OP_READ,nhalos,map_index);
+  args1[4] = op_arg_dat_halo(p_adt,0,pecell,1,"double",OP_READ,nhalos,map_index);
+  args1[5] = op_arg_dat_halo(p_adt,1,pecell,1,"double",OP_READ,nhalos,map_index);
+  args1[6] = op_arg_dat_halo(p_res,0,pecell,4,"double",OP_INC,nhalos,map_index);
+  args1[7] = op_arg_dat_halo(p_res,1,pecell,4,"double",OP_INC,nhalos,map_index);
+  
+  op_arg args2[6];
+  args2[0] = op_arg_dat_halo(p_x,0,pbedge,2,"double",OP_READ,nhalos,map_index);
+  args2[1] = op_arg_dat_halo(p_x,1,pbedge,2,"double",OP_READ,nhalos,map_index);
+  args2[2] = op_arg_dat_halo(p_q,0,pbecell,4,"double",OP_READ,nhalos,map_index);
+  args2[3] = op_arg_dat_halo(p_adt,0,pbecell,1,"double",OP_READ,nhalos,map_index);
+  args2[4] = op_arg_dat_halo(p_res,0,pbecell,4,"double",OP_INC,nhalos,map_index);
+  args2[5] = op_arg_dat_halo(p_bound,-1,OP_ID,1,"int",OP_READ,nhalos,map_index);
+
+  op_arg args3[4];
+  args3[0] = op_arg_dat_halo(p_qold,-1,OP_ID,4,"double",OP_READ,nhalos,map_index);
+  args3[1] = op_arg_dat_halo(p_q,-1,OP_ID,4,"double",OP_WRITE,nhalos,map_index);
+  args3[2] = op_arg_dat_halo(p_res,-1,OP_ID,4,"double",OP_RW,nhalos,map_index);
+  args3[3] = op_arg_dat_halo(p_adt,-1,OP_ID,1,"double",OP_READ,nhalos,map_index);
+  int avgTileSize = 5000;
+  if(argc > 1){
+    avgTileSize = atoi(argv[1]);
+  }
+  
+  int seedTilePoint = 0;
+
+  //sets
+  set_t* sl_nodes = slop_set("nodes", nodes->size, nodes->core_sizes, nodes->exec_sizes, nodes->nonexec_sizes, nhalos, nhalos);
+  set_t* sl_edges = slop_set("edges", edges->size, edges->core_sizes, edges->exec_sizes, edges->nonexec_sizes, nhalos, nhalos);
+  set_t* sl_bedges = slop_set("bedges", bedges->size, bedges->core_sizes, bedges->exec_sizes, bedges->nonexec_sizes, nhalos, nhalos);
+  set_t* sl_cells = slop_set("cells", cells->size, cells->core_sizes, cells->exec_sizes, cells->nonexec_sizes, nhalos, nhalos);
+
+  //maps
+  map_t* sl_pcell = map("c2n", sl_cells, sl_nodes, pcell->aug_maps[nhalos - 1], (cells->size + cells->exec_sizes[nhalos - 1]) * pcell->dim, pcell->dim);
+  map_t* sl_pedge = map("e2n", sl_edges, sl_nodes, pedge->aug_maps[nhalos - 1], (edges->size + edges->exec_sizes[nhalos - 1]) * pedge->dim, pedge->dim);
+  map_t* sl_pecell = map("e2c", sl_edges, sl_cells, pecell->aug_maps[nhalos - 1], (edges->size + edges->exec_sizes[nhalos - 1]) * pecell->dim, pecell->dim);
+  map_t* sl_pbedge = map("be2n", sl_bedges, sl_nodes, pbedge->aug_maps[nhalos - 1], (bedges->size + bedges->exec_sizes[nhalos - 1]) * pbedge->dim, pbedge->dim);
+  map_t* sl_pbecell = map("be2c", sl_bedges, sl_cells, pbecell->aug_maps[nhalos - 1], (bedges->size + bedges->exec_sizes[nhalos - 1]) * pbecell->dim, pbecell->dim);
+
+  convert_map_vals_to_normal(sl_pcell);
+  convert_map_vals_to_normal(sl_pedge);
+  convert_map_vals_to_normal(sl_pecell);
+  convert_map_vals_to_normal(sl_pbedge);
+  convert_map_vals_to_normal(sl_pbecell);
+
+  print_op_map(pcell, 0);
+  print_op_map(pedge, 0);
+  print_op_map(pecell, 0);
+  print_op_map(pbedge, 0);
+  print_op_map(pbecell, 0);
+
+  print_sl_map(sl_pcell, 0);
+  print_sl_map(sl_pedge, 0);
+  print_sl_map(sl_pecell, 0);
+  print_sl_map(sl_pbedge, 0);
+  print_sl_map(sl_pbecell, 0);
+
+  // descriptors
+  desc_list adtCalcDesc ({desc(sl_pcell, READ),
+                          desc(DIRECT, WRITE)});
+  desc_list resCalcDesc ({desc(sl_pedge, READ),
+                          desc(sl_pecell, READ),
+                          desc(sl_pecell, INC)});
+  desc_list bresCalcDesc ({desc(sl_pbedge, READ),
+                           desc(sl_pbecell, READ),
+                           desc(sl_pbecell, INC)});
+  desc_list updateDesc ({desc(DIRECT, READ),
+                         desc(DIRECT, WRITE)});
+
+  map_list meshMaps ({sl_pcell, sl_pedge, sl_pecell, sl_pbedge, sl_pbecell});
+  
+  // inspector_t* insp = insp_init(avgTileSize, ONLY_MPI);
+  // inspector_t* insp = insp_init(avgTileSize, OMP);
+  inspector_t* insp = insp_init(avgTileSize, OMP_MPI); //, COL_DEFAULT, &meshMaps);
+  insp->meshMaps = &meshMaps;
+
+  insp_add_parloop (insp, "adtCalc", sl_cells, &adtCalcDesc);
+  insp_add_parloop (insp, "resCalc", sl_edges, &resCalcDesc);
+  insp_add_parloop (insp, "bresCalc", sl_bedges, &bresCalcDesc);
+  insp_add_parloop (insp, "update", sl_cells, &updateDesc);
+ 
+  insp_run (insp, seedTilePoint);
+
+  printf("running executor\n");
+  executor_t* exec = exec_init (insp);
+
+  create_mapped_iterations(insp, exec);
+
+  for (int i = 0; i < comm_size; i++) {
+    if (i == my_rank) {
+      insp_print (insp, LOW);
+      // generate_vtk (insp, HIGH, vertices, mesh->coords, DIM2, rank);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  int nColors = exec_num_colors (exec);
+  printf("running nColors=%d\n", nColors);
+  #endif
+
   op_timers(&cpu_t1, &wall_t1);
 
   niter = 1000;
+
   for (int iter = 1; iter <= niter; iter++) {
 
     // save old flow solution
@@ -428,6 +578,217 @@ int main(int argc, char **argv) {
                 op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_WRITE));
 
     //  predictor/corrector update loop
+    #ifdef SLOPE
+    for (int m = 0; m < 2; m++) {   //todo:change this to 2
+      for (int i = 0; i < nColors; i++) {
+        
+        // for all tiles of this color
+        const int nTilesPerColor = exec_tiles_per_color (exec, i);
+        #pragma omp parallel for
+        for (int j = 0; j < nTilesPerColor; j++) {
+          // execute the tile
+          tile_t* tile = exec_tile_at (exec, i, j, LOCAL);
+          if(!tile)
+            continue;
+          int tileLoopSize;
+
+          // loop adt_calc (calculate area/timstep)
+          iterations_list& lc2n_0 = tile_get_local_map (tile, 0, "c2n");
+          iterations_list& iterations_0 = tile_get_iterations (tile, 0);
+          tileLoopSize = tile_loop_size (tile, 0);
+
+          // #pragma omp simd
+          for (int k = 0; k < tileLoopSize; k++) {
+            adt_calc (((double*)(p_x->data)) + lc2n_0[k*4 + 0]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 1]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 2]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 3]*2,
+                      ((double*)(p_q->data)) + iterations_0[k]*4,
+                      ((double*)(p_adt->data)) + iterations_0[k]);
+          }
+           
+          // loop res_calc
+          iterations_list& le2n_1 = tile_get_local_map (tile, 1, "e2n");
+          iterations_list& le2c_1 = tile_get_local_map (tile, 1, "e2c");
+          iterations_list& iterations_1 = tile_get_iterations (tile, 1);
+          tileLoopSize = tile_loop_size (tile, 1);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            res_calc (((double*)(p_x->data)) + le2n_1[k*2 + 0]*2,
+                      ((double*)(p_x->data)) + le2n_1[k*2 + 1]*2,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 1]*4,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 0]*1,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 1]*1,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 1]*4);
+          }
+         
+          // loop bres_calc
+          iterations_list& lbe2n_2 = tile_get_local_map (tile, 2, "be2n");
+          iterations_list& lbe2c_2 = tile_get_local_map (tile, 2, "be2c");
+          iterations_list& iterations_2 = tile_get_iterations (tile, 2);
+          tileLoopSize = tile_loop_size (tile, 2);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            bres_calc (((double*)(p_x->data)) + lbe2n_2[k*2 + 0]*2,
+                       ((double*)(p_x->data)) + lbe2n_2[k*2 + 1]*2,
+                       ((double*)(p_q->data)) + lbe2c_2[k + 0]*4,
+                       ((double*)(p_adt->data)) + lbe2c_2[k + 0]*1,
+                       ((double*)(p_res->data)) + lbe2c_2[k + 0]*4,
+                       ((int*)(p_bound->data)) + iterations_2[k]);
+          }
+          // continue;
+          // rms = 0.0;
+          // loop update
+          iterations_list& iterations_3 = tile_get_iterations (tile, 3);
+          tileLoopSize = tile_loop_size (tile, 3);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            update    (((double*)(p_qold->data)) + iterations_3[k]*4,
+                       ((double*)(p_q->data)) + iterations_3[k]*4,
+                       ((double*)(p_res->data)) + iterations_3[k]*4,
+                       ((double*)(p_adt->data)) + iterations_3[k]);
+          }          
+        }
+      }
+
+      op_print_dat_to_txtfile(p_q, "before.dat"); 
+
+      op_mpi_set_dirtybit(6, args0);
+      op_mpi_set_dirtybit(8, args1);
+      op_mpi_set_dirtybit(6, args2);
+      op_mpi_set_dirtybit(4, args3);
+
+      op_mpi_halo_exchanges_chained(cells, 6, args0, nhalos, 1);
+      op_mpi_halo_exchanges_chained(edges, 8, args1, nhalos, 1);
+      op_mpi_halo_exchanges_chained(bedges, 6, args2, nhalos, 1);
+      op_mpi_halo_exchanges_chained(cells, 4, args3, nhalos, 1);
+
+      op_mpi_wait_all_chained(6, args0, 1);
+      op_mpi_wait_all_chained(8, args1, 1);
+      op_mpi_wait_all_chained(6, args2, 1);
+      op_mpi_wait_all_chained(4, args3, 1);
+      op_print_dat_to_txtfile(p_q, "after.dat"); 
+
+      for (int i = 0; i < nColors; i++) {
+        
+        // for all tiles of this color
+        const int nTilesPerColor = exec_tiles_per_color (exec, i);
+        #pragma omp parallel for
+        for (int j = 0; j < nTilesPerColor; j++) {
+
+          // execute the tile
+          tile_t* tile = exec_tile_at (exec, i, j, EXEC_HALO);
+          if(tile == NULL)
+            continue;
+      
+          int tileLoopSize;
+
+          // loop adt_calc (calculate area/timstep)
+          iterations_list& lc2n_0 = tile_get_local_map (tile, 0, "c2n");
+          iterations_list& iterations_0 = tile_get_iterations (tile, 0);
+          tileLoopSize = tile_loop_size (tile, 0);
+
+          // #pragma omp simd
+          for (int k = 0; k < tileLoopSize; k++) {
+
+            adt_calc (((double*)(p_x->data)) + lc2n_0[k*4 + 0]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 1]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 2]*2,
+                      ((double*)(p_x->data)) + lc2n_0[k*4 + 3]*2,
+                      ((double*)(p_q->data)) + iterations_0[k]*4,
+                      ((double*)(p_adt->data)) + iterations_0[k]);
+          }
+            
+          // loop res_calc
+          iterations_list& le2n_1 = tile_get_local_map (tile, 1, "e2n");
+          iterations_list& le2c_1 = tile_get_local_map (tile, 1, "e2c");
+          iterations_list& iterations_1 = tile_get_iterations (tile, 1);
+          tileLoopSize = tile_loop_size (tile, 1);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            if(my_rank == 0){
+              // printf("k=%d loopsize=%d x %d %d %d %d adt %d %d %d %d\n",k, tileLoopSize, 
+              // le2n_1[k*2 + 0], le2n_1[k*2 + 1], le2c_1[k*2 + 0], le2c_1[k*2 + 1],
+              // le2c_1[k*2 + 0], le2c_1[k*2 + 1], le2c_1[k*2 + 0], le2c_1[k*2 + 1]);
+            }
+            res_calc (((double*)(p_x->data)) + le2n_1[k*2 + 0]*2,
+                      ((double*)(p_x->data)) + le2n_1[k*2 + 1]*2,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_q->data)) + le2c_1[k*2 + 1]*4,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 0]*1,
+                      ((double*)(p_adt->data)) + le2c_1[k*2 + 1]*1,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 0]*4,
+                      ((double*)(p_res->data)) + le2c_1[k*2 + 1]*4);
+          }
+         
+          
+          // loop bres_calc
+          iterations_list& lbe2n_2 = tile_get_local_map (tile, 2, "be2n");
+          iterations_list& lbe2c_2 = tile_get_local_map (tile, 2, "be2c");
+          iterations_list& iterations_2 = tile_get_iterations (tile, 2);
+          tileLoopSize = tile_loop_size (tile, 2);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            bres_calc (((double*)(p_x->data)) + lbe2n_2[k*2 + 0]*2,
+                       ((double*)(p_x->data)) + lbe2n_2[k*2 + 1]*2,
+                       ((double*)(p_q->data)) + lbe2c_2[k + 0]*4,
+                       ((double*)(p_adt->data)) + lbe2c_2[k + 0]*1,
+                       ((double*)(p_res->data)) + lbe2c_2[k + 0]*4,
+                       ((int*)(p_bound->data)) + iterations_2[k]);
+          }
+          // continue;
+          // loop update
+          iterations_list& iterations_3 = tile_get_iterations (tile, 3);
+          tileLoopSize = tile_loop_size (tile, 3);
+
+          for (int k = 0; k < tileLoopSize; k++) {
+            update    (((double*)(p_qold->data)) + iterations_3[k]*4,
+                       ((double*)(p_q->data)) + iterations_3[k]*4,
+                       ((double*)(p_res->data)) + iterations_3[k]*4,
+                       ((double*)(p_adt->data)) + iterations_3[k]);
+          }
+        }
+      } 
+     
+       //    calculate area/timstep
+      // op_par_loop_adt_calc("adt_calc",cells,
+      //             op_arg_dat(p_x,0,pcell,2,"double",OP_READ),
+      //             op_arg_dat(p_x,1,pcell,2,"double",OP_READ),
+      //             op_arg_dat(p_x,2,pcell,2,"double",OP_READ),
+      //             op_arg_dat(p_x,3,pcell,2,"double",OP_READ),
+      //             op_arg_dat(p_q,-1,OP_ID,4,"double",OP_READ),
+      //             op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_WRITE));
+
+      //    calculate flux residual
+      // op_par_loop_res_calc("res_calc",edges,
+      //             op_arg_dat(p_x,0,pedge,2,"double",OP_READ),
+      //             op_arg_dat(p_x,1,pedge,2,"double",OP_READ),
+      //             op_arg_dat(p_q,0,pecell,4,"double",OP_READ),
+      //             op_arg_dat(p_q,1,pecell,4,"double",OP_READ),
+      //             op_arg_dat(p_adt,0,pecell,1,"double",OP_READ),
+      //             op_arg_dat(p_adt,1,pecell,1,"double",OP_READ),
+      //             op_arg_dat(p_res,0,pecell,4,"double",OP_INC),
+      //             op_arg_dat(p_res,1,pecell,4,"double",OP_INC));
+
+      // op_par_loop_bres_calc("bres_calc",bedges,
+      //             op_arg_dat(p_x,0,pbedge,2,"double",OP_READ),
+      //             op_arg_dat(p_x,1,pbedge,2,"double",OP_READ),
+      //             op_arg_dat(p_q,0,pbecell,4,"double",OP_READ),
+      //             op_arg_dat(p_adt,0,pbecell,1,"double",OP_READ),
+      //             op_arg_dat(p_res,0,pbecell,4,"double",OP_INC),
+      //             op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
+
+      //    update flow field
+      // op_par_loop_update("update",cells,
+      //             op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
+      //             op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
+      //             op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
+      //             op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ)); 
+
+    }
+      #else
 
     for (int k = 0; k < 2; k++) {
 
@@ -460,18 +821,24 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_bound,-1,OP_ID,1,"int",OP_READ));
 
       //    update flow field
-
-      rms = 0.0;
-
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
                   op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
                   op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
-                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
-                  op_arg_gbl(&rms,1,"double",OP_INC));
+                  op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ)); 
     }
+    #endif
+    
+    rms = 0.0;
+    op_par_loop_update1("update1",cells,
+              op_arg_dat(p_qold,-1,OP_ID,4,"double",OP_READ),
+              op_arg_dat(p_q,-1,OP_ID,4,"double",OP_WRITE),
+              op_arg_dat(p_res,-1,OP_ID,4,"double",OP_RW),
+              op_arg_dat(p_adt,-1,OP_ID,1,"double",OP_READ),
+              op_arg_gbl(&rms,1,"double",OP_INC));
 
     // print iteration history
+    // op_printf("==== %d  %10.5e \n", g_ncell, rms);
     rms = sqrt(rms / (double)g_ncell);
     if (iter % 100 == 0)
       op_printf(" %d  %10.5e \n", iter, rms);
@@ -490,8 +857,9 @@ int main(int argc, char **argv) {
       }
     }
   }
-
   op_timers(&cpu_t2, &wall_t2);
+
+
 
   // output the result dat array to files
   op_print_dat_to_txtfile(p_q, "out_grid_mpi.dat"); // ASCI

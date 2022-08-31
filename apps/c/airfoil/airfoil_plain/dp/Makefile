@@ -15,6 +15,16 @@
 
 include ../../../../make-common.inc
 
+ifdef SLOPE_INSTALL_PATH
+  SLOPE_INC = -I$(SLOPE_INSTALL_PATH)/sparsetiling/include
+  SLOPE_LIB = $(SLOPE_INSTALL_PATH)/lib
+endif
+
+ifdef METIS_INSTALL_PATH
+  METIS_INC = -I$(METIS_INSTALL_PATH)/include
+  METIS_LIB = $(METIS_INSTALL_PATH)/lib
+endif
+
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
   CPPFLAGS	= -arch x86_64 -g -fPIC -DUNIX -Wall #-Wextra
@@ -24,7 +34,7 @@ ifeq ($(OP2_COMPILER),gnu)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -g -xHost -DMPICH_IGNORE_CXX_SEEK -restrict -fno-alias -inline-forceinline -qopt-report -parallel -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
   MPICPP	= $(MPICXX_PATH)
@@ -255,7 +265,17 @@ cuda/airfoil_kernels_mpi_cu.o:	cuda/airfoil_mpi_kernels.cu      \
 		  nvcc  $(INC) $(NVCCFLAGS) $(OP2_INC) -I $(MPI_INSTALL_PATH)/include \
 		  -I. -Icuda -c -o cuda/airfoil_kernels_mpi_cu.o cuda/airfoil_mpi_kernels.cu
 
-
+airfoil_mpi_ca: airfoil_mpi_op.cpp openmp/airfoil_mpi_kernels.cpp \
+		    openmp/save_soln_kernel.cpp  save_soln.h \
+		    openmp/adt_calc_kernel.cpp   adt_calc.h  \
+		    openmp/res_calc_kernel.cpp   res_calc.h  \
+		    openmp/bres_calc_kernel.cpp  bres_calc.h \
+		    openmp/update_kernel.cpp     update.h    \
+		    Makefile
+		    $(MPICPP) $(MPIFLAGS) $(OMPFLAGS) airfoil_mpi_op.cpp openmp/airfoil_mpi_kernels.cpp \
+		    $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(HDF5_INC) -Iopenmp -I. \
+		    $(OP2_LIB) -DSLOPE -DSLOPE_OMP -DOP2 -Iopenmp -I. -lop2_mpi_comm_avoid $(PARMETIS_LIB) $(PTSCOTCH_LIB) -lop2_hdf5 $(HDF5_LIB) -o airfoil_mpi_ca \
+        $(SLOPE_INC) $(SLOPE_LIB)/libslope.a  $(METIS_INC) -L$(METIS_LIB) -lmetis
 
 #
 # cleanup

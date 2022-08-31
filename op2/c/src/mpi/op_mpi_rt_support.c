@@ -92,6 +92,8 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
 
   op_arg dirty_args[nargs];
   int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
+  if(ndirty_args < 1)
+    return;
 
   imp_common_list = OP_merged_import_exec_nonexec_list[dirty_args[0].dat->set->index];  //assumption nargs > 0
   exp_common_list = OP_merged_export_exec_nonexec_list[dirty_args[0].dat->set->index];
@@ -141,8 +143,8 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
               buf_index = prev_size + i * dat->size;
               memcpy(&grp_send_buffer[arg_size + buf_index],
                   (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-              // printf("test1new exec my_rank=%d arg=%d level=%d prev_size=%d buf_index=%d (i=%d size=%d) halo_index=%d exp_list=%p\n", 
-              // my_rank, n, l, prev_size / dat->size, arg_size / dat->size + buf_index / dat->size, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r],
+              // printf("test1new exec my_rank=%d arg=%d dat=%s level=%d prev_size=%d buf_index=%d (i=%d size=%d) halo_index=%d exp_list=%p\n", 
+              // my_rank, n, dat->name, l, prev_size / dat->size, arg_size / dat->size + buf_index / dat->size, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r],
               // halo_index, exp_list);
             }
             prev_size += exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r] * dat->size;
@@ -572,13 +574,16 @@ void op_wait_all_chained(int nargs, op_arg *args, int device) {
 #ifdef COMM_AVOID
   int my_rank;
   // op_rank(&my_rank);
+
+  op_arg dirty_args[nargs];
+  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
+  if(ndirty_args < 1)
+    return;
+
   MPI_Waitall(exp_common_list->ranks_size / exp_common_list->num_levels, 
                 &grp_send_requests[0], MPI_STATUSES_IGNORE);
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
                   &grp_recv_requests[0], MPI_STATUSES_IGNORE);
-
-  op_arg dirty_args[nargs];
-  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
 
   op_unpack_merged_single_dat_chained(ndirty_args, dirty_args, exec_flag);
   for (int n = 0; n < ndirty_args; n++) {
