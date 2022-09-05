@@ -4461,6 +4461,39 @@ int get_set_core_size(op_set set, int nhalos){
   return (nhalos > set->halo_info->max_nhalos) ? 0 : set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
 
+int get_halo_start_size(op_set set, int nhalos){
+  if(nhalos > set->halo_info->max_nhalos){
+    printf("ERROR nhalos > max_halos\n");
+    return -1;
+  }
+  int prev_exec_size = 0;
+  if(nhalos > 1){
+    prev_exec_size = set->exec_sizes[nhalos - 1 - 1]; // -2 is for array indexing style and one previous
+  }
+  int prev_nonexec_size = 0;
+  for(int i = 0; i < nhalos - 1; i++){
+    prev_nonexec_size += set->nonexec_sizes[i];
+  }
+  return set->size + prev_exec_size + prev_nonexec_size;
+}
+
+int get_halo_end_size(op_set set, int nhalos){
+  
+  if(nhalos > set->halo_info->max_nhalos){
+    printf("ERROR nhalos > max_halos\n");
+    return -1;
+  }
+  int prev_exec_size = 0;
+  if(nhalos > 0){
+    prev_exec_size = set->exec_sizes[nhalos - 1]; // -1 is for array indexing
+  }
+  int prev_nonexec_size = 0;
+  for(int i = 0; i < nhalos - 1; i++){
+    prev_nonexec_size += set->nonexec_sizes[i];
+  }
+  return set->size + prev_exec_size + prev_nonexec_size;
+}
+
 int op_mpi_test(op_arg *arg) {
   if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
     int result;
