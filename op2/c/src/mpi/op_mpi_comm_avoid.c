@@ -3043,9 +3043,8 @@ void op_halo_create_comm_avoid() {
     // start_time(my_rank);
     step3_exchange_exec_mappings(l, part_range, my_rank, comm_size);
     // stop_time(my_rank, "step3");
-    printf("step4_import_nonexec - start\n");
+    
     step4_import_nonexec(l, part_range, my_rank, comm_size);
-    printf("step4_import_nonexec - end\n");
 
     /*-STEP 6 - Exchange execute set elements/data using the import/export lists--*/
     // start_time(my_rank);

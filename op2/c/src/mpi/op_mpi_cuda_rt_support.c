@@ -304,8 +304,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
       if (OP_kern_max > 0){
         OP_kernels[OP_kern_curr].halo_data2 += exp_exec_list->size * arg->dat->size;
         OP_kernels[OP_kern_curr].halo_data2 += exp_nonexec_list->size * arg->dat->size;
-        printf("test current=%d dat=%s set=%s exec=%d nonexec=%d\n", 
-        OP_kern_curr, dat->name, dat->set->name, exp_exec_list->size, exp_nonexec_list->size);
+        // printf("test current=%d dat=%s set=%s exec=%d nonexec=%d\n", 
+        // OP_kern_curr, dat->name, dat->set->name, exp_exec_list->size, exp_nonexec_list->size);
       }
 
       cutilSafeCall(cudaDeviceSynchronize());
