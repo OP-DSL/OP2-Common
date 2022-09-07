@@ -881,6 +881,18 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: nhalos
    end function
 
+   INTEGER(kind=c_int) function get_halo_start_size_c( set, nhalos ) BIND(C,name='get_halo_start_size')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: set
+      integer(kind=c_int), value :: nhalos
+   end function
+
+   INTEGER(kind=c_int) function get_halo_end_size_c( set, nhalos ) BIND(C,name='get_halo_end_size')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: set
+      integer(kind=c_int), value :: nhalos
+   end function
+
    INTEGER(kind=c_int) function get_set_core_size_c( set, nhalos ) BIND(C,name='get_set_core_size')
       use, intrinsic :: ISO_C_BINDING
       type(c_ptr), value, intent(in) :: set
@@ -3068,6 +3080,24 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     get_set_size_with_nhalos = get_set_size_with_nhalos_c( set%setCPtr, nhalos )
 
   end function get_set_size_with_nhalos
+
+  INTEGER(8) function get_halo_start_size ( set, nhalos )
+    use, intrinsic :: ISO_C_BINDING
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), value :: nhalos
+
+    get_halo_start_size = get_halo_start_size_c( set%setCPtr, nhalos )
+
+  end function get_halo_start_size
+
+  INTEGER(8) function get_halo_end_size ( set, nhalos )
+    use, intrinsic :: ISO_C_BINDING
+    type(op_set), intent(in) :: set
+    integer(kind=c_int), value :: nhalos
+
+    get_halo_end_size = get_halo_end_size_c( set%setCPtr, nhalos )
+
+  end function get_halo_end_size
 
   INTEGER(8) function get_set_core_size ( set, nhalos )
     use, intrinsic :: ISO_C_BINDING
