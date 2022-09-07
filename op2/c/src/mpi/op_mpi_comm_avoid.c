@@ -121,20 +121,20 @@ void stop_time(int my_rank, const char* name){
 // }
 
 
-void print_maps_new(int my_rank){
+void print_maps_new(int my_rank, int map_index){
 
   
   printf("pmap my_rank=%d >>>>>>>>>>>>>>>start>>>>>>>\n", my_rank);
   for (int m = 0; m < OP_map_index; m++) { 
     op_map map = OP_map_list[m];
     int level = map->halo_info->max_nhalos;
-    int map_index = 1;
+    // int map_index = 1;
 
-    // if (strncmp("ne", map->name, strlen("ne")) != 0 && strncmp("npe", map->name, strlen("npe")) != 0) {
-    //   continue;
-    // }
-     printf("pmap >>>>>>> start my_rank=%d map=%s dim=%d from=%s(s=%d c=%d e=%d n=%d) to=%s(s=%d c=%d e=%d n=%d)\n", 
-        my_rank, map->name, map->dim, 
+    if (strncmp("ne", map->name, strlen("ne")) != 0){ // && strncmp("npe", map->name, strlen("npe")) != 0) {
+      continue;
+    }
+     printf("pmap >>>>>>> start my_rank=%d map=%s map_index=%d dim=%d from=%s(s=%d c=%d e=%d n=%d) to=%s(s=%d c=%d e=%d n=%d)\n", 
+        my_rank, map->name, map_index, map->dim, 
         map->from->name, map->from->size, map->from->core_sizes[map_index], map->from->exec_sizes[map_index], map->from->nonexec_sizes[map_index], 
         map->to->name, map->to->size, map->to->core_sizes[map_index], map->to->exec_sizes[map_index], map->to->nonexec_sizes[map_index]);
 
@@ -147,21 +147,21 @@ void print_maps_new(int my_rank){
     }
 
     int nonexec_size = 0;
-    for(int l = 0; l < num_levels - 1; l++){
+    for(int l = 0; l < num_levels; l++){
       nonexec_size += OP_aug_import_nonexec_lists[l][map->from->index]->size;
     }
     int size = map->from->size + exec_size + nonexec_size;
     for(int i = 0; i < size; i++){
       for(int j = 0; j < map->dim; j++){
         printf("pmap my_rank=%d map=%s map[%d][%d]=%d\n", 
-        my_rank, map->name, i, j, map->aug_maps[map_index][i * map->dim + j]);
+        my_rank, map->name, i, j, map->map[i * map->dim + j]);
       } 
     }
 
     printf("pmap <<<<<<<< end my_rank=%d map=%s dim=%d from=%s(s=%d c=%d e=%d n=%d) to=%s(s=%d c=%d e=%d n=%d)\n", 
         my_rank, map->name, map->dim, 
-        map->from->name, map->from->size, map->from->core_sizes[map_index], map->from->exec_sizes[map_index], map->from->nonexec_sizes[map_index], 
-        map->to->name, map->to->size, map->to->core_sizes[map_index], map->to->exec_sizes[map_index], map->to->nonexec_sizes[map_index]);
+        map->from->name, map->from->size, map->from->core_size, map->from->exec_size, map->from->nonexec_size, 
+        map->to->name, map->to->size, map->to->core_size, map->to->exec_size, map->to->nonexec_size);
 
   }
   printf("pmap my_rank=%d >>>>>>>>>>>>>>>end>>>>>>>\n", my_rank);  
@@ -2241,9 +2241,6 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
 
     int to_max_level = map->to->halo_info->max_nhalos;
 
-    int start = 0;
-    int end = 0;
-    int current_nonexec_size = 0;
     for(int el = 0; el < max_level; el++){
 
       if(is_halo_required_for_map(map, el) != 1)
@@ -2252,6 +2249,9 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       int exec_levels =  el + 1; //map->from->halo_info->nhalos[el];
       int imp_exec_size = 0;
 
+      int start = 0;
+      int end = 0;
+      int current_nonexec_size = 0;
       for(int sl = 0; sl < exec_levels; sl++){
 
         int imp_exec_size = 0;
