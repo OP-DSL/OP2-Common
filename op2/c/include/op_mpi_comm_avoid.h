@@ -50,7 +50,8 @@ void calculate_max_values(op_set from_set, op_set to_set, int map_dim, int* map_
 int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max, int* to_set_to_nonexec_max, int my_rank);
 int find_element_in(int* arr, int element);
 int get_max_value(int* arr, int from, int to);
-void calculate_dat_size(int my_rank, op_dat dat);
+void calculate_dat_size(int my_rank, op_dat dat, int max_nhalos);
 void calculate_dat_sizes(int my_rank);
+void calculate_set_sizes(int my_rank);
 
 #endif /* __OP_MPI_COMM_AVOID_H */
