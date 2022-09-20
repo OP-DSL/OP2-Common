@@ -79,6 +79,9 @@ extern char *grp_recv_buffer_d;
 
 extern int grp_tag;
 
+extern int*** OP_aug_map_ptr_list;
+extern int** OP_map_ptr_list;
+
 extern int OP_part_index;
 extern part *OP_part_list;
 extern int **orig_part_range;

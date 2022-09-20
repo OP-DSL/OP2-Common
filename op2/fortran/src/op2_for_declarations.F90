@@ -899,6 +899,12 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: nhalos
    end function
 
+   type(c_ptr) function op_get_map_dat_ptr_c ( map, nhalos ) BIND(C,name='op_get_map_dat_ptr')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: map
+      integer(kind=c_int), value :: nhalos
+   end function
+
    subroutine op_mpi_halo_exchange_summary_c () BIND(C,name='op_mpi_halo_exchange_summary')
       use, intrinsic :: ISO_C_BINDING
 
@@ -3754,6 +3760,17 @@ type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type,
 
   end function op_opt_arg_dat_halo_python_OP_ID
 
+  subroutine op_get_map_dat_ptr(values_out, size, map, nhalos)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), pointer, dimension(:), intent (out) :: values_out
+    integer(4), dimension(*), target :: map
+    integer(kind=c_int), value, intent(in) :: size
+    integer(kind=c_int), value, intent(in) :: nhalos
+
+    call c_f_pointer(op_get_map_dat_ptr_c(c_loc(map), nhalos), values_out, (/size/))
+
+  end subroutine op_get_map_dat_ptr
+
   subroutine op_mpi_halo_exchange_summary ()
     use, intrinsic :: ISO_C_BINDING
     call op_mpi_halo_exchange_summary_c()
@@ -3763,7 +3780,6 @@ type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type,
     use, intrinsic :: ISO_C_BINDING
     call op_backtrace_c()
   end subroutine op_backtrace
-
 
 end module OP2_Fortran_Declarations
 

@@ -1218,6 +1218,9 @@ void prepare_aug_maps(){
     int max_level = map->halo_info->max_nhalos;
     map->aug_maps = (int **)malloc((size_t)max_level * sizeof(int *));
 
+    OP_aug_map_ptr_list[m] =
+        (int **)op_realloc(OP_aug_map_ptr_list[m], max_level * sizeof(int *));
+
     int exec_size = 0;
     for(int l = 0; l < max_level; l++){
       exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
@@ -1235,17 +1238,19 @@ void prepare_aug_maps(){
 
     for(int el = 0; el < max_level; el++){
       if(is_halo_required_for_map(map, el) == 1){
-        int *m = (int *)malloc((size_t)(total_map_size) * (size_t)map->dim * sizeof(int));
+        int *map_vals = (int *)malloc((size_t)(total_map_size) * (size_t)map->dim * sizeof(int));
         for(int i = 0; i < total_map_size; i++){
-          m[i] = -1;
+          map_vals[i] = -1;
         }
-        if (m == NULL) {
+        if (map_vals == NULL) {
           printf(" op_decl_map_core error -- error allocating memory to map\n");
           exit(-1);
         }
-        map->aug_maps[el] = m;
+        map->aug_maps[el] = map_vals;
+        OP_aug_map_ptr_list[m][el] = map_vals;
       }else{
         map->aug_maps[el] = NULL;
+        OP_aug_map_ptr_list[m][el] = NULL;
       }
     }
   }  
@@ -2436,10 +2441,10 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
        set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
     }
 
-    for(int i = 0; i < set->halo_info->max_nhalos; i++){
-      printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
-        i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
-    }
+    // for(int i = 0; i < set->halo_info->max_nhalos; i++){
+    //   printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
+    //     i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
+    // }
 
     // for(int i = 0; i < set->halo_info->max_nhalos; i++){
     //   halo_list exec_list = OP_aug_export_exec_lists[i][set->index];
@@ -2695,7 +2700,7 @@ void set_maps_mgcfd(){
 
 }
 void set_maps_hydra(){
-  printf("set_maps_hydra maps and dats\n");
+  // printf("set_maps_hydra maps and dats\n");
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map map = OP_map_list[m];
     //  op_mpi_add_nhalos_map(map, 2);
@@ -2705,29 +2710,29 @@ void set_maps_hydra(){
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
-      printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+      // printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
     if (strncmp("npe", map->name, strlen("npe")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
-       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+      //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
-    // if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
-    //   op_mpi_add_nhalos_map(map, 2);
-    //   op_mpi_add_nhalos_map(map, 3);
-    //   op_mpi_add_nhalos_map(map, 4);
-    //   op_mpi_add_nhalos_map(map, 5);
-    //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-    // }
-    // if (strncmp("nb", map->name, strlen("nb")) == 0) {
-    //   op_mpi_add_nhalos_map(map, 2);
-    //   op_mpi_add_nhalos_map(map, 3);
-    //   op_mpi_add_nhalos_map(map, 4);
-    //   op_mpi_add_nhalos_map(map, 5);
-    //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-    // }
+    if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      // op_mpi_add_nhalos_map(map, 3);
+      // op_mpi_add_nhalos_map(map, 4);
+      // op_mpi_add_nhalos_map(map, 5);
+      //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    }
+    if (strncmp("nb", map->name, strlen("nb")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      // op_mpi_add_nhalos_map(map, 3);
+      // op_mpi_add_nhalos_map(map, 4);
+      // op_mpi_add_nhalos_map(map, 5);
+      //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    }
     // if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
     //   op_mpi_add_nhalos_map(map, 2);
     //   // op_mpi_add_nhalos_map(map, 3);
@@ -3203,7 +3208,7 @@ void set_group_halo_envt(){
 
 void op_halo_create_comm_avoid() {
   // declare timers
-  op_printf("op_halo_create_comm_avoid start <<<<<<<<<<<>>>>>>>\n");
+  op_printf("op_halo_create_comm_avoid start <<<<<<<<<<< new >>>>>>>\n");
   for(int i = 0; i < 10; i++){
     OP_aug_export_exec_lists[i] = NULL;
     OP_aug_import_exec_lists[i] = NULL;
@@ -3212,7 +3217,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  // set_maps_hydra();
+  set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension();
@@ -3486,3 +3491,4 @@ int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_
     return OP_import_nonexec_list[set->index]->size;
   }
 }
+

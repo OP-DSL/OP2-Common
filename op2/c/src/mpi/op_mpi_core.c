@@ -4599,3 +4599,23 @@ void op_mpi_halo_exchange_summary(){
   // op_printf("halo exchange summary my_rank=%d pack=%f unpack=%f halo_exch=%f\n", 
   // my_rank,  pack_time, unpack_time, halo_exch_time);
 }
+
+int* op_get_map_dat_ptr(int* map, int nhalos){
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {  //check from the main map (maop->map)
+    if (OP_map_ptr_list[i] == map) {        // then return the required aug map
+      item_map = OP_map_list[i];
+      idx = i;
+      break;
+    }
+  }
+  
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    return 0;
+  }else{
+    return item_map->aug_maps[nhalos - 1];
+  }
+}

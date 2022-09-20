@@ -89,6 +89,7 @@ int* ca_buf_pos = NULL;
 op_set *OP_set_list;
 op_map *OP_map_list = NULL;
 int **OP_map_ptr_list = NULL;
+int ***OP_aug_map_ptr_list = NULL;
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
 
@@ -426,7 +427,9 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
         (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
     OP_map_ptr_list =
         (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int *));
-    if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
+    OP_aug_map_ptr_list =
+        (int ***)op_realloc(OP_aug_map_ptr_list, OP_map_max * sizeof(int **));
+    if (OP_map_list == NULL || OP_map_ptr_list == NULL || OP_aug_map_ptr_list) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
     }
@@ -603,6 +606,18 @@ void op_exit_core() {
   }
   free(OP_set_list);
   OP_set_list = NULL;
+
+  // todo: free OP_aug_map_ptr_list
+  for (int i = 0; i < OP_map_index; i++) {
+    op_map map = OP_map_list[i];
+    int max_level = map->halo_info->max_nhalos;
+    for(int j = 0 ; j < max_level; j++){
+      if (OP_aug_map_ptr_list[i][j] != NULL)
+        free(OP_aug_map_ptr_list[i][j]);
+    }
+    OP_aug_map_ptr_list[i];
+  }
+  OP_aug_map_ptr_list = NULL;
 
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_list[i]->user_managed)
@@ -1458,7 +1473,7 @@ op_arg op_arg_dat_halo_ptr(int opt, char *dat, int idx, int *map, int dim,
 
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) {
+    if (OP_aug_map_ptr_list[i][max_map_nhalos - 1] == map) {
       item_map = OP_map_list[i];
       break;
     }
@@ -1468,7 +1483,7 @@ op_arg op_arg_dat_halo_ptr(int opt, char *dat, int idx, int *map, int dim,
   if (item_map == NULL && idx != -1) {
     printf("ERROR: op_map not found for %p pointer\n", map);
     for (int i = 0; i < OP_map_index; i++)
-      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+      printf("%s (%p) ", OP_map_list[i]->name, OP_aug_map_ptr_list[i][max_map_nhalos - 1]);
   }
   return op_arg_dat_halo_core(item_dat, idx, item_map, dim, type, acc, nhalos, max_map_nhalos);
 }
@@ -1504,9 +1519,9 @@ void op_dat_write_index(op_set set, int *dat) {
   for(int i = 0; i < set->halo_info->nhalos_count; i++) //not like in exec sizes, non exec sizes are not accumulated
     nonexec_size += set->nonexec_sizes[i];
 
-  printf("op_dat_write_index set=%s size=%d exec=%d(0=%d) non=%d(0=%d) total=%d\n", set->name, set->size, set->exec_size, set->exec_sizes[set->halo_info->nhalos_count - 1],
-  nonexec_size, set->nonexec_sizes[set->halo_info->nhalos_count - 1],
-  set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size);
+  // printf("op_dat_write_index set=%s size=%d exec=%d(0=%d) non=%d(0=%d) total=%d\n", set->name, set->size, set->exec_size, set->exec_sizes[set->halo_info->nhalos_count - 1],
+  // nonexec_size, set->nonexec_sizes[set->halo_info->nhalos_count - 1],
+  // set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size);
 
   for (int i = 0; i < set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size; i++) {
 #else

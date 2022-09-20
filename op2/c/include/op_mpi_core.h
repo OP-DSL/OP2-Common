@@ -441,5 +441,6 @@ void set_dat_dirty(op_arg* arg);
 void unset_dat_dirty(op_arg* arg);
 void init_dat_to(op_arg* arg, int init_val);
 void set_dat_dirtybit(op_arg* arg, int nhalos);
+int* op_get_map_dat_ptr(int* map, int nhalos);
 
 #endif /* __OP_MPI_CORE_H */
