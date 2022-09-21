@@ -1219,7 +1219,7 @@ void prepare_aug_maps(){
     map->aug_maps = (int **)malloc((size_t)max_level * sizeof(int *));
 
     OP_aug_map_ptr_list[m] =
-        (int **)op_realloc(OP_aug_map_ptr_list[m], max_level * sizeof(int *));
+        (int **)malloc(max_level * sizeof(int *));
 
     int exec_size = 0;
     for(int l = 0; l < max_level; l++){

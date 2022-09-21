@@ -65,7 +65,9 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) :: nonexec_size ! number of additional imported elements that are not executed
     integer(kind=c_int) :: total_exec_size    ! number of additional imported elements to be executed
     integer(kind=c_int) :: total_nonexec_size ! number of additional imported elements that are not executed
-
+    type(c_ptr)         :: core_sizes          ! array core sizes w.r.t. halos
+    type(c_ptr)         :: exec_sizes          ! array exec halo sizes
+    type(c_ptr)         :: nonexec_sizes       ! array nonexec halo sizes
   end type op_set_core
 
   type :: op_set
