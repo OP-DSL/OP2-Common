@@ -907,6 +907,13 @@ module OP2_Fortran_Declarations
       integer(kind=c_int), value :: nhalos
    end function
 
+#ifdef COMM_AVOID
+   INTEGER(kind=c_int) function op_get_map_dat_max_size_c ( map ) BIND(C,name='op_get_map_dat_max_size')
+      use, intrinsic :: ISO_C_BINDING
+      type(c_ptr), value, intent(in) :: map
+   end function
+#endif
+
    subroutine op_mpi_halo_exchange_summary_c () BIND(C,name='op_mpi_halo_exchange_summary')
       use, intrinsic :: ISO_C_BINDING
 
@@ -3773,6 +3780,15 @@ type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type,
 
   end subroutine op_get_map_dat_ptr
 
+#ifdef COMM_AVOID
+  INTEGER(4) function op_get_map_dat_max_size ( map )
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(*), target :: map
+
+    op_get_map_dat_max_size = op_get_map_dat_max_size_c( c_loc(map) )
+
+  end function op_get_map_dat_max_size
+#endif
   subroutine op_mpi_halo_exchange_summary ()
     use, intrinsic :: ISO_C_BINDING
     call op_mpi_halo_exchange_summary_c()

@@ -1473,7 +1473,7 @@ op_arg op_arg_dat_halo_ptr(int opt, char *dat, int idx, int *map, int dim,
 
   op_map item_map = NULL;
   for (int i = 0; i < OP_map_index; i++) {
-    if (OP_aug_map_ptr_list[i][max_map_nhalos - 1] == map) {
+    if (OP_map_ptr_list[i] == map) {
       item_map = OP_map_list[i];
       break;
     }
@@ -1483,7 +1483,7 @@ op_arg op_arg_dat_halo_ptr(int opt, char *dat, int idx, int *map, int dim,
   if (item_map == NULL && idx != -1) {
     printf("ERROR: op_map not found for %p pointer\n", map);
     for (int i = 0; i < OP_map_index; i++)
-      printf("%s (%p) ", OP_map_list[i]->name, OP_aug_map_ptr_list[i][max_map_nhalos - 1]);
+      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
   return op_arg_dat_halo_core(item_dat, idx, item_map, dim, type, acc, nhalos, max_map_nhalos);
 }

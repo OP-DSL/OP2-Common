@@ -36,7 +36,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
     MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpic++
   else
-    MPICPP_PATH = mpic++
+    MPICPP_PATH = CC #mpic++
   endif
   endif
 
@@ -46,7 +46,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
     MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICXX_PATH = mpicxx
+    MPICXX_PATH = CC #mpicxx
   endif
   endif
 
@@ -56,13 +56,13 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
     MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
   else
-    MPICC_PATH = mpicc
+    MPICC_PATH = cc #mpicc
   endif
   endif
 else
-  MPICPP_PATH = mpic++
-  MPICXX_PATH = mpicxx
-  MPICC_PATH  = mpicc
+  MPICPP_PATH = CC #mpic++
+  MPICXX_PATH = CC #mpicxx
+  MPICC_PATH  = cc #mpicc
 endif
 
 #
@@ -211,7 +211,8 @@ HDF5_LIB += -lhdf5 -lz
 
 .PHONY: clean mklib
 
-all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda openmp4 mpi_comm_avoid
+# all: clean core hdf5 seq openmp mpi_seq cuda mpi_cuda openmp4 mpi_comm_avoid
+all: clean core hdf5 seq openmp mpi_seq openmp4 mpi_comm_avoid
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)

@@ -71,7 +71,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpif90)")
     MPIF90_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpif90
   else
-    MPIF90_PATH = mpif90
+    MPIF90_PATH = ftn #mpif90
   endif
   endif
 
@@ -81,7 +81,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
     MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICXX_PATH = mpicxx
+    MPICXX_PATH = CC #mpicxx
   endif
   endif
 
@@ -91,13 +91,13 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
     MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
   else
-    MPICC_PATH = mpicc
+    MPICC_PATH = cc #mpicc
   endif
   endif
 else
-  MPIF90_PATH = mpif90
-  MPICXX_PATH = mpicxx
-  MPICC_PATH = mpicc
+  MPIF90_PATH = ftn #mpif90
+  MPICXX_PATH = CC #mpicxx
+  MPICC_PATH = cc #mpicc
 endif
 
 #
@@ -147,16 +147,16 @@ DEBUG_FLAGS = -g
 ifeq ($(OP2_COMPILER),gnu)
   F_INC_MOD       = $(F_OP2_MOD)/gnu
   F_MPI_INC_MOD   = $(F_INC_MOD)/mpi
-  CC              = gcc #cc
-  CXX             = g++ #CC 
+  CC              = cc
+  CXX             = CC 
   CFLAGS          = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
   CFLAGS_SLOW     = -g -O2 -std=c99 -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS)
-  FC              = gfortran   #ftn
+  FC              = ftn
   FFLAGS          = -g -O2 -J$(F_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS) -DOP2_ARG_POINTERS -ffixed-line-length-none -ffree-line-length-none
   FMPI_FLAGS	  = -J$(F_MPI_INC_MOD) -fPIC -Wall -pedantic -pipe $(DEBUG_FLAGS) -DOP2_ARG_POINTERS -ffixed-line-length-none -ffree-line-length-none
-  MPICC           = mpicc #cc
-  MPICXX          = mpicxx #CC
-  MPIF90          = mpif90 #ftn
+  MPICC           = cc
+  MPICXX          = CC
+  MPIF90          = ftn
   NO_MPI_MACRO    = -DNO_MPI
   ALLTARGETS      = core hdf5 f_seq f_openmp f_mpi_seq
 else

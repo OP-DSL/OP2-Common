@@ -53,5 +53,6 @@ int get_max_value(int* arr, int from, int to);
 void calculate_dat_size(int my_rank, op_dat dat, int max_nhalos);
 void calculate_dat_sizes(int my_rank);
 void calculate_set_sizes(int my_rank);
+int op_get_map_dat_max_size(int* map);
 
 #endif /* __OP_MPI_COMM_AVOID_H */

@@ -3492,3 +3492,32 @@ int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_
   }
 }
 
+int op_get_map_dat_max_size(int* map){
+
+  op_map item_map = NULL;
+  int idx = -1;
+  for (int i = 0; i < OP_map_index; i++) {  //check from the main map (maop->map)
+    if (OP_map_ptr_list[i] == map) {        // then return the required aug map
+      item_map = OP_map_list[i];
+      idx = i;
+      break;
+    }
+  }
+  
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    return 0;
+  }else{
+    int max_level = item_map->halo_info->max_nhalos;
+    int exec_size = 0;
+    for(int l = 0; l < max_level; l++){
+      exec_size += OP_aug_import_exec_lists[l][item_map->from->index]->size;
+    }
+    int nonexec_size = 0;
+    for(int l = 0; l < max_level - 1; l++){ // last non exec level is not included. non exec mappings are not included in maps
+      nonexec_size += OP_aug_import_nonexec_lists[l][item_map->from->index]->size;
+    }
+    int total_map_size = item_map->from->size + exec_size + nonexec_size;
+    return total_map_size;
+  }
+}
