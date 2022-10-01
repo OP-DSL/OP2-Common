@@ -3156,7 +3156,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 20;  // this is a temp const
+  int max_dat_count = 12;  // this is a temp const
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -3261,6 +3261,7 @@ void op_halo_create_comm_avoid() {
     /*----- STEP 1 - Construct export lists for execute set elements and related
     mapping table entries -----*/
     // start_time(my_rank);
+    op_printf("my_rank=%d step1_create_aug_export_exec_list\n", my_rank);
     OP_aug_export_exec_lists[l] = step1_create_aug_export_exec_list(l, part_range, my_rank, comm_size);
     // stop_time(my_rank, "step1");
 
@@ -3271,9 +3272,10 @@ void op_halo_create_comm_avoid() {
 
     /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
     // start_time(my_rank);
+    op_printf("my_rank=%d step3_exchange_exec_mappings\n", my_rank);
     step3_exchange_exec_mappings(l, part_range, my_rank, comm_size);
     // stop_time(my_rank, "step3");
-    
+    op_printf("my_rank=%d step4_import_nonexec\n", my_rank);
     step4_import_nonexec(l, part_range, my_rank, comm_size);
 
     /*-STEP 6 - Exchange execute set elements/data using the import/export lists--*/
@@ -3326,7 +3328,9 @@ void op_halo_create_comm_avoid() {
    * lists--*/
   // start_time(my_rank);
   for(int l = 0; l < num_halos; l++){
+    op_printf("my_rank=%d step6_exchange_exec_data\n", my_rank);
     step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+    op_printf("my_rank=%d step7_halo\n", my_rank);
     step7_halo(l, part_range, my_rank, comm_size);
   }
   
@@ -3334,12 +3338,14 @@ void op_halo_create_comm_avoid() {
 
   /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/
   // start_time(my_rank);
+  op_printf("my_rank=%d step8_renumber_mappings\n", my_rank);
   step8_renumber_mappings(num_halos, part_range, my_rank, comm_size);
   // stop_time(my_rank, "step8");
-
+  free_tmp_maps();
   // print_maps_new(my_rank);
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
   // start_time(my_rank);
+  op_printf("my_rank=%d step9_halo\n", my_rank);
   step9_halo(num_halos, part_range, my_rank, comm_size);
   // step9(part_range, my_rank, comm_size);
   // stop_time(my_rank, "step9");
@@ -3350,6 +3356,7 @@ void op_halo_create_comm_avoid() {
   int **core_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
   int **exp_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
   // start_time(my_rank);
+  op_printf("my_rank=%d step10_halo\n", my_rank);
   step10_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
   // stop_time(my_rank, "step10");
 
@@ -3358,6 +3365,7 @@ void op_halo_create_comm_avoid() {
   /*-STEP 11 ----------- Save the original set element
    * indexes------------------*/
   // start_time(my_rank);
+  op_printf("my_rank=%d step11_halo\n", my_rank);
   step11_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
   // stop_time(my_rank, "step11");
   // print_maps_new(my_rank);
@@ -3365,6 +3373,7 @@ void op_halo_create_comm_avoid() {
   // This is to facilitate halo exchange in one message for multiple extended exec layers
   // merge_exec_halos(num_halos, my_rank, comm_size);
   // merge_nonexec_halos(num_halos, my_rank, comm_size);
+  op_printf("my_rank=%d merge_exec_nonexec_halos\n", my_rank);
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
   set_group_halo_envt();
@@ -3374,8 +3383,8 @@ void op_halo_create_comm_avoid() {
   /*-STEP 12 ---------- Clean up and Compute rough halo size
    * numbers------------*/
 
-  free_tmp_maps();
-
+  
+  op_printf("my_rank=%d op_halo_partition done\n", my_rank);
   for (int i = 0; i < OP_set_index; i++) {
     op_free(part_range[i]);
     op_free(core_elems[i]);
@@ -3396,7 +3405,7 @@ void op_halo_create_comm_avoid() {
 }
 
 void op_halo_destroy_comm_avoid() {
-  for(int i = 0; i < 30; i++){
+  for(int i = 0; i < OP_NHALOS_MAX; i++){
     if(OP_aug_import_exec_lists[i])
       op_single_halo_destroy(OP_aug_import_exec_lists[i]);
     if(OP_aug_export_exec_lists[i])
