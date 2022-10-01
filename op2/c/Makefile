@@ -36,7 +36,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpic++)")
     MPICPP_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpic++
   else
-    MPICPP_PATH = CC #mpic++
+    MPICPP_PATH = mpicxx #CC #mpic++
   endif
   endif
 
@@ -46,7 +46,7 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicxx)")
     MPICXX_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicxx
   else
-    MPICXX_PATH = CC #mpicxx
+    MPICXX_PATH = mpicxx #CC #mpicxx
   endif
   endif
 
@@ -56,13 +56,13 @@ ifdef MPI_INSTALL_PATH
   ifneq ("","$(wildcard $(MPI_INSTALL_PATH)/intel64/bin/mpicc)")
     MPICC_PATH = $(MPI_INSTALL_PATH)/intel64/bin/mpicc
   else
-    MPICC_PATH = cc #mpicc
+    MPICC_PATH = pgcc #cc #mpicc
   endif
   endif
 else
-  MPICPP_PATH = CC #mpic++
-  MPICXX_PATH = CC #mpicxx
-  MPICC_PATH  = cc #mpicc
+  MPICPP_PATH = mpicxx #CC #mpic++
+  MPICXX_PATH = mpicxx #CC #mpicxx
+  MPICC_PATH  = mpicc# cc #mpicc
 endif
 
 #
@@ -136,8 +136,22 @@ ifeq ($(OP2_COMPILER),clang)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
 else
+ifeq ($(OP2_COMPILER),nvhpc)
+  CUDA_ALIGNE_FLAG = -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
+  ifdef DEBUG
+    CCFLAGS = -g -O0
+  else
+    CCFLAGS = -O3
+  endif
+  CXX	    = pgc++
+  CXXFLAGS  = $(CCFLAGS)
+  MPICXX    = $(MPICPP_PATH)
+  MPIFLAGS  = $(CXXFLAGS)
+  # NVCCFLAGS += -ccbin=$(MPICXX)
+else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
+endif
 endif
 endif
 endif
@@ -381,7 +395,7 @@ mpi_comm_avoid_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_lib_core.o
 	$(MPICXX) -DCOMM_AVOID_CUDA $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
 	-o $(OBJ)/op_mpi_core.o
-	$(MPICXX) -DCOMM_AVOID_CUDA $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_comm_avoid.c \
+	$(MPICXX) -DCOMM_AVOID_CUDA $(MPIFLAGS) $(CUDA_ALIGNE_FLAG) -I$(INC) -I$(CUDA_INSTALL_PATH)/include -c $(SRC)/mpi/op_mpi_comm_avoid.c \
 	-o $(OBJ)/op_mpi_comm_avoid.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
