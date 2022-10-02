@@ -2441,10 +2441,10 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
        set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
     }
 
-    // for(int i = 0; i < set->halo_info->max_nhalos; i++){
-    //   printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
-    //     i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
-    // }
+    for(int i = 0; i < set->halo_info->max_nhalos; i++){
+      printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
+        i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
+    }
 
     // for(int i = 0; i < set->halo_info->max_nhalos; i++){
     //   halo_list exec_list = OP_aug_export_exec_lists[i][set->index];
@@ -3217,7 +3217,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  set_maps_hydra();
+  // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension();

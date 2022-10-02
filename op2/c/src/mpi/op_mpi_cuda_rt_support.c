@@ -170,9 +170,14 @@ void cutilDeviceInit(int argc, char **argv) {
 
 void op_upload_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-  // printf("Uploading new %s\n", dat->name);
+  printf("Uploading newone %s\n", dat->name);
+// #ifdef COMM_AVOID
+//   int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
+// #else
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
+   printf("Uploading newone %s set_size=%d\n", dat->name, set_size);
+// #endif
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
@@ -196,7 +201,7 @@ void op_upload_dat(op_dat dat) {
 #ifdef COMM_AVOID
 void op_upload_dat_chained(op_dat dat, int nhalos) {
   if (OP_import_exec_list == NULL) return;
-  //  printf("Uploading %s\n", dat->name);
+   printf("Uploading 1 %s\n", dat->name);
   int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
   cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, set_size * dat->size,
                             cudaMemcpyHostToDevice));
@@ -205,7 +210,7 @@ void op_upload_dat_chained(op_dat dat, int nhalos) {
 #endif
 void op_download_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-  //  printf("Downloading %s\n", dat->name);
+   printf("Downloading 1 %s\n", dat->name);
 #ifdef COMM_AVOID
   int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
 #else
@@ -975,8 +980,12 @@ void op_move_to_device() {
     for(int l = 0; l < max_level; l++){
       exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
     }
+    int nonexec_size = 0;
+    for(int l = 0; l < max_level - 1; l++){ // last non exec level is not included. non exec mappings are not included in maps
+      nonexec_size += OP_aug_import_nonexec_lists[l][map->from->index]->size;
+    }
     map->aug_maps_d = (int **)xmalloc(sizeof(int *) * map->halo_info->max_nhalos);
-    int set_size = map->from->size + exec_size;
+    int set_size = map->from->size + exec_size + nonexec_size;
 
     for(int el = 0; el < map->halo_info->max_nhalos; el++){
       if(is_halo_required_for_map(map, el) == 1){

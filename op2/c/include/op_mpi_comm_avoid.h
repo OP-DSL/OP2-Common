@@ -33,7 +33,7 @@
 #ifndef __OP_MPI_COMM_AVOID_H
 #define __OP_MPI_COMM_AVOID_H
 
-#ifdef COMM_AVOID
+#if defined COMM_AVOID || defined COMM_AVOID_CUDA
     #define op_halo_create(x) op_halo_create_comm_avoid(x)
     #define op_halo_destroy() op_halo_destroy_comm_avoid()
     #define op_mpi_exit() op_mpi_exit_comm_avoid()

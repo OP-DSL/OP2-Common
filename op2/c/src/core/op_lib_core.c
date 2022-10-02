@@ -1513,17 +1513,19 @@ void op_dat_write_index(op_set set, int *dat) {
     op_printf("Error: op_dat_write_index set and arg.dat->set do not match\n");
     exit(-1);
   }
-#ifdef COMM_AVOID
+
+#if defined COMM_AVOID || defined COMM_AVOID_CUDA
  
   int nonexec_size = 0;
-  for(int i = 0; i < set->halo_info->nhalos_count; i++) //not like in exec sizes, non exec sizes are not accumulated
+  for(int i = 0; i < set->halo_info->max_nhalos; i++) //not like in exec sizes, non exec sizes are not accumulated
     nonexec_size += set->nonexec_sizes[i];
 
+     printf("op_dat_write_index new1 set=%s exec=%d nonexec=%d nhalos=%d\n", set->name, set->exec_sizes[set->halo_info->max_nhalos - 1], nonexec_size, set->halo_info->max_nhalos);
   // printf("op_dat_write_index set=%s size=%d exec=%d(0=%d) non=%d(0=%d) total=%d\n", set->name, set->size, set->exec_size, set->exec_sizes[set->halo_info->nhalos_count - 1],
   // nonexec_size, set->nonexec_sizes[set->halo_info->nhalos_count - 1],
   // set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size);
 
-  for (int i = 0; i < set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size; i++) {
+  for (int i = 0; i < set->size + set->exec_sizes[set->halo_info->max_nhalos - 1] + nonexec_size; i++) {
 #else
   for (int i = 0; i < set->size + set->exec_size + set->nonexec_size; i++) {
 #endif

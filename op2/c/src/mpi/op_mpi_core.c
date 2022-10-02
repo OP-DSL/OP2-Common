@@ -3175,14 +3175,7 @@ void op_mpi_exit() {
   op_halo_destroy();
 }
 
-#ifndef COMM_AVOID
-int getSetSizeFromOpArg(op_arg *arg) {
-  return arg->opt ? (arg->dat->set->size +
-                     OP_import_exec_list[arg->dat->set->index]->size +
-                     OP_import_nonexec_list[arg->dat->set->index]->size)
-                  : 0;
-}
-#else
+#if defined COMM_AVOID || defined COMM_AVOID_CUDA
 int getSetSizeFromOpArg(op_arg *arg) {
 
   // int exec_size = 0;
@@ -3200,10 +3193,22 @@ int getSetSizeFromOpArg(op_arg *arg) {
   //     non_exec_size += OP_aug_import_nonexec_lists[l][arg->dat->set->index]->size;
   //   }
   // }
-
   return arg->opt ? (arg->dat->set->size +
-                     arg->dat->set->total_exec_size +
-                     arg->dat->set->total_nonexec_size)
+                     OP_import_exec_list[arg->dat->set->index]->size +
+                     OP_import_nonexec_list[arg->dat->set->index]->size)
+                  : 0;
+
+  // return arg->opt ? (arg->dat->set->size +
+  //                    arg->dat->set->exec_sizes[arg->dat->set->halo_info->max_nhalos - 1] +
+  //                   //  arg->dat->set->total_exec_size +
+  //                    arg->dat->set->total_nonexec_size)
+  //                 : 0;
+}
+#else
+int getSetSizeFromOpArg(op_arg *arg) {
+  return arg->opt ? (arg->dat->set->size +
+                     OP_import_exec_list[arg->dat->set->index]->size +
+                     OP_import_nonexec_list[arg->dat->set->index]->size)
                   : 0;
 }
 #endif

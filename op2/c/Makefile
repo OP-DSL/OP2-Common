@@ -232,7 +232,7 @@ mklib:
 	@mkdir -p $(LIB) $(OBJ)
 
 core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
-	$(CXX) -DCOMM_AVOID $(CXXFLAGS) -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -DCOMM_AVOID -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
