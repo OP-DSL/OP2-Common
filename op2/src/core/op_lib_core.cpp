@@ -1300,7 +1300,7 @@ unsigned long op_get_data_ptr2(unsigned long data) {
     }
   }
   if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", data);
+    printf("ERROR: op_dat not found for dat with %lu pointer\n", data);
   }
   op_download_dat(item_dat);
   return (unsigned long)(item_dat->data);
