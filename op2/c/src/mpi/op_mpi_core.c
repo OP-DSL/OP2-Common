@@ -3193,16 +3193,16 @@ int getSetSizeFromOpArg(op_arg *arg) {
   //     non_exec_size += OP_aug_import_nonexec_lists[l][arg->dat->set->index]->size;
   //   }
   // }
-  return arg->opt ? (arg->dat->set->size +
-                     OP_import_exec_list[arg->dat->set->index]->size +
-                     OP_import_nonexec_list[arg->dat->set->index]->size)
-                  : 0;
-
   // return arg->opt ? (arg->dat->set->size +
-  //                    arg->dat->set->exec_sizes[arg->dat->set->halo_info->max_nhalos - 1] +
-  //                   //  arg->dat->set->total_exec_size +
-  //                    arg->dat->set->total_nonexec_size)
+  //                    OP_import_exec_list[arg->dat->set->index]->size +
+  //                    OP_import_nonexec_list[arg->dat->set->index]->size)
   //                 : 0;
+
+  return arg->opt ? (arg->dat->set->size +
+                     arg->dat->set->exec_sizes[arg->dat->set->halo_info->max_nhalos - 1] +
+                    //  arg->dat->set->total_exec_size +
+                     arg->dat->set->total_nonexec_size)
+                  : 0;
 }
 #else
 int getSetSizeFromOpArg(op_arg *arg) {
@@ -3418,7 +3418,6 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++)
     if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
         args[n].dat->dirty_hd == 1) {
-      printf("here dirtyhd\n");
       op_upload_dat(args[n].dat);
       args[n].dat->dirty_hd = 0;
     }

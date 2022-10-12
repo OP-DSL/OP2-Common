@@ -85,6 +85,7 @@ typedef struct {
   float transfer;    /* bytes of data transfer per kernel call */
   float transfer2;   /* bytes of cache line per kernel call */
   int count;         /* number of times called */
+  int nhalos;
 } op_plan;
 
 extern op_plan *OP_plans;

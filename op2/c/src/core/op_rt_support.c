@@ -134,7 +134,11 @@ void op_plan_check(op_plan OP_plan, int ninds, int *inds) {
     if (OP_plan.idxs[m] != -1 &&
         OP_plan.accs[m] != OP_READ) // if it needs exchaning
     {
+// #ifdef COMM_AVOID_CUDA
+//       exec_length += OP_plan.set->exec_sizes[OP_plan.nhalos - 1];
+// #else
       exec_length += OP_plan.set->exec_size;
+// #endif
       break;
     }
   }
@@ -304,7 +308,11 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   int exec_length = set->size;
   for (int i = 0; i < nargs; i++) {
     if (args[i].opt && args[i].idx != -1 && args[i].acc != OP_READ) {
+// #ifdef COMM_AVOID_CUDA
+//       exec_length += set->exec_sizes[args[i].nhalos - 1];
+// #else
       exec_length += set->exec_size;
+// #endif
       break;
     }
   }
@@ -538,7 +546,11 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   OP_plans[ip].ncolors_owned = 0;
   OP_plans[ip].count = 1;
   OP_plans[ip].inds_staged = inds_staged;
-
+// #ifdef COMM_AVOID_CUDA
+//   OP_plans[ip].nhalos = args[0].nhalos; //all the args has the same nhalos
+// #else
+  OP_plans[ip].nhalos = 1;
+// #endif
   OP_plan_index++;
 
   /* define aliases */

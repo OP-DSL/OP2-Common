@@ -816,11 +816,11 @@ op_arg op_arg_dat_halo_core(op_dat dat, int idx, op_map map, int dim,
     arg.data = dat->data;
     arg.data_d = dat->data_d;
   #ifdef COMM_AVOID_CUDA
-    arg.map_data_d = (idx == -1 ? NULL : map->aug_maps_d[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
+    arg.map_data_d = (idx == -1 ? NULL : map->aug_maps_d[max_map_nhalos - 1]);
   #else
     arg.map_data_d = (idx == -1 ? NULL : map->map_d);
   #endif
-    arg.map_data = (idx == -1 ? NULL : map->aug_maps[map->from->halo_info->nhalos_indices[max_map_nhalos]]);
+    arg.map_data = (idx == -1 ? NULL : map->aug_maps[max_map_nhalos - 1]);
   } else {
     /* set default values */
     arg.size = -1;
@@ -932,18 +932,18 @@ op_arg op_opt_arg_dat_halo_core(int opt, op_dat dat, int idx, op_map map, int di
     arg.data = dat->data;
     arg.data_d = dat->data_d;
   #ifdef COMM_AVOID_CUDA
-    arg.map_data_d = map == NULL ? NULL : map->aug_maps_d[dat->set->halo_info->nhalos_indices[max_map_nhalos]];
+    arg.map_data_d = map == NULL ? NULL : map->aug_maps_d[max_map_nhalos - 1];
   #else
     arg.map_data_d = (idx == -1 ? NULL : map->map_d);
   #endif
-    arg.map_data = map == NULL ? NULL : map->aug_maps[dat->set->halo_info->nhalos_indices[max_map_nhalos]];
+    arg.map_data = map == NULL ? NULL : map->aug_maps[max_map_nhalos - 1];
   } else {
     /* set default values */
     arg.size = -1;
     arg.data = NULL;
     arg.data_d = NULL;
     arg.map_data_d = (map == NULL ? NULL : map->map_d);
-    arg.map_data = (map == NULL ? NULL : map->aug_maps[map->halo_info->nhalos_indices[max_map_nhalos]]);  //todo:check this
+    arg.map_data = (map == NULL ? NULL : map->aug_maps[max_map_nhalos - 1]);  //todo:check this
   }
 
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
@@ -1520,7 +1520,7 @@ void op_dat_write_index(op_set set, int *dat) {
   for(int i = 0; i < set->halo_info->max_nhalos; i++) //not like in exec sizes, non exec sizes are not accumulated
     nonexec_size += set->nonexec_sizes[i];
 
-     printf("op_dat_write_index new1 set=%s exec=%d nonexec=%d nhalos=%d\n", set->name, set->exec_sizes[set->halo_info->max_nhalos - 1], nonexec_size, set->halo_info->max_nhalos);
+    //  printf("op_dat_write_index new1 set=%s exec=%d nonexec=%d nhalos=%d\n", set->name, set->exec_sizes[set->halo_info->max_nhalos - 1], nonexec_size, set->halo_info->max_nhalos);
   // printf("op_dat_write_index set=%s size=%d exec=%d(0=%d) non=%d(0=%d) total=%d\n", set->name, set->size, set->exec_size, set->exec_sizes[set->halo_info->nhalos_count - 1],
   // nonexec_size, set->nonexec_sizes[set->halo_info->nhalos_count - 1],
   // set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size);

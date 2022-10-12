@@ -3687,6 +3687,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
       op_printf("Reverting to trivial block partitioning\n");
       partial_halo_flag = 0;
     }
+    op_printf("=====Selected Partitioning Routine : %s partial_halo_flag=%d\n", lib_name, partial_halo_flag);
   } else {
     op_printf("Partitioning Library : %s UNSUPPORTED\n", lib_name);
     op_printf("Ignoring input routine : %s\n", lib_routine);

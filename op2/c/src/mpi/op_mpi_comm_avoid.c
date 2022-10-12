@@ -2441,10 +2441,10 @@ void step11_halo(int exec_levels, int **part_range, int **core_elems, int **exp_
        set->total_exec_size += OP_aug_import_exec_lists[el][set->index] ? OP_aug_import_exec_lists[el][set->index]->size : 0;
     }
 
-    for(int i = 0; i < set->halo_info->max_nhalos; i++){
-      printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
-        i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
-    }
+    // for(int i = 0; i < set->halo_info->max_nhalos; i++){
+    //   printf("step11 new my_rank=%d set=%s size=%d core[%d]=%d exec[%d]=%d non[%d]=%d\n", my_rank, set->name, set->size, 
+    //     i, set->core_sizes[i], i, set->exec_sizes[i], i, set->nonexec_sizes[i]);
+    // }
 
     // for(int i = 0; i < set->halo_info->max_nhalos; i++){
     //   halo_list exec_list = OP_aug_export_exec_lists[i][set->index];
@@ -3172,8 +3172,8 @@ void set_group_halo_envt(){
     halo_list exp_list = OP_merged_export_exec_nonexec_list[set->index];
     halo_list imp_list = OP_merged_import_exec_nonexec_list[set->index];
     
-    int send_buff_size = exp_list->size * dat->size;
-    int recv_buff_size = imp_list->size * dat->size;
+    int send_buff_size = exp_list->size * dat->size; // * dat->dim;
+    int recv_buff_size = imp_list->size * dat->size; // * dat->dim;
 
     int send_rank_size = exp_list->ranks_size / exp_list->num_levels;
     int recv_rank_size = imp_list->ranks_size / imp_list->num_levels;
@@ -3189,6 +3189,8 @@ void set_group_halo_envt(){
 
     if(recv_rank_size > max_recv_rank_size)
       max_recv_rank_size = recv_rank_size;
+
+    // op_printf("dat=%s dim=%d datsize=%d set=%s setsize=%d send_buff_size=%d recv_buff_size=%d send_rank_size=%d recv_rank_size=%d\n", dat->name, dat->dim, dat->size, dat->set->name, dat->set->size, send_buff_size, recv_buff_size, send_rank_size, recv_rank_size);
   }
 
   grp_send_requests = (MPI_Request *)xmalloc(sizeof(MPI_Request) * max_send_rank_size * max_dat_count);
@@ -3197,6 +3199,7 @@ void set_group_halo_envt(){
   grp_send_buffer = (char *)xmalloc(max_send_buff_size * max_dat_count);
   grp_recv_buffer = (char *)xmalloc(max_recv_buff_size * max_dat_count);
 #ifdef COMM_AVOID_CUDA
+  // op_printf("max_send_buff_size=%d ca_grp_size_send_old=%d max_recv_buff_size=%d ca_grp_size_recv_old=%d max_dat_count=%d\n", max_send_buff_size, ca_grp_size_send_old, max_recv_buff_size, ca_grp_size_recv_old, max_dat_count);
   ca_realloc_comm_buffer(&grp_send_buffer_h, &grp_recv_buffer_h, 
       &grp_send_buffer_d, &grp_recv_buffer_d, 1, 
       max_send_buff_size * max_dat_count, max_recv_buff_size * max_dat_count);
@@ -3217,7 +3220,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  // set_maps_hydra();
+  set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension();
@@ -3341,7 +3344,7 @@ void op_halo_create_comm_avoid() {
   op_printf("my_rank=%d step8_renumber_mappings\n", my_rank);
   step8_renumber_mappings(num_halos, part_range, my_rank, comm_size);
   // stop_time(my_rank, "step8");
-  free_tmp_maps();
+  
   // print_maps_new(my_rank);
   /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
   // start_time(my_rank);
@@ -3401,6 +3404,8 @@ void op_halo_create_comm_avoid() {
 
   // start_time(my_rank);
   step12(part_range, max_time, my_rank, comm_size);
+
+  free_tmp_maps();
   // stop_time(my_rank, "step12");
 }
 

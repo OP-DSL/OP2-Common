@@ -141,7 +141,7 @@ ifeq ($(OP2_COMPILER),nvhpc)
   ifdef DEBUG
     CCFLAGS = -g -O0
   else
-    CCFLAGS = -O3
+    CCFLAGS = -O3 -g
   endif
   CXX	    = pgc++
   CXXFLAGS  = $(CCFLAGS)
@@ -192,8 +192,8 @@ endif
 endif
 endif
 
-#NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -O3 #-G -O0 #-O3
-NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -G -O0 #-O3
+NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -O3 #-G -O0 #-O3
+#NVCCFLAGS += $(CODE_GEN_CUDA) -m64 -Xptxas=-v -use_fast_math -g -G -O0 #-O3
 
 ifdef CUDA_INSTALL_PATH
   CUDA_INC = -I$(CUDA_INSTALL_PATH)/include
@@ -232,7 +232,7 @@ mklib:
 	@mkdir -p $(LIB) $(OBJ)
 
 core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
-	$(CXX) $(CXXFLAGS) -DCOMM_AVOID -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
+	$(CXX) $(CXXFLAGS) -DCOMM_AVOID_CUDA -I$(INC) -c $(SRC)/core/op_lib_core.c -o $(OBJ)/op_lib_core.o
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h

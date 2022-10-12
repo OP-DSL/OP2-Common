@@ -3780,6 +3780,7 @@ type(op_arg) function op_opt_arg_dat_halo_real_8 (opt, dat, idx, map, dim, type,
 
   end subroutine op_get_map_dat_ptr
 
+
 #ifdef COMM_AVOID
   INTEGER(4) function op_get_map_dat_max_size ( map )
     use, intrinsic :: ISO_C_BINDING

@@ -170,14 +170,14 @@ void cutilDeviceInit(int argc, char **argv) {
 
 void op_upload_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-  printf("Uploading newone %s\n", dat->name);
-// #ifdef COMM_AVOID
-//   int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
-// #else
+  // printf("Uploading newone %s\n", dat->name);
+#ifdef COMM_AVOID
+  int set_size = dat->set->size + dat->set->total_exec_size + dat->set->total_nonexec_size;
+#else
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
-   printf("Uploading newone %s set_size=%d\n", dat->name, set_size);
-// #endif
+  //  printf("Uploading newone %s set_size=%d\n", dat->name, set_size);
+#endif
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
@@ -258,6 +258,10 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
   // redundant compute block
   if (exec_flag == 0 && arg->idx == -1)
     return;
+  
+
+  // printf("testop_exchange_halo_cuda dat=%s datsize=%d datdim=%d\n", dat->name,dat->size, dat->dim);
+
   
   arg->sent = 0; // reset flag
   // need to exchange both direct and indirect data sets if they are dirty
@@ -445,8 +449,15 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
 
   op_arg dirty_args[nargs];
   int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
-
-
+  if(ndirty_args < 1){
+    // op_printf("op_exchange_halo_cuda_chained ndirty_args< 1\n");
+    return;
+  }
+  // printf("op_exchange_halo_cuda_chained ndirty_args=%d\n", ndirty_args);
+  // for(int i = 0; i < ndirty_args; i++){
+  //   printf("op_exchange_halo_cuda_chained ndirty_args=%d dat=%s datsize=%d datdim=%d\n", ndirty_args, dirty_args[i].dat->name, dirty_args[i].dat->size, dirty_args[i].dat->dim);
+  // }
+    
   imp_common_list = OP_merged_import_exec_nonexec_list[dirty_args[0].dat->set->index];  //assumption nargs > 0
   exp_common_list = OP_merged_export_exec_nonexec_list[dirty_args[0].dat->set->index];
 
@@ -505,7 +516,7 @@ void op_exchange_halo_cuda_chained(int nargs, op_arg *args, int exec_flag){
               &grp_recv_requests[i]);
     imp_disp += imp_size;
 
-    // printf("rxtxexec merged my_rank=%d dat=%s r=%d recved=%d  imp_disp=%d\n", my_rank, "test", imp_common_list->ranks[i], imp_size_1, imp_disp_1);
+    // printf("rxtxexec merged my_rank=%d dat=%s r=%d recved=%d  imp_disp=%d\n", my_rank, "test", imp_common_list->ranks[i], imp_size, imp_disp);
     OP_mpi_rx_msg_count_chained++;
   }
   total_halo_size = imp_disp;
@@ -802,6 +813,16 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
       exec_flag = 1;
     }
   }
+  op_arg dirty_args[nargs];
+  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
+  if(ndirty_args < 1){
+    // op_printf("op_exchange_halo_cuda_chained ndirty_args< 1\n");
+    return;
+  }
+  // printf("receive ndirty_args=%d\n", ndirty_args);
+  // for(int i = 0; i < ndirty_args; i++){
+  //   printf("receive ndirty_args=%d dat=%s\n", ndirty_args, dirty_args[i].dat->name);
+  // }
 
   op_download_buffer_sync();
   for (int r = 0; r < exp_rank_count; r++) {
@@ -823,8 +844,6 @@ void op_wait_all_cuda_chained(int nargs, op_arg *args){ //, int device){
   MPI_Waitall(imp_common_list->ranks_size / imp_common_list->num_levels, 
                   &grp_recv_requests[0], MPI_STATUSES_IGNORE);
 
-  op_arg dirty_args[nargs];
-  int ndirty_args = get_dirty_args(nargs, args, exec_flag, dirty_args, 1);
   int rank_count = imp_common_list->ranks_size / imp_common_list->num_levels;
 
   op_upload_buffer_async(grp_recv_buffer_d, grp_recv_buffer_h, total_halo_size);
@@ -975,20 +994,22 @@ void op_move_to_device() {
   for (int m = 0; m < OP_map_index; m++) {
     op_map map = OP_map_list[m];
     int max_level = map->halo_info->max_nhalos;
-
-    int exec_size = 0;
-    for(int l = 0; l < max_level; l++){
-      exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
-    }
-    int nonexec_size = 0;
-    for(int l = 0; l < max_level - 1; l++){ // last non exec level is not included. non exec mappings are not included in maps
-      nonexec_size += OP_aug_import_nonexec_lists[l][map->from->index]->size;
-    }
+    
     map->aug_maps_d = (int **)xmalloc(sizeof(int *) * map->halo_info->max_nhalos);
-    int set_size = map->from->size + exec_size + nonexec_size;
 
     for(int el = 0; el < map->halo_info->max_nhalos; el++){
       if(is_halo_required_for_map(map, el) == 1){
+
+        int exec_size = 0;
+        for(int l = 0; l < el + 1; l++){
+          exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
+        }
+        int nonexec_size = 0;
+        for(int l = 0; l < el + 1 - 1; l++){ // last non exec level is not included. non exec mappings are not included in maps
+          nonexec_size += OP_aug_import_nonexec_lists[l][map->from->index]->size;
+        }
+        int set_size = map->from->size + exec_size + nonexec_size;
+
         int *temp_map = (int *)xmalloc(map->dim * set_size * sizeof(int));
         for (int i = 0; i < map->dim; i++) {
           for (int j = 0; j < set_size; j++) {

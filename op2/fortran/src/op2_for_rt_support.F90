@@ -264,26 +264,49 @@ module OP2_Fortran_RT_Support
 
     integer(kind=c_int) function op_mpi_halo_exchanges_chained (set, argsNumber, args, nhalos, exchange) BIND(C,name='op_mpi_halo_exchanges_chained')
 
-    use, intrinsic :: ISO_C_BINDING
-    use OP2_Fortran_Declarations
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
 
-    type(c_ptr), value ::         set        ! iteration set
-    integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-    type(op_arg), dimension(*) :: args       ! array with op_args
-    integer(kind=c_int), value :: nhalos     ! number of halos
-    integer(kind=c_int), value :: exchange   ! exchange halo or not
-  end function op_mpi_halo_exchanges_chained
+      type(c_ptr), value ::         set        ! iteration set
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+      integer(kind=c_int), value :: nhalos     ! number of halos
+      integer(kind=c_int), value :: exchange   ! exchange halo or not
+    end function op_mpi_halo_exchanges_chained
 
-  subroutine op_mpi_wait_all_chained (argsNumber, args, device) BIND(C,name='op_mpi_wait_all_chained')
+    integer(kind=c_int) function op_mpi_halo_exchanges_cuda_chained (set, argsNumber, args, nhalos, exchange) BIND(C,name='op_mpi_halo_exchanges_cuda_chained')
 
-    use, intrinsic :: ISO_C_BINDING
-    use OP2_Fortran_Declarations
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
 
-    integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-    type(op_arg), dimension(*) :: args       ! array with op_args
-    integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
+      type(c_ptr), value ::         set        ! iteration set
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+      integer(kind=c_int), value :: nhalos     ! number of halos
+      integer(kind=c_int), value :: exchange   ! exchange halo or not
+    end function op_mpi_halo_exchanges_cuda_chained
 
-  end subroutine
+    subroutine op_mpi_wait_all_chained (argsNumber, args, device) BIND(C,name='op_mpi_wait_all_chained')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+      integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
+
+    end subroutine
+
+    subroutine op_mpi_wait_all_cuda_chained (argsNumber, args, device) BIND(C,name='op_mpi_wait_all_cuda_chained')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+      integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
+
+    end subroutine
 
     integer(kind=c_int) function op_mpi_halo_exchanges_grouped (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges_grouped')
 

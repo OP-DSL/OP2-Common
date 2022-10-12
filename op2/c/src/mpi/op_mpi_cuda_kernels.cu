@@ -47,6 +47,7 @@ __global__ void export_halo_gather(int *list, char *dat, int copy_size,
     if (elem_size % 16 == 0) {
       off += 16 * (elem_size / 16);
       for (int i = 0; i < elem_size / 16; i++) {
+        //  printf("testexport_halo_gather id=%d elem_size=%d\n", id, elem_size);
         ((double2 *)(export_buffer + id * elem_size))[i] =
             ((double2 *)(dat + list[id] * elem_size))[i];
       }
@@ -65,7 +66,7 @@ __global__ void export_halo_gather(int *list, char *dat, int copy_size,
 
 #ifdef COMM_AVOID
 __global__ void export_halo_gather_chained(int *list, char *dat, int copy_size,
-                                   int elem_size, char *export_buffer, 
+                                   int elem_size, int type_size, char *export_buffer, 
                                    int nhalos, int num_levels, int r, int buf_start,
                                    int level_disp, int disp_in_level, int level_disp_in_rank, int my_rank) {
   
@@ -80,12 +81,19 @@ __global__ void export_halo_gather_chained(int *list, char *dat, int copy_size,
 
       int off = 0;
 
-      if (elem_size % 16 == 0) {
-        off += 16 * (elem_size / 16);
-        for (int i = 0; i < elem_size / 16; i++) {
-          ((double2 *)(export_buffer + buf_elem_index))[i] = ((double2 *)(dat + set_elem_index))[i];
-        }
-      } else if (elem_size % 8 == 0) {
+      // if (type_size == 16 && elem_size % 16 == 0) {
+      //   off += 16 * (elem_size / 16);
+      //   for (int i = 0; i < elem_size / 16; i++) {
+      //     // printf("export_halo_gather_chained buf_elem_index=%d(buf_start=%d level_disp_in_rank=%d id=%d elem_size=%d) set_elem_index=%d (level_disp=%d disp_in_level=%d id=%d)\n", 
+      //     // buf_elem_index / elem_size, buf_start, level_disp_in_rank, id, elem_size, set_elem_index / elem_size, level_disp, disp_in_level, id);
+      //     // printf("1buf_elem_index=%d i=%d id=%d copy_size=%d elem_size=%d off=%d\n", buf_elem_index, i, id, copy_size, elem_size, off);
+      //     // printf("2set_elem_index=%d i=%d id=%d copy_size=%d elem_size=%d off=%d\n", set_elem_index, i, id, copy_size, elem_size, off);
+      //     ((double2*)(export_buffer + buf_elem_index))[i] = ((double2*)(dat + set_elem_index))[i];
+
+          
+      //   }
+      // } else  
+      if ( /*type_size == 8 && */ elem_size % 8 == 0) {
         off += 8 * (elem_size / 8);
         for (int i = 0; i < elem_size / 8; i++) {
           // printf("export_halo_gather_chained buf_elem_index=%d(buf_start=%d level_disp_in_rank=%d id=%d elem_size=%d) set_elem_index=%d (level_disp=%d disp_in_level=%d id=%d)\n", 
@@ -199,7 +207,7 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
 
   if (strstr(arg.dat->type, ":soa") != NULL ||
       (OP_auto_soa && arg.dat->dim > 1)) {
-
+    op_printf("test:gather_data_to_buffer\n");    
     int set_size = arg.dat->set->size + arg.dat->set->exec_size +
                    arg.dat->set->nonexec_size;
 
@@ -273,12 +281,12 @@ void gather_data_to_buffer_chained(int nargs, op_arg *args, int exec_flag,
             int disp_in_level = exp_list->disps[rank_disp + r];
             int copy_size = exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r];
 
-            // printf("gather_data my_rank=%d n=%d set=%s dat=%s index=%d nhalos=%d copy_size=%d l=%d l1=%d\n", 
-            // my_rank, n, arg->dat->set->name, dat->name, arg->dat->set->index, nhalos, copy_size, l, l1);
+            // printf("gather_data my_rank=%d n=%d set=%s dat=%s index=%d nhalos=%d copy_size=%d elem_size=%d l=%d l1=%d\n", 
+            // my_rank, n, arg->dat->set->name, dat->name, arg->dat->set->index, nhalos, copy_size, arg->dat->size, l, l1);
 
             int blocks = 1 + ((copy_size - 1) / 192);
             export_halo_gather_chained<<<blocks, threads>>>(export_exec_nonexec_list_d[arg->dat->set->index], arg->data_d, copy_size,
-                                      arg->dat->size, grp_send_buffer_d, 
+                                      arg->dat->size, arg->dat->size / arg->dat->dim, grp_send_buffer_d, 
                                       nhalos, exp_list->num_levels, r, buf_start,
                                       level_disp, disp_in_level, 
                                       prev_size, my_rank);
@@ -315,7 +323,7 @@ void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list) {
 
   if (strstr(arg.dat->type, ":soa") != NULL ||
       (OP_auto_soa && arg.dat->dim > 1)) {
-
+    op_printf("test:gather_data_to_buffer_partial\n");        
     int set_size = arg.dat->set->size + arg.dat->set->exec_size +
                    arg.dat->set->nonexec_size;
 
@@ -336,7 +344,7 @@ void scatter_data_from_buffer(op_arg arg) {
 
   if (strstr(arg.dat->type, ":soa") != NULL ||
       (OP_auto_soa && arg.dat->dim > 1)) {
-
+    op_printf("test:scatter_data_from_buffer\n");    
     int set_size = arg.dat->set->size + arg.dat->set->exec_size +
                    arg.dat->set->nonexec_size;
     int offset = arg.dat->set->size;
@@ -363,7 +371,7 @@ void scatter_data_from_buffer_partial(op_arg arg) {
 
   if (strstr(arg.dat->type, ":soa") != NULL ||
       (OP_auto_soa && arg.dat->dim > 1)) {
-
+        op_printf("test:scatter_data_from_buffer_partial\n"); 
     int set_size = arg.dat->set->size + arg.dat->set->exec_size +
                    arg.dat->set->nonexec_size;
     int init = OP_export_nonexec_permap[arg.map->index]->size;
@@ -517,7 +525,7 @@ void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, ch
 
   int soa = 0;
   if ((OP_auto_soa && arg.dat->dim > 1) || strstr(arg.dat->type, ":soa") != NULL) soa = 1;
-
+  op_printf("test:gather_data_to_buffer_ptr_cuda soa=%d\n", soa); 
   //Exec halo
 
   //Create op2_grp_neigh_to_neigh_offsets_h into appropriate position
@@ -606,7 +614,7 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
 
   int soa = 0;
   if ((OP_auto_soa && arg.dat->dim > 1) || strstr(arg.dat->type, ":soa") != NULL) soa = 1;
-
+  op_printf("test:scatter_data_from_buffer_ptr_cuda soa=%d\n", soa); 
   //Exec halo
 
   //Create op2_grp_neigh_to_neigh_offsets_h into appropriate position

@@ -133,7 +133,11 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
   int set_size = set->size;
   for (int i = 0; i < nargs; i++) {
     if (args[i].idx != -1 && args[i].acc != OP_READ) {
+// #ifdef COMM_AVOID_CUDA
+//       set_size += (set->total_exec_size);
+// #else
       set_size += set->exec_size;
+// #endif
       break;
     }
   }
@@ -277,6 +281,7 @@ void op_cuda_get_data(op_dat dat) {
   else
     return;
   // transpose data
+  op_printf("op_cuda_get_data ================\n");
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));

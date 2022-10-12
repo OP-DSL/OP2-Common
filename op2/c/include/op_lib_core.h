@@ -136,8 +136,8 @@ extern int* ca_buf_pos;
 #define OP_UNPACK_ALL_HALOS 2
 // #define OP_UNPACK_MERGED_MULTIPLE_DATS 3
 
-#define OP_NHALOS_SIZE 4
-#define OP_NHALOS_MAX 4
+#define OP_NHALOS_SIZE 10
+#define OP_NHALOS_MAX 10
 
 typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
 typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT

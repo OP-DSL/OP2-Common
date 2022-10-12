@@ -174,6 +174,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
 
+  op_printf("test:op_decl_dat_temp_char\n");
   char *d = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
 
@@ -185,9 +186,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
     halo_size += OP_aug_import_exec_lists[l][set->index]->size;
   }
 
-  int num_levels = set->halo_info->nhalos_count;
-  for(int l = 0; l < num_levels; l++){
-    halo_size += OP_aug_import_nonexec_lists[l][set->index]->size;
+  for(int l = 0; l < exec_levels; l++){
+    halo_size += (OP_aug_import_nonexec_lists[l][set->index])?  OP_aug_import_nonexec_lists[l][set->index]->size : 0;
   }
 
   int set_size = set->size + halo_size;
@@ -224,19 +224,27 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int exec_i_list_rank_size = 0;
 
   for(int l = 0; l < exec_levels; l++){
-    exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
+    if(OP_aug_export_exec_lists[l][set->index]){
+      exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
+      exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size / OP_aug_export_exec_lists[l][set->index]->num_levels;
+    }
 
-    exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size / OP_aug_export_exec_lists[l][set->index]->num_levels;
-    exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size / OP_aug_import_exec_lists[l][set->index]->num_levels;
+    if(OP_aug_import_exec_lists[l][set->index]){
+      exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size / OP_aug_import_exec_lists[l][set->index]->num_levels;
+    }
   }
 
   int nonexec_e_list_size = 0;
   int nonexec_e_list_rank_size = 0;
   int nonexec_i_list_rank_size = 0;
-  for(int l = 0; l < num_levels; l++){
-    nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
-    nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size / OP_aug_export_nonexec_lists[l][set->index]->num_levels;
-    nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size / OP_aug_import_nonexec_lists[l][set->index]->num_levels;
+  for(int l = 0; l < exec_levels; l++){
+    if(OP_aug_export_nonexec_lists[l][set->index]){
+      nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
+      nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size / OP_aug_export_nonexec_lists[l][set->index]->num_levels;    
+    }
+    if(OP_aug_import_nonexec_lists[l][set->index]){
+      nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size / OP_aug_import_nonexec_lists[l][set->index]->num_levels;
+    }
   }
 
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
@@ -345,11 +353,35 @@ int op_free_dat_temp_char(op_dat dat) {
 
 #ifdef COMM_AVOID
 void op_mv_halo_device(op_set set, op_dat dat) {
+  // printf("op_mv_halo_device new set=%s dat=%s\n", set->name, dat->name);
   int set_size = set->size + set->total_exec_size + set->total_nonexec_size;
 
+  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    // printf("op_mv_halo_device new 1 set=%s dat=%s\n", set->name, dat->name);
+    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+    int element_size = dat->size / dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (int j = 0; j < set_size; j++) {
+        for (int c = 0; c < element_size; c++) {
+          temp_data[element_size * i * set_size + element_size * j + c] =
+              dat->data[dat->size * j + element_size * i + c];
+        }
+      }
+    }
+    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
+                      dat->size * set_size);
+    free(temp_data);
 
-  op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                    dat->size * set_size);
+    if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
+    cutilSafeCall(
+        cudaMalloc((void **)&(dat->buffer_d_r),
+                   dat->size * (set->total_exec_size + set->total_nonexec_size)));
+
+  } else {
+    // printf("op_mv_halo_device new 2\n");
+    op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
+                      dat->size * set_size);
+  }
   
   dat->dirty_hd = 0;
 
@@ -360,12 +392,6 @@ void op_mv_halo_device(op_set set, op_dat dat) {
     exec_size += OP_aug_export_exec_lists[l][set->index]->size;
     nonexec_size += (OP_aug_export_nonexec_lists[l][set->index])? OP_aug_export_nonexec_lists[l][set->index]->size : 0;
   }
-
-  // int nonexec_size = 0;
-  // int num_levels = set->halo_info->nhalos_count;
-  // for(int l = 0; l < num_levels; l++){
-  //   nonexec_size += OP_aug_export_nonexec_lists[l][set->index]->size;
-  // }
 
   //todo: check this for grouped comunication
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
@@ -386,7 +412,7 @@ void op_mv_halo_device(op_set set, op_dat dat) {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-
+    // printf("op_mv_halo_device 1\n");
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
@@ -408,6 +434,7 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                                 OP_import_nonexec_list[set->index]->size)));
 
   } else {
+    // printf("op_mv_halo_device 2\n");
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       dat->size * set_size);
   }
@@ -636,8 +663,6 @@ op_set op_decl_set(int size, char const *name) {
 
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
-
-  printf("op_decl_map cuda >>>>> <<<<<<<<<<<\n");
   // int *m = (int *)xmalloc(from->size * dim * sizeof(int));
   //  memcpy(m, imap, from->size * dim * sizeof(int));
   op_map out_map = op_decl_map_core(from, to, dim, imap, name);
@@ -871,7 +896,7 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
 }
 
 void op_upload_all() {
-  printf("op_upload_all >>>>>>>>>>>>>\n");
+  op_printf("test:op_upload_all\n");
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
