@@ -2599,7 +2599,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     implicit none
     integer(kind=c_int) :: idx
     type(op_map) :: map
-    op_arg_idx_struct = op_arg_idx_c(idx,map%mapCPtr)
+    op_arg_idx_struct = op_arg_idx_c(idx-1,map%mapCPtr)
   end function op_arg_idx_struct
 
   type(op_arg) function op_arg_idx_ptr(idx, map)
@@ -2607,7 +2607,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     implicit none
     integer(kind=c_int) :: idx
     integer(4), dimension(*), intent(in), target :: map
-    op_arg_idx_ptr = op_arg_idx_ptr_c(idx,c_loc(map))
+    op_arg_idx_ptr = op_arg_idx_ptr_c(idx-1,c_loc(map))
   end function op_arg_idx_ptr
 
   type(op_arg) function op_arg_idx_ptr_m2(idx, map)
@@ -2615,7 +2615,7 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     implicit none
     integer(kind=c_int) :: idx
     integer(4), dimension(:,:), intent(in), target :: map
-    op_arg_idx_ptr_m2 = op_arg_idx_ptr_c(idx,c_loc(map))
+    op_arg_idx_ptr_m2 = op_arg_idx_ptr_c(idx-1,c_loc(map))
   end function op_arg_idx_ptr_m2
   
   subroutine op_get_dat ( opdat )
