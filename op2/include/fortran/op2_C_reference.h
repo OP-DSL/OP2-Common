@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-void op_arg_set(int n, op_arg arg, char **p_arg, int halo);
+void op_arg_set(int n, op_arg arg, char **p_arg, int *idx, int halo);
 
 void op_arg_copy_in(int n, op_arg arg, char **p_arg);
 
