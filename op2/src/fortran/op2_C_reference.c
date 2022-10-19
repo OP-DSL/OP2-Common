@@ -38,6 +38,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <math.h>
 
@@ -59,7 +60,7 @@ static unsigned int blank_args_size = sizeof(int);  // scratch space to use for 
 static int blank_arg_init[1];
 static char *blank_args = (char *)&blank_arg_init[0];
 
-inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
+void op_arg_set(int n, op_arg arg, char **p_arg, int *idx, int halo){
   if (arg.opt == 0)
   { //for null arguments, p_arg is not used in the user kernel
     *p_arg = NULL;
@@ -68,13 +69,15 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo){
 
   *p_arg = arg.data;
 
-  if (arg.argtype==OP_ARG_GBL) {
+  if (arg.argtype == OP_ARG_GBL) {
     if (halo && (arg.acc != OP_READ)) *p_arg = blank_args;
   } else if (arg.argtype == OP_ARG_IDX) {
+    *p_arg = (char *)idx;
+
     if (arg.map == NULL || arg.opt == 0)
-      *p_arg = &blank_args[blank_args_size-sizeof(int)]; //this where we'll put the loop counter
+      *idx = n + 1;
     else
-      *p_arg = (char*)&arg.map->map[arg.idx + n * arg.map->dim];
+      *idx = arg.map->map[arg.idx + n * arg.map->dim] + OP_maps_base_index;
   } else if ( arg.argtype == OP_ARG_DAT ) {
     if (arg.map==NULL)         // identity mapping
       *p_arg += arg.size*n;
@@ -108,7 +111,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
   if (args[x - 1].idx < -1 && args[x - 1].opt != 0)                            \
     op_arg_copy_in(n, args[x - 1], (char **)p_a[x - 1]);                       \
   else {                                                                       \
-    op_arg_set(n, args[x - 1], &p_a[x - 1], halo);                             \
+    op_arg_set(n, args[x - 1], &p_a[x - 1], &idxs[x], halo);                   \
   }
 
 #define PTR_LIST(N) COMMA_LIST(N,PTRL)
@@ -162,6 +165,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
 #define OP_LOOP(N) \
   void op_par_loop_##N(void (*kernel)(CHARP_LIST(N)), op_set_core * set, ARG_LIST_POINTERS(N)) { \
     char * p_a[N] = {ZERO_LIST(N)};                                     \
+    int idxs[N];                                                        \
     op_arg args[N] = {ARG_ARR_LIST(N)};                                 \
     int ninds = 0;                                                      \
     if (OP_diags>0) op_args_check(set,N,args,&ninds);                   \
@@ -169,7 +173,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
     int n_upper;                                                        \
     BLANK_REALLOC_LIST(N)                                               \
     ALLOC_POINTER_LIST(N)                                               \
-    n_upper = op_mpi_halo_exchanges (set, N, args);			                \
+    n_upper = op_mpi_halo_exchanges (set, N, args);                     \
     if ( n_upper == 0 ) {                                               \
       op_mpi_wait_all (N,args);                                         \
       op_mpi_set_dirtybit (N, args);                                    \
@@ -177,7 +181,6 @@ void op_args_check(op_set set, int nargs, op_arg *args,
       return;                                                           \
     }                                                                   \
     for ( int n=0; n<n_upper; n++ ) {                                   \
-      *(int*)(&blank_args[blank_args_size-sizeof(int)]) = n;            \
       if ( n==set->core_size ) {                                        \
         op_mpi_wait_all (N,args);                                       \
       }                                                                 \
