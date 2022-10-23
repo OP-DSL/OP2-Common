@@ -60,12 +60,18 @@ inline void op_args_check(op_set set, int nargs, op_arg *args, int *ninds,
 template <typename... T, typename... OPARG, size_t... I>
 void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
                       op_set set, OPARG... arguments) {
+  
+  //N is the number of arguments
   constexpr int N = sizeof...(OPARG);
 
+  // Create array for arguments 
   char *p_a[N] = {((arguments.idx < -1)
                        ? (char *)malloc(-1 * arguments.idx * sizeof(T))
                        : nullptr)...};
+
+  // Array of arguments
   op_arg args[N] = {arguments...};
+  
   // allocate scratch mememory to do double counting in indirect reduction
   (void)std::initializer_list<char *>{
       ((arguments.argtype == OP_ARG_GBL && arguments.size > blank_args_size)
