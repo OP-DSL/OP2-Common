@@ -346,7 +346,7 @@ static void create_nonexec_export_list(op_set set, int *temp_list,
  * allocated for MPI_Allgathers, thus use only when debugging code
  *******************************************************************************/
 
-int is_onto_map(op_map map) {
+int +is_onto_map(op_map map) {
   // create new communicator
   int my_rank, comm_size;
   MPI_Comm OP_CHECK_WORLD;
@@ -562,9 +562,14 @@ void op_halo_create() {
           int part, local_index;
           for (int j = 0; j < map->dim; j++) { // for each element
                                                // pointed at by this entry
-            part = get_partition(map->map[e * map->dim + j],
-                                 part_range[map->to->index], &local_index,
+
+            // get the partition that the data belongs to
+            part = get_partition(map->map[e * map->dim + j],  // the specific element being mapped to (i.e. in the "to set")
+                                 part_range[map->to->index], &local_index,  // the partition range of the "to set"
                                  comm_size);
+            // I think the local_index value is set to the local index of the data in that partition
+            // so local is local to the "to set", not the current partition
+
             if (s_i >= cap_s) {
               cap_s = cap_s * 2;
               set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
@@ -572,7 +577,7 @@ void op_halo_create() {
 
             if (part != my_rank) {
               set_list[s_i++] = part; // add to set export list
-              set_list[s_i++] = e;
+              set_list[s_i++] = e; // current element of the set
             }
           }
         }
@@ -583,7 +588,7 @@ void op_halo_create() {
     // printf("creating set export list for set %10s of size %d\n",
     // set->name,s_i);
     halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
-    create_export_list(set, set_list, h_list, s_i, comm_size, my_rank);
+    create_export_list(set, set_list, h_list, s_i, comm_size, my_rank); // creates neighbourhood list
     OP_export_exec_list[set->index] = h_list;
     op_free(set_list); // free temp list
   }
@@ -610,13 +615,14 @@ void op_halo_create() {
     MPI_Request request_send[list->ranks_size];
 
     int *rbuf, cap = 0, index = 0;
+    // rbuf is the recieve buffer. I think.
 
     for (int i = 0; i < list->ranks_size; i++) {
       // printf("export from %d to %d set %10s, list of size %d \n",
       // my_rank,list->ranks[i],set->name,list->sizes[i]);
       int *sbuf = &list->list[list->disps[i]];
       MPI_Isend(sbuf, list->sizes[i], MPI_INT, list->ranks[i], s, OP_MPI_WORLD,
-                &request_send[i]);
+                &request_send[i]); // possible message passing?
     }
 
     for (int i = 0; i < ranks_size; i++)
@@ -627,22 +633,24 @@ void op_halo_create() {
     for (int i = 0; i < ranks_size; i++) {
       // printf("import from %d to %d set %10s, list of size %d\n",
       // neighbors[i], my_rank, set->name, sizes[i]);
-      rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
+      rbuf = (int *)xmalloc(sizes[i] * sizeof(int));  // assign to size of
       MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], s, OP_MPI_WORLD,
-               MPI_STATUS_IGNORE);
+               MPI_STATUS_IGNORE);  // get neighbour i values
       memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
+      // copy from buffer into temporary array
+      // temp is just a contiguous array of all data mushed together
       index = index + sizes[i];
       op_free(rbuf);
     }
 
-    MPI_Waitall(list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+    MPI_Waitall(list->ranks_size, request_send, MPI_STATUSES_IGNORE);  // not sure what this does
 
     // create import lists
     // printf("creating importlist with number of neighbors %d\n",ranks_size);
     halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
     create_import_list(set, temp, h_list, index, neighbors, sizes, ranks_size,
                        comm_size, my_rank);
-    OP_import_exec_list[set->index] = h_list;
+    OP_import_exec_list[set->index] = h_list;  // this set's import list linked with its index
   }
 
   /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
@@ -650,7 +658,7 @@ void op_halo_create() {
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map map = OP_map_list[m];
     halo_list i_list = OP_import_exec_list[map->from->index];
-    halo_list e_list = OP_export_exec_list[map->from->index];
+    halo_list e_list = OP_export_exec_list[map->from->index];  // arrays all in the same order
 
     MPI_Request request_send[e_list->ranks_size];
 
@@ -663,13 +671,14 @@ void op_halo_create() {
         for (int p = 0; p < map->dim; p++) {
           sbuf[i][j * map->dim + p] =
               map->map[map->dim * (e_list->list[e_list->disps[i] + j]) + p];
+              // I think this is just copying bits of the mapping tables into a buffer
         }
       }
       // printf("\n export from %d to %d map %10s, number of elements of size %d
       // | sending:\n ",
       //    my_rank,e_list.ranks[i],map.name,e_list.sizes[i]);
       MPI_Isend(sbuf[i], map->dim * e_list->sizes[i], MPI_INT, e_list->ranks[i],
-                m, OP_MPI_WORLD, &request_send[i]);
+                m, OP_MPI_WORLD, &request_send[i]);  // then we actually send the stuff off
     }
 
     // prepare space for the incomming mapping tables - realloc each
@@ -677,6 +686,8 @@ void op_halo_create() {
     OP_map_list[map->index]->map = (int *)xrealloc(
         OP_map_list[map->index]->map,
         (map->dim * (size_t)(map->from->size + i_list->size)) * sizeof(int));
+        // add the size of the import list to the map
+        // need to be able to map to things in the import list, as there will be references.
 
     int init = map->dim * (map->from->size);
     for (int i = 0; i < i_list->ranks_size; i++) {
@@ -739,13 +750,13 @@ void op_halo_create() {
               set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
             }
 
-            if (part != my_rank) {
+            if (part != my_rank) {  // if elements in the import list depend on something else not in this rank
               int found = -1;
               // check in exec list
               int rank = binary_search(exec_set_list->ranks, part, 0,
                                        exec_set_list->ranks_size - 1);
 
-              if (rank >= 0) {
+              if (rank >= 0) {  // it is in the exec list
                 found = binary_search(exec_set_list->list, local_index,
                                       exec_set_list->disps[rank],
                                       exec_set_list->disps[rank] +
