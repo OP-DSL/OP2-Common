@@ -93,6 +93,7 @@ ifeq ($(OP2_COMPILER),intel-sycl)
   SYCLCXX   = dpcpp
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
+  MPISYCLCXX = $(MPICXX)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   SYCL_LIB   = #-L$(SYCL_INSTALL_PATH)/lib -lOpenCL
@@ -214,12 +215,19 @@ airfoil_genseq: airfoil_op.cpp seq/airfoil_seqkernels.cpp
 # SYCL version
 #
 
-airfoil_sycl: airfoil_op.cpp seq/airfoil_seqkernels.cpp
+airfoil_sycl: airfoil_op.cpp sycl/airfoil_kernels.cpp
 	     $(SYCLCXX) $(VAR) $(CXXFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
 	     -Isycl -I. airfoil_op.cpp sycl/airfoil_kernels.cpp  \
 	     $(OP2_INC) $(OP2_LIB) -lop2_sycl -lop2_hdf5 $(SYCL_LIB) -lOpenCL \
 	     $(HDF5_LIB) \
 	     -o airfoil_sycl
+
+airfoil_mpi_sycl: airfoil_op.cpp seq/airfoil_seqkernels.cpp
+	     $(MPISYCLCXX) $(VAR) $(CXXFLAGS) $(SYCL_FLAGS) $(OP2_INC) $(OP2_INC) \
+	     -Isycl -I. airfoil_op.cpp sycl/airfoil_kernels.cpp  \
+	     $(OP2_INC) $(OP2_INSTALL_PATH)/c/lib/libop2_mpi_sycl.a $(SYCL_LIB) -lOpenCL \
+	     -lm $(PARMETIS_LIB) $(PTSCOTCH_LIB) $(HDF5_LIB) \
+	     -o airfoil_mpi_sycl
 
 
 #

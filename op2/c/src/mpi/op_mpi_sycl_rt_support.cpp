@@ -211,7 +211,9 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
+    op2_queue->wait();
     gather_data_to_buffer(*arg, exp_exec_list, exp_nonexec_list);
+    op2_queue->wait();
 
     char *outptr_exec = NULL;
     char *outptr_nonexec = NULL;
@@ -338,7 +340,9 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
       MPI_Abort(OP_MPI_WORLD, 2);
     }
 
+    op2_queue->wait();
     gather_data_to_buffer_partial(*arg, exp_nonexec_list);
+    op2_queue->wait();
 
     char *outptr_nonexec = NULL;
     if (OP_gpu_direct) {
@@ -578,31 +582,42 @@ void op_wait_all_cuda(op_arg *arg) {
       halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
       int nonexec_init = OP_export_nonexec_permap[arg->map->index]->size;
       ;
-      if (OP_gpu_direct == 0)
+      if (OP_gpu_direct == 0) {
+        op2_queue->wait();
         op2_queue->memcpy(
             dat->buffer_d + nonexec_init * dat->size,
             &((op_mpi_buffer)(dat->mpi_buffer))
                  ->buf_nonexec[nonexec_init * dat->size],
             imp_nonexec_list->size * dat->size);
+      }
+      op2_queue->wait();
       scatter_data_from_buffer_partial(*arg);
+      op2_queue->wait();
     } else {
       if (OP_gpu_direct == 0) {
         if (strstr(arg->dat->type, ":soa") != NULL ||
             (OP_auto_soa && arg->dat->dim > 1)) {
           int init = dat->set->size * dat->size;
           int size = (dat->set->exec_size + dat->set->nonexec_size) * dat->size;
+          op2_queue->wait();
           op2_queue->memcpy(dat->buffer_d_r, dat->data + init, size);
+          op2_queue->wait();
           scatter_data_from_buffer(*arg);
+          op2_queue->wait();
         } else {
           int init = dat->set->size * dat->size;
+          op2_queue->wait();
           op2_queue->memcpy(dat->data_d + init, dat->data + init,
                               (OP_import_exec_list[dat->set->index]->size +
                                OP_import_nonexec_list[dat->set->index]->size) *
                                   arg->dat->size);
+          op2_queue->wait();
         }
       } else if (strstr(arg->dat->type, ":soa") != NULL ||
                  (OP_auto_soa && arg->dat->dim > 1))
+        op2_queue->wait();
         scatter_data_from_buffer(*arg);
+        op2_queue->wait();
     }
     arg->sent = 2; // set flag to indicate completed comm
   }

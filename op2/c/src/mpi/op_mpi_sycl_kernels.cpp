@@ -227,6 +227,7 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
               });  
         });
   }
+  op2_queue->wait();
 }
 
 void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list) {
@@ -274,6 +275,7 @@ void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list) {
               });  
         });
   }
+  op2_queue->wait();
 }
 
 void scatter_data_from_buffer(op_arg arg) {
@@ -326,6 +328,7 @@ void scatter_data_from_buffer(op_arg arg) {
         });
     
   }
+  op2_queue->wait();
 }
 
 void scatter_data_from_buffer_partial(op_arg arg) {
@@ -378,4 +381,5 @@ void scatter_data_from_buffer_partial(op_arg arg) {
         });
     
   }
+  op2_queue->wait();
 }
