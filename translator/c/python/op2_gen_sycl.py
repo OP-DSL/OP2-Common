@@ -426,7 +426,6 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         g_m = m
         if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m] == OP_WRITE):
           code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
-          code('allocConstArrays(consts_bytes, "<TYP>");')
       code('reallocConstArrays(consts_bytes);')
       
       code('consts_bytes = 0;')
@@ -436,6 +435,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           g_m = m
           code('<ARG>.data   = OP_consts_h + consts_bytes;')
           code('<ARG>.data_d = OP_consts_d + consts_bytes;')
+          code('<TYP>* <ARG>_d = (<TYP>*)<ARG>.data_d;')
           FOR('d','0','<DIM>')
           code('((<TYP> *)<ARG>.data)[d] = <ARG>h[d];')
           ENDFOR()
@@ -721,7 +721,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           ENDFOR()
         else:
           FOR('d','0','<DIM>')
-          code('<ARG>_l[d]=<ARG>_d'+str(g_m)+'[d+item.get_group_linear_id()*<DIM>];')
+          code('<ARG>_l[d]=<ARG>_d[d+item.get_group_linear_id()*<DIM>];') #'+str(g_m)+'
           ENDFOR()
       elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and (not op_color2 or atomics) and (not inner_loop):
         code('<TYP> <ARG>_l[<DIM>];')
@@ -967,7 +967,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
       if maps[m] == OP_GBL:
         if accs[m] == OP_READ or accs[m] == OP_WRITE:
-          line += rep(indent+'&consts_d[<ARG>_offset],\n',m)
+          line += rep(indent+'<ARG>_d,\n',m)
         else:
           line += rep(indent+'<ARG>_l,\n',m);
         a =a+1
