@@ -106,12 +106,12 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=0 # shared memory stages coloring (on/off)
+  inc_stage=1 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=1 #global coloring
+  op_color2_force=0 #global coloring
   atomics=0 # atomics
   inner_loop=0 #each workgroup has just 1 workitem, which executes a whole block
-  intel = 0
+  intel = 1
   loop_over_blocks=0 # instead of launching nblocks blocks, launch just a few (number of cores)
 ##########################################################################
 #  create new kernel file
@@ -622,6 +622,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('int nblocks = (end-start-1)/nthread+1;')
 
     code('try {')
+    code('op2_queue->wait();')
     code('op2_queue->submit([&](cl::sycl::handler& cgh) {')
     depth += 2
       
@@ -764,7 +765,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('int nelem    = nelems[blockId];')
       code('int offset_b = offset[blockId];')
       if intel==1 and not inner_loop:
-        code('sycl::ONEAPI::sub_group sg = item.get_sub_group();')
+        code('sycl::sub_group sg = item.get_sub_group();')
       code('')
 
       if ind_inc and not inner_loop:
