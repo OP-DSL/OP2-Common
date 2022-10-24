@@ -88,38 +88,28 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
 
 void op_sycl_exit();
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size, const char* type);
-void op_mvHostToDevice(void **map, int size, const char* type);
+void op_cpHostToDevice(void **data_d, void **data_h, int size);
+void op_mvHostToDevice(void **map, int size);
 
 /*
  * routines to resize constant/reduct arrays, if necessary
  */
 
-// UPDATE: sycl::buffer must be type-specific, no more global 
-//         sycl::buffer<char>. This rules out realloc methods.
-// void reallocConstArrays(int consts_bytes);
+void reallocConstArrays(int consts_bytes);
 
-// void reallocReductArrays(int reduct_bytes);
+void reallocReductArrays(int reduct_bytes);
 
-/*
- * routines to alloc/free constant/reduct arrays
- */
-
-void allocConstArrays(int consts_bytes, const char* type);
-void  freeConstArrays(const char* type);
-void allocReductArrays(int reduct_bytes, const char* type);
-void  freeReductArrays(const char* type);
 /*
  * routines to move constant/reduct arrays
  */
 
-void mvConstArraysToDevice(int consts_bytes, const char* type);
+void mvConstArraysToDevice(int consts_bytes);
 
-void mvConstArraysToHost(int consts_bytes, const char* type);
+void mvConstArraysToHost(int consts_bytes);
 
-void mvReductArraysToDevice(int reduct_bytes, const char* type);
+void mvReductArraysToDevice(int reduct_bytes);
 
-void mvReductArraysToHost(int reduct_bytes, const char* type);
+void mvReductArraysToHost(int reduct_bytes);
 
 void *op_sycl_register_const(void *old_p, void *new_p);
 #ifdef __cplusplus

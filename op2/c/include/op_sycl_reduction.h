@@ -46,7 +46,7 @@ template <op_access reduction, int intel, class T, class out_acc, class local_ac
 void op_reduction(out_acc dat_g, int offset, T dat_l, local_acc temp, cl::sycl::nd_item<1> &item_id) {
   T dat_t;
 #ifdef __SYCL_COMPILER_VERSION
-  sycl::ONEAPI::sub_group sg = item_id.get_sub_group();
+  sycl::sub_group sg = item_id.get_sub_group();
   if (intel)
     sg.barrier();
   else

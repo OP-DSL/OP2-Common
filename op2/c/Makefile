@@ -401,6 +401,46 @@ mpi_cuda: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(OBJ)/op_mpi_util.o \
 	$(OBJ)/op_renumber.o
 
+mpi_sycl: mklib $(SRC)/mpi/op_mpi_part_core.c \
+	$(SRC)/mpi/op_mpi_core.c $(INC)/op_hdf5.h $(SRC)/mpi/op_mpi_hdf5.c \
+	$(OBJ)/op_lib_core.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_core.c \
+	-o $(OBJ)/op_mpi_core.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
+	-o $(OBJ)/op_rt_support.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -DOPMPI \
+	-c $(SRC)/sycl/op_sycl_rt_support.cpp \
+	-o $(OBJ)/op_sycl_rt_support.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) \
+	-c $(SRC)/mpi/op_mpi_sycl_rt_support.cpp \
+	-o $(OBJ)/op_mpi_sycl_rt_support.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) \
+	-c $(SRC)/mpi/op_mpi_sycl_decl.cpp \
+	-o $(OBJ)/op_mpi_sycl_decl.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
+	-c $(SRC)/mpi/op_mpi_part_core.c \
+	-o $(OBJ)/op_mpi_part_core.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(HDF5_INC) \
+	-c $(SRC)/mpi/op_mpi_hdf5.c \
+	-o $(OBJ)/op_mpi_hdf5.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_sycl_kernels.cpp \
+	-o $(OBJ)/op_mpi_sycl_kernels.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
+	-o $(OBJ)/op_mpi_util.o
+	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PTSCOTCH_INC) -c $(SRC)/externlib/op_renumber.cpp \
+	-o $(OBJ)/op_renumber.o
+
+	ar -r $(LIB)/libop2_mpi_sycl.a $(OBJ)/op_mpi_core.o \
+	$(OBJ)/op_mpi_part_core.o \
+	$(OBJ)/op_lib_core.o $(OBJ)/op_rt_support.o \
+	$(OBJ)/op_sycl_rt_support.o \
+	$(OBJ)/op_mpi_sycl_rt_support.o $(OBJ)/op_mpi_sycl_decl.o \
+	$(OBJ)/op_util.o \
+	$(OBJ)/op_mpi_hdf5.o \
+	$(OBJ)/op_mpi_sycl_kernels.o \
+	$(OBJ)/op_mpi_util.o \
+	$(OBJ)/op_renumber.o
+
 
 clean:
 	-rm -if $(OBJ)/*.o

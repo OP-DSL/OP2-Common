@@ -108,11 +108,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=0 #global coloring
+  op_color2_force=1 #global coloring
   atomics=0 # atomics
   inner_loop=0 #each workgroup has just 1 workitem, which executes a whole block
-  intel = 1
-  loop_over_blocks=1 # instead of launching nblocks blocks, launch just a few (number of cores)
+  intel = 0
+  loop_over_blocks=0 # instead of launching nblocks blocks, launch just a few (number of cores)
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -422,40 +422,25 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       consts_used = True
       comm('transfer constants to GPU')
       code('int consts_bytes = 0;')
-      # for m in range(0,nargs):
-      #   g_m = m
-      #   if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m] == OP_WRITE):
-      #     code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
-      #     code('allocConstArrays(consts_bytes, "<TYP>");')
-      # code('reallocConstArrays(consts_bytes);')
-      ## SYCL requires buffers be statically typed for target variable, 
-      ## e.g. double. OP2 only has one buffer for consts. Therefore, 
-      ## only load consts of same type
-      const_typ = None
       for m in range(0,nargs):
         g_m = m
         if maps[m]==OP_GBL and (accs[m]==OP_READ or accs[m] == OP_WRITE):
-          if const_typ is None:
-            const_typ = typs[g_m]
-          elif const_typ != typs[g_m]:
-            print("Error: cannot mix different types in OP2's SYCL const buffer. Raise to developers.")
-            exit(-1)
           code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
-
-      code('allocConstArrays(consts_bytes, "{0}");'.format(const_typ))
+          code('allocConstArrays(consts_bytes, "<TYP>");')
+      code('reallocConstArrays(consts_bytes);')
+      
       code('consts_bytes = 0;')
 
       for m in range(0,nargs):
         if maps[m]==OP_GBL and (accs[m] == OP_READ or accs[m] == OP_WRITE):
           g_m = m
           code('<ARG>.data   = OP_consts_h + consts_bytes;')
-          code('int <ARG>_offset = consts_bytes/sizeof(<TYP>);')
+          code('<ARG>.data_d = OP_consts_d + consts_bytes;')
           FOR('d','0','<DIM>')
           code('((<TYP> *)<ARG>.data)[d] = <ARG>h[d];')
           ENDFOR()
           code('consts_bytes += ROUND_UP(<DIM>*sizeof(<TYP>));')
-      code('mvConstArraysToDevice(consts_bytes, "<TYP>");')
-      code('cl::sycl::buffer<'+gbl_reads+',1> *consts = static_cast<cl::sycl::buffer<'+gbl_reads+',1> *>((void*)OP_consts_d);')
+      code('mvConstArraysToDevice(consts_bytes);')
       code('')
 
       #managing constants
@@ -508,31 +493,19 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
       code('int reduct_bytes = 0;')
       code('int reduct_size  = 0;')
-      # for g_m in range(0,nargs):
-      #   if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
-      #     code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
-      #     code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
-      # code('reallocReductArrays(reduct_bytes);')
-      ## SYCL requires buffers be statically typed for target variable, 
-      ## e.g. double. OP2 only has one buffer for reduction. Therefore, 
-      ## can only reduce variables of same type
-      reduct_type = None
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
-          if reduct_type is None:
-            reduct_type = typs[g_m]
-          elif reduct_type != typs[g_m]:
-            print("Error: cannot mix different types in OP2's SYCL reduction buffer. Raise to developers.")
-            exit(-1)
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
           code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
-      code('allocReductArrays(reduct_bytes, "{0}");'.format(reduct_type))
+      code('reallocReductArrays(reduct_bytes);')
+
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
         if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
-          code('int <ARG>_offset = reduct_bytes/sizeof(<TYP>);')
+          code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
+          code('<TYP> *<ARG>_d = (<TYP>*)<ARG>.data_d;')
           FOR('b','0','maxblocks')
           FOR('d','0','<DIM>')
           if accs[g_m]==OP_INC:
@@ -542,8 +515,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           ENDFOR()
           ENDFOR()
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
-      code('mvReductArraysToDevice(reduct_bytes, "<TYP>");')
-      code('cl::sycl::buffer<'+gbl_reducts+',1> *reduct = static_cast<cl::sycl::buffer<'+gbl_reducts+',1> *>((void*)OP_reduct_d);')
+      code('mvReductArraysToDevice(reduct_bytes);')
       code('')
 
 #
@@ -551,35 +523,35 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 #
 
     if ninds>0:
-      for m in range(1,ninds+1):
-        g_m = invinds[m-1]
-        code('cl::sycl::buffer<<TYP>,1> *<ARG>_buffer = static_cast<cl::sycl::buffer<<TYP>,1>*>((void*)<ARG>.data_d);')
+      for m in range(0,ninds):
+        g_m = invinds[m]
+        code('<TYP> *ind_arg'+str(m)+' = (<TYP>*)<ARG>.data_d;')
     if nmaps > 0:
       k = []
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
           k = k + [mapnames[g_m]]
-          code('cl::sycl::buffer<int,1> *map'+str(invinds[inds[g_m]-1])+'_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)<ARG>.map_data_d);')
+          code('int *opDat'+str(invinds[inds[g_m]-1])+'Map = <ARG>.map_data_d;')
 
     for g_m in range(0,nargs):
         if inds[g_m]==0 and maps[g_m] != OP_GBL:
-          code('cl::sycl::buffer<<TYP>,1> *<ARG>_buffer = static_cast<cl::sycl::buffer<<TYP>,1>*>((void*)<ARG>.data_d);')
+          code('<TYP> *<ARG>_d = (<TYP>*)<ARG>.data_d;')
 
     if ninds>0 and not atomics:
       if inc_stage==1 and ind_inc:
-          code('cl::sycl::buffer<int,1> *ind_map_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_map);')
-          code('cl::sycl::buffer<short,1> *arg_map_buffer = static_cast<cl::sycl::buffer<short,1>*>((void*)Plan->loc_map);')
-          code('cl::sycl::buffer<int,1> *ind_arg_sizes_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_sizes);')
-          code('cl::sycl::buffer<int,1> *ind_arg_offs_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->ind_offs);')
+          code('int *ind_map = (int *)Plan->ind_map;')
+          code('short *arg_map = (short *)Plan->loc_map;')
+          code('int *ind_arg_sizes = (int *)Plan->ind_sizes;')
+          code('int *ind_arg_offs = (int *)Plan->ind_offs;')
       if op_color2:
-          code('cl::sycl::buffer<int,1> *col_reord_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->col_reord);')
+          code('int *col_reord = (int *)Plan->col_reord;')
       else:
-          code('cl::sycl::buffer<int,1> *blkmap_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->blkmap);')
-          code('cl::sycl::buffer<int,1> *offset_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->offset);')
-          code('cl::sycl::buffer<int,1> *nelems_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nelems);')
+          code('int *blkmap = (int *)Plan->blkmap;')
+          code('int *offset = (int *)Plan->offset;')
+          code('int *nelems = (int *)Plan->nelems;')
           if not inner_loop:
-            code('cl::sycl::buffer<int,1> *ncolors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->nthrcol);')
-            code('cl::sycl::buffer<int,1> *colors_buffer = static_cast<cl::sycl::buffer<int,1>*>((void*)Plan->thrcol);')
+            code('int *ncolors = (int *)Plan->nthrcol;')
+            code('int *colors = (int *)Plan->thrcol;')
     code('int set_size = set->size+set->exec_size;')
 
 #
@@ -653,45 +625,45 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     code('op2_queue->submit([&](cl::sycl::handler& cgh) {')
     depth += 2
       
-    for g_m in range(0,ninds):
-      if indaccs[g_m] == OP_INC and atomics:
-        code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
-      else:
-        code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
+    # for g_m in range(0,ninds):
+    #   if indaccs[g_m] == OP_INC and atomics:
+    #     code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
+    #   else:
+    #     code('auto <INDARG> = (*arg'+str(invinds[g_m])+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
 
-    if nmaps > 0:
-      k = []
-      for g_m in range(0,nargs):
-        if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-          k = k + [mapnames[g_m]]
-          code('auto opDat'+str(invinds[inds[g_m]-1])+'Map =  (*map'+str(invinds[inds[g_m]-1])+'_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-    if ind_inc and inc_stage==1:
-      code('auto ind_map = (*ind_map_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-      code('auto arg_map = (*arg_map_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-      code('auto ind_arg_sizes = (*ind_arg_sizes_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-      code('auto ind_arg_offs = (*ind_arg_offs_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    # if nmaps > 0:
+    #   k = []
+    #   for g_m in range(0,nargs):
+    #     if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+    #       k = k + [mapnames[g_m]]
+    #       code('auto opDat'+str(invinds[inds[g_m]-1])+'Map =  (*map'+str(invinds[inds[g_m]-1])+'_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    # if ind_inc and inc_stage==1:
+    #   code('auto ind_map = (*ind_map_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #   code('auto arg_map = (*arg_map_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #   code('auto ind_arg_sizes = (*ind_arg_sizes_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #   code('auto ind_arg_offs = (*ind_arg_offs_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
 
-    if ninds>0:
-      if not op_color2 and not atomics:
-        code('auto blkmap    = (*blkmap_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-        code('auto offset    = (*offset_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-        code('auto nelems    = (*nelems_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-        if not inner_loop:
-          code('auto ncolors   = (*ncolors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-          code('auto colors    = (*colors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-      elif op_color2:
-        code('auto col_reord = (*col_reord_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
-      code('')
+    # if ninds>0:
+    #   if not op_color2 and not atomics:
+    #     code('auto blkmap    = (*blkmap_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #     code('auto offset    = (*offset_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #     code('auto nelems    = (*nelems_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #     if not inner_loop:
+    #       code('auto ncolors   = (*ncolors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #       code('auto colors    = (*colors_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #   elif op_color2:
+    #     code('auto col_reord = (*col_reord_buffer).template get_access<cl::sycl::access::mode::read>(cgh);')
+    #   code('')
 
 
 
-    for g_m in range(0,nargs):
-      if maps[g_m] == OP_ID:
-        code('auto <ARG> = (*arg'+str(g_m)+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
-      elif maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
-        code('auto reduct'+str(g_m)+' = (*reduct).template get_access<cl::sycl::access::mode::read_write>(cgh);')
-    if gbl_reads != '': #TODO multiple types
-        code('auto consts_d = (*consts).template get_access<cl::sycl::access::mode::read_write>(cgh);')
+    # for g_m in range(0,nargs):
+    #   if maps[g_m] == OP_ID:
+    #     code('auto <ARG> = (*arg'+str(g_m)+'_buffer).template get_access<cl::sycl::access::mode::read_write>(cgh);')
+    #   elif maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+    #     code('auto reduct'+str(g_m)+' = (*reduct).template get_access<cl::sycl::access::mode::read_write>(cgh);')
+    # if gbl_reads != '': #TODO multiple types
+    #     code('auto consts_d = (*consts).template get_access<cl::sycl::access::mode::read_write>(cgh);')
 
     for redtyp in ['int', 'float', 'double']:
       for g_m in range(0,nargs):
@@ -748,7 +720,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           ENDFOR()
         else:
           FOR('d','0','<DIM>')
-          code('<ARG>_l[d]=reduct'+str(g_m)+'[<ARG>_offset+d+item.get_group_linear_id()*<DIM>];')
+          code('<ARG>_l[d]=<ARG>_d'+str(g_m)+'[d+item.get_group_linear_id()*<DIM>];')
           ENDFOR()
       elif maps[g_m]==OP_MAP and accs[g_m]==OP_INC and (not op_color2 or atomics) and (not inner_loop):
         code('<TYP> <ARG>_l[<DIM>];')
@@ -791,7 +763,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('')
       code('int nelem    = nelems[blockId];')
       code('int offset_b = offset[blockId];')
-      if intel and not inner_loop:
+      if intel==1 and not inner_loop:
         code('sycl::ONEAPI::sub_group sg = item.get_sub_group();')
       code('')
 
@@ -1018,15 +990,15 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       elif maps[m]==OP_ID:
         if ninds>0 and not op_color2 and not atomics:
           if soaflags[m]:
-            line += rep(indent+'&<ARG>[n+offset_b],\n',m)
+            line += rep(indent+'&<ARG>_d[n+offset_b],\n',m)
           else:
-            line += rep(indent+'&<ARG>[(n+offset_b)*<DIM>],\n',m)
+            line += rep(indent+'&<ARG>_d[(n+offset_b)*<DIM>],\n',m)
           a =a+1
         else:
           if soaflags[m]:
-            line += rep(indent+'&<ARG>[n],\n',m)
+            line += rep(indent+'&<ARG>_d[n],\n',m)
           else:
-            line += rep(indent+'&<ARG>[n*<DIM>],\n',m)
+            line += rep(indent+'&<ARG>_d[n*<DIM>],\n',m)
           a =a+1
       else:
         print 'internal error 1 '
@@ -1147,11 +1119,11 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
          if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
-             code('op_reduction<OP_INC,'+str(intel)+'>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
+             code('op_reduction<OP_INC,'+str(intel)+'>(<ARG>_d,d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            elif accs[m]==OP_MIN:
-             code('op_reduction<OP_MIN,'+str(intel)+'>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
+             code('op_reduction<OP_MIN,'+str(intel)+'>(<ARG>_d,d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            elif accs[m]==OP_MAX:
-             code('op_reduction<OP_MAX,'+str(intel)+'>(reduct'+str(g_m)+',<ARG>_offset+d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
+             code('op_reduction<OP_MAX,'+str(intel)+'>(<ARG>_d,d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            else:
              print 'internal error: invalid reduction option'
              sys.exit(2);
@@ -1209,7 +1181,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     if reduct:
       if ninds == 0:
         comm('transfer global reduction data back to CPU')
-        code('mvReductArraysToHost(reduct_bytes, "<TYP>");')
+        code('mvReductArraysToHost(reduct_bytes);')
 
       for m in range(0,nargs):
         g_m = m
@@ -1242,10 +1214,6 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('<ARG>.data = (char *)<ARG>h;')
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
-    if reduct:
-      code('freeReductArrays("<TYP>");')
-    if consts_used:
-      code('freeConstArrays("<TYP>");')
 
     ENDIF()
     code('op_mpi_set_dirtybit_cuda(nargs, args);')
@@ -1316,6 +1284,18 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
   code('#include "op_lib_cpp.h"')
   code('#include "op_sycl_rt_support.h"')
   code('#include "op_sycl_reduction.h"')
+  for nc in range (0,len(consts)):
+    if not consts[nc]['user_declared']:
+      if consts[nc]['dim']==1:
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
+      else:
+        if consts[nc]['dim'] > 0:
+          num = str(consts[nc]['dim'])
+        else:
+          num = 'MAX_CONST_SIZE'
+        code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'['+num+'];')
+  code('')
+
   code('')
   for nc in range (0,len(consts)):
         code('cl::sycl::buffer<'+consts[nc]['type'][1:-1]+',1> *'+consts[nc]['name']+'_p=NULL;')
