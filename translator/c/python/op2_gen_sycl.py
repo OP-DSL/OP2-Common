@@ -384,7 +384,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('  int part_size = OP_part_size;')
         code('#endif')
         code('')
-      code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int exec_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
 # direct bit
@@ -395,9 +395,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('printf(" kernel routine w/o indirection:  '+ name + '\\n");')
       ENDIF()
       code('')
-      code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int exec_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
-    IF('set->size > 0')
+    IF('exec_size > 0')
     code('')
 
 #
@@ -947,9 +947,9 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       comm('process set elements')
       if not reduct:
         code('int n = item.get_id(0);')
-        IF('n < set_size')
+        IF('n < exec_size')
       else:
-        FOR_INC('n','item.get_global_linear_id()','set_size','item.get_global_range()[0]')
+        FOR_INC('n','item.get_global_linear_id()','exec_size','item.get_global_range()[0]')
 
 
 #
