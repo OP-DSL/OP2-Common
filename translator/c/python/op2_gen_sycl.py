@@ -106,13 +106,32 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
-  inc_stage=1 # shared memory stages coloring (on/off)
+  if os.getenv('OP2_INC_STAGE'):
+      inc_stage=1
+  else:
+      inc_stage=0 # shared memory stages coloring (on/off)
   op_color2=0 #
-  op_color2_force=0 #global coloring
-  atomics=0 # atomics
-  inner_loop=0 #each workgroup has just 1 workitem, which executes a whole block
+  if os.getenv('OP2_COLOR2'):
+      op_color2_force=1 #global coloring
+  else:
+      op_color2_force=0
+
+  if os.getenv('OP2_ATOMICS'):
+      atomics=1 # atomics
+  else:
+      atomics=0 # atomics
+
+  if os.getenv('OP2_SCALAR'):
+      inner_loop=1 #each workgroup has just 1 workitem, which executes a whole block
+  else:
+      inner_loop=0
+
+  if os.getenv('OP2_BLOCKLOOP'):
+      loop_over_blocks=1 # instead of launching nblocks blocks, launch just a few (number of cores)
+  else:
+      loop_over_blocks=0
+
   intel = 1
-  loop_over_blocks=0 # instead of launching nblocks blocks, launch just a few (number of cores)
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -268,7 +287,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if kernels[nk]['soaflags'][i] and (op_color2 or  not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
+        if kernels[nk]['soaflags'][i] and (op_color2 or inner_loop or not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
