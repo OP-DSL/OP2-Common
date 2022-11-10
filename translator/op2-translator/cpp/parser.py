@@ -64,10 +64,10 @@ def parseFunction(node: Cursor, program: Program) -> None:
         if n.kind != CursorKind.PARM_DECL:
             continue
 
-        param_type = n.type.get_canonical()
+        # param_type = n.type.get_canonical()
+        # typ, _ = parseType(param_type.spelling, parseLocation(n), True)
 
-        typ, _ = parseType(param_type.spelling, parseLocation(n), True)
-        function.parameters.append((n.spelling, typ))
+        function.parameters.append(n.spelling)
 
     for n in node.walk_preorder():
         if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:

@@ -266,7 +266,7 @@ class Loop:
                 map_ = Map(map_id, map_ptr, arg_id)
                 self.maps.append(map_)
 
-        arg = ArgIdx(arg_idx, loc, map_id, map_idx)
+        arg = ArgIdx(arg_id, loc, map_id, map_idx)
         self.args.append(arg)
 
     def optIdx(self, arg: Arg) -> Optional[int]:

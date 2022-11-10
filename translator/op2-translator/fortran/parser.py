@@ -22,13 +22,13 @@ def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: s
                 break
 
     if type_declaration is None:
-        raise ParseError(f"failed to locate type declaration for kernel parameter {param} in {path}")
+        raise ParseError(f"failed to locate type declaration for kernel parameter {param} in {path}: {subroutine}")
 
     loc = Location(path, type_declaration.item.span[0], 0)
     type_spec = fpu.get_child(type_declaration, f2003.Intrinsic_Type_Spec)
 
     if type_spec is None:
-        raise ParseError("derived types are not allowed for kernel arguments", loc)
+        type_spec = fpu.get_child(type_declaration, f2003.Declaration_Type_Spec)
 
     return parseType(type_spec.tofortran(), loc, True)[0]
 
@@ -71,9 +71,9 @@ def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Lo
 
     param_identifiers = parseSubroutineParameters(program.path, node)
 
-    for param in param_identifiers:
-        typ = parseParamType(program.path, node, param)
-        function.parameters.append((param, typ))
+    # for param in param_identifiers:
+    #     typ = parseParamType(program.path, node, param)
+    #     function.parameters.append((param, typ))
 
     for call in fpu.walk(node, f2003.Call_Stmt):
         name = parseIdentifier(fpu.get_child(call, f2003.Name), loc)
@@ -131,7 +131,19 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
 
     for arg_node in args.items[2:]:
         if type(arg_node) is not f2003.Structure_Constructor:
-            raise ParseError("unable to parse op_par_loop argument", loc)
+            if type(arg_node) is not f2003.Part_Ref:
+                raise ParseError(f"unable to parse op_par_loop argument: {arg_node}", loc)
+
+            name = parseIdentifier(fpu.get_child(arg_node, f2003.Name), loc)
+            arg_args = fpu.get_child(arg_node, f2003.Section_Subscript_List)
+
+            if name == "op_arg_idx":
+                parseArgIdx(loop, arg_args, loc)
+
+            else:
+                raise ParseError(f"invalid loop argument {arg_node}", loc)
+
+            return loop
 
         name = parseIdentifier(fpu.get_child(arg_node, f2003.Type_Name), loc)
         arg_args = fpu.get_child(arg_node, f2003.Component_Spec_List)
@@ -148,11 +160,8 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
         elif name == "op_opt_arg_gbl":
             parseArgGbl(loop, True, arg_args, loc)
 
-        elif name == "op_arg_idx":
-            parseArgIdx(loop, arg_args, loc)
-
         else:
-            raise ParseError(f"invalid loop argument {name}", loc)
+            raise ParseError(f"invalid loop argument {arg_node}", loc)
 
     return loop
 
@@ -372,7 +381,7 @@ def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, b
 
         return OP.Float(size), soa
 
-    logical_match = re.match(mk_type_regex("logical", "(?:lk)?(1|2|4)"), typ_clean)
+    logical_match = re.match(mk_type_regex("logical", "(?:lk)?(1|2|4)?"), typ_clean)
     if logical_match is not None:
         return OP.Bool(), soa
 
