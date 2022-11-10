@@ -31,7 +31,7 @@ contains
 end module
 
 {% for loop_, _ in app.loops() %}
-#include "{{loop_.kernel}}_kernel.inc"
+#include "{{loop.index}}_{{loop_.kernel}}_kernel.inc"
 {% endfor %}
 
 module op2_kernels

@@ -121,7 +121,7 @@ class Dat:
     ptr: str
     arg_id: int
 
-    dim: int
+    dim: Optional[int]
     typ: Type
     soa: bool
 
@@ -136,12 +136,12 @@ class Arg(ABDC):
     id: int
     loc: Location
 
-    access_type: AccessType
-    opt: bool
-
 
 @dataclass(frozen=True)
 class ArgDat(Arg):
+    access_type: AccessType
+    opt: bool
+
     dat_id: int
 
     map_id: Optional[int]
@@ -156,9 +156,12 @@ class ArgDat(Arg):
 
 @dataclass(frozen=True)
 class ArgGbl(Arg):
+    access_type: AccessType
+    opt: bool
+
     ptr: str
 
-    dim: int
+    dim: Optional[int]
     typ: Type
 
     def __str__(self) -> str:
@@ -166,6 +169,15 @@ class ArgGbl(Arg):
             f"ArgGbl(id={self.id}, loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
             f"ptr={self.ptr}, dim={self.dim}, typ={self.typ})"
         )
+
+
+@dataclass(frozen=True)
+class ArgIdx(Arg):
+    map_id: Optional[int]
+    map_idx: Optional[int]
+
+    def __str__(self) -> str:
+        return f"ArgIdx(id={self.id}, loc={self.loc}, map_id={self.map_id}, map_idx={self.map_idx})"
 
 
 class Loop:
@@ -192,7 +204,7 @@ class Loop:
         self,
         loc: Location,
         dat_ptr: str,
-        dat_dim: int,
+        dat_dim: Optional[int],
         dat_typ: Type,
         dat_soa: bool,
         map_ptr: Optional[str],
@@ -208,6 +220,8 @@ class Loop:
 
             dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
             self.dats.append(dat)
+        elif self.dats[dat_id].dim is None and dat_dim is not None:
+            self.dats[dat_id].dim = dat_dim
 
         map_id = None
         if map_ptr is not None:
@@ -230,12 +244,30 @@ class Loop:
             arg_expanded = dataclasses.replace(arg, map_idx=real_map_idx)
             self.args_expanded.append(arg_expanded)
 
-    def addArgGbl(self, loc: Location, ptr: str, dim: int, typ: Type, access_type: AccessType, opt: bool) -> None:
+    def addArgGbl(
+        self, loc: Location, ptr: str, dim: Optional[int], typ: Type, access_type: AccessType, opt: bool
+    ) -> None:
         arg_id = len(self.args)
         arg = ArgGbl(arg_id, loc, access_type, opt, ptr, dim, typ)
 
         self.args.append(arg)
         self.args_expanded.append(arg)
+
+    def addArgIdx(self, loc: Location, map_ptr: Optional[str], map_idx: Optional[int]) -> None:
+        arg_id = len(self.args)
+
+        map_id = None
+        if map_ptr is not None:
+            map_id = findIdx(self.maps, lambda m: m.ptr == map_ptr)
+
+            if map_id is None:
+                map_id = len(self.maps)
+
+                map_ = Map(map_id, map_ptr, arg_id)
+                self.maps.append(map_)
+
+        arg = ArgIdx(arg_idx, loc, map_id, map_idx)
+        self.args.append(arg)
 
     def optIdx(self, arg: Arg) -> Optional[int]:
         idx = 0

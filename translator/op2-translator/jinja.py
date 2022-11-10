@@ -14,7 +14,7 @@ env = Environment(
 
 
 def direct(x, loop: OP.Loop = None) -> bool:
-    if isinstance(x, OP.ArgDat) and x.map_id is None:
+    if isinstance(x, OP.Arg) and hasattr(x, "map_id") and x.map_id is None:
         return True
 
     if isinstance(x, OP.Dat) and loop.args[x.arg_id].map_id is None:
@@ -27,7 +27,7 @@ def direct(x, loop: OP.Loop = None) -> bool:
 
 
 def indirect(x, loop: OP.Loop = None) -> bool:
-    if isinstance(x, OP.ArgDat) and x.map_id is not None:
+    if isinstance(x, OP.Arg) and hasattr(x, "map_id") and x.map_id is not None:
         return True
 
     if isinstance(x, OP.Dat) and loop.args[x.arg_id].map_id is not None:
@@ -44,27 +44,29 @@ env.tests["indirect"] = indirect
 
 env.tests["soa"] = lambda dat, loop=None: dat.soa
 
-env.tests["opt"] = lambda arg, loop=None: arg.opt
+env.tests["opt"] = lambda arg, loop=None: hasattr(arg, "opt") and arg.opt
 
 env.tests["dat"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat)
 env.tests["gbl"] = lambda arg, loop=None: isinstance(arg, OP.ArgGbl)
+env.tests["idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgIdx)
 
 env.tests["vec"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
 
-env.tests["read"] = lambda arg, loop=None: arg.access_type == OP.AccessType.READ
-env.tests["write"] = lambda arg, loop=None: arg.access_type == OP.AccessType.WRITE
-env.tests["read_write"] = lambda arg, loop=None: arg.access_type == OP.AccessType.RW
+env.tests["read"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.READ
+env.tests["write"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.WRITE
+env.tests["read_write"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.RW
 
-env.tests["inc"] = lambda arg, loop=None: arg.access_type == OP.AccessType.INC
-env.tests["min"] = lambda arg, loop=None: arg.access_type == OP.AccessType.MIN
-env.tests["max"] = lambda arg, loop=None: arg.access_type == OP.AccessType.MAX
+env.tests["inc"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.INC
+env.tests["min"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.MIN
+env.tests["max"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.MAX
 
-env.tests["read_or_write"] = lambda arg, loop=None: arg.access_type in [
+env.tests["read_or_write"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
     OP.AccessType.READ,
     OP.AccessType.WRITE,
     OP.AccessType.RW,
 ]
-env.tests["reduction"] = lambda arg, loop=None: arg.access_type in [
+
+env.tests["reduction"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
     OP.AccessType.INC,
     OP.AccessType.MIN,
     OP.AccessType.MAX,
