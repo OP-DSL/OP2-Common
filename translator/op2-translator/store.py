@@ -71,7 +71,7 @@ class Type(Entity):
 
 @dataclass
 class Function(Entity):
-    parameters: List[Tuple[str, OP.Type]] = field(default_factory=list)
+    parameters: List[str] = field(default_factory=list)
     returns: Optional[OP.Type] = None
 
     def __str__(self):

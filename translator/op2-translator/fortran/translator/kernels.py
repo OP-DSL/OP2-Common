@@ -76,7 +76,7 @@ def insertStrides(
         if not match(loop.args[arg_idx]):
             continue
 
-        insertStride(entity, entity.parameters[arg_idx][0], loop.args[arg_idx], stride)
+        insertStride(entity, entity.parameters[arg_idx], loop.args[arg_idx], stride)
 
 
 def insertStride(entity: Entity, param: str, arg: OP.Arg, stride: Callable[[str], str]) -> None:
