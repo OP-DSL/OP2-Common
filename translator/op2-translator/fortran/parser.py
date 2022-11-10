@@ -148,6 +148,9 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
         elif name == "op_opt_arg_gbl":
             parseArgGbl(loop, True, arg_args, loc)
 
+        elif name == "op_arg_idx":
+            parseArgIdx(loop, arg_args, loc)
+
         else:
             raise ParseError(f"invalid loop argument {name}", loc)
 
@@ -174,7 +177,12 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
     if map_ptr == "OP_ID":
         map_ptr = None
 
-    dat_dim = parseIntLiteral(args_list[3], loc)
+    dat_dim = None
+    try:
+        dat_dim = parseIntLiteral(args_list[3], loc)
+    except:
+        pass
+
     dat_typ, dat_soa = parseType(parseStringLiteral(args_list[4], loc), loc)
 
     access_type = parseAccessType(args_list[5], loc)
@@ -195,7 +203,13 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
         args_list = args_list[1:]
 
     ptr = parseIdentifier(args_list[0], loc)
-    dim = parseIntLiteral(args_list[1], loc)
+
+    dim = None
+    try:
+        dim = parseIntLiteral(args_list[1], loc)
+    except:
+        pass
+
     typ = parseType(parseStringLiteral(args_list[2], loc), loc)[0]
 
     access_type = parseAccessType(args_list[3], loc)
@@ -203,37 +217,50 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
     loop.addArgGbl(loc, ptr, dim, typ, access_type, opt)
 
 
+def parseArgIdx(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: Location) -> None:
+    if args is None or len(args.items) != 2:
+        raise ParseError("incorrect number of arguments for op_arg_idx", loc)
+
+    map_idx = parseIntLiteral(args.items[0], loc)
+    map_ptr: Optional[str] = parseIdentifier(args.items[1], loc)
+
+    if map_ptr == "OP_ID":
+        map_ptr = None
+
+    loop.addArgIdx(loc, map_ptr, map_idx)
+
+
 def parseIdentifier(node: Any, loc: Location) -> str:
     return node.string
 
 
-literal_aliases = {
-    "npdes": 6,
-    "npdesdpl": 4,
-    "mpdes": 1000,
-    "ntqmu": 3,
-    # Global dims - known
-    "nzone": 0,
-    "ngrp": 0,
-    "mints": 22,
-    "igrp": 1000,
-    "mpdesdpl": 40,
-    "mspl": 500,
-    # Global dims - unknown
-    "ncline": 64,
-    "ncfts": 64,
-    "ncftm": 64,
-    "ncline": 64,
-    "ntline": 64,
-}
+# literal_aliases = {
+#     "npdes": 6,
+#     "npdesdpl": 4,
+#     "mpdes": 1000,
+#     "ntqmu": 3,
+#     # Global dims - known
+#     "nzone": 0,
+#     "ngrp": 0,
+#     "mints": 22,
+#     "igrp": 1000,
+#     "mpdesdpl": 40,
+#     "mspl": 500,
+#     # Global dims - unknown
+#     "ncline": 64,
+#     "ncfts": 64,
+#     "ncftm": 64,
+#     "ncline": 64,
+#     "ntline": 64,
+# }
 
-literal_aliases["njaca"] = literal_aliases["npdes"] - 5
+# literal_aliases["njaca"] = literal_aliases["npdes"] - 5
 
-literal_aliases["nspdes"] = literal_aliases["npdes"]
-literal_aliases["njacs"] = literal_aliases["nspdes"] - 5
+# literal_aliases["nspdes"] = literal_aliases["npdes"]
+# literal_aliases["njacs"] = literal_aliases["nspdes"] - 5
 
-literal_aliases["ngrad"] = 3 * literal_aliases["npdes"]
-literal_aliases["ndets"] = 6 + 3 * (literal_aliases["npdes"] - 4)
+# literal_aliases["ngrad"] = 3 * literal_aliases["npdes"]
+# literal_aliases["ndets"] = 6 + 3 * (literal_aliases["npdes"] - 4)
 
 
 def parseIntLiteral(node: Any, loc: Location) -> int:
@@ -269,11 +296,11 @@ def parseIntLiteral(node: Any, loc: Location) -> int:
         elif op == "**":
             return int(lhs**rhs)
 
-    if type(node) is f2003.Name:
-        ident = parseIdentifier(node, loc)
+#    if type(node) is f2003.Name:
+#        ident = parseIdentifier(node, loc)
 
-        if ident in literal_aliases:
-            return literal_aliases[ident]
+#        if ident in literal_aliases:
+#            return literal_aliases[ident]
 
     raise ParseError(f"unable to parse int literal: {node}", loc)
 
