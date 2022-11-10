@@ -5,6 +5,7 @@ import fparser.two.utils as fpu
 
 from store import Program
 
+KERNEL_ID = 1
 
 def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> str:
     for call in fpu.walk(ast, f2003.Call_Stmt):
@@ -32,7 +33,11 @@ def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> s
         arg_list[0] = f2003.Char_Literal_Constant(f'"{kernel_name}"')
         args.items = tuple(arg_list)
 
-        name.string = f"{kernel_name}_host"
+        # TODO: make this more robust
+        global KERNEL_ID
+        name.string = f"op2_k{KERNEL_ID}_{kernel_name}"
+
+        KERNEL_ID = KERNEL_ID + 1
 
     for main_program in fpu.walk(ast, f2003.Main_Program):
         spec = fpu.get_child(main_program, f2003.Specification_Part)
