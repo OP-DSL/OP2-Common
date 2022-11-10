@@ -124,19 +124,16 @@ class Fortran(Lang):
 
         source.seek(0)
 
-#       import re
-
-#       s = source.read()
-
-#       s = re.sub(r"__FILE__", f'"{path}"', s)
-#       s = re.sub(r"__LINE__", "0", s)
-
-#       source.seek(0)
-#       source.truncate()
-#       source.write(s)
-#       source.seek(0)
+        import re
 
         s = source.read()
+
+        s = re.sub(r"__FILE__", f'"{path}"', s)
+        s = re.sub(r"__LINE__", "0", s)
+
+        source.seek(0)
+        source.truncate()
+        source.write(s)
         source.seek(0)
 
         reader = FortranFileReader(source, include_dirs=list(include_dirs))
