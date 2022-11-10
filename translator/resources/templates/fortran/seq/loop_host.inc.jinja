@@ -1,11 +1,15 @@
 {%- macro arg_to_pointer(arg) -%}
-    {%- if arg is gbl and arg is reduction and lh is indirect -%}
+    {% if arg is idx and arg is indirect %}
+map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1
+    {% elif arg is idx %}
+n + 1
+    {%- elif arg is gbl and arg is reduction and lh is indirect -%}
 gbl{{arg.id}}_temp
     {%- elif arg is gbl -%}
 gbl{{arg.id}}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, n + 1)
-    {%- else -%}
+     {%- else -%}
 dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1)
     {%- endif -%}
 {%- endmacro -%}
@@ -22,6 +26,24 @@ dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{
     {%- endif -%}
 {%- endmacro -%}
 
+{%- macro dat_dim(dat) -%}
+    {%- if dat.dim is not none -%}
+{{dat.dim}}
+    {%- else -%}
+arg{{dat.arg_id}}%dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_dim(arg) -%}
+    {%- if arg is gbl and arg.dim is not none -%}
+{{arg.dim}}
+    {%- elif arg is dat and lh.dat(arg).dim is not none -%}
+{{lh.dat(arg).dim}}
+    {%- else -%}
+arg{{arg.d}}%dim
+    {%- endif -%}
+{%- endmacro -%}
+
 module op2_k{{kernel_idx}}
 
     use iso_c_binding
@@ -34,7 +56,7 @@ module op2_k{{kernel_idx}}
     implicit none
 
     private
-    public :: {{lh.kernel}}_host
+    public :: op2_k{{kernel_idx}}_{{lh.kernel}}
 
 contains
 
@@ -58,13 +80,13 @@ subroutine {{lh.kernel}}_wrapper( &
 
     ! parameters
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
+    {{dat.typ}}, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
     integer(4), dimension(:, :) :: map{{map.id}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: set_size
     type(op_set) :: set
@@ -72,7 +94,7 @@ subroutine {{lh.kernel}}_wrapper( &
 
     ! locals
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
+    {{arg.typ}}, dimension(:) :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: n, test_frequency
 
@@ -108,7 +130,7 @@ subroutine {{lh.kernel}}_wrapper( &
     end do
 end subroutine
 
-subroutine {{lh.kernel}}_host( &
+subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
     name, &
     set, &
 {% for arg in lh.args %}
@@ -150,7 +172,7 @@ subroutine {{lh.kernel}}_host( &
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
 {% for dat in lh.dats %}
-    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat.dim}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
+    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat_dim(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
@@ -158,7 +180,7 @@ subroutine {{lh.kernel}}_host( &
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
+    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg_dim(arg)}}/)){{"\n" if loop.last}}
 {% endfor %}
     call {{lh.kernel}}_wrapper( &
 {% for dat in lh.dats %}

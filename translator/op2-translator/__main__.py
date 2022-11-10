@@ -199,7 +199,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             path = Path(
                 args.out,
                 scheme.target.name,
-                f"{loop.kernel}_kernel.{extension}",
+                f"{i}_{loop.kernel}_kernel.{extension}",
             )
         else:
             path = Path(args.out, f"{loop.kernel}_{scheme.target.name}_kernel.{extension}")
