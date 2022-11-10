@@ -77,7 +77,7 @@ def insertStrides(
             continue
 
         is_vec = loop.args[arg_idx].map_idx < -1
-        insertStride(entity.ast, rewriter, entity.parameters[arg_idx][0], dat.id, is_vec, stride)
+        insertStride(entity.ast, rewriter, entity.parameters[arg_idx], dat.id, is_vec, stride)
 
 
 def insertStride(
