@@ -3682,6 +3682,8 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
 /*******************************************************************************
  * Setup variables for k-way partitioning
  *******************************************************************************/
+#ifdef HAVE_KAHIP
+
 template <class T>
 std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
 setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
@@ -3773,6 +3775,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
                          ncon, tpwgts, ubvec);
 }
 
+#endif
 /*******************************************************************************
  * Check partitioning was performed as expected
  *******************************************************************************/
@@ -3828,6 +3831,7 @@ void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
  * Wrapper routine to partition a given set Using
  * ParHIPPartitionKWay or ParMETIS PartKway()
  *******************************************************************************/
+#ifdef HAVE_PARMETIS
 template <class T>
 void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
   // declare timers
@@ -3941,3 +3945,4 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
 
   free(request_send);
 }
+#endif
