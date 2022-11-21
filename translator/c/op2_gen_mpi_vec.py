@@ -216,23 +216,24 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       new_signature_text = ''
       for i in range(0,nargs):
-        var = signature_text.split(',')[i].strip()
-
+        # Get each argument
+        var_arg = signature_text.split(',')[i].strip()
         if do_gen_direct_simd_arrays:
           do_gen_simd_array_arg = maps[i] != OP_GBL
         else:
           do_gen_simd_array_arg = maps[i] != OP_GBL and maps[i] != OP_ID
         if do_gen_simd_array_arg:
           #remove * and add [*][SIMD_VEC]
-          var = var.replace('*','')
+          var_arg = var_arg.replace('*','')
           #locate var in body and replace by adding [idx]
-          length = len(re.compile('\\s+\\b').split(var))
-          var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
-
+          length = len(re.compile('\\s+\\b').split(var_arg))
+          var2 = re.compile('\\s+\\b').split(var_arg)[length-1].strip()
+          
           #print var2
 
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
           array_access_pattern = '\[[\w\(\)\+\-\*\s\\\\]*\]'
+          duplication_prevention_pattern="[^a-zA-z0-9_]"
 
           ## It has been observed that vectorisation can fail on loops with increments,
           ## but replacing them with writes succeeds.
