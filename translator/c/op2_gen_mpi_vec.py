@@ -245,14 +245,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           ## And for loops that were being vectorised, this change can give a small perf boost.
           if maps[i] == OP_MAP and accs[i] == OP_INC:
             ## Replace 'var' increments with writes:
-            body_text = re.sub(r'('+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
+            body_text = re.sub(r'('+duplication_prevention_pattern+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
 
           ## Append vector array access:
-          body_text = re.sub(r'('+var2+array_access_pattern+')', r'\1'+'[idx]', body_text)
-
-          var = var + '[][SIMD_VEC]'
+          body_text = re.sub(r'('+duplication_prevention_pattern+var2+array_access_pattern+')', r'\1'+'[idx]', body_text)
+          var_arg = var_arg + '[][SIMD_VEC]'
           #var = var + '[restrict][SIMD_VEC]'
-        new_signature_text +=  var+', '
+        new_signature_text +=  var_arg+', '
 
 
       #add ( , idx and )
