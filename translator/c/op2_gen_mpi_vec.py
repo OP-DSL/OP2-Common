@@ -423,7 +423,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] in [OP_READ, OP_RW, OP_WRITE]):#and (not mapinds[g_m] in k):
-              code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
+              #testing
+              #code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
+              code(idx_map_template.format(g_m, invinds[inds[g_m]-1], idxs[g_m]))
           elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID :
             code(idx_id_template.format(g_m))
       code('')
@@ -438,11 +440,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             if accs[g_m] in [OP_READ, OP_RW]:
               for d in range(0,int(dims[g_m])):
                 code(init_dat_template.format(g_m, d))
-              code('')
             elif accs[g_m] == OP_INC:
               for d in range(0,int(dims[g_m])):
                 code(zero_dat_template.format(g_m, d))
-              code('')
         else:
           if maps[g_m] == OP_MAP :
             if accs[g_m] in [OP_READ, OP_RW]:#and (not mapinds[g_m] in k):
@@ -486,7 +486,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP :
             if (accs[g_m] in [OP_INC, OP_RW, OP_WRITE]):#and (not mapinds[g_m] in k):
-              code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
+              #testing
+              # code(idx_map_template.format(g_m, invmapinds[inds[g_m]-1], idxs[g_m]))
+              code(idx_map_template.format(g_m, invinds[inds[g_m]-1], idxs[g_m]))
           elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID :
             if (accs[g_m] in [OP_INC, OP_RW, OP_WRITE]):
               code(idx_id_template.format(g_m))
@@ -498,11 +500,11 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           if (accs[g_m] == OP_INC ):
             for d in range(0,int(dims[g_m])):
               code(dat_scatter_inc_template.format(g_m, d))
-            code('')
+            # code('')
           elif accs[g_m] in [OP_WRITE, OP_RW]:
             for d in range(0,int(dims[g_m])):
               code(dat_scatter_wr_template.format(g_m, d))
-            code('')
+            # code('')
         elif do_gen_direct_simd_arrays and maps[g_m] == OP_ID:
           ## also scatter directly-written data
           if (accs[g_m] == OP_INC ):
