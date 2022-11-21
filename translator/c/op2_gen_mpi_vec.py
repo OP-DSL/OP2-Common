@@ -162,6 +162,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     f = open(file_name, 'r')
     kernel_text = f.read()
     file_text += kernel_text
+    #make sure thre is a newline at the end of the file
+    file_text+="\n" if file_text[-1] != "\n" else ""
     f.close()
 
     ## Clang compiler can struggle to vectorize a loop if it uses a mix of
