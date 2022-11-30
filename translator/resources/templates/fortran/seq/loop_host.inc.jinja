@@ -1,3 +1,11 @@
+{%- macro map_idx(arg) -%}
+    {%- if arg is runtime_map_idx %}
+arg{{arg.id}}_idx
+    {%- else -%}
+{{arg.map_idx}}
+    {%- endif -%}
+{%- endmacro -%}
+
 {%- macro arg_to_pointer(arg) -%}
     {% if arg is idx and arg is indirect %}
 map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1
@@ -9,8 +17,8 @@ gbl{{arg.id}}_temp
 gbl{{arg.id}}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, n + 1)
-     {%- else -%}
-dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1)
+    {%- else -%}
+dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{map_idx(arg)}}, n + 1) + 1)
     {%- endif -%}
 {%- endmacro -%}
 
@@ -69,6 +77,9 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for map in lh.maps %}
     map{{map.id}}, &
 {% endfor %}
+{% for arg in lh.args|runtime_map_idx %}
+    arg{{arg.id}}_idx, &
+{% endfor %}
 {% for arg in lh.args|gbl %}
     gbl{{arg.id}}, &
 {% endfor %}
@@ -83,7 +94,10 @@ subroutine {{lh.kernel}}_wrapper( &
     {{dat.typ}}, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
-    integer(4), dimension(:, :) :: map{{map.id}}
+    integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
+{% endfor %}
+{% for arg in lh.args|runtime_map_idx %}
+    integer(4) :: arg{{arg.id}}_idx{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
@@ -188,6 +202,9 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% endfor %}
 {% for map in lh.maps %}
         map{{map.id}}, &
+{% endfor %}
+{% for arg in lh.args|runtime_map_idx %}
+        arg{{arg.id}}%idx + 1, &
 {% endfor %}
 {% for arg in lh.args|gbl %}
         gbl{{arg.id}}, &

@@ -179,21 +179,15 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
         args_list = args_list[1:]
 
     dat_ptr = parseIdentifier(args_list[0], loc)
-
-    map_idx = parseIntLiteral(args_list[1], loc)
+    map_idx = parseIntLiteral(args_list[1], loc, True)
     map_ptr: Optional[str] = parseIdentifier(args_list[2], loc)
 
     if map_ptr == "OP_ID":
         map_ptr = None
 
-    dat_dim = None
-    try:
-        dat_dim = parseIntLiteral(args_list[3], loc)
-    except:
-        pass
+    dat_dim = parseIntLiteral(args_list[3], loc, True)
 
     dat_typ, dat_soa = parseType(parseStringLiteral(args_list[4], loc), loc)
-
     access_type = parseAccessType(args_list[5], loc)
 
     loop.addArgDat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_idx, access_type, opt)
@@ -212,15 +206,8 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
         args_list = args_list[1:]
 
     ptr = parseIdentifier(args_list[0], loc)
-
-    dim = None
-    try:
-        dim = parseIntLiteral(args_list[1], loc)
-    except:
-        pass
-
+    dim = parseIntLiteral(args_list[1], loc, True)
     typ = parseType(parseStringLiteral(args_list[2], loc), loc)[0]
-
     access_type = parseAccessType(args_list[3], loc)
 
     loop.addArgGbl(loc, ptr, dim, typ, access_type, opt)
@@ -230,7 +217,7 @@ def parseArgIdx(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: L
     if args is None or len(args.items) != 2:
         raise ParseError("incorrect number of arguments for op_arg_idx", loc)
 
-    map_idx = parseIntLiteral(args.items[0], loc)
+    map_idx = parseIntLiteral(args.items[0], loc, True)
     map_ptr: Optional[str] = parseIdentifier(args.items[1], loc)
 
     if map_ptr == "OP_ID":
@@ -272,7 +259,7 @@ def parseIdentifier(node: Any, loc: Location) -> str:
 # literal_aliases["ndets"] = 6 + 3 * (literal_aliases["npdes"] - 4)
 
 
-def parseIntLiteral(node: Any, loc: Location) -> int:
+def parseIntLiteral(node: Any, loc: Location, optional: bool = False) -> Optional[int]:
     if type(node) is f2003.Parenthesis:
         return parseIntLiteral(node.items[1], loc)
 
@@ -305,11 +292,14 @@ def parseIntLiteral(node: Any, loc: Location) -> int:
         elif op == "**":
             return int(lhs**rhs)
 
-#    if type(node) is f2003.Name:
-#        ident = parseIdentifier(node, loc)
+    #    if type(node) is f2003.Name:
+    #        ident = parseIdentifier(node, loc)
 
-#        if ident in literal_aliases:
-#            return literal_aliases[ident]
+    #        if ident in literal_aliases:
+    #            return literal_aliases[ident]
+
+    if optional:
+        return None
 
     raise ParseError(f"unable to parse int literal: {node}", loc)
 
@@ -335,7 +325,7 @@ def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     return OP.AccessType(access_type_raw)
 
 
-def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, bool]:
+def parseType(typ: str, loc: Location, include_custom: bool = False) -> Tuple[OP.Type, bool]:
     typ_clean = typ.strip().lower()
     typ_clean = re.sub(r"\s*kind\s*=\s*", "", typ_clean)
 
