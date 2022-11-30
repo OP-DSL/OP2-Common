@@ -76,7 +76,12 @@ def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Lo
     #     function.parameters.append((param, typ))
 
     for call in fpu.walk(node, f2003.Call_Stmt):
-        name = parseIdentifier(fpu.get_child(call, f2003.Name), loc)
+        name_node = fpu.get_child(call, f2003.Name)
+
+        if name_node is None: # Happens for Procedure_Designator (stuff like op%access_i4...)
+            continue
+
+        name = parseIdentifier(name_node, loc)
         function.depends.add(name)
 
     program.entities.append(function)
@@ -99,7 +104,11 @@ def parseSubroutineParameters(path: Path, subroutine: f2003.Subroutine_Subprogra
 
 
 def parseCall(node: f2003.Call_Stmt, program: Program, loc: Location) -> None:
-    name = parseIdentifier(fpu.get_child(node, f2003.Name), loc)
+    name_node = fpu.get_child(node, f2003.Name)
+    if name_node is None: # Happens for Procedure_Designator (stuff like op%access_i4...)
+        return
+
+    name = parseIdentifier(name_node, loc)
     args = fpu.get_child(node, f2003.Actual_Arg_Spec_List)
 
     if name == "op_decl_const":
@@ -227,6 +236,9 @@ def parseArgIdx(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: L
 
 
 def parseIdentifier(node: Any, loc: Location) -> str:
+    # if not hasattr(node, "string"):
+    #    raise ParseError(f"Unable to parse identifier for node: {node}", loc)
+
     return node.string
 
 
@@ -261,14 +273,17 @@ def parseIdentifier(node: Any, loc: Location) -> str:
 
 def parseIntLiteral(node: Any, loc: Location, optional: bool = False) -> Optional[int]:
     if type(node) is f2003.Parenthesis:
-        return parseIntLiteral(node.items[1], loc)
+        return parseIntLiteral(node.items[1], loc, optional)
 
     if type(node) is f2003.Signed_Int_Literal_Constant or type(node) is f2003.Int_Literal_Constant:
         return int(node.items[0])
 
     if issubclass(type(node), f2003.UnaryOpBase):
-        val = parseIntLiteral(node.items[1], loc)
+        val = parseIntLiteral(node.items[1], loc, optional)
         op = node.items[0]
+
+        if val is None:
+            return None
 
         if op == "+":
             return val
@@ -276,10 +291,13 @@ def parseIntLiteral(node: Any, loc: Location, optional: bool = False) -> Optiona
             return -val
 
     if issubclass(type(node), f2003.BinaryOpBase):
-        lhs = parseIntLiteral(node.items[0], loc)
-        rhs = parseIntLiteral(node.items[2], loc)
+        lhs = parseIntLiteral(node.items[0], loc, optional)
+        rhs = parseIntLiteral(node.items[2], loc, optional)
 
         op = node.items[1]
+
+        if lhs is None or rhs is None:
+            return None
 
         if op == "+":
             return lhs + rhs

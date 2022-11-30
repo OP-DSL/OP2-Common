@@ -136,6 +136,9 @@ class Fortran(Lang):
         source.write(s)
         source.seek(0)
 
+        with open("_preprocessed.F90", "w") as f:
+            f.write(s)
+
         reader = FortranFileReader(source, include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")
 
