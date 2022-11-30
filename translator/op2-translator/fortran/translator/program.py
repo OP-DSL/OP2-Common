@@ -10,7 +10,7 @@ KERNEL_ID = 1
 def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> str:
     for call in fpu.walk(ast, f2003.Call_Stmt):
         name = fpu.get_child(call, f2003.Name)
-        if name.string != "op_decl_const":
+        if name is None or name.string != "op_decl_const":
             continue
 
         args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
@@ -22,6 +22,10 @@ def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> s
 
     for call in fpu.walk(ast, f2003.Call_Stmt):
         name = fpu.get_child(call, f2003.Name)
+
+        if name is None:
+            continue
+
         if not re.match(r"op_par_loop_\d+", name.string):
             continue
 
@@ -57,6 +61,8 @@ def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> s
     if force_soa:
         for call in fpu.walk(ast, f2003.Call_Stmt):
             name = fpu.get_child(call, f2003.Name)
+            if name is None:
+                continue
 
             init_funcs = ["op_init", "op_init_base", "op_mpi_init"]
             if name.string not in init_funcs:
