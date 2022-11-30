@@ -177,7 +177,7 @@ class Application:
 
     def validateLoops(self, lang: Lang) -> None:
         for loop, program in self.loops():
-            num_opts = len([arg for arg in loop.args if arg.opt])
+            num_opts = len([arg for arg in loop.args if hasattr(arg, "opt") and arg.opt])
             if num_opts > 32:
                 raise OpError(f"number of optional arguments exceeds 32: {num_opts}", loop.loc)
 
@@ -210,7 +210,7 @@ class Application:
         if arg.access_type != OP.AccessType.READ and arg.typ not in [OP.Float(64), OP.Float(32), OP.Int(True, 32)]:
             raise OpError(f"invalid access type for reduced gbl argument: {arg.access_type}", arg.loc)
 
-        if arg.dim < 1:
+        if arg.dim is not None and arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
 
     # TODO: Re-do kernel validation
