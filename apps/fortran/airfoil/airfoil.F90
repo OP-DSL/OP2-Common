@@ -20,6 +20,8 @@ program airfoil
     character(*), parameter :: file_name = "new_grid.dat"
     character(*), parameter :: file_name_h5 = "new_grid.h5"
 
+    integer(4) :: one
+
     integer(4), parameter :: niter = 1000
     integer(4) :: iter, k
 
@@ -62,6 +64,7 @@ program airfoil
     print *, ncell
 #endif
 
+    one = 1
     call op_init_base(0, 0)
 
 #ifdef HDF5
@@ -131,7 +134,7 @@ program airfoil
 
         do k = 1, 2
             call op_par_loop_6(adt_calc, cells, &
-                op_arg_dat(p_x,    1, pcell, 2, "real(8)", OP_READ), &
+                op_arg_dat(p_x,    one, pcell, 2, "real(8)", OP_READ), &
                 op_arg_dat(p_x,    2, pcell, 2, "real(8)", OP_READ), &
                 op_arg_dat(p_x,    3, pcell, 2, "real(8)", OP_READ), &
                 op_arg_dat(p_x,    4, pcell, 2, "real(8)", OP_READ), &

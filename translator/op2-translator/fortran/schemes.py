@@ -94,7 +94,7 @@ class FortranOpenMP(Scheme):
         return ftk.writeSource(kernel_entities + simd_kernel_entities + dependencies)
 
 
-Scheme.register(FortranOpenMP)
+# Scheme.register(FortranOpenMP)
 
 
 class FortranCuda(Scheme):
@@ -140,4 +140,4 @@ class FortranCuda(Scheme):
         return ftk.writeSource(kernel_entities + dependencies)
 
 
-Scheme.register(FortranCuda)
+# Scheme.register(FortranCuda)

@@ -51,6 +51,7 @@ env.tests["gbl"] = lambda arg, loop=None: isinstance(arg, OP.ArgGbl)
 env.tests["idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgIdx)
 
 env.tests["vec"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
+env.tests["runtime_map_idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None
 
 env.tests["read"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.READ
 env.tests["write"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.WRITE
@@ -110,6 +111,7 @@ env.filters["dat"] = test_to_filter("dat")
 env.filters["gbl"] = test_to_filter("gbl")
 
 env.filters["vec"] = test_to_filter("vec")
+env.filters["runtime_map_idx"] = test_to_filter("runtime_map_idx")
 
 env.filters["read"] = test_to_filter("read")
 env.filters["write"] = test_to_filter("write")

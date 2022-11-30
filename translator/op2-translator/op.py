@@ -236,7 +236,7 @@ class Loop:
         arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_idx)
         self.args.append(arg)
 
-        if map_ptr is None or map_idx >= 0:
+        if map_ptr is None or map_idx is None or map_idx >= 0:
             self.args_expanded.append(arg)
             return
 
