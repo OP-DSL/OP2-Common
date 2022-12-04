@@ -2,6 +2,7 @@ ifdef OP2_COMPILER
   OP2_C_COMPILER ?= $(OP2_COMPILER)
   OP2_F_COMPILER ?= $(OP2_COMPILER)
   OP2_C_CUDA_COMPILER ?= nvhpc
+  OP2_C_HIP_COMPILER ?= hip
 endif
 
 # Process CUDA_GEN and NV_ARCH until CUDA_GEN is a whitespace separated list of
@@ -28,6 +29,10 @@ ifdef OP2_C_CUDA_COMPILER
   include $(MAKEFILES_DIR)/compilers/c_cuda/$(OP2_C_CUDA_COMPILER).mk
 endif
 
+ifdef OP2_C_HIP_COMPILER
+  include $(MAKEFILES_DIR)/compilers/c_hip/$(OP2_C_HIP_COMPILER).mk
+endif
+
 ifdef OP2_F_COMPILER
   include $(MAKEFILES_DIR)/compilers/fortran/$(OP2_F_COMPILER).mk
 endif
@@ -46,6 +51,13 @@ endif
 ifneq ($(shell which $(CONFIG_NVCC) 2> /dev/null),)
   CONFIG_NVCC != which $(CONFIG_NVCC)
   CONFIG_HAVE_C_CUDA := true
+endif
+
+ifneq ($(shell which $(CONFIG_HIP) 2> /dev/null),)
+  CONFIG_HIP != which $(CONFIG_HIP)
+  CONFIG_HIPCXX = $(CONFIG_HIP)
+  CONFIG_HIPCXX = $(CONFIG_HIP)
+  CONFIG_HAVE_C_HIP := true
 endif
 
 ifneq ($(shell which $(CONFIG_FC) 2> /dev/null),)
