@@ -607,15 +607,16 @@ void op_exit_core() {
   free(OP_set_list);
   OP_set_list = NULL;
 
-  // todo: free OP_aug_map_ptr_list
   for (int i = 0; i < OP_map_index; i++) {
     op_map map = OP_map_list[i];
     int max_level = map->halo_info->max_nhalos;
-    for(int j = 0 ; j < max_level; j++){
-      if (OP_aug_map_ptr_list[i][j] != NULL)
-        free(OP_aug_map_ptr_list[i][j]);
+    if (OP_aug_map_ptr_list[i] != NULL){
+      for(int j = 0 ; j < max_level; j++){
+        if (OP_aug_map_ptr_list[i][j] != NULL)
+          free(OP_aug_map_ptr_list[i][j]);
+      }
+      free(OP_aug_map_ptr_list[i]);
     }
-    OP_aug_map_ptr_list[i];
   }
   OP_aug_map_ptr_list = NULL;
 
