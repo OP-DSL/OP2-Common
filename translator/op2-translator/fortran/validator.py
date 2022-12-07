@@ -57,4 +57,30 @@ def checkForWrites(param_idx: int, func: Function, funcs: List[Function]) -> boo
         if isinstance(lhs, f2003.Part_Ref) and lhs.items[0].string == param_name:
             return True
 
+    for node in fpu.walk(execution_part, f2003.Call_Stmt):
+        name_node = fpu.get_child(node, f2003.Name)
+
+        if name_node is None:
+            continue
+
+        name = name_node.string        
+        args = fpu.get_child(name_node, f2003.Actual_Arg_Spec_List)
+
+        if args is None:
+            continue
+
+        func2 = safeFind(funcs, lambda f: f.name == name)
+        if func2 is None:
+            continue
+
+        for param2_idx, arg in enumerate(args.items):
+            for arg_subnode in fpu.walk(arg, f2003.Name):
+                if arg_subnode.string != param_name:
+                    continue
+
+                written = checkForWrites(param2_idx, func2, funcs)
+
+                if written:
+                    return True
+
     return False
