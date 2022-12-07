@@ -30,6 +30,9 @@ def main(argv=None) -> None:
     parser.add_argument("-c", "--config", help="Target configuration", type=json.loads, default="{}")
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
 
+    parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
+    parser.add_argument("--user-consts-module", help="Use a custom Fortran consts module", default=None)
+
     parser.add_argument("-I", help="Add to include directories", type=isDirPath, action="append", nargs=1, default=[])
     parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])
 
@@ -79,6 +82,12 @@ def main(argv=None) -> None:
 
     if lang is None:
         exit(f"Unknown file extension: {extension}")
+
+    if args.user_consts_module is not None and hasattr(lang, "user_consts_module"):
+        lang.user_consts_module = args.user_consts_module
+
+        if args.verbose:
+            print(f"Using consts module: {lang.user_consts_module}")
 
     Type.set_formatter(lang.formatType)
 
@@ -136,7 +145,7 @@ def main(argv=None) -> None:
 
         new_file = os.path.splitext(os.path.basename(program.path))[0]
         ext = os.path.splitext(os.path.basename(program.path))[1]
-        new_path = Path(args.out, f"{new_file}_op{ext}")
+        new_path = Path(args.out, f"{new_file}{args.suffix}{ext}")
 
         with open(new_path, "w") as new_file:
             new_file.write(f"\n{lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")

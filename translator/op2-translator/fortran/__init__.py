@@ -103,6 +103,8 @@ class Fortran(Lang):
     com_delim = "!"
     zero_idx = False
 
+    user_consts_module = None
+
     def validate(self, app: Application) -> None:
         for loop, program in app.loops():
             fortran.validator.validateLoop(loop, program, app)
