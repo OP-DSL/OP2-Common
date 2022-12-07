@@ -12,10 +12,9 @@ from fparser.two.utils import Base, _set_parent
 import fortran.parser
 import fortran.translator.program
 import fortran.validator
-
 import op as OP
 from language import Lang
-from store import Location, ParseError, Program, Application
+from store import Application, Location, ParseError, Program
 
 
 def base_deepcopy(self, memo):
