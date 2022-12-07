@@ -11,9 +11,11 @@ from fparser.two.utils import Base, _set_parent
 
 import fortran.parser
 import fortran.translator.program
+import fortran.validator
+
 import op as OP
 from language import Lang
-from store import Location, ParseError, Program
+from store import Location, ParseError, Program, Application
 
 
 def base_deepcopy(self, memo):
@@ -100,6 +102,10 @@ class Fortran(Lang):
 
     com_delim = "!"
     zero_idx = False
+
+    def validate(self, app: Application) -> None:
+        for loop, program in app.loops():
+            fortran.validator.validateLoop(loop, program, app)
 
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]

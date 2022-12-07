@@ -11,7 +11,7 @@ import cpp.parser
 import cpp.translator.program
 import op as OP
 from language import Lang
-from store import Location, ParseError, Program
+from store import Location, ParseError, Program, Application
 
 libclang_path = os.getenv("LIBCLANG_PATH")
 if libclang_path is not None:
@@ -46,6 +46,9 @@ class Cpp(Lang):
 
     com_delim = "//"
     zero_idx = True
+
+    def validate(self, app: Application) -> None:
+        pass
 
     @lru_cache(maxsize=None)
     def parseFile(
