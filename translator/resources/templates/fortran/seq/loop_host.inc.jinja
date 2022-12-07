@@ -7,14 +7,14 @@ arg{{arg.id}}_idx
 {%- endmacro -%}
 
 {%- macro arg_to_pointer(arg) -%}
-    {% if arg is idx and arg is indirect %}
+    {%- if arg is idx and arg is indirect -%}
 map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1
-    {% elif arg is idx %}
+    {%- elif arg is idx -%}
 n + 1
     {%- elif arg is gbl and arg is reduction and lh is indirect -%}
-gbl{{arg.id}}_temp
+gbl{{arg.id}}_temp{{"(1)" if arg.dim == 1 }}
     {%- elif arg is gbl -%}
-gbl{{arg.id}}
+gbl{{arg.id}}{{"(1)" if arg.dim == 1 }}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, n + 1)
     {%- else -%}
@@ -48,7 +48,7 @@ arg{{dat.arg_id}}%dim
     {%- elif arg is dat and lh.dat(arg).dim is not none -%}
 {{lh.dat(arg).dim}}
     {%- else -%}
-arg{{arg.d}}%dim
+arg{{arg.id}}%dim
     {%- endif -%}
 {%- endmacro -%}
 
@@ -59,7 +59,7 @@ module op2_k{{kernel_idx}}
     use op2_fortran_declarations
     use op2_fortran_rt_support
 
-    use op2_consts
+    use {{"op2_consts" if lang.user_consts_module is none else lang.user_consts_module}}
 
     implicit none
 
@@ -108,12 +108,12 @@ subroutine {{lh.kernel}}_wrapper( &
 
     ! locals
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
-    {{arg.typ}}, dimension(:) :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
+    {{arg.typ}}, dimension(size(gbl{{arg.id}})) :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: n, test_frequency
 
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
-    gbl{{arg.id}}_temp = {% if arg is inc %}0{% else %}gbl{{arg.id}}{% endif %}{{"\n" if loop.last}}
+    gbl{{arg.id}}_temp = gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     test_frequency = op_mpi_get_test_frequency()
 
