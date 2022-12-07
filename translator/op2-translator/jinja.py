@@ -51,7 +51,9 @@ env.tests["gbl"] = lambda arg, loop=None: isinstance(arg, OP.ArgGbl)
 env.tests["idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgIdx)
 
 env.tests["vec"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
-env.tests["runtime_map_idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None
+env.tests["runtime_map_idx"] = (
+    lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None
+)
 
 env.tests["read"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.READ
 env.tests["write"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.WRITE

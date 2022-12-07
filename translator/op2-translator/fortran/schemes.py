@@ -33,7 +33,8 @@ class FortranSeq(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
+        if self.lang.user_consts_module is None:
+            ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
         return ftk.writeSource(kernel_entities + dependencies)
 

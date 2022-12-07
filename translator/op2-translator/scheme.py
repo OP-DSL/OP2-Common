@@ -40,7 +40,9 @@ class Scheme(Findable):
 
         # Generate source from the template
         return (
-            template.render(OP=OP, lh=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, target=self.target),
+            template.render(
+                OP=OP, lh=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, lang=self.lang, target=self.target
+            ),
             extension,
         )
 
@@ -59,7 +61,7 @@ class Scheme(Findable):
         name = f"{self.target.name}_kernels.{extension}"
 
         # Generate source from the template
-        return template.render(OP=OP, app=app, target=self.target, user_types=user_types), name
+        return template.render(OP=OP, app=app, lang=self.lang, target=self.target, user_types=user_types), name
 
     def translateKernel(
         self,
