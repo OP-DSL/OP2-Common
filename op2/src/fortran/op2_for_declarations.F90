@@ -883,7 +883,7 @@ module OP2_Fortran_Declarations
   interface op_decl_const
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
     & op_decl_const_scalar_real_8, op_decl_const_logical, op_decl_const_integer_8, &
-    & op_decl_const_integer_2_4, op_decl_const_real_2_8, op_decl_const_string, &
+    & op_decl_const_integer_2_4, op_decl_const_integer_2_8, op_decl_const_real_2_8, op_decl_const_string, &
     & op_decl_const_scalar_integer_8
   end interface op_decl_const
 
@@ -1336,6 +1336,30 @@ contains
 
   end subroutine op_decl_const_integer_2_4
 
+  subroutine op_decl_const_integer_8 ( dat, constdim, opname )
+
+    integer(8), dimension(:), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    UNUSED(dat)
+    UNUSED(constdim)
+    UNUSED(opname)
+
+  end subroutine op_decl_const_integer_8
+
+  subroutine op_decl_const_integer_2_8 ( dat, constdim, opname )
+
+    integer(8), dimension(:,:), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    UNUSED(dat)
+    UNUSED(constdim)
+    UNUSED(opname)
+
+  end subroutine op_decl_const_integer_2_8
+
   subroutine op_decl_const_real_2_8 ( dat, constdim, opname )
 
     real(8), dimension(:,:), intent(in), target :: dat
@@ -1378,14 +1402,9 @@ contains
     integer(kind=c_int), value :: constdim
     character(kind=c_char,len=*), optional :: opname
 
-    ! local dummies to prevent compiler warning
-    integer(8) :: dat_dummy
-    integer(kind=c_int) :: constdim_dummy
-    character(kind=c_char) :: opname_dummy
-
-    dat_dummy = dat
-    constdim_dummy = constdim
-    opname_dummy = opname//C_NULL_CHAR
+    UNUSED(dat)
+    UNUSED(constdim)
+    UNUSED(opname)
 
   end subroutine op_decl_const_scalar_integer_8
 

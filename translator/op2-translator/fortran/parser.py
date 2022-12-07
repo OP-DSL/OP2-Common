@@ -78,7 +78,7 @@ def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Lo
     for call in fpu.walk(node, f2003.Call_Stmt):
         name_node = fpu.get_child(call, f2003.Name)
 
-        if name_node is None: # Happens for Procedure_Designator (stuff like op%access_i4...)
+        if name_node is None:  # Happens for Procedure_Designator (stuff like op%access_i4...)
             continue
 
         name = parseIdentifier(name_node, loc)
@@ -105,7 +105,7 @@ def parseSubroutineParameters(path: Path, subroutine: f2003.Subroutine_Subprogra
 
 def parseCall(node: f2003.Call_Stmt, program: Program, loc: Location) -> None:
     name_node = fpu.get_child(node, f2003.Name)
-    if name_node is None: # Happens for Procedure_Designator (stuff like op%access_i4...)
+    if name_node is None:  # Happens for Procedure_Designator (stuff like op%access_i4...)
         return
 
     name = parseIdentifier(name_node, loc)
@@ -152,7 +152,7 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
             else:
                 raise ParseError(f"invalid loop argument {arg_node}", loc)
 
-            return loop
+            continue
 
         name = parseIdentifier(fpu.get_child(arg_node, f2003.Type_Name), loc)
         arg_args = fpu.get_child(arg_node, f2003.Component_Spec_List)
