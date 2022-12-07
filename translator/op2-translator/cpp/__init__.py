@@ -11,7 +11,7 @@ import cpp.parser
 import cpp.translator.program
 import op as OP
 from language import Lang
-from store import Location, ParseError, Program, Application
+from store import Application, Location, ParseError, Program
 
 libclang_path = os.getenv("LIBCLANG_PATH")
 if libclang_path is not None:

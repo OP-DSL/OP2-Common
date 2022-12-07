@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, FrozenSet, List, Optional, Set
 
 from op import Type
-from store import Program, Application
+from store import Application, Program
 from util import Findable
 
 
