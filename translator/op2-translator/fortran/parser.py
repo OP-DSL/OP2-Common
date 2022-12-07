@@ -69,7 +69,7 @@ def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Lo
     name = parseIdentifier(name_node, loc)
     function = Function(name, node, program)
 
-    param_identifiers = parseSubroutineParameters(program.path, node)
+    function.parameters = parseSubroutineParameters(program.path, node)
 
     # for param in param_identifiers:
     #     typ = parseParamType(program.path, node, param)

@@ -75,7 +75,7 @@ class Function(Entity):
     returns: Optional[OP.Type] = None
 
     def __str__(self):
-        return f"Function(name='{self.name}', scope={self.scope}, depends={self.depends})"
+        return f"Function(name='{self.name}', parameters={self.parameters},"" scope={self.scope}, depends={self.depends})"
 
 
 @dataclass
@@ -162,6 +162,9 @@ class Application:
     def validate(self, lang: Lang) -> None:
         self.validateConsts(lang)
         self.validateLoops(lang)
+
+        # Language specific verification
+        lang.validate(self)
 
     def validateConsts(self, lang: Lang) -> None:
         seen_const_ptrs: Set[str] = set()

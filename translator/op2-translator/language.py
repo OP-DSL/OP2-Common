@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, FrozenSet, List, Optional, Set
 
 from op import Type
-from store import Program
+from store import Program, Application
 from util import Findable
 
 
@@ -18,6 +18,10 @@ class Lang(Findable):
 
     com_delim: str
     zero_idx: bool
+
+    @abstractmethod
+    def validate(self, app: Application) -> None:
+        pass
 
     @abstractmethod
     def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Any:
