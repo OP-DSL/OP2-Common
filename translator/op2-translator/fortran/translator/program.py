@@ -7,28 +7,21 @@ from store import Program
 
 KERNEL_ID = 1
 
+
 def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> str:
     src = program.path.read_text()
 
     def repl(m):
         global KERNEL_ID
-        r = f"{m.group(1)}call op2_k{KERNEL_ID}_{m.group(2)}(\"{m.group(2)}\", "
+        r = f'{m.group(1)}call op2_k{KERNEL_ID}_{m.group(2)}("{m.group(2)}", '
         KERNEL_ID = KERNEL_ID + 1
 
         return r
 
-    src = re.sub(
-        r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*",
-        repl,
-        src,
-        flags=re.MULTILINE | re.IGNORECASE
-    )
+    src = re.sub(r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*", repl, src, flags=re.MULTILINE | re.IGNORECASE)
 
     src = re.sub(
-        r"^(\s*)(use op2_fortran_reference)",
-        r"\1\2\n\1use op2_kernels",
-        src,
-        flags=re.MULTILINE | re.IGNORECASE
+        r"^(\s*)(use op2_fortran_reference)", r"\1\2\n\1use op2_kernels", src, flags=re.MULTILINE | re.IGNORECASE
     )
 
     return src

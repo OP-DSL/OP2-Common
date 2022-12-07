@@ -7,6 +7,7 @@ import fortran.translator.kernels as ftk
 import op as OP
 from op import OpError
 from store import Application, Entity, Function, Program
+from util import safeFind
 
 
 def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
@@ -34,14 +35,14 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         if arg.access_type != OP.AccessType.READ:
             continue
 
-        written = checkForWrites(idx, kernel_entities[0], entities)
+        written = paramIsWritten(idx, kernel_entities[0], entities)
 
         if written:
             param_name = kernel_entities[0].parameters[idx]
             print(f"Warning: arg {idx} ({param_name}) of {loop.kernel} marked OP_READ but was written")
 
 
-def checkForWrites(param_idx: int, func: Function, funcs: List[Function]) -> bool:
+def paramIsWritten(param_idx: int, func: Function, funcs: List[Function]) -> bool:
     assert isinstance(func.ast, f2003.Subroutine_Subprogram)
     param_name = func.parameters[param_idx]
 
@@ -63,8 +64,8 @@ def checkForWrites(param_idx: int, func: Function, funcs: List[Function]) -> boo
         if name_node is None:
             continue
 
-        name = name_node.string        
-        args = fpu.get_child(name_node, f2003.Actual_Arg_Spec_List)
+        name = name_node.string
+        args = fpu.get_child(node, f2003.Actual_Arg_Spec_List)
 
         if args is None:
             continue
@@ -78,9 +79,7 @@ def checkForWrites(param_idx: int, func: Function, funcs: List[Function]) -> boo
                 if arg_subnode.string != param_name:
                     continue
 
-                written = checkForWrites(param2_idx, func2, funcs)
-
-                if written:
+                if paramIsWritten(param2_idx, func2, funcs):
                     return True
 
     return False
