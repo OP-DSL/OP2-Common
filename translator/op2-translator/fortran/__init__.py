@@ -1,11 +1,14 @@
+import re
 import copy
 import io
+import os
+import subprocess
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import pcpp
-from fparser.common.readfortran import FortranFileReader
+from fparser.common.readfortran import FortranStringReader
 from fparser.two.parser import ParserFactory
 from fparser.two.utils import Base, _set_parent
 
@@ -35,7 +38,7 @@ def base_deepcopy(self, memo):
     return result
 
 
-def file_reader_deepcopy(self, memo):
+def string_reader_deepcopy(self, memo):
     cls = self.__class__
     result = cls.__new__(cls)
 
@@ -55,7 +58,7 @@ def file_reader_deepcopy(self, memo):
 
 # Patch the fparser2 Base class to allow deepcopies
 Base.__deepcopy__ = base_deepcopy
-FortranFileReader.__deepcopy__ = file_reader_deepcopy
+FortranStringReader.__deepcopy__ = string_reader_deepcopy
 
 
 kind_selector_aliases = {"*PS": "*8"}
@@ -108,9 +111,27 @@ class Fortran(Lang):
         for loop, program in app.loops():
             fortran.validator.validateLoop(loop, program, app)
 
-    def parseFile(
+    def preprocess(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
-    ) -> Tuple[f2003.Program, str]:
+    ) -> str:
+        fpp = os.getenv("OP2_FPP")
+        if fpp is not None:
+            args = [fpp, "-P", "-free", "-f90"]
+
+            for dir in include_dirs:
+                args.append(f"-I{dir}")
+
+            for define in defines:
+                args.append(f"-D{define}")
+
+            args.append(str(path))
+
+            print(' '.join(args))
+            res = subprocess.run(args, capture_output=True, check=True)
+            print(res.stderr.decode("utf-8"))
+
+            return res.stdout.decode("utf-8")
+
         preprocessor = Preprocessor()
 
         for dir in include_dirs:
@@ -131,33 +152,31 @@ class Fortran(Lang):
 
         source.seek(0)
 
-        import re
+        source = source.read()
 
-        s = source.read()
+        source = re.sub(r"__FILE__", f'"{path}"', s)
+        source = re.sub(r"__LINE__", "0", s)
 
-        s = re.sub(r"__FILE__", f'"{path}"', s)
-        s = re.sub(r"__LINE__", "0", s)
 
-        source.seek(0)
-        source.truncate()
-        source.write(s)
-        source.seek(0)
+    def parseFile(
+        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
+    ) -> Tuple[f2003.Program, str]:
+        source = self.preprocess(path, include_dirs, defines)
 
         with open("_preprocessed.F90", "w") as f:
-            f.write(s)
+            f.write(source)
 
-        reader = FortranFileReader(source, include_dirs=list(include_dirs))
+        reader = FortranStringReader(source, include_dirs=list(include_dirs))
         parser = ParserFactory().create(std="f2003")
 
-        return parser(reader), s
+        return parser(reader), source
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
         return fortran.parser.parseProgram(ast, source, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
-        ast, _ = self.parseFile(program.path, frozenset(include_dirs), frozenset(defines))
-        return fortran.translator.program.translateProgram(ast, program, force_soa)
+        return fortran.translator.program.translateProgram(program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         if isinstance(typ, OP.Int):

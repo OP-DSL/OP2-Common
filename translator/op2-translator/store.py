@@ -156,8 +156,7 @@ class Application:
         return uniqueBy(consts, lambda c: c.ptr)
 
     def loops(self) -> List[Tuple[OP.Loop, Program]]:
-        loops = flatten(map(lambda l: (l, p), p.loops) for p in self.programs)
-        return uniqueBy(loops, lambda l: l[0].kernel)
+        return flatten(map(lambda l: (l, p), p.loops) for p in self.programs)
 
     def validate(self, lang: Lang) -> None:
         self.validateConsts(lang)

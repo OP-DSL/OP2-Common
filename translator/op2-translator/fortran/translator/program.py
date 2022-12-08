@@ -8,8 +8,8 @@ from store import Program
 KERNEL_ID = 1
 
 
-def translateProgram(ast: f2003.Program, program: Program, force_soa: bool) -> str:
-    src = program.path.read_text()
+def translateProgram(program: Program, force_soa: bool) -> str:
+    src = program.source
 
     def repl(m):
         global KERNEL_ID
