@@ -28,6 +28,11 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
         seen_entity_names.append(entity.name)
 
+    if len(loop.args) != len(kernel_entities[0].parameters):
+        raise OpError(f"op_par_loop argument list length ({len(loop.args)}) mismatch "
+                      f"(expected: {len(kernel_entities[0].parameters)}, kernel function: {loop.kernel})", loop.loc)
+        return
+
     for idx, arg in enumerate(loop.args):
         if isinstance(arg, OP.ArgIdx):
             continue
@@ -39,7 +44,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         param_name = kernel_entities[0].parameters[idx]
 
         if written:
-            msg = f"Warning: arg {idx + 1} ({param_name}) of {loop.kernel} marked OP_READ but was written"
+            msg = f"{loop.loc}: Warning: arg {idx + 1} ({param_name}) of {loop.kernel} marked OP_READ but was written"
             if in_subcall:
                 msg = msg + " (in called subroutine)"
 
