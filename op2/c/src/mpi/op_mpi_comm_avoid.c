@@ -3201,7 +3201,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 12;  // this is a temp const
+  int max_dat_count = 20;  // this is a temp const
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;

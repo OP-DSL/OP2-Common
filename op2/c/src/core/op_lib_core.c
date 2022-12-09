@@ -1079,12 +1079,13 @@ void op_timing_output_core() {
                           &moments_time[1]);
         op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0],
                           &moments_mpi_time[1]);
+        #ifdef COMM_AVOID
         op_compute_halo_data(OP_kernels[n].halo_data, &halo_data);
         halo_data = halo_data / 1e9f;
 
         op_compute_halo_data(OP_kernels[n].halo_data2, &halo_data2);
         halo_data2 = halo_data2 / 1e9f;
-
+        #endif
         if (OP_kernels[n].transfer2 < 1e-8f) {
           float transfer =
               MAX(0.0f, OP_kernels[n].transfer / (1e9f * kern_time -

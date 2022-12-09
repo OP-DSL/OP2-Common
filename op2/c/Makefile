@@ -16,7 +16,7 @@
 #
 # set paths for various files
 #
-aDEBUG = 1
+DEBUG = 1
 SRC = src
 INC = include
 LIB = lib
@@ -125,16 +125,16 @@ ifeq ($(OP2_COMPILER),cray)
 else
 ifeq ($(OP2_COMPILER),clang)
   ifdef DEBUG
-    CCFLAGS  = -x c++ -O0 -I$(OMPTARGET_LIBS)/../include
+    CCFLAGS  = -x c++ -O0 -fPIE -I$(OMPTARGET_LIBS)/../include
   else
-    CCFLAGS  = -x c++ -O3 -I$(OMPTARGET_LIBS)/../include
+    CCFLAGS  = -x c++ -O3 -fPIE -I$(OMPTARGET_LIBS)/../include
   endif
   CXX	    = clang++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda
+  OMP4FLAGS = -fopenmp=libomp -fopenmp-simd -fopenmp-targets=nvptx64-nvidia-cuda
 else
 ifeq ($(OP2_COMPILER),nvhpc)
   CUDA_ALIGNE_FLAG = -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
