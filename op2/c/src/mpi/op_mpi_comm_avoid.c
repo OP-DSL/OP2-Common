@@ -2794,240 +2794,71 @@ int get_max_nhalos_count(){
   return max_count;
 }
 
-void calculate_dat_size(int my_rank, op_dat dat, int max_nhalos){
-
-  int comm_size = 0;
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  op_set set = dat->set;
-  char result_str[800];
-
-  double exec_avg[max_nhalos];
-  double nonexec_avg[max_nhalos];
-
-  double exec_max[max_nhalos];
-  double nonexec_max[max_nhalos];
-
-  double exec_min[max_nhalos];
-  double nonexec_min[max_nhalos];
-
-  int len = 0;
-  if(my_rank == MPI_ROOT){
-    snprintf(&result_str[len], 10, "%d,", my_rank); len = strlen(result_str);
-    snprintf(&result_str[len], 10, "%d,", my_rank); len = strlen(result_str);
-    snprintf(&result_str[len], 40, "%s,", dat->name); len = strlen(result_str);
-    snprintf(&result_str[len], 40, "%s,", set->name); len = strlen(result_str);
-  }
-
-  // calculate average of export exec halos
-  for(int i = 0; i < max_nhalos; i++){
-    halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
-    if(!exp_exec_list){
-      exec_avg[i] = 0;
-      exec_max[i] = 0;
-      exec_min[i] = 0;
-      continue;
-    }
-    int exec_total = 0;
-    int max_exec = 0;
-    int min_exec = INT_MAX;
-    int rank_count = exp_exec_list->ranks_size / exp_exec_list->num_levels;
-    for(int r = 0; r < rank_count; r++){
-      int size = dat->size * exp_exec_list->sizes[r];
-      if(size > max_exec){
-        max_exec = size;
-      }
-      if(size < min_exec){
-        min_exec = size;
-      }
-      exec_total += size; 
-    }
-    // printf("rank_count=%d set=%s maxhalo=%d exec_total=%d size=%d, levels=%d\n", rank_count, 
-    // set->name, max_nhalos, exec_total,
-    // exp_exec_list->ranks_size, exp_exec_list->num_levels);
-    exec_avg[i] = (rank_count > 0) ? exec_total / rank_count : 0;
-    exec_max[i] = max_exec;
-    exec_min[i] = (rank_count > 0) ? min_exec : 0;
-  }
-
-  // calculate average of export nonexec halos
-  for(int i = 0; i < max_nhalos; i++){
-    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
-    if(!exp_nonexec_list){
-      nonexec_avg[i] = 0;
-      nonexec_max[i] = 0;
-      nonexec_min[i] = 0;
-      continue;
-    }
-    int nonexec_total = 0;
-    int max_nonexec = 0;
-    int min_nonexec = INT_MAX;
-    int rank_count = exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels;
-    for(int r = 0; r < rank_count; r++){
-      int size = dat->size * exp_nonexec_list->sizes[r];
-      if(size > max_nonexec){
-        max_nonexec = size;
-      }
-      if(size < min_nonexec){
-        min_nonexec = size;
-      }
-      nonexec_total += size; 
-    }
-    nonexec_avg[i] = (rank_count > 0) ? nonexec_total / rank_count : 0;
-    nonexec_max[i] = max_nonexec;
-    nonexec_min[i] = (rank_count > 0) ? min_nonexec : 0;
-  }
-
-  // calculation of avg values
-  double all_exec_avg[max_nhalos * comm_size];
-  double all_nonexec_avg[max_nhalos * comm_size];
-
-  for(int i = 0; i < max_nhalos; i++){
-    MPI_Gather(&exec_avg[i], 1, MPI_DOUBLE, &all_exec_avg[i * comm_size], 1, MPI_DOUBLE, 0,
-           MPI_COMM_WORLD);
-    MPI_Gather(&nonexec_avg[i], 1, MPI_DOUBLE, &all_nonexec_avg[i * comm_size], 1, MPI_DOUBLE, 0,
-           MPI_COMM_WORLD);
-  }
-
-  double avg_exec_avg[max_nhalos];
-  double avg_nonexec_avg[max_nhalos];
-
-  if(my_rank == MPI_ROOT){
-
-    for(int i = 0; i < max_nhalos; i++){
-      int sum = 0;
-      int non_zero_count = 0;
-      for(int j = 0; j < comm_size; j++){
-        int val = all_exec_avg[i * comm_size + j];
-        if(val > 0.00){
-          sum += val;
-          non_zero_count++;
-        }
-      }
-      avg_exec_avg[i] = (non_zero_count > 0) ? sum / non_zero_count : 0;
-      // printf("calculate_dat_size exec i=%d sum=%d non_zero_count=%d av=%f\n", i, sum, non_zero_count, avg_exec_avg[i]);
-      snprintf(&result_str[len], 20, "%.0f,", avg_exec_avg[i]); len = strlen(result_str);
-    }
-
-    for(int i = 0; i < max_nhalos; i++){
-      int sum = 0;
-      int non_zero_count = 0;
-      for(int j = 0; j < comm_size; j++){
-        int val = all_nonexec_avg[i * comm_size + j];
-        if(val > 0.00){
-          sum += val;
-          non_zero_count++;
-        }
-      }
-      avg_nonexec_avg[i] = (non_zero_count > 0) ? sum / non_zero_count : 0;
-      // printf("calculate_dat_size avgnonexec i=%d sum=%d non_zero_count=%d av=%f\n", i, sum, non_zero_count, avg_nonexec_avg[i]);
-      snprintf(&result_str[len], 20, "%.0f,", avg_nonexec_avg[i]); len = strlen(result_str);
-    }
-  }
-
-  // take the min of each halo levels
-  double min_exec_min[max_nhalos];
-  double min_nonexec_min[max_nhalos];
-
-  MPI_Reduce(exec_min, min_exec_min, max_nhalos, MPI_DOUBLE, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-  MPI_Reduce(nonexec_min, min_nonexec_min, max_nhalos, MPI_DOUBLE, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-
-  if(my_rank == MPI_ROOT){
-    for(int i = 0; i < max_nhalos; i++){
-        snprintf(&result_str[len], 20, "%.0f,", min_exec_min[i]); len = strlen(result_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-        snprintf(&result_str[len], 20, "%.0f,", min_nonexec_min[i]); len = strlen(result_str);
-    }
-  }
-
-  // take the max of each halo levels
-  double max_exec_max[max_nhalos];
-  double max_nonexec_max[max_nhalos];
-
-  MPI_Reduce(exec_max, max_exec_max, max_nhalos, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-  MPI_Reduce(nonexec_max, max_nonexec_max, max_nhalos, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-
-  if(my_rank == 0){
-    for(int i = 0; i < max_nhalos; i++){
-        snprintf(&result_str[len], 20, "%.0f,", max_exec_max[i]); len = strlen(result_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-        snprintf(&result_str[len], 20, "%.0f,", max_nonexec_max[i]); len = strlen(result_str);
-    }
-  }
-
-  //calculate messsge counts
-  int exec_messages[max_nhalos];
-  int nonexec_messages[max_nhalos];
-
-  for(int i = 0; i < max_nhalos; i++){
-    halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
-    exec_messages[i] = (exp_exec_list) ? exp_exec_list->ranks_size : 0;
-
-    halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
-    nonexec_messages[i] = (exp_nonexec_list) ? exp_nonexec_list->ranks_size : 0;
-  }
-
-  int all_exec_messages[max_nhalos];
-  int all_nonexec_messages[max_nhalos];
-
-  MPI_Reduce(&exec_messages, &all_exec_messages, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-  MPI_Reduce(&nonexec_messages, &all_nonexec_messages, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-  
-  if(my_rank == 0){
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&result_str[len], 10, "%d,", all_exec_messages[i]); len = strlen(result_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&result_str[len], 10, "%d,", all_nonexec_messages[i]); len = strlen(result_str);
-    }
-  }
-  // op_printf("cadata,%s\n", header_str);
-  op_printf("cadata,%s\n", result_str);
-}
-
 void calculate_set_sizes(int my_rank){
 
   int comm_size = 0;
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  char header_str[500];
-  char result_str[500];
+  char header_str[2000];
+  char result_str[2000];
   int max_nhalos = get_max_nhalos();
 
   if(my_rank == 0){
     int header_len = 0;
-    snprintf(&header_str[header_len], 30, "%s", "my_rank,set,"); header_len = strlen(header_str);
+    snprintf(&header_str[header_len], 40, "%s", "my_rank,set,avg_size,min_size,max_size,"); header_len = strlen(header_str);
 
     for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "avg_of_core_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "min_of_core_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "max_of_core_%d,", i); header_len = strlen(header_str);
     }
 
     for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "avg_of_imp_exec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "min_of_imp_exec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "max_of_imp_exec_%d,", i); header_len = strlen(header_str);
     }
 
     for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "avg_of_imp_nonexec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "min_of_imp_nonexec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
       snprintf(&header_str[header_len], 25, "max_of_imp_nonexec_%d,", i); header_len = strlen(header_str);
+    }
+
+    for(int i = 0; i < max_nhalos; i++){
+      snprintf(&header_str[header_len], 25, "avg_of_exp_exec_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "min_of_exp_exec_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "max_of_exp_exec_%d,", i); header_len = strlen(header_str);
+    }
+
+    for(int i = 0; i < max_nhalos; i++){
+      snprintf(&header_str[header_len], 25, "avg_of_exp_nonexec_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "min_of_exp_nonexec_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "max_of_exp_nonexec_%d,", i); header_len = strlen(header_str);
+    }
+
+    for(int i = 0; i < max_nhalos; i++){
+      snprintf(&header_str[header_len], 25, "avg_of_exec_msg_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "min_of_exec_msg_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "max_of_exec_msg_%d,", i); header_len = strlen(header_str);
+    }
+
+    for(int i = 0; i < max_nhalos; i++){
+      snprintf(&header_str[header_len], 25, "avg_of_nonexec_msg_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "min_of_nonexec_msg_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "max_of_nonexec_msg_%d,", i); header_len = strlen(header_str);
+    }
+
+    for(int i = 0; i < max_nhalos; i++){
+      snprintf(&header_str[header_len], 25, "avg_of_exec_neig_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "min_of_exec_neig_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "max_of_exec_neig_%d,", i); header_len = strlen(header_str);
+    }
+
+    for(int i = 0; i < max_nhalos; i++){
+      snprintf(&header_str[header_len], 25, "avg_of_nonexec_neig_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "min_of_nonexec_neig_%d,", i); header_len = strlen(header_str);
+      snprintf(&header_str[header_len], 25, "max_of_nonexec_neig_%d,", i); header_len = strlen(header_str);
     }
     op_printf("setdata,%s\n", header_str);
   }
@@ -3040,12 +2871,35 @@ void calculate_set_sizes(int my_rank){
     int min_sizes[max_nhalos];
     int max_sizes[max_nhalos];
 
+    int local_avg_sizes[max_nhalos];
+    int local_min_sizes[max_nhalos];
+    int local_max_sizes[max_nhalos];
+
+    int avg_size;
+    int min_size;
+    int max_size;
+
     int len = 0;
     if(my_rank == MPI_ROOT){
       snprintf(&result_str[len], 10, "%d,", my_rank); len = strlen(result_str);
       snprintf(&result_str[len], 20, "%s,", set->name); len = strlen(result_str);
     }
 
+    // ============ set sizes ============
+    // reset
+    avg_size = 0; min_size = 0; max_size = 0;
+
+    MPI_Reduce(&set->size, &avg_size, 1, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(&set->size, &min_size, 1, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(&set->size, &max_size, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      snprintf(&result_str[len], 20, "%d,", avg_size / comm_size); len = strlen(result_str);
+      snprintf(&result_str[len], 20, "%d,", min_size); len = strlen(result_str);
+      snprintf(&result_str[len], 20, "%d,", max_size); len = strlen(result_str);
+    }
+
+    // ============ core sizes ============
     // reset
     for(int i = 0; i < max_nhalos; i++){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
@@ -3058,15 +2912,12 @@ void calculate_set_sizes(int my_rank){
     if(my_rank == MPI_ROOT){
       for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
-      }
-      for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
-      }
-      for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
       }
     }
 
+    // ============ imp exec sizes ============
     // reset
     for(int i = 0; i < max_nhalos; i++){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
@@ -3084,15 +2935,12 @@ void calculate_set_sizes(int my_rank){
     if(my_rank == MPI_ROOT){
       for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
-      }
-      for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
-      }
-      for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
       }
     }
 
+    // ============ imp nonexec sizes ============
     // reset
     for(int i = 0; i < max_nhalos; i++){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
@@ -3110,15 +2958,195 @@ void calculate_set_sizes(int my_rank){
     if(my_rank == MPI_ROOT){
       for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
-      }
-      for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
-      }
-      for(int i = 0; i < max_nhalos; i++){
           snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
       }
     }
+
+    // ============ exp exec sizes ============
+    // reset
+    for(int i = 0; i < max_nhalos; i++){
+      sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
+    }
     
+    for(int i = 0; i < max_nhalos; i++){
+      halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
+      sizes[i] = (exp_exec_list) ? exp_exec_list->size : 0;
+    }
+
+    MPI_Reduce(sizes, avg_sizes, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, min_sizes, max_nhalos, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, max_sizes, max_nhalos, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      for(int i = 0; i < max_nhalos; i++){
+          snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
+      }
+    }
+
+    // ============ exp nonexec sizes ============
+    // reset
+    for(int i = 0; i < max_nhalos; i++){
+      sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
+    }
+    
+    for(int i = 0; i < max_nhalos; i++){
+      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
+      sizes[i] = (exp_nonexec_list) ? exp_nonexec_list->size : 0;
+    }
+
+    MPI_Reduce(sizes, avg_sizes, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, min_sizes, max_nhalos, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, max_sizes, max_nhalos, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      for(int i = 0; i < max_nhalos; i++){
+          snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
+      }
+    }
+
+    // ============ exec message sizes ============
+    // reset
+    for(int i = 0; i < max_nhalos; i++){
+      sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
+      local_avg_sizes[i] = 0; local_min_sizes[i] = 0; local_max_sizes[i] = 0;
+    }
+
+    // calculate average, min, max of export exec halos
+    for(int i = 0; i < max_nhalos; i++){
+      halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
+      if(!exp_exec_list)
+        continue;
+
+      int exec_total = 0;
+      int max_exec = 0;
+      int min_exec = INT_MAX;
+      int rank_count = exp_exec_list->ranks_size / exp_exec_list->num_levels;
+      for(int r = 0; r < rank_count; r++){
+        int size = exp_exec_list->sizes[r];
+        if(size > max_exec){
+          max_exec = size;
+        }
+        if(size < min_exec){
+          min_exec = size;
+        }
+        exec_total += size; 
+      }
+      // printf("rank_count=%d set=%s maxhalo=%d exec_total=%d size=%d, levels=%d\n", rank_count, 
+      // set->name, max_nhalos, exec_total,
+      // exp_exec_list->ranks_size, exp_exec_list->num_levels);
+      local_avg_sizes[i] = (rank_count > 0) ? exec_total / rank_count : 0;
+      local_min_sizes[i] = (rank_count > 0) ? min_exec : 0;
+      local_max_sizes[i] = max_exec;
+    }
+
+    MPI_Reduce(local_avg_sizes, avg_sizes, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(local_min_sizes, min_sizes, max_nhalos, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(local_max_sizes, max_sizes, max_nhalos, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      for(int i = 0; i < max_nhalos; i++){
+          snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
+      }
+    }
+
+    // ============ nonexec message sizes ============
+    // reset
+    for(int i = 0; i < max_nhalos; i++){
+      sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
+      local_avg_sizes[i] = 0; local_min_sizes[i] = 0; local_max_sizes[i] = 0;
+    }
+
+    // calculate average, min, max of export nonexec halos
+    for(int i = 0; i < max_nhalos; i++){
+      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
+      if(!exp_nonexec_list)
+        continue;
+      int exec_total = 0;
+      int max_exec = 0;
+      int min_exec = INT_MAX;
+      int rank_count = exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels;
+      for(int r = 0; r < rank_count; r++){
+        int size = exp_nonexec_list->sizes[r];
+        if(size > max_exec){
+          max_exec = size;
+        }
+        if(size < min_exec){
+          min_exec = size;
+        }
+        exec_total += size; 
+      }
+      // printf("rank_count=%d set=%s maxhalo=%d exec_total=%d size=%d, levels=%d\n", rank_count, 
+      // set->name, max_nhalos, exec_total,
+      // exp_exec_list->ranks_size, exp_exec_list->num_levels);
+      local_avg_sizes[i] = (rank_count > 0) ? exec_total / rank_count : 0;
+      local_min_sizes[i] = (rank_count > 0) ? min_exec : 0;
+      local_max_sizes[i] = max_exec;
+    }
+
+    MPI_Reduce(local_avg_sizes, avg_sizes, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(local_min_sizes, min_sizes, max_nhalos, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(local_max_sizes, max_sizes, max_nhalos, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      for(int i = 0; i < max_nhalos; i++){
+          snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
+      }
+    }
+
+    // ============ exec halo neighbors ============
+    // reset
+    for(int i = 0; i < max_nhalos; i++){
+      sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
+    }
+    
+    for(int i = 0; i < max_nhalos; i++){
+      halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
+      sizes[i] = (exp_exec_list) ? exp_exec_list->ranks_size / exp_exec_list->num_levels: 0;
+    }
+
+    MPI_Reduce(sizes, avg_sizes, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, min_sizes, max_nhalos, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, max_sizes, max_nhalos, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      for(int i = 0; i < max_nhalos; i++){
+          snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
+      }
+    }
+
+    // ============ nonexec halo neighbors ============
+    // reset
+    for(int i = 0; i < max_nhalos; i++){
+      sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
+    }
+    
+    for(int i = 0; i < max_nhalos; i++){
+      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
+      sizes[i] = (exp_nonexec_list) ? exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels: 0;
+    }
+
+    MPI_Reduce(sizes, avg_sizes, max_nhalos, MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, min_sizes, max_nhalos, MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Reduce(sizes, max_sizes, max_nhalos, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+
+    if(my_rank == MPI_ROOT){
+      for(int i = 0; i < max_nhalos; i++){
+          snprintf(&result_str[len], 20, "%d,", avg_sizes[i] / comm_size); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", min_sizes[i]); len = strlen(result_str);
+          snprintf(&result_str[len], 20, "%d,", max_sizes[i]); len = strlen(result_str);
+      }
+    }
     op_printf("setdata,%s\n", result_str);
   }
 }
@@ -3126,51 +3154,29 @@ void calculate_set_sizes(int my_rank){
 void calculate_dat_sizes(int my_rank){
 
   int max_nhalos = get_max_nhalos();
-  char header_str[800];
+  char header_str[300];
 
-  if(my_rank == 0){
-
+  if(my_rank == MPI_ROOT){
     int header_len = 0;
-    snprintf(&header_str[header_len], 30, "%s", "my_rank,to_rank,dat,set,"); header_len = strlen(header_str);
-
-    //averages
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "avg_of_exec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "avg_of_nonexec_%d,", i); header_len = strlen(header_str);
-    }
-
-    //min
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "min_of_exec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "min_of_nonexec_%d,", i); header_len = strlen(header_str);
-    }
-
-    //max
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "max_of_exec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "max_of_nonexec_%d,", i); header_len = strlen(header_str);
-    }
-
-    //message counts
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "messages_exec_%d,", i); header_len = strlen(header_str);
-    }
-    for(int i = 0; i < max_nhalos; i++){
-      snprintf(&header_str[header_len], 25, "messages_nonexec_%d,", i); header_len = strlen(header_str);
-    }
+    snprintf(&header_str[header_len], 40, "%s", "my_rank,to_rank,dat,set,dat_size,"); header_len = strlen(header_str);
   }
   op_printf("cadata,%s\n", header_str);
 
   op_dat_entry *item;
-  
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    calculate_dat_size(my_rank, item->dat, max_nhalos);
+    op_dat dat = item->dat;
+    op_set set = dat->set;
+    char result_str[300];
+
+    int len = 0;
+    if(my_rank == MPI_ROOT){
+      snprintf(&result_str[len], 10, "%d,", my_rank); len = strlen(result_str);
+      snprintf(&result_str[len], 10, "%d,", my_rank); len = strlen(result_str);
+      snprintf(&result_str[len], 40, "%s,", dat->name); len = strlen(result_str);
+      snprintf(&result_str[len], 40, "%s,", set->name); len = strlen(result_str);
+      snprintf(&result_str[len], 10, "%d,", dat->size); len = strlen(result_str);
+    }
+    op_printf("cadata,%s\n", result_str);
   }
 }
 
