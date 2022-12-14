@@ -1,5 +1,5 @@
 # Compiler executables and flags
-CONFIG_CC := nvcc
+CONFIG_CC := nvc
 CONFIG_CXX := nvc++
 
 ifndef DEBUG

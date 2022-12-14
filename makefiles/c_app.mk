@@ -5,7 +5,7 @@ ifneq ($(MPI_INC),)
 endif
 
 APP_SRC_OP := $(foreach src,$(APP_SRC),$(notdir $(src)))
-APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%_op.cpp)
+APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%.cpp)
 
 APP_INC ?= -I.
 
