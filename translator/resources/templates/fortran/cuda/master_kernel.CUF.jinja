@@ -1,5 +1,6 @@
 #define UNUSED(x) if (.false.) print *, SHAPE(x)
 
+{% if lang.user_consts_module is none %}
 module op2_consts
 
     use cudafor
@@ -13,31 +14,32 @@ module op2_consts
     {% endfor %}
 contains
 
-{% for const in app.consts() %}
+    {% for const in app.consts() %}
     subroutine op_decl_const_{{const.ptr}}(ptr, dim)
         {{const.typ}}{{(", dimension(%d)" % const.dim) if const.dim > 1}} :: ptr
         integer(4) :: dim
 
-    {% if const.dim > 1 %}
+        {% if const.dim > 1 %}
         integer(4) :: d
 
         do d = 1, dim
             op2_const_{{const.ptr}}(d) = ptr(d)
             op2_const_{{const.ptr}}_d(d) = ptr(d)
         end do
-    {% else %}
+        {% else %}
         UNUSED(dim)
 
         op2_const_{{const.ptr}} = ptr
         op2_const_{{const.ptr}}_d = ptr
-    {% endif %}
+        {% endif %}
     end subroutine
 
-{% endfor %}
+    {% endfor %}
 end module
+{% endif %}
 
 {% for loop_, _ in app.loops() %}
-#include "{{loop_.kernel}}_kernel.inc"
+#include "{{loop.index}}_{{loop_.kernel}}_kernel.inc"
 {% endfor %}
 
 module op2_kernels
@@ -47,7 +49,7 @@ module op2_kernels
     use op2_fortran_declarations
     use op2_fortran_rt_support
 
-    use op2_consts
+    use {{"op2_consts" if lang.user_consts_module is none else lang.user_consts_module}}
 
 {% for loop_, _ in app.loops() %}
     use op2_k{{loop.index}} ! {{loop_.kernel}}
