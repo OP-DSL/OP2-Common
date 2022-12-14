@@ -7,7 +7,7 @@ endif
 PART_SIZE_ENV ?= 128
 FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
-APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%_op.F90)
+APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%.F90)
 
 BASE_VARIANTS := seq genseq openmp cuda
 

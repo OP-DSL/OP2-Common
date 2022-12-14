@@ -1,28 +1,58 @@
+{%- macro soa_flip(dat, i1, i2) -%}
+    {%- if dat is not soa -%}
+{{i1}}, {{i2}}
+    {%- else -%}
+{{i2}}, {{i1}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro map_idx(arg) -%}
+    {%- if arg is runtime_map_idx -%}
+arg{{arg.id}}_idx
+    {%- else -%}
+{{arg.map_idx}}
+    {%- endif -%}
+{%- endmacro -%}
+
 {%- macro map_lookup(arg) -%}
-map{{arg.map_id}}({{arg.map_idx - 1}} * set_size + n)
-    {{-(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
+map{{arg.map_id}}(n, {{map_idx(arg)}}) + 1
+{%- endmacro -%}
+
+{%- macro arg_slice(arg) -%}
+    {%- if lh.dat(arg).dim == 1 -%}
+1
+    {%- else -%}
+:
+    {%- endif -%}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer_cuda(arg) -%}
-    {%- if arg is gbl -%}
+    {%- if arg is idx and arg is indirect -%}
+{{map_lookup(arg)}}
+    {%- elif arg is idx -%}
+n
+    {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"_local" if arg is reduction}}
     {%- elif arg is direct -%}
-dat{{arg.dat_id}}((n - 1) * {{lh.dat(arg).dim}} + 1)
+dat{{arg.dat_id}}({{soa_flip(lh.dat(arg), arg_slice(arg), "n")}})
     {%- elif arg is inc and target.config.atomics %}
 arg{{arg.id}}_{{arg.map_idx}}_local
     {%- else -%}
-dat{{arg.dat_id}}({{map_lookup(arg)}} + 1)
+dat{{arg.dat_id}}({{soa_flip(lh.dat(arg), arg_slice(arg), map_lookup(arg))}})
     {%- endif -%}
 {%- endmacro -%}
 
 {%- macro kernel_call() -%}
-call op_cuda_{{lh.kernel}}<<<num_blocks, block_size
+call {{lh.kernel}}_wrapper<<<num_blocks, block_size
 {{-", shared_size" if lh.args|gbl|reduction|length > 0}}>>>( &
     {% for dat in lh.dats %}
     dat{{dat.id}}_d, &
     {% endfor %}
     {% for map in lh.maps %}
     map{{map.id}}_d, &
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+    arg{{arg.id}}%idx + 1, &
     {% endfor %}
     {% for arg in lh.args|gbl %}
     gbl{{arg.id}}_d, &
@@ -45,6 +75,22 @@ call op_cuda_{{lh.kernel}}<<<num_blocks, block_size
     {%- endif -%}
 {%- endmacro -%}
 
+{%- macro dat_dim(dat) -%}
+    {%- if dat.dim is not none -%}
+{{dat.dim}}
+    {%- else -%}
+arg{{dat.arg_id}}%dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro gbl_dim(arg) -%}
+    {%- if arg.dim is not none -%}
+{{arg.dim}}
+    {%- else -%}
+arg{{arg.id}}%dim
+    {%- endif -%}
+{%- endmacro -%}
+
 module op2_k{{kernel_idx}}
 
     use cudafor
@@ -59,25 +105,23 @@ module op2_k{{kernel_idx}}
     implicit none
 
     private
-    public :: {{lh.kernel}}_host
+    public :: op2_k{{kernel_idx}}_{{lh.kernel}}
 
-{% for dat in lh.dats|soa %}
-    integer(4) :: op2_dat{{dat.id}}_stride
-    integer(4), constant :: op2_dat{{dat.id}}_stride_d{{"\n" if loop.last}}
-{% endfor %}
 contains
 
-attributes(device) &
 {{kernel_func}}
 
 attributes(global) &
-subroutine op_cuda_{{lh.kernel}}( &
+subroutine {{lh.kernel}}_wrapper( &
 {{"    optflags, &\n" if lh.args|opt|length > 0-}}
 {% for dat in lh.dats %}
     dat{{dat.id}}, &
 {% endfor %}
 {% for map in lh.maps %}
     map{{map.id}}, &
+{% endfor %}
+{% for arg in lh.args|runtime_map_idx %}
+    arg{{arg.id}}_idx, &
 {% endfor %}
 {% for arg in lh.args|gbl %}
     gbl{{arg.id}}, &
@@ -97,13 +141,16 @@ subroutine op_cuda_{{lh.kernel}}( &
 
 {% endif %}
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension(*) :: dat{{dat.id}}{{"\n" if loop.last}}
+    {{dat.typ}}, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
-    integer(4), dimension(*) :: map{{map.id}}{{"\n" if loop.last}}
+    integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
+{% endfor %}
+{% for arg in lh.args|runtime_map_idx %}
+    integer(4) :: arg{{arg.id}}_idx{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}{{", *" if arg is reduction}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension(:{{", :" if arg is reduction}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% if lh is indirect %}
     {% if target.config.color2 %}
@@ -115,15 +162,16 @@ subroutine op_cuda_{{lh.kernel}}( &
 
     ! locals
 {% for arg in lh.args|gbl|reduction %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}_local{{"\n" if loop.last}}
+    {{arg.typ}}, dimension(size(gbl{{arg.id}}, 1)) :: gbl{{arg.id}}_local{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|indirect|reduction if target.config.atomics %}
-    {{lh.dat(arg).typ}}, dimension({{lh.dat(arg).dim}}) :: arg{{arg.id}}_{{arg.map_idx}}_local{{"\n" if loop.last}}
+    {{lh.dat(arg).typ}}, dimension(size(dat{{arg.dat_id}}, {{"2" if lh.dat(arg) is soa else "1"-}}
+        )) :: arg{{arg.id}}_{{arg.map_idx}}_local{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: thread_id, d, n, ret
 
 {% for arg in lh.args|gbl|reduction %}
-    do d = 1, {{arg.dim}}
+    do d = 1, size(gbl{{arg.id}}_local)
         gbl{{arg.id}}_local(d) = {% if arg is inc -%}
             0
         {%- else -%}
@@ -135,7 +183,7 @@ subroutine op_cuda_{{lh.kernel}}( &
     thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
 
 {% if lh is direct %}
-    do n = thread_id, set_size, blockdim%x * griddim%x
+    do n = thread_id, set_size, blockDim%x * gridDim%x
         call {{lh.kernel}}( &
     {% for arg  in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
@@ -156,8 +204,8 @@ subroutine op_cuda_{{lh.kernel}}( &
         )
     {% for arg in lh.args|indirect|reduction if target.config.atomics %}
 
-        do d = 1, {{lh.dat(arg).dim}}
-            ret = atomicAdd(dat{{arg.dat_id}}({{map_lookup(arg)}} + d), &
+        do d = 1, size(arg{{arg.id}}_{{arg.map_idx}}_local)
+            ret = atomicAdd(dat{{arg.dat_id}}({{soa_flip(lh.dat(arg), d, map_lookup(arg))}}), &
                 arg{{arg.id}}_{{arg.map_idx}}_local(d))
         end do
     {% endfor %}
@@ -165,19 +213,19 @@ subroutine op_cuda_{{lh.kernel}}( &
 {% endif %}
 {% for arg in lh.args|gbl|reduction %}
 
-    do d = 1, {{arg.dim}}
+    do d = 1, size(gbl{{arg.id}}_local)
         ret = {%+ if arg is inc -%}
         atomicAdd
         {%- elif arg is min -%}
         atomicMin
         {%- elif arg is max -%}
-        AtomicMax
+        atomicMax
         {%- endif %}(gbl{{arg.id}}(d, blockIdx%x), gbl{{arg.id}}_local(d))
     end do
 {% endfor %}
 end subroutine
 
-subroutine {{lh.kernel}}_host( &
+subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
     name, &
     set, &
 {% for arg in lh.args %}
@@ -200,15 +248,15 @@ subroutine {{lh.kernel}}_host( &
     integer(4) :: set_size, col, block, round, dim, err
 
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension(:), pointer, device :: dat{{dat.id}}_d{{"\n" if loop.last}}
+    {{dat.typ}}, dimension(:, :), pointer, device :: dat{{dat.id}}_d{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
-    integer(4), dimension(:), pointer, device :: map{{map.id}}_d{{"\n" if loop.last}}
+    integer(4), dimension(:, :), pointer, device :: map{{map.id}}_d{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(:), pointer :: gbl{{arg.id}}
     {% if arg is reduction %}
-    {{arg.typ}}, dimension(:, :), allocatable, save :: gbl{{arg.id}}_h
+    {{arg.typ}}, dimension(:, :), allocatable, save :: gbl{{arg.id}}_reduct
     {% endif %}
     {{arg.typ}}, dimension(:{{", :" if arg is reduction}}), allocatable, save, device :: gbl{{arg.id}}_d
 
@@ -239,7 +287,6 @@ subroutine {{lh.kernel}}_host( &
 {% endfor %}
 
     call op_timers_core(start_time)
-
     set_size = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
     if (set_size == 0) then
@@ -296,19 +343,19 @@ subroutine {{lh.kernel}}_host( &
 {% endif %}
 
 {% for dat in lh.dats %}
-    call c_f_pointer(arg{{dat.arg_id}}%data_d, dat{{dat.id}}_d, (/arg{{dat.arg_id}}%dim * getsetsizefromoparg(arg{{dat.arg_id}})/))
+    call c_f_pointer(arg{{dat.arg_id}}%data_d, dat{{dat.id}}_d, (/{{soa_flip(dat, dat_dim(dat), "getsetsizefromoparg(arg%d)" % dat.arg_id)}}/))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
-    call c_f_pointer(arg{{map.arg_id}}%map_data_d, map{{map.id}}_d, (/set%setptr%size * getmapdimfromoparg(arg{{map.arg_id}})/))
+    call c_f_pointer(arg{{map.arg_id}}%map_data_d, map{{map.id}}_d, (/getmapdimfromoparg(arg{{map.arg_id}}), set%setptr%size/))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg.dim}}/)){{-"\n" if loop.last}}
+    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{gbl_dim(arg)}}/)){{-"\n" if loop.last}}
 {% endfor %}
-{% for arg in lh.args|gbl|read_or_write %}
+{% for arg in lh.args|gbl|reject("reduction") %}
     if (.not. allocated(gbl{{arg.id}}_d)) then
-        allocate(gbl{{arg.id}}_d({{arg.dim}}))
+        allocate(gbl{{arg.id}}_d({{gbl_dim(arg)}}))
     end if
     {% if arg is not write %}
     gbl{{arg.id}}_d = gbl{{arg.id}}
@@ -321,15 +368,13 @@ subroutine {{lh.kernel}}_host( &
     shared_size = max(shared_size, block_size * sizeof(gbl{{arg.id}}(1)))
 
     if (.not. allocated(gbl{{arg.id}}_d)) then
-        allocate(gbl{{arg.id}}_d({{arg.dim}}, max_blocks))
+        allocate(gbl{{arg.id}}_d({{gbl_dim(arg)}}, max_blocks))
     end if
 
-    {% if arg is reduction %}
-    if (.not. allocated(gbl{{arg.id}}_h)) then
-        allocate(gbl{{arg.id}}_h({{arg.dim}}, max_blocks))
+    if (.not. allocated(gbl{{arg.id}}_reduct)) then
+        allocate(gbl{{arg.id}}_reduct({{gbl_dim(arg)}}, max_blocks))
     end if
 
-    {% endif %}
     {% if arg is inc %}
     gbl{{arg.id}}_d = 0
     {% else %}
@@ -379,14 +424,14 @@ subroutine {{lh.kernel}}_host( &
     gbl{{arg.id}} = gbl{{arg.id}}_d{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl|reduction %}
-    gbl{{arg.id}}_h = gbl{{arg.id}}_d
+    gbl{{arg.id}}_reduct = gbl{{arg.id}}_d
 
     do block = 1, max_blocks
-        do dim = 1, {{arg.dim}}
+        do dim = 1, {{gbl_dim(arg)}}
     {% if arg is inc %}
-            gbl{{arg.id}}(dim) = gbl{{arg.id}}(dim) + gbl{{arg.id}}_h(dim, block)
+            gbl{{arg.id}}(dim) = gbl{{arg.id}}(dim) + gbl{{arg.id}}_reduct(dim, block)
     {% elif arg is reduction %}
-            gbl{{arg.id}}(dim) = {{arg.access_type.name}}(gbl{{arg.id}}(dim), gbl{{arg.id}}_h(dim, block))
+            gbl{{arg.id}}(dim) = {{arg.access_type.name}}(gbl{{arg.id}}(dim), gbl{{arg.id}}_reduct(dim, block))
     {% endif %}
         end do
     end do

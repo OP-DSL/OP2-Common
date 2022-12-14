@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -96,12 +96,12 @@ def insertStride(entity: Entity, param: str, arg: OP.Arg, stride: Callable[[str]
         )
 
 
-def writeSource(entities: List[Entity]) -> str:
+def writeSource(entities: List[Entity], prologue: Optional[str] = None) -> str:
     if len(entities) == 0:
         return ""
 
-    source = str(entities[-1].ast)
+    source = (prologue or "") + str(entities[-1].ast)
     for entity in reversed(entities[:-1]):
-        source = source + "\n\n" + str(entity.ast)
+        source = source + "\n\n" + (prologue or "") + str(entity.ast)
 
     return source
