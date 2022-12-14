@@ -129,16 +129,16 @@ class FortranCuda(Scheme):
         def match_atomic_inc(arg):
             return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
 
-        for kernel_entity in kernel_entities:
-            ftk.insertStrides(
-                kernel_entity,
-                loop,
-                app,
-                lambda arg: f"op2_dat{arg.dat_id}_stride_d",
-                match=lambda arg: match_soa(arg) and not match_atomic_inc(arg),
-            )
+#       for kernel_entity in kernel_entities:
+#           ftk.insertStrides(
+#               kernel_entity,
+#               loop,
+#               app,
+#               lambda arg: f"op2_dat{arg.dat_id}_stride_d",
+#               match=lambda arg: match_soa(arg) and not match_atomic_inc(arg),
+#           )
 
-        return ftk.writeSource(kernel_entities + dependencies)
+        return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")
 
 
-# Scheme.register(FortranCuda)
+Scheme.register(FortranCuda)
