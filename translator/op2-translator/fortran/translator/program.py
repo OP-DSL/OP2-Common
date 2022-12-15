@@ -8,7 +8,7 @@ from store import Program
 KERNEL_ID = 1
 
 
-def translateProgram(program: Program, force_soa: bool) -> str:
+def translateProgram2(program: Program, force_soa: bool) -> str:
     src = program.source
 
     def repl(m):
@@ -18,16 +18,17 @@ def translateProgram(program: Program, force_soa: bool) -> str:
 
         return r
 
-    src = re.sub(r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*", repl, src, flags=re.MULTILINE | re.IGNORECASE)
+    flags = re.MULTILINE | re.IGNORECASE
 
-    src = re.sub(
-        r"^(\s*)(use op2_fortran_reference)", r"\1\2\n\1use op2_kernels", src, flags=re.MULTILINE | re.IGNORECASE
-    )
+    src = re.sub(r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*", repl, src, flags=flags)
+    src = re.sub(r"^(\s*)(use op2_fortran_reference)", r"\1\2\n\1use op2_kernels", src, flags=flags)
 
     return src
 
 
-def translateProgram2(ast: f2003.Program, program: Program, force_soa: bool) -> str:
+def translateProgram(program: Program, force_soa: bool) -> str:
+    ast = program.ast
+
     for call in fpu.walk(ast, f2003.Call_Stmt):
         name = fpu.get_child(call, f2003.Name)
         if name is None or name.string != "op_decl_const":

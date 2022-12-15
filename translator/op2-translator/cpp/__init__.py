@@ -85,8 +85,8 @@ class Cpp(Lang):
         )
 
         for diagnostic in iter(translation_unit.diagnostics):
-            if diagnostic.severity >= clang.cindex.Diagnostic.Error:
-                raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
+            #           if diagnostic.severity >= clang.cindex.Diagnostic.Error:
+            #               raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
 
             print(
                 f"Clang diagnostic, severity {diagnostic.severity} at "

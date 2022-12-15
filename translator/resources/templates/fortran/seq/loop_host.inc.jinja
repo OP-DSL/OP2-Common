@@ -8,26 +8,26 @@ arg{{arg.id}}_idx
 
 {%- macro arg_to_pointer(arg) -%}
     {%- if arg is idx and arg is indirect -%}
-map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1
+map{{arg.map_id}}({{arg.map_idx}}, n) + 1
     {%- elif arg is idx -%}
-n + 1
-    {%- elif arg is gbl and arg is reduction and lh is indirect -%}
+n
+    {%- elif arg is gbl and arg is not read and lh is indirect -%}
 gbl{{arg.id}}_temp{{"(1)" if arg.dim == 1 }}
     {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"(1)" if arg.dim == 1 }}
     {%- elif arg is direct -%}
-dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, n + 1)
+dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, n)
     {%- else -%}
-dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{map_idx(arg)}}, n + 1) + 1)
+dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{map_idx(arg)}}, n) + 1)
     {%- endif -%}
 {%- endmacro -%}
 
 {%- macro type_c(arg) -%}
-    {%- if arg.access_type is instance(OP.Int) -%}
+    {%- if arg.typ is instance(OP.Int) -%}
         int
-    {%- elif arg.access_type is instance(OP.Bool) -%}
+    {%- elif arg.typ is instance(OP.Bool) -%}
         bool
-    {%- elif arg.access_type.size == 32 -%}
+    {%- elif arg.typ.size == 32 -%}
         float
     {%- else -%}
         double
@@ -83,7 +83,7 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl %}
     gbl{{arg.id}}, &
 {% endfor %}
-    set_size, &
+    n_exec, &
     set, &
     args &
 )
@@ -102,35 +102,29 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
-    integer(4) :: set_size
+    integer(4) :: n_exec
     type(op_set) :: set
     type(op_arg), dimension({{lh.args|length}}) :: args
 
     ! locals
-{% for arg in lh.args|gbl|reduction if lh is indirect %}
+{% for arg in lh.args|gbl|reject("read") if lh is indirect %}
     {{arg.typ}}, dimension(size(gbl{{arg.id}})) :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
 {% endfor %}
-    integer(4) :: n, test_frequency
+    integer(4) :: n
 
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
     gbl{{arg.id}}_temp = gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
-    test_frequency = op_mpi_get_test_frequency()
-
-    do n = 0, set_size - 1
+    do n = 1, n_exec
     {% if lh is indirect %}
-        if (n > 0 .and. n < set%setptr%core_size .and. mod(n, test_frequency) == 0) then
-            call op_mpi_test_all(size(args), args)
-        end if
-
-        if (n == set%setptr%core_size) then
+        if (n == set%setptr%core_size + 1) then
             call op_mpi_wait_all(size(args), args)
         end if
 
     {% endif %}
-    {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
-        if (n == set%setptr%size) then
-        {% for arg in lh.args|gbl|reduction %}
+    {% if lh is indirect and lh.args|gbl|reject("read")|list|length > 0 %}
+        if (n == set%setptr%size + 1) then
+        {% for arg in lh.args|gbl|reject("read") %}
             gbl{{arg.id}} = gbl{{arg.id}}_temp
         {% endfor %}
         end if
@@ -142,6 +136,14 @@ subroutine {{lh.kernel}}_wrapper( &
 {% endfor %}
         )
     end do
+{% if lh is indirect and lh.args|gbl|reject("read")|list|length > 0 %}
+
+    if (n_exec <= set%setptr%size) then
+    {% for arg in lh.args|gbl|reject("read") %}
+        gbl{{arg.id}} = gbl{{arg.id}}_temp
+    {% endfor %}
+    end if
+{% endif %}
 end subroutine
 
 subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
@@ -164,7 +166,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
     ! locals
     type(op_arg), dimension({{lh.args|length}}) :: args
 
-    integer(4) :: set_size
+    integer(4) :: n_exec
 
 {% for dat in lh.dats %}
     {{dat.typ}}, pointer, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -183,7 +185,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% endfor %}
 
     call op_timers_core(start_time)
-    set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+    n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
 {% for dat in lh.dats %}
     call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat_dim(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
@@ -209,12 +211,12 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% for arg in lh.args|gbl %}
         gbl{{arg.id}}, &
 {% endfor %}
-        set_size, &
+        n_exec, &
         set, &
         args &
     )
 
-    if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
+    if ((n_exec == 0) .or. (n_exec == set%setptr%core_size)) then
         call op_mpi_wait_all(size(args), args)
     end if
 
