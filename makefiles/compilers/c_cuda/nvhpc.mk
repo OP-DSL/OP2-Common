@@ -7,7 +7,7 @@ endif
 ifndef DEBUG
   NVCC_OPT := -O3 -use_fast_math
 else
-  NVCC_OPT := -g -O0
+  NVCC_OPT := -g -O0 --device-debug
 endif
 
 CONFIG_NVCCFLAGS ?= $(foreach arch,$(CUDA_GEN),-gencode arch=compute_$(arch),code=sm_$(arch)) \
