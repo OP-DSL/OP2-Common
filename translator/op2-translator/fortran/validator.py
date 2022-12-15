@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -29,8 +29,11 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         seen_entity_names.append(entity.name)
 
     if len(loop.args) != len(kernel_entities[0].parameters):
-        raise OpError(f"op_par_loop argument list length ({len(loop.args)}) mismatch "
-                      f"(expected: {len(kernel_entities[0].parameters)}, kernel function: {loop.kernel})", loop.loc)
+        raise OpError(
+            f"op_par_loop argument list length ({len(loop.args)}) mismatch "
+            f"(expected: {len(kernel_entities[0].parameters)}, kernel function: {loop.kernel})",
+            loop.loc,
+        )
         return
 
     for idx, arg in enumerate(loop.args):
@@ -50,7 +53,8 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
             print(msg)
 
-def isRef(node: Any, name: str) -> bool: 
+
+def isRef(node: Any, name: str) -> bool:
     if isinstance(node, f2003.Name) and node.string == name:
         return True
 
@@ -58,6 +62,7 @@ def isRef(node: Any, name: str) -> bool:
         return True
 
     return False
+
 
 def paramIsWritten(param_idx: int, func: Function, funcs: List[Function]) -> (bool, bool):
     assert isinstance(func.ast, f2003.Subroutine_Subprogram)
