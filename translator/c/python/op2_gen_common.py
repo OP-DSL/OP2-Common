@@ -130,7 +130,7 @@ def replace_local_includes_with_file_contents(text, search_dir):
           if include_item_filepath != "":
             break
         if include_item_filepath == "":
-          print("Failed to locate file '{0}'".format(include_item))
+          print(("Failed to locate file '{0}'".format(include_item)))
           quit()
         f = open(include_item_filepath, 'r')
         include_file_text = f.read()
@@ -171,7 +171,7 @@ def replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_comp
           if include_item_filepath != "":
             break
         if include_item_filepath == "":
-          print("Failed to locate file '{0}'".format(include_item))
+          print(("Failed to locate file '{0}'".format(include_item)))
           quit()
         f = open(include_item_filepath, 'r')
         include_file_text = f.read()
@@ -221,7 +221,7 @@ def op_parse_macro_defs(text):
     if len(match) < 4:
       continue
     elif len(match) > 4:
-      print("Unexpected format for macro definition: " + str(match))
+      print(("Unexpected format for macro definition: " + str(match)))
       continue
     key = match[2]
     value = match[3]
@@ -234,7 +234,7 @@ def self_evaluate_macro_defs(macro_defs):
 
   ## First, calculate the expected number of substitutions to perform:
   num_subs_expected = 0
-  for k in macro_defs.keys():
+  for k in list(macro_defs.keys()):
     k_val = macro_defs[k]
     m = re.search(arithmetic_regex_pattern, k_val)
     if m != None:
@@ -245,14 +245,14 @@ def self_evaluate_macro_defs(macro_defs):
     for o in occurences:
       m = re.search(arithmetic_regex_pattern, o)
       if m == None:
-        if o in macro_defs.keys():
+        if o in list(macro_defs.keys()):
           num_subs_expected += 1
 
   substitutions_performed = True
   num_subs_performed = 0
   while substitutions_performed:
     substitutions_performed = False
-    for k in macro_defs.keys():
+    for k in list(macro_defs.keys()):
       k_val = macro_defs[k]
       m = re.search(arithmetic_regex_pattern, k_val)
       if m != None:
@@ -267,7 +267,7 @@ def self_evaluate_macro_defs(macro_defs):
 
       ## If value of key 'k' depends on value of other
       ## keys, then substitute in value:
-      for k2 in macro_defs.keys():
+      for k2 in list(macro_defs.keys()):
         if k == k2:
           continue
 
@@ -293,11 +293,11 @@ def self_evaluate_macro_defs(macro_defs):
 
           num_subs_performed += 1
           if num_subs_performed > num_subs_expected:
-            print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
+            print(("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop."))
             return
 
   ## Evaluate any mathematical expressions:
-  for k in macro_defs.keys():
+  for k in list(macro_defs.keys()):
     val = macro_defs[k]
     m = re.search(arithmetic_regex_pattern, val)
     if m != None:
@@ -323,7 +323,7 @@ def evaluate_macro_defs_in_string(macro_defs, string):
     for o in occurences:
       m = re.search(arithmetic_regex_pattern, o)
       if m == None:
-        if o in macro_defs.keys():
+        if o in list(macro_defs.keys()):
           num_subs_expected = num_subs_expected + 1
 
   resolved_string = string
@@ -332,7 +332,7 @@ def evaluate_macro_defs_in_string(macro_defs, string):
   num_subs_performed = 0
   while substitutions_performed:
     substitutions_performed = False
-    for k in macro_defs.keys():
+    for k in list(macro_defs.keys()):
       k_val = macro_defs[k]
 
       k_pattern = r'' + r'' + '(^|[^a-zA-Z0-9_])' + k + '($|[^a-zA-Z0-9_])'
@@ -346,7 +346,7 @@ def evaluate_macro_defs_in_string(macro_defs, string):
 
         num_subs_performed = num_subs_performed + 1
         if num_subs_performed > num_subs_expected:
-          print("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop.")
+          print(("WARNING: " + str(num_subs_performed) + " macro substitutions performed, but expected " + str(num_subs_expected) + ", probably stuck in a loop."))
           return
 
 
@@ -478,7 +478,7 @@ def create_kernel_info(kernel, inc_stage = 0):
             invmapinds[i] = invmapinds[j]
     else:
       vectorised = [0]*nargs
-      unique_args = range(1,nargs+1)
+      unique_args = list(range(1,nargs+1))
 
     cumulative_indirect_index = [-1]*nargs;
     j = 0;

@@ -187,7 +187,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     gbl_reducts=''
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ and accs[i] <> OP_WRITE:
+      if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
         gbl_reducts = typs[i]
         j = i
       if maps[i] == OP_GBL and accs[i] == OP_READ:
@@ -262,8 +262,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     i = p.search(kernel_text).start()+4
 
     if(i < 0):
-      print "\n********"
-      print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+      print("\n********")
+      print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
       exit(2)
     i2 = i
 
@@ -282,7 +282,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     # check for number of arguments
     if len(signature_text.split(',')) != nargs_novec:
-        print 'Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments'
+        print('Error parsing user kernel('+name+'): must have '+str(nargs)+' arguments')
         return
 
     for i in range(0,nargs_novec):
@@ -292,7 +292,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
-          print name, var2
+          print(name, var2)
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
             body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
           else:
@@ -365,7 +365,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           code('optflags |= 1<<'+str(optidxs[i])+';')
           ENDIF()
     if nopts > 30:
-      print 'ERROR: too many optional arguments to store flags in an integer'
+      print('ERROR: too many optional arguments to store flags in an integer')
 #
 # start timing
 #
@@ -470,7 +470,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
             code('const int opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg'+str(g_m)+');')
-      if dir_soa<>-1:
+      if dir_soa!=-1:
           code('const int direct_'+name+'_stride_OP2CONSTANT = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
 
 #
@@ -505,7 +505,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         FOR('col','0','Plan->ncolors')
         code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
         ENDFOR()
-      if atomics and ninds > 0:
+      elif atomics and ninds > 0:
         code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
       else:
         code('int maxblocks = nblocks;')
@@ -513,7 +513,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('int reduct_bytes = 0;')
       code('int reduct_size  = 0;')
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('reduct_bytes += ROUND_UP(maxblocks*<DIM>*sizeof(<TYP>));')
           code('reduct_size   = MAX(reduct_size,sizeof(<TYP>));')
       code('reallocReductArrays(reduct_bytes);')
@@ -521,7 +521,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('reduct_bytes = 0;')
 
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m]<>OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m]!=OP_WRITE:
           code('<ARG>.data   = OP_reduct_h + reduct_bytes;')
           code('<ARG>.data_d = OP_reduct_d + reduct_bytes;')
           code('<TYP> *<ARG>_d = (<TYP>*)<ARG>.data_d;')
@@ -687,7 +687,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     for redtyp in ['int', 'float', 'double']:
       for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
           if typs[g_m] == redtyp:
               code('cl::sycl::accessor<'+redtyp+', 1, cl::sycl::access::mode::read_write,')
               code('   cl::sycl::access::target::local> red_'+redtyp+'(nthread, cgh);')
@@ -732,7 +732,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       code('auto kern = [=](cl::sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SIMD_VEC)]] {')
     depth += 2
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ and accs[g_m] <> OP_WRITE:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
         code('<TYP> <ARG>_l[<DIM>];')
         if accs[g_m] == OP_INC:
           FOR('d','0','<DIM>')
@@ -878,7 +878,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             ENDIF()
       code('')
       for g_m in range (0,nargs):
-        if accs[g_m] <> OP_INC: #TODO: add opt handling here
+        if accs[g_m] != OP_INC: #TODO: add opt handling here
           u = [i for i in range(0,len(unique_args)) if unique_args[i]-1 == g_m]
           if len(u) > 0 and vectorised[g_m] > 0:
             if accs[g_m] == OP_READ:
@@ -1021,7 +1021,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
             line += rep(indent+'&<ARG>_d[n*<DIM>],\n',m)
           a =a+1
       else:
-        print 'internal error 1 '
+        print('internal error 1 ')
 
     code(line[0:-2]+');') #remove final ',' and \n
 
@@ -1136,7 +1136,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
        code('')
        for m in range (0,nargs):
          g_m = m
-         if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
+         if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
            FOR('d','0','<DIM>')
            if accs[m]==OP_INC:
              code('op_reduction<OP_INC,'+str(intel)+'>(<ARG>_d,d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
@@ -1145,7 +1145,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
            elif accs[m]==OP_MAX:
              code('op_reduction<OP_MAX,'+str(intel)+'>(<ARG>_d,d+item.get_group_linear_id()*<DIM>,<ARG>_l[d],red_<TYP>,item);')
            else:
-             print 'internal error: invalid reduction option'
+             print('internal error: invalid reduction option')
              sys.exit(2);
            ENDFOR()
     code('')
@@ -1205,7 +1205,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
       for m in range(0,nargs):
         g_m = m
-        if maps[m]==OP_GBL and accs[m]<>OP_READ and accs[m] <> OP_WRITE:
+        if maps[m]==OP_GBL and accs[m]!=OP_READ and accs[m] != OP_WRITE:
           FOR('b','0','maxblocks')
           FOR('d','0','<DIM>')
           if accs[m]==OP_INC:
@@ -1253,7 +1253,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:

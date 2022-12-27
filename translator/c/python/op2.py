@@ -96,7 +96,7 @@ def op_decl_set_parse(text):
 
     # check for syntax errors
     if len(args) != 2:
-      print 'Error in op_decl_set : must have three arguments'
+      print('Error in op_decl_set : must have three arguments')
       return
 
     sets.append({
@@ -107,7 +107,7 @@ def op_decl_set_parse(text):
 
     # check for syntax errors
     if len(args) != 2:
-      print 'Error in op_decl_set : must have three arguments'
+      print('Error in op_decl_set : must have three arguments')
       return
 
     sets.append({
@@ -126,7 +126,7 @@ def op_decl_const_parse(text):
 
     # check for syntax errors
     if len(args) != 3:
-      print 'Error in op_decl_const : must have three arguments'
+      print('Error in op_decl_const : must have three arguments')
       return
 
     consts.append({
@@ -175,8 +175,8 @@ def get_arg_dat(arg_string, j):
 
   # check for syntax errors
   if len(dat_args_string.split(',')) != 6:
-    print 'Error parsing op_arg_dat(%s): must have six arguments' \
-        % dat_args_string
+    print('Error parsing op_arg_dat(%s): must have six arguments' \
+        % dat_args_string)
     return
 
   # split the dat_args_string into  6 and create a struct with the elements
@@ -200,8 +200,8 @@ def get_opt_arg_dat(arg_string, j):
   dat_args_string = comment_remover(dat_args_string)
   # check for syntax errors
   if len(dat_args_string.split(',')) != 7:
-    print 'Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
-        % dat_args_string
+    print('Error parsing op_opt_arg_dat(%s): must have 7 arguments' \
+        % dat_args_string)
     return
 
   # split the dat_args_string into  6 and create a struct with the elements
@@ -227,8 +227,8 @@ def get_arg_gbl(arg_string, k):
 
   # check for syntax errors
   if len(gbl_args_string.split(',')) != 4:
-    print 'Error parsing op_arg_gbl(%s): must have four arguments' \
-        % gbl_args_string
+    print('Error parsing op_arg_gbl(%s): must have four arguments' \
+        % gbl_args_string)
     return
 
   # split the gbl_args_string into  4 and create a struct with the elements
@@ -270,7 +270,7 @@ def op_par_loop_parse(text):
     l = arg_string.find(search4)
 
     while j > -1 or k > -1 or l > -1:
-      index = min(j if (j > -1) else sys.maxint,k if (k > -1) else sys.maxint,l if (l > -1) else sys.maxint )
+      index = min(j if (j > -1) else sys.maxsize,k if (k > -1) else sys.maxsize,l if (l > -1) else sys.maxsize )
       if index == j:
         temp_dat = get_arg_dat(arg_string, j)
         # append this struct to a temporary list/array
@@ -301,7 +301,7 @@ def op_par_loop_parse(text):
 
     loop_args.append(temp)
     i = text.find(search, i + 10)
-  print '\n\n'
+  print('\n\n')
   return (loop_args)
 
 def op_check_kernel_in_text(text, name):
@@ -352,12 +352,12 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   ## Extract macro definitions:
   for src_file in src_files:
-    print("Parsing file '" + src_file + "' for macro definitions.")
+    print(("Parsing file '" + src_file + "' for macro definitions."))
     with open(src_file, 'r') as f:
       text = f.read()
 
     local_defs = op_parse_macro_defs(text)
-    for k in local_defs.keys():
+    for k in list(local_defs.keys()):
       if (k in macro_defs) and (local_defs[k] != macro_defs[k]):
         msg = "WARNING: Have found two different definitions for macro '{}': '{}' and '{}'. Using the first definition.".format(k, macro_defs[k], local_defs[k])
         print(msg)
@@ -378,8 +378,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   src_file_num = -1
   for src_file in src_files:
     src_file_num = src_file_num + 1
-    print("Processing file " + str(src_file_num+1) + " of " + str(len(src_files)) + \
-          ": " + src_file)
+    print(("Processing file " + str(src_file_num+1) + " of " + str(len(src_files)) + \
+          ": " + src_file))
     with open(src_file, 'r') as f:
       text = f.read()
 
@@ -389,17 +389,17 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     inits, exits, parts, hdf5s = op_parse_calls(text)
 
     if inits + exits + parts + hdf5s > 0:
-      print ' '
+      print(' ')
     if inits > 0:
-      print'contains op_init call'
-      if auto_soa<>'0':
+      print('contains op_init call')
+      if auto_soa!='0':
         text = append_init_soa(text)
     if exits > 0:
-      print'contains op_exit call'
+      print('contains op_exit call')
     if parts > 0:
-      print'contains op_partition call'
+      print('contains op_partition call')
     if hdf5s > 0:
-      print'contains op_hdf5 calls'
+      print('contains op_hdf5 calls')
 
     ninit = ninit + inits
     nexit = nexit + exits
@@ -430,15 +430,15 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         if const_args[i]['name'] == consts[c]['name']:
           repeat = 1
           if const_args[i]['type'] != consts[c]['type']:
-            print 'type mismatch in repeated op_decl_const'
+            print('type mismatch in repeated op_decl_const')
           if const_args[i]['dim'] != consts[c]['dim']:
-            print 'size mismatch in repeated op_decl_const'
+            print('size mismatch in repeated op_decl_const')
 
       if repeat > 0:
-        print 'repeated global constant ' + const_args[i]['name']
+        print('repeated global constant ' + const_args[i]['name'])
       else:
-        print '\nglobal constant (' + const_args[i]['name'].strip() \
-            + ') of size ' + str(const_args[i]['dim'])
+        print('\nglobal constant (' + const_args[i]['name'].strip() \
+            + ') of size ' + str(const_args[i]['dim']))
 
       # store away in master list
       if repeat == 0:
@@ -455,7 +455,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
     for i in range(0, len(loop_args)):
       name = loop_args[i]['name1']
       nargs = loop_args[i]['nargs']
-      print '\nprocessing kernel ' + name + ' with ' + str(nargs) + ' arguments',
+      print('\nprocessing kernel ' + name + ' with ' + str(nargs) + ' arguments', end=' ')
 
       # process arguments
 
@@ -489,7 +489,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
           if str(args['map']).strip() == 'OP_ID':
             maps[m] = OP_ID
             if int(idxs[m]) != -1:
-              print 'invalid index for argument' + str(m)
+              print('invalid index for argument' + str(m))
           else:
             maps[m] = OP_MAP
             mapnames[m] = str(args['map']).strip()
@@ -513,7 +513,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               break
 
           if l == -1:
-            print 'unknown access type for argument ' + str(m)
+            print('unknown access type for argument ' + str(m))
           else:
             accs[m] = l + 1
 
@@ -535,18 +535,18 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               break
 
           if l == -1:
-            print 'unknown access type for argument ' + str(m)
+            print('unknown access type for argument ' + str(m))
           else:
             accs[m] = l + 1
 
         if (maps[m] == OP_GBL) and (accs[m] == OP_WRITE or accs[m] == OP_RW):
-          print 'invalid access type for argument ' + str(m)
+          print('invalid access type for argument ' + str(m))
 
         if (maps[m] != OP_GBL) and (accs[m] == OP_MIN or accs[m] == OP_MAX):
-          print 'invalid access type for argument ' + str(m)
+          print('invalid access type for argument ' + str(m))
 
 
-      print ' '
+      print(' ')
 
       # identify indirect datasets
 
@@ -623,42 +623,42 @@ def main(srcFilesAndDirs=sys.argv[1:]):
               kernels[nk]['indtyps'][arg] == indtyps[arg] and \
               kernels[nk]['invinds'][arg] == invinds[arg]
           if rep2:
-            print 'repeated kernel with compatible arguments: ' + \
-                kernels[nk]['name'],
+            print('repeated kernel with compatible arguments: ' + \
+                kernels[nk]['name'], end=' ')
             repeat = True
             which_file = nk
           else:
-            print 'repeated kernel with incompatible arguments: ERROR'
+            print('repeated kernel with incompatible arguments: ERROR')
             break
 
       # output various diagnostics
 
       if not repeat:
-        print '  local constants:',
+        print('  local constants:', end=' ')
         for arg in range(0, nargs):
           if maps[arg] == OP_GBL and accs[arg] == OP_READ:
-            print str(arg),
-        print '\n  global reductions:',
+            print(str(arg), end=' ')
+        print('\n  global reductions:', end=' ')
         for arg in range(0, nargs):
           if maps[arg] == OP_GBL and accs[arg] != OP_READ:
-            print str(arg),
-        print '\n  direct arguments:',
+            print(str(arg), end=' ')
+        print('\n  direct arguments:', end=' ')
         for arg in range(0, nargs):
           if maps[arg] == OP_ID:
-            print str(arg),
-        print '\n  indirect arguments:',
+            print(str(arg), end=' ')
+        print('\n  indirect arguments:', end=' ')
         for arg in range(0, nargs):
           if maps[arg] == OP_MAP:
-            print str(arg),
+            print(str(arg), end=' ')
         if ninds > 0:
-          print '\n  number of indirect datasets: ' + str(ninds),
+          print('\n  number of indirect datasets: ' + str(ninds), end=' ')
         if any_opt:
-          print '\n  optional arguments:',
+          print('\n  optional arguments:', end=' ')
           for arg in range(0, nargs):
             if optflags[arg] == 1:
-              print str(arg),
+              print(str(arg), end=' ')
 
-        print '\n'
+        print('\n')
 
       # store away in master list
 
@@ -834,10 +834,10 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   ## Loop over kernels, looking for a header file named after each
   ## kernel in either working directory or one of the input-supplied
   ## directories:
-  for nk in xrange(0, len(kernels)):
+  for nk in range(0, len(kernels)):
     k_data = kernels[nk]
     k_name = k_data["name"]
-    if not "decl_filepath" in k_data.keys():
+    if not "decl_filepath" in list(k_data.keys()):
       src_file = k_name + ".h"
       if os.path.isfile(src_file):
         with open(src_file, 'r') as f:
@@ -859,8 +859,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   ## not named after the kernel. Search through content of all
   ## input-supplied files, and through all files of input-supplied
   ## directories:
-  for nk in xrange(0, len(kernels)):
-    if not "decl_filepath" in kernels[nk].keys():
+  for nk in range(0, len(kernels)):
+    if not "decl_filepath" in list(kernels[nk].keys()):
       k_data = kernels[nk]
       k_name = k_data["name"]
 
@@ -871,7 +871,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
           k_data["decl_filepath"] = src_file
           break
 
-      if not "decl_filepath" in k_data.keys():
+      if not "decl_filepath" in list(k_data.keys()):
         for src_dir in src_dirs:
           for src_dir_subfile in [s for s in os.listdir(src_dir) if os.path.isfile(os.path.join(src_dir, s))]:
             src_dir_subfilepath = os.path.join(src_dir, src_dir_subfile)
@@ -880,38 +880,38 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             if op_check_kernel_in_text(text, k_name):
               k_data["decl_filepath"] = src_dir_subfilepath
               break
-          if "decl_filepath" in k_data.keys():
+          if "decl_filepath" in list(k_data.keys()):
             break
 
   fail = False
-  for nk in xrange(0, len(kernels)):
-    if not "decl_filepath" in kernels[nk].keys():
+  for nk in range(0, len(kernels)):
+    if not "decl_filepath" in list(kernels[nk].keys()):
       fail = True
-      print("Declaration not found for kernel " + kernels[nk]["name"])
+      print(("Declaration not found for kernel " + kernels[nk]["name"]))
   if fail:
     exit(2)
 
   #  errors and warnings
 
   if ninit == 0:
-    print' '
-    print'-----------------------------'
-    print'  WARNING: no call to op_init'
+    print(' ')
+    print('-----------------------------')
+    print('  WARNING: no call to op_init')
     if auto_soa==1:
-      print'  WARNING: code generated with OP_AUTO_SOA,\n but couldn\'t modify op_init to pass\n an additional parameter of 1.\n Please make sure OP_AUTO_SOA is set when executing'
-    print'-----------------------------'
+      print('  WARNING: code generated with OP_AUTO_SOA,\n but couldn\'t modify op_init to pass\n an additional parameter of 1.\n Please make sure OP_AUTO_SOA is set when executing')
+    print('-----------------------------')
 
   if nexit == 0:
-    print' '
-    print'-------------------------------'
-    print'  WARNING: no call to op_exit  '
-    print'-------------------------------'
+    print(' ')
+    print('-------------------------------')
+    print('  WARNING: no call to op_exit  ')
+    print('-------------------------------')
 
   if npart == 0 and nhdf5 > 0:
-    print' '
-    print'---------------------------------------------------'
-    print'  WARNING: hdf5 calls without call to op_partition '
-    print'---------------------------------------------------'
+    print(' ')
+    print('---------------------------------------------------')
+    print('  WARNING: hdf5 calls without call to op_partition ')
+    print('---------------------------------------------------')
 
   #
   #  finally, generate target-specific kernel files
@@ -929,14 +929,11 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   #code generators for NVIDIA GPUs with CUDA
   #op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
-  op2_gen_cuda_simple(masterFile, date, consts, kernels, sets, macro_defs) # Optimized for Kepler GPUs
   op2_gen_sycl(masterFile, date, consts, kernels, sets, macro_defs) # Optimized for Kepler GPUs
 
   # generates openmp code as well as cuda code into the same file
-  op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application
 
   #code generator for GPUs with OpenMP4.5
-  op2_gen_openmp4(masterFile, date, consts, kernels)
 
   # import subprocess
   # retcode = subprocess.call("which clang-format > /dev/null", shell=True)
@@ -956,5 +953,5 @@ if __name__ == '__main__':
     main(srcFilesAndDirs=args)
   # Print usage message if no arguments given
   else:
-    print __doc__
+    print(__doc__)
     sys.exit(1)

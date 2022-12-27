@@ -129,7 +129,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
     j = -1
     for i in range(0,nargs):
-      if maps[i] == OP_GBL and accs[i] <> OP_READ:
+      if maps[i] == OP_GBL and accs[i] != OP_READ:
         j = i
     reduct = j >= 0
 
@@ -183,8 +183,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       i = p.search(kernel_text).start()
 
       if(i < 0):
-        print "\n********"
-        print "Error: cannot locate user kernel function name: "+name+" - Aborting code generation"
+        print("\n********")
+        print("Error: cannot locate user kernel function name: "+name+" - Aborting code generation")
         exit(2)
       i2 = i
 
@@ -205,7 +205,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       # check for number of arguments
       nargs_actual = len(signature_text.split(','))
       if nargs_actual != nargs:
-          print('Error parsing user kernel({0}): must have {1} arguments (instead it has {2})'.format(name, nargs, nargs_actual))
+          print(('Error parsing user kernel({0}): must have {1} arguments (instead it has {2})'.format(name, nargs, nargs_actual)))
           return
 
       new_signature_text = ''
@@ -213,9 +213,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
         var = signature_text.split(',')[i].strip()
 
         if do_gen_direct_simd_arrays:
-          do_gen_simd_array_arg = maps[i] <> OP_GBL
+          do_gen_simd_array_arg = maps[i] != OP_GBL
         else:
-          do_gen_simd_array_arg = maps[i] <> OP_GBL and maps[i] <> OP_ID
+          do_gen_simd_array_arg = maps[i] != OP_GBL and maps[i] != OP_ID
         if do_gen_simd_array_arg:
           #remove * and add [*][SIMD_VEC]
           var = var.replace('*','')
@@ -315,7 +315,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
     comm('create aligned pointers for dats')
     for g_m in range (0,nargs):
-        if maps[g_m] <> OP_GBL:
+        if maps[g_m] != OP_GBL:
           if (accs[g_m] == OP_INC or accs[g_m] == OP_RW or accs[g_m] == OP_WRITE):
             code('ALIGNED_<TYP>       <TYP> * __restrict__ ptr'+\
             str(g_m)+' = (<TYP> *) arg'+str(g_m)+'.data;')
@@ -656,7 +656,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 #
     comm(' combine reduction data')
     for g_m in range(0,nargs):
-      if maps[g_m]==OP_GBL and accs[g_m]<>OP_READ:
+      if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
         code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
 
     code('op_mpi_set_dirtybit(nargs, args);')
@@ -676,7 +676,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
-        if maps[g_m]<>OP_GBL:
+        if maps[g_m]!=OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
@@ -685,14 +685,14 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       names = []
       for g_m in range(0,ninds):
         mult=''
-        if indaccs[g_m] <> OP_WRITE and indaccs[g_m] <> OP_READ:
+        if indaccs[g_m] != OP_WRITE and indaccs[g_m] != OP_READ:
           mult = ' * 2.0f'
         if not var[invinds[g_m]] in names:
           code('OP_kernels['+str(nk)+'].transfer += (float)set->size * arg'+str(invinds[g_m])+'.size'+mult+';')
           names = names + [var[invinds[g_m]]]
       for g_m in range(0,nargs):
         mult=''
-        if accs[g_m] <> OP_WRITE and accs[g_m] <> OP_READ:
+        if accs[g_m] != OP_WRITE and accs[g_m] != OP_READ:
           mult = ' * 2.0f'
         if not var[g_m] in names:
           names = names + [var[invinds[g_m]]]
