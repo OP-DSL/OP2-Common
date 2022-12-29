@@ -7,8 +7,8 @@ int main() {
   gaspi_return_t ret = gaspi_gaspi_config_get ( gaspi_config_t &config);
 
   if (ret == GASPI_SUCCESS) {
-    return 1
-  }else{
     return 0
+  }else{
+    return 1
   }
 }
