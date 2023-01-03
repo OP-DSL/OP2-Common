@@ -200,6 +200,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs, hip = 0)
       for i in range(0,nargs):
         inds_staged[i] = inds_staged[i] + 1
 
+    print(name)
+    no_restrict = [0]*nargs
+    for i in range(0,ninds):
+      varname = var[invinds[i]]
+      print(varname)
+      for j in range(0,nargs):
+        if varname == var[j] and maps[j] == OP_ID and soaflags[j]:
+          print('no restrict ' +varname+str(inds))
+          no_restrict[invinds[i]] = 1
+          break
 ##########################################################################
 #  start with CUDA kernel function
 ##########################################################################
@@ -274,12 +284,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs, hip = 0)
         return
 
     for i in range(0,nargs_novec):
-        var = signature_text.split(',')[i].strip()
+        var1 = signature_text.split(',')[i].strip()
         if kernels[nk]['soaflags'][i] and (op_color2 or  not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
-          var = var.replace('*','')
-          #locate var in body and replace by adding [idx]
-          length = len(re.compile('\\s+\\b').split(var))
-          var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
+          var1 = var1.replace('*','')
+          #locate var1 in body and replace by adding [idx]
+          length = len(re.compile('\\s+\\b').split(var1))
+          var2 = re.compile('\\s+\\b').split(var1)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
             body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
@@ -309,10 +319,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs, hip = 0)
       code('int optflags,')
 
     for g_m in range(0,ninds):
-      if (indaccs[g_m]==OP_READ):
-        code('const <INDTYP> *__restrict <INDARG>,')
+      restrict = ''
+      if no_restrict[invinds[g_m]]==0:
+        restrict = '__restrict'
+      if indaccs[g_m]==OP_READ:
+        code('const <INDTYP> *'+restrict+' <INDARG>,')
       else:
-        code('<INDTYP> *__restrict <INDARG>,')
+        code('<INDTYP> *'+restrict+' <INDARG>,')
 
     if nmaps > 0:
       k = []
