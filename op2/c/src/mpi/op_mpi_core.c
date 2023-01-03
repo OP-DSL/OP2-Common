@@ -1297,7 +1297,7 @@ void step11(int **part_range, int **core_elems, int **exp_elems, int my_rank, in
   }
 }
 
-void step12(int **part_range, int max_time, int my_rank, int comm_size){
+void step12(int **part_range, double max_time, int my_rank, int comm_size){
   
   // compute avg/min/max set sizes and exec sizes accross the MPI universe
   int avg_size = 0, min_size = 0, max_size = 0;

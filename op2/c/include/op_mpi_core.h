@@ -429,7 +429,7 @@ void step8(int **part_range, int my_rank, int comm_size);
 void step9(int **part_range, int my_rank, int comm_size);
 void step10(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
 void step11(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
-void step12(int **part_range, int max_time, int my_rank, int comm_size);
+void step12(int **part_range, double max_time, int my_rank, int comm_size);
 
 int get_set_size_with_nhalos(op_set set, int nhalos);
 int get_halo_start_size(op_set set, int nhalos);
