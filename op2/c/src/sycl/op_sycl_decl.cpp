@@ -110,7 +110,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
 int op_free_dat_temp_char(op_dat dat) {
   // free data on device
-  delete static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
+//  delete static_cast<cl::sycl::buffer<char, 1> *>((void*)dat->data_d);
 
   return op_free_dat_temp_core(dat);
 }

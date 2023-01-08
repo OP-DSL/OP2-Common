@@ -50,6 +50,9 @@ extern cl::sycl::queue *op2_queue;
 extern "C" {
 #endif
 
+#define atomicAddFloat(x, y) (sycl::atomic_ref<float, sycl::memory_order::relaxed, sycl::memory_scope::device, sycl::access::address_space::global_space>(*(x)) +=(y))
+#define atomicAddDouble(x, y) (sycl::atomic_ref<double, sycl::memory_order::relaxed, sycl::memory_scope::device, sycl::access::address_space::global_space>(*(x)) +=(y))
+#define atomicAddInt(x, y) (sycl::atomic_ref<int, sycl::memory_order::relaxed, sycl::memory_scope::device, sycl::access::address_space::global_space>(*(x)) +=(y))
 /*
  * Global variables actually defined in the corresponding c file
  */

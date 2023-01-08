@@ -1101,10 +1101,20 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           if optflags[g_m]==1:
             IF('optflags & 1<<'+str(optidxs[g_m]))
           for d in range(0,int(dims[g_m])):
+            label = ''
+            if typs[g_m] == 'float':
+                label = 'Float'
+            elif typs[g_m] == 'double':
+                label = 'Double'
+            elif typs[g_m] == 'int':
+                label = 'Int'
+
             if soaflags[g_m]:
-                code('{cl::sycl::atomic<<TYP>> a{cl::sycl::global_ptr<<TYP>>{&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx]}}; a.fetch_add(<ARG>_l['+str(d)+']);}')
+                #code('{cl::sycl::atomic<<TYP>> a{cl::sycl::global_ptr<<TYP>>{&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx]}}; a.fetch_add(<ARG>_l['+str(d)+']);}')
+                code('atomicAdd'+label+'(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx], <ARG>_l['+str(d)+']);')
             else:
-                code('{cl::sycl::atomic<<TYP>> a{cl::sycl::global_ptr<<TYP>>{&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>]}}; a.fetch_add(<ARG>_l['+str(d)+']);}')
+                #code('{cl::sycl::atomic<<TYP>> a{cl::sycl::global_ptr<<TYP>>{&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>]}}; a.fetch_add(<ARG>_l['+str(d)+']);}')
+                code('atomicAdd'+label+'(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>], <ARG>_l['+str(d)+']);')
 
     ENDFOR()
 
