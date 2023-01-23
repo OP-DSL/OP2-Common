@@ -58,6 +58,7 @@ ifeq ($(MAKECMDGOALS),config)
 
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
+	include $(DEPS_DIR)/gpi.mk
 
   $(info Looking for compilers and dependencies:)
   $(info )
@@ -82,7 +83,9 @@ ifeq ($(MAKECMDGOALS),config)
 
   ifeq ($(CONFIG_HAVE_MPI_C),true)
     $(call info_bold,> MPI C/C++ compilers $(TEXT_FOUND) ($(CONFIG_MPICXX)); \
-      looking for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+      looking for GPI$(COMMA) HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+
+		include $(DEPS_DIR)/gpi.mk
 
     include $(DEPS_DIR)/hdf5_par.mk
 
@@ -91,7 +94,7 @@ ifeq ($(MAKECMDGOALS),config)
     include $(DEPS_DIR)/kahip.mk
   else
     $(call info_bold,> MPI C/C++ compilers $(TEXT_NOTFOUND); \
-      skipping search for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+      skipping search for GPI$(COMMA) HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
   endif
 
   $(info )
@@ -145,6 +148,8 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C: $(if $(HAVE_MPI_C),$(MPICC),not found))
   $(info .   C++: $(if $(HAVE_MPI_C),$(MPICXX),not found))
   $(info .   Fortran: $(if $(HAVE_MPI_F),$(MPIFC),not found))
+  $(info )
+  $(info GASPI GPI-2: $(call I_STR,GPI))
   $(info )
   $(info CUDA libraries: $(call I_STR,CUDA))
   $(info )

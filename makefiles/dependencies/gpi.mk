@@ -5,11 +5,12 @@ ifdef GPI2_INSTALL_PATH
   GPI2_LIB_PATH := -L$(GPI2_INSTALL_PATH)/lib64
 endif
 
+# Change to MPI-compiled GASPI
 GPI2_TEST = $(CONFIG_CXX) $(GPI2_INC_PATH) \
 		$(DEPS_DIR)/tests/gpi.cpp $(GPI2_LIB_PATH) $(GPI2_LINK) \
 		-o $(DEPS_DIR)/tests/gpi
 
-$(file > $(DEP_BULD_LOG),$(GPI2_TEST))
+#$(file > $(DEP_BULD_LOG),$(GPI2_TEST))
 $(shell $(GPI2_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 
 ifneq ($(.SHELLSTATUS),0)
