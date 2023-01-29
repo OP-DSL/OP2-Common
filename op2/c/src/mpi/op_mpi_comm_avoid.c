@@ -3586,3 +3586,10 @@ int op_get_map_dat_max_size(int* map){
     return total_map_size;
   }
 }
+
+void op_remove_aug_map(op_map map, int map_id){
+  if(map->aug_maps[map_id] != NULL){
+    op_free(map->aug_maps[map_id]);
+    map->aug_maps[map_id] = NULL;
+  }
+}
