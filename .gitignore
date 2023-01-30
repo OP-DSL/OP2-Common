@@ -15,3 +15,8 @@
 # Miscellaneous
 *~
 *.swp
+
+# VSCode Stuff
+tasks.json
+c_cpp_properties.json
+launch.json
