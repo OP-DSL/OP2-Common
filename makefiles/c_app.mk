@@ -2,6 +2,7 @@ TRANSLATOR ?= $(ROOT_DIR)/translator/c/op2.py
 
 APP_ENTRY ?= $(APP_NAME).cpp
 APP_ENTRY_MPI ?= $(APP_NAME)_mpi.cpp
+APP_ENTRY_GPI ?= $(APP_ENTRY_MPI)
 
 APP_ENTRY_BASENAME := $(basename $(APP_ENTRY))
 APP_ENTRY_MPI_BASENAME := $(basename $(APP_ENTRY_MPI))
@@ -9,10 +10,12 @@ APP_ENTRY_MPI_BASENAME := $(basename $(APP_ENTRY_MPI))
 APP_ENTRY_OP := $(APP_ENTRY_BASENAME)_op.cpp
 APP_ENTRY_MPI_OP := $(APP_ENTRY_MPI_BASENAME)_op.cpp
 
-ALL_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb
-ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
+# This is used for clean
+ALL_VARIANTS_BASE := seq genseq vec openmp openmp4 cuda cuda_hyb
+ALL_VARIANTS := $(ALL_VARIANTS_BASE)
+ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS_BASE),mpi_$(variant))
+ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS_BASE),gpi_$(variant))
 ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
-
 
 ifeq ($(HAVE_C),true)
   BASE_BUILDABLE_VARIANTS := seq genseq
@@ -28,6 +31,7 @@ ifeq ($(HAVE_C),true)
   ifeq ($(HAVE_CUDA),true)
     BASE_BUILDABLE_VARIANTS += cuda cuda_hyb
   endif
+
 endif
 
 BUILDABLE_VARIANTS :=
@@ -41,6 +45,21 @@ ifneq ($(and $(wildcard ./$(APP_ENTRY_MPI)),$(HAVE_MPI_C)),)
   # TODO/openmp4 MPI + OpenMP4 offload build not (yet) supported
   BUILDABLE_VARIANTS := $(filter-out %_mpi_openmp4,$(BUILDABLE_VARIANTS))
 endif
+
+# The GPI variant, but only built with the very basic SEQ and GENSEQ versions
+# The code below excludes all the extra variants that are not supported (yet)
+ifneq ($(and $(wildcard ./$(APP_ENTRY_GPI)),$(HAVE_GPI)),)
+  BUILDABLE_VARIANTS += $(foreach variant,$(BASE_BUILDABLE_VARIANTS),$(APP_NAME)_gpi_$(variant))
+
+  # Excluding the unsupported ones
+	BUILDABLE_VARIANTS :=  $(filter-out %_gpi_vec,$(BUILDABLE_VARIANTS))
+  BUILDABLE_VARIANTS :=  $(filter-out %_gpi_openmp,$(BUILDABLE_VARIANTS))
+  BUILDABLE_VARIANTS :=  $(filter-out %_gpi_openmp4,$(BUILDABLE_VARIANTS))
+  BUILDABLE_VARIANTS :=  $(filter-out %_gpi_cuda,$(BUILDABLE_VARIANTS))
+  BUILDABLE_VARIANTS :=  $(filter-out %_gpi_cuda_hyb,$(BUILDABLE_VARIANTS))
+endif
+
+$(info Buildable app variants before filtering: $(BUILDABLE_VARIANTS))
 
 VARIANT_FILTER ?= %
 VARIANT_FILTER_OUT ?=
@@ -134,6 +153,7 @@ $(eval $(call RULE_template, openmp,   $(OMP_CPPFLAGS),                         
 $(eval $(call RULE_template, openmp4,  $(OMP_OFFLOAD_CPPFLAGS) -DOP2_WITH_OMP4, OPENMP4,    ))
 $(eval $(call RULE_template, cuda,,                                             CUDA,    MPI_CUDA))
 $(eval $(call RULE_template, cuda_hyb, $(OMP_CPPFLAGS),                         CUDA,    MPI_CUDA))
+# $(eval $(call RULE_template, gpi2,,                                             SEQ,     MPI))
 
 $(APP_NAME)_cuda: cuda/$(APP_NAME)_kernels.o
 $(APP_NAME)_mpi_cuda: cuda/$(APP_NAME)_mpi_kernels.o

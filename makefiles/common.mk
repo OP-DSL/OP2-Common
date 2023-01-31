@@ -58,7 +58,8 @@ ifeq ($(MAKECMDGOALS),config)
 
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
-	include $(DEPS_DIR)/gpi.mk
+  # This exists here only fr testing when OP2 is configured without MPI (won't compile or run anyway) 
+  #	include $(DEPS_DIR)/gpi.mk
 
   $(info Looking for compilers and dependencies:)
   $(info )
@@ -173,7 +174,7 @@ endif
 OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
 OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
 
-OP2_LIBS_MPI := mpi mpi_cuda
+OP2_LIBS_MPI := mpi mpi_cuda gpi
 OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
 
 OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)

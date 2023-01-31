@@ -33,6 +33,12 @@ ifeq ($(HAVE_C),true)
   endif
 
   ifeq ($(MPI_IS_BUILDABLE),true)
+    ifeq ($(HAVE_GPI),true)
+      OP2_BUILDABLE_LIBS += gpi
+    endif
+  endif
+
+  ifeq ($(MPI_IS_BUILDABLE),true)
     OP2_BUILDABLE_LIBS += mpi
   endif
 
@@ -156,6 +162,9 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
 	cudaConfigurationParams.o)
+
+# TODO
+OP2_GPI := $(OP2_MPI)
 
 # Directory rules
 $(OBJ):
