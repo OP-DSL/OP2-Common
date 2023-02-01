@@ -144,6 +144,13 @@ int is_halo_required_for_map(op_map map, int halo_id){
   return 0;
 }
 
+int is_map_required_for_calc(op_map map, int halo_id){
+  if(map->halo_info->nhalos_calc_bits[halo_id] == 1){
+    return 1;
+  }
+  return 0;
+}
+
 op_dat search_dat(op_set set, int dim, char const *type, int size,
                   char const *name) {
   op_dat_entry *item;
@@ -321,6 +328,7 @@ void op_init_core(int argc, char **argv, int diags) {
 void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos = (int *)malloc(OP_NHALOS_SIZE * sizeof(int));
   halo_info->nhalos_bits = (int *)malloc(OP_NHALOS_MAX * sizeof(int));
+  halo_info->nhalos_calc_bits = (int *)malloc(OP_NHALOS_MAX * sizeof(int));
   halo_info->nhalos_indices = (int *)malloc(OP_NHALOS_MAX * sizeof(int));
   for(int i = 0; i < OP_NHALOS_SIZE; i++){
     halo_info->nhalos[i] = -1;
@@ -328,9 +336,11 @@ void op_init_halo_info(op_halo_info halo_info){
   for(int i = 0; i < OP_NHALOS_MAX; i++){
     halo_info->nhalos_indices[i] = -1;
     halo_info->nhalos_bits[i] = -1;
+    halo_info->nhalos_calc_bits[i] = -1;
   }
   halo_info->nhalos[0] = 1; // default value: 1 halo for all sets
   halo_info->nhalos_bits[0] = 1;  // default value: 1 halo for all sets, 0 based index, 0th exec level, 1st exec level, ...
+  halo_info->nhalos_calc_bits[0] = 1;  // default value: 1 halo for all sets, 0 based index, 0th exec level, 1st exec level, ...
   halo_info->nhalos_indices[1] = 0;
   halo_info->max_nhalos = 1;
   halo_info->nhalos_count = 1;
@@ -342,6 +352,7 @@ void op_init_halo_info(op_halo_info halo_info){
 void op_free_halo_info(op_halo_info halo_info){
   op_free(halo_info->nhalos);
   op_free(halo_info->nhalos_bits);
+  op_free(halo_info->nhalos_calc_bits);
   op_free(halo_info->nhalos_indices);
 }
 

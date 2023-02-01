@@ -150,6 +150,7 @@ typedef struct op_halo_info_core{
   int *nhalos;      //array of number of halos
   int *nhalos_indices; //array of number of halos to array index. to do a reverse search
   int *nhalos_bits; //array of required halos
+  int *nhalos_calc_bits; //array of required halos for calculation
   int max_nhalos;   //max number of halos
   int nhalos_count; //number of elements in nhalos
   int nhalos_cap;   //capacity of nhalos
@@ -446,6 +447,7 @@ op_dat search_dat(op_set set, int dim, char const *type, int size,
 int op_is_root();
 int is_halo_required_for_set(op_set set, int halo_id);
 int is_halo_required_for_map(op_map map, int halo_id);
+int is_map_required_for_calc(op_map map, int halo_id);
 
 /*******************************************************************************
 * Memory allocation functions

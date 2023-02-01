@@ -1237,7 +1237,7 @@ void prepare_aug_maps(){
     memcpy(map->map_org, map->map, (size_t)(total_map_size) * (size_t)map->dim * sizeof(int));
 
     for(int el = 0; el < max_level; el++){
-      if(is_halo_required_for_map(map, el) == 1){
+      if(is_halo_required_for_map(map, el) == 1 && is_map_required_for_calc(map, el) == 1){
         int *map_vals = (int *)malloc((size_t)(total_map_size) * (size_t)map->dim * sizeof(int));
         for(int i = 0; i < total_map_size; i++){
           map_vals[i] = -1;
@@ -1322,7 +1322,7 @@ void step8_renumber_mappings(int dummy, int **part_range, int my_rank, int comm_
         
         for(int el = 0; el < max_level; el++){
 
-          if(is_halo_required_for_map(map, el) != 1)
+          if(is_halo_required_for_map(map, el) != 1 || is_map_required_for_calc(map, el) != 1)
             continue;
           
           if(is_halo_required_for_set(map->from, el) != 1)
@@ -2138,7 +2138,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         
         //for aug maps
         for(int el = 0; el < map->halo_info->max_nhalos; el++){
-          if(is_halo_required_for_map(map, el) != 1){
+          if(is_halo_required_for_map(map, el) != 1 || is_map_required_for_calc(map, el) != 1){
             continue;
           }
           int *aug_map = (int *)xmalloc(set->size * map->dim * sizeof(int));
@@ -2248,7 +2248,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
 
     for(int el = 0; el < max_level; el++){
 
-      if(is_halo_required_for_map(map, el) != 1)
+      if(is_halo_required_for_map(map, el) != 1 || is_map_required_for_calc(map, el) != 1)
         continue;
 
       int exec_levels =  el + 1; //map->from->halo_info->nhalos[el];

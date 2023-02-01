@@ -998,7 +998,7 @@ void op_move_to_device() {
     map->aug_maps_d = (int **)xmalloc(sizeof(int *) * map->halo_info->max_nhalos);
 
     for(int el = 0; el < map->halo_info->max_nhalos; el++){
-      if(is_halo_required_for_map(map, el) == 1){
+      if(is_halo_required_for_map(map, el) == 1 && is_map_required_for_calc(map, el) == 1){
 
         int exec_size = 0;
         for(int l = 0; l < el + 1; l++){

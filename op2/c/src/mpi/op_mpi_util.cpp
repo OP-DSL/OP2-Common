@@ -618,6 +618,7 @@ int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos){
   if(nhalos >= halo_info->nhalos_indices_cap){
     halo_info->nhalos_indices = (int *)xrealloc(halo_info->nhalos_indices, (halo_info->nhalos_indices_cap + 10) * sizeof(int));
     halo_info->nhalos_bits = (int *)xrealloc(halo_info->nhalos_bits, (halo_info->nhalos_indices_cap + 10) * sizeof(int));
+    halo_info->nhalos_calc_bits = (int *)xrealloc(halo_info->nhalos_calc_bits, (halo_info->nhalos_indices_cap + 10) * sizeof(int));
     halo_info->nhalos_indices_cap += 10;
   }
 
@@ -649,6 +650,11 @@ int op_mpi_add_nhalos_map(op_map map, int nhalos){
   op_mpi_add_nhalos(map->halo_info, nhalos);
   op_mpi_add_nhalos_set(map->from, nhalos);
   op_mpi_add_nhalos_set(map->to, nhalos);
+  return 1;
+}
+
+int op_mpi_add_nhalos_map_calc(op_map map, int nhalos){
+  map->halo_info->nhalos_calc_bits[nhalos - 1] = 1;
   return 1;
 }
 
