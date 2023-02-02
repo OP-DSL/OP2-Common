@@ -653,8 +653,15 @@ int op_mpi_add_nhalos_map(op_map map, int nhalos){
   return 1;
 }
 
+int op_mpi_add_nhalos_set_calc(op_set set, int nhalos){
+  set->halo_info->nhalos_calc_bits[nhalos - 1] = 1;
+  return 1;
+}
+
 int op_mpi_add_nhalos_map_calc(op_map map, int nhalos){
   map->halo_info->nhalos_calc_bits[nhalos - 1] = 1;
+  op_mpi_add_nhalos_set_calc(map->from, nhalos);
+  op_mpi_add_nhalos_set_calc(map->to, nhalos);
   return 1;
 }
 
@@ -742,7 +749,7 @@ int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id){
 int are_dirtybits_clear(op_arg *arg){
   for(int i = 0; i < arg->dat->set->halo_info->max_nhalos; i++){
     if(arg->dat->exec_dirtybits[i] == 1 || 
-    (is_halo_required_for_set(arg->dat->set, i) == 1 && arg->dat->nonexec_dirtybits[i] == 1)){
+    (is_halo_required_for_set(arg->dat->set, i) == 1 && is_set_required_for_calc(arg->dat->set, i) == 1 && arg->dat->nonexec_dirtybits[i] == 1)){
       return 0;
     }
   }
@@ -784,7 +791,7 @@ void unset_dirtybit(op_arg *arg){
   }else if(arg->unpack_method == OP_UNPACK_ALL_HALOS){
     for(int i = 0; i < nhalos; i++){
       arg->dat->exec_dirtybits[i] = 0;
-      if(is_halo_required_for_set(arg->dat->set, i) == 1){
+      if(is_halo_required_for_set(arg->dat->set, i) == 1 && is_set_required_for_calc(arg->dat->set, i) == 1){
         arg->dat->nonexec_dirtybits[i] = 0;
       }
     }

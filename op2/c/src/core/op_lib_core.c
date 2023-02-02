@@ -144,6 +144,13 @@ int is_halo_required_for_map(op_map map, int halo_id){
   return 0;
 }
 
+int is_set_required_for_calc(op_set set, int halo_id){
+  if(set->halo_info->nhalos_calc_bits[halo_id] == 1){
+    return 1;
+  }
+  return 0;
+}
+
 int is_map_required_for_calc(op_map map, int halo_id){
   if(map->halo_info->nhalos_calc_bits[halo_id] == 1){
     return 1;

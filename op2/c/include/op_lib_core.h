@@ -136,8 +136,8 @@ extern int* ca_buf_pos;
 #define OP_UNPACK_ALL_HALOS 2
 // #define OP_UNPACK_MERGED_MULTIPLE_DATS 3
 
-#define OP_NHALOS_SIZE 10
-#define OP_NHALOS_MAX 10
+#define OP_NHALOS_SIZE 34
+#define OP_NHALOS_MAX 34
 
 typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
 typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT
@@ -447,6 +447,7 @@ op_dat search_dat(op_set set, int dim, char const *type, int size,
 int op_is_root();
 int is_halo_required_for_set(op_set set, int halo_id);
 int is_halo_required_for_map(op_map map, int halo_id);
+int is_set_required_for_calc(op_set set, int halo_id);
 int is_map_required_for_calc(op_map map, int halo_id);
 
 /*******************************************************************************

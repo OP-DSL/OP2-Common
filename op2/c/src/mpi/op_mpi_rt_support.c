@@ -141,11 +141,12 @@ void op_exchange_halo_chained(int nargs, op_arg *args, int exec_flag) {
             for (int i = 0; i < exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r]; i++) {
               set_elem_index = exp_list->list[level_disp + disp_in_level + i];
               buf_index = prev_size + i * dat->size;
+              
+              printf("test1new exec my_rank=%d arg=%d dat=%s level=%d prev_size=%d buf_index=%d (i=%d size=%d) halo_index=%d exp_list=%p nhalos=%d\n", 
+              my_rank, n, dat->name, l, prev_size / dat->size, arg_size / dat->size + buf_index / dat->size, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r],
+              halo_index, exp_list, nhalos);
               memcpy(&grp_send_buffer[arg_size + buf_index],
                   (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
-              // printf("test1new exec my_rank=%d arg=%d dat=%s level=%d prev_size=%d buf_index=%d (i=%d size=%d) halo_index=%d exp_list=%p\n", 
-              // my_rank, n, dat->name, l, prev_size / dat->size, arg_size / dat->size + buf_index / dat->size, i, exp_list->sizes[exp_list->ranks_disps_by_level[l] + r],
-              // halo_index, exp_list);
             }
             prev_size += exp_list->sizes[exp_list->ranks_disps_by_level[halo_index] + r] * dat->size;
           }

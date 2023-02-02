@@ -2799,8 +2799,8 @@ void calculate_set_sizes(int my_rank){
   int comm_size = 0;
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  char header_str[2000];
-  char result_str[2000];
+  char header_str[9000];
+  char result_str[9000];
   int max_nhalos = get_max_nhalos();
 
   if(my_rank == 0){
@@ -3207,7 +3207,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 20;  // this is a temp const
+  int max_dat_count = 40;  // this is a temp const
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
