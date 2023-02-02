@@ -1,3 +1,4 @@
+GPI_DEF ?= -DHAVE_GPI
 ifdef GPI_INSTALL_PATH
   #GPI_INC_PATH := -I$(GPI_INSTALL_PATH)/src/include
   #GPI_LIB_PATH := -L$(GPI_INSTALL_PATH)/src/.libs
@@ -15,7 +16,7 @@ GPI_TEST = $(CONFIG_MPICXX) $(GPI_INC_PATH) \
 $(shell $(GPI_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 
 ifneq ($(.SHELLSTATUS),0)
-  GPI_LINK ?= -Wl,-rpath,$(GPI_INSTALL_PATH)/lib64 -lGPI2 -libverbs -lm -lpthread -DHAVE_GPI
+  GPI_LINK ?= -Wl,-rpath,$(GPI_INSTALL_PATH)/lib64 -Wl,-rpath,$(GPI_INSTALL_PATH)/lib -lGPI2 -libverbs -lm -lpthread 
 
   $(file >> $(DEP_BUILD_LOG),$(GPI_TEST))
   $(shell $(GPI_TEST) >> $(DEP_BUILD_LOG) 2>&1)
@@ -26,8 +27,8 @@ ifeq ($(.SHELLSTATUS),0)
   $(call info_bold,  > GPI2 library $(TEXT_FOUND) )
 
   CONFIG_HAVE_GPI := true
-  CONFIG_GPI_INC := $(strip $(GPI_INC_PATH))
-  CONFIG_GPI_LIB := $(strip $(GPI_LIB_PATH) $(GPI_LINK_FLAGS))
+  CONFIG_GPI_INC := $(strip $(GPI_INC_PATH) $(GPI_DEF))
+  CONFIG_GPI_LIB := $(strip $(GPI_LIB_PATH) $(GPI_LINK))
 else
   $(call info_bold,  > GPI-2 library $(TEXT_NOTFOUND):)
   $(info $(file < $(DEP_BUILD_LOG)))

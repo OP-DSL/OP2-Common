@@ -5,7 +5,7 @@ OBJ ?= $(OP2_BUILD_DIR)/obj
 MOD ?= $(OP2_BUILD_DIR)/mod
 MOD_CUDA ?= $(MOD)/cuda
 
-INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC)
+INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC) $(GPI_INC)
 
 # Calculate the libraries that we can actually build
 ifeq ($(HAVE_C),true)
@@ -163,7 +163,7 @@ OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/
 	op2_for_rt_wrappers_cuda.o \
 	cudaConfigurationParams.o)
 
-# TODO
+# TODO - not sure what to add here at the moment
 OP2_GPI := $(OP2_MPI)
 
 # Directory rules
@@ -198,6 +198,7 @@ $(OBJ)/cuda/%.o: src/cuda/%.cpp | $(OBJ)
 $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
+# Will likely need revisiting after merging folder structure
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@
 
@@ -206,6 +207,10 @@ $(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
 
 $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
+
+# TODO validate
+$(OBJ)/gpi/%+gpi.o: src/gpi/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) $(GPI_INC) -c $< -o $@
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
 $(OBJ)/fortran/op2_for_declarations.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD)
