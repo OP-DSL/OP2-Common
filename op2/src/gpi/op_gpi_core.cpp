@@ -13,6 +13,8 @@
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args){}
 
 
-void op_gpi_wait_all(int nargs, op_args *args){
+
+/* Wait for all args */
+void op_gpi_waitall_args(int nargs, op_arg *args){
 
 }
