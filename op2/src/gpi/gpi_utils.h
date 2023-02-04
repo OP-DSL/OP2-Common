@@ -73,7 +73,9 @@
     {                                   \
         fprintf(stderr, "Fail at %s (%d).\n", __FILE__, __LINE__);\
         fprintf(stderr, __VA_ARGS__);   \
-        exit(1);                        \
+        fflush(stderr);\
+        gaspi_proc_term(GASPI_BLOCK);                        \
+        MPI_Abort(MPI_COMM_WORLD, 1);\
     }                                   \
 )
 
