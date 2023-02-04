@@ -87,6 +87,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
 
 }
 
+
 /* Wait for a single arg
  * equivalent to op_mpi_waitall function
  * definitey NOT_COMMON

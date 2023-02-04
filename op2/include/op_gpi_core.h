@@ -30,3 +30,10 @@ typedef struct{
     int exec_min_rank;
     int nonexec_min_rank;
 }op_gpi_buffer;
+
+
+void op_gpi_exchange_halo(op_arg *arg, int exec_flag);
+void op_gpi_exchange_halo_partial(op_arg *arg, int exec_flag);
+
+void op_gpi_waitall(op_arg *arg);
+void op_gpi_waitall_args(int nargs, op_arg *args);
