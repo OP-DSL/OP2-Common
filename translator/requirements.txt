@@ -1,9 +1,8 @@
 fparser
 cached-property
-python-dotenv
+dataclasses
 clang
 jinja2
-pytest
 pylint
 mypy
 pcpp
