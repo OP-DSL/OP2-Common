@@ -184,7 +184,7 @@ typedef struct {
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
   double mpi_time;  /* time spent in MPI calls */
-  #ifdef GPI_ACTIVE
+  #ifdef HAVE_GPI
   double gpi_time;  /* time spent in GPI calls*/
   #endif
 } op_kernel;
