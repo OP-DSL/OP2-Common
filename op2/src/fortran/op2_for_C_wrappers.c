@@ -301,6 +301,17 @@ op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access ac
   return op_arg_gbl_char (data, dim, heapType, size, acc);
 }
 
+op_arg
+op_arg_info_copy ( char * data, int dim, const char * typ, int size, int ref ) {
+
+  int len = strlen (typ);
+  char * heapType = (char *) calloc (len + 1, sizeof (char));
+#warning TODO: fix leaking here by doing a map
+  strncpy (heapType, typ, len);
+
+  return op_arg_info_char (data, dim, heapType, size, ref);
+}
+
 op_arg op_opt_arg_gbl_copy(int opt, char *data, int dim, const char *typ,
                            int size, op_access acc) {
 
