@@ -1,8 +1,8 @@
 # Compiler executables and flags
-CONFIG_CC := icc
-CONFIG_CXX := icpc
+CONFIG_CC := icc -no-multibyte-chars
+CONFIG_CXX := icpc -no-multibyte-chars
 
-BASE_CPPFLAGS := -MMD -MP -Wall
+BASE_CPPFLAGS := -MMD -MP -Wall -D__PURE_INTEL_C99_HEADERS__ -no-multibyte-chars -D__is_assignable=__is_trivially_assignable -std=c++11
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3
