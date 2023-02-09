@@ -98,6 +98,7 @@ extern int OP_partial_exchange;
 #define OP_ARG_GBL 0
 #define OP_ARG_DAT 1
 #define OP_ARG_IDX 2
+#define OP_ARG_INFO 3
 
 #define OP_STAGE_NONE 0
 #define OP_STAGE_INC 1

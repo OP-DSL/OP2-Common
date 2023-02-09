@@ -54,6 +54,7 @@ module OP2_Fortran_Declarations
   integer(c_int) :: OP_INC = 4
   integer(c_int) :: OP_MIN = 5
   integer(c_int) :: OP_MAX = 6
+  integer(c_int) :: OP_INFO = 7         ! this needs to be the last one, as we add to it
 
   type, BIND(C) :: op_set_core
 
@@ -478,6 +479,22 @@ module OP2_Fortran_Declarations
 
     end function op_arg_gbl_ptr_c
 
+    function op_arg_info_c ( dat, dim, type, size, ref ) BIND(C,name='op_arg_info_copy')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_arg
+
+      type(op_arg) :: op_arg_info_c
+
+      type(c_ptr), value :: dat
+      integer(kind=c_int), value :: dim
+      character(kind=c_char), dimension(*) :: type
+      integer(kind=c_int), value :: size
+      integer(kind=c_int), value :: ref
+
+    end function op_arg_info_c
+
     function op_arg_idx_c(idx, map) BIND(C,name='op_arg_idx')
       use, intrinsic :: ISO_C_BINDING
 
@@ -849,14 +866,23 @@ module OP2_Fortran_Declarations
        & op_arg_gbl_python_r8_3dim
   end interface op_arg_gbl
 
+  interface op_arg_info
+    module procedure op_arg_info_python_r8_scalar, &
+       & op_arg_info_python_i4_scalar, op_arg_info_python_logical_scalar, op_arg_info_python_r8_1dim, &
+       & op_arg_info_python_i4_1dim, op_arg_info_python_logical_1dim, op_arg_info_python_r8_2dim, &
+       & op_arg_info_python_i4_2dim, op_arg_info_python_logical_2dim, &
+       & op_arg_info_python_r8_3dim
+  end interface op_arg_info
+
   interface op_arg_idx
       module procedure op_arg_idx_struct, op_arg_idx_ptr, op_arg_idx_ptr_m2
   end interface op_arg_idx
 
   interface op_decl_const
     module procedure op_decl_const_integer_4, op_decl_const_real_8, op_decl_const_scalar_integer_4, &
-    & op_decl_const_scalar_real_8, op_decl_const_logical, &
-    & op_decl_const_integer_2_4, op_decl_const_real_2_8, op_decl_const_string
+    & op_decl_const_scalar_real_8, op_decl_const_logical, op_decl_const_integer_8, &
+    & op_decl_const_integer_2_4, op_decl_const_real_2_8, op_decl_const_string, &
+    & op_decl_const_scalar_integer_8
   end interface op_decl_const
 
   interface op_arg_dat
@@ -1289,6 +1315,23 @@ contains
 
   end subroutine op_decl_const_integer_4
 
+  subroutine op_decl_const_integer_8 ( dat, constdim, opname )
+
+    integer(8), dimension(:), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    ! local dummies to prevent compiler warning
+    integer(8), dimension(1) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname//C_NULL_CHAR
+
+  end subroutine op_decl_const_integer_8
+
   subroutine op_decl_const_integer_2_4 ( dat, constdim, opname )
 
     integer(4), dimension(:,:), intent(in), target :: dat
@@ -1356,6 +1399,23 @@ contains
     opname_dummy = opname//C_NULL_CHAR
 
   end subroutine op_decl_const_scalar_integer_4
+
+  subroutine op_decl_const_scalar_integer_8 ( dat, constdim, opname )
+
+    integer(8), intent(in), target :: dat
+    integer(kind=c_int), value :: constdim
+    character(kind=c_char,len=*), optional :: opname
+
+    ! local dummies to prevent compiler warning
+    integer(8) :: dat_dummy
+    integer(kind=c_int) :: constdim_dummy
+    character(kind=c_char) :: opname_dummy
+
+    dat_dummy = dat
+    constdim_dummy = constdim
+    opname_dummy = opname//C_NULL_CHAR
+
+  end subroutine op_decl_const_scalar_integer_8
 
   subroutine op_decl_const_scalar_real_8 ( dat, constdim, opname )
 
@@ -2617,7 +2677,167 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     integer(4), dimension(:,:), intent(in), target :: map
     op_arg_idx_ptr_m2 = op_arg_idx_ptr_c(idx-1,c_loc(map))
   end function op_arg_idx_ptr_m2
-  
+ 
+  type(op_arg) function op_arg_info_python_r8_scalar ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_r8_scalar = op_arg_info_c ( c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, ref-1 )
+
+  end function op_arg_info_python_r8_scalar
+
+  type(op_arg) function op_arg_info_python_i4_scalar ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    integer(4), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_i4_scalar = op_arg_info_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, ref-1 )
+
+  end function op_arg_info_python_i4_scalar
+
+  type(op_arg) function op_arg_info_python_logical_scalar ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical, target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_logical_scalar = op_arg_info_c ( c_loc (dat), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, ref-1 )
+
+  end function op_arg_info_python_logical_scalar
+
+  type(op_arg) function op_arg_info_python_r8_1dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_r8_1dim = op_arg_info_c ( c_loc (dat), dim, C_CHAR_'double'//C_NULL_CHAR, 8, ref-1 )
+
+  end function op_arg_info_python_r8_1dim
+
+  type(op_arg) function op_arg_info_python_i4_1dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    integer(4), dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_i4_1dim = op_arg_info_c ( c_loc (dat), dim, C_CHAR_'int'//C_NULL_CHAR, 4, ref-1 )
+
+  end function op_arg_info_python_i4_1dim
+
+  type(op_arg) function op_arg_info_python_logical_1dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical, dimension(*), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_logical_1dim = op_arg_info_c ( c_loc (dat(1)), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, ref-1 )
+
+  end function op_arg_info_python_logical_1dim
+
+  type(op_arg) function op_arg_info_python_r8_2dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_r8_2dim = op_arg_info_c ( c_loc (dat(1,1)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, ref-1 )
+
+  end function op_arg_info_python_r8_2dim
+
+  type(op_arg) function op_arg_info_python_r8_3dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    real(8), dimension(:,:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_r8_3dim = op_arg_info_c ( c_loc (dat(1,1,1)), dim, C_CHAR_'double'//C_NULL_CHAR, 8, ref-1 )
+
+  end function op_arg_info_python_r8_3dim
+
+  type(op_arg) function op_arg_info_python_i4_2dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    integer(4), dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_i4_2dim = op_arg_info_c ( c_loc (dat(1,1)), dim, C_CHAR_'int'//C_NULL_CHAR, 4, ref-1 )
+
+  end function op_arg_info_python_i4_2dim
+
+  type(op_arg) function op_arg_info_python_logical_2dim ( dat, dim, type, ref )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    logical, dimension(:,:), target :: dat
+    integer(kind=c_int) :: dim
+    integer(kind=c_int) :: ref
+    character(kind=c_char,len=*) :: type
+
+    ! warning: referred other arg is in FORTRAN indexing style, while the C style is required here
+    op_arg_info_python_logical_2dim = op_arg_info_c ( c_loc (dat(1, 1)), dim, C_CHAR_'bool'//C_NULL_CHAR, 1, ref-1 )
+
+  end function op_arg_info_python_logical_2dim
+
   subroutine op_get_dat ( opdat )
 
     type(op_dat) :: opdat

@@ -448,7 +448,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     printf("WARNING data pointer is NULL for %s!\n", name);
   }*/
   item->orig_ptr = data;
-  // printf("orig_ptr for dat %s = %p\n", name, data);
+  printf("orig_ptr for dat %s = %p\n", name, data);
   // add item to the end of the list
   if (TAILQ_EMPTY(&OP_dat_list)) {
     TAILQ_INSERT_HEAD(&OP_dat_list, item, entries);
@@ -583,9 +583,9 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.map == NULL && arg.dat->set != set) {
       // op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        printf("dataset dat %s with data pointer %lu, on set %p (%s) does not "
+        printf("dataset dat %s with data pointer %lu (%p), on set %p (%s) does not "
                "match loop set %p (%s)\n",
-               arg.dat->name, arg.dat->data, arg.dat->set, arg.dat->set->name,
+               arg.dat->name, arg.dat->data, arg.dat->data, arg.dat->set, arg.dat->set->name,
                set, set->name);
     }
 
@@ -611,13 +611,11 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     }
 
     if (strcmp(arg.dat->type, arg.type)) {
-      if ((strcmp(arg.dat->type, "double") == 0 && (int)arg.type[0] == 114 &&
-           (int)arg.type[1] == 56 && (int)arg.type[2] != 58) ||
+      if ((strcmp(arg.dat->type, "double") == 0 && strcmp(arg.type, "real(RK8)")==0) ||
           (strcmp(arg.dat->type, "double:soa") == 0 &&
            (int)arg.type[0] == 114 && (int)arg.type[1] == 56 &&
            (int)arg.type[2] == 58) ||
-          (strcmp(arg.dat->type, "int") == 0 && (int)arg.type[0] == 105 &&
-           (int)arg.type[1] == 52)) {
+          (strcmp(arg.dat->type, "int") == 0 && strcmp(arg.type, "integer(IK4)")==0)) {
       } else {
         printf("%s %s %s (%s)\n", set->name, arg.dat->type, arg.type,
                arg.dat->name);
@@ -631,7 +629,7 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
 
   /* error checking for op_arg_gbl */
 
-  if (arg.argtype == OP_ARG_GBL) {
+  if (arg.argtype == OP_ARG_GBL || arg.argtype == OP_ARG_INFO) {
     if (!strcmp(arg.type, "error"))
       op_err_print("datatype does not match declared type", m, name);
 
@@ -786,6 +784,47 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;
+
+  return arg;
+}
+
+op_arg op_arg_info_char(char *data, int dim, const char *typ, int size, int ref) {
+  op_arg arg;
+  arg.argtype = OP_ARG_INFO;
+
+  arg.dat = NULL;
+  arg.opt = 1;
+  arg.map = NULL;
+  arg.dim = dim;
+  arg.idx = -1;
+  arg.size = dim * size;
+  arg.data = data;
+  if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
+      strcmp(typ, "real*8") == 0)
+    arg.type = doublestr;
+  else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
+           strcmp(typ, "real*4") == 0)
+    arg.type = floatstr;
+  else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
+           strcmp(typ, "integer*4") == 0)
+    arg.type = intstr;
+  else if (strcmp(typ, "bool") == 0)
+    arg.type = boolstr;
+
+  arg.acc = ref;
+  arg.map_data_d = NULL;
+  arg.map_data = NULL;
+
+  /* setting default values for remaining fields */
+  arg.index = -1;
+  arg.data_d = NULL;
+
+  /*not used in global args*/
+  arg.sent = 0;
+
+  /* TODO: properly??*/
+  if (data == NULL)
+    arg.opt = 0;
 
   return arg;
 }

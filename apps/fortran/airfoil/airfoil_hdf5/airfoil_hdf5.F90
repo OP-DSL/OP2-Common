@@ -42,12 +42,12 @@ program AIRFOIL
   real(8), dimension(1:2) :: rms
 
   integer(4) :: debugiter, retDebug
-  real(8) :: datad
+  real(8) :: datad, maxerr
 
   ! local variables for constant initialization
   real(8) :: p, r, u, e
 
-  integer(4) :: status
+  integer(4) :: status, errloc
 
   ! for validation
   REAL(KIND=8) :: diff
@@ -164,13 +164,18 @@ program AIRFOIL
       ! update flow field
 
       rms(1:2) = 0.0
+      maxerr = 0.0
+      errloc = 0
 
-      call op_par_loop_5 ( update, cells, &
+      call op_par_loop_8 ( update, cells, &
                          & op_arg_dat (p_qold, -1, OP_ID, 4,"real(8)",  OP_READ),  &
                          & op_arg_dat (p_q,    -1, OP_ID, 4,"real(8)",  OP_WRITE), &
                          & op_arg_dat (p_res,  -1, OP_ID, 4,"real(8)",  OP_RW),    &
                          & op_arg_dat (p_adt,  -1, OP_ID, 1,"real(8)",  OP_READ),  &
-                         & op_arg_gbl (rms, 2, "real(8)", OP_INC))
+                         & op_arg_gbl (rms, 2, "real(8)", OP_INC),                 &
+                         & op_arg_gbl (maxerr, 1, "real(8)", OP_MAX),              &
+                         & op_arg_idx (-1, OP_ID), &
+                         & op_arg_info (errloc, 1, "integer", 6))
 
 
     end do ! internal loop
@@ -179,7 +184,7 @@ program AIRFOIL
 
     if (op_is_root() .eq. 1) then
       if (mod(niter,100) .eq. 0) then
-        write (*,*) niter,"  ",rms(2)
+        write (*,*) niter,"  ",rms(2), " max err ", maxerr, " at ", errloc
       end if
       if ((mod(niter,1000) .eq. 0) .AND. (ncelli == 720000) ) then
         diff=ABS((100.0_8*(rms(2)/0.0001060114637578_8))-100.0_8)

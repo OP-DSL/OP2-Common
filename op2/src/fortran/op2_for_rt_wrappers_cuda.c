@@ -77,7 +77,7 @@ long scratch_size = 0;
 void prepareScratch(op_arg *args, int nargs, int nthreads) {
   long req_size = 0;
   for (int i = 0; i < nargs; i++) {
-    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN))
+    if ((args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) || args[i].argtype == OP_ARG_INFO)
       req_size += ((args[i].size-1)/8+1)*8*nthreads;
   }
   if (scratch_size < req_size) {
@@ -87,7 +87,7 @@ void prepareScratch(op_arg *args, int nargs, int nthreads) {
   }
   req_size = 0;
   for (int i = 0; i < nargs; i++) {
-    if (args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) {
+    if ((args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) || args[i].argtype == OP_ARG_INFO) {
       args[i].data_d = scratch + req_size;
       req_size += ((args[i].size-1)/8+1)*8*nthreads;
     }
