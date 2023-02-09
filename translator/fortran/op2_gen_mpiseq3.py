@@ -40,7 +40,8 @@ def rep(line,m):
     line = re.sub('DIMS',str(dims[m]),line)
     line = re.sub('ARG','arg'+str(m+1),line)
     line = re.sub('TYP',typs[m],line)
-    line = re.sub('IDX',str(int(idxs[m])),line)
+    if str(idxs[m]).isdigit():
+      line = re.sub('IDX',str(int(idxs[m])),line)
   elif CPP:
     line = re.sub('INDDIM',str(inddims[m]),line)
     line = re.sub('INDTYP',str(indtyps[m]),line)
@@ -49,7 +50,8 @@ def rep(line,m):
     line = re.sub('DIM',str(dims[m]),line)
     line = re.sub('ARG','arg'+str(m),line)
     line = re.sub('TYP',typs[m],line)
-    line = re.sub('IDX',str(int(idxs[m])),line)
+    if str(idxs[m]).isdigit():
+      line = re.sub('IDX',str(int(idxs[m])),line)
   return line
 
 def code(text):
@@ -144,7 +146,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
 
-  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
+  OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4; OP_INFO = 5;
 
   OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -163,6 +165,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
+    print(name)
     nargs = kernels[nk]['nargs']
     dims  = kernels[nk]['dims']
     maps  = kernels[nk]['maps']
@@ -227,11 +230,17 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       if (not dims[g_m].isdigit()):# and not (dims[g_m] in ['NPDE','DNTQMU','DNFCROW','1*1']):
         needDimList = needDimList + [g_m]
 
+    needMapIdx = [0]*nargs
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_MAP or maps[g_m] == OP_IDX) and (not idxs[g_m].isdigit()):
+          needMapIdx[g_m] = 1
+
 ##########################################################################
 #  Generate Header
 ##########################################################################
     if hydra:
-      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE')
+      code('#define r4 real(RK4)\n#define r8 real(RK8)\n#define i4 integer(IK4)\n')
+      code('MODULE '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+kernels[nk]['incompatibleRepeat']+'_MODULE')
     else:
       code('MODULE '+name.upper()+'_MODULE')
     code('USE OP2_FORTRAN_DECLARATIONS')
@@ -242,6 +251,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     if bookleaf:
       code('USE kinds_mod,    ONLY: ink,rlk')
       code('USE parameters_mod,ONLY: LI')
+    if hydra:
+      code('use hyd_precision_mod')
 
     code('')
 
@@ -272,6 +283,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       fid = open(filename, 'r')
       text = fid.read()
       fid.close()
+      if 'HAL_' in text:
+        code('#include "hal_define.h"\n#include "hal_input_public.h"\n#include "hal_bcs_public.h"\n')
       text = text.replace('recursive subroutine','subroutine')
       #text = text.replace('module','!module')
       text = text.replace('contains','!contains')
@@ -337,6 +350,22 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           k = k + [mapnames[g_m]]
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapnames[g_m] in k):
+        k = k + [mapnames[g_m]]
+        code('& opDat'+str(g_m+1)+'Map, &')
+        code('& opDat'+str(g_m+1)+'MapDim, &')
+    k = []
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('& idxVal'+str(mapinds[g_m]+1)+', &')
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('& idxVal'+str(g_m+1)+', &')
     code('& bottom,top,argc,args,testfreq)')
     code('implicit none')
     for g_m in range(0,ninds):
@@ -354,7 +383,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim,*)')
         else:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local('+str(dims[g_m])+',*)')
-      elif maps[g_m] == OP_GBL:
+      elif maps[g_m] == OP_GBL or maps[g_m] == OP_INFO:
         if g_m in needDimList:
           code(typs[g_m]+' opDat'+str(g_m+1)+'Local(opDat'+str(g_m+1)+'Dim)')
         else:
@@ -366,6 +395,22 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           k = k + [mapnames[g_m]]
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'Map(*)')
           code('INTEGER(kind=4) opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim')
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapnames[g_m] in k):
+        k = k + [mapnames[g_m]]
+        code('INTEGER(kind=4) opDat'+str(g_m+1)+'Map(*)')
+        code('INTEGER(kind=4) opDat'+str(g_m+1)+'MapDim')
+    k = []
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('INTEGER(kind=4) idxVal'+str(mapinds[g_m]+1))
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('INTEGER(kind=4) idxVal'+str(g_m+1))
 
     code('INTEGER(kind=4) bottom,top,i1,argc,testfreq')
     code('type ( op_arg ) , DIMENSION('+str(nargs)+') :: args')
@@ -376,6 +421,14 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
           line += 'map'+str(mapinds[g_m]+1)+'idx, '
+      code(line[:-2])
+    k = []
+    line = 'INTEGER(kind=4) '
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        line += 'idx'+str(g_m+1)+', '
+    if len(line)>16:
       code(line[:-2])
     code('')
 #    if ind_inc == 0 and reduct == 0:
@@ -391,7 +444,19 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       if maps[g_m] == OP_MAP and (not mapinds[g_m] in k):
         k = k + [mapinds[g_m]]
-        code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
+        if needMapIdx[g_m] == 1:
+          code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + idxVal'+str(mapinds[g_m]+1)+')+1')
+        else:
+          code('map'+str(mapinds[g_m]+1)+'idx = opDat'+str(invmapinds[inds[g_m]-1]+1)+'Map(1 + i1 * opDat'+str(invmapinds[inds[g_m]-1]+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        idx = [a==OP_IDX and b==mapnames[g_m] for a, b in zip(maps, mapnames)].index(True)
+        if needMapIdx[g_m] == 1:
+          code('idx'+str(g_m+1)+' = opDat'+str(idx+1)+'Map(1 + i1 * opDat'+str(idx+1)+'MapDim + idxVal'+str(g_m+1)+')+1')
+        else:
+          code('idx'+str(g_m+1)+' = opDat'+str(idx+1)+'Map(1 + i1 * opDat'+str(idx+1)+'MapDim + '+str(int(idxs[g_m])-1)+')+1')
     comm('kernel call')
     line = 'CALL '+name+'( &'
     indent = '\n'+' '*depth
@@ -400,11 +465,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         line = line + indent + '& opDat'+str(g_m+1)+'Local(1,i1+1)'
       if maps[g_m] == OP_MAP:
         line = line +indent + '& opDat'+str(invinds[inds[g_m]-1]+1)+'Local(1,map'+str(mapinds[g_m]+1)+'idx)'
-      if maps[g_m] == OP_GBL:
+      if maps[g_m] == OP_GBL or maps[g_m] == OP_INFO:
         line = line + indent +'& opDat'+str(g_m+1)+'Local(1)'
       if maps[g_m] == OP_IDX:
         if idxs[g_m] != '-1':
-          line = line + indent +'& map'+str(mapinds[g_m]+1)+'idx'
+          line = line + indent +'& idx'+str(g_m+1)
         else:
           line = line + indent +'& i1'
       if g_m < nargs-1:
@@ -422,7 +487,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
 #  Generate SEQ host stub
 ##########################################################################
-    code('SUBROUTINE '+name+'_host( userSubroutine, set, &'); depth = depth + 2
+    code('SUBROUTINE '+name+kernels[nk]['incompatibleRepeat']+'_host( userSubroutine, set, &'); depth = depth + 2
     for g_m in range(0,nargs):
       if g_m == nargs-1:
         code('& opArg'+str(g_m+1)+' )')
@@ -460,13 +525,19 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
         code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'Local')
         code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'Cardinality')
         code('')
-      if maps[g_m] == OP_GBL:
+      if maps[g_m] == OP_GBL or maps[g_m] == OP_INFO:
         code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'Local')
 
     for g_m in range(0,nargs):
       if maps[g_m] == OP_MAP and optflags[g_m]==1:
         code(typs[g_m]+', POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'OptPtr')
 
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapnames[g_m] in k):
+        k = k + [mapnames[g_m]]
+        code('INTEGER(kind=4), POINTER, DIMENSION(:) :: opDat'+str(g_m+1)+'Map')
+        code('INTEGER(kind=4) :: opDat'+str(g_m+1)+'MapDim')
 
     code('')
     code('INTEGER(kind=4) :: i1, testfreq')
@@ -508,9 +579,17 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       if maps[g_m] == OP_ID:
         code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local,(/opDat'+str(g_m+1)+'Cardinality/))')
-      elif maps[g_m] == OP_GBL:
+      elif maps[g_m] == OP_GBL or maps[g_m] == OP_INFO:
         code('CALL c_f_pointer(opArg'+str(g_m+1)+'%data,opDat'+str(g_m+1)+'Local, (/opArg'+str(g_m+1)+'%dim/))')
     code('')
+
+    #add OP_IDX mappings
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapnames[g_m] in k):
+        k = k + [mapnames[g_m]]
+        code('opDat'+str(g_m+1)+'MapDim = getMapDimFromOpArg(opArg'+str(g_m+1)+')')
+        code('CALL c_f_pointer(opArg'+str(g_m+1)+'%map_data,opDat'+str(g_m+1)+'Map,(/opSetCore%size*opDat'+str(g_m+1)+'MapDim/))')
 
     code('')
     if 1:
@@ -532,6 +611,24 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             k = k + [mapnames[g_m]]
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+      k = []
+      for g_m in range(0,nargs):
+        if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapnames[g_m] in k):
+          k = k + [mapnames[g_m]]
+          code('& opDat'+str(g_m+1)+'Map, &')
+          code('& opDat'+str(g_m+1)+'MapDim, &')
+
+      k = []
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_MAP and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('& opArg'+str(g_m+1)+'%idx, &')
+      k = []
+      for g_m in range(0,nargs):
+        if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+          k = k + [mapinds[g_m]]
+          code('& opArg'+str(g_m+1)+'%idx, &')
+
       code('& 0, opSetCore%core_size,numberOfOpDats,opArgArray,testfreq)')
     if grouped:
       code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
@@ -540,12 +637,12 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('CALL op_wrap_'+name+'( &')
     for g_m in range(0,ninds):
       if invinds[g_m] in needDimList:
-          code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
+        code('& opArg'+str(invinds[g_m]+1)+'%dim, &')
       code('& opDat'+str(invinds[g_m]+1)+'Local, &')
     for g_m in range(0,nargs):
       if maps[g_m] != OP_MAP and maps[g_m] != OP_IDX:
         if g_m in needDimList:
-            code('& opArg'+str(g_m+1)+'%dim, &')
+          code('& opArg'+str(g_m+1)+'%dim, &')
         code('& opDat'+str(g_m+1)+'Local, &')
 
     if nmaps > 0:
@@ -555,6 +652,23 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           k = k + [mapnames[g_m]]
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and (not mapnames[g_m] in k):
+        k = k + [mapnames[g_m]]
+        code('& opDat'+str(g_m+1)+'Map, &')
+        code('& opDat'+str(g_m+1)+'MapDim, &')
+
+    k = []
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('& opArg'+str(g_m+1)+'%idx, &')
+    k = []
+    for g_m in range(0,nargs):
+      if (maps[g_m] == OP_IDX and idxs[g_m] != '-1') and needMapIdx[g_m] == 1 and (not mapinds[g_m] in k):
+        k = k + [mapinds[g_m]]
+        code('& opArg'+str(g_m+1)+'%idx, &')
     #code('& 0, n_upper)')
     code('& opSetCore%core_size, n_upper,numberOfOpDats,opArgArray,2147483647)')
 
@@ -577,15 +691,15 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     for g_m in range(0,nargs):
       if optflags[g_m] == 1:
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
-          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
+          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(RK8)':
             IF('opArg'+str(g_m+1)+'%opt == 1')
             code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
             ENDIF()
-          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
+          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4' or typs[g_m] == 'real(RK4)':
             IF('opArg'+str(g_m+1)+'%opt == 1')
             code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
             ENDIF()
-          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4':
+          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4' or typs[g_m] == 'integer(IK4)':
             IF('opArg'+str(g_m+1)+'%opt == 1')
             code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
             ENDIF()
@@ -598,11 +712,11 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('')
       else:
         if maps[g_m] == OP_GBL and (accs[g_m] == OP_INC or accs[g_m] == OP_MIN or accs[g_m] == OP_MAX or accs[g_m] == OP_WRITE):
-          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8':
+          if typs[g_m] == 'real(8)' or typs[g_m] == 'REAL(kind=8)' or typs[g_m] == 'real*8' or typs[g_m] == 'r8' or typs[g_m] == 'real(RK8)':
             code('CALL op_mpi_reduce_double(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4':
+          elif typs[g_m] == 'real(4)' or typs[g_m] == 'REAL(kind=4)' or typs[g_m] == 'real*4' or typs[g_m] == 'r4' or typs[g_m] == 'real(RK4)':
             code('CALL op_mpi_reduce_float(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
-          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4':
+          elif typs[g_m] == 'integer(4)' or typs[g_m] == 'INTEGER(kind=4)' or typs[g_m] == 'integer*4' or typs[g_m] == 'i4' or typs[g_m] == 'integer(IK4)':
             code('CALL op_mpi_reduce_int(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
           elif typs[g_m] == 'logical' or typs[g_m] == 'logical*1':
             code('CALL op_mpi_reduce_bool(opArg'+str(g_m+1)+',opArg'+str(g_m+1)+'%data)')
@@ -617,7 +731,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
       for g_m in range(0,nargs):
         if optflags[g_m] == 1:
           IF('opArg'+str(g_m+1)+'%opt == 1')
-        if accs[g_m] == OP_READ or accs[g_m] == OP_WRITE:
+        if accs[g_m] == OP_READ or accs[g_m] == OP_WRITE or maps[g_m] == OP_INFO:
           if maps[g_m] == OP_GBL:
             code('dataTransfer = dataTransfer + opArg'+str(g_m+1)+'%size')
           else:
@@ -677,7 +791,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 ##########################################################################
     if hydra:
       name = 'kernels/'+kernels[nk]['master_file']+'_'+name
-      fid = open(name+'_seqkernel.F90','w')
+      fid = open(name+kernels[nk]['incompatibleRepeat']+'_seqkernel.F90','w')
     elif bookleaf:
       fid = open(prefixes[prefix_i]+name+'_seqkernel.f90','w')
     else:

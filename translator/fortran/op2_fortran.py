@@ -83,7 +83,7 @@ ninit = 0; nexit = 0; npart = 0; nhdf5 = 0; nconsts  = 0; nkernels = 0;
 consts = []
 kernels = []
 
-OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4;
+OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3; OP_IDX = 4; OP_INFO = 5;
 
 OP_READ = 1;  OP_WRITE = 2;  OP_RW  = 3;
 OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
@@ -352,20 +352,39 @@ def get_arg_gbl(arg_string, k):
   'acc':gbl_args[3].strip(),
   'opt':''}
 
-#  if 'DNPDE' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('DNPDE','6')
-#  if 'nfcrow' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('nfcrow','DNFCROW')
-#  if 'npdes' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('npdes','NPDE')
-#  if 'ntqmu' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('ntqmu','DNTQMU')
-#  if 'maxzone' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxzone','DMAXZONE')
-#  if 'mpdes' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('mpdes','10')
-#  if 'maxgrp' in temp_gbl['dim']:
-#    temp_gbl['dim'] = temp_gbl['dim'].replace('maxgrp','1000')
+  if temp_gbl['typ']=='"r8"':
+    temp_gbl['typ']='"REAL(kind=8)"'
+  if temp_gbl['typ']=='"i4"':
+    temp_gbl['typ']='"INTEGER(kind=4)"'
+  if temp_gbl['typ']=='"logical"':
+    temp_gbl['typ']='"logical"'
+
+  return temp_gbl
+
+def get_arg_info(arg_string, k):
+  loc = arg_parse(arg_string,k+1)
+  gbl_args_string = arg_string[arg_string.find('(',k)+1:loc]
+
+  #remove comments
+  gbl_args_string = comment_remover(gbl_args_string)
+  gbl_args_string = gbl_args_string.replace('&','')
+
+  gbl_args = arg_parse2('('+gbl_args_string+')',0)
+  #check for syntax errors
+  if len(gbl_args) != 4:
+    print('Error parsing op_arg_info(%s): must have four arguments' \
+          % gbl_args_string)
+    return
+
+  # split the gbl_args_string into  4 and create a struct with the elements
+  # and type as op_arg_gbl
+  temp_gbl = {'type':'op_arg_info',
+  'data':gbl_args[0].strip(),
+  'dim':gbl_args[1].strip(),
+  'typ':gbl_args[2].strip(),
+  'acc':gbl_args[3].strip(),
+  'opt':''}
+
   if temp_gbl['typ']=='"r8"':
     temp_gbl['typ']='"REAL(kind=8)"'
   if temp_gbl['typ']=='"i4"':
@@ -444,7 +463,7 @@ def get_arg_idx(arg_string, k):
   'map': idx_args_string.split(',')[1].strip(),
   'data':'',
   'dim':'1',
-  'typ':'integer(4)',
+  'typ':'"integer(4)"',
   'acc':'OP_READ',
   'opt':''}
 
@@ -461,7 +480,7 @@ def append_init_soa(text):
 def op_par_loop_parse(text):
     loop_args = []
 
-    search = "op_par_loop"
+    search = "op_par_loop_"
     i = text.find(search)
     while i > -1:
       arg_string = text[text.find('(',i)+1:arg_parse(text,i+11)]
@@ -477,14 +496,16 @@ def op_par_loop_parse(text):
       search4 = "op_opt_arg_dat"
       search5 = "op_opt_arg_gbl"
       search6 = "op_arg_idx"
+      search7 = "op_arg_info"
       j = arg_string.find(search2)
       k = arg_string.find(search3)
       l = arg_string.find(search4)
       p = arg_string.find(search5)
       q = arg_string.find(search6)
+      r = arg_string.find(search7)
 
-      while j > -1 or k > -1 or l > -1 or p > -1 or q > -1:
-        index = min(j if (j > -1) else sys.maxsize,k if (k > -1) else sys.maxsize,l if (l > -1) else sys.maxsize, p if (p > -1) else sys.maxsize, q if (q > -1) else sys.maxsize)
+      while j > -1 or k > -1 or l > -1 or p > -1 or q > -1 or r > -1:
+        index = min(j if (j > -1) else sys.maxsize,k if (k > -1) else sys.maxsize,l if (l > -1) else sys.maxsize, p if (p > -1) else sys.maxsize, q if (q > -1) else sys.maxsize, r if (r > -1) else sys.maxsize)
 
         if index == j:
           temp_dat = get_arg_dat(arg_string,j)
@@ -516,12 +537,21 @@ def op_par_loop_parse(text):
           temp_args.append(temp_idx)
           num_args = num_args + 1
           q = arg_string.find(search6, q+11)
+        elif  index == r :
+          temp_info = get_arg_info(arg_string,r)
+          #append this struct to a temporary list/array
+          temp_args.append(temp_info)
+          num_args = num_args + 1
+          r = arg_string.find(search7, r+11)
 
+
+      print(parloop_args)
       temp = {'loc':i,
               'name1':parloop_args[0].strip(),
               'set':parloop_args[1].strip(),
               'args':temp_args,
-              'nargs':num_args}
+              'nargs':num_args,
+              'incompatibleRepeat': False}
 
       loop_args.append(temp)
       i=text.find(search, i+10)
@@ -635,6 +665,7 @@ for a in range(init_ctr,len(sys.argv)):
   loop_args = op_par_loop_parse(text)
 
   for i in range (0, len(loop_args)):
+    parloop_ctr = i
     name = loop_args[i]['name1']
     set_name = loop_args[i]['set']
     nargs = loop_args[i]['nargs']
@@ -702,12 +733,14 @@ for a in range(init_ctr,len(sys.argv)):
         else:
           optflags[m] = 0
 
-      if arg_type.strip() == 'op_arg_gbl' or arg_type.strip() == 'op_opt_arg_gbl' or arg_type.strip() == 'op_arg_idx':
+      if arg_type.strip() == 'op_arg_gbl' or arg_type.strip() == 'op_opt_arg_gbl' or arg_type.strip() == 'op_arg_idx' or arg_type.strip() == 'op_arg_info':
         if arg_type.strip() == 'op_arg_idx':
           maps[m] = OP_IDX
           idxs[m] = args['idx']
           if str(args['map']).strip() != 'OP_ID':
             mapnames[m] = str(args['map']).strip()
+        elif arg_type.strip() == 'op_arg_info':
+          maps[m] = OP_INFO
         else:
           maps[m] = OP_GBL
         var[m] = args['data']
@@ -748,6 +781,10 @@ for a in range(init_ctr,len(sys.argv)):
     indaccs = [0]*nargs
 
     j = [i for i, x in enumerate(maps) if x == OP_MAP]
+#    j = []
+#    for i in range(0,nargs):
+#      if maps[i] == OP_MAP or (maps[i] == OP_IDX and idxs[i] != '-1'):
+#        j = j + [i]
 
     while len(j) > 0:
 
@@ -780,19 +817,24 @@ for a in range(init_ctr,len(sys.argv)):
         for j in range(0,i):
           if (maps[i] == OP_MAP or maps[i] == OP_IDX) and (mapnames[i] == mapnames[j]) and (idxs[i] == idxs[j]):
             mapinds[i] = mapinds[j]
+
+    loop_args[parloop_ctr]['kernelNo'] = nkernels
 #
 # check for repeats
 #
     repeat = False
+    incompatibleRepeat = False
     rep1 = False
     rep2 = False
 
     for nk in range (0,nkernels):
-      rep1 = kernels[nk]['name'] == name and \
-      kernels[nk]['nargs'] == nargs and \
-      kernels[nk]['ninds'] == ninds
+      rep1 = kernels[nk]['name'] == name
+      if rep1 and kernels[nk]['nargs'] != nargs:
+        print('repeated kernel with incompatible number of arguments: ERROR')
+        sys.exit(-1)
+
       if rep1:
-         rep2 = True
+         rep2 = kernels[nk]['ninds'] == ninds
          for arg in range(0,nargs):
             rep2 =  rep2 and kernels[nk]['dims'][arg] == dims[arg] and \
             kernels[nk]['maps'][arg] == maps[arg] and \
@@ -812,10 +854,13 @@ for a in range(init_ctr,len(sys.argv)):
          if rep2:
            print('repeated kernel with compatible arguments: '+ kernels[nk]['name'])
            repeat = True
+           loop_args[parloop_ctr]['kernelNo'] = nk
          else:
-           print('repeated kernel with incompatible arguments: ERROR')
-           sys.exit(-1)
-           break
+           print('repeated kernel with incompatible arguments: duplicating '+kernels[nk]['name'])
+           repeat = False
+           incompatibleRepeat = True
+           loop_args[parloop_ctr]['incompatibleRepeat'] = True
+           loop_args[parloop_ctr]['kernelNo'] = nkernels
 
 #
 # output various diagnostics
@@ -836,6 +881,10 @@ for a in range(init_ctr,len(sys.argv)):
       print('\n  indirect arguments:', end=' ')
       for arg in range(0,nargs):
           if maps[arg] == OP_MAP:
+            print(str(arg), end=' ')
+      print('\n  index arguments:', end=' ')
+      for arg in range(0,nargs):
+          if maps[arg] == OP_IDX:
             print(str(arg), end=' ')
       if ninds > 0:
           print('\n  number of indirect datasets: '+str(ninds), end=' ')
@@ -866,7 +915,8 @@ for a in range(init_ctr,len(sys.argv)):
               'invinds': invinds,
               'mapnames' : mapnames,
               'mapinds': mapinds,
-              'invmapinds' : invmapinds }
+              'invmapinds' : invmapinds,
+              'incompatibleRepeat': incompatibleRepeat }
 
       if hydra==1:
         temp['master_file'] = src_file.split('.')[0].replace('mod_','')
@@ -887,14 +937,10 @@ for a in range(init_ctr,len(sys.argv)):
 
 ########################## output source file  ############################
 
-  fid = open(src_file.replace('.','_op.'), 'w')
-#  if file_format == 90:
-#    fid = open(src_file.split('.')[0]+'_op.F90', 'w')
-#  elif file_format == 77:
-#    fid = open(src_file.split('.')[0]+'_op.F', 'w')
+  #fid = open(src_file.replace('.','_op.'), 'w')
+  outfile = ''
   date = datetime.datetime.now()
-  #fid.write('!\n! auto-generated by op2_fortran.py on '+date.strftime("%Y-%m-%d %H:%M")+'\n!\n\n')
-  fid.write('!\n! auto-generated by op2_fortran.py\n!\n\n')
+  outfile += '!\n! auto-generated by op2_fortran.py\n!\n\n'
 
   loc_old = 0
   #read original file and locate header location
@@ -923,7 +969,7 @@ for a in range(init_ctr,len(sys.argv)):
 # process header, loops and constants
 #
   for loc in range(0,len(locs)):
-    fid.write(text[loc_old:locs[loc]-1])
+    outfile += text[loc_old:locs[loc]-1]
     loc_old = locs[loc]-1
     indent = ''
     ind = 0;
@@ -941,7 +987,7 @@ for a in range(init_ctr,len(sys.argv)):
             line = line +'\n'+'  use ' + kernels[nk]['name'].upper()+'_MODULE'
         line = line + '\n'+indent
 
-      fid.write(line[2:len(line)]);
+      outfile += line[2:len(line)]
       if bookleaf:
         loc_old = locs[loc] # keep the original include
       else:
@@ -950,19 +996,43 @@ for a in range(init_ctr,len(sys.argv)):
 
     if locs[loc] in loc_consts:# stripping the op_decl_consts -- as there is no implementation required
       line = ''
-      fid.write(line);
+      outfile += line
       endofcall = text.find('\n', locs[loc])
       loc_old = endofcall+1
       continue
 
     if locs[loc] in loc_loops:
+       curr_loop = loc_loops.index(locs[loc])
+       nk = loop_args[curr_loop]['kernelNo']
+       #find function include, replace for use statement, move ahead of implicit none
+       if hydra:
+         extdecl = outfile.rfind(kernels[nk]['mod_file'])
+         #remove "extern functionname" - may not be found for repeat kernels
+         if extdecl>0:
+           outfile = outfile[0:extdecl]+outfile[extdecl+len(kernels[nk]['mod_file'])+1:]
+         #insert use before implicit none
+         if extdecl>0 or kernels[nk]['incompatibleRepeat']:
+             implnonepos = outfile.lower().rfind('implicit none')
+             implnonepos = outfile[0:implnonepos].rfind('\n')
+             replace = '       use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_MODULE'+'\n'
+             if kernels[nk]['incompatibleRepeat']:
+                 replace = replace[:-15]+'_'+str(curr_loop)+replace[-15:]
+             outfile = outfile[0:implnonepos] + replace + outfile[implnonepos:]
+
+
        indent = indent + ' '*len('op_par_loop')
        if file_format == 77:
          indent='     '
        endofcall = arg_parse(text,locs[loc]+11)
        #endofcall = text.find('\n\n', locs[loc])
-       curr_loop = loc_loops.index(locs[loc])
        name = loop_args[curr_loop]['name1']
+       if kernels[nk]['incompatibleRepeat']:
+           kernels[nk]['incompatibleRepeat'] = '_'+str(curr_loop)
+           name = name +'_' +str(curr_loop)
+       else:
+           kernels[nk]['incompatibleRepeat'] = ''
+
+
        if file_format == 90:
          line = str(' '+name+'_host(&\n'+indent+'& "'+name+'",'+
                 loop_args[curr_loop]['set']+', '+cont_end+'\n')
@@ -986,20 +1056,25 @@ for a in range(init_ctr,len(sys.argv)):
             +','+ typechange(elem['typ'])+','+ elem['acc']
          elif elem['type'] == 'op_arg_idx':
             line = line + indent + cont + elem['type'] + '('+ elem['idx'] + ','+ elem['map']
+         elif elem['type'] == 'op_arg_info':
+            line = line + indent + cont + elem['type'] + '(' + elem['data'] + ','+ elem['dim'] \
+            +','+ typechange(elem['typ'])+','+ elem['acc']
 
          if arguments != loop_args[curr_loop]['nargs'] - 1:
            line = line + '), '+cont_end+'\n'
          else:
            line = line + '))\n'
 
-       fid.write(line)
+       outfile += line
 
        loc_old = endofcall+1
        continue
 
 
 
-  fid.write(text[loc_old:])
+  outfile += text[loc_old:]
+  fid = open(src_file.replace('.','_op.'), 'w')
+  fid.write(outfile)
   fid.close()
   if hydra == 1 or bookleaf==1:
     fid = open(src_file.replace('.','_op.'), 'r')
@@ -1024,7 +1099,7 @@ for a in range(init_ctr,len(sys.argv)):
       text = text.replace('USE '+master_file+'_kernels','! USE USE '+master_file+'_kernels')
     for nk in range (0,len(kernels)):
       if hydra:
-        replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_module_MODULE'+'\n'
+        replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_MODULE'+'\n'
       else:
         replace = 'use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][4:]+'_MODULE'+'\n'
       text = text.replace(kernels[nk]['mod_file']+'\n', replace)
@@ -1074,10 +1149,10 @@ if npart==0 and nhdf5>0:
 #MPI+SEQ
 #op2_gen_mpiseq(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # generate host stubs for MPI+SEQ
 op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ -- optimised by removing the overhead due to fortran c to f pointer setups
-op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
+#op2_gen_mpivec(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # generate host stubs for MPI+SEQ with intel vectorization optimisations
 
 #OpenMP
-op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openmp3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 #op2_gen_openmp2(str(sys.argv[init_ctr]), date, consts, kernels, hydra) # version without staging
 #op2_gen_openmp(str(sys.argv[init_ctr]), date, consts, kernels, hydra)  # original version - one that most op2 papers refer to
 
@@ -1093,7 +1168,7 @@ op2_gen_cuda_color2(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookle
 #op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #OpenMP4 offload
-op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
+#op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features
