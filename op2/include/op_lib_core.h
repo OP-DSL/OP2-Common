@@ -183,7 +183,10 @@ typedef struct {
   float plan_time;  /* time spent in op_plan_get */
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
-  double mpi_time;   /* time spent in MPI calls */
+  double mpi_time;  /* time spent in MPI calls */
+  #ifdef HAVE_GPI
+  double gpi_time;  /* time spent in GPI calls*/
+  #endif
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
