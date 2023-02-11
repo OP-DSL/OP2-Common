@@ -776,7 +776,11 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             line = line + '  op_arg,\n'
           line = line + '  op_arg );\n'
           fid.write(line)
-
+        for nc in range(0,len(consts)):
+          fid.write('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,\n')
+          fid.write('                       '+consts[nc]['type'][1:-1]+' *dat);\n')
+        fid.write('\n')
+        
         fid.write('#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n')
         fid.write('\n')
         loc_old = locs[loc] + header_len-1
@@ -819,8 +823,8 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         curr_const = loc_consts.index(locs[loc])
         endofcall = text.find(';', locs[loc])
         name = const_args[curr_const]['name']
-        fid.write(indent[0:-2] + 'op_decl_const2("' + name.strip() +
-              '",' + str(const_args[curr_const]['dim']) + ',' +
+        fid.write(indent[0:-2] + 'op_decl_const_'+name.strip()+'('
+              + str(const_args[curr_const]['dim']) + ',' +
               const_args[curr_const]['type'] + ',' +
               const_args[curr_const]['name2'].strip() + ');')
         loc_old = endofcall + 1

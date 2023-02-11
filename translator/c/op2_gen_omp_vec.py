@@ -845,6 +845,15 @@ def op2_gen_omp_vec(master, date, consts, kernels):
   code('#include "op_lib_cpp.h"')
   code('')
 
+  code('#ifndef SKIP_DECL_CONST')
+  for nc in range(0,len(consts)):
+    code('')
+    code('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,')
+    code('                       '+consts[nc]['type'][1:-1]+' *dat){')
+    code('}')
+  code('')
+  code('#endif')
+
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):
