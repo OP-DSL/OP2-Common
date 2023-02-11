@@ -472,6 +472,13 @@ def op2_gen_seq(master, date, consts, kernels):
   code('#include "op_lib_cpp.h"       ')
   code('')
 
+  for nc in range(0,len(consts)):
+    code('')
+    code('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,')
+    code('                       '+consts[nc]['type'][1:-1]+' *dat){')
+    code('}')
+  code('')
+
   comm(' user kernel files')
 
   for nk in range(0,len(kernels)):

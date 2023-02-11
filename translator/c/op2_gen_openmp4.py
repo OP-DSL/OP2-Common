@@ -868,23 +868,22 @@ def op2_gen_openmp4(master, date, consts, kernels):
   code('#include "op_lib_cpp.h"       ')
   code('')
 
-  code('void op_decl_const_char(int dim, char const *type,')
-  code('  int size, char *dat, char const *name){')
-  indent = ' ' * ( 2+ depth)
-  line = '  ' 
-  for nc in range (0,len(consts)):
+  for nc in range(0,len(consts)):
+    code('')
+    code('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,')
+    code('                       '+consts[nc]['type'][1:-1]+' *dat){')
     varname = consts[nc]['name']
-    if nc > 0:
-        line += ' else '
-    line += 'if(!strcmp(name, "%s")) {\n' %varname + indent + 2*' ' + 'memcpy('
+    line = 2*' ' + 'memcpy('
     if consts[nc]['dim']==1:
       line += '&'
-    line += varname+ '_ompkernel, dat, dim*size);\n' + indent + '#pragma omp target enter data map(to:'+varname+'_ompkernel'
+    line += varname+ '_ompkernel, dat, dim*sizeof('+consts[nc]['type'][1:-1]+'));\n' + indent + '#pragma omp target enter data map(to:'+varname+'_ompkernel'
     if consts[nc]['dim'] !=1:
       line += '[:%s]' % str(consts[nc]['dim']) if (consts[nc]['dim'].isdigit() and int(consts[nc]['dim']) > 0) else 'MAX_CONST_SIZE'
-    line += ')\n'+indent + '}'
-  code(line)
-  code('}')
+    line += ')\n'+indent
+    code(line)
+    code('}')
+  code('')
+
 
   comm(' user kernel files')
 

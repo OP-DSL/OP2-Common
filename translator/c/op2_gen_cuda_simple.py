@@ -1295,30 +1295,20 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   code('#include "op_cuda_rt_support.h"')
   code('#include "op_cuda_reduction.h"')
 
-  code('')
-  code('void op_decl_const_char(int dim, char const *type,')
-  code('int size, char *dat, char const *name){')
-  depth = depth + 2
-
-  code('if (!OP_hybrid_gpu) return;')
   for nc in range(0,len(consts)):
-    IF('!strcmp(name,"'+consts[nc]['name']+'")')
+    code('')
+    code('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,')
+    code('                       '+consts[nc]['type'][1:-1]+' *dat){')
+    depth = depth + 2
+    code('if (!OP_hybrid_gpu) return;')
     if not consts[nc]['dim'] or int(consts[nc]['dim']) > 1:
-      IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE')
+      IF('dim*sizeof('+consts[nc]['type'][1:-1]+')>MAX_CONST_SIZE')
       code('printf("error: MAX_CONST_SIZE not big enough\\n"); exit(1);')
       ENDIF()
-    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*size));')
-    ENDIF()
-    code('else ')
+    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*sizeof('+consts[nc]['type'][1:-1]+')));')
+    depth = depth - 2
+    code('}')
 
-  code('{')
-  depth = depth + 2
-  code('printf("error: unknown const name\\n"); exit(1);')
-  ENDIF()
-
-
-  depth = depth - 2
-  code('}')
   code('')
   comm('user kernel files')
 

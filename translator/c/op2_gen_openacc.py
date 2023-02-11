@@ -675,8 +675,12 @@ def op2_gen_openacc(master, date, consts, kernels):
   code('#include "op_lib_c.h"       ')
   code('')
 
-  code('void op_decl_const_char(int dim, char const *type,')
-  code('int size, char *dat, char const *name){}')
+  for nc in range(0,len(consts)):
+    code('')
+    code('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,')
+    code('                       '+consts[nc]['type'][1:-1]+' *dat){')
+    code('}')
+  code('')
 
   comm(' user kernel files')
 

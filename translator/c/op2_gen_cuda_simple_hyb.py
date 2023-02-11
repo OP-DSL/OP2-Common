@@ -110,6 +110,7 @@ def op2_gen_cuda_simple_hyb(master, date, consts, kernels,sets):
     name  = kernels[nk]['name']
     code('#undef op_par_loop_'+name)
   code('#else')
+  code('#define SKIP_DECL_CONST')
   for nk in range (0,len(kernels)):
     name  = kernels[nk]['name']
     code('#define op_par_loop_'+name+' op_par_loop_'+name+'_cpu')
