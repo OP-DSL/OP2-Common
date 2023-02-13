@@ -106,6 +106,7 @@ class Fortran(Lang):
     zero_idx = False
 
     user_consts_module = None
+    use_regex_translator = False
 
     def validate(self, app: Application) -> None:
         for loop, program in app.loops():
@@ -175,7 +176,10 @@ class Fortran(Lang):
         return fortran.parser.parseProgram(ast, source, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
-        return fortran.translator.program.translateProgram2(program, force_soa)
+        if self.use_regex_translator:
+            return fortran.translator.program.translateProgram2(program, force_soa)
+
+        return fortran.translator.program.translateProgram(program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         if isinstance(typ, OP.Int):

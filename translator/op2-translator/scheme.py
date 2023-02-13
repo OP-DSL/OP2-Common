@@ -16,6 +16,7 @@ class Scheme(Findable):
     lang: Lang
     target: Target
 
+    consts_template: Optional[Path]
     loop_host_template: Path
     master_kernel_template: Optional[Path]
 
@@ -46,6 +47,19 @@ class Scheme(Findable):
             extension,
         )
 
+    def genConsts(self, env: Environment, app: Application) -> Tuple[str, str]:
+        if self.consts_template is None:
+            exit(f"No consts kernel template registered for {self}")
+
+        # Load the loop host template
+        template = env.get_template(str(self.consts_template))
+
+        extension = self.consts_template.suffixes[-2][1:]
+        name = f"op2_consts.{extension}"
+
+        # Generate source from the template
+        return template.render(OP=OP, app=app, lang=self.lang, target=self.target), name
+
     def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path]) -> Tuple[str, str]:
         if self.master_kernel_template is None:
             exit(f"No master kernel template registered for {self}")
@@ -58,7 +72,7 @@ class Scheme(Findable):
         template = env.get_template(str(self.master_kernel_template))
 
         extension = self.master_kernel_template.suffixes[-2][1:]
-        name = f"{self.target.name}_kernels.{extension}"
+        name = f"op2_kernels.{extension}"
 
         # Generate source from the template
         return template.render(OP=OP, app=app, lang=self.lang, target=self.target, user_types=user_types), name
