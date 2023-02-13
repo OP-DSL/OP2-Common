@@ -2707,6 +2707,7 @@ void set_maps_hydra(){
     // //  op_mpi_add_nhalos_map(map, 3);
     if (strncmp("ne", map->name, strlen("ne")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
@@ -2714,6 +2715,7 @@ void set_maps_hydra(){
     }
     if (strncmp("npe", map->name, strlen("npe")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
@@ -2721,6 +2723,7 @@ void set_maps_hydra(){
     }
     if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
@@ -2728,6 +2731,7 @@ void set_maps_hydra(){
     }
     if (strncmp("nb", map->name, strlen("nb")) == 0) {
       op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
@@ -3271,7 +3275,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  // set_maps_hydra();
+  set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension();
@@ -3279,7 +3283,7 @@ void op_halo_create_comm_avoid() {
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
   double max_time;
-  op_timers(&cpu_t1, &wall_t1); // timer start for list create
+  
 
   // create new communicator for OP mpi operation
   int my_rank, comm_size;
@@ -3308,6 +3312,8 @@ void op_halo_create_comm_avoid() {
 
   create_part_range_arrays(my_rank, comm_size);
   create_elem_rank_matrix(my_rank, comm_size);
+
+  op_timers(&cpu_t1, &wall_t1); // timer start for list create
 
   int num_halos = get_max_nhalos();
   // op_printf("my_rank=%d max_exec_levels=%d\n", my_rank, num_halos);
@@ -3428,6 +3434,11 @@ void op_halo_create_comm_avoid() {
   // merge_exec_halos(num_halos, my_rank, comm_size);
   // merge_nonexec_halos(num_halos, my_rank, comm_size);
   // op_printf("my_rank=%d merge_exec_nonexec_halos\n", my_rank);
+
+  op_timers(&cpu_t2, &wall_t2); // timer stop for list create
+  // compute import/export lists creation time
+  time = wall_t2 - wall_t1;
+
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
   set_group_halo_envt();
@@ -3448,9 +3459,7 @@ void op_halo_create_comm_avoid() {
   op_free(exp_elems);
   op_free(core_elems);
 
-  op_timers(&cpu_t2, &wall_t2); // timer stop for list create
-  // compute import/export lists creation time
-  time = wall_t2 - wall_t1;
+  
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
   // start_time(my_rank);
