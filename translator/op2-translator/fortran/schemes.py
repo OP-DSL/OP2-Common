@@ -14,6 +14,7 @@ class FortranSeq(Scheme):
     lang = Lang.find("F90")
     target = Target.find("seq")
 
+    consts_template = Path("fortran/seq/consts.F90.jinja")
     loop_host_template = Path("fortran/seq/loop_host.F90.jinja")
     master_kernel_template = Path("fortran/seq/master_kernel.F90.jinja")
 
@@ -46,6 +47,7 @@ class FortranOpenMP(Scheme):
     lang = Lang.find("F90")
     target = Target.find("openmp")
 
+    consts_template = None
     loop_host_template = Path("fortran/openmp/loop_host.inc.jinja")
     master_kernel_template = Path("fortran/openmp/master_kernel.F90.jinja")
 
@@ -102,8 +104,9 @@ class FortranCuda(Scheme):
     lang = Lang.find("F90")
     target = Target.find("cuda")
 
-    loop_host_template = Path("fortran/cuda/loop_host.inc.jinja")
-    master_kernel_template = Path("fortran/cuda/master_kernel.CUF.jinja")
+    consts_template = Path("fortran/cuda/consts.F90.jinja")
+    loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
+    master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
 
     def translateKernel(
         self,
