@@ -32,6 +32,7 @@ def main(argv=None) -> None:
 
     parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
     parser.add_argument("--user-consts-module", help="Use a custom Fortran consts module", default=None)
+    parser.add_argument("--regex-program-translator", help="Use the regex-based program translator (Fortran only)", action="store_true")
 
     parser.add_argument("-I", help="Add to include directories", type=isDirPath, action="append", nargs=1, default=[])
     parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])
@@ -88,6 +89,12 @@ def main(argv=None) -> None:
 
         if args.verbose:
             print(f"Using consts module: {lang.user_consts_module}")
+
+    if args.regex_program_translator and hasattr(lang, "use_regex_translator"):
+        lang.use_regex_translator = True
+
+        if args.verbose:
+            print(f"Using regex program translator")
 
     Type.set_formatter(lang.formatType)
 
@@ -220,6 +227,24 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
 
             if args.verbose:
                 print(f"Generated loop host {i} of {len(app.loops())}: {path}")
+
+    # Generate consts file
+    if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:
+        source, name = scheme.genConsts(env, app)
+
+        path = None
+        if scheme.lang.kernel_dir:
+            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
+            path = Path(args.out, scheme.target.name, name)
+        else:
+            path = Path(args.out, name)
+
+        with open(path, "w") as file:
+            file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
+            file.write(source)
+
+            if args.verbose:
+                print(f"Generated consts file: {path}")
 
     # Generate master kernel file
     if scheme.master_kernel_template is not None:
