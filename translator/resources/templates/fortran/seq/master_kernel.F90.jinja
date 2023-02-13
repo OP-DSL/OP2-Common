@@ -32,10 +32,6 @@ contains
 end module
 {% endif %}
 
-{% for loop_, _ in app.loops() %}
-#include "{{loop.index}}_{{loop_.kernel}}_kernel.inc"
-{% endfor %}
-
 module op2_kernels
 
     use iso_c_binding
