@@ -175,7 +175,7 @@ class Fortran(Lang):
         return fortran.parser.parseProgram(ast, source, path)
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
-        return fortran.translator.program.translateProgram(program, force_soa)
+        return fortran.translator.program.translateProgram2(program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
         if isinstance(typ, OP.Int):
