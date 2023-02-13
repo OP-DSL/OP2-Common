@@ -14,7 +14,7 @@ class FortranSeq(Scheme):
     lang = Lang.find("F90")
     target = Target.find("seq")
 
-    loop_host_template = Path("fortran/seq/loop_host.inc.jinja")
+    loop_host_template = Path("fortran/seq/loop_host.F90.jinja")
     master_kernel_template = Path("fortran/seq/master_kernel.F90.jinja")
 
     def translateKernel(
