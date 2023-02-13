@@ -83,14 +83,17 @@ mod/%:
 
 # $(1) = variant name
 define SRC_template =
-$(call UPPERCASE,$(1))_SRC := generated/$(APP_NAME)/$(1)/$(1)_kernels.* $(APP_SRC_OP)
+$(call UPPERCASE,$(1))_SRC := generated/$(APP_NAME)/$(2)/op2_consts.F90 \
+                              generated/$(APP_NAME)/$(2)/*_kernel.$(3) \
+                              generated/$(APP_NAME)/$(2)/op2_kernels.F90 \
+                              $(APP_SRC_OP)
 endef
 
-$(foreach variant,$(filter-out seq,$(BASE_VARIANTS)),\
-	$(eval $(call SRC_template,$(variant))))
-
 SEQ_SRC := $(APP_SRC)
-GENSEQ_SRC := generated/$(APP_NAME)/seq/seq_kernels.* $(APP_SRC_OP)
+
+$(eval $(call SRC_template,genseq,seq,F90))
+$(eval $(call SRC_template,openmp,openmp,F90))
+$(eval $(call SRC_template,cuda,cuda,CUF))
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
