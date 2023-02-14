@@ -3360,6 +3360,12 @@ void op_halo_create_comm_avoid() {
     // op_printf("my_rank=%d step4_import_nonexec\n", my_rank);
     step4_import_nonexec(l, part_range, my_rank, comm_size);
 
+    OP_aug_export_nonexec_lists[l] = create_handshake_h_list(OP_aug_import_nonexec_lists[l], part_range, my_rank, comm_size);
+
+    step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+    // op_printf("my_rank=%d step7_halo\n", my_rank);
+    step7_halo(l, part_range, my_rank, comm_size);
+
     /*-STEP 6 - Exchange execute set elements/data using the import/export lists--*/
     // start_time(my_rank);
     // step6_exchange_exec_data(l, part_range, my_rank, comm_size);
@@ -3389,10 +3395,10 @@ void op_halo_create_comm_avoid() {
   /*----------- STEP 5 - construct non-execute set export lists -------------*/
   // step5(part_range, my_rank, comm_size); //this is done with other aug non exec halos
 
-  for(int l = 0; l < num_halos; l++){
-    // step6_exchange_exec_data(l, part_range, my_rank, comm_size);
-    OP_aug_export_nonexec_lists[l] = create_handshake_h_list(OP_aug_import_nonexec_lists[l], part_range, my_rank, comm_size);
-  }
+  // for(int l = 0; l < num_halos; l++){
+  //   // step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+  //   OP_aug_export_nonexec_lists[l] = create_handshake_h_list(OP_aug_import_nonexec_lists[l], part_range, my_rank, comm_size);
+  // }
 
   OP_import_nonexec_list =
       (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
@@ -3409,12 +3415,12 @@ void op_halo_create_comm_avoid() {
   /*-STEP 7 - Exchange non-execute set elements/data using the import/export
    * lists--*/
   // start_time(my_rank);
-  for(int l = 0; l < num_halos; l++){
-    // op_printf("my_rank=%d step6_exchange_exec_data\n", my_rank);
-    step6_exchange_exec_data(l, part_range, my_rank, comm_size);
-    // op_printf("my_rank=%d step7_halo\n", my_rank);
-    step7_halo(l, part_range, my_rank, comm_size);
-  }
+  // for(int l = 0; l < num_halos; l++){
+  //   // op_printf("my_rank=%d step6_exchange_exec_data\n", my_rank);
+  //   step6_exchange_exec_data(l, part_range, my_rank, comm_size);
+  //   // op_printf("my_rank=%d step7_halo\n", my_rank);
+  //   step7_halo(l, part_range, my_rank, comm_size);
+  // }
   
   // stop_time(my_rank, "step7");
 
@@ -3441,6 +3447,8 @@ void op_halo_create_comm_avoid() {
   // op_printf("my_rank=%d step10_halo\n", my_rank);
   step10_halo(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
   // stop_time(my_rank, "step10");
+
+  free_tmp_maps();
 
     
 
@@ -3487,7 +3495,7 @@ void op_halo_create_comm_avoid() {
   // start_time(my_rank);
   step12(part_range, max_time, my_rank, comm_size);
 
-  free_tmp_maps();
+  
   // stop_time(my_rank, "step12");
 }
 
