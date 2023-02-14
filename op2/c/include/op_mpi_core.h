@@ -312,7 +312,9 @@ void op_halo_destroy();
 
 void op_mpi_destroy();
 
-void op_single_halo_destroy(halo_list* h_list);
+void op_halos_destroy(halo_list* h_list);
+
+void op_single_halo_destroy(halo_list h_list);
 
 op_dat op_mpi_get_data(op_dat dat);
 

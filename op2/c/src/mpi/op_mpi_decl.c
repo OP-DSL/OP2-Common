@@ -134,12 +134,12 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int exec_levels = set->halo_info->max_nhalos; //2;
   int halo_size = 0;
   for(int l = 0; l < exec_levels; l++){
-    halo_size += OP_aug_import_exec_lists[l][set->index]->size;
+    halo_size += set->exec_sizes[l];
   }
 
   int num_levels = set->halo_info->nhalos_count;
   for(int l = 0; l < num_levels; l++){
-    halo_size += OP_aug_import_nonexec_lists[l][set->index]->size;
+    halo_size += set->nonexec_sizes[l];
   }
 
   dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, exec_levels * sizeof(int));
@@ -170,21 +170,40 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int exec_e_list_rank_size = 0;
   int exec_i_list_rank_size = 0;
 
-  for(int l = 0; l < exec_levels; l++){
-    exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
+  halo_list exec_e_list = OP_export_exec_list[set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+  halo_list exec_i_list = OP_import_exec_list[set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
 
-    exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size / OP_aug_export_exec_lists[l][set->index]->num_levels;
-    exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size / OP_aug_import_exec_lists[l][set->index]->num_levels;
-  }
+  exec_e_list_size = exec_e_list->size;
+  exec_e_list_rank_size = exec_e_list->ranks_size;
+  exec_i_list_rank_size = exec_i_list->ranks_size;
 
   int nonexec_e_list_size = 0;
   int nonexec_e_list_rank_size = 0;
   int nonexec_i_list_rank_size = 0;
-  for(int l = 0; l < num_levels; l++){
-    nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
-    nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size / OP_aug_export_nonexec_lists[l][set->index]->num_levels;
-    nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size / OP_aug_import_nonexec_lists[l][set->index]->num_levels;
-  }
+  
+  nonexec_e_list_size = nonexec_e_list->size;
+  nonexec_e_list_rank_size = nonexec_e_list->ranks_size;
+  nonexec_i_list_rank_size = nonexec_i_list->ranks_size;
+
+  // this buffer is used only for standard OP2 halo exchanges
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
+
+  // for(int l = 0; l < exec_levels; l++){
+  //   exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
+
+  //   exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size / OP_aug_export_exec_lists[l][set->index]->num_levels;
+  //   exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size / OP_aug_import_exec_lists[l][set->index]->num_levels;
+  // }
+
+  
+  // for(int l = 0; l < num_levels; l++){
+  //   nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
+  //   nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size / OP_aug_export_nonexec_lists[l][set->index]->num_levels;
+  //   nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size / OP_aug_import_nonexec_lists[l][set->index]->num_levels;
+  // }
 
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
   mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list_size) * dat->size);

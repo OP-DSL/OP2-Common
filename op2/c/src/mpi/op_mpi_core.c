@@ -2119,37 +2119,45 @@ void op_halo_permap_create() {
  *application)
  *******************************************************************************/
 
-void op_single_halo_destroy(halo_list* h_list){
+void op_single_halo_destroy(halo_list h_list){
+
+  if(h_list){
+    op_free(h_list->ranks); h_list->ranks = NULL;
+    op_free(h_list->list);  h_list->list = NULL;
+    op_free(h_list->disps); h_list->disps = NULL;
+    op_free(h_list->sizes); h_list->sizes = NULL;
+
+    if(h_list->ranks_sizes_by_level){
+      op_free(h_list->ranks_sizes_by_level);
+      h_list->ranks_sizes_by_level = NULL; 
+    }
+      
+    if(h_list->ranks_disps_by_level){
+      op_free(h_list->ranks_disps_by_level);
+      h_list->ranks_disps_by_level = NULL;
+    }
+      
+    if(h_list->disps_by_level){
+      op_free(h_list->disps_by_level);
+      h_list->disps_by_level = NULL;
+    }
+      
+    // if(h_list->sizes_upto_level_by_rank)
+    //   op_free(h_list->sizes_upto_level_by_rank);
+    // op_printf("op_single_halo_destroy\n");
+    op_free(h_list);
+  }
+}
+
+void op_halos_destroy(halo_list* h_list){
 
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
 
     if(h_list[set->index]){
-
-      // if( h_list[set->index]->disps != h_list[set->index]->disps_by_rank){
-      //   op_free(h_list[set->index]->disps_by_rank);
-      // }
-      // if( h_list[set->index]->sizes != h_list[set->index]->sizes_by_rank){
-      //   op_free(h_list[set->index]->sizes_by_rank);
-      // }
-      op_free(h_list[set->index]->ranks);
-      op_free(h_list[set->index]->list);
-      op_free(h_list[set->index]->disps);
-      op_free(h_list[set->index]->sizes);
-
-
-      if(h_list[set->index]->ranks_sizes_by_level)
-        op_free(h_list[set->index]->ranks_sizes_by_level);
-      if(h_list[set->index]->ranks_disps_by_level)
-        op_free(h_list[set->index]->ranks_disps_by_level);
-      if(h_list[set->index]->disps_by_level)
-        op_free(h_list[set->index]->disps_by_level);
-      // if(h_list[set->index]->sizes_upto_level_by_rank)
-      //   op_free(h_list[set->index]->sizes_upto_level_by_rank);
-      
-      op_free(h_list[set->index]);
-    }
-    
+      op_single_halo_destroy(h_list[set->index]);
+      h_list[set->index] = NULL;
+    } 
   }
   op_free(h_list);
 }
@@ -2162,10 +2170,10 @@ void op_halo_destroy() {
     dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
   }
 
-  op_single_halo_destroy(OP_import_exec_list);
-  op_single_halo_destroy(OP_import_nonexec_list);
-  op_single_halo_destroy(OP_export_exec_list);
-  op_single_halo_destroy(OP_export_nonexec_list);
+  op_halos_destroy(OP_import_exec_list);
+  op_halos_destroy(OP_import_nonexec_list);
+  op_halos_destroy(OP_export_exec_list);
+  op_halos_destroy(OP_export_nonexec_list);
 
   item = NULL;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {

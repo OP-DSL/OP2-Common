@@ -85,7 +85,7 @@ void stop_time(int my_rank, const char* name){
 }
 
 
-// void op_single_halo_destroy(halo_list* h_list){
+// void op_halos_destroy(halo_list* h_list){
 
 //   for (int s = 0; s < OP_set_index; s++) {
 //     op_set set = OP_set_list[s];
@@ -602,23 +602,38 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
 
 
   // for(int i = 0; i < count; i++){
-  //   if(h_lists[i] == NULL){
+  //   if(h_lists[i] == NULL || i == 0 || i == 1){
   //     printf("hlist null d=%d\n", i);
   //     continue;
   //   }
   //   printf("hlist not null d=%d\n", i);
+  //   op_single_halo_destroy(h_lists[i]);
+  //   h_lists[i] = NULL;
+    // op_halos_destroy_1(h_lists[i]);
+
+    // op_free(h_lists[i]->ranks); h_lists[i]->ranks = NULL;
+    // op_free(h_lists[i]->list); h_lists[i]->list = NULL;
+    // op_free(h_lists[i]->disps); h_lists[i]->disps = NULL;
+    // op_free(h_lists[i]->sizes); h_lists[i]->sizes = NULL;
+
+    // if(h_lists[i]->ranks_sizes_by_level)
+    //   op_free(h_lists[i]->ranks_sizes_by_level);
+    // if(h_lists[i]->ranks_disps_by_level)
+    //   op_free(h_lists[i]->ranks_disps_by_level);
+    // if(h_lists[i]->disps_by_level)
+    //   op_free(h_lists[i]->disps_by_level);
       
-  //   op_free(h_lists[i]->ranks);
-  //   op_free(h_lists[i]->disps);
-  //   op_free(h_lists[i]->sizes);
-  //   op_free(h_lists[i]->list);
-  //   op_free(h_lists[i]->ranks_sizes_by_level);
-  //   op_free(h_lists[i]->ranks_disps_by_level);
-  //   op_free(h_lists[i]->disps_by_level);
-  //   op_free(h_lists[i]->sizes_upto_level_by_rank);
-  //   op_free(h_lists[i]->disps_by_rank);
-  //   op_free(h_lists[i]->sizes_by_rank);
-  //   op_free(h_lists[i]);
+    // op_free(h_lists[i]->ranks);
+    // op_free(h_lists[i]->disps);
+    // op_free(h_lists[i]->sizes);
+    // op_free(h_lists[i]->list);
+    // op_free(h_lists[i]->ranks_sizes_by_level);
+    // op_free(h_lists[i]->ranks_disps_by_level);
+    // op_free(h_lists[i]->disps_by_level);
+    // op_free(h_lists[i]->sizes_upto_level_by_rank);
+    // op_free(h_lists[i]->disps_by_rank);
+    // op_free(h_lists[i]->sizes_by_rank);
+    // op_free(h_lists[i]);
   // }
   // print_halo(h_list, "mergedhalo", my_rank);
   // print_array(h_list->sizes, num_levels * tmp_rank_size, "sizes", my_rank);
@@ -2559,6 +2574,13 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
     OP_merged_import_exec_nonexec_list[set->index] = merge_halo_lists(2 * max_nhalos, import_h_lists, my_rank, comm_size);
     OP_merged_export_exec_nonexec_list[set->index] = merge_halo_lists(2 * max_nhalos, export_h_lists, my_rank, comm_size);
 
+    for(int l = 1; l < max_nhalos; l++){
+      op_single_halo_destroy(OP_aug_import_exec_lists[l][set->index]); OP_aug_import_exec_lists[l][set->index] = NULL;
+      op_single_halo_destroy(OP_aug_import_nonexec_lists[l][set->index]); OP_aug_import_nonexec_lists[l][set->index] = NULL;
+      op_single_halo_destroy(OP_aug_export_exec_lists[l][set->index]); OP_aug_export_exec_lists[l][set->index] = NULL;
+      op_single_halo_destroy(OP_aug_export_nonexec_lists[l][set->index]); OP_aug_export_nonexec_lists[l][set->index] = NULL;
+    }
+
     op_free(import_h_lists);
     op_free(export_h_lists);
 
@@ -3275,7 +3297,7 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
   // set_maps_mgcfd();
-  set_maps_hydra();
+  // set_maps_hydra();
   // set_dats_halo_extension();
   // set_dats_mgcfd();
   // set_maps_halo_extension();
@@ -3472,21 +3494,21 @@ void op_halo_create_comm_avoid() {
 void op_halo_destroy_comm_avoid() {
   for(int i = 0; i < OP_NHALOS_MAX; i++){
     if(OP_aug_import_exec_lists[i])
-      op_single_halo_destroy(OP_aug_import_exec_lists[i]);
+      op_halos_destroy(OP_aug_import_exec_lists[i]);
     if(OP_aug_export_exec_lists[i])
-      op_single_halo_destroy(OP_aug_export_exec_lists[i]);
+      op_halos_destroy(OP_aug_export_exec_lists[i]);
     if(OP_aug_import_nonexec_lists[i])
-      op_single_halo_destroy(OP_aug_import_nonexec_lists[i]);
+      op_halos_destroy(OP_aug_import_nonexec_lists[i]);
     if(OP_aug_export_nonexec_lists[i])
-      op_single_halo_destroy(OP_aug_export_nonexec_lists[i]);
+      op_halos_destroy(OP_aug_export_nonexec_lists[i]);
   }
 
-  // op_single_halo_destroy(OP_merged_import_exec_list);
-  // op_single_halo_destroy(OP_merged_export_exec_list);
-  // op_single_halo_destroy(OP_merged_import_nonexec_list);
-  // op_single_halo_destroy(OP_merged_export_nonexec_list);
-  op_single_halo_destroy(OP_merged_import_exec_nonexec_list);
-  op_single_halo_destroy(OP_merged_export_exec_nonexec_list);
+  // op_halos_destroy(OP_merged_import_exec_list);
+  // op_halos_destroy(OP_merged_export_exec_list);
+  // op_halos_destroy(OP_merged_import_nonexec_list);
+  // op_halos_destroy(OP_merged_export_nonexec_list);
+  op_halos_destroy(OP_merged_import_exec_nonexec_list);
+  op_halos_destroy(OP_merged_export_exec_nonexec_list);
 }
 
 void op_mpi_exit_comm_avoid() {
