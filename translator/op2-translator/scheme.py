@@ -23,6 +23,9 @@ class Scheme(Findable):
     def __str__(self) -> str:
         return f"{self.lang.name}/{self.target.name}"
 
+    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+        return True
+
     def genLoopHost(
         self,
         include_dirs: Set[Path],
@@ -32,10 +35,13 @@ class Scheme(Findable):
         program: Program,
         app: Application,
         kernel_idx: int,
-    ) -> Tuple[str, str]:
+    ) -> Tuple[str, str, bool]:
         # Load the loop host template
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
+
+        if not self.canGenLoopHost(loop):
+            return (None, extension, False)
 
         kernel_func = self.translateKernel(loop, program, app, kernel_idx)
 
@@ -45,6 +51,7 @@ class Scheme(Findable):
                 OP=OP, lh=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, lang=self.lang, target=self.target
             ),
             extension,
+            True
         )
 
     def genConsts(self, env: Environment, app: Application) -> Tuple[str, str]:

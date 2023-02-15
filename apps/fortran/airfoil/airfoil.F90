@@ -46,6 +46,8 @@ program airfoil
 #endif
 
     real(8), dimension(2) :: rms
+    real(8) :: maxerr
+    integer(4) :: errloc
 
     type(op_set) :: nodes, edges, bedges, cells
     type(op_map) :: pedge, pecell, pcell, pbedge, pbecell
@@ -157,18 +159,25 @@ program airfoil
                 op_arg_dat(p_bound, -1, OP_ID,   1, "integer(4)", OP_READ))
 
             rms = 0.0
+            maxerr = 0.0
+            errloc = 0
+
             call op_par_loop_5(update, cells, &
-                op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)", OP_READ),  &
-                op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)", OP_WRITE), &
-                op_arg_dat(p_res,  -1, OP_ID, 4, "real(8)", OP_RW),    &
-                op_arg_dat(p_adt,  -1, OP_ID, 1, "real(8)", OP_READ),  &
-                op_arg_gbl(rms,     2,           "real(8)", OP_INC))
+                op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)",    OP_READ),  &
+                op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)",    OP_WRITE), &
+                op_arg_dat(p_res,  -1, OP_ID, 4, "real(8)",    OP_RW),    &
+                op_arg_dat(p_adt,  -1, OP_ID, 1, "real(8)",    OP_READ),  &
+                op_arg_gbl(rms,     2,           "real(8)",    OP_INC),   &
+                op_arg_gbl(maxerr,  1,           "real(8)",    OP_MAX),   &
+                op_arg_idx(        -1, OP_ID),                            &
+                op_arg_info(errloc, 1,           "integer(4)", 6))
         end do
 
         rms(2) = sqrt(rms(2) / real(ncell_total))
 
         if (op_is_root() == 1 .and. mod(iter, 100) == 0) then
-            print *, iter, rms(2)
+            write (*, "(4X, I0, E16.7, 4X, A, E16.7, A, I0)") iter, rms(2), &
+                "max err: ", maxerr, " at ", errloc
         end if
     end do
 

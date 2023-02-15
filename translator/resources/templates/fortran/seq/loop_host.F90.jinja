@@ -11,6 +11,8 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}({{arg.map_idx}}, n) + 1
     {%- elif arg is idx -%}
 n
+    {%- elif arg is info -%}
+info{{arg.id}}{{"_temp" if lh is indirect}}{{"(1)" if arg.dim == 1 }}
     {%- elif arg is gbl and arg is not read and lh is indirect -%}
 gbl{{arg.id}}_temp{{"(1)" if arg.dim == 1 }}
     {%- elif arg is gbl -%}
@@ -43,7 +45,7 @@ arg{{dat.arg_id}}%dim
 {%- endmacro -%}
 
 {%- macro arg_dim(arg) -%}
-    {%- if arg is gbl and arg.dim is not none -%}
+    {%- if (arg is gbl or arg is info) and arg.dim is not none -%}
 {{arg.dim}}
     {%- elif arg is dat and lh.dat(arg).dim is not none -%}
 {{lh.dat(arg).dim}}
@@ -83,6 +85,9 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl %}
     gbl{{arg.id}}, &
 {% endfor %}
+{% for arg in lh.args|info %}
+    info{{arg.id}}, &
+{% endfor %}
     n_exec, &
     set, &
     args &
@@ -102,6 +107,9 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
+{% for arg in lh.args|info %}
+    {{arg.typ}}, dimension(:) :: info{{arg.id}}{{"\n" if loop.last}}
+{% endfor %}
     integer(4) :: n_exec
     type(op_set) :: set
     type(op_arg), dimension({{lh.args|length}}) :: args
@@ -110,10 +118,16 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl|reject("read") if lh is indirect %}
     {{arg.typ}}, dimension(size(gbl{{arg.id}})) :: gbl{{arg.id}}_temp{{"\n" if loop.last}}
 {% endfor %}
+{% for arg in lh.args|info if lh is indirect %}
+    {{arg.typ}}, dimension(size(info{{arg.id}})) :: info{{arg.id}}_temp{{"\n" if loop.last}}
+{% endfor %}
     integer(4) :: n
 
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
     gbl{{arg.id}}_temp = gbl{{arg.id}}{{"\n" if loop.last}}
+{% endfor %}
+{% for arg in lh.args|info if lh is indirect %}
+    info{{arg.id}}_temp = info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     do n = 1, n_exec
     {% if lh is indirect %}
@@ -126,6 +140,9 @@ subroutine {{lh.kernel}}_wrapper( &
         if (n == set%setptr%size + 1) then
         {% for arg in lh.args|gbl|reject("read") %}
             gbl{{arg.id}} = gbl{{arg.id}}_temp
+        {% endfor %}
+        {% for arg in lh.args|info %}
+            info{{arg.id}} = info{{arg.id}}_temp
         {% endfor %}
         end if
 
@@ -141,6 +158,9 @@ subroutine {{lh.kernel}}_wrapper( &
     if (n_exec <= set%setptr%size) then
     {% for arg in lh.args|gbl|reject("read") %}
         gbl{{arg.id}} = gbl{{arg.id}}_temp
+    {% endfor %}
+    {% for arg in lh.args|info %}
+        info{{arg.id}} = info{{arg.id}}_temp
     {% endfor %}
     end if
 {% endif %}
@@ -177,6 +197,9 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, pointer, dimension(:) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
+{% for arg in lh.args|info %}
+    {{arg.typ}}, pointer, dimension(:) :: info{{arg.id}}{{"\n" if loop.last}}
+{% endfor %}
     real(8) :: start_time, end_time
     real(4) :: transfer
 
@@ -198,6 +221,9 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% for arg in lh.args|gbl %}
     call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg_dim(arg)}}/)){{"\n" if loop.last}}
 {% endfor %}
+{% for arg in lh.args|info %}
+    call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{arg_dim(arg)}}/)){{"\n" if loop.last}}
+{% endfor %}
     call {{lh.kernel}}_wrapper( &
 {% for dat in lh.dats %}
         dat{{dat.id}}, &
@@ -210,6 +236,9 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% endfor %}
 {% for arg in lh.args|gbl %}
         gbl{{arg.id}}, &
+{% endfor %}
+{% for arg in lh.args|info %}
+        info{{arg.id}}, &
 {% endfor %}
         n_exec, &
         set, &

@@ -199,6 +199,9 @@ def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.L
         elif name == "op_opt_arg_gbl":
             parseArgGbl(loop, True, arg_args, loc)
 
+        elif name == "op_arg_info":
+            parseArgInfo(loop, arg_args, loc)
+
         else:
             raise ParseError(f"invalid loop argument {arg_node}", loc)
 
@@ -263,6 +266,18 @@ def parseArgIdx(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: L
         map_ptr = None
 
     loop.addArgIdx(loc, map_ptr, map_idx)
+
+
+def parseArgInfo(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: Location) -> None:
+    if args is None or len(args.items) != 4:
+        raise ParseError("incorrect number of arguments for op_arg_info", loc)
+
+    ptr = parseIdentifier(args.items[0], loc)
+    dim = parseIntLiteral(args.items[1], loc, True)
+    typ = parseType(parseStringLiteral(args.items[2], loc), loc)[0]
+    ref = parseIntLiteral(args.items[1], loc, False)
+
+    loop.addArgInfo(loc, ptr, dim, typ, ref)
 
 
 def parseIdentifier(node: Any, loc: Location) -> str:
