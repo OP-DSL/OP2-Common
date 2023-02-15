@@ -42,14 +42,6 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}({{map_idx(arg)}} * set_size + n)
 {%- endmacro -%}
 
-{%- macro arg_slice(arg) -%}
-    {%- if lh.dat(arg).dim == 1 -%}
-1
-    {%- else -%}
-:
-    {%- endif -%}
-{%- endmacro -%}
-
 {%- macro arg_to_pointer_cuda(arg) -%}
     {%- if arg is idx and arg is indirect -%}
 {{map_lookup(arg)}} + 1
@@ -57,10 +49,12 @@ map{{arg.map_id}}({{map_idx(arg)}} * set_size + n)
 n
     {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"_local" if arg is reduction}}
+    {%- elif arg is direct and lh.dat(arg) is soa -%}
+dat{{arg.dat_id}}(n)
     {%- elif arg is direct -%}
 dat{{arg.dat_id}}((n - 1) * {{dat_dim_w(lh.dat(arg))}} + 1)
-    {%- elif arg is inc and target.config.atomics %}
-arg{{arg.id}}_{{arg.map_idx}}_local
+    {%- elif lh.dat(arg) is soa -%}
+dat{{arg.dat_id}}({{map_lookup(arg)}} + 1)
     {%- else -%}
 dat{{arg.dat_id}}({{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}} + 1)
     {%- endif -%}
@@ -106,6 +100,8 @@ call {{lh.kernel}}_wrapper<<<num_blocks, block_size
     {%- endif -%}
 {%- endmacro -%}
 
+#define op2_s(idx, stride) 1 + ((idx) - 1) * op2_stride_##stride##_d
+
 module op2_k{{kernel_idx}}
 
     use cudafor
@@ -121,6 +117,16 @@ module op2_k{{kernel_idx}}
 
     private
     public :: op2_k{{kernel_idx}}_{{lh.kernel}}
+{% if lh.dats|direct(lh)|soa|length > 0 %}
+
+    integer(4) :: op2_stride_direct = 0
+    integer(4), constant :: op2_stride_direct_d = 0
+{% endif %}
+{% for dat in lh.dats|indirect(lh)|soa %}
+
+    integer(4) :: op2_stride_dat{{dat.id}} = 0
+    integer(4), constant :: op2_stride_dat{{dat.id}}_d = 0
+{% endfor %}
 
 contains
 
@@ -193,9 +199,6 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl|reduction %}
     {{arg.typ}}, dimension({{gbl_dim_w(arg)}}) :: gbl{{arg.id}}_local{{"\n" if loop.last}}
 {% endfor %}
-{% for arg in lh.args|indirect|reduction if target.config.atomics %}
-    {{lh.dat(arg).typ}}, dimension({{dat_dim_w(lh.dat(arg))}}) :: arg{{arg.id}}_{{arg.map_idx}}_local{{"\n" if loop.last}}
-{% endfor %}
     integer(4) :: thread_id, d, n, ret
 
 {% for arg in lh.args|gbl|reduction %}
@@ -222,21 +225,11 @@ subroutine {{lh.kernel}}_wrapper( &
     if (thread_id + start <= end) then
         n = {{"thread_id + start" if target.config.atomics else "col_reord(thread_id + start)"}}
 
-    {% for arg in lh.args|indirect|reduction if target.config.atomics %}
-        arg{{arg.id}}_{{arg.map_idx}}_local = 0{{"\n" if loop.last}}
-    {% endfor %}
         call {{lh.kernel}}( &
     {% for arg  in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
     {% endfor %}
         )
-    {% for arg in lh.args|indirect|reduction if target.config.atomics %}
-
-        do d = 1, {{dat_dim_w(lh.dat(arg))}}
-            ret = atomicAdd(dat{{arg.dat_id}}({{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}} + d), &
-                arg{{arg.id}}_{{arg.map_idx}}_local(d))
-        end do
-    {% endfor %}
     end if
 {% endif %}
 {% for arg in lh.args|gbl|reduction %}
@@ -244,11 +237,11 @@ subroutine {{lh.kernel}}_wrapper( &
     do d = 1, {{gbl_dim_w(arg)}}
         ret = {%+ if arg is inc -%}
         atomicAdd
-        {%- elif arg is min -%}
+    {%- elif arg is min -%}
         atomicMin
-        {%- elif arg is max -%}
+    {%- elif arg is max -%}
         atomicMax
-        {%- endif %}(gbl{{arg.id}}((blockIdx%x - 1) * {{gbl_dim_w(arg)}} + d), gbl{{arg.id}}_local(d))
+    {%- endif %}(gbl{{arg.id}}((blockIdx%x - 1) * {{gbl_dim_w(arg)}} + d), gbl{{arg.id}}_local(d))
     end do
 {% endfor %}
 end subroutine
@@ -276,7 +269,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
     integer(4) :: n_exec, col, block, round, dim, err
 
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension(:, :), pointer, device :: dat{{dat.id}}_d{{"\n" if loop.last}}
+    {{dat.typ}}, dimension(:), pointer, device :: dat{{dat.id}}_d{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
     integer(4), dimension(:, :), pointer, device :: map{{map.id}}_d{{"\n" if loop.last}}
@@ -328,7 +321,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
         call op_mpi_set_dirtybit_cuda(size(args), args)
         err = cudaDeviceSynchronize()
 
-        if (err .ne. 0) then
+        if (err /= 0) then
             print *, cudaGetErrorString(err)
         end if
 
@@ -375,7 +368,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% endif %}
 
 {% for dat in lh.dats %}
-    call c_f_pointer(arg{{dat.arg_id}}%data_d, dat{{dat.id}}_d, (/{{dat_dim(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
+    call c_f_pointer(arg{{dat.arg_id}}%data_d, dat{{dat.id}}_d, (/{{dat_dim(dat)}} * getsetsizefromoparg(arg{{dat.arg_id}})/))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
@@ -384,6 +377,19 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% endfor %}
 {% for arg in lh.args|gbl %}
     call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{gbl_dim(arg)}}/)){{-"\n" if loop.last}}
+{% endfor %}
+{% if lh.dats|direct(lh)|soa|length > 0 %}
+    if (op2_stride_direct /= getsetsizefromoparg(arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}})) then
+        op2_stride_direct = getsetsizefromoparg(arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}})
+        op2_stride_direct_d = op2_stride_direct
+    end if
+
+{% endif %}
+{% for dat in lh.dats|indirect(lh)|soa %}
+    if (op2_stride_dat{{dat.id}} /= getsetsizefromoparg(arg{{dat.arg_id}})) then
+        op2_stride_dat{{dat.id}} = getsetsizefromoparg(arg{{dat.arg_id}})
+        op2_stride_dat{{dat.id}}_d = op2_stride_dat{{dat.id}}
+    end if{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl|reject("reduction") %}
     if (.not. allocated(gbl{{arg.id}}_d)) then
@@ -498,7 +504,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 
     err = cudaDeviceSynchronize()
 
-    if (err .ne. 0) then
+    if (err /= 0) then
         print *, cudaGetErrorString(err)
     end if
 
