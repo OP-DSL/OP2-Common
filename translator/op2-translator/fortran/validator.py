@@ -37,7 +37,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         return
 
     for idx, arg in enumerate(loop.args):
-        if isinstance(arg, OP.ArgIdx):
+        if isinstance(arg, OP.ArgIdx) or isinstance(arg, OP.ArgInfo):
             continue
 
         if arg.access_type != OP.AccessType.READ:

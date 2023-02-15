@@ -108,6 +108,21 @@ class FortranCuda(Scheme):
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
     master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
 
+    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgInfo):
+                return False
+
+            if isinstance(arg, OP.ArgGbl) and arg.access_type in [
+                OP.AccessType.RW,
+                OP.AccessType.INC,
+                OP.AccessType.MIN,
+                OP.AccessType.MAX,
+            ]:
+                return False
+
+        return True
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -162,7 +177,7 @@ class FortranCuda(Scheme):
             kernel_entities + dependencies,
             loop,
             app,
-            lambda arg: match_indirect(arg) and match_atomic_inc(arg)
+            lambda arg: match_indirect(arg) and match_atomic_inc(arg),
         )
 
         return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")

@@ -60,6 +60,7 @@ env.tests["opt"] = lambda arg, loop=None: hasattr(arg, "opt") and arg.opt
 env.tests["dat"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat)
 env.tests["gbl"] = lambda arg, loop=None: isinstance(arg, OP.ArgGbl)
 env.tests["idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgIdx)
+env.tests["info"] = lambda arg, loop=None: isinstance(arg, OP.ArgInfo)
 
 env.tests["vec"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1
 env.tests["runtime_map_idx"] = (
@@ -127,6 +128,8 @@ env.filters["opt"] = test_to_filter("opt")
 
 env.filters["dat"] = test_to_filter("dat")
 env.filters["gbl"] = test_to_filter("gbl")
+env.filters["idx"] = test_to_filter("idx")
+env.filters["info"] = test_to_filter("info")
 
 env.filters["vec"] = test_to_filter("vec")
 env.filters["runtime_map_idx"] = test_to_filter("runtime_map_idx")
