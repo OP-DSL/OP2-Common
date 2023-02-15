@@ -123,6 +123,9 @@ def main(argv=None) -> None:
     except OpError as e:
         exit(e)
 
+    fallback_target = Target.find("seq")
+    fallback_scheme = Scheme.find((lang, fallback_target))
+
     for [target] in args.target:
         target = Target.find(target)
 
@@ -140,7 +143,7 @@ def main(argv=None) -> None:
         if args.verbose:
             print(f"Translation scheme: {scheme}")
 
-        codegen(args, scheme, app, args.force_soa)
+        codegen(args, scheme, fallback_scheme, app, args.force_soa)
 
         if args.verbose:
             print()
@@ -200,7 +203,7 @@ def validate(args: Namespace, lang: Lang, app: Application) -> None:
             print("Dumped store:", store_path, end="\n\n")
 
 
-def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
+def codegen(args: Namespace, scheme: Scheme, fallback_scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
     include_dirs = set([Path(dir) for [dir] in args.I])
     defines = [define for [define] in args.D]
@@ -208,7 +211,16 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     # Generate loop hosts
     for i, (loop, program) in enumerate(app.loops(), 1):
         # Generate loop host source
-        source, extension = scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i)
+        fallback = False
+        source, extension, success = scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i)
+
+        if not success:
+            fallback = True
+            source, _, success = fallback_scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i)
+
+        if not success:
+            print(f"Error: unable to generate loop host {i}")
+            continue
 
         # Form output file path
         path = None
@@ -227,8 +239,11 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
             file.write(source)
 
-            if args.verbose:
+            if args.verbose and not fallback:
                 print(f"Generated loop host {i} of {len(app.loops())}: {path}")
+
+            if args.verbose and fallback:
+                print(f"Generated loop host {i} of {len(app.loops())} (fallback): {path}")
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:

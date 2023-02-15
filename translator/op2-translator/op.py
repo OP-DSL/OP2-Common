@@ -180,6 +180,19 @@ class ArgIdx(Arg):
         return f"ArgIdx(id={self.id}, loc={self.loc}, map_id={self.map_id}, map_idx={self.map_idx})"
 
 
+@dataclass(frozen=True)
+class ArgInfo(Arg):
+    ptr: str
+
+    dim: Optional[int]
+    typ: Type
+
+    ref: int
+
+    def __str__(self) -> str:
+        return f"ArgInfo(id={self.id}, loc={self.loc}, ptr={self.ptr}, dim={self.dim}, typ={self.typ}, ref={self.ref})"
+
+
 class Loop:
     loc: Location
     kernel: str
@@ -268,6 +281,13 @@ class Loop:
 
         arg = ArgIdx(arg_id, loc, map_id, map_idx)
         self.args.append(arg)
+
+    def addArgInfo(self, loc: Location, ptr: str, dim: Optional[int], typ: Type, ref: int) -> None:
+        arg_id = len(self.args)
+        arg = ArgInfo(arg_id, loc, ptr, dim, typ, ref)
+
+        self.args.append(arg)
+        self.args_expanded.append(arg)
 
     def optIdx(self, arg: Arg) -> Optional[int]:
         idx = 0

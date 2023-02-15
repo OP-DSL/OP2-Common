@@ -140,12 +140,16 @@ contains
         res1(4) = res1(4) + f
     end subroutine
 
-    subroutine update(qold, q, res, adt, rms)
+    subroutine update(qold, q, res, adt, rms, maxerr, idx, errloc)
         real(8), dimension(4), intent(in) :: qold
         real(8), dimension(4), intent(out) :: q
         real(8), dimension(4), intent(inout) :: res
         real(8), intent(in) :: adt
         real(8), dimension(2), intent(inout) :: rms
+
+        real(8), intent(inout) :: maxerr
+        integer(4), intent(in) :: idx
+        integer(4), intent(out) :: errloc
 
         real(8) :: del, adti
         integer(4) :: i
@@ -158,6 +162,11 @@ contains
             res(i) = 0.0_8
 
             rms(2) = rms(2) + del**2
+
+            if (del**2 > maxerr) then
+                maxerr = del**2
+                errloc = idx
+            end if
         end do
     end subroutine
 
