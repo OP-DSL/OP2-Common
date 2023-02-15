@@ -280,6 +280,15 @@ class Loop:
 
         return idx
 
+    def arg(self, x: Union[Dat, int]) -> Optional[Arg]:
+        if isinstance(x, Dat):
+            return self.args[x.arg_id]
+
+        if isinstance(x, int) and x < len(self.args):
+            return self.args[x]
+
+        return None
+
     def dat(self, x: Union[ArgDat, int]) -> Optional[Dat]:
         if isinstance(x, Arg):
             return self.dats[x.dat_id]

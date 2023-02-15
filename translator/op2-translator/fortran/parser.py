@@ -1,51 +1,71 @@
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
 from store import Function, Location, ParseError, Program
-
-
-def parseParamType(path: Path, subroutine: f2003.Subroutine_Subprogram, param: str) -> OP.Type:
-    type_declaration = None
-
-    for candidate_declaration in fpu.walk(subroutine, f2003.Type_Declaration_Stmt):
-        entity_decl_list = fpu.get_child(candidate_declaration, f2003.Entity_Decl_List)
-        loc = Location(path, candidate_declaration.item.span[0], 0)
-
-        for entity_decl in entity_decl_list.items:
-            if parseIdentifier(entity_decl.items[0], loc) == param:
-                type_declaration = candidate_declaration
-                break
-
-    if type_declaration is None:
-        raise ParseError(f"failed to locate type declaration for kernel parameter {param} in {path}: {subroutine}")
-
-    loc = Location(path, type_declaration.item.span[0], 0)
-    type_spec = fpu.get_child(type_declaration, f2003.Intrinsic_Type_Spec)
-
-    if type_spec is None:
-        type_spec = fpu.get_child(type_declaration, f2003.Declaration_Type_Spec)
-
-    return parseType(type_spec.tofortran(), loc, True)[0]
+from util import safeFind
 
 
 def parseProgram(ast: f2003.Program, source: str, path: Path) -> Program:
     program = Program(path, ast, source)
     parseNode(ast, program, Location(str(program.path), 0, 0))
 
+    # TODO:
+    # Function calls turn up as f2003.Part_Ref which we can't distinguish from actual
+    # array indexes until we have the list of functions.
+    # Note that this means only functions contained in the same program as the call can be used.
+    # This also means that contained functions from other subroutines may be registered as dependencies.
+    parseFunctionDependencies(ast, program, Location(str(program.path), 0, 0))
+
     return program
+
+
+def parseFunctionDependencies(ast: f2003.Program, program: Program, loc: Location) -> None:
+    subprograms = []
+
+    for subprogram in fpu.walk(ast, f2003.Subroutine_Subprogram):
+        subprograms.append(subprogram)
+
+    for subprogram in fpu.walk(ast, f2003.Function_Subprogram):
+        subprograms.append(subprogram)
+
+    for subprogram in subprograms:
+        if isinstance(subprogram, f2003.Subroutine_Subprogram):
+            definition_statement = fpu.get_child(subprogram, f2003.Subroutine_Stmt)
+
+        if isinstance(subprogram, f2003.Function_Subprogram):
+            definition_statement = fpu.get_child(subprogram, f2003.Function_Stmt)
+
+        name_node = fpu.get_child(definition_statement, f2003.Name)
+
+        for node in fpu.walk(subprogram, f2003.Part_Ref):
+            ref_name_node = fpu.get_child(node, f2003.Name)
+            dependency = safeFind(program.entities, lambda e: e.name == ref_name_node.string)
+
+            if dependency is None:
+                continue
+
+            dependant = safeFind(program.entities, lambda e: e.name == name_node.string)
+
+            if dependant is None:
+                continue
+
+            dependant.depends.add(ref_name_node.string)
 
 
 def parseNode(node: Any, program: Program, loc: Location) -> None:
     if isinstance(node, f2003.Call_Stmt):
         parseCall(node, program, loc)
 
+    if isinstance(node, f2003.Function_Subprogram):
+        parseSubprogram(node, program, loc)
+
     if isinstance(node, f2003.Subroutine_Subprogram):
-        parseSubroutine(node, program, loc)
+        parseSubprogram(node, program, loc)
 
     if not isinstance(node, f2003.Base):
         return
@@ -62,18 +82,21 @@ def parseNode(node: Any, program: Program, loc: Location) -> None:
         parseNode(child, program, child_loc)
 
 
-def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Location) -> None:
-    subroutine_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
-    name_node = fpu.get_child(subroutine_statement, f2003.Name)
+def parseSubprogram(
+    node: Union[f2003.Subroutine_Subprogram, f2003.Function_Subprogram], program: Program, loc: Location
+) -> None:
+    if isinstance(node, f2003.Subroutine_Subprogram):
+        definition_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
+
+    if isinstance(node, f2003.Function_Subprogram):
+        definition_statement = fpu.get_child(node, f2003.Function_Stmt)
+
+    name_node = fpu.get_child(definition_statement, f2003.Name)
 
     name = parseIdentifier(name_node, loc)
     function = Function(name, node, program)
 
-    function.parameters = parseSubroutineParameters(program.path, node)
-
-    # for param in param_identifiers:
-    #     typ = parseParamType(program.path, node, param)
-    #     function.parameters.append((param, typ))
+    function.parameters = parseSubprogramParameters(program.path, node)
 
     for call in fpu.walk(node, f2003.Call_Stmt):
         name_node = fpu.get_child(call, f2003.Name)
@@ -87,14 +110,21 @@ def parseSubroutine(node: f2003.Subroutine_Subprogram, program: Program, loc: Lo
     program.entities.append(function)
 
 
-def parseSubroutineParameters(path: Path, subroutine: f2003.Subroutine_Subprogram) -> List[str]:
-    subroutine_statement = fpu.get_child(subroutine, f2003.Subroutine_Stmt)
-    arg_list = fpu.get_child(subroutine_statement, f2003.Dummy_Arg_List)
+def parseSubprogramParameters(
+    path: Path, node: Union[f2003.Subroutine_Subprogram, f2003.Function_Subprogram]
+) -> List[str]:
+    if isinstance(node, f2003.Subroutine_Subprogram):
+        definition_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
+
+    if isinstance(node, f2003.Function_Subprogram):
+        definition_statement = fpu.get_child(node, f2003.Function_Stmt)
+
+    arg_list = fpu.get_child(definition_statement, f2003.Dummy_Arg_List)
 
     if arg_list is None:
         return []
 
-    loc = Location(str(path), subroutine_statement.item.span[0], 0)
+    loc = Location(str(path), definition_statement.item.span[0], 0)
 
     parameters = []
     for item in arg_list.items:
