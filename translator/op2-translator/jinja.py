@@ -42,7 +42,18 @@ def indirect(x, loop: OP.Loop = None) -> bool:
 env.tests["direct"] = direct
 env.tests["indirect"] = indirect
 
-env.tests["soa"] = lambda dat, loop=None: dat.soa
+
+def soa(x, loop: OP.Loop = None) -> bool:
+    if isinstance(x, OP.ArgDat):
+        return loop.dats[x.dat_id].soa
+
+    if isinstance(x, OP.Dat):
+        return x.soa
+
+    return false
+
+
+env.tests["soa"] = soa
 
 env.tests["opt"] = lambda arg, loop=None: hasattr(arg, "opt") and arg.opt
 
@@ -67,6 +78,11 @@ env.tests["read_or_write"] = lambda arg, loop=None: hasattr(arg, "access_type") 
     OP.AccessType.READ,
     OP.AccessType.WRITE,
     OP.AccessType.RW,
+]
+
+env.tests["min_or_max"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
+    OP.AccessType.MIN,
+    OP.AccessType.MAX,
 ]
 
 env.tests["reduction"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
@@ -124,6 +140,7 @@ env.filters["min"] = test_to_filter("min")
 env.filters["max"] = test_to_filter("max")
 
 env.filters["read_or_write"] = test_to_filter("read_or_write")
+env.filters["min_or_max"] = test_to_filter("min_or_max")
 env.filters["reduction"] = test_to_filter("reduction")
 
 env.filters["index"] = lambda xs, x: xs.index(x)

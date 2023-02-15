@@ -32,7 +32,9 @@ def main(argv=None) -> None:
 
     parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
     parser.add_argument("--user-consts-module", help="Use a custom Fortran consts module", default=None)
-    parser.add_argument("--regex-program-translator", help="Use the regex-based program translator (Fortran only)", action="store_true")
+    parser.add_argument(
+        "--regex-program-translator", help="Use the regex-based program translator (Fortran only)", action="store_true"
+    )
 
     parser.add_argument("-I", help="Add to include directories", type=isDirPath, action="append", nargs=1, default=[])
     parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])

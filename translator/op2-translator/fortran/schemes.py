@@ -119,6 +119,9 @@ class FortranCuda(Scheme):
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel function: {loop.kernel}")
 
+        if len(kernel_entities) > 1:
+            raise ParseError(f"ambiguous kernel function: {loop.kernel}")
+
         dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
         kernel_entities = copy.deepcopy(kernel_entities)
@@ -126,20 +129,41 @@ class FortranCuda(Scheme):
 
         ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
 
+        def match_indirect(arg):
+            return isinstance(arg, OP.ArgDat) and arg.map_id is not None
+
         def match_soa(arg):
             return isinstance(arg, OP.ArgDat) and loop.dat(arg).soa
 
         def match_atomic_inc(arg):
             return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
 
-        #       for kernel_entity in kernel_entities:
-        #           ftk.insertStrides(
-        #               kernel_entity,
-        #               loop,
-        #               app,
-        #               lambda arg: f"op2_dat{arg.dat_id}_stride_d",
-        #               match=lambda arg: match_soa(arg) and not match_atomic_inc(arg),
-        #           )
+        modified = ftk.insertStrides(
+            kernel_entities[0],
+            kernel_entities + dependencies,
+            loop,
+            app,
+            lambda arg: f"direct",
+            lambda arg: match_soa(arg) and not match_indirect(arg),
+        )
+
+        modified = ftk.insertStrides(
+            kernel_entities[0],
+            kernel_entities + dependencies,
+            loop,
+            app,
+            lambda arg: f"dat{arg.dat_id}",
+            lambda arg: match_soa(arg) and match_indirect(arg),
+            modified,
+        )
+
+        ftk.insertAtomicIncs(
+            kernel_entities[0],
+            kernel_entities + dependencies,
+            loop,
+            app,
+            lambda arg: match_indirect(arg) and match_atomic_inc(arg)
+        )
 
         return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")
 
