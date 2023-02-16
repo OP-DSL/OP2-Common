@@ -37,6 +37,8 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo) {
   } else {
     if (arg.map == NULL || arg.opt == 0) // identity mapping
       *p_arg += arg.size * n;
+
+
     else // standard pointers
       *p_arg += arg.size * arg.map->map[arg.idx + n * arg.map->dim];
   }
@@ -60,12 +62,18 @@ inline void op_args_check(op_set set, int nargs, op_arg *args, int *ninds,
 template <typename... T, typename... OPARG, size_t... I>
 void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
                       op_set set, OPARG... arguments) {
+  
+  //N is the number of arguments
   constexpr int N = sizeof...(OPARG);
 
+  // Create array for arguments 
   char *p_a[N] = {((arguments.idx < -1)
                        ? (char *)malloc(-1 * arguments.idx * sizeof(T))
                        : nullptr)...};
+
+  // Array of arguments
   op_arg args[N] = {arguments...};
+  
   // allocate scratch mememory to do double counting in indirect reduction
   (void)std::initializer_list<char *>{
       ((arguments.argtype == OP_ARG_GBL && arguments.size > blank_args_size)
@@ -219,7 +227,7 @@ template <class T0, class T1>
 void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
                  op_arg arg0, op_arg arg1) {
 
-  char *p_a[2] = {0, 0};
+  char *p_a[2] = {0, 0}; //p_a is a struct pointing to the arguments
   op_arg args[2] = {arg0, arg1};
   if (arg0.idx < -1) {
     p_a[0] = (char *)op_malloc(-1 * args[0].idx * sizeof(T0));
@@ -250,7 +258,11 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
+// #ifdef HAS_GPI
+//   int n_upper = op_gpi_halo_exchanges(set, 2, args);
+// #else
   int n_upper = op_mpi_halo_exchanges(set, 2, args);
+// #endif
 
   // loop over set elements
   int halo = 0;
@@ -261,7 +273,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
-      op_arg_copy_in(n, args[0], (char **)p_a[0]);
+      op_arg_copy_in(n, [0args], (char **)p_a[0]);
     else
       op_arg_set(n, args[0], &p_a[0], halo);
     if (args[1].idx < -1)

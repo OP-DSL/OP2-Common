@@ -20,6 +20,7 @@
 tasks.json
 c_cpp_properties.json
 launch.json
+.vscode/
 
 # Emacs temporary files
 *#*#*
@@ -29,3 +30,4 @@ launch.json
 
 # Make artifacts
 op2/log.txt
+

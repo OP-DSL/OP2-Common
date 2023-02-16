@@ -151,7 +151,8 @@ typedef struct {
   int dirtybit;     /* flag to indicate MPI halo exchange is needed*/
   int dirty_hd;     /* flag to indicate dirty status on host and device */
   int user_managed; /* indicates whether the user is managing memory */
-  void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
+  void *mpi_buffer; /* pointer to hold the mpi buffer struct for the op_dat*/
+  void *gpi_buffer; /* pointer to hold the gpi buffer struct for the op_dat*/
 } op_dat_core;
 
 typedef op_dat_core *op_dat;
@@ -336,6 +337,11 @@ int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int devic
 void op_mpi_test_all_grouped(int nargs, op_arg *args);
 void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
 
+/*******************************************************************************
+* Core MPI lib function prototypes
+*******************************************************************************/
+
+int op_gpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation

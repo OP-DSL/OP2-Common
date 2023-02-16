@@ -1,3 +1,4 @@
+/* Header file for GPI helper functionality */
 #pragma once
 
 #include <GASPI.h>
