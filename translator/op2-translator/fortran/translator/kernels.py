@@ -272,10 +272,30 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
         if not isRef(node.items[0], param):
             return None, False
 
-        rhs = str(node.items[2]).lower()
-        rhs = rhs.replace(str(node.items[0]).lower(), "0")
+        if not isinstance(node.items[2], f2003.Level_2_Expr):
+            raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
 
-        return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {rhs})"), False
+        op = node.items[2].items[1]
+
+        if op == "+":
+            if str(node.items[2].items[0]) == str(node.items[0]):
+                term = str(node.items[2].items[2])
+            elif str(node.items[2].items[2]) == str(node.items[0]):
+                term = str(node.items[2].items[0])
+            else:
+                raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
+
+            return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {term})"), False
+
+        if op == "-":
+            if str(node.items[2].items[0]) == str(node.items[0]):
+                term = str(node.items[2].items[2])
+            else:
+                raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
+
+            return f2003.Assignment_Stmt(f"op2_ret = atomicSub({node.items[0]}, {term})"), False
+
+        raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
 
     if not isinstance(node, f2003.Base):
         return None, False
