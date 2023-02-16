@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
+import fparser.two.utils
 import pcpp
 from fparser.common.readfortran import FortranStringReader
 from fparser.two.parser import ParserFactory
@@ -73,6 +74,34 @@ def kind_selector_match(string):
 
 f2003.Kind_Selector.match_ = f2003.Kind_Selector.match
 f2003.Kind_Selector.match = staticmethod(kind_selector_match)
+
+
+# Patch the updated fparser2 walk function that visits tuples
+# TODO: remove this when it has been included in an fparser release
+def walk(node_list, types=None, indent=0, debug=False):
+    local_list = []
+
+    if not isinstance(node_list, (list, tuple)):
+        node_list = [node_list]
+
+    for child in node_list:
+        if debug:
+            if isinstance(child, str):
+                print(indent * "  " + "child type = ", type(child), repr(child))
+            else:
+                print(indent * "  " + "child type = ", type(child))
+        if types is None or isinstance(child, types):
+            local_list.append(child)
+        # Recurse down
+        if isinstance(child, Base):
+            local_list += walk(child.children, types, indent + 1, debug)
+        elif isinstance(child, tuple):
+            for component in child:
+                local_list += walk(component, types, indent + 1, debug)
+
+    return local_list
+
+fparser.two.utils.walk = walk
 
 
 class Preprocessor(pcpp.Preprocessor):
