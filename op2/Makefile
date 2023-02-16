@@ -141,6 +141,7 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_rt_support.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
+	common/op_perf_common+mpi.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o)
 
@@ -164,7 +165,16 @@ OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/
 	cudaConfigurationParams.o)
 
 # TODO - not sure what to add here at the moment
-OP2_GPI := $(OP2_MPI)
+OP2_GPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	gpi/op_mpi_core.o \
+	gpi/op_mpi_part_core.o \
+	gpi/op_mpi_decl.o \
+	gpi/op_mpi_rt_support.o \
+	gpi/op_mpi_hdf5.o \
+	gpi/op_mpi_util.o \
+	gpi/op_perf_common.o \
+	externlib/op_util.o \
+	externlib/op_renumber.o)
 
 # Directory rules
 $(OBJ):
@@ -199,6 +209,7 @@ $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
 # Will likely need revisiting after merging folder structure
+# TODO validate
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@
 
@@ -209,8 +220,15 @@ $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
 
 # TODO validate
-$(OBJ)/gpi/%+gpi.o: src/gpi/%.cpp | $(OBJ)
+# TEMPORARILY INCLUDES MPI SRC UNTIL GPI/COMMON SOURCE READY
+$(OBJ)/gpi/%.o: src/common/%.cpp src/gpi/%.cpp src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) $(GPI_INC) -c $< -o $@
+
+$(OBJ)/common/%+mpi.o: src/common/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
+
+$(OBJ)/common/%+gpi.o: src/common/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) $(GPI_INC) -c $< -o $@
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
 $(OBJ)/fortran/op2_for_declarations.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD)
