@@ -31,6 +31,7 @@ def main(argv=None) -> None:
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
 
     parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
+    parser.add_argument("--extra-consts-list", help="Extra consts to rename in kernels", default=None)
     parser.add_argument("--user-consts-module", help="Use a custom Fortran consts module", default=None)
     parser.add_argument(
         "--regex-program-translator", help="Use the regex-based program translator (Fortran only)", action="store_true"
@@ -85,6 +86,12 @@ def main(argv=None) -> None:
 
     if lang is None:
         exit(f"Unknown file extension: {extension}")
+
+    if args.extra_consts_list is not None and hasattr(lang, "extra_consts_list"):
+        lang.extra_consts_list = args.extra_consts_list
+
+        if args.verbose:
+            print(f"Using extra consts list: {lang.extra_consts_list}")
 
     if args.user_consts_module is not None and hasattr(lang, "user_consts_module"):
         lang.user_consts_module = args.user_consts_module
@@ -212,11 +219,11 @@ def codegen(args: Namespace, scheme: Scheme, fallback_scheme: Scheme, app: Appli
     for i, (loop, program) in enumerate(app.loops(), 1):
         # Generate loop host source
         fallback = False
-        source, extension, success = scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i)
+        source, extension, success = scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i, False)
 
         if not success:
             fallback = True
-            source, _, success = fallback_scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i)
+            source, _, success = fallback_scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i, True)
 
         if not success:
             print(f"Error: unable to generate loop host {i}")
