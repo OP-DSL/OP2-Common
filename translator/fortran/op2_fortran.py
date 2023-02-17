@@ -854,9 +854,12 @@ for a in range(init_ctr,len(sys.argv)):
          if rep2:
            print('repeated kernel with compatible arguments: '+ kernels[nk]['name'])
            repeat = True
+           incompatibleRepeat = False
+           loop_args[parloop_ctr]['incompatibleRepeat'] = False
            loop_args[parloop_ctr]['kernelNo'] = nk
+           break
          else:
-           print('repeated kernel with incompatible arguments: duplicating '+kernels[nk]['name'])
+           print('repeated kernel with incompatible arguments: duplicating '+kernels[nk]['name']+' number '+str(nkernels))
            repeat = False
            incompatibleRepeat = True
            loop_args[parloop_ctr]['incompatibleRepeat'] = True
@@ -894,6 +897,7 @@ for a in range(init_ctr,len(sys.argv)):
 # store away in master list
 #
     if not repeat:
+      print(' Adding ' +name+ ' to the list')
       nkernels = nkernels+1;
       temp = {'name': name,
               'set' : set_name,
@@ -1014,23 +1018,25 @@ for a in range(init_ctr,len(sys.argv)):
          if extdecl>0 or kernels[nk]['incompatibleRepeat']:
              implnonepos = outfile.lower().rfind('implicit none')
              implnonepos = outfile[0:implnonepos].rfind('\n')
-             replace = '       use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+'_MODULE'+'\n'
-             if kernels[nk]['incompatibleRepeat']:
-                 replace = replace[:-15]+'_'+str(curr_loop)+replace[-15:]
+             if type(kernels[nk]['incompatibleRepeat']) == type(True):
+                 if kernels[nk]['incompatibleRepeat']:
+                   kernels[nk]['incompatibleRepeat'] = '_'+str(curr_loop)
+                   name = name +'_' +str(curr_loop)
+                 else:
+                   kernels[nk]['incompatibleRepeat'] = ''
+             replace = '       use '+kernels[nk]['master_file']+'_'+kernels[nk]['mod_file'][9:]+kernels[nk]['incompatibleRepeat']+'_MODULE'+'\n'
              outfile = outfile[0:implnonepos] + replace + outfile[implnonepos:]
-
+         else:
+           kernels[nk]['incompatibleRepeat'] = ''
+       else:
+         kernels[nk]['incompatibleRepeat'] = ''
 
        indent = indent + ' '*len('op_par_loop')
        if file_format == 77:
          indent='     '
        endofcall = arg_parse(text,locs[loc]+11)
        #endofcall = text.find('\n\n', locs[loc])
-       name = loop_args[curr_loop]['name1']
-       if kernels[nk]['incompatibleRepeat']:
-           kernels[nk]['incompatibleRepeat'] = '_'+str(curr_loop)
-           name = name +'_' +str(curr_loop)
-       else:
-           kernels[nk]['incompatibleRepeat'] = ''
+       name = loop_args[curr_loop]['name1'] + kernels[nk]['incompatibleRepeat']
 
 
        if file_format == 90:
@@ -1160,7 +1166,7 @@ op2_gen_mpiseq3(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)
 #op2_gen_cuda(str(sys.argv[1]), date, consts, kernels, hydra, bookleaf)
 #op2_gen_cuda_gbl(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # global coloring
 #op2_gen_cuda_permute(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # permute does a different coloring (permute execution within blocks by color)
-op2_gen_cuda_color2(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # does global coloring
+#op2_gen_cuda_color2(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookleaf) # does global coloring
 #op2_gen_cudaINC(str(sys.argv[1]), date, consts, kernels, hydra)      # stages increment data only in shared memory
 #op2_gen_cuda_old(str(sys.argv[1]), date, consts, kernels, hydra)     # Code generator targettign Fermi GPUs
 
