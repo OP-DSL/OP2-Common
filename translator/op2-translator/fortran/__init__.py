@@ -134,6 +134,7 @@ class Fortran(Lang):
     com_delim = "!"
     zero_idx = False
 
+    extra_consts_list = None
     user_consts_module = None
     use_regex_translator = False
 

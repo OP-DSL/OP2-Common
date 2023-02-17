@@ -52,13 +52,14 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
                 msg = msg + " (in called subroutine)"
 
             print(msg)
+            loop.fallback = True
 
 
 def isRef(node: Any, name: str) -> bool:
-    if isinstance(node, f2003.Name) and node.string == name:
+    if isinstance(node, f2003.Name) and node.string.lower() == name:
         return True
 
-    if isinstance(node, f2003.Part_Ref) and node.items[0].string == name:
+    if isinstance(node, f2003.Part_Ref) and node.items[0].string.lower() == name:
         return True
 
     return False
@@ -81,7 +82,7 @@ def paramIsWritten(param_idx: int, func: Function, funcs: List[Function]) -> (bo
         if name_node is None:
             continue
 
-        name = name_node.string
+        name = name_node.string.lower()
         args = fpu.get_child(node, f2003.Actual_Arg_Spec_List)
 
         if args is None:

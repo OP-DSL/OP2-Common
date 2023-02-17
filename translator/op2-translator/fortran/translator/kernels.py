@@ -5,6 +5,7 @@ import fparser.two.utils as fpu
 
 import op as OP
 
+from language import Lang
 from store import Application, Entity, Function
 from util import find, safeFind
 
@@ -50,17 +51,25 @@ def renameFunctionCalls(entity: Entity, name: str, replacement: str) -> None:
     for node in fpu.walk(entity.ast, f2003.Call_Stmt):
         name_node = fpu.get_child(node, f2003.Name)
 
-        if name_node.string == name:
+        if name_node.string.lower() == name:
             name_node.string = replacement
 
 
-def renameConsts(entities: List[Entity], app: Application, replacement: Callable[[str], str]) -> None:
+def renameConsts(lang: Lang, entities: List[Entity], app: Application, replacement: Callable[[str], str]) -> None:
     const_ptrs = set(map(lambda const: const.ptr, app.consts()))
+
+    if lang.extra_consts_list is not None:
+        with open(lang.extra_consts_list, "r") as f:
+            for line in f:
+                const_ptr = line.strip()
+
+                if const_ptr != "":
+                    const_ptrs.add(const_ptr)
 
     for entity in entities:
         for name in fpu.walk(entity.ast, f2003.Name):
-            if name.string in const_ptrs:
-                name.string = replacement(name.string)
+            if name.string.lower() in const_ptrs:
+                name.string = replacement(name.string.lower())
 
 
 def insertStrides(
@@ -119,7 +128,7 @@ def insertStride(
     called = []
 
     for node in fpu.walk(func.ast, f2003.Name):
-        if node.string != param:
+        if node.string.lower() != param:
             continue
 
         parent = node.parent
@@ -142,7 +151,7 @@ def insertStride(
                 continue
 
             arg_idx = parent.items.index(node)
-            called.append((func_name_node.string, arg_idx, arg))
+            called.append((func_name_node.string.lower(), arg_idx, arg))
 
         # Function calls turn up as Part_Refs with a Section_Subscript_List, but these might
         # also be genuine array indexes
@@ -152,11 +161,11 @@ def insertStride(
             if func_name_node is None:
                 continue
 
-            if safeFind(funcs, lambda f: f.name == func_name_node.string) is None:
+            if safeFind(funcs, lambda f: f.name == func_name_node.string.lower()) is None:
                 continue
 
             arg_idx = parent.items.index(node)
-            called.append((func_name_node.string, arg_idx, arg))
+            called.append((func_name_node.string.lower(), arg_idx, arg))
 
     return called
 
@@ -221,7 +230,7 @@ def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.A
     called = []
 
     for node in fpu.walk(func.ast, f2003.Name):
-        if node.string != param:
+        if node.string.lower() != param:
             continue
 
         parent = node.parent
@@ -237,7 +246,7 @@ def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.A
                 continue
 
             arg_idx = parent.items.index(node)
-            called.append((func_name_node.string, arg_idx, arg))
+            called.append((func_name_node.string.lower(), arg_idx, arg))
 
         # Function calls turn up as Part_Refs with a Section_Subscript_List, but these might
         # also be genuine array indexes
@@ -247,11 +256,11 @@ def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.A
             if func_name_node is None:
                 continue
 
-            if safeFind(funcs, lambda f: f.name == func_name_node.string) is None:
+            if safeFind(funcs, lambda f: f.name == func_name_node.string.lower()) is None:
                 continue
 
             arg_idx = parent.items.index(node)
-            called.append((func_name_node.string, arg_idx, arg))
+            called.append((func_name_node.string.lower(), arg_idx, arg))
 
     modified = insertAtomicInc2(func.ast, param)
     return called
