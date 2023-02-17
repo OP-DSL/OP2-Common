@@ -203,6 +203,8 @@ class Loop:
     dats: List[Dat]
     maps: List[Map]
 
+    fallback: bool
+
     def __init__(self, loc: Location, kernel: str) -> None:
         self.loc = loc
         self.kernel = kernel
@@ -212,6 +214,8 @@ class Loop:
 
         self.args = []
         self.args_expanded = []
+
+        self.fallback = False
 
     def addArgDat(
         self,

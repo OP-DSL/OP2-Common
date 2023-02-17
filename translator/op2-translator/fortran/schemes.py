@@ -35,7 +35,7 @@ class FortranSeq(Scheme):
         dependencies = copy.deepcopy(dependencies)
 
         if self.lang.user_consts_module is None:
-            ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
+            ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
         return ftk.writeSource(kernel_entities + dependencies)
 
@@ -67,7 +67,7 @@ class FortranOpenMP(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
+        ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
         if not self.target.config["vectorise"]:
             return ftk.writeSource(kernel_entities + dependencies)
@@ -142,7 +142,7 @@ class FortranCuda(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameConsts(kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
+        ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
 
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None

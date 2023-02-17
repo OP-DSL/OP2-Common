@@ -35,15 +35,23 @@ class Scheme(Findable):
         program: Program,
         app: Application,
         kernel_idx: int,
+        force_generate: bool
     ) -> Tuple[str, str, bool]:
         # Load the loop host template
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
 
+        if loop.fallback and not force_generate:
+            return (None, extension, False)
+
         if not self.canGenLoopHost(loop):
             return (None, extension, False)
 
-        kernel_func = self.translateKernel(loop, program, app, kernel_idx)
+        try:
+            kernel_func = self.translateKernel(loop, program, app, kernel_idx)
+        except:
+            print(f"Error: kernel translation for kernel {kernel_idx} failed ({self})")
+            return (None, extension, False)
 
         # Generate source from the template
         return (

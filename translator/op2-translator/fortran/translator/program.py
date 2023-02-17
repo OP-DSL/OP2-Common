@@ -31,13 +31,13 @@ def translateProgram(program: Program, force_soa: bool) -> str:
 
     for call in fpu.walk(ast, f2003.Call_Stmt):
         name = fpu.get_child(call, f2003.Name)
-        if name is None or name.string != "op_decl_const":
+        if name is None or name.string.lower() != "op_decl_const":
             continue
 
         args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
         args.items = tuple(list(args.items[:-1]))
 
-        const_ptr = args.items[0].string
+        const_ptr = args.items[0].string.lower()
 
         name.string = f"{name.string}_{const_ptr}"
 
@@ -47,13 +47,13 @@ def translateProgram(program: Program, force_soa: bool) -> str:
         if name is None:
             continue
 
-        if not re.match(r"op_par_loop_\d+", name.string):
+        if not re.match(r"op_par_loop_\d+", name.string.lower()):
             continue
 
         args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
         arg_list = list(args.items)
 
-        kernel_name = arg_list[0].string
+        kernel_name = arg_list[0].string.lower()
 
         arg_list[0] = f2003.Char_Literal_Constant(f'"{kernel_name}"')
         args.items = tuple(arg_list)
@@ -86,7 +86,7 @@ def translateProgram(program: Program, force_soa: bool) -> str:
                 continue
 
             init_funcs = ["op_init", "op_init_base", "op_mpi_init"]
-            if name.string not in init_funcs:
+            if name.string.lower() not in init_funcs:
                 continue
 
             args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
