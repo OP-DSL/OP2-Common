@@ -48,7 +48,7 @@ map{{arg.map_id}}({{map_idx(arg)}} * set_size + n)
     {%- elif arg is idx -%}
 n
     {%- elif arg is gbl -%}
-gbl{{arg.id}}{{"_local" if arg is reduction}}
+gbl{{arg.id}}{{"_local" if arg is reduction}}{{"(1)" if arg.dim == 1}}
     {%- elif arg is direct and lh.dat(arg) is soa -%}
 dat{{arg.dat_id}}(n)
     {%- elif arg is direct -%}
@@ -79,7 +79,7 @@ call {{lh.kernel}}_wrapper<<<num_blocks, block_size
     arg{{arg.id}}%idx, &
     {% endfor %}
     {% for arg in lh.args|gbl if arg.dim is none %}
-    arg{{arg.id}}%dim &
+    arg{{arg.id}}%dim, &
     {% endfor %}
     {% for extra_arg in varargs %}
     {{extra_arg}}, &
@@ -111,7 +111,7 @@ module op2_k{{kernel_idx}}
     use op2_fortran_rt_support
     use cudaconfigurationparams
 
-    use op2_consts
+    use {{"op2_consts" if lang.user_consts_module is none else lang.user_consts_module}}
 
     implicit none
 

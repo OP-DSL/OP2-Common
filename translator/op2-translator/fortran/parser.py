@@ -44,17 +44,17 @@ def parseFunctionDependencies(ast: f2003.Program, program: Program, loc: Locatio
 
         for node in fpu.walk(subprogram, f2003.Part_Ref):
             ref_name_node = fpu.get_child(node, f2003.Name)
-            dependency = safeFind(program.entities, lambda e: e.name == ref_name_node.string)
+            dependency = safeFind(program.entities, lambda e: e.name == ref_name_node.string.lower())
 
             if dependency is None:
                 continue
 
-            dependant = safeFind(program.entities, lambda e: e.name == name_node.string)
+            dependant = safeFind(program.entities, lambda e: e.name == name_node.string.lower())
 
             if dependant is None:
                 continue
 
-            dependant.depends.add(ref_name_node.string)
+            dependant.depends.add(ref_name_node.string.lower())
 
 
 def parseNode(node: Any, program: Program, loc: Location) -> None:
@@ -275,7 +275,7 @@ def parseArgInfo(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: 
     ptr = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc, True)
     typ = parseType(parseStringLiteral(args.items[2], loc), loc)[0]
-    ref = parseIntLiteral(args.items[1], loc, False)
+    ref = parseIntLiteral(args.items[3], loc, False)
 
     loop.addArgInfo(loc, ptr, dim, typ, ref)
 
@@ -284,7 +284,7 @@ def parseIdentifier(node: Any, loc: Location) -> str:
     # if not hasattr(node, "string"):
     #    raise ParseError(f"Unable to parse identifier for node: {node}", loc)
 
-    return node.string
+    return node.string.lower()
 
 
 # literal_aliases = {
@@ -375,7 +375,7 @@ def parseStringLiteral(node: Any, loc: Location) -> str:
 
 
 def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
-    access_type_str = parseIdentifier(node, loc)
+    access_type_str = parseIdentifier(node, loc).upper()
 
     access_type_map = {"OP_READ": 0, "OP_WRITE": 1, "OP_RW": 2, "OP_INC": 3, "OP_MIN": 4, "OP_MAX": 5}
 
