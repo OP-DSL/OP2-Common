@@ -34,7 +34,7 @@ class Preprocessor(pcpp.Preprocessor):
         if is_system_include:
             raise pcpp.OutputDirective(pcpp.Action.IgnoreAndPassThrough)
 
-        super.on_include_not_found(is_malformed, is_system_include, curdir, includepath)
+        super().on_include_not_found(is_malformed, is_system_include, curdir, includepath)
 
 
 class Cpp(Lang):
