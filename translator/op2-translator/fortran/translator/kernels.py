@@ -5,6 +5,7 @@ import fparser.two.utils as fpu
 
 import op as OP
 
+from op import OpError
 from language import Lang
 from store import Application, Entity, Function
 from util import find, safeFind
@@ -200,7 +201,7 @@ def insertAtomicIncs(
             print(f"{loop.loc}: Warning: Unable to atomics into unknown function {item[0]}, arg {item[1]}")
             continue
 
-        called = insertAtomicInc(target_func, funcs, target_func.parameters[item[1]], item[2])
+        called, _ = insertAtomicInc(target_func, funcs, target_func.parameters[item[1]], item[2])
         modified[target_func.name].add(item[1])
 
         for item2 in called:
@@ -226,7 +227,8 @@ def insertAtomicIncs(
 
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
-def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.Arg) -> List[Tuple[str, int, OP.Arg]]:
+
+def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.Arg) -> Tuple[List[Tuple[str, int, OP.Arg]], bool]:
     called = []
 
     for node in fpu.walk(func.ast, f2003.Name):
@@ -262,8 +264,8 @@ def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.A
             arg_idx = parent.items.index(node)
             called.append((func_name_node.string.lower(), arg_idx, arg))
 
-    modified = insertAtomicInc2(func.ast, param)
-    return called
+    _, modified = insertAtomicInc2(func.ast, param)
+    return called, modified
 
 
 def isRef(node: Any, name: str) -> bool:
@@ -282,29 +284,11 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
             return None, False
 
         if not isinstance(node.items[2], f2003.Level_2_Expr):
-            raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
+            raise OpError(f"Error: unexpected statement while inserting atomics: {node} ({repr(node)})")
 
-        op = node.items[2].items[1]
 
-        if op == "+":
-            if str(node.items[2].items[0]) == str(node.items[0]):
-                term = str(node.items[2].items[2])
-            elif str(node.items[2].items[2]) == str(node.items[0]):
-                term = str(node.items[2].items[0])
-            else:
-                raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
-
-            return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {term})"), False
-
-        if op == "-":
-            if str(node.items[2].items[0]) == str(node.items[0]):
-                term = str(node.items[2].items[2])
-            else:
-                raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
-
-            return f2003.Assignment_Stmt(f"op2_ret = atomicSub({node.items[0]}, {term})"), False
-
-        raise OpError("Error: unexpected RHS while inserting atomics: {node.items[2]}")
+        replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), f2003.Int_Literal_Constant('0'))
+        return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
 
     if not isinstance(node, f2003.Base):
         return None, False
@@ -317,13 +301,43 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
         replacement, modified2 = insertAtomicInc2(node.children[i], param)
 
         if replacement is not None:
-            node.children[i] = replacement
+            children = list(node.children)
+            children[i] = replacement
+
+            if getattr(node, "content", None) is None:
+                node.items = children
+            else:
+                node.content = tuple(children)
 
         if replacement is not None or modified2:
             modified = True
 
     return None, modified
 
+
+def replaceNodes(node: f2003.Base, match: Callable[[f2003.Base], bool], replacement: f2003.Base) -> Optional[Any]:
+    if not isinstance(node, f2003.Base):
+        return None
+
+    if match(node):
+        return replacement
+
+    for i in range(len(node.children)):
+        if node.children[i] is None:
+            continue
+
+        replacement = replaceNodes(node.children[i], match, replacement)
+
+        if replacement is not None:
+            children = list(node.children)
+            children[i] = replacement
+
+            if getattr(node, "content", None) is None:
+                node.items = children
+            else:
+                node.content = tuple(children)
+
+    return None
 
 
 def writeSource(entities: List[Entity], prologue: Optional[str] = None) -> str:
