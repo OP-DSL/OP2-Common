@@ -9,7 +9,7 @@ int opDat2_res_calc_stride_OP2HOST=-1;
 //user function
 __device__ void res_calc_gpu( const double *x1, const double *x2, const double *q1,
                      const double *q2, const double *adt1, const double *adt2,
-                     double *res1, double *res2) {
+                     float *res1, float *res2) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[(0)*opDat0_res_calc_stride_OP2CONSTANT] - x2[(0)*opDat0_res_calc_stride_OP2CONSTANT];
@@ -47,7 +47,7 @@ __global__ void op_cuda_res_calc(
   const double *__restrict ind_arg0,
   const double *__restrict ind_arg1,
   const double *__restrict ind_arg2,
-  double *__restrict ind_arg3,
+  float *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   const int *__restrict opDat2Map,
   int start,
@@ -57,13 +57,13 @@ __global__ void op_cuda_res_calc(
   if (tid + start < end) {
     int n = tid + start;
     //initialise local variables
-    double arg6_l[4];
+    float arg6_l[4];
     for ( int d=0; d<4; d++ ){
-      arg6_l[d] = ZERO_double;
+      arg6_l[d] = ZERO_float;
     }
-    double arg7_l[4];
+    float arg7_l[4];
     for ( int d=0; d<4; d++ ){
-      arg7_l[d] = ZERO_double;
+      arg7_l[d] = ZERO_float;
     }
     int map0idx;
     int map1idx;
@@ -162,7 +162,7 @@ void op_par_loop_res_calc(char const *name, op_set set,
         (double *)arg0.data_d,
         (double *)arg2.data_d,
         (double *)arg4.data_d,
-        (double *)arg6.data_d,
+        (float *)arg6.data_d,
         arg0.map_data_d,
         arg2.map_data_d,
         start,end,set->size+set->exec_size);

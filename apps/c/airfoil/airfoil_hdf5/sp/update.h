@@ -9,6 +9,7 @@ inline void update(const float *qold, float *q, float *res, const float *adt,
     q[n] = qold[n] - del;
     res[n] = 0.0f;
     rmsl += del * del;
+    //*rms=MAX(*rms,abs(del));
   }
   *rms += rmsl;
 }

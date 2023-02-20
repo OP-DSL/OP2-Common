@@ -355,6 +355,7 @@ int file_exist(char const *filename) {
 }
 
 const char *doubles[] = {"double", "double:soa", "real(8)", "double precision"};
+const char *ldoubles[] = {"long double", "ldouble:soa", "real(16)", "quad precision"};
 const char *floats[] = {"float", "float:soa", "real(4)", "real"};
 const char *ints[] = {"int", "int:soa", "integer(4)", "integer"};
 
@@ -366,6 +367,15 @@ bool op_type_equivalence(const char *a, const char *b) {
     if (strcmp(a, doubles[i]) == 0) {
       for (int j = 0; j < 4; j++) {
         if (strcmp(b, doubles[j]) == 0) {
+          return true;
+        }
+      }
+    }
+  }
+  for (int i = 0; i < 4; i++) {
+    if (strcmp(a, ldoubles[i]) == 0) {
+      for (int j = 0; j < 4; j++) {
+        if (strcmp(b, ldoubles[j]) == 0) {
           return true;
         }
       }

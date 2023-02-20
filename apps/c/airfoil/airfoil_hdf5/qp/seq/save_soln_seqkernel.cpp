@@ -32,8 +32,8 @@ void op_par_loop_save_soln(char const *name, op_set set,
 
     for ( int n=0; n<set_size; n++ ){
       save_soln(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n]);
+        &((long double*)arg0.data)[4*n],
+        &((long double*)arg1.data)[4*n]);
     }
   }
 

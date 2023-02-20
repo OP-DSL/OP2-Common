@@ -14,14 +14,14 @@ include ../../../../make-common.inc
 
 ifeq ($(OP2_COMPILER),gnu)
   CPP		= g++
-  CPPFLAGS	= -O2 -fPIC -DUNIX -Wall -O0 -g -Wextra
+  CPPFLAGS	= -O3 -fPIC -DUNIX -Wall -DVECTORIZE #-O0 -g -Wextra
   OMPFLAGS	= -fopenmp
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CCFLAGS)
 else
 ifeq ($(OP2_COMPILER),intel)
   CPP		= icpc
-  CCFLAGS	= -O3 -xHOST -DMPICH_IGNORE_CXX_SEEK -restrict -inline-forceinline -qopt-report=5 -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
+  CCFLAGS	= -O3 -xHOST -DMPICH_IGNORE_CXX_SEEK -restrict -inline-forceinline -qopt-report=5 -DVECTORIZE -fp-model strict -fp-model source -prec-div -prec-sqrt #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
 #  CCFLAGS	= -O3 -xHost -DMPICH_IGNORE_CXX_SEEK -fno-alias -inline-forceinline -qopt-report -parallel -prec-div -DVECTORIZE #-parallel #-DCOMM_PERF #-DDEBUG #-vec-report
   CPPFLAGS 	= $(CCFLAGS)
   OMPFLAGS	= -qopenmp
@@ -38,7 +38,7 @@ ifeq ($(OP2_COMPILER),xl)
   MPICPP	= $(MPICXX_PATH)
   MPIFLAGS	= $(CPPFLAGS)
 else
-ifeq ($(OP2_COMPILER),pgi)
+ifeq ($(),pgi)
   CPP       	= pgc++
   CCFLAGS  	= -O3
   CPPFLAGS 	= $(CCFLAGS)
@@ -99,6 +99,10 @@ ifeq ($(NV_ARCH),Pascal)
 else
 ifeq ($(NV_ARCH),Volta)
   CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+else
+ifeq ($(NV_ARCH),Ampere)
+  CODE_GEN_CUDA=-gencode arch=compute_80,code=sm_80
+endif
 endif
 endif
 endif

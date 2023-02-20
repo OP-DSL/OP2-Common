@@ -3,13 +3,13 @@
 //
 
 // global constants
-extern double gam;
-extern double gm1;
-extern double cfl;
-extern double eps;
-extern double mach;
-extern double alpha;
-extern double qinf[4];
+extern long double gam;
+extern long double gm1;
+extern long double cfl;
+extern long double eps;
+extern long double mach;
+extern long double alpha;
+extern long double qinf[4];
 
 // header
 #include "op_lib_cpp.h"

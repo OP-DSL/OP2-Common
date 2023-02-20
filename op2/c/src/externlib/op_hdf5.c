@@ -958,6 +958,12 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
           strcmp(dat->type, "real(8)") == 0)
         H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT,
                  dat->data);
+      else if (strcmp(dat->type, "long double") == 0 ||
+          strcmp(dat->type, "ldouble:soa") == 0 ||
+          strcmp(dat->type, "quad precision") == 0 ||
+          strcmp(dat->type, "real(16)") == 0)
+        H5Dwrite(dset_id, H5T_NATIVE_LDOUBLE, H5S_ALL, dataspace, H5P_DEFAULT,
+                 dat->data);
       else if (strcmp(dat->type, "float") == 0 ||
                strcmp(dat->type, "float:soa") == 0 ||
                strcmp(dat->type, "real(4)") == 0 ||
@@ -1016,6 +1022,14 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
     dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_DOUBLE, dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT,
+             dat->data);
+  } else if ((strcmp(dat->type, "long double") == 0) ||
+      (strcmp(dat->type, "ldouble:soa") == 0) ||
+      (strcmp(dat->type, "quad precision") == 0) ||      
+      (strcmp(dat->type, "real(16)") == 0)) {
+    dset_id = H5Dcreate(file_id, path_name, H5T_NATIVE_LDOUBLE, dataspace,
+                        H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dset_id, H5T_NATIVE_LDOUBLE, H5S_ALL, dataspace, H5P_DEFAULT,
              dat->data);
   } else if ((strcmp(dat->type, "float") == 0) ||
              (strcmp(dat->type, "float:soa") == 0) ||

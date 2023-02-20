@@ -53,12 +53,12 @@ void op_par_loop_adt_calc(char const *name, op_set set,
       map3idx = arg0.map_data[n * arg0.map->dim + 3];
 
       adt_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg0.data)[2 * map2idx],
-        &((double*)arg0.data)[2 * map3idx],
-        &((double*)arg4.data)[4 * n],
-        &((double*)arg5.data)[1 * n]);
+        &((long double*)arg0.data)[2 * map0idx],
+        &((long double*)arg0.data)[2 * map1idx],
+        &((long double*)arg0.data)[2 * map2idx],
+        &((long double*)arg0.data)[2 * map3idx],
+        &((long double*)arg4.data)[4 * n],
+        &((long double*)arg5.data)[1 * n]);
     }
   }
 

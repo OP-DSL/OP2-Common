@@ -357,7 +357,9 @@ def op2_gen_seq(master, date, consts, kernels):
     for g_m in range(0,nargs):
       if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
 #        code('op_mpi_reduce(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
-        if typs[g_m] == 'double': #need for both direct and indirect
+        if typs[g_m] == 'long double': #need for both direct and indirect
+          code('op_mpi_reduce_long_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
+        elif typs[g_m] == 'double': #need for both direct and indirect
           code('op_mpi_reduce_double(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')
         elif typs[g_m] == 'float':
           code('op_mpi_reduce_float(&<ARG>,('+typs[g_m]+'*)<ARG>.data);')

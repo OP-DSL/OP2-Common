@@ -8,7 +8,7 @@ __constant__ int opDat2_bres_calc_stride_OP2CONSTANT;
 int opDat2_bres_calc_stride_OP2HOST=-1;
 //user function
 __device__ void bres_calc_gpu( const double *x1, const double *x2, const double *q1,
-                      const double *adt1, double *res1, const int *bound) {
+                      const double *adt1, float *res1, const int *bound) {
   double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[(0)*opDat0_bres_calc_stride_OP2CONSTANT] - x2[(0)*opDat0_bres_calc_stride_OP2CONSTANT];
@@ -49,7 +49,7 @@ __global__ void op_cuda_bres_calc(
   const double *__restrict ind_arg0,
   const double *__restrict ind_arg1,
   const double *__restrict ind_arg2,
-  double *__restrict ind_arg3,
+  float *__restrict ind_arg3,
   const int *__restrict opDat0Map,
   const int *__restrict opDat2Map,
   const int *__restrict arg5,
@@ -60,9 +60,9 @@ __global__ void op_cuda_bres_calc(
   if (tid + start < end) {
     int n = tid + start;
     //initialise local variables
-    double arg4_l[4];
+    float arg4_l[4];
     for ( int d=0; d<4; d++ ){
-      arg4_l[d] = ZERO_double;
+      arg4_l[d] = ZERO_float;
     }
     int map0idx;
     int map1idx;
@@ -149,7 +149,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         (double *)arg0.data_d,
         (double *)arg2.data_d,
         (double *)arg3.data_d,
-        (double *)arg4.data_d,
+        (float *)arg4.data_d,
         arg0.map_data_d,
         arg2.map_data_d,
         (int*)arg5.data_d,

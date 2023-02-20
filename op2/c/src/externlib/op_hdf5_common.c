@@ -89,6 +89,9 @@ const char *op_hdf5_type_to_string(hid_t t) {
   } else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
     text = (char *)malloc(7 * sizeof(char));
     strcpy(text, "double");
+  } else if (H5Tequal(t, H5T_NATIVE_LDOUBLE)) {
+    text = (char *)malloc(12 * sizeof(char));
+    strcpy(text, "long double");
   } else {
     text = (char *)malloc(13 * sizeof(char));
     strcpy(text, "UNRECOGNISED");
@@ -143,6 +146,8 @@ herr_t get_dataset_properties(hid_t dset_id,
     dset_props->elem_bytes = sizeof(float);
   } else if (H5Tequal(t, H5T_NATIVE_DOUBLE)) {
     dset_props->elem_bytes = sizeof(double);
+  } else if (H5Tequal(t, H5T_NATIVE_LDOUBLE)) {
+    dset_props->elem_bytes = sizeof(long double);
   } else {
     size_t name_len = H5Iget_name(dset_id, NULL, 0);
     char name[name_len];

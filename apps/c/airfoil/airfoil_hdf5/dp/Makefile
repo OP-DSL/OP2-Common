@@ -100,6 +100,10 @@ ifeq ($(NV_ARCH),Pascal)
 else
 ifeq ($(NV_ARCH),Volta)
   CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
+else
+ifeq ($(NV_ARCH),Ampere)
+  CODE_GEN_CUDA=-gencode arch=compute_80,code=sm_80
+endif
 endif
 endif
 endif

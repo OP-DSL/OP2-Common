@@ -38,16 +38,16 @@ void op_par_loop_update(char const *name, op_set set,
 
     for ( int n=0; n<set_size; n++ ){
       update(
-        &((double*)arg0.data)[4*n],
-        &((double*)arg1.data)[4*n],
-        &((double*)arg2.data)[4*n],
-        &((double*)arg3.data)[1*n],
-        (double*)arg4.data);
+        &((long double*)arg0.data)[4*n],
+        &((long double*)arg1.data)[4*n],
+        &((long double*)arg2.data)[4*n],
+        &((long double*)arg3.data)[1*n],
+        (long double*)arg4.data);
     }
   }
 
   // combine reduction data
-  op_mpi_reduce_double(&arg4,(double*)arg4.data);
+  op_mpi_reduce_long_double(&arg4,(long double*)arg4.data);
   op_mpi_set_dirtybit(nargs, args);
 
   // update kernel record

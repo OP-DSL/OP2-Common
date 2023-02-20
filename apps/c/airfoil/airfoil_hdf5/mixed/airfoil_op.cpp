@@ -170,6 +170,30 @@ int main(int argc, char **argv) {
   op_dat p_adt = op_decl_dat_hdf5(cells, 1, "double", file, "p_adt");
   op_dat p_res = op_decl_dat_hdf5(cells, 4, "float", file, "p_res");
 
+  printf("p_bound: %f\n",((double)(p_bound->set->size*p_bound->dim*p_bound->size))/1000/1000);
+  printf("p_x: %f\n",((double)(p_x->set->size*p_x->dim*p_x->size))/1000/1000);
+  printf("p_q: %f\n",((double)(p_q->set->size*p_q->dim*p_q->size))/1000/1000);
+  printf("p_qold: %f\n",((double)(p_qold->set->size*p_qold->dim*p_qold->size))/1000/1000);
+  printf("p_adt: %f\n",((double)(p_adt->set->size*p_adt->dim*p_adt->size))/1000/1000);
+  printf("p_res: %f\n",((double)(p_res->set->size*p_res->dim*p_res->size))/1000/1000);
+/*
+  p_bound: 0.022400
+  p_x: 92.275232
+  p_q: 368.640000
+  p_qold: 368.640000
+  p_adt: 23.040000
+  p_res: 184.320000
+
+  printf("nodes: %d\n",nodes->size);
+  printf("edges: %d\n",edges->size);
+  printf("bedges: %d\n",bedges->size);
+  printf("cells: %d\n",cells->size);
+  nodes: 2883601
+  edges: 5757200
+  bedges: 5600
+  cells: 2880000
+*/
+
   op_dat p_test = op_decl_dat_hdf5(cells, 4, "double", file, "p_test");
   if (p_test == NULL)
     printf("p_test not found\n");

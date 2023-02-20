@@ -2362,6 +2362,60 @@ void op_mpi_reduce_double(op_arg *arg, double *data) {
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
 
+void op_mpi_reduce_long_double(op_arg *arg, long double *data) {
+  (void)data;
+  if (arg->data == NULL)
+    return;
+  op_timers_core(&c1, &t1);
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+    long double result_static;
+    long double *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE)
+      result = (long double *)calloc(arg->dim, sizeof(long double));
+    else
+      result = &result_static;
+
+    if (arg->acc == OP_INC) // global reduction
+    {
+      MPI_Allreduce((long double *)arg->data, result, arg->dim, MPI_LONG_DOUBLE, MPI_SUM,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(long double) * arg->dim);
+    } else if (arg->acc == OP_MAX) // global maximum
+    {
+      MPI_Allreduce((long double *)arg->data, result, arg->dim, MPI_LONG_DOUBLE, MPI_MAX,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(long double) * arg->dim);
+      ;
+    } else if (arg->acc == OP_MIN) // global minimum
+    {
+      MPI_Allreduce((long double *)arg->data, result, arg->dim, MPI_LONG_DOUBLE, MPI_MIN,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(long double) * arg->dim);
+    } else if (arg->acc == OP_WRITE) // any
+    {
+      int size;
+      MPI_Comm_size(OP_MPI_WORLD, &size);
+      result = (long double *)calloc(arg->dim * size, sizeof(long double));
+      MPI_Allgather((long double *)arg->data, arg->dim, MPI_LONG_DOUBLE, result, arg->dim,
+                    MPI_LONG_DOUBLE, OP_MPI_WORLD);
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i * arg->dim + j] != 0.0)
+            result[j] = result[i * arg->dim + j];
+        }
+      }
+      memcpy(arg->data, result, sizeof(long double) * arg->dim);
+      if (arg->dim == 1)
+        op_free(result);
+    }
+    if (arg->dim > 1)
+      op_free(result);
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+}
+
 void op_mpi_reduce_int(op_arg *arg, int *data) {
   (void)data;
   if (arg->data == NULL)

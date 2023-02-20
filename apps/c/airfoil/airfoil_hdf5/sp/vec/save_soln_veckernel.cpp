@@ -20,9 +20,9 @@ void op_par_loop_save_soln(char const *name, op_set set,
   args[1] = arg1;
   //create aligned pointers for dats
   ALIGNED_float const float * __restrict__ ptr0 = (float *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,float_ALIGN);
   ALIGNED_float       float * __restrict__ ptr1 = (float *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;

@@ -3,7 +3,7 @@
 //
 
 //user function
-inline void save_soln(const double *q, double *qold) {
+inline void save_soln(const long double *q, long double *qold) {
   for (int n = 0; n < 4; n++)
     qold[n] = q[n];
 }
@@ -19,10 +19,10 @@ void op_par_loop_save_soln(char const *name, op_set set,
   args[0] = arg0;
   args[1] = arg1;
   //create aligned pointers for dats
-  ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr1 = (double *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
+  ALIGNED_long_double const long double * __restrict__ ptr0 = (long double *) arg0.data;
+  DECLARE_PTR_ALIGNED(ptr0,long_double_ALIGN);
+  ALIGNED_long_double       long double * __restrict__ ptr1 = (long double *) arg1.data;
+  DECLARE_PTR_ALIGNED(ptr1,long_double_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;

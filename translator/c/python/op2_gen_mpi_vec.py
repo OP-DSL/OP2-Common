@@ -46,7 +46,7 @@ def code(text):
     prefix = ''
   else:
     prefix = ' '*depth
-  file_text += prefix+rep(text,g_m).rstrip()+'\n'
+  file_text += prefix+rep(text,g_m).rstrip().replace('ALIGNED_long double','ALIGNED_long_double').replace('long double_ALIGN','long_double_ALIGN')+'\n'
 
 def FOR(i,start,finish):
   global file_text, FORTRAN, CPP, g_m
@@ -751,11 +751,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
   file_text =''
 
+  code('#define long_double_ALIGN 256')
   code('#define double_ALIGN 128')
   code('#define float_ALIGN 64')
   code('#define int_ALIGN 64')
   code('#ifdef VECTORIZE')
   code('#define SIMD_VEC 4')
+  code('#define ALIGNED_long_double __attribute__((aligned(long_double_ALIGN)))')
   code('#define ALIGNED_double __attribute__((aligned(double_ALIGN)))')
   code('#define ALIGNED_float __attribute__((aligned(float_ALIGN)))')
   code('#define ALIGNED_int __attribute__((aligned(int_ALIGN)))')
@@ -765,6 +767,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
   code('    #define DECLARE_PTR_ALIGNED(X, Y)')
   code('  #endif')
   code('#else')
+  code('#define ALIGNED_long_double')
   code('#define ALIGNED_double')
   code('#define ALIGNED_float')
   code('#define ALIGNED_int')

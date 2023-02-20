@@ -49,7 +49,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <getopt.h>
+#include <vector>
 // global constants
 
 float gam, gm1, cfl, eps, mach, alpha, qinf[4];
@@ -124,11 +125,79 @@ void op_par_loop_update(char const *, op_set,
 
 // main program
 
+
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init_soa(argc, argv, 2, 1);
+  op_init(argc, argv, 2);
 
-  int niter;
+  int niter = 1000;
+  int renumber = 0;
+
+  
+  const char* p_q_dat_file = "new_grid.h5";
+  const char* out_file = "p_q-single_2.8m.h5";
+
+  for (int i = 1; i < argc; ++i) 
+    if (strcmp(argv[i],"-renumber")==0) {
+        argv[i]="--renumber"; //ugly, but works for now... Sorry! :) 
+    } 
+
+
+  //from: http://boron.physics.metu.edu.tr/ozdogan/SystemsProgramming/ceng425/node22.html
+  
+  int next_option;
+
+  /* A string listing valid short options letters.  */
+  const char* const short_options = "ri:d:o:";
+  /* An array describing valid long options.  */
+  const struct option long_options[] = {
+    { "renumber",     0, NULL, 'r' },
+    { "iteration",   1, NULL, 'i' },
+    { "dat_file",  1, NULL, 'd' },
+    { "out_file",  1, NULL, 'o' },
+    { NULL,       0, NULL, 0   }   /* Required at end of array.  */
+  };
+
+  do {
+    next_option = getopt_long (argc, argv, short_options,
+                               long_options, NULL);
+    switch (next_option)
+    {
+    case 'r':   /* -r or --renumber  */
+      op_printf("Enabling renumbering\n");
+      renumber = 1;
+      break;
+
+    case 'i':   /* -i or --iteration */
+      niter = atoi(optarg);
+      break;
+
+    case 'd':   /* -d or --dat_file */
+      p_q_dat_file = optarg;
+      break;
+
+    case 'o':   /* -o or --out_file */
+      out_file = optarg;
+      break;
+
+    case '?':   /* The user specified an invalid option.  */
+      break;
+
+    case -1:    /* Done with options.  */
+      break;
+
+    default:    /* Something else: unexpected.  */
+      abort ();
+    }
+  }
+  while (next_option != -1);
+
+
+  op_printf("\nRunning the app for %d iteration\n",niter);
+  op_printf("Reading p_q data from: %s\n",p_q_dat_file);
+  op_printf("Wrinting p_q results to: %s\n\n",out_file);
+
+
   float rms;
 
   // timer
@@ -154,7 +223,7 @@ int main(int argc, char **argv) {
 
   op_dat p_bound = op_decl_dat_hdf5(bedges, 1, "int", file, "p_bound");
   op_dat p_x = op_decl_dat_hdf5(nodes, 2, "float", file, "p_x");
-  op_dat p_q = op_decl_dat_hdf5(cells, 4, "float", file, "p_q");
+  op_dat p_q = op_decl_dat_hdf5(cells, 4, "float", p_q_dat_file, "p_q");
   op_dat p_qold = op_decl_dat_hdf5(cells, 4, "float", file, "p_qold");
   op_dat p_adt = op_decl_dat_hdf5(cells, 1, "float", file, "p_adt");
   op_dat p_res = op_decl_dat_hdf5(cells, 4, "float", file, "p_res");
@@ -179,7 +248,7 @@ int main(int argc, char **argv) {
     op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
+  op_partition("PdsadTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
 
   int g_ncell = op_get_size(cells);
@@ -189,8 +258,14 @@ int main(int argc, char **argv) {
 
   // main time-marching loop
 
-  niter = 1000;
+  //niter = 200;
 
+  //float lastrmss[100];
+  float sx=4950.0; //1+2+3+...+99  x coords of 99 elements
+  float sy=0.0;
+  float sx2=328350.0; //1*1+2*2+...+99*99
+  float sxy=0.0;
+  
   for (int iter = 1; iter <= niter; iter++) {
 
     //  save old flow solution
@@ -248,6 +323,42 @@ int main(int argc, char **argv) {
     //  print iteration history
 
     rms = sqrtf(rms / (float)g_ncell);
+/*
+    if (iter<100){
+      lastrms.push(rms);
+      sumlastrms+=rms;
+    } else {
+      sumlastrms-=lastrms.front();
+      lastrms.pop();
+      lastrms.push(rms);
+      sumlastrms+=rms;
+      if ( abs((log(sumlastrms/100) - log(rms))) < abs(0.0000001*log(rms)) ) {
+        op_printf("breaking at iteration %d\n",iter);
+        //print_queue(lastrms);
+        //op_printf("sumlastrms: %10.5e, rms: %10.5e, abs((sumlastrms/100 - rms)): %10.5e, abs(0.01*rms): %10.5e\n",sumlastrms,rms,abs((sumlastrms/100 - rms)),abs(0.01*rms));
+        break;
+      }
+    }
+    */
+    //equation from: https://www.mathsisfun.com/data/least-squares-regression.html
+    if (iter%100 == 0 && (rms<1e-7) ){  //20500
+      float y_new=log(rms);
+      float m=(99*sxy-sx*sy)/(99*sx2-sx*sx);
+      float b=(sy-m*sx)/99;
+      float y_pred=m*100+b;
+
+      if (abs(y_pred-y_new)<0.00001){  //
+        op_printf("Breaking at iteration %d\n",iter);
+        break;
+      }
+
+      sy=0.0;
+      sxy=0.0;
+    } else {
+      float y = log(rms);
+      sy+=y;
+      sxy+=y*(iter%100);
+    }
 
     if (iter % 100 == 0)
       op_printf(" %d  %10.5e \n", iter, rms);
@@ -267,6 +378,9 @@ int main(int argc, char **argv) {
   }
 
   op_timers(&cpu_t2, &wall_t2);
+
+
+ op_fetch_data_hdf5_file(p_q, out_file);
 
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);

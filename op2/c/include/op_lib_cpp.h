@@ -210,6 +210,10 @@ inline void op_mpi_reduce(op_arg *args, double *data) {
   op_mpi_reduce_double(args, data);
 }
 
+inline void op_mpi_reduce(op_arg *args, long double *data) {
+  op_mpi_reduce_long_double(args, data);
+}
+
 inline void op_mpi_reduce(op_arg *args, int *data) {
   op_mpi_reduce_int(args, data);
 }

@@ -320,6 +320,8 @@ void op_mpi_reduce_float(op_arg *args, float *data);
 
 void op_mpi_reduce_double(op_arg *args, double *data);
 
+void op_mpi_reduce_long_double(op_arg *args, long double *data);
+
 void op_mpi_reduce_int(op_arg *args, int *data);
 
 void op_mpi_reduce_bool(op_arg *args, bool *data);

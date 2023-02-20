@@ -14,6 +14,7 @@ inline void update(const float *qold, float *q, float *res, const float *adt,
     q[n] = qold[n] - del;
     res[n] = 0.0f;
     rmsl += del * del;
+    //*rms=MAX(*rms,abs(del));
   }
   *rms += rmsl;
 }
@@ -36,13 +37,13 @@ void op_par_loop_update(char const *name, op_set set,
   args[4] = arg4;
   //create aligned pointers for dats
   ALIGNED_float const float * __restrict__ ptr0 = (float *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,float_ALIGN);
   ALIGNED_float       float * __restrict__ ptr1 = (float *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,float_ALIGN);
   ALIGNED_float       float * __restrict__ ptr2 = (float *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2,float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr3 = (float *) arg3.data;
-  DECLARE_PTR_ALIGNED(ptr3, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr3,float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;

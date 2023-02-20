@@ -212,6 +212,9 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
 
+
+ op_fetch_data_hdf5_file(p_q, "p_q-single_2.8m.h5");
+
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
   op_exit();

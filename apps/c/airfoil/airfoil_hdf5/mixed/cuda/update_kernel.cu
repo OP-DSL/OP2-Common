@@ -5,7 +5,7 @@
 __constant__ int direct_update_stride_OP2CONSTANT;
 int direct_update_stride_OP2HOST=-1;
 //user function
-__device__ void update_gpu( const double *qold, double *q, double *res,
+__device__ void update_gpu( const double *qold, double *q, float *res,
                    const double *adt, double *rms) {
   double del, adti, rmsl;
 
@@ -26,7 +26,7 @@ __device__ void update_gpu( const double *qold, double *q, double *res,
 __global__ void op_cuda_update(
   const double *__restrict arg0,
   double *arg1,
-  double *arg2,
+  float *arg2,
   const double *__restrict arg3,
   double *arg4,
   int   set_size ) {
@@ -123,7 +123,7 @@ void op_par_loop_update(char const *name, op_set set,
     op_cuda_update<<<nblocks,nthread,nshared>>>(
       (double *) arg0.data_d,
       (double *) arg1.data_d,
-      (double *) arg2.data_d,
+      (float *) arg2.data_d,
       (double *) arg3.data_d,
       (double *) arg4.data_d,
       set->size );

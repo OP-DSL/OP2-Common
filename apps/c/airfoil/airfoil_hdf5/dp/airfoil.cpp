@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
     rms = sqrt(rms / (double)g_ncell);
 
     if (iter % 100 == 0)
-      op_printf(" %d  %10.5e \n", iter, rms);
+      op_printf(" %d  %10.15e \n", iter, rms);
 
     if (iter % 1000 == 0 &&
         g_ncell == 720000) { // defailt mesh -- for validation testing
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_q, "file_name.h5");
+  op_fetch_data_hdf5_file(p_q, "p_q-double_2.8m.h5");
 
   // printf("Root process = %d\n",op_is_root());
 

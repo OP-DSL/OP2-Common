@@ -3,9 +3,9 @@
 //
 
 //user function
-inline void bres_calc(const double *x1, const double *x2, const double *q1,
-                      const double *adt1, double *res1, const int *bound) {
-  double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
+inline void bres_calc(const long double *x1, const long double *x2, const long double *q1,
+                      const long double *adt1, long double *res1, const int *bound) {
+  long double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0] - x2[0];
   dy = x1[1] - x2[1];
@@ -43,11 +43,8 @@ inline void bres_calc(const double *x1, const double *x2, const double *q1,
 #if defined __clang__ || defined __GNUC__
 __attribute__((always_inline))
 #endif
-inline void
-bres_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
-              const double q1[][SIMD_VEC], const double adt1[][SIMD_VEC],
-              double res1[][SIMD_VEC], const int bound[][SIMD_VEC], int idx) {
-  double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
+inline void bres_calc_vec( const long double x1[][SIMD_VEC], const long double x2[][SIMD_VEC], const long double q1[][SIMD_VEC], const long double adt1[][SIMD_VEC], long double res1[][SIMD_VEC], const int bound[][SIMD_VEC], int idx ) {
+  long double dx, dy, mu, ri, p1, vol1, p2, vol2, f;
 
   dx = x1[0][idx] - x2[0][idx];
   dy = x1[1][idx] - x2[1][idx];
@@ -55,7 +52,7 @@ bres_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
   ri = 1.0f / q1[0][idx];
   p1 = gm1 * (q1[3][idx] - 0.5f * ri * (q1[1][idx] * q1[1][idx] + q1[2][idx] * q1[2][idx]));
 
-  if (bound[0][idx] == 1) {
+  if (bound[0][idx]== 1) {
     res1[1][idx] = +p1 * dy;
     res1[2][idx] = -p1 * dx;
   } else {
@@ -79,6 +76,7 @@ bres_calc_vec(const double x1[][SIMD_VEC], const double x2[][SIMD_VEC],
         mu * (q1[3][idx] - qinf[3]);
     res1[3][idx] = f;
   }
+
 }
 #endif
 
@@ -101,18 +99,18 @@ void op_par_loop_bres_calc(char const *name, op_set set,
   args[4] = arg4;
   args[5] = arg5;
   //create aligned pointers for dats
-  ALIGNED_double const double * __restrict__ ptr0 = (double *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, double_ALIGN);
-  ALIGNED_double const double * __restrict__ ptr1 = (double *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, double_ALIGN);
-  ALIGNED_double const double * __restrict__ ptr2 = (double *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, double_ALIGN);
-  ALIGNED_double const double * __restrict__ ptr3 = (double *) arg3.data;
-  DECLARE_PTR_ALIGNED(ptr3, double_ALIGN);
-  ALIGNED_double       double * __restrict__ ptr4 = (double *) arg4.data;
-  DECLARE_PTR_ALIGNED(ptr4, double_ALIGN);
+  ALIGNED_long_double const long double * __restrict__ ptr0 = (long double *) arg0.data;
+  DECLARE_PTR_ALIGNED(ptr0,long_double_ALIGN);
+  ALIGNED_long_double const long double * __restrict__ ptr1 = (long double *) arg1.data;
+  DECLARE_PTR_ALIGNED(ptr1,long_double_ALIGN);
+  ALIGNED_long_double const long double * __restrict__ ptr2 = (long double *) arg2.data;
+  DECLARE_PTR_ALIGNED(ptr2,long_double_ALIGN);
+  ALIGNED_long_double const long double * __restrict__ ptr3 = (long double *) arg3.data;
+  DECLARE_PTR_ALIGNED(ptr3,long_double_ALIGN);
+  ALIGNED_long_double       long double * __restrict__ ptr4 = (long double *) arg4.data;
+  DECLARE_PTR_ALIGNED(ptr4,long_double_ALIGN);
   ALIGNED_int const int * __restrict__ ptr5 = (int *) arg5.data;
-  DECLARE_PTR_ALIGNED(ptr5, int_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr5,int_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -130,17 +128,16 @@ void op_par_loop_bres_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
-        op_mpi_test_all(nargs, args);
-      if ((n + SIMD_VEC >= set->core_size) &&
-          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
+      if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)
+        op_mpi_test_all(nargs,args);
+      if ((n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
-      ALIGNED_double double dat0[2][SIMD_VEC];
-      ALIGNED_double double dat1[2][SIMD_VEC];
-      ALIGNED_double double dat2[4][SIMD_VEC];
-      ALIGNED_double double dat3[1][SIMD_VEC];
-      ALIGNED_double double dat4[4][SIMD_VEC];
+      ALIGNED_long_double long double dat0[2][SIMD_VEC];
+      ALIGNED_long_double long double dat1[2][SIMD_VEC];
+      ALIGNED_long_double long double dat2[4][SIMD_VEC];
+      ALIGNED_long_double long double dat3[1][SIMD_VEC];
+      ALIGNED_long_double long double dat4[4][SIMD_VEC];
       ALIGNED_int int dat5[1][SIMD_VEC];
       #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
@@ -148,7 +145,7 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
         int idx2_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];
         int idx3_1 = 1 * arg2.map_data[(n+i) * arg2.map->dim + 0];
-        int idx5_1 = 1 * (n + i);
+        int idx5_1 = 1 * (n+i);
 
         dat0[0][i] = (ptr0)[idx0_2 + 0];
         dat0[1][i] = (ptr0)[idx0_2 + 1];
@@ -169,10 +166,18 @@ void op_par_loop_bres_calc(char const *name, op_set set,
         dat4[3][i] = 0.0;
 
         dat5[0][i] = (ptr5)[idx5_1 + 0];
+
       }
       #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        bres_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, i);
+        bres_calc_vec(
+          dat0,
+          dat1,
+          dat2,
+          dat3,
+          dat4,
+          dat5,
+          i);
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
         int idx4_4 = 4 * arg2.map_data[(n+i) * arg2.map->dim + 0];

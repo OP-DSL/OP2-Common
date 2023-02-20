@@ -57,14 +57,14 @@ void op_par_loop_res_calc(char const *name, op_set set,
       map3idx = arg2.map_data[n * arg2.map->dim + 1];
 
       res_calc(
-        &((double*)arg0.data)[2 * map0idx],
-        &((double*)arg0.data)[2 * map1idx],
-        &((double*)arg2.data)[4 * map2idx],
-        &((double*)arg2.data)[4 * map3idx],
-        &((double*)arg4.data)[1 * map2idx],
-        &((double*)arg4.data)[1 * map3idx],
-        &((double*)arg6.data)[4 * map2idx],
-        &((double*)arg6.data)[4 * map3idx]);
+        &((long double*)arg0.data)[2 * map0idx],
+        &((long double*)arg0.data)[2 * map1idx],
+        &((long double*)arg2.data)[4 * map2idx],
+        &((long double*)arg2.data)[4 * map3idx],
+        &((long double*)arg4.data)[1 * map2idx],
+        &((long double*)arg4.data)[1 * map3idx],
+        &((long double*)arg6.data)[4 * map2idx],
+        &((long double*)arg6.data)[4 * map3idx]);
     }
   }
 

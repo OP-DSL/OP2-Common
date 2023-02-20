@@ -7,13 +7,13 @@
 #define MAX_CONST_SIZE 128
 #endif
 
-__constant__ double gam_cuda;
-__constant__ double gm1_cuda;
-__constant__ double cfl_cuda;
-__constant__ double eps_cuda;
-__constant__ double mach_cuda;
-__constant__ double alpha_cuda;
-__constant__ double qinf_cuda[4];
+__constant__ long double gam_cuda;
+__constant__ long double gm1_cuda;
+__constant__ long double cfl_cuda;
+__constant__ long double eps_cuda;
+__constant__ long double mach_cuda;
+__constant__ long double alpha_cuda;
+__constant__ long double qinf_cuda[4];
 
 //header
 #include "op_lib_cpp.h"

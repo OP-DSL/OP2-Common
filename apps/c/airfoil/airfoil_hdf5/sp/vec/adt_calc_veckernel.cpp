@@ -35,10 +35,7 @@ inline void adt_calc(const float *x1, const float *x2, const float *x3,
 #if defined __clang__ || defined __GNUC__
 __attribute__((always_inline))
 #endif
-inline void
-adt_calc_vec(const float x1[][SIMD_VEC], const float x2[][SIMD_VEC],
-             const float x3[][SIMD_VEC], const float x4[][SIMD_VEC],
-             const float q[][SIMD_VEC], float adt[][SIMD_VEC], int idx) {
+inline void adt_calc_vec( const float x1[][SIMD_VEC], const float x2[][SIMD_VEC], const float x3[][SIMD_VEC], const float x4[][SIMD_VEC], const float q[][SIMD_VEC], float adt[][SIMD_VEC], int idx ) {
   float dx, dy, ri, u, v, c;
 
   ri = 1.0f / q[0][idx];
@@ -48,21 +45,22 @@ adt_calc_vec(const float x1[][SIMD_VEC], const float x2[][SIMD_VEC],
 
   dx = x2[0][idx] - x1[0][idx];
   dy = x2[1][idx] - x1[1][idx];
-  adt[0][idx] = fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+  adt[0][idx]= fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   dx = x3[0][idx] - x2[0][idx];
   dy = x3[1][idx] - x2[1][idx];
-  adt[0][idx] += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+  adt[0][idx]+= fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   dx = x4[0][idx] - x3[0][idx];
   dy = x4[1][idx] - x3[1][idx];
-  adt[0][idx] += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+  adt[0][idx]+= fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
   dx = x1[0][idx] - x4[0][idx];
   dy = x1[1][idx] - x4[1][idx];
-  adt[0][idx] += fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
+  adt[0][idx]+= fabs(u * dy - v * dx) + c * sqrt(dx * dx + dy * dy);
 
-  adt[0][idx] = (adt[0][idx]) / cfl;
+  adt[0][idx]= (adt[0][idx]) / cfl;
+
 }
 #endif
 
@@ -86,17 +84,17 @@ void op_par_loop_adt_calc(char const *name, op_set set,
   args[5] = arg5;
   //create aligned pointers for dats
   ALIGNED_float const float * __restrict__ ptr0 = (float *) arg0.data;
-  DECLARE_PTR_ALIGNED(ptr0, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr0,float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr1 = (float *) arg1.data;
-  DECLARE_PTR_ALIGNED(ptr1, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr1,float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr2 = (float *) arg2.data;
-  DECLARE_PTR_ALIGNED(ptr2, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr2,float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr3 = (float *) arg3.data;
-  DECLARE_PTR_ALIGNED(ptr3, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr3,float_ALIGN);
   ALIGNED_float const float * __restrict__ ptr4 = (float *) arg4.data;
-  DECLARE_PTR_ALIGNED(ptr4, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr4,float_ALIGN);
   ALIGNED_float       float * __restrict__ ptr5 = (float *) arg5.data;
-  DECLARE_PTR_ALIGNED(ptr5, float_ALIGN);
+  DECLARE_PTR_ALIGNED(ptr5,float_ALIGN);
 
   // initialise timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -114,10 +112,9 @@ void op_par_loop_adt_calc(char const *name, op_set set,
     #ifdef VECTORIZE
     #pragma novector
     for ( int n=0; n<(exec_size/SIMD_VEC)*SIMD_VEC; n+=SIMD_VEC ){
-      if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
-        op_mpi_test_all(nargs, args);
-      if ((n + SIMD_VEC >= set->core_size) &&
-          (n + SIMD_VEC - set->core_size < SIMD_VEC)) {
+      if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)
+        op_mpi_test_all(nargs,args);
+      if ((n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)) {
         op_mpi_wait_all(nargs, args);
       }
       ALIGNED_float float dat0[2][SIMD_VEC];
@@ -132,8 +129,8 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         int idx1_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 1];
         int idx2_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 2];
         int idx3_2 = 2 * arg0.map_data[(n+i) * arg0.map->dim + 3];
-        int idx4_4 = 4 * (n + i);
-        int idx5_1 = 1 * (n + i);
+        int idx4_4 = 4 * (n+i);
+        int idx5_1 = 1 * (n+i);
 
         dat0[0][i] = (ptr0)[idx0_2 + 0];
         dat0[1][i] = (ptr0)[idx0_2 + 1];
@@ -151,15 +148,24 @@ void op_par_loop_adt_calc(char const *name, op_set set,
         dat4[1][i] = (ptr4)[idx4_4 + 1];
         dat4[2][i] = (ptr4)[idx4_4 + 2];
         dat4[3][i] = (ptr4)[idx4_4 + 3];
+
       }
       #pragma omp simd simdlen(SIMD_VEC)
       for ( int i=0; i<SIMD_VEC; i++ ){
-        adt_calc_vec(dat0, dat1, dat2, dat3, dat4, dat5, i);
+        adt_calc_vec(
+          dat0,
+          dat1,
+          dat2,
+          dat3,
+          dat4,
+          dat5,
+          i);
       }
       for ( int i=0; i<SIMD_VEC; i++ ){
-        int idx5_1 = 1 * (n + i);
+        int idx5_1 = 1 * (n+i);
 
         (ptr5)[idx5_1 + 0] = dat5[0][i];
+
       }
     }
 
