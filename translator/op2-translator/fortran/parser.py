@@ -224,7 +224,7 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: Optional[f2003.Component_Spec_Li
     map_idx = parseIntLiteral(args_list[1], loc, True)
     map_ptr: Optional[str] = parseIdentifier(args_list[2], loc)
 
-    if map_ptr == "OP_ID":
+    if map_ptr.upper() == "OP_ID":
         map_ptr = None
 
     dat_dim = parseIntLiteral(args_list[3], loc, True)
@@ -262,7 +262,7 @@ def parseArgIdx(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: L
     map_idx = parseIntLiteral(args.items[0], loc, True)
     map_ptr: Optional[str] = parseIdentifier(args.items[1], loc)
 
-    if map_ptr == "OP_ID":
+    if map_ptr.upper() == "OP_ID":
         map_ptr = None
 
     loop.addArgIdx(loc, map_ptr, map_idx)
