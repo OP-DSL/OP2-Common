@@ -8,6 +8,14 @@
 #define IEH_SEGMENT_ID 3
 #define INH_SEGMENT_ID 4
 
+#define MSC_SEGMENT_ID 5
+
+#define OP2_GPI_QUEUE_ID 1
+
+extern char *eeh_segment_ptr;
+extern char *ieh_segment_ptr;
+extern char *enh_segment_ptr;
+extern char *inh_segment_ptr;
 
 //TODO CHANGE VALUE
 #define GPI_TIMEOUT 1500 /* Standard GPI timeout for timing functions*/

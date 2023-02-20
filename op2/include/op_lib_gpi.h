@@ -34,7 +34,7 @@
 #define __OP_LIB_GPI_H
 
 /*
- * written by: Gihan R. Mudalige, 01-03-2011
+ * written by: Highly Predictable Calamity Group 2022-2023
  */
 
 #include <op_lib_core.h>

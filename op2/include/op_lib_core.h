@@ -152,7 +152,13 @@ typedef struct {
   int dirty_hd;     /* flag to indicate dirty status on host and device */
   int user_managed; /* indicates whether the user is managing memory */
   void *mpi_buffer; /* pointer to hold the mpi buffer struct for the op_dat*/
-  void *gpi_buffer; /* pointer to hold the gpi buffer struct for the op_dat*/
+#ifdef HAVE_GPI
+  void *gpi_buffer;       /* pointer to hold the gpi buffer struct for the op_dat*/
+  char *loc_eeh_seg_off;  /* Dat offset into local segment */
+  char *loc_enh_seg_off;  /* Dat offset into local segment */
+  char *loc_ieh_seg_off;  /* Dat offset into local segment */
+  char *loc_inh_seg_off;  /* Dat offset into local segment */
+#endif
 } op_dat_core;
 
 typedef op_dat_core *op_dat;

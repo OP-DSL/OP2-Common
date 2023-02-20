@@ -346,7 +346,7 @@ static void create_nonexec_export_list(op_set set, int *temp_list,
  * allocated for MPI_Allgathers, thus use only when debugging code
  *******************************************************************************/
 
-int +is_onto_map(op_map map) {
+int is_onto_map(op_map map) {
   // create new communicator
   int my_rank, comm_size;
   MPI_Comm OP_CHECK_WORLD;

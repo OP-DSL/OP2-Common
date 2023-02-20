@@ -80,6 +80,9 @@ typedef struct {
   int *sizes;
   // the list of all elements
   int *list;
+#ifdef HAVE_GPI
+  int *remote_segment_offsets; /* Remote segment offset list */
+#endif
 } halo_list_core;
 
 typedef halo_list_core *halo_list;

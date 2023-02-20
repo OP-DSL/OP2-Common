@@ -71,18 +71,43 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
         GPI_FAIL("Export list and set mismatch\n");
     }
 
+    //dat offset inside eeh segment
+    //Note - changed to int to not perform addition on pointer type
+    // and simplifies offset logic as operations are now performed on byte count.
+    void *dat_offset_addr = (void*)((int)eeh_segment_ptr + (int)dat->loc_eeh_seg_off);
+
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
-        //TODO time to do some thinking here...
+        //Can reuse the exp_exec_list->disps[i] as this gives the per rank displacement into the dat buffer.
 
         //memcpy into eeh segment appropriately
+        //TODO check the offsets are correct for the dest w.r.t bytes n stuff
+        memcpy(((void*)dat_offset_addr + exp_exec_list->disps[i]* dat->size + j* dat->size),
+               (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
+
       int gpi_rank;
       gaspi_proc_rank((gaspi_rank_t*)&gpi_rank);
-      //TODO
-      //gaspi_write_notify();
+
+      //get remote offset for that rank
+
+      gaspi_offset_t remote_offset = exp_exec_list->remote_segment_offsets[i];
+
+      //TODO SAFELY
+      gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
+                        (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size, /* local segment offset*/
+                        exp_exec_list->ranks[i], /* remote rank*/
+                        IEH_SEGMENT_ID, /* remote segment id*/
+                        remote_offset, /* remote offset*/
+                        dat->size * exp_exec_list->sizes[i], /* send size*/
+                        dat->index, /* notification id*/
+                        gpi_rank, /* notification value*/
+                        OP2_GPI_QUEUE_ID, /* queue id*/
+                        GPI_TIMEOUT /* timeout*/
+                        ); 
+
     }
 
 }

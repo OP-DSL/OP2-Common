@@ -17,3 +17,4 @@
 *.swp
 
 .vscode/
+.gpi2.*
