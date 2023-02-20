@@ -49,8 +49,9 @@ class Scheme(Findable):
 
         try:
             kernel_func = self.translateKernel(loop, program, app, kernel_idx)
-        except:
-            print(f"Error: kernel translation for kernel {kernel_idx} failed ({self})")
+        except Exception as e:
+            print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
+            print(e)
             return (None, extension, False)
 
         # Generate source from the template
