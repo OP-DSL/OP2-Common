@@ -114,10 +114,10 @@ class Program:
         if len(self.loops) > 0:
             loops_str = indent(f"\n{loops_str}", "    ")
 
-        if len(self.entities) > 0:
-            entities_str = indent(f"\n{entities_str}\n", "    ")
+        # if len(self.entities) > 0:
+        #     entities_str = indent(f"\n{entities_str}\n", "    ")
 
-        return f"Program in '{self.path}':\n" + consts_str + loops_str + entities_str
+        return f"Program in '{self.path}':\n" + consts_str + loops_str # + entities_str
 
 
 @dataclass
