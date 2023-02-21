@@ -19,13 +19,14 @@
         fprintf(stderr, __VA_ARGS__);   \
         exit(1);                        \
     }                                   \
-    )
+)
 
 
 
 /* GPI reimplementation of op_exchange_halo originally found in op_mpi_rt_support.cpp 
  * IS_COMMON 
  * Lots of this is common, so can be put there. 
+ * TODO checks are required to ensure the offsets are correct within the segments.
 */
 void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     op_dat dat = arg->dat;
@@ -60,6 +61,9 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
     halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
 
+    int gpi_rank;
+    gaspi_proc_rank((gaspi_rank_t*)&gpi_rank);
+
 
     //-------first exchange exec elements related to this data array--------
 
@@ -88,12 +92,9 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
 
-      int gpi_rank;
-      gaspi_proc_rank((gaspi_rank_t*)&gpi_rank);
-
       //get remote offset for that rank
 
-      gaspi_offset_t remote_offset = exp_exec_list->remote_segment_offsets[i];
+      gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
 
       //TODO SAFELY
       gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
@@ -109,6 +110,49 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                         ); 
 
     }
+
+
+    //Second exchange for nonexec elements. 
+    if (compare_sets(imp_nonexec_list->set, dat->set) == 0){
+        GPI_FAIL("Error: Non-Import list and set mismatch");
+    }
+
+    if(compare_sets(exp_nonexec_list->set, dat->set) == 0){
+        GPI_FAIL("Error: Non-Export list and set mismatch");
+    }
+
+    dat_offset_addr = (void*)((int)enh_segment_ptr + (int) dat->loc_enh_seg_off);
+
+    for (int i =0; i < exp_nonexec_list->ranks_size; i++){
+        for (int j=0;j<exp_nonexec_list->sizes[i];j++){
+            set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];
+
+            memcpy((void*)dat_offset_addr+exp_nonexec_list->disps[i]* dat->size + j *dat->size,
+                   (void*)&dat->data[dat->size * (set_elem_index)],
+                    dat->size);
+
+        }
+        gaspi_offset_t remote_offset = (gaspi_offset_t) exp_nonexec_list->remote_segment_offsets[i];
+
+        //TODO GPI SAFE QUEUE
+        gaspi_write_notify(
+                           ENH_SEGMENT_ID, /* local segment */
+                           (gaspi_offset_t) dat->loc_enh_seg_off + exp_nonexec_list->disps[i]*dat->size, /* local segment offset*/
+                           exp_nonexec_list->ranks[i], /* remote rank*/
+                           INH_SEGMENT_ID, /* remote segment */
+                           remote_offset, /* remote segment offset*/
+                           dat->size * exp_nonexec_list->sizes[i], /* data to send (in bytes)*/
+                           dat->index, /* notification id*/
+                           gpi_rank, /* notification value */
+                           OP2_GPI_QUEUE_ID, /* queue id*/
+                           GPI_TIMEOUT /* timeout */
+                           );
+    }
+
+
+    //Finish up
+    dat->dirtybit =0;
+    arg->sent=1;
 
 }
 
