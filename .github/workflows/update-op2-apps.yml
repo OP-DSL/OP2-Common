@@ -1,0 +1,54 @@
+name: update-op2-apps
+on:
+  push:
+    paths:
+      - 'apps/**'
+      - 'translator/**'
+      - 'makefiles/*_app.mk'
+      - '.github/workflows/update-op2-apps.yml'
+    branches:
+      - 'master'
+
+jobs:
+  update-op2-apps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: OP2-Common
+
+      - name: Checkout OP2-APPS
+        uses: actions/checkout@v2
+        with:
+          repository: OP-DSL/OP2-APPS
+          path: OP2-APPS
+          token: ${{ secrets.OP2_APPS_TOKEN }}
+
+      - name: Configure
+        working-directory: OP2-Common/op2
+        run: |
+          make config
+
+      - name: Translate apps
+        run: |
+          FILES=$(find OP2-Common/apps -name Makefile | xargs grep -l 'include.*[cf]_app.mk')
+          for file in $FILES; do make -C $(dirname $file) .generated; done
+
+      - name: Update OP2-APPS
+        run: |
+          rsync -a --exclude='.gitignore' --delete OP2-Common/apps/ OP2-APPS/apps/
+
+      - name: Configure git name and email
+        working-directory: OP2-APPS
+        run: |
+          git config user.name 'opdslapps'
+          git config user.email '<>'
+
+      - name: Commit and push OP2-APPS
+        working-directory: OP2-APPS
+        run: |
+          COMMIT_MSG=$(git --git-dir ../OP2-Common/.git log -n 1 --pretty=format:"%h %s" $GITHUB_SHA)
+          git add .
+          git commit -m "Track \"$COMMIT_MSG\"" || true
+          git push

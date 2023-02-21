@@ -8,7 +8,7 @@ on:
     branches:
       - master
   release:
-    types: 
+    types:
       - created
 
 jobs:
@@ -28,8 +28,7 @@ jobs:
 
     env:
       OP2_COMPILER: gnu
-      OP2_INSTALL_PATH: "$(GITHUB_WORKSPACE)/op2"
-      NV_ARCH: Pascal
+      # NV_ARCH: Pascal
 
     steps:
       - name: Checkout repository
@@ -49,18 +48,18 @@ jobs:
       #     cuda: '11.2.2'
       #     method: 'network'
       #     sub-packages: '[ "cudart", "nvcc" ]'
-   
+
       # - name: Link CUDA runtime
       #   if: ${{ matrix.optimisation == 'cuda' }}
       #   run: sudo ln -s "${{steps.install-cuda-toolkit.outputs.CUDA_PATH}}"/lib64/libcudart.so /usr/lib/libcudart.so
 
-      - name: Build OP2 backend
-        working-directory: op2/${{ matrix.language.name }}
-        run: make core seq openmp # TODO: Only build targets required for active the matrix config
+      - name: Make build config
+        working-directory: op2
+        run: make config
 
-      - name: Run OP2 translator
-        if: ${{ matrix.optimisation != 'seq' }}
-        run: python3 $GITHUB_WORKSPACE/translator/${{ matrix.language.name }}/python/op2.py airfoil.${{ matrix.language.ext }}
+      - name: Build OP2 backend
+        working-directory: op2
+        run: make -j seq openmp # TODO: Only build targets required for active the matrix config
 
       - name: Build airfoil
         run: make airfoil_${{ matrix.optimisation }}
@@ -70,7 +69,7 @@ jobs:
         run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
 
       - name: Run airfoil
-        run: ./airfoil_${{ matrix.optimisation }} > ~/output.txt                      
+        run: ./airfoil_${{ matrix.optimisation }} > ~/output.txt
 
       - name: Validate airfoil output
         run: grep -q "This test is considered PASSED" ~/output.txt || exit 1
@@ -80,8 +79,8 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: airfoil-${{ matrix.language.name }}-${{ matrix.optimisation }}-${{ matrix.mesh }}-output
-          path: ~/output.txt 
-  
+          path: ~/output.txt
+
 
   # analyse-airfoil:
   #   runs-on: ubuntu-latest
