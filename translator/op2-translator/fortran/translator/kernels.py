@@ -284,7 +284,7 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
             return None, False
 
         if not isinstance(node.items[2], f2003.Level_2_Expr):
-            raise OpError(f"Error: unexpected statement while inserting atomics: {node} ({repr(node)})")
+            raise OpError(f"Error: unexpected statement while inserting atomics: {node}")
 
 
         replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), f2003.Int_Literal_Constant('0'))
