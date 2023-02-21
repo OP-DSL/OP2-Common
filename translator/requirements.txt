@@ -6,3 +6,4 @@ jinja2
 pylint
 mypy
 pcpp
+sympy
