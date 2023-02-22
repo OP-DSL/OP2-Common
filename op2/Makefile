@@ -166,15 +166,17 @@ OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/
 
 # TODO - not sure what to add here at the moment
 OP2_GPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	gpi/op_mpi_core.o \
-	gpi/op_mpi_part_core.o \
-	gpi/op_mpi_decl.o \
-	gpi/op_mpi_rt_support.o \
-	gpi/op_mpi_hdf5.o \
-	gpi/op_mpi_util.o \
-	gpi/op_perf_common.o \
+	gpi/op_gpi_core.o \
+	gpi/op_gpi_rt_support.o \
+	gpi/op_gpi_util.o \
+	gpi/op_gpi_performance.o \
+	common/op_perf_common+gpi.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o)
+# Potentially might want to include these once they're implemented:
+#	gpi/op_mpi_part_core.o \
+#	gpi/op_mpi_decl.o \
+#	gpi/op_mpi_hdf5.o \
 
 # Directory rules
 $(OBJ):
