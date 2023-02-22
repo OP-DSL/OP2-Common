@@ -88,7 +88,6 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
 
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
 
-      //TODO SAFELY
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
@@ -126,7 +125,6 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
         }
         gaspi_offset_t remote_offset = (gaspi_offset_t) exp_nonexec_list->remote_segment_offsets[i];
 
-        //TODO GPI SAFE QUEUE
         GPI_QUEUE_SAFE( gaspi_write_notify(
                            ENH_SEGMENT_ID, /* local segment */
                            (gaspi_offset_t) dat->loc_enh_seg_off + exp_nonexec_list->disps[i]*dat->size, /* local segment offset*/
@@ -175,7 +173,6 @@ void op_gpi_waitall(op_arg *arg){
 
     /* Receive for exec elements*/
     for(int i=0;i<buff->exec_recv_count;i++){
-        //GPI_SAFE( );
         GPI_SAFE( gaspi_notify_waitsome(IEH_SEGMENT_ID, 
                             dat->index,
                             1,
@@ -210,7 +207,6 @@ void op_gpi_waitall(op_arg *arg){
 
     /* Receive for nonexec elements*/
     for(int i=0;i<buff->nonexec_recv_count;i++){
-        //GPI_SAFE_QUEUE( );
         GPI_SAFE( gaspi_notify_waitsome(INH_SEGMENT_ID, 
                             dat->index,
                             1,

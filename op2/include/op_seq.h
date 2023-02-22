@@ -111,7 +111,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
 #ifdef HAVE_GPI
-      op_gpi_wait_all(20, args);
+      op_gpi_waitall_args(20, args);
 #else
       op_mpi_wait_all(20, args);
 #endif
@@ -124,7 +124,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   }
   if (n_upper == set->core_size || n_upper == 0)
 #ifdef HAVE_GPI
-    op_gpi_wait_all(N, args);
+    op_gpi_waitall_args(N, args);
 #else
     op_mpi_wait_all(N, args);
 #endif
