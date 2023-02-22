@@ -201,7 +201,7 @@ void op_gpi_waitall(op_arg *arg){
 
 
         // Copy the data into the op_dat->data array
-        memcpy(obj->memcpy_offset, (void*) obj->recv_addr, obj->size);
+        memcpy(obj->memcpy_addr, (void*) obj->segment_recv_addr, obj->size);
     }
     
 
@@ -234,7 +234,7 @@ void op_gpi_waitall(op_arg *arg){
         op_gpi_recv_obj *obj = &nonexec_recv_objs[obj_idx]; /* not neccessary but looks nicer later*/
         
         // Copy the data into the op_dat->data array
-        memcpy(obj->memcpy_offset, (void*) obj->recv_addr, obj->size);
+        memcpy(obj->memcpy_addr, (void*) (inh_segment_ptr + obj->segment_recv_offset), obj->size);
     }
 
 

@@ -48,6 +48,11 @@
 #ifndef OP_MPI_CORE_NOMPI
 #include <mpi.h>
 
+
+#ifdef HAVE_GPI
+#include <GASPI.h>
+#endif
+
 /** Define the root MPI process **/
 #ifdef MPI_ROOT
 #undef MPI_ROOT
@@ -81,7 +86,7 @@ typedef struct {
   // the list of all elements
   int *list;
 #ifdef HAVE_GPI
-  int *remote_segment_offsets; /* Remote segment offset list */
+  gaspi_offset_t *remote_segment_offsets; /* segment offset for each remote rank */
 #endif
 } halo_list_core;
 
