@@ -29,7 +29,7 @@ class FortranSeq(Scheme):
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel function: {loop.kernel}")
 
-        dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
+        dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
@@ -62,7 +62,7 @@ class FortranOpenMP(Scheme):
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel function: {loop.kernel}")
 
-        dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
+        dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
@@ -137,7 +137,7 @@ class FortranCuda(Scheme):
         if len(kernel_entities) > 1:
             raise ParseError(f"ambiguous kernel function: {loop.kernel}")
 
-        dependencies = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
+        dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
