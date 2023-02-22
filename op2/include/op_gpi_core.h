@@ -23,6 +23,7 @@ extern char *ieh_segment_ptr;
 extern char *enh_segment_ptr;
 extern char *inh_segment_ptr;
 
+extern char *msc_segment_ptr;
 
 /* Struct storing information regarding the expected dat elements from who, where, and where to copy to */
 typedef struct{
@@ -38,6 +39,8 @@ struct op_gpi_buffer_core{
   int nonexec_recv_count; /* Number of recieves for import non-execute segment expect (i.e number of remote ranks)*/
   op_gpi_recv_obj *exec_recv_objs; /*  For exec elements of this dat, one for each of the expected notifications*/
   op_gpi_recv_obj *nonexec_recv_objs; /* For nonexec elements of this dat , one for each of the expected notifications*/
+  MPI_Request *pre_exchange_hndl_s; /* data pre exchange handles for sends */
+  MPI_Request *pre_exchange_hndl_r; /* data pre exchange handles for receives */
 };
 
 typedef op_gpi_buffer_core *op_gpi_buffer;

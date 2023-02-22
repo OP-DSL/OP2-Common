@@ -1032,10 +1032,45 @@ void op_halo_create() {
     }
   }
 
-  /*-STEP 9 ---------------- Create MPI/GPI send Buffers-----------------------*/
+  /*-STEP 9   ---------------- Create MPI send Buffers-----------------------*/
   op_dat_entry *item;
+  /**/
 
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
 
+    op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+    halo_list exec_e_list = OP_export_exec_list[dat->set->index];
+    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
+
+    mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
+    mpi_buf->buf_nonexec = (char *)xmalloc((size_t)(nonexec_e_list->size) * (size_t)dat->size);
+
+    halo_list exec_i_list = OP_import_exec_list[dat->set->index];
+    halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
+
+    mpi_buf->s_req = (MPI_Request *)xmalloc(
+        sizeof(MPI_Request) *
+        (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
+    mpi_buf->r_req = (MPI_Request *)xmalloc(
+        sizeof(MPI_Request) *
+        (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
+
+    mpi_buf->s_num_req = 0;
+    mpi_buf->r_num_req = 0;
+    dat->mpi_buffer = mpi_buf;
+  }
+
+  // set dirty bits of all data arrays to 0
+  // for each data array
+  item = NULL;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    dat->dirtybit = 0;
+  }
+
+  /*-STEP 9.5 ---------------- Create GPI send Buffers-----------------------*/
 #ifdef HAVE_GPI
 
   /* Calculate necessary sizes for halo segments*/
@@ -1105,6 +1140,9 @@ void op_halo_create() {
 
       // increment the segment offset by the size of the recv object data
       exec_dat_rank_offset+=recv_obj->size;
+
+
+
     }
 
     int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
@@ -1136,26 +1174,95 @@ void op_halo_create() {
     ieh_size+=imp_exec_list->size* dat->size;
     inh_size+=imp_nonexec_list->size* dat->size;
 
-    /* TODO populate the remote_segment_offset array in the halo_list struct.
+    /* Populate the remote_segment_offset array in the halo_list struct.
     * This is to know where to send data to by communicating with neighbours...
     */
     
-    //We now know where we'd like to receieve everything, so just need to tell everyone else that...
-    //Can do this very inefficiently with a LOT of sends/receives 
-    // I.e. one for each rank for each dat... 
+    /* We now know where we'd like to receieve everything, so just need to tell everyone else that...
+     * Can do this very inefficiently with a LOT of sends/receives 
+     * I.e. one for each rank for each dat... 
+     * Importantly, operations with same O() communication complexity are also done in previous steps...
+     */
 
-    for (;;){}
+    /* SEND */
+
+    // Firstly need to allocate enough room for the sending MPI_Requests...
+    gpi_buf->pre_exchange_hndl_s = (MPI_Request*) xmalloc(sizeof(MPI_Request) * (imp_exec_list->ranks_size + imp_nonexec_list->ranks_size));
+
+    /* Execute elements */
+    for (int i=0;i<imp_exec_list->ranks_size;i++){
+      recv_obj=&gpi_buf->exec_recv_objs[i];
+      MPI_Isend(
+        &recv_obj->segment_recv_offset,
+        1,
+        MPI_LONG,
+        recv_obj->remote_rank,
+        dat->index,
+        OP_MPI_WORLD,
+        &gpi_buf->pre_exchange_hndl_s[i]
+        );
+    }
+
+    /* Non-execute elements */
+    for (int i=0;i<imp_nonexec_list->ranks_size;i++){
+      recv_obj=&gpi_buf->nonexec_recv_objs[i];
+      MPI_Isend(
+        &recv_obj->segment_recv_offset,
+        1,
+        MPI_LONG,
+        recv_obj->remote_rank,
+        1<<31 | dat->index, /* 1 in MSB to indicate non-execute */
+        OP_MPI_WORLD,
+        &gpi_buf->pre_exchange_hndl_s[i+gpi_buf->exec_recv_count] //as sharing a MPI_Request array
+        );
+    }
+
+    /* RECEIVE */
+
+    /* Receiving involves telling MPI where to put the data it recieves. 
+     * Data can be uniquely identified by the sending host and the tag.
+     * As part of the tag, a 1 is added to the most significant bit to indicate
+     * this is for the non-execute elements */
+
+    gpi_buf->pre_exchange_hndl_r = (MPI_Request*)xmalloc(sizeof(MPI_Request) * (exp_exec_list->ranks_size + exp_nonexec_list->ranks_size));
+  
+
+    /* Execute elements */
+    for(int i=0;i<exp_exec_list->ranks_size;i++){
+      MPI_Irecv(&(exp_exec_list->remote_segment_offsets[i]),
+        1,
+        MPI_LONG,
+        exp_exec_list->ranks[i],
+        dat->index,
+        OP_MPI_WORLD,
+        &gpi_buf->pre_exchange_hndl_r[i]
+        );
+    }
+
+    /* Non-execute elements */
+    for(int i=0;i<exp_nonexec_list->ranks_size;i++){
+      MPI_Irecv(&(exp_nonexec_list->remote_segment_offsets[i]),
+        1,
+        MPI_LONG,
+        exp_nonexec_list->ranks[i],
+        1<<31 | dat->index, /* 1 in MSB to indicate non-exec */
+        OP_MPI_WORLD,
+        &gpi_buf->pre_exchange_hndl_r[i + exp_exec_list->ranks_size]
+        );
+    }
   }
   
 
   /* Create the halo segments */
+
+  gaspi_size_t msc_size = 1<<20; /*TODO define good size later... Current 512kB */
 
   /* malloc failure check performed in xmalloc */
   eeh_segment_ptr = (char *) xmalloc((size_t) eeh_size);
   enh_segment_ptr = (char *) xmalloc((size_t) enh_size);
   ieh_segment_ptr = (char *) xmalloc((size_t) ieh_size);
   inh_segment_ptr = (char *) xmalloc((size_t) inh_size);
-
+  msc_segment_ptr = (char *) xmalloc((size_t) msc_size);
 
   GPI_SAFE( gaspi_segment_use(EEH_SEGMENT_ID,
                               (gaspi_pointer_t) eeh_segment_ptr,
@@ -1185,49 +1292,40 @@ void op_halo_create() {
                               GPI_TIMEOUT,
                               GASPI_ALLOC_DEFAULT) )
 
+  GPI_SAFE( gaspi_segment_use(MSC_SEGMENT_ID,
+                              (gaspi_pointer_t) msc_segment_ptr,
+                              msc_size,
+                              OP_GPI_WORLD,
+                              GPI_TIMEOUT,
+                              GASPI_ALLOC_DEFAULT) )
+
 
 
   /* Wait on receiving all remote_segment_offset info */
+  //Note how segment setup done in middle to give more time.
 
+  /* TODO put this in a function that can be called much later to improve startup performance */
+  TAILQ_FOREACH(item, &OP_dat_list, entries){
+    op_dat dat = item->dat;
 
+    op_gpi_buffer gpi_buf = (op_gpi_buffer)dat->gpi_buffer;
 
+    /* Grab the lists */
+    halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
+    halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
+
+    halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
+    halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];//Get halos
+
+    //Wait for sends (TODO - think if this is necessary...)
+    MPI_Waitall(imp_exec_list->ranks_size + imp_nonexec_list->ranks_size, gpi_buf->pre_exchange_hndl_s,MPI_STATUS_IGNORE);
+    
+    //Wait for receives 
+    MPI_Waitall(exp_exec_list->ranks_size + exp_nonexec_list->ranks_size, gpi_buf->pre_exchange_hndl_r,MPI_STATUS_IGNORE);
+  }
 
 #endif /* HAVE_GPI*/
 
-
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-
-    op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-    halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-
-    mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
-    mpi_buf->buf_nonexec = (char *)xmalloc((size_t)(nonexec_e_list->size) * (size_t)dat->size);
-
-    halo_list exec_i_list = OP_import_exec_list[dat->set->index];
-    halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-    mpi_buf->s_req = (MPI_Request *)xmalloc(
-        sizeof(MPI_Request) *
-        (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-    mpi_buf->r_req = (MPI_Request *)xmalloc(
-        sizeof(MPI_Request) *
-        (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-    mpi_buf->s_num_req = 0;
-    mpi_buf->r_num_req = 0;
-    dat->mpi_buffer = mpi_buf;
-  }
-
-  // set dirty bits of all data arrays to 0
-  // for each data array
-  item = NULL;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    dat->dirtybit = 0;
-  }
 
   /*-STEP 10 -------------------- Separate core
    * elements------------------------*/

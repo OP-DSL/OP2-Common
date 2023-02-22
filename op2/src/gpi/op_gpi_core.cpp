@@ -14,6 +14,15 @@
 double t1, t2, c1, c2;
 
 
+/* Segment pointers */
+char *eeh_segment_ptr;
+char *ieh_segment_ptr;
+char *enh_segment_ptr;
+char *inh_segment_ptr;
+
+char *msc_segment_ptr;
+
+
 /* IS_COMMON 
  * Bascially a near perfect copy of op_mpi_halo_exchanges, only 2/3 lines changed. */
 int op_gpi_halo_exchanges(op_set set, int nargs, op_arg *args){
