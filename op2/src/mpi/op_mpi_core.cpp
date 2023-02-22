@@ -49,6 +49,11 @@
 
 #include <op_mpi_core.h>
 
+/* IS_COMMON */
+#ifdef HAVE_GPI
+#include <op_gpi_core.h>
+#endif
+
 //
 // MPI Halo related global variables
 //
@@ -1027,9 +1032,29 @@ void op_halo_create() {
     }
   }
 
-  /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
-
+  /*-STEP 9 ---------------- Create MPI/GPI send Buffers-----------------------*/
   op_dat_entry *item;
+#ifdef HAVE_GPI
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+
+    op_gpi_buffer gpi_buf = (op_gpi_buffer)xmalloc(sizeof(op_gpi_buffer));
+    
+
+    halo_list exec_i_list = OP_import_exec_list[dat->set->index];
+    halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
+  
+    gpi_buf->exec_recv_count=exec_i_list->ranks_size;
+    gpi_buf->nonexec_recv_count=nonexec_i_list->ranks_size;
+
+    gpi_buf->exec_recv_objs=(op_gpi_recv_obj*)xmalloc(gpi_buf->exec_recv_count * sizeof(op_gpi_recv_obj));
+    gpi_buf->nonexec_recv_objs=(op_gpi_recv_obj*)xmalloc(gpi_buf->nonexec_recv_count * sizeof(op_gpi_recv_obj));
+    
+    dat->gpi_buffer = (void*)gpi_buf;
+  }
+
+  /* TODO- populate the op_gpi_recv_obj structs by communicating with the other hosts */
+#endif
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
 
@@ -2070,6 +2095,7 @@ void op_halo_destroy() {
  * Routine to set the dirty bit for an MPI Halo after halo exchange
  *******************************************************************************/
 
+/* IS_COMMON */
 static void set_dirtybit(op_arg *arg, int hd) {
   op_dat dat = arg->dat;
 
@@ -3189,7 +3215,7 @@ int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
   return size;
 }
-
+/* IS_COMMON */
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 
   for (int n = 0; n < nargs; n++) {

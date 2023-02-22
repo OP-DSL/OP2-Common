@@ -100,5 +100,26 @@ void op_gpi_waitall_args(int nargs, op_arg *args){
     }
     op_timers_core(&c2, &t2);
     if (OP_kern_max > 0)
-        OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+        OP_kernels[OP_kern_curr].gpi_time += t2 - t1;
+}
+
+
+void op_gpi_reduce_combined(op_arg *args, int nargs){
+
+}
+
+void op_gpi_reduce_float(op_arg *arg, float *data){
+
+}
+
+void op_gpi_reduce_double(op_arg *arg, double *data){
+
+}
+
+void op_gpi_reduce_int(op_arg *arg, int *data){
+
+}
+
+void op_gpi_reduce_bool(op_arg *arg, bool *data){
+
 }

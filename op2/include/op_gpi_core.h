@@ -17,9 +17,6 @@ extern char *ieh_segment_ptr;
 extern char *enh_segment_ptr;
 extern char *inh_segment_ptr;
 
-//TODO CHANGE VALUE
-#define GPI_TIMEOUT 1500 /* Standard GPI timeout for timing functions*/
-
 
 /* Struct storing information regarding the expected dat elements from who, where, and where to copy to */
 typedef struct{
@@ -30,15 +27,14 @@ typedef struct{
 /*?smart linked list entry struct?*/
 } op_gpi_recv_obj; 
 
-typedef struct{
+struct op_gpi_buffer_core{
     int exec_recv_count; /* Number of recieves for import execute segment expect (i.e. number of remote ranks)*/
     int nonexec_recv_count; /* Number of recieves for import non-execute segment expect (i.e number of remote ranks)*/
     op_gpi_recv_obj *exec_recv_objs; /*  For exec elements of this dat, one for each of the expected notifications*/
     op_gpi_recv_obj *nonexec_recv_objs; /* For nonexec elements of this dat , one for each of the expected notifications*/
-    int exec_min_rank;
-    int nonexec_min_rank;
-}op_gpi_buffer;
+};
 
+typedef op_gpi_buffer_core *op_gpi_buffer;
 
 void op_gpi_exchange_halo(op_arg *arg, int exec_flag);
 void op_gpi_exchange_halo_partial(op_arg *arg, int exec_flag);

@@ -50,6 +50,10 @@
 #include <omp.h>
 #endif
 
+#ifdef HAVE_GPI
+#include "GASPI.h"
+#endif
+
 /*
  * run-time type-checking routines
  */

@@ -7,6 +7,10 @@
 #include "op_lib_cpp.h"
 #include <utility>
 
+#ifdef HAVE_GPI
+#include "op_gpi_core.h"
+#endif
+
 static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
@@ -96,13 +100,21 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
+#ifdef HAVE_GPI
+  int n_upper = op_gpi_halo_exchanges(set, N, args);
+#else
   int n_upper = op_mpi_halo_exchanges(set, N, args);
+#endif
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
+#ifdef HAVE_GPI
+      op_gpi_wait_all(20, args);
+#else
       op_mpi_wait_all(20, args);
+#endif
     if (n == set->size)
       halo = 1;
     (void)std::initializer_list<int>{
@@ -111,24 +123,44 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
     kernel(((T *)p_a[I])...);
   }
   if (n_upper == set->core_size || n_upper == 0)
+#ifdef HAVE_GPI
+    op_gpi_wait_all(N, args);
+#else
     op_mpi_wait_all(N, args);
+#endif
 
   // set dirty bit on datasets touched
-  op_mpi_set_dirtybit(N, args);
+  op_mpi_set_dirtybit(N, args); /* This IS_COMMON to both MPI/GPI */
 
   // global reduction for MPI execution, if needed
   // p_a simply used to determine type for MPI reduction
+#ifdef HAVE_GPI
+  (void)std::initializer_list<int>{
+      (op_gpi_reduce(&arguments, (T *)p_a[I]), 0)...};
+#else
   (void)std::initializer_list<int>{
       (op_mpi_reduce(&arguments, (T *)p_a[I]), 0)...};
+#endif
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
+#ifdef HAVE_GPI
+  void *k_i = op_gpi_perf_time(name, wall_t2 - wall_t1);
+  op_gpi_perf_comms(k_i, 20, args);
+#else
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 20, args);
+#endif /*HAVE_GPI*/
+#else
+#ifdef HAVE_GPI
+  op_gpi_perf_time(name, wall_t2 - wall_t1);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
+#endif /* HAVE_GPI*/
+#endif /* COMM_PERF*/
+
+
   (void)std::initializer_list<int>{
       (arguments.idx < -1 ? free(p_a[I]), 0 : 0)...};
 }

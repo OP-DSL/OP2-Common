@@ -12,6 +12,7 @@
 
 #include <op_gpi_core.h> 
  
+#include <gpi_utils.h>
 
 //TODO remove once gpi_utils.h merged
 #define GPI_FAIL(...) (                 \
@@ -169,7 +170,7 @@ void op_gpi_waitall(op_arg *arg){
 
     op_dat dat = arg->dat;
 
-    op_gpi_buffer *buff = (op_gpi_buffer*)dat->gpi_buffer;
+    op_gpi_buffer buff = (op_gpi_buffer)dat->gpi_buffer;
 
     op_gpi_recv_obj *exec_recv_objs = buff->exec_recv_objs;
     op_gpi_recv_obj *nonexec_recv_objs = buff->nonexec_recv_objs;

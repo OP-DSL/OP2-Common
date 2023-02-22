@@ -43,12 +43,19 @@
 #include <op_rt_support.h>
 #include <op_util.h>
 
+#ifdef HAVE_GPI
+#include <GASPI.h>
+#include <gpi_utils.h>
+#endif
 //
 // MPI Communicator for halo creation and exchange
 //
 
 MPI_Comm OP_MPI_WORLD;
 MPI_Comm OP_MPI_GLOBAL;
+
+gaspi_group_t OP_GPI_WORLD;
+gaspi_group_t OP_GPI_GLOBAL;
 
 /*
  * Routines called by user code and kernels
@@ -64,8 +71,22 @@ void op_init(int argc, char **argv, int diags) {
   int flag = 0;
   MPI_Initialized(&flag);
   if (!flag) {
-    MPI_Init(&argc, &argv);
+    flag = MPI_Init(&argc, &argv)==MPI_SUCCESS ? 1: 0;
   }
+
+#ifdef HAVE_GPI
+  if(!flag){
+    fprintf(stderr, "MPI must be initialised before GPI init.");
+    exit(-1);
+  }
+  //TODO SAFE
+  gaspi_proc_init(GPI_TIMEOUT);
+
+  OP_GPI_WORLD = GASPI_GROUP_ALL;
+  OP_GPI_GLOBAL= GASPI_GROUP_ALL;
+
+#endif
+
   OP_MPI_WORLD = MPI_COMM_WORLD;
   OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core(argc, argv, diags);
