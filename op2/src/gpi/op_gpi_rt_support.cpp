@@ -12,16 +12,7 @@
 
 #include <op_gpi_core.h> 
  
-#include <gpi_utils.h>
-
-//TODO remove once gpi_utils.h merged
-#define GPI_FAIL(...) (                 \
-    {                                   \
-        fprintf(stderr, __VA_ARGS__);   \
-        exit(1);                        \
-    }                                   \
-)
-
+#include "gpi_utils.h"
 
 
 /* GPI reimplementation of op_exchange_halo originally found in op_mpi_rt_support.cpp 
@@ -98,7 +89,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
 
       //TODO SAFELY
-      gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
+      GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
                         IEH_SEGMENT_ID, /* remote segment id*/
@@ -108,7 +99,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                         gpi_rank, /* notification value*/
                         OP2_GPI_QUEUE_ID, /* queue id*/
                         GPI_TIMEOUT /* timeout*/
-                        ); 
+                        ), OP2_GPI_QUEUE_ID )
 
     }
 
@@ -136,7 +127,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
         gaspi_offset_t remote_offset = (gaspi_offset_t) exp_nonexec_list->remote_segment_offsets[i];
 
         //TODO GPI SAFE QUEUE
-        gaspi_write_notify(
+        GPI_QUEUE_SAFE( gaspi_write_notify(
                            ENH_SEGMENT_ID, /* local segment */
                            (gaspi_offset_t) dat->loc_enh_seg_off + exp_nonexec_list->disps[i]*dat->size, /* local segment offset*/
                            exp_nonexec_list->ranks[i], /* remote rank*/
@@ -147,7 +138,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                            gpi_rank, /* notification value */
                            OP2_GPI_QUEUE_ID, /* queue id*/
                            GPI_TIMEOUT /* timeout */
-                           );
+                           ), OP2_GPI_QUEUE_ID )
     }
 
 
@@ -185,11 +176,11 @@ void op_gpi_waitall(op_arg *arg){
     /* Receive for exec elements*/
     for(int i=0;i<buff->exec_recv_count;i++){
         //GPI_SAFE( );
-        gaspi_notify_waitsome(IEH_SEGMENT_ID, 
+        GPI_SAFE( gaspi_notify_waitsome(IEH_SEGMENT_ID, 
                             dat->index,
                             1,
                             &notif_id, /* Notification id should be the dat index*/
-                            GPI_TIMEOUT);   
+                            GPI_TIMEOUT) )
 
         //store and reset notification value
         gaspi_notify_reset(IEH_SEGMENT_ID,
@@ -220,11 +211,11 @@ void op_gpi_waitall(op_arg *arg){
     /* Receive for nonexec elements*/
     for(int i=0;i<buff->nonexec_recv_count;i++){
         //GPI_SAFE_QUEUE( );
-        gaspi_notify_waitsome(INH_SEGMENT_ID, 
+        GPI_SAFE( gaspi_notify_waitsome(INH_SEGMENT_ID, 
                             dat->index,
                             1,
                             &notif_id, /* Notification id should be the dat index*/
-                            GPI_TIMEOUT);   
+                            GPI_TIMEOUT) )
 
         //store and reset notification value
         gaspi_notify_reset(INH_SEGMENT_ID,

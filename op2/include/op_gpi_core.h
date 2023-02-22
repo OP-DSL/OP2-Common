@@ -2,7 +2,6 @@
 
 #include "op_mpi_core.h" //Include the mpi stuff as it's the bigger thing
 
-
 #define EEH_SEGMENT_ID 1
 #define ENH_SEGMENT_ID 2
 #define IEH_SEGMENT_ID 3
