@@ -11,9 +11,10 @@ from store import Application, Entity, Function
 from util import find, safeFind
 
 
-def extractDependencies(entities: List[Entity], app: Application, scope: List[str] = []) -> List[Entity]:
+def extractDependencies(entities: List[Entity], app: Application, scope: List[str] = []) -> Tuple[List[Entity], List[str]]:
     unprocessed_entities = list(entities)
     extracted_entities = []
+    unknown_entities = []
 
     while len(unprocessed_entities) > 0:
         entity = unprocessed_entities.pop(0)
@@ -23,12 +24,16 @@ def extractDependencies(entities: List[Entity], app: Application, scope: List[st
 
         for dependency in entity.depends:
             dependency_entities = app.findEntities(dependency, entity.program, scope)  # TODO: Loop scope
-            unprocessed_entities.extend(dependency_entities)
+
+            if len(dependency_entities) == 0:
+                unknown_entities.append(dependency)
+            else:
+                unprocessed_entities.extend(dependency_entities)
 
         if not safeFind(entities, lambda e: e == entity):
             extracted_entities.insert(0, entity)
 
-    return extracted_entities
+    return extracted_entities, unknown_entities
 
 
 # TODO: types
