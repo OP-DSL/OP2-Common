@@ -46,27 +46,28 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   MPI_Allgather(data, nbytes, MPI_CHAR, result, nbytes, MPI_CHAR, OP_MPI_WORLD); // TODO
   /*
   gaspi_segment_id_t local_segment = ?;
-  gaspi_offset_t local_offset = ?;
+  gaspi_offset_t local_offset = 0;
   gaspi_size_t size = ?;
-  gaspi_segment_id_t remote_segment = ?;
-  gaspi_offset_t remote_offset = ?;
+  gaspi_segment_id_t remote_segment = local_segment;
+  gaspi_offset_t remote_offset = size;
   gaspi_queue_id_t queue = 0;
   gaspi_group_t group = GASPI_GROUP_ALL;
   gaspi_timeout_t = GASPI_BLOCK;
   
   GPI_allgather(
-    gaspi_segment_id_t local_segment, 
-    gaspi_offset_t local_offset, 
-    gaspi_size_t size,
-    gaspi_segment_id_t remote_segment,
-    gaspi_offset_t remote_offset, 
-    gaspi_queue_id_t queue, 
-    gaspi_group_t group, 
-    gaspi_timeout_t timeout 
+    local_segment, 
+    local_offset, 
+    size,
+    remote_segment,
+    remote_offset, 
+    queue, 
+    group, 
+    timeout 
   );
   
   char *result;
   GPI_SAFE( gaspi_segment_ptr(local_segment, &result);
+  // may need to copy data into new result array instead
   */
   char_counter = 0;
   for (int i = 0; i < nreductions; i++) {
@@ -223,13 +224,79 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-  op_free(arg_list);
-  op_free(data);
-  op_free(result);
+  op_free(arg_list);  
+  op_free(data);  // TODO
+  op_free(result);  // TODO
 }
 
 void op_gpi_reduce_float(op_arg *arg, float *data){
+  // I have no idea what this data argument is?
+  // it doesn't appear to be used at all.
+  if (arg->data == NULL)
+    return;
+  (void)data;
+  op_timers_core(&c1, &t1);
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+    float result_static;
+    float *result;
+    if (arg->dim > 1 && arg->acc != OP_WRITE)
+      result = (float *)calloc(arg->dim, sizeof(float));
+    else
+      result = &result_static;
 
+    /*
+    copy data into misc buffer
+    float* sendData;
+    gaspi_segment_id_t send_data_segment_id = ?;
+    GPI_SAFE( gaspi_segment_ptr(send_data_segment_id, sendData);
+    memcpy(sendData, arg->data, arg->dim * sizeof(float))
+
+    set receive section to rest of buffer
+    float* receive = sendData + arg->dim*sizeof(float);
+
+    gaspi_
+
+    */
+    // entire if statement can be removed in GPI I think
+    if (arg->acc == OP_INC) // global reduction
+    {
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT, MPI_SUM,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(float) * arg->dim);
+    } else if (arg->acc == OP_MAX) // global maximum
+    {
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT, MPI_MAX,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(float) * arg->dim);
+      ;
+    } else if (arg->acc == OP_MIN) // global minimum
+    {
+      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT, MPI_MIN,
+                    OP_MPI_WORLD);
+      memcpy(arg->data, result, sizeof(float) * arg->dim);
+    } else if (arg->acc == OP_WRITE) // any
+    {
+      int size;
+      MPI_Comm_size(OP_MPI_WORLD, &size);
+      result = (float *)calloc(arg->dim * size, sizeof(float));
+      MPI_Allgather((float *)arg->data, arg->dim, MPI_FLOAT, result, arg->dim,
+                    MPI_FLOAT, OP_MPI_WORLD);
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i * arg->dim + j] != 0.0f)
+            result[j] = result[i * arg->dim + j];
+        }
+      }
+      memcpy(arg->data, result, sizeof(float) * arg->dim);
+      if (arg->dim == 1)
+        op_free(result);
+    }
+    if (arg->dim > 1)
+      op_free(result);
+  }
+  op_timers_core(&c2, &t2);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
 
 void op_gpi_reduce_double(op_arg *arg, double *data){
