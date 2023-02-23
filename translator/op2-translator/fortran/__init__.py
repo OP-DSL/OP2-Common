@@ -139,6 +139,10 @@ class Fortran(Lang):
     use_regex_translator = False
 
     def validate(self, app: Application) -> None:
+        # TODO: see fortran.parser
+        for program in app.programs:
+            fortran.parser.parseFunctionDependencies(program, app)
+
         for loop, program in app.loops():
             fortran.validator.validateLoop(loop, program, app)
 

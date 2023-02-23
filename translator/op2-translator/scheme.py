@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
@@ -51,7 +52,8 @@ class Scheme(Findable):
             kernel_func = self.translateKernel(loop, program, app, kernel_idx)
         except Exception as e:
             print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
-            print(e)
+            traceback.print_exc()
+
             return (None, extension, False)
 
         # Generate source from the template

@@ -27,7 +27,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     entities = kernel_entities + list(filter(lambda e: isinstance(e, Function), dependencies))
 
     if len(unknown_dependencies) > 0:
-        printViolations(loop, "unknown subroutine/function references", unknown_dependencies)
+        printViolations(loop, "unknown subroutine/function references", list(set(unknown_dependencies)))
         loop.fallback = True
 
     seen_entity_names = []
@@ -82,15 +82,15 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:
     if arg is not None:
-        print(f"{loop.loc}: Warning: arg {idx + 1} ({param_name}) of {loop.kernel} {warning}:")
+        print(f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:")
     else:
         print(f"{loop.loc}: Warning: {loop.kernel} {warning}:")
 
-    for violation in violations[:3]:
+    for violation in violations[:5]:
         print(f"    {violation}")
 
-    if len(violations) > 3:
-        print(f"    ({len(violations) - 3} more)")
+    if len(violations) > 5:
+        print(f"    ({len(violations) - 5} more)")
 
     print()
 
