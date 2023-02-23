@@ -134,7 +134,6 @@ contains
 
 attributes(global) &
 subroutine {{lh.kernel}}_wrapper( &
-{{"    optflags, &\n" if lh.args|opt|length > 0-}}
 {% for dat in lh.dats %}
     dat{{dat.id}}, &
 {% endfor %}
@@ -164,10 +163,6 @@ subroutine {{lh.kernel}}_wrapper( &
     implicit none
 
     ! parameters
-{% if lh.args|opt|length > 0 %}
-    integer(4), value :: optflags
-
-{% endif %}
 {% for dat in lh.dats %}
     {{dat.typ}}, dimension(*) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
