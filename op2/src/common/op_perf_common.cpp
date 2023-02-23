@@ -102,10 +102,10 @@ void op__perf_comm(void *k_i, op_dat dat) {
   if (num_indices == 0) {
     // set capcity of comm_info array
     kernel_entry->cap = 20;
-    op_dat_mpi_comm_info dat_comm =
-        (op_dat_mpi_comm_info)xmalloc(sizeof(op_dat_mpi_comm_info_core));
-    kernel_entry->comm_info = (op_dat_mpi_comm_info *)xmalloc(
-        sizeof(op_dat_mpi_comm_info *) * (kernel_entry->cap));
+    op_dat_comm_info dat_comm =
+        (op_dat_comm_info)xmalloc(sizeof(op_dat_comm_info_core));
+    kernel_entry->comm_info = (op_dat_comm_info *)xmalloc(
+        sizeof(op_dat_comm_info *) * (kernel_entry->cap));
     strncpy((char *)dat_comm->name, dat->name, 20);
     dat_comm->size = dat->size;
     dat_comm->index = dat->index;
@@ -124,13 +124,13 @@ void op__perf_comm(void *k_i, op_dat dat) {
       // increase capacity of comm_info array
       if (num_indices >= kernel_entry->cap) {
         kernel_entry->cap = kernel_entry->cap * 2;
-        kernel_entry->comm_info = (op_dat_mpi_comm_info *)xrealloc(
+        kernel_entry->comm_info = (op_dat_comm_info *)xrealloc(
             kernel_entry->comm_info,
-            sizeof(op_dat_mpi_comm_info *) * (kernel_entry->cap));
+            sizeof(op_dat_comm_info *) * (kernel_entry->cap));
       }
 
-      op_dat_mpi_comm_info dat_comm =
-          (op_dat_mpi_comm_info)xmalloc(sizeof(op_dat_mpi_comm_info_core));
+      op_dat_comm_info dat_comm =
+          (op_dat_comm_info)xmalloc(sizeof(op_dat_comm_info_core));
 
       strncpy((char *)dat_comm->name, dat->name, 20);
       dat_comm->size = dat->size;
