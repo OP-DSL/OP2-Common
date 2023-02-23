@@ -28,7 +28,7 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   char *data = (char *)xmalloc(nbytes * sizeof(char)); // TODO
   /*
   char *data;
-  gaspi_segment_id_t send_data_segment_id = ?;
+  gaspi_segment_id_t send_data_segment_id = MSC_SEGMENT_ID;
   GPI_SAFE( gaspi_segment_ptr(send_data_segment_id, &data);
   // don't know what's going on with the segments
   */
@@ -45,7 +45,7 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   char *result = (char *)xmalloc(comm_size * nbytes * sizeof(char));
   MPI_Allgather(data, nbytes, MPI_CHAR, result, nbytes, MPI_CHAR, OP_MPI_WORLD); // TODO
   /*
-  gaspi_segment_id_t local_segment = ?;
+  gaspi_segment_id_t local_segment = MSC_SEGMENT_ID;
   gaspi_offset_t local_offset = 0;
   gaspi_size_t size = ?;
   gaspi_segment_id_t remote_segment = local_segment;
@@ -254,7 +254,49 @@ void op_gpi_reduce_float(op_arg *arg, float *data){
     set receive section to rest of buffer
     float* receive = sendData + arg->dim*sizeof(float);
 
-    gaspi_
+    int size = sizeof(float) * arg->dim;
+
+    gaspi_segment_id_t local_segment = MSC_SEGMENT_ID;
+    gaspi_offset_t local_offset = 0;
+    gaspi_size_t size = ?;
+    gaspi_segment_id_t remote_segment = local_segment;
+    gaspi_offset_t remote_offset = size;
+    gaspi_queue_id_t queue = 0;
+    gaspi_group_t group = GASPI_GROUP_ALL;
+    gaspi_timeout_t = GASPI_BLOCK;
+    
+    if (arg->acc == OP_WRITE){
+      GPI_Allgather(
+        local_segment, 
+        local_offset, 
+        size,
+        remote_segment,
+        remote_offset, 
+        queue, 
+        group, 
+        timeout 
+      );
+
+      for (int i = 1; i < size; i++) {
+        for (int j = 0; j < arg->dim; j++) {
+          if (result[i * arg->dim + j] != 0.0f)
+            sendData[j] = sendData[i * arg->dim + j];
+        }
+      }
+    }else{
+      GPI_Allreduce(
+        local_segment, 
+        local_offset, 
+        size,
+        remote_segment,
+        remote_offset, 
+        queue, 
+        group, 
+        timeout 
+      );
+
+      memcpy(arg->data, sendData, size);
+    }
 
     */
     // entire if statement can be removed in GPI I think
