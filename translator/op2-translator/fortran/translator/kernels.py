@@ -78,6 +78,13 @@ def renameConsts(lang: Lang, entities: List[Entity], app: Application, replaceme
                 name.string = replacement(name.string.lower())
 
 
+def removeExternals(func: Function) -> None:
+    for spec in fpu.walk(func.ast, f2003.Specification_Part):
+        content = list(spec.content)
+        content = filter(lambda n: not isinstance(n, f2003.External_Stmt), content)
+        spec.content = list(content)
+
+
 def insertStrides(
     func: Function,
     funcs: List[Function],
@@ -142,10 +149,10 @@ def insertStride(
         if isinstance(parent, f2003.Part_Ref):
             subscript_list = fpu.get_child(parent, f2003.Section_Subscript_List)
 
-            parent.items = (
+            parent.items = [
                 node,
                 f2003.Section_Subscript_List(f"op2_s({str(subscript_list)}, {stride(arg)})"),
-            )
+            ]
 
             node = node.parent
             parent = node.parent
@@ -312,7 +319,7 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
             if getattr(node, "content", None) is None:
                 node.items = children
             else:
-                node.content = tuple(children)
+                node.content = children
 
         if replacement is not None or modified2:
             modified = True

@@ -6,7 +6,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Function, Location, ParseError, Program
+from store import Function, Location, ParseError, Program, Application
 from util import safeFind
 
 
@@ -14,23 +14,21 @@ def parseProgram(ast: f2003.Program, source: str, path: Path) -> Program:
     program = Program(path, ast, source)
     parseNode(ast, program, Location(str(program.path), 0, 0))
 
-    # TODO:
-    # Function calls turn up as f2003.Part_Ref which we can't distinguish from actual
-    # array indexes until we have the list of functions.
-    # Note that this means only functions contained in the same program as the call can be used.
-    # This also means that contained functions from other subroutines may be registered as dependencies.
-    parseFunctionDependencies(ast, program, Location(str(program.path), 0, 0))
-
     return program
 
 
-def parseFunctionDependencies(ast: f2003.Program, program: Program, loc: Location) -> None:
+# TODO:
+# Function calls turn up as f2003.Part_Ref which we can't distinguish from actual
+# array indexes until we have the list of functions.
+# Note that this means only functions contained in the same program as the call can be used.
+# This also means that contained functions from other subroutines may be registered as dependencies.
+def parseFunctionDependencies(program: Program, app: Application) -> None:
     subprograms = []
 
-    for subprogram in fpu.walk(ast, f2003.Subroutine_Subprogram):
+    for subprogram in fpu.walk(program.ast, f2003.Subroutine_Subprogram):
         subprograms.append(subprogram)
 
-    for subprogram in fpu.walk(ast, f2003.Function_Subprogram):
+    for subprogram in fpu.walk(program.ast, f2003.Function_Subprogram):
         subprograms.append(subprogram)
 
     for subprogram in subprograms:
@@ -41,17 +39,21 @@ def parseFunctionDependencies(ast: f2003.Program, program: Program, loc: Locatio
             definition_statement = fpu.get_child(subprogram, f2003.Function_Stmt)
 
         name_node = fpu.get_child(definition_statement, f2003.Name)
+        dependant = safeFind(program.entities, lambda e: e.name == name_node.string.lower())
+
+        if dependant is None:
+            continue
 
         for node in fpu.walk(subprogram, f2003.Part_Ref):
             ref_name_node = fpu.get_child(node, f2003.Name)
-            dependency = safeFind(program.entities, lambda e: e.name == ref_name_node.string.lower())
+            dependencies = list(
+                filter(
+                    lambda e: isinstance(e.ast, f2003.Function_Subprogram),
+                    app.findEntities(ref_name_node.string.lower()),
+                )
+            )
 
-            if dependency is None:
-                continue
-
-            dependant = safeFind(program.entities, lambda e: e.name == name_node.string.lower())
-
-            if dependant is None:
+            if len(dependencies) == 0:
                 continue
 
             dependant.depends.add(ref_name_node.string.lower())

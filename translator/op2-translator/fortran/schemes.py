@@ -144,6 +144,9 @@ class FortranCuda(Scheme):
 
         ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
 
+        for entity in kernel_entities + dependencies:
+            ftk.removeExternals(entity)
+
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
 
