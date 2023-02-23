@@ -1211,7 +1211,7 @@ void op_halo_create() {
         1,
         MPI_LONG,
         recv_obj->remote_rank,
-        1<<31 | dat->index, /* 1 in MSB to indicate non-execute */
+        1<<30 | dat->index, /* 1 in MSB to indicate non-execute */
         OP_MPI_WORLD,
         &gpi_buf->pre_exchange_hndl_s[i+gpi_buf->exec_recv_count] //as sharing a MPI_Request array
         );
@@ -1221,7 +1221,7 @@ void op_halo_create() {
 
     /* Receiving involves telling MPI where to put the data it recieves. 
      * Data can be uniquely identified by the sending host and the tag.
-     * As part of the tag, a 1 is added to the most significant bit to indicate
+     * As part of the tag, a 1 is added to the second most significant bit to indicate
      * this is for the non-execute elements */
 
     gpi_buf->pre_exchange_hndl_r = (MPI_Request*)xmalloc(sizeof(MPI_Request) * (exp_exec_list->ranks_size + exp_nonexec_list->ranks_size));
@@ -1245,7 +1245,7 @@ void op_halo_create() {
         1,
         MPI_LONG,
         exp_nonexec_list->ranks[i],
-        1<<31 | dat->index, /* 1 in MSB to indicate non-exec */
+        1<<30 | dat->index, /* 1 in MSB to indicate non-exec */
         OP_MPI_WORLD,
         &gpi_buf->pre_exchange_hndl_r[i + exp_exec_list->ranks_size]
         );
