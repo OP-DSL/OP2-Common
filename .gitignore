@@ -31,3 +31,5 @@ launch.json
 # Make artifacts
 op2/log.txt
 
+.build_env.sh
+
