@@ -1,7 +1,11 @@
+#pragma once
+
+
 #include <GASPI.h>
 
 #include "op_mpi_core.h" //Include the mpi stuff as it's the bigger thing
 
+extern double t1, t2, c1, c2;
 
 #include "../src/gpi/gpi_utils.h"
 
@@ -45,8 +49,16 @@ struct op_gpi_buffer_core{
 
 typedef op_gpi_buffer_core *op_gpi_buffer;
 
+/*******************************************************************************
+* Core GPI lib function prototypes
+*******************************************************************************/
+
 void op_gpi_exchange_halo(op_arg *arg, int exec_flag);
+
 void op_gpi_exchange_halo_partial(op_arg *arg, int exec_flag);
 
 void op_gpi_waitall(op_arg *arg);
+
 void op_gpi_waitall_args(int nargs, op_arg *args);
+
+void *op_gpi_perf_time(const char *name, double time);

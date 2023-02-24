@@ -1,3 +1,4 @@
+/* Header file for GPI helper functionality */
 #pragma once
 
 #include <GASPI.h>
@@ -7,7 +8,6 @@
 
 
 #define GPI_TIMEOUT 1500
-
 
 #define GPI_TIMEOUT_EXTRA_TRIES 1
 

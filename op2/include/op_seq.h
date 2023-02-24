@@ -8,6 +8,7 @@
 #include <utility>
 
 #ifdef HAVE_GPI
+#include "op_lib_core.h"
 #include "op_gpi_core.h"
 #endif
 

@@ -1194,6 +1194,12 @@ extern "C"
       op_gpi_buffer gpi_buf = (op_gpi_buffer)xmalloc(sizeof(op_gpi_buffer));
 
 
+      /* Update the dat to state where the dat data starts within the segment
+       *  this is used for the sending process.
+       */
+      dat->loc_eeh_seg_off=eeh_size;
+      dat->loc_enh_seg_off=enh_size;
+
 
     
       gpi_buf->exec_recv_count = imp_exec_list->ranks_size;

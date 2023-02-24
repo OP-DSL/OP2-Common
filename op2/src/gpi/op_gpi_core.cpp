@@ -1,8 +1,10 @@
+
 #include "gpi_utils.h"
 
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <op_lib_core.h>
 
 #include <op_gpi_core.h>
 
@@ -11,7 +13,6 @@
  */
 
 
-double t1, t2, c1, c2;
 
 
 /* Segment pointers */
@@ -112,6 +113,9 @@ void op_gpi_waitall_args(int nargs, op_arg *args){
         OP_kernels[OP_kern_curr].gpi_time += t2 - t1;
 }
 
+void *op_gpi_perf_time(const char *name, double time){
+  return (void*)NULL;
+}
 
 void op_gpi_reduce_combined(op_arg *args, int nargs){
 

@@ -16,7 +16,20 @@
 *~
 *.swp
 
+# VSCode Stuff
+tasks.json
+c_cpp_properties.json
+launch.json
 .vscode/
-.gpi2.*
 
 .build_env.sh
+
+# Emacs temporary files
+*#*#*
+
+# GPI temporary files
+*.gpi2.*
+
+# Make artifacts
+op2/log.txt
+

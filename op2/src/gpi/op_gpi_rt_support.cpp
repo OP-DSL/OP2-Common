@@ -70,7 +70,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     //dat offset inside eeh segment
     //Note - changed to int to not perform addition on pointer type
     // and simplifies offset logic as operations are now performed on byte count.
-    void *dat_offset_addr = (void*)((int)eeh_segment_ptr + (int)dat->loc_eeh_seg_off);
+    void *dat_offset_addr = (void*)(eeh_segment_ptr + dat->loc_eeh_seg_off);
 
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
@@ -112,7 +112,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
         GPI_FAIL("Error: Non-Export list and set mismatch");
     }
 
-    dat_offset_addr = (void*)((int)enh_segment_ptr + (int) dat->loc_enh_seg_off);
+    dat_offset_addr = (void*)(enh_segment_ptr + dat->loc_enh_seg_off);
 
     for (int i =0; i < exp_nonexec_list->ranks_size; i++){
         for (int j=0;j<exp_nonexec_list->sizes[i];j++){

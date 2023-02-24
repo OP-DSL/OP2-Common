@@ -45,7 +45,7 @@
 
 #ifdef HAVE_GPI
 #include <GASPI.h>
-#include <gpi_utils.h>
+#include "../gpi/gpi_utils.h"
 #endif
 //
 // MPI Communicator for halo creation and exchange

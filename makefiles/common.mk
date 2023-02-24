@@ -58,6 +58,8 @@ ifeq ($(MAKECMDGOALS),config)
 
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
+  # This exists here only fr testing when OP2 is configured without MPI (won't compile or run anyway) 
+  #	include $(DEPS_DIR)/gpi.mk
 
   $(info Looking for compilers and dependencies:)
   $(info )
@@ -82,7 +84,9 @@ ifeq ($(MAKECMDGOALS),config)
 
   ifeq ($(CONFIG_HAVE_MPI_C),true)
     $(call info_bold,> MPI C/C++ compilers $(TEXT_FOUND) ($(CONFIG_MPICXX)); \
-      looking for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+      looking for GPI$(COMMA) HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+
+		include $(DEPS_DIR)/gpi.mk
 
     include $(DEPS_DIR)/hdf5_par.mk
 
@@ -91,7 +95,7 @@ ifeq ($(MAKECMDGOALS),config)
     include $(DEPS_DIR)/kahip.mk
   else
     $(call info_bold,> MPI C/C++ compilers $(TEXT_NOTFOUND); \
-      skipping search for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
+      skipping search for GPI$(COMMA) HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
   endif
 
   $(info )
@@ -146,6 +150,8 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C++: $(if $(HAVE_MPI_C),$(MPICXX),not found))
   $(info .   Fortran: $(if $(HAVE_MPI_F),$(MPIFC),not found))
   $(info )
+  $(info GASPI GPI-2: $(call I_STR,GPI))
+  $(info )
   $(info CUDA libraries: $(call I_STR,CUDA))
   $(info )
   $(info HDF5 I/O:)
@@ -168,7 +174,7 @@ endif
 OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
 OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
 
-OP2_LIBS_MPI := mpi mpi_cuda
+OP2_LIBS_MPI := mpi mpi_cuda gpi
 OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
 
 OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)
@@ -199,3 +205,5 @@ $(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),\
 
 OP2_LIB_CUDA += $(CUDA_LIB)
 OP2_LIB_MPI_CUDA += $(CUDA_LIB)
+
+
