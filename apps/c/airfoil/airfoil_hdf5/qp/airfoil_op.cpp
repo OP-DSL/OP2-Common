@@ -106,6 +106,21 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg );
+void op_decl_const_gam(int dim, char const *type,
+                       long double *dat);
+void op_decl_const_gm1(int dim, char const *type,
+                       long double *dat);
+void op_decl_const_cfl(int dim, char const *type,
+                       long double *dat);
+void op_decl_const_eps(int dim, char const *type,
+                       long double *dat);
+void op_decl_const_mach(int dim, char const *type,
+                       long double *dat);
+void op_decl_const_alpha(int dim, char const *type,
+                       long double *dat);
+void op_decl_const_qinf(int dim, char const *type,
+                       long double *dat);
+
 #ifdef OPENACC
 #ifdef __cplusplus
 }
@@ -132,14 +147,11 @@ int main(int argc, char **argv) {
   int niter = 1000;
   int renumber = 0;
 
-  //char map_file[] = "new_grid.h5";  
-  //char dat_file[] = "new_grid.h5";  
-  
   char map_file[] = "new_grid_float.h5";  
   char dat_file[] = "new_grid_float.h5";  
   
   const char* p_q_dat_file = "new_grid.h5";
-  const char* out_file = "p_q-double_2.8m.h5";
+  const char* out_file = "p_q-quad_2.8m.h5";
 
   //for (int i = 1; i < argc; ++i)
   //  if (strcmp(argv[i],"-renumber")==0) {
@@ -210,12 +222,12 @@ int main(int argc, char **argv) {
 
   long double rms;
 
+
   // timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // set constants and initialise flow field and residual
   op_printf("initialising flow field \n");
-
 
   // declare sets, pointers, datasets and global constants
 
@@ -253,13 +265,13 @@ int main(int argc, char **argv) {
   op_get_const_hdf5("alpha", 1, "long double", (char *)&alpha, "new_grid.h5");
   op_get_const_hdf5("qinf", 4, "long double", (char *)&qinf, "new_grid.h5");
 
-  op_decl_const2("gam",1,"long double",&gam);
-  op_decl_const2("gm1",1,"long double",&gm1);
-  op_decl_const2("cfl",1,"long double",&cfl);
-  op_decl_const2("eps",1,"long double",&eps);
-  op_decl_const2("mach",1,"long double",&mach);
-  op_decl_const2("alpha",1,"long double",&alpha);
-  op_decl_const2("qinf",4,"long double",qinf);
+  op_decl_const_gam(1,"long double",&gam);
+  op_decl_const_gm1(1,"long double",&gm1);
+  op_decl_const_cfl(1,"long double",&cfl);
+  op_decl_const_eps(1,"long double",&eps);
+  op_decl_const_mach(1,"long double",&mach);
+  op_decl_const_alpha(1,"long double",&alpha);
+  op_decl_const_qinf(4,"long double",qinf);
 
   op_diagnostic_output();
 
@@ -277,7 +289,7 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("qinf", 4, "long double", (char *)qinf, "new_grid_out.h5");
 
   // trigger partitioning and halo creation routines
-  op_partition("PTfdsSCOTCH", "KWAY", edges, pecell, p_x);
+  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
 
@@ -289,7 +301,7 @@ int main(int argc, char **argv) {
 
   // main time-marching loop
 
-  //niter = 500;
+  //niter = 1000;
 
   for (int iter = 1; iter <= niter; iter++) {
 
@@ -335,7 +347,7 @@ int main(int argc, char **argv) {
 
       //    update flow field
 
-      rms = 0.0;
+      rms = 0.0L;
 
       op_par_loop_update("update",cells,
                   op_arg_dat(p_qold,-1,OP_ID,4,"long double",OP_READ),

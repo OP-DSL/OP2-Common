@@ -20,43 +20,49 @@ __constant__ long double qinf_cuda[4];
 #include "op_cuda_rt_support.h"
 #include "op_cuda_reduction.h"
 
-void op_decl_const_char(int dim, char const *type,
-int size, char *dat, char const *name){
+void op_decl_const_gam(int dim, char const *type,
+                       long double *dat){
   if (!OP_hybrid_gpu) return;
-  if (!strcmp(name,"gam")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gam_cuda, dat, dim*size));
+  cutilSafeCall(cudaMemcpyToSymbol(gam_cuda, dat, dim*sizeof(long double)));
+}
+
+void op_decl_const_gm1(int dim, char const *type,
+                       long double *dat){
+  if (!OP_hybrid_gpu) return;
+  cutilSafeCall(cudaMemcpyToSymbol(gm1_cuda, dat, dim*sizeof(long double)));
+}
+
+void op_decl_const_cfl(int dim, char const *type,
+                       long double *dat){
+  if (!OP_hybrid_gpu) return;
+  cutilSafeCall(cudaMemcpyToSymbol(cfl_cuda, dat, dim*sizeof(long double)));
+}
+
+void op_decl_const_eps(int dim, char const *type,
+                       long double *dat){
+  if (!OP_hybrid_gpu) return;
+  cutilSafeCall(cudaMemcpyToSymbol(eps_cuda, dat, dim*sizeof(long double)));
+}
+
+void op_decl_const_mach(int dim, char const *type,
+                       long double *dat){
+  if (!OP_hybrid_gpu) return;
+  cutilSafeCall(cudaMemcpyToSymbol(mach_cuda, dat, dim*sizeof(long double)));
+}
+
+void op_decl_const_alpha(int dim, char const *type,
+                       long double *dat){
+  if (!OP_hybrid_gpu) return;
+  cutilSafeCall(cudaMemcpyToSymbol(alpha_cuda, dat, dim*sizeof(long double)));
+}
+
+void op_decl_const_qinf(int dim, char const *type,
+                       long double *dat){
+  if (!OP_hybrid_gpu) return;
+  if (dim*sizeof(long double)>MAX_CONST_SIZE) {
+    printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
   }
-  else
-  if (!strcmp(name,"gm1")) {
-    cutilSafeCall(cudaMemcpyToSymbol(gm1_cuda, dat, dim*size));
-  }
-  else
-  if (!strcmp(name,"cfl")) {
-    cutilSafeCall(cudaMemcpyToSymbol(cfl_cuda, dat, dim*size));
-  }
-  else
-  if (!strcmp(name,"eps")) {
-    cutilSafeCall(cudaMemcpyToSymbol(eps_cuda, dat, dim*size));
-  }
-  else
-  if (!strcmp(name,"mach")) {
-    cutilSafeCall(cudaMemcpyToSymbol(mach_cuda, dat, dim*size));
-  }
-  else
-  if (!strcmp(name,"alpha")) {
-    cutilSafeCall(cudaMemcpyToSymbol(alpha_cuda, dat, dim*size));
-  }
-  else
-  if (!strcmp(name,"qinf")) {
-    if (!strcmp(name,"qinf") && size>MAX_CONST_SIZE) {
-      printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);
-    }
-    cutilSafeCall(cudaMemcpyToSymbol(qinf_cuda, dat, dim*size));
-  }
-  else
-  {
-    printf("error: unknown const name\n"); exit(1);
-  }
+  cutilSafeCall(cudaMemcpyToSymbol(qinf_cuda, dat, dim*sizeof(long double)));
 }
 
 //user kernel files

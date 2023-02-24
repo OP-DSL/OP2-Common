@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
 
 // global constants
 
@@ -72,14 +73,76 @@ int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
 
+  int niter = 1000;
   int renumber = 0;
-  for (int i = 1; i < argc; ++i)
+
+  
+  const char* p_q_dat_file = "new_grid.h5";
+  const char* out_file = "p_q-double_2.8m.h5";
+
+  char map_file[] = "new_grid_float.h5";  
+  char dat_file[] = "new_grid_float.h5";  
+
+  for (int i = 1; i < argc; ++i) 
     if (strcmp(argv[i],"-renumber")==0) {
+        argv[i]="--renumber"; //ugly, but works for now... Sorry! :) 
+    } 
+
+
+  //from: http://boron.physics.metu.edu.tr/ozdogan/SystemsProgramming/ceng425/node22.html
+  
+  int next_option;
+
+  /* A string listing valid short options letters.  */
+  const char* const short_options = "ri:d:o:";
+  /* An array describing valid long options.  */
+  const struct option long_options[] = {
+    { "renumber",     0, NULL, 'r' },
+    { "iteration",   1, NULL, 'i' },
+    { "dat_file",  1, NULL, 'd' },
+    { "out_file",  1, NULL, 'o' },
+    { NULL,       0, NULL, 0   }   /* Required at end of array.  */
+  };
+
+  do {
+    next_option = getopt_long (argc, argv, short_options,
+                               long_options, NULL);
+    switch (next_option)
+    {
+    case 'r':   /* -r or --renumber  */
       op_printf("Enabling renumbering\n");
       renumber = 1;
-    }
+      break;
 
-  int niter;
+    case 'i':   /* -i or --iteration */
+      niter = atoi(optarg);
+      break;
+
+    case 'd':   /* -d or --dat_file */
+      p_q_dat_file = optarg;
+      break;
+
+    case 'o':   /* -o or --out_file */
+      out_file = optarg;
+      break;
+
+    case '?':   /* The user specified an invalid option.  */
+      break;
+
+    case -1:    /* Done with options.  */
+      break;
+
+    default:    /* Something else: unexpected.  */
+      abort ();
+    }
+  }
+  while (next_option != -1);
+
+
+  op_printf("\nRunning the app for %d iteration\n",niter);
+  op_printf("Reading p_q data from: %s\n",p_q_dat_file);
+  op_printf("Wrinting p_q results to: %s\n\n",out_file);
+
   double rms;
 
   // timer
@@ -92,29 +155,29 @@ int main(int argc, char **argv) {
 
   // declare sets, pointers, datasets and global constants
 
-  op_set nodes = op_decl_set_hdf5(file, "nodes");
-  op_set edges = op_decl_set_hdf5(file, "edges");
-  op_set bedges = op_decl_set_hdf5(file, "bedges");
-  op_set cells = op_decl_set_hdf5(file, "cells");
+  op_set nodes = op_decl_set_hdf5(map_file, "nodes");
+  op_set edges = op_decl_set_hdf5(map_file, "edges");
+  op_set bedges = op_decl_set_hdf5(map_file, "bedges");
+  op_set cells = op_decl_set_hdf5(map_file, "cells");
 
-  op_map pedge = op_decl_map_hdf5(edges, nodes, 2, file, "pedge");
-  op_map pecell = op_decl_map_hdf5(edges, cells, 2, file, "pecell");
-  op_map pbedge = op_decl_map_hdf5(bedges, nodes, 2, file, "pbedge");
-  op_map pbecell = op_decl_map_hdf5(bedges, cells, 1, file, "pbecell");
-  op_map pcell = op_decl_map_hdf5(cells, nodes, 4, file, "pcell");
+  op_map pedge = op_decl_map_hdf5(edges, nodes, 2, map_file, "pedge");
+  op_map pecell = op_decl_map_hdf5(edges, cells, 2, map_file, "pecell");
+  op_map pbedge = op_decl_map_hdf5(bedges, nodes, 2, map_file, "pbedge");
+  op_map pbecell = op_decl_map_hdf5(bedges, cells, 1, map_file, "pbecell");
+  op_map pcell = op_decl_map_hdf5(cells, nodes, 4, map_file, "pcell");
 
-  op_map m_test = op_decl_map_hdf5(cells, nodes, 4, file, "m_test");
+  op_map m_test = op_decl_map_hdf5(cells, nodes, 4, map_file, "m_test");
   if (m_test == NULL)
     printf("m_test not found\n");
 
-  op_dat p_bound = op_decl_dat_hdf5(bedges, 1, "int", file, "p_bound");
-  op_dat p_x = op_decl_dat_hdf5(nodes, 2, "double", file, "p_x");
-  op_dat p_q = op_decl_dat_hdf5(cells, 4, "double", file, "p_q");
-  op_dat p_qold = op_decl_dat_hdf5(cells, 4, "double", file, "p_qold");
-  op_dat p_adt = op_decl_dat_hdf5(cells, 1, "double", file, "p_adt");
-  op_dat p_res = op_decl_dat_hdf5(cells, 4, "double", file, "p_res");
+  op_dat p_bound = op_decl_dat_hdf5(bedges, 1, "int", dat_file, "p_bound");
+  op_dat p_x = op_decl_dat_hdf5(nodes, 2, "double", dat_file, "p_x");
+  op_dat p_q = op_decl_dat_hdf5(cells, 4, "double", p_q_dat_file, "p_q");
+  op_dat p_qold = op_decl_dat_hdf5(cells, 4, "double", dat_file, "p_qold");
+  op_dat p_adt = op_decl_dat_hdf5(cells, 1, "double", dat_file, "p_adt");
+  op_dat p_res = op_decl_dat_hdf5(cells, 4, "double", dat_file, "p_res");
 
-  op_dat p_test = op_decl_dat_hdf5(cells, 4, "double", file, "p_test");
+  op_dat p_test = op_decl_dat_hdf5(cells, 4, "double", dat_file, "p_test");
   if (p_test == NULL)
     printf("p_test not found\n");
 
@@ -150,7 +213,7 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
 
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
+  op_partition("PTSCOfsdfTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
 
@@ -162,7 +225,7 @@ int main(int argc, char **argv) {
 
   // main time-marching loop
 
-  niter = 1000;
+  //niter = 1000;
 
   for (int iter = 1; iter <= niter; iter++) {
 
@@ -251,7 +314,7 @@ int main(int argc, char **argv) {
 
   // write given op_dat's data to hdf5 file in the order it was originally
   // arranged (i.e. before partitioning and reordering)
-  op_fetch_data_hdf5_file(p_q, "p_q-double_2.8m.h5");
+  op_fetch_data_hdf5_file(p_q, out_file);
 
   // printf("Root process = %d\n",op_is_root());
 

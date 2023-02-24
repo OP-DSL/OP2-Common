@@ -50,7 +50,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
-#include <vector>
+
 // global constants
 
 float gam, gm1, cfl, eps, mach, alpha, qinf[4];
@@ -106,6 +106,21 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg );
+void op_decl_const_gam(int dim, char const *type,
+                       float *dat);
+void op_decl_const_gm1(int dim, char const *type,
+                       float *dat);
+void op_decl_const_cfl(int dim, char const *type,
+                       float *dat);
+void op_decl_const_eps(int dim, char const *type,
+                       float *dat);
+void op_decl_const_mach(int dim, char const *type,
+                       float *dat);
+void op_decl_const_alpha(int dim, char const *type,
+                       float *dat);
+void op_decl_const_qinf(int dim, char const *type,
+                       float *dat);
+
 #ifdef OPENACC
 #ifdef __cplusplus
 }
@@ -125,33 +140,25 @@ void op_par_loop_update(char const *, op_set,
 
 // main program
 
-
 int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
 
   int niter = 1000;
-  int renumber = 0;
+  float rms;
 
   
   const char* p_q_dat_file = "new_grid.h5";
   const char* out_file = "p_q-single_2.8m.h5";
 
-  for (int i = 1; i < argc; ++i) 
-    if (strcmp(argv[i],"-renumber")==0) {
-        argv[i]="--renumber"; //ugly, but works for now... Sorry! :) 
-    } 
-
-
-  //from: http://boron.physics.metu.edu.tr/ozdogan/SystemsProgramming/ceng425/node22.html
-  
   int next_option;
 
   /* A string listing valid short options letters.  */
-  const char* const short_options = "ri:d:o:";
+  //const char* const short_options = "ri:d:o:";
+  const char* const short_options = "i:d:o:";
   /* An array describing valid long options.  */
   const struct option long_options[] = {
-    { "renumber",     0, NULL, 'r' },
+    //{ "renumber",     0, NULL, 'r' },
     { "iteration",   1, NULL, 'i' },
     { "dat_file",  1, NULL, 'd' },
     { "out_file",  1, NULL, 'o' },
@@ -163,10 +170,10 @@ int main(int argc, char **argv) {
                                long_options, NULL);
     switch (next_option)
     {
-    case 'r':   /* -r or --renumber  */
-      op_printf("Enabling renumbering\n");
-      renumber = 1;
-      break;
+    //case 'r':   /* -r or --renumber  */
+    //  op_printf("Enabling renumbering\n");
+    //  renumber = 1;
+    //  break;
 
     case 'i':   /* -i or --iteration */
       niter = atoi(optarg);
@@ -197,8 +204,6 @@ int main(int argc, char **argv) {
   op_printf("Reading p_q data from: %s\n",p_q_dat_file);
   op_printf("Wrinting p_q results to: %s\n\n",out_file);
 
-
-  float rms;
 
   // timer
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -236,19 +241,19 @@ int main(int argc, char **argv) {
   op_get_const_hdf5("alpha", 1, "float", (char *)&alpha, "new_grid.h5");
   op_get_const_hdf5("qinf", 4, "float", (char *)&qinf, "new_grid.h5");
 
-  op_decl_const2("gam",1,"float",&gam);
-  op_decl_const2("gm1",1,"float",&gm1);
-  op_decl_const2("cfl",1,"float",&cfl);
-  op_decl_const2("eps",1,"float",&eps);
-  op_decl_const2("mach",1,"float",&mach);
-  op_decl_const2("alpha",1,"float",&alpha);
-  op_decl_const2("qinf",4,"float",qinf);
+  op_decl_const_gam(1,"float",&gam);
+  op_decl_const_gm1(1,"float",&gm1);
+  op_decl_const_cfl(1,"float",&cfl);
+  op_decl_const_eps(1,"float",&eps);
+  op_decl_const_mach(1,"float",&mach);
+  op_decl_const_alpha(1,"float",&alpha);
+  op_decl_const_qinf(4,"float",qinf);
 
   if (op_is_root())
     op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
-  op_partition("PdsadTSCOTCH", "KWAY", edges, pecell, p_x);
+  op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
 
   int g_ncell = op_get_size(cells);
@@ -258,14 +263,13 @@ int main(int argc, char **argv) {
 
   // main time-marching loop
 
-  //niter = 200;
+  //niter = 1000;
 
-  //float lastrmss[100];
   float sx=4950.0; //1+2+3+...+99  x coords of 99 elements
   float sy=0.0;
   float sx2=328350.0; //1*1+2*2+...+99*99
   float sxy=0.0;
-  
+
   for (int iter = 1; iter <= niter; iter++) {
 
     //  save old flow solution
@@ -323,23 +327,7 @@ int main(int argc, char **argv) {
     //  print iteration history
 
     rms = sqrtf(rms / (float)g_ncell);
-/*
-    if (iter<100){
-      lastrms.push(rms);
-      sumlastrms+=rms;
-    } else {
-      sumlastrms-=lastrms.front();
-      lastrms.pop();
-      lastrms.push(rms);
-      sumlastrms+=rms;
-      if ( abs((log(sumlastrms/100) - log(rms))) < abs(0.0000001*log(rms)) ) {
-        op_printf("breaking at iteration %d\n",iter);
-        //print_queue(lastrms);
-        //op_printf("sumlastrms: %10.5e, rms: %10.5e, abs((sumlastrms/100 - rms)): %10.5e, abs(0.01*rms): %10.5e\n",sumlastrms,rms,abs((sumlastrms/100 - rms)),abs(0.01*rms));
-        break;
-      }
-    }
-    */
+
     //equation from: https://www.mathsisfun.com/data/least-squares-regression.html
     if (iter%100 == 0 && (rms<1e-7) ){  //20500
       float y_new=log(rms);

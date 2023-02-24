@@ -37,6 +37,35 @@ extern double qinf[4];
 // header
 #include "op_lib_cpp.h"
 
+
+void op_decl_const_gam(int dim, char const *type,
+                       double *dat){
+}
+
+void op_decl_const_gm1(int dim, char const *type,
+                       double *dat){
+}
+
+void op_decl_const_cfl(int dim, char const *type,
+                       double *dat){
+}
+
+void op_decl_const_eps(int dim, char const *type,
+                       double *dat){
+}
+
+void op_decl_const_mach(int dim, char const *type,
+                       double *dat){
+}
+
+void op_decl_const_alpha(int dim, char const *type,
+                       double *dat){
+}
+
+void op_decl_const_qinf(int dim, char const *type,
+                       double *dat){
+}
+
 // user kernel files
 #include "save_soln_veckernel.cpp"
 #include "adt_calc_veckernel.cpp"

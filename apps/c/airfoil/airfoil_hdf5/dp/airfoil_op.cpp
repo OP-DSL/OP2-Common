@@ -106,6 +106,21 @@ void op_par_loop_update(char const *, op_set,
   op_arg,
   op_arg,
   op_arg );
+void op_decl_const_gam(int dim, char const *type,
+                       double *dat);
+void op_decl_const_gm1(int dim, char const *type,
+                       double *dat);
+void op_decl_const_cfl(int dim, char const *type,
+                       double *dat);
+void op_decl_const_eps(int dim, char const *type,
+                       double *dat);
+void op_decl_const_mach(int dim, char const *type,
+                       double *dat);
+void op_decl_const_alpha(int dim, char const *type,
+                       double *dat);
+void op_decl_const_qinf(int dim, char const *type,
+                       double *dat);
+
 #ifdef OPENACC
 #ifdef __cplusplus
 }
@@ -136,25 +151,9 @@ int main(int argc, char **argv) {
   const char* p_q_dat_file = "new_grid.h5";
   const char* out_file = "p_q-double_2.8m.h5";
 
-  
-  //char map_file[] = "new_grid.h5";  
-  //char dat_file[] = "new_grid.h5";  
-  
   char map_file[] = "new_grid_float.h5";  
   char dat_file[] = "new_grid_float.h5";  
 
-/*
-  for (int i = 1; i < argc; ++i)
-    if (strcmp(argv[i],"-renumber")==0) {
-      op_printf("Enabling renumbering\n");
-      renumber = 1;
-    } else if (strcmp(argv[i],"-it")==0){
-        niter = argv[i+1];
-    } else if (strcmp(argv[i],"-df")==0 || strcmp(argv[i],"-dat_file")==0){
-        dat_file = argv[i+1];
-    } else if (strcmp(argv[i],"-of")==0 || strcmp(argv[i],"-out_file")==0){
-        out_file = argv[i+1];
-    }*/
   for (int i = 1; i < argc; ++i) 
     if (strcmp(argv[i],"-renumber")==0) {
         argv[i]="--renumber"; //ugly, but works for now... Sorry! :) 
@@ -223,6 +222,7 @@ int main(int argc, char **argv) {
   // set constants and initialise flow field and residual
   op_printf("initialising flow field \n");
 
+  char file[] = "new_grid.h5";
 
   // declare sets, pointers, datasets and global constants
 
@@ -260,13 +260,13 @@ int main(int argc, char **argv) {
   op_get_const_hdf5("alpha", 1, "double", (char *)&alpha, "new_grid.h5");
   op_get_const_hdf5("qinf", 4, "double", (char *)&qinf, "new_grid.h5");
 
-  op_decl_const2("gam",1,"double",&gam);
-  op_decl_const2("gm1",1,"double",&gm1);
-  op_decl_const2("cfl",1,"double",&cfl);
-  op_decl_const2("eps",1,"double",&eps);
-  op_decl_const2("mach",1,"double",&mach);
-  op_decl_const2("alpha",1,"double",&alpha);
-  op_decl_const2("qinf",4,"double",qinf);
+  op_decl_const_gam(1,"double",&gam);
+  op_decl_const_gm1(1,"double",&gm1);
+  op_decl_const_cfl(1,"double",&cfl);
+  op_decl_const_eps(1,"double",&eps);
+  op_decl_const_mach(1,"double",&mach);
+  op_decl_const_alpha(1,"double",&alpha);
+  op_decl_const_qinf(4,"double",qinf);
 
   op_diagnostic_output();
 
@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
 
   // trigger partitioning and halo creation routines
-  op_partition("PTSCdasdOTCH", "KWAY", edges, pecell, p_x);
+  op_partition("PTSCOfsdfTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
   if (renumber) op_renumber(pecell);
 
@@ -376,7 +376,6 @@ int main(int argc, char **argv) {
 
   op_timers(&cpu_t2, &wall_t2);
 
-  //op_dump_to_hdf5("solution_500it.h5");
   // write given op_dat's indicated segment of data to a memory block in the
   // order it was originally
   // arranged (i.e. before partitioning and reordering)
