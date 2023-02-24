@@ -73,22 +73,27 @@ void op_init(int argc, char **argv, int diags) {
   if (!flag) {
     flag = MPI_Init(&argc, &argv)==MPI_SUCCESS ? 1: 0;
   }
+  
+  OP_MPI_WORLD = MPI_COMM_WORLD;
+  OP_MPI_GLOBAL = MPI_COMM_WORLD;
 
 #ifdef HAVE_GPI
   if(!flag){
     fprintf(stderr, "MPI must be initialised before GPI init.");
     exit(-1);
   }
-  //TODO SAFE
-  gaspi_proc_init(GPI_TIMEOUT);
+  
+  MPI_Barrier(OP_MPI_GLOBAL);
+
+  GPI_SAFE( gaspi_proc_init(GPI_TIMEOUT) )
 
   OP_GPI_WORLD = GASPI_GROUP_ALL;
   OP_GPI_GLOBAL= GASPI_GROUP_ALL;
 
+  GPI_SAFE( gaspi_barrier(OP_GPI_GLOBAL,GPI_TIMEOUT) )
+
 #endif
 
-  OP_MPI_WORLD = MPI_COMM_WORLD;
-  OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core(argc, argv, diags);
 }
 
