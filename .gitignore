@@ -18,3 +18,5 @@
 
 .vscode/
 .gpi2.*
+
+.build_env.sh
