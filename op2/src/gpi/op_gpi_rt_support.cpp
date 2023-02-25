@@ -14,6 +14,8 @@
  
 #include "gpi_utils.h"
 
+#define VAL_BIT (1<<30)
+
 
 /* GPI reimplementation of op_exchange_halo originally found in op_mpi_rt_support.cpp 
  * IS_COMMON 
@@ -87,7 +89,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
       //get remote offset for that rank
 
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
-
+    
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
@@ -95,7 +97,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                         remote_offset, /* remote offset*/
                         dat->size * exp_exec_list->sizes[i], /* send size*/
                         dat->index, /* notification id*/
-                        gpi_rank, /* notification value*/
+                        VAL_BIT | gpi_rank, /* notification value, 1 bit added for non-zero notif values */
                         OP2_GPI_QUEUE_ID, /* queue id*/
                         GPI_TIMEOUT /* timeout*/
                         ), OP2_GPI_QUEUE_ID )
@@ -125,6 +127,9 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
         }
         gaspi_offset_t remote_offset = (gaspi_offset_t) exp_nonexec_list->remote_segment_offsets[i];
 
+        fprintf(stderr,"remote offset: %ld for rank %d in segment %d\n",remote_offset, exp_nonexec_list->ranks[i], INH_SEGMENT_ID);
+        fflush(stderr);
+
         GPI_QUEUE_SAFE( gaspi_write_notify(
                            ENH_SEGMENT_ID, /* local segment */
                            (gaspi_offset_t) dat->loc_enh_seg_off + exp_nonexec_list->disps[i]*dat->size, /* local segment offset*/
@@ -133,7 +138,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                            remote_offset, /* remote segment offset*/
                            dat->size * exp_nonexec_list->sizes[i], /* data to send (in bytes)*/
                            dat->index, /* notification id*/
-                           gpi_rank, /* notification value */
+                           VAL_BIT | gpi_rank, /* notification value. 1 added for non-zero notif values */
                            OP2_GPI_QUEUE_ID, /* queue id*/
                            GPI_TIMEOUT /* timeout */
                            ), OP2_GPI_QUEUE_ID )
@@ -184,8 +189,11 @@ void op_gpi_waitall(op_arg *arg){
                             notif_id,
                             &notif_value);
 
-        recv_rank = (int) notif_value;
+        recv_rank = (int) notif_value & (~VAL_BIT); /* Filter out the VAL_BIT */
         recv_dat_index= (int) notif_id;
+
+        
+        printf("notif_value: %d recv rank: %d\n",notif_value, recv_rank);
 
         //lookup recv object
         int obj_idx=0;
@@ -218,7 +226,7 @@ void op_gpi_waitall(op_arg *arg){
                             notif_id,
                             &notif_value);
 
-        recv_rank = (int) notif_value;
+        recv_rank = (int) notif_value & (VAL_BIT-1); /* Filter out the VAL_BIT */
         recv_dat_index= (int) notif_id;
 
         //lookup recv object

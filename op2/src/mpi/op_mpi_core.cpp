@@ -1186,8 +1186,8 @@ extern "C"
 
 
       /* allocate the remote segment offsets arrays for the import lists */
-      imp_exec_list->remote_segment_offsets = (gaspi_offset_t*)xmalloc(sizeof(gaspi_offset_t)*imp_exec_list->ranks_size);
-      imp_nonexec_list->remote_segment_offsets = (gaspi_offset_t*)xmalloc(sizeof(gaspi_offset_t)*imp_nonexec_list->ranks_size);
+      exp_exec_list->remote_segment_offsets = (gaspi_offset_t*)xmalloc(sizeof(gaspi_offset_t)*exp_exec_list->ranks_size);
+      exp_nonexec_list->remote_segment_offsets = (gaspi_offset_t*)xmalloc(sizeof(gaspi_offset_t)*exp_nonexec_list->ranks_size);
 
 
       /* Allocate gpi buffer */
@@ -1269,7 +1269,6 @@ extern "C"
       ieh_size += (gaspi_size_t)imp_exec_list->size * dat->size;
       inh_size += (gaspi_size_t)imp_nonexec_list->size * dat->size;
 
-      GPI_FAIL("SUCCESSFULLY MADE IT TO HERE!!");
 
       /* Populate the remote_segment_offset array in the halo_list struct.
        * This is to know where to send data to by communicating with neighbours...
@@ -1322,6 +1321,7 @@ extern "C"
        * As part of the tag, a 1 is added to the second most significant bit to indicate
        * this is for the non-execute elements */
 
+      // Allocate to store receieve requests 
       gpi_buf->pre_exchange_hndl_r = (MPI_Request *)xmalloc(sizeof(MPI_Request) * (exp_exec_list->ranks_size + exp_nonexec_list->ranks_size));
 
       /* Execute elements */
@@ -1343,11 +1343,13 @@ extern "C"
                   1,
                   MPI_LONG,
                   exp_nonexec_list->ranks[i],
-                  1 << 30 | dat->index, /* 1 in MSB to indicate non-exec */
+                  1 << 30 | dat->index, /* 1 in MSB -1 to indicate non-exec */
                   OP_MPI_WORLD,
                   &gpi_buf->pre_exchange_hndl_r[i + exp_exec_list->ranks_size]);
       }
+
     }
+
 
     /* Wait on receiving all remote_segment_offset info */
 
@@ -1362,21 +1364,59 @@ extern "C"
       halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
 
       halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
-      halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index]; // Get halos
+      halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
 
-      // Wait for sends (TODO - think if this is necessary...)
+
+      // Wait for sends 
       MPI_Waitall(imp_exec_list->ranks_size + imp_nonexec_list->ranks_size, gpi_buf->pre_exchange_hndl_s, MPI_STATUS_IGNORE);
 
       // Wait for receives
       MPI_Waitall(exp_exec_list->ranks_size + exp_nonexec_list->ranks_size, gpi_buf->pre_exchange_hndl_r, MPI_STATUS_IGNORE);
+      
+      printf("Contents of %s dat remote execute set offsets:\n[", dat->name);
+      int _sz = exp_exec_list->ranks_size;
+      if(_sz==0){
+        printf("]\n\n");
+      }
+      else if(_sz==1){
+        printf("%ld]\n\n",exp_exec_list->remote_segment_offsets[0]);
+      }
+      else{
+        for(int i=0;i<_sz-1;i++){
+          printf("%ld, ",exp_exec_list->remote_segment_offsets[i]);
+        }
+        printf("%ld]\n\n",exp_exec_list->remote_segment_offsets[exp_exec_list->ranks_size-1]);
+      }
+
+      printf("Contents of %s dat remote non-execute set offsets:\n[", dat->name);
+      _sz = exp_nonexec_list->ranks_size;
+      if(_sz==0)
+        printf("]\n");
+      else if(_sz==1){
+        printf("%ld]\n\n",exp_nonexec_list->remote_segment_offsets[0]);
+      }
+      else{
+        for(int i=0;i<_sz-1;i++){
+          printf("%ld, ",exp_nonexec_list->remote_segment_offsets[i]);
+        }
+        printf("%ld]\n\n",exp_nonexec_list->remote_segment_offsets[_sz-1]);
+      }
+      
     }
+
+
 
     //Barrier before starting GPI communication
     MPI_Barrier(OP_MPI_WORLD);
 
     /* Create the halo segments */
 
-    gaspi_size_t msc_size = 1 << 20; /*TODO define good size later... Current 512kB */
+    gaspi_size_t msc_size = 1 << 10; /*TODO define good size later... Current 512kB */
+
+    gaspi_rank_t rank;
+    gaspi_proc_rank(&rank);
+    printf("Rank %d segment sizes:\n - EEH: %db \n - ENH %db \n - IEH %db \n - INH %db \n - MSC %db \n",(int)rank,eeh_size,enh_size,ieh_size,inh_size,msc_size);
+
 
     /* malloc failure check performed in xmalloc */
     eeh_segment_ptr = (char *)xmalloc((size_t)eeh_size);
@@ -1408,7 +1448,7 @@ extern "C"
 
     GPI_SAFE(gaspi_segment_use(INH_SEGMENT_ID,
                                (gaspi_pointer_t)inh_segment_ptr,
-                               enh_size,
+                               inh_size,
                                OP_GPI_WORLD,
                                GPI_TIMEOUT,
                                GASPI_ALLOC_DEFAULT))
@@ -1421,7 +1461,7 @@ extern "C"
                                GASPI_ALLOC_DEFAULT))
 
     /* TODO Free the pre-exchange memory?*/
-
+    
     GPI_SAFE( gaspi_barrier(OP_GPI_WORLD,GPI_TIMEOUT) )
 
 #endif /* HAVE_GPI*/

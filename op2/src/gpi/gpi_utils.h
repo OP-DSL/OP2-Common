@@ -38,7 +38,7 @@
     case GASPI_SUCCESS:\
         break;\
     default:\
-        fprintf(stderr, "Function %s at %s (%d) has not returned a GASPI return value. You sure it's a GASPI function?\n", #f, __FILE__, __LINE__);\
+        fprintf(stderr, "Function %s at %s (%d) has not returned a GASPI return value: (%d). Are you sure it's a GASPI function?\n", #f, __FILE__, __LINE__, _ret);\
         fflush(stderr);\
         gaspi_proc_term(GASPI_BLOCK);\
         MPI_Abort(MPI_COMM_WORLD, 1);\
