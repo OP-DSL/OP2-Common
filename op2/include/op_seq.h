@@ -7,6 +7,11 @@
 #include "op_lib_cpp.h"
 #include <utility>
 
+#ifdef HAVE_GPI
+#include "op_lib_core.h"
+#include "op_gpi_core.h"
+#endif
+
 static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
@@ -37,6 +42,8 @@ inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo) {
   } else {
     if (arg.map == NULL || arg.opt == 0) // identity mapping
       *p_arg += arg.size * n;
+
+
     else // standard pointers
       *p_arg += arg.size * arg.map->map[arg.idx + n * arg.map->dim];
   }
@@ -60,12 +67,18 @@ inline void op_args_check(op_set set, int nargs, op_arg *args, int *ninds,
 template <typename... T, typename... OPARG, size_t... I>
 void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
                       op_set set, OPARG... arguments) {
+  
+  //N is the number of arguments
   constexpr int N = sizeof...(OPARG);
 
+  // Create array for arguments 
   char *p_a[N] = {((arguments.idx < -1)
                        ? (char *)malloc(-1 * arguments.idx * sizeof(T))
                        : nullptr)...};
+
+  // Array of arguments
   op_arg args[N] = {arguments...};
+  
   // allocate scratch mememory to do double counting in indirect reduction
   (void)std::initializer_list<char *>{
       ((arguments.argtype == OP_ARG_GBL && arguments.size > blank_args_size)
@@ -88,13 +101,21 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
+#ifdef HAVE_GPI
+  int n_upper = op_gpi_halo_exchanges(set, N, args);
+#else
   int n_upper = op_mpi_halo_exchanges(set, N, args);
+#endif
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
+#ifdef HAVE_GPI
+      op_gpi_waitall_args(20, args);
+#else
       op_mpi_wait_all(20, args);
+#endif
     if (n == set->size)
       halo = 1;
     (void)std::initializer_list<int>{
@@ -103,24 +124,44 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
     kernel(((T *)p_a[I])...);
   }
   if (n_upper == set->core_size || n_upper == 0)
+#ifdef HAVE_GPI
+    op_gpi_waitall_args(N, args);
+#else
     op_mpi_wait_all(N, args);
+#endif
 
   // set dirty bit on datasets touched
-  op_mpi_set_dirtybit(N, args);
+  op_mpi_set_dirtybit(N, args); /* This IS_COMMON to both MPI/GPI */
 
   // global reduction for MPI execution, if needed
   // p_a simply used to determine type for MPI reduction
+#ifdef HAVE_GPI
+  (void)std::initializer_list<int>{
+      (op_gpi_reduce(&arguments, (T *)p_a[I]), 0)...};
+#else
   (void)std::initializer_list<int>{
       (op_mpi_reduce(&arguments, (T *)p_a[I]), 0)...};
+#endif
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
 #ifdef COMM_PERF
+#ifdef HAVE_GPI
+  void *k_i = op_gpi_perf_time(name, wall_t2 - wall_t1);
+  op_gpi_perf_comms(k_i, 20, args);
+#else
   void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
   op_mpi_perf_comms(k_i, 20, args);
+#endif /*HAVE_GPI*/
+#else
+#ifdef HAVE_GPI
+  op_gpi_perf_time(name, wall_t2 - wall_t1);
 #else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
+#endif /* HAVE_GPI*/
+#endif /* COMM_PERF*/
+
+
   (void)std::initializer_list<int>{
       (arguments.idx < -1 ? free(p_a[I]), 0 : 0)...};
 }
@@ -219,7 +260,7 @@ template <class T0, class T1>
 void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
                  op_arg arg0, op_arg arg1) {
 
-  char *p_a[2] = {0, 0};
+  char *p_a[2] = {0, 0}; //p_a is a struct pointing to the arguments
   op_arg args[2] = {arg0, arg1};
   if (arg0.idx < -1) {
     p_a[0] = (char *)op_malloc(-1 * args[0].idx * sizeof(T0));
@@ -250,7 +291,11 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
+// #ifdef HAS_GPI
+//   int n_upper = op_gpi_halo_exchanges(set, 2, args);
+// #else
   int n_upper = op_mpi_halo_exchanges(set, 2, args);
+// #endif
 
   // loop over set elements
   int halo = 0;
@@ -261,7 +306,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
-      op_arg_copy_in(n, args[0], (char **)p_a[0]);
+      op_arg_copy_in(n, [0args], (char **)p_a[0]);
     else
       op_arg_set(n, args[0], &p_a[0], halo);
     if (args[1].idx < -1)

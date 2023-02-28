@@ -1,3 +1,4 @@
+/* Header file for GPI helper functionality */
 #pragma once
 
 #include <GASPI.h>
@@ -5,6 +6,8 @@
 #include <mpi.h>
 #include <stdlib.h>
 
+
+#define GPI_TIMEOUT 1500
 
 #define GPI_TIMEOUT_EXTRA_TRIES 1
 
@@ -35,7 +38,7 @@
     case GASPI_SUCCESS:\
         break;\
     default:\
-        fprintf(stderr, "Function %s at %s (%d) has not returned a GASPI return value. You sure it's a GASPI function?\n", #f, __FILE__, __LINE__);\
+        fprintf(stderr, "Function %s at %s (%d) has not returned a GASPI return value: (%d). Are you sure it's a GASPI function?\n", #f, __FILE__, __LINE__, _ret);\
         fflush(stderr);\
         gaspi_proc_term(GASPI_BLOCK);\
         MPI_Abort(MPI_COMM_WORLD, 1);\
@@ -69,13 +72,11 @@
     }\
 }
 
-#define GPI_FAIL(...) (                 \
-    {                                   \
+#define GPI_FAIL(...) {                                   \
         fprintf(stderr, "Fail at %s (%d).\n", __FILE__, __LINE__);\
         fprintf(stderr, __VA_ARGS__);   \
         fflush(stderr);\
         gaspi_proc_term(GASPI_BLOCK);                        \
         MPI_Abort(MPI_COMM_WORLD, 1);\
     }                                   \
-)
 

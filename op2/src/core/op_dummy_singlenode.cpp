@@ -141,6 +141,31 @@ void op_mpi_reduce_bool(op_arg *args, bool *data) {
   (void)data;
 }
 
+void op_gpi_reduce_combined(op_arg *args, int nargs) {
+  (void)args;
+  (void)nargs;
+}
+
+void op_gpi_reduce_float(op_arg *args, float *data) {
+  (void)args;
+  (void)data;
+}
+
+void op_gpi_reduce_double(op_arg *args, double *data) {
+  (void)args;
+  (void)data;
+}
+
+void op_gpi_reduce_int(op_arg *args, int *data) {
+  (void)args;
+  (void)data;
+}
+
+void op_gpi_reduce_bool(op_arg *args, bool *data) {
+  (void)args;
+  (void)data;
+}
+
 void op_partition(const char *lib_name, const char *lib_routine,
                   op_set prime_set, op_map prime_map, op_dat coords) {
   (void)lib_name;

@@ -50,6 +50,10 @@
 #include <omp.h>
 #endif
 
+#ifdef HAVE_GPI
+#include "GASPI.h"
+#endif
+
 /*
  * run-time type-checking routines
  */
@@ -210,7 +214,25 @@ inline void op_mpi_reduce(op_arg *args, int *data) {
   op_mpi_reduce_int(args, data);
 }
 
+
+//
+// wrapper functions to handle GPI global reductions
+//
+
+inline void op_gpi_reduce(op_arg *args, float *data) {
+  op_gpi_reduce_float(args, data);
+}
+
+inline void op_gpi_reduce(op_arg *args, double *data) {
+  op_gpi_reduce_double(args, data);
+}
+
+inline void op_gpi_reduce(op_arg *args, int *data) {
+  op_gpi_reduce_int(args, data);
+}
+
 // needed as a dummy, "do nothing" routine for the non-mpi backends
 template <class T> void op_mpi_reduce(op_arg *args, T *data) {}
+template <class T> void op_gpi_reduce(op_arg *args, T *data) {}
 
 #endif /* __OP_LIB_CPP_H */

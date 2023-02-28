@@ -151,7 +151,10 @@ typedef struct {
   int dirtybit;     /* flag to indicate MPI halo exchange is needed*/
   int dirty_hd;     /* flag to indicate dirty status on host and device */
   int user_managed; /* indicates whether the user is managing memory */
-  void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
+  void *mpi_buffer; /* pointer to hold the mpi buffer struct for the op_dat*/
+  void *gpi_buffer;       /* pointer to hold the gpi buffer struct for the op_dat*/
+  int loc_eeh_seg_off;  /* Dat offset into local segment in bytes */
+  int loc_enh_seg_off;  /* Dat offset into local segment in bytes */
 } op_dat_core;
 
 typedef op_dat_core *op_dat;
@@ -184,9 +187,7 @@ typedef struct {
   float transfer;   /* bytes of data transfer (used) */
   float transfer2;  /* bytes of data transfer (total) */
   double mpi_time;  /* time spent in MPI calls */
-  #ifdef HAVE_GPI
   double gpi_time;  /* time spent in GPI calls*/
-  #endif
 } op_kernel;
 
 // struct definition for a double linked list entry to hold an op_dat
@@ -336,6 +337,21 @@ int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int devic
 void op_mpi_test_all_grouped(int nargs, op_arg *args);
 void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
 
+/*******************************************************************************
+* Core GPI lib function prototypes
+*******************************************************************************/
+
+int op_gpi_halo_exchanges(op_set set, int nargs, op_arg *args);
+
+void op_gpi_reduce_combined(op_arg *args, int nargs);
+
+void op_gpi_reduce_float(op_arg *args, float *data);
+
+void op_gpi_reduce_double(op_arg *args, double *data);
+
+void op_gpi_reduce_int(op_arg *args, int *data);
+
+void op_gpi_reduce_bool(op_arg *args, bool *data);
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
