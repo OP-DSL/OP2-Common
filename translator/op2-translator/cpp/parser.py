@@ -117,7 +117,7 @@ def parseCall(node: Cursor, macros: Dict[Location, str], program: Program) -> No
         program.consts.append(parseConst(args, loc))
 
     elif name == "op_par_loop":
-        program.loops.append(parseLoop(args, loc, macros))
+        program.loops.append(parseLoop(program, args, loc, macros))
 
 
 def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
@@ -132,12 +132,14 @@ def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
     return OP.Const(loc, ptr, dim, typ)
 
 
-def parseLoop(args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:
+def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:
     if len(args) < 3:
         raise ParseError("incorrect number of args passed to op_par_loop")
 
     kernel = parseIdentifier(args[0])
-    loop = OP.Loop(loc, kernel)
+    name = f"{program.path.stem}_{len(program.loops) + 1}_{kernel}"
+
+    loop = OP.Loop(name, loc, kernel)
 
     for node in args[3:]:
         node = descend(descend(node))

@@ -54,7 +54,7 @@ arg{{arg.id}}%dim
     {%- endif -%}
 {%- endmacro -%}
 
-module op2_k{{kernel_idx}}
+module op2_m_{{lh.name}}{{variant}}
 
     use iso_c_binding
 
@@ -66,13 +66,13 @@ module op2_k{{kernel_idx}}
     implicit none
 
     private
-    public :: op2_k{{kernel_idx}}_{{lh.kernel}}
+    public :: op2_k_{{lh.name}}{{variant}}
 
 contains
 
 {{kernel_func}}
 
-subroutine {{lh.kernel}}_wrapper( &
+subroutine op2_k_{{lh.name}}_wrapper( &
 {% for dat in lh.dats %}
     dat{{dat.id}}, &
 {% endfor %}
@@ -166,7 +166,7 @@ subroutine {{lh.kernel}}_wrapper( &
 {% endif %}
 end subroutine
 
-subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
+subroutine op2_k_{{lh.name}}{{variant}}( &
     name, &
     set, &
 {% for arg in lh.args %}
@@ -224,7 +224,7 @@ subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
 {% for arg in lh.args|info %}
     call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{arg_dim(arg)}}/)){{"\n" if loop.last}}
 {% endfor %}
-    call {{lh.kernel}}_wrapper( &
+    call op2_k_{{lh.name}}_wrapper( &
 {% for dat in lh.dats %}
         dat{{dat.id}}, &
 {% endfor %}

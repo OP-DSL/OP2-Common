@@ -194,6 +194,8 @@ class ArgInfo(Arg):
 
 
 class Loop:
+    name: str
+
     loc: Location
     kernel: str
 
@@ -205,7 +207,9 @@ class Loop:
 
     fallback: bool
 
-    def __init__(self, loc: Location, kernel: str) -> None:
+    def __init__(self, name: str, loc: Location, kernel: str) -> None:
+        self.name = name
+
         self.loc = loc
         self.kernel = kernel
 
@@ -343,4 +347,8 @@ class Loop:
         if len(self.maps) > 0:
             map_str = f"\n    {map_str}\n"
 
-        return f"Loop at {self.loc}:\n    Kernel function: {self.kernel}\n\n    {args}\n" + dat_str + map_str
+        return (
+            f"Loop at {self.loc}:\n    Name: {self.name}\n    Kernel function: {self.kernel}\n\n    {args}\n"
+            + dat_str
+            + map_str
+        )

@@ -17,6 +17,8 @@ class Scheme(Findable):
     lang: Lang
     target: Target
 
+    fallback: Optional[Scheme]
+
     consts_template: Optional[Path]
     loop_host_template: Path
     master_kernel_template: Optional[Path]
@@ -29,45 +31,64 @@ class Scheme(Findable):
 
     def genLoopHost(
         self,
-        include_dirs: Set[Path],
-        defines: List[str],
         env: Environment,
         loop: OP.Loop,
         program: Program,
         app: Application,
         kernel_idx: int,
-        force_generate: bool
-    ) -> Tuple[str, str, bool]:
-        # Load the loop host template
+    ) -> Optional[Tuple[str, str, bool]]:
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
 
-        if loop.fallback and not force_generate:
-            return (None, extension, False)
+        args = {
+            "OP": OP,
+            "lh": loop,
+            "kernel_idx": kernel_idx,
+            "lang": self.lang,
+            "target": self.target,
+        }
 
-        if not self.canGenLoopHost(loop):
-            return (None, extension, False)
+        cant_generate = not self.canGenLoopHost(loop)
+
+        if (loop.fallback or cant_generate) and self.fallback is None:
+            return None
+
+        if self.fallback is not None:
+            fallback_wrapper_template = env.get_template(str(self.lang.fallback_wrapper_template))
+
+            fallback_template = env.get_template(str(self.fallback.loop_host_template))
+            fallback_kernel_func = self.fallback.translateKernel(loop, program, app, kernel_idx)
 
         try:
             kernel_func = self.translateKernel(loop, program, app, kernel_idx)
         except Exception as e:
             print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
             traceback.print_exc()
+        
+            if self.fallback is None:
+                return None
 
-            return (None, extension, False)
+            kernel_func = None
 
-        # Generate source from the template
-        return (
-            template.render(
-                OP=OP, lh=loop, kernel_func=kernel_func, kernel_idx=kernel_idx, lang=self.lang, target=self.target
-            ),
-            extension,
-            True
-        )
+        if loop.fallback or cant_generate or kernel_func is None:
+            return (fallback_template.render(**args, variant="", kernel_func=fallback_kernel_func), extension, True)
+
+        if self.fallback is None:
+            return (template.render(**args, variant="", kernel_func=kernel_func), extension, False)
+
+        source = template.render(**args, variant="_main", kernel_func=kernel_func)
+
+        source += "\n\n"
+        source += fallback_template.render(**args, variant="_fallback", kernel_func=fallback_kernel_func)
+
+        source += "\n\n"
+        source += fallback_wrapper_template.render(**args)
+
+        return (source, extension, False)
 
     def genConsts(self, env: Environment, app: Application) -> Tuple[str, str]:
         if self.consts_template is None:
-            exit(f"No consts kernel template registered for {self}")
+            exit(f"No consts template registered for {self}")
 
         # Load the loop host template
         template = env.get_template(str(self.consts_template))
