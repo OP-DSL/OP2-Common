@@ -40,6 +40,12 @@
 #include <string.h>
 #include <sys/time.h>
 
+#include <vector>
+#include <unordered_set>
+#include <regex>
+#include <string>
+#include <fstream>
+
 /*
  * OP2 global state variables
  */
@@ -58,6 +64,10 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
 
 int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
+
+std::vector<std::regex> OP_whitelist = {};
+std::unordered_set<std::string> OP_whitelist_matched = {};
+
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -132,6 +142,23 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map) {
       }
     }
   }
+}
+
+bool op_check_whitelist(const char *name) {
+  if (OP_whitelist.size() == 0)
+    return true;
+
+  if (OP_whitelist_matched.find(name) != OP_whitelist_matched.end())
+    return true;
+
+  for (const auto& regex : OP_whitelist) {
+    if (std::regex_match(name, regex)) {
+      OP_whitelist_matched.emplace(name);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /* Special function to get commandline arguments, articularly useful as argv
@@ -227,6 +254,23 @@ void op_init_core(int argc, char **argv, int diags) {
   if (getenv("OP_AUTO_SOA") || OP_auto_soa == 1) {
     OP_auto_soa = 1;
     op_printf("\n Enabling Automatic AoS->SoA Conversion\n");
+  }
+
+  if (getenv("OP_WHITELIST")) {
+    char *val = getenv("OP_WHITELIST");
+    op_printf("\n Using kernel whitelist: %s\n", val);
+
+    std::ifstream file(val);
+
+    if (!file.is_open()) {
+      op_printf(" Error: could not open kernel whitelist, skipping\n");
+    } else {
+      std::string line;
+
+      while (std::getline(file, line)) {
+        OP_whitelist.push_back(std::regex(line));
+      }
+    }
   }
 
 #ifdef OP_BLOCK_SIZE
