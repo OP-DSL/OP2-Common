@@ -101,6 +101,7 @@ def walk(node_list, types=None, indent=0, debug=False):
 
     return local_list
 
+
 fparser.two.utils.walk = walk
 
 
@@ -129,10 +130,10 @@ class Fortran(Lang):
 
     source_exts = ["F90", "F95"]
     include_ext = "inc"
-    kernel_dir = True
 
     com_delim = "!"
-    zero_idx = False
+
+    fallback_wrapper_template = Path("fortran/fallback_wrapper.F90.jinja")
 
     extra_consts_list = None
     user_consts_module = None

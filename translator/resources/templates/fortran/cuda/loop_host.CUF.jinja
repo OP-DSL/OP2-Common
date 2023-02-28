@@ -61,7 +61,7 @@ dat{{arg.dat_id}}({{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}} + 1)
 {%- endmacro -%}
 
 {%- macro kernel_call() -%}
-call {{lh.kernel}}_wrapper<<<num_blocks, block_size
+call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size
 {{-", shared_size" if lh.args|gbl|reduction|length > 0}}>>>( &
     {% for dat in lh.dats %}
     dat{{dat.id}}_d, &
@@ -102,7 +102,7 @@ call {{lh.kernel}}_wrapper<<<num_blocks, block_size
 
 #define op2_s(idx, stride) 1 + ((idx) - 1) * op2_stride_##stride##_d
 
-module op2_k{{kernel_idx}}
+module op2_m_{{lh.name}}{{variant}}
 
     use cudafor
     use iso_c_binding
@@ -116,7 +116,7 @@ module op2_k{{kernel_idx}}
     implicit none
 
     private
-    public :: op2_k{{kernel_idx}}_{{lh.kernel}}
+    public :: op2_k_{{lh.name}}{{variant}}
 {% if lh.dats|direct(lh)|soa|length > 0 %}
 
     integer(4) :: op2_stride_direct = 0
@@ -133,7 +133,7 @@ contains
 {{kernel_func}}
 
 attributes(global) &
-subroutine {{lh.kernel}}_wrapper( &
+subroutine op2_k_{{lh.name}}_wrapper( &
 {% for dat in lh.dats %}
     dat{{dat.id}}, &
 {% endfor %}
@@ -241,7 +241,7 @@ subroutine {{lh.kernel}}_wrapper( &
 {% endfor %}
 end subroutine
 
-subroutine op2_k{{kernel_idx}}_{{lh.kernel}}( &
+subroutine op2_k_{{lh.name}}{{variant}}( &
     name, &
     set, &
 {% for arg in lh.args %}

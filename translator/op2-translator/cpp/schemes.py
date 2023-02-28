@@ -12,6 +12,8 @@ class CppSeq(Scheme):
     lang = Lang.find("cpp")
     target = Target.find("seq")
 
+    fallback = None
+
     consts_template = None
     loop_host_template = Path("cpp/seq/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/seq/master_kernel.cpp.jinja")
@@ -38,6 +40,8 @@ class CppOpenMP(Scheme):
     lang = Lang.find("cpp")
     target = Target.find("openmp")
 
+    fallback = None
+
     consts_template = None
     loop_host_template = Path("cpp/openmp/loop_host.hpp.jinja")
     master_kernel_template = Path("cpp/openmp/master_kernel.cpp.jinja")
@@ -63,6 +67,8 @@ Scheme.register(CppOpenMP)
 class CppCuda(Scheme):
     lang = Lang.find("cpp")
     target = Target.find("cuda")
+
+    fallback = None
 
     consts_template = None
     loop_host_template = Path("cpp/cuda/loop_host.hpp.jinja")

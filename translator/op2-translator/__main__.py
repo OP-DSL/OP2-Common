@@ -3,9 +3,12 @@ import dataclasses
 import json
 import os
 import pstats
+import pdb
+
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from datetime import datetime
 from pathlib import Path
+from fnmatch import fnmatch
 
 import cpp
 import fortran
@@ -130,9 +133,6 @@ def main(argv=None) -> None:
     except OpError as e:
         exit(e)
 
-    fallback_target = Target.find("seq")
-    fallback_scheme = Scheme.find((lang, fallback_target))
-
     for [target] in args.target:
         target = Target.find(target)
 
@@ -150,7 +150,7 @@ def main(argv=None) -> None:
         if args.verbose:
             print(f"Translation scheme: {scheme}")
 
-        codegen(args, scheme, fallback_scheme, app, args.force_soa)
+        codegen(args, scheme, app, args.force_soa)
 
         if args.verbose:
             print()
@@ -166,12 +166,22 @@ def main(argv=None) -> None:
         ext = os.path.splitext(os.path.basename(program.path))[1]
         new_path = Path(args.out, f"{new_file}{args.suffix}{ext}")
 
-        with open(new_path, "w") as new_file:
-            new_file.write(f"\n{lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-            new_file.write(source)
+        write_file(new_path, source)
 
-            if args.verbose:
-                print(f"Translated program  {i} of {len(args.file_paths)}: {new_path}")
+        if args.verbose:
+            print(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
+
+
+def write_file(path: Path, text: str) -> None:
+    if path.is_file():
+        prev_text = path.read_text()
+
+        if text == prev_text:
+            return
+
+    with path.open("w") as f:
+        # f.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
+        f.write(text)
 
 
 def parse(args: Namespace, lang: Lang) -> Application:
@@ -210,7 +220,7 @@ def validate(args: Namespace, lang: Lang, app: Application) -> None:
             print("Dumped store:", store_path, end="\n\n")
 
 
-def codegen(args: Namespace, scheme: Scheme, fallback_scheme: Scheme, app: Application, force_soa: bool) -> None:
+def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
     include_dirs = set([Path(dir) for [dir] in args.I])
     defines = [define for [define] in args.D]
@@ -218,57 +228,42 @@ def codegen(args: Namespace, scheme: Scheme, fallback_scheme: Scheme, app: Appli
     # Generate loop hosts
     for i, (loop, program) in enumerate(app.loops(), 1):
         # Generate loop host source
-        fallback = False
-        source, extension, success = scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i, False)
+        res = scheme.genLoopHost(env, loop, program, app, i)
 
-        if not success:
-            fallback = True
-            source, _, success = fallback_scheme.genLoopHost(include_dirs, defines, env, loop, program, app, i, True)
-
-        if not success:
+        if res is None:
             print(f"Error: unable to generate loop host {i}")
             continue
 
+        source, extension, fallback = res
+
         # Form output file path
-        path = None
-        if scheme.lang.kernel_dir:
-            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
-            path = Path(
-                args.out,
-                scheme.target.name,
-                f"{i}_{loop.kernel}_kernel.{extension}",
-            )
-        else:
-            path = Path(args.out, f"{loop.kernel}_{scheme.target.name}_kernel.{extension}")
+        Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
+        path = Path(
+            args.out,
+            scheme.target.name,
+            f"{loop.name}_kernel.{extension}",
+        )
 
         # Write the generated source file
-        with open(path, "w") as file:
-            file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-            file.write(source)
+        write_file(path, source)
 
-            if args.verbose and not fallback:
-                print(f"Generated loop host {i} of {len(app.loops())}: {path}")
+        if args.verbose and not fallback:
+            print(f"Generated loop host {i} of {len(app.loops())}: {path}")
 
-            if args.verbose and fallback:
-                print(f"Generated loop host {i} of {len(app.loops())} (fallback): {path}")
+        if args.verbose and fallback:
+            print(f"Generated loop host {i} of {len(app.loops())} (fallback): {path}")
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:
         source, name = scheme.genConsts(env, app)
 
-        path = None
-        if scheme.lang.kernel_dir:
-            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
-            path = Path(args.out, scheme.target.name, name)
-        else:
-            path = Path(args.out, name)
+        Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
+        path = Path(args.out, scheme.target.name, name)
 
-        with open(path, "w") as file:
-            file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-            file.write(source)
+        write_file(path, source)
 
-            if args.verbose:
-                print(f"Generated consts file: {path}")
+        if args.verbose:
+            print(f"Generated consts file: {path}")
 
     # Generate master kernel file
     if scheme.master_kernel_template is not None:
@@ -278,19 +273,13 @@ def codegen(args: Namespace, scheme: Scheme, fallback_scheme: Scheme, app: Appli
 
         source, name = scheme.genMasterKernel(env, app, user_types_file)
 
-        path = None
-        if scheme.lang.kernel_dir:
-            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
-            path = Path(args.out, scheme.target.name, name)
-        else:
-            path = Path(args.out, name)
+        Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
+        path = Path(args.out, scheme.target.name, name)
 
-        with open(path, "w") as file:
-            file.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-            file.write(source)
+        write_file(path, source)
 
-            if args.verbose:
-                print(f"Generated master kernel file: {path}")
+        if args.verbose:
+            print(f"Generated master kernel file: {path}")
 
 
 def isDirPath(path):
