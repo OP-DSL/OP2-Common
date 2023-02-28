@@ -293,6 +293,8 @@ int op_get_size(op_set set);
 
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 
+bool op_check_whitelist(const char *name);
+
 void op_upload_dat(op_dat dat);
 
 void op_download_dat(op_dat dat);

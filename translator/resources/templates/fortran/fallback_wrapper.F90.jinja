@@ -29,13 +29,23 @@ subroutine op2_k_{{lh.name}}( &
     type(op_arg) :: arg{{arg.id}}
 {% endfor %}
 
-    call op2_k_{{lh.name}}_main( &
-        name, &
-        set, &
+    if (op_check_whitelist("{{lh.name}}")) then
+        call op2_k_{{lh.name}}_main( &
+            name, &
+            set, &
 {% for arg in lh.args %}
-        arg{{arg.id}}{{"," if not loop.last}} &
+            arg{{arg.id}}{{"," if not loop.last}} &
 {% endfor %}
-    )
+        )
+    else
+        call op2_k_{{lh.name}}_fallback( &
+            name, &
+            set, &
+{% for arg in lh.args %}
+            arg{{arg.id}}{{"," if not loop.last}} &
+{% endfor %}
+        )
+    end if
 end subroutine
 
 end module
