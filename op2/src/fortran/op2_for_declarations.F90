@@ -296,6 +296,13 @@ module OP2_Fortran_Declarations
 
     end subroutine op_exit_c
 
+    logical(kind=c_bool) function op_check_whitelist_c(name) bind(C,name='op_check_whitelist')
+
+      use, intrinsic :: ISO_C_BINDING
+      character(kind=c_char, len=*) :: name
+
+    end function op_check_whitelist_c
+
     subroutine op_register_set_c (idx, set) BIND(C,name='op_register_set')
       use, intrinsic :: ISO_C_BINDING
       integer(kind=c_int), intent(in), value :: idx
@@ -1085,6 +1092,15 @@ contains
     call op_exit_c (  )
 
   end subroutine op_exit
+
+  function op_check_whitelist(name) result(res)
+
+    logical(kind=c_bool) :: res
+    character(kind=c_char, len=*) :: name
+
+    res = op_check_whitelist_c(name // C_NULL_CHAR)
+
+  end function op_check_whitelist
 
   subroutine op_register_set(idx, set)
     integer(kind=c_int), value, intent(in) :: idx
