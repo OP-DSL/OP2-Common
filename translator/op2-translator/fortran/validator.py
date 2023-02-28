@@ -45,6 +45,15 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         )
         return
 
+    # Check for disallowed statements (IO, exit, ...)
+    # for entity in entities:
+    #     violations = []
+    #     checkStatements(entity, violations)
+
+    #     if len(violations) > 0:
+    #         printViolations(loop, "invalid statements", violations)
+    #         loop.fallback = True
+
     # Check for args marked OP_READ or arg_idx but appear to be written
     for idx, arg in enumerate(loop.args):
         if isinstance(arg, OP.ArgInfo) or (hasattr(arg, "access_type") and arg.access_type != OP.AccessType.READ):
@@ -93,6 +102,30 @@ def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Opt
         print(f"    ({len(violations) - 5} more)")
 
     print()
+
+
+def checkStatements(func: Function, violations: List[str]) -> None:
+    for node in fpu.walk(
+        func.ast,
+        (
+            f2003.Allocate_Stmt,
+            f2003.Backspace_Stmt,
+            f2003.Close_Stmt,
+            f2003.Deallocate_Stmt,
+            f2003.Endfile_Stmt,
+            f2003.Exit_Stmt,
+            f2003.Flush_Stmt,
+            f2003.Inquire_Stmt,
+            f2003.Open_Stmt,
+            f2003.Print_Stmt,
+            f2003.Read_Stmt,
+            f2003.Rewind_Stmt,
+            f2003.Stop_Stmt,
+            f2003.Wait_Stmt,
+            f2003.Write_Stmt,
+        ),
+    ):
+        violations.append(f"In {func.name}: {fu.getItem(node).line}")
 
 
 def checkRead(func: Function, param_idx: int, violations: List[str]) -> None:

@@ -17,7 +17,8 @@ class Lang(Findable):
     kernel_dir: bool
 
     com_delim: str
-    zero_idx: bool
+
+    fallback_wrapper_template: Optional[Path]
 
     @abstractmethod
     def validate(self, app: Application) -> None:

@@ -8,7 +8,7 @@ module op2_kernels
     use {{"op2_consts" if lang.user_consts_module is none else lang.user_consts_module}}
 
 {% for loop_, _ in app.loops() %}
-    use op2_k{{loop.index}} ! {{loop_.kernel}}
+    use op2_m_{{loop_.name}}
 {% endfor %}
 
 end module

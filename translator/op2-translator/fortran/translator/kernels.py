@@ -11,7 +11,9 @@ from store import Application, Entity, Function
 from util import find, safeFind
 
 
-def extractDependencies(entities: List[Entity], app: Application, scope: List[str] = []) -> Tuple[List[Entity], List[str]]:
+def extractDependencies(
+    entities: List[Entity], app: Application, scope: List[str] = []
+) -> Tuple[List[Entity], List[str]]:
     unprocessed_entities = list(entities)
     extracted_entities = []
     unknown_entities = []
@@ -240,7 +242,9 @@ def insertAtomicIncs(
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
 
-def insertAtomicInc(func: Function, funcs: List[Function], param: str, arg: OP.Arg) -> Tuple[List[Tuple[str, int, OP.Arg]], bool]:
+def insertAtomicInc(
+    func: Function, funcs: List[Function], param: str, arg: OP.Arg
+) -> Tuple[List[Tuple[str, int, OP.Arg]], bool]:
     called = []
 
     for node in fpu.walk(func.ast, f2003.Name):
@@ -298,8 +302,7 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
         if not isinstance(node.items[2], f2003.Level_2_Expr):
             raise OpError(f"Error: unexpected statement while inserting atomics: {node}")
 
-
-        replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), f2003.Int_Literal_Constant('0'))
+        replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), f2003.Int_Literal_Constant("0"))
         return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
 
     if not isinstance(node, f2003.Base):

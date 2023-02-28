@@ -42,10 +42,10 @@ class Cpp(Lang):
 
     source_exts = ["cpp"]
     include_ext = "h"
-    kernel_dir = True
 
     com_delim = "//"
-    zero_idx = True
+
+    fallback_wrapper_template = None
 
     def validate(self, app: Application) -> None:
         pass

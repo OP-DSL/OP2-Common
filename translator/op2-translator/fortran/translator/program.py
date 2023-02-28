@@ -5,16 +5,14 @@ import fparser.two.utils as fpu
 
 from store import Program
 
-KERNEL_ID = 1
-
 
 def translateProgram2(program: Program, force_soa: bool) -> str:
     src = program.source
+    kernel_id = 1
 
     def repl(m):
-        global KERNEL_ID
-        r = f'{m.group(1)}call op2_k{KERNEL_ID}_{m.group(2)}("{m.group(2)}", '
-        KERNEL_ID = KERNEL_ID + 1
+        r = f'{m.group(1)}call op2_k_{program.path.stem}_{kernel_id}_{m.group(2)}("{m.group(2)}", '
+        kernel_id += 1
 
         return r
 
@@ -28,6 +26,7 @@ def translateProgram2(program: Program, force_soa: bool) -> str:
 
 def translateProgram(program: Program, force_soa: bool) -> str:
     ast = program.ast
+    kernel_id = 1
 
     for call in fpu.walk(ast, f2003.Call_Stmt):
         name = fpu.get_child(call, f2003.Name)
@@ -58,11 +57,8 @@ def translateProgram(program: Program, force_soa: bool) -> str:
         arg_list[0] = f2003.Char_Literal_Constant(f'"{kernel_name}"')
         args.items = tuple(arg_list)
 
-        # TODO: make this more robust
-        global KERNEL_ID
-        name.string = f"op2_k{KERNEL_ID}_{kernel_name}"
-
-        KERNEL_ID = KERNEL_ID + 1
+        name.string = f"op2_k_{program.path.stem}_{kernel_id}_{kernel_name}"
+        kernel_id += 1
 
     for main_program in fpu.walk(ast, f2003.Main_Program):
         spec = fpu.get_child(main_program, f2003.Specification_Part)

@@ -147,7 +147,7 @@ def parseCall(node: f2003.Call_Stmt, program: Program, loc: Location) -> None:
         program.consts.append(parseConst(args, loc))
 
     elif re.match(r"op_par_loop_\d+", name):
-        program.loops.append(parseLoop(args, loc))
+        program.loops.append(parseLoop(program, args, loc))
 
 
 def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Const:
@@ -163,12 +163,14 @@ def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.
     return OP.Const(loc, ptr, dim, typ)
 
 
-def parseLoop(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Loop:
+def parseLoop(program: Program, args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.Loop:
     if args is None or len(args.items) < 3:
         raise ParseError("incorrect number of arguments for op_par_loop", loc)
 
     kernel = parseIdentifier(args.items[0], loc)
-    loop = OP.Loop(loc, kernel)
+    name = f"{program.path.stem}_{len(program.loops) + 1}_{kernel}"
+
+    loop = OP.Loop(name, loc, kernel)
 
     for arg_node in args.items[2:]:
         if type(arg_node) is not f2003.Structure_Constructor:
