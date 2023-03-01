@@ -18,7 +18,7 @@
 
 
 // Timing
-double t1, t2, c1, c2;
+extern double t1, t2, c1, c2;
 extern op_kernel* OP_kernels;
 extern int OP_kern_max, OP_kern_curr;
 
