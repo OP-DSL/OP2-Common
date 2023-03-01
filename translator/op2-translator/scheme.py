@@ -64,7 +64,7 @@ class Scheme(Findable):
         except Exception as e:
             print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
             traceback.print_exc()
-        
+
             if self.fallback is None:
                 return None
 

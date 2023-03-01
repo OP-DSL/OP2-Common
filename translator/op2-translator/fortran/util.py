@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Callable, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
