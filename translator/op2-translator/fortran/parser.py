@@ -6,7 +6,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Function, Location, ParseError, Program, Application
+from store import Application, Function, Location, ParseError, Program
 from util import safeFind
 
 

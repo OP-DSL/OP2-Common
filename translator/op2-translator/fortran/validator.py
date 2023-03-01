@@ -1,15 +1,13 @@
-from typing import Any, List, Optional, Union, Callable, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
-
-from sympy.parsing.sympy_parser import parse_expr
 from sympy import simplify
+from sympy.parsing.sympy_parser import parse_expr
 
 import fortran.translator.kernels as ftk
 import fortran.util as fu
 import op as OP
-
 from op import OpError
 from store import Application, Entity, Function, Program
 from util import find, safeFind
