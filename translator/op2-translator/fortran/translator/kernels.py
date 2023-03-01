@@ -1,12 +1,11 @@
-from typing import Callable, List, Optional, Dict, Set, Tuple, Any
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-
-from op import OpError
 from language import Lang
+from op import OpError
 from store import Application, Entity, Function
 from util import find, safeFind
 
@@ -294,7 +293,7 @@ def isRef(node: Any, name: str) -> bool:
     return False
 
 
-def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
+def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]:
     if isinstance(node, f2003.Assignment_Stmt):
         if not isRef(node.items[0], param):
             return None, False
@@ -316,18 +315,40 @@ def insertAtomicInc2(node: Any, param: str) -> Tuple[Optional[Any], bool]:
         replacement, modified2 = insertAtomicInc2(node.children[i], param)
 
         if replacement is not None:
-            children = list(node.children)
-            children[i] = replacement
-
-            if getattr(node, "content", None) is None:
-                node.items = children
-            else:
-                node.content = children
+            replaceChild(node, i, replacement)
 
         if replacement is not None or modified2:
             modified = True
 
     return None, modified
+
+
+def replaceChild(node: f2003.Base, index: int, replacement: f2003.Base) -> None:
+    children = []
+    use_tuple = False
+    use_content = False
+
+    if getattr(node, "items", None) is not None:
+        if isinstance(node.items, tuple):
+            use_tuple = True
+
+        children = list(node.items)
+    else:
+        if isinstance(node.content, tuple):
+            use_tuple = True
+
+        children = list(node.content)
+        use_content = True
+
+    children[index] = replacement
+
+    if use_tuple:
+        children = tuple(children)
+
+    if not use_content:
+        node.items = children
+    else:
+        node.content = children
 
 
 def replaceNodes(node: f2003.Base, match: Callable[[f2003.Base], bool], replacement: f2003.Base) -> Optional[Any]:
@@ -344,13 +365,7 @@ def replaceNodes(node: f2003.Base, match: Callable[[f2003.Base], bool], replacem
         replacement = replaceNodes(node.children[i], match, replacement)
 
         if replacement is not None:
-            children = list(node.children)
-            children[i] = replacement
-
-            if getattr(node, "content", None) is None:
-                node.items = children
-            else:
-                node.content = tuple(children)
+            replaceChild(node, i, replacement)
 
     return None
 
