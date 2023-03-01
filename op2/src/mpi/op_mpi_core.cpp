@@ -1202,8 +1202,10 @@ extern "C"
 
 
     
+      /* You receive from the import halos */
       gpi_buf->exec_recv_count = imp_exec_list->ranks_size;
       gpi_buf->nonexec_recv_count = imp_nonexec_list->ranks_size;
+
 
       /* Allocate memory for recv objs */
       gpi_buf->exec_recv_objs = (op_gpi_recv_obj *)xmalloc(gpi_buf->exec_recv_count * sizeof(op_gpi_recv_obj));
@@ -1285,33 +1287,42 @@ extern "C"
       // Firstly need to allocate enough room for the sending MPI_Requests...
       gpi_buf->pre_exchange_hndl_s = (MPI_Request *)xmalloc(sizeof(MPI_Request) * (imp_exec_list->ranks_size + imp_nonexec_list->ranks_size));
 
+      bool send_okay=true;
+
       /* Execute elements */
       for (int i = 0; i < imp_exec_list->ranks_size; i++)
       {
         recv_obj = &gpi_buf->exec_recv_objs[i];
-        MPI_Isend(
+        
+        send_okay = send_okay &
+          MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
             MPI_LONG,
             recv_obj->remote_rank,
             dat->index,
             OP_MPI_WORLD,
-            &gpi_buf->pre_exchange_hndl_s[i]);
+            &gpi_buf->pre_exchange_hndl_s[i])==MPI_SUCCESS;
       }
 
       /* Non-execute elements */
       for (int i = 0; i < imp_nonexec_list->ranks_size; i++)
       {
         recv_obj = &gpi_buf->nonexec_recv_objs[i];
-        MPI_Isend(
+
+        send_okay = send_okay &
+          MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
             MPI_LONG,
             recv_obj->remote_rank,
-            1 << 30 | dat->index, /* 1 in MSB -1 to indicate non-execute */
+            1 << 20 | dat->index, /* 1 in MSB -1 to indicate non-execute */
             OP_MPI_WORLD,
             &gpi_buf->pre_exchange_hndl_s[i + gpi_buf->exec_recv_count] // as sharing a MPI_Request array
-        );
+          )==MPI_SUCCESS;
+      }
+      if(!send_okay){
+        GPI_FAIL("Status code on MPI_IRecv non-zero\n");
       }
 
       /* RECEIVE */
@@ -1325,29 +1336,35 @@ extern "C"
       gpi_buf->pre_exchange_hndl_r = (MPI_Request *)xmalloc(sizeof(MPI_Request) * (exp_exec_list->ranks_size + exp_nonexec_list->ranks_size));
 
       /* Execute elements */
+
+      bool recv_okay = true;
       for (int i = 0; i < exp_exec_list->ranks_size; i++)
       {
-        MPI_Irecv(&(exp_exec_list->remote_segment_offsets[i]),
+        recv_okay = recv_okay &
+          MPI_Irecv(&(exp_exec_list->remote_segment_offsets[i]),
                   1,
                   MPI_LONG,
                   exp_exec_list->ranks[i],
                   dat->index,
                   OP_MPI_WORLD,
-                  &gpi_buf->pre_exchange_hndl_r[i]);
+                  &gpi_buf->pre_exchange_hndl_r[i])==MPI_SUCCESS;
       }
 
       /* Non-execute elements */
       for (int i = 0; i < exp_nonexec_list->ranks_size; i++)
       {
-        MPI_Irecv(&(exp_nonexec_list->remote_segment_offsets[i]),
+        recv_okay = recv_okay &
+          MPI_Irecv(&(exp_nonexec_list->remote_segment_offsets[i]),
                   1,
                   MPI_LONG,
                   exp_nonexec_list->ranks[i],
-                  1 << 30 | dat->index, /* 1 in MSB -1 to indicate non-exec */
+                  1 << 20 | dat->index, /* 1 in MSB -1 to indicate non-exec */
                   OP_MPI_WORLD,
-                  &gpi_buf->pre_exchange_hndl_r[i + exp_exec_list->ranks_size]);
+                  &gpi_buf->pre_exchange_hndl_r[i + exp_exec_list->ranks_size])==MPI_SUCCESS;
       }
-
+      if(!recv_okay){
+        GPI_FAIL("Status code on MPI_IRecv non-zero\n");
+      }
     }
 
 
@@ -1385,8 +1402,10 @@ extern "C"
         for(int i=0;i<_sz-1;i++){
           printf("%ld, ",exp_exec_list->remote_segment_offsets[i]);
         }
-        printf("%ld]\n\n",exp_exec_list->remote_segment_offsets[exp_exec_list->ranks_size-1]);
+        printf("%ld]\n\n",exp_exec_list->remote_segment_offsets[_sz-1]);
       }
+      fflush(stdout);
+
 
       printf("Contents of %s dat remote non-execute set offsets:\n[", dat->name);
       _sz = exp_nonexec_list->ranks_size;
@@ -1401,14 +1420,15 @@ extern "C"
         }
         printf("%ld]\n\n",exp_nonexec_list->remote_segment_offsets[_sz-1]);
       }
-      
+      fflush(stdout);
     }
 
 
 
     //Barrier before starting GPI communication
     MPI_Barrier(OP_MPI_WORLD);
-
+    printf("Passed end barrier\n");
+    
     /* Create the halo segments */
 
     gaspi_size_t msc_size = 1 << 10; /*TODO define good size later... Current 512kB */
