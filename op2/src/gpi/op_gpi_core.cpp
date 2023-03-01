@@ -8,10 +8,8 @@
 
 #include <op_gpi_core.h>
 
-#include <op_perf_common.h>
 
-#include <gpi_utils.h>
-#include <GPI_gather.h>
+#include "gpi_utils.h"
 
 #include <GASPI.h>
 /* PROBLEM: op_mpi_core stores all of the global variables that are all of the halo types and dat list.
@@ -155,7 +153,7 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   
   char *data;
   gaspi_segment_id_t send_data_segment_id = MSC_SEGMENT_ID;
-  SUCCESS_OR_DIE( gaspi_segment_ptr(send_data_segment_id, &data) );
+  GPI_SAFE( gaspi_segment_ptr(send_data_segment_id,(gaspi_pointer_t*) &data) ) 
 
   int char_counter = 0;
   for (int i = 0; i < nreductions; i++) {
@@ -174,8 +172,8 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   
   int comm_size, comm_rank;
 
-	SUCCESS_OR_DIE( gaspi_proc_rank(&comm_rank) );
-  SUCCESS_OR_DIE( gaspi_group_size(GASPI_GROUP_ALL,&comm_size) );
+	GPI_SAFE( gaspi_proc_rank((gaspi_rank_t*)&comm_rank) )
+  GPI_SAFE( gaspi_group_size(GASPI_GROUP_ALL,(gaspi_number_t*)&comm_size) )
   
   gaspi_segment_id_t local_segment = MSC_SEGMENT_ID;
   gaspi_offset_t local_offset = 0;
@@ -201,7 +199,7 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   //fflush(stdout);
 
   char *result;
-  SUCCESS_OR_DIE( gaspi_segment_ptr(local_segment, &result) );
+  GPI_SAFE( gaspi_segment_ptr(local_segment, (gaspi_pointer_t*)&result) );
   result += nbytes;
   //printf("Rank %d storing %d floats: ", comm_rank, comm_size*nbytes/sizeof(float));
   for (int i=0; i<comm_size*nbytes/sizeof(float); i++){
@@ -380,7 +378,7 @@ void op_gpi_reduce_float(op_arg *arg, float *data){
   // it doesn't appear to be used at all.  
   int comm_size, comm_rank;
 
-	SUCCESS_OR_DIE( gaspi_proc_rank(&comm_rank) );
+	GPI_SAFE( gaspi_proc_rank((gaspi_rank_t*)&comm_rank) )
  
   if (arg->data == NULL)
     return;
@@ -389,7 +387,7 @@ void op_gpi_reduce_float(op_arg *arg, float *data){
     // copy data into misc buffer
     float* send_data;
     gaspi_segment_id_t send_data_segment_id = MSC_SEGMENT_ID;
-    SUCCESS_OR_DIE( gaspi_segment_ptr(send_data_segment_id, &send_data) );
+    GPI_SAFE( gaspi_segment_ptr(send_data_segment_id, (gaspi_pointer_t*)&send_data) )
     memcpy(send_data, arg->data, arg->dim * sizeof(float));
 
     // set receive section to rest of buffer
@@ -404,7 +402,7 @@ void op_gpi_reduce_float(op_arg *arg, float *data){
     gaspi_offset_t remote_offset = size;
     gaspi_queue_id_t queue = 1;  // TODO
     gaspi_group_t group = OP_GPI_WORLD;
-    gaspi_timeout_t timeout = GPI_TIMOUT;
+    gaspi_timeout_t timeout = GPI_TIMEOUT;
     
     if (arg->acc == OP_WRITE){
       GPI_allgather(
@@ -440,14 +438,14 @@ void op_gpi_reduce_float(op_arg *arg, float *data){
         operation = GASPI_OP_MAX;
       }
 
-      SUCCESS_OR_DIE( gaspi_allreduce( 
+      GPI_SAFE( gaspi_allreduce( 
         send_data,// gaspi_const_pointer_t buffer_send,
         (gaspi_pointer_t) receive,// gaspi_pointer_t buffer_receive,
         (gaspi_number_t) arg->dim,// gaspi_number_t num,
         operation,// gaspi_operation_t operation,
         GASPI_TYPE_FLOAT,// gaspi_datatype_t datatype,
         GASPI_GROUP_ALL,// gaspi_group_t group,
-        GPI_TIMOUT// gaspi_timeout_t timeout )
+        GPI_TIMEOUT// gaspi_timeout_t timeout )
       ) );
 
       memcpy(arg->data, receive, size);
@@ -460,7 +458,7 @@ void op_gpi_reduce_double(op_arg *arg, double *data){
   // it doesn't appear to be used at all.  
   int comm_size, comm_rank;
 
-	SUCCESS_OR_DIE( gaspi_proc_rank(&comm_rank) );
+	GPI_SAFE( gaspi_proc_rank((gaspi_rank_t*)&comm_rank) )
  
   if (arg->data == NULL)
     return;
@@ -469,7 +467,7 @@ void op_gpi_reduce_double(op_arg *arg, double *data){
     // copy data into misc buffer
     double* send_data;
     gaspi_segment_id_t send_data_segment_id = MSC_SEGMENT_ID;
-    SUCCESS_OR_DIE( gaspi_segment_ptr(send_data_segment_id, &send_data) );
+    GPI_SAFE( gaspi_segment_ptr(send_data_segment_id, (gaspi_pointer_t*) &send_data) )
     memcpy(send_data, arg->data, arg->dim * sizeof(double));
 
     // set receive section to rest of buffer
@@ -484,7 +482,7 @@ void op_gpi_reduce_double(op_arg *arg, double *data){
     gaspi_offset_t remote_offset = size;
     gaspi_queue_id_t queue = 1;  // TODO
     gaspi_group_t group = OP_GPI_WORLD;
-    gaspi_timeout_t timeout = GPI_TIMOUT;
+    gaspi_timeout_t timeout = GPI_TIMEOUT;
     
     if (arg->acc == OP_WRITE){
       GPI_allgather(
@@ -520,15 +518,15 @@ void op_gpi_reduce_double(op_arg *arg, double *data){
         operation = GASPI_OP_MAX;
       }
 
-      SUCCESS_OR_DIE( gaspi_allreduce( 
+      GPI_SAFE( gaspi_allreduce( 
         send_data,// gaspi_const_pointer_t buffer_send,
         (gaspi_pointer_t) receive,// gaspi_pointer_t buffer_receive,
         (gaspi_number_t) arg->dim,// gaspi_number_t num,
         operation,// gaspi_operation_t operation,
         GASPI_TYPE_DOUBLE,// gaspi_datatype_t datatype,
         GASPI_GROUP_ALL,// gaspi_group_t group,
-        GPI_TIMOUT// gaspi_timeout_t timeout )
-      ) );
+        GPI_TIMEOUT// gaspi_timeout_t timeout )
+      ) )
 
       memcpy(arg->data, receive, size);
     }
@@ -540,7 +538,7 @@ void op_gpi_reduce_int(op_arg *arg, int *data){
   // it doesn't appear to be used at all.  
   int comm_size, comm_rank;
 
-	SUCCESS_OR_DIE( gaspi_proc_rank(&comm_rank) );
+	GPI_SAFE( gaspi_proc_rank((gaspi_rank_t*)&comm_rank) );
  
   if (arg->data == NULL)
     return;
@@ -549,7 +547,7 @@ void op_gpi_reduce_int(op_arg *arg, int *data){
     // copy data into misc buffer
     int* send_data;
     gaspi_segment_id_t send_data_segment_id = MSC_SEGMENT_ID;
-    SUCCESS_OR_DIE( gaspi_segment_ptr(send_data_segment_id, &send_data) );
+    GPI_SAFE( gaspi_segment_ptr(send_data_segment_id,(gaspi_pointer_t*) &send_data) );
     memcpy(send_data, arg->data, arg->dim * sizeof(int));
 
     // set receive section to rest of buffer
@@ -564,7 +562,7 @@ void op_gpi_reduce_int(op_arg *arg, int *data){
     gaspi_offset_t remote_offset = size;
     gaspi_queue_id_t queue = 1;  // TODO
     gaspi_group_t group = OP_GPI_WORLD;
-    gaspi_timeout_t timeout = GPI_TIMOUT;
+    gaspi_timeout_t timeout = GPI_TIMEOUT;
     
     if (arg->acc == OP_WRITE){
       GPI_allgather(
@@ -600,15 +598,15 @@ void op_gpi_reduce_int(op_arg *arg, int *data){
         operation = GASPI_OP_MAX;
       }
 
-      SUCCESS_OR_DIE( gaspi_allreduce( 
+      GPI_SAFE( gaspi_allreduce( 
         send_data,// gaspi_const_pointer_t buffer_send,
         (gaspi_pointer_t) receive,// gaspi_pointer_t buffer_receive,
         (gaspi_number_t) arg->dim,// gaspi_number_t num,
         operation,// gaspi_operation_t operation,
         GASPI_TYPE_INT,// gaspi_datatype_t datatype,
         GASPI_GROUP_ALL,// gaspi_group_t group,
-        GPI_TIMOUT// gaspi_timeout_t timeout )
-      ) );
+        GPI_TIMEOUT// gaspi_timeout_t timeout )
+      ) )
 
       memcpy(arg->data, receive, size);
     }
@@ -616,20 +614,20 @@ void op_gpi_reduce_int(op_arg *arg, int *data){
 }
 
 void op_gpi_reduce_bool(op_arg *arg, bool *data){
-  // I have no idea what this data argument is?
-  // it doesn't appear to be used at all.  
   int comm_size, comm_rank;
 
-	SUCCESS_OR_DIE( gaspi_proc_rank(&comm_rank) );
+	GPI_SAFE( gaspi_proc_rank((gaspi_rank_t*)&comm_rank) )
  
   if (arg->data == NULL)
     return;
-  (void)data;
+  
+  (void)data; /* Unused - avoids compiler warning */
+  
   if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
     // copy data into misc buffer
     bool* send_data;
     gaspi_segment_id_t send_data_segment_id = MSC_SEGMENT_ID;
-    SUCCESS_OR_DIE( gaspi_segment_ptr(send_data_segment_id, &send_data) );
+    GPI_SAFE( gaspi_segment_ptr(send_data_segment_id, (gaspi_pointer_t*)&send_data) )
     memcpy(send_data, arg->data, arg->dim * sizeof(bool));
 
     // set receive section to rest of buffer
@@ -642,9 +640,9 @@ void op_gpi_reduce_bool(op_arg *arg, bool *data){
     gaspi_size_t size = (gaspi_size_t) datasize;
     gaspi_segment_id_t remote_segment = local_segment;
     gaspi_offset_t remote_offset = size;
-    gaspi_queue_id_t queue = 1;  // TODO
+    gaspi_queue_id_t queue = OP2_GPI_QUEUE_ID;  // TODO
     gaspi_group_t group = OP_GPI_WORLD;
-    gaspi_timeout_t timeout = GPI_TIMOUT;
+    gaspi_timeout_t timeout = GPI_TIMEOUT;
     
     if (arg->acc == OP_WRITE){
       GPI_allgather(
@@ -677,4 +675,100 @@ void op_gpi_reduce_bool(op_arg *arg, bool *data){
       op_gpi_reduce_combined(arg, 1);
     }
   }
+}
+
+
+/* Best effort reproduction of MPI_Allgather.
+ * Adds aditional assumption that the sizes exchanged by each process are identical.
+ * Remote segment is implicitly your local receive segment by symmetry.*/
+int GPI_allgather(gaspi_segment_id_t segment_id_local, /* Send segment */
+                  gaspi_offset_t offset_local, /* address of data to be sent*/
+                  gaspi_size_t size, /* size of sendcount * sizeof(sendtype). Assumes send elems= recv elems */
+                  gaspi_segment_id_t segment_id_remote, /* Recv segment */
+                  gaspi_offset_t offset_remote, /* base offset - incase segment has multiple purposes */
+                  gaspi_queue_id_t queue, /* queue id for write notifications*/
+                  gaspi_group_t group, /* group through which to gather information*/
+                  gaspi_timeout_t timeout /* timeout in ms for blocking operations*/
+                  ){
+    /* Setup */
+
+    gaspi_number_t group_size;
+    gaspi_rank_t *group_ranks;
+
+    GPI_SAFE( gaspi_group_size(group, &group_size) )
+
+    group_ranks = (gaspi_rank_t*) malloc(group_size * sizeof(gaspi_rank_t));
+
+    GPI_SAFE( gaspi_group_ranks(GASPI_GROUP_ALL, group_ranks) )
+
+    /* Exchange information */
+
+    //TODO sanity check to ensure connected with all other members
+
+
+    gaspi_rank_t irank;
+    GPI_SAFE( gaspi_proc_rank(&irank) )
+
+    //find irank index and min rank values in the list
+    //may be best to do this in an initialisation step, and store generic useful group values globally (and by global I mean local to the process global) 
+    int i;
+    int irank_idx=0;
+    int min_rank =__UINT32_MAX__;
+
+    for(i=0;i<group_size;i++){
+        int cur_rank=group_ranks[i];
+        if( cur_rank==irank) irank_idx=i;
+        if( cur_rank<min_rank) min_rank=cur_rank;
+    }
+    
+    //remote offset calculation
+    offset_remote = offset_remote + irank_idx * size;
+
+
+    //TODO rewrite for gaspi_write_list for performance improvements
+    for(i=0;i<group_size;i++){
+        gaspi_rank_t remote_rank = group_ranks[i];
+        //if(remote_rank==irank) continue; //TODO update logic to write locally instead? see if it's faster...
+
+#ifdef VERBOSE
+        printf("Proc %d sending to %d.\n", irank, remote_rank);
+#endif
+        GPI_QUEUE_SAFE(
+          gaspi_write_notify(segment_id_local,
+                           offset_local,
+                           remote_rank,
+                           segment_id_remote,
+                           offset_remote,
+                           size,
+                           irank,
+                           1,
+                           queue,
+                           timeout)
+                           , queue )
+    }
+    
+
+    //Wait for notifications
+    
+    gaspi_notification_id_t id;
+
+    for(i=0;i<group_size;i++){ //Need this, as gaspi_notify_waitsome will return on the first non-zero ID.
+        GPI_SAFE( gaspi_notify_waitsome(segment_id_remote,
+                            min_rank,
+                            group_size,
+                            &id,
+                            timeout) )
+
+        gaspi_notification_t val =0;
+
+        GPI_SAFE( gaspi_notify_reset (segment_id_remote
+				, id
+				, &val) );
+
+    }
+
+    
+    free(group_ranks);
+
+    return GASPI_SUCCESS;
 }

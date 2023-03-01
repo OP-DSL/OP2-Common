@@ -62,3 +62,15 @@ void op_gpi_waitall(op_arg *arg);
 void op_gpi_waitall_args(int nargs, op_arg *args);
 
 void *op_gpi_perf_time(const char *name, double time);
+
+/* HELPER Functions */
+
+int GPI_allgather(gaspi_segment_id_t segment_id_local, /* Send segment */
+                  gaspi_offset_t offset_local, /* address of data to be sent*/
+                  gaspi_size_t size, /* size of sendcount * sizeof(sendtype). Assumes send elems= recv elems */
+                  gaspi_segment_id_t segment_id_remote, /* Recv segment */
+                  gaspi_offset_t offset_remote, /* base offset - incase segment has multiple purposes */
+                  gaspi_queue_id_t queue, /* queue id for write notifications*/
+                  gaspi_group_t group, /* group through which to gather information*/
+                  gaspi_timeout_t timeout /* timeout in ms for blocking operations*/
+                  );
