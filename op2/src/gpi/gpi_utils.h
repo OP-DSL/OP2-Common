@@ -11,6 +11,15 @@
 
 #define GPI_TIMEOUT_EXTRA_TRIES 1
 
+
+#define ALL_MPI_PRINT(...) {\
+    MPI_Barrier(MPI_COMM_WORLD);\
+    printf(__VA_ARGS__);\
+    fflush(stdout);\
+    MPI_Barrier(MPI_COMM_WORLD);\
+}
+
+
 #define GPI_QUEUE_SAFE(f, queue) {\
     gaspi_return_t _ret;\
     while ((_ret = (f)) == GASPI_QUEUE_FULL) {\

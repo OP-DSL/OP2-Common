@@ -90,6 +90,9 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
 
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
     
+      fprintf(stderr,"remote offset: %ld for rank %d in segment %d\n",remote_offset, exp_nonexec_list->ranks[i], INH_SEGMENT_ID);
+      fflush(stderr);
+      
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
@@ -195,14 +198,23 @@ void op_gpi_waitall(op_arg *arg){
         
         printf("notif_value: %d recv rank: %d\n",notif_value, recv_rank);
 
+
         //lookup recv object
         int obj_idx=0;
-        while(obj_idx < buff->exec_recv_count && exec_recv_objs[obj_idx].remote_rank != recv_rank)
+        while((obj_idx < buff->exec_recv_count) && (exec_recv_objs[obj_idx].remote_rank != recv_rank))
             obj_idx++;
         
         //check if it didn't find it...
-        if(obj_idx >= buff->exec_recv_count)
+        if(obj_idx >= buff->exec_recv_count){
+            printf("Dumping exec recv objs:\n");
+            printf("Exec recv count: %d\n",buff->exec_recv_count);
+            for(int i=0;i<buff->exec_recv_count;i++){
+              op_gpi_recv_obj *obj = &buff->exec_recv_objs[i];
+              printf(" - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %d\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
+            }
+            fflush(stdout);
             GPI_FAIL("Unable to find exec recv object.\n"); 
+        }
 
         //Use to memcpy data
         op_gpi_recv_obj *obj = &exec_recv_objs[obj_idx]; /* not neccessary but looks nicer later*/

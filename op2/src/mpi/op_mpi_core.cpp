@@ -1239,9 +1239,13 @@ extern "C"
         recv_obj->memcpy_addr = &dat->data[exec_init + imp_exec_list->disps[i] * dat->size];
 
         recv_obj->segment_recv_offset = exec_dat_rank_offset;
-
         // increment the segment offset by the size of the recv object data
         exec_dat_rank_offset += recv_obj->size;
+        
+
+        op_gpi_recv_obj *obj = &gpi_buf->exec_recv_objs[i];
+        printf("Initialised recv obj: \n - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %d\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
+
       }
 
       int nonexec_init = (dat->set->size + imp_exec_list->size) * dat->size;
@@ -1298,7 +1302,7 @@ extern "C"
           MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
-            MPI_LONG,
+            MPI_UNSIGNED_LONG,
             recv_obj->remote_rank,
             dat->index,
             OP_MPI_WORLD,
@@ -1314,7 +1318,7 @@ extern "C"
           MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
-            MPI_LONG,
+            MPI_UNSIGNED_LONG,
             recv_obj->remote_rank,
             1 << 20 | dat->index, /* 1 in MSB -1 to indicate non-execute */
             OP_MPI_WORLD,
@@ -1324,6 +1328,7 @@ extern "C"
       if(!send_okay){
         GPI_FAIL("Status code on MPI_IRecv non-zero\n");
       }
+      //ALL_MPI_PRINT("%s dat send completed\n", dat->name)
 
       /* RECEIVE */
 
@@ -1365,10 +1370,15 @@ extern "C"
       if(!recv_okay){
         GPI_FAIL("Status code on MPI_IRecv non-zero\n");
       }
+
+
     }
+    ALL_MPI_PRINT("finished send/receive\n")
 
 
     /* Wait on receiving all remote_segment_offset info */
+    gaspi_rank_t i_rank;
+    GPI_SAFE( gaspi_proc_rank(&i_rank) )
 
     TAILQ_FOREACH(item, &OP_dat_list, entries)
     {
@@ -1383,13 +1393,22 @@ extern "C"
       halo_list exp_exec_list = OP_export_exec_list[dat->set->index];
       halo_list exp_nonexec_list = OP_export_nonexec_list[dat->set->index];
 
-
+      //printf("rank %d, starting dat %s\n",i_rank, dat->name);
+      //printf("Rank %d waiting for %d imp ranks\n",i_rank, imp_exec_list->ranks_size+imp_nonexec_list->ranks_size);
+      //fflush(stdout);
       // Wait for sends 
       MPI_Waitall(imp_exec_list->ranks_size + imp_nonexec_list->ranks_size, gpi_buf->pre_exchange_hndl_s, MPI_STATUS_IGNORE);
 
+      //printf("Rank %d waiting for %d exp ranks\n", i_rank,exp_exec_list->ranks_size+exp_nonexec_list->ranks_size);
+      //fflush(stdout);
       // Wait for receives
       MPI_Waitall(exp_exec_list->ranks_size + exp_nonexec_list->ranks_size, gpi_buf->pre_exchange_hndl_r, MPI_STATUS_IGNORE);
       
+
+      //printf("rank %d, finished dat %s\n",i_rank, dat->name);
+      //fflush(stdout);
+      continue;
+
       printf("Contents of %s dat remote execute set offsets:\n[", dat->name);
       int _sz = exp_exec_list->ranks_size;
       if(_sz==0){
@@ -1427,7 +1446,7 @@ extern "C"
 
     //Barrier before starting GPI communication
     MPI_Barrier(OP_MPI_WORLD);
-    printf("Passed end barrier\n");
+    printf("Passed end barrier!\n");
     
     /* Create the halo segments */
 
