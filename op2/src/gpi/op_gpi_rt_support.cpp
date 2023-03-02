@@ -131,8 +131,8 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
         }
         gaspi_offset_t remote_offset = (gaspi_offset_t) exp_nonexec_list->remote_segment_offsets[i];
 
-        fprintf(stderr,"remote offset: %ld for rank %d in segment %d\n",remote_offset, exp_nonexec_list->ranks[i], INH_SEGMENT_ID);
-        fflush(stderr);
+        //fprintf(stderr,"remote offset: %ld for rank %d in segment %d\n",remote_offset, exp_nonexec_list->ranks[i], INH_SEGMENT_ID);
+        //fflush(stderr);
 
         GPI_QUEUE_SAFE( gaspi_write_notify(
                            ENH_SEGMENT_ID, /* local segment */
@@ -147,8 +147,8 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                            GPI_TIMEOUT /* timeout */
                            ), OP2_GPI_QUEUE_ID )
       
-      printf("Rank %d sent non-execute %s dat data to rank %d.\n",gpi_rank,dat->name, exp_nonexec_list->ranks[i]);
-      fflush(stdout);
+        printf("Rank %d sent non-execute %s dat data to rank %d.\n",gpi_rank,dat->name, exp_nonexec_list->ranks[i]);
+        fflush(stdout);
     }
 
 
@@ -169,6 +169,9 @@ void op_gpi_waitall(op_arg *arg){
         return;
     
 
+    gaspi_rank_t rank;
+    gaspi_proc_rank(&rank);
+
     op_dat dat = arg->dat;
 
     op_gpi_buffer buff = (op_gpi_buffer)dat->gpi_buffer;
@@ -183,6 +186,12 @@ void op_gpi_waitall(op_arg *arg){
 
     int recv_rank, recv_dat_index;
 
+    printf("Rank %d expects %d exec receives from ranks:\n",rank,buff->exec_recv_count);
+    for(int i=0;i<buff->exec_recv_count;i++){
+        printf("%d ",buff->exec_recv_objs[i].remote_rank);
+    }
+    printf("\n");
+    fflush(stdout);
     /* Receive for exec elements*/
     for(int i=0;i<buff->exec_recv_count;i++){
         GPI_SAFE( gaspi_notify_waitsome(IEH_SEGMENT_ID, 
@@ -192,9 +201,9 @@ void op_gpi_waitall(op_arg *arg){
                             GPI_TIMEOUT) )
 
         //store and reset notification value
-        gaspi_notify_reset(IEH_SEGMENT_ID,
+        GPI_SAFE( gaspi_notify_reset(IEH_SEGMENT_ID,
                             notif_id,
-                            &notif_value);
+                            &notif_value) ) 
 
         recv_rank = (int) notif_value & (~VAL_BIT); /* Filter out the VAL_BIT */
         recv_dat_index= (int) notif_id;
@@ -237,13 +246,20 @@ void op_gpi_waitall(op_arg *arg){
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (ieh_segment_ptr + obj->segment_recv_offset), obj->size);
         
-        printf("Successfully handled notification from rank %d for exec dat data %s.\n",recv_rank,dat->name);
+        printf("Rank %d successfully handled notification from rank %d for exec dat data %s.\n",rank, recv_rank,dat->name);
         fflush(stdout);
     }
     
-    printf("Receievd exec elements\n");
+    printf("Rank %d received neccessary exec elements for %s\n",rank,dat->name);
     fflush(stdout);
 
+
+    printf("Rank %d expects %d non-exec receives from ranks:\n",rank,buff->nonexec_recv_count);
+    for(int i=0;i<buff->nonexec_recv_count;i++){
+        printf("%d ",buff->nonexec_recv_objs[i].remote_rank);
+    }
+    printf("\n");
+    fflush(stdout);
 
     /* Receive for nonexec elements*/
     for(int i=0;i<buff->nonexec_recv_count;i++){
@@ -254,9 +270,9 @@ void op_gpi_waitall(op_arg *arg){
                             GPI_TIMEOUT) )
 
         //store and reset notification value
-        gaspi_notify_reset(INH_SEGMENT_ID,
+        GPI_SAFE( gaspi_notify_reset(INH_SEGMENT_ID,
                             notif_id,
-                            &notif_value);
+                            &notif_value) )
 
         if(notif_id!=dat->index){
             GPI_FAIL("Accepted nonexec notification from unexpected dat.\n Expected: %d got:%d\n",dat->index, notif_id);
@@ -289,11 +305,11 @@ void op_gpi_waitall(op_arg *arg){
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (inh_segment_ptr + obj->segment_recv_offset), obj->size);
 
-        printf("Successfully handled notification from rank %d for exec dat data %s.\n",recv_rank,dat->name);
+        printf("Rank %d successfully handled notification from rank %d for nonexec dat data %s.\n",rank,recv_rank,dat->name);
         fflush(stdout);
     }
 
-    printf("Receievd nonexec elements\n");
+    printf("Rank %d receievd neccessary nonexec elements for %s\n",rank,dat->name);
     fflush(stdout);
 
     //Do partial halo stuff
