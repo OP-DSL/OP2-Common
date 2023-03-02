@@ -12,6 +12,8 @@
 #include "op_gpi_core.h"
 #endif
 
+#include <time.h>
+
 static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
@@ -68,6 +70,7 @@ template <typename... T, typename... OPARG, size_t... I>
 void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
                       op_set set, OPARG... arguments) {
   
+  printf("Starting op_par_loop\n");
   //N is the number of arguments
   constexpr int N = sizeof...(OPARG);
 
@@ -136,8 +139,12 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   // global reduction for MPI execution, if needed
   // p_a simply used to determine type for MPI reduction
 #ifdef HAVE_GPI
-  (void)std::initializer_list<int>{
-      (op_gpi_reduce(&arguments, (T *)p_a[I]), 0)...};
+  //printf("About to do reduction\n");
+  //fflush(stdout);
+  //(void)std::initializer_list<int>{
+  //    (op_gpi_reduce(&arguments, (T *)p_a[I]), 0)...};
+  //printf("finished reduction\n");
+  //fflush(stdout);
 #else
   (void)std::initializer_list<int>{
       (op_mpi_reduce(&arguments, (T *)p_a[I]), 0)...};

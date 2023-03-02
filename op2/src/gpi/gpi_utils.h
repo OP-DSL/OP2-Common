@@ -7,13 +7,14 @@
 #include <stdlib.h>
 
 
-#define GPI_TIMEOUT 1500
+#define GPI_TIMEOUT 2000 /* 2 Seconds*/
 
 #define GPI_TIMEOUT_EXTRA_TRIES 1
 
 #define GPI_QUEUE_SAFE(f, queue) {\
     gaspi_return_t _ret;\
     while ((_ret = (f)) == GASPI_QUEUE_FULL) {\
+        fprintf(stderr,"Waiting for queue...\n");\
         gaspi_return_t _waitret = gaspi_wait ((queue), GASPI_BLOCK);\
         if( _waitret != GASPI_SUCCESS) {\
             fprintf(stderr, "Queue was full and something went wrong with waiting at function %s at %s (%d).\n", #f, __FILE__, __LINE__);\

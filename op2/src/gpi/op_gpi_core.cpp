@@ -69,6 +69,7 @@ int op_gpi_halo_exchanges(op_set set, int nargs, op_arg *args){
       exec_flag = 1;
     }
   }
+
   op_timers_core(&c1, &t1);
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
@@ -117,6 +118,9 @@ void op_gpi_waitall_args(int nargs, op_arg *args){
     op_timers_core(&c2, &t2);
     if (OP_kern_max > 0)
         OP_kernels[OP_kern_curr].gpi_time += t2 - t1;
+    
+    printf("Finished waitall\n");
+    fflush(stdout);
 }
 
 void *op_gpi_perf_time(const char *name, double time){
@@ -183,7 +187,6 @@ void op_gpi_reduce_combined(op_arg *args, int nargs){
   gaspi_queue_id_t queue = 1;
   gaspi_group_t group = GASPI_GROUP_ALL;
   gaspi_timeout_t timeout = GASPI_BLOCK;
-  
   
   GPI_allgather(
     local_segment, 

@@ -14,6 +14,8 @@
  
 #include "gpi_utils.h"
 
+
+
 #define VAL_BIT (1<<30)
 
 
@@ -87,11 +89,12 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
       }
 
       //get remote offset for that rank
-
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
     
+      gaspi_offset_t local_offset = (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size;
+    
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
-                        (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size, /* local segment offset*/
+                        local_offset, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
                         IEH_SEGMENT_ID, /* remote segment id*/
                         remote_offset, /* remote offset*/
@@ -193,7 +196,14 @@ void op_gpi_waitall(op_arg *arg){
         recv_dat_index= (int) notif_id;
 
         
-        printf("notif_value: %d recv rank: %d\n",notif_value, recv_rank);
+        //printf("notif_value: %d recv rank: %d\n",notif_value, recv_rank);
+
+        //printf("Dumping exec recv objs:\n");
+        //printf("Exec recv count: %d\n",buff->exec_recv_count);
+        for(int i=0;i<buff->exec_recv_count;i++){
+          op_gpi_recv_obj *obj = &buff->exec_recv_objs[i];
+          //printf(" - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %d\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
+        }
 
         //lookup recv object
         int obj_idx=0;
@@ -207,11 +217,21 @@ void op_gpi_waitall(op_arg *arg){
         //Use to memcpy data
         op_gpi_recv_obj *obj = &exec_recv_objs[obj_idx]; /* not neccessary but looks nicer later*/
 
+        //printf("before memcpy to address: %p \n", (void*)(ieh_segment_ptr + obj->segment_recv_offset));
+        //fflush(stdout);
+
+
 
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (ieh_segment_ptr + obj->segment_recv_offset), obj->size);
+        
+        //printf("after memcpy\n");
+        //fflush(stdout);
     }
     
+    printf("Receievd exec elements\n");
+    fflush(stdout);
+
 
     /* Receive for nonexec elements*/
     for(int i=0;i<buff->nonexec_recv_count;i++){
@@ -245,6 +265,8 @@ void op_gpi_waitall(op_arg *arg){
         memcpy(obj->memcpy_addr, (void*) (inh_segment_ptr + obj->segment_recv_offset), obj->size);
     }
 
+    printf("Receievd nonexec elements\n");
+    fflush(stdout);
 
     //Do partial halo stuff
     if(arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]){
@@ -261,7 +283,6 @@ void op_gpi_waitall(op_arg *arg){
         }
         */
     }
-
 }
 
 void op_gpi_exchange_halo_partial(op_arg *arg, int exec_flag){
