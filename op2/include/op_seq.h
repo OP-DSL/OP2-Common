@@ -70,7 +70,15 @@ template <typename... T, typename... OPARG, size_t... I>
 void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
                       op_set set, OPARG... arguments) {
   
-  printf("Starting op_par_loop\n");
+  gaspi_barrier(OP_GPI_GLOBAL,GPI_TIMEOUT);
+  gaspi_rank_t rank;
+  gaspi_proc_rank(&rank);
+  if(rank==0)
+    printf("----------Starting op_par_loop iteration----------\n\n\n\n");
+  
+
+
+
   //N is the number of arguments
   constexpr int N = sizeof...(OPARG);
 
@@ -126,6 +134,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
                             : (op_arg_set(n, arguments, &p_a[I], halo), 0))...};
     kernel(((T *)p_a[I])...);
   }
+  
   if (n_upper == set->core_size || n_upper == 0)
 #ifdef HAVE_GPI
     op_gpi_waitall_args(N, args);

@@ -119,7 +119,7 @@ void op_gpi_waitall_args(int nargs, op_arg *args){
     if (OP_kern_max > 0)
         OP_kernels[OP_kern_curr].gpi_time += t2 - t1;
     
-    printf("Finished waitall\n");
+    printf("Finished waitall args\n");
     fflush(stdout);
 }
 

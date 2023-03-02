@@ -1959,6 +1959,8 @@ extern "C"
     printf("proc %d finished GPI initialisation.\n",my_rank);
     fflush(stdout);
 
+    GPI_SAFE( gaspi_barrier(OP_GPI_GLOBAL,GPI_TIMEOUT) )
+
 #endif /* HAVE_GPI*/
   
   }

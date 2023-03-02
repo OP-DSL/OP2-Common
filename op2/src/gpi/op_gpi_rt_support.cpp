@@ -92,7 +92,6 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
     
       gaspi_offset_t local_offset = (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size;
-    
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         local_offset, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
@@ -105,6 +104,8 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                         GPI_TIMEOUT /* timeout*/
                         ), OP2_GPI_QUEUE_ID )
 
+      printf("Rank %d sent execute %s dat data to rank %d.\n",gpi_rank,dat->name, exp_exec_list->ranks[i]);
+      fflush(stdout);
     }
 
 
@@ -145,6 +146,9 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                            OP2_GPI_QUEUE_ID, /* queue id*/
                            GPI_TIMEOUT /* timeout */
                            ), OP2_GPI_QUEUE_ID )
+      
+      printf("Rank %d sent non-execute %s dat data to rank %d.\n",gpi_rank,dat->name, exp_nonexec_list->ranks[i]);
+      fflush(stdout);
     }
 
 
@@ -160,7 +164,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
  * definitey NOT_COMMON
  */
 void op_gpi_waitall(op_arg *arg){
-    //Check failure conditions
+    //Check skip conditions
     if(!(arg->opt && arg->argtype == OP_ARG_DAT && arg->sent ==1))
         return;
     
@@ -195,24 +199,32 @@ void op_gpi_waitall(op_arg *arg){
         recv_rank = (int) notif_value & (~VAL_BIT); /* Filter out the VAL_BIT */
         recv_dat_index= (int) notif_id;
 
+        //Sanity check
+        if(notif_id!=dat->index){
+            GPI_FAIL("Accepted exec notification from unexpected dat.\n Expected: %d got:%d\n",dat->index, notif_id);
+        }
         
         //printf("notif_value: %d recv rank: %d\n",notif_value, recv_rank);
 
-        //printf("Dumping exec recv objs:\n");
-        //printf("Exec recv count: %d\n",buff->exec_recv_count);
-        for(int i=0;i<buff->exec_recv_count;i++){
-          op_gpi_recv_obj *obj = &buff->exec_recv_objs[i];
-          //printf(" - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %d\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
-        }
 
         //lookup recv object
         int obj_idx=0;
         while(obj_idx < buff->exec_recv_count && exec_recv_objs[obj_idx].remote_rank != recv_rank)
             obj_idx++;
         
+
         //check if it didn't find it...
-        if(obj_idx >= buff->exec_recv_count)
-            GPI_FAIL("Unable to find exec recv object.\n"); 
+        if(obj_idx >= buff->exec_recv_count){
+            printf("Dumping exec recv objs:\n");
+            printf("Exec recv count: %d\n",buff->exec_recv_count);
+            for(int i=0;i<buff->exec_recv_count;i++){
+              op_gpi_recv_obj *obj = &buff->exec_recv_objs[i];
+              printf(" - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %p\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
+            }
+            fflush(stdout);
+            GPI_FAIL("Unable to find exec recv object from rank %d in dat %s\n",recv_rank, dat->name); 
+        }
+
 
         //Use to memcpy data
         op_gpi_recv_obj *obj = &exec_recv_objs[obj_idx]; /* not neccessary but looks nicer later*/
@@ -225,8 +237,8 @@ void op_gpi_waitall(op_arg *arg){
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (ieh_segment_ptr + obj->segment_recv_offset), obj->size);
         
-        //printf("after memcpy\n");
-        //fflush(stdout);
+        printf("Successfully handled notification from rank %d for exec dat data %s.\n",recv_rank,dat->name);
+        fflush(stdout);
     }
     
     printf("Receievd exec elements\n");
@@ -246,6 +258,10 @@ void op_gpi_waitall(op_arg *arg){
                             notif_id,
                             &notif_value);
 
+        if(notif_id!=dat->index){
+            GPI_FAIL("Accepted nonexec notification from unexpected dat.\n Expected: %d got:%d\n",dat->index, notif_id);
+        }
+
         recv_rank = (int) notif_value & (VAL_BIT-1); /* Filter out the VAL_BIT */
         recv_dat_index= (int) notif_id;
 
@@ -255,14 +271,26 @@ void op_gpi_waitall(op_arg *arg){
             obj_idx++;
         
         //check if it didn't find it...
-        if(obj_idx >= buff->exec_recv_count)
-            GPI_FAIL("Unable to find nonexec recv object.\n"); 
+        if(obj_idx >= buff->exec_recv_count){
+            printf("Dumping exec recv objs:\n");
+            printf("Exec recv count: %d\n",buff->exec_recv_count);
+            for(int i=0;i<buff->exec_recv_count;i++){
+              op_gpi_recv_obj *obj = &buff->exec_recv_objs[i];
+              printf(" - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %p\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
+            }
+            fflush(stdout);
+            GPI_FAIL("Unable to find nonexec recv object from rank %d in dat %s\n",recv_rank, dat->name); 
+        }
+
 
         //Use to memcpy data
         op_gpi_recv_obj *obj = &nonexec_recv_objs[obj_idx]; /* not neccessary but looks nicer later*/
         
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (inh_segment_ptr + obj->segment_recv_offset), obj->size);
+
+        printf("Successfully handled notification from rank %d for exec dat data %s.\n",recv_rank,dat->name);
+        fflush(stdout);
     }
 
     printf("Receievd nonexec elements\n");
