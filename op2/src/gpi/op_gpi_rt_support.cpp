@@ -15,10 +15,6 @@
 #include "gpi_utils.h"
 
 
-
-#define VAL_BIT (1<<30)
-
-
 /* GPI reimplementation of op_exchange_halo originally found in op_mpi_rt_support.cpp 
  * IS_COMMON 
  * Lots of this is common, so can be put there. 
@@ -49,7 +45,9 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     if(!(arg->acc == OP_READ || arg->acc == OP_RW) 
         || (dat->dirtybit !=1))
             return;
-        
+    
+
+
     //Grab the halo lists
     halo_list imp_exec_list = OP_import_exec_list[dat->set->index];
     halo_list imp_nonexec_list = OP_import_nonexec_list[dat->set->index];
@@ -60,6 +58,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     int gpi_rank;
     gaspi_proc_rank((gaspi_rank_t*)&gpi_rank);
 
+    LOCKSTEP(gpi_rank,"exchanging %s dat\n",arg->dat->name);
 
     //-------first exchange exec elements related to this data array--------
 
@@ -348,6 +347,7 @@ void op_gpi_waitall(op_arg *arg){
         fflush(stdout);
 #endif
     }
+
 
 #ifdef GPI_VERBOSE
     printf("Rank %d receievd neccessary nonexec elements for %s\n",rank,dat->name);

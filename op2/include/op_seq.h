@@ -74,7 +74,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   gaspi_rank_t rank;
   gaspi_proc_rank(&rank);
   if(rank==0)
-    printf("----------Starting op_par_loop iteration----------\n\n\n\n");
+    printf("----------Starting %s op_par_loop iteration----------\n\n\n\n",name);
   
 
 
