@@ -119,20 +119,15 @@ void op_gpi_waitall_args(int nargs, op_arg *args){
     if (OP_kern_max > 0)
         OP_kernels[OP_kern_curr].gpi_time += t2 - t1;
     
+#ifdef GPI_VERBOSE
     printf("Finished waitall args\n");
     fflush(stdout);
+#endif
 }
 
 void *op_gpi_perf_time(const char *name, double time){
   return (void*)NULL;
 }
-
-
-
-//#define MSC_SEGMENT_ID 1
-//#define OP_GPI_WORLD GASPI_GROUP_ALL
-//#define GPI_TIMOUT GASPI_BLOCK
-
 
 
 void op_gpi_reduce_combined(op_arg *args, int nargs){

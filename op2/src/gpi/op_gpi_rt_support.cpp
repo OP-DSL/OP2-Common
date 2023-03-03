@@ -103,9 +103,10 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                         OP2_GPI_QUEUE_ID, /* queue id*/
                         GPI_TIMEOUT /* timeout*/
                         ), OP2_GPI_QUEUE_ID )
-
+#ifdef GPI_VERBOSE
       printf("Rank %d sent execute %s dat data to rank %d with not_ID %d \n",gpi_rank,dat->name, exp_exec_list->ranks[i],dat->index <<7 | gpi_rank);
       fflush(stdout);
+#endif
     }
 
 
@@ -147,8 +148,10 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                            GPI_TIMEOUT /* timeout */
                            ), OP2_GPI_QUEUE_ID )
       
+#ifdef GPI_VERBOSE
         printf("Rank %d sent non-execute %s dat data to rank %d with not_ID %d.\n",gpi_rank,dat->name, exp_nonexec_list->ranks[i], dat->index <<7 | gpi_rank);
         fflush(stdout);
+#endif
     }
 
 
@@ -186,29 +189,35 @@ void op_gpi_waitall(op_arg *arg){
 
     int recv_rank, recv_dat_index;
 
+#ifdef GPI_VERBOSE
     printf("Rank %d expects %d exec receives from ranks:\n",rank,buff->exec_recv_count);
     for(int i=0;i<buff->exec_recv_count;i++){
         printf("%d ",buff->exec_recv_objs[i].remote_rank);
     }
     printf("\n");
     fflush(stdout);
+#endif
 
+
+    /* TODO move somewhere else and store */
     int max_expected_rank=0;
     for(int i=0;i<buff->exec_recv_count;i++){
         if(buff->exec_recv_objs[i].remote_rank>max_expected_rank)
             max_expected_rank=buff->exec_recv_objs[i].remote_rank;
     }
 
+
     /* Receive for exec elements*/
     for(int i=0;i<buff->exec_recv_count;i++){
         GPI_SAFE( gaspi_notify_waitsome(IEH_SEGMENT_ID, 
                             dat->index << 7,
-                            max_expected_rank,
+                            10, /* Should be max_expected rank*/
                             &notif_id, /* Notification id should be the dat index*/
                             GPI_TIMEOUT) )
 
-
+#ifdef GPI_VERBOSE
         printf("Rank %d received exec not_ID %d.\n",rank,notif_id);
+#endif
         
         recv_rank = notif_id & ((1<<7)-1); /* Filter out the upper half */
         recv_dat_index= (int) notif_id>> 7; /* Get only the upper half*/
@@ -256,14 +265,16 @@ void op_gpi_waitall(op_arg *arg){
 
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (ieh_segment_ptr + obj->segment_recv_offset), obj->size);
-        
+
+#ifdef GPI_VERBOSE  
         printf("Rank %d successfully handled notification from rank %d for exec dat data %s.\n",rank, recv_rank,dat->name);
         fflush(stdout);
+#endif
     }
     
+#ifdef GPI_VERBOSE
     printf("Rank %d received neccessary exec elements for %s\n",rank,dat->name);
     fflush(stdout);
-
 
     printf("Rank %d expects %d non-exec receives from ranks:\n",rank,buff->nonexec_recv_count);
     for(int i=0;i<buff->nonexec_recv_count;i++){
@@ -271,8 +282,11 @@ void op_gpi_waitall(op_arg *arg){
     }
     printf("\n");
     fflush(stdout);
+#endif
 
-    for(int i=0;i<buff->exec_recv_count;i++){
+
+    /* TODO move to store elsewhere */
+    for(int i=0;i<buff->nonexec_recv_count;i++){
         if(buff->nonexec_recv_objs[i].remote_rank>max_expected_rank)
             max_expected_rank=buff->nonexec_recv_objs[i].remote_rank;
     }
@@ -282,13 +296,16 @@ void op_gpi_waitall(op_arg *arg){
     for(int i=0;i<buff->nonexec_recv_count;i++){
         GPI_SAFE( gaspi_notify_waitsome(INH_SEGMENT_ID, 
                             dat->index<<7,
-                            max_expected_rank,
+                            10, /* Should be max_expected_rank*/
                             &notif_id, /* Notification id should be the dat index*/
                             GPI_TIMEOUT) )
 
 
-
+#ifdef GPI_VERBOSE
         printf("Rank %d received non_exec not_ID %d.\n",rank, notif_id);
+#endif
+
+
         recv_rank = (int) notif_id & ((1<<7)-1); /* Filter out the upper half */
         recv_dat_index= (int) notif_id>>7; /* get only the upper half*/
         
@@ -308,11 +325,11 @@ void op_gpi_waitall(op_arg *arg){
             obj_idx++;
         
         //check if it didn't find it...
-        if(obj_idx >= buff->exec_recv_count){
+        if(obj_idx >= buff->nonexec_recv_count){
             printf("Dumping exec recv objs:\n");
-            printf("Exec recv count: %d\n",buff->exec_recv_count);
-            for(int i=0;i<buff->exec_recv_count;i++){
-              op_gpi_recv_obj *obj = &buff->exec_recv_objs[i];
+            printf("Exec recv count: %d\n",buff->nonexec_recv_count);
+            for(int i=0;i<buff->nonexec_recv_count;i++){
+              op_gpi_recv_obj *obj = &buff->nonexec_recv_objs[i];
               printf(" - remote rank: %d\n - segment_recv_offset: %d\n - memcpy addr: %p\n - size: %d\n\n",obj->remote_rank,obj->segment_recv_offset, obj->memcpy_addr, obj->size);
             }
             fflush(stdout);
@@ -326,12 +343,16 @@ void op_gpi_waitall(op_arg *arg){
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (inh_segment_ptr + obj->segment_recv_offset), obj->size);
 
+#ifdef GPI_VERBOSE
         printf("Rank %d successfully handled notification from rank %d for nonexec dat data %s.\n",rank,recv_rank,dat->name);
         fflush(stdout);
+#endif
     }
 
+#ifdef GPI_VERBOSE
     printf("Rank %d receievd neccessary nonexec elements for %s\n",rank,dat->name);
     fflush(stdout);
+#endif
 
     //Do partial halo stuff
     if(arg->map != OP_ID && OP_map_partial_exchange[arg->map->index]){

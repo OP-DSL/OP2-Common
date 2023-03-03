@@ -6,6 +6,11 @@
 #include <mpi.h>
 #include <stdlib.h>
 
+#define LOCKSTEP(rank, ...) {\
+    GPI_SAFE( gaspi_barrier(OP_GPI_GLOBAL, GPI_TIMEOUT) )\
+    if(rank==0) printf(__VA_ARGS__);\
+}
+
 
 #define GPI_TIMEOUT 4000 /* 2 Seconds*/
 
