@@ -83,13 +83,13 @@ typedef struct {
   // displacements for the starting point of each rank list of
   int *disps_by_level;
   // number of elements in this list of different levels
-  int *sizes_upto_level_by_rank;
-  // displacements for the starting point of each rank's element list
-  int *disps_by_rank;
-  // number of elements exported to or imported from each ranks
-  int *sizes_by_rank;
-  // displacements for the starting point of each rank's element list
-  int *disps_upto_level_by_rank;
+  // int *sizes_upto_level_by_rank;
+  // // displacements for the starting point of each rank's element list
+  // int *disps_by_rank;
+  // // number of elements exported to or imported from each ranks
+  // int *sizes_by_rank;
+  // // displacements for the starting point of each rank's element list
+  // int *disps_upto_level_by_rank;
   // number of elements exported to or imported from each ranks
   int *level_sizes;
   // displacements for the starting point of each rank's element list

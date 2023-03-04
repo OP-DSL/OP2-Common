@@ -350,6 +350,7 @@ void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos_calc_bits[0] = 1;  // default value: 1 halo for all sets, 0 based index, 0th exec level, 1st exec level, ...
   halo_info->nhalos_indices[1] = 0;
   halo_info->max_nhalos = 1;
+  halo_info->max_calc_nhalos = 1;
   halo_info->nhalos_count = 1;
   halo_info->nhalos_cap = OP_NHALOS_SIZE;
   halo_info->nhalos_indices_cap = OP_NHALOS_MAX;

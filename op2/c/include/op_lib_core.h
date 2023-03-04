@@ -151,7 +151,8 @@ typedef struct op_halo_info_core{
   int *nhalos_indices; //array of number of halos to array index. to do a reverse search
   int *nhalos_bits; //array of required halos
   int *nhalos_calc_bits; //array of required halos for calculation
-  int max_nhalos;   //max number of halos
+  int max_nhalos;   //max number of halos required halos for calculation
+  int max_calc_nhalos;   //max number of halos
   int nhalos_count; //number of elements in nhalos
   int nhalos_cap;   //capacity of nhalos
   int nhalos_indices_cap;   //capacity of nhalos
