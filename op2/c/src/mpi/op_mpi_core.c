@@ -2129,21 +2129,24 @@ void op_halo_permap_create() {
 void op_single_halo_destroy(halo_list h_list){
 
   if(h_list != NULL){
-    op_free(h_list->ranks);
-    op_free(h_list->list);
-    op_free(h_list->disps);
-    op_free(h_list->sizes);
+    op_free(h_list->ranks); h_list->ranks = NULL;
+    op_free(h_list->list); h_list->list = NULL;
+    op_free(h_list->disps); h_list->disps = NULL;
+    op_free(h_list->sizes); h_list->sizes = NULL;
 
     if(h_list->ranks_sizes_by_level){
       op_free(h_list->ranks_sizes_by_level);
+      h_list->ranks_sizes_by_level = NULL;
     }
       
     if(h_list->ranks_disps_by_level){
       op_free(h_list->ranks_disps_by_level);
+      h_list->ranks_disps_by_level = NULL;
     }
       
     if(h_list->disps_by_level){
       op_free(h_list->disps_by_level);
+      h_list->disps_by_level = NULL;
     }
       
     // if(h_list->sizes_upto_level_by_rank)
@@ -2156,6 +2159,7 @@ void op_single_halo_destroy(halo_list h_list){
 void op_halos_destroy(halo_list* h_list, op_set set){
 
   for(int i = 0; i < set->halo_info->max_calc_nhalos; i++){
+    // printf("op_halos_destroy i=%d set=%s max=%d\n", i, set->name, set->halo_info->max_calc_nhalos);
     if(h_list[i])
       op_single_halo_destroy(h_list[i]);
   }

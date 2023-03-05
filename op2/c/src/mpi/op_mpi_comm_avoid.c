@@ -1138,7 +1138,7 @@ void step8_renumber_mappings(op_set set, int dummy, int **part_range, int my_ran
                                           // mappings TO this set
 
       // int num_levels = map->halo_info->nhalos_count;
-      int max_level = map->halo_info->max_nhalos;
+      int max_level = map->halo_info->max_calc_nhalos;
       // int to_max_level = map->to->halo_info->max_nhalos;  //this is = to max_level most of the times. there can be scenarios that to set max level is greater than
                                                           // from set max level due to another map. hence it is safe to use this.
 
@@ -1580,7 +1580,7 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         op_free(new_map);
         
         //for aug maps
-        for(int el = 0; el < map->halo_info->max_nhalos; el++){
+        for(int el = 0; el < map->halo_info->max_calc_nhalos; el++){
           if(is_halo_required_for_map(map, el) != 1 || is_map_required_for_calc(map, el) != 1){
             continue;
           }
@@ -1945,10 +1945,14 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
     OP_merged_export_exec_nonexec_list[set->index] = merge_halo_lists(2 * halo_merge_count, export_h_lists, my_rank, comm_size);
 
     for(int l = 1; l < max_nhalos; l++){
-      op_single_halo_destroy(OP_aug_import_exec_lists[set->index][l]);
+      op_single_halo_destroy(OP_aug_import_exec_lists[set->index][l]); 
+      OP_aug_import_exec_lists[set->index][l] = NULL;
       op_single_halo_destroy(OP_aug_import_nonexec_lists[set->index][l]);
+      OP_aug_import_nonexec_lists[set->index][l] = NULL;
       op_single_halo_destroy(OP_aug_export_exec_lists[set->index][l]);
+      OP_aug_export_exec_lists[set->index][l] = NULL;
       op_single_halo_destroy(OP_aug_export_nonexec_lists[set->index][l]);
+      OP_aug_export_nonexec_lists[set->index][l] = NULL;
     }
 
     op_free(import_h_lists);
@@ -2925,11 +2929,11 @@ void op_halo_create_comm_avoid() {
     create_part_range_arrays(my_rank, comm_size);
     prepare_aug_set(set);
 
-    OP_aug_export_exec_lists[set->index] = (halo_list*) xmalloc(max_calc_nhalos * sizeof(halo_list_core));
-    OP_aug_import_exec_lists[set->index] = (halo_list*) xmalloc(max_calc_nhalos * sizeof(halo_list_core));
+    OP_aug_export_exec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
+    OP_aug_import_exec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
 
-    OP_aug_export_nonexec_lists[set->index] = (halo_list*) xmalloc(max_calc_nhalos * sizeof(halo_list_core));
-    OP_aug_import_nonexec_lists[set->index] = (halo_list*) xmalloc(max_calc_nhalos * sizeof(halo_list_core));
+    OP_aug_export_nonexec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
+    OP_aug_import_nonexec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
 
 
     for(int l = 0; l < max_nhalos; l++){
@@ -3393,7 +3397,7 @@ void op_halo_create_comm_avoid() {
 void op_halo_destroy_comm_avoid() {
   for(int i = 0; i < OP_set_index; i++){
     op_set set = OP_set_list[i];
-    if(OP_aug_import_exec_lists[i])
+    if(OP_aug_import_exec_lists[set->index])
       op_halos_destroy(OP_aug_import_exec_lists[set->index], set);
     if(OP_aug_export_exec_lists[set->index])
       op_halos_destroy(OP_aug_export_exec_lists[set->index], set);
