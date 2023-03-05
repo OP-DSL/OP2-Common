@@ -168,6 +168,11 @@ void get_part_range(int **part_range, int my_rank, int comm_size,
 
 int get_partition(int global_index, int *part_range, int *local_index,
                   int comm_size) {
+
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  // printf("before my_rank=%d global_index=%d comm_size=%d local_index=%d part_range=%d part_range=%d\n", 
+  // my_rank, global_index, comm_size, *local_index, part_range[0], part_range[1]);
   for (int i = 0; i < comm_size; i++) {
     if (global_index >= part_range[2 * i] &&
         global_index <= part_range[2 * i + 1]) {
@@ -175,7 +180,9 @@ int get_partition(int global_index, int *part_range, int *local_index,
       return i;
     }
   }
-  printf("Error: orphan global index\n");
+  // printf("Error: orphan global index\n");
+  printf("Error: orphan global index my_rank=%d global_index=%d comm_size=%d local_index=%d part_range=%d part_range=%d\n", 
+  my_rank, global_index, comm_size, *local_index, part_range[0], part_range[1]);
   MPI_Abort(OP_MPI_WORLD, 2);
   return -1;
 }
@@ -2121,7 +2128,7 @@ void op_halo_permap_create() {
 
 void op_single_halo_destroy(halo_list h_list){
 
-  if(h_list){
+  if(h_list != NULL){
     op_free(h_list->ranks);
     op_free(h_list->list);
     op_free(h_list->disps);
@@ -2146,14 +2153,11 @@ void op_single_halo_destroy(halo_list h_list){
   }
 }
 
-void op_halos_destroy(halo_list* h_list){
+void op_halos_destroy(halo_list* h_list, op_set set){
 
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-
-    if(h_list[set->index]){
-      op_single_halo_destroy(h_list[set->index]);
-    } 
+  for(int i = 0; i < set->halo_info->max_calc_nhalos; i++){
+    if(h_list[i])
+      op_single_halo_destroy(h_list[i]);
   }
   op_free(h_list);
 }
@@ -2166,10 +2170,15 @@ void op_halo_destroy() {
     dat->data = (char *)xrealloc(dat->data, dat->set->size * dat->size);
   }
 
-  op_halos_destroy(OP_import_exec_list);
-  op_halos_destroy(OP_import_nonexec_list);
-  op_halos_destroy(OP_export_exec_list);
-  op_halos_destroy(OP_export_nonexec_list);
+  for(int i = 0; i < OP_set_index; i++){
+    op_set set = OP_set_list[i];
+    op_single_halo_destroy(OP_import_exec_list[set->index]);
+    op_single_halo_destroy(OP_import_nonexec_list[set->index]);
+    op_single_halo_destroy(OP_export_exec_list[set->index]);
+    op_single_halo_destroy(OP_export_nonexec_list[set->index]);
+  }
+
+
 
   item = NULL;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
