@@ -2687,8 +2687,8 @@ void calculate_core(op_set set, int el, halo_list exec, int my_rank){
     temp_core_elems3, set->core_sizes[el - 1],
     temp_core_elems2, set->core_sizes[el]);
 
-    op_free(temp_core_elems3);
-    temp_core_elems3 = (int *)xmalloc(set->core_sizes[el] * sizeof(int));
+    // op_free(temp_core_elems3);
+    // temp_core_elems3 = (int *)xmalloc(set->core_sizes[el] * sizeof(int));
   }
   
 
