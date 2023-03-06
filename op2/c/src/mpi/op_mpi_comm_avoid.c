@@ -844,7 +844,7 @@ void create_n_exchange_aug_part_range(op_set set, int halo_id, halo_list cur_imp
     }
     int end = set->size + exec_size;
 
-    op_printf("my_rank=%d set=%s exec_size=%d start=%d end=%d cur_size=%d\n", my_rank,set->name, exec_size, start, end,
+    // op_printf("my_rank=%d set=%s exec_size=%d start=%d end=%d cur_size=%d\n", my_rank,set->name, exec_size, start, end,
     cur_imp_exec_list->size);
 
     for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -1315,7 +1315,7 @@ void step7_exchange_nonexec_data(op_set set, int halo_id, halo_list i_list, halo
 
   if(!i_list || !e_list){
     // op_printf("step7_exchange_nonexec_data my_rank=%d set=%s halo_id=%d ERROR i_list || !e_list\n", 
-    my_rank, set->name, halo_id);
+    // my_rank, set->name, halo_id);
     return;
   }
 
