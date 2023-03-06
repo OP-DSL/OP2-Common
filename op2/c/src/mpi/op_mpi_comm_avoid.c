@@ -718,20 +718,16 @@ halo_list step4_import_nonexec(op_set set, int halo_id, int **part_range, int my
     // int set_max_nhalos = set->halo_info->max_nhalos;
     // for(int el = 0; el < set_max_nhalos; el++){
   int el = halo_id;
-  op_printf("1\n");
   if(is_halo_required_for_set(set, el) != 1 || is_set_required_for_calc(set, el) != 1){
     return NULL;
   }
-  op_printf("2\n"); 
   to_exec_levels = el + 1;
   
     // create a temporaty scratch space to hold nonexec export list for this set
   int s_i = 0;
   int cap_s = 1000; // keep track of the temp array capacities
   int *set_list = (int *)xmalloc(cap_s * sizeof(int));
-  op_printf("3\n");
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
-    op_printf("4\n");
     op_map map = OP_map_list[m];
     if(is_halo_required_for_set(map->from, el) != 1 || is_set_required_for_calc(map->from, el) != 1){
       continue;
@@ -740,7 +736,6 @@ halo_list step4_import_nonexec(op_set set, int halo_id, int **part_range, int my
     int end = 0;
     int current_nonexec_size = 0;
     from_exec_levels = el + 1;
-    op_printf("5\n");   
     for(int sl = 0; sl < from_exec_levels; sl++){
       int exec_size = 0;
       int nonexec_size = 0;
@@ -752,10 +747,8 @@ halo_list step4_import_nonexec(op_set set, int halo_id, int **part_range, int my
                             OP_aug_import_nonexec_lists[map->from->index][l - 1]->size : 0;
         }
       }
-      op_printf("6\n");
       if (compare_sets(map->to, set) == 1) { // need to select
                                             // mappings TO this set
-        op_printf("7\n");
         if(sl > 0){
           current_nonexec_size = (OP_aug_import_nonexec_lists[map->from->index][sl - 1])?
                             OP_aug_import_nonexec_lists[map->from->index][sl - 1]->size : 0;
@@ -851,7 +844,7 @@ void create_n_exchange_aug_part_range(op_set set, int halo_id, halo_list cur_imp
     }
     int end = set->size + exec_size;
 
-    printf("my_rank=%d set=%s exec_size=%d start=%d end=%d cur_size=%d\n", my_rank,set->name, exec_size, start, end,
+    op_printf("my_rank=%d set=%s exec_size=%d start=%d end=%d cur_size=%d\n", my_rank,set->name, exec_size, start, end,
     cur_imp_exec_list->size);
 
     for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -949,8 +942,8 @@ bool is_in_prev_export_exec_halos(int halo_id, int set_index, int export_rank, i
 void step6_exchange_exec_data(op_set set, int halo_id, halo_list i_list, halo_list e_list, int **part_range, int my_rank, int comm_size){
 
   if(!i_list || !e_list){
-    op_printf("my_rank=%d set=%s halo_id=%d ERROR i_list || !e_list\n", 
-    my_rank, set->name, halo_id);
+    // op_printf("my_rank=%d set=%s halo_id=%d ERROR i_list || !e_list\n", 
+    // my_rank, set->name, halo_id);
     return;
   }
   // for each data array
@@ -1321,7 +1314,7 @@ void step8_renumber_mappings(op_set set, int dummy, int **part_range, int my_ran
 void step7_exchange_nonexec_data(op_set set, int halo_id, halo_list i_list, halo_list e_list, int **part_range, int my_rank, int comm_size){
 
   if(!i_list || !e_list){
-    op_printf("step7_exchange_nonexec_data my_rank=%d set=%s halo_id=%d ERROR i_list || !e_list\n", 
+    // op_printf("step7_exchange_nonexec_data my_rank=%d set=%s halo_id=%d ERROR i_list || !e_list\n", 
     my_rank, set->name, halo_id);
     return;
   }
@@ -1413,26 +1406,26 @@ void step9_halo(int **part_range, int my_rank, int comm_size){
     int imp_nonexec_size = 0;
 
     for(int l = 0; l < max_calc_nhalos; l++){
-      if(OP_aug_export_exec_lists[l][dat->set->index]){
-        exec_e_list_size += OP_aug_export_exec_lists[l][dat->set->index]->size;
-        exec_e_ranks_size += OP_aug_export_exec_lists[l][dat->set->index]->ranks_size / 
-        OP_aug_export_exec_lists[l][dat->set->index]->num_levels;
+      if(OP_aug_export_exec_lists[dat->set->index][l]){
+        exec_e_list_size += OP_aug_export_exec_lists[dat->set->index][l]->size;
+        exec_e_ranks_size += OP_aug_export_exec_lists[dat->set->index][l]->ranks_size / 
+        OP_aug_export_exec_lists[dat->set->index][l]->num_levels;
       }
-      if(OP_aug_import_exec_lists[l][dat->set->index]){
-        exec_i_ranks_size += OP_aug_import_exec_lists[l][dat->set->index]->ranks_size / 
-        OP_aug_import_exec_lists[l][dat->set->index]->num_levels;
-        imp_exec_size += OP_aug_import_exec_lists[l][dat->set->index]->size;
+      if(OP_aug_import_exec_lists[dat->set->index][l]){
+        exec_i_ranks_size += OP_aug_import_exec_lists[dat->set->index][l]->ranks_size / 
+        OP_aug_import_exec_lists[dat->set->index][l]->num_levels;
+        imp_exec_size += OP_aug_import_exec_lists[dat->set->index][l]->size;
       }
 
-      if(OP_aug_export_nonexec_lists[l][dat->set->index]){
-        nonexec_e_list_size += OP_aug_export_nonexec_lists[l][dat->set->index]->size;
-        nonexec_e_ranks_size += OP_aug_export_nonexec_lists[l][dat->set->index]->ranks_size / 
-        OP_aug_export_nonexec_lists[l][dat->set->index]->num_levels;
+      if(OP_aug_export_nonexec_lists[dat->set->index][l]){
+        nonexec_e_list_size += OP_aug_export_nonexec_lists[dat->set->index][l]->size;
+        nonexec_e_ranks_size += OP_aug_export_nonexec_lists[dat->set->index][l]->ranks_size / 
+        OP_aug_export_nonexec_lists[dat->set->index][l]->num_levels;
       }
-      if(OP_aug_import_exec_lists[l][dat->set->index]){
-        nonexec_i_ranks_size += OP_aug_import_nonexec_lists[l][dat->set->index]->ranks_size / 
-        OP_aug_import_nonexec_lists[l][dat->set->index]->num_levels;
-        imp_nonexec_size += OP_aug_import_nonexec_lists[l][dat->set->index]->size;
+      if(OP_aug_import_exec_lists[dat->set->index][l]){
+        nonexec_i_ranks_size += OP_aug_import_nonexec_lists[dat->set->index][l]->ranks_size / 
+        OP_aug_import_nonexec_lists[dat->set->index][l]->num_levels;
+        imp_nonexec_size += OP_aug_import_nonexec_lists[dat->set->index][l]->size;
       }
 
     }
@@ -2993,14 +2986,11 @@ void op_halo_create_comm_avoid() {
       (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
 
 
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
+  int max_nhalos = get_max_nhalos();
 
-    int max_nhalos = set->halo_info->max_nhalos;
-    int max_calc_nhalos = set->halo_info->max_calc_nhalos;
-    prev_imp_exec_sizes = 0;
-
-    for(int l = 0; l < max_nhalos; l++){
+  for(int l = 0; l < max_nhalos; l++){
+    for (int s = 0; s < OP_set_index; s++) {
+      op_set set = OP_set_list[s];
 
       int is_required = is_set_required_for_calc(set, l);
 
@@ -3016,12 +3006,46 @@ void op_halo_create_comm_avoid() {
       if(is_required == 1)
         OP_aug_export_nonexec_lists[set->index][l] = exp_nonexec_list;
       else
-        OP_aug_export_nonexec_lists[set->index][l] = NULL;   
-    }
+        OP_aug_export_nonexec_lists[set->index][l] = NULL;
 
-    OP_import_nonexec_list[set->index] = OP_aug_import_nonexec_lists[set->index][0];
-    OP_export_nonexec_list[set->index] = OP_aug_export_nonexec_lists[set->index][0];
+      if(l == 0){
+        OP_import_nonexec_list[set->index] = OP_aug_import_nonexec_lists[set->index][0];
+        OP_export_nonexec_list[set->index] = OP_aug_export_nonexec_lists[set->index][0];
+      }   
+
+    }
+    
   }
+
+  // for (int s = 0; s < OP_set_index; s++) {
+  //   op_set set = OP_set_list[s];
+
+  //   int max_nhalos = set->halo_info->max_nhalos;
+  //   int max_calc_nhalos = set->halo_info->max_calc_nhalos;
+  //   prev_imp_exec_sizes = 0;
+
+  //   for(int l = 0; l < max_nhalos; l++){
+
+  //     int is_required = is_set_required_for_calc(set, l);
+
+  //     op_printf("step4 set=%s\n", set->name);
+  //     halo_list imp_nonexec_list = step4_import_nonexec(set, l, part_range, my_rank, comm_size);
+  //     if(is_required == 1)
+  //       OP_aug_import_nonexec_lists[set->index][l] = imp_nonexec_list;
+  //     else
+  //       OP_aug_import_nonexec_lists[set->index][l] = NULL;
+
+  //     op_printf("step5 set=%s\n", set->name);
+  //     halo_list exp_nonexec_list = create_handshake_h_list(set, imp_nonexec_list, part_range, my_rank, comm_size);
+  //     if(is_required == 1)
+  //       OP_aug_export_nonexec_lists[set->index][l] = exp_nonexec_list;
+  //     else
+  //       OP_aug_export_nonexec_lists[set->index][l] = NULL;   
+  //   }
+
+  //   OP_import_nonexec_list[set->index] = OP_aug_import_nonexec_lists[set->index][0];
+  //   OP_export_nonexec_list[set->index] = OP_aug_export_nonexec_lists[set->index][0];
+  // }
 
   rearrange_mappings(my_rank, comm_size);
   prepare_aug_maps();
