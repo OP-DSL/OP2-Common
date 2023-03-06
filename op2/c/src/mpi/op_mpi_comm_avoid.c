@@ -602,8 +602,11 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
 
 halo_list create_handshake_h_list(op_set set, halo_list list, int **part_range, int my_rank, int comm_size){
 
-  if(list == NULL)
+  if(list == NULL){
+    printf("create_handshake_h_list list NULL\n");
     return NULL;
+  }
+   
 
   int s = set->index;
   int ranks_size = 0;
@@ -2993,19 +2996,29 @@ void op_halo_create_comm_avoid() {
 
       int is_required = is_set_required_for_calc(set, l);
 
-      op_printf("step4 set=%s\n", set->name);
-      halo_list imp_nonexec_list = step4_import_nonexec(set, l, part_range, my_rank, comm_size);
-      if(is_required == 1)
+      if(is_required == 1){
+        op_printf("step4 set=%s\n", set->name);
+        halo_list imp_nonexec_list = step4_import_nonexec(set, l, part_range, my_rank, comm_size);
         OP_aug_import_nonexec_lists[set->index][l] = imp_nonexec_list;
-      else
-        OP_aug_import_nonexec_lists[set->index][l] = NULL;
 
-      op_printf("step5 set=%s\n", set->name);
-      halo_list exp_nonexec_list = create_handshake_h_list(set, imp_nonexec_list, part_range, my_rank, comm_size);
-      if(is_required == 1)
+        op_printf("step5 set=%s\n", set->name);
+        halo_list exp_nonexec_list = create_handshake_h_list(set, imp_nonexec_list, part_range, my_rank, comm_size);
         OP_aug_export_nonexec_lists[set->index][l] = exp_nonexec_list;
-      else
-        OP_aug_export_nonexec_lists[set->index][l] = NULL;
+      }
+
+      // op_printf("step4 set=%s\n", set->name);
+      // halo_list imp_nonexec_list = step4_import_nonexec(set, l, part_range, my_rank, comm_size);
+      // if(is_required == 1)
+      //   OP_aug_import_nonexec_lists[set->index][l] = imp_nonexec_list;
+      // else
+      //   OP_aug_import_nonexec_lists[set->index][l] = NULL;
+
+      // op_printf("step5 set=%s\n", set->name);
+      // halo_list exp_nonexec_list = create_handshake_h_list(set, imp_nonexec_list, part_range, my_rank, comm_size);
+      // if(is_required == 1)
+      //   OP_aug_export_nonexec_lists[set->index][l] = exp_nonexec_list;
+      // else
+      //   OP_aug_export_nonexec_lists[set->index][l] = NULL;
 
       if(l == 0){
         OP_import_nonexec_list[set->index] = OP_aug_import_nonexec_lists[set->index][0];
@@ -3056,7 +3069,7 @@ void op_halo_create_comm_avoid() {
     int max_calc_nhalos = set->halo_info->max_calc_nhalos;
     prev_imp_exec_sizes = 0;
 
-    for(int l = 0; l < max_nhalos; l++){
+    for(int l = 0; l < max_calc_nhalos; l++){
       step6_exchange_exec_data(set, l, OP_aug_import_exec_lists[set->index][l], OP_aug_export_exec_lists[set->index][l], part_range, my_rank, comm_size);
       step7_exchange_nonexec_data(set, l, OP_aug_import_nonexec_lists[set->index][l], OP_aug_export_nonexec_lists[set->index][l], part_range, my_rank, comm_size);
 
