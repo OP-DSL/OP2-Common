@@ -2637,8 +2637,11 @@ void calculate_core(op_set set, int el, halo_list exec, int my_rank){
     tempsize = exec->size;
   }
   int exec_size = prev_sorted_exp_exec_sizes + tempsize; //
-    
-  if(exec_size > temp_exp_arr_size){
+
+  if(temp_exp_arr_size == 0 && exec_size > 0){
+    temp_exp_elems1[set->index] = (int *)xmalloc(exec_size * sizeof(int));
+    temp_exp_arr_size = exec_size;  
+  }else if(exec_size > temp_exp_arr_size){
     temp_exp_elems1[set->index] = (int *)xrealloc(temp_exp_elems1[set->index], exec_size * sizeof(int));
     temp_exp_arr_size = exec_size;
   }
@@ -2720,7 +2723,7 @@ void calculate_core(op_set set, int el, halo_list exec, int my_rank){
   op_free(temp_core_elems2);
 
   if(el == max_level - 1){
-    op_free(temp_core_elems3);
+    // op_free(temp_core_elems3);
     
     // op_free(temp_exp_elems1[set->index]);
 
@@ -2935,9 +2938,9 @@ void op_halo_create_comm_avoid() {
     temp_core_elems1[set->index] = (int *)xmalloc(set->size * sizeof(int));
     // temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
     temp_core_elems3 = (int *)xmalloc(set->size * sizeof(int));
-    temp_exp_elems1[set->index] = (int *)xmalloc(set->size * sizeof(int));
+    // temp_exp_elems1[set->index] = (int *)xmalloc(set->size * sizeof(int));
 
-    temp_exp_arr_size = set->size;
+    temp_exp_arr_size = 0; //set->size;
     temp_core_arr_size = set->size;
 
     create_elem_rank_matrix(set, my_rank, comm_size);
@@ -2993,6 +2996,8 @@ void op_halo_create_comm_avoid() {
       }
 
     }
+
+    op_free(temp_core_elems3);
 
     OP_import_exec_list[set->index] = OP_aug_import_exec_lists[set->index][0];
     OP_export_exec_list[set->index] = OP_aug_export_exec_lists[set->index][0];
