@@ -31,9 +31,9 @@ int* temp_aug_part_range;
 int temp_aug_part_range_size;
 int temp_aug_part_range_cap;
 
-int** foreign_aug_part_range;
-int* foreign_aug_part_range_size;
-int* temp_foreign_aug_part_range_size;
+int*** foreign_aug_part_range;
+int** foreign_aug_part_range_size;
+int** temp_foreign_aug_part_range_size;
 
 int** elem_rank_matrix;
 
@@ -223,14 +223,19 @@ void free_elem_rank_matrix(op_set set, int my_rank, int comm_size){
 
 void create_foreign_part_range_arrays(int my_rank, int comm_size){
 
-  foreign_aug_part_range = (int **)xmalloc(comm_size * sizeof(int *));
-  foreign_aug_part_range_size = (int *)xmalloc(comm_size * sizeof(int));
-  temp_foreign_aug_part_range_size = (int *)xmalloc(comm_size * sizeof(int));
+  foreign_aug_part_range = (int ***)xmalloc(OP_set_index * sizeof(int **));
+  foreign_aug_part_range_size = (int **)xmalloc(OP_set_index * sizeof(int *));
+  temp_foreign_aug_part_range_size = (int **)xmalloc(OP_set_index * sizeof(int *));
+  for(int i = 0; i < OP_set_index; i++){
+    foreign_aug_part_range[i] = (int **)xmalloc(comm_size * sizeof(int *));
+    foreign_aug_part_range_size[i] = (int *)xmalloc(comm_size * sizeof(int));
+    temp_foreign_aug_part_range_size[i] = (int *)xmalloc(comm_size * sizeof(int));
 
-  for(int i = 0; i < comm_size; i++){
-    foreign_aug_part_range[i] = NULL;
-    foreign_aug_part_range_size[i] = 0;
-    temp_foreign_aug_part_range_size[i] = 0;
+    for(int j = 0; j < comm_size; j++){
+      foreign_aug_part_range[i][j] = NULL;
+      foreign_aug_part_range_size[i][j] = 0;
+      temp_foreign_aug_part_range_size[i][j] = 0;
+    }
   }
 }
 
@@ -241,8 +246,13 @@ void create_part_range_arrays(int my_rank, int comm_size){
 }
 
 void free_foreign_part_range_arrays(int my_rank, int comm_size){
-  for(int i = 0; i < comm_size; i++){
+  for(int i = 0; i < OP_set_index; i++){
+    for(int j = 0; j < comm_size; j++){
+      op_free(foreign_aug_part_range[i][j]);
+    }
     op_free(foreign_aug_part_range[i]);
+    op_free(foreign_aug_part_range_size[i]);
+    op_free(temp_foreign_aug_part_range_size[i]);
   }
   op_free(foreign_aug_part_range);
   op_free(foreign_aug_part_range_size);
@@ -300,7 +310,7 @@ void check_augmented_part_range(int* parts, int set_index, int value, int my_ran
   for(int r = 0; r < comm_size; r++){
     parts[r] = -1;
     if(r != my_rank){
-      int index = binary_search(foreign_aug_part_range[r], value, 0, foreign_aug_part_range_size[r] - 1);
+      int index = binary_search(foreign_aug_part_range[set_index][r], value, 0, foreign_aug_part_range_size[set_index][r] - 1);
       if(index >= 0){
         parts[r] = 1;
       }
@@ -883,36 +893,36 @@ void create_n_exchange_aug_part_range(op_set set, int halo_id, halo_list cur_imp
           temp_aug_part_range_size = removeDups(temp_aug_part_range, temp_aug_part_range_size);
         }
 
-        MPI_Allgather(&temp_aug_part_range_size, 1, MPI_INT, temp_foreign_aug_part_range_size, 1, MPI_INT, OP_MPI_WORLD);
+        MPI_Allgather(&temp_aug_part_range_size, 1, MPI_INT, temp_foreign_aug_part_range_size[map->to->index], 1, MPI_INT, OP_MPI_WORLD);
 
           // discover global size of these required elements
         int g_count = 0;
         for (int i = 0; i < comm_size; i++)
-          g_count += temp_foreign_aug_part_range_size[i];
+          g_count += temp_foreign_aug_part_range_size[map->to->index][i];
 
         // prepare for an allgatherv
         int disp = 0;
         int *displs = (int *)xmalloc(comm_size * sizeof(int));
         for (int i = 0; i < comm_size; i++) {
           displs[i] = disp;
-          disp = disp + temp_foreign_aug_part_range_size[i];
+          disp = disp + temp_foreign_aug_part_range_size[map->to->index][i];
         }
 
         int *g_part_range = (int *)xmalloc(sizeof(int) * g_count);
 
-        MPI_Allgatherv(temp_aug_part_range, temp_aug_part_range_size, MPI_INT, g_part_range, temp_foreign_aug_part_range_size, displs, MPI_INT, OP_MPI_WORLD);
+        MPI_Allgatherv(temp_aug_part_range, temp_aug_part_range_size, MPI_INT, g_part_range, temp_foreign_aug_part_range_size[map->to->index], displs, MPI_INT, OP_MPI_WORLD);
 
         temp_aug_part_range_size = 0;
 
         for (int i = 0; i < comm_size; i++) {
-          foreign_aug_part_range[i] = (int *)xrealloc(foreign_aug_part_range[i], sizeof(int) * (foreign_aug_part_range_size[i] + temp_foreign_aug_part_range_size[i]));
+          foreign_aug_part_range[map->to->index][i] = (int *)xrealloc(foreign_aug_part_range[map->to->index][i], sizeof(int) * (foreign_aug_part_range_size[map->to->index][i] + temp_foreign_aug_part_range_size[map->to->index][i]));
 
-          memcpy(&foreign_aug_part_range[i][foreign_aug_part_range_size[i]], &g_part_range[displs[i]], temp_foreign_aug_part_range_size[i] * sizeof(int));
+          memcpy(&foreign_aug_part_range[map->to->index][i][foreign_aug_part_range_size[map->to->index][i]], &g_part_range[displs[i]], temp_foreign_aug_part_range_size[map->to->index][i] * sizeof(int));
 
-          if(temp_foreign_aug_part_range_size[i] > 0){
-            quickSort(foreign_aug_part_range[i], 0, foreign_aug_part_range_size[i] + temp_foreign_aug_part_range_size[i] - 1);
+          if(temp_foreign_aug_part_range_size[map->to->index][i] > 0){
+            quickSort(foreign_aug_part_range[map->to->index][i], 0, foreign_aug_part_range_size[map->to->index][i] + temp_foreign_aug_part_range_size[map->to->index][i] - 1);
             
-            foreign_aug_part_range_size[i] = removeDups(foreign_aug_part_range[i], foreign_aug_part_range_size[i] + temp_foreign_aug_part_range_size[i]);
+            foreign_aug_part_range_size[map->to->index][i] = removeDups(foreign_aug_part_range[map->to->index][i], foreign_aug_part_range_size[map->to->index][i] + temp_foreign_aug_part_range_size[map->to->index][i]);
           }
         }
         op_free(g_part_range);
@@ -1092,8 +1102,12 @@ void prepare_aug_set(op_set set){
     // printf("prepare_aug_sets set=%s exec_levels=%d\n", set->name, max_level);
 
     set->core_sizes =  (int *) malloc(max_level * sizeof(int));
+    set->exec_sizes = (int*)xmalloc(sizeof(int) * max_level);
+    set->nonexec_sizes = (int*)xmalloc(sizeof(int) * max_level);
     for(int i = 0; i < max_level; i++){
       set->core_sizes[i] = 0;
+      set->exec_sizes[i] = 0;
+      set->nonexec_sizes[i] = 0;
     }
 
     op_dat_entry *item;
@@ -1596,10 +1610,10 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       }
     }
 
-    int exec_levels = set->halo_info->max_nhalos;
-
-    halo_list exec[exec_levels];
-    for(int l = 0; l < exec_levels; l++){
+    // int exec_levels = set->halo_info->max_calc_nhalos;
+    int max_calc_level = set->halo_info->max_calc_nhalos;
+    halo_list exec[max_calc_level];
+    for(int l = 0; l < max_calc_level; l++){
       exec[l] = OP_aug_export_exec_lists[set->index][l];
       if(!exec[l])
         continue;
@@ -1643,8 +1657,9 @@ void step10_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       }
     }
 
-    for(int l = 0; l < max_level; l++){
-      halo_list nonexec[max_level];
+
+    for(int l = 0; l < max_calc_level; l++){
+      halo_list nonexec[max_calc_level];
       nonexec[l] = OP_aug_export_nonexec_lists[set->index][l];
       if(!nonexec[l]){
         continue;
@@ -1841,9 +1856,10 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     op_set set = OP_set_list[s];
     int num_levels = set->halo_info->nhalos_count;
     int max_level = set->halo_info->max_nhalos;
+    int max_calc_level = set->halo_info->max_calc_nhalos;
 
-    set->exec_sizes = (int*)xmalloc(sizeof(int) * max_level);
-    set->nonexec_sizes = (int*)xmalloc(sizeof(int) * max_level);
+    // set->exec_sizes = (int*)xmalloc(sizeof(int) * max_level);
+    // set->nonexec_sizes = (int*)xmalloc(sizeof(int) * max_level);
     set->exec_size = 0;
     set->nonexec_size = 0;
 
@@ -1861,7 +1877,7 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
             OP_aug_import_exec_lists[set->index][l]->size : 0;
         }
       }
-      set->nonexec_sizes[el] = (OP_aug_import_nonexec_lists[set->index][el]) ?
+      set->nonexec_sizes[el] = (el < max_calc_level) ?
                                 OP_aug_import_nonexec_lists[set->index][el]->size : 0;  //duplicate elements in the on exec. so no +=
       if(exec_levels == DEFAULT_HALO_COUNT){
         set->nonexec_size = 0;
@@ -1870,7 +1886,7 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
         // }
         
       }
-      set->total_nonexec_size += OP_aug_import_nonexec_lists[set->index][el] ? OP_aug_import_nonexec_lists[set->index][el]->size : 0;
+      set->total_nonexec_size += (el < max_calc_level) ? OP_aug_import_nonexec_lists[set->index][el]->size : 0;
     }
     for(int el = 0; el < max_level; el++){
        set->total_exec_size += OP_aug_import_exec_lists[set->index][el] ? OP_aug_import_exec_lists[set->index][el]->size : 0;
@@ -1924,10 +1940,11 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
   for(int s = 0; s < OP_set_index; s++){
     op_set set = OP_set_list[s];
     int max_nhalos = set->halo_info->max_nhalos;
+    int max_calc_nhalos = set->halo_info->max_calc_nhalos;
     int halo_merge_count = set->halo_info->max_calc_nhalos;
 
-    halo_list* import_h_lists = (halo_list*) xmalloc((2 * max_nhalos) * sizeof(halo_list));
-    halo_list* export_h_lists = (halo_list*) xmalloc((2 * max_nhalos) * sizeof(halo_list));
+    halo_list* import_h_lists = (halo_list*) xmalloc((2 * halo_merge_count) * sizeof(halo_list));
+    halo_list* export_h_lists = (halo_list*) xmalloc((2 * halo_merge_count) * sizeof(halo_list));
 
     for(int l = 0; l < halo_merge_count; l++){
       import_h_lists[2 * l] = OP_aug_import_exec_lists[set->index][l];
@@ -1942,10 +1959,13 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
     for(int l = 1; l < max_nhalos; l++){
       op_single_halo_destroy(OP_aug_import_exec_lists[set->index][l]); 
       OP_aug_import_exec_lists[set->index][l] = NULL;
-      op_single_halo_destroy(OP_aug_import_nonexec_lists[set->index][l]);
-      OP_aug_import_nonexec_lists[set->index][l] = NULL;
       op_single_halo_destroy(OP_aug_export_exec_lists[set->index][l]);
       OP_aug_export_exec_lists[set->index][l] = NULL;
+    }
+
+    for(int l = 1; l < max_calc_nhalos; l++){
+      op_single_halo_destroy(OP_aug_import_nonexec_lists[set->index][l]);
+      OP_aug_import_nonexec_lists[set->index][l] = NULL;
       op_single_halo_destroy(OP_aug_export_nonexec_lists[set->index][l]);
       OP_aug_export_nonexec_lists[set->index][l] = NULL;
     }
@@ -2927,8 +2947,8 @@ void op_halo_create_comm_avoid() {
     OP_aug_export_exec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
     OP_aug_import_exec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
 
-    OP_aug_export_nonexec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
-    OP_aug_import_nonexec_lists[set->index] = (halo_list*) xmalloc(max_nhalos * sizeof(halo_list_core));
+    OP_aug_export_nonexec_lists[set->index] = (halo_list*) xmalloc(max_calc_nhalos * sizeof(halo_list_core));
+    OP_aug_import_nonexec_lists[set->index] = (halo_list*) xmalloc(max_calc_nhalos * sizeof(halo_list_core));
 
 
     for(int l = 0; l < max_nhalos; l++){
@@ -3095,6 +3115,7 @@ void op_halo_create_comm_avoid() {
   // compute import/export lists creation time
   time = wall_t2 - wall_t1;
 
+  op_printf("my_rank=%d merge_exec_nonexec_halos\n", my_rank);
   merge_exec_nonexec_halos(1, my_rank, comm_size);
 
   set_group_halo_envt();
