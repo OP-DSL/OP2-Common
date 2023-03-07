@@ -2794,7 +2794,7 @@ halo_list step1_create_export_exec_list(op_set set, int halo_id, int **part_rang
           check_augmented_part_range(parts, map->to->index, map->map[e * map->dim + j],
                                   my_rank, comm_size);
           if (s_i + comm_size * 2 >= cap_s) {
-            cap_s = cap_s + 1000;
+            cap_s = cap_s + (comm_size * 2) + 1000;
             set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
           }
 
