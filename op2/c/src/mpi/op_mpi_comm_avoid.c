@@ -2661,8 +2661,8 @@ void calculate_core(op_set set, int el, halo_list exec, int my_rank){
     int num_exp = removeDups(temp_exp_elems1[set->index], exec_size);
     prev_sorted_exp_exec_sizes = num_exp;
 
-    temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
-    temp_core_arr_size = set->size;
+    // temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
+    // temp_core_arr_size = set->size;
 
     int count = 0;
     for (int e = 0; e < set->size; e++) { // for each elment of this set
@@ -2683,7 +2683,7 @@ void calculate_core(op_set set, int el, halo_list exec, int my_rank){
     set->core_sizes[el] = count;
     op_printf("corecalc my_rank=%d set=%s core_sizes[%d]=%d\n", my_rank, set->name, el, set->core_sizes[el]);
   } else {
-    temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
+    // temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
     temp_core_arr_size = set->size;
     // temp_core_elems3[set->index] = (int *)xmalloc(set->size * sizeof(int));
     temp_exp_elems1[set->index] = (int *)xmalloc(0 * sizeof(int));
@@ -2720,7 +2720,7 @@ void calculate_core(op_set set, int el, halo_list exec, int my_rank){
 
   memcpy(temp_core_elems3,
             temp_core_elems2, set->core_sizes[el] * sizeof(int));  //keeping a copy for next comparison
-  op_free(temp_core_elems2);
+  // op_free(temp_core_elems2);
 
   if(el == max_level - 1){
     // op_free(temp_core_elems3);
@@ -2936,7 +2936,7 @@ void op_halo_create_comm_avoid() {
     prev_sorted_exp_exec_sizes = 0;
 
     temp_core_elems1[set->index] = (int *)xmalloc(set->size * sizeof(int));
-    // temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
+    temp_core_elems2 = (int *)xmalloc(set->size * sizeof(int));
     temp_core_elems3 = (int *)xmalloc(set->size * sizeof(int));
     // temp_exp_elems1[set->index] = (int *)xmalloc(set->size * sizeof(int));
 
@@ -2998,6 +2998,7 @@ void op_halo_create_comm_avoid() {
     }
 
     op_free(temp_core_elems3);
+    op_free(temp_core_elems2);
 
     OP_import_exec_list[set->index] = OP_aug_import_exec_lists[set->index][0];
     OP_export_exec_list[set->index] = OP_aug_export_exec_lists[set->index][0];
