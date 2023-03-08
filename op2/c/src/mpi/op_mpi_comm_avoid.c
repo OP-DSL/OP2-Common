@@ -2139,6 +2139,20 @@ int get_max_nhalos(){
   return max_level;
 }
 
+int get_max_calc_nhalos(){
+
+  int max_level = 1;
+  for(int s = 0; s < OP_set_index; s++){
+    op_set set = OP_set_list[s];
+    int max = set->halo_info->max_calc_nhalos;
+    if(max > max_level){
+      max_level = max;
+    }
+    // printf("get_max_nhalos set=%s maxhalos=%d max=%d\n", set->name, set->halo_info->max_nhalos, max_level);
+  }
+  return max_level;
+}
+
 int get_max_nhalos_count(){
 
   int max_count = 1;
@@ -2160,6 +2174,7 @@ void calculate_set_sizes(int my_rank){
   char header_str[9000];
   char result_str[9000];
   int max_nhalos = get_max_nhalos();
+  int max_calc_nhalos = get_max_calc_nhalos();
 
   if(my_rank == 0){
     int header_len = 0;
@@ -2224,6 +2239,9 @@ void calculate_set_sizes(int my_rank){
   for(int s = 0; s < OP_set_index; s++){
     op_set set = OP_set_list[s];
 
+    int max_set_nhalos = set->halo_info->max_nhalos;
+    int max_set_calc_nhalos = set->halo_info->max_calc_nhalos;
+
     int sizes[max_nhalos];
     int avg_sizes[max_nhalos];
     int min_sizes[max_nhalos];
@@ -2281,8 +2299,8 @@ void calculate_set_sizes(int my_rank){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
     }
     
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list imp_exec_list = OP_aug_import_exec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list imp_exec_list = OP_aug_import_exec_lists[set->index][i];
       sizes[i] = (imp_exec_list) ? imp_exec_list->size : 0;
     }
 
@@ -2304,8 +2322,8 @@ void calculate_set_sizes(int my_rank){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
     }
     
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list imp_nonexec_list = OP_aug_import_nonexec_lists[set->index][i];
       sizes[i] = (imp_nonexec_list) ? imp_nonexec_list->size : 0;
     }
 
@@ -2327,8 +2345,8 @@ void calculate_set_sizes(int my_rank){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
     }
     
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list exp_exec_list = OP_aug_export_exec_lists[set->index][i];
       sizes[i] = (exp_exec_list) ? exp_exec_list->size : 0;
     }
 
@@ -2350,8 +2368,8 @@ void calculate_set_sizes(int my_rank){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
     }
     
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[set->index][i];
       sizes[i] = (exp_nonexec_list) ? exp_nonexec_list->size : 0;
     }
 
@@ -2375,8 +2393,8 @@ void calculate_set_sizes(int my_rank){
     }
 
     // calculate average, min, max of export exec halos
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list exp_exec_list = OP_aug_export_exec_lists[set->index][i];
       if(!exp_exec_list)
         continue;
 
@@ -2422,8 +2440,8 @@ void calculate_set_sizes(int my_rank){
     }
 
     // calculate average, min, max of export nonexec halos
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[set->index][i];
       if(!exp_nonexec_list)
         continue;
       int exec_total = 0;
@@ -2466,8 +2484,8 @@ void calculate_set_sizes(int my_rank){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
     }
     
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list exp_exec_list = OP_aug_export_exec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list exp_exec_list = OP_aug_export_exec_lists[set->index][i];
       sizes[i] = (exp_exec_list) ? exp_exec_list->ranks_size / exp_exec_list->num_levels: 0;
     }
 
@@ -2489,8 +2507,8 @@ void calculate_set_sizes(int my_rank){
       sizes[i] = 0; avg_sizes[i] = 0; min_sizes[i] = 0; max_sizes[i] = 0;
     }
     
-    for(int i = 0; i < max_nhalos; i++){
-      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[i][set->index];
+    for(int i = 0; i < max_set_calc_nhalos; i++){
+      halo_list exp_nonexec_list = OP_aug_export_nonexec_lists[set->index][i];
       sizes[i] = (exp_nonexec_list) ? exp_nonexec_list->ranks_size / exp_nonexec_list->num_levels: 0;
     }
 
@@ -3008,6 +3026,10 @@ void op_halo_create_comm_avoid() {
       step6_exchange_exec_data(set, l, OP_aug_import_exec_lists[set->index][l], OP_aug_export_exec_lists[set->index][l], part_range, my_rank, comm_size);
       step7_exchange_nonexec_data(set, l, OP_aug_import_nonexec_lists[set->index][l], OP_aug_export_nonexec_lists[set->index][l], part_range, my_rank, comm_size);
     }
+    // for(int l = max_calc_nhalos; l < max_nhalos; l++){
+    //   OP_aug_import_exec_lists[set->index][l] = NULL;
+    //   OP_aug_export_nonexec_lists[set->index][l] = NULL;
+    // }
     // op_printf("my_rank=%d step8_renumber_mappings\n", my_rank);
     step8_renumber_mappings(set, 1, part_range, my_rank, comm_size);
   }
