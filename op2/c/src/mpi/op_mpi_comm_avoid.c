@@ -1137,10 +1137,14 @@ void prepare_aug_set(op_set set){
     set->core_sizes =  (int *) malloc(max_level * sizeof(int));
     set->exec_sizes = (int*)xmalloc(sizeof(int) * max_level);
     set->nonexec_sizes = (int*)xmalloc(sizeof(int) * max_level);
+    set->exp_exec_sizes = (int*)xmalloc(sizeof(int) * max_level);
+    set->exp_nonexec_sizes = (int*)xmalloc(sizeof(int) * max_level);
     for(int i = 0; i < max_level; i++){
       set->core_sizes[i] = 0;
       set->exec_sizes[i] = 0;
       set->nonexec_sizes[i] = 0;
+      set->exp_exec_sizes[i] = 0;
+      set->exp_nonexec_sizes[i] = 0;
     }
 
     op_dat_entry *item;
@@ -1896,9 +1900,12 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     for(int el = 0; el < max_level; el++){
       int exec_levels = el + 1; //set->halo_info->nhalos[el];
       set->exec_sizes[el] = 0;
+      set->exp_exec_sizes[el] = 0;
       for(int l = 0; l < exec_levels; l++){
         set->exec_sizes[el] += OP_aug_import_exec_lists[set->index][l] ? 
         OP_aug_import_exec_lists[set->index][l]->size : 0;
+        set->exp_exec_sizes[el] += OP_aug_export_exec_lists[set->index][l] ? 
+        OP_aug_export_exec_lists[set->index][l]->size : 0;
         if(exec_levels == DEFAULT_HALO_COUNT){
           set->exec_size += OP_aug_import_exec_lists[set->index][l] ? 
             OP_aug_import_exec_lists[set->index][l]->size : 0;
@@ -1906,6 +1913,8 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       }
       set->nonexec_sizes[el] = (el < max_calc_level) ?
                                 OP_aug_import_nonexec_lists[set->index][el]->size : 0;  //duplicate elements in the on exec. so no +=
+      set->exp_nonexec_sizes[el] = (el < max_calc_level) ?
+                                OP_aug_export_nonexec_lists[set->index][el]->size : 0;
       if(exec_levels == DEFAULT_HALO_COUNT){
         set->nonexec_size = 0;
         // for(int l = 0; l <= el; l++){

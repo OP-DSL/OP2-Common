@@ -131,23 +131,23 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  int exec_levels = set->halo_info->max_nhalos; //2;
+  int exec_levels = set->halo_info->max_calc_nhalos; //2;
   int halo_size = 0;
+  halo_size += set->exec_sizes[exec_levels - 1];
+
   for(int l = 0; l < exec_levels; l++){
-    halo_size += set->exec_sizes[l];
+    if(is_set_required_for_calc(dat->set, l) == 1){
+      halo_size += set->nonexec_sizes[l];
+    }
   }
 
-  int num_levels = set->halo_info->nhalos_count;
-  for(int l = 0; l < num_levels; l++){
-    halo_size += set->nonexec_sizes[l];
-  }
+  int max_exec_levels = set->halo_info->max_nhalos;
+  dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, max_exec_levels * sizeof(int));
+  dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, max_exec_levels * sizeof(int));
 
-  dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, exec_levels * sizeof(int));
-  dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, exec_levels * sizeof(int));
-
-  for(int i = 0; i < exec_levels; i++){
+  for(int i = 0; i < max_exec_levels; i++){
     dat->exec_dirtybits[i] = 1;
-    if(is_halo_required_for_set(dat->set, i) == 1){
+    if(is_set_required_for_calc(dat->set, i) == 1){
       dat->nonexec_dirtybits[i] = 1;
     }else{
       dat->nonexec_dirtybits[i] = -1;
