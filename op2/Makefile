@@ -192,9 +192,6 @@ $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@
 
-$(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
-	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
-
 $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
 
@@ -225,6 +222,9 @@ $(OBJ)/%.o: src/%.cpp | $(OBJ)
 
 $(OBJ)/%.o: src/%.c | $(OBJ)
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
+$(OBJ)/%.o: src/%.cu | $(OBJ)
+	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
 
 # Include auto-generated dependencies for C/CXX sources (if they exist)
 ifneq ($(wildcard $(OBJ)),)
