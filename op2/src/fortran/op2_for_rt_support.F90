@@ -437,6 +437,29 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine prepareDeviceGbls(args, nargs, max_threads) BIND(C, name='prepareDeviceGbls')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_arg), dimension(*) :: args
+      integer(kind=c_int), value :: nargs
+      integer(kind=c_int), value :: max_threads
+
+    end subroutine
+
+    subroutine processDeviceGbls(args, nargs, nthreads, max_threads) BIND(C, name='processDeviceGbls')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_arg), dimension(*) :: args
+      integer(kind=c_int), value :: nargs
+      integer(kind=c_int), value :: nthreads
+      integer(kind=c_int), value :: max_threads
+
+    end subroutine
+
     ! debugging routines
     subroutine op_dump_arg (arg) BIND(C,name='op_dump_arg')
 
