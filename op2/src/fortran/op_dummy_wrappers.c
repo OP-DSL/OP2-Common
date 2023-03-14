@@ -60,6 +60,19 @@ extern "C" {
 void prepareScratch (op_arg *args, int nargs, int nthreads) {
   (void) args;
 }
+
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
+    (void) args;
+    (void) nargs;
+    (void) max_threads;
+}
+
+void processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {
+    (void) args;
+    (void) nargs;
+    (void) nthreads;
+    (void) max_threads;
+}
 #ifdef __cplusplus
 }
 #endif

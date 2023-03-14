@@ -50,7 +50,7 @@ def soa(x, loop: OP.Loop = None) -> bool:
     if isinstance(x, OP.Dat):
         return x.soa
 
-    return false
+    return False
 
 
 env.tests["soa"] = soa

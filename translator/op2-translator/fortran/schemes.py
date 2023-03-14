@@ -114,21 +114,6 @@ class FortranCuda(Scheme):
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
     master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
-        for arg in loop.args:
-            if isinstance(arg, OP.ArgInfo):
-                return False
-
-            if isinstance(arg, OP.ArgGbl) and arg.access_type in [
-                OP.AccessType.RW,
-                OP.AccessType.INC,
-                OP.AccessType.MIN,
-                OP.AccessType.MAX,
-            ]:
-                return False
-
-        return True
-
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -162,6 +147,15 @@ class FortranCuda(Scheme):
         def match_atomic_inc(arg):
             return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
 
+        def match_gbl(arg):
+            return isinstance(arg, OP.ArgGbl)
+
+        def match_info(arg):
+            return isinstance(arg, OP.ArgInfo)
+
+        def match_reduction(arg):
+            return arg.access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
+
         modified = ftk.insertStrides(
             kernel_entities[0],
             kernel_entities + dependencies,
@@ -178,6 +172,16 @@ class FortranCuda(Scheme):
             app,
             lambda arg: f"dat{arg.dat_id}",
             lambda arg: match_soa(arg) and match_indirect(arg),
+            modified,
+        )
+
+        modified = ftk.insertStrides(
+            kernel_entities[0],
+            kernel_entities + dependencies,
+            loop,
+            app,
+            lambda arg: f"gbl",
+            lambda arg: (match_gbl(arg) and match_reduction(arg)) or match_info(arg),
             modified,
         )
 
