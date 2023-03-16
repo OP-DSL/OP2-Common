@@ -136,7 +136,16 @@ def insertStrides(
     return modified
 
 
-def parseDimensions(func: Function, param: str) -> List[str]:
+def parseExplicitShapeSpec(spec: f2003.Explicit_Shape_Spec) -> Tuple[str, str]:
+    assert(len(spec.children) == 2)
+
+    if spec.children[0] == None:
+        return ("1", str(spec.children[1]))
+
+    return (str(spec.children[0]), str(spec.children[1]))
+
+
+def parseDimensions(func: Function, param: str) -> List[Tuple[str, str]]:
     spec = fpu.get_child(func.ast, f2003.Specification_Part)
 
     for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
@@ -154,7 +163,7 @@ def parseDimensions(func: Function, param: str) -> List[str]:
                 check_for_dimension_spec = True
                 break
 
-            return [str(dim) for dim in shape_spec.children]
+            return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
 
         if not check_for_dimension_spec:
             continue
@@ -165,7 +174,7 @@ def parseDimensions(func: Function, param: str) -> List[str]:
         if shape_spec is None:
             raise OpError(f"Expected explicit shape spec, got: {dimension_spec}")
 
-        return [str(dim) for dim in shape_spec.children]
+        return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
 
     raise OpError(f"Unable to find dimension spec for parameter {param} of {func.name}")
 
@@ -191,8 +200,9 @@ def insertStride(
                     raise OpError(f"Unexpected dimension mismatch ({subscript_list}, {dims})")
 
                 index = str(subscript_list.children[0])
+                sizes = [f"(1 + {dim[1]} - ({dim[0]}))" for dim in dims]
                 for i, extra_index in enumerate(subscript_list.children[1:]):
-                    index += f" + ({extra_index} - 1) * {'*'.join(dims[:i + 1])}"
+                    index += f" + ({extra_index} - ({dims[i + 1][0]})) * {'*'.join(sizes[:i + 1])}"
             else:
                 index = str(subscript_list)
 
