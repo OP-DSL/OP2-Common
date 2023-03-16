@@ -136,6 +136,40 @@ def insertStrides(
     return modified
 
 
+def parseDimensions(func: Function, param: str) -> List[str]:
+    spec = fpu.get_child(func.ast, f2003.Specification_Part)
+
+    for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
+        check_for_dimension_spec = False
+
+        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
+            name = fpu.get_child(entity_decl, f2003.Name).string
+
+            if name != param:
+                continue
+
+            shape_spec = fpu.get_child(entity_decl, f2003.Explicit_Shape_Spec_List)
+
+            if shape_spec is None:
+                check_for_dimension_spec = True
+                break
+
+            return [str(dim) for dim in shape_spec.children]
+
+        if not check_for_dimension_spec:
+            continue
+
+        dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)[0]
+        shape_spec = fpu.get_child(dimension_spec, f2003.Explicit_Shape_Spec_List)
+
+        if shape_spec is None:
+            raise OpError(f"Expected explicit shape spec, got: {dimension_spec}")
+
+        return [str(dim) for dim in shape_spec.children]
+
+    raise OpError(f"Unable to find dimension spec for parameter {param} of {func.name}")
+
+
 def insertStride(
     func: Function, funcs: List[Function], param: str, arg: OP.Arg, stride: Callable[[str], str]
 ) -> List[Tuple[str, int, OP.Arg]]:
@@ -150,9 +184,21 @@ def insertStride(
         if isinstance(parent, f2003.Part_Ref):
             subscript_list = fpu.get_child(parent, f2003.Section_Subscript_List)
 
+            if len(subscript_list.children) > 1:
+                dims = parseDimensions(func, param)
+
+                if len(dims) != len(subscript_list.children):
+                    raise OpError(f"Unexpected dimension mismatch ({subscript_list}, {dims})")
+
+                index = str(subscript_list.children[0])
+                for i, extra_index in enumerate(subscript_list.children[1:]):
+                    index += f" + ({extra_index} - 1) * {'*'.join(dims[:i + 1])}"
+            else:
+                index = str(subscript_list)
+
             parent.items = [
                 node,
-                f2003.Section_Subscript_List(f"op2_s({str(subscript_list)}, {stride(arg)})"),
+                f2003.Section_Subscript_List(f"op2_s({index}, {stride(arg)})"),
             ]
 
             node = node.parent
