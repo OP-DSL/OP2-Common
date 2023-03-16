@@ -43,6 +43,10 @@
 
 #include <vector>
 
+// TODO: Make this waste less space
+static constexpr size_t align_size = 8 * sizeof(char);
+static constexpr size_t align(size_t x) { return (x + (align_size) - 1) & ~(align_size - 1); }
+
 static char *device_global_reductions = NULL;
 static size_t device_global_reductions_size = 0;
 
@@ -63,7 +67,7 @@ static void prepareDeviceGblReductions(op_arg *args, int nargs, int max_threads)
         if (args[i].argtype == OP_ARG_GBL &&
            (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
 
-        required_size += args[i].size * max_threads * sizeof(char);
+        required_size += align(args[i].size * max_threads * sizeof(char));
     }
 
     if (required_size > device_global_reductions_size) {
@@ -80,7 +84,7 @@ static void prepareDeviceGblReductions(op_arg *args, int nargs, int max_threads)
            (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
 
         args[i].data_d = allocated;
-        allocated += args[i].size * max_threads * sizeof(char);
+        allocated += align(args[i].size * max_threads * sizeof(char));
     }
 }
 
@@ -91,7 +95,7 @@ static void prepareDeviceGblRWs(op_arg *args, int nargs) {
         if (args[i].argtype != OP_ARG_GBL) continue;
         if (args[i].acc != OP_READ && args[i].acc != OP_WRITE && args[i].acc != OP_RW) continue;
 
-        required_size += args[i].size * sizeof(char);
+        required_size += align(args[i].size * sizeof(char));
     }
 
     if (required_size > device_global_rws_size) {
@@ -107,7 +111,7 @@ static void prepareDeviceGblRWs(op_arg *args, int nargs) {
         if (args[i].acc != OP_READ && args[i].acc != OP_WRITE && args[i].acc != OP_RW) continue;
 
         args[i].data_d = allocated;
-        allocated += args[i].size * sizeof(char);
+        allocated += align(args[i].size * sizeof(char));
 
         if (args[i].acc == OP_WRITE) continue;
 
