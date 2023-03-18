@@ -4459,7 +4459,7 @@ int get_set_size_with_nhalos(op_set set, int nhalos){
 }
 
 int get_set_core_size(op_set set, int nhalos){
-  return (nhalos > set->halo_info->max_calc_nhalos) ? 0 : set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
+  return (nhalos > set->halo_info->max_nhalos) ? 0 : set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
 
 int get_halo_start_size(op_set set, int nhalos){
