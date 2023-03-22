@@ -1897,7 +1897,7 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
     set->total_exec_size = 0;
     set->total_nonexec_size = 0;
 
-    for(int el = 0; el < max_level; el++){
+    for(int el = 0; el < max_calc_level; el++){
       int exec_levels = el + 1; //set->halo_info->nhalos[el];
       set->exec_sizes[el] = 0;
       set->exp_exec_sizes[el] = 0;
@@ -1924,7 +1924,7 @@ void step11_halo(int dummy, int **part_range, int **core_elems, int **exp_elems,
       }
       set->total_nonexec_size += (el < max_calc_level) ? OP_aug_import_nonexec_lists[set->index][el]->size : 0;
     }
-    for(int el = 0; el < max_level; el++){
+    for(int el = 0; el < max_calc_level; el++){
        set->total_exec_size += OP_aug_import_exec_lists[set->index][el] ? OP_aug_import_exec_lists[set->index][el]->size : 0;
     }
   }
@@ -2100,13 +2100,14 @@ void set_maps_hydra(){
       // op_mpi_add_nhalos_map(map, 5);
       //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
-    // if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
-    //   op_mpi_add_nhalos_map(map, 2);
-    //   // op_mpi_add_nhalos_map(map, 3);
-    //   // op_mpi_add_nhalos_map(map, 4);
-    //   // op_mpi_add_nhalos_map(map, 5);
-    //    printf("op_mpi_add_nhalos_map map=%s\n", map->name);
-    // }
+    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+      // op_mpi_add_nhalos_map(map, 3);
+      // op_mpi_add_nhalos_map(map, 4);
+      // op_mpi_add_nhalos_map(map, 5);
+       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+    }
   }
   return;
   op_dat_entry *item;
@@ -2592,7 +2593,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 3;  // 1 for optimistic, 16 for pessimistic - MGCFD
+  int max_dat_count = 16;  // 1 for optimistic, 16 for pessimistic - MGCFD
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -2828,7 +2829,7 @@ void rearrange_mappings(int my_rank, int comm_size){
     op_map map = OP_map_list[m];
 
     op_set from_set = map->from;
-    int max_nhalos = from_set->halo_info->max_nhalos;
+    int max_nhalos = from_set->halo_info->max_calc_nhalos;
 
     int map_size = 0;
     for(int i = 0; i < max_nhalos; i++){
@@ -2869,6 +2870,8 @@ void op_halo_create_comm_avoid() {
   int my_rank, comm_size;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+
+  //set_maps_hydra();
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
@@ -3080,14 +3083,16 @@ void op_halo_create_comm_avoid() {
 void op_halo_destroy_comm_avoid() {
   for(int i = 0; i < OP_set_index; i++){
     op_set set = OP_set_list[i];
-    if(OP_aug_import_exec_lists[set->index])
-      op_halos_destroy(OP_aug_import_exec_lists[set->index], set);
-    if(OP_aug_export_exec_lists[set->index])
-      op_halos_destroy(OP_aug_export_exec_lists[set->index], set);
-    if(OP_aug_import_nonexec_lists[set->index])
-      op_halos_destroy(OP_aug_import_nonexec_lists[set->index], set);
-    if(OP_aug_export_nonexec_lists[set->index])
-      op_halos_destroy(OP_aug_export_nonexec_lists[set->index], set);
+
+    // these have been freed after halo creation.
+    // if(OP_aug_import_exec_lists[set->index])
+    //   op_halos_destroy(OP_aug_import_exec_lists[set->index], set);
+    // if(OP_aug_export_exec_lists[set->index])
+    //   op_halos_destroy(OP_aug_export_exec_lists[set->index], set);
+    // if(OP_aug_import_nonexec_lists[set->index])
+    //   op_halos_destroy(OP_aug_import_nonexec_lists[set->index], set);
+    // if(OP_aug_export_nonexec_lists[set->index])
+    //   op_halos_destroy(OP_aug_export_nonexec_lists[set->index], set);
 
     op_single_halo_destroy(OP_merged_import_exec_nonexec_list[set->index]);
     op_single_halo_destroy(OP_merged_export_exec_nonexec_list[set->index]);

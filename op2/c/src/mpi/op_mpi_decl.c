@@ -134,12 +134,14 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int exec_levels = set->halo_info->max_calc_nhalos; //2;
   int halo_size = 0;
   halo_size += set->exec_sizes[exec_levels - 1];
-
+  
   for(int l = 0; l < exec_levels; l++){
     if(is_set_required_for_calc(dat->set, l) == 1){
       halo_size += set->nonexec_sizes[l];
     }
   }
+
+  
 
   int max_exec_levels = set->halo_info->max_nhalos;
   dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, max_exec_levels * sizeof(int));
@@ -188,6 +190,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   nonexec_i_list_rank_size = nonexec_i_list->ranks_size;
 
   // this buffer is used only for standard OP2 halo exchanges
+  // but mpi_buf->s_req and mpi_buf->r_req and used in CA as well
   mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
   mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
 
@@ -210,10 +213,10 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_e_list_rank_size + nonexec_e_list_rank_size));
+      (exec_e_list_rank_size + nonexec_e_list_rank_size) * exec_levels);
   mpi_buf->r_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_i_list_rank_size + nonexec_i_list_rank_size));
+      (exec_i_list_rank_size + nonexec_i_list_rank_size) * exec_levels);
 
   mpi_buf->s_num_req = 0;
   mpi_buf->r_num_req = 0;
