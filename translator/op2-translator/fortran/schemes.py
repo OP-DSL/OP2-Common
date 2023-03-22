@@ -114,6 +114,9 @@ class FortranCuda(Scheme):
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
     master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
 
+    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+        return loop.kernel != "uq_out_work" and loop.kernel != "trans_fnmax_fmax_work" and loop.kernel != "restu_scatter_work"
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -134,6 +137,9 @@ class FortranCuda(Scheme):
         dependencies = copy.deepcopy(dependencies)
 
         ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
+
+        for entity in kernel_entities + dependencies:
+            ftk.fixHydraIO(entity)
 
         for entity in kernel_entities + dependencies:
             ftk.removeExternals(entity)

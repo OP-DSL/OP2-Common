@@ -17,9 +17,9 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     kernel_entities = app.findEntities(loop.kernel, program, [])
 
     if len(kernel_entities) == 0:
-        raise OpError(f"unable to find kernel function for {loop.kernel}")
+        raise OpError(f"unable to find kernel subroutine for {loop.kernel}")
     elif len(kernel_entities) > 1:
-        raise OpError(f"ambiguous kernel function for {loop.kernel}")
+        raise OpError(f"ambiguous kernel subroutine for {loop.kernel}")
 
     dependencies, unknown_dependencies = ftk.extractDependencies(kernel_entities, app, [])
     entities = kernel_entities + list(filter(lambda e: isinstance(e, Function), dependencies))
@@ -31,17 +31,31 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     seen_entity_names = []
     for entity in entities:
         if entity.name in seen_entity_names:
-            raise OpError(f"ambiguous function {entity.name} used in kernel {loop.kernel}")
+            raise OpError(f"ambiguous subroutine/function {entity.name} used in kernel {loop.kernel}")
 
         seen_entity_names.append(entity.name)
 
     if len(loop.args) != len(kernel_entities[0].parameters):
         raise OpError(
             f"op_par_loop argument list length ({len(loop.args)}) mismatch "
-            f"(expected: {len(kernel_entities[0].parameters)}, kernel function: {loop.kernel})",
+            f"(expected: {len(kernel_entities[0].parameters)}, kernel subroutine: {loop.kernel})",
             loop.loc,
         )
         return
+
+    # Check parameter/const conflict
+    const_ptrs = app.constPtrs()
+    violations = []
+
+    for entity in entities:
+        for idx, param in enumerate(entity.parameters):
+            if param not in const_ptrs:
+                continue
+
+            violations.append(f"In {entity.name}: parameter {idx + 1} ({param})")
+
+    if len(violations) > 0:
+        printViolations(loop, "subroutine/function parameter and const conflict", violations)
 
     # Check for disallowed statements (IO, exit, ...)
     # for entity in entities:

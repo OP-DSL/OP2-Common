@@ -98,7 +98,8 @@ call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
 {%- endmacro -%}
 
 {%- macro process_gbls() -%}
-call processDeviceGbls(args, size(args), block_size * num_blocks, block_size * max_blocks)
+call processDeviceGbls(args, size(args), min(set%setptr%size, block_size * num_blocks), &
+                                                              block_size * max_blocks)
 {%- endmacro -%}
 
 {%- macro type_c(arg) -%}
@@ -325,6 +326,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
+    print *, " op2_kernel gpu {{lh.name}}"
+
     if (n_exec == 0) then
         call op_mpi_wait_all_grouped(size(args), args, 2)
 {% for arg in lh.args|gbl|reduction %}
@@ -425,7 +428,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endif %}
 {% for arg in lh.args|gbl|min_or_max %}
     if (.not. allocated(gbl{{arg.id}}_ref_d)) then
-        allocate(gbl{{arg.id}}_d({{gbl_dim(arg)}}))
+        allocate(gbl{{arg.id}}_ref_d({{gbl_dim(arg)}}))
     end if
 
     gbl{{arg.id}}_ref_d = gbl{{arg.id}}
