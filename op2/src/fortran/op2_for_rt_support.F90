@@ -426,13 +426,13 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
-    subroutine prepareScratch(args,argsNumber, nthreads) BIND(C,name='prepareScratch')
+    subroutine prepareScratch(args,argsNumber, nelems) BIND(C,name='prepareScratch')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
 
       integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      integer(kind=c_int), value :: nthreads
+      integer(kind=c_int), value :: nelems
       type(op_arg), dimension(*) :: args       ! array with op_args
 
     end subroutine
@@ -448,14 +448,14 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
-    subroutine processDeviceGbls(args, nargs, nthreads, max_threads) BIND(C, name='processDeviceGbls')
+    subroutine processDeviceGbls(args, nargs, nelems, max_threads) BIND(C, name='processDeviceGbls')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
 
       type(op_arg), dimension(*) :: args
       integer(kind=c_int), value :: nargs
-      integer(kind=c_int), value :: nthreads
+      integer(kind=c_int), value :: nelems
       integer(kind=c_int), value :: max_threads
 
     end subroutine

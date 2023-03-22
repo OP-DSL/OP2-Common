@@ -117,6 +117,14 @@ def main(argv=None) -> None:
     except ParseError as e:
         exit(e)
 
+    if args.extra_consts_list is not None:
+        with open(args.extra_consts_list, "r") as f:
+            for line in f:
+                const_ptr = line.strip()
+
+                if const_ptr != "":
+                    app.external_consts.add(const_ptr)
+
     if args.force_soa:
         for program in app.programs:
             for loop in program.loops:

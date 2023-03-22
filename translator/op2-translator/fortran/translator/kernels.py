@@ -24,6 +24,9 @@ def extractDependencies(
             continue
 
         for dependency in entity.depends:
+            if dependency in ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]:
+                continue
+
             dependency_entities = app.findEntities(dependency, entity.program, scope)  # TODO: Loop scope
 
             if len(dependency_entities) == 0:
@@ -63,20 +66,25 @@ def renameFunctionCalls(entity: Entity, name: str, replacement: str) -> None:
 
 
 def renameConsts(lang: Lang, entities: List[Entity], app: Application, replacement: Callable[[str], str]) -> None:
-    const_ptrs = set(map(lambda const: const.ptr, app.consts()))
-
-    if lang.extra_consts_list is not None:
-        with open(lang.extra_consts_list, "r") as f:
-            for line in f:
-                const_ptr = line.strip()
-
-                if const_ptr != "":
-                    const_ptrs.add(const_ptr)
+    const_ptrs = app.constPtrs()
 
     for entity in entities:
         for name in fpu.walk(entity.ast, f2003.Name):
-            if name.string.lower() in const_ptrs:
+            if name.string.lower() in const_ptrs and name.string.lower() not in entity.parameters:
                 name.string = replacement(name.string.lower())
+
+
+def fixHydraIO(func: Function) -> None:
+    replaceNodes(func.ast, lambda n: isinstance(n, f2003.Write_Stmt), f2003.Continue_Stmt("continue"))
+
+    def match_hyd_call(n):
+        if not isinstance(n, f2003.Call_Stmt):
+            return False
+
+        name_node = fpu.get_child(n, f2003.Name)
+        return name_node.string.lower() in ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]
+
+    replaceNodes(func.ast, match_hyd_call, f2003.Stop_Stmt("stop"))
 
 
 def removeExternals(func: Function) -> None:
@@ -407,7 +415,23 @@ def replaceChild(node: f2003.Base, index: int, replacement: f2003.Base) -> None:
         node.content = children
 
 
-def replaceNodes(node: f2003.Base, match: Callable[[f2003.Base], bool], replacement: f2003.Base) -> Optional[Any]:
+def replaceNodes(node: Any, match: Callable[[f2003.Base], bool], replacement: f2003.Base) -> Optional[Any]:
+    if isinstance(node, tuple) or isinstance(node, list):
+        children = list(node)
+
+        for i in range(len(children)):
+            if children[i] is None:
+                continue
+
+            child_replacement = replaceNodes(children[i], match, replacement)
+            if child_replacement is not None:
+                children[i] = child_replacement
+
+        if isinstance(node, tuple):
+            return tuple(children)
+        else:
+            return children
+
     if not isinstance(node, f2003.Base):
         return None
 
@@ -418,10 +442,10 @@ def replaceNodes(node: f2003.Base, match: Callable[[f2003.Base], bool], replacem
         if node.children[i] is None:
             continue
 
-        replacement = replaceNodes(node.children[i], match, replacement)
+        child_replacement = replaceNodes(node.children[i], match, replacement)
 
-        if replacement is not None:
-            replaceChild(node, i, replacement)
+        if child_replacement is not None:
+            replaceChild(node, i, child_replacement)
 
     return None
 
