@@ -258,10 +258,10 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
+      (exec_e_list->ranks_size + nonexec_e_list->ranks_size) * 2);
   mpi_buf->r_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
+      (exec_i_list->ranks_size + nonexec_i_list->ranks_size) * 2);
 
   mpi_buf->s_num_req = 0;
   mpi_buf->r_num_req = 0;

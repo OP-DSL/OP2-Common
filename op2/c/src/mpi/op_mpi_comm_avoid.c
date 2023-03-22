@@ -2593,7 +2593,7 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void set_group_halo_envt(){
 
   grp_tag = 100;
-  int max_dat_count = 16;  // 1 for optimistic, 16 for pessimistic - MGCFD
+  int max_dat_count = 5;  // 1 for optimistic, 16 for pessimistic - MGCFD
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -2871,7 +2871,7 @@ void op_halo_create_comm_avoid() {
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  //set_maps_hydra();
+  set_maps_hydra();
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
