@@ -241,6 +241,12 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int nonexec_i_list_rank_size = 0;
   
   nonexec_e_list_size = nonexec_e_list->size;
+  // for(int l = 0; l < exec_levels; l++){
+  //   if(is_set_required_for_calc(set, l)){
+  //      nonexec_e_list_size += set->exp_nonexec_sizes[l];
+  //   }
+   
+  // }
   nonexec_e_list_rank_size = nonexec_e_list->ranks_size;
   nonexec_i_list_rank_size = nonexec_i_list->ranks_size;
 
@@ -334,10 +340,10 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size) * 2);
+      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
   mpi_buf->r_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size) * 2);
+      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
 
   mpi_buf->s_num_req = 0;
   mpi_buf->r_num_req = 0;
@@ -430,10 +436,12 @@ void op_mv_halo_device(op_set set, op_dat dat) {
   // }
 
   //todo: check this for grouped comunication
+  dat->dirty_hd = 0;
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
   cutilSafeCall(
       cudaMalloc((void **)&(dat->buffer_d),
-                 dat->size * (halo_size + 
+                 dat->size * (OP_export_exec_list[set->index]->size +
+                              OP_export_nonexec_list[set->index]->size +
                               set_import_buffer_size[set->index])));
   
   // printf("op_mv_halo_device new set=%s index=%d e=%d(%d) n=%d(%d) i=%d\n", set->name, set->index, 

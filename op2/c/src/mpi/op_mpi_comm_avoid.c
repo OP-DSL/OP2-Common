@@ -1480,7 +1480,7 @@ void step9_halo(int **part_range, int my_rank, int comm_size){
     mpi_buf->buf_exec = (char *)xmalloc(exec_e_list_size * dat->size);
     mpi_buf->buf_nonexec = (char *)xmalloc(nonexec_e_list_size * dat->size);
 
-    // printf("step9 my_rank=%d dat=%s set=%s exec_e_list_size=%d\n", my_rank, dat->name, dat->set->name, exec_e_list_size);
+    // printf("step9 my_rank=%d dat=%s set=%s exec_e_list_size=%d buf=%p\n", my_rank, dat->name, dat->set->name, exec_e_list_size, mpi_buf->buf_exec);
 
     halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
 
@@ -2106,7 +2106,7 @@ void set_maps_hydra(){
       // op_mpi_add_nhalos_map(map, 3);
       // op_mpi_add_nhalos_map(map, 4);
       // op_mpi_add_nhalos_map(map, 5);
-       printf("op_mpi_add_nhalos_map map=%s\n", map->name);
+      //  printf("op_mpi_add_nhalos_map map=%s\n", map->name);
     }
   }
   return;
@@ -2871,7 +2871,7 @@ void op_halo_create_comm_avoid() {
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  set_maps_hydra();
+  // set_maps_hydra();
 
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;

@@ -301,6 +301,9 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
           arg->dat->buffer_d + exp_exec_list->size * arg->dat->size;
       cutilSafeCall(cudaDeviceSynchronize());
     } else {
+      // printf("my-rank=%d set=%s exp_exec_list=%p\n", my_rank, dat->set->name, exp_exec_list);
+      // printf("my-rank=%d set=%s exp_exec_list->size=%d arg->dat->size=%d budh=%p budd=%p\n", my_rank, dat->set->name, exp_exec_list->size, arg->dat->size,
+      // ((op_mpi_buffer)(dat->mpi_buffer))->buf_exec, arg->dat->buffer_d);
       cutilSafeCall(cudaMemcpy(
           ((op_mpi_buffer)(dat->mpi_buffer))->buf_exec, arg->dat->buffer_d,
           exp_exec_list->size * arg->dat->size, cudaMemcpyDeviceToHost));
