@@ -11,6 +11,8 @@ def translateProgram2(program: Program, force_soa: bool) -> str:
     kernel_id = 1
 
     def repl(m):
+        nonlocal kernel_id
+
         r = f'{m.group(1)}call op2_k_{program.path.stem}_{kernel_id}_{m.group(2)}("{m.group(2)}", '
         kernel_id += 1
 

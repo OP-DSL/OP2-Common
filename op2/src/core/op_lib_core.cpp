@@ -66,7 +66,6 @@ int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
 
 std::vector<std::regex> OP_whitelist = {};
-std::unordered_set<std::string> OP_whitelist_matched = {};
 
 /*
  * Lists of sets, maps and dats declared in OP2 programs
@@ -148,14 +147,9 @@ bool op_check_whitelist(const char *name) {
   if (OP_whitelist.size() == 0)
     return true;
 
-  if (OP_whitelist_matched.find(name) != OP_whitelist_matched.end())
-    return true;
-
   for (const auto& regex : OP_whitelist) {
-    if (std::regex_match(name, regex)) {
-      OP_whitelist_matched.emplace(name);
+    if (std::regex_match(name, regex))
       return true;
-    }
   }
 
   return false;
@@ -492,7 +486,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     printf("WARNING data pointer is NULL for %s!\n", name);
   }*/
   item->orig_ptr = data;
-  printf("orig_ptr for dat %s = %p\n", name, data);
+  // printf("orig_ptr for dat %s = %p\n", name, data);
   // add item to the end of the list
   if (TAILQ_EMPTY(&OP_dat_list)) {
     TAILQ_INSERT_HEAD(&OP_dat_list, item, entries);

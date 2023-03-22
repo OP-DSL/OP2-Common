@@ -210,6 +210,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
+    print *, " op2_kernel cpu {{lh.name}}"
+
 {% for dat in lh.dats %}
     call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat_dim(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
         {{-"\n" if loop.last}}

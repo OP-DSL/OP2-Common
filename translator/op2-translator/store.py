@@ -123,6 +123,7 @@ class Program:
 @dataclass
 class Application:
     programs: List[Program] = field(default_factory=list)
+    external_consts: Set[str] = field(default_factory=set)
 
     def __str__(self) -> str:
         if len(self.programs) > 0:
@@ -151,9 +152,13 @@ class Application:
 
         return candidates
 
-    def consts(self) -> List[OP.Const]:
-        consts = flatten(program.consts for program in self.programs)
-        return uniqueBy(consts, lambda c: c.ptr)
+    def constPtrs(self) -> Set[str]:
+        ptrs = set(self.external_consts)
+
+        for program in self.programs:
+            ptrs.update(const.ptr for const in program.consts)
+
+        return ptrs
 
     def loops(self) -> List[Tuple[OP.Loop, Program]]:
         return flatten(map(lambda l: (l, p), p.loops) for p in self.programs)
@@ -166,16 +171,17 @@ class Application:
         lang.validate(self)
 
     def validateConsts(self, lang: Lang) -> None:
-        seen_const_ptrs: Set[str] = set()
+        seen_const_ptrs: Set[str] = set(self.external_consts)
 
-        for const in self.consts():
-            if const.ptr in seen_const_ptrs:
-                raise OpError(f"duplicate const declaration: {const.ptr}", const.loc)
+        for program in self.programs:
+            for const in program.consts:
+                if const.ptr in seen_const_ptrs:
+                    raise OpError(f"duplicate const declaration: {const.ptr}", const.loc)
 
-            seen_const_ptrs.add(const.ptr)
+                seen_const_ptrs.add(const.ptr)
 
-            if const.dim < 1:
-                raise OpError(f"invalid const dimension: {const.dim}", const.dim)
+                if const.dim < 1:
+                    raise OpError(f"invalid const dimension: {const.dim}", const.dim)
 
     def validateLoops(self, lang: Lang) -> None:
         for loop, program in self.loops():

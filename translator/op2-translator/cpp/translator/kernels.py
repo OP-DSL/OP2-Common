@@ -43,7 +43,7 @@ def updateFunctionTypes(entities: List[Tuple[Entity, Rewriter]], replacement: Ca
 def renameConsts(
     entities: List[Tuple[Entity, Rewriter]], app: Application, replacement: Callable[[str, Entity], str]
 ) -> None:
-    const_ptrs = set(map(lambda const: const.ptr, app.consts()))
+    const_ptrs = app.constPtrs()
 
     for entity, rewriter in entities:
         for node in entity.ast.walk_preorder():

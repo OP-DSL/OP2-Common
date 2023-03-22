@@ -115,21 +115,21 @@ static void prepareDeviceGblRWs(op_arg *args, int nargs) {
 
         if (args[i].acc == OP_WRITE) continue;
 
-        cutilSafeCall(cudaMemcpyAsync(args[i].data_d, args[i].data,
-                                      args[i].size * sizeof(char),
-                                      cudaMemcpyHostToDevice));
+        cutilSafeCall(cudaMemcpy(args[i].data_d, args[i].data,
+                                 args[i].size * sizeof(char),
+                                 cudaMemcpyHostToDevice));
     }
 }
 
 template<typename T, typename F, typename HF>
-static void reduce_simple(F op, HF host_op, op_arg *arg, int nthreads, int max_threads) {
+static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
     if (arg->size * sizeof(char) > device_result_size) {
         cutilSafeCall(cudaMalloc((void **) &device_result, arg->size * sizeof(char)));
         device_result_size = arg->size * sizeof(char);
     }
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result, nthreads, 0, false);
+    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result, nelems, 0, false);
 
     if (required_temp_storage_size > device_temp_storage_size) {
         if (device_temp_storage != NULL) cutilSafeCall(cudaFree(device_temp_storage));
@@ -139,7 +139,7 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nthreads, int max_t
 
     for (int d = 0; d < arg->dim; ++d)
         op(device_temp_storage, device_temp_storage_size,
-            (T *) arg->data_d + d * max_threads, (T *) device_result + d, nthreads, 0, false);
+            (T *) arg->data_d + d * max_threads, (T *) device_result + d, nelems, 0, false);
 
     std::vector<T> result(arg->dim);
     cutilSafeCall(cudaMemcpy(result.data(), device_result, arg->size * sizeof(char), cudaMemcpyDeviceToHost));
@@ -150,7 +150,7 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nthreads, int max_t
 
 template<typename T, typename F, typename HF>
 static void reduce_info(F op, HF host_op, op_arg *args, int index,
-        const std::vector<int> &payload_args, int nthreads, int max_threads) {
+        const std::vector<int> &payload_args, int nelems, int max_threads) {
     size_t required_result_size = args[index].dim * sizeof(cub::KeyValuePair<int, T>) * sizeof(char);
     if (required_result_size > device_result_size) {
         cutilSafeCall(cudaMalloc((void **) &device_result, required_result_size));
@@ -159,7 +159,7 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
 
     size_t required_temp_storage_size = 0;
     op(NULL, required_temp_storage_size, (T *) args[index].data_d,
-       (cub::KeyValuePair<int, T> *) device_result, nthreads, 0, false);
+       (cub::KeyValuePair<int, T> *) device_result, nelems, 0, false);
 
     if (required_temp_storage_size > device_temp_storage_size) {
         if (device_temp_storage != NULL) cutilSafeCall(cudaFree(device_temp_storage));
@@ -169,7 +169,7 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
 
     for (int d = 0; d < args[index].dim; ++d)
         op(device_temp_storage, device_temp_storage_size, (T *) args[index].data_d + d * max_threads,
-           (cub::KeyValuePair<int, T> *) device_result + d, nthreads, 0, false);
+           (cub::KeyValuePair<int, T> *) device_result + d, nelems, 0, false);
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
     cutilSafeCall(cudaMemcpy(result.data(), device_result, required_result_size, cudaMemcpyDeviceToHost));
@@ -195,7 +195,7 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
 
 template<typename T, typename F, typename F2, typename HF>
 static void reduce_arg2(F op, F2 op2, HF host_op,
-        op_arg *args, int index, int nargs, int nthreads, int max_threads) {
+        op_arg *args, int index, int nargs, int nelems, int max_threads) {
     std::vector<int> payload_args = {};
     for (int i = 0; i < nargs; ++i) {
         if (args[i].argtype == OP_ARG_INFO && args[i].acc == index)
@@ -203,23 +203,23 @@ static void reduce_arg2(F op, F2 op2, HF host_op,
     }
 
     if (payload_args.size() == 0) {
-        reduce_simple<T>(op, host_op, &args[index], nthreads, max_threads);
+        reduce_simple<T>(op, host_op, &args[index], nelems, max_threads);
         return;
     }
 
-    reduce_info<T>(op2, host_op, args, index, payload_args, nthreads, max_threads);
+    reduce_info<T>(op2, host_op, args, index, payload_args, nelems, max_threads);
 }
 
 #define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(cub::DeviceReduce::op<T *, T *>, \
                                                        cub::DeviceReduce::op2<T *, cub::KeyValuePair<int, T> *>, \
                                                        host_op<T>, \
-                                                       args, i, nargs, nthreads, max_threads)
+                                                       args, i, nargs, nelems, max_threads)
 
 template<typename T> static void inc(T *a, T *b) { *a += *b; }
 template<typename T> static void min(T *a, T *b) { *a = std::min(*a, *b); }
 template<typename T> static void max(T *a, T *b) { *a = std::max(*a, *b); }
 
-static void processDeviceGblReductions(op_arg *args, int nargs, int nthreads, int max_threads) {
+static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
     for (int i = 0; i < nargs; ++i) {
         if (args[i].argtype != OP_ARG_GBL) continue;
 
@@ -299,11 +299,11 @@ void op_get_all_cuda(int nargs, op_arg *args) {
 
 char *scratch = NULL;
 long scratch_size = 0;
-void prepareScratch(op_arg *args, int nargs, int nthreads) {
+void prepareScratch(op_arg *args, int nargs, int nelems) {
   long req_size = 0;
   for (int i = 0; i < nargs; i++) {
     if ((args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) || args[i].argtype == OP_ARG_INFO)
-      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+      req_size += ((args[i].size-1)/8+1)*8*nelems;
   }
   if (scratch_size < req_size) {
     if (!scratch) cutilSafeCall(cudaFree(scratch));
@@ -314,7 +314,7 @@ void prepareScratch(op_arg *args, int nargs, int nthreads) {
   for (int i = 0; i < nargs; i++) {
     if ((args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) || args[i].argtype == OP_ARG_INFO) {
       args[i].data_d = scratch + req_size;
-      req_size += ((args[i].size-1)/8+1)*8*nthreads;
+      req_size += ((args[i].size-1)/8+1)*8*nelems;
     }
   }
 }
@@ -324,8 +324,8 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     prepareDeviceGblRWs(args, nargs);
 }
 
-void processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {
-    processDeviceGblReductions(args, nargs, nthreads, max_threads);
+void processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
+    processDeviceGblReductions(args, nargs, nelems, max_threads);
     processDeviceGblRWs(args, nargs);
 }
 
