@@ -142,12 +142,8 @@ def main(argv=None) -> None:
 
     for [target] in args.target:
         target = Target.find(target)
-
-        for key in target.config:
-            if key in args.config:
-                target.config[key] = args.config[key]
-
         scheme = Scheme.find((lang, target))
+
         if not scheme:
             if args.verbose:
                 print(f"No scheme registered for {lang}/{target}\n")

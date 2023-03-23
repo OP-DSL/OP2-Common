@@ -22,11 +22,11 @@ arg{{arg.id}}{{"_%s" % (arg.map_idx) if arg is indirect}}_local
     {%- endif -%}
 {%- endmacro -%}
 
-{% set vectorise = target.config.vectorise.enable and lh.kernel not in target.config.vectorise.blacklist %}
+{% set vectorise = config.vectorise.enable and lh.kernel not in config.vectorise.blacklist %}
 
 {% block host_prologue %}
     {% if vectorise %}
-#define SIMD_LEN {{target.config.vectorise.simd_len}}
+#define SIMD_LEN {{config.vectorise.simd_len}}
     {% endif %}
 
 void {{lh.kernel}}_wrapper(

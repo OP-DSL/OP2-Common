@@ -98,8 +98,14 @@ call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
 {%- endmacro -%}
 
 {%- macro process_gbls() -%}
+    {% if lh is direct %}
 call processDeviceGbls(args, size(args), min(set%setptr%size, block_size * num_blocks), &
                                                               block_size * max_blocks)
+    {% elif config.atomics %}
+call processDeviceGbls(args, size(args), block_size * num_blocks, block_size * max_blocks)
+    {% elif config.color2 %}
+call processDeviceGbls(args, size(args), block_size * max_blocks, block_size * max_blocks)
+    {% endif %}
 {%- endmacro -%}
 
 {%- macro type_c(arg) -%}
@@ -178,7 +184,7 @@ subroutine op2_k_{{lh.name}}_wrapper( &
     arg{{arg.id}}_dim, &
 {% endfor %}
 {% if lh is indirect %}
-    {{"col_reord, &\n" if target.config.color2-}}
+    {{"col_reord, &\n    " if config.color2-}}
     start, &
     end, &
 {% endif %}
@@ -213,8 +219,8 @@ subroutine op2_k_{{lh.name}}_wrapper( &
     integer(4), value :: arg{{arg.id}}_dim{{"\n" if loop.last}}
 {% endfor %}
 {% if lh is indirect %}
-    {% if target.config.color2 %}
-    integer(4), dimension(0:*) :: col_reord
+    {% if config.color2 %}
+    integer(4), dimension(*) :: col_reord
     {% endif %}
     integer(4), value :: start, end
 {% endif %}
@@ -245,7 +251,7 @@ subroutine op2_k_{{lh.name}}_wrapper( &
     end do
 {% else %}
     if (thread_id + start <= end) then
-        n = {{"thread_id + start" if target.config.atomics else "col_reord(thread_id + start)"}}
+        n = {{"thread_id + start" if config.atomics else "col_reord(thread_id + start) + 1"}}
 
         call {{lh.kernel}}( &
     {% for arg in lh.args %}
@@ -304,10 +310,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% if lh is indirect %}
     integer(4) :: start, end
 {% endif %}
-{% if lh is indirect and target.config.atomics %}
+{% if lh is indirect and config.atomics %}
     integer(4), dimension(4) :: sections
 {% endif %}
-{% if lh is indirect and target.config.color2 %}
+{% if lh is indirect and config.color2 %}
 
     integer(4) :: num_dats_indirect
     integer(4), dimension({{lh.args|length}}) :: dats_indirect
@@ -326,7 +332,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
-    print *, " op2_kernel gpu {{lh.name}}"
+!    print *, " op2_kernel gpu {{lh.name}}"
 
     if (n_exec == 0) then
         call op_mpi_wait_all_grouped(size(args), args, 2)
@@ -348,10 +354,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% if lh is direct %}
     num_blocks = 200
     max_blocks = num_blocks
-{% elif target.config.atomics %}
+{% elif config.atomics %}
     max_blocks = (max(set%setptr%core_size, &
         set%setptr%size + set%setptr%exec_size - set%setptr%core_size) - 1) / block_size + 1
-{% elif target.config.color2 %}
+{% elif config.color2 %}
     num_dats_indirect = {{lh.dats|indirect(lh)|length}}
     dats_indirect = (/
     {%- for arg in lh.args -%}
@@ -378,7 +384,11 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     max_blocks = 0
     do col = 1, plan%ncolors
-        max_blocks = max(max_blocks, plan_ncolblk(col))
+        start = plan_color2_offsets(col)
+        end = plan_color2_offsets(col + 1)
+
+        num_blocks = (end - start - 1) / block_size + 1
+        max_blocks = max(max_blocks, num_blocks)
     end do
 {% endif %}
 
@@ -437,7 +447,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% if lh is direct %}
     {{kernel_call("set%setptr%size")|indent}}{{"\n" if lh.args|gbl|reject("read")|list|length > 0}}
     {{process_gbls()|indent}}
-{% elif target.config.atomics %}
+{% elif config.atomics %}
     {% if lh.args|gbl|reduction|length == 0 %}
     sections = (/0, set%setptr%core_size, set%setptr%size + set%setptr%exec_size, 0/)
     {% else %}
