@@ -60,7 +60,7 @@ gbl{{arg.id}}{{"_local" if arg is reduction}}
 dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
     {%- elif arg is vec -%}
 arg{{arg.id}}_vec
-    {%- elif arg is inc and target.config.atomics -%}
+    {%- elif arg is inc and config.atomics -%}
 arg{{arg.id}}_{{arg.map_idx}}_local
     {%- else -%}
 dat{{arg.dat_id}} + {{map_lookup(arg)}}
@@ -90,7 +90,7 @@ __global__ void op_cuda_{{lh.kernel}}(
     {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl{{arg.id}},
     {% endfor %}
     {%- if lh is indirect %}
-    {{"int *col_reord," if target.config.color2}}
+    {{"int *col_reord," if config.color2}}
     int start,
     int end,
     {%- endif +%}
@@ -118,9 +118,9 @@ __global__ void op_cuda_{{lh.kernel}}(
     }
     {% else %}
     if (thread_id + start < end) {
-        int n = {{"thread_id + start" if target.config.atomics else "col_reord[thread_id + start]"}};
+        int n = {{"thread_id + start" if config.atomics else "col_reord[thread_id + start]"}};
 
-        {% for arg in lh.args_expanded|indirect|reduction if target.config.atomics %}
+        {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
         {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
         for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{lh.dat(arg).dim}}; ++d)
             arg{{arg.id}}_{{arg.map_idx}}_local[d] = ZERO_{{lh.dat(arg).typ}};
@@ -140,7 +140,7 @@ __global__ void op_cuda_{{lh.kernel}}(
             {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg)}}{% endcall %}{{-"," if not loop.last}}
             {% endfor %}
         );
-    {% for arg in lh.args_expanded|indirect|reduction if target.config.atomics %}
+    {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
 
         for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{lh.dat(arg).dim}}; ++d)
             atomicAdd(dat{{arg.dat_id}} + {{map_lookup(arg)}} + d{{stride_cuda(arg)}}, arg{{arg.id}}_{{arg.map_idx}}_local[d]);
@@ -175,7 +175,7 @@ __global__ void op_cuda_{{lh.kernel}}(
 
     {% endfor %}
     {% endif %}
-    {% if target.config.color2 %}
+    {% if config.color2 %}
 #ifdef OP_PART_SIZE_{{kernel_idx}}
     int part_size = OP_PART_SIZE_{{kernel_idx}};
 #else
@@ -183,7 +183,7 @@ __global__ void op_cuda_{{lh.kernel}}(
 #endif
 
     {% endif %}
-    {% if target.config.color2 and lh is indirect %}
+    {% if config.color2 and lh is indirect %}
 {{indirect_dat_descriptor_def()}}
 
     op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
@@ -240,7 +240,7 @@ __global__ void op_cuda_{{lh.kernel}}(
 
         {% if lh is direct %}
     int max_blocks = num_blocks;
-        {% elif target.config.atomics %}
+        {% elif config.atomics %}
     int max_blocks = (MAX(set->core_size, set->size + set->exec_size - set->core_size) - 1) / block_size + 1;
         {% else %}
     int max_blocks = 0;
@@ -310,7 +310,7 @@ op_cuda_{{lh.kernel}}<<<num_blocks, block_size
     mvReductArraysToHost(reduction_bytes);
         {% endif %}
 
-    {% elif target.config.atomics %}
+    {% elif config.atomics %}
     for (int round = 0; round < {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}; ++round ) {
         if (round == 1)
             op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
@@ -398,7 +398,7 @@ op_cuda_{{lh.kernel}}<<<num_blocks, block_size
     OP_kernels[{{kernel_idx}}].transfer += (float)set->size * arg{{arg.id}}.size{{-" * 2.0f" if not arg is read}};
             {% endcall %}
         {% endfor %}
-    {% elif target.config.color2 %}
+    {% elif config.color2 %}
     OP_kernels[{{kernel_idx}}].transfer  += plan->transfer;
     OP_kernels[{{kernel_idx}}].transfer2 += plan->transfer2;
     {% endif %}

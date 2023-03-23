@@ -1,5 +1,6 @@
 import copy
 from pathlib import Path
+from typing import Dict, Any
 
 import fortran.translator.kernels as ftk
 import op as OP
@@ -25,6 +26,7 @@ class FortranSeq(Scheme):
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
@@ -60,6 +62,7 @@ class FortranOpenMP(Scheme):
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
@@ -73,7 +76,7 @@ class FortranOpenMP(Scheme):
 
         ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
-        if not self.target.config["vectorise"]:
+        if not config["vectorise"]:
             return ftk.writeSource(kernel_entities + dependencies)
 
         simd_kernel_entities = copy.deepcopy(kernel_entities)
@@ -115,13 +118,37 @@ class FortranCuda(Scheme):
     master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
 
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
-        return loop.kernel != "uq_out_work" and loop.kernel != "trans_fnmax_fmax_work" and loop.kernel != "restu_scatter_work"
+        if loop.kernel in ["uq_out_work", "trans_fnmax_fmax_work", "restu_scatter_work"]:
+            return False
+
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
+                return False
+
+        return True
+
+    def getConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+        config = self.target.defaultConfig()
+
+        use_coloring = False
+
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW:
+                use_coloring = True
+                break
+
+        if use_coloring:
+            config["atomics"] = False
+            config["color2"] = True
+
+        return config
 
     def translateKernel(
         self,
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
@@ -151,7 +178,7 @@ class FortranCuda(Scheme):
             return isinstance(arg, OP.ArgDat) and loop.dat(arg).soa
 
         def match_atomic_inc(arg):
-            return arg.access_type == OP.AccessType.INC and self.target.config["atomics"]
+            return arg.access_type == OP.AccessType.INC and config["atomics"]
 
         def match_gbl(arg):
             return isinstance(arg, OP.ArgGbl)

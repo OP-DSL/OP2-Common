@@ -8,7 +8,9 @@ from util import Findable
 class Target(Findable):
     name: str
     kernel_translation: bool
-    config: Dict[str, Any]
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {}
 
     def __str__(self) -> str:
         return self.name
@@ -27,26 +29,29 @@ class Seq(Target):
     name = "seq"
     kernel_translation = False
 
-    config = {"grouped": False, "device": 1}
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"grouped": False, "device": 1}
 
 
 class Cuda(Target):
     name = "cuda"
     kernel_translation = True
 
-    config = {"grouped": True, "device": 2, "atomics": True, "color2": False}
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"grouped": True, "device": 2, "atomics": True, "color2": False}
 
 
 class OpenMP(Target):
     name = "openmp"
     kernel_translation = False
 
-    config = {
-        "grouped": False,
-        "vectorise": {"enable": True, "simd_len": 8, "blacklist": []},
-        "device": 1,
-        "thread_timing": False,
-    }
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {
+            "grouped": False,
+            "vectorise": {"enable": True, "simd_len": 8, "blacklist": []},
+            "device": 1,
+            "thread_timing": False,
+        }
 
 
 Target.register(Seq)

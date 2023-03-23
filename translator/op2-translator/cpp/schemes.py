@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict, Any
 
 import cpp.translator.kernels as ctk
 import op as OP
@@ -23,6 +24,7 @@ class CppSeq(Scheme):
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -51,6 +53,7 @@ class CppOpenMP(Scheme):
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -79,6 +82,7 @@ class CppCuda(Scheme):
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -97,7 +101,7 @@ class CppCuda(Scheme):
                 app,
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and self.target.config["atomics"],
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
             )
 
         return ctk.writeSource(extracted_entities)
