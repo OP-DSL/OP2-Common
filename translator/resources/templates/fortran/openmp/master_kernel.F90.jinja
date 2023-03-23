@@ -30,7 +30,7 @@ contains
 {% endfor %}
 end module
 
-#define SIMD_LEN {{target.config.vectorise.simd_len}}
+#define SIMD_LEN {{config.vectorise.simd_len}}
 
 {% for loop_, _ in app.loops() %}
 #include "{{loop_.kernel}}_kernel.inc"

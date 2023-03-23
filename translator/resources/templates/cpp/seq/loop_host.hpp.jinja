@@ -41,8 +41,8 @@ arg{{arg.id}}_local
             op_mpi_test_all(num_args_expanded, args_expanded);
 
         if (n == set->core_size)
-            op_mpi_wait_all{{"_grouped" if target.config.grouped-}}
-                (num_args_expanded, args_expanded{{", 1" if target.config.grouped}});
+            op_mpi_wait_all{{"_grouped" if config.grouped-}}
+                (num_args_expanded, args_expanded{{", 1" if config.grouped}});
 
         {% for map in lh.maps %}
         int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;

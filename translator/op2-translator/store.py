@@ -152,6 +152,7 @@ class Application:
 
         return candidates
 
+    # All const ptrs including external_consts
     def constPtrs(self) -> Set[str]:
         ptrs = set(self.external_consts)
 
@@ -159,6 +160,11 @@ class Application:
             ptrs.update(const.ptr for const in program.consts)
 
         return ptrs
+
+    # All consts excluding external_consts
+    def consts(self) -> List[OP.Const]:
+        consts = flatten(program.consts for program in self.programs)
+        return uniqueBy(consts, lambda c: c.ptr)
 
     def loops(self) -> List[Tuple[OP.Loop, Program]]:
         return flatten(map(lambda l: (l, p), p.loops) for p in self.programs)

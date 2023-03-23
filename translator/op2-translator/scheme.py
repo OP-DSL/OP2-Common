@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import traceback
 from pathlib import Path
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple, Dict, Any
 
 from jinja2 import Environment
 
@@ -29,6 +29,9 @@ class Scheme(Findable):
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
         return True
 
+    def getConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+        return self.target.defaultConfig()
+
     def genLoopHost(
         self,
         env: Environment,
@@ -45,7 +48,7 @@ class Scheme(Findable):
             "lh": loop,
             "kernel_idx": kernel_idx,
             "lang": self.lang,
-            "target": self.target,
+            "config": self.getConfig(loop),
         }
 
         cant_generate = not self.canGenLoopHost(loop)
@@ -55,12 +58,17 @@ class Scheme(Findable):
 
         if self.fallback is not None:
             fallback_wrapper_template = env.get_template(str(self.lang.fallback_wrapper_template))
-
             fallback_template = env.get_template(str(self.fallback.loop_host_template))
-            fallback_kernel_func = self.fallback.translateKernel(loop, program, app, kernel_idx)
+
+            fallback_args = dict(args)
+
+            fallback_args["config"] = self.fallback.getConfig(loop)
+            fallback_args["kernel_func"] = self.fallback.translateKernel(
+                loop, program, app, fallback_args["config"], kernel_idx
+            )
 
         try:
-            kernel_func = self.translateKernel(loop, program, app, kernel_idx)
+            args["kernel_func"] = self.translateKernel(loop, program, app, args["config"], kernel_idx)
         except Exception as e:
             print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
             traceback.print_exc()
@@ -68,18 +76,18 @@ class Scheme(Findable):
             if self.fallback is None:
                 return None
 
-            kernel_func = None
+            args["kernel_func"] = None
 
-        if loop.fallback or cant_generate or kernel_func is None:
-            return (fallback_template.render(**args, variant="", kernel_func=fallback_kernel_func), extension, True)
+        if loop.fallback or cant_generate or args["kernel_func"] is None:
+            return (fallback_template.render(**fallback_args, variant=""), extension, True)
 
         if self.fallback is None:
-            return (template.render(**args, variant="", kernel_func=kernel_func), extension, False)
+            return (template.render(**args, variant=""), extension, False)
 
-        source = template.render(**args, variant="_main", kernel_func=kernel_func)
+        source = template.render(**args, variant="_main")
 
         source += "\n\n"
-        source += fallback_template.render(**args, variant="_fallback", kernel_func=fallback_kernel_func)
+        source += fallback_template.render(**fallback_args, variant="_fallback")
 
         source += "\n\n"
         source += fallback_wrapper_template.render(**args)
@@ -121,6 +129,7 @@ class Scheme(Findable):
         loop: OP.Loop,
         program: Program,
         app: Application,
+        config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
         pass
