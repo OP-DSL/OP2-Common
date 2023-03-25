@@ -355,10 +355,16 @@ int main(int argc, char **argv) {
   op_decl_const(4, "double", qinf);
 
   op_diagnostic_output();
+  
+  printf("before partition!\n");
+  fflush(stdout);
 
   // trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
+  printf("after partition!\n");
+
+  fflush(stdout);
 
   // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -383,6 +389,8 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_x, 3, pcell, 2, "double", OP_READ),
                   op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
                   op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_WRITE));
+
+      LOCKSTEP(my_rank, "Res after adt: %d \n", rms)
 
       //    calculate flux residual
       op_par_loop(res_calc, "res_calc", edges,
@@ -413,12 +421,21 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_res, -1, OP_ID, 4, "double", OP_RW),
                   op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_gbl(&rms, 1, "double", OP_INC));
+      
+      LOCKSTEP(my_rank, "--------- Res after update loop: %d------------- \n", rms)
+    
+      //GPI_FAIL("stop  plz\n");
     }
 
     // print iteration history
+    printf("gncell: %d\n",g_ncell);
     rms = sqrt(rms / (double)g_ncell);
-    if (iter % 100 == 0)
+    if (iter % 10 == 0){
       op_printf(" %d  %10.5e \n", iter, rms);
+      if(isnan(rms)){
+        GPI_FAIL("NAN Output - aborting now...\n");
+      } 
+    }
 
     if (iter % 1000 == 0 &&
         g_ncell == 720000) { // defailt mesh -- for validation testing
