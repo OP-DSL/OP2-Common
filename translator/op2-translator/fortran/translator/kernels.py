@@ -101,8 +101,11 @@ def insertStrides(
     app: Application,
     stride: Callable[[str], str],
     match: Callable[[OP.ArgDat], bool] = lambda arg: True,
-    modified: Dict[str, Set[int]] = {},
+    modified: Optional[Dict[str, Set[int]]] = None,
 ) -> Dict[str, Set[int]]:
+    if modified is None:
+        modified = {}
+
     if func.name not in modified:
         modified[func.name] = set()
 

@@ -361,7 +361,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     num_dats_indirect = {{lh.dats|indirect(lh)|length}}
     dats_indirect = (/
     {%- for arg in lh.args -%}
-        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is indirect else "-1"}}
+        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is dat and arg is indirect else "-1"}}
         {{-", " if not loop.last}}
     {%- endfor -%}
     /)
