@@ -39,6 +39,7 @@ class Scheme(Findable):
         program: Program,
         app: Application,
         kernel_idx: int,
+        force_generate: bool = False,
     ) -> Optional[Tuple[str, str, bool]]:
         template = env.get_template(str(self.loop_host_template))
         extension = self.loop_host_template.suffixes[-2][1:]
@@ -53,7 +54,7 @@ class Scheme(Findable):
 
         cant_generate = not self.canGenLoopHost(loop)
 
-        if (loop.fallback or cant_generate) and self.fallback is None:
+        if not force_generate and (loop.fallback or cant_generate) and self.fallback is None:
             return None
 
         if self.fallback is not None:
@@ -78,7 +79,7 @@ class Scheme(Findable):
 
             args["kernel_func"] = None
 
-        if loop.fallback or cant_generate or args["kernel_func"] is None:
+        if not force_generate and (loop.fallback or cant_generate or args["kernel_func"] is None):
             return (fallback_template.render(**fallback_args, variant=""), extension, True)
 
         if self.fallback is None:

@@ -66,6 +66,24 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     #         printViolations(loop, "invalid statements", violations)
     #         loop.fallback = True
 
+    # Check for slice expressions for args with stride insertion (gbl reductions, dats)
+    for idx, arg in enumerate(loop.args):
+        if not (
+            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC]
+        ) and not isinstance(arg, OP.ArgDat):
+            continue
+
+        violations = []
+        fu.mapParam(kernel_entities[0], idx, entities, checkSlice, entities, violations)
+
+        if len(violations) > 0:
+            param_name = kernel_entities[0].parameters[idx]
+            printViolations(
+                loop, "element-wise access incompatible with stride insertion", violations, (idx, param_name)
+            )
+
+            loop.fallback = True
+
     # Check for args marked OP_READ or arg_idx but appear to be written
     for idx, arg in enumerate(loop.args):
         if isinstance(arg, OP.ArgInfo) or (hasattr(arg, "access_type") and arg.access_type != OP.AccessType.READ):
@@ -138,6 +156,38 @@ def checkStatements(func: Function, violations: List[str]) -> None:
         ),
     ):
         violations.append(f"In {func.name}: {fu.getItem(node).line}")
+
+
+def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations: List[str]) -> None:
+    dims = fu.parseDimensions(func, func.parameters[param_idx])
+
+    if dims is None:
+        return
+
+    execution_part = fpu.get_child(func.ast, f2003.Execution_Part)
+    assert execution_part != None
+
+    def msg(s: str) -> str:
+        return f"In {func.name} (arg {param_idx + 1}, {func.parameters[param_idx]}): {s}"
+
+    for node in fpu.walk(execution_part, f2003.Name):
+        if node.string.lower() != func.parameters[param_idx]:
+            continue
+
+        if getattr(node, "parent", None) and isinstance(node.parent, f2003.Part_Ref):
+            subscript_list = fpu.get_child(node.parent, f2003.Section_Subscript_List)
+
+            for subscript in subscript_list.children:
+                if isinstance(subscript, (f2003.Subscript_Triplet, f2003.Vector_Subscript)):
+                    violations.append(msg(f"{fu.getItem(node).line}"))
+
+            continue
+
+        call = fu.getCall(node, funcs)
+        if call is not None:
+            continue
+
+        violations.append(msg(f"{fu.getItem(node).line}"))
 
 
 def checkRead(func: Function, param_idx: int, violations: List[str]) -> None:
