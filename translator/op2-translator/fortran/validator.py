@@ -88,7 +88,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
     # Check for OP_INC args that don't appear to be incremented
     for idx, arg in enumerate(loop.args):
-        if isinstance(arg, OP.ArgIdx) or isinstance(arg, OP.ArgInfo) or arg.access_type != OP.AccessType.INC:
+        if not isinstance(arg, OP.ArgDat) or arg.access_type != OP.AccessType.INC:
             continue
 
         violations = []
