@@ -230,8 +230,10 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
 
     # Generate loop hosts
     for i, (loop, program) in enumerate(app.loops(), 1):
+        force_generate = scheme.target == Target.find("seq")
+
         # Generate loop host source
-        res = scheme.genLoopHost(env, loop, program, app, i)
+        res = scheme.genLoopHost(env, loop, program, app, i, force_generate)
 
         if res is None:
             print(f"Error: unable to generate loop host {i}")

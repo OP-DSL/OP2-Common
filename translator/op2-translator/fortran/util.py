@@ -133,3 +133,49 @@ def getCall(node: f2003.Name, funcs: List[Function]) -> Optional[Tuple[Function,
             return (func, arg_idx)
 
     return None
+
+
+def parseExplicitShapeSpec(spec: f2003.Explicit_Shape_Spec) -> Tuple[str, str]:
+    assert(len(spec.children) == 2)
+
+    if spec.children[0] == None:
+        return ("1", str(spec.children[1]))
+
+    return (str(spec.children[0]), str(spec.children[1]))
+
+
+def parseDimensions(func: Function, param: str) -> Optional[List[Tuple[str, str]]]:
+    spec = fpu.get_child(func.ast, f2003.Specification_Part)
+
+    for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
+        check_for_dimension_spec = False
+
+        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
+            name = fpu.get_child(entity_decl, f2003.Name).string
+
+            if name != param:
+                continue
+
+            shape_spec = fpu.get_child(entity_decl, f2003.Explicit_Shape_Spec_List)
+
+            if shape_spec is None:
+                check_for_dimension_spec = True
+                break
+
+            return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
+
+        if not check_for_dimension_spec:
+            continue
+
+        dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)
+        if len(dimension_spec) == 0:
+            return None
+
+        shape_spec = fpu.get_child(dimension_spec[0], f2003.Explicit_Shape_Spec_List)
+
+        if shape_spec is None:
+            return None
+
+        return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
+
+    return None
