@@ -183,9 +183,16 @@ def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations
 
             continue
 
-        call = fu.getCall(node, funcs)
-        if call is not None:
+        if isinstance(node.parent, f2003.Actual_Arg_Spec_List):
             continue
+
+        if isinstance(node.parent, f2003.Section_Subscript_List):
+            func_name_node = fpu.get_child(node.parent.parent, f2003.Name)
+            if func_name_node is not None:
+                func_ref = safeFind(funcs, lambda f: f.name == func_name_node.string.lower())
+
+                if func_ref is not None:
+                    continue
 
         violations.append(msg(f"{fu.getItem(node).line}"))
 
