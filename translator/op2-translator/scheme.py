@@ -50,11 +50,17 @@ class Scheme(Findable):
             "kernel_idx": kernel_idx,
             "lang": self.lang,
             "config": self.getConfig(loop),
+            "kernel_func": None,
         }
 
-        cant_generate = not self.canGenLoopHost(loop)
+        try:
+            if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
+                args["kernel_func"] = self.translateKernel(loop, program, app, args["config"], kernel_idx)
+        except Exception as e:
+            print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
+            traceback.print_exc()
 
-        if not force_generate and (loop.fallback or cant_generate) and self.fallback is None:
+        if args["kernel_func"] is None and self.fallback is None:
             return None
 
         if self.fallback is not None:
@@ -68,18 +74,7 @@ class Scheme(Findable):
                 loop, program, app, fallback_args["config"], kernel_idx
             )
 
-        try:
-            args["kernel_func"] = self.translateKernel(loop, program, app, args["config"], kernel_idx)
-        except Exception as e:
-            print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
-            traceback.print_exc()
-
-            if self.fallback is None:
-                return None
-
-            args["kernel_func"] = None
-
-        if not force_generate and (loop.fallback or cant_generate or args["kernel_func"] is None):
+        if args["kernel_func"] is None:
             return (fallback_template.render(**fallback_args, variant=""), extension, True)
 
         if self.fallback is None:

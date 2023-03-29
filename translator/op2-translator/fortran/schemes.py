@@ -118,9 +118,6 @@ class FortranCuda(Scheme):
     master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
 
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
-        if loop.kernel in ["uq_out_work", "trans_fnmax_fmax_work", "restu_scatter_work"]:
-            return False
-
         for arg in loop.args:
             if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
                 return False
