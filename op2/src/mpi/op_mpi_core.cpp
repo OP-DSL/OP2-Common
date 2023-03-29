@@ -1620,7 +1620,7 @@ extern "C"
 
 
       /* Allocate gpi buffer */
-      op_gpi_buffer gpi_buf = (op_gpi_buffer)xmalloc(sizeof(op_gpi_buffer));
+      op_gpi_buffer gpi_buf = (op_gpi_buffer)xmalloc(sizeof(op_gpi_buffer_core));
 
 
       /* Update the dat to state where the dat data starts within the segment
