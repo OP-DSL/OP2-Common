@@ -14,6 +14,37 @@
  
 #include "gpi_utils.h"
 
+/* returns the number of 1 bits in the character */
+int bit_count_char(char byte){
+
+    int sum=0;
+    for(int i=0;i<8;i++){
+        sum+=(byte&1);
+        byte=byte>>1;
+    }
+    return sum;
+}
+
+/* returns the number of 1 bits in the */
+int bit_count(void *data, int size){
+    char *d = (char*) data;
+    int sum=0;
+    for(int c=0;c<size;c++){
+        sum+=bit_count_char(d[c]);
+    }
+
+    return sum;
+}
+
+
+int xor_byte_summation(void *data, int size){
+    char *d = (char*) data;
+    char res=d[0];
+    for(int i=1;i<size;i++){
+        res = res ^ d[i];
+    }
+    return res;
+}
 
 /* GPI reimplementation of op_exchange_halo originally found in op_mpi_rt_support.cpp 
  * IS_COMMON 
@@ -22,6 +53,10 @@
 */
 void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     op_dat dat = arg->dat;
+
+    if(dat->set->index != dat->index) {
+        GPI_FAIL("Error: op_exchange_halo()\n",dat->name);
+    }
 
     //If it's not in use, don't bother!
     if(arg->opt ==0)
@@ -78,8 +113,11 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     int set_elem_index;
     for (int i = 0; i < exp_exec_list->ranks_size; i++) {
       for (int j = 0; j < exp_exec_list->sizes[i]; j++) {
+
         set_elem_index = exp_exec_list->list[exp_exec_list->disps[i] + j];
         //Can reuse the exp_exec_list->disps[i] as this gives the per rank displacement into the dat buffer.
+
+        
 
         //memcpy into eeh segment appropriately
         //TODO check the offsets are correct for the dest w.r.t bytes n stuff
@@ -87,9 +125,12 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
       }
 
+
       //get remote offset for that rank
       gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
-    
+      
+      printf("Dat: %s: Rank %d sending %d bytes of exec data to rank %d with remote segment offset %d\n",dat->name, gpi_rank, dat->size * exp_exec_list->sizes[i], exp_exec_list->ranks[i], remote_offset);
+
       gaspi_offset_t local_offset = (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size;
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         local_offset, /* local segment offset*/
@@ -206,6 +247,7 @@ void op_gpi_waitall(op_arg *arg){
     }
 
 
+
     /* Receive for exec elements*/
     for(int i=0;i<buff->exec_recv_count;i++){
         GPI_SAFE( gaspi_notify_waitsome(IEH_SEGMENT_ID, 
@@ -265,6 +307,9 @@ void op_gpi_waitall(op_arg *arg){
 
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (ieh_segment_ptr + obj->segment_recv_offset), obj->size);
+
+        // XOR bitwise test
+        printf("Dat: %s: Rank %d received %d bytes of exec data from rank %d with segment offset %d.\n", dat->name, rank, obj->size, recv_rank, obj->segment_recv_offset);
 
 #ifdef GPI_VERBOSE  
         printf("Rank %d successfully handled notification from rank %d for exec dat data %s.\n",rank, recv_rank,dat->name);
@@ -342,6 +387,8 @@ void op_gpi_waitall(op_arg *arg){
         
         // Copy the data into the op_dat->data array
         memcpy(obj->memcpy_addr, (void*) (inh_segment_ptr + obj->segment_recv_offset), obj->size);
+
+        // printf("Rank %d received nonexec data from rank %d for dat %s. XOR: %d, MEMCPYADDR: %p\n", rank, recv_rank, dat->name, xor_byte_summation(obj->memcpy_addr, obj->size), obj->memcpy_addr);
 
 #ifdef GPI_VERBOSE
         printf("Rank %d successfully handled notification from rank %d for nonexec dat data %s.\n",rank,recv_rank,dat->name);

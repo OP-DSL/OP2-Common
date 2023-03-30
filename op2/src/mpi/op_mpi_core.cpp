@@ -1662,7 +1662,7 @@ extern "C"
         recv_obj = &gpi_buf->exec_recv_objs[i];
 
         recv_obj->remote_rank = imp_exec_list->ranks[i];
-        recv_obj->size = imp_exec_list->sizes[i];
+        recv_obj->size = dat->size * imp_exec_list->sizes[i];
 
         /* Address calc reused from op_mpi_rt_support: op_exchange_halo */
         recv_obj->memcpy_addr = &dat->data[exec_init + imp_exec_list->disps[i] * dat->size];
@@ -1681,7 +1681,7 @@ extern "C"
         recv_obj = &gpi_buf->nonexec_recv_objs[i];
 
         recv_obj->remote_rank = imp_nonexec_list->ranks[i];
-        recv_obj->size = imp_nonexec_list->sizes[i];
+        recv_obj->size = dat->size * imp_nonexec_list->sizes[i];
 
         /* Address calc reused from op_mpi_rt_support: op_exchange_halo */
         recv_obj->memcpy_addr = &dat->data[nonexec_init + imp_nonexec_list->disps[i] * dat->size];
@@ -1733,11 +1733,12 @@ extern "C"
           MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
-            MPI_LONG,
+            MPI_UNSIGNED_LONG,
             recv_obj->remote_rank,
             dat->index,
             OP_MPI_WORLD,
             &gpi_buf->pre_exchange_hndl_s[i])==MPI_SUCCESS;
+        printf("Dat: %s: Process %d sending segment receive offset %ld from %d for exp_exec_list\n", dat->name, my_rank, recv_obj->segment_recv_offset, imp_exec_list->ranks[i]);
       }
 
       /* Non-execute elements */
@@ -1749,7 +1750,7 @@ extern "C"
           MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
-            MPI_LONG,
+            MPI_UNSIGNED_LONG,
             recv_obj->remote_rank,
             1 << 20 | dat->index, /* 1 in MSB -1 to indicate non-execute */
             OP_MPI_WORLD,
@@ -1806,7 +1807,6 @@ extern "C"
       bool recv_okay = true;
       for (int i = 0; i < exp_exec_list->ranks_size; i++)
       {
-        printf("Process %d attempting to receive remote segment offset %d for exp_exec_list\n",my_rank,i);
         recv_okay = recv_okay &
           MPI_Recv(&(exp_exec_list->remote_segment_offsets[i]),
                   1,
@@ -1815,10 +1815,11 @@ extern "C"
                   dat->index,
                   OP_MPI_WORLD,
                   MPI_STATUS_IGNORE)==MPI_SUCCESS;
+        printf("Dat: %s: Process %d received remote segment offset %ld from %d for exp_exec_list\n", dat->name, my_rank, exp_exec_list->remote_segment_offsets[i], exp_exec_list->ranks[i]);
       }
       for (int i = 0; i < exp_nonexec_list->ranks_size; i++)
       {
-        printf("Process %d attempting to receive remote segment offset %d for exp_nonexec_list\n",my_rank,i);
+        // printf("Process %d attempting to receive remote segment offset %d for exp_nonexec_list\n",my_rank,i);
         recv_okay = recv_okay &
           MPI_Recv(&(exp_nonexec_list->remote_segment_offsets[i]),
                   1,
@@ -1832,11 +1833,11 @@ extern "C"
         GPI_FAIL("Status code on MPI_IRecv non-zero\n");
       }
 
-      printf("Process %d finished receive of dat: %s!\n",my_rank,dat->name);
+      // printf("Process %d finished receive of dat: %s!\n",my_rank,dat->name);
       fflush(stdout);
     }
 
-    printf("Rank %d: Pre-exchange complete\n", my_rank);
+    // printf("Rank %d: Pre-exchange complete\n", my_rank);
 
 
     /* Wait on receiving all remote_segment_offset info */
