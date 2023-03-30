@@ -51,7 +51,7 @@ def getItem(node: f2003.Base) -> Optional[Any]:
 
 # Applies the given operation over the specified func parameter, recursing into called functions
 # if they are present in funcs
-def mapParam(func: Function, param_idx: int, funcs: List[Function], op: Callable[[int, Function], None], *args) -> None:
+def mapParam(func: Function, param_idx: int, funcs: List[Function], op: Callable[[Function, int], None], *args) -> None:
     called_list = findCalled(func, param_idx, funcs)
 
     for func2, param_idx2 in called_list:
@@ -127,7 +127,7 @@ def getCall(node: f2003.Name, funcs: List[Function]) -> Optional[Tuple[Function,
             return None
 
         func = safeFind(funcs, lambda f: f.name == func_name_node.string.lower())
-        arg_idx = parent.items.index(node)
+        arg_idx = [id(item) for item in parent.items].index(id(node))
 
         if func is not None:
             return (func, arg_idx)
