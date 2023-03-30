@@ -444,6 +444,8 @@ int main(int argc, char **argv) {
         expected = 0.0001215707904481;
       }else if (g_ncell == 720000){
         expected = 0.0001060114637578; 
+      }else if (g_ncell == 4200000){
+        expected = 0.0001220712679165;
       }
       if (expected==-1){
         printf("\n\nProblem with %d cells has no expected solution\n", g_ncell);
