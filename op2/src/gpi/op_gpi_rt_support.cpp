@@ -54,9 +54,9 @@ int xor_byte_summation(void *data, int size){
 void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     op_dat dat = arg->dat;
 
-    if(dat->set->index != dat->index) {
-        GPI_FAIL("Error: op_exchange_halo()\n",dat->name);
-    }
+    // if(dat->set->index != dat->index) {
+    //     GPI_FAIL("Error: op_exchange_halo()\n",dat->name);
+    // }
 
     //If it's not in use, don't bother!
     if(arg->opt ==0)

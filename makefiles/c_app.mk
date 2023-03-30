@@ -141,7 +141,7 @@ $$(APP_NAME)_mpi_$(1): .generated
 	$$(MPICXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$(MPI_$(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_$(4)) -o $$@
 
 $$(APP_NAME)_gpi_$(1): .generated
-	$$(MPICXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$(GPI_INC) $$(MPI_$(call UPPERCASE,$(1))_SRC) -L/home/nick/Documents/uni/Highly-Predictable-Calamity/PGAS-OP2-Common/op2/lib -lop2_gpi  -L/usr/local//lib -lparmetis -lmetis  $$(GPI_LIB)  -o $$@
+	$$(MPICXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$(GPI_INC) $$(MPI_$(call UPPERCASE,$(1))_SRC) -L/dcs/19/u1906509/Documents/HPC/PGAS-OP2-Common/op2/lib -lop2_gpi  -L/usr/local//lib -lparmetis -lmetis  $$(GPI_LIB)  -o $$@
 endef
 
 # the same as RULE_template_base but it first strips its arguments of extra space
