@@ -3,9 +3,8 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
-import op as OP
 import fortran.util as fu
-
+import op as OP
 from language import Lang
 from op import OpError
 from store import Application, Entity, Function
@@ -104,110 +103,60 @@ def insertStrides(
     stride: Callable[[str], str],
     match: Callable[[OP.ArgDat], bool] = lambda arg: True,
     modified: Optional[Dict[str, Set[int]]] = None,
-) -> Dict[str, Set[int]]:
+):
     if modified is None:
         modified = {}
 
-    if func.name not in modified:
-        modified[func.name] = set()
-
-    stack = []
     for arg_idx in range(len(loop.args)):
         if not match(loop.args[arg_idx]):
             continue
 
-        if arg_idx in modified[func.name]:
+        if arg_idx in modified.get(func.name, set()):
             continue
 
-        stack.append((func.name, arg_idx, loop.args[arg_idx]))
-
-    while len(stack) > 0:
-        item = stack.pop()
-        target_func = safeFind(funcs, lambda f: f.name == item[0])
-
-        if target_func is None:
-            print(f"{loop.loc}: Warning: Unable to insert strides into unknown function {item[0]}, arg {item[1]}")
-            continue
-
-        called = insertStride(target_func, funcs, target_func.parameters[item[1]], item[2], stride)
-        modified[target_func.name].add(item[1])
-
-        for item2 in called:
-            if item2[0] not in modified:
-                modified[item2[0]] = set()
-                stack.append(item2)
-                continue
-
-            if item2[1] in modified[item2[0]]:
-                continue
-
-            if item2 in stack:
-                continue
-
-            stack.append(item2)
+        fu.mapParam(func, arg_idx, funcs, insertStride, modified, stride(loop.args[arg_idx]))
 
     return modified
 
 
-def insertStride(
-    func: Function, funcs: List[Function], param: str, arg: OP.Arg, stride: Callable[[str], str]
-) -> List[Tuple[str, int, OP.Arg]]:
-    called = []
+def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], stride: str) -> None:
+    if func.name not in modified:
+        modified[func.name] = {param_idx}
+    elif param_idx not in modified[func.name]:
+        modified[func.name].add(param_idx)
+    else:
+        return
 
+    param = func.parameters[param_idx]
     for node in fpu.walk(func.ast, f2003.Name):
         if node.string.lower() != param:
             continue
 
         parent = node.parent
+        if not isinstance(parent, f2003.Part_Ref):
+            continue
 
-        if isinstance(parent, f2003.Part_Ref):
-            subscript_list = fpu.get_child(parent, f2003.Section_Subscript_List)
+        subscript_list = fpu.get_child(parent, f2003.Section_Subscript_List)
 
-            if len(subscript_list.children) > 1:
-                dims = fu.parseDimensions(func, param)
+        if len(subscript_list.children) > 1:
+            dims = fu.parseDimensions(func, param)
 
-                if dims is None or len(dims) != len(subscript_list.children):
-                    raise OpError(f"Unexpected dimension mismatch ({subscript_list}, {dims})")
+            if dims is None or len(dims) != len(subscript_list.children):
+                raise OpError(f"Unexpected dimension mismatch ({subscript_list}, {dims})")
 
-                index = str(subscript_list.children[0])
-                sizes = [f"(1 + {dim[1]} - ({dim[0]}))" for dim in dims]
-                for i, extra_index in enumerate(subscript_list.children[1:]):
-                    index += f" + ({extra_index} - ({dims[i + 1][0]})) * {'*'.join(sizes[:i + 1])}"
-            else:
-                index = str(subscript_list)
+            index = str(subscript_list.children[0])
+            sizes = [f"(1 + {dim[1]} - ({dim[0]}))" for dim in dims]
+            for i, extra_index in enumerate(subscript_list.children[1:]):
+                index += f" + ({extra_index} - ({dims[i + 1][0]})) * {'*'.join(sizes[:i + 1])}"
+        else:
+            index = str(subscript_list)
 
-            parent.items = [
-                node,
-                f2003.Section_Subscript_List(f"op2_s({index}, {stride(arg)})"),
-            ]
+        parent.items = [
+            node,
+            f2003.Section_Subscript_List(f"op2_s({index}, {stride})"),
+        ]
 
-            node = node.parent
-            parent = node.parent
-
-        if isinstance(parent, f2003.Actual_Arg_Spec_List):
-            func_name_node = fpu.get_child(parent.parent, f2003.Name)
-
-            if func_name_node is None:
-                continue
-
-            arg_idx = parent.items.index(node)
-            called.append((func_name_node.string.lower(), arg_idx, arg))
-
-        # Function calls turn up as Part_Refs with a Section_Subscript_List, but these might
-        # also be genuine array indexes
-        if isinstance(parent, f2003.Section_Subscript_List):
-            func_name_node = fpu.get_child(parent.parent, f2003.Name)
-
-            if func_name_node is None:
-                continue
-
-            if safeFind(funcs, lambda f: f.name == func_name_node.string.lower()) is None:
-                continue
-
-            arg_idx = parent.items.index(node)
-            called.append((func_name_node.string.lower(), arg_idx, arg))
-
-    return called
+        parent.items[1].parent = parent
 
 
 def insertAtomicIncs(
@@ -219,43 +168,14 @@ def insertAtomicIncs(
 ) -> Dict[str, Set[int]]:
     modified = {}
 
-    if func.name not in modified:
-        modified[func.name] = set()
-
-    stack = []
     for arg_idx in range(len(loop.args)):
         if not match(loop.args[arg_idx]):
             continue
 
-        if arg_idx in modified[func.name]:
+        if arg_idx in modified.get(func.name, set()):
             continue
 
-        stack.append((func.name, arg_idx, loop.args[arg_idx]))
-
-    while len(stack) > 0:
-        item = stack.pop()
-        target_func = safeFind(funcs, lambda f: f.name == item[0])
-
-        if target_func is None:
-            print(f"{loop.loc}: Warning: Unable to atomics into unknown function {item[0]}, arg {item[1]}")
-            continue
-
-        called, _ = insertAtomicInc(target_func, funcs, target_func.parameters[item[1]], item[2])
-        modified[target_func.name].add(item[1])
-
-        for item2 in called:
-            if item2[0] not in modified:
-                modified[item2[0]] = set()
-                stack.append(item2)
-                continue
-
-            if item2[1] in modified[item2[0]]:
-                continue
-
-            if item2 in stack:
-                continue
-
-            stack.append(item2)
+        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified)
 
     for func_name in modified.keys():
         if len(modified[func_name]) == 0:
@@ -268,60 +188,22 @@ def insertAtomicIncs(
 
 
 def insertAtomicInc(
-    func: Function, funcs: List[Function], param: str, arg: OP.Arg
+    func: Function, param_idx: int, modified: Dict[str, Set[int]]
 ) -> Tuple[List[Tuple[str, int, OP.Arg]], bool]:
-    called = []
+    if func.name not in modified:
+        modified[func.name] = {param_idx}
+    elif param_idx not in modified[func.name]:
+        modified[func.name].add(param_idx)
+    else:
+        return
 
-    for node in fpu.walk(func.ast, f2003.Name):
-        if node.string.lower() != param:
-            continue
-
-        parent = node.parent
-
-        if isinstance(parent, f2003.Part_Ref):
-            node = node.parent
-            parent = node.parent
-
-        if isinstance(parent, f2003.Actual_Arg_Spec_List):
-            func_name_node = fpu.get_child(parent.parent, f2003.Name)
-
-            if func_name_node is None:
-                continue
-
-            arg_idx = parent.items.index(node)
-            called.append((func_name_node.string.lower(), arg_idx, arg))
-
-        # Function calls turn up as Part_Refs with a Section_Subscript_List, but these might
-        # also be genuine array indexes
-        if isinstance(parent, f2003.Section_Subscript_List):
-            func_name_node = fpu.get_child(parent.parent, f2003.Name)
-
-            if func_name_node is None:
-                continue
-
-            if safeFind(funcs, lambda f: f.name == func_name_node.string.lower()) is None:
-                continue
-
-            arg_idx = parent.items.index(node)
-            called.append((func_name_node.string.lower(), arg_idx, arg))
-
-    _, modified = insertAtomicInc2(func.ast, param)
-    return called, modified
-
-
-def isRef(node: Any, name: str) -> bool:
-    if isinstance(node, f2003.Name) and node.string.lower() == name.lower():
-        return True
-
-    if isinstance(node, f2003.Part_Ref) and node.items[0].string.lower() == name.lower():
-        return True
-
-    return False
+    _, modified = insertAtomicInc2(func.ast, func.parameters[param_idx])
+    return modified
 
 
 def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]:
     if isinstance(node, f2003.Assignment_Stmt):
-        if not isRef(node.items[0], param):
+        if not fu.isRef(node.items[0], param):
             return None, False
 
         if not isinstance(node.items[2], f2003.Level_2_Expr):
@@ -349,10 +231,13 @@ def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]
     return None, modified
 
 
-def replaceChild(node: f2003.Base, index: int, replacement: f2003.Base) -> None:
+def replaceChild(node: f2003.Base, index: int, replacement: Any) -> None:
     children = []
     use_tuple = False
     use_content = False
+
+    if hasattr(replacement, "parent"):
+        replacement.parent = node
 
     if getattr(node, "items", None) is not None:
         if isinstance(node.items, tuple):
