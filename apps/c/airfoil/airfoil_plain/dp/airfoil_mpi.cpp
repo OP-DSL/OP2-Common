@@ -437,17 +437,29 @@ int main(int argc, char **argv) {
       } 
     }
 
-    if (iter % 1000 == 0 &&
-        g_ncell == 720000) { // defailt mesh -- for validation testing
-      // op_printf(" %d  %3.16f \n",iter,rms);
-      double diff = fabs((100.0 * (rms / 0.0001060114637578)) - 100.0);
-      op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
-                "expected solution\n",
-                720000, diff);
-      if (diff < 0.00001) {
-        op_printf("This test is considered PASSED\n");
-      } else {
-        op_printf("This test is considered FAILED\n");
+    if (iter % 1000 == 0){
+      op_printf("rms at iter %d = %3.12e", iter, rms);
+      double expected = -1;
+      if (g_ncell == 2880000){
+        expected = 0.0001215707904481;
+      }else if (g_ncell == 720000){
+        expected = 0.0001060114637578; 
+      }else if (g_ncell == 4200000){
+        expected = 0.0001220712679165;
+      }
+      if (expected==-1){
+        printf("\n\nProblem with %d cells has no expected solution\n", g_ncell);
+      }else{
+        double diff = fabs((100.0 * (rms / expected)) - 100.0);
+        op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
+                  "expected solution\n",
+                  g_ncell, diff);
+
+        if (diff < 0.00001) {
+          op_printf("This test is considered PASSED\n");
+        } else {
+          op_printf("This test is considered FAILED\n");
+        }
       }
     }
   }
