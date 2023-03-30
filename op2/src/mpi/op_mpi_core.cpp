@@ -1733,7 +1733,7 @@ extern "C"
           MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
-            MPI_LONG,
+            MPI_UNSIGNED_LONG,
             recv_obj->remote_rank,
             dat->index,
             OP_MPI_WORLD,
@@ -1749,7 +1749,7 @@ extern "C"
           MPI_Isend(
             &recv_obj->segment_recv_offset,
             1,
-            MPI_LONG,
+            MPI_UNSIGNED_LONG,
             recv_obj->remote_rank,
             1 << 20 | dat->index, /* 1 in MSB -1 to indicate non-execute */
             OP_MPI_WORLD,
