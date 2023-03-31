@@ -94,7 +94,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     int gpi_rank;
     gaspi_proc_rank((gaspi_rank_t*)&gpi_rank);
 
-    LOCKSTEP(gpi_rank,"exchanging %s dat\n",arg->dat->name);
+    //LOCKSTEP(gpi_rank,"exchanging %s dat\n",arg->dat->name);
 
     //-------first exchange exec elements related to this data array--------
 
@@ -351,7 +351,6 @@ void op_gpi_waitall(op_arg *arg){
 #ifdef GPI_VERBOSE
         printf("Rank %d received non_exec not_ID %d.\n",rank, notif_id);
 #endif
-
 
         recv_rank = (int) notif_id & ((1<<7)-1); /* Filter out the upper half */
         recv_dat_index= (int) notif_id>>7; /* get only the upper half*/
