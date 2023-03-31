@@ -85,7 +85,6 @@ typedef struct {
   int *sizes;
   // the list of all elements
   int *list;
-  unsigned long *remote_segment_offsets; /* segment offset for each remote rank */
 } halo_list_core;
 
 typedef halo_list_core *halo_list;

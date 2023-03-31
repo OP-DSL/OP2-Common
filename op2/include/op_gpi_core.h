@@ -45,6 +45,8 @@ struct op_gpi_buffer_core{
   op_gpi_recv_obj *nonexec_recv_objs; /* For nonexec elements of this dat , one for each of the expected notifications*/
   MPI_Request *pre_exchange_hndl_s; /* data pre exchange handles for sends */
   MPI_Request *pre_exchange_hndl_r; /* data pre exchange handles for receives */
+  unsigned long *remote_exec_offsets; /* execute segment offset for each remote(import) rank */
+  unsigned long *remote_nonexec_offsets; /* non-execute segment offset for each remote(import) rank */
 };
 
 typedef op_gpi_buffer_core *op_gpi_buffer;

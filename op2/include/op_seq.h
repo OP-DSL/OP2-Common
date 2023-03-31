@@ -73,8 +73,8 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   GPI_SAFE( gaspi_barrier(OP_GPI_GLOBAL,GPI_TIMEOUT) )
   gaspi_rank_t rank;
   gaspi_proc_rank(&rank);
-  if(rank==0)
-    printf("----------Starting %s op_par_loop iteration----------\n\n\n\n",name);
+  //if(rank==0)
+  //  printf("----------Starting %s op_par_loop iteration----------\n\n\n\n",name);
   
 
 
@@ -111,7 +111,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timers_core(&cpu_t1, &wall_t1);
 
-  LOCKSTEP(rank, "before halo exchange\n");
+  //LOCKSTEP(rank, "before halo exchange\n");
 
   // MPI halo exchange and dirty bit setting, if needed
 #ifdef HAVE_GPI
@@ -120,20 +120,20 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   int n_upper = op_mpi_halo_exchanges(set, N, args);
 #endif
 
-  LOCKSTEP(rank, "after halo exchange\n");
+  //LOCKSTEP(rank, "after halo exchange\n");
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size){
-      LOCKSTEP(rank, "before waitall 20 arg\ns")
+      //LOCKSTEP(rank, "before waitall 20 arg\ns")
 #ifdef HAVE_GPI
       op_gpi_waitall_args(20, args);
 #else
       op_mpi_wait_all(20, args);
 #endif
-      LOCKSTEP(rank, "after waitall 20 args\n")
+      //LOCKSTEP(rank, "after waitall 20 args\n")
     } 
     if (n == set->size)
       halo = 1;
@@ -143,7 +143,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
     kernel(((T *)p_a[I])...);
   }
 
-  LOCKSTEP(rank, "before waitall args N\n")
+  //LOCKSTEP(rank, "before waitall args N\n")
 
   if (n_upper == set->core_size || n_upper == 0)
 #ifdef HAVE_GPI
@@ -152,7 +152,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
     op_mpi_wait_all(N, args);
 #endif
   
-  LOCKSTEP(rank, "after waitall args N\n")
+  //LOCKSTEP(rank, "after waitall args N\n")
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(N, args); /* This IS_COMMON to both MPI/GPI */
@@ -160,12 +160,12 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   // global reduction for MPI execution, if needed
   // p_a simply used to determine type for MPI reduction
 #ifdef HAVE_GPI
-  printf("About to do reduction\n");
-  fflush(stdout);
+  //printf("About to do reduction\n");
+  //fflush(stdout);
   (void)std::initializer_list<int>{
       (op_gpi_reduce(&arguments, (T *)p_a[I]), 0)...};
-  printf("finished reduction\n");
-  fflush(stdout);
+  //printf("finished reduction\n");
+  //fflush(stdout);
 #else
   (void)std::initializer_list<int>{
       (op_mpi_reduce(&arguments, (T *)p_a[I]), 0)...};
@@ -189,12 +189,12 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
 #endif /* HAVE_GPI*/
 #endif /* COMM_PERF*/
 
-  LOCKSTEP(rank, "After gpi perf comms\n");
+  //LOCKSTEP(rank, "After gpi perf comms\n");
 
   (void)std::initializer_list<int>{
       (arguments.idx < -1 ? free(p_a[I]), 0 : 0)...};
 
-  LOCKSTEP(rank, "After args free\n");
+  //LOCKSTEP(rank, "After args free\n");
 }
 
 //

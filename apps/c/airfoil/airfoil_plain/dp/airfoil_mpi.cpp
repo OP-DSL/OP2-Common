@@ -369,7 +369,7 @@ int main(int argc, char **argv) {
   // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
 
-  niter = 1;
+  niter = 1000;
   for (int iter = 1; iter <= niter; iter++) {
 
     // save old flow solution
@@ -422,7 +422,7 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_READ),
                   op_arg_gbl(&rms, 1, "double", OP_INC));
       
-      LOCKSTEP(my_rank, "--------- Res after update loop: %d------------- \n", rms)
+      LOCKSTEP(my_rank, "--------- Res %d after update loop: %f------------- \n", iter, rms)
     
       //GPI_FAIL("stop  plz\n");
     }
@@ -435,6 +435,10 @@ int main(int argc, char **argv) {
       if(isnan(rms)){
         GPI_FAIL("NAN Output - aborting now...\n");
       } 
+    }
+    if(iter % 10 == 0){
+      if(isnan(rms) || rms==0)
+        GPI_FAIL("Nan rms\n");
     }
 
     if (iter % 1000 == 0){

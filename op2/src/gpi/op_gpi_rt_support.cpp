@@ -53,6 +53,7 @@ int xor_byte_summation(void *data, int size){
 */
 void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
     op_dat dat = arg->dat;
+    op_gpi_buffer gpi_buf = (op_gpi_buffer) dat->gpi_buffer;
 
     // if(dat->set->index != dat->index) {
     //     GPI_FAIL("Error: op_exchange_halo()\n",dat->name);
@@ -126,17 +127,17 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
       }
 
 
-      //get remote offset for that rank
-      gaspi_offset_t remote_offset = (gaspi_offset_t) exp_exec_list->remote_segment_offsets[i];
+      //get remote offsets for that rank
+      gaspi_offset_t remote_exec_offset = (gaspi_offset_t) gpi_buf->remote_exec_offsets[i];
       
-      printf("Dat: %s: Rank %d sending %d bytes of exec data to rank %d with remote segment offset %d\n",dat->name, gpi_rank, dat->size * exp_exec_list->sizes[i], exp_exec_list->ranks[i], remote_offset);
+      //printf("Dat: %s: Rank %d sending %d bytes of exec data to rank %d with remote segment offset %d\n",dat->name, gpi_rank, dat->size * exp_exec_list->sizes[i], exp_exec_list->ranks[i], remote_exec_offset);
 
       gaspi_offset_t local_offset = (gaspi_offset_t) dat->loc_eeh_seg_off+ exp_exec_list->disps[i]*dat->size;
       GPI_QUEUE_SAFE( gaspi_write_notify(EEH_SEGMENT_ID, /* local segment id*/
                         local_offset, /* local segment offset*/
                         exp_exec_list->ranks[i], /* remote rank*/
                         IEH_SEGMENT_ID, /* remote segment id*/
-                        remote_offset, /* remote offset*/
+                        remote_exec_offset, /* remote offset*/
                         dat->size * exp_exec_list->sizes[i], /* send size*/
                         dat->index <<7 | gpi_rank, /* notification id*/
                         1, /* notification value, 1 bit added for non-zero notif values */
@@ -170,7 +171,8 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                     dat->size);
 
         }
-        gaspi_offset_t remote_offset = (gaspi_offset_t) exp_nonexec_list->remote_segment_offsets[i];
+        
+        gaspi_offset_t remote_nonexec_offset = (gaspi_offset_t) gpi_buf->remote_nonexec_offsets[i];
 
         //fprintf(stderr,"remote offset: %ld for rank %d in segment %d\n",remote_offset, exp_nonexec_list->ranks[i], INH_SEGMENT_ID);
         //fflush(stderr);
@@ -180,7 +182,7 @@ void op_gpi_exchange_halo(op_arg *arg, int exec_flag){
                            (gaspi_offset_t) dat->loc_enh_seg_off + exp_nonexec_list->disps[i]*dat->size, /* local segment offset*/
                            exp_nonexec_list->ranks[i], /* remote rank*/
                            INH_SEGMENT_ID, /* remote segment */
-                           remote_offset, /* remote segment offset*/
+                           remote_nonexec_offset, /* remote segment offset*/
                            dat->size * exp_nonexec_list->sizes[i], /* data to send (in bytes)*/
                            dat->index<<7 | gpi_rank, /* notification id*/
                            1, /* notification value. 1 added for non-zero notif values */
@@ -309,7 +311,7 @@ void op_gpi_waitall(op_arg *arg){
         memcpy(obj->memcpy_addr, (void*) (ieh_segment_ptr + obj->segment_recv_offset), obj->size);
 
         // XOR bitwise test
-        printf("Dat: %s: Rank %d received %d bytes of exec data from rank %d with segment offset %d.\n", dat->name, rank, obj->size, recv_rank, obj->segment_recv_offset);
+        //printf("Dat: %s: Rank %d received %d bytes of exec data from rank %d with segment offset %d.\n", dat->name, rank, obj->size, recv_rank, obj->segment_recv_offset);
 
 #ifdef GPI_VERBOSE  
         printf("Rank %d successfully handled notification from rank %d for exec dat data %s.\n",rank, recv_rank,dat->name);
