@@ -495,7 +495,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           code('nthread = SIMD_VEC;')
         else:
           code('nthread = 8;')
-        code('nblocks = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
+        if ninds == 0:
+          code('nblocks = op2_queue->get_device().get_info<cl::sycl::info::device::max_compute_units>();')
         ENDIF()
 
     if reduct:
