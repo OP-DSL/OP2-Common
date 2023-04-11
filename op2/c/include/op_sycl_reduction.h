@@ -56,7 +56,7 @@ void op_reduction(out_acc dat_g, int offset, T dat_l, local_acc temp, cl::sycl::
   size_t tid = item_id.get_local_id(0);
   temp[tid] = dat_l;
 
-  for (size_t d = item_id.get_local_range()[0] / 2; d > 0; d >>= 1) {
+  for (size_t d = item_id.get_local_range(0) / 2; d > 0; d >>= 1) {
 #ifdef __SYCL_COMPILER_VERSION
   if (intel)
     sg.barrier();
