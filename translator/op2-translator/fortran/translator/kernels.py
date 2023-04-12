@@ -189,16 +189,19 @@ def insertAtomicIncs(
 
 def insertAtomicInc(
     func: Function, param_idx: int, modified: Dict[str, Set[int]]
-) -> Tuple[List[Tuple[str, int, OP.Arg]], bool]:
-    if func.name not in modified:
-        modified[func.name] = {param_idx}
-    elif param_idx not in modified[func.name]:
-        modified[func.name].add(param_idx)
-    else:
+) -> None:
+    if param_idx in modified.get(func.name, set()):
         return
 
-    _, modified = insertAtomicInc2(func.ast, func.parameters[param_idx])
-    return modified
+    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx])
+
+    if not replaced:
+        return
+
+    if func.name not in modified:
+        modified[func.name] = {param_idx}
+    else:
+        modified[func.name].add(param_idx)
 
 
 def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]:

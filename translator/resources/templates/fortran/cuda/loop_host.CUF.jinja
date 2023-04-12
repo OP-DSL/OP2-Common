@@ -98,6 +98,12 @@ call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
 {%- endmacro -%}
 
 {%- macro process_gbls() -%}
+err = cudaDeviceSynchronize()
+
+if (err /= 0) then
+    print *, "error in gpu kernel: ", "{{lh.name}}"
+    print *, cudaGetErrorString(err)
+end if
     {% if lh is direct %}
 call processDeviceGbls(args, size(args), min(set%setptr%size, block_size * num_blocks), &
                                                               block_size * max_blocks)
