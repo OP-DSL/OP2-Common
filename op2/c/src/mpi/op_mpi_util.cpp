@@ -655,11 +655,17 @@ int op_mpi_add_nhalos_map(op_map map, int nhalos){
 
 int op_mpi_add_nhalos_set_calc(op_set set, int nhalos){
   set->halo_info->nhalos_calc_bits[nhalos - 1] = 1;
+  if(nhalos > set->halo_info->max_calc_nhalos){
+    set->halo_info->max_calc_nhalos = nhalos;
+  }
   return 1;
 }
 
 int op_mpi_add_nhalos_map_calc(op_map map, int nhalos){
   map->halo_info->nhalos_calc_bits[nhalos - 1] = 1;
+  if(nhalos > map->halo_info->max_calc_nhalos){
+    map->halo_info->max_calc_nhalos = nhalos;
+  }
   op_mpi_add_nhalos_set_calc(map->from, nhalos);
   op_mpi_add_nhalos_set_calc(map->to, nhalos);
   return 1;

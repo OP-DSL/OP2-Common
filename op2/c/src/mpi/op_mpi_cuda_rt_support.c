@@ -993,20 +993,19 @@ void op_move_to_device() {
 
   for (int m = 0; m < OP_map_index; m++) {
     op_map map = OP_map_list[m];
-    int max_level = map->halo_info->max_nhalos;
+    int max_level = map->halo_info->max_calc_nhalos;
     
-    map->aug_maps_d = (int **)xmalloc(sizeof(int *) * map->halo_info->max_nhalos);
+    map->aug_maps_d = (int **)xmalloc(sizeof(int *) * map->halo_info->max_calc_nhalos);
 
-    for(int el = 0; el < map->halo_info->max_nhalos; el++){
+    for(int el = 0; el < map->halo_info->max_calc_nhalos; el++){
       if(is_halo_required_for_map(map, el) == 1 && is_map_required_for_calc(map, el) == 1){
 
-        int exec_size = 0;
-        for(int l = 0; l < el + 1; l++){
-          exec_size += OP_aug_import_exec_lists[l][map->from->index]->size;
-        }
+        int exec_size = map->from->exec_sizes[el];
         int nonexec_size = 0;
         for(int l = 0; l < el + 1 - 1; l++){ // last non exec level is not included. non exec mappings are not included in maps
-          nonexec_size += OP_aug_import_nonexec_lists[l][map->from->index]->size;
+          if(is_halo_required_for_map(map, el) == 1){
+            nonexec_size += map->from->nonexec_sizes[l];
+          }
         }
         int set_size = map->from->size + exec_size + nonexec_size;
 

@@ -47,6 +47,9 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+#ifdef COMM_AVOID_CUDA
+#include <op_mpi_comm_avoid.h>
+#endif
 //
 // MPI Communicator for halo creation and exchange
 //
@@ -180,24 +183,24 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  int exec_levels = set->halo_info->max_nhalos; //2;
+  int exec_levels = set->halo_info->max_calc_nhalos; //2;
   int halo_size = 0;
+  halo_size += set->exec_sizes[exec_levels - 1];
   for(int l = 0; l < exec_levels; l++){
-    halo_size += OP_aug_import_exec_lists[l][set->index]->size;
-  }
-
-  for(int l = 0; l < exec_levels; l++){
-    halo_size += (OP_aug_import_nonexec_lists[l][set->index])?  OP_aug_import_nonexec_lists[l][set->index]->size : 0;
+    if(is_set_required_for_calc(dat->set, l) == 1){
+      halo_size += set->nonexec_sizes[l];
+    }
   }
 
   int set_size = set->size + halo_size;
+  int max_exec_levels = set->halo_info->max_nhalos;
 
-  dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, exec_levels * sizeof(int));
-  dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, exec_levels * sizeof(int));
+  dat->exec_dirtybits = (int *)xrealloc(dat->exec_dirtybits, max_exec_levels * sizeof(int));
+  dat->nonexec_dirtybits = (int *)xrealloc(dat->nonexec_dirtybits, max_exec_levels * sizeof(int));
 
-  for(int i = 0; i < exec_levels; i++){
+  for(int i = 0; i < max_exec_levels; i++){
     dat->exec_dirtybits[i] = dat->dirtybit;
-    if(is_halo_required_for_set(dat->set, i) == 1){
+    if(is_set_required_for_calc(dat->set, i) == 1){
       dat->nonexec_dirtybits[i] = dat->dirtybit;
     }else{
       dat->nonexec_dirtybits[i] = -1;
@@ -223,39 +226,32 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   int exec_e_list_rank_size = 0;
   int exec_i_list_rank_size = 0;
 
-  for(int l = 0; l < exec_levels; l++){
-    if(OP_aug_export_exec_lists[l][set->index]){
-      exec_e_list_size += OP_aug_export_exec_lists[l][set->index]->size;
-      exec_e_list_rank_size += OP_aug_export_exec_lists[l][set->index]->ranks_size / OP_aug_export_exec_lists[l][set->index]->num_levels;
-    }
+  halo_list exec_e_list = OP_export_exec_list[set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+  halo_list exec_i_list = OP_import_exec_list[set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
 
-    if(OP_aug_import_exec_lists[l][set->index]){
-      exec_i_list_rank_size += OP_aug_import_exec_lists[l][set->index]->ranks_size / OP_aug_import_exec_lists[l][set->index]->num_levels;
-    }
-  }
+  exec_e_list_size = exec_e_list->size;
+  exec_e_list_rank_size = exec_e_list->ranks_size;
+  exec_i_list_rank_size = exec_i_list->ranks_size;
 
   int nonexec_e_list_size = 0;
   int nonexec_e_list_rank_size = 0;
   int nonexec_i_list_rank_size = 0;
-  for(int l = 0; l < exec_levels; l++){
-    if(OP_aug_export_nonexec_lists[l][set->index]){
-      nonexec_e_list_size += OP_aug_export_nonexec_lists[l][set->index]->size;
-      nonexec_e_list_rank_size += OP_aug_export_nonexec_lists[l][set->index]->ranks_size / OP_aug_export_nonexec_lists[l][set->index]->num_levels;    
-    }
-    if(OP_aug_import_nonexec_lists[l][set->index]){
-      nonexec_i_list_rank_size += OP_aug_import_nonexec_lists[l][set->index]->ranks_size / OP_aug_import_nonexec_lists[l][set->index]->num_levels;
-    }
-  }
 
-  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list_size) * dat->size);
-  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list_size) * dat->size);
+  nonexec_e_list_size = nonexec_e_list->size;
+  nonexec_e_list_rank_size = nonexec_e_list->ranks_size;
+  nonexec_i_list_rank_size = nonexec_i_list->ranks_size;
+
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_e_list_rank_size + nonexec_e_list_rank_size));
+      (exec_e_list_rank_size + nonexec_e_list_rank_size) * exec_levels);
   mpi_buf->r_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
-      (exec_i_list_rank_size + nonexec_i_list_rank_size));
+      (exec_i_list_rank_size + nonexec_i_list_rank_size) * exec_levels);
 
   mpi_buf->s_num_req = 0;
   mpi_buf->r_num_req = 0;
@@ -354,7 +350,16 @@ int op_free_dat_temp_char(op_dat dat) {
 #ifdef COMM_AVOID
 void op_mv_halo_device(op_set set, op_dat dat) {
   // printf("op_mv_halo_device new set=%s dat=%s\n", set->name, dat->name);
-  int set_size = set->size + set->total_exec_size + set->total_nonexec_size;
+  int exec_levels = set->halo_info->max_calc_nhalos;
+  int halo_size = set->exec_sizes[exec_levels - 1];
+
+  for(int l = 0; l < exec_levels; l++){
+    if(is_set_required_for_calc(set, l) == 1){
+      halo_size += set->nonexec_sizes[l];
+    }
+  }
+
+  int set_size = set->size + halo_size;
 
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     // printf("op_mv_halo_device new 1 set=%s dat=%s\n", set->name, dat->name);
@@ -375,7 +380,7 @@ void op_mv_halo_device(op_set set, op_dat dat) {
     if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
     cutilSafeCall(
         cudaMalloc((void **)&(dat->buffer_d_r),
-                   dat->size * (set->total_exec_size + set->total_nonexec_size)));
+                   dat->size * (halo_size)));
 
   } else {
     // printf("op_mv_halo_device new 2\n");
@@ -385,20 +390,20 @@ void op_mv_halo_device(op_set set, op_dat dat) {
   
   dat->dirty_hd = 0;
 
-  int exec_levels = set->halo_info->max_nhalos; //2;
-  int exec_size = 0;
-   int nonexec_size = 0;
-  for(int l = 0; l < exec_levels; l++){
-    exec_size += OP_aug_export_exec_lists[l][set->index]->size;
-    nonexec_size += (OP_aug_export_nonexec_lists[l][set->index])? OP_aug_export_nonexec_lists[l][set->index]->size : 0;
-  }
+  // int exec_levels = set->halo_info->max_nhalos; //2;
+  // int exec_size = 0;
+  //  int nonexec_size = 0;
+  // for(int l = 0; l < exec_levels; l++){
+  //   exec_size += OP_aug_export_exec_lists[l][set->index]->size;
+  //   nonexec_size += (OP_aug_export_nonexec_lists[l][set->index])? OP_aug_export_nonexec_lists[l][set->index]->size : 0;
+  // }
 
   //todo: check this for grouped comunication
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
   cutilSafeCall(
       cudaMalloc((void **)&(dat->buffer_d),
-                 dat->size * (exec_size +
-                              nonexec_size +
+                 dat->size * (OP_export_exec_list[set->index]->size +
+                              OP_export_nonexec_list[set->index]->size +
                               set_import_buffer_size[set->index])));
   
   // printf("op_mv_halo_device new set=%s index=%d e=%d(%d) n=%d(%d) i=%d\n", set->name, set->index, 
@@ -896,7 +901,7 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
 }
 
 void op_upload_all() {
-  op_printf("test:op_upload_all\n");
+  // op_printf("test:op_upload_all\n");
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;

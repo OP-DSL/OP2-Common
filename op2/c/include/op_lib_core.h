@@ -152,6 +152,7 @@ typedef struct op_halo_info_core{
   int *nhalos_bits; //array of required halos
   int *nhalos_calc_bits; //array of required halos for calculation
   int max_nhalos;   //max number of halos
+  int max_calc_nhalos;   //max number of halos
   int nhalos_count; //number of elements in nhalos
   int nhalos_cap;   //capacity of nhalos
   int nhalos_indices_cap;   //capacity of nhalos
@@ -172,6 +173,8 @@ typedef struct {
   int *core_sizes;
   int *exec_sizes;
   int *nonexec_sizes;
+  int *exp_exec_sizes;
+  int *exp_nonexec_sizes;
   op_halo_info halo_info;
 } op_set_core;
 

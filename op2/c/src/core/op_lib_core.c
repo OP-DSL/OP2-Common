@@ -350,6 +350,7 @@ void op_init_halo_info(op_halo_info halo_info){
   halo_info->nhalos_calc_bits[0] = 1;  // default value: 1 halo for all sets, 0 based index, 0th exec level, 1st exec level, ...
   halo_info->nhalos_indices[1] = 0;
   halo_info->max_nhalos = 1;
+  halo_info->max_calc_nhalos = 1;
   halo_info->nhalos_count = 1;
   halo_info->nhalos_cap = OP_NHALOS_SIZE;
   halo_info->nhalos_indices_cap = OP_NHALOS_MAX;
@@ -1528,7 +1529,7 @@ void op_dat_write_index(op_set set, int *dat) {
 #if defined COMM_AVOID || defined COMM_AVOID_CUDA
  
   int nonexec_size = 0;
-  for(int i = 0; i < set->halo_info->max_nhalos; i++) //not like in exec sizes, non exec sizes are not accumulated
+  for(int i = 0; i < set->halo_info->max_calc_nhalos; i++) //not like in exec sizes, non exec sizes are not accumulated
     nonexec_size += set->nonexec_sizes[i];
 
     //  printf("op_dat_write_index new1 set=%s exec=%d nonexec=%d nhalos=%d\n", set->name, set->exec_sizes[set->halo_info->max_nhalos - 1], nonexec_size, set->halo_info->max_nhalos);
@@ -1536,7 +1537,7 @@ void op_dat_write_index(op_set set, int *dat) {
   // nonexec_size, set->nonexec_sizes[set->halo_info->nhalos_count - 1],
   // set->size + set->exec_sizes[set->halo_info->nhalos_count - 1] + nonexec_size);
 
-  for (int i = 0; i < set->size + set->exec_sizes[set->halo_info->max_nhalos - 1] + nonexec_size; i++) {
+  for (int i = 0; i < set->size + set->exec_sizes[set->halo_info->max_calc_nhalos - 1] + nonexec_size; i++) {
 #else
   for (int i = 0; i < set->size + set->exec_size + set->nonexec_size; i++) {
 #endif

@@ -1078,7 +1078,7 @@ void step9(int **part_range, int my_rank, int comm_size){
     dat->dirtybit = 0;
 
 // #if defined COMM_AVOID || defined COMM_AVOID_CUDA
-    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+    for(int i = 0; i < dat->set->halo_info->max_calc_nhalos; i++){
       dat->exec_dirtybits[i] = dat->dirtybit;
       if(is_halo_required_for_set(dat->set, i) == 1){
         dat->nonexec_dirtybits[i] = dat->dirtybit;
@@ -2202,7 +2202,7 @@ static void set_dirtybit(op_arg *arg, int hd) {
     dat->dirty_hd = hd;
 
 #if defined COMM_AVOID || defined COMM_AVOID_CUDA
-    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+    for(int i = 0; i < dat->set->halo_info->max_calc_nhalos; i++){
       dat->exec_dirtybits[i] = 1;
       if(is_halo_required_for_set(dat->set, i) == 1){
         dat->nonexec_dirtybits[i] = 1;
@@ -3207,7 +3207,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
   //                 : 0;
 
   return arg->opt ? (arg->dat->set->size +
-                     arg->dat->set->exec_sizes[arg->dat->set->halo_info->max_nhalos - 1] +
+                     arg->dat->set->exec_sizes[arg->dat->set->halo_info->max_calc_nhalos - 1] +
                     //  arg->dat->set->total_exec_size +
                      arg->dat->set->total_nonexec_size)
                   : 0;
@@ -4465,7 +4465,7 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
 }
 
 int get_set_size_with_nhalos(op_set set, int nhalos){
-  return (nhalos > set->halo_info->max_nhalos) ? set->size + set->exec_sizes[set->halo_info->nhalos_indices[set->halo_info->max_nhalos]] : 
+  return (nhalos > set->halo_info->max_calc_nhalos) ? set->size + set->exec_sizes[set->halo_info->nhalos_indices[set->halo_info->max_calc_nhalos]] : 
   set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
 }
 
@@ -4474,7 +4474,7 @@ int get_set_core_size(op_set set, int nhalos){
 }
 
 int get_halo_start_size(op_set set, int nhalos){
-  if(nhalos > set->halo_info->max_nhalos){
+  if(nhalos > set->halo_info->max_calc_nhalos){
     printf("ERROR nhalos > max_halos\n");
     return -1;
   }
@@ -4491,7 +4491,7 @@ int get_halo_start_size(op_set set, int nhalos){
 
 int get_halo_end_size(op_set set, int nhalos){
   
-  if(nhalos > set->halo_info->max_nhalos){
+  if(nhalos > set->halo_info->max_calc_nhalos){
     printf("ERROR nhalos > max_halos\n");
     return -1;
   }
@@ -4526,7 +4526,7 @@ int is_dat_dirty(op_arg* arg){
   op_dat dat = arg->dat;
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
     printf("is_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
-    for(int i = 0; i < arg->dat->set->halo_info->max_nhalos; i++){
+    for(int i = 0; i < arg->dat->set->halo_info->max_calc_nhalos; i++){
       printf("is_dat_dirty dat=%s exec_dirty[%d]=%d nonexec_dirty[%d]=%d\n", dat->name, i, dat->exec_dirtybits[i], i, dat->nonexec_dirtybits[i]);
     }
     if(dat->dirtybit == 1)
@@ -4542,7 +4542,7 @@ void set_dat_dirty(op_arg* arg){
     // printf("set_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     dat->dirtybit = 1;
     dat->dirty_hd = 2;
-    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+    for(int i = 0; i < dat->set->halo_info->max_calc_nhalos; i++){
       dat->exec_dirtybits[i] = 1;
       if(is_halo_required_for_set(dat->set, i) == 1){
         dat->nonexec_dirtybits[i] = 1;
@@ -4566,7 +4566,7 @@ void unset_dat_dirty(op_arg* arg){
   if ((arg->opt == 1) && (arg->argtype == OP_ARG_DAT)) {
     // printf("unset_dat_dirty dat=%s dirty=%d\n", dat->name, dat->dirtybit);
     dat->dirtybit = 0;
-    for(int i = 0; i < dat->set->halo_info->max_nhalos; i++){
+    for(int i = 0; i < dat->set->halo_info->max_calc_nhalos; i++){
       dat->exec_dirtybits[i] = 0;
       if(is_halo_required_for_set(dat->set, i) == 1){
         dat->nonexec_dirtybits[i] = 0;
