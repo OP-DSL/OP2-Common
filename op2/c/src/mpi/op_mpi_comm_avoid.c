@@ -1119,7 +1119,8 @@ void step3_exchange_exec_mappings(int exec_level, int **part_range, int my_rank,
       // prev_nonexec_size += (prev_h_list) ? prev_h_list->size : 0;
       prev_nonexec_size += map->from->nonexec_sizes[i];
     }
-    prev_exec_size = map->from->exec_sizes[exec_level - 1];
+    if(exec_level > 0)
+      prev_exec_size = map->from->exec_sizes[exec_level - 1];
 
     // printf("step4 halo_id=%d prev=%d new=%d nonprev=%d new=%d\n", exec_level, prev_exec_size, map->from->exec_sizes[exec_level - 1],
     // prev_nonexec_size, prev_nonexec_size1);
@@ -3382,6 +3383,10 @@ void calc_set_metrics(int l){
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     int max_calc_level = set->halo_info->max_calc_nhalos;
+    int max_level = set->halo_info->max_nhalos;
+
+    if(l >= max_level)
+      continue;
 
     set->exec_sizes[l] = (l > 0) ? set->exec_sizes[l - 1] + ((OP_aug_import_exec_lists[l][set->index]) ? OP_aug_import_exec_lists[l][set->index]->size : 0) : 
       ((OP_aug_import_exec_lists[l][set->index]) ? OP_aug_import_exec_lists[l][set->index]->size : 0);
