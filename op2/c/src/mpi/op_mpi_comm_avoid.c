@@ -3410,6 +3410,8 @@ void calc_set_metrics(int l){
       // }
       
     }
+    if(l >= max_calc_level)
+      continue;
     set->total_nonexec_size +=  (l < max_calc_level) ? OP_aug_import_nonexec_lists[l][set->index]->size : 0;
     set->total_exec_size += OP_aug_import_exec_lists[l][set->index] ? OP_aug_import_exec_lists[l][set->index]->size : 0;
 
@@ -3628,8 +3630,8 @@ void op_halo_create_comm_avoid() {
   // compute import/export lists creation time
   time = wall_t2 - wall_t1;
 
-  calculate_dat_sizes(my_rank);
-  calculate_set_sizes(my_rank);
+  // calculate_dat_sizes(my_rank);
+  // calculate_set_sizes(my_rank);
 
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
