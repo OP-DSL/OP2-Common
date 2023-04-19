@@ -972,7 +972,7 @@ void create_n_exchange_aug_part_range(op_set set, int halo_id, halo_list cur_imp
 bool is_in_prev_export_exec_halos(int halo_id, int set_index, int export_rank, int export_value, int my_rank){
 
   for(int i = 0; i < halo_id; i++){
-    halo_list h_list = OP_aug_export_exec_lists[i][set_index];
+    halo_list h_list = OP_aug_export_exec_lists[set_index][i];
 
     int rank_index = binary_search(h_list->ranks, export_rank, 0, h_list->ranks_size - 1);
 
@@ -1965,8 +1965,8 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
     for(int l = 1; l < max_nhalos; l++){
       op_single_halo_destroy(OP_aug_import_exec_lists[set->index][l]); 
       OP_aug_import_exec_lists[set->index][l] = NULL;
-      op_single_halo_destroy(OP_aug_export_exec_lists[set->index][l]);
-      OP_aug_export_exec_lists[set->index][l] = NULL;
+      // op_single_halo_destroy(OP_aug_export_exec_lists[set->index][l]);
+      // OP_aug_export_exec_lists[set->index][l] = NULL;
     }
 
     for(int l = 1; l < max_calc_nhalos; l++){
@@ -1974,6 +1974,9 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
       OP_aug_import_nonexec_lists[set->index][l] = NULL;
       op_single_halo_destroy(OP_aug_export_nonexec_lists[set->index][l]);
       OP_aug_export_nonexec_lists[set->index][l] = NULL;
+
+      op_single_halo_destroy(OP_aug_export_exec_lists[set->index][l]);
+      OP_aug_export_exec_lists[set->index][l] = NULL;
     }
 
     op_free(import_h_lists);
@@ -2795,16 +2798,16 @@ halo_list step1_create_export_exec_list(op_set set, int halo_id, int **part_rang
           if (halo_id == 0 && part != my_rank) {
             set_list[s_i++] = part; // add to set export list
             set_list[s_i++] = e;
-            update_elem_rank_matrix(set, e, part, comm_size);
+            // update_elem_rank_matrix(set, e, part, comm_size);
           }
 
           if(halo_id > 0){
             for(int r = 0; r < comm_size; r++){
-              if(r != part && parts[r] == 1 && !is_elem_sent(set, e, r, comm_size)){
-              // if(r != part && parts[r] == 1 && !is_in_prev_export_exec_halos(halo_id, set->index, r, e, my_rank)){
+              // if(r != part && parts[r] == 1 && !is_elem_sent(set, e, r, comm_size)){
+              if(r != part && parts[r] == 1 && !is_in_prev_export_exec_halos(halo_id, set->index, r, e, my_rank)){
                 set_list[s_i++] = r; // add to set export list
                 set_list[s_i++] = e;
-                update_elem_rank_matrix(set, e, r, comm_size);
+                // update_elem_rank_matrix(set, e, r, comm_size);
               }
             }
           }
@@ -2932,7 +2935,7 @@ void op_halo_create_comm_avoid() {
     temp_exp_arr_size = 0; //set->size;
     temp_core_arr_size = set->size;
 
-    create_elem_rank_matrix(set, my_rank, comm_size);
+    // create_elem_rank_matrix(set, my_rank, comm_size);
     create_part_range_arrays(my_rank, comm_size);
     prepare_aug_set(set);
 
@@ -2947,10 +2950,10 @@ void op_halo_create_comm_avoid() {
       int is_required = is_set_required_for_calc(set, l);
       // op_printf("step1 set=%s OP_set_index=%d s=%d\n", set->name, OP_set_index, s);
       halo_list exp_exec_list = step1_create_export_exec_list(set, l, part_range, my_rank, comm_size);
-      if(l < max_calc_nhalos)
+      // if(l < max_calc_nhalos)
         OP_aug_export_exec_lists[set->index][l] = exp_exec_list;
-      else
-        OP_aug_export_exec_lists[set->index][l] = NULL;
+      // else
+      //   OP_aug_export_exec_lists[set->index][l] = NULL;
       
       // op_printf("step2 set=%s\n", set->name);
       halo_list imp_exec_list = create_handshake_h_list(set, exp_exec_list, part_range, my_rank, comm_size);
@@ -2979,7 +2982,7 @@ void op_halo_create_comm_avoid() {
       calculate_core(set, l, exp_exec_list, my_rank);
 
       if(l >= max_calc_nhalos){
-        op_single_halo_destroy(exp_exec_list);
+        // op_single_halo_destroy(exp_exec_list);
         op_single_halo_destroy(imp_exec_list);
       }
 
@@ -2991,7 +2994,12 @@ void op_halo_create_comm_avoid() {
     OP_export_exec_list[set->index] = OP_aug_export_exec_lists[set->index][0];
 
     free_part_range_arrays(my_rank, comm_size);
-    free_elem_rank_matrix(set, my_rank, comm_size);
+    // free_elem_rank_matrix(set, my_rank, comm_size);
+    for(int l = 0 ; l < max_nhalos; l++){
+      if(l >= max_calc_nhalos){
+        op_single_halo_destroy(OP_aug_export_exec_lists[set->index][l]);
+      }
+    }
   }
 
   OP_import_nonexec_list =
