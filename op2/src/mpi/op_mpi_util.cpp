@@ -598,7 +598,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   //Sends are only started here when running async on the device
   if (device == 2) {
     unsigned curr_offset = 0;
-    op_download_buffer_sync();
+    if(OP_gpu_direct) op_gather_sync();
+    else op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
 //       int rank;

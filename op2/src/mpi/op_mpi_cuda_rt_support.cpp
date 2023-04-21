@@ -759,6 +759,13 @@ void op_scatter_sync() {
   cutilSafeCall(cudaEventRecord(op2_grp_download_event, op2_grp_secondary));
   cutilSafeCall(cudaStreamWaitEvent(0, op2_grp_download_event,0));
 }
+
+void op_gather_sync() {
+  // Explicitly sync the gather kernels on the 0 stream when using -gpudirect
+  // as op_download_buffer_async won't be called
+  cutilSafeCall(cudaStreamSynchronize(0));
+}
+
 void op_download_buffer_sync() {
   cutilSafeCall(cudaStreamSynchronize(op2_grp_secondary));
 }
