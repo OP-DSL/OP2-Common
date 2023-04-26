@@ -132,7 +132,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * set_size + element_size * j + c] =
-              data[dat->size * j + element_size * i + c];
+              dat->data[dat->size * j + element_size * i + c];
         }
       }
     }
