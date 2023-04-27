@@ -145,7 +145,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
-  if (set == NULL || data == NULL)
+  if (set == NULL)
     return NULL;
   /*char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
   if (d == NULL && set->size>0) {
