@@ -125,7 +125,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 
   // transpose data
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-  if (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1)) {
+  if (data != NULL && (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1))) {
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
