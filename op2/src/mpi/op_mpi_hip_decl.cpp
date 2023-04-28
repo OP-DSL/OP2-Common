@@ -285,7 +285,7 @@ void op_mv_halo_list_device() {
 
     op_cpHostToDevice((void **)&(export_exec_list_d[set->index]),
                       (void **)&(OP_export_exec_list[set->index]->list),
-                      OP_export_exec_list[set->index]->size * sizeof(int));
+                      (size_t)OP_export_exec_list[set->index]->size * sizeof(int));
   }
 
   if (export_nonexec_list_d != NULL) {
@@ -302,7 +302,7 @@ void op_mv_halo_list_device() {
 
     op_cpHostToDevice((void **)&(export_nonexec_list_d[set->index]),
                       (void **)&(OP_export_nonexec_list[set->index]->list),
-                      OP_export_nonexec_list[set->index]->size * sizeof(int));
+                      (size_t)OP_export_nonexec_list[set->index]->size * sizeof(int));
   }
 
   //for grouped, we need the disps array on device too

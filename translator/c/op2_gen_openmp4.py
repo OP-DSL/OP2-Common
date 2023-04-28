@@ -96,9 +96,10 @@ def op2_gen_openmp4(master, date, consts, kernels):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
-  op2_compiler = os.getenv('OP2_COMPILER','0');
-  any_soa = 0
+  op2_compiler = 'clang' #os.getenv('OP2_COMPILER','0');
   maptype = 'map'
+  any_soa=0
+  atomics = True
   for nk in range (0,len(kernels)):
     any_soa = any_soa or sum(kernels[nk]['soaflags'])
 
@@ -210,18 +211,18 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
     for i in range(0,nargs_novec):
         var = signature_text.split(',')[i].strip()
-        if kernels[nk]['soaflags'][i]:
+        if kernels[nk]['soaflags'][i] and not (atomics and maps[i] == OP_MAP and accs[i] == OP_INC):
           var = var.replace('*','')
           #locate var in body and replace by adding [idx]
           length = len(re.compile('\\s+\\b').split(var))
           var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
-            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'\1[(\2)*'+ \
+            body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+ \
                 op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
           else:
             body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9]*)\]'+'', var2+r'[(\1)*'+ \
+            body_text = re.sub(r'\b'+var2+'\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'[(\1)*'+ \
                 op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
 
     for nc in range(0,len(consts)): 
@@ -280,7 +281,10 @@ def op2_gen_openmp4(master, date, consts, kernels):
         params += indent +  'int dat'+str(g_m)+'size,'
     if ninds>0:
       # add indirect kernel specific params to kernel func call 
-      params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
+      if atomics:
+        params += indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
+      else:
+        params += indent + 'int *col_reord,' + indent + 'int set_size1,' + indent + 'int start,' + indent + 'int end,'
     else:
       # add direct kernel specific params to kernel func call 
       params += indent + 'int count,'
@@ -387,7 +391,6 @@ def op2_gen_openmp4(master, date, consts, kernels):
       ENDIF()
       code('')
       comm(' get plan')
-      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
 # direct bit
@@ -398,7 +401,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
+    code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
 
 #
 # get part and block size
@@ -425,7 +428,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
 
     if ninds > 0:
       code('')
-      code('int ncolors = 0;')
+      if not atomics:
+          code('int ncolors = 0;')
       code('int set_size1 = set->size + set->exec_size;')
     code('')
     IF('set_size >0')
@@ -480,19 +484,36 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # prepare kernel params for indirect version
 #
     if ninds>0:
-      code('')
-      code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
-      code('ncolors = Plan->ncolors;')
-      code('int *col_reord = Plan->col_reord;')
-      code('')
-      comm(' execute plan')
-      FOR('col','0','Plan->ncolors')
-      IF('col==1')
-      code('op_mpi_wait_all_cuda(nargs, args);')
-      ENDIF()
-      code('int start = Plan->col_offsets[0][col];')
-      code('int end = Plan->col_offsets[0][col+1];')
-      code('')
+      if atomics:
+        if reduct:
+          FOR('round','0','3')
+        else:
+          FOR('round','0','2')
+        IF('round==1')
+        code('op_mpi_wait_all_grouped(nargs, args, 2);')
+        #code('op_mpi_wait_all_cuda(nargs, args);')
+        ENDIF()
+        if reduct:
+          code('int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);')
+          code('int end = round==0 ? set->core_size : (round==1? set->size :  set->size + set->exec_size);')
+        else:
+          code('int start = round==0 ? 0 : set->core_size;')
+          code('int end = round==0 ? set->core_size : set->size + set->exec_size;')
+        IF('end-start>0')
+      else:
+        code('')
+        code('op_plan *Plan = op_plan_get_stage(name,set,part_size,nargs,args,ninds,inds,OP_COLOR2);')
+        code('ncolors = Plan->ncolors;')
+        code('int *col_reord = Plan->col_reord;')
+        code('')
+        comm(' execute plan')
+        FOR('col','0','Plan->ncolors')
+        IF('col==1')
+        code('op_mpi_wait_all_grouped(nargs, args, 2);')
+        ENDIF()
+        code('int start = Plan->col_offsets[0][col];')
+        code('int end = Plan->col_offsets[0][col+1];')
+        code('')
 #
 # kernel function call
 #
@@ -501,10 +522,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
     call_params = call_params.replace('*','')
     # set params for indirect version
     if ninds>0:
+      call_params = re.sub(r'\bcount\b','set_size1',call_params);
       call_params = call_params.replace('num_teams','part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread')
     # set params for direct version
     else:
-      call_params = re.sub('count','set->size',call_params);
+      call_params = re.sub(r'\bcount\b','set->size',call_params);
       call_params = call_params.replace('num_teams','part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread') 
     code(func_call_signaure_text.split(' ')[-1]+call_params+');')
     code('')
@@ -512,7 +534,10 @@ def op2_gen_openmp4(master, date, consts, kernels):
     if ninds>0:
       if reduct:
         comm(' combine reduction data')
-        IF('col == Plan->ncolors_owned-1')
+        if atomics:
+          IF('round == 1')
+        else:
+          IF('col == Plan->ncolors_owned-1')
         for g_m in range(0,nargs):
           if maps[g_m] == OP_GBL and accs[g_m] != OP_READ:
             if accs[g_m]==OP_INC or accs[g_m]==OP_WRITE:
@@ -525,16 +550,23 @@ def op2_gen_openmp4(master, date, consts, kernels):
               error('internal error: invalid reduction option')
         ENDIF()
       ENDFOR()
-      code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
-      code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
+      if not atomics:
+        code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
+        code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
 
+    if ninds>0:
+      if atomics:
+        ENDIF()
     ENDIF()
     code('')
 
     #zero set size issues
     if ninds>0:
-      IF('set_size == 0 || set_size == set->core_size || ncolors == 1')
-      code('op_mpi_wait_all_cuda(nargs, args);')
+      if atomics:
+        IF('set_size == 0 || set_size == set->core_size')
+      else:
+        IF('set_size == 0 || set_size == set->core_size || ncolors == 1')
+      code('op_mpi_wait_all_grouped(nargs, args, 2);')
       ENDIF()
 
 #
@@ -624,7 +656,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
     line = '#pragma omp target teams'
     if op2_compiler == 'clang':
       line +=' distribute parallel for schedule(static,1)\\\n' + (depth+2)*' '
-    line +=' num_teams(num_teams) thread_limit(nthread) '
+    line +=' thread_limit(nthread) ' #num_teams(num_teams) 
     map_clause = ''
     if maptype == 'map':
       map_clause = 'map(to:'
@@ -675,10 +707,13 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # map extra pointers for indirect version
 #
     if ninds>0:
-      if maptype == 'map':
-        line += '\\\n'+(depth+2)*' '+'map(to:col_reord[0:set_size1],'
+      if atomics:
+        line += '\\\n'+(depth+2)*' '+'map(to:'
       else:
-        line += '\\\n'+(depth+2)*' '+'map(to:col_reord,'
+        if maptype == 'map':
+          line += '\\\n'+(depth+2)*' '+'map(to:col_reord[0:set_size1],'
+        else:
+          line += '\\\n'+(depth+2)*' '+'map(to:col_reord,'
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -706,8 +741,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
 # start for loop indirect version
 #
     if ninds>0:
-      FOR('e','start','end')
-      code('int n_op = col_reord[e];')
+      if atomics:
+        FOR('n_op', 'start', 'end')
+      else:
+        FOR('e','start','end')
+        code('int n_op = col_reord[e];')
       if nmaps > 0:
         k = []
         for g_m in range(0,nargs):
@@ -779,7 +817,11 @@ def op2_gen_openmp4(master, date, consts, kernels):
           else:
             line = ''
         else:
-          if soaflags[g_m]:
+          if atomics and accs[g_m] == OP_INC:
+            code(typs[g_m] + ' arg'+str(g_m)+'_l['+dims[g_m]+'];')
+            code('for (int d = 0; d < '+dims[g_m]+';d++) arg'+str(g_m)+'_l[d] = 0;')
+            line += '&arg'+str(g_m)+'_l[0]'
+          elif soaflags[g_m]:
             line += '&data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx]'
           else:
             line += '&data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx]'
@@ -801,6 +843,16 @@ def op2_gen_openmp4(master, date, consts, kernels):
     code(inline_body_text)
     comm('end inline func')
 
+    for g_m in range(0,nargs):
+      if maps[g_m] == OP_MAP  and atomics and accs[g_m] == OP_INC:
+        # FOR('d', '0', dims[g_m])
+        for d in range(0,int(dims[g_m])):
+          code('#pragma omp atomic')
+          if soaflags[g_m]:
+            code('data'+str(invinds[inds[g_m]-1])+'[map'+str(mapinds[g_m])+'idx + '+str(d)+' * '+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'] += arg%d_l[%d];' % (g_m,d))
+          else:
+            code('data'+str(invinds[inds[g_m]-1])+'['+str(dims[g_m])+' * map'+str(mapinds[g_m])+'idx + '+str(d)+'] += arg%d_l[%d];' % (g_m,d))
+        # ENDFOR()
     ENDFOR()
     code('')
     # end kernel function
