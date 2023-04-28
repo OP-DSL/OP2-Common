@@ -93,7 +93,7 @@ void __cutilCheckMsg(const char *errorMessage, const char *file,
 // routines to move arrays to/from GPU device
 //
 
-void op_mvHostToDevice(void **map, int size) {
+void op_mvHostToDevice(void **map, size_t size) {
   if (!OP_hybrid_gpu || size == 0)
     return;
   void *tmp;
@@ -104,7 +104,7 @@ void op_mvHostToDevice(void **map, int size) {
   *map = tmp;
 }
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size) {
+void op_cpHostToDevice(void **data_d, void **data_h, size_t size) {
   if (!OP_hybrid_gpu)
     return;
   if (*data_d != NULL) cutilSafeCall(hipFree(*data_d));

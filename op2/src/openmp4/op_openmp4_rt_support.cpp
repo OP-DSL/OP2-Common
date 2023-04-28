@@ -310,6 +310,17 @@ void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   (void)args;
 }
 
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+  (void)device;
+  return device == 1 ? op_mpi_halo_exchanges(set, nargs, args) : op_mpi_halo_exchanges_cuda(set, nargs, args);
+}
+
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)device;
+  (void)nargs;
+  (void)args;
+}
+
 void op_mpi_reset_halos(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
