@@ -125,11 +125,13 @@ ifeq ($(OP2_COMPILER),clang)
     CCFLAGS  = -x c++ -O3 -I$(OMPTARGET_LIBS)/../include
   endif
   CXX	    = clang++
+  SYCLCXX   = $(CXX)
   CXXFLAGS  = $(CCFLAGS) 
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
   OMP4FLAGS = -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda 
+  SYCL_FLAGS = -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx90a #-I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
 else
 ifeq ($(OP2_COMPILER),sycl)
   ifdef DEBUG
@@ -170,12 +172,13 @@ ifeq ($(OP2_COMPILER),hipsycl)
   else
     CCFLAGS  = -O3
   endif
-  CXX	    = g++
-  SYCLCXX = syclcc-clang
+  CXX	    = clang++-14
+  SYCLCXX = syclcc
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
+  SYCL_FLAGS = --opensycl-targets=hip:gfx90a -Xclang -mlink-bitcode-file -Xclang /opt/rocm-5.4.2/amdgcn/bitcode/oclc_abi_version_400.bc
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
@@ -208,7 +211,7 @@ else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
 ifeq ($(OP2_COMPILER),hipsycl)
-  SYCL_FLAGS = --hipsycl-gpu-arch=sm_35
+#  SYCL_FLAGS = --hipsycl-gpu-arch=sm_35
 endif
 else
 ifeq ($(NV_ARCH),Maxwell)
@@ -217,13 +220,13 @@ else
 ifeq ($(NV_ARCH),Pascal)
   CODE_GEN_CUDA=-gencode arch=compute_60,code=sm_60
 ifeq ($(OP2_COMPILER),hipsycl)
-  SYCL_FLAGS = --hipsycl-gpu-arch=sm_60
+#  SYCL_FLAGS = --hipsycl-gpu-arch=sm_60
 endif
 else
 ifeq ($(NV_ARCH),Volta)
   CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
 ifeq ($(OP2_COMPILER),hipsycl)
-  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
+#  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
 endif
 endif
 endif
