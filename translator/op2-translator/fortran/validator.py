@@ -43,19 +43,34 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         )
         return
 
-    # Check parameter/const conflict
+    # Check parameter/const conflict and const writes
     const_ptrs = app.constPtrs()
+
     violations = []
+    read_violations = []
 
     for entity in entities:
+        const_param_aliases = set()
+
         for idx, param in enumerate(entity.parameters):
             if param not in const_ptrs:
                 continue
 
+            const_param_aliases.add(param)
             violations.append(f"In {entity.name}: parameter {idx + 1} ({param})")
+
+        for const_ptr in const_ptrs:
+            if const_ptr in const_param_aliases:
+                continue
+
+            checkConstRead(entity, const_ptr, read_violations)
 
     if len(violations) > 0:
         printViolations(loop, "subroutine/function parameter and const conflict", violations)
+
+    if len(read_violations) > 0:
+        printViolations(loop, "const written", read_violations)
+        loop.fallback = True
 
     # Check for disallowed statements (IO, exit, ...)
     # for entity in entities:
@@ -195,6 +210,18 @@ def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations
                     continue
 
         violations.append(msg(f"{fu.getItem(node).line}"))
+
+
+def checkConstRead(func: Function, const_ptr: str, violations: List[str]) -> None:
+    execution_part = fpu.get_child(func.ast, f2003.Execution_Part)
+    assert execution_part != None
+
+    def msg(s: str) -> str:
+        return f"In {func.name} (const {const_ptr}): {s}"
+
+    for node in fpu.walk(execution_part, f2003.Assignment_Stmt):
+        if fu.isRef(node.items[0], const_ptr):
+            violations.append(msg(f"{fu.getItem(node).line}"))
 
 
 def checkRead(func: Function, param_idx: int, violations: List[str]) -> None:
