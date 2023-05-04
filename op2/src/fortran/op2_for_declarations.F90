@@ -303,6 +303,13 @@ module OP2_Fortran_Declarations
 
     end function op_check_whitelist_c
 
+    subroutine op_disable_mpi_reductions_c(disable) bind(C,name='op_disable_mpi_reductions')
+
+      use, intrinsic :: ISO_C_BINDING
+      logical(kind=c_bool), value :: disable
+
+    end subroutine op_disable_mpi_reductions_c
+
     subroutine op_register_set_c (idx, set) BIND(C,name='op_register_set')
       use, intrinsic :: ISO_C_BINDING
       integer(kind=c_int), intent(in), value :: idx
@@ -1101,6 +1108,13 @@ contains
     res = op_check_whitelist_c(name // C_NULL_CHAR)
 
   end function op_check_whitelist
+
+  subroutine op_disable_mpi_reductions(disable)
+
+    logical, value :: disable
+    call op_disable_mpi_reductions_c(logical(disable, kind=c_bool))
+
+  end subroutine
 
   subroutine op_register_set(idx, set)
     integer(kind=c_int), value, intent(in) :: idx
