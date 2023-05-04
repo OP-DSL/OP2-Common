@@ -83,6 +83,7 @@ extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
 extern int OP_mpi_test_frequency;
 extern int OP_partial_exchange;
+extern int OP_disable_mpi_reductions;
 
 /*
  * enum list for op_par_loop
@@ -294,6 +295,8 @@ int op_get_size(op_set set);
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 
 bool op_check_whitelist(const char *name);
+
+void op_disable_mpi_reductions(bool disable);
 
 void op_upload_dat(op_dat dat);
 
