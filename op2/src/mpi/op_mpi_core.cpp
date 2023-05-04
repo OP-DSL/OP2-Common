@@ -2070,6 +2070,9 @@ static void set_dirtybit(op_arg *arg, int hd) {
 }
 
 void op_mpi_reduce_combined(op_arg *args, int nargs) {
+  if (OP_disable_mpi_reductions)
+    return;
+
   op_timers_core(&c1, &t1);
   int nreductions = 0;
   for (int i = 0; i < nargs; i++) {
@@ -2259,6 +2262,9 @@ void op_mpi_reduce_combined(op_arg *args, int nargs) {
 }
 
 void op_mpi_reduce_float(op_arg *arg, float *data) {
+  if (OP_disable_mpi_reductions)
+    return;
+
   if (arg->data == NULL)
     return;
   (void)data;
@@ -2313,6 +2319,9 @@ void op_mpi_reduce_float(op_arg *arg, float *data) {
 }
 
 void op_mpi_reduce_double(op_arg *arg, double *data) {
+  if (OP_disable_mpi_reductions)
+    return;
+
   (void)data;
   if (arg->data == NULL)
     return;
@@ -2367,6 +2376,9 @@ void op_mpi_reduce_double(op_arg *arg, double *data) {
 }
 
 void op_mpi_reduce_int(op_arg *arg, int *data) {
+  if (OP_disable_mpi_reductions)
+    return;
+
   (void)data;
   if (arg->data == NULL)
     return;
@@ -2421,6 +2433,9 @@ void op_mpi_reduce_int(op_arg *arg, int *data) {
 }
 
 void op_mpi_reduce_bool(op_arg *arg, bool *data) {
+  if (OP_disable_mpi_reductions)
+    return;
+
   (void)data;
   if (arg->data == NULL)
     return;

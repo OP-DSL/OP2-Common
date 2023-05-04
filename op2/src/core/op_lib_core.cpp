@@ -65,6 +65,8 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
 int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
 
+int OP_disable_mpi_reductions = 0;
+
 std::vector<std::regex> OP_whitelist = {};
 
 /*
@@ -153,6 +155,10 @@ bool op_check_whitelist(const char *name) {
   }
 
   return false;
+}
+
+void op_disable_mpi_reductions(bool disable) {
+  OP_disable_mpi_reductions = disable;
 }
 
 /* Special function to get commandline arguments, articularly useful as argv
