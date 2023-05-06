@@ -131,7 +131,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
   else:
       loop_over_blocks=0
 
-  intel = 1
+  intel = 0
 ##########################################################################
 #  create new kernel file
 ##########################################################################

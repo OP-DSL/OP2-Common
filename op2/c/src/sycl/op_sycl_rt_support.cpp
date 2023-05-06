@@ -44,7 +44,7 @@
 #include <string.h>
 #include <iostream>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 //#include <math_constants.h>
 
 #include <op_sycl_rt_support.h>

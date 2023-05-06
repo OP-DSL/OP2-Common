@@ -158,13 +158,14 @@ ifeq ($(OP2_COMPILER),intel-sycl)
   else
     CCFLAGS  = -g -O3 -fPIC
   endif
-  CXX       = dpcpp
-  SYCLCXX   = dpcpp
+  CXX       = clang++
+  SYCLCXX   = clang++
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -fsycl #-I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
+  SYCL_FLAGS = -fsycl -fsycl-targets=nvptx64-nvidia-cuda
+#-I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
@@ -172,13 +173,14 @@ ifeq ($(OP2_COMPILER),hipsycl)
   else
     CCFLAGS  = -O3
   endif
-  CXX	    = clang++-14
+  CXX	    = clang++
   SYCLCXX = syclcc
+  SYCL_FLAGS = --opensycl-targets=cuda:sm_80 -L/usr/lib64/boost1.78/
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = --opensycl-targets=hip:gfx90a -Xclang -mlink-bitcode-file -Xclang /opt/rocm-5.4.2/amdgcn/bitcode/oclc_abi_version_400.bc
+  #SYCL_FLAGS = --opensycl-targets=hip:gfx90a -Xclang -mlink-bitcode-file -Xclang /opt/rocm-5.4.2/amdgcn/bitcode/oclc_abi_version_400.bc
 else
 print:
 	@echo "unrecognised value for OP2_COMPILER. Set to one of: gnu, intel, xl, pgi, cray"
@@ -276,7 +278,7 @@ core: mklib $(INC)/op_lib_core.h $(SRC)/core/op_lib_core.c
 	$(CXX) $(CXXFLAGS) -I$(INC) -c $(SRC)/externlib/op_util.c -o $(OBJ)/op_util.o
 
 hdf5: mklib $(SRC)/externlib/op_hdf5.c $(INC)/op_hdf5.h
-	$(CXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
+	$(MPICXX) $(CXXFLAGS) -I$(INC) $(HDF5_INC) -c $(SRC)/externlib/op_hdf5.c \
 	-o $(OBJ)/op_hdf5.o
 
 	ar -r $(LIB)/libop2_hdf5.a $(OBJ)/op_hdf5.o $(OBJ)/op_util.o
@@ -411,13 +413,13 @@ mpi_sycl: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	-o $(OBJ)/op_mpi_core.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/core/op_rt_support.c \
 	-o $(OBJ)/op_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -DOPMPI \
+	$(MPICXX) $(MPIFLAGS) $(SYCL_FLAGS) -I$(INC) -DOPMPI \
 	-c $(SRC)/sycl/op_sycl_rt_support.cpp \
 	-o $(OBJ)/op_sycl_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) \
+	$(MPICXX) $(MPIFLAGS) $(SYCL_FLAGS) -I$(INC) \
 	-c $(SRC)/mpi/op_mpi_sycl_rt_support.cpp \
 	-o $(OBJ)/op_mpi_sycl_rt_support.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) \
+	$(MPICXX) $(MPIFLAGS) $(SYCL_FLAGS) -I$(INC) \
 	-c $(SRC)/mpi/op_mpi_sycl_decl.cpp \
 	-o $(OBJ)/op_mpi_sycl_decl.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(PARMETIS_INC) $(PTSCOTCH_INC) \
@@ -426,7 +428,7 @@ mpi_sycl: mklib $(SRC)/mpi/op_mpi_part_core.c \
 	$(MPICXX) $(MPIFLAGS) -I$(INC) $(HDF5_INC) \
 	-c $(SRC)/mpi/op_mpi_hdf5.c \
 	-o $(OBJ)/op_mpi_hdf5.o
-	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_sycl_kernels.cpp \
+	$(MPICXX) $(MPIFLAGS) $(SYCL_FLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_sycl_kernels.cpp \
 	-o $(OBJ)/op_mpi_sycl_kernels.o
 	$(MPICXX) $(MPIFLAGS) -I$(INC) -c $(SRC)/mpi/op_mpi_util.cpp \
 	-o $(OBJ)/op_mpi_util.o
