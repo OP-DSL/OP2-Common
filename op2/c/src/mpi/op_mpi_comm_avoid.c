@@ -1959,8 +1959,8 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
       export_h_lists[2 * l + 1] = OP_aug_export_nonexec_lists[set->index][l];
     }
 
-    OP_merged_import_exec_nonexec_list[set->index] = merge_halo_lists(2 * halo_merge_count, import_h_lists, my_rank, comm_size);
-    OP_merged_export_exec_nonexec_list[set->index] = merge_halo_lists(2 * halo_merge_count, export_h_lists, my_rank, comm_size);
+    OP_merged_import_exec_nonexec_list[set->index] = merge_halo_lists(2 * halo_merge_count, import_h_lists, my_rank, 1);
+    OP_merged_export_exec_nonexec_list[set->index] = merge_halo_lists(2 * halo_merge_count, export_h_lists, my_rank, 1);
 
     for(int l = 1; l < max_nhalos; l++){
       op_single_halo_destroy(OP_aug_import_exec_lists[set->index][l]); 
@@ -2593,10 +2593,10 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
   }
 }
 #endif
-void set_group_halo_envt(){
+void set_group_halo_envt(int max_dat_count){
 
   grp_tag = 100;
-  int max_dat_count = 5;  // 1 for optimistic, 16 for pessimistic - MGCFD
+  // int max_dat_count = 32;  // 1 for optimistic, 16 for pessimistic - MGCFD
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -3070,9 +3070,9 @@ void op_halo_create_comm_avoid() {
   time = wall_t2 - wall_t1;
 
   // op_printf("my_rank=%d merge_exec_nonexec_halos\n", my_rank);
-  merge_exec_nonexec_halos(1, my_rank, comm_size);
-
-  set_group_halo_envt();
+  // moved after mgcfd dataset creation. should be called inside mgcfd
+  // merge_exec_nonexec_halos(1, my_rank, comm_size);
+  // set_group_halo_envt();
 
   for (int i = 0; i < OP_set_index; i++) {
     op_free(part_range[i]);
@@ -3086,6 +3086,11 @@ void op_halo_create_comm_avoid() {
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
   step12(part_range, max_time, my_rank, comm_size);
 
+}
+
+void merge_halos(int max_dat_count){
+  merge_exec_nonexec_halos(1, 1, 1);
+  set_group_halo_envt(max_dat_count);
 }
 
 void op_halo_destroy_comm_avoid() {

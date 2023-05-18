@@ -52,6 +52,8 @@ int find_element_in(int* arr, int element);
 int get_max_value(int* arr, int from, int to);
 void calculate_dat_sizes(int my_rank);
 void calculate_set_sizes(int my_rank);
+void set_group_halo_envt(int max_dat_count);
+void merge_halos(int max_dat_count);
 int op_get_map_dat_max_size(int* map);
 void op_remove_aug_map(op_map map, int map_id);
 
