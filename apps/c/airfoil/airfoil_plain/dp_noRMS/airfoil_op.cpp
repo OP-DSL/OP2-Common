@@ -272,6 +272,8 @@ int main(int argc, char **argv) {
   #ifdef SLOPE
   int avgTileSize = 5000;
   int seedTilePoint = 0;
+  if(argc > 1)
+    avgTileSize = atoi(argv[1]);
 
   // sets
   set_t* sl_nodes = set("nodes", nnode);
