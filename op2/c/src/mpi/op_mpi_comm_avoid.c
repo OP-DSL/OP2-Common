@@ -3630,8 +3630,8 @@ void op_halo_create_comm_avoid() {
   // compute import/export lists creation time
   time = wall_t2 - wall_t1;
 
-  // calculate_dat_sizes(my_rank);
-  // calculate_set_sizes(my_rank);
+  calculate_dat_sizes(my_rank);
+  calculate_set_sizes(my_rank);
 
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
 
@@ -3776,15 +3776,7 @@ int op_get_map_dat_max_size(int* map){
     return 0;
   }else{
     int max_level = item_map->halo_info->max_nhalos;
-    int exec_size = 0;
-    for(int l = 0; l < max_level; l++){
-      exec_size += OP_aug_import_exec_lists[l][item_map->from->index]->size;
-    }
-    int nonexec_size = 0;
-    for(int l = 0; l < max_level - 1; l++){ // last non exec level is not included. non exec mappings are not included in maps
-      nonexec_size += OP_aug_import_nonexec_lists[l][item_map->from->index]->size;
-    }
-    int total_map_size = item_map->from->size + exec_size + nonexec_size;
+    int total_map_size = get_halo_end_size(item_map->from, max_level);
     return total_map_size;
   }
 }
