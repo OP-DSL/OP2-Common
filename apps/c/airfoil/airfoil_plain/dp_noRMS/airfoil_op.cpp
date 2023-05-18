@@ -352,12 +352,12 @@ int main(int argc, char **argv) {
           tileLoopSize = tile_loop_size (tile, 0);
 
           for (int k = 0; k < tileLoopSize; k++) {
-            adt_calc (x + lc2n_0[k*4 + 0]*2,
-                      x + lc2n_0[k*4 + 1]*2,
-                      x + lc2n_0[k*4 + 2]*2,
-                      x + lc2n_0[k*4 + 3]*2,
-                      q + iterations_0[k]*4,
-                      adt + iterations_0[k]);
+            adt_calc (&((double*)(p_x->data))[lc2n_0[k*4 + 0] * 2],
+                      &((double*)(p_x->data))[lc2n_0[k*4 + 1] * 2],
+                      &((double*)(p_x->data))[lc2n_0[k*4 + 2] * 2],
+                      &((double*)(p_x->data))[lc2n_0[k*4 + 3] * 2],
+                      &((double*)(p_q->data))[iterations_0[k] * 4],
+                      &((double*)(p_adt->data))[iterations_0[k] * 1]);
           }
 
           // loop res_calc
@@ -367,14 +367,14 @@ int main(int argc, char **argv) {
           tileLoopSize = tile_loop_size (tile, 1);
 
           for (int k = 0; k < tileLoopSize; k++) {
-            res_calc (x + le2n_1[k*2 + 0]*2,
-                      x + le2n_1[k*2 + 1]*2,
-                      q + le2c_1[k*2 + 0]*4,
-                      q + le2c_1[k*2 + 1]*4,
-                      adt + le2c_1[k*2 + 0]*1,
-                      adt + le2c_1[k*2 + 1]*1,
-                      res + le2c_1[k*2 + 0]*4,
-                      res + le2c_1[k*2 + 1]*4);
+            res_calc (&((double*)(p_x->data))[le2n_1[k*2 + 0] * 2],
+                      &((double*)(p_x->data))[le2n_1[k*2 + 1] * 2],
+                      &((double*)(p_q->data))[le2c_1[k*2 + 0] * 4],
+                      &((double*)(p_q->data))[le2c_1[k*2 + 1] * 4],
+                      &((double*)(p_adt->data))[le2c_1[k*2 + 0] * 1],
+                      &((double*)(p_adt->data))[le2c_1[k*2 + 1] * 1],
+                      &((double*)(p_res->data))[le2c_1[k*2 + 0] * 4],
+                      &((double*)(p_res->data))[le2c_1[k*2 + 1] * 4]);
           }
 
           // loop bres_calc
@@ -384,12 +384,12 @@ int main(int argc, char **argv) {
           tileLoopSize = tile_loop_size (tile, 2);
 
           for (int k = 0; k < tileLoopSize; k++) {
-            bres_calc (x + lbe2n_2[k*2 + 0]*2,
-                       x + lbe2n_2[k*2 + 1]*2,
-                       q + lbe2c_2[k + 0]*4,
-                       adt + lbe2c_2[k + 0]*1,
-                       res + lbe2c_2[k + 0]*4,
-                       bound + iterations_2[k]);
+            bres_calc (&((double*)(p_x->data))[lbe2n_2[k*2 + 0] * 2],
+                       &((double*)(p_x->data))[lbe2n_2[k*2 + 1] * 2],
+                       &((double*)(p_q->data))[lbe2c_2[k + 0] * 4],
+                       &((double*)(p_adt->data))[lbe2c_2[k + 0] * 1],
+                       &((double*)(p_res->data))[lbe2c_2[k + 0] * 4],
+                       &((int*)(p_bound->data))[iterations_2[k] * 1]);
           }
 
           // loop update
@@ -397,10 +397,10 @@ int main(int argc, char **argv) {
           tileLoopSize = tile_loop_size (tile, 3);
 
           for (int k = 0; k < tileLoopSize; k++) {
-            update    (qold + iterations_3[k]*4,
-                       q + iterations_3[k]*4,
-                       res + iterations_3[k]*4,
-                       adt + iterations_3[k]);
+            update    (&((double*)(p_qold->data))[iterations_3[k] * 4],
+                       &((double*)(p_q->data))[iterations_3[k] * 4],
+                       &((double*)(p_res->data))[iterations_3[k] * 4],
+                       &((double*)(p_adt->data))[iterations_3[k] * 1]);
           }
         }
       }
