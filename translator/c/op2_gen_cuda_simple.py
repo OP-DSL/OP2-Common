@@ -114,8 +114,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
 #Optimization settings
     inc_stage=0
-    op_color2_force=0
-    atomics=1
+    op_color2_force=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -974,7 +974,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 # transfer global reduction initial data
 #
 
-    if ninds == 0 or atomics:
+    if ninds == 0 or atomics or op_color2:
       comm('set CUDA execution parameters')
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('  int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
@@ -990,9 +990,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       comm('transfer global reduction data to GPU')
       if ninds>0 and not atomics:
         code('int maxblocks = 0;')
-        FOR('col','0','Plan->ncolors')
-        code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
-        ENDFOR()
+        if op_color2:
+          FOR('col','0','Plan->ncolors')
+          code('int start = Plan->col_offsets[0][col];')
+          code('int end = Plan->col_offsets[0][col+1];')
+          code('int nblocks = (end - start - 1)/nthread + 1;')
+          code('maxblocks = MAX(maxblocks,nblocks);')
+          ENDFOR()
+        else:
+          FOR('col','0','Plan->ncolors')
+          code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
+          ENDFOR()
       elif atomics and ninds>0:
         code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
       else:
@@ -1038,12 +1046,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('op_mpi_wait_all_grouped(nargs, args, 2);')
       #code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
-      code('#ifdef OP_BLOCK_SIZE_'+str(nk))
-      code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
-      code('#else')
-      code('int nthread = OP_block_size;')
-      code('#endif')
-      code('')
+      if not op_color2:
+        code('#ifdef OP_BLOCK_SIZE_'+str(nk))
+        code('int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
+        code('#else')
+        code('int nthread = OP_block_size;')
+        code('#endif')
+        code('')
       if op_color2:
         code('int start = Plan->col_offsets[0][col];')
         code('int end = Plan->col_offsets[0][col+1];')

@@ -689,6 +689,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
     int repeat = 1;
     int ncolor = 0;
     int ncolors = 0;
+    int repeat_color2 = 1;
 
     while (repeat) {
       repeat = 0;
@@ -702,9 +703,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
       for (int e = prev_offset; e < next_offset; e++) {
         if (OP_plans[ip].thrcol[e] == -1) {
+          if (staging == OP_COLOR2 && indirect_reduce && e >= set->size && repeat_color2) {
+            continue;
+          }
           int mask = 0;
           if (staging == OP_COLOR2 && halo_exchange && 
               e >= set->core_size && set->core_size>0 && //if element needs halo axchange to finish
+              e < set->size && //if element is is owned by this rank
               ncolor == 0)
             mask = 1;
           for (int m = 0; m < nargs; m++)
@@ -732,7 +737,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
         }
       }
 
-      ncolor += 32; /* increment base level */
+      if (staging == OP_COLOR2 && indirect_reduce && (repeat == 0) && repeat_color2) {
+        repeat_color2 = 0;
+        repeat = 1;
+        ncolor = ncolors;
+        OP_plans[ip].ncolors_owned = ncolors;
+      } else
+        ncolor += 32; /* increment base level */
     }
 
     OP_plans[ip].nthrcol[b] =
@@ -833,7 +844,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
             OP_plans[ip].ncolors_core = ncolors;
           for (int shifter = 0; shifter < OP_plans[ip].ncolors_core-ncolor; shifter++)
             mask |= 1 << shifter;
-          if (prev_offset == set->size && indirect_reduce)
+          if (prev_offset == set->size && indirect_reduce && staging != OP_COLOR2)
             OP_plans[ip].ncolors_owned = ncolors;
           for (int shifter = OP_plans[ip].ncolors_core;
                indirect_reduce && shifter < OP_plans[ip].ncolors_owned-ncolor;
