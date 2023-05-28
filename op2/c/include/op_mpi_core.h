@@ -433,10 +433,10 @@ void step10(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, 
 void step11(int **part_range, int ** core_elems, int ** exp_elems, int my_rank, int comm_size);
 void step12(int **part_range, double max_time, int my_rank, int comm_size);
 
-int get_set_size_with_nhalos(op_set set, int nhalos);
-int get_halo_start_size(op_set set, int nhalos);
-int get_halo_end_size(op_set set, int nhalos);
-int get_set_core_size(op_set set, int nhalos);
+// int get_set_size_with_nhalos(op_set set, int nhalos);
+// int get_halo_start_size(op_set set, int nhalos);
+// int get_halo_end_size(op_set set, int nhalos);
+// int get_set_core_size(op_set set, int nhalos);
 void op_mpi_halo_exchange_summary();
 int is_dat_dirty(op_arg* arg);
 void set_dat_dirty(op_arg* arg);

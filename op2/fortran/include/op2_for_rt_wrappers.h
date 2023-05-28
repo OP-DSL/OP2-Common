@@ -14,7 +14,7 @@ void checkCMapping (op_arg arg);
 
 op_plan * checkExistingPlan (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
-  int indsNumber, int inds[]);
+  int indsNumber, int inds[], int nhalos, int ncore);
 
 /*
  *  These functions scan all declared mappings and decrement/increment their
@@ -27,7 +27,7 @@ void increment_all_mappings ();
 
 op_plan * FortranPlanCaller (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
-  int indsNumber, int inds[], int staging);
+  int indsNumber, int inds[], int staging, int nhalos, int ncore);
 
 void prepareScratch (op_arg *args, int nargs, int nthreads);
 

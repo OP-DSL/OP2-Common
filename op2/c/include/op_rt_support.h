@@ -86,6 +86,7 @@ typedef struct {
   float transfer2;   /* bytes of cache line per kernel call */
   int count;         /* number of times called */
   int nhalos;
+  int ncore;
 } op_plan;
 
 extern op_plan *OP_plans;
@@ -99,18 +100,18 @@ op_plan *op_plan_old_core(char const *, op_set, int, int, op_dat *, int *,
                           int *);
 
 op_plan *op_plan_core(char const *, op_set, int, int, op_arg *, int, int *,
-                      int);
+                      int, int, int);
 
 op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging);
+                           int staging, int nhalos, int ncore);
 
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging, int upload);
+                           int staging, int upload, int nhalos, int ncore);
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
-                     op_arg *args, int ninds, int *inds);
+                     op_arg *args, int ninds, int *inds, int nhalos, int ncore);
 
 void op_plan_check(op_plan OP_plan, int ninds, int *inds);
 
@@ -119,6 +120,11 @@ void op_rt_exit(void);
 bool op_type_equivalence(const char *a, const char *b);
 
 int getSetSizeFromOpArg(op_arg *arg);
+
+int get_set_size_with_nhalos(op_set set, int nhalos);
+int get_halo_start_size(op_set set, int nhalos);
+int get_halo_end_size(op_set set, int nhalos);
+int get_set_core_size(op_set set, int nhalos);
 
 #ifdef __cplusplus
 }

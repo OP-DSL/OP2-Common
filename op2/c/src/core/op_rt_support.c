@@ -134,11 +134,12 @@ void op_plan_check(op_plan OP_plan, int ninds, int *inds) {
     if (OP_plan.idxs[m] != -1 &&
         OP_plan.accs[m] != OP_READ) // if it needs exchaning
     {
-// #ifdef COMM_AVOID_CUDA
-//       exec_length += OP_plan.set->exec_sizes[OP_plan.nhalos - 1];
-// #else
-      exec_length += OP_plan.set->exec_size;
-// #endif
+      #ifdef COMM_AVOID_CUDA
+        int nhalos = OP_plan.nhalos;
+        exec_length =  get_halo_end_size(OP_plan.set, nhalos);
+      #else
+        exec_length += OP_plan.set->exec_size;
+      #endif
       break;
     }
   }
@@ -237,9 +238,17 @@ void op_plan_check(op_plan OP_plan, int ninds, int *inds) {
       m2++;
     if (OP_plan.maps[m2] == NULL)
       continue; // it is a deactivated optional argument
-    int halo_size = (OP_plan.maps[m2]->to)->exec_size +
+    int halo_size = 0;
+    int set_size = 0;
+    if(OP_plan.nhalos > 1){
+      halo_size = (OP_plan.maps[m2]->to)->total_exec_size +
+                    (OP_plan.maps[m2]->to)->total_nonexec_size;
+      set_size = OP_plan.maps[m2]->to->size + halo_size;
+    }else{
+      halo_size = (OP_plan.maps[m2]->to)->exec_size +
                     (OP_plan.maps[m2]->to)->nonexec_size;
-    int set_size = OP_plan.maps[m2]->to->size + halo_size;
+      set_size = OP_plan.maps[m2]->to->size + halo_size;
+    }
 
     ntot = 0;
 
@@ -278,7 +287,11 @@ void op_plan_check(op_plan OP_plan, int ninds, int *inds) {
           int p_local = OP_plan.loc_maps[m][e];
           int p_global =
               OP_plan.ind_maps[m2][p_local + OP_plan.ind_offs[m2 + n * ninds]];
+#ifdef COMM_AVOID_CUDA
+          err += (p_global != map->aug_maps[OP_plan.nhalos - 1][OP_plan.idxs[m] + e * map->dim]);
+#else
           err += (p_global != map->map[OP_plan.idxs[m] + e * map->dim]);
+#endif
         }
         ntot += OP_plan.nelems[n];
       }
@@ -303,16 +316,33 @@ void op_plan_check(op_plan OP_plan, int ninds, int *inds) {
  */
 
 op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
-                      op_arg *args, int ninds, int *inds, int staging) {
+                      op_arg *args, int ninds, int *inds, int staging, int nhalos, int ncore) {
+
+  int debug = 0;
+  int map_index = 0;
   // set exec length
   int exec_length = set->size;
+  int core_size = 0;
   for (int i = 0; i < nargs; i++) {
     if (args[i].opt && args[i].idx != -1 && args[i].acc != OP_READ) {
-// #ifdef COMM_AVOID_CUDA
-//       exec_length += set->exec_sizes[args[i].nhalos - 1];
-// #else
+#ifdef COMM_AVOID_CUDA
+
+      if(nhalos > 1){
+        exec_length =  get_halo_end_size(set, nhalos);
+        core_size = set->core_sizes[ncore - 1];
+      }else{
+        exec_length += set->exec_size;
+        core_size = set->core_size;
+      }
+      map_index = args[i].nhalos_index - 1; 
+      // if(nhalos > 1) 
+      // op_printf("name=%s set=%s nhalos=%d ncore=%d nargs=%d exec_length=%d core_size=%d map_index=%d\n", 
+      // name, set->name, nhalos, ncore, nargs, exec_length, core_size, map_index);
+#else
       exec_length += set->exec_size;
-// #endif
+      core_size = set->core_size;
+      // op_printf("name=%s set=%s nhalos=%d nargs=%d exec_length=%d core_size=%d\n", name, set->name, nhalos, nargs, exec_length, core_size);
+#endif
       break;
     }
   }
@@ -324,6 +354,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   while (match == 0 && ip < OP_plan_index) {
     if ((strcmp(name, OP_plans[ip].name) == 0) && (set == OP_plans[ip].set) &&
         (nargs == OP_plans[ip].nargs) && (ninds == OP_plans[ip].ninds) &&
+        (nhalos == OP_plans[ip].nhalos) && (ncore == OP_plans[ip].ncore) &&
         (part_size == OP_plans[ip].part_size)) {
       match = 1;
       for (int m = 0; m < nargs; m++) {
@@ -436,8 +467,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
   while (next_offset < exec_length) {
     prev_offset = next_offset;
-    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
-      next_offset = set->core_size;
+    if (prev_offset + bsize >= core_size && prev_offset < core_size) {
+      next_offset = core_size;
     } else if (prev_offset + bsize >= set->size && prev_offset < set->size &&
                indirect_reduce) {
       next_offset = set->size;
@@ -549,7 +580,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 // #ifdef COMM_AVOID_CUDA
 //   OP_plans[ip].nhalos = args[0].nhalos; //all the args has the same nhalos
 // #else
-  OP_plans[ip].nhalos = 1;
+  OP_plans[ip].nhalos = nhalos;
+  OP_plans[ip].ncore = ncore;
 // #endif
   OP_plan_index++;
 
@@ -580,8 +612,19 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
       continue;
     }
 
-    int to_size = (maps[m2]->to)->exec_size + (maps[m2]->to)->nonexec_size +
-                  (maps[m2]->to)->size;
+    int to_size = 0;
+    // if(nhalos > 1){
+    #ifdef COMM_AVOID_CUDA
+      to_size = (maps[m2]->to)->total_exec_size + (maps[m2]->to)->total_nonexec_size +
+                    (maps[m2]->to)->size;
+      // to_size = get_halo_end_size(maps[m2]->to, nhalos);
+      // printf("===maps=%s to_size=%d\n", maps[m2]->to->name, to_size);
+    #else
+    // }else{
+      to_size = (maps[m2]->to)->exec_size + (maps[m2]->to)->nonexec_size +
+                    (maps[m2]->to)->size;
+    #endif
+    // }
     work[m] = (uint *)op_malloc(to_size * sizeof(uint));
   }
 
@@ -597,8 +640,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   next_offset = 0;
   for (int b = 0; b < nblocks; b++) {
     prev_offset = next_offset;
-    if (prev_offset + bsize >= set->core_size && prev_offset < set->core_size) {
-      next_offset = set->core_size;
+    if (prev_offset + bsize >= core_size && prev_offset < core_size) {
+      next_offset = core_size;
     } else if (prev_offset + bsize >= set->size && prev_offset < set->size &&
                indirect_reduce) {
       next_offset = set->size;
@@ -642,8 +685,13 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
       int ne = 0; /* number of elements */
       for (int m2 = 0; m2 < nargs; m2++) {
         if (inds[m2] == m) {
-          for (int e = prev_offset; e < next_offset; e++)
+          for (int e = prev_offset; e < next_offset; e++){
+#ifdef COMM_AVOID_CUDA
+            work2[ne++] = maps[m2]->aug_maps[map_index][idxs[m2] + e * maps[m2]->dim];
+#else
             work2[ne++] = maps[m2]->map[idxs[m2] + e * maps[m2]->dim];
+#endif
+          }
         }
       }
 
@@ -675,9 +723,16 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
       for (int m2 = 0; m2 < nargs; m2++) {
         if (inds[m2] == m) {
-          for (int e = prev_offset; e < next_offset; e++)
+          for (int e = prev_offset; e < next_offset; e++){
+#ifdef COMM_AVOID_CUDA
+            OP_plans[ip].loc_maps[m2][e] =
+                (short)(work[m][maps[m2]->aug_maps[map_index][idxs[m2] + e * maps[m2]->dim]]);
+#else
             OP_plans[ip].loc_maps[m2][e] =
                 (short)(work[m][maps[m2]->map[idxs[m2] + e * maps[m2]->dim]]);
+#endif            
+          }
+            
         }
       }
 
@@ -706,26 +761,44 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
       repeat = 0;
 
       for (int m = 0; m < nargs; m++) {
-        if (inds[m] >= 0 && args[m].opt)
-          for (int e = prev_offset; e < next_offset; e++)
+        if (inds[m] >= 0 && args[m].opt){
+          for (int e = prev_offset; e < next_offset; e++){
+#ifdef COMM_AVOID_CUDA
+            work[inds[m]][maps[m]->aug_maps[map_index][idxs[m] + e * maps[m]->dim]] =
+                0; /* zero out color array */
+#else
             work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] =
                 0; /* zero out color array */
+#endif 
+          }
+        }
+            
       }
 
       for (int e = prev_offset; e < next_offset; e++) {
         if (OP_plans[ip].thrcol[e] == -1) {
           int mask = 0;
           if (staging == OP_COLOR2 && halo_exchange && 
-              e >= set->core_size && set->core_size>0 && //if element needs halo axchange to finish
+              e >= core_size && core_size>0 && //if element needs halo axchange to finish
               ncolor == 0)
             mask = 1;
           for (int m = 0; m < nargs; m++)
             if (inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) &&
-                args[m].opt)
-              mask |=
+                args[m].opt){
+
+#ifdef COMM_AVOID_CUDA
+            mask |=
+                  work[inds[m]]
+                      [maps[m]->aug_maps[map_index][idxs[m] +
+                                    e * maps[m]->dim]]; /* set bits of mask */
+#else
+            mask |=
                   work[inds[m]]
                       [maps[m]->map[idxs[m] +
                                     e * maps[m]->dim]]; /* set bits of mask */
+#endif 
+                }
+              
 
           int color = ffs(~mask) - 1; /* find first bit not set */
           if (color == -1) {          /* run out of colors on this pass */
@@ -735,11 +808,21 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
             mask = 1 << color;
             ncolors = MAX(ncolors, ncolor + color + 1);
 
-            for (int m = 0; m < nargs; m++)
+            for (int m = 0; m < nargs; m++){
               if (inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) &&
-                  args[m].opt)
-                work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |=
+                  args[m].opt){
+
+#ifdef COMM_AVOID_CUDA
+            work[inds[m]][maps[m]->aug_maps[map_index][idxs[m] + e * maps[m]->dim]] |=
                     mask; /* set color bit */
+#else
+            work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |=
+                    mask; /* set color bit */
+#endif 
+
+                
+              }
+            }
           }
         }
       }
@@ -813,8 +896,18 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
     for (int m = 0; m < nargs; m++) {
       if (inds[m] >= 0 && args[m].opt) {
-        int to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size +
+        int to_size = 0;
+        // if(nhalos > 1){
+        #ifdef COMM_AVOID_CUDA
+          to_size = (maps[m]->to)->total_exec_size + (maps[m]->to)->total_nonexec_size +
                       (maps[m]->to)->size;
+          // to_size = get_halo_end_size(maps[m]->to, nhalos);
+        // }else{
+        #else
+          to_size = (maps[m]->to)->exec_size + (maps[m]->to)->nonexec_size +
+                      (maps[m]->to)->size;
+        #endif
+        // }
         for (int e = 0; e < to_size; e++)
           work[inds[m]][e] = 0; // zero out color arrays
       }
@@ -824,9 +917,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
     for (int b = 0; b < nblocks; b++) {
       prev_offset = next_offset;
 
-      if (prev_offset + bsize >= set->core_size &&
-          prev_offset < set->core_size) {
-        next_offset = set->core_size;
+      if (prev_offset + bsize >= core_size &&
+          prev_offset < core_size) {
+        next_offset = core_size;
       } else if (prev_offset + bsize >= set->size && prev_offset < set->size &&
                  indirect_reduce) {
         next_offset = set->size;
@@ -838,10 +931,10 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
       }
       if (blk_col[b] == -1) { // color not yet assigned to block
         uint mask = 0;
-        if (next_offset > set->core_size) { // should not use block colors from
+        if (next_offset > core_size) { // should not use block colors from
                                             // the core set when doing the
                                             // non_core ones
-          if (prev_offset <= set->core_size)
+          if (prev_offset <= core_size)
             OP_plans[ip].ncolors_core = ncolors;
           for (int shifter = 0; shifter < OP_plans[ip].ncolors_core-ncolor; shifter++)
             mask |= 1 << shifter;
@@ -855,12 +948,23 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
         for (int m = 0; m < nargs; m++) {
           if (inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) &&
-              args[m].opt)
-            for (int e = prev_offset; e < next_offset; e++)
-              mask |= work[inds[m]]
+              args[m].opt){
+            for (int e = prev_offset; e < next_offset; e++){
+
+#ifdef COMM_AVOID_CUDA
+            mask |= work[inds[m]]
+                          [maps[m]->aug_maps[map_index][idxs[m] + e * maps[m]->dim]]; // set
+                                                                      // bits of
+                                                                      // mask
+#else
+            mask |= work[inds[m]]
                           [maps[m]->map[idxs[m] + e * maps[m]->dim]]; // set
                                                                       // bits of
                                                                       // mask
+#endif 
+              
+            }
+          }
         }
 
         int color = ffs(~mask) - 1; // find first bit not set
@@ -874,8 +978,16 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
           for (int m = 0; m < nargs; m++) {
             if (inds[m] >= 0 && (accs[m] == OP_INC || accs[m] == OP_RW) &&
                 args[m].opt)
-              for (int e = prev_offset; e < next_offset; e++)
-                work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask;
+              for (int e = prev_offset; e < next_offset; e++){
+
+#ifdef COMM_AVOID_CUDA
+            work[inds[m]][maps[m]->aug_maps[map_index][idxs[m] + e * maps[m]->dim]] |= mask;
+#else
+            work[inds[m]][maps[m]->map[idxs[m] + e * maps[m]->dim]] |= mask;
+#endif 
+
+              }
+                
           }
         }
       }

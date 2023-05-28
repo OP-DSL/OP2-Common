@@ -3206,11 +3206,15 @@ int getSetSizeFromOpArg(op_arg *arg) {
   //                    OP_import_nonexec_list[arg->dat->set->index]->size)
   //                 : 0;
 
-  return arg->opt ? (arg->dat->set->size +
-                     arg->dat->set->exec_sizes[arg->dat->set->halo_info->max_calc_nhalos - 1] +
-                    //  arg->dat->set->total_exec_size +
-                     arg->dat->set->total_nonexec_size)
+  // if(arg->nhalos > 1){
+    // return arg->opt ? get_halo_end_size(arg->dat->set, arg->nhalos)
+    //                 : 0;
+    return arg->opt ? arg->dat->set->size + arg->dat->set->total_exec_size + arg->dat->set->total_nonexec_size
                   : 0;
+  // else{
+  //   return arg->opt ? get_halo_end_size(arg->dat->set, arg->nhalos)
+  //                   : 0;
+  // }
 }
 #else
 int getSetSizeFromOpArg(op_arg *arg) {
@@ -4465,17 +4469,18 @@ void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
 }
 
 int get_set_size_with_nhalos(op_set set, int nhalos){
-  return (nhalos > set->halo_info->max_calc_nhalos) ? set->size + set->exec_sizes[set->halo_info->nhalos_indices[set->halo_info->max_calc_nhalos]] : 
-  set->size + set->exec_sizes[set->halo_info->nhalos_indices[nhalos]];
+  return (nhalos > set->halo_info->max_calc_nhalos) ? set->size + set->exec_sizes[set->halo_info->max_calc_nhalos - 1] : 
+  set->size + set->exec_sizes[nhalos - 1];
 }
 
 int get_set_core_size(op_set set, int nhalos){
-  return (nhalos > set->halo_info->max_nhalos) ? 0 : set->core_sizes[set->halo_info->nhalos_indices[nhalos]];
+  // op_printf("set=%s nhalos=%d max=%d core=%d\n", set->name, nhalos, set->halo_info->max_nhalos, set->core_sizes[nhalos - 1]);
+  return (nhalos > set->halo_info->max_nhalos) ? 0 : set->core_sizes[nhalos - 1];
 }
 
 int get_halo_start_size(op_set set, int nhalos){
   if(nhalos > set->halo_info->max_calc_nhalos){
-    printf("ERROR nhalos > max_halos\n");
+    printf("ERROR nhalos > max_halos set=%s nhalos=%d max=%d\n", set->name, nhalos, set->halo_info->max_calc_nhalos);
     return -1;
   }
   int prev_exec_size = 0;
@@ -4492,7 +4497,7 @@ int get_halo_start_size(op_set set, int nhalos){
 int get_halo_end_size(op_set set, int nhalos){
   
   if(nhalos > set->halo_info->max_calc_nhalos){
-    printf("ERROR nhalos > max_halos\n");
+    printf("ERROR nhalos > max_halos set=%s nhalos=%d max=%d\n", set->name, nhalos, set->halo_info->max_calc_nhalos);
     return -1;
   }
   int prev_exec_size = 0;

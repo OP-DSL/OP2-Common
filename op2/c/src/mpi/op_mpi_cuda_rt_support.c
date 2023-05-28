@@ -1007,7 +1007,11 @@ void op_move_to_device() {
             nonexec_size += map->from->nonexec_sizes[l];
           }
         }
-        int set_size = map->from->size + exec_size + nonexec_size;
+        int set_size = 0; //map->from->size + exec_size + nonexec_size;
+        // printf("====augmentednew my_rank=%d map=%s el=%d from=%s set_size=%d newsize=%d\n", 
+        // my_rank, map->name, el, map->from->name, set_size, get_halo_end_size(map->from, el + 1));
+
+        set_size = get_halo_end_size(map->from, el + 1);
 
         int *temp_map = (int *)xmalloc(map->dim * set_size * sizeof(int));
         for (int i = 0; i < map->dim; i++) {

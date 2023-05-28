@@ -129,7 +129,7 @@ module OP2_Fortran_RT_Support
   interface
 
     ! C wrapper to plan function for Fortran
-    type(c_ptr) function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging) &
+    type(c_ptr) function FortranPlanCaller_c (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging, nhalos, ncore) &
       & BIND(C,name='FortranPlanCaller')
 
       use, intrinsic :: ISO_C_BINDING
@@ -146,8 +146,10 @@ module OP2_Fortran_RT_Support
       integer(kind=c_int), dimension(*) :: inds
 
       integer(kind=c_int), value :: staging ! What to stage: 0 - nothing, 1 - OP_INCs, 2 - all indirectly accessed data
+      integer(kind=c_int), value :: nhalos
+      integer(kind=c_int), value :: ncore
 
-    end function FortranPlanCaller
+    end function FortranPlanCaller_c
 
     subroutine op_dat_write_index_c(set, dat) BIND(C,name='op_dat_write_index')
       use, intrinsic :: ISO_C_BINDING
@@ -619,5 +621,35 @@ module OP2_Fortran_RT_Support
 
     call op_dat_write_index_c(set%setCPtr, c_loc(dat))
   end subroutine
+
+  type(c_ptr) function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging, nhalos, ncore)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    character(kind=c_char), intent(in) ::     name(*)    ! name of kernel
+    type(c_ptr), value, intent(in) ::         set        ! iteration set
+    integer(kind=c_int), value, intent(in) :: partitionSize
+    integer(kind=c_int), value, intent(in) :: argsNumber ! number of op_dat arguments to op_par_loop
+    type(op_arg), dimension(*) :: args       ! array with op_args
+    integer(kind=c_int), value, intent(in) :: indsNumber ! number of arguments accessed indirectly via a map
+
+    ! indexes for indirectly accessed arguments (same indrectly accessed argument = same index)
+    integer(kind=c_int), dimension(*) :: inds
+
+    integer(kind=c_int), value, intent(in) :: staging ! What to stage: 0 - nothing, 1 - OP_INCs, 2 - all indirectly accessed data
+    integer(kind=c_int), optional :: nhalos
+    integer(kind=c_int), optional :: ncore
+
+    
+    if (.not.(present(nhalos))) then
+      FortranPlanCaller = FortranPlanCaller_c (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging, 1, 1)
+    else if (.not.(present(ncore))) then
+      FortranPlanCaller = FortranPlanCaller_c (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging, nhalos, 1)
+    else
+      FortranPlanCaller = FortranPlanCaller_c (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging, nhalos, ncore)
+    end if
+
+  end function FortranPlanCaller
 
 end module OP2_Fortran_RT_Support

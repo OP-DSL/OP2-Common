@@ -100,15 +100,15 @@ void op_cuda_get_data(op_dat dat);
  * (e.g. op_plan_core)
  */
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
-                     op_arg *args, int ninds, int *inds);
+                     op_arg *args, int ninds, int *inds, int nhalos, int ncore);
 
 op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging);
+                           int staging, int nhalos, int ncore);
 
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging, int upload);
+                           int staging, int upload, int nhalos, int ncore);
 
 void op_cuda_exit();
 

@@ -665,7 +665,7 @@ f_mpi_comm_avoid_cuda: directories core \
 	$(CC) $(CFLAGS_SLOW) -I$(MPI_INC) -I$(C_OP2_INC) -c $(F_OP2_SRC)/op2_C_reference.c -o $(F_OP2_OBJ)/op2_C_reference.o
 	$(CC) $(PGCFLAGS) -DCOMM_AVOID_CUDA -I$(MPI_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_core.c -o $(F_OP2_OBJ)/op_mpi_core.o
 	$(CC) $(PGCFLAGS) -DCOMM_AVOID_CUDA -I$(MPI_INC) -I$(C_OP2_INC) $(CUDA_INC) -c $(C_OP2_SRC)/mpi/op_mpi_comm_avoid.c -o $(F_OP2_OBJ)/op_mpi_comm_avoid.o
-	$(CC) $(PGCFLAGS) -DCOMM_AVOID -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_decl.c -o $(F_OP2_OBJ)/op_mpi_cuda_decl.o
+	$(CC) $(PGCFLAGS) -DCOMM_AVOID -DCOMM_AVOID_CUDA -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_decl.c -o $(F_OP2_OBJ)/op_mpi_cuda_decl.o
 	$(CC) $(PGCFLAGS) -DCOMM_AVOID_CUDA -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -DOPMPI -c $(C_OP2_SRC)/cuda/op_cuda_rt_support.c -o $(F_OP2_OBJ)/op_cuda_rt_support.o
 	$(CC) $(PGCFLAGS) -DCOMM_AVOID -I$(MPI_INC) -I$(C_OP2_INC) $(PARMETIS_INC) $(PARMETIS_LIB) $(PTSCOTCH_INC) $(PTSCOTCH_LIB) -c $(C_OP2_SRC)/mpi/op_mpi_part_core.c -o $(F_OP2_OBJ)/op_mpi_part_core.o
 	$(CC) $(PGCFLAGS) -DCOMM_AVOID -I$(MPI_INC) $(CUDA_INC) -I$(C_OP2_INC) -c $(C_OP2_SRC)/mpi/op_mpi_cuda_rt_support.c -o $(F_OP2_OBJ)/op_mpi_cuda_rt_support.o

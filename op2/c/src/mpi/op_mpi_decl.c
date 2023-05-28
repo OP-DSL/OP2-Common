@@ -326,21 +326,21 @@ void op_decl_const_char(int dim, char const *type, int typeSize, char *data,
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
-                     op_arg *args, int ninds, int *inds) {
+                     op_arg *args, int ninds, int *inds, int nhalos, int ncore) {
   return op_plan_get_stage(name, set, part_size, nargs, args, ninds, inds,
-                           OP_STAGE_ALL);
+                           OP_STAGE_ALL, nhalos, ncore);
 }
 
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging, int upload) {
-  return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
+                           int staging, int upload, int nhalos, int ncore) {
+  return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging, nhalos, ncore);
 }
 
 op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging) {
-  return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
+                           int staging, int nhalos, int ncore) {
+  return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging, nhalos, ncore);
 }
 
 void op_printf(const char *format, ...) {

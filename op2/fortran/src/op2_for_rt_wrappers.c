@@ -81,7 +81,7 @@ void checkCMapping (op_arg arg) {
 
 op_plan * checkExistingPlan (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
-  int indsNumber, int inds[]) {
+  int indsNumber, int inds[], int nhalos, int ncore) {
 
   (void)inds;
   (void)name;
@@ -94,7 +94,9 @@ op_plan * checkExistingPlan (char name[], op_set set,
         ( set == OP_plans[ip].set )
         && ( argsNumber == OP_plans[ip].nargs )
         && ( indsNumber == OP_plans[ip].ninds )
-        && ( partitionSize == OP_plans[ip].part_size ) )
+        && ( partitionSize == OP_plans[ip].part_size )
+        && ( nhalos == OP_plans[ip].nhalos )
+        && ( ncore == OP_plans[ip].ncore ) )
     {
       match = 1;
       for ( int m = 0; m < argsNumber; m++ )
@@ -122,13 +124,13 @@ op_plan * checkExistingPlan (char name[], op_set set,
 
 op_plan * FortranPlanCaller (char name[], op_set set,
   int partitionSize, int argsNumber, op_arg args[],
-  int indsNumber, int inds[], int staging) {
+  int indsNumber, int inds[], int staging, int nhalos, int ncore) {
 
   op_plan * generatedPlan = NULL;
 
   generatedPlan = checkExistingPlan (name, set,
     partitionSize, argsNumber, args,
-    indsNumber, inds);
+    indsNumber, inds, nhalos, ncore);
 
   if ( generatedPlan != NULL ) return generatedPlan;
 
@@ -141,7 +143,7 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
   /* call the C OP2 function */
   generatedPlan = op_plan_get_stage (heapName, set, partitionSize,
-    argsNumber, args, indsNumber, inds, staging);
+    argsNumber, args, indsNumber, inds, staging, nhalos, ncore);
 
   return generatedPlan;
 }

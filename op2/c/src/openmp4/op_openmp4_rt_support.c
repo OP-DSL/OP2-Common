@@ -40,23 +40,23 @@ void op_cpHostToDevice(void **data_d, void **data_h, int size) {
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
-                     op_arg *args, int ninds, int *inds) {
+                     op_arg *args, int ninds, int *inds, int nhalos, int ncore) {
   return op_plan_get_stage(name, set, part_size, nargs, args, ninds, inds,
-                           OP_STAGE_ALL);
+                           OP_STAGE_ALL, nhalos, ncore);
 }
 
 op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging) {
+                           int staging, int nhalos, int ncore) {
   return op_plan_get_stage_upload(name, set, part_size, nargs, args, ninds,
-                                  inds, staging, 1);
+                                  inds, staging, 1, nhalos, ncore);
 }
 
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging, int upload) {
+                           int staging, int upload, int nhalos, int ncore) {
   op_plan *plan =
-      op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
+      op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging, nhalos, ncore);
   if (!OP_hybrid_gpu || !upload)
     return plan;
 
