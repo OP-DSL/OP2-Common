@@ -66,6 +66,7 @@ int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
 
 int OP_disable_mpi_reductions = 0;
+int OP_cuda_reductions_mib = -1;
 
 std::vector<std::regex> OP_whitelist = {};
 
@@ -219,7 +220,6 @@ void op_set_args(int argc, char *argv) {
     OP_hybrid_balance = atof(temp + 18);
     op_printf("\n OP_hybrid_balance  = %g \n", OP_hybrid_balance);
   }
-
   pch = strstr(argv, "OP_MAPS_BASE_INDEX=");
   if (pch != NULL) {
     strncpy(temp, pch, 25);
@@ -234,6 +234,12 @@ void op_set_args(int argc, char *argv) {
       reverting to C/C++ style (i.e. 0 besed) indexing \n",
                 OP_maps_base_index);
     }
+  }
+  pch = strstr(argv, "OP_CUDA_REDUCTIONS_MIB=");
+  if (pch != NULL) {
+    strncpy(temp, pch, 30);
+    OP_cuda_reductions_mib = atoi(temp + 23);
+    op_printf("\n OP_cuda_reductions_mib  = %d \n", OP_cuda_reductions_mib);
   }
 }
 

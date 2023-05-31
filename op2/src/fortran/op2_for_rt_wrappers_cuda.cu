@@ -319,6 +319,24 @@ void prepareScratch(op_arg *args, int nargs, int nelems) {
   }
 }
 
+int getBlockLimit(op_arg *args, int nargs, int block_size) {
+    if (OP_cuda_reductions_mib < 0) return INT32_MAX;
+
+    size_t bytes_per_thread = 0;
+    for (int i = 0; i < nargs; ++i) {
+        if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
+        if (args[i].argtype == OP_ARG_GBL &&
+           (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
+
+        bytes_per_thread += args[i].size * sizeof(char);
+    }
+
+    if (bytes_per_thread == 0) return INT32_MAX;
+
+    size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
+    return std::max(max_total_reduction / ((size_t) block_size * bytes_per_thread), 1UL);
+}
+
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     prepareDeviceGblReductions(args, nargs, max_threads);
     prepareDeviceGblRWs(args, nargs);
