@@ -90,10 +90,26 @@ call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
     {% for arg in lh.args|gbl if arg.dim is none %}
     arg{{arg.id}}%dim, &
     {% endfor %}
+    start, &
+    end, &
     {% for extra_arg in varargs %}
-    {{extra_arg}}, &
+    {{extra_arg}}{{"," if not loop.last}} &
     {% endfor %}
-    set%setptr%size &
+)
+{%- endmacro -%}
+
+{%- macro init_reductions() -%}
+call op2_k_{{lh.name}}_init_reductions<<<max_blocks, block_size>>>( &
+    {% for arg in lh.args|gbl|reduction %}
+    gbl{{arg.id}}_d, &
+    {% endfor %}
+    {% for arg in lh.args|gbl|min_or_max %}
+    gbl{{arg.id}}_ref_d, &
+    {% endfor %}
+    {% for arg in lh.args|gbl|reduction if arg.dim is none %}
+    arg{{arg.id}}%dim, &
+    {% endfor %}
+    0 &
 )
 {%- endmacro -%}
 
@@ -104,14 +120,8 @@ if (err /= 0) then
     print *, "error in gpu kernel: ", "{{lh.name}}"
     print *, cudaGetErrorString(err)
 end if
-    {% if lh is direct %}
-call processDeviceGbls(args, size(args), min(set%setptr%size, block_size * num_blocks), &
-                                                              block_size * max_blocks)
-    {% elif config.atomics %}
-call processDeviceGbls(args, size(args), block_size * num_blocks, block_size * max_blocks)
-    {% elif config.color2 %}
+
 call processDeviceGbls(args, size(args), block_size * max_blocks, block_size * max_blocks)
-    {% endif %}
 {%- endmacro -%}
 
 {%- macro type_c(arg) -%}
@@ -189,13 +199,12 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 {% for arg in lh.args|gbl if arg.dim is none %}
     arg{{arg.id}}_dim, &
 {% endfor %}
-{% if lh is indirect %}
-    {{"col_reord, &\n    " if config.color2-}}
     start, &
     end, &
+{% if lh is indirect and config.color2 %}
+    col_reord, &
 {% endif %}
-    set_size, &
-    n_exec &
+    set_size &
 )
     implicit none
 
@@ -224,20 +233,63 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 {% for arg in lh.args|gbl if arg.dim is none %}
     integer(4), value :: arg{{arg.id}}_dim{{"\n" if loop.last}}
 {% endfor %}
-{% if lh is indirect %}
-    {% if config.color2 %}
+    integer(4), value :: start, end, set_size
+{% if lh is indirect and config.color2 %}
     integer(4), dimension(*) :: col_reord
-    {% endif %}
-    integer(4), value :: start, end
 {% endif %}
-    integer(4), value :: set_size, n_exec
 
     ! locals
-    integer(4) :: thread_id, d, n, ret
+    integer(4) :: thread_id, d, n, ret{{", m" if config.color2}}
 
     thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
 
+    do {{"n" if not (lh is indirect and config.color2) else "m"}} = thread_id + start, end, blockDim%x * gridDim%x
+{% if lh is indirect and config.color2 %}
+        n = col_reord(m) + 1
+
+{% endif %}
+        call {{lh.kernel}}( &
+    {% for arg in lh.args %}
+            {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
+    {% endfor %}
+        )
+    end do
+end subroutine
+
+{% if lh.args|gbl|reduction|length > 0 %}
+attributes(global) &
+subroutine op2_k_{{lh.name}}_init_reductions( &
 {% for arg in lh.args|gbl|reduction %}
+    gbl{{arg.id}}, &
+{% endfor %}
+{% for arg in lh.args|gbl|min_or_max %}
+    gbl{{arg.id}}_ref, &
+{% endfor %}
+{% for arg in lh.args|gbl|reduction if arg.dim is none %}
+    arg{{arg.id}}_dim, &
+{% endfor %}
+    dummy &
+)
+    implicit none
+
+    ! parameters
+{% for arg in lh.args|gbl|reduction %}
+    {{arg.typ}}, dimension(*) :: gbl{{arg.id}}{{"\n" if loop.last}}
+{% endfor %}
+{% for arg in lh.args|gbl|min_or_max %}
+    {{arg.typ}}, dimension(*) :: gbl{{arg.id}}_ref{{"\n" if loop.last}}
+{% endfor %}
+{% for arg in lh.args|gbl|reduction if arg.dim is none %}
+    integer(4), value :: arg{{arg.id}}_dim{{"\n" if loop.last}}
+{% endfor %}
+    integer(4), value :: dummy
+
+    ! locals
+    integer(4) :: thread_id, d
+
+    thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
+{% for arg in lh.args|gbl|reduction %}
+
     do d = 1, {{gbl_dim_w(arg)}}
         gbl{{arg.id}}(thread_id + (d - 1) * op2_stride_gbl_d) = {% if arg is inc -%}
             0
@@ -245,29 +297,10 @@ subroutine op2_k_{{lh.name}}_wrapper( &
             gbl{{arg.id}}_ref(d)
     {%- endif +%}
     end do
-
 {% endfor %}
-{% if lh is direct %}
-    do n = thread_id, n_exec, blockDim%x * gridDim%x
-        call {{lh.kernel}}( &
-    {% for arg  in lh.args %}
-            {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
-    {% endfor %}
-        )
-    end do
-{% else %}
-    if (thread_id + start <= end) then
-        n = {{"thread_id + start" if config.atomics else "col_reord(thread_id + start) + 1"}}
-
-        call {{lh.kernel}}( &
-    {% for arg in lh.args %}
-            {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
-    {% endfor %}
-        )
-    end if
-{% endif %}
 end subroutine
 
+{% endif %}
 subroutine op2_k_{{lh.name}}{{variant}}( &
     name, &
     set, &
@@ -311,11 +344,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     real(8) :: start_time, end_time
     real(4) :: transfer
 
-    integer(4) :: num_blocks, max_blocks, block_size
-
-{% if lh is indirect %}
+    integer(4) :: num_blocks, max_blocks, block_size, block_limit
     integer(4) :: start, end
-{% endif %}
 {% if lh is indirect and config.atomics %}
     integer(4), dimension(4) :: sections
 {% endif %}
@@ -338,7 +368,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
-!    print *, " op2_kernel gpu {{lh.name}}"
+    print *, " op2_kernel gpu {{lh.name}}"
 
     if (n_exec == 0) then
         call op_mpi_wait_all_grouped(size(args), args, 2)
@@ -356,13 +386,16 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     end if
 
     block_size = getblocksize(name // c_null_char, set%setptr%size)
+    block_limit = getblocklimit(args, size(args), block_size)
 
 {% if lh is direct %}
-    num_blocks = 200
+    num_blocks = (set%setptr%size + (block_size - 1)) / block_size
+    num_blocks = min(num_blocks, block_limit)
     max_blocks = num_blocks
 {% elif config.atomics %}
     max_blocks = (max(set%setptr%core_size, &
-        set%setptr%size + set%setptr%exec_size - set%setptr%core_size) - 1) / block_size + 1
+        set%setptr%size + set%setptr%exec_size - set%setptr%core_size) - 1 + (block_size - 1)) / block_size
+    max_blocks = min(max_blocks, block_limit)
 {% elif config.color2 %}
     num_dats_indirect = {{lh.dats|indirect(lh)|length}}
     dats_indirect = (/
@@ -393,7 +426,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         start = plan_color2_offsets(col)
         end = plan_color2_offsets(col + 1)
 
-        num_blocks = (end - start - 1) / block_size + 1
+        num_blocks = (end - start + (block_size - 1)) / block_size
+        num_blocks = min(num_blocks, block_limit)
         max_blocks = max(max_blocks, num_blocks)
     end do
 {% endif %}
@@ -450,7 +484,14 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     gbl{{arg.id}}_ref_d = gbl{{arg.id}}
 
 {% endfor %}
+{% if lh.args|gbl|reduction|length > 0 %}
+    {{init_reductions()|indent}}
+
+{% endif %}
 {% if lh is direct %}
+    start = 0
+    end = set%setptr%size
+
     {{kernel_call("set%setptr%size")|indent}}{{"\n" if lh.args|gbl|reject("read")|list|length > 0}}
     {{process_gbls()|indent}}
 {% elif config.atomics %}
@@ -469,8 +510,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         end = sections(round + 1)
 
         if (end - start > 0) then
-            num_blocks = (end - start - 1) / block_size + 1
-            {{kernel_call("start", "end", "set%setptr%size + set%setptr%exec_size")|indent(12)}}
+            num_blocks = (end - start + (block_size - 1)) / block_size
+            num_blocks = min(num_blocks, block_limit)
+
+            {{kernel_call("set%setptr%size + set%setptr%exec_size")|indent(12)}}
         end if
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
 
@@ -488,9 +531,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         start = plan_color2_offsets(col)
         end = plan_color2_offsets(col + 1)
 
-        num_blocks = (end - start - 1) / block_size + 1
+        num_blocks = (end - start + (block_size - 1)) / block_size
+        num_blocks = min(num_blocks, block_limit)
 
-        {{kernel_call("plan_col_reord", "start", "end", "set%setptr%size + set%setptr%exec_size")|indent(8)}}
+        {{kernel_call("plan_col_reord", "set%setptr%size + set%setptr%exec_size")|indent(8)}}
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
 
         if (col == plan%ncolors_owned) then

@@ -84,6 +84,7 @@ extern int OP_maps_base_index;
 extern int OP_mpi_test_frequency;
 extern int OP_partial_exchange;
 extern int OP_disable_mpi_reductions;
+extern int OP_cuda_reductions_mib;
 
 /*
  * enum list for op_par_loop

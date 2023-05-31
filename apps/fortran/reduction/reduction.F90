@@ -135,7 +135,12 @@ contains
         real(8), dimension(4) :: res
         integer(4), dimension(1) :: cell_count_result
 
-        res = 0.0
+        integer(4) :: d
+
+        do d = 1, 4
+            res(d) = 0.0
+        end do
+
         cell_count_result = cell_count_result + 1
 
     end subroutine
@@ -147,7 +152,12 @@ contains
         real(8), dimension(4) :: res
         integer(4), dimension(1) :: edge_count_result
 
-        res = 0.0
+        integer(4) :: d
+
+        do d = 1, 4
+            res(d) = 0.0
+        end do
+
         edge_count_result = edge_count_result + 1
 
     end subroutine
