@@ -61,6 +61,12 @@ void prepareScratch (op_arg *args, int nargs, int nthreads) {
   (void) args;
 }
 
+void getBlockLimit(op_arg *args, int nargs, int block_size) {
+    (void) args;
+    (void) nargs;
+    (void) block_size;
+}
+
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     (void) args;
     (void) nargs;

@@ -43,6 +43,12 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         )
         return
 
+    for arg in loop.args:
+        if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.WRITE:
+            print(f"{loop.loc}: Warning: {loop.kernel} indirect OP_WRITE\n")
+            # loop.fallback = True
+            break
+
     # Check parameter/const conflict and const writes
     const_ptrs = app.constPtrs()
 
@@ -86,6 +92,9 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         if not (
             isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC]
         ) and not isinstance(arg, OP.ArgDat):
+            continue
+
+        if (isinstance(arg, OP.ArgGbl) and arg.dim == 1) or (isinstance(arg, OP.ArgDat) and loop.dat(arg).dim == 1):
             continue
 
         violations = []

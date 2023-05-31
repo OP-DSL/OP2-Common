@@ -437,6 +437,17 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    integer(kind=c_int) function getBlockLimit(args, nargs, block_size) BIND(C, name='getBlockLimit')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_arg), dimension(*) :: args
+      integer(kind=c_int), value :: nargs
+      integer(kind=c_int), value :: block_size
+
+    end function
+
     subroutine prepareDeviceGbls(args, nargs, max_threads) BIND(C, name='prepareDeviceGbls')
 
       use, intrinsic :: ISO_C_BINDING
