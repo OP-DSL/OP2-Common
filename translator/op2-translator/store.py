@@ -92,7 +92,7 @@ class Program:
 
     def findEntities(self, name: str, scope: List[str] = []) -> List[Entity]:
         def in_scope(e):
-            return len(e.scope) <= len(scope) and all(map(lambda s1, s2: s1 == s2, zip(e.scope, scope)))
+            return len(e.scope) <= len(scope) and all(map(lambda s: s[0] == s[1], zip(e.scope, scope)))
 
         candidates = list(filter(lambda e: e.name == name and in_scope(e), self.entities))
         if len(candidates) == 0:
@@ -133,7 +133,7 @@ class Application:
 
         return programs_str
 
-    def findEntities(self, name: str, program: Program = None, scope: List[str] = []) -> List[Entity]:
+    def findEntities(self, name: str, program: Optional[Program] = None, scope: List[str] = []) -> List[Entity]:
         candidates = []
 
         if program is not None:
@@ -163,11 +163,11 @@ class Application:
 
     # All consts excluding external_consts
     def consts(self) -> List[OP.Const]:
-        consts = flatten(program.consts for program in self.programs)
+        consts = flatten([program.consts for program in self.programs])
         return uniqueBy(consts, lambda c: c.ptr)
 
     def loops(self) -> List[Tuple[OP.Loop, Program]]:
-        return flatten(map(lambda l: (l, p), p.loops) for p in self.programs)
+        return flatten([list(map(lambda l: (l, p), p.loops)) for p in self.programs])
 
     def validate(self, lang: Lang) -> None:
         self.validateConsts(lang)
@@ -187,11 +187,11 @@ class Application:
                 seen_const_ptrs.add(const.ptr)
 
                 if const.dim < 1:
-                    raise OpError(f"invalid const dimension: {const.dim}", const.dim)
+                    raise OpError(f"invalid const dimension: {const.dim}", const.loc)
 
     def validateLoops(self, lang: Lang) -> None:
         for loop, program in self.loops():
-            num_opts = len([arg for arg in loop.args if hasattr(arg, "opt") and arg.opt])
+            num_opts = len([arg for arg in loop.args if getattr(arg, "opt", False)])
             if num_opts > 32:
                 raise OpError(f"number of optional arguments exceeds 32: {num_opts}", loop.loc)
 
@@ -227,22 +227,22 @@ class Application:
         if arg.dim is not None and arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
 
-    # TODO: Re-do kernel validation
-    def validateKernel(self, loop: OP.Loop, program: Program, lang: Lang) -> None:
-        kernel_entities = self.findEntities(loop.kernel, program)  # TODO: Loop scope
+    # TODO: Re-do kernel validation?
+    # def validateKernel(self, loop: OP.Loop, program: Program, lang: Lang) -> None:
+    #     kernel_entities = self.findEntities(loop.kernel, program)  # TODO: Loop scope
 
-        if len(loop.args) != len(kernel.params):
-            raise OpError("number of loop arguments does not match number of kernel arguments", loop.loc)
+    #     if len(loop.args) != len(kernel.params):
+    #         raise OpError("number of loop arguments does not match number of kernel arguments", loop.loc)
 
-        for loop_arg, kernel_param in zip(loop.args, kernel.params):
-            if isinstance(loop_arg, OP.ArgDat) and loop.dats[loop_arg.dat_id].typ != kernel_param[1]:
-                raise OpError(
-                    f"loop argument type does not match kernel paramater type: {loop_arg.dat_typ} != {kernel_param[1]}",
-                    loop.loc,
-                )
+    #     for loop_arg, kernel_param in zip(loop.args, kernel.params):
+    #         if isinstance(loop_arg, OP.ArgDat) and loop.dats[loop_arg.dat_id].typ != kernel_param[1]:
+    #             raise OpError(
+    #                 f"loop argument type does not match kernel paramater type: {loop_arg.dat_typ} != {kernel_param[1]}",
+    #                 loop.loc,
+    #             )
 
-            if isinstance(loop_arg, OP.ArgGbl) and loop_arg.typ != kernel_param[1]:
-                raise OpError(
-                    f"loop argument type does not match kernel paramater type: {loop_arg.typ} != {kernel_param[1]}",
-                    loop.loc,
-                )
+    #         if isinstance(loop_arg, OP.ArgGbl) and loop_arg.typ != kernel_param[1]:
+    #             raise OpError(
+    #                 f"loop argument type does not match kernel paramater type: {loop_arg.typ} != {kernel_param[1]}",
+    #                 loop.loc,
+    #             )

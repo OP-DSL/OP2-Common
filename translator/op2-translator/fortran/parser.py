@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -8,6 +8,19 @@ import fparser.two.utils as fpu
 import op as OP
 from store import Application, Function, Location, ParseError, Program
 from util import safeFind
+
+TN = TypeVar("TN")
+
+
+def getChild(node: f2003.Base, node_type: Type[TN]) -> TN:
+    child = fpu.get_child(node, node_type)
+    assert child is not None
+
+    return child
+
+
+def getChildOpt(node: f2003.Base, node_type: Type[TN]) -> Optional[TN]:
+    return fpu.get_child(node, node_type)
 
 
 def parseProgram(ast: f2003.Program, source: str, path: Path) -> Program:
@@ -33,19 +46,18 @@ def parseFunctionDependencies(program: Program, app: Application) -> None:
 
     for subprogram in subprograms:
         if isinstance(subprogram, f2003.Subroutine_Subprogram):
-            definition_statement = fpu.get_child(subprogram, f2003.Subroutine_Stmt)
+            definition_statement = getChild(subprogram, f2003.Subroutine_Stmt)
+        else:
+            definition_statement = getChild(subprogram, f2003.Function_Stmt)
 
-        if isinstance(subprogram, f2003.Function_Subprogram):
-            definition_statement = fpu.get_child(subprogram, f2003.Function_Stmt)
-
-        name_node = fpu.get_child(definition_statement, f2003.Name)
+        name_node = getChild(definition_statement, f2003.Name)
         dependant = safeFind(program.entities, lambda e: e.name == name_node.string.lower())
 
         if dependant is None:
             continue
 
         for node in fpu.walk(subprogram, f2003.Part_Ref):
-            ref_name_node = fpu.get_child(node, f2003.Name)
+            ref_name_node = getChild(node, f2003.Name)
             dependencies = list(
                 filter(
                     lambda e: isinstance(e.ast, f2003.Function_Subprogram),
@@ -88,12 +100,11 @@ def parseSubprogram(
     node: Union[f2003.Subroutine_Subprogram, f2003.Function_Subprogram], program: Program, loc: Location
 ) -> None:
     if isinstance(node, f2003.Subroutine_Subprogram):
-        definition_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
+        definition_statement = getChild(node, f2003.Subroutine_Stmt)
+    else:
+        definition_statement = getChild(node, f2003.Function_Stmt)
 
-    if isinstance(node, f2003.Function_Subprogram):
-        definition_statement = fpu.get_child(node, f2003.Function_Stmt)
-
-    name_node = fpu.get_child(definition_statement, f2003.Name)
+    name_node = getChild(definition_statement, f2003.Name)
 
     name = parseIdentifier(name_node, loc)
     function = Function(name, node, program)
@@ -101,7 +112,7 @@ def parseSubprogram(
     function.parameters = parseSubprogramParameters(program.path, node)
 
     for call in fpu.walk(node, f2003.Call_Stmt):
-        name_node = fpu.get_child(call, f2003.Name)
+        name_node = getChildOpt(call, f2003.Name)
 
         if name_node is None:  # Happens for Procedure_Designator (stuff like op%access_i4...)
             continue
@@ -116,17 +127,17 @@ def parseSubprogramParameters(
     path: Path, node: Union[f2003.Subroutine_Subprogram, f2003.Function_Subprogram]
 ) -> List[str]:
     if isinstance(node, f2003.Subroutine_Subprogram):
-        definition_statement = fpu.get_child(node, f2003.Subroutine_Stmt)
+        definition_statement = getChild(node, f2003.Subroutine_Stmt)
+    else:
+        definition_statement = getChild(node, f2003.Function_Stmt)
 
-    if isinstance(node, f2003.Function_Subprogram):
-        definition_statement = fpu.get_child(node, f2003.Function_Stmt)
-
-    arg_list = fpu.get_child(definition_statement, f2003.Dummy_Arg_List)
+    arg_list = getChildOpt(definition_statement, f2003.Dummy_Arg_List)
 
     if arg_list is None:
         return []
 
-    loc = Location(str(path), definition_statement.item.span[0], 0)
+    item = getattr(definition_statement, "item")
+    loc = Location(str(path), item.span[0], 0)
 
     parameters = []
     for item in arg_list.items:
@@ -136,12 +147,12 @@ def parseSubprogramParameters(
 
 
 def parseCall(node: f2003.Call_Stmt, program: Program, loc: Location) -> None:
-    name_node = fpu.get_child(node, f2003.Name)
+    name_node = getChildOpt(node, f2003.Name)
     if name_node is None:  # Happens for Procedure_Designator (stuff like op%access_i4...)
         return
 
     name = parseIdentifier(name_node, loc)
-    args = fpu.get_child(node, f2003.Actual_Arg_Spec_List)
+    args = getChild(node, f2003.Actual_Arg_Spec_List)
 
     if name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
@@ -156,6 +167,7 @@ def parseConst(args: Optional[f2003.Actual_Arg_Spec_List], loc: Location) -> OP.
 
     ptr = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc)  # TODO: Might not be an integer literal?
+    assert dim is not None
 
     typ_str = parseStringLiteral(args.items[2], loc).strip().lower()
     typ = parseType(typ_str, loc)[0]
@@ -177,8 +189,8 @@ def parseLoop(program: Program, args: Optional[f2003.Actual_Arg_Spec_List], loc:
             if type(arg_node) is not f2003.Part_Ref:
                 raise ParseError(f"unable to parse op_par_loop argument: {arg_node}", loc)
 
-            name = parseIdentifier(fpu.get_child(arg_node, f2003.Name), loc)
-            arg_args = fpu.get_child(arg_node, f2003.Section_Subscript_List)
+            name = parseIdentifier(getChild(arg_node, f2003.Name), loc)
+            arg_args = getChild(arg_node, f2003.Section_Subscript_List)
 
             if name == "op_arg_idx":
                 parseArgIdx(loop, arg_args, loc)
@@ -188,8 +200,8 @@ def parseLoop(program: Program, args: Optional[f2003.Actual_Arg_Spec_List], loc:
 
             continue
 
-        name = parseIdentifier(fpu.get_child(arg_node, f2003.Type_Name), loc)
-        arg_args = fpu.get_child(arg_node, f2003.Component_Spec_List)
+        name = parseIdentifier(getChild(arg_node, f2003.Type_Name), loc)
+        arg_args = getChild(arg_node, f2003.Component_Spec_List)
 
         if name == "op_arg_dat":
             parseArgDat(loop, False, arg_args, loc)
@@ -279,7 +291,9 @@ def parseArgInfo(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: 
     ptr = parseIdentifier(args.items[0], loc)
     dim = parseIntLiteral(args.items[1], loc, True)
     typ = parseType(parseStringLiteral(args.items[2], loc), loc)[0]
-    ref = parseIntLiteral(args.items[3], loc, False)
+
+    ref = parseIntLiteral(args.items[3], loc)
+    assert ref is not None
 
     loop.addArgInfo(loc, ptr, dim, typ, ref)
 

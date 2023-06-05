@@ -1,5 +1,6 @@
 import os
 from math import ceil
+from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -13,12 +14,17 @@ env = Environment(
 )
 
 
-def direct(x, loop: OP.Loop = None) -> bool:
-    if isinstance(x, OP.Arg) and hasattr(x, "map_id") and x.map_id is None:
+def direct(x, loop: Optional[OP.Loop] = None) -> bool:
+    if isinstance(x, (OP.ArgDat, OP.ArgIdx)) and x.map_id is None:
         return True
 
-    if isinstance(x, OP.Dat) and loop.args[x.arg_id].map_id is None:
-        return True
+    if isinstance(x, OP.Dat):
+        assert loop is not None
+
+        arg = loop.args[x.arg_id]
+        assert isinstance(arg, OP.ArgDat)
+
+        return arg.map_id is None
 
     if isinstance(x, OP.Loop) and len(x.maps) == 0:
         return True
@@ -26,25 +32,19 @@ def direct(x, loop: OP.Loop = None) -> bool:
     return False
 
 
-def indirect(x, loop: OP.Loop = None) -> bool:
-    if isinstance(x, OP.Arg) and hasattr(x, "map_id") and x.map_id is not None:
-        return True
-
-    if isinstance(x, OP.Dat) and loop.args[x.arg_id].map_id is not None:
-        return True
-
-    if isinstance(x, OP.Loop) and len(x.maps) > 0:
-        return True
-
-    return False
+def indirect(x, loop: Optional[OP.Loop] = None) -> bool:
+    return not direct(x, loop)
 
 
 env.tests["direct"] = direct
 env.tests["indirect"] = indirect
 
 
-def soa(x, loop: OP.Loop = None) -> bool:
+def soa(x, loop: Optional[OP.Loop] = None) -> bool:
     if isinstance(x, OP.ArgDat):
+        assert loop is not None
+
+    if isinstance(x, OP.ArgDat) and loop is not None:
         return loop.dats[x.dat_id].soa
 
     if isinstance(x, OP.Dat):

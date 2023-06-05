@@ -187,9 +187,7 @@ def insertAtomicIncs(
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
 
-def insertAtomicInc(
-    func: Function, param_idx: int, modified: Dict[str, Set[int]]
-) -> None:
+def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]]) -> None:
     if param_idx in modified.get(func.name, set()):
         return
 

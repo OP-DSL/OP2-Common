@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import cpp.translator.kernels as ctk
 import op as OP
@@ -10,8 +10,8 @@ from target import Target
 
 
 class CppSeq(Scheme):
-    lang = Lang.find("cpp")
-    target = Target.find("seq")
+    lang = Lang.get("cpp")
+    target = Target.get("seq")
 
     fallback = None
 
@@ -39,8 +39,8 @@ Scheme.register(CppSeq)
 
 
 class CppOpenMP(Scheme):
-    lang = Lang.find("cpp")
-    target = Target.find("openmp")
+    lang = Lang.get("cpp")
+    target = Target.get("openmp")
 
     fallback = None
 
@@ -68,8 +68,8 @@ Scheme.register(CppOpenMP)
 
 
 class CppCuda(Scheme):
-    lang = Lang.find("cpp")
-    target = Target.find("cuda")
+    lang = Lang.get("cpp")
+    target = Target.get("cuda")
 
     fallback = None
 

@@ -5,7 +5,7 @@ from typing import Any, Dict
 from util import Findable
 
 
-class Target(Findable):
+class Target(Findable["Target"]):
     name: str
     kernel_translation: bool
 
@@ -21,8 +21,8 @@ class Target(Findable):
     def __hash__(self) -> int:
         return hash(self.name)
 
-    def matches(self, key: str) -> bool:
-        return self.name == key.lower()
+    def matches(self, key: Any) -> bool:
+        return isinstance(key, str) and self.name == key.lower()
 
 
 class Seq(Target):

@@ -2,7 +2,8 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind, conf
+from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind
+from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
 from store import Function, Location, ParseError, Program, Type
@@ -20,8 +21,8 @@ def parseMeta(node: Cursor, program: Program) -> None:
         parseMeta(child, program)
 
 
-def parseTypeRef(node: Cursor, program: Program) -> None:
-    node = node.get_definition()
+def parseTypeRef(ref_node: Cursor, program: Program) -> None:
+    node = ref_node.get_definition()
 
     if node is None or Path(str(node.location.file)) != program.path:
         return
@@ -47,8 +48,8 @@ def parseTypeRef(node: Cursor, program: Program) -> None:
     program.entities.append(typ)
 
 
-def parseFunction(node: Cursor, program: Program) -> None:
-    node = node.get_definition()
+def parseFunction(ref_node: Cursor, program: Program) -> None:
+    node = ref_node.get_definition()
 
     if node is None or Path(str(node.location.file)) != program.path:
         return
@@ -91,7 +92,7 @@ def parseLoops(translation_unit: TranslationUnit, program: Program) -> None:
         if node.kind == CursorKind.MACRO_DEFINITION:
             continue
 
-        if node.location.file.name != translation_unit.spelling:
+        if node.location.file.name != translation_unit.spelling:  # type: ignore
             continue
 
         if node.kind == CursorKind.MACRO_INSTANTIATION:
@@ -104,8 +105,6 @@ def parseLoops(translation_unit: TranslationUnit, program: Program) -> None:
         for child in node.walk_preorder():
             if child.kind == CursorKind.CALL_EXPR:
                 parseCall(child, macros, program)
-
-    return program
 
 
 def parseCall(node: Cursor, macros: Dict[Location, str], program: Program) -> None:
@@ -143,7 +142,6 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
 
     for node in args[3:]:
         node = descend(descend(node))
-
         name = node.spelling
 
         arg_loc = parseLocation(node)
@@ -235,9 +233,9 @@ def parseIntExpression(node: Cursor) -> int:
     if node.type.kind != TypeKind.INT:
         raise ParseError("expected int expression", parseLocation(node))
 
-    eval_result = conf.lib.clang_Cursor_Evaluate(node)
-    val = conf.lib.clang_EvalResult_getAsInt(eval_result)
-    conf.lib.clang_EvalResult_dispose(eval_result)
+    eval_result = clang_internal.lib.clang_Cursor_Evaluate(node)
+    val = clang_internal.lib.clang_EvalResult_getAsInt(eval_result)
+    clang_internal.lib.clang_EvalResult_dispose(eval_result)
 
     return val
 
@@ -258,7 +256,7 @@ def parseAccessType(node: Cursor, loc: Location, macros: Dict[Location, str]) ->
 
     if access_type_raw not in OP.AccessType.values():
         raise ParseError(
-            f"invalid access type {access_type_raw}, expected one of {', '.join(OP.AccessType.values())}", loc
+            f"invalid access type {access_type_raw}, expected one of {', '.join(OP.AccessType.names())}", loc
         )
 
     return OP.AccessType(access_type_raw)
@@ -294,8 +292,15 @@ def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, b
 
 
 def parseLocation(node: Cursor) -> Location:
-    return Location(node.location.file.name, node.location.line, node.location.column)
+    return Location(node.location.file.name, node.location.line, node.location.column)  # type: ignore
 
 
-def descend(node: Cursor) -> Optional[Cursor]:
+def descend(node: Cursor) -> Cursor:
+    return next(node.get_children())
+
+
+def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
+    if node is None:
+        return None
+
     return next(node.get_children(), None)
