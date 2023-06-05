@@ -21,20 +21,24 @@ class AccessType(Enum):
     MAX = 5
 
     @staticmethod
-    def values() -> List[str]:
+    def values() -> List[int]:
         return [x.value for x in list(AccessType)]
+
+    @staticmethod
+    def names() -> List[str]:
+        return [x.name for x in list(AccessType)]
 
 
 class OpError(Exception):
     message: str
-    loc: Location
+    loc: Optional[Location]
 
-    def __init__(self, message: str, loc: Location = None) -> None:
+    def __init__(self, message: str, loc: Optional[Location] = None) -> None:
         self.message = message
         self.loc = loc
 
     def __str__(self) -> str:
-        if self.loc:
+        if self.loc is not None:
             return f"{self.loc}: OP error: {self.message}"
         else:
             return f"OP error: {self.message}"
@@ -242,7 +246,7 @@ class Loop:
             dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
             self.dats.append(dat)
         elif self.dats[dat_id].dim is None and dat_dim is not None:
-            self.dats[dat_id].dim = dat_dim
+            self.dats[dat_id] = dataclasses.replace(self.dats[dat_id], dim=dat_dim)
 
         map_id = None
         if map_ptr is not None:
@@ -303,7 +307,7 @@ class Loop:
             if arg2 == arg:
                 break
 
-            if arg2.opt:
+            if getattr(arg2, "opt", None) is not None:
                 idx += 1
 
         return idx

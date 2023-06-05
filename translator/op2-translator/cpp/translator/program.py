@@ -24,7 +24,10 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
         buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.kernel}" + after)
 
     # 3. Update headers
-    index = buffer.search(r'\s*#include\s+"op_seq\.h"') + 2
+    index = buffer.search(r'\s*#include\s+"op_seq\.h"')
+    assert index is not None
+    index += 2
+
     buffer.insert(index, '#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
     for loop in program.loops:
         prototype = f'void op_par_loop_{loop.kernel}(char const *, op_set{", op_arg" * len(loop.args)});\n'

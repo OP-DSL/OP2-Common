@@ -3,6 +3,7 @@ import io
 import os
 import re
 import subprocess
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
 
@@ -58,8 +59,8 @@ def string_reader_deepcopy(self, memo):
 
 
 # Patch the fparser2 Base class to allow deepcopies
-Base.__deepcopy__ = base_deepcopy
-FortranStringReader.__deepcopy__ = string_reader_deepcopy
+Base.__deepcopy__ = base_deepcopy  # type: ignore
+FortranStringReader.__deepcopy__ = string_reader_deepcopy  # type: ignore
 
 
 kind_selector_aliases = {"*PS": "*8"}
@@ -69,10 +70,10 @@ def kind_selector_match(string):
     if string in kind_selector_aliases:
         string = kind_selector_aliases[string]
 
-    return f2003.Kind_Selector.match_(string)
+    return f2003.Kind_Selector.match_(string)  # type: ignore
 
 
-f2003.Kind_Selector.match_ = f2003.Kind_Selector.match
+f2003.Kind_Selector.match_ = f2003.Kind_Selector.match  # type: ignore
 f2003.Kind_Selector.match = staticmethod(kind_selector_match)
 
 
@@ -111,14 +112,14 @@ class Preprocessor(pcpp.Preprocessor):
 
         self.line_directive = None
 
-    def on_comment(self, tok: str) -> bool:
+    def on_comment(self, tok):
         return tok.type == self.t_COMMENT2
 
-    def on_error(self, file: str, line: int, msg: str) -> None:
+    def on_error(self, file, line, msg):
         loc = Location(file, line, 0)
         raise ParseError(msg, loc)
 
-    def on_include_not_found(self, is_malformed, is_system_include, curdir, includepath) -> None:
+    def on_include_not_found(self, is_malformed, is_system_include, curdir, includepath):
         if is_system_include:
             raise pcpp.OutputDirective(pcpp.Action.IgnoreAndPassThrough)
 
@@ -138,6 +139,32 @@ class Fortran(Lang):
     extra_consts_list = None
     user_consts_module = None
     use_regex_translator = False
+
+    def addArgs(self, parser: ArgumentParser) -> None:
+        parser.add_argument("--extra-consts-list", help="(Fortran) Extra consts to rename in kernels", default=None)
+        parser.add_argument("--user-consts-module", help="(Fortran) Use a custom consts module", default=None)
+        parser.add_argument(
+            "--regex-program-translator", help="(Fortran) Use the regex-based program translator", action="store_true"
+        )
+
+    def parseArgs(self, args: Namespace) -> None:
+        if args.extra_consts_list is not None:
+            self.extra_consts_list = args.extra_consts_list
+
+            if args.verbose:
+                print(f"Using extra consts list: {self.extra_consts_list}")
+
+        if args.user_consts_module is not None:
+            self.user_consts_module = args.user_consts_module
+
+            if args.verbose:
+                print(f"Using consts module: {self.user_consts_module}")
+
+        if args.regex_program_translator:
+            self.use_regex_translator = True
+
+            if args.verbose:
+                print(f"Using regex program translator")
 
     def validate(self, app: Application) -> None:
         # TODO: see fortran.parser

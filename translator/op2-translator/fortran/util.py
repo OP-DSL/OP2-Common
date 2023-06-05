@@ -136,7 +136,7 @@ def getCall(node: f2003.Name, funcs: List[Function]) -> Optional[Tuple[Function,
 
 
 def parseExplicitShapeSpec(spec: f2003.Explicit_Shape_Spec) -> Tuple[str, str]:
-    assert(len(spec.children) == 2)
+    assert len(spec.children) == 2
 
     if spec.children[0] == None:
         return ("1", str(spec.children[1]))

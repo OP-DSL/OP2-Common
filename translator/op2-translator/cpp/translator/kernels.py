@@ -66,17 +66,18 @@ def insertStrides(
         return
 
     for arg_idx in range(len(loop.args)):
-        if not isinstance(loop.args[arg_idx], OP.ArgDat):
+        arg = loop.args[arg_idx]
+        if not isinstance(arg, OP.ArgDat):
             continue
 
-        if skip is not None and skip(loop.args[arg_idx]):
+        if skip is not None and skip(arg):
             continue
 
-        dat = loop.dats[loop.args[arg_idx].dat_id]
+        dat = loop.dats[arg.dat_id]
         if not dat.soa:
             continue
 
-        is_vec = loop.args[arg_idx].map_idx < -1
+        is_vec = arg.map_idx is not None and arg.map_idx < -1
         insertStride(entity.ast, rewriter, entity.parameters[arg_idx], dat.id, is_vec, stride)
 
 

@@ -33,11 +33,6 @@ def main(argv=None) -> None:
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
 
     parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
-    parser.add_argument("--extra-consts-list", help="Extra consts to rename in kernels", default=None)
-    parser.add_argument("--user-consts-module", help="Use a custom Fortran consts module", default=None)
-    parser.add_argument(
-        "--regex-program-translator", help="Use the regex-based program translator (Fortran only)", action="store_true"
-    )
 
     parser.add_argument("-I", help="Add to include directories", type=isDirPath, action="append", nargs=1, default=[])
     parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])
@@ -55,6 +50,9 @@ def main(argv=None) -> None:
     )
 
     parser.add_argument("file_paths", help="Input OP2 sources", type=isFilePath, nargs="+")
+
+    for lang in Lang.all():
+        lang.addArgs(parser)
 
     # Invoke arg parser
     args = parser.parse_args(argv)
@@ -89,23 +87,7 @@ def main(argv=None) -> None:
     if lang is None:
         exit(f"Unknown file extension: {extension}")
 
-    if args.extra_consts_list is not None and hasattr(lang, "extra_consts_list"):
-        lang.extra_consts_list = args.extra_consts_list
-
-        if args.verbose:
-            print(f"Using extra consts list: {lang.extra_consts_list}")
-
-    if args.user_consts_module is not None and hasattr(lang, "user_consts_module"):
-        lang.user_consts_module = args.user_consts_module
-
-        if args.verbose:
-            print(f"Using consts module: {lang.user_consts_module}")
-
-    if args.regex_program_translator and hasattr(lang, "use_regex_translator"):
-        lang.use_regex_translator = True
-
-        if args.verbose:
-            print(f"Using regex program translator")
+    lang.parseArgs(args)
 
     Type.set_formatter(lang.formatType)
 
@@ -115,7 +97,8 @@ def main(argv=None) -> None:
     try:
         app = parse(args, lang)
     except ParseError as e:
-        exit(e)
+        print(e)
+        exit(1)
 
     if args.extra_consts_list is not None:
         with open(args.extra_consts_list, "r") as f:
@@ -138,7 +121,8 @@ def main(argv=None) -> None:
     try:
         validate(args, lang, app)
     except OpError as e:
-        exit(e)
+        print(e)
+        exit(1)
 
     for [target] in args.target:
         target = Target.find(target)
@@ -305,14 +289,14 @@ def isFilePath(path):
 
 
 if __name__ == "__main__":
-    if os.environ.get("OP2_TRANSLATOR_PROFILE") is not None:
+    if os.environ.get("OP2_TRANSLATOR_PROFILE"):
         profiler = cProfile.Profile()
+
         profiler.enable()
-
-    main()
-
-    if os.environ.get("OP2_TRANSLATOR_PROFILE") is not None:
+        main()
         profiler.disable()
 
         stats = pstats.Stats(profiler)
         stats.sort_stats(pstats.SortKey.CUMULATIVE).print_stats(10)
+    else:
+        main()
