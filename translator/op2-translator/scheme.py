@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import traceback
+from abc import abstractmethod
 from pathlib import Path
-from typing import List, Optional, Set, Tuple, Dict, Any
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from jinja2 import Environment
 
@@ -13,7 +14,7 @@ from target import Target
 from util import Findable
 
 
-class Scheme(Findable):
+class Scheme(Findable["Scheme"]):
     lang: Lang
     target: Target
 
@@ -120,6 +121,7 @@ class Scheme(Findable):
         # Generate source from the template
         return template.render(OP=OP, app=app, lang=self.lang, target=self.target, user_types=user_types), name
 
+    @abstractmethod
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -131,4 +133,7 @@ class Scheme(Findable):
         pass
 
     def matches(self, key: Tuple[Lang, Target]) -> bool:
+        if not (isinstance(key, tuple) and len(key) == 2 and isinstance(key[0], Lang) and isinstance(key[1], Target)):
+            return False
+
         return self.lang == key[0] and self.target == key[1]

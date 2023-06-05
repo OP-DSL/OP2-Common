@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any, FrozenSet, List, Optional, Set
 
@@ -9,7 +10,7 @@ from store import Application, Program
 from util import Findable
 
 
-class Lang(Findable):
+class Lang(Findable["Lang"]):
     name: str
 
     source_exts: List[str]
@@ -19,6 +20,14 @@ class Lang(Findable):
     com_delim: str
 
     fallback_wrapper_template: Optional[Path]
+
+    @abstractmethod
+    def addArgs(self, parser: ArgumentParser) -> None:
+        pass
+
+    @abstractmethod
+    def parseArgs(self, args: Namespace) -> None:
+        pass
 
     @abstractmethod
     def validate(self, app: Application) -> None:
@@ -49,5 +58,5 @@ class Lang(Findable):
     def __hash__(self) -> int:
         return hash(self.name)
 
-    def matches(self, key: str) -> bool:
-        return key in self.source_exts
+    def matches(self, key: Any) -> bool:
+        return isinstance(key, str) and key in self.source_exts

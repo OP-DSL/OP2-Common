@@ -1,6 +1,6 @@
 import copy
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import fortran.translator.kernels as ftk
 import op as OP
@@ -12,8 +12,8 @@ from util import find
 
 
 class FortranSeq(Scheme):
-    lang = Lang.find("F90")
-    target = Target.find("seq")
+    lang = Lang.get("F90")
+    target = Target.get("seq")
 
     fallback = None
 
@@ -48,10 +48,10 @@ Scheme.register(FortranSeq)
 
 
 class FortranOpenMP(Scheme):
-    lang = Lang.find("F90")
-    target = Target.find("openmp")
+    lang = Lang.get("F90")
+    target = Target.get("openmp")
 
-    fallback = Scheme.find((Lang.find("F90"), Target.find("seq")))
+    fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
     consts_template = None
     loop_host_template = Path("fortran/openmp/loop_host.inc.jinja")
@@ -108,10 +108,10 @@ class FortranOpenMP(Scheme):
 
 
 class FortranCuda(Scheme):
-    lang = Lang.find("F90")
-    target = Target.find("cuda")
+    lang = Lang.get("F90")
+    target = Target.get("cuda")
 
-    fallback = Scheme.find((Lang.find("F90"), Target.find("seq")))
+    fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
     consts_template = Path("fortran/cuda/consts.F90.jinja")
     loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")

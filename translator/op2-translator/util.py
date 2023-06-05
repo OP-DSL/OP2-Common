@@ -5,9 +5,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
-
-from cached_property import cached_property
+from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Tuple, Type, TypeVar
 
 # Generic type
 T = TypeVar("T")
@@ -66,32 +64,36 @@ def uniqueBy(xs: Iterable[T], f: Callable[[T], Any]) -> List[T]:
     return u
 
 
-class Findable(ABC):
-    instances: List["Findable"]
+TF = TypeVar("TF", bound="Findable")
+
+
+class Findable(ABC, Generic[TF]):
+    instances: List[TF]
 
     @classmethod
-    def register(cls, new_cls: Any) -> None:
+    def register(cls, new_cls: Type[TF]) -> None:
         if not hasattr(cls, "instances"):
             cls.instances = []
 
         cls.instances.append(new_cls())
 
     @classmethod
-    def all(cls) -> List["Findable"]:
+    def all(cls) -> List[TF]:
         if not hasattr(cls, "instances"):
             return []
 
         return cls.instances
 
     @classmethod
-    def find(cls, key: str) -> Optional["Findable"]:
-        if not hasattr(cls, "instances"):
-            return None
+    def get(cls, key: Any) -> TF:
+        return next((i for i in getattr(cls, "instances", []) if i.matches(key)))
 
-        return next((i for i in cls.instances if i.matches(key)), None)
+    @classmethod
+    def find(cls, key: Any) -> Optional[TF]:
+        return next((i for i in getattr(cls, "instances", []) if i.matches(key)), None)
 
     @abstractmethod
-    def matches(self, key: T) -> bool:
+    def matches(self, key: Any) -> bool:
         pass
 
 
@@ -109,21 +111,21 @@ class SourceBuffer:
     _insersions: Dict[int, List[str]]
     _updates: Dict[int, str]
 
+    _rawLines: List[str]
+
     def __init__(self, source: str) -> None:
         self._source = source
         self._insersions = {}
         self._updates = {}
 
+        self._rawLines = self._source.splitlines()
+
     @property
     def rawSource(self) -> str:
         return self._source
 
-    @cached_property
-    def rawLines(self) -> List[str]:
-        return self._source.splitlines()
-
     def get(self, index: int) -> str:
-        return self.rawLines[index]
+        return self._rawLines[index]
 
     def remove(self, index: int) -> None:
         self._updates[index] = ""
@@ -140,20 +142,20 @@ class SourceBuffer:
         self.update(index, f(self.get(index)))
 
     def applyAll(self, f: Callable[[str], str]):
-        for i in range(len(self.rawLines)):
+        for i in range(len(self._rawLines)):
             update = f(self.get(i))
             if update != self.get(i):
                 self.update(i, update)
 
     def search(self, pattern: str, flags: int = 0) -> Optional[int]:
-        for i, line in enumerate(self.rawLines):
+        for i, line in enumerate(self._rawLines):
             if re.match(pattern, line, flags):
                 return i
 
         return None
 
     def translate(self) -> str:
-        lines = self.rawLines
+        lines = self._rawLines
 
         delta = 0
         for i in range(len(lines)):

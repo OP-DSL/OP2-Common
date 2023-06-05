@@ -1,8 +1,9 @@
 import os
+from argparse import ArgumentParser, Namespace
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
-from typing import FrozenSet, List, Optional, Set, Tuple
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 import clang.cindex
 import pcpp
@@ -47,6 +48,12 @@ class Cpp(Lang):
 
     fallback_wrapper_template = None
 
+    def addArgs(self, parser: ArgumentParser) -> None:
+        pass
+
+    def parseArgs(self, args: Namespace) -> None:
+        pass
+
     def validate(self, app: Application) -> None:
         pass
 
@@ -78,20 +85,17 @@ class Cpp(Lang):
             source = source_io.read()
 
         translation_unit = clang.cindex.Index.create().parse(
-            path,
-            unsaved_files=[(path, source)],
+            path,  # type: ignore
+            unsaved_files=[(path, source)],  # type: ignore
             args=args,
             options=clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
         )
 
         for diagnostic in iter(translation_unit.diagnostics):
-            #           if diagnostic.severity >= clang.cindex.Diagnostic.Error:
-            #               raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
+            # if diagnostic.severity >= clang.cindex.Diagnostic.Error:
+            #     raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
 
-            print(
-                f"Clang diagnostic, severity {diagnostic.severity} at "
-                f"{cpp.parser.parseLocation(diagnostic)}: {diagnostic.spelling}"
-            )
+            print(diagnostic)
 
         return translation_unit, source
 
@@ -110,7 +114,7 @@ class Cpp(Lang):
         return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:
-        int_types = {
+        int_types: Dict[Tuple[bool, int], str] = {
             (True, 32): "int",
             (True, 64): "long long",
             (False, 32): "unsigned",

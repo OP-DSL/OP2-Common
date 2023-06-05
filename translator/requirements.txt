@@ -1,7 +1,7 @@
 fparser
 cached-property
 dataclasses
-clang
+clang == 14.0.6
 jinja2
 pylint
 mypy
