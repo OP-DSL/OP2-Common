@@ -990,7 +990,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         if reduct:
             code('int nblocks = 400;')
         else:
-            code('int nblocks = set_size / nthread + 1;')
+            code('int nblocks = (set_size - 1) / nthread + 1;')
         code('')
 
     if reduct:
