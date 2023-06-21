@@ -152,12 +152,14 @@ def parseCall(node: f2003.Call_Stmt, program: Program, loc: Location) -> None:
         return
 
     name = parseIdentifier(name_node, loc)
-    args = getChild(node, f2003.Actual_Arg_Spec_List)
+    args = getChildOpt(node, f2003.Actual_Arg_Spec_List)
 
     if name == "op_decl_const":
+        assert args is not None
         program.consts.append(parseConst(args, loc))
 
     elif re.match(r"op_par_loop_\d+", name):
+        assert args is not None
         program.loops.append(parseLoop(program, args, loc))
 
 
