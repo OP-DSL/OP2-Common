@@ -368,7 +368,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
-    print *, " op2_kernel gpu {{lh.name}}"
+!   print *, " op2_kernel gpu {{lh.name}}"
 
     if (n_exec == 0) then
         call op_mpi_wait_all_grouped(size(args), args, 2)
