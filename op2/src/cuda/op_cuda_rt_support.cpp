@@ -403,8 +403,10 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   return set->size;
 }
 
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device,
+                                  int force_halo_exchange){
   (void)device;
+  (void)force_halo_exchange;
   return device == 1 ? op_mpi_halo_exchanges(set, nargs, args) : op_mpi_halo_exchanges_cuda(set, nargs, args);
 }
 
@@ -423,10 +425,12 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)args;
 }
 
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device,
+                             int force_halo_exchange) {
   (void)device;
   (void)nargs;
   (void)args;
+  (void)force_halo_exchange;
 }
 
 void op_mpi_test_all(int nargs, op_arg *args) {
@@ -455,6 +459,17 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
         (args[n].acc == OP_INC || args[n].acc == OP_WRITE ||
          args[n].acc == OP_RW)) {
       args[n].dat->dirty_hd = 2;
+    }
+  }
+}
+
+void op_mpi_set_dirtybit_force_halo_exchange(int nargs, op_arg *args, int device) {
+
+  for (int n = 0; n < nargs; n++) {
+    if ((args[n].opt == 1) && (args[n].argtype == OP_ARG_DAT) &&
+        (args[n].acc == OP_INC || args[n].acc == OP_WRITE
+        || args[n].acc == OP_RW)) {
+      args[n].dat->dirty_hd = device;
     }
   }
 }

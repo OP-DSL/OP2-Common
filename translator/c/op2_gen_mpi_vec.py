@@ -365,7 +365,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
     code('')
     if grouped:
-      code('int exec_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
+      code('int exec_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 0);')
     else:
       code('int exec_size = op_mpi_halo_exchanges(set, nargs, args);')
 
@@ -400,7 +400,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('  op_mpi_test_all(nargs,args);')
       IF('(n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)')
       if grouped:
-        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+        code('op_mpi_wait_all_grouped(nargs, args, 1, 0);')
       else:
         code('op_mpi_wait_all(nargs, args);')
       ENDIF()
@@ -537,7 +537,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       depth = depth +2
       IF('n==set->core_size')
       if grouped:
-        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+        code('op_mpi_wait_all_grouped(nargs, args, 1, 0);')
       else:
         code('op_mpi_wait_all(nargs, args);')
       ENDIF()
@@ -665,7 +665,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     if ninds>0:
       IF('exec_size == 0 || exec_size == set->core_size')
       if grouped:
-        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+        code('op_mpi_wait_all_grouped(nargs, args, 1, 0);')
       else:
         code('op_mpi_wait_all(nargs, args);')
       ENDIF()

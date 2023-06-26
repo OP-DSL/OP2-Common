@@ -347,7 +347,7 @@ char *recv_buffer_device = NULL;
 int op2_grp_counter = 0;
 int op2_grp_tag = 1234;
 
-extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
+extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device, int force_halo_exchange) {
   int size = set->size;
   int direct_flag = 1;
 
@@ -380,7 +380,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     if (args[n].opt && args[n].argtype == OP_ARG_DAT)
       printf("\t%s(%d), %s, %d\n", args[n].dat->name, args[n].dat->index, args[n].idx == -1 ? "OP_ID":args[n].map->name,args[n].acc);
   }*/
-  if (direct_flag == 1)
+  if (direct_flag == 1 && !force_halo_exchange)
     return size;
 
   // not a direct loop ...
@@ -392,51 +392,63 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     }
   }
 
+  if(force_halo_exchange) {
+    exec_flag = 1;
+    size = set->size + set->exec_size + set->nonexec_size;
+  }
+
   double c1,c2,t1,t2;
   op_timers_core(&c1, &t1);
   partial_flags.resize(nargs);
-  // Fire off any partial halo exchanges that apply
-  for (int n = 0; n < nargs; n++) {
-    partial_flags[n] = 0;
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
-      if (args[n].map != OP_ID) {
-        // Check if dat-map combination was already done or if there is a
-        // mismatch (same dat, diff map)
-        int found = 0;
-        int fallback = 0;
-        for (int m = 0; m < nargs; m++) {
-          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map) {
-            partial_flags[n] = partial_flags[m]==1?2:0;
-            found = 1;
-          } else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
-            fallback = 1;
-        }
-        // If there was a map mismatch with other argument, do full halo
-        // exchange
-        if (fallback) continue;
-        else if (!found) { // Otherwise, if partial halo exchange is enabled for
-                           // this map, do it
-          if (OP_map_partial_exchange[args[n].map->index]) {
-            partial_flags[n] = 1;
-            if (device == 1)
-              op_exchange_halo_partial(&args[n], exec_flag);
-            else if (device == 2)
-              op_exchange_halo_partial_cuda(&args[n], exec_flag);
+  if(!force_halo_exchange) {
+    // Fire off any partial halo exchanges that apply
+    for (int n = 0; n < nargs; n++) {
+      partial_flags[n] = 0;
+      if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
+        if (args[n].map != OP_ID) {
+          // Check if dat-map combination was already done or if there is a
+          // mismatch (same dat, diff map)
+          int found = 0;
+          int fallback = 0;
+          for (int m = 0; m < nargs; m++) {
+            if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map) {
+              partial_flags[n] = partial_flags[m]==1?2:0;
+              found = 1;
+            } else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
+              fallback = 1;
+          }
+          // If there was a map mismatch with other argument, do full halo
+          // exchange
+          if (fallback) continue;
+          else if (!found) { // Otherwise, if partial halo exchange is enabled for
+                             // this map, do it
+            if (OP_map_partial_exchange[args[n].map->index]) {
+              partial_flags[n] = 1;
+              if (device == 1)
+                op_exchange_halo_partial(&args[n], exec_flag);
+              else if (device == 2)
+                op_exchange_halo_partial_cuda(&args[n], exec_flag);
+            }
           }
         }
       }
     }
+  } else {
+    for (int n = 0; n < nargs; n++) {
+      partial_flags[n] = 0;
+    }
   }
+
   std::vector<int> sets;
   sets.resize(0);
   send_sizes.resize(0);
   recv_sizes.resize(0);
   send_neigh_list.resize(0);
   recv_neigh_list.resize(0);
-  
+
   for (int n = 0; n < nargs; n++) {
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].dat->dirtybit == 1 && (args[n].acc == OP_READ || args[n].acc == OP_RW) && partial_flags[n] == 0) {
-      if ( args[n].idx == -1 && exec_flag == 0) continue; 
+      if ( args[n].idx == -1 && exec_flag == 0) continue;
 
       //flag, so same dat not checked again
       args[n].dat->dirtybit = 2;
@@ -576,13 +588,13 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   return size;
 }
 
-extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device, int force_halo_exchange) {
   // check if this is a direct loop
   int direct_flag = 1;
   for (int n = 0; n < nargs; n++)
     if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
       direct_flag = 0;
-  if (direct_flag == 1)
+  if (direct_flag == 1 && !force_halo_exchange)
     return;
 
   // not a direct loop ...
@@ -592,6 +604,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
       exec_flag = 1;
     }
   }
+  if(force_halo_exchange)
+    exec_flag = 1;
   double c1,c2,t1,t2;
   op_timers_core(&c1, &t1);
 
