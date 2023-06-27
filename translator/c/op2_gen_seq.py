@@ -331,7 +331,8 @@ def op2_gen_seq(master, date, consts, kernels):
 #
     elif force_halo_exchange:
       FOR('n','0','set->size + set->exec_size + set->nonexec_size')
-      IF('n==set->core_size')
+      #IF('n==set->core_size')
+      IF('n==set->size')
       code('op_mpi_wait_all_grouped(nargs, args, 1, 1);')
       ENDIF()
       line = name+'('

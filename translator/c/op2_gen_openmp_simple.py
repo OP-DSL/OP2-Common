@@ -469,9 +469,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if insert_thread_timers:
         code('double thr_wall_t1, thr_wall_t2, thr_cpu_t1, thr_cpu_t2;')
         code('op_timers_core(&thr_cpu_t1, &thr_wall_t1);')
-      code('int round_set_size = round == 0 ? set->core_size : set->size + set->exec_size + set->nonexec_size - set->core_size;')
-      code('int start  = round == 0 ? (round_set_size * thr)/nthreads : set->core_size + (round_set_size * thr)/nthreads;')
-      code('int finish = round == 0 ? (round_set_size * (thr+1))/nthreads : set->core_size + (round_set_size * (thr+1))/nthreads;')
+      code('int round_set_size = round == 0 ? set->size : set->exec_size + set->nonexec_size;')
+      code('int start  = round == 0 ? (round_set_size * thr)/nthreads : set->size + (round_set_size * thr)/nthreads;')
+      code('int finish = round == 0 ? (round_set_size * (thr+1))/nthreads : set->size + (round_set_size * (thr+1))/nthreads;')
       FOR('n','start','finish')
       line = name+'('
       indent = '\n'+' '*(depth+2)
