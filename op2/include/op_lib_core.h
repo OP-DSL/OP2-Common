@@ -299,8 +299,6 @@ void op_download_dat(op_dat dat);
 * Core MPI lib function prototypes
 *******************************************************************************/
 
-int op_mpi_halo_exchanges_force_halo_exchange(op_set set, int nargs, op_arg *args);
-
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
