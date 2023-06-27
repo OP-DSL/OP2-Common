@@ -233,7 +233,7 @@ def op2_gen_seq(master, date, consts, kernels):
 
     code('')
     if force_halo_exchange:
-      code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 1);')
+      code('int set_size = op_mpi_halo_exchanges_force_halo_exchange(set, nargs, args);')
     elif grouped:
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 0);')
     else:
@@ -332,7 +332,8 @@ def op2_gen_seq(master, date, consts, kernels):
     elif force_halo_exchange:
       FOR('n','0','set->size + set->exec_size + set->nonexec_size')
       IF('n==set->core_size')
-      code('op_mpi_wait_all_grouped(nargs, args, 1, 1);')
+      #code('op_mpi_wait_all_grouped(nargs, args, 1, 1);')
+      code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       line = name+'('
       indent = '\n'+' '*(depth+2)

@@ -263,7 +263,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDIF()
       code('')
       if force_halo_exchange:
-        code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 1);')
+        code('int set_size = op_mpi_halo_exchanges_force_halo_exchange(set, nargs, args);')
       else:
         code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
 
@@ -462,7 +462,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         code('non_thread_walltime += wall_t2 - wall_t1;')
       FOR('round','0','2')
       IF('round==1')
-      code('op_mpi_wait_all_grouped(nargs, args, 1, 1);')
+      code('op_mpi_wait_all(nargs, args);')
+      #code('op_mpi_wait_all_grouped(nargs, args, 1, 1);')
       ENDIF()
       code('#pragma omp parallel for')
       FOR('thr','0','nthreads')
