@@ -107,6 +107,8 @@ def op2_gen_seq(master, date, consts, kernels):
 ##########################################################################
 
   for nk in range (0,len(kernels)):
+    # TODO put this into create_kernel_info
+    force_halo_exchange = kernels[nk]['force_halo_exchange']
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
             ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
@@ -230,7 +232,9 @@ def op2_gen_seq(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    if grouped:
+    if force_halo_exchange:
+      code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 1);')
+    elif grouped:
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 0);')
     else:
       code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
@@ -323,6 +327,28 @@ def op2_gen_seq(master, date, consts, kernels):
       ENDFOR()
 
 #
+# kernel call for direct version with forced halo exchange
+#
+    elif force_halo_exchange:
+      FOR('n','0','set->size + set->exec_size + set->nonexec_size')
+      IF('n==set->core_size')
+      code('op_mpi_wait_all_grouped(nargs, args, 1, 1);')
+      ENDIF()
+      line = name+'('
+      indent = '\n'+' '*(depth+2)
+      for g_m in range(0,nargs):
+        if maps[g_m] == OP_ID:
+          line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+'*n]'
+        if maps[g_m] == OP_GBL:
+          line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
+        if g_m < nargs-1:
+          line = line +','
+        else:
+           line = line +');'
+      code(line)
+      ENDFOR()
+
+#
 # kernel call for direct version
 #
     else:
@@ -367,7 +393,10 @@ def op2_gen_seq(master, date, consts, kernels):
           print('Type '+typs[g_m]+' not supported in OpenACC code generator, please add it')
           exit(-1)
 
-    code('op_mpi_set_dirtybit(nargs, args);')
+    if force_halo_exchange:
+      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 1);')
+    else:
+      code('op_mpi_set_dirtybit(nargs, args);')
     code('')
 
 #
