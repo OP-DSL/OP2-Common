@@ -3073,6 +3073,7 @@ void op_halo_create_comm_avoid() {
   // moved after mgcfd dataset creation. should be called inside mgcfd
   // merge_exec_nonexec_halos(1, my_rank, comm_size);
   // set_group_halo_envt();
+  merge_exec_nonexec_halos(1, 1, 1);
 
   for (int i = 0; i < OP_set_index; i++) {
     op_free(part_range[i]);
@@ -3089,7 +3090,7 @@ void op_halo_create_comm_avoid() {
 }
 
 void merge_halos(int max_dat_count){
-  merge_exec_nonexec_halos(1, 1, 1);
+  
   set_group_halo_envt(max_dat_count);
 }
 
