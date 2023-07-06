@@ -16,7 +16,7 @@
 #
 # set paths for various files
 #
-aDEBUG = 1
+# DEBUG = 1
 SRC = src
 INC = include
 LIB = lib
