@@ -1491,35 +1491,6 @@ void merge_exec_nonexec_halos(int halo_levels, int my_rank, int comm_size){
   }
 }
 
-// Setting additional halo layers for maps in hydra
-void set_maps_hydra(){
-  // printf("set_maps_hydra maps and dats\n");
-  for (int m = 0; m < OP_map_index; m++) { // for each maping table
-    op_map map = OP_map_list[m];
-    if (strncmp("ne", map->name, strlen("ne")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("npe", map->name, strlen("npe")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("nb", map->name, strlen("nb")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-  }
-  return;
-}
-
 // Calculate halo layer sizes and oter information required for op_set s
 void calc_set_metrics(int l){
 
@@ -1700,6 +1671,34 @@ void op_remove_aug_map(op_map map, int map_id){
   if(map->aug_maps[map_id] != NULL){
     op_free(map->aug_maps[map_id]);
     map->aug_maps[map_id] = NULL;
+  }
+}
+
+// Setting additional halo layers for maps in hydra
+void set_maps_hydra(){
+  // printf("set_maps_hydra maps and dats\n");
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    op_map map = OP_map_list[m];
+    if (strncmp("ne", map->name, strlen("ne")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("npe", map->name, strlen("npe")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("nb", map->name, strlen("nb")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
   }
 }
 
@@ -2817,9 +2816,6 @@ void op_halo_create_comm_avoid() {
     OP_aug_import_nonexec_lists[i] = NULL;
   }
 
-  // Setup hydra maps
-  set_maps_hydra();
-
   // Create new communicator for OP mpi operation
   int my_rank, comm_size;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
@@ -2928,15 +2924,15 @@ void op_halo_create_comm_avoid() {
   rearrange_data_elements(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
   // Merging halos required for additional halos halo exchange as a grouped message
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
-  set_group_halo_envt(5);
+  // set_group_halo_envt(5);
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for list create
   // compute import/export lists creation time
   time = wall_t2 - wall_t1;
 
   // This is for message sizes and other information for performance model
-  calculate_dat_sizes(my_rank);
-  calculate_set_sizes(my_rank);
+  // calculate_dat_sizes(my_rank);
+  // calculate_set_sizes(my_rank);
   
   // STEP 14 - Clean up and Compute rough halo size numbers
   for (int i = 0; i < OP_set_index; i++) {

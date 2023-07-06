@@ -120,6 +120,8 @@ void op_write_const_hdf5(char const *name, int dim, char const *type,
                          char *const_data, char const *file_name);
 
 int op_mpi_add_nhalos(op_halo_info halo_info, int nhalos);
+void op_mpi_add_nhalos_map_str(char const *mapName, int nhalos);
+void op_mpi_add_nhalos_map_calc_str(char const *mapName, int nhalos);
 int op_mpi_add_nhalos_set(op_set set, int nhalos);
 int op_mpi_add_nhalos_map(op_map map, int nhalos);
 int op_mpi_add_nhalos_set_calc(op_set set, int nhalos);
@@ -131,6 +133,10 @@ int get_dirty_args(int nargs, op_arg *args, int exec_flag, op_arg* dirty_args, i
 int is_nonexec_halo_required(op_arg *arg, int nhalos, int halo_id);
 int are_dirtybits_clear(op_arg *arg);
 void unset_dirtybit(op_arg *arg);
+
+// Performance model calculations
+void calculate_dat_sizes(int my_rank);
+void calculate_set_sizes(int my_rank);
 
 #ifdef __cplusplus
 }

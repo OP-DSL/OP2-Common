@@ -805,3 +805,23 @@ void unset_dirtybit(op_arg *arg){
     printf("ERROR is_nonexec_halo_required Invalid unpack method\n");
   }
 }
+
+void op_mpi_add_nhalos_map_str(char const *mapName, int nhalos){
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    if (strncmp(mapName, map->name, strlen(mapName)) == 0 && strlen(mapName) == strlen(map->name)) {
+      op_mpi_add_nhalos_map(map, nhalos);
+      break;
+    }
+  }
+}
+
+void op_mpi_add_nhalos_map_calc_str(char const *mapName, int nhalos){
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    if (strncmp(mapName, map->name, strlen(mapName)) == 0 && strlen(mapName) == strlen(map->name)) {
+      op_mpi_add_nhalos_map_calc(map, nhalos);
+      break;
+    }
+  }
+}

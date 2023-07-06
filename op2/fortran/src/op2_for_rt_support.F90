@@ -310,6 +310,54 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_mpi_add_nhalos_map_str_c (mapName, nhalos) BIND(C,name='op_mpi_add_nhalos_map_str')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      character(kind=c_char) :: mapName(*)    ! name of map
+      integer(kind=c_int), value :: nhalos ! number of halos
+
+    end subroutine
+
+    subroutine op_mpi_add_nhalos_map_calc_str_c (mapName, nhalos) BIND(C,name='op_mpi_add_nhalos_map_calc_str')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      character(kind=c_char) :: mapName(*)    ! name of map
+      integer(kind=c_int), value :: nhalos ! number of halos
+
+    end subroutine
+
+    subroutine set_max_dat_count (max_dat_count) BIND(C,name='set_max_dat_count')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: max_dat_count ! max number of dats in a grouped message
+
+    end subroutine
+
+    subroutine calculate_dat_sizes (my_rank) BIND(C,name='calculate_dat_sizes')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: my_rank
+
+    end subroutine
+
+    subroutine calculate_set_sizes (my_rank) BIND(C,name='calculate_set_sizes')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: my_rank
+
+    end subroutine
+
+
     integer(kind=c_int) function op_mpi_halo_exchanges_grouped (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges_grouped')
 
       use, intrinsic :: ISO_C_BINDING
@@ -586,6 +634,30 @@ module OP2_Fortran_RT_Support
     real*8, dimension(*), target :: coords
 
     call op_partition_ptr_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, c_loc(prime_map), c_loc(coords))
+
+  end subroutine
+
+  subroutine op_mpi_add_nhalos_map_str (mapName, nhalos)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+    
+    character(kind=c_char,len=*) :: mapName    ! name of map
+    integer(kind=c_int), value, intent(in) :: nhalos ! number of halos
+
+    call op_mpi_add_nhalos_map_str_c (mapName//C_NULL_CHAR, nhalos)
+
+  end subroutine
+
+  subroutine op_mpi_add_nhalos_map_calc_str (mapName, nhalos)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    character(kind=c_char,len=*) :: mapName    ! name of map
+    integer(kind=c_int), value, intent(in) :: nhalos ! number of halos
+
+    call op_mpi_add_nhalos_map_calc_str_c (mapName//C_NULL_CHAR, nhalos)
 
   end subroutine
 

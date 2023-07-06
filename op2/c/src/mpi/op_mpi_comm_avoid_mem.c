@@ -1513,6 +1513,33 @@ void op_remove_aug_map(op_map map, int map_id){
   // op_printf("op_remove_aug_map nomap map_id = %d\n", map_id);
 }
 
+void set_maps_hydra(){
+  // printf("set_maps_hydra maps and dats\n");
+  for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    op_map map = OP_map_list[m];
+    if (strncmp("ne", map->name, strlen("ne")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("npe", map->name, strlen("npe")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("nb", map->name, strlen("nb")) == 0) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
+      op_mpi_add_nhalos_map(map, 2);
+      op_mpi_add_nhalos_map_calc(map, 2);
+    }
+  }
+}
+
 /*******************************************************************************
  * Unused functions - end
  *******************************************************************************/
@@ -2471,35 +2498,6 @@ void calc_set_metrics(int **part_range, int **core_elems, int **exp_elems, int m
   }
 }
 
-void set_maps_hydra(){
-  // printf("set_maps_hydra maps and dats\n");
-  for (int m = 0; m < OP_map_index; m++) { // for each maping table
-    op_map map = OP_map_list[m];
-    if (strncmp("ne", map->name, strlen("ne")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("npe", map->name, strlen("npe")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("ncb", map->name, strlen("ncb")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("nb", map->name, strlen("nb")) == 0) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-    if (strncmp("nwe", map->name, strlen("nwe")) == 0 && strlen("nwe") == strlen(map->name)) {
-      op_mpi_add_nhalos_map(map, 2);
-      op_mpi_add_nhalos_map_calc(map, 2);
-    }
-  }
-  return;
-}
-
-
 // Calculate core sizes
 void calculate_core(op_set set, int el, halo_list exec, int my_rank){
   int max_level = set->halo_info->max_nhalos;
@@ -2733,8 +2731,6 @@ void op_halo_create_comm_avoid() {
   int my_rank, comm_size;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  // set_maps_hydra();
 
   /* Compute global partition range information for each set*/
   int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
