@@ -33,7 +33,7 @@
 #ifndef __OP_MPI_COMM_AVOID_MEM_H
 #define __OP_MPI_COMM_AVOID_MEM_H
 
-#if defined COMM_AVOID || defined COMM_AVOID_CUDA || defined COMM_AVOID_MEM || defined COMM_AVOID_MEM_CUDA
+#if defined COMM_AVOID || defined COMM_AVOID_CUDA || defined COMM_AVOID_MEM
     #define op_halo_create(x) op_halo_create_comm_avoid(x)
     #define op_halo_destroy() op_halo_destroy_comm_avoid()
     #define op_mpi_exit() op_mpi_exit_comm_avoid()
@@ -43,18 +43,13 @@ void op_halo_create_comm_avoid();
 void op_halo_destroy_comm_avoid();
 void op_mpi_exit_comm_avoid();
 
-int get_nonexec_size(op_set set, int* to_sets, int* to_set_to_exec_max, int* to_set_to_nonexec_max);
-int get_exec_size(op_set set, int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max);
-int get_core_size(op_set set, int* to_sets, int* to_set_to_core_max);
-void calculate_max_values(op_set from_set, op_set to_set, int map_dim, int* map_values,
-int* to_sets, int* to_set_to_core_max, int* to_set_to_exec_max, int* to_set_to_nonexec_max, int my_rank);
-int find_element_in(int* arr, int element);
 int get_max_value(int* arr, int from, int to);
+int op_get_map_dat_max_size(int* map);
+
 void calculate_dat_sizes(int my_rank);
 void calculate_set_sizes(int my_rank);
 void set_group_halo_envt(int max_dat_count);
-void merge_halos(int max_dat_count);
-int op_get_map_dat_max_size(int* map);
+void set_max_dat_count(int max_dat_count);
 void op_remove_aug_map(op_map map, int map_id);
 
 #endif /* __OP_MPI_COMM_AVOID_MEM_H */

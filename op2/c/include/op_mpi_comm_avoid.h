@@ -47,6 +47,7 @@ int get_max_value(int* arr, int from, int to);
 int op_get_map_dat_max_size(int* map);
 void calculate_dat_sizes(int my_rank);
 void calculate_set_sizes(int my_rank);
+void set_max_dat_count(int max_dat_count);
 void op_remove_aug_map(op_map map, int map_id);
 
 #endif /* __OP_MPI_COMM_AVOID_H */

@@ -553,7 +553,7 @@ halo_list merge_halo_lists(int count, halo_list* h_lists, int my_rank, int comm_
   // h_list->sizes_by_rank = sizes_by_rank;
   // h_list->disps_by_rank = disps_by_rank;
 
-// free unused arrays
+  // free unused arrays
   op_free(level_disps);
   op_free(sizes_upto_level_by_rank);
   op_free(disps_upto_level_by_rank);
@@ -960,6 +960,7 @@ int get_max_calc_nhalos(){
   return max_level;
 }
 
+// This is for message sizes and other information for performance model
 void calculate_set_sizes(int my_rank){
 
   int comm_size = 0;
@@ -1375,10 +1376,10 @@ void ca_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 }
 #endif
 
-void set_group_halo_envt(){
+void set_group_halo_envt(int max_dat_count){
 
   grp_tag = 100;
-  int max_dat_count = 5;  // 1 for optimistic, 16 for pessimistic - MGCFD
+  // int max_dat_count = 5;  // 1 for optimistic, 16 for pessimistic - MGCFD
 
   int max_send_buff_size = 0;
   int max_recv_buff_size = 0;
@@ -2927,7 +2928,7 @@ void op_halo_create_comm_avoid() {
   rearrange_data_elements(num_halos, part_range, core_elems, exp_elems, my_rank, comm_size);
   // Merging halos required for additional halos halo exchange as a grouped message
   merge_exec_nonexec_halos(num_halos, my_rank, comm_size);
-  set_group_halo_envt();
+  set_group_halo_envt(5);
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for list create
   // compute import/export lists creation time
@@ -2951,6 +2952,9 @@ void op_halo_create_comm_avoid() {
   compute_halo_numbers(part_range, max_time, my_rank, comm_size);
 }
 
+void set_max_dat_count(int max_dat_count){
+  set_group_halo_envt(max_dat_count);
+}
 
 // Memory release when op_exit
 void op_halo_destroy_comm_avoid() {
