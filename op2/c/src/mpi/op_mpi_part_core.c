@@ -68,7 +68,14 @@ typedef int idx_t;
 #endif
 
 #include <op_lib_mpi.h>
+
+#ifdef COMM_AVOID
 #include <op_mpi_comm_avoid.h>
+#endif
+
+#ifdef COMM_AVOID_MEM
+#include <op_mpi_comm_avoid_mem.h>
+#endif
 
 // double min/max
 #include <float.h>

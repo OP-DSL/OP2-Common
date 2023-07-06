@@ -47,9 +47,16 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+
+
+#ifdef COMM_AVOID_MEM
+#include <op_mpi_comm_avoid_mem.h>
+#endif
+
 #ifdef COMM_AVOID_CUDA
 #include <op_mpi_comm_avoid.h>
 #endif
+
 //
 // MPI Communicator for halo creation and exchange
 //

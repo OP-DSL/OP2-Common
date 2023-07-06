@@ -50,11 +50,11 @@ extern halo_list *OP_import_exec_list; // IEH list
 extern halo_list *OP_import_nonexec_list; // INH list
 extern halo_list *OP_export_nonexec_list; // ENH list
 
-extern halo_list* OP_aug_export_exec_lists[OP_NHALOS_MAX];
-extern halo_list* OP_aug_import_exec_lists[OP_NHALOS_MAX];
+// extern halo_list* OP_aug_export_exec_lists[OP_NHALOS_MAX];
+// extern halo_list* OP_aug_import_exec_lists[OP_NHALOS_MAX];
 
-extern halo_list* OP_aug_export_nonexec_lists[OP_NHALOS_MAX];
-extern halo_list* OP_aug_import_nonexec_lists[OP_NHALOS_MAX];
+// extern halo_list* OP_aug_export_nonexec_lists[OP_NHALOS_MAX];
+// extern halo_list* OP_aug_import_nonexec_lists[OP_NHALOS_MAX];
 
 extern halo_list *OP_merged_import_exec_list;
 extern halo_list *OP_merged_export_exec_list;
