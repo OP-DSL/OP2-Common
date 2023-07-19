@@ -341,6 +341,14 @@ module OP2_Fortran_Declarations
 
     end function
 
+    INTEGER(kind=c_int) function op_get_global_set_offset_c ( set ) BIND(C,name='op_get_global_set_offset')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
+
     INTEGER(kind=c_int) function op_get_size_local_c ( set ) BIND(C,name='op_get_size_local')
       use, intrinsic :: ISO_C_BINDING
 
@@ -681,6 +689,20 @@ module OP2_Fortran_Declarations
      integer(kind=c_int) :: rank
 
    end subroutine op_mpi_rank_c
+
+   type(c_ptr) function op_mpi_get_data_c(dat) BIND(C, name='op_mpi_get_data')
+
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value :: dat
+
+   end function op_mpi_get_data_c
+
+   subroutine op_mpi_free_data_c(dat) BIND(C, name='op_mpi_free_data')
+
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value :: dat
+
+   end subroutine op_mpi_free_data_c
 
    subroutine printFirstDatPosition (data) BIND(C,name='printFirstDatPosition')
      import :: op_dat_core
@@ -2142,6 +2164,18 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
 
   end function op_get_size
 
+  INTEGER function op_get_global_set_offset (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_global_set_offset = op_get_global_set_offset_c ( set%setCPtr )
+
+  end function op_get_global_set_offset
+
   INTEGER function op_get_size_local (set )
 
     use, intrinsic :: ISO_C_BINDING
@@ -2976,6 +3010,29 @@ type(op_arg) function op_opt_arg_dat_real_8 (opt, dat, idx, map, dim, type, acce
     call op_mpi_rank_c (rank)
 
   end subroutine op_mpi_rank
+
+  function op_mpi_get_data(dat)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(c_ptr) :: dat
+    type(op_dat) :: op_mpi_get_data
+
+    op_mpi_get_data%dataCPtr = op_mpi_get_data_c(dat)
+    call c_f_pointer(op_mpi_get_data%dataCPtr, op_mpi_get_data%dataPtr)
+
+  end function op_mpi_get_data
+
+  subroutine op_mpi_free_data(dat)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(op_dat) :: dat
+    call op_mpi_free_data_c(dat%dataCPtr)
+
+  end subroutine op_mpi_free_data
 
   subroutine op_print (line)
 

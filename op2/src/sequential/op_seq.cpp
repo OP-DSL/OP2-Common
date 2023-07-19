@@ -167,6 +167,8 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
 
 int op_get_size(op_set set) { return set->size; }
 
+int op_get_global_set_offset(op_set set) { return 0; }
+
 void op_printf(const char *format, ...) {
   va_list argptr;
   va_start(argptr, format);

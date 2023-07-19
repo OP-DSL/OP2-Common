@@ -153,6 +153,8 @@ op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
 
 int op_get_size(op_set set) { return set->size; }
 
+int op_get_global_set_offset(op_set set) { return 0; }
+
 void op_printf(const char *format, ...) {
   va_list argptr;
   va_start(argptr, format);

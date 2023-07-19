@@ -3262,16 +3262,36 @@ void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
 
 int op_get_size(op_set set) {
   int my_rank, comm_size;
+
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+
   int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  int g_size = 0;
   MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+
+  int g_size = 0;
   for (int i = 0; i < comm_size; i++)
     g_size = g_size + sizes[i];
-  op_free(sizes);
 
+  op_free(sizes);
   return g_size;
+}
+
+int op_get_global_set_offset(op_set set) {
+  int my_rank, comm_size;
+
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+
+  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
+  MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+
+  int g_offset = 0;
+  for (int i = 0; i < my_rank; i++)
+    g_offset = g_offset + sizes[i];
+
+  op_free(sizes);
+  return g_offset;
 }
 
 /*******************************************************************************

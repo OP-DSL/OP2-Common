@@ -227,6 +227,8 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 
 int op_get_size(op_set set) { return set->size; }
 
+int op_get_global_set_offset(op_set set) { return 0; }
+
 void op_printf(const char *format, ...) {
   va_list argptr;
   va_start(argptr, format);
