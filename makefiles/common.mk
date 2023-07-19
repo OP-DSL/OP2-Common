@@ -161,6 +161,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C++: $(CXXFLAGS))
   $(info .   CUDA: $(NVCCFLAGS))
   $(info .   Fortran: $(FFLAGS))
+  $(info .   CUDA Fortran: $(CUDA_FFLAGS))
   $(info )
 endif
 

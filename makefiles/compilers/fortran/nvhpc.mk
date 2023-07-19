@@ -20,6 +20,10 @@ CONFIG_F_HAS_PARALLEL_BUILDS ?= false
 GPU_FFLAG := -gpu=fastmath,ptxinfo,lineinfo
 $(foreach arch,$(CUDA_GEN),$(eval GPU_FFLAG := $(GPU_FFLAG),cc$(arch)))
 
+ifdef NV_CUDA_VER
+  GPU_FFLAG := $(GPU_FFLAG),cuda$(NV_CUDA_VER)
+endif
+
 # Available OpenMP features
 CONFIG_OMP_FFLAGS ?= -mp
 CONFIG_F_HAS_OMP ?= true
