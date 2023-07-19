@@ -221,7 +221,11 @@ class Application:
         if arg.access_type not in valid_access_types:
             raise OpError(f"invalid access type for gbl argument: {arg.access_type}", arg.loc)
 
-        if arg.access_type != OP.AccessType.READ and arg.typ not in [OP.Float(64), OP.Float(32), OP.Int(True, 32)]:
+        if arg.access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX] and arg.typ not in [
+            OP.Float(64),
+            OP.Float(32),
+            OP.Int(True, 32),
+        ]:
             raise OpError(f"invalid access type for reduced gbl argument: {arg.access_type}", arg.loc)
 
         if arg.dim is not None and arg.dim < 1:
