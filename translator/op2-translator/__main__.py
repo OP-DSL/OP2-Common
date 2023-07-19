@@ -106,7 +106,7 @@ def main(argv=None) -> None:
                 const_ptr = line.strip()
 
                 if const_ptr != "":
-                    app.external_consts.add(const_ptr)
+                    app.external_consts.add(const_ptr.lower())
 
     if args.force_soa:
         for program in app.programs:
