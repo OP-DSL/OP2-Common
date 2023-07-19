@@ -141,6 +141,8 @@ op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
 
 int op_get_size(op_set set) { return set->size; }
 
+int op_get_global_set_offset(op_set set) { return 0; }
+
 void op_printf(const char *format, ...) {
   va_list argptr;
   va_start(argptr, format);
