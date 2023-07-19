@@ -100,8 +100,8 @@ OP2_FOR_HDF5 := $(OP2_HDF5) $(addprefix $(OBJ)/fortran/,\
 	op2_for_hdf5_declarations.o)
 
 OP2_SEQ := $(OP2_BASE) $(addprefix $(OBJ)/,\
-  core/op_dummy_singlenode.o \
-  sequential/op_seq.o)
+	core/op_dummy_singlenode.o \
+	sequential/op_seq.o)
 
 OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
