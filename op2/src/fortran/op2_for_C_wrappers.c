@@ -69,7 +69,7 @@
 #include <string.h>
 
 #include <op_lib_c.h>
-
+#include <op_util.h>
 
 #ifdef OPMPI
 #include <mpi.h>
@@ -413,6 +413,12 @@ void printDat_noGather (op_dat dat) {
   fclose (fileptr);
 }
 
+void op_mpi_free_data(op_dat dat) {
+  op_free(dat->set);
+  op_free(dat->data);
+  op_free(dat);
+}
+
 #else
 
 int op_mpi_size () {
@@ -424,6 +430,31 @@ void op_mpi_rank (int * rank) {
 }
 
 void op_barrier () {
+}
+
+op_dat op_mpi_get_data(op_dat dat) {
+  op_dat temp_dat = (op_dat)xmalloc(sizeof(op_dat_core));
+  op_set temp_set = (op_set)xmalloc(sizeof(op_set_core));
+
+  temp_set->index = dat->set->index;
+  temp_set->size = dat->set->size;
+  temp_set->name = dat->set->name;
+
+  temp_dat->index = dat->index;
+  temp_dat->set = temp_set;
+  temp_dat->dim = dat->dim;
+  temp_dat->data = dat->data;
+  temp_dat->data_d = NULL;
+  temp_dat->name = dat->name;
+  temp_dat->type = dat->type;
+  temp_dat->size = dat->size;
+
+  return temp_dat;
+}
+
+void op_mpi_free_data(op_dat dat) {
+  op_free(dat->set);
+  op_free(dat);
 }
 
 #endif
