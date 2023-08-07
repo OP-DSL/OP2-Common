@@ -1301,7 +1301,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
   code('#define MAX_CONST_SIZE 128')
   code('#endif')
   code('#ifndef SIMD_VEC')
-  code('#define SIMD_VEC 8')
+  code('#define SIMD_VEC 32')
   code('#endif')
   code('')
 

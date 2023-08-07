@@ -158,24 +158,24 @@ ifeq ($(OP2_COMPILER),intel-sycl)
   else
     CCFLAGS  = -g -O3 -fPIC
   endif
-  CXX       = clang++
-  SYCLCXX   = clang++
+  CXX       = icpx
+  SYCLCXX   = icpx
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
   NVCCFLAGS = -ccbin=$(NVCC_HOST_COMPILER)
-  SYCL_FLAGS = -fsycl -fsycl-targets=nvptx64-nvidia-cuda
+  SYCL_FLAGS = -fsycl #-fsycl-targets=nvptx64-nvidia-cuda
 #-I$(SYCL_INSTALL_PATH)/include -I$(SYCL_INSTALL_PATH)/include #intel sycl
 else
 ifeq ($(OP2_COMPILER),hipsycl)
   ifdef DEBUG
     CCFLAGS  = -g -O0
   else
-    CCFLAGS  = -O3
+    CCFLAGS  = -Ofast
   endif
   CXX	    = clang++
   SYCLCXX = syclcc
-  SYCL_FLAGS = --opensycl-targets=cuda:sm_80 -L/usr/lib64/boost1.78/
+  SYCL_FLAGS = $(HIPSYCL_FLAGS) #--opensycl-targets=cuda:sm_80 -L/usr/lib64/boost1.78/
   CXXFLAGS  = $(CCFLAGS)
   MPICXX    = $(MPICPP_PATH)
   MPIFLAGS  = $(CXXFLAGS)
