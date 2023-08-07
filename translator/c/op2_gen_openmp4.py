@@ -96,7 +96,8 @@ def op2_gen_openmp4(master, date, consts, kernels):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
-  op2_compiler = os.getenv('OP2_COMPILER','0');
+#  op2_compiler = os.getenv('OP2_COMPILER','0');
+  op2_compiler = 'clang'
   any_soa = 0
   maptype = 'map'
   for nk in range (0,len(kernels)):
@@ -504,7 +505,7 @@ def op2_gen_openmp4(master, date, consts, kernels):
       call_params = call_params.replace('num_teams','part_size!=0?(end-start-1)/part_size+1:(end-start-1)/nthread')
     # set params for direct version
     else:
-      call_params = re.sub('count','set->size',call_params);
+      call_params = re.sub(r'\bcount\b','set->size',call_params);
       call_params = call_params.replace('num_teams','part_size!=0?(set->size-1)/part_size+1:(set->size-1)/nthread') 
     code(func_call_signaure_text.split(' ')[-1]+call_params+');')
     code('')

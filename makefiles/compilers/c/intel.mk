@@ -1,6 +1,6 @@
 # Compiler executables and flags
-CONFIG_CC := icc
-CONFIG_CXX := icpc
+CONFIG_CC := icx
+CONFIG_CXX := icpx
 
 BASE_CPPFLAGS := -MMD -MP -Wall
 
@@ -20,4 +20,5 @@ CONFIG_OMP_CPPFLAGS ?= -qopenmp
 CONFIG_CPP_HAS_OMP ?= true
 
 # CONFIG_OMP_OFFLOAD_CPPFLAGS ?=
-CONFIG_CPP_HAS_OMP_OFFLOAD ?= false
+CONFIG_OMP_OFFLOAD_CPPFLAGS ?= -fiopenmp -fopenmp-targets=spir64
+CONFIG_CPP_HAS_OMP_OFFLOAD ?= true
