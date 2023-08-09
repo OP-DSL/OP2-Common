@@ -75,9 +75,6 @@ call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
     {% for arg in lh.args|gbl %}
     gbl{{arg.id}}_d, &
     {% endfor %}
-    {% for arg in lh.args|gbl|min_or_max %}
-    gbl{{arg.id}}_ref_d, &
-    {% endfor %}
     {% for arg in lh.args|info %}
     info{{arg.id}}_d, &
     {% endfor %}
@@ -108,6 +105,9 @@ call op2_k_{{lh.name}}_init_reductions<<<max_blocks, block_size>>>( &
     {% endfor %}
     {% for arg in lh.args|gbl|reduction if arg.dim is none %}
     arg{{arg.id}}%dim, &
+    {% endfor %}
+    {% for arg in lh.args|gbl|reduction if arg is opt %}
+    arg{{arg.id}}%opt, &
     {% endfor %}
     0 &
 )
@@ -184,9 +184,6 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 {% for arg in lh.args|gbl %}
     gbl{{arg.id}}, &
 {% endfor %}
-{% for arg in lh.args|gbl|min_or_max %}
-    gbl{{arg.id}}_ref, &
-{% endfor %}
 {% for arg in lh.args|info %}
     info{{arg.id}}, &
 {% endfor %}
@@ -217,9 +214,6 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 {% endfor %}
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(*) :: gbl{{arg.id}}{{"\n" if loop.last}}
-{% endfor %}
-{% for arg in lh.args|gbl|min_or_max %}
-    {{arg.typ}}, dimension(*) :: gbl{{arg.id}}_ref{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|info %}
     {{arg.typ}}, dimension(*) :: info{{arg.id}}{{"\n" if loop.last}}
@@ -268,6 +262,9 @@ subroutine op2_k_{{lh.name}}_init_reductions( &
 {% for arg in lh.args|gbl|reduction if arg.dim is none %}
     arg{{arg.id}}_dim, &
 {% endfor %}
+{% for arg in lh.args|gbl|reduction if arg is opt %}
+    arg{{arg.id}}_opt, &
+{% endfor %}
     dummy &
 )
     implicit none
@@ -282,6 +279,9 @@ subroutine op2_k_{{lh.name}}_init_reductions( &
 {% for arg in lh.args|gbl|reduction if arg.dim is none %}
     integer(4), value :: arg{{arg.id}}_dim{{"\n" if loop.last}}
 {% endfor %}
+{% for arg in lh.args|gbl|reduction if arg is opt %}
+    integer(4), value :: arg{{arg.id}}_opt{{"\n" if loop.last}}
+{% endfor %}
     integer(4), value :: dummy
 
     ! locals
@@ -290,6 +290,9 @@ subroutine op2_k_{{lh.name}}_init_reductions( &
     thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
 {% for arg in lh.args|gbl|reduction %}
 
+    {% if arg is opt %}
+    if (arg{{arg.id}}_opt == 1) then
+    {% endif %}
     do d = 1, {{gbl_dim_w(arg)}}
         gbl{{arg.id}}(thread_id + (d - 1) * op2_stride_gbl_d) = {% if arg is inc -%}
             0
@@ -297,6 +300,9 @@ subroutine op2_k_{{lh.name}}_init_reductions( &
             gbl{{arg.id}}_ref(d)
     {%- endif +%}
     end do
+    {% if arg is opt %}
+    end if
+    {% endif %}
 {% endfor %}
 end subroutine
 
@@ -477,11 +483,11 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
 {% endif %}
 {% for arg in lh.args|gbl|min_or_max %}
-    if (.not. allocated(gbl{{arg.id}}_ref_d)) then
+    if (.not. allocated(gbl{{arg.id}}_ref_d){{" .and. arg%s%%opt == 1" if arg is opt}}) then
         allocate(gbl{{arg.id}}_ref_d({{gbl_dim(arg)}}))
     end if
 
-    gbl{{arg.id}}_ref_d = gbl{{arg.id}}
+    {{"if (arg%s%%opt == 1) " % arg.id if arg is opt}}gbl{{arg.id}}_ref_d = gbl{{arg.id}}
 
 {% endfor %}
 {% if lh.args|gbl|reduction|length > 0 %}

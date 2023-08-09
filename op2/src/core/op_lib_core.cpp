@@ -39,6 +39,7 @@
 #include <malloc.h>
 #include <string.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #include <vector>
 #include <unordered_set>

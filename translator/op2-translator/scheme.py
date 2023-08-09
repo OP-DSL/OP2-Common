@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import traceback
 from abc import abstractmethod
 from pathlib import Path
@@ -58,8 +59,9 @@ class Scheme(Findable["Scheme"]):
             if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
                 args["kernel_func"] = self.translateKernel(loop, program, app, args["config"], kernel_idx)
         except Exception as e:
-            print(f"Error: kernel translation for kernel {kernel_idx} failed ({self}):")
-            traceback.print_exc()
+            print(f"Error: kernel translation for kernel {kernel_idx} ({loop.name}) failed ({self}):")
+            print(f"  fallback: {loop.fallback}, can generate: {self.canGenLoopHost(loop)}, force_generate: {force_generate}")
+            traceback.print_exc(file=sys.stdout)
 
         if args["kernel_func"] is None and self.fallback is None:
             return None
