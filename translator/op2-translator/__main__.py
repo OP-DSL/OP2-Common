@@ -216,9 +216,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     for i, (loop, program) in enumerate(app.loops(), 1):
         force_generate = scheme.target == Target.find("seq")
 
-        if loop.kernel in ["jacob_inviscid_work", "bcflux_work"]:
-            force_generate = True
-
         # Generate loop host source
         res = scheme.genLoopHost(env, loop, program, app, i, force_generate)
 
