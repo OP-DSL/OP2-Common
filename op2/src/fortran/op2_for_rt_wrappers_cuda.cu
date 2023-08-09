@@ -43,26 +43,39 @@
 
 #include <vector>
 
-// TODO: Make this waste less space
+// TODO: Make this waste less space?
 static constexpr size_t align_size = 8 * sizeof(char);
 static constexpr size_t align(size_t x) { return (x + (align_size) - 1) & ~(align_size - 1); }
 
-static char *device_global_reductions = NULL;
-static size_t device_global_reductions_size = 0;
+struct device_buffer {
+    void *data = nullptr;
+    size_t size = 0;
 
-static char *device_global_rws = NULL;
-static size_t device_global_rws_size = 0;
+    void ensure_capacity(size_t requested_size) {
+        if (requested_size <= size) return;
 
-static void *device_temp_storage = NULL;
-static size_t device_temp_storage_size = 0;
+        if (data != nullptr) cutilSafeCall(cudaFree(data));
+        cutilSafeCall(cudaMalloc((void **) &data, requested_size));
+        size = requested_size;
+    }
 
-static void *device_result = NULL;
-static size_t device_result_size = 0;
+    device_buffer() = default;
+    device_buffer(const device_buffer&) = delete;
+
+    // Causes errors, or maybe exposes API errors from other calls?
+    // ~device_buffer() { cutilSafeCall(cudaFree(data)); }
+};
+
+static device_buffer device_global_reductions;
+static device_buffer device_global_rws;
+static device_buffer device_temp_storage;
+static device_buffer device_result;
 
 static void prepareDeviceGblReductions(op_arg *args, int nargs, int max_threads) {
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
         if (args[i].argtype == OP_ARG_GBL &&
            (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
@@ -70,15 +83,11 @@ static void prepareDeviceGblReductions(op_arg *args, int nargs, int max_threads)
         required_size += align(args[i].size * max_threads * sizeof(char));
     }
 
-    if (required_size > device_global_reductions_size) {
-        printf("required gbl reduction bytes: %zu\n", required_size);
-        if (device_global_reductions != NULL) cutilSafeCall(cudaFree(device_global_reductions));
-        cutilSafeCall(cudaMalloc((void **) &device_global_reductions, required_size));
-        device_global_reductions_size = required_size;
-    }
+    device_global_reductions.ensure_capacity(required_size);
 
-    char *allocated = device_global_reductions;
+    char *allocated = (char *) device_global_reductions.data;
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
         if (args[i].argtype == OP_ARG_GBL &&
            (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
@@ -92,21 +101,18 @@ static void prepareDeviceGblRWs(op_arg *args, int nargs) {
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
         if (args[i].acc != OP_READ && args[i].acc != OP_WRITE && args[i].acc != OP_RW) continue;
 
         required_size += align(args[i].size * sizeof(char));
     }
 
-    if (required_size > device_global_rws_size) {
-        printf("required gbl r/w bytes: %zu\n", required_size);
-        if (device_global_rws != NULL) cutilSafeCall(cudaFree(device_global_rws));
-        cutilSafeCall(cudaMalloc((void **) &device_global_rws, required_size));
-        device_global_rws_size = required_size;
-    }
+    device_global_rws.ensure_capacity(required_size);
 
-    char *allocated = device_global_rws;
+    char *allocated = (char *) device_global_rws.data;
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
         if (args[i].acc != OP_READ && args[i].acc != OP_WRITE && args[i].acc != OP_RW) continue;
 
@@ -123,26 +129,19 @@ static void prepareDeviceGblRWs(op_arg *args, int nargs) {
 
 template<typename T, typename F, typename HF>
 static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
-    if (arg->size * sizeof(char) > device_result_size) {
-        cutilSafeCall(cudaMalloc((void **) &device_result, arg->size * sizeof(char)));
-        device_result_size = arg->size * sizeof(char);
-    }
+    device_result.ensure_capacity(arg->size * sizeof(char));
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result, nelems, 0, false);
+    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems, 0, false);
 
-    if (required_temp_storage_size > device_temp_storage_size) {
-        if (device_temp_storage != NULL) cutilSafeCall(cudaFree(device_temp_storage));
-        cutilSafeCall(cudaMalloc((void **) &device_temp_storage, required_temp_storage_size));
-        device_temp_storage_size = required_temp_storage_size;
-    }
+    device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < arg->dim; ++d)
-        op(device_temp_storage, device_temp_storage_size,
-            (T *) arg->data_d + d * max_threads, (T *) device_result + d, nelems, 0, false);
+        op(device_temp_storage.data, device_temp_storage.size,
+            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems, 0, false);
 
     std::vector<T> result(arg->dim);
-    cutilSafeCall(cudaMemcpy(result.data(), device_result, arg->size * sizeof(char), cudaMemcpyDeviceToHost));
+    cutilSafeCall(cudaMemcpy(result.data(), device_result.data, arg->size * sizeof(char), cudaMemcpyDeviceToHost));
 
     for (int d = 0; d < arg->dim; ++d)
         host_op(((T *) arg->data) + d, result.data() + d);
@@ -152,27 +151,20 @@ template<typename T, typename F, typename HF>
 static void reduce_info(F op, HF host_op, op_arg *args, int index,
         const std::vector<int> &payload_args, int nelems, int max_threads) {
     size_t required_result_size = args[index].dim * sizeof(cub::KeyValuePair<int, T>) * sizeof(char);
-    if (required_result_size > device_result_size) {
-        cutilSafeCall(cudaMalloc((void **) &device_result, required_result_size));
-        device_result_size = required_result_size;
-    }
+    device_result.ensure_capacity(required_result_size);
 
     size_t required_temp_storage_size = 0;
     op(NULL, required_temp_storage_size, (T *) args[index].data_d,
-       (cub::KeyValuePair<int, T> *) device_result, nelems, 0, false);
+       (cub::KeyValuePair<int, T> *) device_result.data, nelems, 0, false);
 
-    if (required_temp_storage_size > device_temp_storage_size) {
-        if (device_temp_storage != NULL) cutilSafeCall(cudaFree(device_temp_storage));
-        cutilSafeCall(cudaMalloc((void **) &device_temp_storage, required_temp_storage_size));
-        device_temp_storage_size = required_temp_storage_size;
-    }
+    device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < args[index].dim; ++d)
-        op(device_temp_storage, device_temp_storage_size, (T *) args[index].data_d + d * max_threads,
-           (cub::KeyValuePair<int, T> *) device_result + d, nelems, 0, false);
+        op(device_temp_storage.data, device_temp_storage.size, (T *) args[index].data_d + d * max_threads,
+           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems, 0, false);
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
-    cutilSafeCall(cudaMemcpy(result.data(), device_result, required_result_size, cudaMemcpyDeviceToHost));
+    cutilSafeCall(cudaMemcpy(result.data(), device_result.data, required_result_size, cudaMemcpyDeviceToHost));
 
     for (int d = 0; d < args[index].dim; ++d) {
         if (result[d].value == ((T *) args[index].data)[d])
@@ -221,6 +213,7 @@ template<typename T> static void max(T *a, T *b) { *a = std::max(*a, *b); }
 
 static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
 
         if (args[i].acc == OP_INC) {
@@ -253,6 +246,7 @@ static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
 
 static void processDeviceGblRWs(op_arg *args, int nargs) {
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
         if (args[i].acc != OP_RW && args[i].acc != OP_WRITE) continue;
 
@@ -324,6 +318,7 @@ int getBlockLimit(op_arg *args, int nargs, int block_size) {
 
     size_t bytes_per_thread = 0;
     for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
         if (args[i].argtype == OP_ARG_GBL &&
            (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;

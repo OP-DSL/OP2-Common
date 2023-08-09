@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union, Set
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -142,6 +142,14 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
             loop.fallback = True
 
+    # Check for runtime-dimension stack arrays (very slow for GPU)
+    violations = []
+    for entity in entities:
+        checkRuntimeDimensionArrays(entity, app.constPtrs(), violations)
+
+    if len(violations) > 0:
+        printViolations(loop, "runtime dimension local arrays", violations)
+
 
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:
     if arg is not None:
@@ -180,6 +188,36 @@ def checkStatements(func: Function, violations: List[str]) -> None:
         ),
     ):
         violations.append(f"In {func.name}: {fu.getItem(node).line}")
+
+
+def checkRuntimeDimensionArrays(func: Function, consts: Set[str], violations: List[str]) -> None:
+    spec = fpu.get_child(func.ast, f2003.Specification_Part)
+
+    if spec is None:
+        return
+
+    blacklist = set(consts)
+    blacklist.update(func.parameters)
+
+    for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
+        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
+            name = fpu.get_child(entity_decl, f2003.Name).string
+            if name.lower() in func.parameters:
+                continue
+
+            shape_spec = fpu.get_child(entity_decl, f2003.Explicit_Shape_Spec_List)
+            if shape_spec is None:
+                dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)
+
+                if len(dimension_spec) > 0:
+                    shape_spec = fpu.get_child(dimension_spec[0], f2003.Explicit_Shape_Spec_List)
+
+            if shape_spec is None:
+                continue
+
+            for ref_node in fpu.walk(shape_spec, f2003.Name):
+                if ref_node.string.lower() in blacklist:
+                    violations.append(f"In {func.name}: variable {name}, dimension {ref_node.string.lower()}")
 
 
 def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations: List[str]) -> None:
@@ -325,8 +363,9 @@ def checkInc(func: Function, param_idx: int, funcs: List[Function], violations: 
             violations.append(msg(f"invalid usage: {fu.getItem(node).line}"))
             continue
 
-        sym_expr = parse_expr(f"({expr}) - (x + {expr.replace('x', '0')})", evaluate=False)
-        if simplify(sym_expr) != 0:
+        if simplify(parse_expr(f"{expr.replace('x', '0')}", evaluate=False)) == 0:
+            violations.append(msg(f"no-op: {fu.getItem(node).line}"))
+        elif simplify(parse_expr(f"({expr}) - (x + {expr.replace('x', '0')})", evaluate=False)) != 0:
             violations.append(msg(f"non increment: {fu.getItem(node).line}"))
 
 
