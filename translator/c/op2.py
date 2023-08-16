@@ -468,7 +468,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       soaflags = [0] * nargs
       optflags = [0] * nargs
       any_opt = 0
-      force_halo_exchange = loop_args[i]['name2'].find(":force_halo_exchange") != -1
+      force_halo_compute = loop_args[i]['name2'].find(":force_halo_compute") != -1
 
       for m in range(0, nargs):
         argm = loop_args[i]['args'][m]
@@ -597,9 +597,9 @@ def main(srcFilesAndDirs=sys.argv[1:]):
       for i in range(0,nargs):
         if maps[i] == OP_GBL and accs[i] != OP_READ and accs[i] != OP_WRITE:
           reduct = True
-      if force_halo_exchange and (ninds != 0 or reduct):
-        print('the :force_halo_exchange flag is only applicable to direct loops with no reductions')
-        force_halo_exchange = False
+      if force_halo_compute and (ninds != 0 or reduct):
+        print('the :force_halo_compute flag is only applicable to direct loops with no reductions')
+        force_halo_compute = False
       # check for repeats
 
       repeat = False
@@ -610,7 +610,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
         rep1 = kernels[nk]['name'] == name and \
           kernels[nk]['nargs'] == nargs and \
           kernels[nk]['ninds'] == ninds and \
-          kernels[nk]['force_halo_exchange'] == force_halo_exchange
+          kernels[nk]['force_halo_compute'] == force_halo_compute
         if rep1:
           rep2 = True
           for arg in range(0, nargs):
@@ -683,7 +683,7 @@ def main(srcFilesAndDirs=sys.argv[1:]):
             'inds': inds,
             'soaflags': soaflags,
             'optflags': optflags,
-            'force_halo_exchange': force_halo_exchange,
+            'force_halo_compute': force_halo_compute,
 
             'ninds': ninds,
             'inddims': inddims,

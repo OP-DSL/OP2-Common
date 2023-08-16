@@ -108,7 +108,7 @@ def op2_gen_seq(master, date, consts, kernels):
 
   for nk in range (0,len(kernels)):
     # TODO put this into create_kernel_info
-    force_halo_exchange = kernels[nk]['force_halo_exchange']
+    force_halo_compute = kernels[nk]['force_halo_compute']
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
             ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
@@ -232,7 +232,7 @@ def op2_gen_seq(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    if force_halo_exchange:
+    if force_halo_compute:
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 1);')
     elif grouped:
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 0);')
@@ -329,7 +329,7 @@ def op2_gen_seq(master, date, consts, kernels):
 #
 # kernel call for direct version with forced halo exchange
 #
-    elif force_halo_exchange:
+    elif force_halo_compute:
       FOR('n','0','set->size + set->exec_size + set->nonexec_size')
       #IF('n==set->core_size')
       IF('n==set->size')
@@ -394,8 +394,8 @@ def op2_gen_seq(master, date, consts, kernels):
           print('Type '+typs[g_m]+' not supported in OpenACC code generator, please add it')
           exit(-1)
 
-    if force_halo_exchange:
-      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 1);')
+    if force_halo_compute:
+      code('op_mpi_set_dirtybit_force_halo_compute(nargs, args, 1);')
     else:
       code('op_mpi_set_dirtybit(nargs, args);')
     code('')

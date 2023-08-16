@@ -109,7 +109,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 
   for nk in range (0,len(kernels)):
     # TODO put this into create_kernel_info
-    force_halo_exchange = kernels[nk]['force_halo_exchange']
+    force_halo_compute = kernels[nk]['force_halo_compute']
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
             ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
@@ -262,7 +262,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      if force_halo_exchange:
+      if force_halo_compute:
         code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1, 1);')
       else:
         code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
@@ -453,7 +453,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
 #
 # kernel call for direct version with forced halo exchange
 #
-    elif force_halo_exchange:
+    elif force_halo_compute:
       comm(' execute plan')
       if insert_thread_timers:
         # Pause process timing, and switch to per-thread timing:
@@ -580,8 +580,8 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
-    if force_halo_exchange:
-      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 1);')
+    if force_halo_compute:
+      code('op_mpi_set_dirtybit_force_halo_compute(nargs, args, 1);')
     else:
       code('op_mpi_set_dirtybit(nargs, args);')
     code('')

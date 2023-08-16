@@ -118,7 +118,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     atomics=0
 
     # TODO put this into create_kernel_info
-    force_halo_exchange = kernels[nk]['force_halo_exchange']
+    force_halo_compute = kernels[nk]['force_halo_compute']
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
            ninds, inddims, indaccs, indtyps, invinds, mapnames, invmapinds, mapinds, nmaps, nargs_novec, \
@@ -357,7 +357,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('int end,             ')
       code('int   set_size) {    ')
     else:
-      if force_halo_exchange:
+      if force_halo_compute:
         code('int start,           ')
         code('int end) {')
       else:
@@ -624,7 +624,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if reduct:
         FOR_INC('n','threadIdx.x+blockIdx.x*blockDim.x','set_size','blockDim.x*gridDim.x')
       else:
-        if force_halo_exchange:
+        if force_halo_compute:
           code('int n = threadIdx.x+blockIdx.x*blockDim.x + start;')
           IF('n < end')
         else:
@@ -818,7 +818,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     code('')
     comm('host stub function')
-    # TODO potentially change this if force_halo_exchange
+    # TODO potentially change this if force_halo_compute
     code('void op_par_loop_'+name+'(char const *name, op_set set,')
     depth += 2
 
@@ -922,7 +922,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      if force_halo_exchange:
+      if force_halo_compute:
         code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2, 1);')
       else:
         code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2, 0);')
@@ -1000,7 +1000,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('  int nthread = OP_block_size;')
       code('#endif')
       code('')
-      if ninds==0 and not force_halo_exchange:
+      if ninds==0 and not force_halo_compute:
         if reduct:
             code('int nblocks = 400;')
         else:
@@ -1184,9 +1184,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
       ENDFOR()
 #
-# kernel call for direct with force_halo_exchange
+# kernel call for direct with force_halo_compute
 #
-    elif force_halo_exchange:
+    elif force_halo_compute:
       FOR('round','0','2')
       IF('round==1')
       code('op_mpi_wait_all_grouped(nargs, args, 2, 1);')
@@ -1279,8 +1279,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     ENDIF()
-    if force_halo_exchange:
-      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 2);')
+    if force_halo_compute:
+      code('op_mpi_set_dirtybit_force_halo_compute(nargs, args, 2);')
     else:
       code('op_mpi_set_dirtybit_cuda(nargs, args);')
 
