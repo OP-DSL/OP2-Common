@@ -1280,7 +1280,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
     ENDIF()
     if force_halo_compute:
-      code('op_mpi_set_dirtybit_force_halo_compute(nargs, args, 2);')
+      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 2);')
     else:
       code('op_mpi_set_dirtybit_cuda(nargs, args);')
 

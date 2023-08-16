@@ -581,7 +581,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     if force_halo_compute:
-      code('op_mpi_set_dirtybit_force_halo_compute(nargs, args, 1);')
+      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 1);')
     else:
       code('op_mpi_set_dirtybit(nargs, args);')
     code('')

@@ -395,7 +395,7 @@ def op2_gen_seq(master, date, consts, kernels):
           exit(-1)
 
     if force_halo_compute:
-      code('op_mpi_set_dirtybit_force_halo_compute(nargs, args, 1);')
+      code('op_mpi_set_dirtybit_force_halo_exchange(nargs, args, 1);')
     else:
       code('op_mpi_set_dirtybit(nargs, args);')
     code('')
