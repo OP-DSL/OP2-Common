@@ -3,9 +3,9 @@ CONFIG_CC := nvcc
 CONFIG_CXX := nvc++
 
 ifndef DEBUG
-  BASE_CPPFLAGS += -O3
+  BASE_CPPFLAGS += -O3 -Xcompiler -fPIC
 else
-  BASE_CPPFLAGS += -g -O0
+  BASE_CPPFLAGS += -g -O0 -Xcompiler -fPIC
 endif
 
 CONFIG_CFLAGS ?= -c99 $(BASE_CPPFLAGS)

@@ -2,7 +2,7 @@
 CONFIG_CC := gcc
 CONFIG_CXX := g++
 
-BASE_CPPFLAGS := -MMD -MP -Wall -Wextra -pedantic
+BASE_CPPFLAGS := -MMD -MP -Wall -Wextra -pedantic -fPIC
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3

@@ -13,7 +13,7 @@ $(file > $(DEP_BUILD_LOG),$(PARMETIS_TEST))
 $(shell $(PARMETIS_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 
 ifneq ($(.SHELLSTATUS),0)
-  PARMETIS_LINK ?= -lparmetis -lmetis
+  PARMETIS_LINK ?= -lparmetis -lmetis -lGKlib
 
   $(file >> $(DEP_BUILD_LOG),$(PARMETIS_TEST))
   $(shell $(PARMETIS_TEST) >> $(DEP_BUILD_LOG) 2>&1)
