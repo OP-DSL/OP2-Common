@@ -5,7 +5,7 @@ CONFIG_CXX := CC
 CONFIG_MPICC := cc
 CONFIG_MPICXX := CC
 
-BASE_CPPFLAGS := -MMD -MP -Wall -Wextra -pedantic
+BASE_CPPFLAGS := -MMD -MP -Wall -Wextra -pedantic -fPIC
 
 ifndef DEBUG
   BASE_CPPFLAGS += -O3
