@@ -20,6 +20,8 @@ class AccessType(Enum):
     MIN = 4
     MAX = 5
 
+    WORK = 6
+
     @staticmethod
     def values() -> List[int]:
         return [x.value for x in list(AccessType)]

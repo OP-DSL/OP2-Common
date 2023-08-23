@@ -96,6 +96,7 @@ extern int OP_cuda_reductions_mib;
 #define OP_INC 3
 #define OP_MIN 4
 #define OP_MAX 5
+#define OP_WORK 6
 
 #define OP_ARG_GBL 0
 #define OP_ARG_DAT 1
@@ -108,8 +109,8 @@ extern int OP_cuda_reductions_mib;
 #define OP_STAGE_PERMUTE 3
 #define OP_COLOR2 4
 
-typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX
-typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX
+typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX, OP_WORK
+typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX, OP_ARG_INFO
 
 /*
  * structures
@@ -292,6 +293,8 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 int op_size_of_set(const char *);
 
 int op_get_size(op_set set);
+
+int op_get_global_set_offset(op_set set);
 
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 

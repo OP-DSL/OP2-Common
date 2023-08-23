@@ -162,7 +162,7 @@ program airfoil
             maxerr = 0.0
             errloc = 0
 
-            call op_par_loop_5(update, cells, &
+            call op_par_loop_8(update, cells, &
                 op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)",    OP_READ),  &
                 op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)",    OP_WRITE), &
                 op_arg_dat(p_res,  -1, OP_ID, 4, "real(8)",    OP_RW),    &

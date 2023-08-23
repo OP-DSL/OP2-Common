@@ -186,6 +186,9 @@ class FortranCuda(Scheme):
         def match_reduction(arg):
             return arg.access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
 
+        def match_work(arg):
+            return arg.access_type == OP.AccessType.WORK
+
         modified = ftk.insertStrides(
             kernel_entities[0],
             kernel_entities + dependencies,
@@ -211,7 +214,7 @@ class FortranCuda(Scheme):
             loop,
             app,
             lambda arg: f"gbl",
-            lambda arg: (match_gbl(arg) and match_reduction(arg)) or match_info(arg),
+            lambda arg: (match_gbl(arg) and (match_reduction(arg) or match_work(arg))) or match_info(arg),
             modified,
         )
 

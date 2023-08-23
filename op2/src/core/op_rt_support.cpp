@@ -386,7 +386,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   int indirect_reduce = 0;
   for (int m = 0; m < nargs; m++) {
     indirect_reduce |=
-        (args[m].acc != OP_READ && args[m].argtype == OP_ARG_GBL);
+        (args[m].acc != OP_READ && args[m].acc != OP_WORK && args[m].argtype == OP_ARG_GBL);
   }
   indirect_reduce &= (ninds > 0);
 
