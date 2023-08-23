@@ -70,7 +70,7 @@ void op_arg_set(int n, op_arg arg, char **p_arg, int *idx, int halo){
   *p_arg = arg.data;
 
   if (arg.argtype == OP_ARG_GBL) {
-    if (halo && (arg.acc != OP_READ)) *p_arg = blank_args;
+    if (halo && (arg.acc != OP_READ) && (arg.acc != OP_WORK)) *p_arg = blank_args;
   } else if (arg.argtype == OP_ARG_IDX) {
     *p_arg = (char *)idx;
 

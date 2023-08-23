@@ -17,10 +17,11 @@ extern "C" {
 /* Access codes: must have the same values here and in op2_for_declarations.F90 file */
 #define FOP_READ 1
 #define FOP_WRITE 2
-#define FOP_INC 3
-#define FOP_RW 4
+#define FOP_RW 3
+#define FOP_INC 4
 #define FOP_MIN 5
 #define FOP_MAX 6
+#define FOP_WORK 7
 
 /* HYDRA feature: in some cases the op_dat
  * passed to an op_arg is NULL, and this index notifies it

@@ -207,8 +207,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     args({{arg.id + 1}}) = arg{{arg.id}}
 {% endfor %}
 
-    call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+    call op_timers_core(start_time)
 
 !   print *, " op2_kernel cpu {{lh.name}}"
 

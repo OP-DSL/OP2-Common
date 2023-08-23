@@ -217,6 +217,7 @@ class Application:
             OP.AccessType.INC,
             OP.AccessType.MIN,
             OP.AccessType.MAX,
+            OP.AccessType.WORK,
         ]
         if arg.access_type not in valid_access_types:
             raise OpError(f"invalid access type for gbl argument: {arg.access_type}", arg.loc)
@@ -230,23 +231,3 @@ class Application:
 
         if arg.dim is not None and arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
-
-    # TODO: Re-do kernel validation?
-    # def validateKernel(self, loop: OP.Loop, program: Program, lang: Lang) -> None:
-    #     kernel_entities = self.findEntities(loop.kernel, program)  # TODO: Loop scope
-
-    #     if len(loop.args) != len(kernel.params):
-    #         raise OpError("number of loop arguments does not match number of kernel arguments", loop.loc)
-
-    #     for loop_arg, kernel_param in zip(loop.args, kernel.params):
-    #         if isinstance(loop_arg, OP.ArgDat) and loop.dats[loop_arg.dat_id].typ != kernel_param[1]:
-    #             raise OpError(
-    #                 f"loop argument type does not match kernel paramater type: {loop_arg.dat_typ} != {kernel_param[1]}",
-    #                 loop.loc,
-    #             )
-
-    #         if isinstance(loop_arg, OP.ArgGbl) and loop_arg.typ != kernel_param[1]:
-    #             raise OpError(
-    #                 f"loop argument type does not match kernel paramater type: {loop_arg.typ} != {kernel_param[1]}",
-    #                 loop.loc,
-    #             )

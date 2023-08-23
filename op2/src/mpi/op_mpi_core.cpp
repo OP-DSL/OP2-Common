@@ -2076,14 +2076,14 @@ void op_mpi_reduce_combined(op_arg *args, int nargs) {
   op_timers_core(&c1, &t1);
   int nreductions = 0;
   for (int i = 0; i < nargs; i++) {
-    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ)
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ && args[i].acc != OP_WORK)
       nreductions++;
   }
   op_arg *arg_list = (op_arg *)xmalloc(nreductions * sizeof(op_arg));
   nreductions = 0;
   int nbytes = 0;
   for (int i = 0; i < nargs; i++) {
-    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ) {
+    if (args[i].argtype == OP_ARG_GBL && args[i].acc != OP_READ && args[i].acc != OP_WORK) {
       arg_list[nreductions++] = args[i];
       nbytes += args[i].size;
     }
@@ -2269,7 +2269,7 @@ void op_mpi_reduce_float(op_arg *arg, float *data) {
     return;
   (void)data;
   op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
     float result_static;
     float *result;
     if (arg->dim > 1 && arg->acc != OP_WRITE)
@@ -2326,7 +2326,7 @@ void op_mpi_reduce_double(op_arg *arg, double *data) {
   if (arg->data == NULL)
     return;
   op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
     double result_static;
     double *result;
     if (arg->dim > 1 && arg->acc != OP_WRITE)
@@ -2383,7 +2383,7 @@ void op_mpi_reduce_int(op_arg *arg, int *data) {
   if (arg->data == NULL)
     return;
   op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
     int result_static;
     int *result;
     if (arg->dim > 1 && arg->acc != OP_WRITE)
@@ -2440,7 +2440,7 @@ void op_mpi_reduce_bool(op_arg *arg, bool *data) {
   if (arg->data == NULL)
     return;
   op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ) {
+  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
     bool result_static;
     bool *result;
     if (arg->dim > 1)

@@ -57,10 +57,6 @@ void op_get_all_cuda(int nargs, op_arg *args) {
 #ifdef __cplusplus
 extern "C" {
 #endif
-void prepareScratch (op_arg *args, int nargs, int nthreads) {
-  (void) args;
-}
-
 void getBlockLimit(op_arg *args, int nargs, int block_size) {
     (void) args;
     (void) nargs;

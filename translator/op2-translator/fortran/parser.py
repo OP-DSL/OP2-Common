@@ -397,7 +397,7 @@ def parseStringLiteral(node: Any, loc: Location) -> str:
 def parseAccessType(node: Any, loc: Location) -> OP.AccessType:
     access_type_str = parseIdentifier(node, loc).upper()
 
-    access_type_map = {"OP_READ": 0, "OP_WRITE": 1, "OP_RW": 2, "OP_INC": 3, "OP_MIN": 4, "OP_MAX": 5}
+    access_type_map = {"OP_READ": 0, "OP_WRITE": 1, "OP_RW": 2, "OP_INC": 3, "OP_MIN": 4, "OP_MAX": 5, "OP_WORK": 6}
 
     if access_type_str not in access_type_map:
         raise ParseError(

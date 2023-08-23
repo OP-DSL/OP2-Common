@@ -56,7 +56,7 @@ module OP2_Fortran_Declarations
   integer(c_int) :: OP_INC = 4
   integer(c_int) :: OP_MIN = 5
   integer(c_int) :: OP_MAX = 6
-  integer(c_int) :: OP_INFO = 7         ! this needs to be the last one, as we add to it
+  integer(c_int) :: OP_WORK = 7
 
   type, BIND(C) :: op_set_core
 

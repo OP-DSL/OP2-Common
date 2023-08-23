@@ -49,7 +49,7 @@ map{{arg.map_id}}({{map_idx(arg)}} * set_size + n)
 n
     {%- elif arg is info -%}
 info{{arg.id}}(thread_id)
-    {%- elif arg is gbl and arg is reduction -%}
+    {%- elif arg is gbl and (arg is reduction or arg is work) -%}
 gbl{{arg.id}}(thread_id)
     {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"(1)" if arg.dim == 1}}
@@ -95,18 +95,18 @@ call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
 )
 {%- endmacro -%}
 
-{%- macro init_reductions() -%}
-call op2_k_{{lh.name}}_init_reductions<<<max_blocks, block_size>>>( &
-    {% for arg in lh.args|gbl|reduction %}
+{%- macro init_gbls() -%}
+call op2_k_{{lh.name}}_init_gbls<<<max_blocks, block_size>>>( &
+    {% for arg in lh.args|gbl|select2("reduction", "work") %}
     gbl{{arg.id}}_d, &
     {% endfor %}
-    {% for arg in lh.args|gbl|min_or_max %}
+    {% for arg in lh.args|gbl|select2("min", "max", "work") %}
     gbl{{arg.id}}_ref_d, &
     {% endfor %}
-    {% for arg in lh.args|gbl|reduction if arg.dim is none %}
+    {% for arg in lh.args|gbl|select2("reduction", "work") if arg.dim is none %}
     arg{{arg.id}}%dim, &
     {% endfor %}
-    {% for arg in lh.args|gbl|reduction if arg is opt %}
+    {% for arg in lh.args|gbl|select2("reduction", "work") if arg is opt %}
     arg{{arg.id}}%opt, &
     {% endfor %}
     0 &
@@ -163,7 +163,7 @@ module op2_m_{{lh.name}}{{variant}}
     integer(4) :: op2_stride_dat{{dat.id}} = 0
     integer(4), constant :: op2_stride_dat{{dat.id}}_d = 0
 {% endfor %}
-{% if lh.args|gbl|reduction|length > 0 %}
+{% if lh.args|gbl|select2("reduction", "work")|length > 0 %}
 
     integer(4) :: op2_stride_gbl = 0
     integer(4), constant :: op2_stride_gbl_d = 0
@@ -250,19 +250,19 @@ subroutine op2_k_{{lh.name}}_wrapper( &
     end do
 end subroutine
 
-{% if lh.args|gbl|reduction|length > 0 %}
+{% if lh.args|gbl|select2("reduction", "work")|length > 0 %}
 attributes(global) &
-subroutine op2_k_{{lh.name}}_init_reductions( &
-{% for arg in lh.args|gbl|reduction %}
+subroutine op2_k_{{lh.name}}_init_gbls( &
+{% for arg in lh.args|gbl|select2("reduction", "work") %}
     gbl{{arg.id}}, &
 {% endfor %}
-{% for arg in lh.args|gbl|min_or_max %}
+{% for arg in lh.args|gbl|select2("min", "max", "work") %}
     gbl{{arg.id}}_ref, &
 {% endfor %}
-{% for arg in lh.args|gbl|reduction if arg.dim is none %}
+{% for arg in lh.args|gbl|select2("reduction", "work") if arg.dim is none %}
     arg{{arg.id}}_dim, &
 {% endfor %}
-{% for arg in lh.args|gbl|reduction if arg is opt %}
+{% for arg in lh.args|gbl|select2("reduction", "work") if arg is opt %}
     arg{{arg.id}}_opt, &
 {% endfor %}
     dummy &
@@ -270,16 +270,16 @@ subroutine op2_k_{{lh.name}}_init_reductions( &
     implicit none
 
     ! parameters
-{% for arg in lh.args|gbl|reduction %}
+{% for arg in lh.args|gbl|select2("reduction", "work") %}
     {{arg.typ}}, dimension(*) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
-{% for arg in lh.args|gbl|min_or_max %}
+{% for arg in lh.args|gbl|select2("min", "max", "work") %}
     {{arg.typ}}, dimension(*) :: gbl{{arg.id}}_ref{{"\n" if loop.last}}
 {% endfor %}
-{% for arg in lh.args|gbl|reduction if arg.dim is none %}
+{% for arg in lh.args|gbl|select2("reduction", "work") if arg.dim is none %}
     integer(4), value :: arg{{arg.id}}_dim{{"\n" if loop.last}}
 {% endfor %}
-{% for arg in lh.args|gbl|reduction if arg is opt %}
+{% for arg in lh.args|gbl|select2("reduction", "work") if arg is opt %}
     integer(4), value :: arg{{arg.id}}_opt{{"\n" if loop.last}}
 {% endfor %}
     integer(4), value :: dummy
@@ -288,7 +288,7 @@ subroutine op2_k_{{lh.name}}_init_reductions( &
     integer(4) :: thread_id, d
 
     thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
-{% for arg in lh.args|gbl|reduction %}
+{% for arg in lh.args|gbl|select2("reduction", "work") %}
 
     {% if arg is opt %}
     if (arg{{arg.id}}_opt == 1) then
@@ -338,7 +338,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(:), pointer :: gbl{{arg.id}}
     {{arg.typ}}, dimension(:), pointer, device :: gbl{{arg.id}}_d
-    {% if arg is min_or_max %}
+    {% if arg is min or arg is max or arg is work %}
     {{arg.typ}}, dimension(:), allocatable, device, save :: gbl{{arg.id}}_ref_d
     {% endif %}
 
@@ -371,7 +371,6 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     args({{loop.index}}) = arg{{arg.id}}
 {% endfor %}
 
-    call op_timers_core(start_time)
     n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
 !   print *, " op2_kernel gpu {{lh.name}}"
@@ -438,6 +437,13 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     end do
 {% endif %}
 
+    err = cudaDeviceSynchronize()
+
+    if (err /= 0) then
+        print *, cudaGetErrorString(err)
+    end if
+
+    call op_timers_core(start_time)
     call prepareDeviceGbls(args, size(args), block_size * max_blocks)
 
 {% for arg in lh.args %}
@@ -475,14 +481,14 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         op2_stride_dat{{dat.id}}_d = op2_stride_dat{{dat.id}}
     end if{{"\n" if loop.last}}
 {% endfor %}
-{% if lh.args|gbl|reduction|length > 0 %}
+{% if lh.args|gbl|select2("reduction", "work")|length > 0 %}
     if (op2_stride_gbl /= block_size * max_blocks) then
         op2_stride_gbl = block_size * max_blocks
         op2_stride_gbl_d = op2_stride_gbl
     end if
 
 {% endif %}
-{% for arg in lh.args|gbl|min_or_max %}
+{% for arg in lh.args|gbl|select2("min", "max", "work") %}
     if (.not. allocated(gbl{{arg.id}}_ref_d){{" .and. arg%s%%opt == 1" if arg is opt}}) then
         allocate(gbl{{arg.id}}_ref_d({{gbl_dim(arg)}}))
     end if
@@ -490,8 +496,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {{"if (arg%s%%opt == 1) " % arg.id if arg is opt}}gbl{{arg.id}}_ref_d = gbl{{arg.id}}
 
 {% endfor %}
-{% if lh.args|gbl|reduction|length > 0 %}
-    {{init_reductions()|indent}}
+{% if lh.args|gbl|select2("reduction", "work")|length > 0 %}
+    {{init_gbls()|indent}}
 
 {% endif %}
 {% if lh is direct %}

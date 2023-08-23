@@ -181,16 +181,6 @@ module OP2_Fortran_RT_Support
 
     end function
 
-    integer(kind=c_int) function reductionSize (args, argsNumber) BIND(C,name='reductionSize')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      type(op_arg), dimension(*) :: args       ! array with op_args
-
-    end function reductionSize
-
     subroutine op_upload_all () BIND(C,name='op_upload_all')
 
       use, intrinsic :: ISO_C_BINDING
@@ -423,17 +413,6 @@ module OP2_Fortran_RT_Support
 
       type(op_arg) :: arg
       type(c_ptr) :: data
-
-    end subroutine
-
-    subroutine prepareScratch(args,argsNumber, nelems) BIND(C,name='prepareScratch')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      integer(kind=c_int), value :: nelems
-      type(op_arg), dimension(*) :: args       ! array with op_args
 
     end subroutine
 
