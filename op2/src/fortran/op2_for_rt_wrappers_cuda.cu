@@ -66,65 +66,18 @@ struct device_buffer {
     // ~device_buffer() { cutilSafeCall(cudaFree(data)); }
 };
 
-static device_buffer device_global_reductions;
-static device_buffer device_global_rws;
+static device_buffer device_globals;
 static device_buffer device_temp_storage;
 static device_buffer device_result;
 
-static void prepareDeviceGblReductions(op_arg *args, int nargs, int max_threads) {
-    size_t required_size = 0;
+static bool needs_per_thread_storage(const op_arg& arg) {
+    if (arg.argtype == OP_ARG_INFO) return true;
+    if (arg.argtype != OP_ARG_GBL)  return false;
 
-    for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
-        if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
-        if (args[i].argtype == OP_ARG_GBL &&
-           (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
-
-        required_size += align(args[i].size * max_threads * sizeof(char));
-    }
-
-    device_global_reductions.ensure_capacity(required_size);
-
-    char *allocated = (char *) device_global_reductions.data;
-    for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
-        if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
-        if (args[i].argtype == OP_ARG_GBL &&
-           (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
-
-        args[i].data_d = allocated;
-        allocated += align(args[i].size * max_threads * sizeof(char));
-    }
-}
-
-static void prepareDeviceGblRWs(op_arg *args, int nargs) {
-    size_t required_size = 0;
-
-    for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
-        if (args[i].argtype != OP_ARG_GBL) continue;
-        if (args[i].acc != OP_READ && args[i].acc != OP_WRITE && args[i].acc != OP_RW) continue;
-
-        required_size += align(args[i].size * sizeof(char));
-    }
-
-    device_global_rws.ensure_capacity(required_size);
-
-    char *allocated = (char *) device_global_rws.data;
-    for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
-        if (args[i].argtype != OP_ARG_GBL) continue;
-        if (args[i].acc != OP_READ && args[i].acc != OP_WRITE && args[i].acc != OP_RW) continue;
-
-        args[i].data_d = allocated;
-        allocated += align(args[i].size * sizeof(char));
-
-        if (args[i].acc == OP_WRITE) continue;
-
-        cutilSafeCall(cudaMemcpy(args[i].data_d, args[i].data,
-                                 args[i].size * sizeof(char),
-                                 cudaMemcpyHostToDevice));
-    }
+    return arg.acc == OP_MIN ||
+           arg.acc == OP_MAX ||
+           arg.acc == OP_INC ||
+           arg.acc == OP_WORK;
 }
 
 template<typename T, typename F, typename HF>
@@ -291,26 +244,39 @@ void op_get_all_cuda(int nargs, op_arg *args) {
   }
 }
 
-char *scratch = NULL;
-long scratch_size = 0;
-void prepareScratch(op_arg *args, int nargs, int nelems) {
-  long req_size = 0;
-  for (int i = 0; i < nargs; i++) {
-    if ((args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) || args[i].argtype == OP_ARG_INFO)
-      req_size += ((args[i].size-1)/8+1)*8*nelems;
-  }
-  if (scratch_size < req_size) {
-    if (!scratch) cutilSafeCall(cudaFree(scratch));
-    cutilSafeCall(cudaMalloc((void**)&scratch, req_size*sizeof(char)));
-    scratch_size = req_size;
-  }
-  req_size = 0;
-  for (int i = 0; i < nargs; i++) {
-    if ((args[i].argtype == OP_ARG_GBL && (args[i].acc == OP_INC || args[i].acc == OP_MAX || args[i].acc == OP_MIN)) || args[i].argtype == OP_ARG_INFO) {
-      args[i].data_d = scratch + req_size;
-      req_size += ((args[i].size-1)/8+1)*8*nelems;
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
+    size_t required_size = 0;
+
+    for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
+        if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
+
+        if (needs_per_thread_storage(args[i]))
+            required_size += align(args[i].size * max_threads * sizeof(char));
+        else
+            required_size += align(args[i].size * sizeof(char));
     }
-  }
+
+    device_globals.ensure_capacity(required_size);
+
+    char *allocated = (char *) device_globals.data;
+    for (int i = 0; i < nargs; ++i) {
+        if (args[i].opt == 0) continue;
+        if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
+
+        args[i].data_d = allocated;
+
+        if (needs_per_thread_storage(args[i])) {
+            allocated += align(args[i].size * max_threads * sizeof(char));
+        } else {
+            allocated += align(args[i].size * sizeof(char));
+            if (args[i].acc == OP_WRITE) continue;
+
+            cutilSafeCall(cudaMemcpy(args[i].data_d, args[i].data,
+                                     args[i].size * sizeof(char),
+                                     cudaMemcpyHostToDevice));
+        }
+    }
 }
 
 int getBlockLimit(op_arg *args, int nargs, int block_size) {
@@ -319,9 +285,7 @@ int getBlockLimit(op_arg *args, int nargs, int block_size) {
     size_t bytes_per_thread = 0;
     for (int i = 0; i < nargs; ++i) {
         if (args[i].opt == 0) continue;
-        if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
-        if (args[i].argtype == OP_ARG_GBL &&
-           (args[i].acc != OP_INC && args[i].acc != OP_MIN && args[i].acc != OP_MAX)) continue;
+        if (!needs_per_thread_storage(args[i])) continue;
 
         bytes_per_thread += args[i].size * sizeof(char);
     }
@@ -330,11 +294,6 @@ int getBlockLimit(op_arg *args, int nargs, int block_size) {
 
     size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
     return std::max(max_total_reduction / ((size_t) block_size * bytes_per_thread), 1UL);
-}
-
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
-    prepareDeviceGblReductions(args, nargs, max_threads);
-    prepareDeviceGblRWs(args, nargs);
 }
 
 void processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {

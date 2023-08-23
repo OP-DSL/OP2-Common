@@ -2,7 +2,7 @@ import os
 from math import ceil
 from typing import Optional
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, pass_context
 
 import op as OP
 
@@ -75,6 +75,8 @@ env.tests["inc"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.ac
 env.tests["min"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.MIN
 env.tests["max"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.MAX
 
+env.tests["work"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type == OP.AccessType.WORK
+
 env.tests["read_or_write"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
     OP.AccessType.READ,
     OP.AccessType.WRITE,
@@ -106,6 +108,20 @@ def read_in(dat: OP.Dat, loop: OP.Loop) -> bool:
 
 env.tests["read_in"] = read_in
 env.tests["instance"] = lambda x, c: isinstance(x, c)
+
+
+@pass_context
+def select2_filter(context, xs, *tests):
+    ys = []
+    for x in xs:
+        for test in tests:
+            if context.environment.call_test(test, x):
+                ys.append(x)
+                break
+
+    return ys
+
+env.filters["select2"] = select2_filter
 
 
 def unpack(tup):
@@ -142,8 +158,6 @@ env.filters["inc"] = test_to_filter("inc")
 env.filters["min"] = test_to_filter("min")
 env.filters["max"] = test_to_filter("max")
 
-env.filters["read_or_write"] = test_to_filter("read_or_write")
-env.filters["min_or_max"] = test_to_filter("min_or_max")
 env.filters["reduction"] = test_to_filter("reduction")
 
 env.filters["index"] = lambda xs, x: xs.index(x)

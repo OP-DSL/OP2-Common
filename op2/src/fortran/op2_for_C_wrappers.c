@@ -433,8 +433,8 @@ void op_barrier () {
 }
 
 op_dat op_mpi_get_data(op_dat dat) {
-  op_dat temp_dat = (op_dat)xmalloc(sizeof(op_dat_core));
-  op_set temp_set = (op_set)xmalloc(sizeof(op_set_core));
+  op_dat temp_dat = (op_dat)malloc(sizeof(op_dat_core));
+  op_set temp_set = (op_set)malloc(sizeof(op_set_core));
 
   temp_set->index = dat->set->index;
   temp_set->size = dat->set->size;

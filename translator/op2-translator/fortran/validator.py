@@ -90,7 +90,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     # Check for slice expressions for args with stride insertion (gbl reductions, dats)
     for idx, arg in enumerate(loop.args):
         if not (
-            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC]
+            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC, OP.AccessType.WORK]
         ) and not isinstance(arg, OP.ArgDat):
             continue
 
