@@ -85,13 +85,13 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
     device_result.ensure_capacity(arg->size * sizeof(char));
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems, 0, false);
+    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems);
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < arg->dim; ++d)
         op(device_temp_storage.data, device_temp_storage.size,
-            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems, 0, false);
+            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems);
 
     std::vector<T> result(arg->dim);
     cutilSafeCall(cudaMemcpy(result.data(), device_result.data, arg->size * sizeof(char), cudaMemcpyDeviceToHost));
@@ -108,13 +108,13 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
 
     size_t required_temp_storage_size = 0;
     op(NULL, required_temp_storage_size, (T *) args[index].data_d,
-       (cub::KeyValuePair<int, T> *) device_result.data, nelems, 0, false);
+       (cub::KeyValuePair<int, T> *) device_result.data, nelems);
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < args[index].dim; ++d)
         op(device_temp_storage.data, device_temp_storage.size, (T *) args[index].data_d + d * max_threads,
-           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems, 0, false);
+           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems);
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
     cutilSafeCall(cudaMemcpy(result.data(), device_result.data, required_result_size, cudaMemcpyDeviceToHost));
@@ -155,14 +155,28 @@ static void reduce_arg2(F op, F2 op2, HF host_op,
     reduce_info<T>(op2, host_op, args, index, payload_args, nelems, max_threads);
 }
 
-#define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(cub::DeviceReduce::op<T *, T *>, \
-                                                       cub::DeviceReduce::op2<T *, cub::KeyValuePair<int, T> *>, \
-                                                       host_op<T>, \
-                                                       args, i, nargs, nelems, max_threads)
-
 template<typename T> static void inc(T *a, T *b) { *a += *b; }
 template<typename T> static void min(T *a, T *b) { *a = std::min(*a, *b); }
 template<typename T> static void max(T *a, T *b) { *a = std::max(*a, *b); }
+
+#define cub_reduction_wrap(op, out_type) \
+    template<typename T> static cudaError_t op(void *d_temp_storage, size_t &temp_storage_bytes, \
+                                                T *d_in, out_type *d_out, int num_items) { \
+        return cub::DeviceReduce::op(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items); \
+    }
+
+cub_reduction_wrap(Sum, T)
+cub_reduction_wrap(Min, T)
+cub_reduction_wrap(Max, T)
+
+template<typename T>
+using KeyValuePair = cub::KeyValuePair<int, T>;
+
+cub_reduction_wrap(ArgMin, KeyValuePair<T>)
+cub_reduction_wrap(ArgMax, KeyValuePair<T>)
+
+#define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(op<T>, op2<T>, host_op<T>, \
+                                                       args, i, nargs, nelems, max_threads)
 
 static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
     for (int i = 0; i < nargs; ++i) {
