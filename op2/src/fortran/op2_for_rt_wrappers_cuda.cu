@@ -91,7 +91,7 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
 
     for (int d = 0; d < arg->dim; ++d)
         op(device_temp_storage.data, device_temp_storage.size,
-            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems, 0 , false);
+            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems, 0, false);
 
     std::vector<T> result(arg->dim);
     cutilSafeCall(cudaMemcpy(result.data(), device_result.data, arg->size * sizeof(char), cudaMemcpyDeviceToHost));
@@ -155,10 +155,8 @@ static void reduce_arg2(F op, F2 op2, HF host_op,
     reduce_info<T>(op2, host_op, args, index, payload_args, nelems, max_threads);
 }
 
-//    cub::DeviceReduce::op<T *, T *>, 
-//    cub::DeviceReduce::op2<T *, cub::KeyValuePair<int, T> *>, 
-#define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(static_cast<cudaError_t(*)(void*, size_t&, T*, T*, int, cudaStream_t, bool)>(&cub::DeviceReduce::op<T*, T*>), \
-                                                       static_cast<cudaError_t(*)(void*, size_t&, T*, cub::KeyValuePair<int, T> *, int, cudaStream_t, bool)>(&cub::DeviceReduce::op2<T*, cub::KeyValuePair<int, T> *>), \
+#define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(cub::DeviceReduce::op<T *, T *>, \
+                                                       cub::DeviceReduce::op2<T *, cub::KeyValuePair<int, T> *>, \
                                                        host_op<T>, \
                                                        args, i, nargs, nelems, max_threads)
 
