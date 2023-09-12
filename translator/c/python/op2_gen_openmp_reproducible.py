@@ -201,8 +201,8 @@ def op2_gen_openmp_reproducible(master, date, consts, kernels):
         code('op_arg <ARG>,')
 
     if repr_omp:
-      for m in range (0,nargs):
-        if maps[m]==OP_GBL and accs[m] != OP_READ:
+      for g_m in range (0,nargs):
+        if maps[g_m]==OP_GBL and accs[g_m] != OP_READ:
           code('<TYP>*<ARG>h = (<TYP> *)<ARG>.data;')
 
     code('int nargs = '+str(nargs)+';')
@@ -271,22 +271,22 @@ def op2_gen_openmp_reproducible(master, date, consts, kernels):
       code('  int nthreads = 1;')
       code('#endif')
 
-    if reduct and repr_omp:
-      code('')
-      comm(' allocate and initialise arrays for global reduction')
-      for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
-          code('<TYP> <ARG>_l[nthreads*64];')
-          FOR('thr','0','nthreads')
-          if accs[g_m]==OP_INC:
-            FOR('d','0','<DIM>')
-            code('<ARG>_l[d+thr*64]=ZERO_<TYP>;')
-            ENDFOR()
-          else:
-            FOR('d','0','<DIM>')
-            code('<ARG>_l[d+thr*64]=<ARG>h[d];')
-            ENDFOR()
-          ENDFOR()      
+    #if reduct and repr_omp:
+    #  code('')
+    #  comm(' allocate and initialise arrays for global reduction')
+    #  for g_m in range(0,nargs):
+    #    if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE:
+    #      code('<TYP> <ARG>_l[nthreads*64];')
+    #      FOR('thr','0','nthreads')
+    #      if accs[g_m]==OP_INC:
+    #        FOR('d','0','<DIM>')
+    #        code('<ARG>_l[d+thr*64]=ZERO_<TYP>;')
+    #        ENDFOR()
+    #      else:
+    #        FOR('d','0','<DIM>')
+    #        code('<ARG>_l[d+thr*64]=<ARG>h[d];')
+    #        ENDFOR()
+    #      ENDFOR()      
 #
 # Prepare reduction arrays for reproducible global reduction 
 #
@@ -529,7 +529,8 @@ def op2_gen_openmp_reproducible(master, date, consts, kernels):
             line = line + indent + '&(('+typs[g_m]+'*)arg'+str(g_m)+'.data)['+str(dims[g_m])+'*n]'
           if maps[g_m] == OP_GBL:
             if accs[g_m] != OP_READ and accs[g_m] != OP_WRITE:
-              line = line + indent +'&arg'+str(g_m)+'_l[64*omp_get_thread_num()]'
+              #line = line + indent +'&arg'+str(g_m)+'_l[64*omp_get_thread_num()]'
+              line = line + indent +'&red'+str(g_m)+'['+str(dims[g_m])+'*n]'
             else:
               line = line + indent +'('+typs[g_m]+'*)arg'+str(g_m)+'.data'
           if g_m < nargs-1:
@@ -560,28 +561,28 @@ def op2_gen_openmp_reproducible(master, date, consts, kernels):
         code(line)
         ENDFOR()
     
-    if repr_omp:
-      comm(' combine reduction data')
-      for g_m in range(0,nargs):
-        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE and ninds==0:
-          FOR('thr','0','nthreads')
-          if accs[g_m]==OP_INC:
-            FOR('d','0','<DIM>')
-            code('<ARG>h[d] += <ARG>_l[d+thr*64];')
-            ENDFOR()
-          elif accs[g_m]==OP_MIN:
-            FOR('d','0','<DIM>')
-            code('<ARG>h[d]  = MIN(<ARG>h[d],<ARG>_l[d+thr*64]);')
-            ENDFOR()
-          elif accs[g_m]==OP_MAX:
-            FOR('d','0','<DIM>')
-            code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
-            ENDFOR()
-          else:
-            print('internal error: invalid reduction option')
-          ENDFOR()
-        if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
-          code('op_mpi_reduce(&<ARG>,<ARG>h);')      
+    #if repr_omp:
+    #  comm(' combine reduction data')
+    #  for g_m in range(0,nargs):
+    #    if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ and accs[g_m] != OP_WRITE and ninds==0:
+    #      FOR('thr','0','nthreads')
+    #      if accs[g_m]==OP_INC:
+    #        FOR('d','0','<DIM>')
+    #        code('<ARG>h[d] += <ARG>_l[d+thr*64];')
+    #        ENDFOR()
+    #      elif accs[g_m]==OP_MIN:
+    #        FOR('d','0','<DIM>')
+    #        code('<ARG>h[d]  = MIN(<ARG>h[d],<ARG>_l[d+thr*64]);')
+    #        ENDFOR()
+    #      elif accs[g_m]==OP_MAX:
+    #        FOR('d','0','<DIM>')
+    #        code('<ARG>h[d]  = MAX(<ARG>h[d],<ARG>_l[d+thr*64]);')
+    #        ENDFOR()
+    #      else:
+    #        print('internal error: invalid reduction option')
+    #      ENDFOR()
+    #    if maps[g_m]==OP_GBL and accs[g_m]!=OP_READ:
+    #      code('op_mpi_reduce(&<ARG>,<ARG>h);')      
 
     #apply increments to actual data
     if reproducible and repr_temp_array:    
