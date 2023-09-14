@@ -191,6 +191,21 @@ typedef struct {
   double mpi_time;   /* time spent in MPI calls */
 } op_kernel;
 
+typedef struct {
+  char const *name;
+  int count;
+  float plan_time;
+
+  float mpi_time;
+  float mpi_time_std;
+
+  float time;
+  float time_std;
+
+  float transfer;
+  float transfer2;
+} op_kernel_timing_summary;
+
 // struct definition for a double linked list entry to hold an op_dat
 struct op_dat_entry_core {
   op_dat dat;
