@@ -184,7 +184,7 @@ class FortranCuda(Scheme):
             return isinstance(arg, OP.ArgInfo)
 
         def match_reduction(arg):
-            return arg.access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
+            return (not config["gbl_inc_atomic"]) and arg.access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
 
         def match_work(arg):
             return arg.access_type == OP.AccessType.WORK
@@ -225,6 +225,15 @@ class FortranCuda(Scheme):
             app,
             lambda arg: match_indirect(arg) and match_atomic_inc(arg),
         )
+
+        if config["gbl_inc_atomic"]:
+            ftk.insertAtomicIncs(
+                kernel_entities[0],
+                kernel_entities + dependencies,
+                loop,
+                app,
+                lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
+            )
 
         return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")
 

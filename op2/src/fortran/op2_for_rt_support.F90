@@ -450,6 +450,14 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine setGblIncAtomic(enable) BIND(C, name='setGblIncAtomic')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      logical(kind=c_bool), value :: enable
+
+    end subroutine
+
     ! debugging routines
     subroutine op_dump_arg (arg) BIND(C,name='op_dump_arg')
 
