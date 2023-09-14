@@ -957,72 +957,74 @@ void op_diagnostic_output() {
 }
 
 void op_timing_output_core() {
-  if (OP_kern_max > 0) {
-    if (op_is_root())
-      printf("\n  count   plan time     MPI time(std)        time(std)         "
-             "  GB/s      GB/s   kernel name ");
-    if (op_is_root())
-      printf("\n "
-             "-----------------------------------------------------------------"
-             "--------------------------\n");
-    for (int n = 0; n < OP_kern_max; n++) {
-      if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
-            OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the
-          // older
-          // translator with older timing logic. Adjust to new logic:
-          OP_kernels[n].times[0] = OP_kernels[n].time;
-        }
+  if (OP_kern_max == 0) return;
 
-        double kern_time = OP_kernels[n].times[0];
-        for (int i=1; i<OP_kernels[n].ntimes; i++) {
-          if (OP_kernels[n].times[i] > kern_time)
-            kern_time = OP_kernels[n].times[i];
-        }
+  op_printf("\n  count   plan time     MPI time(std)        time(std)         "
+           "  GB/s      GB/s   kernel name ");
+  op_printf("\n "
+           "-----------------------------------------------------------------"
+           "--------------------------\n");
 
-        double moments_mpi_time[2];
-        double moments_time[2];
-        op_compute_moment_across_times(OP_kernels[n].times, OP_kernels[n].ntimes, true, &moments_time[0],
-                          &moments_time[1]);
-        op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0],
-                          &moments_mpi_time[1]);
-        if (OP_kernels[n].transfer2 < 1e-8f) {
-          float transfer =
-              MAX(0.0f, OP_kernels[n].transfer / (1e9f * kern_time -
-                                                  OP_kernels[n].mpi_time));
+  std::vector<op_kernel_timing_summary> summaries;
+  for (int n = 0; n < OP_kern_max; n++) {
+    if (OP_kernels[n].count == 0)
+      continue;
 
-          if (op_is_root())
-            printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f);  %8.4f;        "
-                   " ;   %s \n",
-                   OP_kernels[n].count, OP_kernels[n].plan_time,
-                   moments_mpi_time[0],
-                   sqrt(moments_mpi_time[1] -
-                        moments_mpi_time[0] * moments_mpi_time[0]),
-                   moments_time[0],
-                   sqrt(moments_time[1] - moments_time[0] * moments_time[0]),
-                   transfer, OP_kernels[n].name);
-        } else {
-          float transfer =
-              MAX(0.0f, OP_kernels[n].transfer /
-                            (1e9f * kern_time -
-                             OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
-          float transfer2 =
-              MAX(0.0f, OP_kernels[n].transfer2 /
-                            (1e9f * kern_time -
-                             OP_kernels[n].plan_time - OP_kernels[n].mpi_time));
-          if (op_is_root())
-            printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f); %8.4f; %8.4f;  "
-                   " %s \n",
-                   OP_kernels[n].count, OP_kernels[n].plan_time,
-                   moments_mpi_time[0],
-                   sqrt(moments_mpi_time[1] -
-                        moments_mpi_time[0] * moments_mpi_time[0]),
-                   moments_time[0],
-                   sqrt(moments_time[1] - moments_time[0] * moments_time[0]),
-                   transfer, transfer2, OP_kernels[n].name);
-        }
-      }
+    if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0 &&
+        OP_kernels[n].time != 0)
+      OP_kernels[n].times[0] = OP_kernels[n].time;
+
+    op_kernel_timing_summary summary;
+
+    summary.name = OP_kernels[n].name;
+    summary.count = OP_kernels[n].count;
+    summary.plan_time = OP_kernels[n].plan_time;
+
+    double moments_mpi_time[2];
+    double moments_time[2];
+    op_compute_moment_across_times(OP_kernels[n].times, OP_kernels[n].ntimes, true,
+                                   &moments_time[0], &moments_time[1]);
+    op_compute_moment(OP_kernels[n].mpi_time, &moments_mpi_time[0], &moments_mpi_time[1]);
+
+    summary.mpi_time = moments_mpi_time[0];
+    summary.mpi_time_std = sqrt(moments_mpi_time[1] - moments_mpi_time[0] * moments_mpi_time[0]);
+
+    summary.time = moments_time[0];
+    summary.time_std = sqrt(moments_time[1] - moments_time[0] * moments_time[0]);
+
+    double kern_time = OP_kernels[n].times[0];
+    for (int i = 1; i < OP_kernels[n].ntimes; i++)
+        kern_time = MAX(kern_time, OP_kernels[n].times[i]);
+
+    if (OP_kernels[n].transfer2 < 1e-8f) {
+      float gsec = 1e9f * kern_time - OP_kernels[n].mpi_time;
+
+      summary.transfer  = MAX(0.0f, OP_kernels[n].transfer / gsec);
+      summary.transfer2 = 0;
+    } else {
+      float gsec = 1e9f * kern_time - OP_kernels[n].plan_time - OP_kernels[n].mpi_time;
+
+      summary.transfer  = MAX(0.0f, OP_kernels[n].transfer / gsec);
+      summary.transfer2 = MAX(0.0f, OP_kernels[n].transfer2 / gsec);
+    }
+
+    summaries.push_back(summary);
+  }
+
+  std::sort(summaries.begin(), summaries.end(),
+      [] (auto const& a, auto const& b) { return b.time < a.time; });
+
+  for (auto& s : summaries) {
+    if (s.transfer2 < 1e-8f) {
+      op_printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f);  %8.4f;        "
+                " ;   %s \n",
+                s.count, s.plan_time, s.mpi_time, s.mpi_time_std,
+                s.time, s.time_std, s.transfer, s.name);
+    } else {
+      op_printf(" %6d;  %8.4f;  %8.4f(%8.4f);  %8.4f(%8.4f); %8.4f; %8.4f;  "
+                " %s \n",
+                s.count, s.plan_time, s.mpi_time, s.mpi_time_std,
+                s.time, s.time_std, s.transfer, s.transfer2, s.name);
     }
   }
 }
