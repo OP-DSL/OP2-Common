@@ -75,6 +75,10 @@ void processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {
     (void) nthreads;
     (void) max_threads;
 }
+
+void setGblIncAtomic(bool enable) {
+    (void) enable;
+}
 #ifdef __cplusplus
 }
 #endif

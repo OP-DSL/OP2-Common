@@ -128,6 +128,8 @@ def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], 
         return
 
     param = func.parameters[param_idx]
+    erase_dimensions = False
+
     for node in fpu.walk(func.ast, f2003.Name):
         if node.string.lower() != param:
             continue
@@ -138,18 +140,30 @@ def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], 
 
         subscript_list = fpu.get_child(parent, f2003.Section_Subscript_List)
 
-        if len(subscript_list.children) > 1:
-            dims = fu.parseDimensions(func, param)
+        dims = fu.parseDimensions(func, param)
 
-            if dims is None or len(dims) != len(subscript_list.children):
-                raise OpError(f"Unexpected dimension mismatch ({subscript_list}, {dims})")
-
-            index = str(subscript_list.children[0])
-            sizes = [f"(1 + {dim[1]} - ({dim[0]}))" for dim in dims]
-            for i, extra_index in enumerate(subscript_list.children[1:]):
-                index += f" + ({extra_index} - ({dims[i + 1][0]})) * {'*'.join(sizes[:i + 1])}"
+        if dims is None:
+            dims = [("1", None)]
         else:
-            index = str(subscript_list)
+            erase_dimensions = True
+
+        if len(dims) != len(subscript_list.children):
+            raise OpError(f"Unexpected dimension mismatch ({subscript_list}, {dims})")
+
+        sizes = []
+        for dim in dims:
+            if dim[0] == "1":
+                sizes.append(f"({dim[1]})")
+            else:
+                sizes.append(f"(1 + {dim[1]} - ({dim[0]}))")
+
+        if dims[0][0] == "1":
+            index = f"{subscript_list.children[0]}"
+        else:
+            index = f"({subscript_list.children[0]} + 1 - ({dims[0][0]}))"
+
+        for i, extra_index in enumerate(subscript_list.children[1:], start=1):
+            index += f" + ({extra_index} - ({dims[i][0]})) * {'*'.join(sizes[:i])}"
 
         parent.items = [
             node,
@@ -158,13 +172,16 @@ def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], 
 
         parent.items[1].parent = parent
 
+    if erase_dimensions:
+        fu.eraseDimensions(func, param)
+
 
 def insertAtomicIncs(
     func: Function,
     funcs: List[Function],
     loop: OP.Loop,
     app: Application,
-    match: Callable[[OP.ArgDat], bool] = lambda arg: True,
+    match: Callable[[OP.Arg], bool] = lambda arg: True,
 ) -> Dict[str, Set[int]]:
     modified = {}
 
@@ -175,7 +192,14 @@ def insertAtomicIncs(
         if arg_idx in modified.get(func.name, set()):
             continue
 
-        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified)
+        if isinstance(loop.args[arg_idx], OP.ArgDat):
+            typ = loop.dat(loop.args[arg_idx]).typ
+        elif hasattr(loop.args[arg_idx], "typ"):
+            typ = loop.args[arg_idx].typ
+        else:
+            raise OpError(f"Error: could not find type of arg while inserting atomics: {loop.args[arg_idx]}")
+
+        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ)
 
     for func_name in modified.keys():
         if len(modified[func_name]) == 0:
@@ -187,11 +211,11 @@ def insertAtomicIncs(
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
 
-def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]]) -> None:
+def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type) -> None:
     if param_idx in modified.get(func.name, set()):
         return
 
-    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx])
+    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx], typ)
 
     if not replaced:
         return
@@ -202,7 +226,7 @@ def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]
         modified[func.name].add(param_idx)
 
 
-def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]:
+def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type) -> Tuple[Optional[Any], bool]:
     if isinstance(node, f2003.Assignment_Stmt):
         if not fu.isRef(node.items[0], param):
             return None, False
@@ -210,7 +234,16 @@ def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]
         if not isinstance(node.items[2], f2003.Level_2_Expr):
             raise OpError(f"Error: unexpected statement while inserting atomics: {node}")
 
-        replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), f2003.Int_Literal_Constant("0"))
+        if isinstance(typ, OP.Int):
+            literal = f2003.Int_Literal_Constant("0")
+        elif isinstance(typ, OP.Float) and typ.size == 32:
+            literal = f2003.Real_Literal_Constant("0.0")
+        elif isinstance(typ, OP.Float) and typ.size == 64:
+            literal = f2003.Real_Literal_Constant("0.0d0")
+        else:
+            raise OpError(f"Error: unexpected arg type while inserting atomics: {typ}")
+
+        replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), literal)
         return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
 
     if not isinstance(node, f2003.Base):
@@ -221,7 +254,7 @@ def insertAtomicInc2(node: f2003.Base, param: str) -> Tuple[Optional[Any], bool]
         if node.children[i] is None:
             continue
 
-        replacement, modified2 = insertAtomicInc2(node.children[i], param)
+        replacement, modified2 = insertAtomicInc2(node.children[i], param, typ)
 
         if replacement is not None:
             replaceChild(node, i, replacement)
