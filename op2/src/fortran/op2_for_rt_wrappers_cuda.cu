@@ -70,9 +70,13 @@ static device_buffer device_globals;
 static device_buffer device_temp_storage;
 static device_buffer device_result;
 
+static bool gbl_inc_atomic = false;
+
 static bool needs_per_thread_storage(const op_arg& arg) {
     if (arg.argtype == OP_ARG_INFO) return true;
     if (arg.argtype != OP_ARG_GBL)  return false;
+
+    if (arg.acc == OP_INC && gbl_inc_atomic) return false;
 
     return arg.acc == OP_MIN ||
            arg.acc == OP_MAX ||
@@ -182,6 +186,13 @@ static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
     for (int i = 0; i < nargs; ++i) {
         if (args[i].opt == 0) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
+
+        if (gbl_inc_atomic && args[i].acc == OP_INC) {
+            cutilSafeCall(cudaMemcpy(args[i].data, args[i].data_d,
+                          args[i].size * sizeof(char),
+                          cudaMemcpyDeviceToHost));
+            continue;
+        }
 
         if (args[i].acc == OP_INC) {
             if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Sum, ArgMin, inc);
@@ -313,6 +324,10 @@ int getBlockLimit(op_arg *args, int nargs, int block_size) {
 void processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
     processDeviceGblReductions(args, nargs, nelems, max_threads);
     processDeviceGblRWs(args, nargs);
+}
+
+void setGblIncAtomic(bool enable) {
+    gbl_inc_atomic = enable;
 }
 
 #ifdef __cplusplus

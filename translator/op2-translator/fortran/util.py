@@ -1,4 +1,5 @@
 from typing import Any, Callable, List, Optional, Tuple
+import copy
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -179,3 +180,71 @@ def parseDimensions(func: Function, param: str) -> Optional[List[Tuple[str, str]
         return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
 
     return None
+
+
+def eraseDimensions(func: Function, param: str) -> None:
+    spec = fpu.get_child(func.ast, f2003.Specification_Part)
+
+    for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
+        check_for_dimension_spec = False
+
+        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
+            name = fpu.get_child(entity_decl, f2003.Name).string
+
+            if name != param:
+                continue
+
+            shape_spec = fpu.get_child(entity_decl, f2003.Explicit_Shape_Spec_List)
+
+            if shape_spec is None:
+                check_for_dimension_spec = True
+                break
+
+            items = list(entity_decl.items)
+
+            items[1] = f2003.Array_Spec("*")
+            items[1].parent = entity_decl
+
+            entity_decl.items = tuple(items)
+
+        if not check_for_dimension_spec:
+            continue
+
+        dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)
+        shape_spec = fpu.get_child(dimension_spec[0], f2003.Explicit_Shape_Spec_List)
+
+        # dimension(...) :: x - just erase the dimension
+        if len(fpu.get_child(type_decl, f2003.Entity_Decl_List).items) == 1:
+            shape_spec.items = (f2003.Array_Spec("*"),)
+            shape_spec.items[0].parent = shape_spec
+            continue
+
+        # dimension(...) :: x, y, ... - split out a new type decl and erase the dimension there
+        new_type_decl = copy.deepcopy(type_decl)
+        new_dimension_spec = fpu.walk(new_type_decl, f2003.Dimension_Attr_Spec)
+        new_shape_spec = fpu.get_child(new_dimension_spec[0], f2003.Explicit_Shape_Spec_List)
+
+        new_shape_spec.items = (f2003.Array_Spec("*"),)
+        new_shape_spec.items[0].parent = shape_spec
+
+        for entity_decl in fpu.walk(new_type_decl, f2003.Entity_Decl):
+            name = fpu.get_child(entity_decl, f2003.Name).string
+
+            if name != param:
+                continue
+
+            fpu.get_child(new_type_decl, f2003.Entity_Decl_List).items = (entity_decl,)
+            break
+
+        spec.content.append(new_type_decl)
+
+        entity_decls = []
+        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
+            name = fpu.get_child(entity_decl, f2003.Name).string
+
+            if name == param:
+                continue
+
+            entity_decls.append(entity_decl)
+
+        fpu.get_child(type_decl, f2003.Entity_Decl_List).items = tuple(entity_decls)
