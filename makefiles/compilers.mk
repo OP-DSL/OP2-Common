@@ -14,6 +14,7 @@ CUDA_GEN_Maxwell := 50
 CUDA_GEN_Pascal  := 60
 CUDA_GEN_Volta   := 70
 CUDA_GEN_Ampere  := 80
+CUDA_GEN_Hopper  := 90
 
 NV_ARCH := $(subst $(COMMA),$(SPACE),$(NV_ARCH))
 $(foreach arch,$(NV_ARCH),$(eval CUDA_GEN += $(CUDA_GEN_$(arch))))
