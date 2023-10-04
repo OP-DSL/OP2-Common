@@ -201,20 +201,20 @@ $(OBJ)/fortran/%+cpp.F90: src/fortran/%.F90 | $(OBJ)
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
 $(OBJ)/fortran/op2_for_declarations+cpp.o: $(OBJ)/fortran/op2_for_declarations+cpp.F90 | $(OBJ) $(MOD)
-	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
+	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -c $< -o $@
 
 $(OBJ)/fortran/op2_for_declarations+cpp+cuda.o: $(OBJ)/fortran/op2_for_declarations+cpp.F90 | $(OBJ) $(MOD_CUDA)
-	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$(MOD_CUDA) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
+	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$(MOD_CUDA) $(INC) -c $< -o $@
 
 # Compile the expanded $(OBJ)/fortran/{}+cpp.F90 file(s)
 $(OBJ)/fortran/%+cpp.o: $(OBJ)/fortran/%+cpp.F90 $(OBJ)/fortran/op2_for_declarations+cpp.o | $(OBJ) $(MOD)
-	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
+	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -c $< -o $@
 
 $(OBJ)/fortran/%.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations+cpp.o | $(OBJ) $(MOD)
-	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
+	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -c $< -o $@
 
 $(OBJ)/fortran/%+cuda.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations+cpp+cuda.o | $(OBJ) $(MOD_CUDA)
-	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$(MOD_CUDA) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
+	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$(MOD_CUDA) $(INC) -c $< -o $@
 
 # Catch-all rules
 $(OBJ)/%.o: src/%.cpp | $(OBJ)
