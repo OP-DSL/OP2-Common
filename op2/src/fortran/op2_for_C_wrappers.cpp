@@ -81,6 +81,14 @@
 
 extern op_kernel * OP_kernels;
 
+extern "C" {
+
+void op_check_fortran_type_int(char *type) {}
+void op_check_fortran_type_float(char *type) {}
+void op_check_fortran_type_double(char *type) {}
+void op_check_fortran_type_bool(char *type) {}
+
+
 /*
  * Small utility for transforming Fortran OP2 access codes into C OP2 access codes
  */
@@ -129,7 +137,7 @@ op_map_core * op_decl_null_map ( )
 
 op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
 {
-  op_dat_core * dataOut = calloc ( 1, sizeof ( op_dat_core ) );
+  op_dat_core * dataOut = (op_dat_core *) calloc ( 1, sizeof ( op_dat_core ) );
 
   char * typeName = (char *) calloc ( strlen ( type ), sizeof ( char ) );
 
@@ -226,7 +234,7 @@ void dumpOpDatSequential(char * kernelName, op_dat_core * dat, op_access access,
   // OP_GBL or read only
   if (access == OP_READ || map->dim == -1) return;
 
-  char * fileName = calloc (strlen(kernelName) + strlen(dat->name), sizeof (char));
+  char * fileName = (char *) calloc (strlen(kernelName) + strlen(dat->name), sizeof (char));
   sprintf (fileName, "%s_%s", kernelName, dat->name);
 
   dumpOpDat (dat, fileName);
@@ -236,7 +244,7 @@ void dumpOpDatFromDevice (op_dat_core * data, const char * label, int * sequence
 {
   op_get_dat (data);
 
-  char * fileName = calloc (strlen(label) + log10(*sequenceNumber) + 1, sizeof (char));
+  char * fileName = (char *) calloc (strlen(label) + log10(*sequenceNumber) + 1, sizeof (char));
 
   sprintf (fileName, "%s_%d", label, *sequenceNumber);
 
@@ -388,7 +396,7 @@ void printDat_noGather (op_dat dat) {
 
   op_mpi_rank (&rank);
 
-  char prefix[13] = "dat_nogather_";
+  char prefix[14] = "dat_nogather_";
   char filename[14];
   FILE * fileptr;
 
@@ -506,4 +514,6 @@ void increment_all_mappings () {
   for ( int i = 0; i < OP_map_index; i++ )
     for ( int j = 0; j < OP_map_list[i]->from->size * OP_map_list[i]->dim; j++ )
       OP_map_list[i]->map[j]++;
+}
+
 }

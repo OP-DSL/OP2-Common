@@ -30,6 +30,8 @@
 #include <op_lib_core.h>
 #include <op_hdf5.h>
 
+extern "C" {
+
 // Used in all those backends without HDF5
 op_set op_decl_set_hdf5(char const *file, char const *name) {
   (void)file; (void)name;
@@ -48,3 +50,5 @@ void op_get_const_hdf5(char const *name, int dim, char const *type, char* const_
 void op_dump_to_hdf5(char const * file_name) { (void) file_name;}
 void op_write_const_hdf5(char const *name, int dim, char const *type, char* const_data,
   char const *file_name) { (void)name; (void)dim; (void)type; (void)const_data; (void)file_name; }
+
+}

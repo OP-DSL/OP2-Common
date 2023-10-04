@@ -33,6 +33,8 @@
 #include <op_lib_core.h>
 #include <fortran/op2_for_C_wrappers.h>
 
+extern "C" {
+
 void op_get_dat (op_dat dat) {
   (void) dat;
 }
@@ -54,9 +56,6 @@ void op_get_all_cuda(int nargs, op_arg *args) {
   (void)args;
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 void getBlockLimit(op_arg *args, int nargs, int block_size) {
     (void) args;
     (void) nargs;
@@ -79,6 +78,5 @@ void processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {
 void setGblIncAtomic(bool enable) {
     (void) enable;
 }
-#ifdef __cplusplus
+
 }
-#endif

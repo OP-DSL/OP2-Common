@@ -225,11 +225,11 @@ class Fortran(Lang):
     ) -> Tuple[f2003.Program, str]:
         source = self.preprocess(path, include_dirs, defines)
 
-        #       with open("_preprocessed.F90", "w") as f:
-        #           f.write(source)
+        # with open("_preprocessed.F90", "w") as f:
+        #     f.write(source)
 
         reader = FortranStringReader(source, include_dirs=list(include_dirs))
-        parser = ParserFactory().create(std="f2003")
+        parser = ParserFactory().create(std="f2008")
 
         return parser(reader), source
 

@@ -52,13 +52,14 @@
 #include <op_lib_mpi.h>
 #endif
 
-
 int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
 static unsigned int blank_args_size = sizeof(int);  // scratch space to use for blank args
 static int blank_arg_init[1];
 static char *blank_args = (char *)&blank_arg_init[0];
+
+extern "C" {
 
 void op_arg_set(int n, op_arg arg, char **p_arg, int *idx, int halo){
   if (arg.opt == 0)
@@ -199,3 +200,5 @@ OP_LOOP(11) OP_LOOP(12) OP_LOOP(13) OP_LOOP(14) OP_LOOP(15) OP_LOOP(16) OP_LOOP(
 OP_LOOP(21) OP_LOOP(22) OP_LOOP(23) OP_LOOP(24) OP_LOOP(25) OP_LOOP(26) OP_LOOP(27) OP_LOOP(28) OP_LOOP(29) OP_LOOP(30)
 OP_LOOP(31) OP_LOOP(32) OP_LOOP(33) OP_LOOP(34) OP_LOOP(35) OP_LOOP(36) OP_LOOP(37) OP_LOOP(38) OP_LOOP(39) OP_LOOP(40)
 OP_LOOP(41) OP_LOOP(42) OP_LOOP(43)
+
+}

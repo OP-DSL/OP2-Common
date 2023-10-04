@@ -62,14 +62,14 @@ OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_rt_support.o)
 
 OP2_FOR_BASE := $(addprefix $(OBJ)/fortran/,\
-	op2_for_declarations.o \
-	op2_for_reference.o \
+	op2_for_declarations+cpp.o \
+	op2_for_reference+cpp.o \
 	op2_for_rt_support.o \
 	op2_for_rt_wrappers.o)
 
 OP2_FOR_BASE_CUDA := $(addprefix $(OBJ)/fortran/,\
-	op2_for_declarations+cuda.o \
-	op2_for_reference.o \
+	op2_for_declarations+cpp+cuda.o \
+	op2_for_reference+cpp.o \
 	op2_for_rt_support+cuda.o \
 	op2_for_rt_wrappers.o)
 
@@ -192,28 +192,28 @@ $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@
 
-$(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
-	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@
+$(OBJ)/fortran/%+mpi.o: src/fortran/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
+
+# Preprocess (non-traditional) +cpp files
+$(OBJ)/fortran/%+cpp.F90: src/fortran/%.F90 | $(OBJ)
+	$(shell cpp $(INC) $< | sed s/##//g | sed s/\"@\"//g | sed s#/@/#//#g | tr "@" "\\n" > $@)
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
-$(OBJ)/fortran/op2_for_declarations.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD)
+$(OBJ)/fortran/op2_for_declarations+cpp.o: $(OBJ)/fortran/op2_for_declarations+cpp.F90 | $(OBJ) $(MOD)
 	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
-$(OBJ)/fortran/op2_for_declarations+cuda.o: src/fortran/op2_for_declarations.F90 | $(OBJ) $(MOD_CUDA)
+$(OBJ)/fortran/op2_for_declarations+cpp+cuda.o: $(OBJ)/fortran/op2_for_declarations+cpp.F90 | $(OBJ) $(MOD_CUDA)
 	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$(MOD_CUDA) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
-# Manually run C preprocessor on op2_for_reference.F90 to generate the op_par_loop subroutines
-$(OBJ)/fortran/op2_for_reference+cpp.F90: src/fortran/op2_for_reference.F90 | $(OBJ)
-	$(shell cpp $(INC) $< | sed s/##//g | sed s/\"@\"//g | tr "@" "\\n" > $@)
-
 # Compile the expanded $(OBJ)/fortran/{}+cpp.F90 file(s)
-$(OBJ)/fortran/%.o: $(OBJ)/fortran/%+cpp.F90 $(OBJ)/fortran/op2_for_declarations.o | $(OBJ) $(MOD)
+$(OBJ)/fortran/%+cpp.o: $(OBJ)/fortran/%+cpp.F90 $(OBJ)/fortran/op2_for_declarations+cpp.o | $(OBJ) $(MOD)
 	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
-$(OBJ)/fortran/%.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations.o | $(OBJ) $(MOD)
+$(OBJ)/fortran/%.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations+cpp.o | $(OBJ) $(MOD)
 	$(FC) $(FFLAGS) $(F_MOD_OUT_OPT)$(MOD) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
-$(OBJ)/fortran/%+cuda.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations+cuda.o | $(OBJ) $(MOD_CUDA)
+$(OBJ)/fortran/%+cuda.o: src/fortran/%.F90 $(OBJ)/fortran/op2_for_declarations+cpp+cuda.o | $(OBJ) $(MOD_CUDA)
 	$(FC) $(FFLAGS) $(CUDA_FFLAGS) $(F_MOD_OUT_OPT)$(MOD_CUDA) $(INC) -DOP2_ARG_POINTERS -c $< -o $@
 
 # Catch-all rules
