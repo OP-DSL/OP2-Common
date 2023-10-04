@@ -974,14 +974,14 @@ module OP2_Fortran_Declarations
 #define DECL_DECL_DAT_(TYPE, DIM)                                                                                      \
 subroutine INTF_DECL_DAT(TYPE, DIM) (set, dim, type, data, dat, name)                                                 @\
                                                                                                                       @\
-    type(op_set), intent(in) :: set                                                                                   @\
-    integer, intent(in) :: dim                                                                                        @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
+    type(op_set) :: set                                                                                               @\
+    integer(kind=c_int) :: dim                                                                                        @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
                                                                                                                       @\
-    type(op_dat), intent(out) :: dat                                                                                  @\
+    type(op_dat) :: dat                                                                                               @\
                                                                                                                       @\
-    character(kind=c_char, len=*), intent(in), optional :: name                                                       @\
-    character(kind=c_char, len=*), intent(in) :: type                                                                 @\
+    character(kind=c_char, len=*), optional :: name                                                                   @\
+    character(kind=c_char, len=*) :: type                                                                             @\
                                                                                                                       @\
     character(kind=c_char, len=:), allocatable :: name2                                                               @\
                                                                                                                       @\
@@ -1013,13 +1013,13 @@ end subroutine INTF_DECL_DAT(TYPE, DIM)
 #define DECL_DECL_DAT_TEMP_(TYPE)                                                                                      \
 subroutine INTF_DECL_DAT_TEMP(TYPE) (set, dim, type, dat, name)                                                       @\
                                                                                                                       @\
-    type(op_set), intent(in) :: set                                                                                   @\
-    integer, intent(in) :: dim                                                                                        @\
+    type(op_set) :: set                                                                                               @\
+    integer(kind=c_int) :: dim                                                                                        @\
                                                                                                                       @\
-    type(op_dat), intent(out) :: dat                                                                                  @\
+    type(op_dat) :: dat                                                                                               @\
                                                                                                                       @\
-    character(kind=c_char, len=*), intent(in), optional :: name                                                       @\
-    character(kind=c_char, len=*), intent(in) :: type                                                                 @\
+    character(kind=c_char, len=*), optional :: name                                                                   @\
+    character(kind=c_char, len=*) :: type                                                                             @\
                                                                                                                       @\
     character(kind=c_char, len=:), allocatable :: name2                                                               @\
                                                                                                                       @\
@@ -1060,9 +1060,9 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
 #define DECL_DECL_CONST_(TYPE, DIM)                                                                                    \
   subroutine INTF_DECL_CONST(TYPE, DIM) (data, dim, name)                                                             @\
                                                                                                                       @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
-    integer(kind=c_int), intent(in) :: dim                                                                            @\
-    character(kind=c_char,len=*), intent(in), optional :: name                                                        @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
+    integer(kind=c_int) :: dim                                                                                        @\
+    character(kind=c_char,len=*), optional :: name                                                                    @\
                                                                                                                       @\
     UNUSED(data)                                                                                                      @\
     UNUSED(dim)                                                                                                       @\
@@ -1104,8 +1104,8 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     use, intrinsic :: ISO_C_BINDING                                                                                   @\
     implicit none                                                                                                     @\
                                                                                                                       @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
-    integer(4) DECL_DIM_##MAP_DIM, intent(in), target :: map                                                          @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
+    integer(4) DECL_DIM_##MAP_DIM, target :: map                                                                      @\
                                                                                                                       @\
     integer(kind=c_int) :: idx, dim, access                                                                           @\
     character(kind=c_char, len=*) :: type                                                                             @\
@@ -1155,8 +1155,8 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
                                                                                                                       @\
     logical :: opt                                                                                                    @\
                                                                                                                       @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
-    integer(4) DECL_DIM_##MAP_DIM, intent(in), target :: map                                                          @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
+    integer(4) DECL_DIM_##MAP_DIM, target :: map                                                                      @\
                                                                                                                       @\
     integer(kind=c_int) :: idx, dim, access                                                                           @\
     character(kind=c_char, len=*) :: type                                                                             @\
@@ -1197,7 +1197,7 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     use, intrinsic :: ISO_C_BINDING                                                                                   @\
     implicit none                                                                                                     @\
                                                                                                                       @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
                                                                                                                       @\
     integer(kind=c_int) :: dim, access                                                                                @\
     character(kind=c_char, len=*) :: type                                                                             @\
@@ -1236,7 +1236,7 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
                                                                                                                       @\
     logical :: opt                                                                                                    @\
                                                                                                                       @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
                                                                                                                       @\
     integer(kind=c_int) :: dim, access                                                                                @\
     character(kind=c_char, len=*) :: type                                                                             @\
@@ -1277,7 +1277,7 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     use, intrinsic :: ISO_C_BINDING                                                                                   @\
     implicit none                                                                                                     @\
                                                                                                                       @\
-    TYPE_##TYPE DECL_DIM_##DIM, intent(in), target :: data                                                            @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
                                                                                                                       @\
     integer(kind=c_int) :: dim, ref                                                                                   @\
     character(kind=c_char, len=*) :: type                                                                             @\
