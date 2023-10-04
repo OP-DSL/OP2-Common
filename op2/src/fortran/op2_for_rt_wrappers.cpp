@@ -42,6 +42,8 @@ extern op_plan * OP_plans;
 
 #define ERR_INDEX -1
 
+extern "C" {
+
 void op_partition_wrapper (const char* lib_name, const char* lib_routine,
   op_set prime_set, op_map prime_map, op_dat coords) {
   op_partition (lib_name, lib_routine, prime_set, prime_map, coords);
@@ -144,4 +146,6 @@ op_plan * FortranPlanCaller (char name[], op_set set,
     argsNumber, args, indsNumber, inds, staging);
 
   return generatedPlan;
+}
+
 }

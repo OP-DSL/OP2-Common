@@ -280,6 +280,8 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
             required_size += align(args[i].size * max_threads * sizeof(char));
         else
             required_size += align(args[i].size * sizeof(char));
+
+	printf("type: %s, size: %d\n", args[i].type, args[i].size);
     }
 
     device_globals.ensure_capacity(required_size);
