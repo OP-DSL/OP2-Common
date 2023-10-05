@@ -69,9 +69,9 @@ endif
 # Configure compilers:
 #
 ifeq ($(OP2_COMPILER),gnu)
-  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall
+  CCFLAGS  = -std=c99 -fPIC -DUNIX -Wall -g -O3
   CXX      = g++
-  CXXFLAGS = -fPIC -DUNIX -Wall #-g -Wextra
+  CXXFLAGS = -fPIC -DUNIX -Wall -g -O3 # -Wextra
   MPICXX   = $(MPICPP_PATH)
   MPIFLAGS = $(CXXFLAGS)
 else
@@ -229,6 +229,13 @@ ifeq ($(NV_ARCH),Volta)
   CODE_GEN_CUDA=-gencode arch=compute_70,code=sm_70
 ifeq ($(OP2_COMPILER),hipsycl)
 #  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
+endif
+else
+ifeq ($(NV_ARCH),Hopper)
+  CODE_GEN_CUDA=-gencode arch=compute_90,code=sm_90
+ifeq ($(OP2_COMPILER),hipsycl)
+#  SYCL_FLAGS = --hipsycl-gpu-arch=sm_70
+endif
 endif
 endif
 endif
