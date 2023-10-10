@@ -247,6 +247,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
           text = op2_gen_common.replace_local_includes_with_file_contents_if_contains_OP_FUN_PREFIX_and_complex(text, os.path.dirname(master))
           text = re.sub(r'(std::)?\bsqrt\b','cl::sycl::sqrt',text)
           text = re.sub(r'(std::)?\bcbrt\b','cl::sycl::cbrt',text)
+          text = re.sub(r'(std::)?\btan\b','cl::sycl::tan',text)
           text = re.sub(r'(std::)?\bfabs\b','cl::sycl::fabs',text)
           text = re.sub(r'(std::)?\bisnan\b','cl::sycl::isnan',text)
           text = re.sub(r'(std::)?\bisinf\b','cl::sycl::isinf',text)
@@ -719,6 +720,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
     comm('user fun as lambda')
     body_text = re.sub(r'(std::)?\bsqrt\b','cl::sycl::sqrt',body_text)
     body_text = re.sub(r'(std::)?\bcbrt\b','cl::sycl::cbrt',body_text)
+    body_text = re.sub(r'(std::)?\btan\b','cl::sycl::tan',body_text)
     body_text = re.sub(r'(std::)?\bfabs\b','cl::sycl::fabs',body_text)
     body_text = re.sub(r'(std::)?\bisnan\b','cl::sycl::isnan',body_text)
     body_text = re.sub(r'(std::)?\bisinf\b','cl::sycl::isinf',body_text)
@@ -1186,6 +1188,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
 
     if ninds>0:
       code('')
+      ENDIF()
       if reduct:
         comm('transfer global reduction data back to CPU')
         if atomics:
@@ -1195,9 +1198,8 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
         code('mvReductArraysToHost(reduct_bytes);')
         ENDIF()
       if not op_color2 and not atomics:
-        ENDFOR() #TODO sztem ez forditva van...
         code('block_offset += Plan->ncolblk[col];')
-      ENDIF()
+        ENDFOR() #TODO sztem ez forditva van...
 
     if ninds>0:
       if not atomics:
