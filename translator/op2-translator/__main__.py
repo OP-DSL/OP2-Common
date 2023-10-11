@@ -29,7 +29,7 @@ def main(argv=None) -> None:
     parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath)
-    parser.add_argument("-c", "--config", help="Target configuration", type=json.loads, default="{}")
+    parser.add_argument("-c", "--config", help="Target configuration", action="append", type=json.loads, default=[])
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
 
     parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
@@ -217,7 +217,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         force_generate = scheme.target == Target.find("seq")
 
         # Generate loop host source
-        res = scheme.genLoopHost(env, loop, program, app, i, force_generate)
+        res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
 
         if res is None:
             print(f"Error: unable to generate loop host {i}")

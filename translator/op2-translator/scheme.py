@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import traceback
+import re
 from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -31,8 +32,18 @@ class Scheme(Findable["Scheme"]):
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
         return True
 
-    def getConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         return self.target.defaultConfig()
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = self.getBaseConfig(loop)
+
+        for override in config_overrides:
+            for loop_match, items in override.items():
+                if re.match(loop_match, loop.name):
+                    config |= items
+
+        return config
 
     def genLoopHost(
         self,
@@ -41,6 +52,7 @@ class Scheme(Findable["Scheme"]):
         program: Program,
         app: Application,
         kernel_idx: int,
+        config_overrides: List[Dict[str, Dict[str, Any]]],
         force_generate: bool = False,
     ) -> Optional[Tuple[str, str, bool]]:
         template = env.get_template(str(self.loop_host_template))
@@ -51,7 +63,7 @@ class Scheme(Findable["Scheme"]):
             "lh": loop,
             "kernel_idx": kernel_idx,
             "lang": self.lang,
-            "config": self.getConfig(loop),
+            "config": self.getConfig(loop, config_overrides),
             "kernel_func": None,
         }
 
@@ -72,7 +84,7 @@ class Scheme(Findable["Scheme"]):
 
             fallback_args = dict(args)
 
-            fallback_args["config"] = self.fallback.getConfig(loop)
+            fallback_args["config"] = self.fallback.getConfig(loop, config_overrides)
             fallback_args["kernel_func"] = self.fallback.translateKernel(
                 loop, program, app, fallback_args["config"], kernel_idx
             )
