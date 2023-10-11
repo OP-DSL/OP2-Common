@@ -416,7 +416,7 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
-    integer(kind=c_int) function getBlockLimit(args, nargs, block_size) BIND(C, name='getBlockLimit')
+    integer(kind=c_int) function getBlockLimit(args, nargs, block_size, name) BIND(C, name='getBlockLimit')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
@@ -424,6 +424,7 @@ module OP2_Fortran_RT_Support
       type(op_arg), dimension(*) :: args
       integer(kind=c_int), value :: nargs
       integer(kind=c_int), value :: block_size
+      character(kind=c_char) :: name(*)
 
     end function
 

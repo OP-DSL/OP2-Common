@@ -84,6 +84,13 @@ static bool needs_per_thread_storage(const op_arg& arg) {
            arg.acc == OP_WORK;
 }
 
+static bool opt_disabled(const op_arg& arg, const op_arg *args) {
+    if (arg.argtype == OP_ARG_INFO)
+        return args[arg.acc].opt == 0;
+
+    return arg.opt == 0;
+}
+
 template<typename T, typename F, typename HF>
 static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
     device_result.ensure_capacity(arg->size * sizeof(char));
@@ -184,7 +191,7 @@ cub_reduction_wrap(ArgMax, KeyValuePair<T>)
 
 static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
     for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
+        if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
 
         if (gbl_inc_atomic && args[i].acc == OP_INC) {
@@ -224,7 +231,7 @@ static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
 
 static void processDeviceGblRWs(op_arg *args, int nargs) {
     for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
+        if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
         if (args[i].acc != OP_RW && args[i].acc != OP_WRITE) continue;
 
@@ -273,7 +280,7 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
+        if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
         if (needs_per_thread_storage(args[i]))
@@ -286,7 +293,7 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
 
     char *allocated = (char *) device_globals.data;
     for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
+        if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
         args[i].data_d = allocated;
@@ -304,18 +311,21 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     }
 }
 
-int getBlockLimit(op_arg *args, int nargs, int block_size) {
+int getBlockLimit(op_arg *args, int nargs, int block_size, char *name) {
     if (OP_cuda_reductions_mib < 0) return INT32_MAX;
 
     size_t bytes_per_thread = 0;
     for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0) continue;
+        if (opt_disabled(args[i], args)) continue;
         if (!needs_per_thread_storage(args[i])) continue;
 
         bytes_per_thread += args[i].size * sizeof(char);
     }
 
     if (bytes_per_thread == 0) return INT32_MAX;
+
+    if (bytes_per_thread > 1024)
+        printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, bytes_per_thread);
 
     size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
     return std::max(max_total_reduction / ((size_t) block_size * bytes_per_thread), 1UL);
