@@ -124,7 +124,7 @@ class FortranCuda(Scheme):
 
         return True
 
-    def getConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
 
         use_coloring = False

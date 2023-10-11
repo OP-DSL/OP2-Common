@@ -56,10 +56,11 @@ void op_get_all_cuda(int nargs, op_arg *args) {
   (void)args;
 }
 
-void getBlockLimit(op_arg *args, int nargs, int block_size) {
+void getBlockLimit(op_arg *args, int nargs, int block_size, char *name) {
     (void) args;
     (void) nargs;
     (void) block_size;
+    (void) name;
 }
 
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {

@@ -395,8 +395,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         return
     end if
 
-    block_size = getblocksize(name // c_null_char, set%setptr%size)
-    block_limit = getblocklimit(args, size(args), block_size)
+    call setGblIncAtomic(logical({{".true." if config.gbl_inc_atomic else ".false."}}, c_bool))
+    block_size = getBlockSize(name // c_null_char, set%setptr%size)
+    block_limit = getBlockLimit(args, size(args), block_size, name // c_null_char)
 
 {% if lh is direct %}
     num_blocks = (set%setptr%size + (block_size - 1)) / block_size
@@ -449,8 +450,6 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     end if
 
     call op_timers_core(start_time)
-
-    call setGblIncAtomic(logical({{".true." if config.gbl_inc_atomic else ".false."}}, c_bool))
     call prepareDeviceGbls(args, size(args), block_size * max_blocks)
 
 {% for arg in lh.args %}
@@ -496,7 +495,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
 {% endif %}
 {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    if (.not. allocated(gbl{{arg.id}}_ref_d){{" .and. arg%s%%opt == 1" if arg is opt}}) then
+    if (.not. allocated(gbl{{arg.id}}_ref_d){{" .and. arg%s%%opt == 1" % arg.id if arg is opt}}) then
         allocate(gbl{{arg.id}}_ref_d({{gbl_dim(arg)}}))
     end if
 
@@ -579,7 +578,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     ! todo: review kernel transfer calculation
     transfer = 0.0
 
-    call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
+    call setKernelTime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
 end subroutine
 
 end module
