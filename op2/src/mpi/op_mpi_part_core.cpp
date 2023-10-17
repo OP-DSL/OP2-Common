@@ -3421,19 +3421,14 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
     printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
            coords);
   }
-  op_map item_map = NULL;
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == prime_map) {
-      item_map = OP_map_list[i];
-      break;
-    }
-  }
+
+  op_map item_map = op_search_map_ptr(prime_map);
+
   if (item_map == NULL) {
-    printf("ERROR in op_partition: op_map not found for %p pointer\n",
-           prime_map);
-    for (int i = 0; i < OP_map_index; i++)
-      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+    printf("ERROR in op_partition: op_map not found for %p pointer\n", prime_map);
+    exit(-1);
   }
+
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
 }
 

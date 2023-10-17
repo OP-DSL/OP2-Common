@@ -313,6 +313,8 @@ int op_get_global_set_offset(op_set set);
 
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 
+op_map op_search_map_ptr(int *map_ptr);
+
 bool op_check_whitelist(const char *name);
 
 void op_disable_mpi_reductions(bool disable);
