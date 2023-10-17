@@ -43,6 +43,7 @@
 
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 #include <regex>
 #include <string>
 #include <fstream>
@@ -77,7 +78,7 @@ std::vector<std::regex> OP_whitelist = {};
 
 op_set *OP_set_list;
 op_map *OP_map_list = NULL;
-int **OP_map_ptr_list = NULL;
+std::unordered_map<int*, int> OP_map_ptr_table = {};
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
 op_kernel *OP_kernels;
 
@@ -107,8 +108,8 @@ int compare_sets(op_set set1, op_set set2) {
     return 0;
 }
 
-op_dat search_dat(op_set set, int dim, char const *type, int size,
-                  char const *name) {
+op_dat op_search_dat(op_set set, int dim, char const *type, int size,
+                     char const *name) {
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
@@ -122,6 +123,13 @@ op_dat search_dat(op_set set, int dim, char const *type, int size,
       return item_dat;
     }
   }
+
+  return NULL;
+}
+
+op_map op_search_map_ptr(int *map_ptr) {
+  if (auto result = OP_map_ptr_table.find(map_ptr); result != OP_map_ptr_table.end())
+    return OP_map_list[result->second];
 
   return NULL;
 }
@@ -400,11 +408,9 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
 
   if (OP_map_index == OP_map_max) {
     OP_map_max += 10;
-    OP_map_list =
-        (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
-    OP_map_ptr_list =
-        (int **)op_realloc(OP_map_ptr_list, OP_map_max * sizeof(int *));
-    if (OP_map_list == NULL || OP_map_ptr_list == NULL) {
+    OP_map_list = (op_map *)op_realloc(OP_map_list, OP_map_max * sizeof(op_map));
+
+    if (OP_map_list == NULL) {
       printf(" op_decl_map error -- error reallocating memory\n");
       exit(-1);
     }
@@ -429,11 +435,10 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->name = copy_str(name);
   map->user_managed = 1;
 
-  OP_map_list[OP_map_index++] = map;
-  OP_map_ptr_list[OP_map_index - 1] = imap; // m;
-  // printf("MAP %s (idx %d) ptr %p data ptr %p\n", map->name, map->index, map,
-  // imap);
+  OP_map_list[OP_map_index] = map;
+  OP_map_ptr_table.insert({imap, OP_map_index});
 
+  OP_map_index++;
   return map;
 }
 
@@ -519,7 +524,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
 op_dat op_decl_dat_temp_core(op_set set, int dim, char const *type, int size,
                              char *data, char const *name) {
   // Check if this dat already exists in the double linked list
-  op_dat found_dat = search_dat(set, dim, type, size, name);
+  op_dat found_dat = op_search_dat(set, dim, type, size, name);
   if (found_dat != NULL) {
     printf(
         "op_dat with name %s already exists, cannot create temporary op_dat\n ",
@@ -577,14 +582,15 @@ void op_exit_core() {
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_list[i]->user_managed)
       free(OP_map_list[i]->map);
+
     free((char *)OP_map_list[i]->name);
     free(OP_map_list[i]);
   }
+
   free(OP_map_list);
-  if (OP_map_ptr_list != NULL)
-    free(OP_map_ptr_list);
   OP_map_list = NULL;
-  OP_map_ptr_list = NULL;
+
+  OP_map_ptr_table = {};
 
   /*free doubl linked list holding the op_dats */
   op_dat_entry *item;
@@ -720,20 +726,16 @@ op_arg op_arg_idx(int idx, op_map map) {
 }
 
 op_arg op_arg_idx_ptr(int idx, int *map) {
-  op_map item_map = NULL;
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) {
-      item_map = OP_map_list[i];
-      break;
-    }
-  }
+  op_map item_map = op_search_map_ptr(map);
+
   if (item_map == NULL && idx == -2)
     idx = -1;
+
   if (item_map == NULL && idx != -1) {
     printf("ERROR: op_map not found for %p pointer\n", map);
-    for (int i = 0; i < OP_map_index; i++)
-      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+    exit(-1);
   }
+
   return op_arg_idx(idx, item_map);
 }
 
@@ -1300,20 +1302,16 @@ op_arg op_arg_dat_ptr(int opt, char *dat, int idx, int *map, int dim,
   // item_dat->name, (unsigned long)item->orig_ptr, (unsigned
   // long)item_dat->data);
 
-  op_map item_map = NULL;
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) {
-      item_map = OP_map_list[i];
-      break;
-    }
-  }
+  op_map item_map = op_search_map_ptr(map);
+
   if (item_map == NULL && idx == -2)
     idx = -1;
+
   if (item_map == NULL && idx != -1) {
     printf("ERROR: op_map not found for %p pointer\n", map);
-    for (int i = 0; i < OP_map_index; i++)
-      printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
+    exit(-1);
   }
+
   return op_arg_dat_core(item_dat, idx, item_map, dim, type, acc);
 }
 
@@ -1422,53 +1420,35 @@ unsigned long op_reset_data_ptr(char *data, int mode) {
 
 unsigned long op_get_map_ptr(op_map m) { return (unsigned long)(m->map); }
 
-// extern int **OP_map_ptr_list;
-
 unsigned long op_reset_map_ptr(int *map) {
-
-  op_map item_map = NULL;
-  int idx = -1;
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) {
-      item_map = OP_map_list[i];
-      idx = i;
-      break;
-    }
-  }
+  op_map item_map = op_search_map_ptr(map);
 
   if (item_map == NULL) {
     printf("ERROR: op_map not found for map with %p pointer\n", map);
+    exit(-1);
   }
-  // printf(" op2 pointer for dat %s before = %p, after change = %p  \n",
-  //  item_dat->name, item->orig_ptr, item_dat->data);
 
-  // reset orig pointer
-  OP_map_ptr_list[idx] = item_map->map;
+  OP_map_ptr_table.erase(map);
+  OP_map_ptr_table.insert({item_map->map, item_map->index});
 
   return (unsigned long)(item_map->map);
 }
 
 unsigned long op_copy_map_to_fort(int *map) {
-
-  op_map item_map = NULL;
-  // int idx = -1;
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_ptr_list[i] == map) {
-      item_map = OP_map_list[i];
-      break;
-    }
-  }
+  op_map item_map = op_search_map_ptr(map);
 
   if (item_map == NULL) {
     printf("ERROR: op_map not found for map with %p pointer\n", map);
+    exit(-1);
   }
 
-  int *m = (int *)malloc(item_map->from->size * item_map->dim * sizeof(int));
-  memcpy(m, item_map->map, item_map->from->size * item_map->dim * sizeof(int));
-  for (int i = 0; i < item_map->from->size * item_map->dim; i++)
-    m[i]++;
+  int *fort_map = (int *) malloc(item_map->from->size * item_map->dim * sizeof(int));
+  OP_map_ptr_table.insert({fort_map, item_map->index});
 
-  return (unsigned long)(m);
+  for (int i = 0; i < item_map->from->size * item_map->dim; i++)
+    fort_map[i] = item_map->map[i] + 1;
+
+  return (unsigned long)(fort_map);
 }
 
 /*******************************************************************************
