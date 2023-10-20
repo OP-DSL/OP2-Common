@@ -1,1 +1,2 @@
+mypy
 types-clang == 0.14.3

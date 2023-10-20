@@ -1,9 +1,5 @@
-fparser
-cached-property
-dataclasses
-clang == 14.0.6
 jinja2
-pylint
-mypy
+fparser
+clang == 14.0.6
 pcpp
 sympy

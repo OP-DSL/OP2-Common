@@ -1,0 +1,6 @@
+.python
+.python-packages
+.fpp
+
+python/Python-*
+!python/Python-*.tar.xz
