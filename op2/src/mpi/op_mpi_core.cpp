@@ -248,7 +248,7 @@ void create_list(int *list, int *ranks, int *disps, int *sizes, int *ranks_size,
     if (sizes[index] > 0) {
       ranks[index] = r;
       // sort temp,
-      quickSort(temp, 0, sizes[index] - 1);
+      op_sort(temp, sizes[index]);
       // eliminate duplicates in temp
       sizes[index] = removeDups(temp, sizes[index]);
       total_size = total_size + sizes[index];
@@ -364,7 +364,7 @@ int is_onto_map(op_map map) {
          (size_t)map->from->size * map->dim * sizeof(int));
 
   // sort and remove duplicates from to_elem_copy
-  quickSort(to_elem_copy, 0, map->from->size * map->dim - 1);
+  op_sort(to_elem_copy, map->from->size * map->dim);
   int to_elem_copy_size = removeDups(to_elem_copy, map->from->size * map->dim);
   to_elem_copy = (int *)xrealloc(to_elem_copy, to_elem_copy_size * sizeof(int));
 
@@ -415,7 +415,7 @@ int is_onto_map(op_map map) {
 
   // sort and remove duplicates of the global_not_found list
   if (g_count > 0) {
-    quickSort(global_not_found, 0, g_count - 1);
+    op_sort(global_not_found, g_count);
     g_count = removeDups(global_not_found, g_count);
     global_not_found = (int *)xrealloc(global_not_found, g_count * sizeof(int));
   } else {
@@ -474,7 +474,7 @@ int is_onto_map(op_map map) {
 
   // sort global_found list and remove duplicates
   if (g_count > 0) {
-    quickSort(global_found, 0, g_found_count - 1);
+    op_sort(global_found, g_found_count);
     g_found_count = removeDups(global_found, g_found_count);
     global_found = (int *)xrealloc(global_found, g_found_count * sizeof(int));
   }
@@ -1068,7 +1068,7 @@ void op_halo_create() {
     if (exec->size > 0) {
       exp_elems[set->index] = (int *)xmalloc(exec->size * sizeof(int));
       memcpy(exp_elems[set->index], exec->list, exec->size * sizeof(int));
-      quickSort(exp_elems[set->index], 0, exec->size - 1);
+      op_sort(exp_elems[set->index], exec->size);
 
       int num_exp = removeDups(exp_elems[set->index], exec->size);
       core_elems[set->index] = (int *)xmalloc(set->size * sizeof(int));
@@ -1079,7 +1079,7 @@ void op_halo_create() {
           core_elems[set->index][count++] = e;
         }
       }
-      quickSort(core_elems[set->index], 0, count - 1);
+      op_sort(core_elems[set->index], count);
 
       if (count + num_exp != set->size)
         printf("sizes not equal\n");
@@ -1533,8 +1533,8 @@ void op_halo_permap_create() {
         OP_import_nonexec_permap[i]
             ->ranks[OP_import_nonexec_permap[i]->ranks_size++] = merge;
     }
-    quickSort(OP_import_nonexec_permap[i]->ranks, 0,
-              OP_import_nonexec_permap[i]->ranks_size - 1);
+    op_sort(OP_import_nonexec_permap[i]->ranks,
+            OP_import_nonexec_permap[i]->ranks_size);
 
     //
     // Count how many we will actually need from each of them for this
@@ -1781,8 +1781,8 @@ void op_halo_permap_create() {
         OP_export_nonexec_permap[i]
             ->ranks[OP_export_nonexec_permap[i]->ranks_size++] = merge;
     }
-    quickSort(OP_export_nonexec_permap[i]->ranks, 0,
-              OP_export_nonexec_permap[i]->ranks_size - 1);
+    op_sort(OP_export_nonexec_permap[i]->ranks,
+            OP_export_nonexec_permap[i]->ranks_size);
 
     //
     // Receive sizes, allocate export lists
@@ -2690,7 +2690,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   //
   // sort elements in temporaty data according to new_g_index
   //
-  quickSort_dat(new_g_index, data, 0, count - 1, dat->size);
+  op_sort_dat(new_g_index, data, count, dat->size);
 
   // cleanup
   op_free(pe_list->ranks);
@@ -3743,7 +3743,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
   MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, gbl_iface_list,
                 gbl_num_ifaces, MPI_INT, OP_MPI_WORLD);
 
-  quickSort(gbl_iface_list, 0, gbl_num_ifaces * mpi_comm_size - 1);
+  op_sort(gbl_iface_list, gbl_num_ifaces * mpi_comm_size);
   gbl_num_ifaces = removeDups(gbl_iface_list, gbl_num_ifaces * mpi_comm_size);
   if (gbl_iface_list[gbl_num_ifaces - 1] == 32767)
     gbl_num_ifaces--;
@@ -3774,7 +3774,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
 
   int *nprocs_per_gint = (int *)xmalloc(gbl_num_ifaces * sizeof(int));
   for (int i = 0; i < gbl_num_ifaces; i++) {
-    quickSort(proclist_per_gint[i], 0, nprocs * mpi_comm_size - 1);
+    op_sort(proclist_per_gint[i], nprocs * mpi_comm_size);
     nprocs_per_gint[i] =
         removeDups(proclist_per_gint[i], nprocs * mpi_comm_size);
     if (proclist_per_gint[i][nprocs_per_gint[i] - 1] == 32767)

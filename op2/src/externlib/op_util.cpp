@@ -47,6 +47,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <tuple>
+#include <array>
+
 #include <op_lib_core.h>
 #include <op_util.h>
 
@@ -129,29 +133,9 @@ int min(int array[], int size) {
 *******************************************************************************/
 
 int binary_search(int a[], int value, int low, int high) {
-  if (high < low)
-    return -1; // not found
-  else if (high == low) {
-    if (a[low] == value)
-      return low;
-    else
-      return -1;
-  } else if (high == (low + 1)) {
-    if (a[low] == value)
-      return low;
-    else if (a[high] == value)
-      return high;
-    else
-      return -1;
-  }
-
-  int mid = low + (high - low) / 2;
-  if (a[mid] > value)
-    return binary_search(a, value, low, mid - 1);
-  else if (a[mid] < value)
-    return binary_search(a, value, mid + 1, high);
-  else
-    return mid; // found
+  auto lb = std::lower_bound(a + low, a + high + 1, value);
+  if (lb == a + high + 1 || *lb != value) return -1;
+  return (int) (lb - (a + low));
 }
 
 /*******************************************************************************
@@ -170,161 +154,131 @@ int linear_search(int a[], int value, int low, int high) {
 * Quicksort an array
 *******************************************************************************/
 
-void quickSort(int arr[], int left, int right) {
-  int i = left;
-  int j = right;
-  int tmp;
-  if (left==right) return;
-  int pivot = arr[(left + right) / 2];
-
-  // partition
-  while (i <= j) {
-    while (arr[i] < pivot)
-      i++;
-    while (arr[j] > pivot)
-      j--;
-    if (i <= j) {
-      tmp = arr[i];
-      arr[i] = arr[j];
-      arr[j] = tmp;
-      i++;
-      j--;
-    }
-  };
-  // recursion
-  if (left < j)
-    quickSort(arr, left, j);
-  if (i < right)
-    quickSort(arr, i, right);
+void op_sort(int *__restrict xs, int n) {
+  std::sort(xs + n, xs + n);
 }
 
 /*******************************************************************************
 * Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
 *******************************************************************************/
 
-void quickSort_2(int arr1[], int arr2[], int left, int right) {
-  int i = left;
-  int j = right;
-  int tmp1, tmp2;
-  if (left==right) return;
-  int pivot = arr1[(left + right) / 2];
+// C++23 zip range view at home
+// adapted from https://github.com/dpellegr/ZipIterator
+template<typename... Ts>
+struct ZipRef {
+  std::tuple<Ts*...> pointers;
 
-  // partition
-  while (i <= j) {
-    while (arr1[i] < pivot)
-      i++;
-    while (arr1[j] > pivot)
-      j--;
-    if (i <= j) {
-      tmp1 = arr1[i];
-      arr1[i] = arr1[j];
-      arr1[j] = tmp1;
+  ZipRef() = delete;
+  ZipRef(Ts*... pointers): pointers(pointers...) {};
 
-      tmp2 = arr2[i];
-      arr2[i] = arr2[j];
-      arr2[j] = tmp2;
-      i++;
-      j--;
-    }
-  };
-  // recursion
-  if (left < j)
-    quickSort_2(arr1, arr2, left, j);
-  if (i < right)
-    quickSort_2(arr1, arr2, i, right);
+  template <std::size_t I = 0>
+  void copy_assign(const ZipRef& rhs) {
+    *(std::get<I>(pointers)) = *(std::get<I>(rhs.pointers));
+    if constexpr(I + 1 < sizeof...(Ts) ) copy_assign<I + 1>(rhs);
+  }
+
+  template <std::size_t I = 0>
+  void val_assign(const std::tuple<Ts...>& rhs) {
+    *(std::get<I>(pointers)) = std::get<I>(rhs);
+    if constexpr(I + 1 < sizeof...(Ts)) val_assign<I + 1>(rhs);
+  }
+
+  ZipRef& operator=(const ZipRef& rhs) { copy_assign(rhs); return *this; };
+  ZipRef& operator=(const std::tuple<Ts...>& rhs) { val_assign(rhs); return *this; };
+
+  operator std::tuple<Ts...>() const { return std::apply([](auto&&... p) { return std::tuple((*p)...); }, pointers); }
+  int val() const { return *std::get<0>(pointers); };
+
+  #define OPERATOR(OP) \
+    bool operator OP(const ZipRef& rhs) const { return val() OP rhs.val(); } \
+    inline friend bool operator OP(const ZipRef& r, const std::tuple<Ts...>& t) { return r.val() OP std::get<0>(t); } \
+    inline friend bool operator OP(const std::tuple<Ts...>& t, const ZipRef& r) { return std::get<0>(t) OP r.val(); }
+
+    OPERATOR(==) OPERATOR(<=) OPERATOR(>=)
+    OPERATOR(!=) OPERATOR(<)  OPERATOR(>)
+  #undef OPERATOR
+};
+
+template<typename std::size_t I = 0, typename... Ts>
+void swap(const ZipRef<Ts...>& z1, const ZipRef<Ts...>& z2) {
+  std::swap(*std::get<I>(z1.pointers), *std::get<I>(z2.pointers));
+  if constexpr(I + 1 < sizeof...(Ts)) swap<I + 1, Ts...>(z1, z2);
+}
+
+template<typename... Ts>
+struct ZipIter {
+  std::tuple<Ts...> iterators;
+
+  using iterator_category = std::common_type_t<typename std::iterator_traits<Ts>::iterator_category...>;
+  using difference_type   = std::common_type_t<typename std::iterator_traits<Ts>::difference_type...>;
+  using value_type        = std::tuple<typename std::iterator_traits<Ts>::value_type...>;
+  using pointer           = std::tuple<typename std::iterator_traits<Ts>::pointer...>;
+  using reference         = ZipRef<std::remove_reference_t<typename std::iterator_traits<Ts>::reference>...>;
+
+  ZipIter() = delete;
+  ZipIter(Ts... iterators): iterators(iterators...) {};
+
+  ZipIter& operator+=(const difference_type d) { std::apply([&](auto& ...it) { (std::advance(it, d), ...); }, iterators); return *this; }
+
+  ZipIter& operator-=(const difference_type d) { return operator+=(-d); }
+
+  reference operator* () const {return std::apply([](auto&&... it){ return reference(&(*(it))...); }, iterators);}
+
+  ZipIter& operator++() { return operator+=( 1); }
+  ZipIter& operator--() { return operator+=(-1); }
+  ZipIter operator++(int) { ZipIter tmp(*this); operator++(); return tmp; }
+  ZipIter operator--(int) { ZipIter tmp(*this); operator--(); return tmp; }
+
+  difference_type operator-(const ZipIter& rhs) const { return std::get<0>(iterators) - std::get<0>(rhs.iterators); }
+  ZipIter operator+(const difference_type d) const { ZipIter tmp(*this); tmp += d; return tmp; }
+  ZipIter operator-(const difference_type d) const { ZipIter tmp(*this); tmp -= d; return tmp; }
+  inline friend ZipIter operator+(const difference_type d, const ZipIter& z) { return z+d; }
+  inline friend ZipIter operator-(const difference_type d, const ZipIter& z) { return z - d; }
+
+  bool operator==(const ZipIter& rhs) const { return iterators == rhs.iterators; }
+  bool operator!=(const ZipIter& rhs) const { return iterators != rhs.iterators; }
+
+  #define OPERATOR(OP) \
+    bool operator OP(const ZipIter& rhs) const { return std::get<0>(iterators) OP std::get<0>(rhs.iterators); }
+    OPERATOR(<=) OPERATOR(>=)
+    OPERATOR(<)  OPERATOR(>)
+  #undef OPERATOR
+};
+
+void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
+  std::sort(ZipIter(xs, ys), ZipIter(xs + n, ys + n));
 }
 
 /*******************************************************************************
 * Quick sort arr and organise dat[] elements according to the sorted arr order
 *******************************************************************************/
 
-void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size2) {
-  if (left < 0 || right <= 0)
-    return;
-  if (left==right) return;
-  size_t elem_size = elem_size2;
-  int i = left, j = right;
-  int tmp;
-  char *tmp_dat = (char *)xmalloc(sizeof(char) * elem_size);
-  int pivot = arr[(left + right) / 2];
+void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size) {
+  int *indicies = (int *) xmalloc(n * sizeof(int));
 
-  // partition
-  while (i <= j) {
-    while (arr[i] < pivot)
-      i++;
-    while (arr[j] > pivot)
-      j--;
-    //    if (i <= j) {
-    if (i < j) {
-      tmp = arr[i];
-      arr[i] = arr[j];
-      arr[j] = tmp;
+  for (int i = 0; i < n; ++i)
+    indicies[i] = i;
 
-      // tmp_dat = dat[i];
-      memcpy(tmp_dat, (void *)&dat[i * elem_size], elem_size);
-      // dat[i] = dat[j];
-      memcpy(&dat[i * elem_size], (void *)&dat[j * elem_size], elem_size);
-      // dat[j] = tmp_dat;
-      memcpy(&dat[j * elem_size], (void *)tmp_dat, elem_size);
-      i++;
-      j--;
-    } else if (i == j) {
-      i++;
-      j--;
-    }
-  };
+  std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
+ 
+  char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
+  for (int i = 0; i < n; ++i)
+    std::copy(dat + indicies[i] * elem_size, dat + (indicies[i] + 1) * elem_size, tmp_dat + i * elem_size);
 
-  // recursion
-  if (left < j)
-    quickSort_dat(arr, dat, left, j, elem_size);
-  if (i < right)
-    quickSort_dat(arr, dat, i, right, elem_size);
+  std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
+
   op_free(tmp_dat);
+  op_free(indicies);
+
+  return;
 }
 
 /*******************************************************************************
 * Quick sort arr and organise map[] elements according to the sorted arr order
 *******************************************************************************/
 
-void quickSort_map(int arr[], int map[], int left, int right, int dim) {
-  if (left==right) return;
-  int i = left, j = right;
-  int tmp;
-  int *tmp_map = (int *)xmalloc(sizeof(int) * dim);
-  int pivot = arr[(left + right) / 2];
-
-  // partition
-  while (i <= j) {
-    while (arr[i] < pivot)
-      i++;
-    while (arr[j] > pivot)
-      j--;
-    //    if (i <= j) {
-    if (i < j) {
-      tmp = arr[i];
-      arr[i] = arr[j];
-      arr[j] = tmp;
-
-      // tmp_dat = dat[i];
-      memcpy(tmp_map, (void *)&map[i * dim], dim * sizeof(int));
-      // dat[i] = dat[j];
-      memcpy(&map[i * dim], (void *)&map[j * dim], dim * sizeof(int));
-      // dat[j] = tmp_dat;
-      memcpy(&map[j * dim], (void *)tmp_map, dim * sizeof(int));
-      i++;
-      j--;
-    } else if (i == j) {
-      i++;
-      j--;
-    }
-  };
-
-  // recursion
-  if (left < j)
-    quickSort_map(arr, map, left, j, dim);
-  if (i < right)
-    quickSort_map(arr, map, i, right, dim);
-  op_free(tmp_map);
+void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim) {
+  op_sort_dat(arr, (char *) map, n, dim * sizeof(int));
 }
 
 /*******************************************************************************

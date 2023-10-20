@@ -547,7 +547,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
 
   // sort both to_elems[] and correspondingly parts[] arrays
   if (count > 0)
-    quickSort_2(to_elems, parts, 0, count - 1);
+    op_sort_2(to_elems, parts, count);
 
   if (count > comm_size * 10) {
     int *part_counter = (int *)xmalloc(comm_size * sizeof(int));
@@ -805,7 +805,7 @@ static void renumber_maps(int my_rank, int comm_size) {
     }
     // sort and remove duplicates
     if (count > 0) {
-      quickSort(req_list, 0, count - 1);
+      op_sort(req_list, count);
       count = removeDups(req_list, count);
       req_list = (int *)xrealloc(req_list, count * sizeof(int));
     }
@@ -837,7 +837,7 @@ static void renumber_maps(int my_rank, int comm_size) {
     op_free(req_list);
 
     if (g_count > 0) {
-      quickSort(g_index, 0, g_count - 1);
+      op_sort(g_index, g_count);
       g_count = removeDups(g_index, g_count);
       g_index = (int *)xrealloc(g_index, g_count * sizeof(int));
     }
@@ -903,7 +903,7 @@ static void renumber_maps(int my_rank, int comm_size) {
 
     // sort all_imp_index according to g_index array
     if (g_count > 0)
-      quickSort_2(g_index, all_imp_index, 0, g_count - 1);
+      op_sort_2(g_index, all_imp_index, g_count);
 
     // now we hopefully have all the informattion required to renumber this map
     // so now, again go through each entry of this mapping table and renumber
@@ -1321,7 +1321,7 @@ static void migrate_all(int my_rank, int comm_size) {
           int *temp = (int *)xmalloc(sizeof(int) * set->size);
           memcpy(temp, (void *)OP_part_list[set->index]->g_index,
                  sizeof(int) * set->size);
-          quickSort_dat(temp, dat->data, 0, set->size - 1, dat->size);
+          op_sort_dat(temp, dat->data, set->size, dat->size);
           op_free(temp);
         }
       }
@@ -1336,14 +1336,13 @@ static void migrate_all(int my_rank, int comm_size) {
           int *temp = (int *)xmalloc(sizeof(int) * set->size);
           memcpy(temp, (void *)OP_part_list[set->index]->g_index,
                  sizeof(int) * set->size);
-          quickSort_map(temp, OP_map_list[map->index]->map, 0, set->size - 1,
-                        map->dim);
+          op_sort_map(temp, OP_map_list[map->index]->map, set->size, map->dim);
           op_free(temp);
         }
       }
     }
     if (set->size > 0)
-      quickSort(OP_part_list[set->index]->g_index, 0, set->size - 1);
+      op_sort(OP_part_list[set->index]->g_index, set->size);
   }
 
   // cleanup
@@ -1988,7 +1987,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   for (int i = 0; i < primary_map->to->size; i++) {
     int g_index = get_global_index(
         i, my_rank, part_range[primary_map->to->index], comm_size);
-    quickSort(adj[i], 0, adj_i[i] - 1);
+    op_sort(adj[i], adj_i[i]);
     adj_i[i] = removeDups(adj[i], adj_i[i]);
 
     if (adj_i[i] < 2) {
@@ -2572,7 +2571,7 @@ void op_partition_ptscotch(op_map primary_map) {
   for (int i = 0; i < primary_map->to->size; i++) {
     int g_index = get_global_index(
         i, my_rank, part_range[primary_map->to->index], comm_size);
-    quickSort(adj[i], 0, adj_i[i] - 1);
+    op_sort(adj[i], 0, adj_i[i]);
     adj_i[i] = removeDups(adj[i], adj_i[i]);
 
     if (adj_i[i] < 2) {
@@ -3046,7 +3045,7 @@ void op_partition_inertial(op_dat x_dat) {
     }
   }
   op_free(x);
-  quickSort(global_indices, 0, current_part_size - 1);
+  op_sort(global_indices, current_part_size);
   MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
@@ -3699,7 +3698,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
   for (int i = 0; i < primary_map->to->size; i++) {
     int g_index = get_global_index(
         i, my_rank, part_range[primary_map->to->index], comm_size);
-    quickSort(adj[i], 0, adj_i[i] - 1);
+    op_sort(adj[i], adj_i[i]);
     adj_i[i] = removeDups(adj[i], adj_i[i]);
 
     if (adj_i[i] < 2) {
