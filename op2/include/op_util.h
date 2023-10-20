@@ -63,17 +63,17 @@ int min(int array[], int size);
 
 unsigned op2_hash(const char *s);
 
-int binary_search(int a[], int value, int low, int high);
+int binary_search(int a[], int value, int low, int high); 
 
 int linear_search(int a[], int value, int low, int high);
 
-void quickSort(int arr[], int left, int right);
+void op_sort(int *__restrict arr, int n);
 
-void quickSort_2(int arr1[], int arr2[], int left, int right);
+void op_sort_2(int *__restrict arr1, int *__restrict arr2, int n);
 
-void quickSort_dat(int arr[], char dat[], int left, int right, int elem_size);
+void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size);
 
-void quickSort_map(int arr[], int map[], int left, int right, int dim);
+void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim);
 
 int removeDups(int a[], int array_size);
 
