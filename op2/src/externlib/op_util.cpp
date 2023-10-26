@@ -155,7 +155,7 @@ int linear_search(int a[], int value, int low, int high) {
 *******************************************************************************/
 
 void op_sort(int *__restrict xs, int n) {
-  std::sort(xs + n, xs + n);
+  std::sort(xs, xs + n);
 }
 
 /*******************************************************************************
