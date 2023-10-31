@@ -78,6 +78,12 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         printViolations(loop, "const written", read_violations)
         loop.fallback = True
 
+    # Add used consts to the loop
+    for entity in entities:
+        for name in fpu.walk(entity.ast, f2003.Name):
+            if name.string.lower() in const_ptrs and name.string.lower() not in entity.parameters:
+                loop.addConst(name.string.lower())
+
     # Check for disallowed statements (IO, exit, ...)
     # for entity in entities:
     #     violations = []

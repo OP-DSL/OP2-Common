@@ -211,6 +211,8 @@ class Loop:
     dats: List[Dat]
     maps: List[Map]
 
+    consts: Set[str]
+
     fallback: bool
 
     def __init__(self, name: str, loc: Location, kernel: str) -> None:
@@ -224,6 +226,8 @@ class Loop:
 
         self.args = []
         self.args_expanded = []
+
+        self.consts = set()
 
         self.fallback = False
 
@@ -313,6 +317,9 @@ class Loop:
                 idx += 1
 
         return idx
+
+    def addConst(self, const: str) -> None:
+        self.consts.add(const)
 
     def arg(self, x: Union[Dat, int]) -> Optional[Arg]:
         if isinstance(x, Dat):

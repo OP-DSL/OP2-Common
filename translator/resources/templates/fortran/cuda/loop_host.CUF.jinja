@@ -380,6 +380,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
 !   print *, " op2_kernel gpu {{lh.name}}"
 
+{% for const in lh.consts %}
+    call op_update_const_cuda_{{const}}(){{"\n" if loop.last}}
+{% endfor %}
     if (n_exec == 0) then
         call op_mpi_wait_all_grouped(size(args), args, 2)
 {% for arg in lh.args|gbl|reduction %}
