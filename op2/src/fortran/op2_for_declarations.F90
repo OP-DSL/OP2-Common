@@ -1189,8 +1189,13 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     integer(kind=c_int) :: idx, dim, access                                                                           @\
     character(kind=c_char, len=*) :: type                                                                             @\
                                                                                                                       @\
-    integer(kind=c_int) :: c_opt = 0                                                                                  @\
-    if (opt)               c_opt = 1                                                                                  @\
+    integer(kind=c_int) :: c_opt                                                                                      @\
+                                                                                                                      @\
+    if (opt) then                                                                                                     @\
+      c_opt = 1                                                                                                       @\
+    else                                                                                                              @\
+      c_opt = 0                                                                                                       @\
+    end if                                                                                                            @\
                                                                                                                       @\
     call TYPE_CHECK_##TYPE(type)                                                                                      @\
                                                                                                                       @\
@@ -1277,8 +1282,13 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     integer(kind=c_int) :: dim, access                                                                                @\
     character(kind=c_char, len=*) :: type                                                                             @\
                                                                                                                       @\
-    integer(kind=c_int) :: c_opt = 0                                                                                  @\
-    if (opt)               c_opt = 1                                                                                  @\
+    integer(kind=c_int) :: c_opt                                                                                      @\
+                                                                                                                      @\
+    if (opt) then                                                                                                     @\
+      c_opt = 1                                                                                                       @\
+    else                                                                                                              @\
+      c_opt = 0                                                                                                       @\
+    end if                                                                                                            @\
                                                                                                                       @\
     call TYPE_CHECK_##TYPE(type)                                                                                      @\
                                                                                                                       @\
@@ -1563,8 +1573,8 @@ contains
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char, len=*) :: type
 
-    integer(kind=c_int) :: c_idx, c_dat_dim, c_opt = 0
-    type(c_ptr) :: c_map_ptr = C_NULL_PTR, c_dat_ptr = C_NULL_PTR
+    integer(kind=c_int) :: c_idx, c_dat_dim, c_opt
+    type(c_ptr) :: c_map_ptr, c_dat_ptr
 
     c_idx = idx
     c_dat_dim = dim
@@ -1578,6 +1588,10 @@ contains
       c_opt = 1
       c_dat_ptr = dat%dataCPtr
       c_dat_dim = dat%dataPtr%dim
+    else
+      c_opt = 0
+      c_dat_ptr = C_NULL_PTR
+      c_dat_dim = 0
     end if
 
     call op_arg_dat_python_check(dat, dim)
@@ -1600,8 +1614,8 @@ contains
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char, len=*) :: type
 
-    integer(kind=c_int) :: c_dat_dim, c_opt = 0
-    type(c_ptr) :: c_dat_ptr = C_NULL_PTR
+    integer(kind=c_int) :: c_dat_dim, c_opt
+    type(c_ptr) :: c_dat_ptr
 
     c_dat_dim = dim
 
@@ -1609,6 +1623,10 @@ contains
       c_opt = 1
       c_dat_ptr = dat%dataCPtr
       c_dat_dim = dat%dataPtr%dim
+    else
+      c_opt = 0
+      c_dat_ptr = C_NULL_PTR
+      c_dat_dim = 0
     end if
 
     call op_arg_dat_python_check(dat, dim)
