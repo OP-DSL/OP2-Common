@@ -63,7 +63,7 @@ op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
 
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
-                           int staging, int upload);
+                           int staging, int upload, int nhalos = 1, int ncore = 1);
 
 #ifdef __cplusplus
 }
