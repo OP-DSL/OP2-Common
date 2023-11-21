@@ -131,11 +131,10 @@ int min(int array[], int size) {
 /*******************************************************************************
 * Binary search an array for a given value
 *******************************************************************************/
-
 int binary_search(int a[], int value, int low, int high) {
   auto lb = std::lower_bound(a + low, a + high + 1, value);
   if (lb == a + high + 1 || *lb != value) return -1;
-  return (int) (lb - (a + low));
+  return (int) (lb - a);
 }
 
 /*******************************************************************************
