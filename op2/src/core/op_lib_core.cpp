@@ -1442,10 +1442,10 @@ unsigned long op_copy_map_to_fort(int *map) {
     exit(-1);
   }
 
-  int *fort_map = (int *) malloc(item_map->from->size * item_map->dim * sizeof(int));
+  int *fort_map = (int *) malloc((item_map->from->size + item_map->from->exec_size)* item_map->dim * sizeof(int));
   OP_map_ptr_table.insert({fort_map, item_map->index});
 
-  for (int i = 0; i < item_map->from->size * item_map->dim; i++)
+  for (int i = 0; i < (item_map->from->size + item_map->from->exec_size)* item_map->dim; i++)
     fort_map[i] = item_map->map[i] + 1;
 
   return (unsigned long)(fort_map);
