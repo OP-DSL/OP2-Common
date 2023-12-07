@@ -1713,12 +1713,30 @@ contains
     call op_init_base_soa(diags,1,soa)
   end subroutine op_init_soa
 
-  subroutine op_mpi_init ( diags, global, local )
+  subroutine op_mpi_init_base( diags, global, local, base_idx)
+    integer(4) :: diags
+    integer(4) :: global
+    integer(4) :: local
+    integer(4) :: base_idx
+    call op_mpi_init_base_soa( diags, global, local, base_idx, 0 )
+  end subroutine op_mpi_init_base
+
+  subroutine op_mpi_init_soa( diags, global, local, soa)
+    integer(4) :: diags
+    integer(4) :: global
+    integer(4) :: local
+    integer(4) :: soa
+    call op_mpi_init_base_soa( diags, global, local, 1, soa )
+  end subroutine op_mpi_init_soa
+
+  subroutine op_mpi_init_base_soa ( diags, global, local, base_idx, soa )
 
     ! formal parameter
     integer(4) :: diags
     integer(4) :: global
     integer(4) :: local
+    integer(4) :: base_idx
+    integer(4) :: soa
 
     ! local variables
     integer(c_int) :: argc = 0
@@ -1760,9 +1778,9 @@ contains
     OP_ID%mapPtr => idPtr
 #endif
     OP_GBL%mapPtr => gblPtr
-    call set_maps_base_c(1)
+    call set_maps_base_c(base_idx)
 
-    call op_mpi_init_c ( argc, C_NULL_PTR, diags, global, local )
+    call op_mpi_init_soa_c ( 0, C_NULL_PTR, diags, global, local, soa )
 
     !Get the command line arguments - needs to be handled using Fortrn
     argc = command_argument_count()
@@ -1771,7 +1789,7 @@ contains
       call op_set_args_c (argc, temp) !special function to set args
     end do
 
-  end subroutine op_mpi_init
+  end subroutine op_mpi_init_base_soa
 
 
   subroutine op_exit ( )
