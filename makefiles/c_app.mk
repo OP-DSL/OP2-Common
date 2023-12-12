@@ -71,17 +71,18 @@ clean:
 	-$(RM) $(ALL_VARIANTS)
 	-$(RM) -r seq vec openmp openmp4 cuda openacc
 	-$(RM) *_op.cpp
-	-$(RM) .generated .generated
+#	-$(RM) .generated .generated
 	-$(RM) *.d
 	-$(RM) *.o
 	-$(RM) out_grid.*
 	-$(RM) out_grid_mpi.*
 
-.generated: $(APP_ENTRY) $(APP_ENTRY_MPI)
-	[ ! -f $(APP_ENTRY) ] || $(TRANSLATOR) $(APP_ENTRY)
-	[ ! -f $(APP_ENTRY_MPI) ] || [ $(APP_ENTRY_MPI) = $(APP_ENTRY) ] \
-		|| $(TRANSLATOR) $(APP_ENTRY_MPI)
-	@touch $@
+#.generated: $(APP_ENTRY) $(APP_ENTRY_MPI)
+#	[ ! -f $(APP_ENTRY) ] || $(TRANSLATOR) $(APP_ENTRY)
+#	[ ! -f $(APP_ENTRY_MPI) ] || [ $(APP_ENTRY_MPI) = $(APP_ENTRY) ] \
+#		|| $(TRANSLATOR) $(APP_ENTRY_MPI)
+#	@touch $@
+  
 
 SEQ_SRC := $(APP_ENTRY)
 MPI_SEQ_SRC := $(APP_ENTRY_MPI)
@@ -116,7 +117,7 @@ MPI_CUDA_HYB_SRC := $(APP_ENTRY_MPI_OP) \
 # $(4) = OP2 library for parallel variant
 define RULE_template_base =
 $$(APP_NAME)_$(1): .generated
-	$$(CXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_$(3)) -o $$@
+	$$(CXX) $$(CFXXFLAGS) $(2) $$(OP2_INC) $$($(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_$(3)) -o $$@
 
 $$(APP_NAME)_mpi_$(1): .generated
 	$$(MPICXX) $$(CXXFLAGS) $(2) $$(OP2_INC) $$(MPI_$(call UPPERCASE,$(1))_SRC) $$(OP2_LIB_$(4)) -o $$@

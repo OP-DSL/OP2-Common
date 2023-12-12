@@ -232,3 +232,7 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
 void op_upload_dat(op_dat dat) {}
 
 void op_download_dat(op_dat dat) {}
+
+void increase_precision(){
+  increase_precision_core();
+}

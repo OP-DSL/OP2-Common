@@ -35,7 +35,6 @@ http://www.opensource.org/licenses/bsd-license.php
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // For getopt
 
 // global constants
 
@@ -65,41 +64,6 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16],
 // main program
 
 int main(int argc, char **argv) {
-
-
-  // Define variables to store input values
-  int niter = 20, maxiter = 200;
-  double cd_cond = 0.1;
-
-  int c;
-
-  // Use getopt to parse command line arguments
-  while ((c = getopt(argc, argv, "n:m:c:")) != -1) {
-    switch (c) {
-      case 'n':
-        niter = atoi(optarg);
-        break;
-      case 'm':
-        maxiter = atoi(optarg);
-        break;
-      case 'c':
-        cd_cond = atof(optarg);
-        break;
-      case '?':
-        if (optopt == 'n' || optopt == 'm' || optopt == 'c') {
-          fprintf(stderr, "Option -%c requires an argument.\n", optopt);
-        } else {
-          fprintf(stderr, "Unknown option -%c.\n", optopt);
-        }
-        return 1;
-    }
-  }
-
-  op_printf("niter = %d, maxiter = %d, cd_cond = %lf\n", niter, maxiter, cd_cond);
-
-
-
-  
   // OP initialisation
 
   op_init(argc, argv, 2);
@@ -107,7 +71,7 @@ int main(int argc, char **argv) {
   int *bnode, *cell;
   double *xm; //, *q;
 
-  int nnode, ncell, nbnodes;//, niter;
+  int nnode, ncell, nbnodes, niter;
   double rms = 1;
 
   // set constants and initialise flow field and residual
@@ -238,12 +202,12 @@ int main(int argc, char **argv) {
   ncell = op_get_size(cells);
   nbnodes = op_get_size(bnodes);
 
-  double cpu_t1, cpu_t2, cpu_tm, wall_t1, wall_t2, wall_tm;
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
   op_timers(&cpu_t1, &wall_t1);
 
   // main time-marching loop
 
-  //niter = 500;
+  niter = 20;
 
   for (int iter = 1; iter <= niter; iter++) {
 
@@ -275,8 +239,8 @@ int main(int argc, char **argv) {
     double res0 = sqrt(c1);
     double res = res0;
     int inner_iter = 0;
-    //int maxiter = 200;
-    while (res > cd_cond * res0 && inner_iter < maxiter) {
+    int maxiter = 200;
+    while (res > 0.1 * res0 && inner_iter < maxiter) {
       // V = Stiffness*P
       op_par_loop(spMV, "spMV", cells,
                   op_arg_dat(p_V, -4, pcell, 1, "double", OP_INC),
@@ -331,13 +295,7 @@ int main(int argc, char **argv) {
     // op_printf("rms = %10.5e iter: %d\n", sqrt(rms) / sqrt(nnode), iter);
     // print iteration history
     rms = sqrt(rms / (double)op_get_size(nodes));
-
-    
-    op_timers(&cpu_tm, &wall_tm);
-    op_printf("%d %d %f %3.15E\n", iter, inner_iter, wall_tm - wall_t1, rms);
-
-    if (rms<1e-12) break;
-
+    op_printf("%d %d %3.15E\n", iter, inner_iter, rms);
     if (iter % niter ==
         0) { //&& ncell == 720000) { // defailt mesh -- for validation testing
       float diff = fabs((100.0 * (rms / 0.0000005644214176463586)) - 100.0);

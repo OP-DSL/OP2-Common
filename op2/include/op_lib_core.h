@@ -83,6 +83,7 @@ extern int OP_hybrid_gpu;
 extern int OP_maps_base_index;
 extern int OP_mpi_test_frequency;
 extern int OP_partial_exchange;
+extern int OP_precision;
 
 /*
  * enum list for op_par_loop
@@ -373,6 +374,14 @@ void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
 void deviceSync();
+
+
+/*******************************************************************************
+* Functions for mixed precision computing
+*******************************************************************************/
+void increase_precision_core();
+void increase_precision_float2double();
+
 
 #ifdef __cplusplus
 }

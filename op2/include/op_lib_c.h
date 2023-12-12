@@ -113,6 +113,8 @@ void op_print_dat_to_binfile(op_dat dat, const char *file_name);
 
 void op_print_dat_to_txtfile(op_dat dat, const char *file_name);
 
+void increase_precision();
+
 #ifdef __cplusplus
 }
 #endif

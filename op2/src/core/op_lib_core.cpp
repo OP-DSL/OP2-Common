@@ -58,6 +58,7 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
 
 int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
+int OP_precision = 0;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -619,6 +620,8 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
            (int)arg.type[2] == 58) ||
           (strcmp(arg.dat->type, "int") == 0 && (int)arg.type[0] == 105 &&
            (int)arg.type[1] == 52)) {
+      } else if (OP_precision==1) {
+        arg.type="double";
       } else {
         printf("%s %s %s (%s)\n", set->name, arg.dat->type, arg.type,
                arg.dat->name);
@@ -688,6 +691,10 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.type = copy_str(typ); //Warning this is going to leak
 
   arg.acc = acc;
+  
+  if (OP_precision==1 && arg.type == floatstr){
+    arg.type = doublestr;
+  }
 
   /*initialize to 0 states no-mpi messages inflight for this arg*/
   arg.sent = 0;
@@ -1373,6 +1380,50 @@ int op_get_size_local(op_set set) { return set->size; }
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
 int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
 int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }
+
+
+/*******************************************************************************
+ * Routines for mixed precision computing
+ *******************************************************************************/
+
+void increase_precision_core(){
+  increase_precision_float2double();
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {    
+    if ( strcmp((item->dat)->type, "f2d")==0){
+      (item->dat)->type=doublestr;
+    }
+  }
+}
+
+void increase_precision_float2double(){
+  OP_precision=1;
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {    
+    if ( strcmp((item->dat)->type, "float")==0){
+      //(item->dat)->type=doublestr;
+      (item->dat)->type="f2d";
+      //item->dat->mem megmondja, hogy hány báűjt OPSbewn
+      //külön datokra
+      
+      (item->dat)->size=(item->dat)->dim*sizeof(double);
+
+      size_t bytes = (size_t)(item->dat)->size * (size_t)
+                  ((item->dat)->set->size+(item->dat)->set->exec_size+(item->dat)->set->nonexec_size) * sizeof(char);
+      char *new_data = (char *)op_malloc(bytes);
+      for (int i=0; i<((item->dat)->set->size+(item->dat)->set->exec_size+(item->dat)->set->nonexec_size)*(item->dat->dim);i++){
+        ((double*)new_data)[i]=(double)(((float*)((item->dat)->data))[i]);
+      }
+      op_free((item->dat)->data);
+      (item->dat)->data=new_data;
+     // op_printf("rip");
+
+
+    }
+  }
+}
+
+
 
 #ifdef __cplusplus
 }

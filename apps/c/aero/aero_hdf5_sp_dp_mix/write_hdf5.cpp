@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
   double *phim = (double *)malloc(nnode * sizeof(double));
   memset(phim, 0, nnode * sizeof(double));
   for (int i = 0; i < nnode; i++) {
-    phim[i] = minf * xm[2 * i] + minf * xm[2*i+1];
+    phim[i] = minf * xm[2 * i];
   }
 
   double *K = (double *)malloc(4 * 4 * ncell * sizeof(double));

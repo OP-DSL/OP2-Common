@@ -1,11 +1,15 @@
 import h5py
 import pyvista as pv
 import numpy as np
+from pyvista import CellType
 
 # Read your mesh file which contains physical coordinates of each cell
 with h5py.File('FE_grid.h5', 'r') as f:
     # Assuming your data is stored in datasets 'x', 'y', 'z'
     x = f['p_x'][:]
+    conn = f['pcell'][:]
+
+print(np.shape(x), np.shape(conn))
 
 x = np.column_stack((x, np.zeros(x.shape[0])))
 
@@ -18,8 +22,10 @@ for i in range(73):
         print(f'reading file {i+1}')
     # Add your data to the grid
     
-    grid = pv.UnstructuredGrid()
+    grid = pv.UnstructuredGrid({CellType.QUAD : cells_hex}, conn)
+    
     grid.points = x
+    #grid.
 
     grid.point_data[f'p_phim_{i}'] = np.array(data)
     grid.save(f'data/vtks/simulation_data_{i}.vtk', binary=False)
