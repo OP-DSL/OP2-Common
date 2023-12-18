@@ -751,8 +751,41 @@ module OP2_Fortran_Declarations
     end function isCNullPointer_c
 
     subroutine op_timing_output () BIND(C,name='op_timing_output')
-
     end subroutine op_timing_output
+
+    subroutine op_timing2_start_c(name) BIND(C,name='op_timing2_start')
+      use ISO_C_BINDING
+      character(kind=c_char) :: name(*)
+    end subroutine op_timing2_start_c
+
+    subroutine op_timing2_enter_c(name) BIND(C,name='op_timing2_enter')
+      use ISO_C_BINDING
+      character(kind=c_char) :: name(*)
+    end subroutine op_timing2_enter_c
+
+    subroutine op_timing2_enter_kernel_c(name, target, variant) BIND(C,name='op_timing2_enter_kernel')
+      use ISO_C_BINDING
+      character(kind=c_char) :: name(*), target(*), variant(*)
+    end subroutine op_timing2_enter_kernel_c
+
+    subroutine op_timing2_next_c(name) BIND(C,name='op_timing2_next')
+      use ISO_C_BINDING
+      character(kind=c_char) :: name(*)
+    end subroutine op_timing2_next_c
+
+    subroutine op_timing2_exit() BIND(C,name='op_timing2_exit')
+    end subroutine op_timing2_exit
+
+    subroutine op_timing2_finish() BIND(C,name='op_timing2_finish')
+    end subroutine op_timing2_finish
+
+    subroutine op_timing2_output() BIND(C,name='op_timing2_output')
+    end subroutine op_timing2_output
+
+    subroutine op_timing2_output_json_c(filename) BIND(C,name='op_timing2_output_json')
+      use ISO_C_BINDING
+      character(kind=c_char) :: filename(*)
+    end subroutine op_timing2_output_json_c
 
     subroutine op_print_c (line) BIND(C,name='op_print')
       use ISO_C_BINDING
@@ -2057,6 +2090,56 @@ contains
     get_associated_set_size = get_associated_set_size_f ( dat%dataPtr )
 
   end function
+
+  subroutine op_timing2_start(name)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(kind=c_char, len=*) :: name
+    call op_timing2_start_c(name /@/ C_NULL_CHAR)
+
+  end subroutine
+
+  subroutine op_timing2_enter(name)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(kind=c_char, len=*) :: name
+    call op_timing2_enter_c(name /@/ C_NULL_CHAR)
+
+  end subroutine
+
+  subroutine op_timing2_enter_kernel(name, target, variant)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(kind=c_char, len=*) :: name, target, variant
+    call op_timing2_enter_kernel_c(name /@/ C_NULL_CHAR, target /@/ C_NULL_CHAR, variant /@/ C_NULL_CHAR)
+
+  end subroutine
+
+  subroutine op_timing2_next(name)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(kind=c_char, len=*) :: name
+    call op_timing2_next_c(name /@/ C_NULL_CHAR)
+
+  end subroutine
+
+  subroutine op_timing2_output_json(filename)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    character(kind=c_char, len=*) :: filename
+    call op_timing2_output_json_c(filename /@/ C_NULL_CHAR)
+
+  end subroutine
 
   subroutine op_print_dat_to_binfile (dat, fileName)
 

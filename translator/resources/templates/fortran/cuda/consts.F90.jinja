@@ -31,7 +31,7 @@ contains
         {% endif %}
     end subroutine
 
-    subroutine op_upload_const_cuda_{{const.ptr}}()
+    subroutine op_update_const_cuda_{{const.ptr}}()
         op2_const_{{const.ptr}}_d = op2_const_{{const.ptr}}
     end subroutine
 

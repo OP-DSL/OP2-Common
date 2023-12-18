@@ -101,14 +101,16 @@ OP2_FOR_HDF5 := $(OP2_HDF5) $(addprefix $(OBJ)/fortran/,\
 
 OP2_SEQ := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
-	sequential/op_seq.o)
+	sequential/op_seq.o \
+	externlib/op_timing2.o)
 
 OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
 OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl.o \
-	cuda/op_cuda_rt_support.o)
+	cuda/op_cuda_rt_support.o \
+	externlib/op_timing2.o)
 
 OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
@@ -116,14 +118,16 @@ OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
 
 OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
-	openmp/op_openmp_decl.o)
+	openmp/op_openmp_decl.o \
+	externlib/op_timing2.o)
 
 OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
 OP2_OPENMP4 := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	openmp4/op_openmp4_decl.o \
-	openmp4/op_openmp4_rt_support.o)
+	openmp4/op_openmp4_rt_support.o \
+	externlib/op_timing2.o)
 
 OP2_FOR_OPENMP4 := $(OP2_OPENMP4) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
@@ -136,7 +140,8 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
 	externlib/op_util.o \
-	externlib/op_renumber.o)
+	externlib/op_renumber.o \
+	externlib/op_timing2+mpi.o)
 
 OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers+mpi.o)
@@ -151,7 +156,8 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
 	externlib/op_util.o \
-	externlib/op_renumber.o)
+	externlib/op_renumber.o \
+	externlib/op_timing2+mpi.o)
 
 OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
@@ -179,6 +185,9 @@ $(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
 
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
+
+$(OBJ)/externlib/%+mpi.o: src/externlib/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
 
 $(OBJ)/cuda/%+mpi.o: src/cuda/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
