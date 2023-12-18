@@ -53,8 +53,6 @@ program airfoil
     type(op_map) :: pedge, pecell, pcell, pbedge, pbecell
     type(op_dat) :: p_bound, p_x, p_q, p_qold, p_adt, p_res
 
-    real(kind=c_double) :: start_time, end_time
-
     real(8) :: diff
 
 #ifndef HDF5
@@ -65,6 +63,7 @@ program airfoil
 #endif
 
     call op_init_base(0, 0)
+    call op_timing2_start("Airfoil")
 
 #ifdef HDF5
     call op_print("Declaring OP2 sets (HDF5)")
@@ -121,8 +120,8 @@ program airfoil
     call op_decl_const(alpha, 1, "real(8)")
     call op_decl_const(qinf, 4, "real(8)")
 
-    call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x)
-    call op_timers(start_time)
+    call op_partition("PARMETIS", "KWAY", edges, pecell, p_x)
+    call op_timing2_enter("Main computation")
 
     ncell_total = op_get_size(cells)
 
@@ -181,18 +180,14 @@ program airfoil
         end if
     end do
 
-    call op_timers(end_time)
-    call op_timing_output()
+    call op_timing2_finish()
 
-    if (op_is_root() == 1) then
-        print *
-        print *, "Time =", end_time - start_time, "seconds"
-    end if
+    if (op_is_root() == 1) print *
+    call op_timing2_output()
 
     if (op_is_root() == 1 .and. niter == 1000 .and. ncell_total == 720000) then
         diff = abs((100.0_8 * (rms(2) / 0.0001060114637578_8)) - 100.0_8)
 
-        print *
         write (*, "(A, I0, A, E16.7, A)") " Test problem with ", ncell_total, &
             " cells is within ", diff, "% of the expected solution"
 

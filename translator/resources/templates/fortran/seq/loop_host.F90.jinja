@@ -1,3 +1,11 @@
+{%- macro variant_str() -%}
+    {%- if lh is direct -%}
+Direct
+    {%- else -%}
+Indirect
+    {%- endif -%}
+{%- endmacro -%}
+
 {%- macro map_idx(arg) -%}
     {%- if arg is runtime_map_idx %}
 arg{{arg.id}}_idx
@@ -132,7 +140,9 @@ subroutine op2_k_{{lh.name}}_wrapper( &
     do n = 1, n_exec
     {% if lh is indirect %}
         if (n == set%setptr%core_size + 1) then
+	    call op_timing2_next("MPI Wait")
             call op_mpi_wait_all(size(args), args)
+	    call op_timing2_next("Computation")
         end if
 
     {% endif %}
@@ -200,17 +210,18 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% for arg in lh.args|info %}
     {{arg.typ}}, pointer, dimension(:) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
-    real(8) :: start_time, end_time
     real(4) :: transfer
 
 {% for arg in lh.args %}
     args({{arg.id + 1}}) = arg{{arg.id}}
 {% endfor %}
 
-    n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
-    call op_timers_core(start_time)
+    call op_timing2_enter_kernel("{{lh.name}}", "seq", "{{variant_str()}}")
 
-!   print *, " op2_kernel cpu {{lh.name}}"
+    call op_timing2_enter("MPI Exchanges")
+    n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+
+    call op_timing2_next("Computation")
 
 {% for dat in lh.dats %}
     call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat_dim(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
@@ -247,20 +258,22 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         args &
     )
 
+    call op_timing2_next("MPI Wait")
     if ((n_exec == 0) .or. (n_exec == set%setptr%core_size)) then
         call op_mpi_wait_all(size(args), args)
     end if
 
-{% for arg in lh.args|gbl|reduction %}
+{% if lh.args|gbl|reduction|length > 0 %}
+    call op_timing2_next("MPI Reduce")
+
+    {% for arg in lh.args|gbl|reduction %}
     call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{arg.id}}, arg{{arg.id}}%data){{"\n" if loop.last}}
-{% endfor %}
+    {% endfor %}
+{% endif %}
+    call op_timing2_exit()
+
     call op_mpi_set_dirtybit(size(args), args)
-    call op_timers_core(end_time)
-
-    ! todo: review kernel transfer calculation
-    transfer = 0.0
-
-    call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
+    call op_timing2_exit()
 end subroutine
 
 end module

@@ -11,7 +11,6 @@ program jac
     integer(4), parameter :: nn = 6
     integer(4), parameter :: niter = 2
 
-    real(kind = c_double) :: start_time, end_time
     logical :: valid
 
     integer(4) :: i, j, p
@@ -59,8 +58,7 @@ program jac
     alpha = 1.0
 
     call op_decl_const(alpha, 1, "real(8)")
-
-    call op_timers(start_time)
+    call op_timing2_start("JAC")
 
     beta = 1.0
 
@@ -77,15 +75,17 @@ program jac
         call op_par_loop_5(update, nodes, &
             op_arg_dat(p_r,  -1, OP_ID, 1, "real(8)", OP_READ), &
             op_arg_dat(p_du, -1, OP_ID, 1, "real(8)", OP_RW),   &
-            op_arg_dat(p_u,  -1, OP_ID, 1, "real(8)", OP_INC),  &
+            op_arg_dat(p_u,  -1, OP_ID, 1, "real(8)", OP_RW),  &
             op_arg_gbl(u_sum, 1, "real(8)", OP_INC), &
             op_arg_gbl(u_max, 1, "real(8)", OP_MAX))
 
         write (*, "(1X, A, F7.4, A, F10.8)") "u max = ", u_max, "; u rms = ", sqrt(u_sum / nnode)
     end do
 
-    call op_timers(end_time)
-    call op_timing_output()
+    call op_timing2_finish()
+
+    print *
+    call op_timing2_output()
 
     allocate(u(nnode))
     call op_fetch_data(p_u, u)
@@ -101,9 +101,6 @@ program jac
     else
         print *, "Test FAILED"
     endif
-
-    print *
-    write (*, "(1X, A, F7.5, A)") "Time = ", end_time - start_time, " seconds"
 
     deallocate(u)
     call op_exit()

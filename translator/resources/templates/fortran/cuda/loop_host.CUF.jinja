@@ -1,3 +1,13 @@
+{%- macro variant_str() -%}
+    {%- if lh is direct -%}
+Direct
+    {%- elif config.atomics -%}
+Indirect (atomics)
+    {%- elif config.color2 -%}
+Indirect (colouring)
+    {%- endif -%}
+{%- endmacro -%}
+
 {%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
 {%- if config.gbl_inc_atomic -%}
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
@@ -376,14 +386,16 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     args({{loop.index}}) = arg{{arg.id}}
 {% endfor %}
 
+    call op_timing2_enter_kernel("{{lh.name}}", "CUDA", "{{variant_str()}}")
+    call op_timing2_enter("Init")
+
+    call op_timing2_enter("MPI Exchanges")
     n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
 
-!   print *, " op2_kernel gpu {{lh.name}}"
-
-{% for const in lh.consts %}
-    call op_update_const_cuda_{{const}}(){{"\n" if loop.last}}
-{% endfor %}
     if (n_exec == 0) then
+        call op_timing2_exit()
+        call op_timing2_exit()
+
         call op_mpi_wait_all_grouped(size(args), args, 2)
 {% for arg in lh.args|gbl|reduction %}
         call op_mpi_reduce_{{type_c(arg)}}(arg{{arg.id}}, arg{{arg.id}}%data)
@@ -395,8 +407,15 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
             print *, cudaGetErrorString(err)
         end if
 
+        call op_timing2_exit()
         return
     end if
+
+    call op_timing2_next("Update consts")
+{% for const in lh.consts %}
+    call op_update_const_cuda_{{const}}(){{"\n" if loop.last}}
+{% endfor %}
+    call op_timing2_exit()
 
     call setGblIncAtomic(logical({{".true." if config.gbl_inc_atomic else ".false."}}, c_bool))
     block_size = getBlockSize(name // c_null_char, set%setptr%size)
@@ -418,6 +437,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         {{-", " if not loop.last}}
     {%- endfor -%}
     /)
+
+    call op_timing2_enter("Plan")
 
     part_size = getpartitionsize(name // c_null_char, set%setptr%size)
     plan => fortranplancaller( &
@@ -444,16 +465,13 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         num_blocks = min(num_blocks, block_limit)
         max_blocks = max(max_blocks, num_blocks)
     end do
+
+    call op_timing2_exit()
 {% endif %}
 
-    err = cudaDeviceSynchronize()
-
-    if (err /= 0) then
-        print *, cudaGetErrorString(err)
-    end if
-
-    call op_timers_core(start_time)
+    call op_timing2_enter("Prepare GBLs")
     call prepareDeviceGbls(args, size(args), block_size * max_blocks)
+    call op_timing2_exit()
 
 {% for arg in lh.args %}
     arg{{arg.id}} = args({{loop.index}})
@@ -506,15 +524,23 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
+    call op_timing2_enter("Init GBLs")
     {{init_gbls()|indent}}
 
+    call op_timing2_exit()
 {% endif %}
+    call op_timing2_next("Computation")
 {% if lh is direct %}
     start = 0
     end = set%setptr%size
 
+    call op_timing2_enter("Kernel")
     {{kernel_call("set%setptr%size")|indent}}{{"\n" if lh.args|gbl|reject("read")|list|length > 0}}
+
+    call op_timing2_next("Process GBLs")
     {{process_gbls()|indent}}
+
+    call op_timing2_exit()
 {% elif config.atomics %}
     {% if lh.args|gbl|reduction|length == 0 %}
     sections = (/0, set%setptr%core_size, set%setptr%size + set%setptr%exec_size, 0/)
@@ -522,9 +548,12 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     sections = (/0, set%setptr%core_size, set%setptr%size, set%setptr%size + set%setptr%exec_size/)
     {% endif %}
 
+    call op_timing2_enter("Kernel")
     do round = 1, {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}
         if (round == 2) then
+            call op_timing2_next("MPI Wait")
             call op_mpi_wait_all_grouped(size(args), args, 2)
+            call op_timing2_next("Kernel")
         end if
 
         start = sections(round)
@@ -539,14 +568,21 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
 
         if (round == 2) then
+            call op_timing2_next("Process GBLs")
             {{process_gbls()|indent(12)}}
+            call op_timing2_next("Kernel")
         end if
     {% endif %}
     end do
+
+    call op_timing2_exit()
 {% else %}
+    call op_timing2_enter("Kernel")
     do col = 1, plan%ncolors
         if (col == plan%ncolors_core + 1) then
+            call op_timing2_next("MPI Wait")
             call op_mpi_wait_all_grouped(size(args), args, 2)
+            call op_timing2_next("Kernel")
         end if
 
         start = plan_color2_offsets(col)
@@ -559,12 +595,18 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
 
         if (col == plan%ncolors_owned) then
+            call op_timing2_next("Process GBLs")
             {{process_gbls()|indent(12)}}
+            call op_timing2_next("Kernel")
         end if
     {% endif %}
     end do
-{% endif %}
 
+    call op_timing2_exit()
+{% endif %}
+    call op_timing2_exit()
+
+    call op_timing2_enter("Finalise")
 {% for arg in lh.args|gbl|reduction %}
     call op_mpi_reduce_{{type_c(arg)}}(arg{{arg.id}}, arg{{arg.id}}%data)
 {% endfor %}
@@ -576,12 +618,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         print *, cudaGetErrorString(err)
     end if
 
-    call op_timers_core(end_time)
-
-    ! todo: review kernel transfer calculation
-    transfer = 0.0
-
-    call setKernelTime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
+    call op_timing2_exit()
+    call op_timing2_exit()
 end subroutine
 
 end module
