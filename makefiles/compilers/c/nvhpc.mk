@@ -20,5 +20,5 @@ CONFIG_CPP_HAS_OMP ?= true
 GPU_FFLAG := -gpu=fastmath,ptxinfo,lineinfo
 $(foreach arch,$(CUDA_GEN),$(eval GPU_FFLAG := $(GPU_FFLAG),cc$(arch)))
 
-CONFIG_OMP_OFFLOAD_CPPFLAGS ?= -mp=gpu $(GPU_FFLAG)
+CONFIG_OMP_OFFLOAD_CXXFLAGS ?= -mp=gpu $(GPU_FFLAG)
 CONFIG_CPP_HAS_OMP_OFFLOAD ?= true
