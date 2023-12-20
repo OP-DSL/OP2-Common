@@ -32,6 +32,14 @@ ifeq ($(HAVE_C),true)
     endif
   endif
 
+  ifeq ($(HAVE_HIP),true)
+    OP2_BUILDABLE_LIBS += hip
+
+    ifeq ($(HIP_IS_BUILDABLE),true)
+      OP2_BUILDABLE_LIBS += mpi_hip
+    endif
+  endif
+
   ifeq ($(MPI_IS_BUILDABLE),true)
     OP2_BUILDABLE_LIBS += mpi
   endif
@@ -110,6 +118,10 @@ OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl.o \
 	cuda/op_cuda_rt_support.o)
 
+OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	hip/op_hip_decl.o \
+	hip/op_hip_rt_support.o)
+
 OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
 	cudaConfigurationParams.o)
@@ -153,6 +165,18 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_util.o \
 	externlib/op_renumber.o)
 
+OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
+        hip/op_hip_rt_support+mpi.o \
+        mpi/op_mpi_core.o \
+        mpi/op_mpi_part_core.o \
+        mpi/op_mpi_hip_decl.o \
+        mpi/op_mpi_hip_rt_support.o \
+        mpi/op_mpi_hip_kernels.o \
+        mpi/op_mpi_hdf5.o \
+        mpi/op_mpi_util.o \
+        externlib/op_util.o \
+        externlib/op_renumber.o)
+
 OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
 	op2_for_rt_wrappers_cuda.o \
 	cudaConfigurationParams.o)
@@ -186,6 +210,12 @@ $(OBJ)/cuda/%+mpi.o: src/cuda/%.cpp | $(OBJ)
 $(OBJ)/cuda/%.o: src/cuda/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(INC) -DSET_CUDA_CACHE_CONFIG -c $< -o $@
 
+$(OBJ)/hip/%+mpi.o: src/hip/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(HIPFLAGS) $(INC) -DOPMPI -c $< -o $@
+
+$(OBJ)/hip/%.o: src/hip/%.cpp | $(OBJ)
+	$(CXX) $(CXXFLAGS) $(HIPFLAGS) $(INC) -c $< -o $@
+
 $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
@@ -194,6 +224,15 @@ $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 
 $(OBJ)/mpi/%.o: src/mpi/%.cu | $(OBJ)
 	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
+
+$(OBJ)/mpi/op_mpi_hip_decl.o: src/mpi/op_mpi_hip_decl.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(HIPFLAGS) $(INC) -c $< -o $@
+
+$(OBJ)/mpi/op_mpi_hip_rt_support.o: src/mpi/op_mpi_hip_rt_support.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(HIPFLAGS) $(INC) -c $< -o $@
+
+$(OBJ)/mpi/op_mpi_hip_kernels.o: src/mpi/op_mpi_hip_kernels.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(HIPFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/fortran/%+mpi.o: src/fortran/%.c | $(OBJ)
 	$(MPICC) $(CFLAGS) $(INC) -DOPMPI -c $< -o $@

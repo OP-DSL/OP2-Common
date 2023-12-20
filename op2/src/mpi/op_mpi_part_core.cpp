@@ -1083,7 +1083,7 @@ static void migrate_all(int my_rank, int comm_size) {
           //MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp->sizes[i], MPI_DOUBLE, exp->ranks[i],
           //          d, OP_PART_WORLD, &request_send[i]);
           if ((size_t)dat->size * exp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
-          MPI_Isend(sbuf[i], (size_t)dat->size * exp->sizes[i], MPI_CHAR, exp->ranks[i],
+          MPI_Isend(sbuf[i], (size_t)dat->size/8 * exp->sizes[i], MPI_DOUBLE, exp->ranks[i],
                     d, OP_PART_WORLD, &request_send[i]);
         }
 
@@ -1096,8 +1096,8 @@ static void migrate_all(int my_rank, int comm_size) {
           //         MPI_DOUBLE, imp->ranks[i], d, OP_PART_WORLD,
           //         MPI_STATUS_IGNORE);
           if ((size_t)dat->size * imp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
-          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size * imp->sizes[i],
-                   MPI_CHAR, imp->ranks[i], d, OP_PART_WORLD,
+          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size/8 * imp->sizes[i],
+                   MPI_DOUBLE, imp->ranks[i], d, OP_PART_WORLD,
                    MPI_STATUS_IGNORE);
         }
 

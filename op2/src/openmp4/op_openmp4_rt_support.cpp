@@ -19,7 +19,7 @@
 // routines to move arrays to/from GPU device
 //
 
-void op_mvHostToDevice(void **map, int size) {
+void op_mvHostToDevice(void **map, size_t size) {
   if (!OP_hybrid_gpu)
     return;
   char *temp = (char*)*map;
@@ -28,7 +28,7 @@ void op_mvHostToDevice(void **map, int size) {
   //TODO test
 }
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size) {
+void op_cpHostToDevice(void **data_d, void **data_h, size_t size) {
   if (!OP_hybrid_gpu)
     return;
   *data_d = (char*)op_malloc(size);
@@ -121,8 +121,9 @@ void op_cuda_exit() {
     return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    #pragma omp target exit data map(from: (item->dat)->data_d)
-    free((item->dat)->data_d);
+    char *data_d = (item->dat)->data_d;
+    #pragma omp target exit data map(from: data_d)
+    free(data_d);
   }
   /*
   for (int ip = 0; ip < OP_plan_index; ip++) {
@@ -306,6 +307,17 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+  (void)device;
+  return device == 1 ? op_mpi_halo_exchanges(set, nargs, args) : op_mpi_halo_exchanges_cuda(set, nargs, args);
+}
+
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)device;
   (void)nargs;
   (void)args;
 }

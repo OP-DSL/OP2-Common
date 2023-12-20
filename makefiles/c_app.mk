@@ -9,7 +9,7 @@ APP_ENTRY_MPI_BASENAME := $(basename $(APP_ENTRY_MPI))
 APP_ENTRY_OP := $(APP_ENTRY_BASENAME)_op.cpp
 APP_ENTRY_MPI_OP := $(APP_ENTRY_MPI_BASENAME)_op.cpp
 
-ALL_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb
+ALL_VARIANTS := seq genseq vec openmp openmp4 cuda cuda_hyb hip
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
 ALL_VARIANTS := $(foreach variant,$(ALL_VARIANTS),$(APP_NAME)_$(variant))
 
@@ -27,6 +27,10 @@ ifeq ($(HAVE_C),true)
 
   ifeq ($(HAVE_CUDA),true)
     BASE_BUILDABLE_VARIANTS += cuda cuda_hyb
+  endif
+
+  ifeq ($(HAVE_HIP),true)
+    BASE_BUILDABLE_VARIANTS += hip
   endif
 endif
 
@@ -69,7 +73,7 @@ all: $(BUILDABLE_VARIANTS)
 
 clean:
 	-$(RM) $(ALL_VARIANTS)
-	-$(RM) -r seq vec openmp openmp4 cuda openacc
+	-$(RM) -r seq vec openmp openmp4 cuda hip openacc
 	-$(RM) *_op.cpp
 	-$(RM) .generated .generated
 	-$(RM) *.d
@@ -109,6 +113,8 @@ CUDA_HYB_SRC := $(APP_ENTRY_OP) \
 MPI_CUDA_HYB_SRC := $(APP_ENTRY_MPI_OP) \
 	cuda/$(APP_NAME)_mpi_hybkernels_cpu.o cuda/$(APP_NAME)_mpi_hybkernels_gpu.o
 
+HIP_SRC := $(APP_ENTRY_OP) hip/$(APP_NAME)_kernels.o
+MPI_HIP_SRC := $(APP_ENTRY_MPI_OP) hip/$(APP_NAME)_mpi_kernels.o
 
 # $(1) = variant name
 # $(2) = additional flags
@@ -134,9 +140,13 @@ $(eval $(call RULE_template, openmp,   $(OMP_CPPFLAGS),                         
 $(eval $(call RULE_template, openmp4,  $(OMP_OFFLOAD_CPPFLAGS) -DOP2_WITH_OMP4, OPENMP4,    ))
 $(eval $(call RULE_template, cuda,,                                             CUDA,    MPI_CUDA))
 $(eval $(call RULE_template, cuda_hyb, $(OMP_CPPFLAGS),                         CUDA,    MPI_CUDA))
+$(eval $(call RULE_template, hip,,                                              HIP,     MPI_HIP))
 
 $(APP_NAME)_cuda: cuda/$(APP_NAME)_kernels.o
 $(APP_NAME)_mpi_cuda: cuda/$(APP_NAME)_mpi_kernels.o
+
+$(APP_NAME)_hip: hip/$(APP_NAME)_kernels.o
+$(APP_NAME)_mpi_hip: hip/$(APP_NAME)_mpi_kernels.o
 
 $(APP_NAME)_cuda_hyb: cuda/$(APP_NAME)_hybkernels_gpu.o cuda/$(APP_NAME)_hybkernels_cpu.o
 $(APP_NAME)_mpi_cuda_hyb: cuda/$(APP_NAME)_mpi_hybkernels_gpu.o cuda/$(APP_NAME)_mpi_hybkernels_cpu.o
@@ -146,6 +156,12 @@ cuda/$(APP_NAME)_kernels.o: .generated
 
 cuda/$(APP_NAME)_mpi_kernels.o: .generated
 	$(NVCC) $(NVCCFLAGS) $(OP2_INC) -c cuda/$(APP_ENTRY_MPI_BASENAME)_kernels.cu -o $@
+
+hip/$(APP_NAME)_kernels.o: .generated
+	$(HIPCXX) $(HIPFLAGS) $(OP2_INC) -c hip/$(APP_ENTRY_BASENAME)_kernels.cpp -o $@
+
+hip/$(APP_NAME)_mpi_kernels.o: .generated
+	$(HIPCXX) $(HIPFLAGS) $(OP2_INC) -c hip/$(APP_ENTRY_MPI_BASENAME)_kernels.cpp -o $@
 
 cuda/$(APP_NAME)_hybkernels_gpu.o: .generated
 	$(NVCC) $(NVCCFLAGS) -DOP_HYBRID_GPU -DGPUPASS $(OP2_INC) \

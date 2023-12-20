@@ -94,10 +94,14 @@ def ENDIF():
   elif CPP:
     code('}')
 
-def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
+def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs, hip = 0):
 
   global dims, idxs, typs, indtyps, inddims
   global FORTRAN, CPP, g_m, file_text, depth
+
+  cuda = 'cuda'
+  if hip == 1:
+    cuda = 'hip'
 
   OP_ID   = 1;  OP_GBL   = 2;  OP_MAP = 3;
 
@@ -114,8 +118,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
 #Optimization settings
     inc_stage=0
-    op_color2_force=1
-    atomics=0
+    op_color2_force=0
+    atomics=1
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -196,6 +200,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for i in range(0,nargs):
         inds_staged[i] = inds_staged[i] + 1
 
+    print(name)
+    no_restrict = [0]*nargs
+    for i in range(0,ninds):
+      varname = var[invinds[i]]
+      print(varname)
+      for j in range(0,nargs):
+        if varname == var[j] and maps[j] == OP_ID and soaflags[j]:
+          print('no restrict ' +varname+str(inds))
+          no_restrict[invinds[i]] = 1
+          break
 ##########################################################################
 #  start with CUDA kernel function
 ##########################################################################
@@ -270,12 +284,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         return
 
     for i in range(0,nargs_novec):
-        var = signature_text.split(',')[i].strip()
+        var1 = signature_text.split(',')[i].strip()
         if kernels[nk]['soaflags'][i] and (op_color2 or  not (kernels[nk]['maps'][i] == OP_MAP and kernels[nk]['accs'][i] == OP_INC)):
-          var = var.replace('*','')
-          #locate var in body and replace by adding [idx]
-          length = len(re.compile('\\s+\\b').split(var))
-          var2 = re.compile('\\s+\\b').split(var)[length-1].strip()
+          var1 = var1.replace('*','')
+          #locate var1 in body and replace by adding [idx]
+          length = len(re.compile('\\s+\\b').split(var1))
+          var2 = re.compile('\\s+\\b').split(var1)[length-1].strip()
 
           if int(kernels[nk]['idxs'][i]) < 0 and kernels[nk]['maps'][i] == OP_MAP:
             body_text = re.sub(r'\b'+var2+'(\[[^\]]\])\[([\\s\+\*A-Za-z0-9_]*)\]'+'', var2+r'\1[(\2)*'+op2_gen_common.get_stride_string(unique_args[i]-1,maps,mapnames,name)+']', body_text)
@@ -305,10 +319,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('int optflags,')
 
     for g_m in range(0,ninds):
-      if (indaccs[g_m]==OP_READ):
-        code('const <INDTYP> *__restrict <INDARG>,')
+      restrict = ''
+      if no_restrict[invinds[g_m]]==0:
+        restrict = '__restrict'
+      if indaccs[g_m]==OP_READ:
+        code('const <INDTYP> *'+restrict+' <INDARG>,')
       else:
-        code('<INDTYP> *__restrict <INDARG>,')
+        code('<INDTYP> *'+restrict+' <INDARG>,')
 
     if nmaps > 0:
       k = []
@@ -748,10 +765,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
               if optflags[g_m]==1:
                 IF('optflags & 1<<'+str(optidxs[g_m]))
               for d in range(0,int(dims[g_m])):
+                atomicAdd = 'atomicAdd'
+                if hip == 1 and (typs[g_m]=='float' or typs[g_m]=='double'):
+                  atomicAdd = 'unsafeAtomicAdd'
                 if soaflags[g_m]:
-                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],<ARG>_l['+str(d)+']);')
+                  code(atomicAdd+'(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'*'+op2_gen_common.get_stride_string(g_m,maps,mapnames,name)+'+map'+str(mapinds[g_m])+'idx],<ARG>_l['+str(d)+']);')
                 else:
-                  code('atomicAdd(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
+                  code(atomicAdd+'(&ind_arg'+str(inds[g_m]-1)+'['+str(d)+'+map'+str(mapinds[g_m])+'idx*<DIM>],<ARG>_l['+str(d)+']);')
               if optflags[g_m]==1:
                 ENDIF()
 
@@ -966,12 +986,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             k = k + [mapnames[g_m]]
             IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
             code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
-            code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
+            code(cuda+'MemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
             ENDIF()
       if dir_soa!=-1:
           IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
           code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
-          code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
+          code(cuda+'MemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
           ENDIF()
 
 #
@@ -1241,7 +1261,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 # update kernel record
 #
 
-    code('cutilSafeCall(cudaDeviceSynchronize());')
+    code('cutilSafeCall('+cuda+'DeviceSynchronize());')
     comm('update kernel record')
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
@@ -1266,9 +1286,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 ##########################################################################
 #  output individual kernel file
 ##########################################################################
-    if not os.path.exists('cuda'):
-        os.makedirs('cuda')
-    fid = open('cuda/'+name+'_kernel.cu','w')
+    if not os.path.exists(cuda):
+        os.makedirs(cuda)
+    fid = open(cuda+'/'+name+'_kernel.'+('cpp' if hip==1 else 'cu'),'w')
     date = datetime.datetime.now()
     fid.write('//\n// auto-generated by op2.py\n//\n\n')
     fid.write(file_text)
@@ -1308,8 +1328,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     code('#ifndef OP_FUN_PREFIX\n#define OP_FUN_PREFIX __host__ __device__\n#endif')
     code('#include "../user_types.h"')
   code('#include "op_lib_cpp.h"')
-  code('#include "op_cuda_rt_support.h"')
-  code('#include "op_cuda_reduction.h"')
+  code('#include "op_'+cuda+'_rt_support.h"')
+  code('#include "op_'+cuda+'_reduction.h"')
 
   for nc in range(0,len(consts)):
     code('')
@@ -1321,7 +1341,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       IF('dim*sizeof('+consts[nc]['type'][1:-1]+')>MAX_CONST_SIZE')
       code('printf("error: MAX_CONST_SIZE not big enough\\n"); exit(1);')
       ENDIF()
-    code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*sizeof('+consts[nc]['type'][1:-1]+')));')
+    code('cutilSafeCall('+cuda+'MemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*sizeof('+consts[nc]['type'][1:-1]+')));')
     depth = depth - 2
     code('}')
 
@@ -1330,10 +1350,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   for nk in range(0,len(kernels)):
     file_text = file_text +\
-    '#include "'+kernels[nk]['name']+'_kernel.cu"\n'
+    '#include "'+kernels[nk]['name']+'_kernel.'+('cpp' if hip==1 else 'cu')+'"\n'
 
   master = master.split('.')[0]
-  fid = open('cuda/'+master.split('.')[0]+'_kernels.cu','w')
+  fid = open(cuda+'/'+master.split('.')[0]+'_kernels.'+('cpp' if hip==1 else 'cu'),'w')
   fid.write('//\n// auto-generated by op2.py\n//\n\n')
   fid.write(file_text)
   fid.close()
