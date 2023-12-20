@@ -9,9 +9,9 @@
 
 void cutilDeviceInit(int argc, char **argv);
 
-void op_mvHostToDevice(void **map, int size);
+void op_mvHostToDevice(void **map, size_t size);
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size);
+void op_cpHostToDevice(void **data_d, void **data_h, size_t size);
 
 void op_cuda_exit();
 
