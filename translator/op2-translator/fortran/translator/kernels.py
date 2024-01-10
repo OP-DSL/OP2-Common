@@ -331,12 +331,59 @@ def replaceNodes(node: Any, match: Callable[[f2003.Base], bool], replacement: f2
     return None
 
 
+# op2_s macro aware line split
+def splitLine(line: str, max_length: int = 264) -> str:
+    if len(line) <= max_length:
+        return (line, "")
+
+    i = max_length - 1
+    depth = 0
+
+    while i >= 0:
+        if line[i] == ')':
+            depth += 1
+        elif line[i] == '(':
+            depth -= 1
+
+        if line[:i + 1].endswith('op2_s'):
+            if depth >= 0:
+                return (line[:max_length], line[max_length:])
+            else:
+                return (line[:i - 4], line[i - 4:])
+
+        i -= 1
+
+    return (line[:max_length], line[max_length:])
+
+
+def addLineContinuations(source: str, max_length: int = 264) -> str:
+    lines = source.splitlines()
+
+    source2 = ""
+    first_line = True
+
+    for line in lines:
+        if len(line) > max_length:
+            new_line, remainder = splitLine(line, max_length - 1)
+
+            while len(remainder) > 0:
+                new_line2, remainder = splitLine(remainder, max_length - 2)
+                new_line += "&\n&" + new_line2
+        else:
+            new_line = line
+
+        source2 += ("" if first_line else "\n") + new_line
+        first_line = False
+
+    return source2
+
+
 def writeSource(entities: List[Entity], prologue: Optional[str] = None) -> str:
     if len(entities) == 0:
         return ""
 
     source = (prologue or "") + str(entities[-1].ast)
     for entity in reversed(entities[:-1]):
-        source = source + "\n\n" + (prologue or "") + str(entity.ast)
+        source += "\n\n" + (prologue or "") + addLineContinuations(str(entity.ast))
 
     return source
