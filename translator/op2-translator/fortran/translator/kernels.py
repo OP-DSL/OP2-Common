@@ -345,8 +345,11 @@ def splitLine(line: str, max_length: int = 264) -> str:
         elif line[i] == '(':
             depth -= 1
 
+        if i >= max_length - 5 and line[i:].startswith('op2_s'):
+            return (line[:i], line[i:])
+
         if line[:i + 1].endswith('op2_s'):
-            if depth >= 0:
+            if depth >= 0 and i != max_length - 1:
                 return (line[:max_length], line[max_length:])
             else:
                 return (line[:i - 4], line[i - 4:])
@@ -382,7 +385,7 @@ def writeSource(entities: List[Entity], prologue: Optional[str] = None) -> str:
     if len(entities) == 0:
         return ""
 
-    source = (prologue or "") + str(entities[-1].ast)
+    source = (prologue or "") + addLineContinuations(str(entities[-1].ast))
     for entity in reversed(entities[:-1]):
         source += "\n\n" + (prologue or "") + addLineContinuations(str(entity.ast))
 
