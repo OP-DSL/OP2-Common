@@ -1,24 +1,41 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
 {%- macro arg_to_pointer(arg) %}
-    {%- if arg is gbl %}
+    {%- if arg is idx or arg is info or arg is gbl%}
         {%- set cast = arg.typ -%}
     {%- else -%}
         {%- set cast = lh.dat(arg).typ -%}
     {%- endif -%}
 
-    {%- if arg is direct -%}
+    {%- if arg is idx and arg is indirect -%}
+        {%- set offset = "map%s[%d]" % (arg.map_id, arg.map_idx)-%}
+    {%- elif arg is idx -%}
+        {%- set offset = "n" -%}
+    {%- elif arg is info -%}
+        {%- set offset = "" -%}
+    {%- elif arg is gbl and arg is not read and lh is indirect -%}
+        {# TODO: Check the condition #}
+    {%- elif arg is gbl -%}
+        {%- set offset = "" -%}
+    {%- elif arg is direct -%}
         {%- set offset = " + n" -%}
-    {%- elif arg is indirect -%}
+    {%- else -%}
         {%- set offset = " + map%s[%d]" % (arg.map_id, arg.map_idx) -%}
     {%- endif -%}
 
-    {%- if arg is not gbl and lh.dat(arg) is not soa %}
+    {%- if (arg is not idx and arg is not info) and (arg is not gbl and lh.dat(arg) is not soa) %}
         {%- set offset = "%s * %d" % (offset, lh.dat(arg).dim) %}
     {%- endif -%}
 
+{# TODO: merge the conditions #}
     {%- if lh is indirect and arg is gbl and arg is reduction %}
 arg{{arg.id}}_local
+    {%- elif arg is idx and arg is indirect -%}
+&{{offset}}
+    {%- elif arg is idx -%}
+&{{offset}}
+    {%- elif arg is info -%}
+&{{offset}}
     {%- else -%}
 ({{cast}} *)arg{{arg.id}}.data{{offset}}
     {%- endif -%}

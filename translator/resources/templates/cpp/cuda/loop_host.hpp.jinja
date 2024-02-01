@@ -54,10 +54,23 @@ map{{arg.map_id}}[set_size * {{arg.map_idx}} + n]
 {%- endmacro %}
 
 {% macro arg_to_pointer_cuda(arg) -%}
-    {%- if arg is gbl -%}
+
+    {%- if arg is idx and arg is indirect -%}
+&map{{arg.map_id}}[set_size * {{arg.map_idx}} + n]
+    {%- elif arg is idx -%}
+&n
+    {%- elif arg is info -%}
+{# TODO: #}
+    {%- elif arg in args_gbl_per_thread -%}
+{# TODO: Check the condition #}
+    {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"_local" if arg is reduction}}
+    {%- elif arg is direct and lh.dat(arg) is soa -%}
+{# TODO: Check the condition #}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
+    {%- elif lh.dat(arg) is soa -%}
+{# TODO: Check the condition #}
     {%- elif arg is vec -%}
 arg{{arg.id}}_vec
     {%- elif arg is inc and config.atomics -%}

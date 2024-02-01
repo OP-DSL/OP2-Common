@@ -158,8 +158,10 @@ env.filters["inc"] = test_to_filter("inc")
 env.filters["min"] = test_to_filter("min")
 env.filters["max"] = test_to_filter("max")
 
+env.filters["read_or_write"] = test_to_filter("read_or_write")
+
 env.filters["reduction"] = test_to_filter("reduction")
 
-env.filters["index"] = lambda xs, x: xs.index(x)
+env.filters["index"] = lambda xs, x: xs.index(x) if x is not None and x in xs else -1
 
 env.filters["round_up"] = lambda x, b: b * ceil(x / b)

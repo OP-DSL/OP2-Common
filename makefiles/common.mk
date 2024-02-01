@@ -84,7 +84,6 @@ ifeq ($(MAKECMDGOALS),config)
       looking for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
 
     include $(DEPS_DIR)/hdf5_par.mk
-
     include $(DEPS_DIR)/ptscotch.mk
     include $(DEPS_DIR)/parmetis.mk
     include $(DEPS_DIR)/kahip.mk

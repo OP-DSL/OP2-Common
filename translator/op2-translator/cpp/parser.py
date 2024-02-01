@@ -147,7 +147,9 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
         arg_loc = parseLocation(node)
         arg_args = list(node.get_arguments())
 
-        if name == "op_arg_dat":
+        if name == "op_arg_idx":
+            parseArgIdx(loop, arg_args, arg_loc, macros)
+        elif name == "op_arg_dat":
             parseArgDat(loop, False, arg_args, arg_loc, macros)
 
         elif name == "op_opt_arg_dat":
@@ -202,6 +204,16 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
     access_type = parseAccessType(args[3], loc, macros)
 
     loop.addArgGbl(loc, ptr, dim, typ, access_type, opt)
+
+
+def parseArgIdx(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
+    if args is None or len(args) != 2:
+        raise ParseError("incorrect number of arguments for op_arg_idx", loc)
+
+    map_idx = parseIntExpression(args[0])
+    map_ptr = None if macros.get(parseLocation(args[1])) == "OP_ID" else parseIdentifier(args[1])
+
+    loop.addArgIdx(loc, map_ptr, map_idx)
 
 
 def parseIdentifier(node: Cursor, raw: bool = True) -> str:

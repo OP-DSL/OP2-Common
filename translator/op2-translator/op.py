@@ -331,7 +331,7 @@ class Loop:
         return None
 
     def dat(self, x: Union[ArgDat, int]) -> Optional[Dat]:
-        if isinstance(x, Arg):
+        if isinstance(x, ArgDat):
             return self.dats[x.dat_id]
 
         if isinstance(x, int) and x < len(self.dats):

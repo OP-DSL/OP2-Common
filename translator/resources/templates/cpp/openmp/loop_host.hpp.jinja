@@ -1,8 +1,17 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
 {%- macro arg_to_pointer(arg) -%}
-    {%- if arg is gbl -%}
+
+    {%- if arg is idx and arg is indirect -%}
+map{{arg.map_id}} + n * map{{arg.map_id}}_dim + {{arg.map_idx}}
+    {%- elif arg is idx -%}
+&n
+    {%- elif arg is info -%}
+{# TODO #}
+    {%- elif arg is gbl -%}
 gbl{{arg.id}}
+    {%- elif arg is direct and lh.dat(arg) is soa -%}
+{# TODO: Check the condition #}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}} + n * {{lh.dat(arg).dim}}
     {%- else -%}
@@ -15,7 +24,7 @@ arg{{arg.id}}{{"_%s" % (arg.map_idx) if arg is indirect}}_local
 {%- endmacro -%}
 
 {%- macro arg_to_pointer_local(arg) -%}
-    {%- if arg is read -%}
+    {%- if arg is idx or arg is info or arg is read -%}
 {{arg_to_pointer(arg)}}
     {%- else -%}
 {{arg_local(arg)}}[lane]

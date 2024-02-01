@@ -80,11 +80,18 @@ endef
 
 $(eval $(call GENERATED_template))
 
+# $(1) = variant name
+# $(2) = folder name
+# $(3) = extension
+define SRC_template =
+$(call UPPERCASE,$(1))_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/$(2)/op2_kernels.$(3)
+endef
+
 SEQ_SRC := $(APP_SRC)
 
-GENSEQ_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/seq/seq_kernels.cpp
-OPENMP_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp/openmp_kernels.cpp
-CUDA_SRC   := $(APP_SRC_OP) generated/$(APP_NAME)/cuda/cuda_kernels.o
+$(eval $(call SRC_template,genseq,seq,cpp))
+$(eval $(call SRC_template,openmp,openmp,cpp))
+$(eval $(call SRC_template,cuda,cuda,o))
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
@@ -111,11 +118,11 @@ $(eval $(call RULE_template, openmp,   $(OMP_CXXFLAGS), OPENMP,  MPI))
 $(eval $(call RULE_template, cuda,,                     CUDA,    MPI_CUDA))
 
 define CUDA_EXTRA_RULES_template =
-$(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
-$(APP_NAME)_mpi_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
+$(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/op2_kernels.o
+$(APP_NAME)_mpi_cuda: generated/$(APP_NAME)/cuda/op2_kernels.o
 
-generated/$(APP_NAME)/cuda/cuda_kernels.o: generated/$(APP_NAME)
-	$$(NVCC) $$(NVCCFLAGS) $(APP_INC) $$(OP2_INC) -c generated/$(APP_NAME)/cuda/cuda_kernels.cu -o $$@
+generated/$(APP_NAME)/cuda/op2_kernels.o: generated/$(APP_NAME)
+	$$(NVCC) $$(NVCCFLAGS) $(APP_INC) $$(OP2_INC) -c generated/$(APP_NAME)/cuda/op2_kernels.cu -o $$@
 endef
 
 $(eval $(call CUDA_EXTRA_RULES_template))
