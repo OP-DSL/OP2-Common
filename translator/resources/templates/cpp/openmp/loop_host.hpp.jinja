@@ -38,7 +38,7 @@ arg{{arg.id}}{{"_%s" % (arg.map_idx) if arg is indirect}}_local
 #define SIMD_LEN {{config.vectorise.simd_len}}
     {% endif %}
 
-void {{lh.kernel}}_wrapper(
+void {{lh.name}}_wrapper(
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict__ dat{{dat.id}}_u,
     {% endfor %}
@@ -207,7 +207,7 @@ void {{lh.kernel}}_wrapper(
         int start = (set->size * thread) / num_threads;
         int end = (set->size * (thread + 1)) / num_threads;
 
-        {{lh.kernel}}_wrapper(
+        {{lh.name}}_wrapper(
         {% for dat in lh.dats %}
             ({{dat.typ}} *)arg{{dat.arg_id}}.data,
         {% endfor %}
@@ -236,7 +236,7 @@ void {{lh.kernel}}_wrapper(
             int num_elem = plan->nelems[block_id];
             int offset = plan->offset[block_id];
 
-            {{lh.kernel}}_wrapper(
+            {{lh.name}}_wrapper(
         {% for dat in lh.dats %}
                 ({{dat.typ}} *)arg{{dat.arg_id}}.data,
         {% endfor %}

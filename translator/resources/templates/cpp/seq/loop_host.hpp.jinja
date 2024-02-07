@@ -28,7 +28,7 @@
     {%- endif -%}
 
 {# TODO: merge the conditions #}
-    {%- if lh is indirect and arg is gbl and arg is reduction %}
+    {%- if lh is indirect and arg is gbl and arg is min_or_max %}
 arg{{arg.id}}_local
     {%- elif arg is idx and arg is indirect -%}
 &{{offset}}
@@ -43,10 +43,10 @@ arg{{arg.id}}_local
 
 {% block host_prologue %}
 {{super()}}
-    {% for arg in lh.args|gbl|reduction if lh is indirect %}
+    {% for arg in lh.args|gbl|min_or_max if lh is indirect %}
     {{arg.typ}} arg{{arg.id}}_local[{{arg.dim}}] = {0};{{"\n" if loop.last}}
     {% endfor %}
-    {% for arg in lh.args|gbl|reduction if lh is indirect and arg is not inc %}
+    {% for arg in lh.args|gbl|min_or_max if lh is indirect and arg is not inc %}
     memcpy(arg{{arg.id}}_local, arg{{idx}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
     {% endfor %}
 {% endblock %}
@@ -76,7 +76,7 @@ arg{{arg.id}}_local
     {% endfor %}
     {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
         if (n == set->size) {
-        {% for arg in lh.args|gbl|reduction %}
+        {% for arg in lh.args|gbl|min_or_max %}
             memcpy(arg{{arg.id}}.data, arg{{arg.id}}_local, {{arg.dim}} * sizeof({{arg.typ}}));
         {% endfor %}
         }

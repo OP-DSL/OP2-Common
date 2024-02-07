@@ -17,6 +17,9 @@ env = Environment(
 def direct(x, loop: Optional[OP.Loop] = None) -> bool:
     if isinstance(x, (OP.ArgDat, OP.ArgIdx)) and x.map_id is None:
         return True
+    
+    if isinstance(x, (OP.ArgGbl)):
+        return True
 
     if isinstance(x, OP.Dat):
         assert loop is not None
@@ -161,7 +164,9 @@ env.filters["max"] = test_to_filter("max")
 env.filters["read_or_write"] = test_to_filter("read_or_write")
 
 env.filters["reduction"] = test_to_filter("reduction")
+env.filters["min_or_max"] = test_to_filter("min_or_max")
 
+# env.filters["index"] = lambda xs, x: xs.index(x)
 env.filters["index"] = lambda xs, x: xs.index(x) if x is not None and x in xs else -1
 
 env.filters["round_up"] = lambda x, b: b * ceil(x / b)

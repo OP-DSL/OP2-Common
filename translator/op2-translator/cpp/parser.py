@@ -149,6 +149,7 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
 
         if name == "op_arg_idx":
             parseArgIdx(loop, arg_args, arg_loc, macros)
+            
         elif name == "op_arg_dat":
             parseArgDat(loop, False, arg_args, arg_loc, macros)
 

@@ -1,4 +1,4 @@
-TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator -v
+TRANSLATOR ?= python3 $(ROOT_DIR)/translator/op2-translator/__main__.py -v
 
 ifneq ($(MPI_INC),)
 	TRANSLATOR += -I $(MPI_INC)

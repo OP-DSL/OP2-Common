@@ -91,7 +91,7 @@ __constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
 {% endblock %}
 
 {% block kernel_wrapper %}
-__global__ void op_cuda_{{lh.kernel}}(
+__global__ void op_cuda_{{lh.name}}(
     {{-"\n    const unsigned optflags," if lh.args|opt|length > 0}}
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ}} *__restrict dat{{dat.id}},
@@ -297,7 +297,7 @@ __global__ void op_cuda_{{lh.kernel}}(
 {% endblock %}
 
 {% macro kernel_call(shared_size) %}
-op_cuda_{{lh.kernel}}<<<num_blocks, block_size
+op_cuda_{{lh.name}}<<<num_blocks, block_size
 {{-(", %s" % shared_size) if lh.args|gbl|reduction|length > 0}}>>>(
     {{-"\n    optflags," if lh.args|opt|length > 0 }}
     {% for dat in lh.dats %}
