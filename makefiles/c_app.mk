@@ -9,6 +9,8 @@ APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%.cpp)
 
 APP_INC ?= -I.
 
+APP_BIN_DIR ?= .
+
 BASE_VARIANTS := seq genseq openmp cuda
 
 ALL_VARIANTS := $(BASE_VARIANTS)
@@ -64,12 +66,12 @@ $(eval $(call ALL_template))
 # Only define the clean rule on first include of this makefile
 ifeq ($(words $(filter %/c_app.mk,$(MAKEFILE_LIST))),1)
 clean:
-	-$(RM) $(foreach variant,$(ALL_VARIANTS),*_$(variant))
+	-$(RM) $(addprefix $(APP_BIN_DIR)/,$(foreach variant,$(ALL_VARIANTS),*_$(variant)))
 	-$(RM) -rf generated
-	-$(RM) *.d
-	-$(RM) *.o
-	-$(RM) out_grid.*
-	-$(RM) out_grid_mpi.*
+	-$(RM) $(addprefix $(APP_BIN_DIR)/, *.d)  *.d
+	-$(RM) $(addprefix $(APP_BIN_DIR)/, *.o)  *.o
+	-$(RM) $(addprefix $(APP_BIN_DIR)/, out_grid.*) out_grid.*
+	-$(RM) $(addprefix $(APP_BIN_DIR)/, out_grid_mpi.*) out_grid_mpi.*
 endif
 
 define GENERATED_template =
@@ -101,16 +103,22 @@ include $(MAKEFILES_DIR)/lib_helpers.mk
 # $(4) = OP2 library for parallel variant
 define RULE_template_base =
 $(APP_NAME)_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME))
-	$$(CXX) $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(3)) -o $$@
+	$$(CXX) $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(3)) -o $(APP_BIN_DIR)/$$@
 
 $(APP_NAME)_mpi_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME))
-	$$(MPICXX) $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(4)) -o $$@
+	$$(MPICXX) $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(4)) -o $(APP_BIN_DIR)/$$@
 endef
 
 # the same as RULE_template_base but it first strips its arguments of extra space
 define RULE_template =
 $(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)))
 endef
+
+# Check if APP_BIN_DIR is different from the current directory
+ifneq ($(APP_BIN_DIR),.)
+  # Create the bin directory if it does not exist
+  $(shell mkdir -p $(APP_BIN_DIR))
+endif
 
 $(eval $(call RULE_template, seq,,                      SEQ,     MPI))
 $(eval $(call RULE_template, genseq,,                   SEQ,     MPI))

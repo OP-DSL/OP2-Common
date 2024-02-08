@@ -61,7 +61,7 @@ output=$(make config)
 options_line=$(echo "$output" | grep -E "Buildable library variants" | awk '{gsub(/f_/,""); for(i=4;i<=NF;i++) printf "%s ", $i}')
 cmd="make "${options_line%" "}""
 echo $cmd
-# $cmd
+$cmd
 
 
 echo "***********************> Building apps <*******************"
