@@ -147,5 +147,13 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
   return generatedPlan;
 }
+void op_trigger_halo_exchanges_c(int device, char *name, op_set set, int nargs, op_arg *args) {
+  op_mpi_halo_exchanges_grouped(set, nargs, args, device);
+  op_mpi_wait_all_grouped(nargs, args, device);
+  if (device == 1)
+    op_mpi_set_dirtybit(nargs, args);
+  else
+    op_mpi_set_dirtybit_cuda(nargs, args);
+}
 
 }
