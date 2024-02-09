@@ -495,8 +495,29 @@ module OP2_Fortran_RT_Support
 
     end subroutine setKernelTime
 
+    subroutine op_trigger_halo_exchanges_c(device, name, set, nargs, args) BIND(C,name='op_trigger_halo_exchanges_c')
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    integer(kind=c_int), value :: device
+    type(op_set) :: set
+    character(kind=c_char) ::     name(*)    ! name of kernel
+    integer(kind=c_int), value :: nargs
+    type(op_arg), dimension(*) :: args       ! array with op_args
+
+  end subroutine op_trigger_halo_exchanges_c
+
+
   end interface
 
+  interface op_trigger_halo_exchanges
+    module procedure op_trigger_halo_exchanges_1, &
+      op_trigger_halo_exchanges_2, &
+      op_trigger_halo_exchanges_3, &
+      op_trigger_halo_exchanges_4, &
+      op_trigger_halo_exchanges_5 
+  end interface op_trigger_halo_exchanges
   contains
 
   function FortranPlanCaller (name, set, partitionSize, argsNumber, args, indsNumber, inds, staging) result(plan)
@@ -594,4 +615,100 @@ module OP2_Fortran_RT_Support
     call op_dat_write_index_c(set%setCPtr, c_loc(dat))
   end subroutine
 
+
+  subroutine op_trigger_halo_exchanges_1(device, name, set, arg1)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    integer(kind=c_int) :: device
+    type(op_set) :: set
+    character(kind=c_char,len=*) :: name
+    type(op_arg) :: arg1
+
+    integer(4) :: nargs
+    type(op_arg) :: args(1)       ! array with op_args
+
+    nargs = 1
+    args(1) = arg1
+    call op_trigger_halo_exchanges_c(device, name//C_NULL_CHAR, set, nargs, args)
+  end subroutine op_trigger_halo_exchanges_1
+  subroutine op_trigger_halo_exchanges_2(device, name, set, arg1, arg2)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    integer(kind=c_int) :: device
+    type(op_set) :: set
+    character(kind=c_char,len=*) :: name
+    type(op_arg) :: arg1, arg2
+
+    integer(4) :: nargs
+    type(op_arg) :: args(2)       ! array with op_args
+
+    nargs = 2
+    args(1) = arg1
+    args(2) = arg2
+    call op_trigger_halo_exchanges_c(device, name//C_NULL_CHAR, set, nargs, args)
+  end subroutine op_trigger_halo_exchanges_2
+  subroutine op_trigger_halo_exchanges_3(device, name, set, arg1, arg2, arg3)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    integer(kind=c_int) :: device
+    type(op_set) :: set
+    character(kind=c_char,len=*) :: name
+    type(op_arg) :: arg1, arg2, arg3
+
+    integer(4) :: nargs
+    type(op_arg) :: args(3)       ! array with op_args
+
+    nargs = 3
+    args(1) = arg1
+    args(2) = arg2
+    args(3) = arg3
+    call op_trigger_halo_exchanges_c(device, name//C_NULL_CHAR, set, nargs, args)
+  end subroutine op_trigger_halo_exchanges_3
+  subroutine op_trigger_halo_exchanges_4(device, name, set, arg1, arg2, arg3, arg4)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    integer(kind=c_int) :: device
+    type(op_set) :: set
+    character(kind=c_char,len=*) :: name
+    type(op_arg) :: arg1, arg2, arg3, arg4
+
+    integer(4) :: nargs
+    type(op_arg) :: args(4)       ! array with op_args
+
+    nargs = 4
+    args(1) = arg1
+    args(2) = arg2
+    args(3) = arg3
+    args(4) = arg4
+    call op_trigger_halo_exchanges_c(device, name//C_NULL_CHAR, set, nargs, args)
+  end subroutine op_trigger_halo_exchanges_4
+  subroutine op_trigger_halo_exchanges_5(device, name, set, arg1, arg2, arg3, arg4, arg5)
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+    integer(kind=c_int) :: device
+    type(op_set) :: set
+    character(kind=c_char,len=*) :: name
+    type(op_arg) :: arg1, arg2, arg3, arg4, arg5
+
+    integer(4) :: nargs
+    type(op_arg) :: args(4)       ! array with op_args
+
+    nargs = 5
+    args(1) = arg1
+    args(2) = arg2
+    args(3) = arg3
+    args(4) = arg4
+    args(5) = arg5
+    call op_trigger_halo_exchanges_c(device, name//C_NULL_CHAR, set, nargs, args)
+  end subroutine op_trigger_halo_exchanges_5
 end module OP2_Fortran_RT_Support
