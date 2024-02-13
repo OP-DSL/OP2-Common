@@ -129,7 +129,7 @@ class Preprocessor(pcpp.Preprocessor):
 class Fortran(Lang):
     name = "Fortran"
 
-    source_exts = ["F90", "F95"]
+    source_exts = ["F90", "F95", "f90"]
     include_ext = "inc"
 
     com_delim = "!"
