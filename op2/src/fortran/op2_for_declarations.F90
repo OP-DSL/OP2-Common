@@ -1290,7 +1290,7 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
 
 
   interface op_arg_idx
-    module procedure op_arg_idx_struct, op_arg_idx_ptr, op_arg_idx_ptr_m2
+    module procedure op_arg_idx_struct, op_arg_idx_ptr !, op_arg_idx_ptr_m2
   end interface op_arg_idx
 
   interface op_fetch_data
@@ -1825,13 +1825,13 @@ contains
     op_arg_idx_ptr = op_arg_idx_ptr_c(idx-1,c_loc(map))
   end function op_arg_idx_ptr
 
-  type(op_arg) function op_arg_idx_ptr_m2(idx, map)
-    use, intrinsic :: ISO_C_BINDING
-    implicit none
-    integer(kind=c_int) :: idx
-    integer(4), dimension(:,:), intent(in), target :: map
-    op_arg_idx_ptr_m2 = op_arg_idx_ptr_c(idx-1,c_loc(map))
-  end function op_arg_idx_ptr_m2
+!  type(op_arg) function op_arg_idx_ptr_m2(idx, map)
+!    use, intrinsic :: ISO_C_BINDING
+!    implicit none
+!    integer(kind=c_int) :: idx
+!    integer(4), dimension(:,:), intent(in), target :: map
+!    op_arg_idx_ptr_m2 = op_arg_idx_ptr_c(idx-1,c_loc(map))
+!  end function op_arg_idx_ptr_m2
  
   subroutine op_get_dat ( opdat )
 
