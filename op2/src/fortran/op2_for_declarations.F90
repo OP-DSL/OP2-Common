@@ -297,6 +297,13 @@ module OP2_Fortran_Declarations
 
     end subroutine op_exit_c
 
+    subroutine op_disable_device_execution_c(disable) bind(C,name='op_disable_device_execution')
+
+      use, intrinsic :: ISO_C_BINDING
+      logical(kind=c_bool), value :: disable
+
+    end subroutine op_disable_device_execution_c
+
     logical(kind=c_bool) function op_check_whitelist_c(name) bind(C,name='op_check_whitelist')
 
       use, intrinsic :: ISO_C_BINDING
@@ -350,6 +357,14 @@ module OP2_Fortran_Declarations
 
     end function
 
+    INTEGER(kind=c_int) function op_get_size_local_core_c ( set ) BIND(C,name='op_get_size_local_core')
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function
+
     INTEGER(kind=c_int) function op_get_size_local_c ( set ) BIND(C,name='op_get_size_local')
       use, intrinsic :: ISO_C_BINDING
 
@@ -373,6 +388,15 @@ module OP2_Fortran_Declarations
       type(c_ptr), value, intent(in) :: set
 
     end function
+
+    integer(8) function op_get_g_index_c(set) bind(C, name='op_get_g_index')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+    end function op_get_g_index_c
 
     type(c_ptr) function op_decl_map_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map')
 
@@ -1673,6 +1697,13 @@ contains
 
   end subroutine op_exit
 
+  subroutine op_disable_device_execution(disable)
+
+    logical, value :: disable
+    call op_disable_device_execution_c(logical(disable, kind=c_bool))
+
+  end subroutine
+
   function op_check_whitelist(name) result(res)
 
     logical(kind=c_bool) :: res
@@ -1773,6 +1804,18 @@ contains
 
   end function op_get_global_set_offset
 
+  INTEGER function op_get_size_local_core (set )
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set) :: set
+
+    op_get_size_local_core = op_get_size_local_core_c ( set%setCPtr )
+
+  end function op_get_size_local_core
+
   INTEGER function op_get_size_local (set )
 
     use, intrinsic :: ISO_C_BINDING
@@ -1808,6 +1851,18 @@ contains
     op_get_size_local_full = op_get_size_local_full_c ( set%setCPtr )
 
   end function op_get_size_local_full
+
+  integer(8) function op_get_g_index(set)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set), intent(in) :: set
+
+    op_get_g_index = op_get_g_index_c(set%setCPtr)
+
+  end function op_get_g_index
 
   type(op_arg) function op_arg_idx_struct(idx, map)
     use, intrinsic :: ISO_C_BINDING
