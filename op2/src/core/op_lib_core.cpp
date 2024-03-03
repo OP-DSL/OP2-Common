@@ -71,6 +71,7 @@ int OP_disable_mpi_reductions = 0;
 int OP_cuda_reductions_mib = 10;
 
 std::vector<std::regex> OP_whitelist = {};
+bool OP_disable_device_execution = false;
 
 /*
  * Lists of sets, maps and dats declared in OP2 programs
@@ -155,7 +156,14 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map) {
   }
 }
 
+void op_disable_device_execution(bool disable) {
+  OP_disable_device_execution = disable;
+}
+
 bool op_check_whitelist(const char *name) {
+  if (OP_disable_device_execution)
+    return false;
+
   if (OP_whitelist.size() == 0)
     return true;
 
@@ -1455,6 +1463,7 @@ unsigned long op_copy_map_to_fort(int *map) {
  * Get the local size of a set
  *******************************************************************************/
 
+int op_get_size_local_core(op_set set) { return set->core_size; }
 int op_get_size_local(op_set set) { return set->size; }
 
 /*******************************************************************************
