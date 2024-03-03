@@ -315,6 +315,8 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 
 op_map op_search_map_ptr(int *map_ptr);
 
+void op_disable_device_execution(bool disable);
+
 bool op_check_whitelist(const char *name);
 
 void op_disable_mpi_reductions(bool disable);
