@@ -249,11 +249,17 @@ void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
 
 void op_put_dat(op_dat dat) {
-  op_upload_dat(dat);
+  if (dat->dirty_hd == 1) { //Running on device, but dirty on host
+    op_upload_dat(dat);
+    dat->dirty_hd = 0;
+  }
 }
 
 void op_get_dat(op_dat dat) {
-  op_download_dat(dat);
+  if (dat->dirty_hd == 2) { //Running on host, but dirty on device
+    op_download_dat(dat);
+    dat->dirty_hd = 0;
+  }
 }
 
 void
@@ -272,6 +278,14 @@ void op_get_all_cuda(int nargs, op_arg *args) {
   for (int i = 0; i < nargs; i++) {
     if (args[i].argtype == OP_ARG_DAT && args[i].opt == 1) {
       op_get_dat_mpi(args[i].dat);
+    }
+  }
+}
+
+void op_put_all_cuda(int nargs, op_arg *args) {
+  for (int i = 0; i < nargs; i++) {
+    if (args[i].argtype == OP_ARG_DAT && args[i].opt == 1) {
+      op_put_dat_mpi(args[i].dat);
     }
   }
 }
