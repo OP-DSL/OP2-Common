@@ -354,6 +354,15 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_put_all_cuda (argsNumber, args) BIND(C,name='op_put_all_cuda')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+
+    end subroutine
 
     subroutine op_mpi_set_dirtybit_cuda (argsNumber, args) BIND(C,name='op_mpi_set_dirtybit_cuda')
 
