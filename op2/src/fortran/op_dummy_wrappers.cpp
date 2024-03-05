@@ -56,6 +56,11 @@ void op_get_all_cuda(int nargs, op_arg *args) {
   (void)args;
 }
 
+void op_put_all_cuda(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
 void getBlockLimit(op_arg *args, int nargs, int block_size, char *name) {
     (void) args;
     (void) nargs;

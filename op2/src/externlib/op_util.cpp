@@ -252,7 +252,8 @@ void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
 * Quick sort arr and organise dat[] elements according to the sorted arr order
 *******************************************************************************/
 
-void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size) {
+void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size2) {
+  size_t elem_size = elem_size2;
   int *indicies = (int *) xmalloc(n * sizeof(int));
 
   for (int i = 0; i < n; ++i)
