@@ -307,7 +307,7 @@ module OP2_Fortran_Declarations
     logical(kind=c_bool) function op_check_whitelist_c(name) bind(C,name='op_check_whitelist')
 
       use, intrinsic :: ISO_C_BINDING
-      character(kind=c_char, len=*) :: name
+      character(kind=c_char) :: name(*)
 
     end function op_check_whitelist_c
 
@@ -945,28 +945,28 @@ module OP2_Fortran_Declarations
    subroutine op_check_fortran_type_int_c(type) bind(C, name='op_check_fortran_type_int')
 
      use, intrinsic :: ISO_C_BINDING
-     character(kind=c_char, len=*) :: type
+     character(kind=c_char,len=1) :: type(*)
 
    end subroutine op_check_fortran_type_int_c
 
    subroutine op_check_fortran_type_float_c(type) bind(C, name='op_check_fortran_type_float')
 
      use, intrinsic :: ISO_C_BINDING
-     character(kind=c_char, len=*) :: type
+     character(kind=c_char,len=1) :: type(*)
 
    end subroutine op_check_fortran_type_float_c
 
    subroutine op_check_fortran_type_double_c(type) bind(C, name='op_check_fortran_type_double')
 
      use, intrinsic :: ISO_C_BINDING
-     character(kind=c_char, len=*) :: type
+     character(kind=c_char,len=1) :: type(*)
 
    end subroutine op_check_fortran_type_double_c
 
    subroutine op_check_fortran_type_bool_c(type) bind(C, name='op_check_fortran_type_bool')
 
      use, intrinsic :: ISO_C_BINDING
-     character(kind=c_char, len=*) :: type
+     character(kind=c_char,len=1) :: type(*)
 
    end subroutine op_check_fortran_type_bool_c
 
@@ -1051,9 +1051,9 @@ end subroutine INTF_DECL_DAT(TYPE, DIM)
 #define INTF_DECL_DAT_TEMP_(TYPE) op_decl_dat_temp_##TYPE
 
   interface op_decl_dat_temp
-    module procedure INTF_DECL_DAT_TEMP(INTEGER_4), &
-                     INTF_DECL_DAT_TEMP(REAL_4), &
-                     INTF_DECL_DAT_TEMP(REAL_8)
+    module procedure INTF_DECL_DAT_TEMP(INTEGER_4)!, &
+!                     INTF_DECL_DAT_TEMP(REAL_4), &
+!                     INTF_DECL_DAT_TEMP(REAL_8)
   end interface op_decl_dat_temp
 
 #define DECL_DECL_DAT_TEMP(TYPE) DECL_DECL_DAT_TEMP_(TYPE)
@@ -1160,7 +1160,7 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
 
   interface op_opt_arg_dat
     module procedure op_opt_arg_dat_python, &
-                     op_opt_arg_dat_python_OP_ID, &
+                     !op_opt_arg_dat_python_OP_ID, &
                      INTF_OPT_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_1), &
                      INTF_OPT_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_1), &
                      INTF_OPT_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1)
@@ -1477,8 +1477,9 @@ contains
 
     c_idx = idx
     c_dat_dim = dim
+    c_map_ptr = C_NULL_PTR
 
-    if (map%mapPtr%dim /= 0) then
+    if (idx /= 0 .and. map%mapPtr%dim /= 0) then
       c_idx = c_idx - 1
       c_map_ptr = map%mapCPtr
     end if
@@ -1707,7 +1708,7 @@ contains
   function op_check_whitelist(name) result(res)
 
     logical(kind=c_bool) :: res
-    character(kind=c_char, len=*) :: name
+    character(kind=c_char,len=*) :: name
 
     res = op_check_whitelist_c(name /@/ C_NULL_CHAR)
 

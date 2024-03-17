@@ -3,7 +3,7 @@ CONFIG_CC := nvc
 CONFIG_CXX := nvc++
 
 ifndef DEBUG
-  BASE_CXXFLAGS += -O3 -std=c++17
+  BASE_CXXFLAGS += -O2 -g -std=c++17
 
   ifeq ($(TARGET_HOST),true)
     BASE_CXXFLAGS += -fast

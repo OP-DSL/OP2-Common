@@ -672,6 +672,7 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
       op_err_print("invalid index", m, name);
 
     if (arg.dat->dim != arg.dim) {
+      printf("here\n");
       op_err_print("dataset dim does not match declared dim", m, name);
     }
 
