@@ -975,11 +975,20 @@ module OP2_Fortran_Declarations
 
 #define DIM_0 0
 #define DIM_1 1
+#define DIM_2 2
+#define DIM_3 3
+#define DIM_4 4
+#define DIM_5 5
 
 #define MAP_DIM_1 1
+#define MAP_DIM_2 2
 
 #define DECL_DIM_0
 #define DECL_DIM_1 , dimension(*)
+#define DECL_DIM_2 , dimension(:, :)
+#define DECL_DIM_3 , dimension(:, :, :)
+#define DECL_DIM_4 , dimension(:, :, :, :)
+#define DECL_DIM_5 , dimension(:, :, :, :, :)
 
 #define TYPE_INTEGER_4 integer(4)
 #define TYPE_INTEGER_8 integer(8)
@@ -1012,8 +1021,14 @@ module OP2_Fortran_Declarations
 
   interface op_decl_dat
     module procedure INTF_DECL_DAT(INTEGER_4, DIM_1), &
+                     INTF_DECL_DAT(INTEGER_4, DIM_2), &
+                     INTF_DECL_DAT(INTEGER_4, DIM_3), &
                      INTF_DECL_DAT(REAL_4,    DIM_1), &
-                     INTF_DECL_DAT(REAL_8,    DIM_1)
+                     INTF_DECL_DAT(REAL_4,    DIM_2), &
+                     INTF_DECL_DAT(REAL_4,    DIM_3), &
+                     INTF_DECL_DAT(REAL_8,    DIM_1), &
+                     INTF_DECL_DAT(REAL_8,    DIM_2), &
+                     INTF_DECL_DAT(REAL_8,    DIM_3)
   end interface op_decl_dat
 
 #define DECL_DECL_DAT(TYPE, DIM) DECL_DECL_DAT_(TYPE, DIM)
@@ -1092,12 +1107,16 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
   interface op_decl_const
     module procedure INTF_DECL_CONST(INTEGER_4, DIM_0), &
                      INTF_DECL_CONST(INTEGER_4, DIM_1), &
+                     INTF_DECL_CONST(INTEGER_4, DIM_2), &
                      INTF_DECL_CONST(INTEGER_8, DIM_0), &
                      INTF_DECL_CONST(INTEGER_8, DIM_1), &
+                     INTF_DECL_CONST(INTEGER_8, DIM_2), &
                      INTF_DECL_CONST(REAL_4,    DIM_0), &
                      INTF_DECL_CONST(REAL_4,    DIM_1), &
+                     INTF_DECL_CONST(REAL_4,    DIM_2), &
                      INTF_DECL_CONST(REAL_8,    DIM_0), &
                      INTF_DECL_CONST(REAL_8,    DIM_1), &
+                     INTF_DECL_CONST(REAL_8,    DIM_2), &
                      INTF_DECL_CONST(LOGICAL,   DIM_0), &
                      INTF_DECL_CONST(STRING,    DIM_0)
   end interface op_decl_const
@@ -1126,8 +1145,31 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     module procedure op_arg_dat_python, &
                      op_arg_dat_python_OP_ID, &
                      INTF_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_1), &
+                     INTF_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_1), &
+                     INTF_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_1), &
+                     INTF_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_2), &
+                     INTF_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_2), &
+                     INTF_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_2), &
                      INTF_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_1), &
-                     INTF_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1)
+                     INTF_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_1), &
+                     INTF_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_2), &
+                     INTF_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_2)
   end interface op_arg_dat
 
 #define DECL_ARG_DAT(TYPE, DIM, MAP_DIM) DECL_ARG_DAT_(TYPE, DIM, MAP_DIM)
@@ -1162,8 +1204,31 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
     module procedure op_opt_arg_dat_python, &
                      !op_opt_arg_dat_python_OP_ID, &
                      INTF_OPT_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_2), &
                      INTF_OPT_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_1), &
-                     INTF_OPT_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1)
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_1), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_2), &
+                     INTF_OPT_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_2)
   end interface op_opt_arg_dat
 
 #define DECL_OPT_ARG_DAT(TYPE, DIM, MAP_DIM) DECL_OPT_ARG_DAT_(TYPE, DIM, MAP_DIM)
@@ -1205,12 +1270,18 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
   interface op_arg_gbl
     module procedure INTF_ARG_GBL(INTEGER_4, DIM_0), &
                      INTF_ARG_GBL(INTEGER_4, DIM_1), &
+                     INTF_ARG_GBL(INTEGER_4, DIM_2), &
                      INTF_ARG_GBL(REAL_4,    DIM_0), &
                      INTF_ARG_GBL(REAL_4,    DIM_1), &
+                     INTF_ARG_GBL(REAL_4,    DIM_2), &
+                     INTF_ARG_GBL(REAL_4,    DIM_3), &
                      INTF_ARG_GBL(REAL_8,    DIM_0), &
                      INTF_ARG_GBL(REAL_8,    DIM_1), &
+                     INTF_ARG_GBL(REAL_8,    DIM_2), &
+                     INTF_ARG_GBL(REAL_8,    DIM_3), &
                      INTF_ARG_GBL(LOGICAL,   DIM_0), &
-                     INTF_ARG_GBL(LOGICAL,   DIM_1)
+                     INTF_ARG_GBL(LOGICAL,   DIM_1), &
+                     INTF_ARG_GBL(LOGICAL,   DIM_2)
   end interface op_arg_gbl
 
 #define DECL_ARG_GBL(TYPE, DIM) DECL_ARG_GBL_(TYPE, DIM)
@@ -1240,12 +1311,18 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
   interface op_opt_arg_gbl
     module procedure INTF_OPT_ARG_GBL(INTEGER_4, DIM_0), &
                      INTF_OPT_ARG_GBL(INTEGER_4, DIM_1), &
+                     INTF_OPT_ARG_GBL(INTEGER_4, DIM_2), &
                      INTF_OPT_ARG_GBL(REAL_4,    DIM_0), &
                      INTF_OPT_ARG_GBL(REAL_4,    DIM_1), &
+                     INTF_OPT_ARG_GBL(REAL_4,    DIM_2), &
+                     INTF_OPT_ARG_GBL(REAL_4,    DIM_3), &
                      INTF_OPT_ARG_GBL(REAL_8,    DIM_0), &
                      INTF_OPT_ARG_GBL(REAL_8,    DIM_1), &
+                     INTF_OPT_ARG_GBL(REAL_8,    DIM_2), &
+                     INTF_OPT_ARG_GBL(REAL_8,    DIM_3), &
                      INTF_OPT_ARG_GBL(LOGICAL,   DIM_0), &
-                     INTF_OPT_ARG_GBL(LOGICAL,   DIM_1)
+                     INTF_OPT_ARG_GBL(LOGICAL,   DIM_1), &
+                     INTF_OPT_ARG_GBL(LOGICAL,   DIM_2)
   end interface op_opt_arg_gbl
 
 #define DECL_OPT_ARG_GBL(TYPE, DIM) DECL_OPT_ARG_GBL_(TYPE, DIM)
@@ -1286,12 +1363,18 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
   interface op_arg_info
     module procedure INTF_ARG_INFO(INTEGER_4, DIM_0), &
                      INTF_ARG_INFO(INTEGER_4, DIM_1), &
+                     INTF_ARG_INFO(INTEGER_4, DIM_2), &
                      INTF_ARG_INFO(REAL_4,    DIM_0), &
                      INTF_ARG_INFO(REAL_4,    DIM_1), &
+                     INTF_ARG_INFO(REAL_4,    DIM_2), &
+                     INTF_ARG_INFO(REAL_4,    DIM_3), &
                      INTF_ARG_INFO(REAL_8,    DIM_0), &
                      INTF_ARG_INFO(REAL_8,    DIM_1), &
+                     INTF_ARG_INFO(REAL_8,    DIM_2), &
+                     INTF_ARG_INFO(REAL_8,    DIM_3), &
                      INTF_ARG_INFO(LOGICAL,   DIM_0), &
-                     INTF_ARG_INFO(LOGICAL,   DIM_1)
+                     INTF_ARG_INFO(LOGICAL,   DIM_1), &
+                     INTF_ARG_INFO(LOGICAL,   DIM_2)
   end interface op_arg_info
 
 #define DECL_ARG_INFO(TYPE, DIM) DECL_ARG_INFO_(TYPE, DIM)
@@ -1340,8 +1423,14 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
 contains
 
   DECL_DECL_DAT(INTEGER_4, DIM_1)
+  DECL_DECL_DAT(INTEGER_4, DIM_2)
+  DECL_DECL_DAT(INTEGER_4, DIM_3)  
   DECL_DECL_DAT(REAL_4,    DIM_1)
+  DECL_DECL_DAT(REAL_4,    DIM_2)
+  DECL_DECL_DAT(REAL_4,    DIM_3)
   DECL_DECL_DAT(REAL_8,    DIM_1)
+  DECL_DECL_DAT(REAL_8,    DIM_2)
+  DECL_DECL_DAT(REAL_8,    DIM_3)
   
   DECL_DECL_DAT_TEMP(INTEGER_4)
   DECL_DECL_DAT_TEMP(REAL_4)
@@ -1349,49 +1438,118 @@ contains
    
   DECL_DECL_CONST(INTEGER_4, DIM_0)
   DECL_DECL_CONST(INTEGER_4, DIM_1)
+  DECL_DECL_CONST(INTEGER_4, DIM_2)
   DECL_DECL_CONST(INTEGER_8, DIM_0)
   DECL_DECL_CONST(INTEGER_8, DIM_1)
+  DECL_DECL_CONST(INTEGER_8, DIM_2)
   DECL_DECL_CONST(REAL_4,    DIM_0)
   DECL_DECL_CONST(REAL_4,    DIM_1)
+  DECL_DECL_CONST(REAL_4,    DIM_2)
   DECL_DECL_CONST(REAL_8,    DIM_0)
   DECL_DECL_CONST(REAL_8,    DIM_1)
+  DECL_DECL_CONST(REAL_8,    DIM_2)
   DECL_DECL_CONST(LOGICAL,   DIM_0)
   DECL_DECL_CONST(STRING,    DIM_0)
 
   DECL_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_1)
+  DECL_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_1)
+  DECL_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_1)
+  DECL_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_2)
+  DECL_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_2)
+  DECL_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_2)
   DECL_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_2)
   DECL_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_1)
+  DECL_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_2)
+  DECL_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_2)
 
   DECL_OPT_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_2)
   DECL_OPT_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_1, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_2, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_3, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_4, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_4,    DIM_5, MAP_DIM_2)
   DECL_OPT_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_1)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_1, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_2, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_3, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_4, MAP_DIM_2)
+  DECL_OPT_ARG_DAT(REAL_8,    DIM_5, MAP_DIM_2)
 
   DECL_ARG_GBL(INTEGER_4, DIM_0)
   DECL_ARG_GBL(INTEGER_4, DIM_1)
+  DECL_ARG_GBL(INTEGER_4, DIM_2)
   DECL_ARG_GBL(REAL_4,    DIM_0)
   DECL_ARG_GBL(REAL_4,    DIM_1)
+  DECL_ARG_GBL(REAL_4,    DIM_2)
+  DECL_ARG_GBL(REAL_4,    DIM_3)
   DECL_ARG_GBL(REAL_8,    DIM_0)
   DECL_ARG_GBL(REAL_8,    DIM_1)
+  DECL_ARG_GBL(REAL_8,    DIM_2)
+  DECL_ARG_GBL(REAL_8,    DIM_3)
   DECL_ARG_GBL(LOGICAL,   DIM_0)
   DECL_ARG_GBL(LOGICAL,   DIM_1)
+  DECL_ARG_GBL(LOGICAL,   DIM_2)
 
   DECL_OPT_ARG_GBL(INTEGER_4, DIM_0)
   DECL_OPT_ARG_GBL(INTEGER_4, DIM_1)
+  DECL_OPT_ARG_GBL(INTEGER_4, DIM_2)
   DECL_OPT_ARG_GBL(REAL_4,    DIM_0)
   DECL_OPT_ARG_GBL(REAL_4,    DIM_1)
+  DECL_OPT_ARG_GBL(REAL_4,    DIM_2)
+  DECL_OPT_ARG_GBL(REAL_4,    DIM_3)
   DECL_OPT_ARG_GBL(REAL_8,    DIM_0)
   DECL_OPT_ARG_GBL(REAL_8,    DIM_1)
+  DECL_OPT_ARG_GBL(REAL_8,    DIM_2)
+  DECL_OPT_ARG_GBL(REAL_8,    DIM_3)
   DECL_OPT_ARG_GBL(LOGICAL,   DIM_0)
   DECL_OPT_ARG_GBL(LOGICAL,   DIM_1)
+  DECL_OPT_ARG_GBL(LOGICAL,   DIM_2)
 
   DECL_ARG_INFO(INTEGER_4, DIM_0)
   DECL_ARG_INFO(INTEGER_4, DIM_1)
+  DECL_ARG_INFO(INTEGER_4, DIM_2)
   DECL_ARG_INFO(REAL_4,    DIM_0)
   DECL_ARG_INFO(REAL_4,    DIM_1)
+  DECL_ARG_INFO(REAL_4,    DIM_2)
+  DECL_ARG_INFO(REAL_4,    DIM_3)
   DECL_ARG_INFO(REAL_8,    DIM_0)
   DECL_ARG_INFO(REAL_8,    DIM_1)
+  DECL_ARG_INFO(REAL_8,    DIM_2)
+  DECL_ARG_INFO(REAL_8,    DIM_3)
   DECL_ARG_INFO(LOGICAL,   DIM_0)
   DECL_ARG_INFO(LOGICAL,   DIM_1)
+  DECL_ARG_INFO(LOGICAL,   DIM_2)
+
 
   subroutine op_arg_dat_python_check (dat, dim)
 
