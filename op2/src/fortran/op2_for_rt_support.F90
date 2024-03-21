@@ -710,7 +710,7 @@ module OP2_Fortran_RT_Support
     type(op_arg) :: arg1, arg2, arg3, arg4, arg5
 
     integer(4) :: nargs
-    type(op_arg) :: args(4)       ! array with op_args
+    type(op_arg) :: args(5)       ! array with op_args
 
     nargs = 5
     args(1) = arg1
