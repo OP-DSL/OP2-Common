@@ -1451,7 +1451,12 @@ unsigned long op_copy_map_to_fort(int *map) {
     exit(-1);
   }
 
-  int *fort_map = (int *) malloc((item_map->from->size + item_map->from->exec_size)* item_map->dim * sizeof(int));
+  int *fort_map = (int *) malloc((item_map->from->size + item_map->from->exec_size+1)* item_map->dim * sizeof(int));
+  fort_map++; //Sometimes this will return an allocation previously deallocated, but still on the OP_map_ptr_table. Increment by one to avoid
+  if (OP_map_ptr_table.count(fort_map)>0) {
+    printf("Error: Map pointer %p already in map_ptr_table\n", fort_map);
+    exit(-1);
+  }
   OP_map_ptr_table.insert({fort_map, item_map->index});
 
   for (int i = 0; i < (item_map->from->size + item_map->from->exec_size)* item_map->dim; i++)
