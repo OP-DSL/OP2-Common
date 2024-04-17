@@ -5,7 +5,7 @@ CONFIG_CXX := g++
 BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic
 
 ifndef DEBUG
-  BASE_CXXFLAGS += -O2 -g
+  BASE_CXXFLAGS += -O3
 
   ifeq ($(TARGET_HOST),true)
     BASE_CXXFLAGS += -march=native
