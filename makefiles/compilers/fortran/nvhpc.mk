@@ -2,7 +2,7 @@
 CONFIG_FC := nvfortran
 
 ifndef DEBUG
-  BASE_FFLAGS += -O2 -g
+  BASE_FFLAGS += -O3
 
   ifeq ($(TARGET_HOST),true)
     BASE_FFLAGS += -fast
