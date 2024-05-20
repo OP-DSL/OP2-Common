@@ -39,6 +39,7 @@
 #include <malloc.h>
 #include <string.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 /*
  * OP2 global state variables
@@ -72,6 +73,11 @@ const char *doublestr = "double";
 const char *floatstr = "float";
 const char *intstr = "int";
 const char *boolstr = "bool";
+
+//RAPL energy measurements
+long long *op_energy_counters = NULL;
+char **op_energy_paths = NULL;
+int op_energy_paths_count = 0;
 
 #ifdef __cplusplus
 extern "C" {
@@ -277,6 +283,53 @@ void op_init_core(int argc, char **argv, int diags) {
 
   /*Initialize the double linked list to hold op_dats*/
   TAILQ_INIT(&OP_dat_list);
+
+  //Initialize RAPL counters
+	char default_paths[128];
+	strcpy(&default_paths[0],"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj;/sys/devices/virtual/powercap/intel-rapl/intel-rapl:1/energy_uj");
+	char* env_paths = getenv("RAPL_PATH");
+	if (!env_paths) {
+		env_paths = default_paths;
+	}
+	op_energy_paths_count = 0;
+	if (env_paths) {
+		// Count the number of paths
+		int num_paths = 0;
+		char* path = strtok(env_paths, ";");
+		while (path != NULL) {
+			num_paths++;
+			path = strtok(NULL, ";");
+		}
+
+		// Read the paths and initial energies
+		op_energy_paths_count = num_paths;
+		op_energy_paths = (char**)op_malloc(sizeof(char*)*num_paths);
+		op_energy_counters = (long long*)op_malloc(sizeof(long long)*num_paths);
+
+		num_paths = 0;
+		path = strtok(env_paths, ";");
+		while (path != NULL) {
+			op_energy_paths[num_paths] = strdup(path); // Duplicate the string for safekeeping
+			//check if path exists
+			if (access(path, R_OK) == -1) {
+				if (env_paths != default_paths)
+					op_printf("Error: RAPL path %s does not exist or does not have the right permissions. Skipping.\n", path);
+				op_energy_paths[num_paths] = NULL;
+			} else {
+				// Read initial energy
+				FILE* file = fopen(path, "r");
+				if (file == NULL) {
+					if (env_paths != default_paths)
+						op_printf("Error: Could not open RAPL path %s. Skipping.\n", path);
+				} else {
+					fscanf(file, "%lld", &op_energy_counters[num_paths]);
+					fclose(file);
+				}
+			}
+			num_paths++;
+			path = strtok(NULL, ";");
+		}
+	} 
 }
 
 op_set op_decl_set_core(int size, char const *name) {
@@ -821,6 +874,21 @@ void op_diagnostic_output() {
   }
 }
 
+void reset_power_counters() {
+  for (int i = 0; i < op_energy_paths_count; i++) {
+    if (op_energy_paths[i] != NULL) {
+      FILE* file = fopen(op_energy_paths[i], "r");
+      if (file == NULL) {
+        if (OP_diags > 3)
+          op_printf("Error: Could not open RAPL path %s. Skipping.\n", op_energy_paths[i]);
+      } else {
+        fscanf(file, "%lld", &(op_energy_counters[i]));
+        fclose(file);
+      }
+    }
+  }
+}
+
 void op_timing_output_core() {
   if (OP_kern_max > 0) {
     if (op_is_root())
@@ -889,6 +957,27 @@ void op_timing_output_core() {
         }
       }
     }
+  }
+  long long aggregate_energy = 0;
+  for (int i = 0; i < op_energy_paths_count; i++) {
+    if (op_energy_paths[i] != NULL) {
+      FILE* file = fopen(op_energy_paths[i], "r");
+      if (file == NULL) {
+        if (OP_diags > 3)
+          op_printf("Error: Could not open RAPL path %s. Skipping.\n", op_energy_paths[i]);
+      } else {
+        long long energy;
+        fscanf(file, "%lld", &energy);
+        aggregate_energy += (MAX(energy, op_energy_counters[i]) - MIN(energy, op_energy_counters[i]));
+        fclose(file);
+      }
+    }
+  }
+  if (aggregate_energy > 0) {
+    double moments_time[2] = {0.0, 0.0};
+    double aggregate_energy_d = (double)aggregate_energy/1000000.0;
+    op_compute_moment(aggregate_energy_d, &moments_time[0], &moments_time[1]);
+    op_printf("Total CPU energy consumed (REPL): %g J\n", moments_time[0]);
   }
 }
 

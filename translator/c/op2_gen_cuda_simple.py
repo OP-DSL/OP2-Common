@@ -114,8 +114,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
 #Optimization settings
     inc_stage=0
-    op_color2_force=1
-    atomics=0
+    op_color2_force=0
+    atomics=1
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -1246,19 +1246,34 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
-    if ninds == 0:
+    if ninds == 0 or atomics:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]!=OP_GBL:
+        if maps[g_m]!=OP_GBL and maps[g_m]!=OP_MAP:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
             code(line+' <ARG>.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
+    if atomics:
+      for m in range(1,ninds+1):
+        g_m = invinds[m-1]
+        line = 'OP_kernels['+str(nk)+'].transfer += (float)<ARG>.dat->set->size *'
+        if accs[g_m]==OP_READ:
+            code(line+' <ARG>.size;')
+        else:
+            code(line+' <ARG>.size * 2.0f;')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
+            code(line+' <ARG>.map->dim*sizeof(int);')
     depth = depth - 2
     code('}')
 
