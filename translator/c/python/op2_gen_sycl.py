@@ -1322,7 +1322,7 @@ def op2_gen_sycl(master, date, consts, kernels,sets, macro_defs):
       if consts[nc]['dim']==1:
         code('extern '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
       else:
-        if consts[nc]['dim'] > 0:
+        if int(consts[nc]['dim']) > 0:
           num = str(consts[nc]['dim'])
         else:
           num = 'MAX_CONST_SIZE'
