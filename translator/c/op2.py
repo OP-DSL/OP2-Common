@@ -90,7 +90,7 @@ def op_decl_set_parse(text):
   """Parsing for op_decl_set calls"""
 
   sets = []
-  for m in re.finditer('op_decl_set\((.*)\)', text):
+  for m in re.finditer(r'op_decl_set\((.*)\)', text):
     args = m.group(1).split(',')
 
     # check for syntax errors
@@ -101,7 +101,7 @@ def op_decl_set_parse(text):
     sets.append({
       'name': args[1].strip()
       })
-  for m in re.finditer('op_decl_set_hdf5\((.*)\)', text):
+  for m in re.finditer(r'op_decl_set_hdf5\((.*)\)', text):
     args = m.group(1).split(',')
 
     # check for syntax errors
@@ -120,7 +120,7 @@ def op_decl_const_parse(text):
   """Parsing for op_decl_const calls"""
 
   consts = []
-  for m in re.finditer('op_decl_const\((.*)\)', text):
+  for m in re.finditer(r'op_decl_const\((.*)\)', text):
     args = m.group(1).split(',')
 
     # check for syntax errors
@@ -242,8 +242,8 @@ def get_arg_gbl(arg_string, k):
   return temp_gbl
 
 def append_init_soa(text):
-  text = re.sub('\\bop_init\\b\\s*\((.*)\)','op_init_soa(\\1,1)', text)
-  text = re.sub('\\bop_mpi_init\\b\\s*\((.*)\)','op_mpi_init_soa(\\1,1)', text)
+  text = re.sub(r'\\bop_init\\b\\s*\((.*)\)','op_init_soa(\\1,1)', text)
+  text = re.sub(r'\\bop_mpi_init\\b\\s*\((.*)\)','op_mpi_init_soa(\\1,1)', text)
   return text
 
 def op_par_loop_parse(text):
@@ -305,9 +305,9 @@ def op_par_loop_parse(text):
 
 def op_check_kernel_in_text(text, name):
   match = False
-  inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+'\s*\('
+  inline_impl_pattern = r'inline[ \n]+void[ \n]+'+name+r'\s*\('
   matches = re.findall(inline_impl_pattern, text)
-  decl_pattern = r'([$\n]+)(void[ \n]+'+name+'\([ \n]*'+'[ \nA-Za-z0-9\*\_\.,#]+\);)'
+  decl_pattern = r'([$\n]+)(void[ \n]+'+name+r'\([ \n]*'+r'[ \nA-Za-z0-9\*\_\.,#]+\);)'
   if len(re.findall(inline_impl_pattern, text)) == 1:
     match = True
   elif len(re.findall(decl_pattern, text)) == 1:
