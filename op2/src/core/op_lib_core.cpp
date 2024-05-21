@@ -874,7 +874,7 @@ void op_diagnostic_output() {
   }
 }
 
-void reset_power_counters() {
+void op_reset_power_counters() {
   for (int i = 0; i < op_energy_paths_count; i++) {
     if (op_energy_paths[i] != NULL) {
       FILE* file = fopen(op_energy_paths[i], "r");
