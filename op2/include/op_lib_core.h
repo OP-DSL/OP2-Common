@@ -263,7 +263,7 @@ op_arg op_arg_gbl_core(int, char *, int, const char *, int, op_access);
 
 void op_diagnostic_output(void);
 
-void op_reset_power_counters(void);
+void op_reset_power_counters();
 
 void op_timing_output_core(void);
 

@@ -1,6 +1,6 @@
 # Compiler executables and flags
-CONFIG_CC := icc
-CONFIG_CXX := icpc
+CONFIG_CC := icx
+CONFIG_CXX := icpx
 
 BASE_CPPFLAGS := -MMD -MP -Wall
 
