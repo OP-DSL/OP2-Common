@@ -885,6 +885,7 @@ void op_timing_output_core() {
     }
   }
   long long aggregate_energy = 0;
+  long long max_energy = 262143328850LL;
   for (int i = 0; i < op_energy_paths_count; i++) {
     if (op_energy_paths[i] != NULL) {
       FILE* file = fopen(op_energy_paths[i], "r");
@@ -894,7 +895,22 @@ void op_timing_output_core() {
       } else {
         long long energy;
         fscanf(file, "%lld", &energy);
-        aggregate_energy += (MAX(energy, op_energy_counters[i]) - MIN(energy, op_energy_counters[i]));
+        if (energy < op_energy_counters[i]) {
+          // Energy counter has wrapped around.
+          char max_energy_filename[128];
+          strcpy(max_energy_filename, op_energy_paths[i]);
+          char* substring = strstr(max_energy_filename, "energy_uj");
+          if (substring != NULL) {
+            strncpy(substring, "max_energy_range_uj", strlen("max_energy_range_uj"));
+          }
+          FILE *max_energy_file = fopen(max_energy_filename, "r");
+          if (max_energy_file != NULL) {
+            fscanf(max_energy_file, "%lld", &max_energy);
+            fclose(max_energy_file);
+          }
+          aggregate_energy += (max_energy - op_energy_counters[i] + energy);
+        } else
+          aggregate_energy += (energy - op_energy_counters[i]);
         fclose(file);
       }
     }
