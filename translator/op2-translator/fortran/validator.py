@@ -65,11 +65,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
             const_param_aliases.add(param)
             violations.append(f"In {entity.name}: parameter {idx + 1} ({param})")
 
-        for const_ptr in const_ptrs:
-            if const_ptr in const_param_aliases:
-                continue
-
-            checkConstRead(entity, const_ptr, read_violations)
+        checkConstRead(entity, list(filter(lambda c: c not in const_param_aliases, const_ptrs)), read_violations)
 
     if len(violations) > 0:
         printViolations(loop, "subroutine/function parameter and const conflict", violations)
@@ -265,7 +261,7 @@ def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations
         violations.append(msg(f"{fu.getItem(node).line}"))
 
 
-def checkConstRead(func: Function, const_ptr: str, violations: List[str]) -> None:
+def checkConstRead(func: Function, const_ptrs: List[str], violations: List[str]) -> None:
     execution_part = fpu.get_child(func.ast, f2003.Execution_Part)
     assert execution_part != None
 
@@ -273,8 +269,10 @@ def checkConstRead(func: Function, const_ptr: str, violations: List[str]) -> Non
         return f"In {func.name} (const {const_ptr}): {s}"
 
     for node in fpu.walk(execution_part, f2003.Assignment_Stmt):
-        if fu.isRef(node.items[0], const_ptr):
-            violations.append(msg(f"{fu.getItem(node).line}"))
+        for const_ptr in const_ptrs:
+            if fu.isRef(node.items[0], const_ptr):
+                violations.append(msg(f"{fu.getItem(node).line}"))
+                break
 
 
 def checkRead(func: Function, param_idx: int, violations: List[str]) -> None:
@@ -369,7 +367,11 @@ def checkInc(func: Function, param_idx: int, funcs: List[Function], violations: 
             violations.append(msg(f"invalid usage: {fu.getItem(node).line}"))
             continue
 
-        if simplify(parse_expr(f"{expr.replace('x', '0')}", evaluate=False)) == 0:
+        if expr == "x":
+            violations.append(msg(f"no-op: {fu.getItem(node).line}"))
+        elif expr.count('x') == 1 and expr.startswith("x +") or expr.startswith ("x -"):
+            continue
+        elif simplify(parse_expr(f"{expr.replace('x', '0')}", evaluate=False)) == 0:
             violations.append(msg(f"no-op: {fu.getItem(node).line}"))
         elif simplify(parse_expr(f"({expr}) - (x + {expr.replace('x', '0')})", evaluate=False)) != 0:
             violations.append(msg(f"non increment: {fu.getItem(node).line}"))

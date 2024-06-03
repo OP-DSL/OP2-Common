@@ -5,6 +5,7 @@ import os
 import pdb
 import pstats
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
+from multiprocessing import Pool
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
@@ -94,11 +95,17 @@ def main(argv=None) -> None:
     if len(args.target) == 0:
         args.target = [[target_name] for target_name in target_names]
 
+    include_dirs = set([Path(dir) for [dir] in args.I])
+    defines = [define for [define] in args.D]
+
     try:
         app = parse(args, lang)
     except ParseError as e:
         print(e)
         exit(1)
+
+    if args.consts_module is not None:
+        app.consts_module = lang.parseProgram(Path(args.consts_module), include_dirs, defines)
 
     if args.extra_consts_list is not None:
         with open(args.extra_consts_list, "r") as f:
@@ -119,6 +126,8 @@ def main(argv=None) -> None:
 
     # Validation phase
     try:
+        print()
+        print("Validating...")
         validate(args, lang, app)
     except OpError as e:
         print(e)
@@ -129,24 +138,15 @@ def main(argv=None) -> None:
         scheme = Scheme.find((lang, target))
 
         if not scheme:
-            if args.verbose:
-                print(f"No scheme registered for {lang}/{target}\n")
-
+            print(f"No scheme registered for {lang}/{target}\n")
             continue
 
-        if args.verbose:
-            print(f"Translation scheme: {scheme}")
-
+        print(f"Translation scheme: {scheme}")
         codegen(args, scheme, app, args.force_soa)
-
-        if args.verbose:
-            print()
+        print()
 
     # Generate program translations
     for i, program in enumerate(app.programs, 1):
-        include_dirs = set([Path(dir) for [dir] in args.I])
-        defines = [define for [define] in args.D]
-
         source = lang.translateProgram(program, include_dirs, defines, args.force_soa)
 
         new_file = os.path.splitext(os.path.basename(program.path))[0]
@@ -155,8 +155,7 @@ def main(argv=None) -> None:
 
         write_file(new_path, source)
 
-        if args.verbose:
-            print(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
+        print(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
 
 
 def write_file(path: Path, text: str) -> None:
@@ -172,22 +171,29 @@ def write_file(path: Path, text: str) -> None:
 
 
 def parse(args: Namespace, lang: Lang) -> Application:
+    f_args = [(i, raw_path, lang, args) for i, raw_path in enumerate(args.file_paths, 1)]
+
+    print(f"Parsing files:")
+    for raw_path in args.file_paths:
+        print(f"    {raw_path}")
+
     app = Application()
 
-    # Collect the include directories
+    if lang.ast_is_serializable:
+        app.programs = Pool().starmap(parse_file, f_args)
+    else:
+        app.programs = []
+        for a in f_args:
+            app.programs.append(parse_file(*a))
+
+    return app
+
+
+def parse_file(i, raw_path, lang, args):
     include_dirs = set([Path(dir) for [dir] in args.I])
     defines = [define for [define] in args.D]
 
-    # Parse the input files
-    for i, raw_path in enumerate(args.file_paths, 1):
-        if args.verbose:
-            print(f"Parsing file {i} of {len(args.file_paths)}: {raw_path}")
-
-        # Parse the program
-        program = lang.parseProgram(Path(raw_path), include_dirs, defines)
-        app.programs.append(program)
-
-    return app
+    return lang.parseProgram(Path(raw_path), include_dirs, defines)
 
 
 def validate(args: Namespace, lang: Lang, app: Application) -> None:
@@ -203,8 +209,7 @@ def validate(args: Namespace, lang: Lang, app: Application) -> None:
         with open(store_path, "w") as file:
             file.write(json.dumps(app, default=serializer, indent=4))
 
-        if args.verbose:
-            print("Dumped store:", store_path, end="\n\n")
+        print("Dumped store:", store_path, end="\n\n")
 
 
 def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
@@ -236,10 +241,10 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         # Write the generated source file
         write_file(path, source)
 
-        if args.verbose and not fallback:
+        if not fallback:
             print(f"Generated loop host {i} of {len(app.loops())}: {path}")
 
-        if args.verbose and fallback:
+        if fallback:
             print(f"Generated loop host {i} of {len(app.loops())} (fallback): {path}")
 
     # Generate consts file
@@ -250,9 +255,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         path = Path(args.out, scheme.target.name, name)
 
         write_file(path, source)
-
-        if args.verbose:
-            print(f"Generated consts file: {path}")
+        print(f"Generated consts file: {path}")
 
     # Generate master kernel file
     if scheme.master_kernel_template is not None:
@@ -266,9 +269,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         path = Path(args.out, scheme.target.name, name)
 
         write_file(path, source)
-
-        if args.verbose:
-            print(f"Generated master kernel file: {path}")
+        print(f"Generated master kernel file: {path}")
 
 
 def isDirPath(path):

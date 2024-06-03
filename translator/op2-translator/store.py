@@ -124,6 +124,7 @@ class Program:
 class Application:
     programs: List[Program] = field(default_factory=list)
     external_consts: Set[str] = field(default_factory=set)
+    consts_module: Any = None
 
     def __str__(self) -> str:
         if len(self.programs) > 0:
