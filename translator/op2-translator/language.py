@@ -18,6 +18,7 @@ class Lang(Findable["Lang"]):
     kernel_dir: bool
 
     com_delim: str
+    ast_is_serializable: bool
 
     fallback_wrapper_template: Optional[Path]
 

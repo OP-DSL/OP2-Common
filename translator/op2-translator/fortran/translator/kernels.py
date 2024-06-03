@@ -167,7 +167,7 @@ def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], 
 
         parent.items = [
             node,
-            f2003.Section_Subscript_List(f"op2_s({index}, {stride})"),
+            f2003.Part_Ref(f"op2_s({index}, {stride})"),
         ]
 
         parent.items[1].parent = parent

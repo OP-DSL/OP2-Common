@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any, Dict
 
-import cpp.translator.kernels as ctk
 import op as OP
 from language import Lang
 from scheme import Scheme
@@ -27,6 +26,8 @@ class CppSeq(Scheme):
         config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
+        import cpp.translator.kernels as ctk
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel: {loop.kernel}")
@@ -56,6 +57,8 @@ class CppOpenMP(Scheme):
         config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
+        import cpp.translator.kernels as ctk
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel: {loop.kernel}")
@@ -85,6 +88,8 @@ class CppCuda(Scheme):
         config: Dict[str, Any],
         kernel_idx: int,
     ) -> str:
+        import cpp.translator.kernels as ctk
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel: {loop.kernel}")
