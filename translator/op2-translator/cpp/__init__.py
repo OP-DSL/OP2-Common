@@ -3,20 +3,31 @@ from argparse import ArgumentParser, Namespace
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple, Any
 
-import clang.cindex
 import pcpp
 
-import cpp.parser
-import cpp.translator.program
 import op as OP
 from language import Lang
 from store import Application, Location, ParseError, Program
 
-libclang_path = os.getenv("LIBCLANG_PATH")
-if libclang_path is not None:
-    clang.cindex.Config.set_library_file(libclang_path)
+
+CLANG_INITIALIZED = False
+
+
+def clang_init():
+    global CLANG_INITIALIZED
+
+    if CLANG_INITIALIZED:
+        return
+
+    import clang.cindex
+
+    libclang_path = os.getenv("LIBCLANG_PATH")
+    if libclang_path is not None:
+        clang.cindex.Config.set_library_file(libclang_path)
+
+    CLANG_INITIALIZED = True
 
 
 class Preprocessor(pcpp.Preprocessor):
@@ -45,6 +56,7 @@ class Cpp(Lang):
     include_ext = "h"
 
     com_delim = "//"
+    ast_is_serializable = False
 
     fallback_wrapper_template = None
 
@@ -60,7 +72,9 @@ class Cpp(Lang):
     @lru_cache(maxsize=None)
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
-    ) -> Tuple[clang.cindex.TranslationUnit, str]:
+    ) -> Tuple[Any, str]:
+        clang_init()
+
         args = [f"-I{dir}" for dir in include_dirs]
         args = args + [f"-D{define}" for define in defines]
 
@@ -100,6 +114,8 @@ class Cpp(Lang):
         return translation_unit, source
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
+        import cpp.parser
+
         ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
         ast_pp, source_pp = self.parseFile(path, frozenset(include_dirs), frozenset(defines), preprocess=True)
 
@@ -111,6 +127,7 @@ class Cpp(Lang):
         return program
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
+        import cpp.translator.program
         return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
 
     def formatType(self, typ: OP.Type) -> str:

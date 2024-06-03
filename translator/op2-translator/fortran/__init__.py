@@ -63,6 +63,23 @@ Base.__deepcopy__ = base_deepcopy  # type: ignore
 FortranStringReader.__deepcopy__ = string_reader_deepcopy  # type: ignore
 
 
+old_base_new = Base.__new__  # type: ignore
+
+def base_new(cls, string, parent_cls=None):
+    if string is None:
+        return object.__new__(cls)
+
+    return old_base_new(cls, string, parent_cls=parent_cls)
+
+Base.__new__ = base_new  # type: ignore
+
+
+def base_getnewargsex(self):
+    return ((None,), {})
+
+Base.__getnewargs_ex__ = base_getnewargsex
+
+
 kind_selector_aliases = {"*PS": "*8"}
 
 
@@ -133,14 +150,26 @@ class Fortran(Lang):
     include_ext = "inc"
 
     com_delim = "!"
+    ast_is_serializable = True
 
     fallback_wrapper_template = Path("fortran/fallback_wrapper.F90.jinja")
+
+    consts_module = None
+    consts_module_ast = None
 
     extra_consts_list = None
     user_consts_module = None
     use_regex_translator = False
 
+    parser = None
+
+    # fparser2 does some dynamic class setup on parser creation, so make sure we always have one for kernel translation
+    def __init__(self):
+        self.parser = ParserFactory().create(std="f2008")
+
     def addArgs(self, parser: ArgumentParser) -> None:
+        parser.add_argument("--consts-module", help="(Fortran) Custom consts module")
+
         parser.add_argument("--extra-consts-list", help="(Fortran) Extra consts to rename in kernels", default=None)
         parser.add_argument("--user-consts-module", help="(Fortran) Use a custom consts module", default=None)
         parser.add_argument(
@@ -148,6 +177,12 @@ class Fortran(Lang):
         )
 
     def parseArgs(self, args: Namespace) -> None:
+        if args.consts_module is not None:
+            self.consts_module = args.consts_module
+
+            if args.verbose:
+                print(f"Using consts module: {self.consts_module}")
+
         if args.extra_consts_list is not None:
             self.extra_consts_list = args.extra_consts_list
 
@@ -187,9 +222,9 @@ class Fortran(Lang):
 
             args.append(str(path))
 
-            print(" ".join(args))
+            # print(" ".join(args))
             res = subprocess.run(args, capture_output=True, check=True)
-            print(res.stderr.decode("utf-8"))
+            # print(res.stderr.decode("utf-8"))
 
             return res.stdout.decode("utf-8")
 
@@ -225,13 +260,8 @@ class Fortran(Lang):
     ) -> Tuple[f2003.Program, str]:
         source = self.preprocess(path, include_dirs, defines)
 
-        # with open("_preprocessed.F90", "w") as f:
-        #     f.write(source)
-
         reader = FortranStringReader(source, include_dirs=list(include_dirs))
-        parser = ParserFactory().create(std="f2008")
-
-        return parser(reader), source
+        return self.parser(reader), source
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))

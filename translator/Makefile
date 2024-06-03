@@ -6,7 +6,7 @@ CXX=g++
 undefine CFLAGS
 undefine CXXFLAGS
 
-PYTHON_VER := 3.12.0
+PYPY_VER := 3.10-v7.3.16-linux64
 
 .PHONY: python
 python: $(OP2_BUILD_DIR)/.python-packages $(OP2_BUILD_DIR)/.fpp
@@ -16,14 +16,12 @@ $(OP2_BUILD_DIR)/.fpp: fpp/fpp
 	cp fpp/fpp $(OP2_BUILD_DIR)/bin
 	touch $(OP2_BUILD_DIR)/.fpp
 
-$(OP2_BUILD_DIR)/.python: python/Python-$(PYTHON_VER).tar.xz
-	tar xf $^ --directory python
-	cd python/Python-$(PYTHON_VER); ./configure --prefix=$(OP2_BUILD_DIR)
-	cd python/Python-$(PYTHON_VER); $(MAKE) install
+$(OP2_BUILD_DIR)/.python: python/pypy$(PYPY_VER).tar.bz2
+	tar xf $^ --strip-components=1 --directory $(OP2_BUILD_DIR)
 	touch $(OP2_BUILD_DIR)/.python
 
 $(OP2_BUILD_DIR)/.python-packages: $(OP2_BUILD_DIR)/.python
-	$(OP2_BUILD_DIR)/bin/pip3 install --upgrade --no-index --find-link=python/wheels pip
+	$(OP2_BUILD_DIR)/bin/python3 -m ensurepip
 	$(OP2_BUILD_DIR)/bin/pip3 install --no-index --find-link=python/wheels -r requirements.txt
 	touch $(OP2_BUILD_DIR)/.python-packages
 
@@ -33,4 +31,3 @@ python-packages-download:
 
 clean:
 	$(RM) -rf $(OP2_BUILD_DIR)/.python $(OP2_BUILD_DIR)/.python-packages $(OP2_BUILD_DIR)/.fpp
-	$(RM) -rf python/Python-$(PYTHON_VER)
