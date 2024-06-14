@@ -228,24 +228,28 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             print(f"Error: unable to generate loop host {i}")
             continue
 
-        source, extension, fallback = res
+        files, fallback = res
 
-        # Form output file path
         Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
-        path = Path(
-            args.out,
-            scheme.target.name,
-            f"{loop.name}_kernel.{extension}",
-        )
+        for index, (source, extension) in enumerate(files):
+            name = f"{loop.name}_kernel"
+            if index > 0:
+                name += f"_aux{index}"
 
-        # Write the generated source file
-        write_file(path, source)
+            path = Path(
+                args.out,
+                scheme.target.name,
+                f"{name}.{extension}",
+            )
+
+            write_file(path, source)
 
         if not fallback:
-            print(f"Generated loop host {i} of {len(app.loops())}: {path}")
+            print(f"Generated loop host {i} of {len(app.loops())}: {loop.name}")
 
         if fallback:
-            print(f"Generated loop host {i} of {len(app.loops())} (fallback): {path}")
+            loop.fallback = True
+            print(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:
@@ -258,18 +262,24 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         print(f"Generated consts file: {path}")
 
     # Generate master kernel file
-    if scheme.master_kernel_template is not None:
+    if len(scheme.master_kernel_templates) > 0:
         user_types_name = f"user_types.{scheme.lang.include_ext}"
         user_types_candidates = [Path(dir, user_types_name) for dir in include_dirs]
         user_types_file = safeFind(user_types_candidates, lambda p: p.is_file())
 
-        source, name = scheme.genMasterKernel(env, app, user_types_file)
+        files = scheme.genMasterKernel(env, app, user_types_file)
 
-        Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
-        path = Path(args.out, scheme.target.name, name)
+        for index, (source, extension) in enumerate(files):
+            Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
 
-        write_file(path, source)
-        print(f"Generated master kernel file: {path}")
+            name = f"op2_kernels"
+            if index > 0:
+                name += f"_aux{index}"
+
+            path = Path(args.out, scheme.target.name, f"{name}.{extension}")
+
+            write_file(path, source)
+            print(f"Generated master kernel file: {path}")
 
 
 def isDirPath(path):

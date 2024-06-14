@@ -1,0 +1,14 @@
+module op2_kernels
+
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    use {{"op2_consts" if lang.user_consts_module is none else lang.user_consts_module}}
+
+{% for loop_, _ in app.loops() %}
+    use op2_m_{{loop_.name}}
+{% endfor %}
+
+end module

@@ -53,6 +53,9 @@ class Type:
     def set_formatter(cls, formatter: Callable[["Type"], str]) -> None:
         cls.formatter = formatter
 
+    def c(self) -> str:
+        raise OpError(f"Could not format {self} as a C type")
+
     def __str__(self) -> str:
         return self.__class__.formatter(self)
 
@@ -61,6 +64,16 @@ class Type:
 class Int(Type):
     signed: bool
     size: int
+
+    def c(self) -> str:
+        int_types: Dict[Tuple[bool, int], str] = {
+            (True, 32): "int",
+            (True, 64): "int64_t",
+            (False, 32): "unsigned",
+            (False, 64): "uint64_t",
+        }
+
+        return int_types[(self.signed, self.size)]
 
     def __repr__(self) -> str:
         if self.signed and self.size == 32:
@@ -75,6 +88,10 @@ class Int(Type):
 class Float(Type):
     size: int
 
+    def c(self) -> str:
+        float_types = {32: "float", 64: "double"}
+        return float_types[self.size]
+
     def __repr__(self) -> str:
         if self.size == 32:
             return "float"
@@ -88,6 +105,9 @@ class Float(Type):
 class Bool(Type):
     pass
 
+    def c(self) -> str:
+        return "bool"
+
     def __repr__(self) -> str:
         return "bool"
 
@@ -95,6 +115,9 @@ class Bool(Type):
 @dataclass(frozen=True)
 class Custom(Type):
     name: str
+
+    def c(self) -> str:
+        return self.name
 
     def __repr__(self) -> str:
         return self.name

@@ -133,9 +133,9 @@ class Cpp(Lang):
     def formatType(self, typ: OP.Type) -> str:
         int_types: Dict[Tuple[bool, int], str] = {
             (True, 32): "int",
-            (True, 64): "long long",
+            (True, 64): "int64_t",
             (False, 32): "unsigned",
-            (False, 64): "unsigned long long",
+            (False, 64): "uint64_t",
         }
 
         float_types = {32: "float", 64: "double"}
