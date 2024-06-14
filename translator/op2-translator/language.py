@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, FrozenSet, List, Optional, Set
+from typing import Any, FrozenSet, List, Optional, Set, Dict
 
 from op import Type
 from store import Application, Program

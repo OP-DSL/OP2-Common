@@ -1,8 +1,11 @@
 import copy
+import traceback
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
 import fortran.translator.kernels as ftk
+import fortran.translator.kernels_c as ftk_c
 import op as OP
 from language import Lang
 from scheme import Scheme
@@ -18,8 +21,8 @@ class FortranSeq(Scheme):
     fallback = None
 
     consts_template = Path("fortran/seq/consts.F90.jinja")
-    loop_host_template = Path("fortran/seq/loop_host.F90.jinja")
-    master_kernel_template = Path("fortran/seq/master_kernel.F90.jinja")
+    loop_host_templates = [Path("fortran/seq/loop_host.F90.jinja")]
+    master_kernel_templates = [Path("fortran/seq/master_kernel.F90.jinja")]
 
     def translateKernel(
         self,
@@ -54,8 +57,8 @@ class FortranOpenMP(Scheme):
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
     consts_template = None
-    loop_host_template = Path("fortran/openmp/loop_host.inc.jinja")
-    master_kernel_template = Path("fortran/openmp/master_kernel.F90.jinja")
+    loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
+    master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
 
     def translateKernel(
         self,
@@ -114,8 +117,8 @@ class FortranCuda(Scheme):
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
     consts_template = Path("fortran/cuda/consts.F90.jinja")
-    loop_host_template = Path("fortran/cuda/loop_host.CUF.jinja")
-    master_kernel_template = Path("fortran/cuda/master_kernel.F90.jinja")
+    loop_host_templates = [Path("fortran/cuda/loop_host.CUF.jinja")]
+    master_kernel_templates = [Path("fortran/cuda/master_kernel.F90.jinja")]
 
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
         for arg in loop.args:
@@ -239,3 +242,139 @@ class FortranCuda(Scheme):
 
 
 Scheme.register(FortranCuda)
+
+
+class FortranCSeq(Scheme):
+    lang = Lang.get("F90")
+    target = Target.get("c_seq")
+
+    fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
+
+    consts_template = None
+    loop_host_templates = [Path("fortran/c_seq/loop_host.F90.jinja"), Path("fortran/c_seq/loop_host.cpp.jinja")]
+    master_kernel_templates = [Path("fortran/c_seq/master_kernel.F90.jinja")]
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(loop.kernel, program, [])
+
+        assert(len(kernel_entities) == 1)
+        kernel_entity = kernel_entities[0]
+
+        dependencies, _ = ftk.extractDependencies([kernel_entity], app, [])
+
+        kernel_entity = copy.deepcopy(kernel_entity)
+        dependencies = copy.deepcopy(dependencies)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.fixHydraIO(entity)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.removeExternals(entity)
+
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop)
+        return ftk_c.translate(info)
+
+
+Scheme.register(FortranCSeq)
+
+
+class FortranCCuda(Scheme):
+    lang = Lang.get("F90")
+    target = Target.get("c_cuda")
+
+    fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
+
+    consts_template = None
+    loop_host_templates = [Path("fortran/c_cuda/loop_host.F90.jinja"), Path("fortran/c_cuda/loop_host.cuh.jinja")]
+    master_kernel_templates = [Path("fortran/c_cuda/master_kernel.F90.jinja"), Path("fortran/c_cuda/master_kernel.cu.jinja")]
+
+    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
+                return False
+
+        return True
+
+    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+        config = self.target.defaultConfig()
+
+        use_coloring = False
+
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW:
+                use_coloring = True
+                break
+
+        if use_coloring:
+            config["atomics"] = False
+            config["color2"] = True
+
+        return config
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(loop.kernel, program, [])
+
+        assert(len(kernel_entities) == 1)
+        kernel_entity = kernel_entities[0]
+
+        dependencies, _ = ftk.extractDependencies([kernel_entity], app, [])
+
+        kernel_entity = copy.deepcopy(kernel_entity)
+        dependencies = copy.deepcopy(dependencies)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.fixHydraIO(entity)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.removeExternals(entity)
+
+        ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, lambda const: f"op2_const_{const}_d")
+
+        def match_indirect(arg):
+            return isinstance(arg, OP.ArgDat) and arg.map_id is not None
+
+        def match_atomic_inc(arg):
+            return arg.access_type == OP.AccessType.INC and config["atomics"]
+
+        def match_gbl(arg):
+            return isinstance(arg, OP.ArgGbl)
+
+        ftk.insertAtomicIncs(
+            kernel_entity,
+            [kernel_entity] + dependencies,
+            loop,
+            app,
+            lambda arg: match_indirect(arg) and match_atomic_inc(arg),
+            c_api=True,
+        )
+
+        if config["gbl_inc_atomic"]:
+            ftk.insertAtomicIncs(
+                kernel_entity,
+                [kernel_entity] + dependencies,
+                loop,
+                app,
+                lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
+                c_api=True,
+            )
+
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config)
+        setattr(loop, "const_types", info.consts);
+        return ftk_c.translate(info)
+
+
+Scheme.register(FortranCCuda)

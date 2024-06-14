@@ -32,18 +32,6 @@ dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 else ":"}}, map{{arg.map_id}}({{
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro type_c(arg) -%}
-    {%- if arg.typ is instance(OP.Int) -%}
-        int
-    {%- elif arg.typ is instance(OP.Bool) -%}
-        bool
-    {%- elif arg.typ.size == 32 -%}
-        float
-    {%- else -%}
-        double
-    {%- endif -%}
-{%- endmacro -%}
-
 {%- macro dat_dim(dat) -%}
     {%- if dat.dim is not none -%}
 {{dat.dim}}
@@ -131,6 +119,8 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 {% endfor %}
     integer(4) :: n
 
+    ! print *, "{{lh.name}}"
+
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
     gbl{{arg.id}}_temp = gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
@@ -140,9 +130,9 @@ subroutine op2_k_{{lh.name}}_wrapper( &
     do n = 1, n_exec
     {% if lh is indirect %}
         if (n == set%setptr%core_size + 1) then
-	    call op_timing2_next("MPI Wait")
+            call op_timing2_next("MPI Wait")
             call op_mpi_wait_all(size(args), args)
-	    call op_timing2_next("Computation")
+            call op_timing2_next("Computation")
         end if
 
     {% endif %}

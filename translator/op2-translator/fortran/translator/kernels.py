@@ -181,7 +181,8 @@ def insertAtomicIncs(
     funcs: List[Function],
     loop: OP.Loop,
     app: Application,
-    match: Callable[[OP.Arg], bool] = lambda arg: True,
+    match: Callable[[OP.Arg], bool],
+    c_api: bool = False
 ) -> Dict[str, Set[int]]:
     modified = {}
 
@@ -199,7 +200,10 @@ def insertAtomicIncs(
         else:
             raise OpError(f"Error: could not find type of arg while inserting atomics: {loop.args[arg_idx]}")
 
-        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ)
+        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ, c_api)
+
+    if c_api:
+        return
 
     for func_name in modified.keys():
         if len(modified[func_name]) == 0:
@@ -211,11 +215,11 @@ def insertAtomicIncs(
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
 
-def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type) -> None:
+def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type, c_api: bool) -> None:
     if param_idx in modified.get(func.name, set()):
         return
 
-    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx], typ)
+    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx], typ, c_api)
 
     if not replaced:
         return
@@ -226,7 +230,7 @@ def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]
         modified[func.name].add(param_idx)
 
 
-def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type) -> Tuple[Optional[Any], bool]:
+def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) -> Tuple[Optional[Any], bool]:
     if isinstance(node, f2003.Assignment_Stmt):
         if not fu.isRef(node.items[0], param):
             return None, False
@@ -244,7 +248,11 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type) -> Tuple[Option
             raise OpError(f"Error: unexpected arg type while inserting atomics: {typ}")
 
         replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), literal)
-        return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
+
+        if not c_api:
+            return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
+        else:
+            return f2003.Call_Stmt(f"call atomicAdd({node.items[0]}, {node.items[2]})"), False
 
     if not isinstance(node, f2003.Base):
         return None, False
@@ -254,7 +262,7 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type) -> Tuple[Option
         if node.children[i] is None:
             continue
 
-        replacement, modified2 = insertAtomicInc2(node.children[i], param, typ)
+        replacement, modified2 = insertAtomicInc2(node.children[i], param, typ, c_api)
 
         if replacement is not None:
             replaceChild(node, i, replacement)

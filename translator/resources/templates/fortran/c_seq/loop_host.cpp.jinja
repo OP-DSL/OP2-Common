@@ -1,0 +1,225 @@
+{%- macro variant_str() -%}
+    {%- if lh is direct -%}
+Direct
+    {%- else -%}
+Indirect
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_dim(arg) -%}
+    {%- if (arg is gbl or arg is info) and arg.dim is not none -%}
+{{arg.dim}}
+    {%- elif arg is dat and lh.dat(arg).dim is not none -%}
+{{lh.dat(arg).dim}}
+    {%- else -%}
+arg{{arg.id}}.dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro map_idx(arg) -%}
+    {%- if arg is runtime_map_idx %}
+arg{{arg.id}}.idx - 1
+    {%- else -%}
+{{arg.map_idx}} - 1
+    {%- endif -%}
+{%- endmacro -%}
+
+{% macro map_lookup(arg) -%}
+map{{arg.map_id}}[{{map_idx(arg)}}]
+{%- endmacro %}
+
+{%- macro arg_to_pointer(arg) %}
+    {%- if arg is idx and arg is indirect -%}
+idx{{arg.id}}
+    {%- elif arg is idx -%}
+idx
+	{%- else -%}
+{{arg_to_pointer2(arg)}}
+	{%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_to_pointer2(arg) %}
+    {%- if ((arg is gbl or arg is info) and arg.dim == 1) or (arg is dat and lh.dat(arg).dim == 1) %}
+({{arg_to_pointer3(arg)}})[0]
+	{%- else -%}
+{{arg_to_pointer3(arg)}}
+	{%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_to_pointer3(arg) %}
+    {%- if arg is gbl or arg is info %}
+        {%- set cast = arg.typ.c() -%}
+    {%- else -%}
+        {%- set cast = lh.dat(arg).typ.c() -%}
+    {%- endif -%}
+
+    {%- if arg is direct -%}
+        {%- set offset = " + n" -%}
+    {%- elif arg is indirect -%}
+        {%- set offset = " + %s" % (map_lookup(arg)) -%}
+    {%- endif -%}
+
+    {%- if arg is dat %}
+        {%- set offset = "%s * %s" % (offset, arg_dim(arg)) %}
+    {%- endif -%}
+
+    {%- if lh is indirect and arg is gbl and arg is not read %}
+gbl{{arg.id}}_temp
+    {%- elif lh is indirect and arg is info %}
+info{{arg.id}}_temp
+    {%- else -%}
+({{cast}} *)arg{{arg.id}}.data{{offset}}
+    {%- endif -%}
+{%- endmacro -%}
+
+#include "hydra_const_list_c_seq.h"
+
+#include <op_f2c_helpers.h>
+#include <op_lib_cpp.h>
+#include <op_timing2.h>
+
+#include <cstdint>
+#include <cmath>
+#include <cstdio>
+
+namespace f2c = op::f2c;
+
+namespace op2_m_{{lh.name}}{{variant}} {
+
+{{kernel_func}}}
+
+
+namespace op2_m_{{lh.name}}{{variant}}::strides {
+{% if lh.dats|direct(lh)|length > 0 %}
+    int direct = 0;
+{% endif %}
+{% for dat in lh.dats|indirect(lh) %}
+    int dat{{dat.id}} = 0;
+{% endfor %}
+}
+
+extern "C" void op2_k_{{lh.name}}{{variant}}_c(
+    op_set set,
+{% for arg in lh.args %}
+    op_arg arg{{arg.id}}{{"," if not loop.last}}
+{% endfor %}
+) {
+    int n_args = {{lh.args|length}};
+    op_arg args[{{lh.args|length}}];
+
+{% for arg in lh.args %}
+	args[{{loop.index0}}] = arg{{arg.id}};
+{% endfor %}
+
+    op_timing2_enter_kernel("{{lh.name}}", "c_seq", "{{variant_str()}}");
+
+    op_timing2_enter("MPI Exchanges");
+	int n_exec = op_mpi_halo_exchanges(set, n_args, args);
+    // std::printf("%%{{lh.name}}\n");
+
+    op_timing2_next("Computation");
+
+
+
+    namespace strides = op2_m_{{lh.name}}{{variant}}::strides;
+
+{% if lh.dats|direct(lh)|length > 0 %}
+    if (strides::direct != getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|first|attr("id")}})) {
+        if (strides::direct != 0) {
+            std::printf("{{lh.name}} direct %d -> %d\n", strides::direct, getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|first|attr("id")}}));
+        }
+
+        strides::direct = getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|first|attr("id")}});
+    }
+{% endif %}
+
+{% for dat in lh.dats|indirect(lh)|soa %}
+    if (strides::dat{{dat.id}} != getSetSizeFromOpArg(&arg{{dat.arg_id}})) {
+        if (strides::dat{{dat.id}} != 0) {
+            std::printf("{{lh.name}} dat{{dat.id}} %d -> %d\n", strides::dat{{dat.id}}, getSetSizeFromOpArg(&arg{{dat.arg_id}}));
+        }
+
+        strides::dat{{dat.id}} = getSetSizeFromOpArg(&arg{{dat.arg_id}});
+    }
+{% endfor %}
+
+
+
+{% for arg in lh.args|gbl|reject("read") if lh is indirect %}
+	{{arg.typ.c()}} gbl{{arg.id}}_temp[{{arg_dim(arg)}}];
+{% endfor %}
+{% for arg in lh.args|info if lh is indirect %}
+	{{arg.typ.c()}} info{{arg.id}}_temp[{{arg_dim(arg)}}];
+{% endfor %}
+
+{% for arg in lh.args|gbl|reject("read") if lh is indirect %}
+	memcpy(gbl{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+{% endfor %}
+{% for arg in lh.args|info if lh is indirect %}
+	memcpy(info{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+{% endfor %}
+
+    for (int n = 0; n < n_exec; ++n) {
+{% if lh is indirect %}
+        if (n == set->core_size) {
+			op_timing2_next("MPI Wait");
+            op_mpi_wait_all(n_args, args);
+			op_timing2_next("Computation");
+		}
+
+	{% for map in lh.maps %}
+        int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;
+	{% endfor %}
+
+		if (n == set->size) {
+	{% for arg in lh.args|gbl|reject("read") %}
+			memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+	{% endfor %}
+	{% for arg in lh.args|info %}
+			memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+	{% endfor %}
+		}
+{% endif %}
+
+{% if lh.args|idx|direct|length > 0 %}
+		int idx = n;
+{% endif %}
+
+{% for arg in lh.args|idx|indirect %}
+		int idx{{arg.id}} = {{map_lookup(arg)}};
+{% endfor %}
+
+        op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
+{% for arg in lh.args %}
+			{{arg_to_pointer(arg)}}{{"," if not loop.last}}
+{% endfor %}
+        );
+    }
+
+{% if lh is indirect %}
+	if (n_exec < set->size) {
+	{% for arg in lh.args|gbl|reject("read") %}
+		memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+	{% endfor %}
+	{% for arg in lh.args|info %}
+		memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+	}
+{% endif %}
+
+    op_timing2_next("MPI Wait");
+    if (n_exec == 0 || n_exec == set->core_size)
+        op_mpi_wait_all(n_args, args);
+
+{% if lh.args|gbl|reduction|length > 0 %}
+    op_timing2_next("MPI Reduce");
+
+    {% for arg in lh.args|gbl|reduction %}
+    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
+    {% endfor %}
+{% endif %}
+	op_timing2_exit();
+
+	op_mpi_set_dirtybit(n_args, args);
+	op_timing2_exit();
+}

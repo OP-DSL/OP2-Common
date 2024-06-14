@@ -1,0 +1,33 @@
+#include "hydra_const_list_c_cuda.cuh"
+
+#define INCBIN_STYLE INCBIN_STYLE_SNAKE
+#define INCBIN_PREFIX
+#include <extern/incbin.h>
+
+INCTXT(op_f2c_prelude, "op_f2c_prelude.h");
+INCTXT(op_f2c_params, "hydra_const_list_params.h");
+
+#include <op_f2c_prelude.h>
+#include <op_f2c_helpers.h>
+
+#include <op_lib_cpp.h>
+#include <op_timing2.h>
+
+#include <cstdint>
+#include <cmath>
+#include <cstdio>
+
+namespace f2c = op::f2c;
+
+extern "C" {
+
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
+void processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
+int getBlockLimit(op_arg *args, int nargs, int block_size, char *name);
+void setGblIncAtomic(bool enable);
+
+}
+
+{% for loop_, _ in app.loops() if not loop_.fallback %}
+#include "{{loop_.name}}_kernel_aux1.cuh"
+{% endfor %}

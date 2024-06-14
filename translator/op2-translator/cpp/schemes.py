@@ -15,8 +15,8 @@ class CppSeq(Scheme):
     fallback = None
 
     consts_template = None
-    loop_host_template = Path("cpp/seq/loop_host.hpp.jinja")
-    master_kernel_template = Path("cpp/seq/master_kernel.cpp.jinja")
+    loop_host_templates = [Path("cpp/seq/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("cpp/seq/master_kernel.cpp.jinja")]
 
     def translateKernel(
         self,
@@ -46,8 +46,8 @@ class CppOpenMP(Scheme):
     fallback = None
 
     consts_template = None
-    loop_host_template = Path("cpp/openmp/loop_host.hpp.jinja")
-    master_kernel_template = Path("cpp/openmp/master_kernel.cpp.jinja")
+    loop_host_templates = [Path("cpp/openmp/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("cpp/openmp/master_kernel.cpp.jinja")]
 
     def translateKernel(
         self,
@@ -77,8 +77,8 @@ class CppCuda(Scheme):
     fallback = None
 
     consts_template = None
-    loop_host_template = Path("cpp/cuda/loop_host.hpp.jinja")
-    master_kernel_template = Path("cpp/cuda/master_kernel.cu.jinja")
+    loop_host_templates = [Path("cpp/cuda/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("cpp/cuda/master_kernel.cu.jinja")]
 
     def translateKernel(
         self,

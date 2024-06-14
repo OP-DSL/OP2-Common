@@ -1202,7 +1202,7 @@ end subroutine INTF_DECL_DAT_TEMP(TYPE)
 
   interface op_opt_arg_dat
     module procedure op_opt_arg_dat_python, &
-                     !op_opt_arg_dat_python_OP_ID, &
+                     op_opt_arg_dat_python_OP_ID, &
                      INTF_OPT_ARG_DAT(INTEGER_4, DIM_1, MAP_DIM_1), &
                      INTF_OPT_ARG_DAT(INTEGER_4, DIM_2, MAP_DIM_1), &
                      INTF_OPT_ARG_DAT(INTEGER_4, DIM_3, MAP_DIM_1), &
@@ -1667,7 +1667,7 @@ contains
     logical :: opt
 
     type(op_dat) :: dat
-    type(op_map) :: map
+    integer(4) :: map(2)
 
     integer(kind=c_int) :: idx, dim, access
     character(kind=c_char, len=*) :: type

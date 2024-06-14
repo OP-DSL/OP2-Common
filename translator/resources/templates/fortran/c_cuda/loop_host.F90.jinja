@@ -1,0 +1,63 @@
+module op2_m_{{lh.name}}{{variant}}
+
+    use iso_c_binding
+
+    use op2_fortran_declarations
+    use op2_fortran_rt_support
+
+    implicit none
+
+    private
+    public :: op2_k_{{lh.name}}{{variant}}
+
+    interface
+
+        subroutine op2_k_{{lh.name}}{{variant}}_c( &
+            set, &
+{% for arg in lh.args %}
+            arg{{arg.id}}{{"," if not loop.last}} &
+{% endfor %}
+        ) bind(C, name='op2_k_{{lh.name}}{{variant}}_c')
+
+            use iso_c_binding
+            use op2_fortran_declarations
+
+            type(c_ptr), value :: set
+
+{% for arg in lh.args %}
+            type(op_arg), value :: arg{{arg.id}}
+{% endfor %}
+
+        end subroutine
+
+    end interface
+
+contains
+
+subroutine op2_k_{{lh.name}}{{variant}}( &
+    name, &
+    set, &
+{% for arg in lh.args %}
+    arg{{arg.id}}{{"," if not loop.last}} &
+{% endfor %}
+)
+    implicit none
+
+    ! parameters
+    character(kind=c_char, len=*) :: name
+    type(op_set) :: set
+
+{% for arg in lh.args %}
+    type(op_arg) :: arg{{arg.id}}
+{% endfor %}
+
+    call op2_k_{{lh.name}}{{variant}}_c( &
+        set%setcptr, &
+{% for arg in lh.args %}
+        arg{{arg.id}}{{"," if not loop.last}} &
+{% endfor %}
+    )
+
+end subroutine
+
+end module

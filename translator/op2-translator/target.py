@@ -32,9 +32,24 @@ class Seq(Target):
     def defaultConfig(self) -> Dict[str, Any]:
         return {"grouped": False, "device": 1}
 
+class CSeq(Target):
+    name = "c_seq"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"grouped": False, "device": 1}
+
 
 class Cuda(Target):
     name = "cuda"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+
+
+class CCuda(Target):
+    name = "c_cuda"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
@@ -55,5 +70,7 @@ class OpenMP(Target):
 
 
 Target.register(Seq)
+Target.register(CSeq)
 Target.register(Cuda)
+Target.register(CCuda)
 Target.register(OpenMP)

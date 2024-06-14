@@ -258,9 +258,9 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 
 {% endif %}
         call {{lh.kernel}}( &
-    {% for arg in lh.args %}
+{% for arg in lh.args %}
             {{arg_to_pointer_cuda(arg)}}{{"," if not loop.last}} &
-    {% endfor %}
+{% endfor %}
         )
     end do
 end subroutine

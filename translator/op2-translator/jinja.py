@@ -5,6 +5,7 @@ from typing import Optional
 from jinja2 import Environment, FileSystemLoader, pass_context
 
 import op as OP
+from fortran.translator.kernels_c import FArray, FCharacter
 
 # Jinja configuration
 env = Environment(
@@ -13,6 +14,8 @@ env = Environment(
     trim_blocks=True,
 )
 
+env.tests["farray"] = lambda type_: isinstance(type_, FArray)
+env.tests["fcharacter"] = lambda type_: isinstance(type_, FCharacter) or (isinstance(type_, FArray) and isinstance(type_.inner, FCharacter))
 
 def direct(x, loop: Optional[OP.Loop] = None) -> bool:
     if isinstance(x, (OP.ArgDat, OP.ArgIdx)) and x.map_id is None:
@@ -33,7 +36,21 @@ def direct(x, loop: Optional[OP.Loop] = None) -> bool:
 
 
 def indirect(x, loop: Optional[OP.Loop] = None) -> bool:
-    return not direct(x, loop)
+    if isinstance(x, (OP.ArgDat, OP.ArgIdx)) and x.map_id is not None:
+        return True
+
+    if isinstance(x, OP.Dat):
+        assert loop is not None
+
+        arg = loop.args[x.arg_id]
+        assert isinstance(arg, OP.ArgDat)
+
+        return arg.map_id is not None
+
+    if isinstance(x, OP.Loop) and len(x.maps) != 0:
+        return True
+
+    return False
 
 
 env.tests["direct"] = direct
