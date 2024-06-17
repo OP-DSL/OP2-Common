@@ -33,17 +33,17 @@ map{{arg.map_id}}[{{map_idx(arg)}}]
 idx{{arg.id}}
     {%- elif arg is idx -%}
 idx
-	{%- else -%}
+    {%- else -%}
 {{arg_to_pointer2(arg)}}
-	{%- endif -%}
+    {%- endif -%}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer2(arg) %}
     {%- if ((arg is gbl or arg is info) and arg.dim == 1) or (arg is dat and lh.dat(arg).dim == 1) %}
 ({{arg_to_pointer3(arg)}})[0]
-	{%- else -%}
+    {%- else -%}
 {{arg_to_pointer3(arg)}}
-	{%- endif -%}
+    {%- endif -%}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer3(arg) %}
@@ -108,13 +108,13 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_arg args[{{lh.args|length}}];
 
 {% for arg in lh.args %}
-	args[{{loop.index0}}] = arg{{arg.id}};
+    args[{{loop.index0}}] = arg{{arg.id}};
 {% endfor %}
 
     op_timing2_enter_kernel("{{lh.name}}", "c_seq", "{{variant_str()}}");
 
     op_timing2_enter("MPI Exchanges");
-	int n_exec = op_mpi_halo_exchanges(set, n_args, args);
+    int n_exec = op_mpi_halo_exchanges(set, n_args, args);
     // std::printf("%%{{lh.name}}\n");
 
     op_timing2_next("Computation");
@@ -146,65 +146,65 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
 
 {% for arg in lh.args|gbl|reject("read") if lh is indirect %}
-	{{arg.typ.c()}} gbl{{arg.id}}_temp[{{arg_dim(arg)}}];
+    {{arg.typ.c()}} gbl{{arg.id}}_temp[{{arg_dim(arg)}}];
 {% endfor %}
 {% for arg in lh.args|info if lh is indirect %}
-	{{arg.typ.c()}} info{{arg.id}}_temp[{{arg_dim(arg)}}];
+    {{arg.typ.c()}} info{{arg.id}}_temp[{{arg_dim(arg)}}];
 {% endfor %}
 
 {% for arg in lh.args|gbl|reject("read") if lh is indirect %}
-	memcpy(gbl{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    memcpy(gbl{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
 {% endfor %}
 {% for arg in lh.args|info if lh is indirect %}
-	memcpy(info{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    memcpy(info{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
 {% endfor %}
 
     for (int n = 0; n < n_exec; ++n) {
 {% if lh is indirect %}
         if (n == set->core_size) {
-			op_timing2_next("MPI Wait");
+            op_timing2_next("MPI Wait");
             op_mpi_wait_all(n_args, args);
-			op_timing2_next("Computation");
-		}
+            op_timing2_next("Computation");
+        }
 
-	{% for map in lh.maps %}
+    {% for map in lh.maps %}
         int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;
-	{% endfor %}
+    {% endfor %}
 
-		if (n == set->size) {
-	{% for arg in lh.args|gbl|reject("read") %}
-			memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
-	{% endfor %}
-	{% for arg in lh.args|info %}
-			memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
-	{% endfor %}
-		}
+        if (n == set->size) {
+    {% for arg in lh.args|gbl|reject("read") %}
+            memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+    {% for arg in lh.args|info %}
+            memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+        }
 {% endif %}
 
 {% if lh.args|idx|direct|length > 0 %}
-		int idx = n;
+        int idx = n;
 {% endif %}
 
 {% for arg in lh.args|idx|indirect %}
-		int idx{{arg.id}} = {{map_lookup(arg)}};
+        int idx{{arg.id}} = {{map_lookup(arg)}};
 {% endfor %}
 
         op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
 {% for arg in lh.args %}
-			{{arg_to_pointer(arg)}}{{"," if not loop.last}}
+            {{arg_to_pointer(arg)}}{{"," if not loop.last}}
 {% endfor %}
         );
     }
 
 {% if lh is indirect %}
-	if (n_exec < set->size) {
-	{% for arg in lh.args|gbl|reject("read") %}
-		memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
-	{% endfor %}
-	{% for arg in lh.args|info %}
-		memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    if (n_exec < set->size) {
+    {% for arg in lh.args|gbl|reject("read") %}
+        memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
     {% endfor %}
-	}
+    {% for arg in lh.args|info %}
+        memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+    }
 {% endif %}
 
     op_timing2_next("MPI Wait");
@@ -218,8 +218,8 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
     {% endfor %}
 {% endif %}
-	op_timing2_exit();
+    op_timing2_exit();
 
-	op_mpi_set_dirtybit(n_args, args);
-	op_timing2_exit();
+    op_mpi_set_dirtybit(n_args, args);
+    op_timing2_exit();
 }

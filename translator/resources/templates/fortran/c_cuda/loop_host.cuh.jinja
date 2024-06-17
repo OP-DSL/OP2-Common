@@ -76,17 +76,17 @@ map{{arg.map_id}}[{{map_idx(arg)}} * set_size + n]
 idx{{arg.id}}
     {%- elif arg is idx -%}
 idx
-	{%- else -%}
+    {%- else -%}
 {{arg_to_pointer2(arg)}}
-	{%- endif -%}
+    {%- endif -%}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer2(arg) -%}
     {%- if ((arg is gbl or arg is info) and arg.dim == 1) or (arg is dat and lh.dat(arg).dim == 1) %}
 ({{arg_to_pointer3(arg)}})[0]
-	{%- else -%}
+    {%- else -%}
 {{arg_to_pointer3(arg)}}
-	{%- endif -%}
+    {%- endif -%}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer3(arg) -%}
@@ -257,11 +257,11 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
 
     {% if lh.args|idx|direct|length > 0 %}
-		int idx = n + 1;
+        int idx = n + 1;
     {% endif %}
 
     {% for arg in lh.args|idx|indirect %}
-		int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
+        int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
     {% endfor %}
 
         op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
@@ -360,7 +360,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     }
 
 {% for arg in lh.args %}
-	args[{{loop.index0}}] = arg{{arg.id}};
+    args[{{loop.index0}}] = arg{{arg.id}};
 {% endfor %}
 
 {% for arg in lh.args|gbl if arg is min or arg is max or arg is work %}
@@ -373,7 +373,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_timing2_enter("Init");
 
     op_timing2_enter("MPI Exchanges");
-	int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
+    int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
 
     if (n_exec == 0) {
         op_timing2_exit();
