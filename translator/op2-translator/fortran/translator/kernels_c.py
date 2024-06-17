@@ -70,7 +70,7 @@ class FArray(FType):
     def asSpan(self, ptr: str, var: str, ctx: 'Context') -> str:
         stride = ""
 
-        op_arg = getattr(ctx.sub_info.lookupArg(var), "op_arg", None)
+        op_arg = getattr(ctx.sub_info.lookupParam(var), "op_arg", None)
         gbl_stride_access = [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.WORK]
 
         if isinstance(op_arg, OP.ArgDat) and ctx.info.loop.dat(op_arg).soa:
@@ -86,7 +86,7 @@ class FArray(FType):
             if not (op_arg.access_type == OP.AccessType.INC and gbl_inc_atomic):
                 stride = f"op2_stride_gbl_d, "
 
-        return f"f2c::span<{self.inner.asC()}, {len(self.shape)}> {var}({stride}{ptr}, {self.spanBounds()})"
+        return f"f2c::span {var}({stride}{ptr}, {self.spanBounds()})"
 
 
 @dataclass(frozen=True)
@@ -130,9 +130,18 @@ class FCharacter(FPrimitive):
 
 
 @dataclass
-class Arg:
+class Param:
     name: str
     op_arg: Optional[OP.Arg] = None
+
+    # Param is not written directly or in any called subs
+    is_const: Optional[bool] = None
+
+    # Param is written locally
+    is_const_local: Optional[bool] = None
+
+    # Pairs of sub name and arg index where this param is used as an argument
+    as_arg: Set[Tuple[str, int]] = field(default_factory=set)
 
 
 @dataclass
@@ -140,7 +149,7 @@ class SubprogramInfo:
     name: str
     ast: f2003.Base
 
-    args: List[Arg] = field(default_factory=list)
+    params: List[Param] = field(default_factory=list)
     func_return_var: Optional[str] = None
 
     types: Dict[str, FType] = field(default_factory=dict)
@@ -155,11 +164,11 @@ class SubprogramInfo:
         assert(self.isFunction())
         return self.types[self.func_return_var]
 
-    def argNames(self) -> List[str]:
-        return list(map(lambda a: a.name, self.args))
+    def paramNames(self) -> List[str]:
+        return list(map(lambda p: p.name, self.params))
 
-    def lookupArg(self, name: str) -> Optional[Arg]:
-        return safeFind(self.args, lambda arg: arg.name == name)
+    def lookupParam(self, name: str) -> Optional[Param]:
+        return safeFind(self.params, lambda arg: arg.name == name)
 
 
 @dataclass
@@ -234,6 +243,8 @@ def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: D
             parseFunctionTypeInfo(Context(info, sub_info))
 
     resolveOpArgs(entities, info, loop)
+    resolveParamAccesses(info)
+
     return info
 
 
@@ -256,8 +267,8 @@ def parseSubroutineInfo(entity: Entity) -> SubprogramInfo:
     name = translateName(fpu.get_child(subroutine_stmt, f2003.Name))
     sub_info = SubprogramInfo(name, entity.ast)
 
-    arg_names = fpu.walk(fpu.get_child(subroutine_stmt, f2003.Dummy_Arg_List), f2003.Name)
-    sub_info.args = [Arg(translateName(name)) for name in arg_names]
+    param_names = fpu.walk(fpu.get_child(subroutine_stmt, f2003.Dummy_Arg_List), f2003.Name)
+    sub_info.params = [Param(translateName(name)) for name in param_names]
 
     return sub_info
 
@@ -269,9 +280,9 @@ def parseFunctionInfo(entity: Entity) -> SubprogramInfo:
     name = translateName(fpu.get_child(function_stmt, f2003.Name))
     sub_info = SubprogramInfo(name, entity.ast)
 
-    arg_list = fpu.get_child(function_stmt, f2003.Dummy_Arg_List)
-    if arg_list is not None:
-        sub_info.args = [Arg(translateName(name)) for name in fpu.walk(arg_list, f2003.Name)]
+    param_list = fpu.get_child(function_stmt, f2003.Dummy_Arg_List)
+    if param_list is not None:
+        sub_info.params = [Param(translateName(name)) for name in fpu.walk(param_list, f2003.Name)]
 
     sub_info.func_return_var = f"_{sub_info.name}"
 
@@ -409,17 +420,142 @@ def parseArraySpec(array_spec: f2003.Array_Spec, ctx: Context) -> List[Tuple[str
     ctx.error(f"Unsupported array spec", array_spec)
 
 
-def setArg(entity: Entity, param_idx: int, info: Info, op_arg: OP.Arg) -> None:
+def setOpArg(entity: Entity, param_idx: int, info: Info, op_arg: OP.Arg) -> None:
     def_stmt = fpu.get_child(entity.ast, (f2003.Subroutine_Stmt, f2003.Function_Stmt))
     name = translateName(fpu.get_child(def_stmt, f2003.Name))
 
     sub_info = info.subprograms[name]
-    sub_info.args[param_idx].op_arg = op_arg
+    sub_info.params[param_idx].op_arg = op_arg
 
 
 def resolveOpArgs(entities: List[Entity], info: Info, loop: OP.Loop) -> None:
     for i in range(len(loop.args)):
-        fu.mapParam(entities[0], i, entities, setArg, info, loop.args[i])
+        fu.mapParam(entities[0], i, entities, setOpArg, info, loop.args[i])
+
+
+def resolveParamAccesses(info: Info) -> None:
+    for sub_info in info.subprograms.values():
+        resolveParamAccessesLocal(Context(info, sub_info))
+
+    has_unresolved = True
+
+    while has_unresolved:
+        has_unresolved = False
+
+        for sub_info in info.subprograms.values():
+            unresolved = tryResolveParams(Context(info, sub_info))
+            has_unresolved = has_unresolved or unresolved
+
+
+def resolveParamAccessesLocal(ctx: Context) -> None:
+    execution_part = fpu.get_child(ctx.sub_info.ast, f2003.Execution_Part)
+    names = fpu.walk(execution_part, f2003.Name)
+
+    assignments = fpu.walk(execution_part, f2003.Assignment_Stmt)
+    loop_controls = fpu.walk(execution_part, f2003.Loop_Control)
+
+    assigned_to = set()
+    for assignment in assignments:
+        lhs = assignment.items[0]
+
+        if isinstance(lhs, f2003.Name):
+            assigned_to.add(translateName(lhs, ctx))
+        elif isinstance(lhs, f2003.Part_Ref):
+            name = translateName(fpu.get_child(lhs, f2003.Name), ctx)
+            assigned_to.add(name)
+        else:
+            ctx.error(f"Unknown assignment LHS", assignment)
+
+    for loop_control in loop_controls:
+        if loop_control.items[0] != None:
+            continue
+
+        if not isinstance(loop_control.items[1][0], f2003.Name):
+            ctx.error(f"Unknown loop control", loop_control)
+
+        control_var = translateName(loop_control.items[1][0], ctx)
+        assigned_to.add(control_var)
+
+    for param in ctx.sub_info.params:
+        param.is_const_local = not (param.name in assigned_to)
+
+        param_refs = filter(lambda n: translateName(n, ctx) == param.name, names)
+        for ref in param_refs:
+            call = getCall(ref, ctx)
+
+            if call is not None:
+                param.as_arg.add(call)
+
+        if param.is_const_local and len(param.as_arg) == 0:
+            param.is_const = True
+        elif not param.is_const_local:
+            param.is_const = False
+
+        if param.is_const == None and ("atomicAdd", 0) in param.as_arg:
+            param.is_const = False
+
+
+def tryResolveParams(ctx: Context) -> bool:
+    has_unresolved = False
+
+    for param in ctx.sub_info.params:
+        if param.is_const is not None:
+            continue
+
+        all_const = True
+        unresolved = False
+
+        for target_name, idx in param.as_arg:
+            target_sub = ctx.info.subprograms[target_name]
+
+            if target_sub.params[idx].is_const is None:
+                unresolved = True
+                continue
+
+            if target_sub.params[idx].is_const == False:
+                all_const = False
+                break
+
+        if not all_const:
+            param.is_const = False
+        elif all_const and not unresolved:
+            param.is_const = True
+        else:
+            has_unresolved = True
+
+    return has_unresolved
+
+
+def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
+    node = ref
+    parent = getattr(node, "parent", None)
+
+    if isinstance(parent, f2003.Part_Ref):
+        if not hasattr(parent, "parent"):
+            return None
+
+        node = parent
+        parent = node.parent
+
+    if parent is None:
+        return None
+
+    if isinstance(parent, (f2003.Actual_Arg_Spec_List, f2003.Section_Subscript_List)):
+        func_name_node = fpu.get_child(parent.parent, f2003.Name)
+
+        if func_name_node is None:
+            return None
+
+        func_name = translateName(func_name_node, ctx)
+        sub_info = ctx.info.subprograms.get(func_name)
+
+        if func_name != "atomicAdd" and sub_info is None:
+            return None
+
+        arg_idx = [id(item) for item in parent.items].index(id(node))
+        return (func_name, arg_idx)
+
+    return None
 
 
 def translate(info: Info) -> str:
@@ -439,31 +575,41 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     spec_part = fpu.get_child(ctx.sub_info.ast, f2003.Specification_Part)
     execution_part = fpu.get_child(ctx.sub_info.ast, f2003.Execution_Part)
 
-    n_templates = 0
-    arg_decls = []
+    # n_templates = 0
+    param_decls = []
 
-    for arg in ctx.sub_info.args:
-        arg_type = ctx.sub_info.types[arg.name]
+    for param in ctx.sub_info.params:
+        assert(param.is_const is not None)
+        param_type = ctx.sub_info.types[param.name]
 
-        if isinstance(arg_type, FPrimitive):
-            arg_decls.append(f"T{n_templates}&& {arg.name}")
-            n_templates += 1
+        if isinstance(param_type, FPrimitive):
+            if param.is_const:
+                param_decls.append(f"const {param_type.asC()} {param.name}")
+            else:
+                param_decls.append(f"{param_type.asC()}& {param.name}")
+
+            # param_decls.append(f"T{n_templates}&& {param.name}")
+            # n_templates += 1
         else:
-            arg_decls.append(f"{arg_type.inner.asC()}* _f2c_ptr_{arg.name}")
+            const = ""
+            if param.is_const:
+                const = "const "
+
+            param_decls.append(f"{const}{param_type.inner.asC()}* _f2c_ptr_{param.name}")
 
     return_type = "void"
 
     if ctx.sub_info.isFunction():
         return_type = ctx.sub_info.functionType().asC()
 
-    templates = [f"typename T{idx}" for idx in range(n_templates)]
+    # templates = [f"typename T{idx}" for idx in range(n_templates)]
 
     src_decl = ""
-    if n_templates > 0:
-        src_decl  = f"template<{', '.join(templates)}>\n"
+    # if n_templates > 0:
+    #     src_decl  = f"template<{', '.join(templates)}>\n"
 
     src_decl += f"static __device__ {return_type} {ctx.sub_info.name}(\n    "
-    src_decl += ",\n    ".join(arg_decls) + "\n)"
+    src_decl += ",\n    ".join(param_decls) + "\n)"
 
     src = src_decl + " "
     src += "{\n"
@@ -515,11 +661,11 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
 
     src = ""
     for name, type_ in ctx.sub_info.types.items():
-        if name in ctx.sub_info.argNames() and isinstance(type_, FArray):
+        if name in ctx.sub_info.paramNames() and isinstance(type_, FArray):
             src += f"{type_.asSpan('_f2c_ptr_' + name, name, ctx)};\n"
             continue
 
-        if name in ctx.sub_info.argNames():
+        if name in ctx.sub_info.paramNames():
             continue
 
         # TODO: probably not correct, might need check for external?
@@ -834,7 +980,26 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
     for i, extra_index in enumerate(subscript_list.children[1:], start=1):
         index += f" + ({translateGeneric(extra_index, ctx)} - ({array_type.shape[i][0]})) * {'*'.join(sizes[:i])}"
 
-    return f"{name}[({index}) - 1]"
+
+    op_arg = getattr(ctx.sub_info.lookupParam(name), "op_arg", None)
+    gbl_stride_access = [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.WORK]
+
+    stride = ""
+    if isinstance(op_arg, OP.ArgDat) and ctx.info.loop.dat(op_arg).soa:
+        if op_arg.map_id is None:
+            stride = f"op2_stride_direct_d * "
+        else:
+            stride = f"op2_stride_dat{op_arg.dat_id}_d * "
+    elif isinstance(op_arg, OP.ArgInfo):
+        stride = f"op2_stride_gbl_d * "
+    elif isinstance(op_arg, OP.ArgGbl) and op_arg.access_type in gbl_stride_access:
+        gbl_inc_atomic = ctx.info.config.get("gbl_inc_atomic")
+
+        if not (op_arg.access_type == OP.AccessType.INC and gbl_inc_atomic):
+            stride = f"op2_stride_gbl_d * "
+
+
+    return f"{name}[{stride}(({index}) - 1)]"
 
 
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
@@ -901,7 +1066,7 @@ def translateArgList(arg_list: List[f2003.Base], ctx: Context, call_target: str)
     target_sub = ctx.info.subprograms[call_target]
 
     args = []
-    for item, target_type in zip(arg_list, [target_sub.types[arg.name] for arg in target_sub.args]):
+    for item, target_type in zip(arg_list, [target_sub.types[param.name] for param in target_sub.params]):
         arg = translateGeneric(item, ctx)
 
         if isinstance(target_type, FArray):

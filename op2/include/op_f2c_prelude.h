@@ -8,31 +8,31 @@ typedef long long int int64_t;
 using index_type = int;
 
 struct extent {
-    index_type lower;
-    index_type upper;
+    const index_type lower;
+    const index_type upper;
 
-    constexpr extent(index_type upper) : lower{1}, upper{upper} {}
-    constexpr extent(index_type lower, index_type upper) : lower{lower}, upper{upper} {}
+    constexpr extent(const index_type upper) : lower{1}, upper{upper} {}
+    constexpr extent(const index_type lower, index_type upper) : lower{lower}, upper{upper} {}
 
-    constexpr index_type size() { return upper - lower + 1; }
+    constexpr index_type size() const { return upper - lower + 1; }
 };
 
 template<typename T, unsigned N>
 struct span {
     T* data;
-    extent extents[N];
-    index_type stride;
+    const extent extents[N];
+    const index_type stride;
 
     template<typename... Es>
     constexpr span(T* data, Es... extents)
         : data{data}, extents{extents...}, stride{1} {}
 
     template<typename... Es>
-    constexpr span(index_type stride, T* data, Es... extents)
+    constexpr span(const index_type stride, T* data, Es... extents)
         : data{data}, extents{extents...}, stride{stride} {}
 
     template<typename... Is>
-    constexpr T& operator()(Is... is) {
+    constexpr T& operator()(Is... is) const {
         static_assert(sizeof...(is) == N);
         index_type indicies[sizeof...(is)] = {is...};
 
@@ -47,6 +47,18 @@ struct span {
         return data[offset * stride];
     }
 };
+
+template<typename T, typename... Es>
+span(T*, Es...) -> span<T, sizeof...(Es)>;
+
+template<typename T, typename... Es>
+span(const index_type, T*, Es...) -> span<T, sizeof...(Es)>;
+
+template<typename T, typename... Es>
+span(const T*, Es...) -> span<const T, sizeof...(Es)>;
+
+template<typename T, typename... Es>
+span(const index_type, const T*, Es...) -> span<const T, sizeof...(Es)>;
 
 /* Fortran intrinsics */
 
