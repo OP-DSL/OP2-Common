@@ -80,42 +80,20 @@ inline constexpr double pow(double x, double e) { return ::pow(x, e); }
 inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
 
-/*
-template<typename T> inline constexpr T abs(T x) { return ::abs(x); }
-template<> inline constexpr float abs(float x) { return fabsf(x); }
-template<> inline constexpr double abs(double x) { return fabs(x); }
-*/
-
 __device__ inline int abs(int x) { return ::abs(x); }
 __device__ inline int64_t abs(int64_t x) { return ::abs(x); }
 inline constexpr float abs(float x) { return fabsf(x); }
 inline constexpr double abs(double x) { return fabs(x); }
 
-/*
-template<typename T> inline constexpr double dble(T x) { return (double)x; }
-template<typename T> inline constexpr int int_(T x) { return (int)x; }
-*/
+inline constexpr double dble(int x) { return (double)x; }
+inline constexpr double dble(int64_t x) { return (double)x; }
+inline constexpr double dble(float x) { return (double)x; }
+inline constexpr double dble(double x) { return x; }
 
-inline constexpr int dble(int x) { return x; }
-inline constexpr int dble(int64_t x) { return (int)x; }
-inline constexpr int dble(float x) { return (int)x; }
-inline constexpr int dble(double x) { return (int)x; }
-
-inline constexpr double int_(int x) { return (double)x; }
-inline constexpr double int_(int64_t x) { return (double)x; }
-inline constexpr double int_(float x) { return (double)x; }
-inline constexpr double int_(double x) { return x; }
-
-/*
-template<typename T, typename... Ts>
-inline constexpr T min(T x0, T x1, Ts... xs) {
-    if constexpr (sizeof...(xs) == 0) {
-        return x0 < x1 ? x0 : x1;
-    } else {
-        return min(min(x0, x1), xs...);
-    }
-}
-*/
+inline constexpr int int_(int x) { return x; }
+inline constexpr int int_(int64_t x) { return (int)x; }
+inline constexpr int int_(float x) { return (int)x; }
+inline constexpr int int_(double x) { return (int)x; }
 
 __device__ inline int min(int x0, int x1) { return ::min(x0, x1); }
 __device__ inline int min(int x0, int x1, int x2) { return ::min(::min(x0, x1), x2); }
@@ -133,17 +111,6 @@ inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
 inline constexpr double min(double x0, double x1, double x2) { return fmin(fmin(x0, x1), x2); }
 inline constexpr double min(double x0, double x1, double x2, double x3) { return fmin(fmin(x0, x1), fmin(x2, x3)); }
 
-/*
-template<typename T, typename... Ts>
-inline constexpr T max(T x0, T x1, Ts... xs) {
-    if constexpr (sizeof...(xs) == 0) {
-        return x0 > x1 ? x0 : x1;
-    } else {
-        return max(max(x0, x1), xs...);
-    }
-}
-*/
-
 __device__ inline int max(int x0, int x1) { return ::max(x0, x1); }
 __device__ inline int max(int x0, int x1, int x2) { return ::max(::max(x0, x1), x2); }
 __device__ inline int max(int x0, int x1, int x2, int x3) { return ::max(::max(x0, x1), ::max(x2, x3)); }
@@ -160,12 +127,6 @@ inline constexpr double max(double x0, double x1) { return fmax(x0, x1); }
 inline constexpr double max(double x0, double x1, double x2) { return fmax(fmax(x0, x1), x2); }
 inline constexpr double max(double x0, double x1, double x2, double x3) { return fmax(fmax(x0, x1), fmax(x2, x3)); }
 
-/*
-template<typename T> inline constexpr T mod(T a, T p) { return a % p; }
-template<> inline constexpr float mod(float a, float p) { return fmodf(a, p); }
-template<> inline constexpr double mod(double a, double p) { return fmod(a, p); }
-*/
-
 inline constexpr int mod(int a, int p) { return a % p; }
 inline constexpr int64_t mod(int64_t a, int64_t p) { return a % p; }
 inline constexpr float mod(float a, float p) { return fmodf(a, p); }
@@ -173,12 +134,6 @@ inline constexpr double mod(double a, double p) { return fmod(a, p); }
 
 inline constexpr int nint(float x) { return lroundf(x); }
 inline constexpr int nint(double x) { return lround(x); }
-
-/*
-template<typename T> inline constexpr T copysign(T x, T y) { return y >= 0 ? abs(x) : -abs(x); }
-template<> inline constexpr float copysign(float x, float y) { return copysignf(x, y); }
-template<> inline constexpr double copysign(double x, double y) { return ::copysign(x, y); }
-*/
 
 __device__ inline int copysign(int x, int y) { return y >= 0 ? abs(x) : -abs(x); }
 __device__ inline int64_t copysign(int64_t x, int64_t y) { return y >= 0 ? abs(x) : -abs(x); }
