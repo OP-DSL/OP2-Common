@@ -12,6 +12,8 @@
 #include <string>
 #include <cassert>
 #include <sstream>
+#include <thread>
+#include <mutex>
 
 
 #define NVRTC_SAFE_CALL(x)                                                     \
@@ -69,20 +71,23 @@ inline uint64_t hash(const void* key, size_t len, uint64_t seed) {
 }
 
 struct jit_kernel {
+    std::string name;
+
+    bool loaded = false;
+    char *cubin;
+
     CUmodule module;
     CUfunction kernel;
 
     jit_kernel(const jit_kernel&) = delete;
 
-    jit_kernel(jit_kernel&& other) : module{other.module}, kernel{other.kernel} {
+    jit_kernel(jit_kernel&& other) : cubin{other.cubin}, module{other.module}, kernel{other.kernel} {
+        other.cubin = nullptr;
         other.module = nullptr;
         other.kernel = nullptr;
     };
 
-    jit_kernel(const char *cubin, const std::string &name) {
-        CU_SAFE_CALL(cuModuleLoadData(&module, cubin));
-        CU_SAFE_CALL(cuModuleGetFunction(&kernel, module, name.c_str()));
-    }
+    jit_kernel(char *cubin, std::string_view name) : cubin{cubin}, name{name} {}
 
     /*
     ~jit_kernel() {
@@ -91,9 +96,18 @@ struct jit_kernel {
     */
 
     void invoke(int num_blocks, int block_size, void **args) {
+        if (!loaded) {
+            CU_SAFE_CALL(cuModuleLoadData(&module, cubin));
+            CU_SAFE_CALL(cuModuleGetFunction(&kernel, module, name.c_str()));
+
+            loaded = true;
+
+            delete[] cubin;
+            cubin = nullptr;
+        }
+
         CU_SAFE_CALL(cuLaunchKernel(kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
                                       NULL, args, 0));
-        CUDA_SAFE_CALL(cudaDeviceSynchronize());
     }
 };
 
@@ -183,6 +197,11 @@ struct jit_param {
     }
 };
 
+struct hash_info {
+    std::size_t count = 0;
+    bool jit_started = false;
+};
+
 class kernel_info {
 private:
     std::string name;
@@ -191,8 +210,10 @@ private:
     std::vector<jit_param> params;
     std::string src;
 
+    std::mutex jit_kernels_mutex;
     std::unordered_map<uint64_t, jit_kernel> jit_kernels;
-    std::unordered_map<uint64_t, std::size_t> hash_counts;
+
+    std::unordered_map<uint64_t, hash_info> hash_infos;
 
     uint64_t hash_params(uint64_t seed = hash_seed_default) {
         uint64_t hash = seed;
@@ -212,57 +233,58 @@ private:
         return src;
     }
 
-    jit_kernel& compile(uint64_t hash) {
+    void compile(uint64_t hash) {
         std::string jit_src = std::string("#include <op_f2c_prelude.h>\n") +
                               std::string("#include <op_f2c_params.h>\n") +
                               std::string("\nnamespace f2c = op::f2c;\n") +
                               format_params() + src;
 
-        const char *headers[] = { op_f2c_prelude_data, op_f2c_params_data };
-        const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
+        std::thread compilation_thread([=](auto jit_src, auto hash) {
+            const char *headers[] = { op_f2c_prelude_data, op_f2c_params_data };
+            const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
 
-        nvrtcProgram prog;
-        NVRTC_SAFE_CALL(nvrtcCreateProgram(&prog, jit_src.c_str(), name.c_str(),
-                                           2, headers, header_names));
+            nvrtcProgram prog;
+            NVRTC_SAFE_CALL(nvrtcCreateProgram(&prog, jit_src.c_str(), name.c_str(),
+                                               2, headers, header_names));
 
-        const char *opts[] = {
-            "-use_fast_math",
-            "-arch=sm_90",
-            "-minimal",
-            "-default-device"
-        };
+            const char *opts[] = {
+                "-use_fast_math",
+                "-arch=sm_90",
+                "-minimal",
+                "-default-device"
+            };
 
-        auto success = nvrtcCompileProgram(prog, 4, opts);
-        if (success != NVRTC_SUCCESS) {
-            size_t log_size;
-            NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(prog, &log_size));
+            auto success = nvrtcCompileProgram(prog, 4, opts);
+            if (success != NVRTC_SUCCESS) {
+                size_t log_size;
+                NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(prog, &log_size));
 
-            if (log_size > 1) {
-                char *log = new char[log_size];
-                NVRTC_SAFE_CALL(nvrtcGetProgramLog(prog, log));
+                if (log_size > 1) {
+                    char *log = new char[log_size];
+                    NVRTC_SAFE_CALL(nvrtcGetProgramLog(prog, log));
 
-                std::printf("%s\n", log);
-                delete[] log;
+                    std::printf("%s\n", log);
+                    delete[] log;
+                }
+
+                exit(1);
             }
 
-            exit(1);
-        }
+            size_t cubin_size;
+            NVRTC_SAFE_CALL(nvrtcGetCUBINSize(prog, &cubin_size));
 
-        size_t cubin_size;
-        NVRTC_SAFE_CALL(nvrtcGetCUBINSize(prog, &cubin_size));
+            char *cubin = new char[cubin_size];
+            NVRTC_SAFE_CALL(nvrtcGetCUBIN(prog, cubin));
+            NVRTC_SAFE_CALL(nvrtcDestroyProgram(&prog));
 
-        char *cubin = new char[cubin_size];
-        NVRTC_SAFE_CALL(nvrtcGetCUBIN(prog, cubin));
+            std::scoped_lock lock(jit_kernels_mutex);
+            auto [it, inserted] = jit_kernels.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(hash), std::forward_as_tuple(cubin, name));
 
-        auto [it, inserted] = jit_kernels.emplace(std::piecewise_construct,
-                std::forward_as_tuple(hash), std::forward_as_tuple(cubin, name));
+            assert(inserted);
+        }, jit_src, hash);
 
-        assert(inserted);
-
-        NVRTC_SAFE_CALL(nvrtcDestroyProgram(&prog));
-        delete[] cubin;
-
-        return it->second;
+        compilation_thread.detach();
     }
 
 public:
@@ -284,32 +306,39 @@ public:
         op_timing2_next("Hash params");
         auto params_hash = hash_params();
 
-        auto [hash_elem, inserted] = hash_counts.insert({params_hash, 1});
-        if (!inserted) hash_elem->second++;
+        auto [hash_elem, inserted] = hash_infos.insert({params_hash, hash_info()});
+        hash_elem->second.count++;
 
+        op_timing2_next("JIT Lookup");
+        jit_kernels_mutex.lock();
         auto kernel_elem = jit_kernels.find(params_hash);
+
         if (kernel_elem != jit_kernels.end()) {
             // std::printf("using jit %s (hash %lx)\n", name.c_str(), params_hash);
-            //
-            op_timing2_next("Kernel");
-            kernel_elem->second.invoke(num_blocks, block_size, args);
+            auto& jk = kernel_elem->second;
+            jit_kernels_mutex.unlock();
+
+            op_timing2_next("JIT Kernel");
+            jk.invoke(num_blocks, block_size, args);
             return;
         }
 
-        if (hash_elem->second <= 3) {
-            // std::printf("using offline %s for hash %lx (invocation %ld)\n",
-            //         name.c_str(), params_hash, hash_elem->second);
-            op_timing2_next("Kernel");
-            CUDA_SAFE_CALL(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
-            return;
+        jit_kernels_mutex.unlock();
+
+        op_timing2_next("JIT compilation");
+
+        // Launch async compilation
+        if (hash_elem->second.count > 3 && !hash_elem->second.jit_started) {
+            // std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
+            hash_elem->second.jit_started = true;
+            compile(params_hash);
         }
 
-        op_timing2_next("JIT Compilation");
-        //std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
-        auto& kernel = compile(params_hash);
+        // std::printf("using offline %s for hash %lx (invocation %ld)\n",
+        //         name.c_str(), params_hash, hash_elem->second);
 
-        op_timing2_next("Kernel");
-        kernel.invoke(num_blocks, block_size, args);
+        op_timing2_next("Offline Kernel");
+        CUDA_SAFE_CALL(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
     }
 };
 
