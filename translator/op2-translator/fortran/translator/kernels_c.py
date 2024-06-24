@@ -575,7 +575,7 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     spec_part = fpu.get_child(ctx.sub_info.ast, f2003.Specification_Part)
     execution_part = fpu.get_child(ctx.sub_info.ast, f2003.Execution_Part)
 
-    # n_templates = 0
+    n_templates = 0
     param_decls = []
 
     for param in ctx.sub_info.params:
@@ -602,11 +602,11 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     if ctx.sub_info.isFunction():
         return_type = ctx.sub_info.functionType().asC()
 
-    # templates = [f"typename T{idx}" for idx in range(n_templates)]
+    templates = [f"typename T{idx}" for idx in range(n_templates)]
 
     src_decl = ""
-    # if n_templates > 0:
-    #     src_decl  = f"template<{', '.join(templates)}>\n"
+    if n_templates > 0:
+        src_decl  = f"template<{', '.join(templates)}>\n"
 
     src_decl += f"static __device__ {return_type} {ctx.sub_info.name}(\n    "
     src_decl += ",\n    ".join(param_decls) + "\n)"

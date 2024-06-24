@@ -5,55 +5,101 @@
 
 #include <nvrtc.h>
 #include <cuda.h>
+#include <cuda_profiler_api.h>
 
 #include <array>
 #include <vector>
 #include <unordered_map>
 #include <string>
 #include <cassert>
+#include <cstdlib>
 #include <sstream>
 #include <thread>
 #include <mutex>
 
 
-#define NVRTC_SAFE_CALL(x)                                                     \
-    do {                                                                       \
-        nvrtcResult result = x;                                                \
-        if (result != NVRTC_SUCCESS) {                                         \
-            const char *msg = nvrtcGetErrorString(result);                     \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,    \
-                    __FILE__, __LINE__);                                       \
-            exit(1);                                                           \
-        }                                                                      \
+#define NVRTC_SAFE_CALL(x)                                                          \
+    do {                                                                            \
+        nvrtcResult result = x;                                                     \
+        if (result != NVRTC_SUCCESS) {                                              \
+            const char *msg = nvrtcGetErrorString(result);                          \
+            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,         \
+                    __FILE__, __LINE__);                                            \
+            exit(1);                                                                \
+        }                                                                           \
     } while(0)
 
-#define CU_SAFE_CALL(x)                                                        \
-    do {                                                                       \
-        CUresult result = x;                                                   \
-        if (result != CUDA_SUCCESS) {                                          \
-            const char *msg;                                                   \
-            cuGetErrorName(result, &msg);                                      \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,    \
-                    __FILE__, __LINE__);                                       \
-            exit(1);                                                           \
-        }                                                                      \
+#define CU_SAFE_CALL(x)                                                             \
+    do {                                                                            \
+        CUresult result = x;                                                        \
+        if (result != CUDA_SUCCESS) {                                               \
+            const char *msg;                                                        \
+            cuGetErrorName(result, &msg);                                           \
+            fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
+                    __FILE__, __LINE__, name.c_str());                              \
+            exit(1);                                                                \
+        }                                                                           \
     } while(0)
 
-#define CUDA_SAFE_CALL(x)                                                      \
-    do {                                                                       \
-        cudaError_t result = x;                                                \
-        if (result != cudaSuccess) {                                           \
-            const char *msg = cudaGetErrorString(result);                      \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,    \
-                    __FILE__, __LINE__);                                       \
-            exit(1);                                                           \
-        }                                                                      \
+#define CUDA_SAFE_CALLN(x)                                                          \
+    do {                                                                            \
+        cudaError_t result = x;                                                     \
+        if (result != cudaSuccess) {                                                \
+            const char *msg = cudaGetErrorString(result);                           \
+            fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
+                    __FILE__, __LINE__, name.c_str());                              \
+            exit(1);                                                                \
+        }                                                                           \
+    } while(0)
+
+#define CUDA_SAFE_CALL(x)                                                           \
+    do {                                                                            \
+        cudaError_t result = x;                                                     \
+        if (result != cudaSuccess) {                                                \
+            const char *msg = cudaGetErrorString(result);                           \
+            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,         \
+                    __FILE__, __LINE__);                                            \
+            exit(1);                                                                \
+        }                                                                           \
     } while(0)
 
 
 namespace op::f2c {
 
 constexpr uint64_t hash_seed_default = RAPID_SEED;
+
+static bool jit_initialized = false;
+
+static bool jit_enable = true;
+static bool jit_seq_compile = false;
+
+static void jit_init() {
+    if (jit_initialized) return;
+
+    char *enable_str = std::getenv("OP_JIT_ENABLE");
+    if (enable_str != nullptr) {
+        auto enable = std::string(enable_str);
+        std::transform(enable.begin(), enable.end(), enable.begin(),
+            [](auto c){ return std::tolower(c); });
+
+        if (enable == "0" || enable == "no" || enable == "false") {
+            std::printf("Disabling JIT compilation\n");
+            jit_enable = false;
+        }
+    }
+
+    char *seq_compile_str = std::getenv("OP_JIT_SEQ_COMPILE");
+    if (seq_compile_str != nullptr) {
+        auto seq_compile = std::string(seq_compile_str);
+        std::transform(seq_compile.begin(), seq_compile.end(), seq_compile.begin(),
+            [](auto c){ return std::tolower(c); });
+
+        if (seq_compile == "1" || seq_compile == "yes" || seq_compile == "true")
+            jit_seq_compile = true;
+    }
+
+    jit_initialized = true;
+}
 
 template<typename T>
 static inline uint64_t hash(const T key, uint64_t seed = hash_seed_default) {
@@ -79,6 +125,8 @@ struct jit_kernel {
     CUmodule module;
     CUfunction kernel;
 
+    bool profile = false;
+
     jit_kernel(const jit_kernel&) = delete;
 
     jit_kernel(jit_kernel&& other) : cubin{other.cubin}, module{other.module}, kernel{other.kernel} {
@@ -87,7 +135,10 @@ struct jit_kernel {
         other.kernel = nullptr;
     };
 
-    jit_kernel(char *cubin, std::string_view name) : cubin{cubin}, name{name} {}
+    jit_kernel(char *cubin, std::string_view name) : cubin{cubin}, name{name} {
+        // profile = name == "op2_k_flux_2_vflux_edge_main_wrapper";
+        profile = name == "op2_k_flux_18_grad_edge_work_1_main_wrapper";
+    }
 
     /*
     ~jit_kernel() {
@@ -106,8 +157,13 @@ struct jit_kernel {
             cubin = nullptr;
         }
 
+        if (profile) CUDA_SAFE_CALL(cudaProfilerStart());
         CU_SAFE_CALL(cuLaunchKernel(kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
                                       NULL, args, 0));
+        if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
+
+        CUDA_SAFE_CALLN(cudaPeekAtLastError());
+        CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 
@@ -206,6 +262,7 @@ class kernel_info {
 private:
     std::string name;
     const void* kernel;
+    cudaFuncAttributes kernel_attrs;
 
     std::vector<jit_param> params;
     std::string src;
@@ -214,6 +271,12 @@ private:
     std::unordered_map<uint64_t, jit_kernel> jit_kernels;
 
     std::unordered_map<uint64_t, hash_info> hash_infos;
+
+    bool profile;
+
+    bool is_jit_candidate() {
+        return kernel_attrs.numRegs > 32;
+    }
 
     uint64_t hash_params(uint64_t seed = hash_seed_default) {
         uint64_t hash = seed;
@@ -239,7 +302,7 @@ private:
                               std::string("\nnamespace f2c = op::f2c;\n") +
                               format_params() + src;
 
-        std::thread compilation_thread([=](auto jit_src, auto hash) {
+        auto do_compile = [&](auto jit_src, auto hash) {
             const char *headers[] = { op_f2c_prelude_data, op_f2c_params_data };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
 
@@ -248,7 +311,8 @@ private:
                                                2, headers, header_names));
 
             const char *opts[] = {
-                "-use_fast_math",
+                // "-use_fast_math",
+                "--generate-line-info",
                 "-arch=sm_90",
                 "-minimal",
                 "-default-device"
@@ -282,15 +346,27 @@ private:
                     std::forward_as_tuple(hash), std::forward_as_tuple(cubin, name));
 
             assert(inserted);
-        }, jit_src, hash);
+        };
 
+        if (jit_seq_compile) {
+            do_compile(jit_src, hash);
+            return;
+        }
+
+        std::thread compilation_thread(do_compile, jit_src, hash);
         compilation_thread.detach();
     }
 
 public:
     kernel_info(const kernel_info&) = delete;
     kernel_info(std::string_view name, const void *kernel, std::string_view src)
-        : name{name}, kernel{kernel}, src{src} {}
+        : name{name}, kernel{kernel}, src{src} {
+        jit_init();
+        // profile = name == "op2_k_flux_2_vflux_edge_main_wrapper";
+        profile = name == "op2_k_flux_18_grad_edge_work_1_main_wrapper";
+
+        CUDA_SAFE_CALL(cudaFuncGetAttributes(&kernel_attrs, kernel));
+    }
 
     template<typename T>
     void add_param(std::string_view name, T *data) {
@@ -302,9 +378,32 @@ public:
         params.emplace_back(name, data, len);
     }
 
-    void invoke(int num_blocks, int block_size, void **args) {
-        op_timing2_next("Hash params");
+    bool has_compiled(uint64_t *hash) {
+        if (!jit_enable || !is_jit_candidate()) {
+            *hash = 0;
+            return false;
+        }
+
         auto params_hash = hash_params();
+        *hash = params_hash;
+
+        std::scoped_lock lock(jit_kernels_mutex);
+        auto kernel_elem = jit_kernels.find(params_hash);
+
+        return kernel_elem != jit_kernels.end();
+    }
+
+    void invoke(uint64_t params_hash, int num_blocks, int block_size, void **args, void **args_jit) {
+        if (!jit_enable || !is_jit_candidate()) {
+            op_timing2_next("Offline Kernel");
+            if (profile) CUDA_SAFE_CALL(cudaProfilerStart());
+            CUDA_SAFE_CALLN(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
+            if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
+
+            CUDA_SAFE_CALLN(cudaPeekAtLastError());
+            CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+            return;
+        }
 
         auto [hash_elem, inserted] = hash_infos.insert({params_hash, hash_info()});
         hash_elem->second.count++;
@@ -319,17 +418,17 @@ public:
             jit_kernels_mutex.unlock();
 
             op_timing2_next("JIT Kernel");
-            jk.invoke(num_blocks, block_size, args);
+            jk.invoke(num_blocks, block_size, args_jit);
             return;
         }
 
         jit_kernels_mutex.unlock();
 
-        op_timing2_next("JIT compilation");
+        op_timing2_next("JIT Compilation");
 
         // Launch async compilation
-        if (hash_elem->second.count > 3 && !hash_elem->second.jit_started) {
-            // std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
+        if (hash_elem->second.count > 8 && !hash_elem->second.jit_started) {
+            std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
             hash_elem->second.jit_started = true;
             compile(params_hash);
         }
@@ -338,7 +437,12 @@ public:
         //         name.c_str(), params_hash, hash_elem->second);
 
         op_timing2_next("Offline Kernel");
-        CUDA_SAFE_CALL(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
+        if (profile) CUDA_SAFE_CALL(cudaProfilerStart());
+        CUDA_SAFE_CALLN(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
+        if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
+
+        CUDA_SAFE_CALLN(cudaPeekAtLastError());
+        CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 

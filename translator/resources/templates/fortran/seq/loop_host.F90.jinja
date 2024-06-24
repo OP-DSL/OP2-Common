@@ -119,7 +119,7 @@ subroutine op2_k_{{lh.name}}_wrapper( &
 {% endfor %}
     integer(4) :: n
 
-    ! print *, "{{lh.name}}"
+    print *, "{{lh.name}}"
 
 {% for arg in lh.args|gbl|reduction if lh is indirect %}
     gbl{{arg.id}}_temp = gbl{{arg.id}}{{"\n" if loop.last}}
