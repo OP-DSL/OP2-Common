@@ -163,7 +163,7 @@ struct jit_kernel {
         if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
 
         CUDA_SAFE_CALLN(cudaPeekAtLastError());
-        CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        // CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 
@@ -312,7 +312,8 @@ private:
 
             const char *opts[] = {
                 // "-use_fast_math",
-                "--generate-line-info",
+                // "--generate-line-info",
+                "--std=c++20",
                 "-arch=sm_90",
                 "-minimal",
                 "-default-device"
@@ -401,7 +402,7 @@ public:
             if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
 
             CUDA_SAFE_CALLN(cudaPeekAtLastError());
-            CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+            // CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
             return;
         }
 
@@ -442,7 +443,7 @@ public:
         if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
 
         CUDA_SAFE_CALLN(cudaPeekAtLastError());
-        CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        // CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 

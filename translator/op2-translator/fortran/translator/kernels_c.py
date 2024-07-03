@@ -60,33 +60,19 @@ class FArray(FType):
     def spanBounds(self) -> str:
         bounds = []
         for lb, ub in self.shape:
-            if lb == "1":
-                bounds.append(f"{ub}")
-            else:
-                bounds.append(f"f2c::extent({lb}, {ub})")
+            bounds.append(f"f2c::Extent{{{lb}, {ub}}}")
 
         return ", ".join(bounds)
 
     def asSpan(self, ptr: str, var: str, ctx: 'Context') -> str:
-        stride = ""
+        stride = ctx.getStride(var)
 
-        op_arg = getattr(ctx.sub_info.lookupParam(var), "op_arg", None)
-        gbl_stride_access = [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.WORK]
+        if stride:
+            stride = f"{stride}, "
+        else:
+            stride = ""
 
-        if isinstance(op_arg, OP.ArgDat) and ctx.info.loop.dat(op_arg).soa:
-            if op_arg.map_id is None:
-                stride = f"op2_stride_direct_d, "
-            else:
-                stride = f"op2_stride_dat{op_arg.dat_id}_d, "
-        elif isinstance(op_arg, OP.ArgInfo):
-            stride = f"op2_stride_gbl_d, "
-        elif isinstance(op_arg, OP.ArgGbl) and op_arg.access_type in gbl_stride_access:
-            gbl_inc_atomic = ctx.info.config.get("gbl_inc_atomic")
-
-            if not (op_arg.access_type == OP.AccessType.INC and gbl_inc_atomic):
-                stride = f"op2_stride_gbl_d, "
-
-        return f"f2c::span {var}({stride}{ptr}, {self.spanBounds()})"
+        return f"f2c::Span {var}{{{stride}{ptr}, {self.spanBounds()}}}"
 
 
 @dataclass(frozen=True)
@@ -178,7 +164,7 @@ class Info:
 
     consts: Dict[str, FType] = field(default_factory=dict)
 
-    kernel_subprogram: Optional[str] = None
+    entry_subprogram: Optional[str] = None
     subprograms: Dict[str, SubprogramInfo] = field(default_factory=dict)
 
     def functionNames(self) -> List[str]:
@@ -190,8 +176,23 @@ class Context:
     info: Info
     sub_info: SubprogramInfo
 
+    strides: Optional[Callable[[OP.Arg], Optional[str]]] = None
+
+    def isEntry(self) -> bool:
+        return self.sub_info.name == self.info.entry_subprogram
+
     def lookupType(self, name: str) -> Optional[FType]:
         return self.sub_info.types.get(name) or self.info.consts.get(name)
+
+    def getStride(self, var: str) -> Optional[str]:
+        if self.strides is None:
+            return None
+
+        op_arg = getattr(self.sub_info.lookupParam(var), "op_arg", None)
+        if op_arg is None:
+            return None
+
+        return self.strides(op_arg)
 
     def error(self, msg: str, node: Optional[Any] = None):
         full_msg = f"Error translating {self.sub_info.name}: {msg}"
@@ -206,7 +207,7 @@ class Context:
         raise OpError(full_msg)
 
 
-def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: Dict[str, Any]) -> Info:
+def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: Dict[str, Any], const_rename: Optional[Callable[[str], str]] = None) -> Info:
     info = Info(loop, config)
 
     is_first = True
@@ -223,7 +224,7 @@ def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: D
         info.subprograms[sub_info.name] = sub_info
 
         if is_first:
-            info.kernel_subprogram = sub_info.name
+            info.entry_subprogram = sub_info.name
             is_first = False
 
     if app.consts_module is not None:
@@ -234,7 +235,11 @@ def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: D
                 loop.consts.discard(name)
 
         for name, type_ in consts.items():
-            info.consts[f"op2_const_{name}_d"] = type_
+            actual_name = name
+            if const_rename:
+                actual_name = const_rename(name)
+
+            info.consts[actual_name] = type_
 
     for sub_info in info.subprograms.values():
         if isinstance(sub_info.ast, f2003.Subroutine_Subprogram):
@@ -370,9 +375,12 @@ def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, F
 def parseIntrinsicType(intrinsic_type_spec: f2003.Intrinsic_Type_Spec, ctx: Context) -> FType:
     type_name = intrinsic_type_spec.items[0]
 
-    kind = fpu.get_child(intrinsic_type_spec.items[1], f2003.Name)
-    if kind is not None:
-        kind = kind.string.upper()
+    kind = None
+    if intrinsic_type_spec.items[1] is not None:
+        kind_node = fpu.get_child(intrinsic_type_spec.items[1], f2003.Name)
+
+        if kind_node is not None:
+            kind = kind_node.string.upper()
 
     if type_name == "INTEGER":
         if kind in [None, "4", "IK", "IK4"]:
@@ -558,12 +566,12 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
     return None
 
 
-def translate(info: Info) -> str:
+def translate(info: Info, strides: Optional[Callable[[OP.Arg], Optional[str]]] = None) -> str:
     decls = ""
     srcs = ""
 
     for sub_info in info.subprograms.values():
-        decl, src = translateSubprogram(Context(info, sub_info))
+        decl, src = translateSubprogram(Context(info, sub_info, strides))
 
         decls += decl + "\n\n"
         srcs += src + "\n\n"
@@ -575,7 +583,6 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     spec_part = fpu.get_child(ctx.sub_info.ast, f2003.Specification_Part)
     execution_part = fpu.get_child(ctx.sub_info.ast, f2003.Execution_Part)
 
-    n_templates = 0
     param_decls = []
 
     for param in ctx.sub_info.params:
@@ -583,32 +590,30 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
         param_type = ctx.sub_info.types[param.name]
 
         if isinstance(param_type, FPrimitive):
-            if param.is_const:
+            if param.is_const and not (hasattr(param.op_arg, "opt") and param.op_arg.opt):
                 param_decls.append(f"const {param_type.asC()} {param.name}")
             else:
                 param_decls.append(f"{param_type.asC()}& {param.name}")
-
-            # param_decls.append(f"T{n_templates}&& {param.name}")
-            # n_templates += 1
         else:
             const = ""
             if param.is_const:
                 const = "const "
 
-            param_decls.append(f"{const}{param_type.inner.asC()}* _f2c_ptr_{param.name}")
+            param_decls.append(f"f2c::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
 
     return_type = "void"
 
     if ctx.sub_info.isFunction():
         return_type = ctx.sub_info.functionType().asC()
 
-    templates = [f"typename T{idx}" for idx in range(n_templates)]
+    prefix = ctx.info.config.get("func_prefix")
 
-    src_decl = ""
-    if n_templates > 0:
-        src_decl  = f"template<{', '.join(templates)}>\n"
+    if prefix:
+        prefix = f"{prefix} "
+    else:
+        prefix = ""
 
-    src_decl += f"static __device__ {return_type} {ctx.sub_info.name}(\n    "
+    src_decl  = f"static {prefix}{return_type} {ctx.sub_info.name}(\n    "
     src_decl += ",\n    ".join(param_decls) + "\n)"
 
     src = src_decl + " "
@@ -662,7 +667,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
     src = ""
     for name, type_ in ctx.sub_info.types.items():
         if name in ctx.sub_info.paramNames() and isinstance(type_, FArray):
-            src += f"{type_.asSpan('_f2c_ptr_' + name, name, ctx)};\n"
+            src += f"const {type_.asSpan('_f2c_ptr_' + name, name, ctx)};\n"
             continue
 
         if name in ctx.sub_info.paramNames():
@@ -679,7 +684,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             src += f"{type_.asLocal(name)};\n"
         else:
             src += f"{type_.asLocal('_f2c_arr_' + name)};\n"
-            src += f"{type_.asSpan('_f2c_arr_' + name, name, ctx)};\n"
+            src += f"const {type_.asSpan('f2c::Ptr{_f2c_arr_' + name + '}', name, ctx)};\n"
 
     return src + "\n" + init_src
 
@@ -724,11 +729,6 @@ def translateExecutionPart(execution_part: f2003.Execution_Part, ctx: Context) -
 
 def translateAssignmentStmt(assignment_stmt: f2003.Assignment_Stmt, ctx: Context) -> str:
     lhs = translateGeneric(assignment_stmt.items[0], ctx)
-
-    lhs_type = ctx.lookupType(lhs)
-    if lhs_type is not None and not isinstance(lhs_type, FPrimitive):
-        ctx.error("Unsupported array assignment", assignment_stmt)
-
     return f"{lhs} = {translateGeneric(assignment_stmt.items[2], ctx)};\n"
 
 
@@ -780,7 +780,7 @@ def translateBlockNonlabelDoConstruct(block_nonlabel_do_construct: f2003.Block_N
 
             # While loop
             if loop_control.items[0] != None:
-                src += f"while ({translateGeneric(loop_control.items[0], ctx)}) {{\n"
+                src += f"while ({translateGeneric(loop_control.items[0], ctx)})" + " {\n"
                 continue
 
             control_var = translateGeneric(loop_control.items[1][0], ctx)
@@ -790,13 +790,13 @@ def translateBlockNonlabelDoConstruct(block_nonlabel_do_construct: f2003.Block_N
             ub = translateGeneric(bounds[1], ctx)
 
             if len(bounds) == 2:
-                src += f"for ({control_var} = {lb}; {control_var} <= {ub}; ++{control_var}) {{\n"
+                src += f"for ({control_var} = {lb}; {control_var} <= {ub}; ++{control_var})" + " {\n"
             else:
                 step = translateGeneric(bounds[2], ctx)
-                src += f"for ({control_var} = {lb}; {control_var} <= {ub}; {control_var} += {step}) {{\n"
+                src += f"for ({control_var} = {lb}; {control_var} <= {ub}; {control_var} += {step})" + " {\n"
 
         elif isinstance(child, f2003.End_Do_Stmt):
-            src += f"}}\n"
+            src += "}\n"
         else:
             src += f"{indent(translateGeneric(child, ctx))}\n"
 
@@ -963,8 +963,42 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
         ctx.error(f"Could not find type of part-ref", part_ref)
 
     if name in ctx.sub_info.types:
-        return f"{name}({', '.join(translateGeneric(child, ctx) for child in subscript_list.children)})"
+        is_slice = any(isinstance(child, f2003.Subscript_Triplet) for child in subscript_list.children)
 
+        if not is_slice:
+            return f"{name}({', '.join(translateGeneric(child, ctx) for child in subscript_list.children)})"
+
+
+        if len(subscript_list.children) != len(array_type.shape):
+            ctx.error(f"Number of subscripts doesn't match array type {array_type}", subscript_list)
+
+        extents = []
+        for shape, child in zip(array_type.shape, subscript_list.children):
+            if not isinstance(child, f2003.Subscript_Triplet):
+                idx = translateGeneric(child, ctx)
+                extents.append(f"f2c::Extent{{{idx}, {idx}}}")
+                continue
+
+            if child.items[2] is not None:
+                ctx.error(f"Unsupported stride in subscript triplet", child)
+
+            lb = ""
+            if child.items[0] is not None:
+                lb = translateGeneric(child.items[0], ctx)
+            else:
+                lb = shape[0]
+
+            ub = ""
+            if child.items[1] is not None:
+                ub = translateGeneric(child.items[1], ctx)
+            else:
+                ub = shape[1]
+
+            extents.append(f"f2c::Extent{{{lb}, {ub}}}")
+
+        return f"{name}.slice({', '.join(extents)})"
+
+    # Only thing left should be array consts
     sizes = []
     for lb, ub in array_type.shape:
         if lb == "1":
@@ -980,26 +1014,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
     for i, extra_index in enumerate(subscript_list.children[1:], start=1):
         index += f" + ({translateGeneric(extra_index, ctx)} - ({array_type.shape[i][0]})) * {'*'.join(sizes[:i])}"
 
-
-    op_arg = getattr(ctx.sub_info.lookupParam(name), "op_arg", None)
-    gbl_stride_access = [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.WORK]
-
-    stride = ""
-    if isinstance(op_arg, OP.ArgDat) and ctx.info.loop.dat(op_arg).soa:
-        if op_arg.map_id is None:
-            stride = f"op2_stride_direct_d * "
-        else:
-            stride = f"op2_stride_dat{op_arg.dat_id}_d * "
-    elif isinstance(op_arg, OP.ArgInfo):
-        stride = f"op2_stride_gbl_d * "
-    elif isinstance(op_arg, OP.ArgGbl) and op_arg.access_type in gbl_stride_access:
-        gbl_inc_atomic = ctx.info.config.get("gbl_inc_atomic")
-
-        if not (op_arg.access_type == OP.AccessType.INC and gbl_inc_atomic):
-            stride = f"op2_stride_gbl_d * "
-
-
-    return f"{name}[{stride}(({index}) - 1)]"
+    return f"{name}[({index}) - 1]"
 
 
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
@@ -1070,9 +1085,7 @@ def translateArgList(arg_list: List[f2003.Base], ctx: Context, call_target: str)
         arg = translateGeneric(item, ctx)
 
         if isinstance(target_type, FArray):
-            if isinstance(item, f2003.Name) and arg in ctx.sub_info.types:
-                arg = f"{arg}.data"
-            elif isinstance(item, f2003.Part_Ref):
+            if isinstance(item, f2003.Part_Ref):
                 name = translateName(fpu.get_child(item, f2003.Name), ctx)
                 if name in ctx.info.functionNames():
                     ctx.error(f"Unsupported function return as array argument", item)
