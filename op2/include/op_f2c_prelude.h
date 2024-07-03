@@ -1,64 +1,128 @@
 #pragma once
 
+#ifdef __CUDACC__
+#define DEVICE __device__
+#define MIN ::min
+#define MAX ::max
+#else
+#include <math.h>
+#define DEVICE
+#define MIN std::min
+#define MAX std::max
+#endif
+
 namespace op::f2c {
 
-typedef long long int int64_t;
-
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
-using index_type = int;
+using int64_t = long long int;
+using IndexType = int;
 
-struct extent {
-    const index_type lower;
-    const index_type upper;
+template<typename T>
+struct Ptr {
+    T* data;
+    constexpr Ptr(T* data) : data{data} {}
+};
 
-    constexpr extent(const index_type upper) : lower{1}, upper{upper} {}
-    constexpr extent(const index_type lower, index_type upper) : lower{lower}, upper{upper} {}
+struct Extent {
+    const IndexType lower;
+    const IndexType upper;
 
-    constexpr index_type size() const { return upper - lower + 1; }
+    constexpr Extent(IndexType lower, IndexType upper) : lower{lower}, upper{upper} {}
+    constexpr IndexType size() const { return upper - lower + 1; }
 };
 
 template<typename T, unsigned N>
-struct span {
-    T* data;
-    const extent extents[N];
-    const index_type stride;
+class Slice;
 
-    template<typename... Es>
-    constexpr span(T* data, Es... extents)
-        : data{data}, extents{extents...}, stride{1} {}
+template<typename T, unsigned N>
+class Span {
+private:
+    const Ptr<T> m_data;
+    const Extent m_extents[N];
+    const IndexType m_stride = 1;
 
-    template<typename... Es>
-    constexpr span(const index_type stride, T* data, Es... extents)
-        : data{data}, extents{extents...}, stride{stride} {}
+    constexpr Slice<T, N> slice_all(auto... extents) const {
+        if constexpr (sizeof...(extents) == N)
+            return slice(extents...);
+        else
+            return slice_all(m_extents[N - sizeof...(extents) - 1], extents...);
+    }
 
-    template<typename... Is>
-    constexpr T& operator()(Is... is) const {
-        static_assert(sizeof...(is) == N);
-        index_type indicies[sizeof...(is)] = {is...};
+public:
+    constexpr Span(Ptr<T> data, auto... extents)
+        : m_data{data}, m_extents{extents...} {}
 
-        index_type offset = indicies[0] - extents[0].lower;
-        index_type next_index_stride = extents[0].size();
+    constexpr Span(IndexType stride, Ptr<T> data, auto... extents)
+        : m_data{data}, m_extents{extents...}, m_stride{stride} {}
 
-        for (auto i = 1; i < sizeof...(is); ++i) {
-            offset += (indicies[i] - extents[i].lower) * next_index_stride;
-            next_index_stride *= extents[i].size();
+    constexpr T& operator()(auto... indices) const {
+        static_assert(sizeof...(indices) == N);
+        IndexType indicies[sizeof...(indices)] = {indices...};
+
+        IndexType offset = indicies[0] - m_extents[0].lower;
+        IndexType next_index_stride = m_extents[0].size();
+
+        for (unsigned i = 1; i < sizeof...(indices); ++i) {
+            offset += (indicies[i] - m_extents[i].lower) * next_index_stride;
+            next_index_stride *= m_extents[i].size();
         }
 
-        return data[offset * stride];
+        return m_data.data[offset * m_stride];
     }
+
+    constexpr Slice<T, N> splice(auto... es) const {
+        static_assert(sizeof...(es) == N);
+        return Slice(*this, es...);
+    }
+
+    constexpr Span operator=(const T& v) const {
+        slice_all() = v;
+        return *this;
+    }
+
+    constexpr Slice<T, N> slice(auto... es) const { return Slice(*this, es...); }
+
+    template<typename S>
+    constexpr operator Ptr<S>() const { return m_data.data; }
 };
 
 template<typename T, typename... Es>
-span(T*, Es...) -> span<T, sizeof...(Es)>;
+Span(Ptr<T>, Es...) -> Span<T, sizeof...(Es)>;
 
 template<typename T, typename... Es>
-span(const index_type, T*, Es...) -> span<T, sizeof...(Es)>;
+Span(IndexType, Ptr<T>, Es...) -> Span<T, sizeof...(Es)>;
 
 template<typename T, typename... Es>
-span(const T*, Es...) -> span<const T, sizeof...(Es)>;
+Span(Ptr<const T>, Es...) -> Span<const T, sizeof...(Es)>;
 
 template<typename T, typename... Es>
-span(const index_type, const T*, Es...) -> span<const T, sizeof...(Es)>;
+Span(IndexType, Ptr<const T>, Es...) -> Span<const T, sizeof...(Es)>;
+
+template<typename T, unsigned N>
+class Slice {
+private:
+    const Span<T, N>& m_span;
+    const Extent m_extents[N];
+
+    constexpr void set(const T& v, auto... is) const {
+        if constexpr (sizeof...(is) == N) {
+            m_span(is...) = v;
+        } else {
+            auto& extent = m_extents[N - sizeof...(is) - 1];
+            for (IndexType i = extent.lower; i <= extent.upper; ++i)
+                set(v, i, is...);
+        }
+    }
+
+public:
+    constexpr Slice(const Span<T, N>& span, auto... extents)
+        : m_span{span}, m_extents{extents...} {}
+
+    constexpr Slice operator=(const T& v) const {
+        set(v);
+        return *this;
+    }
+};
 
 /* Fortran intrinsics */
 
@@ -80,8 +144,8 @@ inline constexpr double pow(double x, double e) { return ::pow(x, e); }
 inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
 
-__device__ inline int abs(int x) { return ::abs(x); }
-__device__ inline int64_t abs(int64_t x) { return ::abs(x); }
+DEVICE inline int abs(int x) { return ::abs(x); }
+DEVICE inline int64_t abs(int64_t x) { return ::abs(x); }
 inline constexpr float abs(float x) { return fabsf(x); }
 inline constexpr double abs(double x) { return fabs(x); }
 
@@ -95,13 +159,13 @@ inline constexpr int int_(int64_t x) { return (int)x; }
 inline constexpr int int_(float x) { return (int)x; }
 inline constexpr int int_(double x) { return (int)x; }
 
-__device__ inline int min(int x0, int x1) { return ::min(x0, x1); }
-__device__ inline int min(int x0, int x1, int x2) { return ::min(::min(x0, x1), x2); }
-__device__ inline int min(int x0, int x1, int x2, int x3) { return ::min(::min(x0, x1), ::min(x2, x3)); }
+DEVICE inline int min(int x0, int x1) { return MIN(x0, x1); }
+DEVICE inline int min(int x0, int x1, int x2) { return MIN(MIN(x0, x1), x2); }
+DEVICE inline int min(int x0, int x1, int x2, int x3) { return MIN(MIN(x0, x1), MIN(x2, x3)); }
 
-__device__ inline int64_t min(int64_t x0, int64_t x1) { return ::min(x0, x1); }
-__device__ inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return ::min(::min(x0, x1), x2); }
-__device__ inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return ::min(::min(x0, x1), ::min(x2, x3)); }
+DEVICE inline int64_t min(int64_t x0, int64_t x1) { return MIN(x0, x1); }
+DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return MIN(MIN(x0, x1), x2); }
+DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return MIN(MIN(x0, x1), MIN(x2, x3)); }
 
 inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
 inline constexpr float min(float x0, float x1, float x2) { return fminf(fminf(x0, x1), x2); }
@@ -111,13 +175,13 @@ inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
 inline constexpr double min(double x0, double x1, double x2) { return fmin(fmin(x0, x1), x2); }
 inline constexpr double min(double x0, double x1, double x2, double x3) { return fmin(fmin(x0, x1), fmin(x2, x3)); }
 
-__device__ inline int max(int x0, int x1) { return ::max(x0, x1); }
-__device__ inline int max(int x0, int x1, int x2) { return ::max(::max(x0, x1), x2); }
-__device__ inline int max(int x0, int x1, int x2, int x3) { return ::max(::max(x0, x1), ::max(x2, x3)); }
+DEVICE inline int max(int x0, int x1) { return MAX(x0, x1); }
+DEVICE inline int max(int x0, int x1, int x2) { return MAX(MAX(x0, x1), x2); }
+DEVICE inline int max(int x0, int x1, int x2, int x3) { return MAX(MAX(x0, x1), MAX(x2, x3)); }
 
-__device__ inline int64_t max(int64_t x0, int64_t x1) { return ::max(x0, x1); }
-__device__ inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return ::max(::max(x0, x1), x2); }
-__device__ inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return ::max(::max(x0, x1), ::max(x2, x3)); }
+DEVICE inline int64_t max(int64_t x0, int64_t x1) { return MAX(x0, x1); }
+DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return MAX(MAX(x0, x1), x2); }
+DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return MAX(MAX(x0, x1), MAX(x2, x3)); }
 
 inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
 inline constexpr float max(float x0, float x1, float x2) { return fmaxf(fmaxf(x0, x1), x2); }
@@ -135,8 +199,8 @@ inline constexpr double mod(double a, double p) { return fmod(a, p); }
 inline constexpr int nint(float x) { return lroundf(x); }
 inline constexpr int nint(double x) { return lround(x); }
 
-__device__ inline int copysign(int x, int y) { return y >= 0 ? abs(x) : -abs(x); }
-__device__ inline int64_t copysign(int64_t x, int64_t y) { return y >= 0 ? abs(x) : -abs(x); }
+DEVICE inline int copysign(int x, int y) { return y >= 0 ? abs(x) : -abs(x); }
+DEVICE inline int64_t copysign(int64_t x, int64_t y) { return y >= 0 ? abs(x) : -abs(x); }
 inline constexpr float copysign(float x, float y) { return copysignf(x, y); }
 inline constexpr double copysign(double x, double y) { return ::copysign(x, y); }
 

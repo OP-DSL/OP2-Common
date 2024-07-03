@@ -53,7 +53,14 @@ class CCuda(Target):
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+        return {
+            "grouped": True,
+            "device": 2,
+            "atomics": True,
+            "color2": False,
+            "gbl_inc_atomic": False,
+            "func_prefix": "__device__"
+        }
 
 
 class OpenMP(Target):

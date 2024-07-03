@@ -278,7 +278,7 @@ class FortranCSeq(Scheme):
         for entity in [kernel_entity] + dependencies:
             ftk.removeExternals(entity)
 
-        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop)
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config)
         return ftk_c.translate(info)
 
 
@@ -344,6 +344,9 @@ class FortranCCuda(Scheme):
 
         ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, lambda const: f"op2_const_{const}_d")
 
+        def const_rename(const):
+            return f"op2_const_{const}_d"
+
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
 
@@ -372,9 +375,29 @@ class FortranCCuda(Scheme):
                 c_api=True,
             )
 
-        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config)
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
         setattr(loop, "const_types", info.consts);
-        return ftk_c.translate(info)
+
+        gbl_stride_access = [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.WORK]
+
+        def strides(op_arg):
+            stride = ""
+            if isinstance(op_arg, OP.ArgDat) and loop.dat(op_arg).soa:
+                if op_arg.map_id is None:
+                    stride = f"op2_stride_direct_d"
+                else:
+                    stride = f"op2_stride_dat{op_arg.dat_id}_d"
+            elif isinstance(op_arg, OP.ArgInfo):
+                stride = f"op2_stride_gbl_d"
+            elif isinstance(op_arg, OP.ArgGbl) and op_arg.access_type in gbl_stride_access:
+                gbl_inc_atomic = config.get("gbl_inc_atomic")
+
+                if not (op_arg.access_type == OP.AccessType.INC and gbl_inc_atomic):
+                    stride = f"op2_stride_gbl_d"
+
+            return stride
+
+        return ftk_c.translate(info, strides=strides)
 
 
 Scheme.register(FortranCCuda)

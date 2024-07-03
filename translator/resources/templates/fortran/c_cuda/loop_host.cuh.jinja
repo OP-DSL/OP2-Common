@@ -189,7 +189,6 @@ op2_k_{{lh.name}}{{variant}}_init_gbls<<<max_blocks, block_size>>>(
 );
 
 CUDA_SAFE_CALL(cudaPeekAtLastError());
-// CUDA_SAFE_CALL(cudaDeviceSynchronize());
 {%- endmacro -%}
 
 {%- macro process_gbls() -%}
@@ -223,16 +222,16 @@ __constant__ int op2_stride_gbl_d;
 extern "C" __global__
 void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for dat in lh.dats %}
-    {{dat.typ.c()}} *dat{{dat.id}},
+    {{dat.typ.c()}} *__restrict dat{{dat.id}},
     {% endfor %}
     {% for map in lh.maps %}
-    int *map{{map.id}},
+    int *__restrict map{{map.id}},
     {% endfor %}
     {% for arg in lh.args|gbl if not (jit and arg is read and arg.dim == 1) %}
-    {{arg.typ.c()}} *gbl{{arg.id}},
+    {{arg.typ.c()}} *__restrict gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
-    {{arg.typ.c()}} *info{{arg.id}},
+    {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none and dat is not soa %}
     int dat{{dat.id}}_dim,
@@ -243,7 +242,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     int start,
     int end,
     {% if lh is indirect and config.color2 %}
-    int *col_reord,
+    int *__restrict col_reord,
     {% endif %}
     int set_size
 ) {
@@ -551,7 +550,8 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
             int num_blocks = (end - start + (block_size - 1)) / block_size;
             num_blocks = std::min(num_blocks, block_limit);
 
-            {{kernel_call("set->size + set->exec_size")|indent(12)}}
+            int size = set->size + set->exec_size;
+            {{kernel_call("size")|indent(12)}}
         }
 
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
@@ -580,7 +580,8 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
         int num_blocks = (end - start + (block_size - 1)) / block_size;
         num_blocks = std::min(num_blocks, block_limit);
 
-        {{kernel_call("plan->col_reord", "set->size + set->exec_size")|indent(8)}}
+        int size = set->size + set->exec_size;
+        {{kernel_call("plan->col_reord", "size")|indent(8)}}
 
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
         if (col == plan->ncolors_owned - 1) {
