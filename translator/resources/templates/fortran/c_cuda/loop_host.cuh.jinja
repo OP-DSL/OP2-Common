@@ -378,8 +378,6 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     static {{arg.typ.c()}}* gbl{{arg.id}}_ref_d = nullptr;
 {% endfor %}
 
-    // std::printf("%% {{lh.name}}\n");
-
     op_timing2_next("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
 
@@ -394,6 +392,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
         op_mpi_set_dirtybit_cuda(n_args, args);
+        CUDA_SAFE_CALL(cudaStreamSynchronize(0));
 
         op_timing2_exit();
         return;
@@ -601,7 +600,9 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, arg{{arg.id}}.data);
 {% endfor %}
+
     op_mpi_set_dirtybit_cuda(n_args, args);
+    CUDA_SAFE_CALL(cudaStreamSynchronize(0));
 
     op_timing2_exit();
     op_timing2_exit();
