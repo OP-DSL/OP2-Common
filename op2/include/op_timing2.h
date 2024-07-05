@@ -128,7 +128,7 @@ enum class op_timing2_level {
 /* The timing class, instantiated as a singleton "timing" - interact through that */
 class op_timing2 {
 private:
-  op_timing2_level level = op_timing2_level::kernel;
+  op_timing2_level level = op_timing2_level::simple;
 
   std::vector<std::reference_wrapper<op_timing2_node>> current_scope;
   std::vector<op_timing2_clock::clock::time_point> current_starts;

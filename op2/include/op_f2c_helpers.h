@@ -5,7 +5,6 @@
 
 #include <nvrtc.h>
 #include <cuda.h>
-#include <cuda_profiler_api.h>
 
 #include <array>
 #include <vector>
@@ -72,6 +71,9 @@ static bool jit_initialized = false;
 
 static bool jit_enable = true;
 static bool jit_seq_compile = false;
+static bool jit_debug = false;
+
+static std::string jit_arch = "";
 
 static void jit_init() {
     if (jit_initialized) return;
@@ -88,6 +90,18 @@ static void jit_init() {
         }
     }
 
+    char *debug_str = std::getenv("OP_JIT_DEBUG");
+    if (debug_str != nullptr) {
+        auto debug = std::string(debug_str);
+        std::transform(debug.begin(), debug.end(), debug.begin(),
+            [](auto c){ return std::tolower(c); });
+
+        if (debug == "1" || debug == "yes" || debug == "true") {
+            std::printf("Enabling JIT debug\n");
+            jit_debug = true;
+        }
+    }
+
     char *seq_compile_str = std::getenv("OP_JIT_SEQ_COMPILE");
     if (seq_compile_str != nullptr) {
         auto seq_compile = std::string(seq_compile_str);
@@ -97,6 +111,18 @@ static void jit_init() {
         if (seq_compile == "1" || seq_compile == "yes" || seq_compile == "true")
             jit_seq_compile = true;
     }
+
+    int device;
+    CUDA_SAFE_CALL(cudaGetDevice(&device));
+
+    cudaDeviceProp props;
+    CUDA_SAFE_CALL(cudaGetDeviceProperties(&props, device));
+
+    int cc = props.major * 10 + props.minor;
+    jit_arch = "-arch=sm_" + std::to_string(cc);
+
+    if (jit_debug)
+        std::printf("JIT arch flag: %s\n", jit_arch.c_str());
 
     jit_initialized = true;
 }
@@ -125,8 +151,6 @@ struct jit_kernel {
     CUmodule module;
     CUfunction kernel;
 
-    bool profile = false;
-
     jit_kernel(const jit_kernel&) = delete;
 
     jit_kernel(jit_kernel&& other) : cubin{other.cubin}, module{other.module}, kernel{other.kernel} {
@@ -135,16 +159,7 @@ struct jit_kernel {
         other.kernel = nullptr;
     };
 
-    jit_kernel(char *cubin, std::string_view name) : cubin{cubin}, name{name} {
-        // profile = name == "op2_k_flux_2_vflux_edge_main_wrapper";
-        profile = name == "op2_k_flux_18_grad_edge_work_1_main_wrapper";
-    }
-
-    /*
-    ~jit_kernel() {
-        CU_SAFE_CALL(cuModuleUnload(module));
-    }
-    */
+    jit_kernel(char *cubin, std::string_view name) : cubin{cubin}, name{name} {}
 
     void invoke(int num_blocks, int block_size, void **args) {
         if (!loaded) {
@@ -157,13 +172,10 @@ struct jit_kernel {
             cubin = nullptr;
         }
 
-        if (profile) CUDA_SAFE_CALL(cudaProfilerStart());
         CU_SAFE_CALL(cuLaunchKernel(kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
                                       NULL, args, 0));
-        if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
-
         CUDA_SAFE_CALLN(cudaPeekAtLastError());
-        // CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 
@@ -256,6 +268,7 @@ struct jit_param {
 struct hash_info {
     std::size_t count = 0;
     bool jit_started = false;
+    std::thread jit_thread;
 };
 
 class kernel_info {
@@ -271,8 +284,6 @@ private:
     std::unordered_map<uint64_t, jit_kernel> jit_kernels;
 
     std::unordered_map<uint64_t, hash_info> hash_infos;
-
-    bool profile;
 
     bool is_jit_candidate() {
         return kernel_attrs.numRegs > 32;
@@ -296,7 +307,7 @@ private:
         return src;
     }
 
-    void compile(uint64_t hash) {
+    std::thread compile(uint64_t hash) {
         std::string jit_src = std::string("#include <op_f2c_prelude.h>\n") +
                               std::string("#include <op_f2c_params.h>\n") +
                               std::string("\nnamespace f2c = op::f2c;\n") +
@@ -311,12 +322,10 @@ private:
                                                2, headers, header_names));
 
             const char *opts[] = {
-                // "-use_fast_math",
-                // "--generate-line-info",
+                jit_arch.c_str(),
                 "--std=c++20",
-                "-arch=sm_90",
-                "-minimal",
-                "-default-device"
+                "--minimal",
+                "--device-as-default-execution-space"
             };
 
             auto success = nvrtcCompileProgram(prog, 4, opts);
@@ -349,13 +358,8 @@ private:
             assert(inserted);
         };
 
-        if (jit_seq_compile) {
-            do_compile(jit_src, hash);
-            return;
-        }
-
         std::thread compilation_thread(do_compile, jit_src, hash);
-        compilation_thread.detach();
+        return compilation_thread;
     }
 
 public:
@@ -363,10 +367,14 @@ public:
     kernel_info(std::string_view name, const void *kernel, std::string_view src)
         : name{name}, kernel{kernel}, src{src} {
         jit_init();
-        // profile = name == "op2_k_flux_2_vflux_edge_main_wrapper";
-        profile = name == "op2_k_flux_18_grad_edge_work_1_main_wrapper";
-
         CUDA_SAFE_CALL(cudaFuncGetAttributes(&kernel_attrs, kernel));
+    }
+
+    ~kernel_info() {
+        for (auto& [hash, hash_info] : hash_infos) {
+            if (hash_info.jit_thread.joinable())
+                hash_info.jit_thread.join();
+        }
     }
 
     template<typename T>
@@ -397,12 +405,9 @@ public:
     void invoke(uint64_t params_hash, int num_blocks, int block_size, void **args, void **args_jit) {
         if (!jit_enable || !is_jit_candidate()) {
             op_timing2_next("Offline Kernel");
-            if (profile) CUDA_SAFE_CALL(cudaProfilerStart());
             CUDA_SAFE_CALLN(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
-            if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
-
             CUDA_SAFE_CALLN(cudaPeekAtLastError());
-            // CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+            if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
             return;
         }
 
@@ -414,7 +419,7 @@ public:
         auto kernel_elem = jit_kernels.find(params_hash);
 
         if (kernel_elem != jit_kernels.end()) {
-            // std::printf("using jit %s (hash %lx)\n", name.c_str(), params_hash);
+            // if (jit_debug) std::printf("using jit %s (hash %lx)\n", name.c_str(), params_hash);
             auto& jk = kernel_elem->second;
             jit_kernels_mutex.unlock();
 
@@ -427,23 +432,19 @@ public:
 
         op_timing2_next("JIT Compilation");
 
-        // Launch async compilation
         if (hash_elem->second.count > 8 && !hash_elem->second.jit_started) {
-            std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
+            if (jit_debug) std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
             hash_elem->second.jit_started = true;
-            compile(params_hash);
+            hash_elem->second.jit_thread = compile(params_hash);
+
+            if (jit_seq_compile)
+                hash_elem->second.jit_thread.join();
         }
 
-        // std::printf("using offline %s for hash %lx (invocation %ld)\n",
-        //         name.c_str(), params_hash, hash_elem->second);
-
         op_timing2_next("Offline Kernel");
-        if (profile) CUDA_SAFE_CALL(cudaProfilerStart());
         CUDA_SAFE_CALLN(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
-        if (profile) CUDA_SAFE_CALL(cudaProfilerStop());
-
         CUDA_SAFE_CALLN(cudaPeekAtLastError());
-        // CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 
