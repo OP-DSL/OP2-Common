@@ -57,60 +57,12 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
-
-#if CUDART_VERSION < 3020
-#error : "must be compiled using CUDA 3.2 or later"
-#endif
-
-#ifdef CUDA_NO_SM_13_DOUBLE_INTRINSICS
-#warning : " *** no support for double precision arithmetic *** "
-#endif
-
   cutilDeviceInit(argc, argv);
-
-//
-// The following call is only made in the C version of OP2,
-// as it causes memory trashing when called from Fortran.
-// \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
-// for this file when implementing C OP2.
-//
-
-#ifdef SET_CUDA_CACHE_CONFIG
-  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
-#endif
-
-  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
-  cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
-  printf("\n 16/48 L1/shared \n");
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
   op_init_core(argc, argv, diags);
-
-#if CUDART_VERSION < 3020
-#error : "must be compiled using CUDA 3.2 or later"
-#endif
-
-#ifdef CUDA_NO_SM_13_DOUBLE_INTRINSICS
-#warning : " *** no support for double precision arithmetic *** "
-#endif
-
   cutilDeviceInit(argc, argv);
-
-//
-// The following call is only made in the C version of OP2,
-// as it causes memory trashing when called from Fortran.
-// \warning add -DSET_CUDA_CACHE_CONFIG to compiling line
-// for this file when implementing C OP2.
-//
-
-#ifdef SET_CUDA_CACHE_CONFIG
-  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
-#endif
-
-  cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
-  cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
-  printf("\n 16/48 L1/shared \n");
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,
