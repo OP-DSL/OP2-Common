@@ -125,6 +125,8 @@ typedef struct {
   int exec_size;    /* number of additional imported elements to be executed */
   int nonexec_size; /* number of additional imported elements that are not
                        executed */
+
+  int stride;       /* device SoA stride */
 } op_set_core;
 
 typedef op_set_core *op_set;

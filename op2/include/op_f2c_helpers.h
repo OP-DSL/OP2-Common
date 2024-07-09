@@ -35,7 +35,7 @@
             const char *msg;                                                        \
             cuGetErrorName(result, &msg);                                           \
             fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
-                    __FILE__, __LINE__, name.c_str());                              \
+                    __FILE__, __LINE__, m_name.c_str());                            \
             exit(1);                                                                \
         }                                                                           \
     } while(0)
@@ -46,7 +46,7 @@
         if (result != cudaSuccess) {                                                \
             const char *msg = cudaGetErrorString(result);                           \
             fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
-                    __FILE__, __LINE__, name.c_str());                              \
+                    __FILE__, __LINE__, m_name.c_str());                            \
             exit(1);                                                                \
         }                                                                           \
     } while(0)
@@ -142,44 +142,40 @@ inline uint64_t hash(const void* key, size_t len, uint64_t seed) {
     return rapidhash_withSeed(key, len, seed);
 }
 
-struct jit_kernel {
-    std::string name;
+class JitKernel {
+private:
+    std::string m_name;
 
-    bool loaded = false;
-    char *cubin;
+    bool m_loaded = false;
+    char *m_cubin;
 
-    CUmodule module;
-    CUfunction kernel;
+    CUmodule m_module;
+    CUfunction m_kernel;
 
-    jit_kernel(const jit_kernel&) = delete;
-
-    jit_kernel(jit_kernel&& other) : cubin{other.cubin}, module{other.module}, kernel{other.kernel} {
-        other.cubin = nullptr;
-        other.module = nullptr;
-        other.kernel = nullptr;
-    };
-
-    jit_kernel(char *cubin, std::string_view name) : cubin{cubin}, name{name} {}
+public:
+    JitKernel(const JitKernel&) = delete;
+    JitKernel(char *cubin, std::string_view name) : m_cubin{cubin}, m_name{name} {}
 
     void invoke(int num_blocks, int block_size, void **args) {
-        if (!loaded) {
-            CU_SAFE_CALL(cuModuleLoadData(&module, cubin));
-            CU_SAFE_CALL(cuModuleGetFunction(&kernel, module, name.c_str()));
+        if (!m_loaded) {
+            CU_SAFE_CALL(cuModuleLoadData(&m_module, m_cubin));
+            CU_SAFE_CALL(cuModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
 
-            loaded = true;
+            m_loaded = true;
 
-            delete[] cubin;
-            cubin = nullptr;
+            delete[] m_cubin;
+            m_cubin = nullptr;
         }
 
-        CU_SAFE_CALL(cuLaunchKernel(kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
-                                      NULL, args, 0));
+        CU_SAFE_CALL(cuLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
+                                    NULL, args, 0));
+
         CUDA_SAFE_CALLN(cudaPeekAtLastError());
         if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 };
 
-enum class param_type {
+enum class ParamType {
     i32,
     i64,
     f32,
@@ -187,46 +183,72 @@ enum class param_type {
     logical,
 };
 
-template<typename T> struct jit_types {};
+template<typename T> struct JitTypes {};
 
-template<> struct jit_types<int>      { static const param_type value = param_type::i32; };
-template<> struct jit_types<int64_t>  { static const param_type value = param_type::i64; };
-template<> struct jit_types<float>    { static const param_type value = param_type::f32; };
-template<> struct jit_types<double>   { static const param_type value = param_type::f64; };
-template<> struct jit_types<bool>     { static const param_type value = param_type::logical; };
+template<> struct JitTypes<int>      { static const ParamType value = ParamType::i32; };
+template<> struct JitTypes<int64_t>  { static const ParamType value = ParamType::i64; };
+template<> struct JitTypes<float>    { static const ParamType value = ParamType::f32; };
+template<> struct JitTypes<double>   { static const ParamType value = ParamType::f64; };
+template<> struct JitTypes<bool>     { static const ParamType value = ParamType::logical; };
 
-struct jit_param {
-    std::string name;
+class JitParam {
+private:
+    std::string m_name;
 
-    void *data;
+    void *m_data;
+    void *m_data_d;
 
-    std::size_t n_elems;
-    std::size_t elem_size;
+    std::size_t m_n_elems;
+    std::size_t m_elem_size;
 
-    param_type type;
-    bool array;
+    ParamType m_type;
+    bool m_array;
+
+    uint64_t m_hash_last = 0;
+
+    uint64_t m_hash_device = 0;
+    uint64_t* m_hash_device_ptr = nullptr;
+
+public:
+    template<typename T>
+    JitParam(std::string_view name, T *data, T *data_d = nullptr,
+             uint64_t *hash_device_ptr = nullptr)
+        : m_name{name}, m_data{data}, m_data_d{data_d}, m_n_elems{1}, m_elem_size{sizeof(T)},
+          m_type{JitTypes<T>::value}, m_array{false}, m_hash_device_ptr{hash_device_ptr} {}
 
     template<typename T>
-    jit_param(std::string_view name, T *data)
-        : name{name}, data{data}, n_elems{1}, elem_size{sizeof(T)},
-          type{jit_types<T>::value}, array{false} {}
+    JitParam(std::string_view name, T *data, std::size_t len, T *data_d = nullptr,
+             uint64_t *hash_device_ptr = nullptr)
+        : m_name{name}, m_data{data}, m_data_d{data_d}, m_n_elems{len}, m_elem_size{sizeof(T)},
+          m_type{JitTypes<T>::value}, m_array{true}, m_hash_device_ptr{hash_device_ptr} {}
 
-    template<typename T>
-    jit_param(std::string_view name, T *data, std::size_t len)
-        : name{name}, data{data}, n_elems{len}, elem_size{sizeof(T)},
-          type{jit_types<T>::value}, array{true} {}
+    uint64_t hash() {
+        m_hash_last = op::f2c::hash(m_data, m_n_elems * m_elem_size, hash_seed_default);
+        return m_hash_last;
+    }
 
-    uint64_t hash(uint64_t seed = hash_seed_default) {
-        return op::f2c::hash(data, n_elems * elem_size, seed);
+    void upload() {
+        if (m_data_d == nullptr) return;
+
+        auto hash_device = m_hash_device_ptr != nullptr ? *m_hash_device_ptr : m_hash_device;
+        if (m_hash_last == hash_device) return;
+
+        CUDA_SAFE_CALL(cudaMemcpyAsync(m_data_d, m_data, m_elem_size * m_n_elems,
+                    cudaMemcpyHostToDevice));
+
+        if (m_hash_device_ptr != nullptr)
+            *m_hash_device_ptr = m_hash_last;
+        else
+            m_hash_device = m_hash_last;
     }
 
     std::string format_type() {
-        switch (type) {
-            case param_type::i32:     return "int";
-            case param_type::i64:     return "int64_t";
-            case param_type::f32:     return "float";
-            case param_type::f64:     return "double";
-            case param_type::logical: return "bool";
+        switch (m_type) {
+            case ParamType::i32:     return "int";
+            case ParamType::i64:     return "int64_t";
+            case ParamType::f32:     return "float";
+            case ParamType::f64:     return "double";
+            case ParamType::logical: return "bool";
         }
 
         __builtin_unreachable();
@@ -234,66 +256,66 @@ struct jit_param {
 
     std::string format_value() {
         std::ostringstream os;
-        if (array) os << "{ ";
+        if (m_array) os << "{ ";
 
-        for (std::size_t i = 0; i < n_elems; ++i) {
-            char *elem = (char *)data + elem_size * i;
+        for (std::size_t i = 0; i < m_n_elems; ++i) {
+            char *elem = (char *)m_data + m_elem_size * i;
 
-            switch (type) {
-                case param_type::i32:     os << *((int *)elem); break;
-                case param_type::i64:     os << *((int64_t *)elem); break;
-                case param_type::f32:     os << std::hexfloat << *((float *)elem); break;
-                case param_type::f64:     os << std::hexfloat << *((double *)elem); break;
-                case param_type::logical: os << std::boolalpha << *((bool *)elem); break;
+            switch (m_type) {
+                case ParamType::i32:     os << *((int *)elem); break;
+                case ParamType::i64:     os << *((int64_t *)elem); break;
+                case ParamType::f32:     os << std::hexfloat << *((float *)elem); break;
+                case ParamType::f64:     os << std::hexfloat << *((double *)elem); break;
+                case ParamType::logical: os << std::boolalpha << *((bool *)elem); break;
             }
 
-            if (array && i < n_elems - 1) os << ", ";
+            if (m_array && i < m_n_elems - 1) os << ", ";
         }
 
-        if (array) os << " }";
+        if (m_array) os << " }";
         return os.str();
     }
 
     std::string format() {
         std::ostringstream os;
 
-        os << "static constexpr " << format_type() << " " << name;
-        if (array) { os << "[" << n_elems << "]"; }
+        os << "static constexpr " << format_type() << " " << m_name;
+        if (m_array) { os << "[" << m_n_elems << "]"; }
         os << " = " << format_value() << ";" << std::endl;
 
         return os.str();
     }
 };
 
-struct hash_info {
+struct HashInfo {
     std::size_t count = 0;
     bool jit_started = false;
     std::thread jit_thread;
 };
 
-class kernel_info {
+class KernelInfo {
 private:
-    std::string name;
-    const void* kernel;
-    cudaFuncAttributes kernel_attrs;
+    std::string m_name;
+    const void* m_kernel;
+    cudaFuncAttributes m_kernel_attrs;
 
-    std::vector<jit_param> params;
-    std::string src;
+    std::vector<JitParam> m_params;
+    std::string m_src;
 
-    std::mutex jit_kernels_mutex;
-    std::unordered_map<uint64_t, jit_kernel> jit_kernels;
+    std::mutex m_jit_kernels_mutex;
+    std::unordered_map<uint64_t, JitKernel> m_jit_kernels;
 
-    std::unordered_map<uint64_t, hash_info> hash_infos;
+    std::unordered_map<uint64_t, HashInfo> m_hash_infos;
 
     bool is_jit_candidate() {
-        return kernel_attrs.numRegs > 32;
+        return m_kernel_attrs.numRegs > 32;
     }
 
-    uint64_t hash_params(uint64_t seed = hash_seed_default) {
-        uint64_t hash = seed;
+    uint64_t hash_params() {
+        uint64_t hash = hash_seed_default;
 
-        for (auto& param : params)
-            hash = param.hash(hash);
+        for (auto& param : m_params)
+            hash = op::f2c::hash(param.hash(), hash);
 
         return hash;
     }
@@ -301,7 +323,7 @@ private:
     std::string format_params() {
         auto src = std::string();
 
-        for (auto& param : params)
+        for (auto& param : m_params)
             src += param.format();
 
         return src;
@@ -311,14 +333,14 @@ private:
         std::string jit_src = std::string("#include <op_f2c_prelude.h>\n") +
                               std::string("#include <op_f2c_params.h>\n") +
                               std::string("\nnamespace f2c = op::f2c;\n") +
-                              format_params() + src;
+                              format_params() + m_src;
 
         auto do_compile = [&](auto jit_src, auto hash) {
             const char *headers[] = { op_f2c_prelude_data, op_f2c_params_data };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
 
             nvrtcProgram prog;
-            NVRTC_SAFE_CALL(nvrtcCreateProgram(&prog, jit_src.c_str(), name.c_str(),
+            NVRTC_SAFE_CALL(nvrtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
                                                2, headers, header_names));
 
             const char *opts[] = {
@@ -351,9 +373,9 @@ private:
             NVRTC_SAFE_CALL(nvrtcGetCUBIN(prog, cubin));
             NVRTC_SAFE_CALL(nvrtcDestroyProgram(&prog));
 
-            std::scoped_lock lock(jit_kernels_mutex);
-            auto [it, inserted] = jit_kernels.emplace(std::piecewise_construct,
-                    std::forward_as_tuple(hash), std::forward_as_tuple(cubin, name));
+            std::scoped_lock lock(m_jit_kernels_mutex);
+            auto [it, inserted] = m_jit_kernels.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(hash), std::forward_as_tuple(cubin, m_name));
 
             assert(inserted);
         };
@@ -362,89 +384,95 @@ private:
         return compilation_thread;
     }
 
-public:
-    kernel_info(const kernel_info&) = delete;
-    kernel_info(std::string_view name, const void *kernel, std::string_view src)
-        : name{name}, kernel{kernel}, src{src} {
-        jit_init();
-        CUDA_SAFE_CALL(cudaFuncGetAttributes(&kernel_attrs, kernel));
+    void invoke_offline(int num_blocks, int block_size, void **args) {
+        for (auto& param : m_params)
+            param.upload();
+
+        CUDA_SAFE_CALLN(cudaLaunchKernel(m_kernel, num_blocks, block_size, args, 0, 0));
+        CUDA_SAFE_CALLN(cudaPeekAtLastError());
+
+        if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
     }
 
-    ~kernel_info() {
-        for (auto& [hash, hash_info] : hash_infos) {
+    template<typename T>
+    T *lookup_symbol(const T *symbol) {
+        if (symbol == nullptr) return nullptr;
+
+        T *data_d = nullptr;
+        CUDA_SAFE_CALL(cudaGetSymbolAddress((void **)&data_d, (const void *)symbol));
+
+        return data_d;
+    }
+
+public:
+    KernelInfo(const KernelInfo&) = delete;
+    KernelInfo(std::string_view name, const void *kernel, std::string_view src)
+        : m_name{name}, m_kernel{kernel}, m_src{src} {
+        jit_init();
+        CUDA_SAFE_CALL(cudaFuncGetAttributes(&m_kernel_attrs, m_kernel));
+    }
+
+    ~KernelInfo() {
+        for (auto& [hash, hash_info] : m_hash_infos) {
             if (hash_info.jit_thread.joinable())
                 hash_info.jit_thread.join();
         }
     }
 
     template<typename T>
-    void add_param(std::string_view name, T *data) {
-        params.emplace_back(name, data);
+    void add_param(std::string_view name, T *data, const T *symbol = nullptr,
+                   uint64_t *hash_device_ptr = nullptr) {
+        m_params.emplace_back(name, data, lookup_symbol(symbol), hash_device_ptr);
     }
 
     template<typename T>
-    void add_param(std::string_view name, T *data, std::size_t len) {
-        params.emplace_back(name, data, len);
+    void add_param(std::string_view name, T *data, std::size_t len, const T *symbol = nullptr,
+                   uint64_t *hash_device_ptr = nullptr) {
+        m_params.emplace_back(name, data, len, lookup_symbol(symbol), hash_device_ptr);
     }
 
-    bool has_compiled(uint64_t *hash) {
-        if (!jit_enable || !is_jit_candidate()) {
-            *hash = 0;
-            return false;
-        }
+    void invoke(int num_blocks, int block_size, void **args, void **args_jit) {
+        op_timing2_next("Hash Params");
+        auto hash = hash_params();
 
-        auto params_hash = hash_params();
-        *hash = params_hash;
-
-        std::scoped_lock lock(jit_kernels_mutex);
-        auto kernel_elem = jit_kernels.find(params_hash);
-
-        return kernel_elem != jit_kernels.end();
-    }
-
-    void invoke(uint64_t params_hash, int num_blocks, int block_size, void **args, void **args_jit) {
         if (!jit_enable || !is_jit_candidate()) {
             op_timing2_next("Offline Kernel");
-            CUDA_SAFE_CALLN(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
-            CUDA_SAFE_CALLN(cudaPeekAtLastError());
-            if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+            invoke_offline(num_blocks, block_size, args);
+
             return;
         }
 
-        auto [hash_elem, inserted] = hash_infos.insert({params_hash, hash_info()});
+        auto [hash_elem, inserted] = m_hash_infos.insert({hash, HashInfo()});
         hash_elem->second.count++;
 
         op_timing2_next("JIT Lookup");
-        jit_kernels_mutex.lock();
-        auto kernel_elem = jit_kernels.find(params_hash);
+        m_jit_kernels_mutex.lock();
 
-        if (kernel_elem != jit_kernels.end()) {
-            // if (jit_debug) std::printf("using jit %s (hash %lx)\n", name.c_str(), params_hash);
-            auto& jk = kernel_elem->second;
-            jit_kernels_mutex.unlock();
+        auto kernel_elem = m_jit_kernels.find(hash);
+        if (kernel_elem != m_jit_kernels.end()) {
+            auto& jit_kernel = kernel_elem->second;
+            m_jit_kernels_mutex.unlock();
 
             op_timing2_next("JIT Kernel");
-            jk.invoke(num_blocks, block_size, args_jit);
+            jit_kernel.invoke(num_blocks, block_size, args_jit);
             return;
         }
 
-        jit_kernels_mutex.unlock();
-
-        op_timing2_next("JIT Compilation");
+        m_jit_kernels_mutex.unlock();
 
         if (hash_elem->second.count > 8 && !hash_elem->second.jit_started) {
-            if (jit_debug) std::printf("compiling %s for hash %lx\n", name.c_str(), params_hash);
+            op_timing2_next("JIT Compilation");
+            if (jit_debug) std::printf("compiling %s for hash %lx\n", m_name.c_str(), hash);
+
             hash_elem->second.jit_started = true;
-            hash_elem->second.jit_thread = compile(params_hash);
+            hash_elem->second.jit_thread = compile(hash);
 
             if (jit_seq_compile)
                 hash_elem->second.jit_thread.join();
         }
 
         op_timing2_next("Offline Kernel");
-        CUDA_SAFE_CALLN(cudaLaunchKernel(kernel, num_blocks, block_size, args, 0, 0));
-        CUDA_SAFE_CALLN(cudaPeekAtLastError());
-        if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        invoke_offline(num_blocks, block_size, args);
     }
 };
 

@@ -140,7 +140,7 @@ void *kernel_args[] = {
     {% for extra_arg in varargs %}
     &{{extra_arg}}{{"," if not loop.last}}
     {% endfor %}
-    };
+};
 
 void *kernel_args_jit[] = {
     {% for dat in lh.dats %}
@@ -168,7 +168,7 @@ void *kernel_args_jit[] = {
     {% endfor %}
 };
 
-kinfo.invoke(params_hash, num_blocks, block_size, kernel_args, kernel_args_jit);
+info.invoke(num_blocks, block_size, kernel_args, kernel_args_jit);
 {%- endmacro -%}
 
 {%- macro init_gbls() -%}
@@ -185,7 +185,7 @@ op2_k_{{lh.name}}{{variant}}_init_gbls<<<max_blocks, block_size>>>(
     {% for arg in args_gbl_per_thread if arg is opt %}
     arg{{arg.id}}.opt,
     {% endfor %}
-    0
+    kernel::op2_stride_gbl
 );
 
 CUDA_SAFE_CALL(cudaPeekAtLastError());
@@ -198,17 +198,17 @@ processDeviceGbls(args, n_args, block_size * max_blocks, block_size * max_blocks
 namespace op2_m_{{lh.name}}{{variant}} {
 
 {% if lh.dats|direct(lh)|soa|length > 0 %}
-int op2_stride_direct = -1;
+int op2_stride_direct;
 __constant__ int op2_stride_direct_d;
 {% endif %}
 
 {% for dat in lh.dats|indirect(lh)|soa %}
-int op2_stride_dat{{dat.id}} = -1;
+int op2_stride_dat{{dat.id}};
 __constant__ int op2_stride_dat{{dat.id}}_d;
 {% endfor %}
 
 {% if args_gbl_per_thread|length > 0 %}
-int op2_stride_gbl = -1;
+int op2_stride_gbl;
 __constant__ int op2_stride_gbl_d;
 {% endif %}
 
@@ -222,16 +222,16 @@ __constant__ int op2_stride_gbl_d;
 extern "C" __global__
 void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for dat in lh.dats %}
-    {{dat.typ.c()}} *__restrict dat{{dat.id}},
+    {{dat.typ.c()}} *dat{{dat.id}},
     {% endfor %}
     {% for map in lh.maps %}
-    int *__restrict map{{map.id}},
+    int *map{{map.id}},
     {% endfor %}
     {% for arg in lh.args|gbl if not (jit and arg is read and arg.dim == 1) %}
-    {{arg.typ.c()}} *__restrict gbl{{arg.id}},
+    {{arg.typ.c()}} *gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
-    {{arg.typ.c()}} *__restrict info{{arg.id}},
+    {{arg.typ.c()}} *info{{arg.id}},
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none and dat is not soa %}
     int dat{{dat.id}}_dim,
@@ -242,7 +242,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     int start,
     int end,
     {% if lh is indirect and config.color2 %}
-    int *__restrict col_reord,
+    const int *__restrict col_reord,
     {% endif %}
     int set_size
 ) {
@@ -297,7 +297,7 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 {% for arg in args_gbl_per_thread if arg is opt %}
     int arg{{arg.id}}_opt,
 {% endfor %}
-    int dummy
+    int stride
 ) {
     namespace kernel = op2_m_{{lh.name}}{{variant}};
 
@@ -308,7 +308,7 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
     if (arg{{arg.id}}_opt == 1) {
     {% endif %}
     for (int d = 0; d < {{gbl_dim_w(arg)}}; ++d) {
-        gbl{{arg.id}}[thread_id + d * kernel::op2_stride_gbl_d] = {% if arg is inc -%}
+        gbl{{arg.id}}[thread_id + d * stride] = {% if arg is inc -%}
             0;
     {%- else -%}
             gbl{{arg.id}}_ref[d];
@@ -338,29 +338,29 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_timing2_enter("Kernel Info Setup");
 
     static bool first_invocation = true;
-    static op::f2c::kernel_info kinfo("op2_k_{{lh.name}}{{variant}}_wrapper",
-                                      (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-                                      op2_k_{{lh.name}}{{variant}}_src);
+    static op::f2c::KernelInfo info("op2_k_{{lh.name}}{{variant}}_wrapper",
+                                    (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
+                                    op2_k_{{lh.name}}{{variant}}_src);
 
     if (first_invocation) {
 {% if lh.dats|direct(lh)|soa|length > 0 %}
-        kinfo.add_param("op2_stride_direct_d", &kernel::op2_stride_direct);
+        info.add_param("op2_stride_direct_d", &kernel::op2_stride_direct, &kernel::op2_stride_direct_d);
 {% endif %}
 {% for dat in lh.dats|indirect(lh)|soa %}
-        kinfo.add_param("op2_stride_dat{{dat.id}}_d", &kernel::op2_stride_dat{{dat.id}});
+        info.add_param("op2_stride_dat{{dat.id}}_d", &kernel::op2_stride_dat{{dat.id}}, &kernel::op2_stride_dat{{dat.id}}_d);
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
-        kinfo.add_param("op2_stride_gbl_d", &kernel::op2_stride_gbl);
+        info.add_param("op2_stride_gbl_d", &kernel::op2_stride_gbl, &kernel::op2_stride_gbl_d);
 {% endif %}
 {% for const in lh.consts if lh.const_types.get("op2_const_" + const + "_d") is not fcharacter %}
     {% if lh.const_types.get("op2_const_" + const + "_d") is farray %}
-        kinfo.add_param("op2_const_{{const}}_d", {{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{const}}[0]));
+        info.add_param("op2_const_{{const}}_d", {{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
     {% else %}
-        kinfo.add_param("op2_const_{{const}}_d", &{{const}});
+        info.add_param("op2_const_{{const}}_d", &{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
     {% endif %}
 {% endfor %}
 {% for arg in lh.args|gbl|read if arg.dim == 1 %}
-        kinfo.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
+        info.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
 {% endfor %}
 
         first_invocation = false;
@@ -465,28 +465,14 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     arg{{arg.id}} = args[{{loop.index0}}];
 {% endfor %}
 
-    op_timing2_next("Update Strides");
-
 {% if lh.dats|direct(lh)|soa|length > 0 %}
-    if (kernel::op2_stride_direct != getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}})) {
-        kernel::op2_stride_direct = getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}});
-        CUDA_SAFE_CALL(cudaMemcpyToSymbolAsync(kernel::op2_stride_direct_d, &kernel::op2_stride_direct, sizeof(int), 0));
-        }
+    kernel::op2_stride_direct = getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}});
 {% endif %}
-
 {% for dat in lh.dats|indirect(lh)|soa %}
-    if (kernel::op2_stride_dat{{dat.id}} != getSetSizeFromOpArg(&arg{{dat.arg_id}})) {
-        kernel::op2_stride_dat{{dat.id}} = getSetSizeFromOpArg(&arg{{dat.arg_id}});
-        CUDA_SAFE_CALL(cudaMemcpyToSymbolAsync(kernel::op2_stride_dat{{dat.id}}_d,
-                                          &kernel::op2_stride_dat{{dat.id}}, sizeof(int), 0));
-    }
+    kernel::op2_stride_dat{{dat.id}} = getSetSizeFromOpArg(&arg{{dat.arg_id}});
 {% endfor %}
-
 {% if args_gbl_per_thread|length > 0 %}
-    if (kernel::op2_stride_gbl != block_size * max_blocks) {
-        kernel::op2_stride_gbl = block_size * max_blocks;
-        CUDA_SAFE_CALL(cudaMemcpyToSymbolAsync(kernel::op2_stride_gbl_d, &kernel::op2_stride_gbl, sizeof(int), 0));
-    }
+    kernel::op2_stride_gbl = block_size * max_blocks;
 {% endif %}
 
     op_timing2_next("Update GBL Refs");
@@ -499,19 +485,6 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     {{"if (arg%s.opt == 1) " % arg.id if arg is opt-}}
         CUDA_SAFE_CALL(cudaMemcpyAsync(gbl{{arg.id}}_ref_d, arg{{arg.id}}.data, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}}), cudaMemcpyHostToDevice, 0));
 {% endfor %}
-
-    op_timing2_next("Hash Params");
-
-    uint64_t params_hash;
-    auto has_compiled = kinfo.has_compiled(&params_hash);
-
-    op_timing2_next("Update Consts");
-
-    if (!has_compiled) {
-{% for const in lh.consts %}
-        op2_const_update_{{const}}();
-{% endfor %}
-    }
 
 {% if args_gbl_per_thread|length > 0 %}
     op_timing2_next("Init GBLs");
