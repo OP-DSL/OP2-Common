@@ -89,15 +89,6 @@ namespace op2_m_{{lh.name}}{{variant}} {
 {{kernel_func}}}
 
 
-namespace op2_m_{{lh.name}}{{variant}}::strides {
-{% if lh.dats|direct(lh)|length > 0 %}
-    int direct = 0;
-{% endif %}
-{% for dat in lh.dats|indirect(lh) %}
-    int dat{{dat.id}} = 0;
-{% endfor %}
-}
-
 extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_set set,
 {% for arg in lh.args %}
@@ -115,35 +106,8 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
     op_timing2_enter("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges(set, n_args, args);
-    // std::printf("%%{{lh.name}}\n");
 
     op_timing2_next("Computation");
-
-
-
-    namespace strides = op2_m_{{lh.name}}{{variant}}::strides;
-
-{% if lh.dats|direct(lh)|length > 0 %}
-    if (strides::direct != getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|first|attr("id")}})) {
-        if (strides::direct != 0) {
-            std::printf("{{lh.name}} direct %d -> %d\n", strides::direct, getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|first|attr("id")}}));
-        }
-
-        strides::direct = getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|first|attr("id")}});
-    }
-{% endif %}
-
-{% for dat in lh.dats|indirect(lh)|soa %}
-    if (strides::dat{{dat.id}} != getSetSizeFromOpArg(&arg{{dat.arg_id}})) {
-        if (strides::dat{{dat.id}} != 0) {
-            std::printf("{{lh.name}} dat{{dat.id}} %d -> %d\n", strides::dat{{dat.id}}, getSetSizeFromOpArg(&arg{{dat.arg_id}}));
-        }
-
-        strides::dat{{dat.id}} = getSetSizeFromOpArg(&arg{{dat.arg_id}});
-    }
-{% endfor %}
-
-
 
 {% for arg in lh.args|gbl|reject("read") if lh is indirect %}
     {{arg.typ.c()}} gbl{{arg.id}}_temp[{{arg_dim(arg)}}];
@@ -182,11 +146,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endif %}
 
 {% if lh.args|idx|direct|length > 0 %}
-        int idx = n;
+        int idx = n + 1;
 {% endif %}
-
 {% for arg in lh.args|idx|indirect %}
-        int idx{{arg.id}} = {{map_lookup(arg)}};
+        int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
 {% endfor %}
 
         op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
