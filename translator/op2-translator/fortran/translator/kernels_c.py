@@ -1170,7 +1170,7 @@ def translateRealLiteralConstant(real_literal_constant: f2003.Real_Literal_Const
 
     kind_spec = real_literal_constant.items[1]
     kind_spec_is_float = {
-        None: False,
+        None: True,
         "RK": False,
         "RK8": False,
         "RK4": True
@@ -1186,6 +1186,7 @@ def translateRealLiteralConstant(real_literal_constant: f2003.Real_Literal_Const
         is_float = True
         raw = raw.replace("E", "e")
     elif "D" in raw:
+        is_float = False
         raw = raw.replace("D", "e")
 
     if is_float:
