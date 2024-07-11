@@ -405,6 +405,10 @@ void *op_calloc(size_t num, size_t size);
 void deviceSync();
 
 #ifdef __cplusplus
+constexpr size_t round32(size_t x) { return (x + 31) & ~31; }
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

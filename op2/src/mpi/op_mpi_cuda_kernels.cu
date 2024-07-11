@@ -73,13 +73,13 @@ __global__ void export_halo_gather_soa(int *list, char *dat, int copy_size,
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
         ((double *)(export_buffer + id * elem_size))[i] =
-            ((double *)(dat + list[id] * size_of))[i * set_size];
+            ((double *)(dat + list[id] * size_of))[i * round32(set_size)];
       }
     } else {
       for (int i = 0; i < dim; i++) {
         for (int j = 0; j < size_of; j++) {
           export_buffer[id * elem_size + i * size_of + j] =
-              dat[list[id] * size_of + i * set_size * size_of + j];
+              dat[list[id] * size_of + i * round32(set_size) * size_of + j];
         }
       }
     }
@@ -94,13 +94,13 @@ __global__ void import_halo_scatter_soa(int offset, char *dat, int copy_size,
   if (id < copy_size) {
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
-        ((double *)(dat + (offset + id) * size_of))[i * set_size] =
+        ((double *)(dat + (offset + id) * size_of))[i * round32(set_size)] =
             ((double *)(import_buffer + id * elem_size))[i];
       }
     } else {
       for (int i = 0; i < dim; i++) {
         for (int j = 0; j < size_of; j++) {
-          dat[(offset + id) * size_of + i * set_size * size_of + j] =
+          dat[(offset + id) * size_of + i * round32(set_size) * size_of + j] =
               import_buffer[id * elem_size + i * size_of + j];
         }
       }
@@ -118,13 +118,13 @@ __global__ void import_halo_scatter_partial_soa(int *list, char *dat,
     int element = list[id];
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
-        ((double *)(dat + (element)*size_of))[i * set_size] =
+        ((double *)(dat + (element)*size_of))[i * round32(set_size)] =
             ((double *)(import_buffer + id * elem_size))[i];
       }
     } else {
       for (int i = 0; i < dim; i++) {
         for (int j = 0; j < size_of; j++) {
-          dat[(element)*size_of + i * set_size * size_of + j] =
+          dat[(element)*size_of + i * round32(set_size) * size_of + j] =
               import_buffer[id * elem_size + i * size_of + j];
         }
       }
@@ -293,10 +293,10 @@ __global__ void gather_data_to_buffer_ptr_cuda_kernel(const char *__restrict dat
   if (soa) {
     for (int d = 0; d < dim; d++)
       if (type_size == 8 && (buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size)%8==0) 
-        *(double*)&buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size] = *(double*)&data[(d*set_size + set_elem_index)*type_size];
+        *(double*)&buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size] = *(double*)&data[(d*round32(set_size) + set_elem_index)*type_size];
       else
         for (int p = 0; p < type_size; p++)
-          buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p] = data[(d*set_size + set_elem_index)*type_size + p];
+          buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p] = data[(d*round32(set_size) + set_elem_index)*type_size + p];
 
   } else {
     int dat_size = type_size * dim;
@@ -319,10 +319,10 @@ __global__ void scatter_data_from_buffer_ptr_cuda_kernel(char * __restrict data,
   if (soa) {
     for (int d = 0; d < dim; d++)
       if (type_size == 8 && (buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size)%8==0) 
-        *(double*)&data[(d*set_size + id)*type_size] = *(double*)&buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size];
+        *(double*)&data[(d*round32(set_size) + id)*type_size] = *(double*)&buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size];
       else
         for (int p = 0; p < type_size; p++)
-          data[(d*set_size + id)*type_size + p] = buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p];
+          data[(d*round32(set_size) + id)*type_size + p] = buffer[buf_pos + (id - disps[neighbour]) * type_size * dim + d * type_size + p];
   } else {
     int dat_size = type_size * dim;
     // if (*(double*)&buffer[buf_pos + (id - disps[neighbour]) * dat_size] != *(double*)&data[id*dat_size])

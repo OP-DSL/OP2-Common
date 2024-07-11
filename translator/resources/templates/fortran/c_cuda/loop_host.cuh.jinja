@@ -68,7 +68,7 @@ arg{{arg.id}}_idx
 {%- endmacro -%}
 
 {% macro map_lookup(arg) -%}
-map{{arg.map_id}}[{{map_idx(arg)}} * set_size + n]
+map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
 {%- macro arg_to_pointer_cuda(arg, jit = false) %}
@@ -225,26 +225,26 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {{dat.typ.c()}} *dat{{dat.id}},
     {% endfor %}
     {% for map in lh.maps %}
-    int *map{{map.id}},
+    const int *map{{map.id}},
     {% endfor %}
     {% for arg in lh.args|gbl if not (jit and arg is read and arg.dim == 1) %}
-    {{arg.typ.c()}} *gbl{{arg.id}},
+    {{arg.typ.c()}} *__restrict gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
-    {{arg.typ.c()}} *info{{arg.id}},
+    {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    int dat{{dat.id}}_dim,
+    const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
-    int arg{{arg.id}}_idx,
+    const int arg{{arg.id}}_idx,
     {% endfor %}
-    int start,
-    int end,
+    const int start,
+    const int end,
     {% if lh is indirect and config.color2 %}
     const int *__restrict col_reord,
     {% endif %}
-    int set_size
+    const int stride
 ) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -466,10 +466,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
 {% if lh.dats|direct(lh)|soa|length > 0 %}
-    kernel::op2_stride_direct = getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}});
+    kernel::op2_stride_direct = f2c::round32(getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}}));
 {% endif %}
 {% for dat in lh.dats|indirect(lh)|soa %}
-    kernel::op2_stride_dat{{dat.id}} = getSetSizeFromOpArg(&arg{{dat.arg_id}});
+    kernel::op2_stride_dat{{dat.id}} = f2c::round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
     kernel::op2_stride_gbl = block_size * max_blocks;
@@ -499,7 +499,9 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     int end = set->size;
 
     op_timing2_enter("Kernel");
-    {{kernel_call("set->size")|indent}}
+
+    int size = f2c::round32(set->size);
+    {{kernel_call("size")|indent}}
 
     op_timing2_next("Process GBLs");
     {{process_gbls()|indent}}
@@ -522,7 +524,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
             int num_blocks = (end - start + (block_size - 1)) / block_size;
             num_blocks = std::min(num_blocks, block_limit);
 
-            int size = set->size + set->exec_size;
+            int size = f2c::round32(set->size + set->exec_size);
             {{kernel_call("size")|indent(12)}}
         }
 
@@ -552,7 +554,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
         int num_blocks = (end - start + (block_size - 1)) / block_size;
         num_blocks = std::min(num_blocks, block_limit);
 
-        int size = set->size + set->exec_size;
+        int size = f2c::round32(set->size + set->exec_size);
         {{kernel_call("plan->col_reord", "size")|indent(8)}}
 
     {% if lh.args|gbl|reject("read")|list|length > 0 %}

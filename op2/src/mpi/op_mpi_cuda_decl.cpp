@@ -208,18 +208,18 @@ void op_mv_halo_device(op_set set, op_dat dat) {
   int set_size = set->size + OP_import_exec_list[set->index]->size +
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc((size_t)dat->size * set_size * sizeof(char));
+    char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
     size_t element_size = (size_t)dat->size / dat->dim;
     for (size_t i = 0; i < dat->dim; i++) {
       for (size_t j = 0; j < set_size; j++) {
         for (size_t c = 0; c < element_size; c++) {
-          temp_data[element_size * i * set_size + element_size * j + c] =
+          temp_data[element_size * i * round32(set_size) + element_size * j + c] =
               dat->data[(size_t)dat->size * j + element_size * i + c];
         }
       }
     }
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
-                      (size_t)dat->size * set_size);
+                      (size_t)dat->size * round32(set_size));
     free(temp_data);
 
     if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
@@ -659,17 +659,17 @@ void op_upload_all() {
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-        char *temp_data = (char *)malloc((size_t)dat->size * set_size * sizeof(char));
+        char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
         size_t element_size = (size_t)dat->size / dat->dim;
         for (size_t i = 0; i < dat->dim; i++) {
           for (size_t j = 0; j < set_size; j++) {
             for (size_t c = 0; c < element_size; c++) {
-              temp_data[element_size * i * set_size + element_size * j + c] =
+              temp_data[element_size * i * round32(set_size) + element_size * j + c] =
                   dat->data[(size_t)dat->size * j + element_size * i + c];
             }
           }
         }
-        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, (size_t)dat->size * set_size,
+        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, (size_t)dat->size * round32(set_size),
                                  cudaMemcpyHostToDevice));
         dat->dirty_hd = 0;
         free(temp_data);

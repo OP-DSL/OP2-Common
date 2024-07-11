@@ -13,6 +13,8 @@
 
 namespace op::f2c {
 
+constexpr int round32(int x) { return (x + 31) & ~31; }
+
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
 using int64_t = long long int;
 using IndexType = int;
