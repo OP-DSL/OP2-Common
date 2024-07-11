@@ -134,15 +134,6 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     {% for map in lh.maps %}
         int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;
     {% endfor %}
-
-        if (n == set->size) {
-    {% for arg in lh.args|gbl|reject("read") %}
-            memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
-    {% endfor %}
-    {% for arg in lh.args|info %}
-            memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
-    {% endfor %}
-        }
 {% endif %}
 
 {% if lh.args|idx|direct|length > 0 %}
@@ -157,6 +148,17 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
             {{arg_to_pointer(arg)}}{{"," if not loop.last}}
 {% endfor %}
         );
+
+{% if lh is indirect %}
+        if (n == set->size - 1) {
+    {% for arg in lh.args|gbl|reject("read") %}
+            memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+    {% for arg in lh.args|info %}
+            memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+        }
+{% endif %}
     }
 
 {% if lh is indirect %}
