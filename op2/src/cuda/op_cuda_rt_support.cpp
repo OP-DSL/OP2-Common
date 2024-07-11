@@ -350,17 +350,17 @@ void op_upload_dat(op_dat dat) {
     return;
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+    char *temp_data = (char *)malloc(dat->size * round32(set_size) * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size * i * set_size + element_size * j + c] =
+          temp_data[element_size * i * round32(set_size) + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
         }
       }
     }
-    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, set_size * dat->size,
+    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, round32(set_size) * dat->size,
                              cudaMemcpyHostToDevice));
     free(temp_data);
   } else {
@@ -374,15 +374,15 @@ void op_download_dat(op_dat dat) {
     return;
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
-    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, set_size * dat->size,
+    char *temp_data = (char *)malloc(dat->size * round32(set_size) * sizeof(char));
+    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, round32(set_size) * dat->size,
                              cudaMemcpyDeviceToHost));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           dat->data[dat->size * j + element_size * i + c] =
-              temp_data[element_size * i * set_size + element_size * j + c];
+              temp_data[element_size * i * round32(set_size) + element_size * j + c];
         }
       }
     }

@@ -166,17 +166,17 @@ void op_upload_dat(op_dat dat) {
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)xmalloc(dat->size * set_size * sizeof(char));
+    char *temp_data = (char *)xmalloc(dat->size * round32(set_size) * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size * i * set_size + element_size * j + c] =
+          temp_data[element_size * i * round32(set_size) + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
         }
       }
     }
-    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, set_size * dat->size,
+    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, round32(set_size) * dat->size,
                              cudaMemcpyHostToDevice));
     free(temp_data);
   } else {
@@ -192,15 +192,15 @@ void op_download_dat(op_dat dat) {
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)xmalloc(dat->size * set_size * sizeof(char));
-    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, set_size * dat->size,
+    char *temp_data = (char *)xmalloc(dat->size * round32(set_size) * sizeof(char));
+    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, round32(set_size) * dat->size,
                              cudaMemcpyDeviceToHost));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           dat->data[dat->size * j + element_size * i + c] =
-              temp_data[element_size * i * set_size + element_size * j + c];
+              temp_data[element_size * i * round32(set_size) + element_size * j + c];
         }
       }
     }
@@ -698,14 +698,14 @@ void op_move_to_device() {
     // Upload maps in transposed form
     op_map map = OP_map_list[m];
     int set_size = map->from->size + map->from->exec_size;
-    int *temp_map = (int *)xmalloc(map->dim * set_size * sizeof(int));
+    int *temp_map = (int *)xmalloc(map->dim * round32(set_size) * sizeof(int));
     for (int i = 0; i < map->dim; i++) {
       for (int j = 0; j < set_size; j++) {
-        temp_map[i * set_size + j] = map->map[map->dim * j + i];
+        temp_map[i * round32(set_size) + j] = map->map[map->dim * j + i];
       }
     }
     op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
-                      map->dim * set_size * sizeof(int));
+                      map->dim * round32(set_size) * sizeof(int));
     free(temp_map);
   }
 

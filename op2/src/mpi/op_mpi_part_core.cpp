@@ -2571,7 +2571,7 @@ void op_partition_ptscotch(op_map primary_map) {
   for (int i = 0; i < primary_map->to->size; i++) {
     int g_index = get_global_index(
         i, my_rank, part_range[primary_map->to->index], comm_size);
-    op_sort(adj[i], 0, adj_i[i]);
+    op_sort(adj[i], adj_i[i]);
     adj_i[i] = removeDups(adj[i], adj_i[i]);
 
     if (adj_i[i] < 2) {
