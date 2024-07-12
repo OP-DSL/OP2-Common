@@ -228,10 +228,10 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     const int *map{{map.id}},
     {% endfor %}
     {% for arg in lh.args|gbl if not (jit and arg is read and arg.dim == 1) %}
-    {{arg.typ.c()}} *__restrict gbl{{arg.id}},
+    {{arg.typ.c()}} *gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
-    {{arg.typ.c()}} *__restrict info{{arg.id}},
+    {{arg.typ.c()}} *info{{arg.id}},
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none and dat is not soa %}
     const int dat{{dat.id}}_dim,
@@ -242,7 +242,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     const int start,
     const int end,
     {% if lh is indirect and config.color2 %}
-    const int *__restrict col_reord,
+    const int *col_reord,
     {% endif %}
     const int stride
 ) {
