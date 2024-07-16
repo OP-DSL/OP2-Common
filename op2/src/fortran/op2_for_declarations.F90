@@ -429,6 +429,15 @@ module OP2_Fortran_Declarations
 
     end function op_decl_dat_c
 
+    type(c_ptr) function op_decl_dat_overlay_ptr_c(set, dat) BIND(C,name='op_decl_dat_overlay_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in) :: set
+      type(c_ptr), value, intent(in) :: dat
+
+    end function op_decl_dat_overlay_ptr_c
+
     type(c_ptr) function op_decl_dat_temp_char_c ( set, datdim, type, datsize, name ) BIND(C,name='op_decl_dat_temp_char')
 
       use, intrinsic :: ISO_C_BINDING
@@ -1060,6 +1069,44 @@ subroutine INTF_DECL_DAT(TYPE, DIM) (set, dim, type, data, dat, name)           
 end subroutine INTF_DECL_DAT(TYPE, DIM)
 
 
+! ---- op_decl_dat_overlay wrappers ---- !
+
+#define INTF_DECL_DAT_OVERLAY(TYPE, DIM) INTF_DECL_DAT_OVERLAY_(TYPE, DIM)
+#define INTF_DECL_DAT_OVERLAY_(TYPE, DIM) op_decl_dat_overlay_##TYPE##_##DIM
+
+  interface op_decl_dat_overlay
+    module procedure INTF_DECL_DAT_OVERLAY(INTEGER_4, DIM_1), &
+                     INTF_DECL_DAT_OVERLAY(INTEGER_4, DIM_2), &
+                     INTF_DECL_DAT_OVERLAY(INTEGER_4, DIM_3), &
+                     INTF_DECL_DAT_OVERLAY(REAL_4,    DIM_1), &
+                     INTF_DECL_DAT_OVERLAY(REAL_4,    DIM_2), &
+                     INTF_DECL_DAT_OVERLAY(REAL_4,    DIM_3), &
+                     INTF_DECL_DAT_OVERLAY(REAL_4,    DIM_4), &
+                     INTF_DECL_DAT_OVERLAY(REAL_4,    DIM_5), &
+                     INTF_DECL_DAT_OVERLAY(REAL_8,    DIM_1), &
+                     INTF_DECL_DAT_OVERLAY(REAL_8,    DIM_2), &
+                     INTF_DECL_DAT_OVERLAY(REAL_8,    DIM_3), &
+                     INTF_DECL_DAT_OVERLAY(REAL_8,    DIM_4), &
+                     INTF_DECL_DAT_OVERLAY(REAL_8,    DIM_5)
+  end interface op_decl_dat_overlay
+
+#define DECL_DECL_DAT_OVERLAY(TYPE, DIM) DECL_DECL_DAT_OVERLAY_(TYPE, DIM)
+#define DECL_DECL_DAT_OVERLAY_(TYPE, DIM)                                                                              \
+integer(8) function INTF_DECL_DAT_OVERLAY(TYPE, DIM) (set, data)                                                      @\
+                                                                                                                      @\
+    type(op_set) :: set                                                                                               @\
+    TYPE_##TYPE DECL_DIM_##DIM, target :: data                                                                        @\
+                                                                                                                      @\
+    type(op_dat) :: overlay_dat                                                                                       @\
+                                                                                                                      @\
+    overlay_dat%dataCPtr = op_decl_dat_overlay_ptr_c(set%setCPtr, c_loc(data))                                        @\
+    call c_f_pointer(overlay_dat%dataCPtr, overlay_dat%dataPtr)                                                       @\
+                                                                                                                      @\
+    INTF_DECL_DAT_OVERLAY(TYPE, DIM) = overlay_dat%dataPtr%index                                                      @\
+                                                                                                                      @\
+end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
+
+
 ! ---- op_decl_dat_temp wrappers ---- !
 
 #define INTF_DECL_DAT_TEMP(TYPE) INTF_DECL_DAT_TEMP_(TYPE)
@@ -1424,18 +1471,32 @@ contains
 
   DECL_DECL_DAT(INTEGER_4, DIM_1)
   DECL_DECL_DAT(INTEGER_4, DIM_2)
-  DECL_DECL_DAT(INTEGER_4, DIM_3)  
+  DECL_DECL_DAT(INTEGER_4, DIM_3)
   DECL_DECL_DAT(REAL_4,    DIM_1)
   DECL_DECL_DAT(REAL_4,    DIM_2)
   DECL_DECL_DAT(REAL_4,    DIM_3)
   DECL_DECL_DAT(REAL_8,    DIM_1)
   DECL_DECL_DAT(REAL_8,    DIM_2)
   DECL_DECL_DAT(REAL_8,    DIM_3)
-  
+
+  DECL_DECL_DAT_OVERLAY(INTEGER_4, DIM_1)
+  DECL_DECL_DAT_OVERLAY(INTEGER_4, DIM_2)
+  DECL_DECL_DAT_OVERLAY(INTEGER_4, DIM_3)
+  DECL_DECL_DAT_OVERLAY(REAL_4,    DIM_1)
+  DECL_DECL_DAT_OVERLAY(REAL_4,    DIM_2)
+  DECL_DECL_DAT_OVERLAY(REAL_4,    DIM_3)
+  DECL_DECL_DAT_OVERLAY(REAL_4,    DIM_4)
+  DECL_DECL_DAT_OVERLAY(REAL_4,    DIM_5)
+  DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_1)
+  DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_2)
+  DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_3)
+  DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_4)
+  DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_5)
+
   DECL_DECL_DAT_TEMP(INTEGER_4)
   DECL_DECL_DAT_TEMP(REAL_4)
   DECL_DECL_DAT_TEMP(REAL_8)
-   
+
   DECL_DECL_CONST(INTEGER_4, DIM_0)
   DECL_DECL_CONST(INTEGER_4, DIM_1)
   DECL_DECL_CONST(INTEGER_4, DIM_2)

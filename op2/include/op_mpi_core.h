@@ -319,10 +319,10 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
                      MPI_Fint local, int soa);
 
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
-void op_mv_halo_device(op_set set, op_dat dat);
+size_t op_mv_halo_device(op_set set, op_dat dat);
 
 /* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
-void op_mv_halo_list_device();
+size_t op_mv_halo_list_device();
 
 void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
                op_map prime_map, op_dat coords);
