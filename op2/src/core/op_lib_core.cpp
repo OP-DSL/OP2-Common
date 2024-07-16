@@ -473,7 +473,8 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     char *new_data = (char *)op_malloc(bytes);
     if (data != NULL)
       memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
-      dat->data = new_data;
+
+    dat->data = new_data;
   }
   else {
     if (data != NULL)
@@ -523,6 +524,73 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   OP_dat_index++;
 
   return dat;
+}
+
+/*
+ * overlay dats
+ */
+op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
+  if (set == NULL) {
+    printf("op_decl_dat_overlay error -- invalid set for data: %s\n", dat->name);
+    exit(-1);
+  }
+
+  op_dat overlay_dat = (op_dat)op_malloc(sizeof(op_dat_core));
+  overlay_dat->index = OP_dat_index;
+
+  overlay_dat->set = set;
+  overlay_dat->dim = dat->dim;
+  overlay_dat->data = dat->data;
+  overlay_dat->data_d = dat->data_d;
+  overlay_dat->name = dat->name;
+  overlay_dat->type = dat->type;
+  overlay_dat->size = dat->size;
+  overlay_dat->user_managed = dat->user_managed;
+  overlay_dat->mpi_buffer = dat->mpi_buffer;
+  overlay_dat->buffer_d = dat->buffer_d;
+  overlay_dat->buffer_d_r = dat->buffer_d_r;
+  overlay_dat->dirty_hd = dat->dirty_hd;
+  overlay_dat->dirtybit = dat->dirtybit;
+
+  op_dat_entry *item = (op_dat_entry *)op_malloc(sizeof(op_dat_entry));
+  if (item == NULL) {
+    printf(" op_decl_dat_overlay error -- error allocating memory to double linked "
+           "list entry\n");
+    exit(-1);
+  }
+
+  item->dat = overlay_dat;
+  item->orig_ptr = (char *)(unsigned long)overlay_dat->index;
+
+  if (TAILQ_EMPTY(&OP_dat_list)) {
+    TAILQ_INSERT_HEAD(&OP_dat_list, item, entries);
+  } else {
+    TAILQ_INSERT_TAIL(&OP_dat_list, item, entries);
+  }
+
+  OP_dat_index++;
+
+  return overlay_dat;
+}
+
+op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->orig_ptr == dat) {
+      item_dat = item->dat;
+      break;
+    }
+  }
+
+  if (item_dat == NULL) {
+    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
+  }
+
+  return op_decl_dat_overlay(set, item_dat);
 }
 
 /*

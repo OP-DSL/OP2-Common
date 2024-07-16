@@ -204,7 +204,9 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
-void op_mv_halo_device(op_set set, op_dat dat) {
+size_t op_mv_halo_device(op_set set, op_dat dat) {
+  size_t total_size = 0;
+
   int set_size = set->size + OP_import_exec_list[set->index]->size +
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
@@ -222,15 +224,22 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                       (size_t)dat->size * round32(set_size));
     free(temp_data);
 
+    total_size += (size_t)dat->size * round32(set_size) * sizeof(char);
+
     if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
     cutilSafeCall(
         cudaMalloc((void **)&(dat->buffer_d_r),
                    (size_t)dat->size * (OP_import_exec_list[set->index]->size +
                                 OP_import_nonexec_list[set->index]->size)));
 
+    total_size += (size_t)dat->size * (OP_import_exec_list[set->index]->size +
+                                       OP_import_nonexec_list[set->index]->size);
+
   } else {
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       (size_t)dat->size * set_size);
+
+    total_size += (size_t)dat->size * set_size * sizeof(char);
   }
   dat->dirty_hd = 0;
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
@@ -239,9 +248,17 @@ void op_mv_halo_device(op_set set, op_dat dat) {
                  (size_t)dat->size * (OP_export_exec_list[set->index]->size +
                               OP_export_nonexec_list[set->index]->size +
                               set_import_buffer_size[set->index])));
+
+  total_size += (size_t)dat->size * (OP_export_exec_list[set->index]->size +
+                                     OP_export_nonexec_list[set->index]->size +
+                                     set_import_buffer_size[set->index]);
+
+  return total_size;
 }
 
-void op_mv_halo_list_device() {
+size_t op_mv_halo_list_device() {
+  size_t total_size = 0;
+
   if (export_exec_list_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (export_exec_list_d[OP_set_list[s]->index] != NULL)
@@ -257,6 +274,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(export_exec_list_d[set->index]),
                       (void **)&(OP_export_exec_list[set->index]->list),
                       OP_export_exec_list[set->index]->size * sizeof(int));
+
+    total_size += OP_export_exec_list[set->index]->size * sizeof(int);
   }
 
   if (export_nonexec_list_d != NULL) {
@@ -274,6 +293,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(export_nonexec_list_d[set->index]),
                       (void **)&(OP_export_nonexec_list[set->index]->list),
                       OP_export_nonexec_list[set->index]->size * sizeof(int));
+
+    total_size += OP_export_nonexec_list[set->index]->size * sizeof(int);
   }
 
   //for grouped, we need the disps array on device too
@@ -301,6 +322,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(export_exec_list_disps_d[set->index]),
                       (void **)&(OP_export_exec_list[set->index]->disps),
                       (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int));
+
+    total_size += (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int);
   }
 
   if (export_nonexec_list_disps_d != NULL) {
@@ -329,6 +352,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(export_nonexec_list_disps_d[set->index]),
                       (void **)&(OP_export_nonexec_list[set->index]->disps),
                       (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
+
+    total_size += (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int);
   }
   if (import_exec_list_disps_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
@@ -354,6 +379,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(import_exec_list_disps_d[set->index]),
                       (void **)&(OP_import_exec_list[set->index]->disps),
                       (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int));
+
+    total_size += (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int);
   }
 
   if (import_nonexec_list_disps_d != NULL) {
@@ -382,6 +409,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(import_nonexec_list_disps_d[set->index]),
                       (void **)&(OP_import_nonexec_list[set->index]->disps),
                       (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
+
+    total_size += (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int);
   }
 
   if ( export_nonexec_list_partial_d!= NULL) {
@@ -401,6 +430,8 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(export_nonexec_list_partial_d[map->index]),
                       (void **)&(OP_export_nonexec_permap[map->index]->list),
                       OP_export_nonexec_permap[map->index]->size * sizeof(int));
+
+    total_size += OP_export_nonexec_permap[map->index]->size * sizeof(int);
   }
 
   if ( import_nonexec_list_partial_d!= NULL) {
@@ -420,7 +451,11 @@ void op_mv_halo_list_device() {
     op_cpHostToDevice((void **)&(import_nonexec_list_partial_d[map->index]),
                       (void **)&(OP_import_nonexec_permap[map->index]->list),
                       OP_import_nonexec_permap[map->index]->size * sizeof(int));
+
+    total_size += OP_import_nonexec_permap[map->index]->size * sizeof(int);
   }
+
+  return total_size;
 }
 
 op_set op_decl_set(int size, char const *name) {

@@ -683,6 +683,7 @@ void op_partition(const char *lib_name, const char *lib_routine,
 }
 
 void op_move_to_device() {
+  size_t dat_size = 0;
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
     op_dat_entry *item;
@@ -690,10 +691,11 @@ void op_move_to_device() {
       op_dat dat = item->dat;
 
       if (dat->set->index == set->index)
-        op_mv_halo_device(set, dat);
+        dat_size += op_mv_halo_device(set, dat);
     }
   }
 
+  size_t map_size = 0;
   for (int m = 0; m < OP_map_index; m++) {
     // Upload maps in transposed form
     op_map map = OP_map_list[m];
@@ -707,9 +709,15 @@ void op_move_to_device() {
     op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
                       map->dim * round32(set_size) * sizeof(int));
     free(temp_map);
+
+    map_size += map->dim * round32(set_size) * sizeof(int);
   }
 
-  op_mv_halo_list_device();
+  size_t halo_size = op_mv_halo_list_device();
+
+  auto as_mib = [](size_t s) { return (double)s / (1024.0 * 1024.0); };
+  op_printf("Total device memory usage: %.1f MiB (dats: %.1f MiB, maps: %.1f MiB, halo lists: %.1f Mib)\n",
+          as_mib(dat_size + map_size + halo_size), as_mib(dat_size), as_mib(map_size), as_mib(halo_size));
 }
 
 int op_is_root() {
