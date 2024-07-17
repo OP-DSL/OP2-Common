@@ -529,9 +529,23 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
 /*
  * overlay dats
  */
-op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
+op_dat op_decl_dat_overlay_core(op_set set, op_dat dat) {
   if (set == NULL) {
     printf("op_decl_dat_overlay error -- invalid set for data: %s\n", dat->name);
+    exit(-1);
+  }
+
+  size_t orig_set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+  size_t new_set_size = set->size + set->exec_size + set->nonexec_size;
+
+  if (OP_diags > 1) {
+    op_printf("op_decl_dat_overlay: dat: %s, set %s (%lu elems) -> %s (%lu elems)\n",
+            dat->name, dat->set->name, orig_set_size, set->name, new_set_size);
+  }
+
+  if (new_set_size > orig_set_size) {
+    printf("op_decl_dat_overlay error -- new set size bigger than overlayed size (%lu > %lu)\n",
+            new_set_size, orig_set_size);
     exit(-1);
   }
 
@@ -571,26 +585,6 @@ op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
   OP_dat_index++;
 
   return overlay_dat;
-}
-
-op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
-  op_dat_entry *item;
-  op_dat_entry *tmp_item;
-  op_dat item_dat = NULL;
-
-  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
-    tmp_item = TAILQ_NEXT(item, entries);
-    if (item->orig_ptr == dat) {
-      item_dat = item->dat;
-      break;
-    }
-  }
-
-  if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
-  }
-
-  return op_decl_dat_overlay(set, item_dat);
 }
 
 /*

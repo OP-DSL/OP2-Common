@@ -259,6 +259,8 @@ op_map op_decl_map_core(op_set, op_set, int, int *, char const *);
 
 op_dat op_decl_dat_core(op_set, int, char const *, int, char *, char const *);
 
+op_dat op_decl_dat_overlay_core(op_set, op_dat);
+
 op_dat op_decl_dat_temp_core(op_set, int, char const *, int, char *,
                              char const *);
 

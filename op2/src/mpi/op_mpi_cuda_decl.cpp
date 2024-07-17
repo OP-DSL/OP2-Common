@@ -125,6 +125,58 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   return out_dat;
 }
 
+op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
+  op_dat overlay_dat = op_decl_dat_overlay_core(set, dat);
+
+  int halo_size = OP_import_exec_list[set->index]->size +
+                  OP_import_nonexec_list[set->index]->size;
+
+  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
+
+  halo_list exec_e_list = OP_export_exec_list[set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+
+  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * overlay_dat->size);
+  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * overlay_dat->size);
+
+  halo_list exec_i_list = OP_import_exec_list[set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
+
+  mpi_buf->s_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
+      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
+  mpi_buf->r_req = (MPI_Request *)xmalloc(
+      sizeof(MPI_Request) *
+      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
+
+  mpi_buf->s_num_req = 0;
+  mpi_buf->r_num_req = 0;
+
+  overlay_dat->mpi_buffer = mpi_buf;
+
+  return overlay_dat;
+}
+
+op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  op_dat item_dat = NULL;
+
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->orig_ptr == dat) {
+      item_dat = item->dat;
+      break;
+    }
+  }
+
+  if (item_dat == NULL) {
+    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
+  }
+
+  return op_decl_dat_overlay(set, item_dat);
+}
+
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
   char *data = NULL;

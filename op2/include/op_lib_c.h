@@ -81,6 +81,9 @@ op_map op_decl_map(op_set, op_set, int, int *, char const *);
 
 op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);
 
+op_dat op_decl_dat_overlay(op_set, op_dat);
+op_dat op_decl_dat_overlay_ptr(op_set, char *);
+
 op_dat op_decl_dat_temp_char(op_set, int, char const *, int, char const *);
 
 int op_free_dat_temp_char(op_dat dat);
