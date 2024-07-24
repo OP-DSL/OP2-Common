@@ -8,6 +8,7 @@
 
 #include <array>
 #include <vector>
+#include <tuple>
 #include <unordered_map>
 #include <string>
 #include <cassert>
@@ -152,21 +153,38 @@ private:
     CUmodule m_module;
     CUfunction m_kernel;
 
+    int m_block_size = 0;
+    int m_min_grid_size = 0;
+
+    void ensure_loaded() {
+        if (m_loaded) return;
+
+        CU_SAFE_CALL(cuModuleLoadData(&m_module, m_cubin));
+        CU_SAFE_CALL(cuModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
+
+        m_loaded = true;
+
+        delete[] m_cubin;
+        m_cubin = nullptr;
+    }
+
 public:
     JitKernel(const JitKernel&) = delete;
     JitKernel(char *cubin, std::string_view name) : m_cubin{cubin}, m_name{name} {}
 
-    void invoke(int num_blocks, int block_size, void **args) {
-        if (!m_loaded) {
-            CU_SAFE_CALL(cuModuleLoadData(&m_module, m_cubin));
-            CU_SAFE_CALL(cuModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
+    std::tuple<int, int> get_launch_config() {
+        ensure_loaded();
 
-            m_loaded = true;
-
-            delete[] m_cubin;
-            m_cubin = nullptr;
+        if (m_block_size == 0) {
+            CU_SAFE_CALL(cuOccupancyMaxPotentialBlockSize(&m_min_grid_size, &m_block_size,
+                                                          m_kernel, nullptr, 0, INT32_MAX));
         }
 
+        return {m_block_size, m_min_grid_size};
+    }
+
+    void invoke(int num_blocks, int block_size, void **args) {
+        ensure_loaded();
         CU_SAFE_CALL(cuLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
                                     NULL, args, 0));
 
@@ -297,7 +315,10 @@ class KernelInfo {
 private:
     std::string m_name;
     const void* m_kernel;
+
     cudaFuncAttributes m_kernel_attrs;
+    int m_block_size = 0;
+    int m_min_grid_size = 0;
 
     std::vector<JitParam> m_params;
     std::string m_src;
@@ -410,6 +431,7 @@ public:
         : m_name{name}, m_kernel{kernel}, m_src{src} {
         jit_init();
         CUDA_SAFE_CALL(cudaFuncGetAttributes(&m_kernel_attrs, m_kernel));
+        CUDA_SAFE_CALL(cudaOccupancyMaxPotentialBlockSize(&m_min_grid_size, &m_block_size, m_kernel));
     }
 
     ~KernelInfo() {
@@ -431,37 +453,26 @@ public:
         m_params.emplace_back(name, data, len, lookup_symbol(symbol), hash_device_ptr);
     }
 
-    void invoke(int num_blocks, int block_size, void **args, void **args_jit) {
-        op_timing2_next("Hash Params");
+    JitKernel *get_kernel() {
         auto hash = hash_params();
 
-        if (!jit_enable || !is_jit_candidate()) {
-            op_timing2_next("Offline Kernel");
-            invoke_offline(num_blocks, block_size, args);
-
-            return;
-        }
+        if (!jit_enable || !is_jit_candidate())
+            return nullptr;
 
         auto [hash_elem, inserted] = m_hash_infos.insert({hash, HashInfo()});
         hash_elem->second.count++;
 
-        op_timing2_next("JIT Lookup");
         m_jit_kernels_mutex.lock();
 
         auto kernel_elem = m_jit_kernels.find(hash);
         if (kernel_elem != m_jit_kernels.end()) {
-            auto& jit_kernel = kernel_elem->second;
             m_jit_kernels_mutex.unlock();
-
-            op_timing2_next("JIT Kernel");
-            jit_kernel.invoke(num_blocks, block_size, args_jit);
-            return;
+            return &kernel_elem->second;
         }
 
         m_jit_kernels_mutex.unlock();
 
         if (hash_elem->second.count > 8 && !hash_elem->second.jit_started) {
-            op_timing2_next("JIT Compilation");
             if (jit_debug) std::printf("compiling %s for hash %lx\n", m_name.c_str(), hash);
 
             hash_elem->second.jit_started = true;
@@ -471,8 +482,33 @@ public:
                 hash_elem->second.jit_thread.join();
         }
 
-        op_timing2_next("Offline Kernel");
-        invoke_offline(num_blocks, block_size, args);
+        return nullptr;
+    }
+
+    std::tuple<int, int> get_launch_config(JitKernel *kernel) {
+        int block_size, min_grid_size;
+
+        if (kernel == nullptr) {
+            block_size = m_block_size;
+            min_grid_size = m_min_grid_size;
+        } else {
+            std::tie(block_size, min_grid_size) = kernel->get_launch_config();
+        }
+
+        // return {block_size, INT32_MAX};
+        return {64, INT32_MAX};
+    }
+
+    void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {
+        if (kernel == nullptr) {
+            op_timing2_next("Offline Kernel");
+            invoke_offline(num_blocks, block_size, args);
+
+            return;
+        }
+
+        op_timing2_next("JIT Kernel");
+        kernel->invoke(num_blocks, block_size, args_jit);
     }
 };
 

@@ -65,14 +65,7 @@ class FArray(FType):
         return ", ".join(bounds)
 
     def asSpan(self, ptr: str, var: str, ctx: 'Context') -> str:
-        stride = ctx.getStride(var)
-
-        if stride:
-            stride = f"{stride}, "
-        else:
-            stride = ""
-
-        return f"f2c::Span {var}{{{stride}{ptr}, {self.spanBounds()}}}"
+        return f"f2c::Span {var}{{{ptr}, {self.spanBounds()}}}"
 
 
 @dataclass(frozen=True)
@@ -176,23 +169,11 @@ class Context:
     info: Info
     sub_info: SubprogramInfo
 
-    strides: Optional[Callable[[OP.Arg], Optional[str]]] = None
-
     def isEntry(self) -> bool:
         return self.sub_info.name == self.info.entry_subprogram
 
     def lookupType(self, name: str) -> Optional[FType]:
         return self.sub_info.types.get(name) or self.info.consts.get(name)
-
-    def getStride(self, var: str) -> Optional[str]:
-        if self.strides is None:
-            return None
-
-        op_arg = getattr(self.sub_info.lookupParam(var), "op_arg", None)
-        if op_arg is None:
-            return None
-
-        return self.strides(op_arg)
 
     def error(self, msg: str, node: Optional[Any] = None):
         full_msg = f"Error translating {self.sub_info.name}: {msg}"
@@ -566,12 +547,12 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
     return None
 
 
-def translate(info: Info, strides: Optional[Callable[[OP.Arg], Optional[str]]] = None) -> str:
+def translate(info: Info) -> str:
     decls = ""
     srcs = ""
 
     for sub_info in info.subprograms.values():
-        decl, src = translateSubprogram(Context(info, sub_info, strides))
+        decl, src = translateSubprogram(Context(info, sub_info))
 
         decls += decl + "\n\n"
         srcs += src + "\n\n"
@@ -592,6 +573,8 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
         if isinstance(param_type, FPrimitive):
             if param.is_const and not (hasattr(param.op_arg, "opt") and param.op_arg.opt):
                 param_decls.append(f"const {param_type.asC()} {param.name}")
+            elif param.is_const:
+                param_decls.append(f"const {param_type.asC()}& {param.name}")
             else:
                 param_decls.append(f"{param_type.asC()}& {param.name}")
         else:
@@ -1082,17 +1065,25 @@ def translateArgList(arg_list: List[f2003.Base], ctx: Context, call_target: str)
 
     args = []
     for item, target_type in zip(arg_list, [target_sub.types[param.name] for param in target_sub.params]):
-        arg = translateGeneric(item, ctx)
+        arg = None
 
-        if isinstance(target_type, FArray):
-            if isinstance(item, f2003.Part_Ref):
-                name = translateName(fpu.get_child(item, f2003.Name), ctx)
-                if name in ctx.info.functionNames():
-                    ctx.error(f"Unsupported function return as array argument", item)
+        if isinstance(target_type, FArray) and isinstance(item, f2003.Part_Ref):
+            name = translateName(fpu.get_child(item, f2003.Name), ctx)
+            if name in ctx.info.functionNames():
+                ctx.error(f"Unsupported function return as array argument", item)
 
-                arg = f"&({arg})"
-            elif not isinstance(item, f2003.Name):
-                ctx.error(f"Unsupported expression passed to array argument", item)
+            if name not in ctx.sub_info.types:
+                ctx.error(f"Unsupported const part-ref as arg", item)
+
+            sl = fpu.get_child(item, f2003.Section_Subscript_List)
+            if any(isinstance(c, f2003.Subscript_Triplet) for c in sl.children):
+                ctx.error(f"Unsupported slice part-ref as arg")
+
+            arg = f"{name}.ptr_at({', '.join(translateGeneric(c, ctx) for c in sl.children)})"
+        elif isinstance(target_type, FArray) and not isinstance(item, f2003.Name):
+            ctx.error(f"Unsupported expression passed to array argument", item)
+        else:
+            arg = translateGeneric(item, ctx)
 
         args.append(arg)
 
