@@ -68,7 +68,7 @@ int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
 
 int OP_disable_mpi_reductions = 0;
-int OP_cuda_reductions_mib = 50;
+int OP_cuda_reductions_mib = 5;
 
 std::vector<std::regex> OP_whitelist = {};
 bool OP_disable_device_execution = false;
