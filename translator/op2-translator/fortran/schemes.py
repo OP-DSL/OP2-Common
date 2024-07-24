@@ -378,26 +378,7 @@ class FortranCCuda(Scheme):
         info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
         setattr(loop, "const_types", info.consts);
 
-        gbl_stride_access = [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.WORK]
-
-        def strides(op_arg):
-            stride = ""
-            if isinstance(op_arg, OP.ArgDat) and loop.dat(op_arg).soa:
-                if op_arg.map_id is None:
-                    stride = f"op2_stride_direct_d"
-                else:
-                    stride = f"op2_stride_dat{op_arg.dat_id}_d"
-            elif isinstance(op_arg, OP.ArgInfo):
-                stride = f"op2_stride_gbl_d"
-            elif isinstance(op_arg, OP.ArgGbl) and op_arg.access_type in gbl_stride_access:
-                gbl_inc_atomic = config.get("gbl_inc_atomic")
-
-                if not (op_arg.access_type == OP.AccessType.INC and gbl_inc_atomic):
-                    stride = f"op2_stride_gbl_d"
-
-            return stride
-
-        return ftk_c.translate(info, strides=strides)
+        return ftk_c.translate(info)
 
 
 Scheme.register(FortranCCuda)

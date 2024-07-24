@@ -22,7 +22,12 @@ using IndexType = int;
 template<typename T>
 struct Ptr {
     T* data;
+    IndexType stride = 1;
+
     constexpr Ptr(T* data) : data{data} {}
+    constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
+
+    constexpr operator Ptr<const T>() const { return Ptr<const T>{data, stride}; }
 };
 
 struct Extent {
@@ -41,7 +46,6 @@ class Span {
 private:
     const Ptr<T> m_data;
     const Extent m_extents[N];
-    const IndexType m_stride = 1;
 
     constexpr Slice<T, N> slice_all(auto... extents) const {
         if constexpr (sizeof...(extents) == N)
@@ -53,9 +57,6 @@ private:
 public:
     constexpr Span(Ptr<T> data, auto... extents)
         : m_data{data}, m_extents{extents...} {}
-
-    constexpr Span(IndexType stride, Ptr<T> data, auto... extents)
-        : m_data{data}, m_extents{extents...}, m_stride{stride} {}
 
     constexpr T& operator()(auto... indices) const {
         static_assert(sizeof...(indices) == N);
@@ -69,7 +70,12 @@ public:
             next_index_stride *= m_extents[i].size();
         }
 
-        return m_data.data[offset * m_stride];
+        return m_data.data[offset * m_data.stride];
+    }
+
+    constexpr Ptr<T> ptr_at(auto... indices) const {
+        auto& elem = operator()(indices...);
+        return Ptr{&elem, m_data.stride};
     }
 
     constexpr Slice<T, N> splice(auto... es) const {
@@ -85,20 +91,14 @@ public:
     constexpr Slice<T, N> slice(auto... es) const { return Slice(*this, es...); }
 
     template<typename S>
-    constexpr operator Ptr<S>() const { return m_data.data; }
+    constexpr operator Ptr<S>() const { return m_data; }
 };
 
 template<typename T, typename... Es>
 Span(Ptr<T>, Es...) -> Span<T, sizeof...(Es)>;
 
 template<typename T, typename... Es>
-Span(IndexType, Ptr<T>, Es...) -> Span<T, sizeof...(Es)>;
-
-template<typename T, typename... Es>
 Span(Ptr<const T>, Es...) -> Span<const T, sizeof...(Es)>;
-
-template<typename T, typename... Es>
-Span(IndexType, Ptr<const T>, Es...) -> Span<const T, sizeof...(Es)>;
 
 template<typename T, unsigned N>
 class Slice {
