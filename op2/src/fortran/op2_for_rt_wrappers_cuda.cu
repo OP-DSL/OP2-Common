@@ -193,7 +193,9 @@ cub_reduction_wrap(ArgMax, KeyValuePair<T>)
 #define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(op<T>, op2<T>, host_op<T>, \
                                                        args, i, nargs, nelems, max_threads)
 
-static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
+static bool processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
+    bool needs_sync = false;
+
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
@@ -202,6 +204,8 @@ static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
             cutilSafeCall(cudaMemcpyAsync(args[i].data, args[i].data_d,
                           args[i].size * sizeof(char),
                           cudaMemcpyDeviceToHost, cuda_stream));
+
+            needs_sync = true;
             continue;
         }
 
@@ -230,10 +234,15 @@ static void processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
                 exit(1);
             }
         }
+
+        needs_sync = true;
     }
+
+    return needs_sync;
 }
 
-static void processDeviceGblRWs(op_arg *args, int nargs) {
+static bool processDeviceGblRWs(op_arg *args, int nargs) {
+    bool needs_sync = false;
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
@@ -242,7 +251,11 @@ static void processDeviceGblRWs(op_arg *args, int nargs) {
         cutilSafeCall(cudaMemcpyAsync(args[i].data, args[i].data_d,
                                       args[i].size * sizeof(char),
                                       cudaMemcpyDeviceToHost, cuda_stream));
+
+        needs_sync = true;
     }
+
+    return needs_sync;
 }
 
 #ifdef __cplusplus
@@ -350,10 +363,11 @@ int getBlockLimit(op_arg *args, int nargs, int block_size, char *name) {
 }
 
 void processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
-    processDeviceGblReductions(args, nargs, nelems, max_threads);
-    processDeviceGblRWs(args, nargs);
+    bool needs_red_sync = processDeviceGblReductions(args, nargs, nelems, max_threads);
+    bool needs_rw_sync = processDeviceGblRWs(args, nargs);
 
-    cutilSafeCall(cudaStreamSynchronize(cuda_stream));
+    if (needs_red_sync || needs_rw_sync)
+        cutilSafeCall(cudaStreamSynchronize(cuda_stream));
 }
 
 void setGblIncAtomic(bool enable) {
