@@ -123,6 +123,17 @@ def walk(node_list, types=None, indent=0, debug=False):
 fparser.two.utils.walk = walk
 
 
+class FortranSyntaxError(Exception):
+    def __init__(self, message, filename):
+        super().__init__()
+
+        self.message = message
+        self.filename = filename
+
+    def __reduce__(self):
+        return (FortranSyntaxError, (self.message, self.filename))
+
+
 class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
@@ -260,8 +271,13 @@ class Fortran(Lang):
     ) -> Tuple[f2003.Program, str]:
         source = self.preprocess(path, include_dirs, defines)
 
-        reader = FortranStringReader(source, include_dirs=list(include_dirs))
-        return self.parser(reader), source
+        try:
+            reader = FortranStringReader(source, include_dirs=list(include_dirs))
+            ast = self.parser(reader)
+        except fparser.two.utils.FortranSyntaxError as err:
+            raise FortranSyntaxError(str(err), path.name)
+
+        return ast, source
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
