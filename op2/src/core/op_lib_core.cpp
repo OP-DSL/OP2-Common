@@ -285,17 +285,32 @@ void op_init_core(int argc, char **argv, int diags) {
   TAILQ_INIT(&OP_dat_list);
 
   //Initialize RAPL counters
-	char default_paths[128];
+	char default_paths[1024];
 	strcpy(&default_paths[0],"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj;/sys/devices/virtual/powercap/intel-rapl/intel-rapl:1/energy_uj");
+	char default_dram_paths[1024];
+	strcpy(&default_dram_paths[0],"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/intel-rapl:0:0/energy_uj;/sys/devices/virtual/powercap/intel-rapl/intel-rapl:1/intel-rapl:1:0/energy_uj");
 	char* env_paths = getenv("RAPL_PATH");
 	if (!env_paths) {
 		env_paths = default_paths;
 	}
+	char* env_dram_paths = getenv("RAPL_DRAM_PATH");
+	if (!env_dram_paths) {
+		env_dram_paths = default_dram_paths;
+	}
+
+	//concatenate the paths
+	char* paths = (char*)op_malloc(sizeof(char)*(strlen(env_paths)+strlen(env_dram_paths)+2));
+	char* paths2 = (char*)op_malloc(sizeof(char)*(strlen(env_paths)+strlen(env_dram_paths)+2));
+	strcpy(paths, env_paths);
+	strcat(paths, ";");
+	strcat(paths, env_dram_paths);
+	strcpy(paths2, paths);
+
 	op_energy_paths_count = 0;
-	if (env_paths) {
+    if (paths) {
 		// Count the number of paths
 		int num_paths = 0;
-		char* path = strtok(env_paths, ";");
+		char* path = strtok(paths, ";");
 		while (path != NULL) {
 			num_paths++;
 			path = strtok(NULL, ";");
@@ -307,7 +322,7 @@ void op_init_core(int argc, char **argv, int diags) {
 		op_energy_counters = (long long*)op_malloc(sizeof(long long)*num_paths);
 
 		num_paths = 0;
-		path = strtok(env_paths, ";");
+		path = strtok(paths2, ";");
 		while (path != NULL) {
 			op_energy_paths[num_paths] = strdup(path); // Duplicate the string for safekeeping
 			//check if path exists
@@ -329,7 +344,7 @@ void op_init_core(int argc, char **argv, int diags) {
 			num_paths++;
 			path = strtok(NULL, ";");
 		}
-	} 
+    }
 }
 
 op_set op_decl_set_core(int size, char const *name) {
@@ -959,41 +974,56 @@ void op_timing_output_core() {
     }
   }
   long long aggregate_energy = 0;
+  long long aggregate_energy_dram = 0;
   long long max_energy = 262143328850LL;
   for (int i = 0; i < op_energy_paths_count; i++) {
     if (op_energy_paths[i] != NULL) {
-      FILE* file = fopen(op_energy_paths[i], "r");
-      if (file == NULL) {
-        if (OP_diags > 3)
-          op_printf("Error: Could not open RAPL path %s. Skipping.\n", op_energy_paths[i]);
-      } else {
-        long long energy;
-        fscanf(file, "%lld", &energy);
-        if (energy < op_energy_counters[i]) {
-          // Energy counter has wrapped around.
-          char max_energy_filename[128];
-          strcpy(max_energy_filename, op_energy_paths[i]);
-          char* substring = strstr(max_energy_filename, "energy_uj");
-          if (substring != NULL) {
-            strncpy(substring, "max_energy_range_uj", strlen("max_energy_range_uj"));
+        FILE* file = fopen(op_energy_paths[i], "r");
+        if (file == NULL) {
+          if (OP_diags > 3)
+            op_printf("Error: Could not open RAPL path %s. Skipping.\n", op_energy_paths[i]);
+        } else {
+          long long energy;
+          fscanf(file, "%lld", &energy);
+          if (energy < op_energy_counters[i]) {
+            // Energy counter has wrapped around.
+            char max_energy_filename[128];
+            strcpy(max_energy_filename, op_energy_paths[i]);
+            char* substring = strstr(max_energy_filename, "energy_uj");
+            if (substring != NULL) {
+              strncpy(substring, "max_energy_range_uj", strlen("max_energy_range_uj"));
+            }
+            FILE *max_energy_file = fopen(max_energy_filename, "r");
+            if (max_energy_file != NULL) {
+              fscanf(max_energy_file, "%lld", &max_energy);
+              fclose(max_energy_file);
+            }
+            if (i < op_energy_paths_count/2)
+              aggregate_energy += (max_energy - op_energy_counters[i] + energy);
+            else 
+              aggregate_energy_dram += (max_energy - op_energy_counters[i] + energy);
+          } else {
+            if (i < op_energy_paths_count/2)
+              aggregate_energy += (energy - op_energy_counters[i]);
+            else
+              aggregate_energy_dram += (energy - op_energy_counters[i]);
           }
-          FILE *max_energy_file = fopen(max_energy_filename, "r");
-          if (max_energy_file != NULL) {
-            fscanf(max_energy_file, "%lld", &max_energy);
-            fclose(max_energy_file);
-          }
-          aggregate_energy += (max_energy - op_energy_counters[i] + energy);
-        } else
-          aggregate_energy += (energy - op_energy_counters[i]);
-        fclose(file);
-      }
+          //op_printf("starting value %lld, ending value %lld for %s\n", op_energy_counters[i], energy, op_energy_paths[i]);
+          fclose(file);
+              
+        }
     }
   }
   if (aggregate_energy > 0) {
     double moments_time[2] = {0.0, 0.0};
+    moments_time[0] = 0.0;
     double aggregate_energy_d = (double)aggregate_energy/1000000.0;
     op_compute_moment(aggregate_energy_d, &moments_time[0], &moments_time[1]);
-    op_printf("Total CPU energy consumed (REPL): %g J\n", moments_time[0]);
+    double avg_energy = moments_time[0];
+    moments_time[0] = 0.0;
+    double aggregate_energy_dram_d = (double)aggregate_energy_dram/1000000.0;
+    op_compute_moment(aggregate_energy_dram_d, &moments_time[0], &moments_time[1]);
+    op_printf("Total CPU energy consumed (RAPL): %g J, of which DRAM energy: %g\n", avg_energy, moments_time[0]);
   }
 }
 
