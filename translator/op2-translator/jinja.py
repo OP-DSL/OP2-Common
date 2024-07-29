@@ -72,6 +72,27 @@ def soa(x, loop: Optional[OP.Loop] = None) -> bool:
 
 env.tests["soa"] = soa
 
+
+def scalar(x, loop: Optional[OP.Loop] = None) -> bool:
+    if isinstance(x, OP.ArgDat):
+        assert loop is not None
+
+    if isinstance(x, OP.ArgDat) and loop is not None:
+        return loop.dats[x.dat_id].dim == 1
+
+    if isinstance(x, OP.Dat):
+        return x.dim == 1
+
+    if isinstance(x, (OP.ArgGbl, OP.ArgInfo)):
+        return x.dim == 1
+
+    assert False
+
+
+env.tests["scalar"] = scalar
+env.tests["multidim"] = lambda arg, loop=None: not scalar(arg, loop)
+
+
 env.tests["opt"] = lambda arg, loop=None: hasattr(arg, "opt") and arg.opt
 
 env.tests["dat"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat)
@@ -156,6 +177,9 @@ env.filters["direct"] = test_to_filter("direct")
 env.filters["indirect"] = test_to_filter("indirect")
 
 env.filters["soa"] = test_to_filter("soa")
+
+env.filters["scalar"] = test_to_filter("scalar")
+env.filters["multidim"] = test_to_filter("multidim")
 
 env.filters["opt"] = test_to_filter("opt")
 

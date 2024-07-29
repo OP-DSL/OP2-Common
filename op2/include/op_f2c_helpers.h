@@ -153,8 +153,7 @@ private:
     CUmodule m_module;
     CUfunction m_kernel;
 
-    int m_block_size = 0;
-    int m_min_grid_size = 0;
+    // std::vector<std::tuple<int, int>> m_launch_configs;
 
     void ensure_loaded() {
         if (m_loaded) return;
@@ -172,16 +171,28 @@ public:
     JitKernel(const JitKernel&) = delete;
     JitKernel(char *cubin, std::string_view name) : m_cubin{cubin}, m_name{name} {}
 
-    std::tuple<int, int> get_launch_config() {
+    /*
+    const std::vector<std::tuple<int, int>>& get_launch_configs() {
+        if (m_launch_configs.size() > 0) return m_launch_configs;
+
         ensure_loaded();
 
-        if (m_block_size == 0) {
-            CU_SAFE_CALL(cuOccupancyMaxPotentialBlockSize(&m_min_grid_size, &m_block_size,
-                                                          m_kernel, nullptr, 0, INT32_MAX));
+        int min_grid_size, block_size;
+        CU_SAFE_CALL(cuOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel,
+                                                      nullptr, 0, INT32_MAX));
+
+        m_launch_configs.push_back({min_grid_size, block_size});
+        while (block_size > 32) {
+            int next_block_size = (block_size & ~(-32)) ? block_size & (-32) : block_size - 32;
+            CU_SAFE_CALL(cuOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel,
+                                                          nullptr, 0, next_block_size));
+
+            m_launch_configs.push_back({min_grid_size, block_size});
         }
 
-        return {m_block_size, m_min_grid_size};
+        return m_launch_configs;
     }
+    */
 
     void invoke(int num_blocks, int block_size, void **args) {
         ensure_loaded();
@@ -317,8 +328,7 @@ private:
     const void* m_kernel;
 
     cudaFuncAttributes m_kernel_attrs;
-    int m_block_size = 0;
-    int m_min_grid_size = 0;
+    // std::vector<std::tuple<int, int>> m_launch_configs;
 
     std::vector<JitParam> m_params;
     std::string m_src;
@@ -431,7 +441,20 @@ public:
         : m_name{name}, m_kernel{kernel}, m_src{src} {
         jit_init();
         CUDA_SAFE_CALL(cudaFuncGetAttributes(&m_kernel_attrs, m_kernel));
-        CUDA_SAFE_CALL(cudaOccupancyMaxPotentialBlockSize(&m_min_grid_size, &m_block_size, m_kernel));
+
+        /*
+        int min_grid_size, block_size;
+        CUDA_SAFE_CALL(cudaOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel));
+
+        m_launch_configs.push_back({min_grid_size, block_size});
+        while (block_size > 32) {
+            int next_block_size = (block_size & ~(-32)) ? block_size & (-32) : block_size - 32;
+            CUDA_SAFE_CALL(cudaOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel,
+                                                              0, next_block_size));
+
+            m_launch_configs.push_back({min_grid_size, block_size});
+        }
+        */
     }
 
     ~KernelInfo() {
@@ -485,18 +508,18 @@ public:
         return nullptr;
     }
 
-    std::tuple<int, int> get_launch_config(JitKernel *kernel) {
-        int block_size, min_grid_size;
+    std::tuple<int, int> get_launch_config(JitKernel *kernel, int n_elems) {
+/*
+        auto& launch_configs = kernel == nullptr ? m_launch_configs : kernel->get_launch_configs();
 
-        if (kernel == nullptr) {
-            block_size = m_block_size;
-            min_grid_size = m_min_grid_size;
-        } else {
-            std::tie(block_size, min_grid_size) = kernel->get_launch_config();
+        int selected_config = 0;
+        for (; selected_config < launch_configs.size() - 1; ++selected_config) {
+            auto [min_grid_size, block_size] = launch_configs[selected_config];
+            if (min_grid_size * block_size < n_elems) break;
         }
+*/
 
-        // return {block_size, INT32_MAX};
-        return {64, INT32_MAX};
+        return {INT32_MAX, 64};
     }
 
     void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {
