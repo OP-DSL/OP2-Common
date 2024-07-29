@@ -4,7 +4,7 @@ CONFIG_FC := ifort
 BASE_FFLAGS := -warn all
 
 ifndef DEBUG
-  BASE_FFLAGS += -O3
+  BASE_FFLAGS += -g -O3
 
   ifeq ($(TARGET_HOST),true)
     BASE_FFLAGS += -xhost

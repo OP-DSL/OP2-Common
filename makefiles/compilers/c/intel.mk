@@ -5,7 +5,7 @@ CONFIG_CXX := icpc
 BASE_CXXFLAGS := -MMD -MP -Wall -D__PURE_INTEL_C99_HEADERS__ -no-multibyte-chars -D__is_assignable=__is_trivially_assignable -std=c++11
 
 ifndef DEBUG
-  BASE_CXXFLAGS += -O3
+  BASE_CXXFLAGS += -g -O3
 
   ifeq ($(TARGET_HOST),true)
     BASE_CXXFLAGS += -xhost

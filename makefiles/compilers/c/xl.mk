@@ -6,9 +6,9 @@ BASE_CXXFLAGS := -MMD -MP -Wall -pedantic
 
 ifndef DEBUG
   ifeq ($(TARGET_HOST),true)
-    BASE_CXXFLAGS += -O4
+    BASE_CXXFLAGS += -g -O4
   else
-    BASE_CXXFLAGS += -O3
+    BASE_CXXFLAGS += -g -O3
   endif
 else
   BASE_CXXFLAGS += -g -O0

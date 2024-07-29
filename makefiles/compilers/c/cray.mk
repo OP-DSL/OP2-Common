@@ -8,7 +8,7 @@ CONFIG_MPICXX := CC
 BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic
 
 ifndef DEBUG
-  BASE_CXXFLAGS += -O3
+  BASE_CXXFLAGS += -g -O3
 else
   BASE_CXXFLAGS += -g -Og
 endif

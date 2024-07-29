@@ -8,7 +8,7 @@ CUDA_VER_MATCH := "s/Cuda compilation tools, release \([[:digit:]]\+.[[:digit:]]
 NV_CUDA_VER := $(shell $(CONFIG_NVCC) --version | sed -n $(CUDA_VER_MATCH))
 
 ifndef DEBUG
-  NVCC_OPT := -O3
+  NVCC_OPT := -g -O3
 else
   NVCC_OPT := -g -O0 --device-debug
 endif
