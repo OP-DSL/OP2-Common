@@ -3,7 +3,7 @@ CONFIG_FC := ftn
 CONFIG_MPIFC := ftn
 
 ifndef DEBUG
-  BASE_FFLAGS += -O3
+  BASE_FFLAGS += -g -O3
 else
   BASE_FFLAGS += -g -Og
 endif

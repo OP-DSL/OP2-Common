@@ -3,9 +3,9 @@ CONFIG_FC := xlf_r
 
 ifndef DEBUG
   ifeq ($(TARGET_HOST),true)
-    BASE_FFLAGS += -O3
+    BASE_FFLAGS += -g -O3
   else
-    BASE_FFLAGS += -O4
+    BASE_FFLAGS += -g -O4
   endif
 else
   BASE_FFLAGS += -g -O0
