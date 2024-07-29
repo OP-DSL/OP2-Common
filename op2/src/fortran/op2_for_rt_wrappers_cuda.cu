@@ -86,6 +86,11 @@ static bool needs_per_thread_storage(const op_arg& arg) {
            arg.acc == OP_WORK;
 }
 
+static bool needs_device_storage(const op_arg& arg) {
+    if (arg.argtype == OP_ARG_INFO) return true;
+    return arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1);
+}
+
 static bool opt_disabled(const op_arg& arg, const op_arg *args) {
     if (arg.argtype == OP_ARG_INFO)
         return args[arg.acc].opt == 0;
@@ -307,19 +312,21 @@ void op_put_all_cuda(int nargs, op_arg *args) {
   }
 }
 
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
+bool prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
-        if (needs_per_thread_storage(args[i]))
+        if (needs_per_thread_storage(args[i])) {
             required_size += align(args[i].size * max_threads * sizeof(char));
-        else
+        } else if (needs_device_storage(args[i])) {
             required_size += align(args[i].size * sizeof(char));
+        }
     }
 
+    bool needs_exit_sync = required_size > 0;
     device_globals.ensure_capacity(required_size);
 
     char *allocated = (char *) device_globals.data;
@@ -327,19 +334,21 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
-        args[i].data_d = allocated;
-
         if (needs_per_thread_storage(args[i])) {
+            args[i].data_d = allocated;
             allocated += align(args[i].size * max_threads * sizeof(char));
-        } else {
+        } else if (needs_device_storage(args[i])) {
+            args[i].data_d = allocated;
             allocated += align(args[i].size * sizeof(char));
-            if (args[i].acc == OP_WRITE) continue;
 
+            if (args[i].acc == OP_WRITE) continue;
             cutilSafeCall(cudaMemcpyAsync(args[i].data_d, args[i].data,
                                           args[i].size * sizeof(char),
                                           cudaMemcpyHostToDevice, cuda_stream));
         }
     }
+
+    return needs_exit_sync;
 }
 
 int getBlockLimit(op_arg *args, int nargs, int block_size, char *name) {

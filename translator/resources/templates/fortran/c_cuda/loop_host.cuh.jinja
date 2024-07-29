@@ -82,9 +82,11 @@ idx
 {%- endmacro -%}
 
 {%- macro arg_to_pointer2(arg, jit) -%}
-    {%- if jit and arg is gbl and arg is read and arg.dim == 1 %}
+    {%- if jit and arg is gbl and arg is read and arg is scalar -%}
 op2_gbl{{arg.id}}_d
-    {%- elif ((arg is gbl or arg is info) and arg.dim == 1) or (arg is dat and lh.dat(arg).dim == 1) %}
+    {%- elif arg is gbl and arg is read and arg is scalar -%}
+gbl{{arg.id}}
+    {%- elif arg is scalar(lh) -%}
 {{arg_to_pointer3(arg)}}.data[0]
     {%- else -%}
 {{arg_to_pointer3(arg)}}
@@ -123,8 +125,11 @@ void *kernel_args[] = {
     {% for map in lh.maps %}
     &arg{{map.arg_id}}.map_data_d,
     {% endfor %}
-    {% for arg in lh.args|gbl %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
     &arg{{arg.id}}.data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar %}
+    (void *)arg{{arg.id}}.data,
     {% endfor %}
     {% for arg in lh.args|info %}
     &arg{{arg.id}}.data_d,
@@ -153,7 +158,7 @@ void *kernel_args_jit[] = {
     {% for map in lh.maps %}
     &arg{{map.arg_id}}.map_data_d,
     {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg.dim == 1) %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
     &arg{{arg.id}}.data_d,
     {% endfor %}
     {% for arg in lh.args|info %}
@@ -215,7 +220,7 @@ int op2_stride_dat{{dat.id}};
 __constant__ int op2_stride_dat{{dat.id}}_d;
 {% endfor %}
 
-{% for arg in lh.args|gbl|read if arg.dim == 1 %}
+{% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
 
@@ -230,8 +235,11 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for map in lh.maps %}
     const int *__restrict map{{map.id}},
     {% endfor %}
-    {% for arg in lh.args|gbl if not (jit and arg is read and arg.dim == 1) %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
     {{"const " if arg is read}}{{arg.typ.c()}} *__restrict gbl{{arg.id}},
+    {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar if not jit %}
+    const {{arg.typ.c()}} gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
@@ -363,7 +371,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
         info.add_param("op2_const_{{const}}_d", &{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
     {% endif %}
 {% endfor %}
-{% for arg in lh.args|gbl|read if arg.dim == 1 %}
+{% for arg in lh.args|gbl|read|scalar %}
         info.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
 {% endfor %}
 
@@ -394,7 +402,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
     setGblIncAtomic({{"true" if config.gbl_inc_atomic else "false"}});
 
-{% for arg in lh.args|gbl|read if arg.dim == 1 %}
+{% for arg in lh.args|gbl|read|scalar %}
     kernel::op2_gbl{{arg.id}} = (({{arg.typ.c()}} *)arg{{arg.id}}.data)[0];
 {% endfor %}
 
@@ -413,10 +421,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     auto *kernel_inst = info.get_kernel();
     op_timing2_exit();
 
-    auto [block_size, block_limit] = info.get_launch_config(kernel_inst);
+{% if lh is direct %}
+    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->size);
     block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
 
-{% if lh is direct %}
     int num_blocks = (set->size + (block_size - 1)) / block_size;
     num_blocks = std::min(num_blocks, block_limit);
     int max_blocks = num_blocks;
@@ -425,7 +433,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     std::array<int, 3> sections = {0, set->core_size, set->size + set->exec_size};
     {% else %}
     std::array<int, 4> sections = {0, set->core_size, set->size, set->size + set->exec_size};
-    {% endif %}
+{% endif %}
+
+    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->core_size);
+    block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
 
     int max_blocks = 0;
     for (int i = 1; i < sections.size(); ++i)
@@ -452,6 +463,17 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_plan *plan = op_plan_get_stage("{{lh.name}}", set, part_size, n_args,
                         args, n_dats_indirect, dats_indirect.data(), OP_COLOR2);
 
+    int max_size = 0;
+    for (int col = 0; col < plan->ncolors; ++col) {
+        int start = plan->col_offsets[0][col];
+        int end = plan->col_offsets[0][col + 1];
+
+        max_size = std::max(max_size, end - start);
+    }
+
+    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, max_size);
+    block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
+
     int max_blocks = 0;
     for (int col = 0; col < plan->ncolors; ++col) {
         int start = plan->col_offsets[0][col];
@@ -467,7 +489,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
 
     op_timing2_enter("Prepare GBLs");
-    prepareDeviceGbls(args, n_args, block_size * max_blocks);
+    bool exit_sync = prepareDeviceGbls(args, n_args, block_size * max_blocks);
 
 {% for arg in lh.args %}
     arg{{arg.id}} = args[{{loop.index0}}];
@@ -576,6 +598,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
     op_mpi_set_dirtybit_cuda(n_args, args);
+    if (exit_sync) CUDA_SAFE_CALL(cudaStreamSynchronize(0));
 
     op_timing2_exit();
     op_timing2_exit();
