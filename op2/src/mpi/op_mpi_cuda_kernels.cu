@@ -41,7 +41,7 @@
 extern cudaEvent_t op2_grp_download_event;
 
 __global__ void export_halo_gather(int *list, char *dat, int copy_size,
-                                   int elem_size, char *export_buffer) {
+                                   size_t elem_size, char *export_buffer) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id < copy_size) {
     int off = 0;
@@ -65,10 +65,10 @@ __global__ void export_halo_gather(int *list, char *dat, int copy_size,
 }
 
 __global__ void export_halo_gather_soa(int *list, char *dat, int copy_size,
-                                       int elem_size, char *export_buffer,
+                                       size_t elem_size, char *export_buffer,
                                        int set_size, int dim) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  int size_of = elem_size / dim;
+  size_t size_of = elem_size / dim;
   if (id < copy_size) {
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
@@ -87,10 +87,10 @@ __global__ void export_halo_gather_soa(int *list, char *dat, int copy_size,
 }
 
 __global__ void import_halo_scatter_soa(int offset, char *dat, int copy_size,
-                                        int elem_size, char *import_buffer,
+                                        size_t elem_size, char *import_buffer,
                                         int set_size, int dim) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  int size_of = elem_size / dim;
+  size_t size_of = elem_size / dim;
   if (id < copy_size) {
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
@@ -109,13 +109,13 @@ __global__ void import_halo_scatter_soa(int offset, char *dat, int copy_size,
 }
 
 __global__ void import_halo_scatter_partial_soa(int *list, char *dat,
-                                                int copy_size, int elem_size,
+                                                int copy_size, size_t elem_size,
                                                 char *import_buffer,
                                                 int set_size, int dim) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  int size_of = elem_size / dim;
+  size_t size_of = elem_size / dim;
   if (id < copy_size) {
-    int element = list[id];
+    size_t element = list[id];
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
         ((double *)(dat + (element)*size_of))[i * round32(set_size)] =
@@ -133,12 +133,12 @@ __global__ void import_halo_scatter_partial_soa(int *list, char *dat,
 }
 
 __global__ void import_halo_scatter_partial(int *list, char *dat, int copy_size,
-                                            int elem_size, char *import_buffer,
+                                            size_t elem_size, char *import_buffer,
                                             int dim) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  int size_of = elem_size / dim;
+  size_t size_of = elem_size / dim;
   if (id < copy_size) {
-    int element = list[id];
+    size_t element = list[id];
     if (size_of == 8) {
       for (int i = 0; i < dim; i++) {
         ((double *)(dat + element * elem_size))[i] =
@@ -168,25 +168,25 @@ void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
 
     export_halo_gather_soa<<<blocks, threads>>>(
         export_exec_list_d[arg.dat->set->index], arg.data_d,
-        exp_exec_list->size, arg.dat->size, arg.dat->buffer_d, set_size,
+        exp_exec_list->size, (size_t)arg.dat->size, arg.dat->buffer_d, set_size,
         arg.dat->dim);
 
     int blocks2 = 1 + ((exp_nonexec_list->size - 1) / 192);
     export_halo_gather_soa<<<blocks2, threads>>>(
         export_nonexec_list_d[arg.dat->set->index], arg.data_d,
-        exp_nonexec_list->size, arg.dat->size,
-        arg.dat->buffer_d + exp_exec_list->size * arg.dat->size, set_size,
+        exp_nonexec_list->size, (size_t)arg.dat->size,
+        arg.dat->buffer_d + exp_exec_list->size * (size_t)arg.dat->size, set_size,
         arg.dat->dim);
   } else {
     export_halo_gather<<<blocks, threads>>>(
         export_exec_list_d[arg.dat->set->index], arg.data_d,
-        exp_exec_list->size, arg.dat->size, arg.dat->buffer_d);
+        exp_exec_list->size, (size_t)arg.dat->size, arg.dat->buffer_d);
 
     int blocks2 = 1 + ((exp_nonexec_list->size - 1) / 192);
     export_halo_gather<<<blocks2, threads>>>(
         export_nonexec_list_d[arg.dat->set->index], arg.data_d,
-        exp_nonexec_list->size, arg.dat->size,
-        arg.dat->buffer_d + exp_exec_list->size * arg.dat->size);
+        exp_nonexec_list->size, (size_t)arg.dat->size,
+        arg.dat->buffer_d + exp_exec_list->size * (size_t)arg.dat->size);
   }
 }
 
@@ -202,12 +202,12 @@ void gather_data_to_buffer_partial(op_arg arg, halo_list exp_nonexec_list) {
 
     export_halo_gather_soa<<<blocks, threads>>>(
         export_nonexec_list_partial_d[arg.map->index], arg.data_d,
-        exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d, set_size,
+        exp_nonexec_list->size, (size_t)arg.dat->size, arg.dat->buffer_d, set_size,
         arg.dat->dim);
   } else {
     export_halo_gather<<<blocks, threads>>>(
         export_nonexec_list_partial_d[arg.map->index], arg.data_d,
-        exp_nonexec_list->size, arg.dat->size, arg.dat->buffer_d);
+        exp_nonexec_list->size, (size_t)arg.dat->size, arg.dat->buffer_d);
   }
 }
 
@@ -224,7 +224,7 @@ void scatter_data_from_buffer(op_arg arg) {
     int copy_size = arg.dat->set->exec_size;
 
     import_halo_scatter_soa<<<blocks, threads>>>(
-        offset, arg.data_d, copy_size, arg.dat->size, arg.dat->buffer_d_r,
+        offset, arg.data_d, copy_size, (size_t)arg.dat->size, arg.dat->buffer_d_r,
         set_size, arg.dat->dim);
 
     offset += arg.dat->set->exec_size;
@@ -232,8 +232,8 @@ void scatter_data_from_buffer(op_arg arg) {
 
     int blocks2 = 1 + ((arg.dat->set->nonexec_size - 1) / 192);
     import_halo_scatter_soa<<<blocks2, threads>>>(
-        offset, arg.data_d, copy_size, arg.dat->size,
-        arg.dat->buffer_d_r + arg.dat->set->exec_size * arg.dat->size, set_size,
+        offset, arg.data_d, copy_size, (size_t)arg.dat->size,
+        arg.dat->buffer_d_r + arg.dat->set->exec_size * (size_t)arg.dat->size, set_size,
         arg.dat->dim);
   }
 }
@@ -252,7 +252,7 @@ void scatter_data_from_buffer_partial(op_arg arg) {
 
     import_halo_scatter_partial_soa<<<blocks, threads>>>(
         import_nonexec_list_partial_d[arg.map->index], arg.data_d, copy_size,
-        arg.dat->size, arg.dat->buffer_d + init * arg.dat->size, set_size,
+        (size_t)arg.dat->size, arg.dat->buffer_d + init * (size_t)arg.dat->size, set_size,
         arg.dat->dim);
   } else {
     int init = OP_export_nonexec_permap[arg.map->index]->size;
@@ -260,7 +260,7 @@ void scatter_data_from_buffer_partial(op_arg arg) {
 
     import_halo_scatter_partial<<<blocks, threads>>>(
         import_nonexec_list_partial_d[arg.map->index], arg.data_d, copy_size,
-        arg.dat->size, arg.dat->buffer_d + init * arg.dat->size, arg.dat->dim);
+        (size_t)arg.dat->size, arg.dat->buffer_d + init * (size_t)arg.dat->size, arg.dat->dim);
   }
 }
 
@@ -283,7 +283,7 @@ __device__ int lower_bound(int *disps, int count, int value) {
 }
 
 __global__ void gather_data_to_buffer_ptr_cuda_kernel(const char *__restrict data, char *__restrict buffer, int *elem_list, int *disps, 
-          unsigned *neigh_to_neigh_offsets, int rank_size, int soa, int type_size, int dim, int set_size) {
+          unsigned *neigh_to_neigh_offsets, int rank_size, int soa, size_t type_size, int dim, int set_size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id >= disps[rank_size]) return;
   int neighbour = lower_bound(disps, rank_size, id);
@@ -310,7 +310,7 @@ __global__ void gather_data_to_buffer_ptr_cuda_kernel(const char *__restrict dat
 }
 
 __global__ void scatter_data_from_buffer_ptr_cuda_kernel(char * __restrict data, const char * __restrict buffer, int *disps, 
-  unsigned *neigh_to_neigh_offsets, int rank_size, int soa, int type_size, int dim, int set_size) {
+  unsigned *neigh_to_neigh_offsets, int rank_size, int soa, size_t type_size, int dim, int set_size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id >= disps[rank_size]) return;
   int neighbour = lower_bound(disps, rank_size, id);
@@ -409,7 +409,7 @@ void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, ch
   cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_gather_h[op2_grp_counter*op2_grp_max_neighbours],eel->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice);
   //Launch kernel
   gather_data_to_buffer_ptr_cuda_kernel<<<1 + ((eel->size - 1) / 192),192>>>(arg.dat->data_d, buffer, export_exec_list_d[arg.dat->set->index], export_exec_list_disps_d[arg.dat->set->index], 
-    op2_grp_neigh_to_neigh_offsets_d, eel->ranks_size, soa, arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
+    op2_grp_neigh_to_neigh_offsets_d, eel->ranks_size, soa, (size_t)arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
   op2_grp_counter++;
 
   //Same for nonexec
@@ -455,7 +455,7 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
   //Launch kernel
   unsigned offset = arg.dat->set->size * (soa?arg.dat->size/arg.dat->dim:arg.dat->size);
   scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((iel->size - 1) / 192),192,0,op2_grp_secondary>>>(arg.dat->data_d+offset, buffer, import_exec_list_disps_d[arg.dat->set->index], 
-    op2_grp_neigh_to_neigh_offsets_d, iel->ranks_size, soa, arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
+    op2_grp_neigh_to_neigh_offsets_d, iel->ranks_size, soa, (size_t)arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
   op2_grp_counter++;
 
   //Same for nonexec
