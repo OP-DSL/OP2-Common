@@ -166,21 +166,21 @@ void op_upload_dat(op_dat dat) {
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)xmalloc(dat->size * round32(set_size) * sizeof(char));
-    int element_size = dat->size / dat->dim;
+    char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
+    size_t element_size = (size_t)dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * round32(set_size) + element_size * j + c] =
-              dat->data[dat->size * j + element_size * i + c];
+              dat->data[(size_t)dat->size * j + element_size * i + c];
         }
       }
     }
-    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, round32(set_size) * dat->size,
+    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, round32(set_size) * (size_t)dat->size,
                              cudaMemcpyHostToDevice));
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, set_size * dat->size,
+    cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, set_size * (size_t)dat->size,
                              cudaMemcpyHostToDevice));
   }
 }
@@ -192,21 +192,21 @@ void op_download_dat(op_dat dat) {
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    char *temp_data = (char *)xmalloc(dat->size * round32(set_size) * sizeof(char));
-    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, round32(set_size) * dat->size,
+    char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
+    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, round32(set_size) * (size_t)dat->size,
                              cudaMemcpyDeviceToHost));
-    int element_size = dat->size / dat->dim;
+    size_t element_size = (size_t)dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          dat->data[dat->size * j + element_size * i + c] =
+          dat->data[(size_t)dat->size * j + element_size * i + c] =
               temp_data[element_size * i * round32(set_size) + element_size * j + c];
         }
       }
     }
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, set_size * dat->size,
+    cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, set_size * (size_t)dat->size,
                              cudaMemcpyDeviceToHost));
   }
 }
@@ -386,7 +386,7 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
     } else {
       cutilSafeCall(cudaMemcpy(
           ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec, arg->dat->buffer_d,
-          exp_nonexec_list->size * arg->dat->size, cudaMemcpyDeviceToHost));
+          exp_nonexec_list->size * (size_t)arg->dat->size, cudaMemcpyDeviceToHost));
 
       cutilSafeCall(cudaDeviceSynchronize());
       outptr_nonexec = ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec;
@@ -515,7 +515,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
       }
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
                      ->buf_nonexec[exp_nonexec_list->disps[i] * (size_t)dat->size],
-                dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
+                (size_t)dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
@@ -525,7 +525,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
     for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
       MPI_Irecv(
           &(dat->data[nonexec_init + imp_nonexec_list->disps[i] * (size_t)dat->size]),
-          dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
+          (size_t)dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))
                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
@@ -575,13 +575,13 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
       for (int j = 0; j < exp_nonexec_list->sizes[i]; j++) {
         set_elem_index = exp_nonexec_list->list[exp_nonexec_list->disps[i] + j];
         memcpy(&((op_mpi_buffer)(dat->mpi_buffer))
-                    ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size +
-                                  j * dat->size],
-               (void *)&dat->data[dat->size * (set_elem_index)], dat->size);
+                    ->buf_nonexec[exp_nonexec_list->disps[i] * (size_t)dat->size +
+                                  j * (size_t)dat->size],
+               (void *)&dat->data[(size_t)dat->size * (set_elem_index)], (size_t)dat->size);
       }
       MPI_Isend(&((op_mpi_buffer)(dat->mpi_buffer))
-                     ->buf_nonexec[exp_nonexec_list->disps[i] * dat->size],
-                dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
+                     ->buf_nonexec[exp_nonexec_list->disps[i] * (size_t)dat->size],
+                (size_t)dat->size * exp_nonexec_list->sizes[i], MPI_CHAR,
                 exp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
                 &((op_mpi_buffer)(dat->mpi_buffer))
                      ->s_req[((op_mpi_buffer)(dat->mpi_buffer))->s_num_req++]);
@@ -591,8 +591,8 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
     for (int i = 0; i < imp_nonexec_list->ranks_size; i++) {
       MPI_Irecv(
           &((op_mpi_buffer)(dat->mpi_buffer))
-               ->buf_nonexec[(init + imp_nonexec_list->disps[i]) * dat->size],
-          dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
+               ->buf_nonexec[(init + imp_nonexec_list->disps[i]) * (size_t)dat->size],
+          (size_t)(size_t)dat->size * imp_nonexec_list->sizes[i], MPI_CHAR,
           imp_nonexec_list->ranks[i], dat->index, OP_MPI_WORLD,
           &((op_mpi_buffer)(dat->mpi_buffer))
                ->r_req[((op_mpi_buffer)(dat->mpi_buffer))->r_num_req++]);
@@ -619,27 +619,27 @@ void op_wait_all_cuda(op_arg *arg) {
       ;
       if (OP_gpu_direct == 0)
         cutilSafeCall(cudaMemcpyAsync(
-            dat->buffer_d + nonexec_init * dat->size,
+            dat->buffer_d + nonexec_init * (size_t)dat->size,
             &((op_mpi_buffer)(dat->mpi_buffer))
-                 ->buf_nonexec[nonexec_init * dat->size],
-            imp_nonexec_list->size * dat->size, cudaMemcpyHostToDevice, 0));
+                 ->buf_nonexec[nonexec_init * (size_t)dat->size],
+            imp_nonexec_list->size * (size_t)dat->size, cudaMemcpyHostToDevice, 0));
       scatter_data_from_buffer_partial(*arg);
     } else {
       if (OP_gpu_direct == 0) {
         if (strstr(arg->dat->type, ":soa") != NULL ||
             (OP_auto_soa && arg->dat->dim > 1)) {
-          int init = dat->set->size * dat->size;
-          int size = (dat->set->exec_size + dat->set->nonexec_size) * dat->size;
+          int init = dat->set->size * (size_t)dat->size;
+          int size = (dat->set->exec_size + dat->set->nonexec_size) * (size_t)dat->size;
           cutilSafeCall(cudaMemcpyAsync(dat->buffer_d_r, dat->data + init, size,
                                         cudaMemcpyHostToDevice, 0));
           scatter_data_from_buffer(*arg);
         } else {
-          int init = dat->set->size * dat->size;
+          int init = dat->set->size * (size_t)dat->size;
           cutilSafeCall(
               cudaMemcpyAsync(dat->data_d + init, dat->data + init,
                               (OP_import_exec_list[dat->set->index]->size +
                                OP_import_nonexec_list[dat->set->index]->size) *
-                                  arg->dat->size,
+                                  (size_t)arg->dat->size,
                               cudaMemcpyHostToDevice, 0));
         }
       } else if (strstr(arg->dat->type, ":soa") != NULL ||
@@ -663,11 +663,11 @@ void op_wait_all(op_arg *arg) {
       halo_list imp_nonexec_list = OP_import_nonexec_permap[arg->map->index];
       int init = OP_export_nonexec_permap[arg->map->index]->size;
       char *buffer =
-          &((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec[init * dat->size];
+          &((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec[init * (size_t)dat->size];
       for (int i = 0; i < imp_nonexec_list->size; i++) {
         int set_elem_index = imp_nonexec_list->list[i];
-        memcpy((void *)&dat->data[dat->size * (set_elem_index)],
-               &buffer[i * dat->size], dat->size);
+        memcpy((void *)&dat->data[(size_t)dat->size * (set_elem_index)],
+               &buffer[i * (size_t)dat->size], (size_t)dat->size);
       }
     }
   }
