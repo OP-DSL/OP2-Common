@@ -322,7 +322,7 @@ int op2_grp_size_recv_old = 0;
 int op2_grp_size_send_old = 0;
 void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
       char **send_buffer_device, char **recv_buffer_device, int device, 
-      unsigned size_send, unsigned size_recv) {
+      size_t size_send, size_t size_recv) {
   if (op2_grp_size_recv_old < size_recv) {
     *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
     op2_grp_size_recv_old = size_recv;
@@ -340,6 +340,6 @@ void op_scatter_sync() {}
 void op_gather_sync() {}
 #include <vector>
 void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets){}
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets){}
 void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets){}
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets){}

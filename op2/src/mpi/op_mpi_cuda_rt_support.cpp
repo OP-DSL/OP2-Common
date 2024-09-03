@@ -135,7 +135,7 @@ void cutilDeviceInit(int argc, char **argv) {
   for (int i = 0; i < deviceCount; i++) {
     cudaError_t err = cudaSetDevice((i+rank)%deviceCount);
     if (err == cudaSuccess) {
-      cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+      cudaError_t err = op_deviceMalloc((void **)&test, sizeof(float));
       if (err == cudaSuccess) {
         OP_hybrid_gpu = 1;
         break;
@@ -707,7 +707,7 @@ void op_move_to_device() {
       }
     }
     op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
-                      map->dim * round32(set_size) * sizeof(int));
+                      (size_t)map->dim * round32(set_size) * sizeof(int));
     free(temp_map);
 
     map_size += map->dim * round32(set_size) * sizeof(int);
@@ -726,15 +726,15 @@ int op_is_root() {
   return (my_rank == MPI_ROOT);
 }
 
-int op2_grp_size_recv_old = 0;
-int op2_grp_size_send_old = 0;
+size_t op2_grp_size_recv_old = 0;
+size_t op2_grp_size_send_old = 0;
 void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
       char **send_buffer_device, char **recv_buffer_device, int device, 
-      unsigned size_send, unsigned size_recv) {
+      size_t size_send, size_t size_recv) {
   if (op2_grp_size_recv_old < size_recv) {
     //if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
     if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
-    cutilSafeCall(cudaMalloc(recv_buffer_device, size_recv));
+    cutilSafeCall(op_deviceMalloc((void**)recv_buffer_device, size_recv));
     //cutilSafeCall(cudaMallocHost(recv_buffer_host, size_send));
     if (op2_grp_size_recv_old>0) cutilSafeCall(cudaHostUnregister ( *recv_buffer_host ));
     *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
@@ -744,7 +744,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
   if (op2_grp_size_send_old < size_send) {
     //if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
     if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
-    cutilSafeCall(cudaMalloc(send_buffer_device, size_send));
+    cutilSafeCall(op_deviceMalloc((void**)send_buffer_device, size_send));
     //cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
     if (op2_grp_size_send_old>0) cutilSafeCall(cudaHostUnregister ( *send_buffer_host ));
     *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);

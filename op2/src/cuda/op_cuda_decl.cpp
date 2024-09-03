@@ -89,11 +89,11 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
       }
     }
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
-                      dat->size * round32(set_size));
+                      (size_t)dat->size * round32(set_size));
     free(temp_data);
   } else {
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                      dat->size * set_size);
+                      (size_t)dat->size * set_size);
   }
 
   return dat;
@@ -133,7 +133,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   dat->user_managed = 0;
 
 	op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                    dat->size * set->size);
+                    (size_t)dat->size * set->size);
 
   return dat;
 }
@@ -160,7 +160,7 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
     }
   }
   op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
-                    map->dim * round32(set_size) * sizeof(int));
+                    sizeof(int) * map->dim * round32(set_size));
   free(temp_map);
   return map;
 }

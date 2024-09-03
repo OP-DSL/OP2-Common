@@ -869,7 +869,7 @@ void op_halo_create() {
         dat->data =
             (char *)xrealloc(dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
 
-        int init = set->size * (size_t)dat->size;
+        size_t init = set->size * (size_t)dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(dat->data[init + i_list->disps[i] * (size_t)dat->size]),
                    (size_t)dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,

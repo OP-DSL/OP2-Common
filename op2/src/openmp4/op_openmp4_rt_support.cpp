@@ -19,7 +19,7 @@
 // routines to move arrays to/from GPU device
 //
 
-void op_mvHostToDevice(void **map, int size) {
+void op_mvHostToDevice(void **map, size_t size) {
   if (!OP_hybrid_gpu)
     return;
   char *temp = (char*)*map;
@@ -28,7 +28,7 @@ void op_mvHostToDevice(void **map, int size) {
   //TODO test
 }
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size) {
+void op_cpHostToDevice(void **data_d, void **data_h, size_t size) {
   if (!OP_hybrid_gpu)
     return;
   *data_d = (char*)op_malloc(size);
@@ -79,7 +79,7 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       offsets[m + 1] = offsets[m] + count;
     }
     op_mvHostToDevice((void **)&(plan->ind_map),
-                      offsets[plan->ninds_staged] * set_size * sizeof(int));
+                      sizeof(int) * offsets[plan->ninds_staged] * set_size);
     for (int m = 0; m < plan->ninds_staged; m++) {
       plan->ind_maps[m] = &plan->ind_map[set_size * offsets[m]];
     }
