@@ -94,22 +94,31 @@ void __cutilCheckMsg(const char *errorMessage, const char *file,
 // routines to move arrays to/from GPU device
 //
 
-void op_mvHostToDevice(void **map, int size) {
+cudaError_t op_deviceMalloc(void **ptr, size_t size) {
+  int rank;
+  op_rank(&rank);
+    size_t totalMemory, freeMemory;
+  cudaMemGetInfo(&freeMemory, &totalMemory);
+  printf("Rank: %d, cudaMalloc %ld bytes, free memory: %ld/%ld\n", rank, size, freeMemory, totalMemory);
+  return cudaMalloc(ptr, size);
+}
+
+void op_mvHostToDevice(void **map, size_t size) {
   if (!OP_hybrid_gpu || size == 0)
     return;
   void *tmp;
-  cutilSafeCall(cudaMalloc(&tmp, size));
+  cutilSafeCall(op_deviceMalloc(&tmp, size));
   cutilSafeCall(cudaMemcpy(tmp, *map, size, cudaMemcpyHostToDevice));
   cutilSafeCall(cudaDeviceSynchronize());
   free(*map);
   *map = tmp;
 }
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size) {
+void op_cpHostToDevice(void **data_d, void **data_h, size_t size) {
   if (!OP_hybrid_gpu)
     return;
   if (*data_d != NULL) cutilSafeCall(cudaFree(*data_d));
-  cutilSafeCall(cudaMalloc(data_d, size));
+  cutilSafeCall(op_deviceMalloc(data_d, size));
   cutilSafeCall(cudaMemcpy(*data_d, *data_h, size, cudaMemcpyHostToDevice));
   cutilSafeCall(cudaDeviceSynchronize());
 }
@@ -154,7 +163,7 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
       offsets[m + 1] = offsets[m] + count;
     }
     op_mvHostToDevice((void **)&(plan->ind_map),
-                      offsets[plan->ninds_staged] * set_size * sizeof(int));
+                      sizeof(int) * offsets[plan->ninds_staged] * set_size);
     for (int m = 0; m < plan->ninds_staged; m++) {
       plan->ind_maps[m] = &plan->ind_map[set_size * offsets[m]];
     }
@@ -226,7 +235,7 @@ void reallocConstArrays(int consts_bytes) {
     }
     OP_consts_bytes = 4 * consts_bytes; // 4 is arbitrary, more than needed
     OP_consts_h = (char *)malloc(OP_consts_bytes);
-    cutilSafeCall(cudaMalloc((void **)&OP_consts_d, OP_consts_bytes));
+    cutilSafeCall(op_deviceMalloc((void **)&OP_consts_d, OP_consts_bytes));
   }
 }
 
@@ -238,7 +247,7 @@ void reallocReductArrays(int reduct_bytes) {
     }
     OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
     OP_reduct_h = (char *)malloc(OP_reduct_bytes);
-    cutilSafeCall(cudaMalloc((void **)&OP_reduct_d, OP_reduct_bytes));
+    cutilSafeCall(op_deviceMalloc((void **)&OP_reduct_d, OP_reduct_bytes));
   }
 }
 
@@ -324,7 +333,7 @@ void cutilDeviceInit(int argc, char **argv) {
 
   // Test we have access to a device
   float *test;
-  cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+  cudaError_t err = op_deviceMalloc((void **)&test, sizeof(float));
   if (err != cudaSuccess) {
     OP_hybrid_gpu = 0;
   } else {

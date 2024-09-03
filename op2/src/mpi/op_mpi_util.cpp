@@ -269,12 +269,12 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name) {
 }
 
 void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets);
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets);
 void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets);
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets);
 
 void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets) {
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets) {
 
   for (int i = 0; i < eel->ranks_size; i++) {
     int dest_rank = eel->ranks[i];
@@ -301,7 +301,7 @@ void gather_data_to_buffer_ptr(op_arg arg, halo_list eel, halo_list enl, char *b
 }
 
 void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets) {
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets) {
 
   for (int i = 0; i < iel->ranks_size; i++) {
     int dest_rank = iel->ranks[i];
@@ -332,12 +332,12 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
 }
 
 std::vector<unsigned> partial_flags;
-std::vector<unsigned> send_sizes;
-std::vector<unsigned> recv_sizes;
+std::vector<size_t> send_sizes;
+std::vector<size_t> recv_sizes;
 std::vector<int>      send_neigh_list;
 std::vector<int>      recv_neigh_list;
-std::vector<unsigned> send_offsets;
-std::vector<unsigned> recv_offsets;
+std::vector<size_t> send_offsets;
+std::vector<size_t> recv_offsets;
 std::vector<MPI_Request> send_requests;
 std::vector<MPI_Request> recv_requests;
 char *send_buffer_host = NULL;
@@ -508,8 +508,8 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   }
 
   //Realloc buffers
-  unsigned size_send = std::accumulate(send_sizes.begin(), send_sizes.end(), 0u);
-  unsigned size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
+  size_t size_send = std::accumulate(send_sizes.begin(), send_sizes.end(), 0u);
+  size_t size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
   op_realloc_comm_buffer(&send_buffer_host, &recv_buffer_host, &send_buffer_device, &recv_buffer_device, device, size_send, size_recv);
 
   //Calculate offsets
@@ -540,7 +540,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   //Non-blocking receive
 //  int rank;
 //  MPI_Comm_rank(OP_MPI_WORLD, &rank);
-  unsigned curr_offset = 0;
+  size_t curr_offset = 0;
   op2_grp_tag++;
   for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
     char *buf = (device==2 && OP_gpu_direct) ? recv_buffer_device : recv_buffer_host;
@@ -550,7 +550,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   }
 
   if (device == 1) {
-    unsigned curr_offset = 0;
+    size_t curr_offset = 0;
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = send_buffer_host;
       // int rank;
@@ -597,7 +597,7 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
 
   //Sends are only started here when running async on the device
   if (device == 2) {
-    unsigned curr_offset = 0;
+    size_t curr_offset = 0;
     if(OP_gpu_direct) op_gather_sync();
     else op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
@@ -626,7 +626,7 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
 
   if (device == 2 && !OP_gpu_direct) {
-    unsigned size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
+    size_t size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
     op_upload_buffer_async(recv_buffer_device, recv_buffer_host, size_recv);
   }
   op2_grp_counter = 0;

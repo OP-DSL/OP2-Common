@@ -195,7 +195,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     cutilSafeCall(
-        cudaMalloc((void **)&(dat->buffer_d_r),
+        op_deviceMalloc((void **)&(dat->buffer_d_r),
                    (size_t)dat->size * (OP_import_exec_list[set->index]->size +
                                 OP_import_nonexec_list[set->index]->size)));
   }
@@ -229,7 +229,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // need to allocate device buffers for mpi comms for this new temp_dat
   cutilSafeCall(
-      cudaMalloc((void **)&(dat->buffer_d),
+      op_deviceMalloc((void **)&(dat->buffer_d),
                  (size_t)dat->size * (OP_export_exec_list[set->index]->size +
                               OP_export_nonexec_list[set->index]->size)));
 
@@ -280,7 +280,7 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
 
     if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
     cutilSafeCall(
-        cudaMalloc((void **)&(dat->buffer_d_r),
+        op_deviceMalloc((void **)&(dat->buffer_d_r),
                    (size_t)dat->size * (OP_import_exec_list[set->index]->size +
                                 OP_import_nonexec_list[set->index]->size)));
 
@@ -296,7 +296,7 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
   dat->dirty_hd = 0;
   if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
   cutilSafeCall(
-      cudaMalloc((void **)&(dat->buffer_d),
+      op_deviceMalloc((void **)&(dat->buffer_d),
                  (size_t)dat->size * (OP_export_exec_list[set->index]->size +
                               OP_export_nonexec_list[set->index]->size +
                               set_import_buffer_size[set->index])));

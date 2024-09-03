@@ -84,9 +84,11 @@ void cutilDeviceInit_mpi(int argc, char **argv, int mpi_rank);
  * routines to move arrays to/from GPU device
  */
 
-void op_mvHostToDevice(void **map, int size);
+cudaError_t op_deviceMalloc(void **ptr, size_t size);
 
-void op_cpHostToDevice(void **data_d, void **data_h, int size);
+void op_mvHostToDevice(void **map, size_t size);
+
+void op_cpHostToDevice(void **data_d, void **data_h, size_t size);
 
 void op_cuda_get_data(op_dat dat);
 

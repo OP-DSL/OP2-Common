@@ -354,15 +354,15 @@ void check_realloc_buffer_gather() {
       op2_grp_max_neighbours = MAX(op2_grp_max_neighbours,OP_import_nonexec_list[i]->ranks_size);
     }
     //Need host buffers for each dat in flight
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_gather_h, op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_gather_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
     //But just one device buffer if gather kernels are sequential
-    cutilSafeCall(cudaMalloc    (&op2_grp_neigh_to_neigh_offsets_d, op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(op_deviceMalloc    ((void**)&op2_grp_neigh_to_neigh_offsets_d, op2_grp_max_neighbours * sizeof(unsigned)));
   }
   if (op2_grp_counter >= op2_grp_max_gathers) {
     cutilSafeCall(cudaDeviceSynchronize());
     cutilSafeCall(cudaFreeHost(op2_grp_neigh_to_neigh_offsets_gather_h));
     op2_grp_max_gathers *= 2;
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_gather_h, op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_gather_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
   }
 }
 
@@ -376,20 +376,20 @@ void check_realloc_buffer_scatter() {
       op2_grp_max_neighbours = MAX(op2_grp_max_neighbours,OP_import_nonexec_list[i]->ranks_size);
     }
     //Need host buffers for each dat in flight
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_scatter_h, op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_scatter_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
     //But just one device buffer if gather kernels are sequential
-    cutilSafeCall(cudaMalloc    (&op2_grp_neigh_to_neigh_offsets_d, op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(op_deviceMalloc    ((void**)&op2_grp_neigh_to_neigh_offsets_d, op2_grp_max_neighbours * sizeof(unsigned)));
   }
   if (op2_grp_counter >= op2_grp_max_gathers) {
     cutilSafeCall(cudaDeviceSynchronize());
     cutilSafeCall(cudaFreeHost(op2_grp_neigh_to_neigh_offsets_scatter_h));
     op2_grp_max_gathers *= 2;
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_scatter_h, op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_scatter_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
   }
 }
 
 void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
-  std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets) {
+  std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets) {
 
   check_realloc_buffer_gather();
 
@@ -434,7 +434,7 @@ void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, ch
 }
 
 void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
-  std::vector<int>& neigh_list, std::vector<unsigned>& neigh_offsets) {
+  std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets) {
 
   check_realloc_buffer_scatter();
 
