@@ -95,12 +95,7 @@ void __cutilCheckMsg(const char *errorMessage, const char *file,
 //
 
 cudaError_t op_deviceMalloc(void **ptr, size_t size) {
-<<<<<<< Updated upstream
-  int rank;
-  op_rank(&rank);
-=======
   int rank=0;
->>>>>>> Stashed changes
   size_t totalMemory, freeMemory;
   cudaMemGetInfo(&freeMemory, &totalMemory);
   printf("Rank: %d, cudaMalloc %ld bytes, free memory: %ld/%ld\n", rank, size, freeMemory, totalMemory);
