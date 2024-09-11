@@ -26,3 +26,6 @@ $(foreach lib,$(OP2_LIBS_MPI),$(eval $(call OP2_LIB_template,$(lib),\
 
 OP2_LIB_CUDA += $(CUDA_LIB)
 OP2_LIB_MPI_CUDA += $(CUDA_LIB)
+
+OP2_LIB_HIP += $(HIP_LIB)
+OP2_LIB_MPI_HIP += $(HIP_LIB)

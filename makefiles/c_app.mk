@@ -9,7 +9,7 @@ APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%.cpp)
 
 APP_INC ?= -I.
 
-BASE_VARIANTS := seq genseq openmp cuda
+BASE_VARIANTS := seq genseq openmp cuda hip
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -25,6 +25,10 @@ ifeq ($(HAVE_C),true)
 
   ifeq ($(HAVE_CUDA),true)
     BUILDABLE_VARIANTS += cuda
+  endif
+
+  ifeq ($(HAVE_HIP),true)
+    BUILDABLE_VARIANTS += hip
   endif
 
   ifeq ($(HAVE_MPI_C),true)
@@ -85,6 +89,7 @@ SEQ_SRC := $(APP_SRC)
 GENSEQ_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/seq/seq_kernels.cpp
 OPENMP_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp/openmp_kernels.cpp
 CUDA_SRC   := $(APP_SRC_OP) generated/$(APP_NAME)/cuda/cuda_kernels.o
+HIP_SRC    := $(APP_SRC_OP) generated/$(APP_NAME)/hip/hip_kernels.o
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
@@ -109,6 +114,7 @@ $(eval $(call RULE_template, seq,,                      SEQ,     MPI))
 $(eval $(call RULE_template, genseq,,                   SEQ,     MPI))
 $(eval $(call RULE_template, openmp,   $(OMP_CXXFLAGS), OPENMP,  MPI))
 $(eval $(call RULE_template, cuda,,                     CUDA,    MPI_CUDA))
+$(eval $(call RULE_template, hip,,                      HIP,     MPI_HIP))
 
 define CUDA_EXTRA_RULES_template =
 $(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
@@ -119,6 +125,16 @@ generated/$(APP_NAME)/cuda/cuda_kernels.o: generated/$(APP_NAME)
 endef
 
 $(eval $(call CUDA_EXTRA_RULES_template))
+
+define HIP_EXTRA_RULES_template =
+$(APP_NAME)_hip: generated/$(APP_NAME)/hip/hip_kernels.o
+$(APP_NAME)_mpi_hip: generated/$(APP_NAME)/hip/hip_kernels.o
+
+generated/$(APP_NAME)/hip/hip_kernels.o: generated/$(APP_NAME)
+	$$(HIPCC) $$(HIPCCFLAGS) $(APP_INC) $$(OP2_INC) -c generated/$(APP_NAME)/hip/hip_kernels.hip.cpp -o $$@
+endef
+
+$(eval $(call HIP_EXTRA_RULES_template))
 
 -include $(wildcard *.d)
 
