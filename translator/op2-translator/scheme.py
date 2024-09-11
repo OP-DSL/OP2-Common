@@ -56,7 +56,7 @@ class Scheme(Findable["Scheme"]):
         force_generate: bool = False,
     ) -> Optional[Tuple[List[Tuple[str, str]], bool]]:
         def get_template(path):
-            return env.get_template(str(path)), path.suffixes[-2][1:]
+            return env.get_template(str(path)), "".join(path.suffixes[:-1])
 
         main_templates = map(get_template, self.loop_host_templates)
         main_args = {
@@ -121,8 +121,8 @@ class Scheme(Findable["Scheme"]):
         # Load the loop host template
         template = env.get_template(str(self.consts_template))
 
-        extension = self.consts_template.suffixes[-2][1:]
-        name = f"op2_consts.{extension}"
+        extension = "".join(self.consts_template.suffixes[:-1])
+        name = f"op2_consts{extension}"
 
         # Generate source from the template
         return template.render(OP=OP, app=app, lang=self.lang, target=self.target), name
@@ -137,7 +137,7 @@ class Scheme(Findable["Scheme"]):
             template = env.get_template(str(template_path))
 
             source = template.render(OP=OP, app=app, lang=self.lang, target=self.target, user_types=user_types)
-            extension = template_path.suffixes[-2][1:]
+            extension = "".join(template_path.suffixes[:-1])
 
             files.append((source, extension))
 

@@ -1,12 +1,13 @@
 #pragma once
 
-#ifdef __CUDACC__
 #define DEVICE __device__
+
+#ifdef __HIPCC__
 #define MIN ::min
 #define MAX ::max
 #else
 #include <math.h>
-#define DEVICE
+
 #define MIN std::min
 #define MAX std::max
 #endif
@@ -14,6 +15,14 @@
 namespace op::f2c {
 
 constexpr int round32(int x) { return (x + 31) & ~31; }
+
+DEVICE inline void trap() {
+#ifdef __HIPCC__
+    __builtin_trap();
+#else
+    assert(false);
+#endif
+}
 
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
 using int64_t = long long int;
@@ -94,11 +103,13 @@ public:
     constexpr operator Ptr<S>() const { return m_data; }
 };
 
+/* - Deduction guides not working with current ROCm (6.2) -
 template<typename T, typename... Es>
 Span(Ptr<T>, Es...) -> Span<T, sizeof...(Es)>;
 
 template<typename T, typename... Es>
 Span(Ptr<const T>, Es...) -> Span<const T, sizeof...(Es)>;
+*/
 
 template<typename T, unsigned N>
 class Slice {
@@ -142,6 +153,9 @@ inline constexpr T pow(T x, int e) {
 
 inline constexpr float pow(float x, float e) { return powf(x, e); }
 inline constexpr double pow(double x, double e) { return ::pow(x, e); }
+
+inline constexpr double pow(float x, double e) { return ::pow(x, e); }
+inline constexpr double pow(double x, float e) { return ::pow(x, e); }
 
 inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
