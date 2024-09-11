@@ -64,8 +64,12 @@ class FArray(FType):
 
         return ", ".join(bounds)
 
-    def asSpan(self, ptr: str, var: str, ctx: 'Context') -> str:
-        return f"f2c::Span {var}{{{ptr}, {self.spanBounds()}}}"
+    def asSpan(self, ptr: str, var: str, const: bool, ctx: 'Context') -> str:
+        const_str = ""
+        if const:
+            const_str = "const "
+
+        return f"f2c::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
 
 
 @dataclass(frozen=True)
@@ -571,10 +575,8 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
         param_type = ctx.sub_info.types[param.name]
 
         if isinstance(param_type, FPrimitive):
-            if param.is_const and not (hasattr(param.op_arg, "opt") and param.op_arg.opt):
+            if param.is_const:
                 param_decls.append(f"const {param_type.asC()} {param.name}")
-            elif param.is_const:
-                param_decls.append(f"const {param_type.asC()}& {param.name}")
             else:
                 param_decls.append(f"{param_type.asC()}& {param.name}")
         else:
@@ -650,7 +652,8 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
     src = ""
     for name, type_ in ctx.sub_info.types.items():
         if name in ctx.sub_info.paramNames() and isinstance(type_, FArray):
-            src += f"const {type_.asSpan('_f2c_ptr_' + name, name, ctx)};\n"
+            param = ctx.sub_info.lookupParam(name)
+            src += f"const {type_.asSpan('_f2c_ptr_' + name, name, param.is_const, ctx)};\n"
             continue
 
         if name in ctx.sub_info.paramNames():
@@ -667,7 +670,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             src += f"{type_.asLocal(name)};\n"
         else:
             src += f"{type_.asLocal('_f2c_arr_' + name)};\n"
-            src += f"const {type_.asSpan('f2c::Ptr{_f2c_arr_' + name + '}', name, ctx)};\n"
+            src += f"const {type_.asSpan('f2c::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
 
     return src + "\n" + init_src
 
@@ -743,7 +746,7 @@ def translateReturnStmt(return_stmt: f2003.Return_Stmt, ctx: Context) -> str:
 
 
 def translateStopStmt(stop_stmt: f2003.Stop_Stmt, ctx: Context) -> str:
-    src = "assert(false);\n"
+    src = "f2c::trap();"
     return src
 
 

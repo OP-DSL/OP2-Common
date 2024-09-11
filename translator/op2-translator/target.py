@@ -59,8 +59,19 @@ class CCuda(Target):
             "atomics": True,
             "color2": False,
             "gbl_inc_atomic": False,
-            "func_prefix": "__device__"
+            "func_prefix": "__device__",
+            "hip": False
         }
+
+
+class CHip(CCuda):
+    name = "c_hip"
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        config = super().defaultConfig()
+        config["hip"] = True
+
+        return config
 
 
 class OpenMP(Target):
@@ -80,4 +91,5 @@ Target.register(Seq)
 Target.register(CSeq)
 Target.register(Cuda)
 Target.register(CCuda)
+Target.register(CHip)
 Target.register(OpenMP)

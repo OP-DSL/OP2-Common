@@ -382,3 +382,13 @@ class FortranCCuda(Scheme):
 
 
 Scheme.register(FortranCCuda)
+
+
+class FortranCHip(FortranCCuda):
+    target = Target.get("c_hip")
+
+    loop_host_templates = [Path("fortran/c_hip/loop_host.F90.jinja"), Path("fortran/c_hip/loop_host.hip.h.jinja")]
+    master_kernel_templates = [Path("fortran/c_hip/master_kernel.F90.jinja"), Path("fortran/c_hip/master_kernel.hip.cpp.jinja")]
+
+
+Scheme.register(FortranCHip)

@@ -1,3 +1,9 @@
+{%- if config.hip -%}
+    {% set api_prefix = "hip" %}
+{%- else -%}
+    {% set api_prefix = "cuda" %}
+{%- endif -%}
+
 {%- macro variant_str() -%}
     {%- if lh is direct -%}
 Direct
@@ -76,6 +82,8 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 idx{{arg.id}}
     {%- elif arg is idx -%}
 idx
+    {%- elif arg is opt and arg is scalar(lh) -%}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit)}} : 0
     {%- else -%}
 {{arg_to_pointer2(arg, jit)}}
     {%- endif -%}
@@ -146,6 +154,9 @@ void *kernel_args[] = {
     {% if args_gbl_per_thread|length > 0 %}
     &stride_gbl,
     {% endif %}
+    {% if lh.args|opt|length > 0 %}
+    &opt_flags,
+    {% endif %}
     &start,
     &end,
     &size
@@ -176,6 +187,9 @@ void *kernel_args_jit[] = {
     {% if args_gbl_per_thread|length > 0 %}
     &stride_gbl,
     {% endif %}
+    {% if lh.args|opt|length > 0 %}
+    &opt_flags,
+    {% endif %}
     &start,
     &end,
     &size
@@ -201,7 +215,7 @@ op2_k_{{lh.name}}{{variant}}_init_gbls<<<max_blocks, block_size>>>(
     stride_gbl
 );
 
-CUDA_SAFE_CALL(cudaPeekAtLastError());
+CUDA_SAFE_CALL({{api_prefix}}PeekAtLastError());
 {%- endmacro -%}
 
 {%- macro process_gbls() -%}
@@ -227,7 +241,7 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 {{kernel_func}}}
 
 {% macro kernel_wrapper(jit = false) %}
-extern "C" __global__
+extern "C" __global__ {{"__launch_bounds__(64)" if config.hip}}
 void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ.c()}} *__restrict dat{{dat.id}},
@@ -255,6 +269,9 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
     {% if args_gbl_per_thread|length > 0 %}
     const int stride_gbl,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+    const uint32_t opt_flags,
     {% endif %}
     const int start,
     const int end,
@@ -487,6 +504,12 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_timing2_exit();
 {% endif %}
 
+{% if lh.args|opt|length > 0 %}
+    uint32_t opt_flags = 0;
+    {% for arg in lh.args|opt %}
+    if (arg{{arg.id}}.opt) opt_flags |= 1 << {{lh.optIdx(arg)}};
+    {% endfor %}
+{% endif %}
 
     op_timing2_enter("Prepare GBLs");
     bool exit_sync = prepareDeviceGbls(args, n_args, block_size * max_blocks);
@@ -498,11 +521,11 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_timing2_next("Update GBL Refs");
 {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
     if (gbl{{arg.id}}_ref_d == nullptr{{" && arg%s.opt == 1" % arg.id if arg is opt}}) {
-        CUDA_SAFE_CALL(cudaMallocAsync(&gbl{{arg.id}}_ref_d, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}}), 0));
+        CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}})));
     }
 
     {{"if (arg%s.opt == 1) " % arg.id if arg is opt-}}
-        CUDA_SAFE_CALL(cudaMemcpyAsync(gbl{{arg.id}}_ref_d, arg{{arg.id}}.data, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}}), cudaMemcpyHostToDevice, 0));
+        CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(gbl{{arg.id}}_ref_d, arg{{arg.id}}.data, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}}), {{api_prefix}}MemcpyHostToDevice, 0));
 {% endfor %}
 
 {% if args_gbl_per_thread|length > 0 %}
@@ -598,7 +621,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
     op_mpi_set_dirtybit_cuda(n_args, args);
-    if (exit_sync) CUDA_SAFE_CALL(cudaStreamSynchronize(0));
+    if (exit_sync) CUDA_SAFE_CALL({{api_prefix}}StreamSynchronize(0));
 
     op_timing2_exit();
     op_timing2_exit();

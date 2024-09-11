@@ -246,7 +246,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             path = Path(
                 args.out,
                 scheme.target.name,
-                f"{name}.{extension}",
+                f"{name}{extension}",
             )
 
             write_file(path, source)
@@ -283,7 +283,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             if index > 0:
                 name += f"_aux{index}"
 
-            path = Path(args.out, scheme.target.name, f"{name}.{extension}")
+            path = Path(args.out, scheme.target.name, f"{name}{extension}")
 
             write_file(path, source)
             print(f"Generated master kernel file: {path}")

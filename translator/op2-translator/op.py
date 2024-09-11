@@ -336,7 +336,8 @@ class Loop:
             if arg2 == arg:
                 break
 
-            if getattr(arg2, "opt", None) is not None:
+            opt = getattr(arg2, "opt", False)
+            if opt == True:
                 idx += 1
 
         return idx
