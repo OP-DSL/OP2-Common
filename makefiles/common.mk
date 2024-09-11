@@ -79,6 +79,15 @@ ifeq ($(MAKECMDGOALS),config)
 
   $(info )
 
+  ifeq ($(CONFIG_HAVE_C_HIP),true)
+    $(call info_bold,> C/C++ HIP compiler $(TEXT_FOUND) ($(CONFIG_HIPCC)); looking for the HIP libraries)
+    include $(DEPS_DIR)/hip.mk
+  else
+    $(call info_bold,> C/C++ HIP compiler $(TEXT_NOTFOUND); skipping search for HIP libraries)
+  endif
+
+  $(info )
+
   ifeq ($(CONFIG_HAVE_MPI_C),true)
     $(call info_bold,> MPI C/C++ compilers $(TEXT_FOUND) ($(CONFIG_MPICXX)); \
       looking for HDF5 (parallel)$(COMMA) PT-Scotch and ParMETIS)
@@ -138,6 +147,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C: $(if $(HAVE_C),$(CC),not found))
   $(info .   C++: $(if $(HAVE_C),$(CXX),not found))
   $(info .   CUDA: $(if $(HAVE_C_CUDA),$(NVCC),not found))
+  $(info .   HIP: $(if $(HAVE_C_HIP),$(HIPCC),not found))
   $(info .   Fortran: $(if $(HAVE_F),$(FC),not found))
   $(info )
   $(info MPI compilers:)
@@ -146,6 +156,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   Fortran: $(if $(HAVE_MPI_F),$(MPIFC),not found))
   $(info )
   $(info CUDA libraries: $(call I_STR,CUDA))
+  $(info HIP libraries: $(call I_STR,HIP))
   $(info )
   $(info HDF5 I/O:)
   $(info .   Sequential: $(call I_STR,HDF5_SEQ))
@@ -160,15 +171,16 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C: $(CFLAGS))
   $(info .   C++: $(CXXFLAGS))
   $(info .   CUDA: $(NVCCFLAGS))
+  $(info .   HIP: $(HIPCCFLAGS))
   $(info .   Fortran: $(FFLAGS))
   $(info .   CUDA Fortran: $(CUDA_FFLAGS))
   $(info )
 endif
 
-OP2_LIBS_SINGLE_NODE := seq cuda openmp openmp4
+OP2_LIBS_SINGLE_NODE := seq cuda hip openmp openmp4
 OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
 
-OP2_LIBS_MPI := mpi mpi_cuda
+OP2_LIBS_MPI := mpi mpi_cuda mpi_hip
 OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
 
 OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)
