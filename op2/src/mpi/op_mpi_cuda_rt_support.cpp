@@ -45,10 +45,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <cuda.h>
-#include <cuda_runtime_api.h>
-#include <math_constants.h>
-
+#include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -56,11 +53,6 @@
 
 #include <op_lib_mpi.h>
 #include <op_util.h>
-
-// Small re-declaration to avoid using struct in the C version.
-// This is due to the different way in which C and C++ see structs
-
-typedef struct cudaDeviceProp cudaDeviceProp_t;
 
 //
 // export lists on the device
@@ -75,14 +67,14 @@ int **import_nonexec_list_partial_d = NULL;
 int **import_exec_list_disps_d = NULL;
 int **import_nonexec_list_disps_d = NULL;
 
-cudaEvent_t op2_grp_download_event;
-cudaStream_t op2_grp_secondary;
+gpuEvent_t op2_grp_download_event;
+gpuStream_t op2_grp_secondary;
 
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
   int deviceCount;
-  cutilSafeCall(cudaGetDeviceCount(&deviceCount));
+  cutilSafeCall(gpuGetDeviceCount(&deviceCount));
   if (deviceCount == 0) {
     printf("cutil error: no devices supporting CUDA\n");
     exit(-1);
@@ -107,54 +99,54 @@ void cutilDeviceInit(int argc, char **argv) {
 
   // This commented out test does not work with CUDA versions above 6.5
   /*float *test;
-  cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
-  if (err != cudaSuccess) {
+  gpuError_t err = gpuMalloc((void **)&test, sizeof(float));
+  if (err != gpuSuccess) {
     OP_hybrid_gpu = 0;
   } else {
     OP_hybrid_gpu = 1;
   }
   if (OP_hybrid_gpu) {
-    cudaFree(test);
+    gpuFree(test);
 
-    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
 
     int deviceId = -1;
-    cudaGetDevice(&deviceId);
-    cudaDeviceProp_t deviceProp;
-    cutilSafeCall ( cudaGetDeviceProperties ( &deviceProp, deviceId ) );
+    gpuGetDevice(&deviceId);
+    gpuDeviceProp_t deviceProp;
+    cutilSafeCall ( gpuGetDeviceProperties ( &deviceProp, deviceId ) );
     printf ( "\n Using CUDA device: %d %s on rank %d\n",deviceId,
   deviceProp.name,rank );
   } else {
     printf ( "\n Using CPU on rank %d\n",rank );
   }*/
   //omp_set_default_device(rank);
-//  cudaError_t err = cudaSetDevice(rank);
+//  gpuError_t err = gpuSetDevice(rank);
   float *test;
   OP_hybrid_gpu = 0;
-  //cudaError_t err = cudaMalloc((void **)&test, sizeof(float));
+  //gpuError_t err = gpuMalloc((void **)&test, sizeof(float));
   for (int i = 0; i < deviceCount; i++) {
-    cudaError_t err = cudaSetDevice((i+rank)%deviceCount);
-    if (err == cudaSuccess) {
-      cudaError_t err = op_deviceMalloc((void **)&test, sizeof(float));
-      if (err == cudaSuccess) {
+    gpuError_t err = gpuSetDevice((i+rank)%deviceCount);
+    if (err == gpuSuccess) {
+      gpuError_t err = op_deviceMalloc((void **)&test, sizeof(float));
+      if (err == gpuSuccess) {
         OP_hybrid_gpu = 1;
         break;
       }
     }
   }
   if (OP_hybrid_gpu) {
-    cutilSafeCall(cudaFree(test));
+    cutilSafeCall(gpuFree(test));
 
-    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
 
     int deviceId = -1;
-    cudaGetDevice(&deviceId);
-    cudaDeviceProp_t deviceProp;
-    cutilSafeCall(cudaGetDeviceProperties(&deviceProp, deviceId));
+    gpuGetDevice(&deviceId);
+    gpuDeviceProp_t deviceProp;
+    cutilSafeCall(gpuGetDeviceProperties(&deviceProp, deviceId));
     printf("\n Using CUDA device: %d %s on rank %d\n", deviceId,
            deviceProp.name, rank);
-    cutilSafeCall(cudaStreamCreateWithFlags(&op2_grp_secondary, cudaStreamNonBlocking));
-    cutilSafeCall(cudaEventCreateWithFlags(&op2_grp_download_event, cudaEventDisableTiming));
+    cutilSafeCall(gpuStreamCreateWithFlags(&op2_grp_secondary, gpuStreamNonBlocking));
+    cutilSafeCall(gpuEventCreateWithFlags(&op2_grp_download_event, gpuEventDisableTiming));
   } else {
     printf("\n Using CPU on rank %d\n", rank);
   }
@@ -176,12 +168,12 @@ void op_upload_dat(op_dat dat) {
         }
       }
     }
-    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, round32(set_size) * (size_t)dat->size,
-                             cudaMemcpyHostToDevice));
+    cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, round32(set_size) * (size_t)dat->size,
+                             gpuMemcpyHostToDevice));
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, set_size * (size_t)dat->size,
-                             cudaMemcpyHostToDevice));
+    cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, set_size * (size_t)dat->size,
+                             gpuMemcpyHostToDevice));
   }
 }
 
@@ -193,8 +185,8 @@ void op_download_dat(op_dat dat) {
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
-    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, round32(set_size) * (size_t)dat->size,
-                             cudaMemcpyDeviceToHost));
+    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, round32(set_size) * (size_t)dat->size,
+                             gpuMemcpyDeviceToHost));
     size_t element_size = (size_t)dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -206,8 +198,8 @@ void op_download_dat(op_dat dat) {
     }
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, set_size * (size_t)dat->size,
-                             cudaMemcpyDeviceToHost));
+    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, set_size * (size_t)dat->size,
+                             gpuMemcpyDeviceToHost));
   }
 }
 
@@ -259,18 +251,18 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
       outptr_exec = arg->dat->buffer_d;
       outptr_nonexec =
           arg->dat->buffer_d + exp_exec_list->size * (size_t)arg->dat->size;
-      cutilSafeCall(cudaDeviceSynchronize());
+      cutilSafeCall(gpuDeviceSynchronize());
     } else {
-      cutilSafeCall(cudaMemcpy(
+      cutilSafeCall(gpuMemcpy(
           ((op_mpi_buffer)(dat->mpi_buffer))->buf_exec, arg->dat->buffer_d,
-          exp_exec_list->size * (size_t)arg->dat->size, cudaMemcpyDeviceToHost));
+          exp_exec_list->size * (size_t)arg->dat->size, gpuMemcpyDeviceToHost));
 
-      cutilSafeCall(cudaMemcpy(
+      cutilSafeCall(gpuMemcpy(
           ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec,
           arg->dat->buffer_d + exp_exec_list->size * (size_t)arg->dat->size,
-          exp_nonexec_list->size * (size_t)arg->dat->size, cudaMemcpyDeviceToHost));
+          exp_nonexec_list->size * (size_t)arg->dat->size, gpuMemcpyDeviceToHost));
 
-      cutilSafeCall(cudaDeviceSynchronize());
+      cutilSafeCall(gpuDeviceSynchronize());
       outptr_exec = ((op_mpi_buffer)(dat->mpi_buffer))->buf_exec;
       outptr_nonexec = ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec;
     }
@@ -382,13 +374,13 @@ void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
     char *outptr_nonexec = NULL;
     if (OP_gpu_direct) {
       outptr_nonexec = arg->dat->buffer_d;
-      cutilSafeCall(cudaDeviceSynchronize());
+      cutilSafeCall(gpuDeviceSynchronize());
     } else {
-      cutilSafeCall(cudaMemcpy(
+      cutilSafeCall(gpuMemcpy(
           ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec, arg->dat->buffer_d,
-          exp_nonexec_list->size * (size_t)arg->dat->size, cudaMemcpyDeviceToHost));
+          exp_nonexec_list->size * (size_t)arg->dat->size, gpuMemcpyDeviceToHost));
 
-      cutilSafeCall(cudaDeviceSynchronize());
+      cutilSafeCall(gpuDeviceSynchronize());
       outptr_nonexec = ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec;
     }
 
@@ -618,11 +610,11 @@ void op_wait_all_cuda(op_arg *arg) {
       int nonexec_init = OP_export_nonexec_permap[arg->map->index]->size;
       ;
       if (OP_gpu_direct == 0)
-        cutilSafeCall(cudaMemcpyAsync(
+        cutilSafeCall(gpuMemcpyAsync(
             dat->buffer_d + nonexec_init * (size_t)dat->size,
             &((op_mpi_buffer)(dat->mpi_buffer))
                  ->buf_nonexec[nonexec_init * (size_t)dat->size],
-            imp_nonexec_list->size * (size_t)dat->size, cudaMemcpyHostToDevice, 0));
+            imp_nonexec_list->size * (size_t)dat->size, gpuMemcpyHostToDevice, 0));
       scatter_data_from_buffer_partial(*arg);
     } else {
       if (OP_gpu_direct == 0) {
@@ -630,17 +622,17 @@ void op_wait_all_cuda(op_arg *arg) {
             (OP_auto_soa && arg->dat->dim > 1)) {
           int init = dat->set->size * (size_t)dat->size;
           int size = (dat->set->exec_size + dat->set->nonexec_size) * (size_t)dat->size;
-          cutilSafeCall(cudaMemcpyAsync(dat->buffer_d_r, dat->data + init, size,
-                                        cudaMemcpyHostToDevice, 0));
+          cutilSafeCall(gpuMemcpyAsync(dat->buffer_d_r, dat->data + init, size,
+                                        gpuMemcpyHostToDevice, 0));
           scatter_data_from_buffer(*arg);
         } else {
           int init = dat->set->size * (size_t)dat->size;
           cutilSafeCall(
-              cudaMemcpyAsync(dat->data_d + init, dat->data + init,
+              gpuMemcpyAsync(dat->data_d + init, dat->data + init,
                               (OP_import_exec_list[dat->set->index]->size +
                                OP_import_nonexec_list[dat->set->index]->size) *
                                   (size_t)arg->dat->size,
-                              cudaMemcpyHostToDevice, 0));
+                              gpuMemcpyHostToDevice, 0));
         }
       } else if (strstr(arg->dat->type, ":soa") != NULL ||
                  (OP_auto_soa && arg->dat->dim > 1))
@@ -732,47 +724,48 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
       char **send_buffer_device, char **recv_buffer_device, int device, 
       size_t size_send, size_t size_recv) {
   if (op2_grp_size_recv_old < size_recv) {
-    //if (*recv_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*recv_buffer_host));
-    if (*recv_buffer_device != NULL) cutilSafeCall(cudaFree(*recv_buffer_device));
+    //if (*recv_buffer_host != NULL) cutilSafeCall(gpuFreeHost(*recv_buffer_host));
+    if (*recv_buffer_device != NULL) cutilSafeCall(gpuFree(*recv_buffer_device));
     cutilSafeCall(op_deviceMalloc((void**)recv_buffer_device, size_recv));
-    //cutilSafeCall(cudaMallocHost(recv_buffer_host, size_send));
-    if (op2_grp_size_recv_old>0) cutilSafeCall(cudaHostUnregister ( *recv_buffer_host ));
+    //cutilSafeCall(gpuMallocHost(recv_buffer_host, size_send));
+    if (op2_grp_size_recv_old>0) cutilSafeCall(gpuHostUnregister ( *recv_buffer_host ));
     *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
-    cutilSafeCall(cudaHostRegister ( *recv_buffer_host, size_recv, cudaHostRegisterDefault ));
+    cutilSafeCall(gpuHostRegister ( *recv_buffer_host, size_recv, gpuHostRegisterDefault ));
     op2_grp_size_recv_old = size_recv;
   }
   if (op2_grp_size_send_old < size_send) {
-    //if (*send_buffer_host != NULL) cutilSafeCall(cudaFreeHost(*send_buffer_host));
-    if (*send_buffer_device != NULL) cutilSafeCall(cudaFree(*send_buffer_device));
+    //if (*send_buffer_host != NULL) cutilSafeCall(gpuFreeHost(*send_buffer_host));
+    if (*send_buffer_device != NULL) cutilSafeCall(gpuFree(*send_buffer_device));
     cutilSafeCall(op_deviceMalloc((void**)send_buffer_device, size_send));
-    //cutilSafeCall(cudaMallocHost(send_buffer_host, size_recv));
-    if (op2_grp_size_send_old>0) cutilSafeCall(cudaHostUnregister ( *send_buffer_host ));
+    //cutilSafeCall(gpuMallocHost(send_buffer_host, size_recv));
+    if (op2_grp_size_send_old>0) cutilSafeCall(gpuHostUnregister ( *send_buffer_host ));
     *send_buffer_host = (char*)op_realloc(*send_buffer_host, size_send);
-    cutilSafeCall(cudaHostRegister ( *send_buffer_host, size_send, cudaHostRegisterDefault ));
+    cutilSafeCall(gpuHostRegister ( *send_buffer_host, size_send, gpuHostRegisterDefault ));
     op2_grp_size_send_old = size_send;
   }
 }
 
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {
   //Make sure gather kernels on the 0 stream finished before starting download
-  cutilSafeCall(cudaStreamWaitEvent(op2_grp_secondary, op2_grp_download_event,0));
-  cutilSafeCall(cudaMemcpyAsync(send_buffer_host, send_buffer_device, size_send, cudaMemcpyDeviceToHost, op2_grp_secondary));
+  cutilSafeCall(gpuEventRecord(op2_grp_download_event,0));
+  cutilSafeCall(gpuStreamWaitEvent(op2_grp_secondary, op2_grp_download_event,0));
+  cutilSafeCall(gpuMemcpyAsync(send_buffer_host, send_buffer_device, size_send, gpuMemcpyDeviceToHost, op2_grp_secondary));
 }
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv) {
-  cutilSafeCall(cudaMemcpyAsync(recv_buffer_device, recv_buffer_host, size_recv, cudaMemcpyHostToDevice, op2_grp_secondary));
+  cutilSafeCall(gpuMemcpyAsync(recv_buffer_device, recv_buffer_host, size_recv, gpuMemcpyHostToDevice, op2_grp_secondary));
 }
 
 void op_scatter_sync() {
-  cutilSafeCall(cudaEventRecord(op2_grp_download_event, op2_grp_secondary));
-  cutilSafeCall(cudaStreamWaitEvent(0, op2_grp_download_event,0));
+  cutilSafeCall(gpuEventRecord(op2_grp_download_event, op2_grp_secondary));
+  cutilSafeCall(gpuStreamWaitEvent(0, op2_grp_download_event,0));
 }
 
 void op_gather_sync() {
   // Explicitly sync the gather kernels when using -gpudirect
   // as op_download_buffer_async won't be called
-  cutilSafeCall(cudaEventSynchronize(op2_grp_download_event));
+  cutilSafeCall(gpuStreamSynchronize(0));
 }
 
 void op_download_buffer_sync() {
-  cutilSafeCall(cudaStreamSynchronize(op2_grp_secondary));
+  cutilSafeCall(gpuStreamSynchronize(op2_grp_secondary));
 }

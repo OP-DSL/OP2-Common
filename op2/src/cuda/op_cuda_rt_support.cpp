@@ -43,20 +43,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <cuda.h>
-#include <cuda_runtime_api.h>
-#include <math_constants.h>
-
+#include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
-
-// Small re-declaration to avoid using struct in the C version.
-// This is due to the different way in which C and C++ see structs
-
-typedef struct cudaDeviceProp cudaDeviceProp_t;
-
 
 // arrays for global constants and reductions
 
@@ -72,20 +63,20 @@ char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 extern "C" {
 #endif
 
-void __cudaSafeCall(cudaError_t err, const char *file, const int line) {
-  if (cudaSuccess != err) {
+void __cudaSafeCall(gpuError_t err, const char *file, const int line) {
+  if (gpuSuccess != err) {
     fprintf(stderr, "%s(%i) : cutilSafeCall() Runtime API error : %s.\n", file,
-            line, cudaGetErrorString(err));
+            line, gpuGetErrorString(err));
     exit(-1);
   }
 }
 
 void __cutilCheckMsg(const char *errorMessage, const char *file,
                      const int line) {
-  cudaError_t err = cudaGetLastError();
-  if (cudaSuccess != err) {
+  gpuError_t err = gpuGetLastError();
+  if (gpuSuccess != err) {
     fprintf(stderr, "%s(%i) : cutilCheckMsg() error : %s : %s.\n", file, line,
-            errorMessage, cudaGetErrorString(err));
+            errorMessage, gpuGetErrorString(err));
     exit(-1);
   }
 }
@@ -94,8 +85,8 @@ void __cutilCheckMsg(const char *errorMessage, const char *file,
 // routines to move arrays to/from GPU device
 //
 
-cudaError_t op_deviceMalloc(void **ptr, size_t size) {
-  return cudaMalloc(ptr, size);
+gpuError_t op_deviceMalloc(void **ptr, size_t size) {
+  return gpuMalloc(ptr, size);
 }
 
 void op_mvHostToDevice(void **map, size_t size) {
@@ -103,8 +94,8 @@ void op_mvHostToDevice(void **map, size_t size) {
     return;
   void *tmp;
   cutilSafeCall(op_deviceMalloc(&tmp, size));
-  cutilSafeCall(cudaMemcpy(tmp, *map, size, cudaMemcpyHostToDevice));
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuMemcpy(tmp, *map, size, gpuMemcpyHostToDevice));
+  cutilSafeCall(gpuDeviceSynchronize());
   free(*map);
   *map = tmp;
 }
@@ -112,10 +103,10 @@ void op_mvHostToDevice(void **map, size_t size) {
 void op_cpHostToDevice(void **data_d, void **data_h, size_t size) {
   if (!OP_hybrid_gpu)
     return;
-  if (*data_d != NULL) cutilSafeCall(cudaFree(*data_d));
+  if (*data_d != NULL) cutilSafeCall(gpuFree(*data_d));
   cutilSafeCall(op_deviceMalloc(data_d, size));
-  cutilSafeCall(cudaMemcpy(*data_d, *data_h, size, cudaMemcpyHostToDevice));
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuMemcpy(*data_d, *data_h, size, gpuMemcpyHostToDevice));
+  cutilSafeCall(gpuDeviceSynchronize());
 }
 
 op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
@@ -200,7 +191,7 @@ void op_cuda_exit() {
     return;
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    cutilSafeCall(cudaFree((item->dat)->data_d));
+    cutilSafeCall(gpuFree((item->dat)->data_d));
   }
 
   for (int ip = 0; ip < OP_plan_index; ip++) {
@@ -226,7 +217,7 @@ void reallocConstArrays(int consts_bytes) {
   if (consts_bytes > OP_consts_bytes) {
     if (OP_consts_bytes > 0) {
       free(OP_consts_h);
-      cutilSafeCall(cudaFree(OP_consts_d));
+      cutilSafeCall(gpuFree(OP_consts_d));
     }
     OP_consts_bytes = 4 * consts_bytes; // 4 is arbitrary, more than needed
     OP_consts_h = (char *)malloc(OP_consts_bytes);
@@ -238,7 +229,7 @@ void reallocReductArrays(int reduct_bytes) {
   if (reduct_bytes > OP_reduct_bytes) {
     if (OP_reduct_bytes > 0) {
       free(OP_reduct_h);
-      cutilSafeCall(cudaFree(OP_reduct_d));
+      cutilSafeCall(gpuFree(OP_reduct_d));
     }
     OP_reduct_bytes = 4 * reduct_bytes; // 4 is arbitrary, more than needed
     OP_reduct_h = (char *)malloc(OP_reduct_bytes);
@@ -251,27 +242,27 @@ void reallocReductArrays(int reduct_bytes) {
 //
 
 void mvConstArraysToDevice(int consts_bytes) {
-  cutilSafeCall(cudaMemcpy(OP_consts_d, OP_consts_h, consts_bytes,
-                           cudaMemcpyHostToDevice));
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuMemcpy(OP_consts_d, OP_consts_h, consts_bytes,
+                           gpuMemcpyHostToDevice));
+  cutilSafeCall(gpuDeviceSynchronize());
 }
 
 void mvConstArraysToHost(int consts_bytes) {
-  cutilSafeCall(cudaMemcpy(OP_consts_h, OP_consts_d, consts_bytes,
-                           cudaMemcpyDeviceToHost));
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuMemcpy(OP_consts_h, OP_consts_d, consts_bytes,
+                           gpuMemcpyDeviceToHost));
+  cutilSafeCall(gpuDeviceSynchronize());
 }
 
 void mvReductArraysToDevice(int reduct_bytes) {
-  cutilSafeCall(cudaMemcpy(OP_reduct_d, OP_reduct_h, reduct_bytes,
-                           cudaMemcpyHostToDevice));
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuMemcpy(OP_reduct_d, OP_reduct_h, reduct_bytes,
+                           gpuMemcpyHostToDevice));
+  cutilSafeCall(gpuDeviceSynchronize());
 }
 
 void mvReductArraysToHost(int reduct_bytes) {
-  cutilSafeCall(cudaMemcpy(OP_reduct_h, OP_reduct_d, reduct_bytes,
-                           cudaMemcpyDeviceToHost));
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuMemcpy(OP_reduct_h, OP_reduct_d, reduct_bytes,
+                           gpuMemcpyDeviceToHost));
+  cutilSafeCall(gpuDeviceSynchronize());
 }
 
 //
@@ -289,9 +280,9 @@ void op_cuda_get_data(op_dat dat) {
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
-    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, dat->size * set_size,
-                             cudaMemcpyDeviceToHost));
-    cutilSafeCall(cudaDeviceSynchronize());
+    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, dat->size * set_size,
+                             gpuMemcpyDeviceToHost));
+    cutilSafeCall(gpuDeviceSynchronize());
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -304,14 +295,14 @@ void op_cuda_get_data(op_dat dat) {
     }
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, dat->size * set_size,
-                             cudaMemcpyDeviceToHost));
-    cutilSafeCall(cudaDeviceSynchronize());
+    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, dat->size * set_size,
+                             gpuMemcpyDeviceToHost));
+    cutilSafeCall(gpuDeviceSynchronize());
   }
 }
 
 void deviceSync() {
-  cutilSafeCall(cudaDeviceSynchronize());
+  cutilSafeCall(gpuDeviceSynchronize());
 }
 
 #ifndef OPMPI
@@ -320,7 +311,7 @@ void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
   int deviceCount;
-  cutilSafeCall(cudaGetDeviceCount(&deviceCount));
+  cutilSafeCall(gpuGetDeviceCount(&deviceCount));
   if (deviceCount == 0) {
     printf("cutil error: no devices supporting CUDA\n");
     exit(-1);
@@ -328,21 +319,21 @@ void cutilDeviceInit(int argc, char **argv) {
 
   // Test we have access to a device
   float *test;
-  cudaError_t err = op_deviceMalloc((void **)&test, sizeof(float));
+  gpuError_t err = op_deviceMalloc((void **)&test, sizeof(float));
   if (err != cudaSuccess) {
     OP_hybrid_gpu = 0;
   } else {
     OP_hybrid_gpu = 1;
   }
   if (OP_hybrid_gpu) {
-    cudaFree(test);
+    gpuFree(test);
 
-    cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+    cutilSafeCall(gpuDeviceSetCacheConfig(cudaFuncCachePreferL1));
 
     int deviceId = -1;
-    cudaGetDevice(&deviceId);
-    cudaDeviceProp_t deviceProp;
-    cutilSafeCall(cudaGetDeviceProperties(&deviceProp, deviceId));
+    gpuGetDevice(&deviceId);
+    gpuDeviceProp_t deviceProp;
+    cutilSafeCall(gpuGetDeviceProperties(&deviceProp, deviceId));
     printf("\n Using CUDA device: %d %s\n", deviceId, deviceProp.name);
   } else {
     printf("\n Using CPU\n");
@@ -364,12 +355,12 @@ void op_upload_dat(op_dat dat) {
         }
       }
     }
-    cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, round32(set_size) * dat->size,
-                             cudaMemcpyHostToDevice));
+    cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, round32(set_size) * dat->size,
+                             gpuMemcpyHostToDevice));
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, set_size * dat->size,
-                             cudaMemcpyHostToDevice));
+    cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, set_size * dat->size,
+                             gpuMemcpyHostToDevice));
   }
 }
 
@@ -379,8 +370,8 @@ void op_download_dat(op_dat dat) {
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc(dat->size * round32(set_size) * sizeof(char));
-    cutilSafeCall(cudaMemcpy(temp_data, dat->data_d, round32(set_size) * dat->size,
-                             cudaMemcpyDeviceToHost));
+    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, round32(set_size) * dat->size,
+                             gpuMemcpyDeviceToHost));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
@@ -392,8 +383,8 @@ void op_download_dat(op_dat dat) {
     }
     free(temp_data);
   } else {
-    cutilSafeCall(cudaMemcpy(dat->data, dat->data_d, set_size * dat->size,
-                             cudaMemcpyDeviceToHost));
+    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, set_size * dat->size,
+                             gpuMemcpyDeviceToHost));
   }
 }
 

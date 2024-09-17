@@ -2,9 +2,7 @@
 
 #include <extern/rapidhash.h>
 #include <op_timing2.h>
-
-#include <nvrtc.h>
-#include <cuda.h>
+#include <op_gpu_shims.h>
 
 #include <array>
 #include <vector>
@@ -21,9 +19,9 @@
 
 #define NVRTC_SAFE_CALL(x)                                                          \
     do {                                                                            \
-        nvrtcResult result = x;                                                     \
-        if (result != NVRTC_SUCCESS) {                                              \
-            const char *msg = nvrtcGetErrorString(result);                          \
+        gpuRtcResult_t result = x;                                                  \
+        if (result != GPURTC_SUCCESS) {                                             \
+            const char *msg = gpuRtcGetErrorString(result);                         \
             fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,         \
                     __FILE__, __LINE__);                                            \
             exit(1);                                                                \
@@ -32,10 +30,10 @@
 
 #define CU_SAFE_CALL(x)                                                             \
     do {                                                                            \
-        CUresult result = x;                                                        \
-        if (result != CUDA_SUCCESS) {                                               \
+        gpuDrvResult_t result = x;                                                  \
+        if (result != GPU_SUCCESS) {                                                \
             const char *msg;                                                        \
-            cuGetErrorName(result, &msg);                                           \
+            gpuDrvGetErrorName(result, &msg);                                       \
             fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
                     __FILE__, __LINE__, m_name.c_str());                            \
             exit(1);                                                                \
@@ -44,9 +42,9 @@
 
 #define CUDA_SAFE_CALLN(x)                                                          \
     do {                                                                            \
-        cudaError_t result = x;                                                     \
-        if (result != cudaSuccess) {                                                \
-            const char *msg = cudaGetErrorString(result);                           \
+        gpuError_t result = x;                                                      \
+        if (result != gpuSuccess) {                                                 \
+            const char *msg = gpuGetErrorString(result);                            \
             fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
                     __FILE__, __LINE__, m_name.c_str());                            \
             exit(1);                                                                \
@@ -55,9 +53,9 @@
 
 #define CUDA_SAFE_CALL(x)                                                           \
     do {                                                                            \
-        cudaError_t result = x;                                                     \
-        if (result != cudaSuccess) {                                                \
-            const char *msg = cudaGetErrorString(result);                           \
+        gpuError_t result = x;                                                      \
+        if (result != gpuSuccess) {                                                 \
+            const char *msg = gpuGetErrorString(result);                            \
             fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,         \
                     __FILE__, __LINE__);                                            \
             exit(1);                                                                \
@@ -132,10 +130,10 @@ static void jit_init() {
     }
 
     int device;
-    CUDA_SAFE_CALL(cudaGetDevice(&device));
+    CUDA_SAFE_CALL(gpuGetDevice(&device));
 
-    cudaDeviceProp props;
-    CUDA_SAFE_CALL(cudaGetDeviceProperties(&props, device));
+    gpuDeviceProp_t props;
+    CUDA_SAFE_CALL(gpuGetDeviceProperties(&props, device));
 
     int cc = props.major * 10 + props.minor;
     jit_arch = "-arch=sm_" + std::to_string(cc);
@@ -168,16 +166,14 @@ private:
     bool m_loaded = false;
     char *m_cubin;
 
-    CUmodule m_module;
-    CUfunction m_kernel;
-
-    // std::vector<std::tuple<int, int>> m_launch_configs;
+    gpuDrvModule_t m_module;
+    gpuDrvFunction_t m_kernel;
 
     void ensure_loaded() {
         if (m_loaded) return;
 
-        CU_SAFE_CALL(cuModuleLoadData(&m_module, m_cubin));
-        CU_SAFE_CALL(cuModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
+        CU_SAFE_CALL(gpuDrvModuleLoadData(&m_module, m_cubin));
+        CU_SAFE_CALL(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
 
         m_loaded = true;
 
@@ -189,36 +185,13 @@ public:
     JitKernel(const JitKernel&) = delete;
     JitKernel(char *cubin, std::string_view name) : m_cubin{cubin}, m_name{name} {}
 
-    /*
-    const std::vector<std::tuple<int, int>>& get_launch_configs() {
-        if (m_launch_configs.size() > 0) return m_launch_configs;
-
-        ensure_loaded();
-
-        int min_grid_size, block_size;
-        CU_SAFE_CALL(cuOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel,
-                                                      nullptr, 0, INT32_MAX));
-
-        m_launch_configs.push_back({min_grid_size, block_size});
-        while (block_size > 32) {
-            int next_block_size = (block_size & ~(-32)) ? block_size & (-32) : block_size - 32;
-            CU_SAFE_CALL(cuOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel,
-                                                          nullptr, 0, next_block_size));
-
-            m_launch_configs.push_back({min_grid_size, block_size});
-        }
-
-        return m_launch_configs;
-    }
-    */
-
     void invoke(int num_blocks, int block_size, void **args) {
         ensure_loaded();
-        CU_SAFE_CALL(cuLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
-                                    NULL, args, 0));
+        CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
+                                        NULL, args, 0));
 
-        CUDA_SAFE_CALLN(cudaPeekAtLastError());
-        if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        CUDA_SAFE_CALLN(gpuPeekAtLastError());
+        if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
     }
 };
 
@@ -280,8 +253,8 @@ public:
         auto hash_device = m_hash_device_ptr != nullptr ? *m_hash_device_ptr : m_hash_device;
         if (m_hash_last == hash_device) return;
 
-        CUDA_SAFE_CALL(cudaMemcpyAsync(m_data_d, m_data, m_elem_size * m_n_elems,
-                    cudaMemcpyHostToDevice));
+        CUDA_SAFE_CALL(gpuMemcpyAsync(m_data_d, m_data, m_elem_size * m_n_elems,
+                       gpuMemcpyHostToDevice));
 
         if (m_hash_device_ptr != nullptr)
             *m_hash_device_ptr = m_hash_last;
@@ -345,8 +318,7 @@ private:
     std::string m_name;
     const void* m_kernel;
 
-    cudaFuncAttributes m_kernel_attrs;
-    // std::vector<std::tuple<int, int>> m_launch_configs;
+    gpuFuncAttributes_t m_kernel_attrs;
 
     std::vector<JitParam> m_params;
     std::string m_src;
@@ -390,9 +362,9 @@ private:
             const char *headers[] = { op_f2c_prelude_data, op_f2c_params_data };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
 
-            nvrtcProgram prog;
-            NVRTC_SAFE_CALL(nvrtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
-                                               2, headers, header_names));
+            gpuRtcProgram_t prog;
+            NVRTC_SAFE_CALL(gpuRtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
+                                                2, headers, header_names));
 
             const char *opts[] = {
                 jit_arch.c_str(),
@@ -401,14 +373,14 @@ private:
                 "--device-as-default-execution-space"
             };
 
-            auto success = nvrtcCompileProgram(prog, 4, opts);
-            if (success != NVRTC_SUCCESS) {
+            auto success = gpuRtcCompileProgram(prog, 4, opts);
+            if (success != GPURTC_SUCCESS) {
                 size_t log_size;
-                NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(prog, &log_size));
+                NVRTC_SAFE_CALL(gpuRtcGetProgramLogSize(prog, &log_size));
 
                 if (log_size > 1) {
                     char *log = new char[log_size];
-                    NVRTC_SAFE_CALL(nvrtcGetProgramLog(prog, log));
+                    NVRTC_SAFE_CALL(gpuRtcGetProgramLog(prog, log));
 
                     std::printf("%s\n", log);
                     delete[] log;
@@ -418,11 +390,11 @@ private:
             }
 
             size_t cubin_size;
-            NVRTC_SAFE_CALL(nvrtcGetCUBINSize(prog, &cubin_size));
+            NVRTC_SAFE_CALL(gpuRtcGetCodeSize(prog, &cubin_size));
 
             char *cubin = new char[cubin_size];
-            NVRTC_SAFE_CALL(nvrtcGetCUBIN(prog, cubin));
-            NVRTC_SAFE_CALL(nvrtcDestroyProgram(&prog));
+            NVRTC_SAFE_CALL(gpuRtcGetCode(prog, cubin));
+            NVRTC_SAFE_CALL(gpuRtcDestroyProgram(&prog));
 
             std::scoped_lock lock(m_jit_kernels_mutex);
             auto [it, inserted] = m_jit_kernels.emplace(std::piecewise_construct,
@@ -440,10 +412,10 @@ private:
         for (auto& param : m_params)
             param.upload();
 
-        CUDA_SAFE_CALLN(cudaLaunchKernel(m_kernel, num_blocks, block_size, args, 0, 0));
-        CUDA_SAFE_CALLN(cudaPeekAtLastError());
+        CUDA_SAFE_CALLN(gpuLaunchKernel(m_kernel, num_blocks, block_size, args, 0, 0));
+        CUDA_SAFE_CALLN(gpuPeekAtLastError());
 
-        if (jit_debug) CUDA_SAFE_CALLN(cudaStreamSynchronize(0));
+        if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
     }
 
     template<typename T>
@@ -451,7 +423,7 @@ private:
         if (symbol == nullptr) return nullptr;
 
         T *data_d = nullptr;
-        CUDA_SAFE_CALL(cudaGetSymbolAddress((void **)&data_d, (const void *)symbol));
+        CUDA_SAFE_CALL(gpuGetSymbolAddress((void **)&data_d, (const void *)symbol));
 
         return data_d;
     }
@@ -461,21 +433,7 @@ public:
     KernelInfo(std::string_view name, const void *kernel, std::string_view src)
         : m_name{name}, m_kernel{kernel}, m_src{src} {
         jit_init();
-        CUDA_SAFE_CALL(cudaFuncGetAttributes(&m_kernel_attrs, m_kernel));
-
-        /*
-        int min_grid_size, block_size;
-        CUDA_SAFE_CALL(cudaOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel));
-
-        m_launch_configs.push_back({min_grid_size, block_size});
-        while (block_size > 32) {
-            int next_block_size = (block_size & ~(-32)) ? block_size & (-32) : block_size - 32;
-            CUDA_SAFE_CALL(cudaOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, m_kernel,
-                                                              0, next_block_size));
-
-            m_launch_configs.push_back({min_grid_size, block_size});
-        }
-        */
+        CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_kernel_attrs, m_kernel));
     }
 
     ~KernelInfo() {
@@ -530,16 +488,6 @@ public:
     }
 
     std::tuple<int, int> get_launch_config(JitKernel *kernel, int n_elems) {
-/*
-        auto& launch_configs = kernel == nullptr ? m_launch_configs : kernel->get_launch_configs();
-
-        int selected_config = 0;
-        for (; selected_config < launch_configs.size() - 1; ++selected_config) {
-            auto [min_grid_size, block_size] = launch_configs[selected_config];
-            if (min_grid_size * block_size < n_elems) break;
-        }
-*/
-
         return {INT32_MAX, 64};
     }
 
