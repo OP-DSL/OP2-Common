@@ -34,11 +34,9 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
 #include <mpi.h>
 
+#include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -245,14 +243,14 @@ int op_free_dat_temp_char(op_dat dat) {
   free(dat->mpi_buffer);
 
   // need to free device buffers used in mpi comms
-  cutilSafeCall(cudaFree(dat->buffer_d));
+  cutilSafeCall(gpuFree(dat->buffer_d));
 
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall(cudaFree(dat->buffer_d_r));
+    cutilSafeCall(gpuFree(dat->buffer_d_r));
   }
 
   // free data on device
-  cutilSafeCall(cudaFree(dat->data_d));
+  cutilSafeCall(gpuFree(dat->data_d));
   return op_free_dat_temp_core(dat);
 }
 
@@ -278,7 +276,7 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
 
     total_size += (size_t)dat->size * round32(set_size) * sizeof(char);
 
-    if (dat->buffer_d_r != NULL) cutilSafeCall(cudaFree(dat->buffer_d_r));
+    if (dat->buffer_d_r != NULL) cutilSafeCall(gpuFree(dat->buffer_d_r));
     cutilSafeCall(
         op_deviceMalloc((void **)&(dat->buffer_d_r),
                    (size_t)dat->size * (OP_import_exec_list[set->index]->size +
@@ -294,7 +292,7 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
     total_size += (size_t)dat->size * set_size * sizeof(char);
   }
   dat->dirty_hd = 0;
-  if (dat->buffer_d != NULL) cutilSafeCall(cudaFree(dat->buffer_d));
+  if (dat->buffer_d != NULL) cutilSafeCall(gpuFree(dat->buffer_d));
   cutilSafeCall(
       op_deviceMalloc((void **)&(dat->buffer_d),
                  (size_t)dat->size * (OP_export_exec_list[set->index]->size +
@@ -314,7 +312,7 @@ size_t op_mv_halo_list_device() {
   if (export_exec_list_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (export_exec_list_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(export_exec_list_d[OP_set_list[s]->index]));
+        cutilSafeCall(gpuFree(export_exec_list_d[OP_set_list[s]->index]));
     free(export_exec_list_d);
   }
   export_exec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
@@ -333,7 +331,7 @@ size_t op_mv_halo_list_device() {
   if (export_nonexec_list_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (export_nonexec_list_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(export_nonexec_list_d[OP_set_list[s]->index]));
+        cutilSafeCall(gpuFree(export_nonexec_list_d[OP_set_list[s]->index]));
     free(export_nonexec_list_d);
   }
   export_nonexec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
@@ -353,7 +351,7 @@ size_t op_mv_halo_list_device() {
   if (export_exec_list_disps_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (export_exec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(export_exec_list_disps_d[OP_set_list[s]->index]));
+        cutilSafeCall(gpuFree(export_exec_list_disps_d[OP_set_list[s]->index]));
     free(export_exec_list_disps_d);
   }
   export_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
@@ -381,7 +379,7 @@ size_t op_mv_halo_list_device() {
   if (export_nonexec_list_disps_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (export_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(export_nonexec_list_disps_d[OP_set_list[s]->index]));
+        cutilSafeCall(gpuFree(export_nonexec_list_disps_d[OP_set_list[s]->index]));
     free(export_nonexec_list_disps_d);
   }
   export_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
@@ -410,7 +408,7 @@ size_t op_mv_halo_list_device() {
   if (import_exec_list_disps_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (import_exec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(import_exec_list_disps_d[OP_set_list[s]->index]));
+        cutilSafeCall(gpuFree(import_exec_list_disps_d[OP_set_list[s]->index]));
     free(import_exec_list_disps_d);
   }
   import_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
@@ -438,7 +436,7 @@ size_t op_mv_halo_list_device() {
   if (import_nonexec_list_disps_d != NULL) {
     for (int s = 0; s < OP_set_index; s++)
       if (import_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(import_nonexec_list_disps_d[OP_set_list[s]->index]));
+        cutilSafeCall(gpuFree(import_nonexec_list_disps_d[OP_set_list[s]->index]));
     free(import_nonexec_list_disps_d);
   }
   import_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
@@ -468,7 +466,7 @@ size_t op_mv_halo_list_device() {
   if ( export_nonexec_list_partial_d!= NULL) {
     for (int s = 0; s < OP_map_index; s++)
       if (OP_map_partial_exchange[s] && export_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
+        cutilSafeCall(gpuFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(export_nonexec_list_partial_d);
   }
   export_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
@@ -489,7 +487,7 @@ size_t op_mv_halo_list_device() {
   if ( import_nonexec_list_partial_d!= NULL) {
     for (int s = 0; s < OP_map_index; s++)
       if (OP_map_partial_exchange[s] && import_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
-        cutilSafeCall(cudaFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
+        cutilSafeCall(gpuFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(import_nonexec_list_partial_d);
   }
   import_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
@@ -579,8 +577,8 @@ void
 op_decl_const_char ( int dim, char const * type, int size, char * dat,
                      char const * name )
 {
-  cutilSafeCall ( cudaMemcpyToSymbol ( name, dat, dim * size, 0,
-                                       cudaMemcpyHostToDevice ) );
+  cutilSafeCall ( gpuMemcpyToSymbol ( name, dat, dim * size, 0,
+                                       gpuMemcpyHostToDevice ) );
 }
 */
 
@@ -591,22 +589,22 @@ void op_exit() {
     TAILQ_FOREACH(item, &OP_dat_list, entries) {
       if (strstr(item->dat->type, ":soa") != NULL ||
           (OP_auto_soa && item->dat->dim > 1)) {
-        cutilSafeCall(cudaFree((item->dat)->buffer_d_r));
+        cutilSafeCall(gpuFree((item->dat)->buffer_d_r));
       }
-      cutilSafeCall(cudaFree((item->dat)->buffer_d));
+      cutilSafeCall(gpuFree((item->dat)->buffer_d));
     }
 
     for (int i = 0; i < OP_set_index; i++) {
       if (export_exec_list_d[i] != NULL)
-        cutilSafeCall(cudaFree(export_exec_list_d[i]));
+        cutilSafeCall(gpuFree(export_exec_list_d[i]));
       if (export_nonexec_list_d[i] != NULL)
-        cutilSafeCall(cudaFree(export_nonexec_list_d[i]));
+        cutilSafeCall(gpuFree(export_nonexec_list_d[i]));
     }
     for (int i = 0; i < OP_map_index; i++) {
       if (!OP_map_partial_exchange[i])
         continue;
-      cutilSafeCall(cudaFree(export_nonexec_list_partial_d[i]));
-      cutilSafeCall(cudaFree(import_nonexec_list_partial_d[i]));
+      cutilSafeCall(gpuFree(export_nonexec_list_partial_d[i]));
+      cutilSafeCall(gpuFree(import_nonexec_list_partial_d[i]));
     }
   }
 
@@ -756,13 +754,13 @@ void op_upload_all() {
             }
           }
         }
-        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, (size_t)dat->size * round32(set_size),
-                                 cudaMemcpyHostToDevice));
+        cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, (size_t)dat->size * round32(set_size),
+                                 gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
         free(temp_data);
       } else {
-        cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, (size_t)dat->size * set_size,
-                                 cudaMemcpyHostToDevice));
+        cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, (size_t)dat->size * set_size,
+                                 gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
       }
     }

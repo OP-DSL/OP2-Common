@@ -34,20 +34,25 @@
 #include <op_lib_core.h>
 #include <op_lib_c.h>
 
-#include <cuda.h>
-#include <cub/cub.cuh>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-
+#include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
 
 #include <vector>
 
+#ifdef __CUDACC__
+#include <cub/cub.cuh>
+#endif
+
+#ifdef __HIPCC__
+#include <hipcub/hipcub.hpp>
+namespace cub = hipcub;
+#endif
+
 // TODO: Make this waste less space?
-static constexpr size_t align_size = 8 * sizeof(char);
+static constexpr size_t align_size = 128 * sizeof(char);
 static constexpr size_t align(size_t x) { return (x + (align_size) - 1) & ~(align_size - 1); }
 
-static constexpr cudaStream_t cuda_stream = 0;
+static constexpr gpuStream_t cuda_stream = 0;
 
 struct device_buffer {
     void *data = nullptr;
@@ -56,8 +61,8 @@ struct device_buffer {
     void ensure_capacity(size_t requested_size) {
         if (requested_size <= size) return;
 
-        if (data != nullptr) cutilSafeCall(cudaFreeAsync(data, cuda_stream));
-        cutilSafeCall(cudaMallocAsync((void **) &data, requested_size, cuda_stream));
+        if (data != nullptr) cutilSafeCall(gpuFreeAsync(data, cuda_stream));
+        cutilSafeCall(gpuMallocAsync((void **) &data, requested_size, cuda_stream));
         size = requested_size;
     }
 
@@ -112,8 +117,8 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
             (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems);
 
     std::vector<T> result(arg->dim);
-    cutilSafeCall(cudaMemcpyAsync(result.data(), device_result.data, arg->size * sizeof(char), cudaMemcpyDeviceToHost, cuda_stream));
-    cutilSafeCall(cudaStreamSynchronize(cuda_stream));
+    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, arg->size * sizeof(char), gpuMemcpyDeviceToHost, cuda_stream));
+    cutilSafeCall(gpuStreamSynchronize(cuda_stream));
 
     for (int d = 0; d < arg->dim; ++d)
         host_op(((T *) arg->data) + d, result.data() + d);
@@ -136,8 +141,8 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
            (cub::KeyValuePair<int, T> *) device_result.data + d, nelems);
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
-    cutilSafeCall(cudaMemcpyAsync(result.data(), device_result.data, required_result_size, cudaMemcpyDeviceToHost, cuda_stream));
-    cutilSafeCall(cudaStreamSynchronize(cuda_stream));
+    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, required_result_size, gpuMemcpyDeviceToHost, cuda_stream));
+    cutilSafeCall(gpuStreamSynchronize(cuda_stream));
 
     for (int d = 0; d < args[index].dim; ++d) {
         if (result[d].value == ((T *) args[index].data)[d])
@@ -152,8 +157,8 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
             char *payload_data_device = args[payload_index].data_d +
                 (d * max_threads + result[d].key) * payload_elem_size;
 
-            cutilSafeCall(cudaMemcpyAsync(payload_data, payload_data_device,
-                                          payload_elem_size, cudaMemcpyDeviceToHost, cuda_stream));
+            cutilSafeCall(gpuMemcpyAsync(payload_data, payload_data_device,
+                                          payload_elem_size, gpuMemcpyDeviceToHost, cuda_stream));
         }
     }
 }
@@ -175,9 +180,9 @@ static void reduce_arg2(F op, F2 op2, HF host_op,
     reduce_info<T>(op2, host_op, args, index, payload_args, nelems, max_threads);
 }
 
-template<typename T> static void inc(T *a, T *b) { *a += *b; }
-template<typename T> static void min(T *a, T *b) { *a = std::min(*a, *b); }
-template<typename T> static void max(T *a, T *b) { *a = std::max(*a, *b); }
+template<typename T> static void h_inc(T *a, T *b) { *a += *b; }
+template<typename T> static void h_min(T *a, T *b) { *a = std::min(*a, *b); }
+template<typename T> static void h_max(T *a, T *b) { *a = std::max(*a, *b); }
 
 #define cub_reduction_wrap(op, out_type) \
     template<typename T> static cudaError_t op(void *d_temp_storage, size_t &temp_storage_bytes, \
@@ -206,34 +211,34 @@ static bool processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
         if (args[i].argtype != OP_ARG_GBL) continue;
 
         if (gbl_inc_atomic && args[i].acc == OP_INC) {
-            cutilSafeCall(cudaMemcpyAsync(args[i].data, args[i].data_d,
+            cutilSafeCall(gpuMemcpyAsync(args[i].data, args[i].data_d,
                           args[i].size * sizeof(char),
-                          cudaMemcpyDeviceToHost, cuda_stream));
+                          gpuMemcpyDeviceToHost, cuda_stream));
 
             needs_sync = true;
             continue;
         }
 
         if (args[i].acc == OP_INC) {
-            if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Sum, ArgMin, inc);
-            else if (strcmp(args[i].type, "float") == 0) reduce_arg(float, Sum, ArgMin, inc);
-            else if (strcmp(args[i].type, "int") == 0) reduce_arg(int, Sum, ArgMin, inc);
+            if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Sum, ArgMin, h_inc);
+            else if (strcmp(args[i].type, "float") == 0) reduce_arg(float, Sum, ArgMin, h_inc);
+            else if (strcmp(args[i].type, "int") == 0) reduce_arg(int, Sum, ArgMin, h_inc);
             else {
                 fprintf(stderr, "Fatal: unknown type in reduction: %s\n", args[i].type);
                 exit(1);
             }
         } else if (args[i].acc == OP_MIN) {
-            if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Min, ArgMin, min);
-            else if (strcmp(args[i].type, "float") == 0) reduce_arg(float, Min, ArgMin, min);
-            else if (strcmp(args[i].type, "int") == 0) reduce_arg(int, Min, ArgMin, min);
+            if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Min, ArgMin, h_min);
+            else if (strcmp(args[i].type, "float") == 0) reduce_arg(float, Min, ArgMin, h_min);
+            else if (strcmp(args[i].type, "int") == 0) reduce_arg(int, Min, ArgMin, h_min);
             else {
                 fprintf(stderr, "Fatal: unknown type in reduction: %s\n", args[i].type);
                 exit(1);
             }
         } else if (args[i].acc == OP_MAX) {
-            if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Max, ArgMax, max);
-            else if (strcmp(args[i].type, "float") == 0) reduce_arg(float, Max, ArgMax, max);
-            else if (strcmp(args[i].type, "int") == 0) reduce_arg(int, Max, ArgMax, max);
+            if (strcmp(args[i].type, "double") == 0) reduce_arg(double, Max, ArgMax, h_max);
+            else if (strcmp(args[i].type, "float") == 0) reduce_arg(float, Max, ArgMax, h_max);
+            else if (strcmp(args[i].type, "int") == 0) reduce_arg(int, Max, ArgMax, h_max);
             else {
                 fprintf(stderr, "Fatal: unknown type in reduction: %s\n", args[i].type);
                 exit(1);
@@ -253,9 +258,9 @@ static bool processDeviceGblRWs(op_arg *args, int nargs) {
         if (args[i].argtype != OP_ARG_GBL) continue;
         if (args[i].acc != OP_RW && args[i].acc != OP_WRITE) continue;
 
-        cutilSafeCall(cudaMemcpyAsync(args[i].data, args[i].data_d,
+        cutilSafeCall(gpuMemcpyAsync(args[i].data, args[i].data_d,
                                       args[i].size * sizeof(char),
-                                      cudaMemcpyDeviceToHost, cuda_stream));
+                                      gpuMemcpyDeviceToHost, cuda_stream));
 
         needs_sync = true;
     }
@@ -342,16 +347,16 @@ bool prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
             allocated += align(args[i].size * sizeof(char));
 
             if (args[i].acc == OP_WRITE) continue;
-            cutilSafeCall(cudaMemcpyAsync(args[i].data_d, args[i].data,
+            cutilSafeCall(gpuMemcpyAsync(args[i].data_d, args[i].data,
                                           args[i].size * sizeof(char),
-                                          cudaMemcpyHostToDevice, cuda_stream));
+                                          gpuMemcpyHostToDevice, cuda_stream));
         }
     }
 
     return needs_exit_sync;
 }
 
-int getBlockLimit(op_arg *args, int nargs, int block_size, char *name) {
+int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
     if (OP_cuda_reductions_mib < 0) return INT32_MAX;
 
     size_t bytes_per_thread = 0;
@@ -376,7 +381,7 @@ void processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
     bool needs_rw_sync = processDeviceGblRWs(args, nargs);
 
     if (needs_red_sync || needs_rw_sync)
-        cutilSafeCall(cudaStreamSynchronize(cuda_stream));
+        cutilSafeCall(gpuStreamSynchronize(cuda_stream));
 }
 
 void setGblIncAtomic(bool enable) {

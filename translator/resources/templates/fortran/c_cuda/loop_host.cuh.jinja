@@ -271,7 +271,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     const int stride_gbl,
     {% endif %}
     {% if lh.args|opt|length > 0 %}
-    const uint32_t opt_flags,
+    const unsigned opt_flags,
     {% endif %}
     const int start,
     const int end,
@@ -505,7 +505,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endif %}
 
 {% if lh.args|opt|length > 0 %}
-    uint32_t opt_flags = 0;
+    unsigned opt_flags = 0;
     {% for arg in lh.args|opt %}
     if (arg{{arg.id}}.opt) opt_flags |= 1 << {{lh.optIdx(arg)}};
     {% endfor %}

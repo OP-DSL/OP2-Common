@@ -2,14 +2,20 @@
 
 #define DEVICE __device__
 
+#ifdef __CUDACC__
+#ifndef __CUDACC_RTC__
+#include <cassert>
+#endif
+
+#define H_MIN ::min
+#define H_MAX ::max
+#endif
+
 #ifdef __HIPCC__
-#define MIN ::min
-#define MAX ::max
-#else
 #include <math.h>
 
-#define MIN std::min
-#define MAX std::max
+#define H_MIN std::min
+#define H_MAX std::max
 #endif
 
 namespace op::f2c {
@@ -154,8 +160,8 @@ inline constexpr T pow(T x, int e) {
 inline constexpr float pow(float x, float e) { return powf(x, e); }
 inline constexpr double pow(double x, double e) { return ::pow(x, e); }
 
-inline constexpr double pow(float x, double e) { return ::pow(x, e); }
-inline constexpr double pow(double x, float e) { return ::pow(x, e); }
+inline constexpr double pow(float x, double e) { return ::pow((double) x, e); }
+inline constexpr double pow(double x, float e) { return ::pow(x, (double) e); }
 
 inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
@@ -175,13 +181,13 @@ inline constexpr int int_(int64_t x) { return (int)x; }
 inline constexpr int int_(float x) { return (int)x; }
 inline constexpr int int_(double x) { return (int)x; }
 
-DEVICE inline int min(int x0, int x1) { return MIN(x0, x1); }
-DEVICE inline int min(int x0, int x1, int x2) { return MIN(MIN(x0, x1), x2); }
-DEVICE inline int min(int x0, int x1, int x2, int x3) { return MIN(MIN(x0, x1), MIN(x2, x3)); }
+DEVICE inline int min(int x0, int x1) { return H_MIN(x0, x1); }
+DEVICE inline int min(int x0, int x1, int x2) { return H_MIN(H_MIN(x0, x1), x2); }
+DEVICE inline int min(int x0, int x1, int x2, int x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
 
-DEVICE inline int64_t min(int64_t x0, int64_t x1) { return MIN(x0, x1); }
-DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return MIN(MIN(x0, x1), x2); }
-DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return MIN(MIN(x0, x1), MIN(x2, x3)); }
+DEVICE inline int64_t min(int64_t x0, int64_t x1) { return H_MIN(x0, x1); }
+DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return H_MIN(H_MIN(x0, x1), x2); }
+DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
 
 inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
 inline constexpr float min(float x0, float x1, float x2) { return fminf(fminf(x0, x1), x2); }
@@ -191,13 +197,13 @@ inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
 inline constexpr double min(double x0, double x1, double x2) { return fmin(fmin(x0, x1), x2); }
 inline constexpr double min(double x0, double x1, double x2, double x3) { return fmin(fmin(x0, x1), fmin(x2, x3)); }
 
-DEVICE inline int max(int x0, int x1) { return MAX(x0, x1); }
-DEVICE inline int max(int x0, int x1, int x2) { return MAX(MAX(x0, x1), x2); }
-DEVICE inline int max(int x0, int x1, int x2, int x3) { return MAX(MAX(x0, x1), MAX(x2, x3)); }
+DEVICE inline int max(int x0, int x1) { return H_MAX(x0, x1); }
+DEVICE inline int max(int x0, int x1, int x2) { return H_MAX(H_MAX(x0, x1), x2); }
+DEVICE inline int max(int x0, int x1, int x2, int x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
 
-DEVICE inline int64_t max(int64_t x0, int64_t x1) { return MAX(x0, x1); }
-DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return MAX(MAX(x0, x1), x2); }
-DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return MAX(MAX(x0, x1), MAX(x2, x3)); }
+DEVICE inline int64_t max(int64_t x0, int64_t x1) { return H_MAX(x0, x1); }
+DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return H_MAX(H_MAX(x0, x1), x2); }
+DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
 
 inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
 inline constexpr float max(float x0, float x1, float x2) { return fmaxf(fmaxf(x0, x1), x2); }

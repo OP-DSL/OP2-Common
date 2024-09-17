@@ -33,6 +33,7 @@
 #define OP_MPI_CORE_NOMPI
 #include <op_lib_mpi.h>
 
+#include <op_gpu_shims.h>
 #include <op_lib_c.h>
 #include <op_cuda_rt_support.h>
 #include <vector>
@@ -354,15 +355,15 @@ void check_realloc_buffer_gather() {
       op2_grp_max_neighbours = MAX(op2_grp_max_neighbours,OP_import_nonexec_list[i]->ranks_size);
     }
     //Need host buffers for each dat in flight
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_gather_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(gpuHostMalloc(&op2_grp_neigh_to_neigh_offsets_gather_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
     //But just one device buffer if gather kernels are sequential
     cutilSafeCall(op_deviceMalloc    ((void**)&op2_grp_neigh_to_neigh_offsets_d, op2_grp_max_neighbours * sizeof(unsigned)));
   }
   if (op2_grp_counter >= op2_grp_max_gathers) {
-    cutilSafeCall(cudaDeviceSynchronize());
-    cutilSafeCall(cudaFreeHost(op2_grp_neigh_to_neigh_offsets_gather_h));
+    cutilSafeCall(gpuDeviceSynchronize());
+    cutilSafeCall(gpuHostFree(op2_grp_neigh_to_neigh_offsets_gather_h));
     op2_grp_max_gathers *= 2;
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_gather_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(gpuHostMalloc(&op2_grp_neigh_to_neigh_offsets_gather_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
   }
 }
 
@@ -376,15 +377,15 @@ void check_realloc_buffer_scatter() {
       op2_grp_max_neighbours = MAX(op2_grp_max_neighbours,OP_import_nonexec_list[i]->ranks_size);
     }
     //Need host buffers for each dat in flight
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_scatter_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(gpuHostMalloc(&op2_grp_neigh_to_neigh_offsets_scatter_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
     //But just one device buffer if gather kernels are sequential
     cutilSafeCall(op_deviceMalloc    ((void**)&op2_grp_neigh_to_neigh_offsets_d, op2_grp_max_neighbours * sizeof(unsigned)));
   }
   if (op2_grp_counter >= op2_grp_max_gathers) {
-    cutilSafeCall(cudaDeviceSynchronize());
-    cutilSafeCall(cudaFreeHost(op2_grp_neigh_to_neigh_offsets_scatter_h));
+    cutilSafeCall(gpuDeviceSynchronize());
+    cutilSafeCall(gpuHostFree(op2_grp_neigh_to_neigh_offsets_scatter_h));
     op2_grp_max_gathers *= 2;
-    cutilSafeCall(cudaMallocHost(&op2_grp_neigh_to_neigh_offsets_scatter_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
+    cutilSafeCall(gpuHostMalloc(&op2_grp_neigh_to_neigh_offsets_scatter_h, (size_t)op2_grp_max_gathers * op2_grp_max_neighbours * sizeof(unsigned)));
   }
 }
 
@@ -406,7 +407,7 @@ void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, ch
     neigh_offsets[buf_rankpos] += eel->sizes[i] * arg.dat->size;
   }
   //Async upload
-  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_gather_h[op2_grp_counter*op2_grp_max_neighbours],eel->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice);
+  gpuMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_gather_h[op2_grp_counter*op2_grp_max_neighbours],eel->ranks_size * sizeof(unsigned),gpuMemcpyHostToDevice);
   //Launch kernel
   gather_data_to_buffer_ptr_cuda_kernel<<<1 + ((eel->size - 1) / 192),192>>>(arg.dat->data_d, buffer, export_exec_list_d[arg.dat->set->index], export_exec_list_disps_d[arg.dat->set->index], 
     op2_grp_neigh_to_neigh_offsets_d, eel->ranks_size, soa, (size_t)arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
@@ -423,7 +424,7 @@ void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, ch
   }
 
   //Async upload
-  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_gather_h[op2_grp_counter*op2_grp_max_neighbours],enl->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice);
+  gpuMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_gather_h[op2_grp_counter*op2_grp_max_neighbours],enl->ranks_size * sizeof(unsigned),gpuMemcpyHostToDevice);
   //Launch kernel
   gather_data_to_buffer_ptr_cuda_kernel<<<1 + ((enl->size - 1) / 192),192>>>(arg.dat->data_d, buffer, export_nonexec_list_d[arg.dat->set->index], export_nonexec_list_disps_d[arg.dat->set->index], 
     op2_grp_neigh_to_neigh_offsets_d, enl->ranks_size, soa, arg.dat->size/arg.dat->dim, arg.dat->dim, arg.dat->set->size+arg.dat->set->exec_size+arg.dat->set->nonexec_size);
@@ -451,7 +452,7 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
     neigh_offsets[buf_rankpos] += iel->sizes[i] * arg.dat->size;
   }
   //Async upload
-  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_scatter_h[op2_grp_counter*op2_grp_max_neighbours],iel->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice,op2_grp_secondary);
+  gpuMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_scatter_h[op2_grp_counter*op2_grp_max_neighbours],iel->ranks_size * sizeof(unsigned),gpuMemcpyHostToDevice,op2_grp_secondary);
   //Launch kernel
   unsigned offset = arg.dat->set->size * (soa?arg.dat->size/arg.dat->dim:arg.dat->size);
   scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((iel->size - 1) / 192),192,0,op2_grp_secondary>>>(arg.dat->data_d+offset, buffer, import_exec_list_disps_d[arg.dat->set->index], 
@@ -468,7 +469,7 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
     neigh_offsets[buf_rankpos] += inl->sizes[i] * arg.dat->size;
   }
   //Async upload
-  cudaMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_scatter_h[op2_grp_counter*op2_grp_max_neighbours],inl->ranks_size * sizeof(unsigned),cudaMemcpyHostToDevice,op2_grp_secondary);
+  gpuMemcpyAsync(op2_grp_neigh_to_neigh_offsets_d,&op2_grp_neigh_to_neigh_offsets_scatter_h[op2_grp_counter*op2_grp_max_neighbours],inl->ranks_size * sizeof(unsigned),gpuMemcpyHostToDevice,op2_grp_secondary);
   //Launch kernel
   offset = (arg.dat->set->size + iel->size) * (soa?arg.dat->size/arg.dat->dim:arg.dat->size);
   scatter_data_from_buffer_ptr_cuda_kernel<<<1 + ((inl->size - 1) / 192),192,0,op2_grp_secondary>>>(arg.dat->data_d+offset, buffer, import_nonexec_list_disps_d[arg.dat->set->index], 

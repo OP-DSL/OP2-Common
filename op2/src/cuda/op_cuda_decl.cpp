@@ -34,10 +34,7 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-
+#include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
@@ -140,7 +137,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
 int op_free_dat_temp_char(op_dat dat) {
   // free data on device
-  cutilSafeCall(cudaFree(dat->data_d));
+  cutilSafeCall(gpuFree(dat->data_d));
 
   return op_free_dat_temp_core(dat);
 }
@@ -305,13 +302,13 @@ void op_upload_all() {
             }
           }
         }
-        cutilSafeCall(cudaMemcpy(dat->data_d, temp_data, dat->size * set_size,
-                                 cudaMemcpyHostToDevice));
+        cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, dat->size * set_size,
+                                 gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
         free(temp_data);
       } else {
-        cutilSafeCall(cudaMemcpy(dat->data_d, dat->data, dat->size * set_size,
-                                 cudaMemcpyHostToDevice));
+        cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, dat->size * set_size,
+                                 gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
       }
     }
