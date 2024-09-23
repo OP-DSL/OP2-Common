@@ -348,6 +348,8 @@ int op2_grp_counter = 0;
 int op2_grp_tag = 1234;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
+  deviceSync();
+
   int size = set->size;
   int direct_flag = 1;
 
@@ -573,6 +575,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+
   return size;
 }
 

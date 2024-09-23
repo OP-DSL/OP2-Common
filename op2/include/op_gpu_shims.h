@@ -1,7 +1,5 @@
 #pragma once
 
-#define OP2_CUDA
-
 #ifdef OP2_CUDA
 
 #include <cuda.h>
@@ -106,7 +104,7 @@
 #define gpuStream_t hipStream_t
 #define gpuEvent_t hipEvent_t
 #define gpuError_t hipError_t
-#define gpuDeviceProp_t hipDeviceProp
+#define gpuDeviceProp_t hipDeviceProp_t
 #define gpuFuncAttributes_t hipFuncAttributes
 
 #define gpuSuccess hipSuccess

@@ -28,18 +28,6 @@
         }                                                                           \
     } while(0)
 
-#define CU_SAFE_CALL(x)                                                             \
-    do {                                                                            \
-        gpuDrvResult_t result = x;                                                  \
-        if (result != GPU_SUCCESS) {                                                \
-            const char *msg;                                                        \
-            gpuDrvGetErrorName(result, &msg);                                       \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
-                    __FILE__, __LINE__, m_name.c_str());                            \
-            exit(1);                                                                \
-        }                                                                           \
-    } while(0)
-
 #define CUDA_SAFE_CALLN(x)                                                          \
     do {                                                                            \
         gpuError_t result = x;                                                      \
@@ -61,6 +49,24 @@
             exit(1);                                                                \
         }                                                                           \
     } while(0)
+
+#ifdef OP2_CUDA
+#define CU_SAFE_CALL(x)                                                             \
+    do {                                                                            \
+        gpuDrvResult_t result = x;                                                  \
+        if (result != GPU_SUCCESS) {                                                \
+            const char *msg;                                                        \
+            gpuDrvGetErrorName(result, &msg);                                       \
+            fprintf(stderr, "error: " #x " failed with %s at %s:%d (in %s)\n", msg, \
+                    __FILE__, __LINE__, m_name.c_str());                            \
+            exit(1);                                                                \
+        }                                                                           \
+    } while(0)
+#endif
+
+#ifdef OP2_HIP
+#define CU_SAFE_CALL(x) CUDA_SAFE_CALL(x)
+#endif
 
 
 namespace op::f2c {
@@ -135,11 +141,13 @@ static void jit_init() {
     gpuDeviceProp_t props;
     CUDA_SAFE_CALL(gpuGetDeviceProperties(&props, device));
 
+#ifdef OP2_CUDA
     int cc = props.major * 10 + props.minor;
     jit_arch = "-arch=sm_" + std::to_string(cc);
 
     if (jit_debug)
         std::printf("JIT arch flag: %s\n", jit_arch.c_str());
+#endif
 
     jit_initialized = true;
 }
@@ -366,6 +374,7 @@ private:
             NVRTC_SAFE_CALL(gpuRtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
                                                 2, headers, header_names));
 
+#ifdef OP2_CUDA
             const char *opts[] = {
                 jit_arch.c_str(),
                 "--std=c++20",
@@ -374,6 +383,16 @@ private:
             };
 
             auto success = gpuRtcCompileProgram(prog, 4, opts);
+#else // OP2_HIP
+            const char *opts[] = {
+                "--std=c++20",
+                "-O3",
+                "-munsafe-fp-atomics"
+            };
+
+            auto success = gpuRtcCompileProgram(prog, 3, opts);
+#endif
+
             if (success != GPURTC_SUCCESS) {
                 size_t log_size;
                 NVRTC_SAFE_CALL(gpuRtcGetProgramLogSize(prog, &log_size));
@@ -488,7 +507,7 @@ public:
     }
 
     std::tuple<int, int> get_launch_config(JitKernel *kernel, int n_elems) {
-        return {INT32_MAX, 64};
+        return {INT32_MAX, 128};
     }
 
     void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {

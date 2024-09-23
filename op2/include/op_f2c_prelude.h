@@ -1,22 +1,13 @@
 #pragma once
 
-#define DEVICE __device__
-
-#ifdef __CUDACC__
-#ifndef __CUDACC_RTC__
+#if defined(__CUDACC__) && !defined(__CUDACC_RTC__)
 #include <cassert>
 #endif
 
+#define DEVICE __device__
+
 #define H_MIN ::min
 #define H_MAX ::max
-#endif
-
-#ifdef __HIPCC__
-#include <math.h>
-
-#define H_MIN std::min
-#define H_MAX std::max
-#endif
 
 namespace op::f2c {
 
