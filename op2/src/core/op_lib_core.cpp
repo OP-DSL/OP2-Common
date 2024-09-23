@@ -760,8 +760,9 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (!strcmp(arg.type, "error"))
       op_err_print("datatype does not match declared type", m, name);
 
-    if (arg.dim <= 0)
-      op_err_print("dimension should be strictly positive", m, name);
+    if (arg.dim < 0) {
+      op_err_print("dimension should be positive", m, name);
+    }
 
     if (arg.data == NULL)
       op_err_print("NULL pointer for global data", m, name);
