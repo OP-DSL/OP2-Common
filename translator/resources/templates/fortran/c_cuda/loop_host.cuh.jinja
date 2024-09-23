@@ -241,7 +241,7 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 {{kernel_func}}}
 
 {% macro kernel_wrapper(jit = false) %}
-extern "C" __global__ {{"__launch_bounds__(64)" if config.hip}}
+extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
 void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ.c()}} *__restrict dat{{dat.id}},

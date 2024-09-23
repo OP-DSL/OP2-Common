@@ -320,7 +320,7 @@ void cutilDeviceInit(int argc, char **argv) {
   // Test we have access to a device
   float *test;
   gpuError_t err = op_deviceMalloc((void **)&test, sizeof(float));
-  if (err != cudaSuccess) {
+  if (err != gpuSuccess) {
     OP_hybrid_gpu = 0;
   } else {
     OP_hybrid_gpu = 1;
@@ -328,7 +328,7 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     gpuFree(test);
 
-    cutilSafeCall(gpuDeviceSetCacheConfig(cudaFuncCachePreferL1));
+    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
 
     int deviceId = -1;
     gpuGetDevice(&deviceId);

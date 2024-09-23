@@ -68,6 +68,9 @@ class Scheme(Findable["Scheme"]):
             "kernel_func": None,
         }
 
+        if main_args["config"].get("force_fallback"):
+            loop.fallback = True
+
         try:
             if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
                 main_args["kernel_func"] = self.translateKernel(loop, program, app, main_args["config"], kernel_idx)

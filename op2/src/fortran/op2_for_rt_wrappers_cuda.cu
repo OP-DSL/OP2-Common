@@ -185,7 +185,7 @@ template<typename T> static void h_min(T *a, T *b) { *a = std::min(*a, *b); }
 template<typename T> static void h_max(T *a, T *b) { *a = std::max(*a, *b); }
 
 #define cub_reduction_wrap(op, out_type) \
-    template<typename T> static cudaError_t op(void *d_temp_storage, size_t &temp_storage_bytes, \
+    template<typename T> static gpuError_t op(void *d_temp_storage, size_t &temp_storage_bytes, \
                                                 T *d_in, out_type *d_out, int num_items) { \
         return cub::DeviceReduce::op(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, cuda_stream); \
     }

@@ -5,7 +5,7 @@ OBJ ?= $(OP2_BUILD_DIR)/obj
 MOD ?= $(OP2_BUILD_DIR)/mod
 MOD_CUDA ?= $(MOD)/cuda
 
-INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC)
+INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC) $(HIP_INC)
 
 # Calculate the libraries that we can actually build
 ifeq ($(HAVE_C),true)
@@ -29,6 +29,14 @@ ifeq ($(HAVE_C),true)
 
     ifeq ($(MPI_IS_BUILDABLE),true)
       OP2_BUILDABLE_LIBS += mpi_cuda
+    endif
+  endif
+
+  ifeq ($(HAVE_HIP),true)
+    OP2_BUILDABLE_LIBS += hip
+
+    ifeq ($(MPI_IS_BUILDABLE),true)
+      OP2_BUILDABLE_LIBS += mpi_hip
     endif
   endif
 
@@ -108,12 +116,21 @@ OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
 OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	cuda/op_cuda_decl.o \
-	cuda/op_cuda_rt_support.o \
+	cuda/op_cuda_decl+cuda.o \
+	cuda/op_cuda_rt_support+cuda.o \
+	externlib/op_timing2.o)
+
+OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	cuda/op_cuda_decl+hip.o \
+	cuda/op_cuda_rt_support+hip.o \
 	externlib/op_timing2.o)
 
 OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda.o \
+	op2_for_rt_wrappers_cuda+cuda.o \
+	cudaConfigurationParams.o)
+
+OP2_FOR_HIP := $(OP2_HIP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
+	op2_for_rt_wrappers_cuda+hip.o \
 	cudaConfigurationParams.o)
 
 OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
@@ -147,12 +164,25 @@ OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers+mpi.o)
 
 OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	cuda/op_cuda_rt_support+mpi.o \
+	cuda/op_cuda_rt_support+mpi+cuda.o \
 	mpi/op_mpi_core.o \
 	mpi/op_mpi_part_core.o \
-	mpi/op_mpi_cuda_decl.o \
-	mpi/op_mpi_cuda_rt_support.o \
-	mpi/op_mpi_cuda_kernels.o \
+	mpi/op_mpi_cuda_decl+cuda.o \
+	mpi/op_mpi_cuda_rt_support+cuda.o \
+	mpi/op_mpi_cuda_kernels+cuda.o \
+	mpi/op_mpi_hdf5.o \
+	mpi/op_mpi_util.o \
+	externlib/op_util.o \
+	externlib/op_renumber.o \
+	externlib/op_timing2+mpi.o)
+
+OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	cuda/op_cuda_rt_support+mpi+hip.o \
+	mpi/op_mpi_core.o \
+	mpi/op_mpi_part_core.o \
+	mpi/op_mpi_cuda_decl+hip.o \
+	mpi/op_mpi_cuda_rt_support+hip.o \
+	mpi/op_mpi_cuda_kernels+hip.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
 	externlib/op_util.o \
@@ -160,7 +190,11 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_timing2+mpi.o)
 
 OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda.o \
+	op2_for_rt_wrappers_cuda+cuda.o \
+	cudaConfigurationParams.o)
+
+OP2_FOR_MPI_HIP := $(OP2_MPI_HIP) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
+	op2_for_rt_wrappers_cuda+hip.o \
 	cudaConfigurationParams.o)
 
 # Directory rules
@@ -186,23 +220,38 @@ $(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
-$(OBJ)/externlib/%+mpi.o: src/externlib/%.cpp | $(OBJ)
-	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
-
-$(OBJ)/cuda/%+mpi.o: src/cuda/%.cpp | $(OBJ)
-	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
-
-$(OBJ)/cuda/%.o: src/cuda/%.cpp | $(OBJ)
-	$(CXX) $(CXXFLAGS) $(INC) -DSET_CUDA_CACHE_CONFIG -c $< -o $@
-
 $(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@
 
-$(OBJ)/fortran/%+mpi.o: src/fortran/%.cpp | $(OBJ)
+$(OBJ)/mpi/%+cuda.o: src/mpi/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -DOP2_CUDA -c $< -o $@
+
+$(OBJ)/mpi/%+hip.o: src/mpi/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -DOP2_HIP -c $< -o $@
+
+$(OBJ)/%+mpi.o: src/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
+
+$(OBJ)/%+cuda.o: src/%.cpp | $(OBJ)
+	$(CXX) $(CXXFLAGS) $(INC) -DOP2_CUDA -c $< -o $@
+
+$(OBJ)/%+hip.o: src/%.cpp | $(OBJ)
+	$(CXX) $(CXXFLAGS) $(INC) -DOP2_HIP -c $< -o $@
+
+$(OBJ)/%+cuda.o: src/%.cu | $(OBJ)
+	$(NVCC) $(NVCCFLAGS) $(INC) -DOP2_CUDA -c $< -o $@
+
+$(OBJ)/%+hip.o: src/%.cu | $(OBJ)
+	$(HIPCC) $(HIPCCFLAGS) $(INC) -DOP2_HIP -c $< -o $@
+
+$(OBJ)/%+mpi+cuda.o: src/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -DOP2_CUDA -c $< -o $@
+
+$(OBJ)/%+mpi+hip.o: src/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -DOP2_HIP -c $< -o $@
 
 # Preprocess (non-traditional) +cpp files
 $(OBJ)/fortran/%+cpp.F90: src/fortran/%.F90 | $(OBJ)
@@ -231,9 +280,6 @@ $(OBJ)/%.o: src/%.cpp | $(OBJ)
 
 $(OBJ)/%.o: src/%.c | $(OBJ)
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
-
-$(OBJ)/%.o: src/%.cu | $(OBJ)
-	$(NVCC) $(NVCCFLAGS) $(INC) -c $< -o $@
 
 # Include auto-generated dependencies for C/CXX sources (if they exist)
 ifneq ($(wildcard $(OBJ)),)
