@@ -367,7 +367,7 @@ private:
                               format_params() + m_src;
 
         auto do_compile = [&](auto jit_src, auto hash) {
-            const char *headers[] = { op_f2c_prelude_data, op_f2c_params_data };
+            const char *headers[] = { OP_F2C_PRELUDE_DATA, OP_F2C_PARAMS_DATA };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
 
             gpuRtcProgram_t prog;
