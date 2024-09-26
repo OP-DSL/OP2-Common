@@ -7,7 +7,7 @@
 #include <nvrtc.h>
 
 // Macros
-#define GPU_SUCCESS cudaSuccess
+#define GPU_SUCCESS CUDA_SUCCESS
 #define GPURTC_SUCCESS NVRTC_SUCCESS
 
 // Runtime API
@@ -52,6 +52,7 @@
 #define gpuStreamCreateWithFlags cudaStreamCreateWithFlags
 #define gpuEventCreateWithFlags cudaEventCreateWithFlags
 #define gpuEventRecord cudaEventRecord
+#define gpuEventSynchronize cudaEventSynchronize
 #define gpuStreamWaitEvent cudaStreamWaitEvent
 
 #define gpuMemcpyToSymbol cudaMemcpyToSymbol
@@ -142,6 +143,7 @@
 #define gpuStreamCreateWithFlags hipStreamCreateWithFlags
 #define gpuEventCreateWithFlags hipEventCreateWithFlags
 #define gpuEventRecord hipEventRecord
+#define gpuEventSynchronize hipEventSynchronize
 #define gpuStreamWaitEvent hipStreamWaitEvent
 
 #define gpuMemcpyToSymbol hipMemcpyToSymbol
