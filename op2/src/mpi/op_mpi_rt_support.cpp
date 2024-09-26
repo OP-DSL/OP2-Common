@@ -336,6 +336,7 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
 void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {}
 void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_send) {}
 void op_download_buffer_sync() {}
+void op_gather_record() {}
 void op_scatter_sync() {}
 void op_gather_sync() {}
 #include <vector>

@@ -570,8 +570,10 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     }
   } else if (device == 2 && !OP_gpu_direct) {
       op_download_buffer_async(send_buffer_device, send_buffer_host, size_send);
+  } else if (device == 2 && OP_gpu_direct) {
+      op_gather_record();
   }
-    
+
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;

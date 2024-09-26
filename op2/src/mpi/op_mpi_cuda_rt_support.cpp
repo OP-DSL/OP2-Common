@@ -760,10 +760,14 @@ void op_scatter_sync() {
   cutilSafeCall(gpuStreamWaitEvent(0, op2_grp_download_event,0));
 }
 
+void op_gather_record() {
+  cutilSafeCall(gpuEventRecord(op2_grp_download_event,0));
+}
+
 void op_gather_sync() {
   // Explicitly sync the gather kernels when using -gpudirect
   // as op_download_buffer_async won't be called
-  cutilSafeCall(gpuStreamSynchronize(0));
+  cutilSafeCall(gpuEventSynchronize(op2_grp_download_event));
 }
 
 void op_download_buffer_sync() {
