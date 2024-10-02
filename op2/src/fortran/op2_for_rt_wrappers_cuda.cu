@@ -161,6 +161,8 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
                                           payload_elem_size, gpuMemcpyDeviceToHost, cuda_stream));
         }
     }
+
+    cutilSafeCall(gpuStreamSynchronize(cuda_stream));
 }
 
 template<typename T, typename F, typename F2, typename HF>
@@ -244,8 +246,6 @@ static bool processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
                 exit(1);
             }
         }
-
-        needs_sync = true;
     }
 
     return needs_sync;
@@ -317,7 +317,7 @@ void op_put_all_cuda(int nargs, op_arg *args) {
   }
 }
 
-bool prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
@@ -331,7 +331,6 @@ bool prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
         }
     }
 
-    bool needs_exit_sync = required_size > 0;
     device_globals.ensure_capacity(required_size);
 
     char *allocated = (char *) device_globals.data;
@@ -352,36 +351,34 @@ bool prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
                                           gpuMemcpyHostToDevice, cuda_stream));
         }
     }
-
-    return needs_exit_sync;
 }
 
 int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
     if (OP_cuda_reductions_mib < 0) return INT32_MAX;
 
-    size_t bytes_per_thread = 0;
+    size_t reduction_bytes_per_thread = 0;
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (!needs_per_thread_storage(args[i])) continue;
+        if (args[i].acc == OP_WORK) continue;
 
-        bytes_per_thread += args[i].size * sizeof(char);
+        reduction_bytes_per_thread += args[i].size * sizeof(char);
     }
 
-    if (bytes_per_thread == 0) return INT32_MAX;
+    if (reduction_bytes_per_thread == 0) return INT32_MAX;
 
-    if (bytes_per_thread > 1024)
-        printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, bytes_per_thread);
+    if (reduction_bytes_per_thread > 1024)
+        printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, reduction_bytes_per_thread);
 
     size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
-    return std::max(max_total_reduction / ((size_t) block_size * bytes_per_thread), 1UL);
+    return std::max(max_total_reduction / ((size_t) block_size * reduction_bytes_per_thread), 1UL);
 }
 
-void processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
+bool processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
     bool needs_red_sync = processDeviceGblReductions(args, nargs, nelems, max_threads);
     bool needs_rw_sync = processDeviceGblRWs(args, nargs);
 
-    if (needs_red_sync || needs_rw_sync)
-        cutilSafeCall(gpuStreamSynchronize(cuda_stream));
+    return needs_red_sync || needs_rw_sync;
 }
 
 void setGblIncAtomic(bool enable) {

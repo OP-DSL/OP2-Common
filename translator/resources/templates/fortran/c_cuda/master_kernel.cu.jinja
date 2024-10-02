@@ -33,8 +33,8 @@ namespace f2c = op::f2c;
 
 extern "C" {
 
-bool prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
-void processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
+bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
 int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name);
 void setGblIncAtomic(bool enable);
 

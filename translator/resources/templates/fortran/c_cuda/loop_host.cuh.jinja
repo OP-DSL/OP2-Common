@@ -219,7 +219,7 @@ CUDA_SAFE_CALL({{api_prefix}}PeekAtLastError());
 {%- endmacro -%}
 
 {%- macro process_gbls() -%}
-processDeviceGbls(args, n_args, block_size * max_blocks, block_size * max_blocks);
+exit_sync = processDeviceGbls(args, n_args, block_size * max_blocks, block_size * max_blocks);
 {%- endmacro -%}
 
 namespace op2_m_{{lh.name}}{{variant}} {
@@ -512,7 +512,8 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endif %}
 
     op_timing2_enter("Prepare GBLs");
-    bool exit_sync = prepareDeviceGbls(args, n_args, block_size * max_blocks);
+    prepareDeviceGbls(args, n_args, block_size * max_blocks);
+    bool exit_sync = false;
 
 {% for arg in lh.args %}
     arg{{arg.id}} = args[{{loop.index0}}];
