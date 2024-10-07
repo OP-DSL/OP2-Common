@@ -86,7 +86,10 @@ std::string format_duration(const op_timing2_clock::clock::duration& d, unsigned
     if (right_width == 0)
         padding = std::max(remaining_width - left_width, 0);
 
-    char output[width];
+    constexpr int OUTPUT_LEN = 1024;
+    char output[OUTPUT_LEN];
+    assert(width + 1 <= OUTPUT_LEN);
+
     std::snprintf(output, width + 1, "%*s%*.*f%s",
         padding, "", left_width, right_width, v, unit[i]);
 
@@ -421,7 +424,7 @@ void op_timing2::print_summary() {
   // We need to calculate the longest name to reliably format the kernel table
   unsigned longest_name = 0;
   for (auto& path: nodes_with_kernels) {
-    int path_len = -1;
+    unsigned path_len = 0;
     for (auto& path_elem: path)
       path_len += path_elem.length() + 1;
 
@@ -464,7 +467,7 @@ void op_timing2::print_walk_non_kernel(const op_timing2_node& node,
 void op_timing2::print_kernel_summary(const std::vector<std::string>& path, unsigned longest_name) {
   // Print the header, starting with the node path
   int path_len = 0;
-  for (auto i = 0; i < path.size(); ++i) {
+  for (size_t i = 0; i < path.size(); ++i) {
     if (i == path.size() - 1) {
       std::printf("%s", path[i].c_str());
       path_len += path[i].length();
@@ -500,7 +503,7 @@ void op_timing2::print_kernel_summary(const std::vector<std::string>& path, unsi
   auto to_s = [](auto t) { return std::chrono::duration<double>(t).count(); };
   for (auto& child: kernel_nodes) {
     if (n >= limit) {
-      std::printf("    (%d more)\n", kernel_nodes.size() - limit);
+      std::printf("    (%ld more)\n", kernel_nodes.size() - limit);
       break;
     }
 
@@ -518,8 +521,8 @@ void op_timing2::print_kernel_summary(const std::vector<std::string>& path, unsi
       kern_pct = std::string(buf);
     }
 
-    std::printf("    %s%*s    %8d  %s  %s  %s  %s%s\n", child.get().name.c_str(),
-      longest_name - (child.get().name.length() + 4), "",
+    std::printf("    %s%*s    %8ld  %s  %s  %s  %s%s\n", child.get().name.c_str(),
+      (int) (longest_name - (child.get().name.length() + 4)), "",
       child.get().clock.n,
       format_duration(child.get().clock.total).c_str(),
       format_duration(child.get().clock.average()).c_str(),
