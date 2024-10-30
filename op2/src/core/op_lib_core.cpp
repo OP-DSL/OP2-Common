@@ -66,6 +66,7 @@ int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
 
 int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
+int OP_is_partitioned = 0;
 
 int OP_disable_mpi_reductions = 0;
 int OP_cuda_reductions_mib = 5;
@@ -1541,6 +1542,8 @@ int op_get_size_local(op_set set) { return set->size; }
 int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
 int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
 int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }
+
+int op_is_partitioned() { return OP_is_partitioned; }
 
 #ifdef __cplusplus
 }

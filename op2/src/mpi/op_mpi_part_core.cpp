@@ -3397,6 +3397,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   }
   printf("Orphan edges: %d\n", ctr);
 #endif
+  OP_is_partitioned = 1;
 }
 
 extern int **OP_map_ptr_list;

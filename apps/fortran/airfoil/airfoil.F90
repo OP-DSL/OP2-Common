@@ -85,7 +85,7 @@ program airfoil
     call op_decl_dat_hdf5(cells, 4, p_q, "real(8)", file_name_h5, "p_q", stat)
     call op_decl_dat_hdf5(cells, 4, p_qold, "real(8)", file_name_h5, "p_qold", stat)
     call op_decl_dat_hdf5(cells, 1, p_adt, "real(8)", file_name_h5, "p_adt", stat)
-    call op_decl_dat_hdf5(cells, 4, p_res, "real(8)", file_name_h5, "p_res", stat)
+    ! call op_decl_dat_hdf5(cells, 4, p_res, "real(8)", file_name_h5, "p_res", stat)
 #else
     call op_print("Declaring OP2 sets")
     call op_decl_set(nnode, nodes, "nodes")
@@ -122,6 +122,8 @@ program airfoil
 
     call op_partition("PARMETIS", "KWAY", edges, pecell, p_x)
     call op_timing2_enter("Main computation")
+
+    call op_decl_dat_temp(cells, 4, "real(8)", rms(1), p_res, "p_res")
 
     ncell_total = op_get_size(cells)
 
@@ -179,6 +181,8 @@ program airfoil
                 "max err: ", maxerr, " at ", errloc
         end if
     end do
+
+    iter = op_free_dat_temp(p_res)
 
     call op_timing2_finish()
 
