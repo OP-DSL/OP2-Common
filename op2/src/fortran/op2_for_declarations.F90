@@ -1113,17 +1113,18 @@ end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
 #define INTF_DECL_DAT_TEMP_(TYPE) op_decl_dat_temp_##TYPE
 
   interface op_decl_dat_temp
-    module procedure INTF_DECL_DAT_TEMP(INTEGER_4)!, &
-!                     INTF_DECL_DAT_TEMP(REAL_4), &
-!                     INTF_DECL_DAT_TEMP(REAL_8)
+    module procedure INTF_DECL_DAT_TEMP(INTEGER_4), &
+                     INTF_DECL_DAT_TEMP(REAL_4), &
+                     INTF_DECL_DAT_TEMP(REAL_8)
   end interface op_decl_dat_temp
 
 #define DECL_DECL_DAT_TEMP(TYPE) DECL_DECL_DAT_TEMP_(TYPE)
 #define DECL_DECL_DAT_TEMP_(TYPE)                                                                                      \
-subroutine INTF_DECL_DAT_TEMP(TYPE) (set, dim, type, dat, name)                                                       @\
+subroutine INTF_DECL_DAT_TEMP(TYPE) (set, dim, type, data, dat, name)                                                 @\
                                                                                                                       @\
     type(op_set) :: set                                                                                               @\
     integer(kind=c_int) :: dim                                                                                        @\
+    TYPE_##TYPE, target :: data                                                                        @\
                                                                                                                       @\
     type(op_dat) :: dat                                                                                               @\
                                                                                                                       @\

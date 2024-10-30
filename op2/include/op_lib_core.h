@@ -85,6 +85,7 @@ extern int OP_mpi_test_frequency;
 extern int OP_partial_exchange;
 extern int OP_disable_mpi_reductions;
 extern int OP_cuda_reductions_mib;
+extern int OP_is_partitioned;
 
 /*
  * enum list for op_par_loop

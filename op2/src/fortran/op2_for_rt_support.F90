@@ -222,6 +222,11 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    integer(kind=c_int) function op_is_partitioned () BIND(C,name='op_is_partitioned')
+
+      use, intrinsic :: ISO_C_BINDING
+
+    end function
 
     subroutine op_renumber_c (base) BIND(C,name='op_renumber')
 

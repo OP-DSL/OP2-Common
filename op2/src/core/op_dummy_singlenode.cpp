@@ -148,6 +148,7 @@ void op_partition(const char *lib_name, const char *lib_routine,
   (void)prime_set;
   (void)prime_map;
   (void)coords;
+  OP_is_partitioned = 1;
 }
 
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
@@ -157,6 +158,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   (void)prime_set;
   (void)prime_map;
   (void)coords;
+  OP_is_partitioned = 1;
 }
 void op_renumber(op_map base) { (void)base; }
 
