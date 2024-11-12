@@ -32,6 +32,7 @@
 #define gpuMalloc cudaMalloc
 #define gpuFree cudaFree
 #define gpuMemcpy cudaMemcpy
+#define gpuMemset cudaMemset
 
 #define gpuMallocAsync cudaMallocAsync
 #define gpuFreeAsync cudaFreeAsync
@@ -123,6 +124,7 @@
 #define gpuMalloc hipMalloc
 #define gpuFree hipFree
 #define gpuMemcpy hipMemcpy
+#define gpuMemset hipMemset
 
 #define gpuMallocAsync hipMallocAsync
 #define gpuFreeAsync hipFreeAsync

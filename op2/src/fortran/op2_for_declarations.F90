@@ -1107,46 +1107,6 @@ integer(8) function INTF_DECL_DAT_OVERLAY(TYPE, DIM) (set, data)                
 end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
 
 
-! ---- op_decl_dat_temp wrappers ---- !
-
-#define INTF_DECL_DAT_TEMP(TYPE) INTF_DECL_DAT_TEMP_(TYPE)
-#define INTF_DECL_DAT_TEMP_(TYPE) op_decl_dat_temp_##TYPE
-
-  interface op_decl_dat_temp
-    module procedure INTF_DECL_DAT_TEMP(INTEGER_4), &
-                     INTF_DECL_DAT_TEMP(REAL_4), &
-                     INTF_DECL_DAT_TEMP(REAL_8)
-  end interface op_decl_dat_temp
-
-#define DECL_DECL_DAT_TEMP(TYPE) DECL_DECL_DAT_TEMP_(TYPE)
-#define DECL_DECL_DAT_TEMP_(TYPE)                                                                                      \
-subroutine INTF_DECL_DAT_TEMP(TYPE) (set, dim, type, data, dat, name)                                                 @\
-                                                                                                                      @\
-    type(op_set) :: set                                                                                               @\
-    integer(kind=c_int) :: dim                                                                                        @\
-    TYPE_##TYPE, target :: data                                                                        @\
-                                                                                                                      @\
-    type(op_dat) :: dat                                                                                               @\
-                                                                                                                      @\
-    character(kind=c_char, len=*), optional :: name                                                                   @\
-    character(kind=c_char, len=*) :: type                                                                             @\
-                                                                                                                      @\
-    character(kind=c_char, len=:), allocatable :: name2                                                               @\
-                                                                                                                      @\
-    if (present(name)) then                                                                                           @\
-      name2 = name /@/ C_NULL_CHAR                                                                                    @\
-    else                                                                                                              @\
-      name2 = C_CHAR_"unnamed" /@/ C_NULL_CHAR                                                                        @\
-    end if                                                                                                            @\
-                                                                                                                      @\
-    call TYPE_CHECK_##TYPE(type)                                                                                      @\
-                                                                                                                      @\
-    dat%dataCPtr = op_decl_dat_temp_char_c(set%setCPtr, dim, TYPE_STR_##TYPE, TYPE_SIZE_##TYPE, name2)                @\
-    call c_f_pointer(dat%dataCPtr, dat%dataPtr)                                                                       @\
-                                                                                                                      @\
-end subroutine INTF_DECL_DAT_TEMP(TYPE)
-
-
 ! ---- op_decl_const wrappers ---- !
 
 #define INTF_DECL_CONST(TYPE, DIM) INTF_DECL_CONST_(TYPE, DIM)
@@ -1494,10 +1454,6 @@ contains
   DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_4)
   DECL_DECL_DAT_OVERLAY(REAL_8,    DIM_5)
 
-  DECL_DECL_DAT_TEMP(INTEGER_4)
-  DECL_DECL_DAT_TEMP(REAL_4)
-  DECL_DECL_DAT_TEMP(REAL_8)
-
   DECL_DECL_CONST(INTEGER_4, DIM_0)
   DECL_DECL_CONST(INTEGER_4, DIM_1)
   DECL_DECL_CONST(INTEGER_4, DIM_2)
@@ -1612,6 +1568,49 @@ contains
   DECL_ARG_INFO(LOGICAL,   DIM_1)
   DECL_ARG_INFO(LOGICAL,   DIM_2)
 
+  subroutine op_decl_dat_temp(set, dim, type, dat, name)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(op_set) :: set
+    integer(kind=c_int) :: dim
+
+    type(op_dat) :: dat
+
+    character(kind=c_char, len=*), optional :: name
+    character(kind=c_char, len=*) :: type
+
+    character(kind=c_char, len=:), allocatable :: name2
+
+    character(kind=c_char, len=:), allocatable :: type2
+    integer(kind=c_int) :: type_size
+
+
+    if (present(name)) then
+      name2 = name /@/ C_NULL_CHAR
+    else
+      name2 = C_CHAR_"unnamed" /@/ C_NULL_CHAR
+    end if
+
+    if (type == "r4") then
+      type2 = C_CHAR_"float" /@/ C_NULL_CHAR
+      type_size = 4
+    else if (type == "r8") then
+      type2 = C_CHAR_"double" /@/ C_NULL_CHAR
+      type_size = 8
+    else if (type == "i4") then
+      type2 = C_CHAR_"int" /@/ C_NULL_CHAR
+      type_size = 4
+    else
+      print *, "Error: op_del_dat_temp unknown type: ", type
+      stop 1
+    end if
+
+    dat%dataCPtr = op_decl_dat_temp_char_c(set%setCPtr, dim, type2, type_size, name2)
+    call c_f_pointer(dat%dataCPtr, dat%dataPtr)
+
+  end subroutine op_decl_dat_temp
 
   subroutine op_arg_dat_python_check (dat, dim)
 

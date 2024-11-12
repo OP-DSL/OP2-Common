@@ -125,12 +125,30 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   char *data = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, data, name);
 
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+
+    if (item->dat == dat) {
+      item->orig_ptr = (char *)dat->data;
+      break;
+    }
+  }
+
   for (size_t i = 0; i < set->size * dim * size; i++)
     dat->data[i] = 0;
   dat->user_managed = 0;
 
-	op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                    (size_t)dat->size * set->size);
+  size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
+    op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
+  } else {
+    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size);
+    op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size);
+  }
+
 
   return dat;
 }

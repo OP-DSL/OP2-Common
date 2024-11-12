@@ -82,6 +82,8 @@ void cutilDeviceInit_mpi(int argc, char **argv, int mpi_rank);
 
 gpuError_t op_deviceMalloc(void **ptr, size_t size);
 
+gpuError_t op_deviceZero(void *ptr, size_t size);
+
 void op_mvHostToDevice(void **map, size_t size);
 
 void op_cpHostToDevice(void **data_d, void **data_h, size_t size);
