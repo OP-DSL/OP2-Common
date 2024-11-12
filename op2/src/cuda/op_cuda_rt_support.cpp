@@ -89,6 +89,10 @@ gpuError_t op_deviceMalloc(void **ptr, size_t size) {
   return gpuMalloc(ptr, size);
 }
 
+gpuError_t op_deviceZero(void *ptr, size_t size) {
+  return gpuMemset(ptr, 0, size);
+}
+
 void op_mvHostToDevice(void **map, size_t size) {
   if (!OP_hybrid_gpu || size == 0)
     return;

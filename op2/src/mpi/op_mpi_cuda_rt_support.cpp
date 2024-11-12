@@ -154,7 +154,6 @@ void cutilDeviceInit(int argc, char **argv) {
 
 void op_upload_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-  //  printf("Uploading %s\n", dat->name);
   int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
@@ -707,9 +706,11 @@ void op_move_to_device() {
 
   size_t halo_size = op_mv_halo_list_device();
 
+  /*
   auto as_mib = [](size_t s) { return (double)s / (1024.0 * 1024.0); };
   op_printf("Total device memory usage: %.1f MiB (dats: %.1f MiB, maps: %.1f MiB, halo lists: %.1f Mib)\n",
           as_mib(dat_size + map_size + halo_size), as_mib(dat_size), as_mib(map_size), as_mib(halo_size));
+  */
 }
 
 int op_is_root() {

@@ -100,27 +100,20 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   if (set == NULL)
     return NULL;
-  /*char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
-  if (d == NULL && set->size>0) {
-    printf(" op_decl_dat_char error -- error allocating memory to dat\n");
-    exit(-1);
-  }
 
-  memcpy(d, data, set->size * dim * size * sizeof(char));
-  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);*/
-  op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
+  op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
 
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
     tmp_item = TAILQ_NEXT(item, entries);
-    if (item->dat == out_dat) {
+    if (item->dat == dat) {
       item->orig_ptr = data;
       break;
     }
   }
-  out_dat->user_managed = 0;
-  return out_dat;
+  dat->user_managed = 0;
+  return dat;
 }
 
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
@@ -180,6 +173,17 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   char *data = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, data, name);
 
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+
+    if (item->dat == dat) {
+      item->orig_ptr = (char *)dat->data;
+      break;
+    }
+  }
+
   // create empty data block to assign to this temporary dat (including the
   // halos)
   int set_size = set->size + OP_import_exec_list[set->index]->size +
@@ -196,10 +200,13 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
         op_deviceMalloc((void **)&(dat->buffer_d_r),
                    (size_t)dat->size * (OP_import_exec_list[set->index]->size +
                                 OP_import_nonexec_list[set->index]->size)));
-  }
 
-  op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                    (size_t)dat->size * set_size);
+    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
+    op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
+  } else {
+    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size);
+    op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size);
+  }
 
   // need to allocate mpi_buffers for this new temp_dat
   op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));

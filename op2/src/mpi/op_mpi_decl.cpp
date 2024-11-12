@@ -178,6 +178,17 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   char *d = NULL;
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
 
+  op_dat_entry *item;
+  op_dat_entry *tmp_item;
+  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+
+    if (item->dat == dat) {
+      item->orig_ptr = (char *)dat->data;
+      break;
+    }
+  }
+
   // create empty data block to assign to this temporary dat (including the
   // halos)
   int halo_size = OP_import_exec_list[set->index]->size +
