@@ -12,6 +12,7 @@
 namespace op::f2c {
 
 constexpr int round32(int x) { return (x + 31) & ~31; }
+constexpr size_t round32(size_t x) { return (x + 31) & ~31; }
 
 DEVICE inline void trap() {
 #ifdef __HIPCC__
