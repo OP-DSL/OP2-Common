@@ -186,12 +186,13 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  int set_size = set->size + OP_import_exec_list[set->index]->size +
-                 OP_import_nonexec_list[set->index]->size;
+  size_t set_size = (size_t)set->size + (size_t)OP_import_exec_list[set->index]->size +
+                    (size_t)OP_import_nonexec_list[set->index]->size;
 
   // initialize data bits to 0
-  for (size_t i = 0; i < set_size * dim * size; i++)
+  for (size_t i = 0; i < set_size * (size_t)dim * (size_t)size; i++)
     dat->data[i] = 0;
+
   dat->user_managed = 0;
 
   // transpose
