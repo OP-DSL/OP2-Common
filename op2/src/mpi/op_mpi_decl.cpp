@@ -132,8 +132,11 @@ op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
   halo_list exec_e_list = OP_export_exec_list[set->index];
   halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
 
-  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * overlay_dat->size);
-  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * overlay_dat->size);
+  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)overlay_dat->size);
+
+  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
+  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra)
+                                         * (size_t)overlay_dat->size);
 
   halo_list exec_i_list = OP_import_exec_list[set->index];
   halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
@@ -175,42 +178,26 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
-  char *d = NULL;
-  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, d, name);
-
-  op_dat_entry *item;
-  op_dat_entry *tmp_item;
-  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
-    tmp_item = TAILQ_NEXT(item, entries);
-
-    if (item->dat == dat) {
-      item->orig_ptr = (char *)dat->data;
-      break;
-    }
-  }
+  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  int halo_size = OP_import_exec_list[set->index]->size +
-                  OP_import_nonexec_list[set->index]->size;
-
-  // initialize data bits to 0
-  //dat->data = (char *)calloc((set->size + halo_size) * dim * size, 1);
-  for (size_t i = 0; i < (set->size + halo_size) * dim * size; i++)
-    dat->data[i] = 0;
-  dat->user_managed = 0;
+  size_t set_size = (size_t)set->size + (size_t)OP_import_exec_list[set->index]->size
+                                      + (size_t)OP_import_nonexec_list[set->index]->size;
 
   // need to allocate mpi_buffers for this new temp_dat
   op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
-  halo_list exec_e_list = OP_export_exec_list[set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
+  halo_list exec_e_list = OP_export_exec_list[dat->set->index];
+  halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
 
-  mpi_buf->buf_exec = (char *)xmalloc((exec_e_list->size) * dat->size);
-  mpi_buf->buf_nonexec = (char *)xmalloc((nonexec_e_list->size) * dat->size);
+  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
 
-  halo_list exec_i_list = OP_import_exec_list[set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
+  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
+  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra) * (size_t)dat->size);
+
+  halo_list exec_i_list = OP_import_exec_list[dat->set->index];
+  halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
 
   mpi_buf->s_req = (MPI_Request *)xmalloc(
       sizeof(MPI_Request) *
@@ -221,7 +208,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   mpi_buf->s_num_req = 0;
   mpi_buf->r_num_req = 0;
-
   dat->mpi_buffer = mpi_buf;
 
   return dat;
