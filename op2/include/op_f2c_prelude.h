@@ -4,10 +4,20 @@
 #include <cassert>
 #endif
 
+#if defined(__CUDACC__) || defined(__HIPCC__)
 #define DEVICE __device__
 
 #define H_MIN ::min
 #define H_MAX ::max
+#else
+#include <cmath>
+#include <cassert>
+
+#define DEVICE
+
+#define H_MIN std::min
+#define H_MAX std::max
+#endif
 
 namespace op::f2c {
 
