@@ -307,7 +307,8 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
 
   // use the import and export lists to exchange partition information of
   // this "to" set
-  MPI_Request request_send_p[pe_list->ranks_size];
+  MPI_Request *request_send_p =
+      (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
 
   // first - prepare partition information of the "to" set element to be
   // exported
@@ -394,6 +395,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   op_free(pe_list->disps);
   op_free(pe_list);
 
+  free(request_send_p);
   free(request_send);
 
   return 1;
@@ -534,9 +536,10 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     parts = (int *)xrealloc(parts, sizeof(int) * (count + pi_list->size));
   }
 
-  memcpy(&to_elems[count], (void *)&pi_list->list[0],
-         pi_list->size * sizeof(int));
-  memcpy(&parts[count], (void *)&part_list_i[0], pi_list->size * sizeof(int));
+  if (pi_list->size > 0) {
+    memcpy(&to_elems[count], (void *)&pi_list->list[0], pi_list->size * sizeof(int));
+    memcpy(&parts[count], (void *)&part_list_i[0], pi_list->size * sizeof(int));
+  }
 
   int *partition = (int *)xmalloc(sizeof(int) * map->to->size);
   for (int i = 0; i < map->to->size; i++) {
@@ -1120,8 +1123,11 @@ static void migrate_all(int my_rank, int comm_size) {
           }
         }
 
-        memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf,
-               (size_t)dat->size * (size_t)imp->size);
+        if ((size_t)dat->size * (size_t)imp->size > 0) {
+          memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf,
+                 (size_t)dat->size * (size_t)imp->size);
+        }
+
         count = count + imp->size;
         new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
         op_free(rbuf);
@@ -1202,8 +1208,12 @@ static void migrate_all(int my_rank, int comm_size) {
             count++;
           }
         }
-        memcpy(&new_map[count * map->dim], (void *)rbuf,
-               map->dim * sizeof(int) * imp->size);
+
+        if (map->dim * sizeof(int) * imp->size > 0) {
+          memcpy(&new_map[count * map->dim], (void *)rbuf,
+                 map->dim * sizeof(int) * imp->size);
+        }
+
         count = count + imp->size;
         new_map = (int *)xrealloc(new_map, sizeof(int) * count * map->dim);
 
@@ -1270,7 +1280,10 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
 
-    memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * imp->size);
+    if (sizeof(int) * imp->size > 0) {
+      memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * imp->size);
+    }
+
     count = count + imp->size;
     new_g_index = (int *)xrealloc(new_g_index, sizeof(int) * count);
     int *new_part = (int *)xmalloc(sizeof(int) * count);
