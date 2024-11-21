@@ -39,7 +39,9 @@ idx
 {%- endmacro -%}
 
 {%- macro arg_to_pointer2(arg) %}
-    {%- if ((arg is gbl or arg is info) and arg.dim == 1) or (arg is dat and lh.dat(arg).dim == 1) %}
+    {%- if arg is opt and arg is scalar(lh) %}
+arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : 0
+    {%- elif arg is scalar(lh) %}
 ({{arg_to_pointer3(arg)}})[0]
     {%- else -%}
 {{arg_to_pointer3(arg)}}
