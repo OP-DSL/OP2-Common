@@ -102,24 +102,7 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
-  char *data = NULL;
-  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, data, name);
-
-  op_dat_entry *item;
-  op_dat_entry *tmp_item;
-  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
-    tmp_item = TAILQ_NEXT(item, entries);
-
-    if (item->dat == dat) {
-      item->orig_ptr = (char *)dat->data;
-      break;
-    }
-  }
-
-  for (size_t i = 0; i < set->size * dim * size; i++)
-    dat->data[i] = 0;
-  dat->user_managed = 0;
-  return dat;
+  return op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 }
 
 int op_free_dat_temp_char(op_dat dat) { return op_free_dat_temp_core(dat); }

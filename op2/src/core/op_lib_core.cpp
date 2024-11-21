@@ -476,13 +476,15 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
       memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
 
     dat->data = new_data;
-  }
-  else {
-    if (data != NULL)
+    dat->user_managed = 0;
+  } else {
+    if (data != NULL) {
       dat->data = data;
-    else {
-      char *new_data = (char *)op_malloc(bytes);
+      dat->user_managed = 1;
+    } else {
+      char *new_data = (char *)op_calloc(bytes, sizeof(char));
       dat->data = new_data;
+      dat->user_managed = 0;
     }
   }
 
@@ -490,7 +492,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->name = copy_str(name);
   dat->type = copy_str(type);
   dat->size = dim * size;
-  dat->user_managed = 1;
   dat->mpi_buffer = NULL;
   dat->buffer_d = NULL;
   dat->buffer_d_r = NULL;
@@ -508,14 +509,13 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
     exit(-1);
   }
   item->dat = dat;
-  /*if (data == NULL) { -- this check would be good to have for Hydra,
-                           but temp_dats prints this error .. so commented out
-  for now
-    printf("WARNING data pointer is NULL for %s!\n", name);
-  }*/
-  item->orig_ptr = data;
-  // printf("orig_ptr for dat %s = %p\n", name, data);
-  // add item to the end of the list
+
+  if (data != NULL) {
+    item->orig_ptr = data;
+  } else {
+    item->orig_ptr = dat->data;
+  }
+
   if (TAILQ_EMPTY(&OP_dat_list)) {
     TAILQ_INSERT_HEAD(&OP_dat_list, item, entries);
   } else {
@@ -1313,7 +1313,8 @@ void set_maps_base(int base) {
 }
 
 void *op_malloc(size_t size) {
-  return aligned_alloc(OP2_ALIGNMENT, size);
+  if (size == 0) return malloc(0);
+  return aligned_alloc(OP2_ALIGNMENT, (size + OP2_ALIGNMENT) - 1 & (-OP2_ALIGNMENT));
 }
 
 // malloc to be exposed in Fortran API for use with Cray pointers
