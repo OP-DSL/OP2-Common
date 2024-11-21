@@ -628,7 +628,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     }
   }
 
-  MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
+  if (recv_neigh_list.size() > 0)
+    MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
 
   if (device == 2 && !OP_gpu_direct) {
     size_t size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
@@ -648,7 +649,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   }
   if (op2_grp_counter>0 && device == 2) op_scatter_sync();
 
-  MPI_Waitall(send_neigh_list.size(), &send_requests[0], MPI_STATUSES_IGNORE);
+  if (send_neigh_list.size() > 0)
+    MPI_Waitall(send_neigh_list.size(), &send_requests[0], MPI_STATUSES_IGNORE);
 
   send_neigh_list.resize(0);
   recv_neigh_list.resize(0);

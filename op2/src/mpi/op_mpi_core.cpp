@@ -594,6 +594,7 @@ void op_halo_create() {
 
   int *neighbors, *sizes;
   int ranks_size;
+  MPI_Request *request_send;
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
@@ -607,7 +608,7 @@ void op_halo_create() {
 
     find_neighbors_set(list, neighbors, sizes, &ranks_size, my_rank, comm_size,
                        OP_MPI_WORLD);
-    MPI_Request request_send[list->ranks_size];
+    request_send = (MPI_Request *)xmalloc(list->ranks_size * sizeof(MPI_Request));
 
     int *rbuf, cap = 0, index = 0;
 
@@ -636,6 +637,7 @@ void op_halo_create() {
     }
 
     MPI_Waitall(list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+    op_free(request_send);
 
     // create import lists
     // printf("creating importlist with number of neighbors %d\n",ranks_size);
@@ -652,7 +654,7 @@ void op_halo_create() {
     halo_list i_list = OP_import_exec_list[map->from->index];
     halo_list e_list = OP_export_exec_list[map->from->index];
 
-    MPI_Request request_send[e_list->ranks_size];
+    request_send = (MPI_Request *)xmalloc(e_list->ranks_size * sizeof(MPI_Request));
 
     // prepare bits of the mapping tables to be exported
     int **sbuf = (int **)xmalloc(e_list->ranks_size * sizeof(int *));
@@ -690,6 +692,8 @@ void op_halo_create() {
     }
 
     MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+    op_free(request_send);
+
     for (int i = 0; i < e_list->ranks_size; i++)
       op_free(sbuf[i]);
     op_free(sbuf);
@@ -787,7 +791,7 @@ void op_halo_create() {
     find_neighbors_set(list, neighbors, sizes, &ranks_size, my_rank, comm_size,
                        OP_MPI_WORLD);
 
-    MPI_Request request_send[list->ranks_size];
+    request_send = (MPI_Request *)xmalloc(list->ranks_size * sizeof(MPI_Request));
     int *rbuf, cap = 0, index = 0;
 
     for (int i = 0; i < list->ranks_size; i++) {
@@ -816,6 +820,7 @@ void op_halo_create() {
     }
 
     MPI_Waitall(list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+    op_free(request_send);
 
     // create import lists
     // printf("creating nonexec set export list with number of neighbors
@@ -845,7 +850,7 @@ void op_halo_create() {
                                               // is defined on this set
 
         // printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
-        MPI_Request request_send[e_list->ranks_size];
+        request_send = (MPI_Request *)xmalloc(e_list->ranks_size * sizeof(MPI_Request));
 
         // prepare execute set element data to be exported
         char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
@@ -877,6 +882,8 @@ void op_halo_create() {
         }
 
         MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+        op_free(request_send);
+
         for (int i = 0; i < e_list->ranks_size; i++)
           op_free(sbuf[i]);
         op_free(sbuf);
@@ -906,7 +913,7 @@ void op_halo_create() {
                                               // defined on this set
 
         // printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
-        MPI_Request request_send[e_list->ranks_size];
+        request_send = (MPI_Request *)xmalloc(e_list->ranks_size * sizeof(MPI_Request));
 
         // prepare non-execute set element data to be exported
         char **sbuf = (char **)xmalloc(e_list->ranks_size * sizeof(char *));
@@ -938,6 +945,8 @@ void op_halo_create() {
         }
 
         MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+        op_free(request_send);
+
         for (int i = 0; i < e_list->ranks_size; i++)
           op_free(sbuf[i]);
         op_free(sbuf);
@@ -1236,9 +1245,15 @@ void op_halo_create() {
 
       // combine core_elems and exp_elems to one memory block
       int *temp = (int *)xmalloc(sizeof(int) * set->size);
-      memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
-      memcpy(&temp[set->core_size], exp_elems[set->index],
-             (set->size - set->core_size) * sizeof(int));
+
+      if (set->core_size * sizeof(int) > 0) {
+        memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
+      }
+
+      if ((set->size - set->core_size) * sizeof(int) > 0) {
+        memcpy(&temp[set->core_size], exp_elems[set->index],
+               (set->size - set->core_size) * sizeof(int));
+      }
 
       // update OP_part_list[set->index]->g_index
       for (int i = 0; i < set->size; i++) {
@@ -2548,6 +2563,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   //
   int *neighbors, *sizes;
   int ranks_size;
+  MPI_Request *request_send;
 
   //-----Discover neighbors-----
   ranks_size = 0;
@@ -2556,7 +2572,7 @@ op_dat op_mpi_get_data(op_dat dat) {
 
   find_neighbors_set(pe_list, neighbors, sizes, &ranks_size, my_rank, comm_size,
                      OP_MPI_WORLD);
-  MPI_Request request_send[pe_list->ranks_size];
+  request_send = (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
 
   int *rbuf;
   cap = 0;
@@ -2630,8 +2646,11 @@ op_dat op_mpi_get_data(op_dat dat) {
     }
   }
 
-  memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf_char,
-         (size_t)dat->size * pi_list->size);
+  if ((size_t)dat->size * pi_list->size > 0) {
+    memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf_char,
+           (size_t)dat->size * pi_list->size);
+  }
+
   count = count + pi_list->size;
   new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
   op_free(rbuf_char);
@@ -2682,7 +2701,9 @@ op_dat op_mpi_get_data(op_dat dat) {
     }
   }
 
-  memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * pi_list->size);
+  if (sizeof(int) * pi_list->size > 0)
+    memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * pi_list->size);
+
   count = count + pi_list->size;
   new_g_index = (int *)xrealloc(new_g_index, sizeof(int) * count);
   op_free(rbuf);
@@ -2704,6 +2725,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   op_free(pi_list->list);
   op_free(pi_list);
   op_free(new_g_index);
+  op_free(request_send);
 
   // remember that the original set size is now given by count
   op_set set = (op_set)xmalloc(sizeof(op_set_core));
