@@ -333,7 +333,13 @@ def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, F
         attr_array_spec = None
 
         if attr_spec_list is not None:
-            dimension_attr_spec = fpu.get_child(attr_spec_list, f2003.Dimension_Attr_Spec)
+            for attr_spec in attr_spec_list.items:
+                if isinstance(attr_spec, f2003.Dimension_Attr_Spec):
+                    dimension_attr_spec = attr_spec
+                elif attr_spec.string == "PARAMETER" or isinstance(attr_spec, f2003.Intent_Attr_Spec):
+                    continue
+                else:
+                    ctx.error("Unexpected attr spec", attr_spec)
 
         if dimension_attr_spec is not None:
             attr_array_spec = parseArraySpec(dimension_attr_spec.items[1], ctx)
@@ -638,6 +644,30 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             continue
 
         if isinstance(node, f2003.Type_Declaration_Stmt):
+            attr_spec_list = node.items[1]
+
+            is_parameter = False
+            if attr_spec_list is not None:
+                for attr_spec in attr_spec_list.items:
+                    if attr_spec.string == "PARAMETER":
+                        is_parameter = True
+
+            if not is_parameter:
+                continue
+
+            for entity_decl in node.items[2].items:
+                name = translateGeneric(entity_decl.items[0], ctx)
+
+                initialization = entity_decl.items[3]
+                if initialization is None:
+                    ctx.error("Parameter has no initialization", entity_decl)
+
+                if initialization.items[0] != "=":
+                    ctx.error("Unsupported parameter initialization", initialization)
+
+                val = translateGeneric(initialization.items[1], ctx)
+                parameters[name] = val
+
             continue
 
         if isinstance(node, f2003.Data_Stmt):
