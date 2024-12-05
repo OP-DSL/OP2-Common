@@ -95,7 +95,7 @@ public:
         return Ptr{&elem, m_data.stride};
     }
 
-    constexpr Slice<T, N> splice(auto... es) const {
+    constexpr Slice<T, N> slice(auto... es) const {
         static_assert(sizeof...(es) == N);
         return Slice(*this, es...);
     }
@@ -104,8 +104,6 @@ public:
         slice_all() = v;
         return *this;
     }
-
-    constexpr Slice<T, N> slice(auto... es) const { return Slice(*this, es...); }
 
     template<typename S>
     constexpr operator Ptr<S>() const { return m_data; }
