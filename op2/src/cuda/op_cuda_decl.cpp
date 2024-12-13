@@ -58,6 +58,8 @@ void op_init(int argc, char **argv, int diags) {
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
+  (void)global; // Mark as unused
+  (void)local;  // Mark as unused
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
 }
@@ -73,12 +75,12 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
 
   // transpose data
-  size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+  idx_g_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (data != NULL && (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1))) {
     char *temp_data = (char *)malloc(dat->size * round32(set_size) * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
+      for (idx_g_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * round32(set_size) + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
@@ -124,7 +126,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 
-  size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+  idx_g_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
     op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
@@ -143,7 +145,7 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
-op_set op_decl_set(int size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
@@ -153,7 +155,7 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
   int set_size = map->from->size + map->from->exec_size;
   int *temp_map = (int *)malloc(map->dim * round32(set_size) * sizeof(int));
   for (int i = 0; i < map->dim; i++) {
-    for (int j = 0; j < set_size; j++) {
+    for (idx_g_t j = 0; j < set_size; j++) {
       temp_map[i * round32(set_size) + j] = map->map[map->dim * j + i];
     }
   }
@@ -199,9 +201,9 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 }
 */
 
-int op_get_size(op_set set) { return set->size; }
+idx_g_t op_get_size(op_set set) { (void)set; return set->size; }
 
-int op_get_global_set_offset(op_set set) { return 0; }
+idx_g_t op_get_global_set_offset(op_set set) { (void)set; return 0; }
 
 void op_printf(const char *format, ...) {
   va_list argptr;
@@ -220,7 +222,7 @@ int getSetSizeFromOpArg(op_arg *arg) {
 
 void op_renumber(op_map base) { (void)base; }
 
-void op_renumber_ptr(int *ptr){};
+void op_renumber_ptr(int *ptr){ (void)ptr; };
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
@@ -290,13 +292,13 @@ void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+    idx_g_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
         int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
-          for (int j = 0; j < set_size; j++) {
+          for (idx_g_t j = 0; j < set_size; j++) {
             for (int c = 0; c < element_size; c++) {
               temp_data[element_size * i * set_size + element_size * j + c] =
                   dat->data[dat->size * j + element_size * i + c];
@@ -347,37 +349,62 @@ typedef struct {
 typedef op_import_core *op_import_handle;
 
 op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
-
+  (void)nprocs; // Mark as unused
+  (void)proclist; // Mark as unused
+  (void)mark; // Mark as unused
   exit(1);
 }
 
 op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
                                 op_dat mark) {
-
+  (void)exp_handle; // Mark as unused
+  (void)coords; // Mark as unused
+  (void)mark; // Mark as unused
   exit(1);
 }
 
 op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
                                 op_set sp_nodes, op_dat coords, op_dat mark) {
-
+  (void)nprocs; // Mark as unused
+  (void)proclist; // Mark as unused
+  (void)cellsToNodes; // Mark as unused
+  (void)sp_nodes; // Mark as unused
+  (void)coords; // Mark as unused
+  (void)mark; // Mark as unused
   exit(1);
 }
 
 void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
                    double *dtheta_imp, double *alpha) {
 
+  (void)handle; // Mark as unused
+  (void)bc_id; // Mark as unused
+  (void)dtheta_exp; // Mark as unused
+  (void)dtheta_imp; // Mark as unused
+  (void)alpha; // Mark as unused
   exit(1);
 }
 
 void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
                   double *dtheta_imp) {
-
+  (void)handle; // Mark as unused
+  (void)bc_id; // Mark as unused
+  (void)dtheta_exp; // Mark as unused
+  (void)dtheta_imp; // Mark as unused
   exit(1);
 }
 
-void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
+void op_export_data(op_export_handle handle, op_dat dat) { 
+  (void)handle; // Mark as unused
+  (void)dat; // Mark as unused
+  exit(1);
+}
 
-void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
+void op_import_data(op_import_handle handle, op_dat dat) {
+  (void)handle; // Mark as unused
+  (void)dat; // Mark as unused
+  exit(1);
+}
 
 #ifdef __cplusplus
 }
