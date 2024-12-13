@@ -88,7 +88,7 @@ Initialisation and Termination
 
    This routine must be called last to cleanly terminate the OP2 runtime. Under MPI back-ends, this routine also calls :c:func:`MPI_Finalize()` unless its has been called previously. A runtime error will occur if :c:func:`MPI_Finalize()` is called after :c:func:`op_exit()`.
 
-.. c:function:: op_set op_decl_set(int size, char *name)
+.. c:function:: op_set op_decl_set(idx_g_t size, char *name)
 
    This routine declares a set.
 
@@ -355,7 +355,7 @@ Other I/O and Utilities
    :retval 1: Process is the MPI root.
    :retval 0: Process is *not* the MPI root.
 
-.. c:function:: int op_get_size(op_set set)
+.. c:function:: idx_g_t op_get_size(op_set set)
 
    This routine gets the global size of an :c:type:`op_set`.
 

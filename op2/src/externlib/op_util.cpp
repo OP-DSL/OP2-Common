@@ -76,7 +76,7 @@ void *xmalloc(size_t size) {
   if (size == 0)
     return (void *)NULL;
 
-  register void *value = op_malloc(size);
+  void *value = op_malloc(size);
   if (value == 0)
     printf("Virtual memory exhausted at malloc\n");
   return value;
@@ -92,7 +92,7 @@ void *xrealloc(void *ptr, size_t size) {
     return (void *)NULL;
   }
 
-  register void *value = op_realloc(ptr, size);
+  void *value = op_realloc(ptr, size);
   if (value == 0)
     printf("Virtual memory exhausted at realloc\n");
   return value;
@@ -106,7 +106,7 @@ void *xcalloc(size_t number, size_t size) {
   if (size == 0)
     return (void *)NULL;
 
-  register void *value = op_calloc(number, size);
+  void *value = op_calloc(number, size);
   if (value == 0)
     printf("Virtual memory exhausted at malloc\n");
   return value;
