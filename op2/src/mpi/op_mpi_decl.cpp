@@ -42,6 +42,7 @@
 #include <op_mpi_core.h>
 #include <op_rt_support.h>
 #include <op_util.h>
+#include <vector>
 
 //
 // MPI Communicator for halo creation and exchange
@@ -124,9 +125,6 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
   op_dat overlay_dat = op_decl_dat_overlay_core(set, dat);
 
-  int halo_size = OP_import_exec_list[set->index]->size +
-                  OP_import_nonexec_list[set->index]->size;
-
   op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
 
   halo_list exec_e_list = OP_export_exec_list[set->index];
@@ -182,8 +180,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  size_t set_size = (size_t)set->size + (size_t)OP_import_exec_list[set->index]->size
-                                      + (size_t)OP_import_nonexec_list[set->index]->size;
 
   // need to allocate mpi_buffers for this new temp_dat
   op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
@@ -277,6 +273,7 @@ op_plan *op_plan_get(char const *name, op_set set, int part_size, int nargs,
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
                            int staging, int upload) {
+  (void)upload;
   return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
 }
 
@@ -323,7 +320,7 @@ void op_rank(int *rank) { MPI_Comm_rank(OP_MPI_WORLD, rank); }
  * Wrappers of core lib
  */
 
-op_set op_decl_set(int size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
@@ -405,25 +402,22 @@ void op_timings_to_csv(const char *outputFileName) {
         }
 
         if (op_is_root()) {
-          double times[OP_kernels[n].ntimes*comm_size];
+          std::vector<double> times(OP_kernels[n].ntimes*comm_size);
           for (int i=0; i<(OP_kernels[n].ntimes*comm_size); i++) times[i] = 0.0f;
-          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times, OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times.data(), OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
-          float plan_times[comm_size];
+          std::vector<float> plan_times(comm_size);
           for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
-          double mpi_times[comm_size];
-          for (int i=0; i<comm_size; i++) mpi_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          std::vector<double> mpi_times(comm_size, 0.0);
+          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times.data(), 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
-          float transfers[comm_size];
-          for (int i=0; i<comm_size; i++) transfers[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+          std::vector<float> transfers(comm_size, 0.0f);
+          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
-          float transfers2[comm_size];
-          for (int i=0; i<comm_size; i++) transfers2[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+          std::vector<float> transfers2(comm_size, 0.0f);
+          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
           // Have data, now write:
           for (int p=0 ; p<comm_size ; p++) {

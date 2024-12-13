@@ -127,7 +127,7 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
-op_set op_decl_set(int size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
@@ -169,9 +169,9 @@ op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
   return op_arg_gbl_core(opt, data, dim, type, size, acc);
 }
 
-int op_get_size(op_set set) { return set->size; }
+idx_g_t op_get_size(op_set set) { return set->size; }
 
-int op_get_global_set_offset(op_set set) { return 0; }
+idx_g_t op_get_global_set_offset(op_set set) { return 0; }
 
 void op_printf(const char *format, ...) {
   va_list argptr;

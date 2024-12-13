@@ -78,7 +78,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
+      for (idx_g_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * set_size + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
@@ -144,7 +144,7 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
-op_set op_decl_set(int size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
@@ -200,9 +200,9 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 }
 */
 
-int op_get_size(op_set set) { return set->size; }
+idx_g_t op_get_size(op_set set) { return set->size; }
 
-int op_get_global_set_offset(op_set set) { return 0; }
+idx_g_t op_get_global_set_offset(op_set set) { return 0; }
 
 void op_printf(const char *format, ...) {
   va_list argptr;
@@ -297,7 +297,7 @@ void op_upload_all() {
         char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
         int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
-          for (int j = 0; j < set_size; j++) {
+          for (idx_g_t j = 0; j < set_size; j++) {
             for (int c = 0; c < element_size; c++) {
               temp_data[element_size * i * set_size + element_size * j + c] =
                   dat->data[dat->size * j + element_size * i + c];
@@ -349,31 +349,26 @@ typedef struct {
 typedef op_import_core *op_import_handle;
 
 op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
-
   exit(1);
 }
 
 op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
                                 op_dat mark) {
-
   exit(1);
 }
 
 op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
                                 op_set sp_nodes, op_dat coords, op_dat mark) {
-
   exit(1);
 }
 
 void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
                    double *dtheta_imp, double *alpha) {
-
   exit(1);
 }
 
 void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
                   double *dtheta_imp) {
-
   exit(1);
 }
 

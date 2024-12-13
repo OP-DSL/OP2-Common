@@ -169,7 +169,6 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
   hid_t file_id;   // file identifier
   hid_t plist_id;  // property list identifier
   hid_t dset_id;   // dataset identifier
-  hid_t dataspace; // data space identifier
   herr_t status;
 
   if (file_exist(file) == 0) {
@@ -395,7 +394,6 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   hsize_t count[2]; // hyperslab selection parameters
   hsize_t offset[2];
-  hid_t attr; // attribute identifier
   herr_t status;
 
   if (file_exist(file) == 0) {
@@ -431,7 +429,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
               file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
-  size_t type_size;
+  size_t type_size = 0;
 
   int dat_dim = dset_props.dim;
   if (dat_dim != dim) {
@@ -531,8 +529,6 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   hid_t file_id;   // file identifier
   hid_t plist_id;  // property list identifier
   hid_t dset_id;   // dataset identifier
-  hid_t dataspace; // data space identifier
-  hid_t attr;      // attribute identifier
   hid_t status;
 
   if (file_exist(file_name) == 0) {
@@ -588,9 +584,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   // Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  dataspace = H5Dget_space(dset_id);
 
-  char *data;
+  char *data = nullptr;
   // initialize data buffer and read data
   if (strcmp(typ, "int") == 0 || strcmp(typ, "int(4)") == 0 ||
       strcmp(typ, "integer") == 0 || strcmp(typ, "integer(4)") == 0) {
@@ -1130,7 +1125,6 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   hid_t dataspace;   // data space identifier
   hid_t plist_id;    // property list identifier
   hid_t memspace;    // memory space identifier
-  hid_t attr;        // attribute identifier
 
   hsize_t dimsf[2]; // dataset dimensions
   hsize_t count[2]; // hyperslab selection parameters
@@ -1185,7 +1179,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       // find element size of this dat with available attributes
       size_t dat_size = 0;
       dat_size = dset_props.elem_bytes;
-      if (dat_size != dat->size) {
+      if (dat_size != (size_t)dat->size) {
         op_printf(
             "dat.size %zu in file %s and dim %d do not match ... aborting\n",
             dat_size, file_name, dat->dim);
