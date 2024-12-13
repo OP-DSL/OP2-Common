@@ -46,6 +46,7 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <vector>
 
 #include <op_mpi_core.h>
 
@@ -3282,16 +3283,18 @@ void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
  * Get the global size of a set
  *******************************************************************************/
 
-int op_get_size(op_set set) {
+idx_g_t op_get_size(op_set set) {
   int my_rank, comm_size;
 
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t size = set->size;
+  MPI_Allgather(&size, 1, sizeof(idx_g_t)==4?MPI_INT:MPI_UNSIGNED_LONG_LONG, 
+                sizes, 1, sizeof(idx_g_t)==4?MPI_INT:MPI_UNSIGNED_LONG_LONG, OP_MPI_WORLD);
 
-  int g_size = 0;
+  idx_g_t g_size = 0;
   for (int i = 0; i < comm_size; i++)
     g_size = g_size + sizes[i];
 
@@ -3299,16 +3302,19 @@ int op_get_size(op_set set) {
   return g_size;
 }
 
-int op_get_global_set_offset(op_set set) {
+idx_g_t op_get_global_set_offset(op_set set) {
   int my_rank, comm_size;
 
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t size = set->size;
+  MPI_Allgather(&size, 1, sizeof(idx_g_t)==4?MPI_INT:MPI_UNSIGNED_LONG_LONG, 
+                sizes, 1, sizeof(idx_g_t)==4?MPI_INT:MPI_UNSIGNED_LONG_LONG, OP_MPI_WORLD);
 
-  int g_offset = 0;
+
+  idx_g_t g_offset = 0;
   for (int i = 0; i < my_rank; i++)
     g_offset = g_offset + sizes[i];
 
@@ -3323,8 +3329,8 @@ int op_get_global_set_offset(op_set set) {
 op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
 
   int bufpos;
-  MPI_Request requests[nprocs];
-  MPI_Status statuses[nprocs];
+  std::vector<MPI_Request> requests(nprocs);
+  std::vector<MPI_Status> statuses(nprocs);
 
   int my_rank, comm_size;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
@@ -3355,7 +3361,7 @@ op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
     MPI_Isend(&count, 1, MPI_INT, proclist[i], 101, OP_MPI_GLOBAL,
               &requests[i]);
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
 
   // step 2: send node markers
   bufpos = 0;
@@ -3367,7 +3373,7 @@ op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
       bufpos += len;
     }
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
 
   return handle;
 }
@@ -3376,8 +3382,8 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
                                 op_set sp_nodes, op_dat coords, op_dat mark) {
 
   int bufpos;
-  MPI_Request requests[nprocs];
-  MPI_Status statuses[nprocs];
+  std::vector<MPI_Request> requests(nprocs);
+  std::vector<MPI_Status> statuses(nprocs);
 
   int mpi_comm_size, mpi_comm_rank;
   MPI_Comm_size(OP_MPI_WORLD, &mpi_comm_size);
@@ -3432,7 +3438,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
     count[1] = compute_local_size(cellsToNodes->to->size, nprocs, i);
     MPI_Isend(count, 2, MPI_INT, proclist[i], 101, OP_MPI_GLOBAL, &requests[i]);
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
 
   // step 2: send node markers, local node nos. and coords
   bufpos = 0;
@@ -3444,7 +3450,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
       bufpos += len;
     }
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
 
   int *node_local = (int *)xmalloc(cellsToNodes->to->size * sizeof(int));
   for (int i = 0; i < cellsToNodes->to->size; ++i)
@@ -3458,7 +3464,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
       bufpos += len;
     }
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
   if (node_local)
     free(node_local);
 
@@ -3472,13 +3478,13 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
       bufpos += len;
     }
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
 
   // step 3: receive back sizes
   int *owned_size = (int *)xmalloc(nprocs * sizeof(int));
   for (int i = 0; i < nprocs; i++) {
     MPI_Recv(&owned_size[i], 1, MPI_INT, proclist[i], 105, OP_MPI_GLOBAL,
-             statuses);
+             statuses.data());
   }
 
   // step 4: receive back coupling proc and local number
@@ -3487,7 +3493,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
       int *recv_buffer = (int *)xmalloc(2 * owned_size[i] * sizeof(int));
 
       MPI_Recv(recv_buffer, 2 * owned_size[i], MPI_INT, proclist[i], 106,
-               OP_MPI_GLOBAL, statuses);
+               OP_MPI_GLOBAL, statuses.data());
 
       for (int j = 0; j < owned_size[i]; j++) {
         int node = recv_buffer[2 * j];
@@ -3528,7 +3534,8 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
     nonlocal_cell_count[i] = 0;
   }
   int local;
-  int node[cellsToNodes->dim], cpl_proc[cellsToNodes->dim];
+  std::vector<int> node(cellsToNodes->dim);
+  std::vector<int> cpl_proc(cellsToNodes->dim);
   for (int i = 0;
        i < (cellsToNodes->from->size + cellsToNodes->from->exec_size); i++) {
     node[0] = cellsToNodes->map[i * cellsToNodes->dim];
@@ -3557,7 +3564,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
     count[1] = nonlocal_cell_count[proclist[i]];
     MPI_Isend(count, 2, MPI_INT, proclist[i], 107, OP_MPI_GLOBAL, &requests[i]);
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
 
   // step 7: pack cell maps (with marker first)
   int *bufp1 = (int *)xmalloc(global_comm_size * sizeof(int));
@@ -3627,7 +3634,7 @@ op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
                 OP_MPI_GLOBAL, &requests[i]);
     }
   }
-  MPI_Waitall(nprocs, requests, statuses);
+  MPI_Waitall(nprocs, requests.data(), statuses.data());
   if (bufp1)
     free(bufp1);
   if (bufp2)
@@ -3848,7 +3855,7 @@ void op_export_data(op_export_handle handle, op_dat dat) {
         int node = handle->nodelist_send[i][j][k];
 
         if (node < 0 || node >= dat->set->size)
-          printf("Error in OP2 packing export data %i %i\n", node,
+          printf("Error in OP2 packing export data %i %lld\n", node,
                  dat->set->size);
 
         memcpy(&handle->send_buf[i][j][bufp], &dat->data[node * (size_t)dat->size],
@@ -3900,8 +3907,8 @@ op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
   OP_import_list[OP_import_index++] = handle;
 
   // count and send data per interface
-  MPI_Request requests[exp_handle->coupling_group_size];
-  MPI_Status statuses[exp_handle->coupling_group_size];
+  std::vector<MPI_Request> requests(exp_handle->coupling_group_size);
+  std::vector<MPI_Status> statuses(exp_handle->coupling_group_size);
 
   int *count = (int *)xmalloc(exp_handle->gbl_num_ifaces * sizeof(int));
 
@@ -3920,7 +3927,7 @@ op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
                 OP_MPI_GLOBAL, &requests[j]);
     }
 
-    MPI_Waitall(exp_handle->nprocs_per_gint[i], requests, statuses);
+    MPI_Waitall(exp_handle->nprocs_per_gint[i], requests.data(), statuses.data());
   }
 
   // Count local ifaces
@@ -3979,7 +3986,7 @@ op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
       recv_buf[i][j] = NULL;
     }
 
-    MPI_Waitall(nprocs_per_int[i], requests, statuses);
+    MPI_Waitall(nprocs_per_int[i], requests.data(), statuses.data());
 
     free(send_buffer);
   }

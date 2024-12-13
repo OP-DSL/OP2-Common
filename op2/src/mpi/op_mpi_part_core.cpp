@@ -807,8 +807,8 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
   int sets_partitioned = 1;
   int maps_used = 0;
 
-  op_set all_partitioned_sets[OP_set_index];
-  int all_used_maps[OP_map_index];
+  std::vector<op_set> all_partitioned_sets(OP_set_index);
+  std::vector<int> all_used_maps(OP_map_index);
   for (int i = 0; i < OP_map_index; i++) {
     all_used_maps[i] = -1;
   }
@@ -818,7 +818,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
 
   int error = 0;
   while (sets_partitioned < OP_set_index && error == 0) {
-    int cost[OP_map_index];
+    std::vector<int> cost(OP_map_index);
     for (int i = 0; i < OP_map_index; i++)
       cost[i] = 99;
 
@@ -826,7 +826,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
     for (int m = 0; m < OP_map_index; m++) {
       op_map map = OP_map_list[m];
 
-      if (linear_search(all_used_maps, map->index, 0, maps_used - 1) <
+      if (linear_search(all_used_maps.data(), map->index, 0, maps_used - 1) <
           0) // if not used before
       {
         part to_set = OP_part_list[map->to->index];
@@ -836,18 +836,18 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
         // more than partitioning a set using a mapping to a partitioned set
         // i.e. preferance is given to the latter over the former
         if (from_set->is_partitioned == 1 &&
-            compare_all_sets(map->from, all_partitioned_sets,
+            compare_all_sets(map->from, all_partitioned_sets.data(),
                              sets_partitioned) >= 0)
           cost[map->index] = 2;
         else if (to_set->is_partitioned == 1 &&
-                 compare_all_sets(map->to, all_partitioned_sets,
+                 compare_all_sets(map->to, all_partitioned_sets.data(),
                                   sets_partitioned) >= 0)
           cost[map->index] = (map->dim == 1 ? 0 : 1);
       }
     }
 
     while (1) {
-      int selected = min(cost, OP_map_index);
+      int selected = min(cost.data(), OP_map_index);
 
       if (selected >= 0) {
         op_map map = OP_map_list[selected];
@@ -954,8 +954,8 @@ static void renumber_maps(int my_rank, int comm_size) {
 
     // do an allgather to findout how many elements that each process will
     // be requesting partition information about
-    int recv_count[comm_size];
-    MPI_Allgather(&count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_PART_WORLD);
+    std::vector<int> recv_count(comm_size);
+    MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_PART_WORLD);
 
     // discover global size of these required elements
     int g_count = 0;
@@ -974,7 +974,7 @@ static void renumber_maps(int my_rank, int comm_size) {
     // partition details
     int *g_index = (int *)xmalloc(sizeof(int) * g_count);
 
-    MPI_Allgatherv(req_list, count, MPI_INT, g_index, recv_count, displs,
+    MPI_Allgatherv(req_list, count, MPI_INT, g_index, recv_count.data(), displs,
                    MPI_INT, OP_PART_WORLD);
     op_free(req_list);
 
@@ -1013,7 +1013,7 @@ static void renumber_maps(int my_rank, int comm_size) {
     exp_g_index = (int *)xrealloc(exp_g_index, sizeof(int) * exp_count);
 
     // now export to every MPI rank, these partition info with an all-to-all
-    MPI_Allgather(&exp_count, 1, MPI_INT, recv_count, 1, MPI_INT,
+    MPI_Allgather(&exp_count, 1, MPI_INT, recv_count.data(), 1, MPI_INT,
                   OP_PART_WORLD);
     disp = 0;
     op_free(displs);
@@ -1034,10 +1034,10 @@ static void renumber_maps(int my_rank, int comm_size) {
     // printf("on rank %d map %s need set %s: After g_count = %d\n",
     //    my_rank, map.name,map.to.name,g_count);
 
-    MPI_Allgatherv(exp_g_index, exp_count, MPI_INT, g_index, recv_count, displs,
+    MPI_Allgatherv(exp_g_index, exp_count, MPI_INT, g_index, recv_count.data(), displs,
                    MPI_INT, OP_PART_WORLD);
 
-    MPI_Allgatherv(exp_index, exp_count, MPI_INT, all_imp_index, recv_count,
+    MPI_Allgatherv(exp_index, exp_count, MPI_INT, all_imp_index, recv_count.data(),
                    displs, MPI_INT, OP_PART_WORLD);
 
     op_free(exp_index);
@@ -1094,12 +1094,12 @@ static void migrate_all(int my_rank, int comm_size) {
    * ----------*/
 
   // create imp/exp lists for reverse migration
-  halo_list pe_list[OP_set_index]; // export list for each set
-  halo_list pi_list[OP_set_index]; // import list for each set
+  std::vector<halo_list> pe_list(OP_set_index); // export list for each set
+  std::vector<halo_list> pi_list(OP_set_index); // import list for each set
 
   // create partition export lists
   int *temp_list;
-  size_t count, cap;
+  idx_g_t count, cap;
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
@@ -3571,13 +3571,13 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   // printf("\n");
   if (item_dat == NULL) {
     printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
-           coords);
+           (void*)coords);
   }
 
   op_map item_map = op_search_map_ptr(prime_map);
 
   if (item_map == NULL) {
-    printf("ERROR in op_partition: op_map not found for %p pointer\n", prime_map);
+    printf("ERROR in op_partition: op_map not found for %p pointer\n", (void*)prime_map);
     exit(-1);
   }
 

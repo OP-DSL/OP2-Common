@@ -49,6 +49,7 @@
 #include <op_rt_support.h>
 
 #include <op_util.h> //just to include xmalloc routine
+#include <vector>
 
 typedef struct {
   const char *type_str; // dataset type as string
@@ -116,9 +117,9 @@ herr_t get_dataset_properties(hid_t dset_id,
     dset_props->dim = 0;
     H5Sclose(dataspace);
   } else {
-    hsize_t dims[ndims];
-    hsize_t maxdims[ndims];
-    status = H5Sget_simple_extent_dims(dataspace, dims, maxdims);
+    std::vector<hsize_t> dims(ndims);
+    std::vector<hsize_t> maxdims(ndims);
+    status = H5Sget_simple_extent_dims(dataspace, dims.data(), maxdims.data());
     H5Sclose(dataspace);
     if (status < 0) {
       return -1;
@@ -145,8 +146,8 @@ herr_t get_dataset_properties(hid_t dset_id,
     dset_props->elem_bytes = sizeof(double);
   } else {
     size_t name_len = H5Iget_name(dset_id, NULL, 0);
-    char name[name_len];
-    H5Iget_name(dset_id, name, name_len + 1);
+    std::vector<char> name(name_len);
+    H5Iget_name(dset_id, name.data(), name_len + 1);
     op_printf("Error: Do not recognise type of dataset '%s'\n", name);
     exit(2);
   }

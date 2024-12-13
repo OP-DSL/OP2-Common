@@ -198,7 +198,7 @@ void op_disable_mpi_reductions(bool disable) {
 *  is not easy to pass through from frotran to C
 */
 void op_set_args(int argc, char *argv) {
-
+  (void)argc;
   char temp[64];
   char *pch;
   pch = strstr(argv, "OP_BLOCK_SIZE=");
@@ -383,7 +383,7 @@ void op_init_core(int argc, char **argv, int diags) {
   TAILQ_INIT(&OP_dat_list);
 }
 
-op_set op_decl_set_core(int size, char const *name) {
+op_set op_decl_set_core(idx_g_t size, char const *name) {
   if (size < 0) {
     printf(" op_decl_set error -- negative/zero size for set: %s\n", name);
     exit(-1);
@@ -748,10 +748,10 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.map == NULL && arg.dat->set != set) {
       // op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        printf("dataset dat %s with data pointer %lu (%p), on set %p (%s) does not "
+        printf("dataset dat %s with data pointer %llu (%p), on set %p (%s) does not "
                "match loop set %p (%s)\n",
-               arg.dat->name, arg.dat->data, arg.dat->data, arg.dat->set, arg.dat->set->name,
-               set, set->name);
+               arg.dat->name, (long long unsigned int)arg.dat->data, arg.dat->data, (void*)arg.dat->set, arg.dat->set->name,
+               (void*)set, set->name);
     }
 
     if (arg.map != NULL) {
@@ -841,7 +841,7 @@ op_arg op_arg_idx_ptr(int idx, int *map) {
     idx = -1;
 
   if (item_map == NULL && idx != -1) {
-    printf("ERROR: op_map not found for %p pointer\n", map);
+    printf("ERROR: op_map not found for %p pointer\n", (void*)map);
     exit(-1);
   }
 
@@ -1046,7 +1046,7 @@ void op_diagnostic_output() {
     printf("\n       set       size\n");
     printf("  -------------------\n");
     for (int n = 0; n < OP_set_index; n++) {
-      printf("%10s %10d\n", OP_set_list[n]->name, OP_set_list[n]->size);
+      printf("%10s %10lld\n", OP_set_list[n]->name, OP_set_list[n]->size);
     }
 
     printf("\n       map        dim       from         to\n");
@@ -1264,7 +1264,7 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name) {
     exit(2);
   }
 
-  if (fwrite(dat->data, dat->size, dat->set->size, fp) < dat->set->size) {
+  if (fwrite(dat->data, dat->size, dat->set->size, fp) < (size_t)dat->set->size) {
     printf("error writing to %s\n", file_name);
     exit(2);
   }
@@ -1278,7 +1278,7 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
     exit(2);
   }
 
-  if (fprintf(fp, "%d %d\n", dat->set->size, dat->dim) < 0) {
+  if (fprintf(fp, "%lld %d\n", dat->set->size, dat->dim) < 0) {
     printf("error writing to %s\n", file_name);
     exit(2);
   }
@@ -1351,7 +1351,7 @@ void set_maps_base(int base) {
 
 void *op_malloc(size_t size) {
   if (size == 0) return malloc(0);
-  return aligned_alloc(OP2_ALIGNMENT, (size + OP2_ALIGNMENT) - 1 & (-OP2_ALIGNMENT));
+  return aligned_alloc(OP2_ALIGNMENT, ((size + OP2_ALIGNMENT) - 1) & (-OP2_ALIGNMENT));
 }
 
 // malloc to be exposed in Fortran API for use with Cray pointers
@@ -1418,7 +1418,7 @@ op_arg op_arg_dat_ptr(int opt, char *dat, int idx, int *map, int dim,
     idx = -1;
 
   if (item_map == NULL && idx != -1) {
-    printf("ERROR: op_map not found for %p pointer\n", map);
+    printf("ERROR: op_map not found for %p pointer\n", (void*)map);
     exit(-1);
   }
 
@@ -1534,7 +1534,7 @@ unsigned long op_reset_map_ptr(int *map) {
   op_map item_map = op_search_map_ptr(map);
 
   if (item_map == NULL) {
-    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    printf("ERROR: op_map not found for map with %p pointer\n", (void*)map);
     exit(-1);
   }
 
@@ -1548,14 +1548,14 @@ unsigned long op_copy_map_to_fort(int *map) {
   op_map item_map = op_search_map_ptr(map);
 
   if (item_map == NULL) {
-    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    printf("ERROR: op_map not found for map with %p pointer\n", (void*)map);
     exit(-1);
   }
 
   int *fort_map = (int *) malloc((item_map->from->size + item_map->from->exec_size+1)* item_map->dim * sizeof(int));
   fort_map++; //Sometimes this will return an allocation previously deallocated, but still on the OP_map_ptr_table. Increment by one to avoid
   if (OP_map_ptr_table.count(fort_map)>0) {
-    printf("Error: Map pointer %p already in map_ptr_table\n", fort_map);
+    printf("Error: Map pointer %p already in map_ptr_table\n", (void*)fort_map);
     exit(-1);
   }
   OP_map_ptr_table.insert({fort_map, item_map->index});
@@ -1581,15 +1581,15 @@ void op_force_part(int *map) {
  * Get the local size of a set
  *******************************************************************************/
 
-int op_get_size_local_core(op_set set) { return set->core_size; }
-int op_get_size_local(op_set set) { return set->size; }
+idx_l_t op_get_size_local_core(op_set set) { return set->core_size; }
+idx_l_t op_get_size_local(op_set set) { return set->size; }
 
 /*******************************************************************************
  * Get the local exec size of a set
  *******************************************************************************/
 
-int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
-int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
+idx_l_t op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
+idx_l_t op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
 int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }
 
 int op_is_partitioned() { return OP_is_partitioned; }

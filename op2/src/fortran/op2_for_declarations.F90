@@ -40,6 +40,9 @@
 #define UNUSED(x) if (.false.) print *, loc(x)
 #define OP2_ARG_POINTERS
 
+#warning "coordinate idxtype with C"
+#define idx_g_t C_LONG_LONG
+
 module OP2_Fortran_Declarations
 
   use, intrinsic :: ISO_C_BINDING
@@ -62,7 +65,7 @@ module OP2_Fortran_Declarations
   type, BIND(C) :: op_set_core
 
     integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
-    integer(kind=c_int) :: size         ! number of elements in the set
+    integer(kind=idx_g_t) :: size         ! number of elements in the set
     type(c_ptr)         :: name         ! set name
     integer(kind=c_int) :: core_size    ! number of core elements in an mpi process
     integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed
@@ -344,12 +347,12 @@ module OP2_Fortran_Declarations
 
       import :: op_set_core
 
-      integer(kind=c_int), value, intent(in)    :: setsize
+      integer(kind=idx_g_t), value, intent(in)    :: setsize
       character(kind=c_char,len=1), intent(in)  :: name(*)
 
     end function op_decl_set_c
 
-    INTEGER(kind=c_int) function op_get_size_c ( set ) BIND(C,name='op_get_size')
+    INTEGER(kind=idx_g_t) function op_get_size_c ( set ) BIND(C,name='op_get_size')
       use, intrinsic :: ISO_C_BINDING
 
       import :: op_set
@@ -357,7 +360,7 @@ module OP2_Fortran_Declarations
 
     end function
 
-    INTEGER(kind=c_int) function op_get_global_set_offset_c ( set ) BIND(C,name='op_get_global_set_offset')
+    INTEGER(kind=idx_g_t) function op_get_global_set_offset_c ( set ) BIND(C,name='op_get_global_set_offset')
       use, intrinsic :: ISO_C_BINDING
 
       import :: op_set
@@ -2010,7 +2013,7 @@ contains
 
   subroutine op_decl_set ( setsize, set, opname )
 
-    integer(kind=c_int), value, intent(in) :: setsize
+    integer(kind=idx_g_t), value, intent(in) :: setsize
     type(op_set) :: set
     character(kind=c_char,len=*), optional :: opName
 
@@ -2052,7 +2055,7 @@ contains
     op_free_dat_temp = op_free_dat_temp_c ( dat%dataCPtr )
   end function op_free_dat_temp
 
-  INTEGER function op_get_size (set )
+  INTEGER(kind=idx_g_t) function op_get_size (set )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -2064,7 +2067,7 @@ contains
 
   end function op_get_size
 
-  INTEGER function op_get_global_set_offset (set )
+  INTEGER(kind=idx_g_t) function op_get_global_set_offset (set )
 
     use, intrinsic :: ISO_C_BINDING
 
