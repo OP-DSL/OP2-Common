@@ -100,7 +100,8 @@ extern "C" {
 static char *copy_str(char const *src) {
   const size_t len = strlen(src) + 1;
   char *dest = (char *)op_calloc(len, sizeof(char));
-  return strncpy(dest, src, len);
+  strcpy(dest, src);
+  return dest;
 }
 
 int compare_sets(op_set set1, op_set set2) {
