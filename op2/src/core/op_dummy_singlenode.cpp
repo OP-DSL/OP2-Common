@@ -162,7 +162,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
 }
 void op_renumber(op_map base) { (void)base; }
 
-void op_renumber_ptr(int *ptr){};
+void op_renumber_ptr(int *ptr){ (void)ptr;}
 
 void op_compute_moment(double t, double *first, double *second) {
   *first = t;
@@ -210,37 +210,60 @@ typedef op_import_core *op_import_handle;
 
 void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
                    double *dtheta_imp, double *alpha) {
-
+  (void)handle;
+  (void)bc_id;
+  (void)dtheta_exp;
+  (void)dtheta_imp;
+  (void)alpha;
   exit(1);
 }
 
 void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
                   double *dtheta_imp) {
-
-  exit(1);
+  (void)handle;
+  (void)bc_id;
+  (void)dtheta_exp;
+  (void)dtheta_imp;
 }
 
 op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
-  exit(1);
-  return NULL;
+  (void)nprocs;
+  (void)proclist;
+  (void)mark;
+  return nullptr;
 }
 
 op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
                                 op_dat mark) {
-  exit(1);
-  return NULL;
+  (void)exp_handle;
+  (void)coords;
+  (void)mark;
+  return nullptr;
 }
 
 op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
                                 op_set sp_nodes, op_dat coords, op_dat mark) {
-
-  exit(1);
-  return NULL;
+  (void)nprocs;
+  (void)proclist;
+  (void)cellsToNodes;
+  (void)sp_nodes;
+  (void)coords;
+  (void)mark;
+  return nullptr;
 }
 
-void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
+void op_export_data(op_export_handle handle, op_dat dat) {
+  (void)handle;
+  (void)dat;
+  exit(1);
+}
 
-void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
+void op_import_data(op_import_handle handle, op_dat dat) {
+  (void)handle;
+  (void)dat;
+  exit(1);
+}
+
 void deviceSync() {}
 
 #ifdef __cplusplus
