@@ -1,4 +1,5 @@
 import os
+import importlib
 from argparse import ArgumentParser, Namespace
 from functools import lru_cache
 from io import StringIO
@@ -12,22 +13,13 @@ from language import Lang
 from store import Application, Location, ParseError, Program
 
 
-CLANG_INITIALIZED = False
-
-
-def clang_init():
-    global CLANG_INITIALIZED
-
-    if CLANG_INITIALIZED:
-        return
-
+clang_spec = importlib.util.find_spec('clang')
+if clang_spec is not None:
     import clang.cindex
 
     libclang_path = os.getenv("LIBCLANG_PATH")
     if libclang_path is not None:
         clang.cindex.Config.set_library_file(libclang_path)
-
-    CLANG_INITIALIZED = True
 
 
 class Preprocessor(pcpp.Preprocessor):
@@ -73,8 +65,6 @@ class Cpp(Lang):
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
     ) -> Tuple[Any, str]:
-        clang_init()
-
         args = [f"-I{dir}" for dir in include_dirs]
         args = args + [f"-D{define}" for define in defines]
 
