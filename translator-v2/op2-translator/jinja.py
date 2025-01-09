@@ -199,6 +199,10 @@ env.filters["inc"] = test_to_filter("inc")
 env.filters["min"] = test_to_filter("min")
 env.filters["max"] = test_to_filter("max")
 
+env.filters["work"] = test_to_filter("work")
+env.filters["read_or_write"] = test_to_filter("read_or_write")
+env.filters["min_or_max"] = test_to_filter("min_or_max")
+
 env.filters["reduction"] = test_to_filter("reduction")
 
 env.filters["index"] = lambda xs, x: xs.index(x)

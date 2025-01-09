@@ -165,8 +165,6 @@ int main(int argc, char **argv) {
   op_dat p_u = op_decl_dat(nodes, 2, "float", u, "p_u");
   op_dat p_du = op_decl_dat(nodes, 3, "float", du, "p_du");
 
-  alpha = 2.0f;
-  op_decl_const(1, "float", &alpha);
   alpha = 1.0f;
   op_decl_const(1, "float", &alpha);
 

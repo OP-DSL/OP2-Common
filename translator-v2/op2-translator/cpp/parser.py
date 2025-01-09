@@ -159,6 +159,12 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
         elif name == "op_opt_arg_gbl":
             parseArgGbl(loop, True, arg_args, arg_loc, macros)
 
+        elif name == "op_arg_idx":
+            parseArgIdx(loop, arg_args, arg_loc, macros)
+
+        elif name == "op_arg_info":
+            parseArgInfo(loop, arg_args, arg_loc, macros)
+
         else:
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
 
@@ -202,6 +208,29 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
     access_type = parseAccessType(args[3], loc, macros)
 
     loop.addArgGbl(loc, ptr, dim, typ, access_type, opt)
+
+
+def parseArgIdx(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
+    if args is None or len(args) != 2:
+        raise ParseError("incorrect number of arguments for op_arg_idx", loc)
+
+    map_idx = parseIntExpression(args[0])
+    map_ptr = None if macros.get(parseLocation(args[1])) == "OP_ID" else parseIdentifier(args[1])
+
+    loop.addArgIdx(loc, map_ptr, map_idx)
+
+
+def parseArgInfo(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
+    if args is None or len(args) != 4:
+        raise ParseError("incorrect number of arguments for op_arg_info", loc)
+
+    ptr = parseIdentifier(args[0])
+    dim = parseIntExpression(args[1])
+    typ = parseType(parseStringLit(args[2]), loc)
+
+    ref = parseIntExpression(args[3])
+
+    loop.addArgInfo(loc, ptr, dim, typ, ref)
 
 
 def parseIdentifier(node: Cursor, raw: bool = True) -> str:

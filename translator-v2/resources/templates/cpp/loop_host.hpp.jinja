@@ -31,7 +31,7 @@ namespace op2_k{{kernel_idx}} {
 {% block kernel_wrapper %}
 {% endblock %}
 {% block host_prologue %}
-void op_par_loop_{{lh.kernel}}(
+void op_par_loop_{{lh.name}}(
     const char *name,
     op_set set,
     {% for arg in lh.args %}
@@ -54,7 +54,7 @@ void op_par_loop_{{lh.kernel}}(
     op_timers_core(&cpu_start, &wall_start);
 
     if (OP_diags > 2)
-        printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.kernel}}\n");
+        printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.name}}\n");
 
     int set_size = op_mpi_halo_exchanges{{"_grouped" if config.grouped-}}
         (set, num_args_expanded, args_expanded{{(", %d" % config.device) if config.grouped}});

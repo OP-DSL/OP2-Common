@@ -42,6 +42,6 @@ void op_decl_const_char(int dim, const char *type, int size, char *dat, const ch
 
 {% block kernel_includes %}
     {% for loop_, _ in app.loops() %}
-#include "{{loop_.kernel}}_kernel.hpp"
+#include "{{loop_.name}}_kernel.hpp"
     {% endfor %}
 {% endblock %}

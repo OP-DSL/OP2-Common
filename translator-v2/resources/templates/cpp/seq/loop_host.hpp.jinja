@@ -1,6 +1,16 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
 {%- macro arg_to_pointer(arg) %}
+    {%- if arg is idx and arg is indirect -%}
+&map{{arg.map_id}}[{{arg.map_idx}}]
+    {%- elif arg is idx -%}
+&n
+    {%- else -%}
+{{arg_to_pointer2(arg)}}
+    {%- endif -%}
+{%- endmacro %}
+
+{%- macro arg_to_pointer2(arg) %}
     {%- if arg is gbl %}
         {%- set cast = arg.typ -%}
     {%- else -%}
