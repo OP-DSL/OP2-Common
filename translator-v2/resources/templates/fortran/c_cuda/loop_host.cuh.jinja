@@ -121,7 +121,7 @@ f2c::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}
     {%- elif lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
-f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}
+f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 

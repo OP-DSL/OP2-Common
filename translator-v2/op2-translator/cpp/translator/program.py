@@ -21,7 +21,7 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
         after = re.sub(
             rf"{loop.kernel}\s*,\s*", "", after, count=1
         )  # TODO: This assumes that the kernel arg is on the same line as the call
-        buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.kernel}" + after)
+        buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.name}" + after)
 
     # 3. Update headers
     index = buffer.search(r'\s*#include\s+"op_seq\.h"')
@@ -30,7 +30,7 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
 
     buffer.insert(index, '#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
     for loop in program.loops:
-        prototype = f'void op_par_loop_{loop.kernel}(char const *, op_set{", op_arg" * len(loop.args)});\n'
+        prototype = f'void op_par_loop_{loop.name}(char const *, op_set{", op_arg" * len(loop.args)});\n'
         buffer.insert(index, prototype)
     buffer.insert(index, "#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n")
 

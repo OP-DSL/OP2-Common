@@ -86,10 +86,10 @@ $(eval $(call GENERATED_template))
 
 SEQ_SRC := $(APP_SRC)
 
-GENSEQ_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/seq/seq_kernels.cpp
-OPENMP_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp/openmp_kernels.cpp
-CUDA_SRC   := $(APP_SRC_OP) generated/$(APP_NAME)/cuda/cuda_kernels.o
-HIP_SRC    := $(APP_SRC_OP) generated/$(APP_NAME)/hip/hip_kernels.o
+GENSEQ_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/seq/op2_kernels.cpp
+OPENMP_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp/op2_kernels.cpp
+CUDA_SRC   := $(APP_SRC_OP) generated/$(APP_NAME)/cuda/op2_kernels.o
+HIP_SRC    := $(APP_SRC_OP) generated/$(APP_NAME)/hip/op2_kernels.o
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
@@ -117,21 +117,21 @@ $(eval $(call RULE_template, cuda,,                     CUDA,    MPI_CUDA))
 $(eval $(call RULE_template, hip,,                      HIP,     MPI_HIP))
 
 define CUDA_EXTRA_RULES_template =
-$(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
-$(APP_NAME)_mpi_cuda: generated/$(APP_NAME)/cuda/cuda_kernels.o
+$(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/op2_kernels.o
+$(APP_NAME)_mpi_cuda: generated/$(APP_NAME)/cuda/op2_kernels.o
 
-generated/$(APP_NAME)/cuda/cuda_kernels.o: generated/$(APP_NAME)
-	$$(NVCC) $$(NVCCFLAGS) $(APP_INC) $$(OP2_INC) -c generated/$(APP_NAME)/cuda/cuda_kernels.cu -o $$@
+generated/$(APP_NAME)/cuda/op2_kernels.o: generated/$(APP_NAME)
+	$$(NVCC) $$(NVCCFLAGS) $(APP_INC) $$(OP2_INC) -DOP2_CUDA -c generated/$(APP_NAME)/cuda/op2_kernels.cu -o $$@
 endef
 
 $(eval $(call CUDA_EXTRA_RULES_template))
 
 define HIP_EXTRA_RULES_template =
-$(APP_NAME)_hip: generated/$(APP_NAME)/hip/hip_kernels.o
-$(APP_NAME)_mpi_hip: generated/$(APP_NAME)/hip/hip_kernels.o
+$(APP_NAME)_hip: generated/$(APP_NAME)/hip/op2_kernels.o
+$(APP_NAME)_mpi_hip: generated/$(APP_NAME)/hip/op2_kernels.o
 
-generated/$(APP_NAME)/hip/hip_kernels.o: generated/$(APP_NAME)
-	$$(HIPCC) $$(HIPCCFLAGS) $(APP_INC) $$(OP2_INC) -c generated/$(APP_NAME)/hip/hip_kernels.hip.cpp -o $$@
+generated/$(APP_NAME)/hip/op2_kernels.o: generated/$(APP_NAME)
+	$$(HIPCC) $$(HIPCCFLAGS) $(APP_INC) $$(OP2_INC) -DOP2_HIP -c generated/$(APP_NAME)/hip/op2_kernels.hip.cpp -o $$@
 endef
 
 $(eval $(call HIP_EXTRA_RULES_template))

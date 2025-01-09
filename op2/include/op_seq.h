@@ -286,8 +286,6 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(2, args);
 
-  printf("n_upper: %d, count: %d\n", n_upper, *((int*)arg1.data));
-
   // global reduction for MPI execution, if needed
   // p_a simply used to determine type for MPI reduction
   op_mpi_reduce(&arg0, (T0 *)p_a[0]);

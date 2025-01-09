@@ -307,35 +307,6 @@ def parseIdentifier(node: Any, loc: Location) -> str:
     return node.string.lower()
 
 
-# literal_aliases = {
-#     "npdes": 6,
-#     "npdesdpl": 4,
-#     "mpdes": 1000,
-#     "ntqmu": 3,
-#     # Global dims - known
-#     "nzone": 0,
-#     "ngrp": 0,
-#     "mints": 22,
-#     "igrp": 1000,
-#     "mpdesdpl": 40,
-#     "mspl": 500,
-#     # Global dims - unknown
-#     "ncline": 64,
-#     "ncfts": 64,
-#     "ncftm": 64,
-#     "ncline": 64,
-#     "ntline": 64,
-# }
-
-# literal_aliases["njaca"] = literal_aliases["npdes"] - 5
-
-# literal_aliases["nspdes"] = literal_aliases["npdes"]
-# literal_aliases["njacs"] = literal_aliases["nspdes"] - 5
-
-# literal_aliases["ngrad"] = 3 * literal_aliases["npdes"]
-# literal_aliases["ndets"] = 6 + 3 * (literal_aliases["npdes"] - 4)
-
-
 def parseIntLiteral(node: Any, loc: Location, optional: bool = False) -> Optional[int]:
     if type(node) is f2003.Parenthesis:
         return parseIntLiteral(node.items[1], loc, optional)
@@ -374,12 +345,6 @@ def parseIntLiteral(node: Any, loc: Location, optional: bool = False) -> Optiona
             return int(lhs / rhs)
         elif op == "**":
             return int(lhs**rhs)
-
-    #    if type(node) is f2003.Name:
-    #        ident = parseIdentifier(node, loc)
-
-    #        if ident in literal_aliases:
-    #            return literal_aliases[ident]
 
     if optional:
         return None

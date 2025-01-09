@@ -49,12 +49,16 @@
 {% endmacro %}
 
 {% macro map_lookup(arg) -%}
-map{{arg.map_id}}[set_size * {{arg.map_idx}} + n]
+map{{arg.map_id}}[round32(set_size) * {{arg.map_idx}} + n]
     {{-(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
 {%- endmacro %}
 
 {% macro arg_to_pointer_cuda(arg) -%}
-    {%- if arg is gbl -%}
+    {%- if arg is idx and arg is indirect -%}
+&map{{arg.map_id}}[round32(set_size) * {{arg.map_idx}} + n]
+    {%- elif arg is idx -%}
+&n
+    {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"_local" if arg is reduction}}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
@@ -221,8 +225,8 @@ __global__ void op_cuda_{{lh.kernel}}(
     {% endif %}
     {% for dat in lh.dats|soa %}
 
-    if (op2_{{lh.kernel}}_dat{{dat.id}}_stride != getSetSizeFromOpArg(&arg{{dat.arg_id}})) {
-        op2_{{lh.kernel}}_dat{{dat.id}}_stride = getSetSizeFromOpArg(&arg{{dat.arg_id}});
+    if (op2_{{lh.kernel}}_dat{{dat.id}}_stride != round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}))) {
+        op2_{{lh.kernel}}_dat{{dat.id}}_stride = round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
         cudaMemcpyToSymbol(op2_{{lh.kernel}}_dat{{dat.id}}_stride_d, &op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int));
     }
     {% endfor %}
