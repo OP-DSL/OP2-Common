@@ -19,7 +19,7 @@ jobs:
       fail-fast: true
       matrix:
         language: [ { name: 'c', ext: 'cpp' } ] # TODO: Add support for { name: 'fortran', ext: 'F90' }
-        optimisation: [ 'seq', 'genseq', 'vec', 'openmp' ] # TODO: Add support for 'cuda'
+        optimisation: [ 'seq', 'genseq', 'openmp' ] # TODO: Add support for 'cuda'
         mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
 
     defaults:
