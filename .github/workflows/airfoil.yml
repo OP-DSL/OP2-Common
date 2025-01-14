@@ -76,7 +76,7 @@ jobs:
         # Fail the job with a non-zero exit if the airfoil validation fails
 
       - name: Archive airfoil output
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: airfoil-${{ matrix.language.name }}-${{ matrix.optimisation }}-${{ matrix.mesh }}-output
           path: ~/output.txt
