@@ -53,6 +53,10 @@ jobs:
       #   if: ${{ matrix.optimisation == 'cuda' }}
       #   run: sudo ln -s "${{steps.install-cuda-toolkit.outputs.CUDA_PATH}}"/lib64/libcudart.so /usr/lib/libcudart.so
 
+      - name: Install Python deps
+        working-directory: translator-v2
+        run: pip3 install -r requirements.txt
+
       - name: Make build config
         working-directory: op2
         run: make config
