@@ -1,5 +1,6 @@
 import os
 import importlib
+import subprocess
 from argparse import ArgumentParser, Namespace
 from functools import lru_cache
 from io import StringIO
@@ -12,14 +13,14 @@ import op as OP
 from language import Lang
 from store import Application, Location, ParseError, Program
 
+import clang.cindex
 
-clang_spec = importlib.util.find_spec('clang')
-if clang_spec is not None:
-    import clang.cindex
 
-    libclang_path = os.getenv("LIBCLANG_PATH")
-    if libclang_path is not None:
-        clang.cindex.Config.set_library_file(libclang_path)
+SYSTEM_INCLUDES = None
+
+libclang_path = os.getenv("LIBCLANG_PATH")
+if libclang_path is not None:
+    clang.cindex.Config.set_library_file(libclang_path)
 
 
 class Preprocessor(pcpp.Preprocessor):
@@ -65,7 +66,19 @@ class Cpp(Lang):
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
     ) -> Tuple[Any, str]:
-        args = [f"-I{dir}" for dir in include_dirs]
+        global SYSTEM_INCLUDES
+
+        # Query system compiler for include dirs - should work as long as GCC/Clang turns up as "c++"
+        if SYSTEM_INCLUDES is None:
+            res = subprocess.run(["c++", "-xc++", "/dev/null", "-E", "-Wp,-v"],
+                                 stderr=subprocess.PIPE,
+                                 stdout=subprocess.PIPE)
+
+            output = res.stderr.decode('utf-8').splitlines()
+            SYSTEM_INCLUDES = [path[1:] for path in output if path.startswith(" ")]
+
+        args = [f"-isystem{dir}" for dir in SYSTEM_INCLUDES]
+        args = args + [f"-I{dir}" for dir in include_dirs]
         args = args + [f"-D{define}" for define in defines]
 
         source = path.read_text()

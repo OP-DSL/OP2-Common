@@ -141,7 +141,6 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
     loop = OP.Loop(name, loc, kernel)
 
     for node in args[3:]:
-        node = descend(descend(node))
         name = node.spelling
 
         arg_loc = parseLocation(node)
