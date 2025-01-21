@@ -175,14 +175,15 @@ void create_path(const char *name, hid_t file_id) {
   while (ssc) {
     k = strlen(path) - strlen(ssc);
     if (k > 0) {
-      char result[30];
-      strncpy(result, &path[0], k);
+      char *result = (char *)xmalloc((k + 1) * sizeof(char));
+      strncpy(result, path, k);
       result[k] = '\0';
       if (size <= c + k + 1) {
         size = 2 * (size + c + k + 1);
         buffer = (char *)xrealloc(buffer, 2 * size * sizeof(char));
       }
       sprintf(&buffer[c], "/%s", result);
+      free(result);
       c += 1 + k;
 
       // Create a group named "/result" in the file.

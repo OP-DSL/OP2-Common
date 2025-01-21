@@ -41,10 +41,6 @@
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
-
-// use uthash from - http://troydhanson.github.com/uthash/
-#include <uthash.h>
-
 #ifndef OP_MPI_CORE_NOMPI
 #include <mpi.h>
 
@@ -68,18 +64,18 @@ extern MPI_Comm OP_MPI_GLOBAL;
 typedef struct {
   // set related to this list
   op_set set;
-  // number of elements in this list
-  int size;
+  // number of elements in this list (local elements & indices)
+  idx_l_t size;
   // MPI ranks to be exported to or imported from
   int *ranks;
   // number of MPI neighbors to be exported to or imported from
   int ranks_size;
-  // displacements for the starting point of each rank's element list
-  int *disps;
-  // number of elements exported to or imported from each ranks
-  int *sizes;
-  // the list of all elements
-  int *list;
+  // displacements for the starting point of each rank's element list (local elements & indices)
+  idx_l_t *disps;
+  // number of elements exported to or imported from each ranks (local elements & indices)
+  idx_l_t *sizes;
+  // the list of all elements (local elements & indices)
+  idx_l_t *list;
 } halo_list_core;
 
 typedef halo_list_core *halo_list;
@@ -93,7 +89,7 @@ typedef struct {
   // set to which this partition info blongs to
   op_set set;
   // global index of each element held in this MPI process
-  int *g_index;
+  idx_g_t *g_index;
   // partition to which each element belongs
   int *elem_part;
   // indicates if this set is partitioned 1 if partitioned 0 if not
@@ -116,7 +112,7 @@ typedef struct {
   // total number of times this op_dat was halo exported
   int count;
   // total number of bytes halo exported for this op_dat in this kernel
-  int bytes;
+  idx_g_t bytes;
 } op_dat_mpi_comm_info_core;
 
 typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
@@ -126,8 +122,6 @@ typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
 *******************************************************************************/
 
 typedef struct {
-
-  UT_hash_handle hh; // with this variable uthash makes this structure hashable
 
   // name of kernel
   char name[NAMESIZE];
@@ -173,22 +167,36 @@ typedef op_mpi_buffer_core *op_mpi_buffer;
 
 extern int OP_part_index;
 extern part *OP_part_list;
-extern int **orig_part_range;
+extern idx_g_t **orig_part_range;
 
 /** export list on the device **/
 
-extern int **export_exec_list_d;
-extern int **export_exec_list_disps_d;
-extern int **export_nonexec_list_d;
-extern int **export_nonexec_list_disps_d;
-extern int **export_nonexec_list_partial_d;
-extern int **import_nonexec_list_partial_d;
-extern int *set_import_buffer_size;
-extern int **import_exec_list_disps_d;
-extern int **import_nonexec_list_disps_d;
+extern idx_l_t **export_exec_list_d;
+extern idx_l_t **export_exec_list_disps_d;
+extern idx_l_t **export_nonexec_list_d;
+extern idx_l_t **export_nonexec_list_disps_d;
+extern idx_l_t **export_nonexec_list_partial_d;
+extern idx_l_t **import_nonexec_list_partial_d;
+extern idx_l_t *set_import_buffer_size;
+extern idx_l_t **import_exec_list_disps_d;
+extern idx_l_t **import_nonexec_list_disps_d;
 
 // Structs and functions that use MPI definitions
 #ifndef OP_MPI_CORE_NOMPI
+
+template <typename T>
+MPI_Datatype get_mpi_type() {
+  if (std::is_same<T, long long>::value) {
+    return MPI_LONG_LONG;
+  } else if (std::is_same<T, int>::value) {
+    return MPI_INT;
+  }
+  #ifdef DEBUG
+  else {
+    throw std::runtime_error("Unsupported type");
+  }
+  #endif
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -198,15 +206,15 @@ extern "C" {
 * Utility function prototypes
 *******************************************************************************/
 
-void decl_partition(op_set set, int *g_index, int *partition);
+void decl_partition(op_set set, idx_g_t *g_index, int *partition);
 
-void get_part_range(int **part_range, int my_rank, int comm_size,
+void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
                     MPI_Comm Comm);
 
-int get_partition(int global_index, int *part_range, int *local_index,
+int get_partition(idx_g_t global_index, idx_g_t *part_range, idx_l_t *local_index,
                   int comm_size);
 
-int get_global_index(int local_index, int partition, int *part_range,
+idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
                      int comm_size);
 
 void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
