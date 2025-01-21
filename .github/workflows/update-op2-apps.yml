@@ -25,6 +25,10 @@ jobs:
           path: OP2-APPS
           token: ${{ secrets.OP2_APPS_TOKEN }}
 
+      - name: Install Python deps
+        working-directory: OP2-Common/translator-v2
+        run: pip3 install -r requirements.txt
+
       - name: Configure
         working-directory: OP2-Common/op2
         run: |
