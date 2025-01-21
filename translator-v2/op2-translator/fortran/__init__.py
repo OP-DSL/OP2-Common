@@ -65,7 +65,7 @@ FortranStringReader.__deepcopy__ = string_reader_deepcopy  # type: ignore
 
 old_base_new = Base.__new__  # type: ignore
 
-def base_new(cls, string, parent_cls=None):
+def base_new(cls, string, parent_cls=None, _deepcopy=None):
     if string is None:
         return object.__new__(cls)
 
