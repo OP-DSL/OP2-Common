@@ -33,7 +33,7 @@ jobs:
       - name: Translate apps
         run: |
           FILES=$(find OP2-Common/apps -name Makefile | xargs grep -l 'include.*[cf]_app.mk')
-          for file in $FILES; do make -C $(dirname $file) .generated; done
+          for file in $FILES; do make -C $(dirname $file) generate; done
 
       - name: Update OP2-APPS
         run: |

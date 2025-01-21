@@ -53,7 +53,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info )
 endif
 
-.PHONY: all clean
+.PHONY: all clean generate
 
 define ALL_template =
 all: $(foreach variant,$(BUILDABLE_VARIANTS),$(APP_NAME)_$(variant))
@@ -74,6 +74,8 @@ define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
 	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $$^ -o $$@
+
+generate: generated/$(APP_NAME)
 endef
 
 $(eval $(call GENERATED_template))
