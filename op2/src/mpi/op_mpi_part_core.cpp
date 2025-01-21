@@ -48,6 +48,9 @@
 #include <time.h>
 #include <tuple>
 #include <vector>
+#include <algorithm>
+#include <numeric>
+
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -155,6 +158,13 @@ static std::vector<T> exchange(const std::vector<Msg<T>> &msgs, int my_rank, int
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+/*******************************************************************************
+ * Initialise partitioning data structures with the current (block)
+*  partitioning information
+ *******************************************************************************/
+idx_g_t **initialise(int my_rank, int comm_size);
 
 //
 // MPI Communicator for partitioning
@@ -362,7 +372,7 @@ static void partition_force(op_set primary_set, op_map map, int my_rank,
  *******************************************************************************/
 
 static int partition_from_set(op_map map, int my_rank, int comm_size,
-                              int **part_range) {
+                              idx_g_t **part_range) {
   (void)my_rank;
   part p_set = OP_part_list[map->to->index];
 
@@ -533,7 +543,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
  *******************************************************************************/
 
 static int partition_to_set(op_map map, int my_rank, int comm_size,
-                            int **part_range) {
+                            idx_g_t **part_range) {
   part p_set = OP_part_list[map->from->index];
 
   int cap = 300;
@@ -789,7 +799,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
 
 static void partition_all(op_set primary_set, int my_rank, int comm_size) {
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
 
   bool force_part_done = false;
@@ -915,73 +925,56 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
 
 static void renumber_maps(int my_rank, int comm_size) {
   // get partition rage information
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
 
   // find elements of the "to" set thats not in this local process
   for (int m = 0; m < OP_map_index; m++) { // for each maping table
     op_map map = OP_map_list[m];
 
-    int cap = 1000;
-    int count = 0;
-    int *req_list = (int *)xmalloc(cap * sizeof(int));
+    std::vector<idx_g_t> req_list;
 
     for (int i = 0; i < map->from->size; i++) {
-      int local_index;
       for (int j = 0; j < map->dim; j++) {
-        local_index =
-            binary_search(OP_part_list[map->to->index]->g_index,
-                          map->map[i * map->dim + j], 0, map->to->size - 1);
-
-        if (count >= cap) {
-          cap = cap * 2;
-          req_list = (int *)xrealloc(req_list, cap * sizeof(int));
-        }
-
+        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
+                                      map->map[i * map->dim + j], 0, map->to->size - 1);
+        
         if (local_index < 0) // not in this partition
         {
           // store the global index of the element
-          req_list[count++] = map->map[i * map->dim + j];
+          req_list.push_back(map->map[i * map->dim + j]);
         }
       }
     }
     // sort and remove duplicates
-    if (count > 0) {
-      op_sort(req_list, count);
-      count = removeDups(req_list, count);
-      req_list = (int *)xrealloc(req_list, count * sizeof(int));
+    if (req_list.size() > 0) {
+      std::sort(req_list.begin(), req_list.end());
+      req_list.erase(std::unique(req_list.begin(), req_list.end()), req_list.end());
     }
 
     // do an allgather to findout how many elements that each process will
     // be requesting partition information about
     std::vector<int> recv_count(comm_size);
+    int count = req_list.size();
     MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_PART_WORLD);
 
     // discover global size of these required elements
-    int g_count = 0;
-    for (int i = 0; i < comm_size; i++)
-      g_count += recv_count[i];
+    int g_count = std::accumulate(recv_count.begin(), recv_count.end(), 0);
 
     // prepare for an allgatherv
-    int disp = 0;
-    int *displs = (int *)xmalloc(comm_size * sizeof(int));
-    for (int i = 0; i < comm_size; i++) {
-      displs[i] = disp;
-      disp = disp + recv_count[i];
-    }
+    std::vector<int> displs(comm_size);
+    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin());
 
     // allocate memory to hold the global indexes of elements requiring
     // partition details
-    int *g_index = (int *)xmalloc(sizeof(int) * g_count);
+    std::vector<idx_g_t> g_index(g_count);
 
-    MPI_Allgatherv(req_list, count, MPI_INT, g_index, recv_count.data(), displs,
-                   MPI_INT, OP_PART_WORLD);
-    op_free(req_list);
+    MPI_Allgatherv(req_list.data(), count, get_mpi_type<idx_g_t>(), g_index.data(), recv_count.data(), displs.data(),
+                   get_mpi_type<idx_g_t>(), OP_PART_WORLD);
 
     if (g_count > 0) {
-      op_sort(g_index, g_count);
-      g_count = removeDups(g_index, g_count);
-      g_index = (int *)xrealloc(g_index, g_count * sizeof(int));
+      std::sort(g_index.begin(), g_index.end());
+      g_index.erase(std::unique(g_index.begin(), g_index.end()), g_index.end());
     }
 
     // printf("on rank %d map %s needs set %s : before g_count = %d\n",
@@ -990,67 +983,56 @@ static void renumber_maps(int my_rank, int comm_size) {
     // go through the recieved global g_index array and see if any local
     // element's
     // partition details are requested by some foreign process
-    int *exp_index = (int *)xmalloc(sizeof(int) * g_count);
-    int *exp_g_index = (int *)xmalloc(sizeof(int) * g_count);
+    std::vector<int> exp_index;
+    std::vector<int> exp_g_index;
 
-    int exp_count = 0;
     for (int i = 0; i < g_count; i++) {
-      int local_index = binary_search(OP_part_list[map->to->index]->g_index,
+      idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
                                       g_index[i], 0, map->to->size - 1);
-      int global_index;
       if (local_index >= 0) {
-        exp_g_index[exp_count] = g_index[i];
+        exp_g_index.push_back(g_index[i]);
 
-        global_index = get_global_index(local_index, my_rank,
+        int global_index = get_global_index(local_index, my_rank,
                                         part_range[map->to->index], comm_size);
-        exp_index[exp_count++] = global_index;
+        exp_index.push_back(global_index);
       }
     }
-    op_free(g_index);
-
-    // realloc exp_index, exp_g_index
-    exp_index = (int *)xrealloc(exp_index, sizeof(int) * exp_count);
-    exp_g_index = (int *)xrealloc(exp_g_index, sizeof(int) * exp_count);
+    
+    idx_l_t exp_count = exp_index.size();
 
     // now export to every MPI rank, these partition info with an all-to-all
-    MPI_Allgather(&exp_count, 1, MPI_INT, recv_count.data(), 1, MPI_INT,
+    MPI_Allgather(&exp_count, 1, get_mpi_type<idx_l_t>(), recv_count.data(), 1, get_mpi_type<idx_l_t>(),
                   OP_PART_WORLD);
-    disp = 0;
-    op_free(displs);
-    displs = (int *)xmalloc(comm_size * sizeof(int));
 
-    for (int i = 0; i < comm_size; i++) {
-      displs[i] = disp;
-      disp = disp + recv_count[i];
-    }
+    // compute displacements
+    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin());
 
     // allocate memory to hold the incomming partition details and allgatherv
-    g_count = 0;
-    for (int i = 0; i < comm_size; i++)
-      g_count += recv_count[i];
-    int *all_imp_index = (int *)xmalloc(sizeof(int) * g_count);
-    g_index = (int *)xmalloc(sizeof(int) * g_count);
+    g_count = std::accumulate(recv_count.begin(), recv_count.end(), 0);
+    std::vector<idx_g_t> all_imp_index(g_count);
+    std::vector<idx_g_t> all_imp_g_index(g_count);
 
     // printf("on rank %d map %s need set %s: After g_count = %d\n",
     //    my_rank, map.name,map.to.name,g_count);
 
-    MPI_Allgatherv(exp_g_index, exp_count, MPI_INT, g_index, recv_count.data(), displs,
-                   MPI_INT, OP_PART_WORLD);
+    MPI_Allgatherv(exp_g_index.data(), exp_count, get_mpi_type<idx_g_t>(), g_index.data(), recv_count.data(), displs.data(),
+                   get_mpi_type<idx_g_t>(), OP_PART_WORLD);
 
-    MPI_Allgatherv(exp_index, exp_count, MPI_INT, all_imp_index, recv_count.data(),
-                   displs, MPI_INT, OP_PART_WORLD);
+    MPI_Allgatherv(exp_index.data(), exp_count, get_mpi_type<idx_l_t>(), all_imp_index.data(), recv_count.data(),
+                   displs.data(), get_mpi_type<idx_l_t>(), OP_PART_WORLD);
 
-    op_free(exp_index);
-    op_free(exp_g_index);
+    exp_index.clear();
+    exp_g_index.clear();
 
     // sort all_imp_index according to g_index array
     if (g_count > 0)
-      op_sort_2(g_index, all_imp_index, g_count);
+      std::sort(ZipIter(g_index.data(), all_imp_index.data()), ZipIter(g_index.data() + g_count, all_imp_index.data() + g_count));
 
-    // now we hopefully have all the informattion required to renumber this map
+    // now we hopefully have all the information required to renumber this map
     // so now, again go through each entry of this mapping table and renumber
     for (int i = 0; i < map->from->size; i++) {
-      int local_index, global_index;
+      int local_index;
+      idx_g_t global_index;
       for (int j = 0; j < map->dim; j++) {
         local_index =
             binary_search(OP_part_list[map->to->index]->g_index,
@@ -1059,7 +1041,7 @@ static void renumber_maps(int my_rank, int comm_size) {
         if (local_index < 0) // not in this partition
         {
           // need to search through g_index array
-          int found = binary_search(g_index, map->map[i * map->dim + j], 0,
+          int found = binary_search(g_index.data(), map->map[i * map->dim + j], 0,
                                     g_count - 1);
           if (found < 0)
             printf("Problem in renumbering\n");
@@ -1076,9 +1058,8 @@ static void renumber_maps(int my_rank, int comm_size) {
       }
     }
 
-    op_free(g_index);
-    op_free(displs);
-    op_free(all_imp_index);
+    g_index.clear();
+    all_imp_index.clear();
   }
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
@@ -1408,7 +1389,7 @@ static void migrate_all(int my_rank, int comm_size) {
 
     // delete the g_index entirs that has been sent and create a
     // modified g_index
-    int *new_g_index = (int *)xmalloc(sizeof(int) * (set->size + imp->size));
+    idx_g_t *new_g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp->size));
 
     count = 0;
     for (int i = 0; i < set->size; i++) { // iterate over old
@@ -1419,12 +1400,12 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
 
-    if (sizeof(int) * imp->size > 0) {
-      memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * imp->size);
+    if (imp->size > 0) {
+      std::copy(rbuf, rbuf + imp->size, new_g_index + count);
     }
 
     count = count + imp->size;
-    new_g_index = (int *)xrealloc(new_g_index, sizeof(int) * count);
+    new_g_index = (idx_g_t *)xrealloc(new_g_index, sizeof(idx_g_t) * count);
     int *new_part = (int *)xmalloc(sizeof(int) * count);
     for (int i = 0; i < count; i++)
       new_part[i] = my_rank;
@@ -1494,7 +1475,7 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
     if (set->size > 0)
-      op_sort(OP_part_list[set->index]->g_index, set->size);
+      std::sort(OP_part_list[set->index]->g_index, OP_part_list[set->index]->g_index + set->size);
   }
 
   // cleanup
@@ -1537,33 +1518,7 @@ void op_partition_external(op_set primary_set, op_dat partvec) {
   /*--STEP 0 - initialise partitioning data stauctures with the current (block)
     partitioning information */
 
-  // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
   memcpy(partition, partvec->data, sizeof(int) * primary_set->size);
@@ -1620,34 +1575,7 @@ void op_partition_random(op_set primary_set) {
   /*--STEP 0 - initialise partitioning data stauctures with the current (block)
     partitioning information */
 
-  // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*-----STEP 1 - Partition Primary set using a random number generator
    * --------*/
@@ -1733,34 +1661,7 @@ void op_partition_geom(op_dat coords) {
   /*--STEP 0 - initialise partitioning data stauctures with the current (block)
     partitioning information */
 
-  // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--- STEP 1 - Partition primary set using its coordinates (1D,2D or 3D)
    * -----*/
@@ -1890,33 +1791,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
     partitioning information */
 
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--- STEP 1 - Set up coordinates (1D,2D or 3D) data structures ------------*/
 
@@ -2315,33 +2190,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
     partitioning information */
 
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
     including eptr and eind arrays  ------------------------------------------*/
@@ -2482,33 +2331,7 @@ void op_partition_ptscotch(op_map primary_map) {
     partitioning information */
 
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
    * -------*/
@@ -2517,7 +2340,7 @@ void op_partition_ptscotch(op_map primary_map) {
   // create export list
   //
   int c = 0;
-  int cap = 1000;
+  idx_g_t cap = 1000;
   int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
 
   for (int e = 0; e < primary_map->from->size; e++) { // for each
@@ -2884,32 +2707,7 @@ void op_partition_inertial(op_dat x_dat) {
     partitioning information */
 
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
-  OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    int *g_index = (int *)xmalloc(sizeof(int) * (set->size > 0 ? set->size: 1));
-    for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
-    decl_partition(set, g_index, NULL);
-  }
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /* - STEP 1 figure out partitioning - */
   int global_size =
@@ -3592,16 +3390,16 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
  * Initialise partitioning data structures with the current (block)
 *  partitioning information
  *******************************************************************************/
-int **initialise(int my_rank, int comm_size) {
+idx_g_t **initialise(int my_rank, int comm_size) {
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
 
   // save the original part_range for future partition reversing
-  orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  orig_part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+    orig_part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
     for (int j = 0; j < comm_size; j++) {
       orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
       orig_part_range[set->index][2 * j + 1] =
@@ -3615,7 +3413,7 @@ int **initialise(int my_rank, int comm_size) {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     // printf("set %s size = %d\n", set.name, set.size);
-    int *g_index = (int *)xmalloc(sizeof(int) * set->size);
+    idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
     for (int i = 0; i < set->size; i++)
       g_index[i] =
           get_global_index(i, my_rank, part_range[set->index], comm_size);
@@ -3628,7 +3426,7 @@ int **initialise(int my_rank, int comm_size) {
 /*******************************************************************************
  * Create export list
  *******************************************************************************/
-halo_list create_exp_list(op_map primary_map, int **part_range, int my_rank,
+halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
                           int comm_size) {
   //
   // create export list
@@ -3725,7 +3523,7 @@ std::tuple<halo_list, MPI_Request *> create_imp_list(op_map primary_map,
 std::tuple<int **, int *, int *>
 construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
                    MPI_Request *request_send, int my_rank, int comm_size,
-                   int **part_range) {
+                   idx_g_t **part_range) {
   //
   // Exchange mapping table entries using the import/export lists
   //
@@ -3832,7 +3630,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
 template <class T>
 std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
 setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
-                int *adj_i, int *adj_cap, int **part_range) {
+                int *adj_i, int *adj_cap, idx_g_t **part_range) {
   T comm_size_pm = comm_size;
 
   T *vtxdist = (T *)xmalloc(sizeof(T) * (comm_size + 1));
@@ -4001,7 +3799,7 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
 
   /*--STEP 0 - initialise partitioning data structures with the current (block)
     partitioning information */
-  int **part_range = initialise(my_rank, comm_size);
+  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
    * -------*/
