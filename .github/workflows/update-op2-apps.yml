@@ -13,6 +13,9 @@ jobs:
   update-op2-apps:
     runs-on: ubuntu-latest
     steps:
+      - name: Install MPI
+        run: apt update && apt install -y libopenmpi-dev
+        
       - name: Checkout
         uses: actions/checkout@v2
         with:
@@ -37,6 +40,7 @@ jobs:
       - name: Translate apps
         run: |
           FILES=$(find OP2-Common/apps -name Makefile | xargs grep -l 'include.*[cf]_app.mk')
+          export MPI_INC=/usr/lib/x86_64-linux-gnu/openmpi/include
           for file in $FILES; do make -C $(dirname $file) generate; done
 
       - name: Update OP2-APPS
