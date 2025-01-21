@@ -47,6 +47,9 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 #include <vector>
+#include <unordered_map>
+#include <algorithm>
+#include <numeric>
 
 #include <op_mpi_core.h>
 
@@ -74,7 +77,7 @@ int *set_import_buffer_size;
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
-op_mpi_kernel *op_mpi_kernel_tab = NULL;
+std::unordered_map<std::string, op_mpi_kernel *> op_mpi_kernel_map;
 
 //
 // global variables to hold partition information on an MPI rank
@@ -87,7 +90,7 @@ part *OP_part_list;
 // Save original partition ranges
 //
 
-int **orig_part_range = NULL;
+idx_g_t **orig_part_range = NULL;
 
 // Timing
 double t1, t2, c1, c2;
@@ -100,7 +103,7 @@ extern "C" {
  * Routine to declare partition information for a given set
  *******************************************************************************/
 
-void decl_partition(op_set set, int *g_index, int *partition) {
+void decl_partition(op_set set, idx_g_t *g_index, int *partition) {
   part p = (part)xmalloc(sizeof(part_core));
   p->set = set;
   p->g_index = g_index;
@@ -114,7 +117,7 @@ void decl_partition(op_set set, int *g_index, int *partition) {
  * Routine to get partition range on all mpi ranks for all sets
  *******************************************************************************/
 
-void get_part_range(int **part_range, int my_rank, int comm_size,
+void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
                     MPI_Comm Comm) {
   (void)my_rank;
   for (int s = 0; s < OP_set_index; s++) {
@@ -123,7 +126,7 @@ void get_part_range(int **part_range, int my_rank, int comm_size,
     int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
     MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, Comm);
 
-    part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+    part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
 
     int disp = 0;
     for (int i = 0; i < comm_size; i++) {
@@ -147,7 +150,7 @@ void get_part_range(int **part_range, int my_rank, int comm_size,
  * its local index
  *******************************************************************************/
 
-int get_partition(int global_index, int *part_range, int *local_index,
+int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
                   int comm_size) {
   for (int i = 0; i < comm_size; i++) {
     if (global_index >= part_range[2 * i] &&
@@ -165,10 +168,10 @@ int get_partition(int global_index, int *part_range, int *local_index,
  * Routine to convert a local index in to a global index
  *******************************************************************************/
 
-int get_global_index(int local_index, int partition, int *part_range,
+idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
                      int comm_size) {
   (void)comm_size;
-  int g_index = part_range[2 * partition] + local_index;
+  idx_g_t g_index = part_range[2 * partition] + local_index;
 #ifdef DEBUG
   if (g_index > part_range[2 * (comm_size - 1) + 1] && OP_diags > 2)
     printf("Global index larger than set size\n");
@@ -350,34 +353,29 @@ int is_onto_map(op_map map) {
   MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
 
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
 
   // mak a copy of the to-set elements of the map
-  int *to_elem_copy = (int *)xmalloc((size_t)map->from->size * map->dim * sizeof(int));
-  memcpy(to_elem_copy, (void *)map->map,
-         (size_t)map->from->size * map->dim * sizeof(int));
+  std::vector<idx_g_t> to_elem_copy(map->from->size * map->dim);
+  for (int i = 0; i < map->from->size * map->dim; i++) {
+    to_elem_copy[i] = map->map[i]; //Convert local to global index storage type
+  }
 
   // sort and remove duplicates from to_elem_copy
-  op_sort(to_elem_copy, map->from->size * map->dim);
-  int to_elem_copy_size = removeDups(to_elem_copy, map->from->size * map->dim);
-  to_elem_copy = (int *)xrealloc(to_elem_copy, to_elem_copy_size * sizeof(int));
+  std::sort(to_elem_copy.begin(), to_elem_copy.end());
+  auto it = std::unique(to_elem_copy.begin(), to_elem_copy.end());
+  idx_g_t to_elem_copy_size = std::distance(to_elem_copy.begin(), it);
+  to_elem_copy.resize(to_elem_copy_size);
 
   // go through the to-set element range that this local MPI process holds
   // and collect the to-set elements not found in to_elem_copy
-  int cap = 100;
-  int count = 0;
-  int *not_found = (int *)xmalloc(sizeof(int) * cap);
+  std::vector<int> not_found;
   for (int i = 0; i < map->to->size; i++) {
-    int g_index =
+    int g_index = 
         get_global_index(i, my_rank, part_range[map->to->index], comm_size);
-    if (binary_search(to_elem_copy, i, 0, to_elem_copy_size - 1) < 0) {
-      // add to not_found list
-      if (count >= cap) {
-        cap = cap * 2;
-        not_found = (int *)xrealloc(not_found, cap * sizeof(int));
-      }
-      not_found[count++] = g_index;
+    if (!std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), i)) {
+      not_found.push_back(g_index);
     }
   }
 
@@ -385,38 +383,33 @@ int is_onto_map(op_map map) {
   // allreduce this not_found to form a global_not_found list
   //
   std::vector<int> recv_count(comm_size);
+  idx_l_t count = not_found.size();
   MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_CHECK_WORLD);
 
   // discover global size of the not_found_list
-  int g_count = 0;
-  for (int i = 0; i < comm_size; i++)
-    g_count += recv_count[i];
+  idx_g_t g_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
 
   // prepare for an allgatherv
-  int disp = 0;
-  int *displs = (int *)xmalloc(comm_size * sizeof(int));
+  idx_l_t disp = 0;
+  std::vector<int> displs(comm_size);
   for (int i = 0; i < comm_size; i++) {
     displs[i] = disp;
     disp = disp + recv_count[i];
   }
 
   // allocate memory to hold the global_not_found list
-  int *global_not_found = (int *)xmalloc(sizeof(int) * g_count);
+  std::vector<idx_g_t> global_not_found(g_count);
 
-  MPI_Allgatherv(not_found, count, MPI_INT, global_not_found, recv_count.data(),
-                 displs, MPI_INT, OP_CHECK_WORLD);
-  op_free(not_found);
-  op_free(displs);
-
+  MPI_Allgatherv(not_found.data(), count, get_mpi_type<idx_g_t>(), global_not_found.data(), recv_count.data(),
+                 displs.data(), get_mpi_type<idx_g_t>(), OP_CHECK_WORLD);
+  
   // sort and remove duplicates of the global_not_found list
   if (g_count > 0) {
-    op_sort(global_not_found, g_count);
-    g_count = removeDups(global_not_found, g_count);
-    global_not_found = (int *)xrealloc(global_not_found, g_count * sizeof(int));
+    std::sort(global_not_found.begin(), global_not_found.end());
+    g_count = std::unique(global_not_found.begin(), global_not_found.end()) - global_not_found.begin();
+    global_not_found.resize(g_count);
   } else {
     // nothing in the global_not_found list .. i.e. this is an on to map
-    op_free(global_not_found);
-    op_free(to_elem_copy); // op_free(displs);
     for (int i = 0; i < OP_set_index; i++)
       op_free(part_range[i]);
     op_free(part_range);
@@ -425,21 +418,14 @@ int is_onto_map(op_map map) {
 
   // see if any element in the global_not_found is found in the local map-copy
   // and add it to a "found" list
-  cap = 100;
-  count = 0;
-  int *found = (int *)xmalloc(sizeof(int) * cap);
-  for (int i = 0; i < g_count; i++) {
-    if (binary_search(to_elem_copy, global_not_found[i], 0,
-                      to_elem_copy_size - 1) >= 0) {
-      // add to found list
-      if (count >= cap) {
-        cap = cap * 2;
-        found = (int *)xrealloc(found, cap * sizeof(int));
-      }
-      found[count++] = global_not_found[i];
+  std::vector<int> found;
+  for (idx_g_t i = 0; i < g_count; i++) {
+    if (std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), global_not_found[i])) {
+      found.push_back(global_not_found[i]);
     }
   }
-  op_free(global_not_found);
+  global_not_found.clear();
+  count = found.size();
 
   //
   // allreduce the "found" elements to form a global_found list
@@ -448,30 +434,25 @@ int is_onto_map(op_map map) {
   MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_CHECK_WORLD);
 
   // discover global size of the found_list
-  int g_found_count = 0;
-  for (int i = 0; i < comm_size; i++)
-    g_found_count += recv_count[i];
+  idx_g_t g_found_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
 
   // prepare for an allgatherv
   disp = 0;
-  displs = (int *)xmalloc(comm_size * sizeof(int));
   for (int i = 0; i < comm_size; i++) {
     displs[i] = disp;
     disp = disp + recv_count[i];
   }
 
   // allocate memory to hold the global_found list
-  int *global_found = (int *)xmalloc(sizeof(int) * g_found_count);
-
-  MPI_Allgatherv(found, count, MPI_INT, global_found, recv_count.data(), displs,
-                 MPI_INT, OP_CHECK_WORLD);
-  op_free(found);
+  std::vector<idx_g_t> global_found(g_found_count);
+  MPI_Allgatherv(found.data(), count, get_mpi_type<idx_g_t>(), global_found.data(), recv_count.data(),
+                 displs.data(), get_mpi_type<idx_g_t>(), OP_CHECK_WORLD);
 
   // sort global_found list and remove duplicates
-  if (g_count > 0) {
-    op_sort(global_found, g_found_count);
-    g_found_count = removeDups(global_found, g_found_count);
-    global_found = (int *)xrealloc(global_found, g_found_count * sizeof(int));
+  if (g_found_count > 0) {
+    std::sort(global_found.begin(), global_found.end());
+    g_found_count = std::unique(global_found.begin(), global_found.end()) - global_found.begin();
+    global_found.resize(g_found_count);
   }
 
   // if the global_found list size is smaller than the globla_not_found list
@@ -481,13 +462,10 @@ int is_onto_map(op_map map) {
   if (g_found_count == g_count)
     result = 1;
 
-  op_free(global_found);
-  op_free(displs);
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
   MPI_Comm_free(&OP_CHECK_WORLD);
-  op_free(to_elem_copy);
 
   return result;
 }
@@ -510,16 +488,16 @@ void op_halo_create() {
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
   /* Compute global partition range information for each set*/
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
 
   // save this partition range information if it is not already saved during
   // a call to some partitioning routine
   if (orig_part_range == NULL) {
-    orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+    orig_part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
     for (int s = 0; s < OP_set_index; s++) {
       op_set set = OP_set_list[s];
-      orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+      orig_part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
       for (int j = 0; j < comm_size; j++) {
         orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
         orig_part_range[set->index][2 * j + 1] =
@@ -540,6 +518,8 @@ void op_halo_create() {
 
   int cap_s = 1000; // keep track of the temp array capacities
 
+  // Find all elements of other sets that are pointed to from this set
+  // and are owned by other partitions, and construct export lists
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
@@ -1210,7 +1190,7 @@ void op_halo_create() {
     for (int s = 0; s < OP_set_index; s++) { // for each set
       op_set set = OP_set_list[s];
       // printf("set %s size = %d\n", set.name, set.size);
-      int *g_index = (int *)xmalloc(sizeof(int) * set->size);
+      idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
       int *partition = (int *)xmalloc(sizeof(int) * set->size);
       for (int i = 0; i < set->size; i++) {
         g_index[i] =
@@ -1220,10 +1200,16 @@ void op_halo_create() {
       decl_partition(set, g_index, partition);
 
       // combine core_elems and exp_elems to one memory block
-      int *temp = (int *)xmalloc(sizeof(int) * set->size);
-      memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
-      memcpy(&temp[set->core_size], exp_elems[set->index],
-             (set->size - set->core_size) * sizeof(int));
+      idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
+      // memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(idx_g_t));
+      // memcpy(&temp[set->core_size], exp_elems[set->index],
+            //  (set->size - set->core_size) * sizeof(idx_g_t));
+      for (int i = 0; i < set->core_size; i++) {
+        temp[i] = core_elems[set->index][i];
+      }
+      for (int i = 0; i < set->size - set->core_size; i++) {
+        temp[set->core_size + i] = exp_elems[set->index][i];
+      }
 
       // update OP_part_list[set->index]->g_index
       for (int i = 0; i < set->size; i++) {
@@ -1239,15 +1225,22 @@ void op_halo_create() {
       op_set set = OP_set_list[s];
 
       // combine core_elems and exp_elems to one memory block
-      int *temp = (int *)xmalloc(sizeof(int) * set->size);
+      idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
 
       if (set->core_size * sizeof(int) > 0) {
-        memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
+        //TODO: should not need type conversion here
+        // memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
+        for (int i = 0; i < set->core_size; i++) {
+          temp[i] = core_elems[set->index][i];
+        }
       }
 
-      if ((set->size - set->core_size) * sizeof(int) > 0) {
-        memcpy(&temp[set->core_size], exp_elems[set->index],
-               (set->size - set->core_size) * sizeof(int));
+      if ((set->size - set->core_size) * sizeof(idx_g_t) > 0) {
+        // memcpy(&temp[set->core_size], exp_elems[set->index],
+        //        (set->size - set->core_size) * sizeof(idx_g_t));
+        for (int i = 0; i < set->size - set->core_size; i++) {
+          temp[set->core_size + i] = exp_elems[set->index][i];
+        }
       }
 
       // update OP_part_list[set->index]->g_index
@@ -2830,7 +2823,7 @@ void mpi_timing_output() {
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
   unsigned int count, tot_count;
-  count = HASH_COUNT(op_mpi_kernel_tab);
+  count = op_mpi_kernel_map.size();
   MPI_Allreduce(&count, &tot_count, 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
 
   if (tot_count > 0) {
@@ -2842,7 +2835,8 @@ void mpi_timing_output() {
     printf("Kernel        Count  total time(sec)  Avg time(sec)  \n");
 
     op_mpi_kernel *k;
-    for (k = op_mpi_kernel_tab; k != NULL; k = (op_mpi_kernel *)k->hh.next) {
+    for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end(); it++) {
+      k = it->second;
       if (k->count > 0) {
         printf("%-10s  %6d       %10.4f      %10.4f    \n", k->name, k->count,
                k->time, k->time / k->count);
@@ -2879,7 +2873,8 @@ void mpi_timing_output() {
       printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
 
-    for (k = op_mpi_kernel_tab; k != NULL; k = (op_mpi_kernel *)k->hh.next) {
+    for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end(); it++) {
+      k = it->second;
       MPI_Reduce(&(k->count), &count, 1, MPI_INT, MPI_MAX, MPI_ROOT,
                  OP_MPI_IO_WORLD);
       MPI_Reduce(&(k->time), &avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT,
@@ -2903,14 +2898,16 @@ void mpi_timing_output() {
 void *op_mpi_perf_time(const char *name, double time) {
   op_mpi_kernel *kernel_entry;
 
-  HASH_FIND_STR(op_mpi_kernel_tab, name, kernel_entry);
-  if (kernel_entry == NULL) {
+  auto it = op_mpi_kernel_map.find(name);
+  if (it == op_mpi_kernel_map.end()) {
     kernel_entry = (op_mpi_kernel *)xmalloc(sizeof(op_mpi_kernel));
     kernel_entry->num_indices = 0;
     kernel_entry->time = 0.0;
     kernel_entry->count = 0;
     strncpy((char *)kernel_entry->name, name, NAMESIZE);
-    HASH_ADD_STR(op_mpi_kernel_tab, name, kernel_entry);
+    op_mpi_kernel_map[name] = kernel_entry;
+  } else {
+    kernel_entry = it->second;
   }
 
   kernel_entry->count += 1;
@@ -3016,13 +3013,14 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
 
 void op_mpi_exit() {
   // cleanup performance data - need to do this in some op_mpi_exit() routine
-  op_mpi_kernel *kernel_entry, *tmp;
-  HASH_ITER(hh, op_mpi_kernel_tab, kernel_entry, tmp) {
-    HASH_DEL(op_mpi_kernel_tab, kernel_entry);
+  op_mpi_kernel *kernel_entry;
+  for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end();) {
+    kernel_entry = it->second;
 #ifdef COMM_PERF
     for (int i = 0; i < kernel_entry->num_indices; i++)
-      op_free(kernel_entry->comm_info[i]);
+      op_free(kernel_entry->comm_info[i]); 
 #endif
+    it = op_mpi_kernel_map.erase(it);
     op_free(kernel_entry);
   }
 

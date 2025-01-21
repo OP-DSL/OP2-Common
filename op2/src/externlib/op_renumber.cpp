@@ -214,7 +214,7 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
   }
 
   //Reorder mapping back to original (unpartitioned indexing)
-  int *new_g_index = (int*)malloc(set->size*sizeof(int));
+  idx_g_t *new_g_index = (idx_g_t*)malloc(set->size*sizeof(idx_g_t));
   for (int i = 0; i < set->size; i++)
     new_g_index[set_permutations[set->index][i]] = OP_part_list[set->index]->g_index[i];
   free(OP_part_list[set->index]->g_index);
