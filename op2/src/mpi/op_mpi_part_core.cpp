@@ -56,7 +56,6 @@
 // ptscotch header
 #ifdef HAVE_PTSCOTCH
 #include <ptscotch.h>
-
 #endif
 
 // parmetis header
@@ -70,8 +69,12 @@ typedef int idx_t;
 // kaHIP header
 #ifdef HAVE_KAHIP
 #include <parhip_interface.h>
+#endif
+
+#ifndef HAVE_PARMETIS
 typedef float real_t;
 #endif
+
 #include <op_lib_mpi.h>
 
 // double min/max
