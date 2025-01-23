@@ -136,7 +136,7 @@ void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
       disp++;
 #ifdef DEBUG
       if (my_rank == MPI_ROOT && OP_diags > 5)
-        printf("range of %10s in rank %d: %d-%d\n", set->name, i,
+        printf("range of %10s in rank %d: %lld-%lld\n", set->name, i,
                part_range[set->index][2 * i],
                part_range[set->index][2 * i + 1]);
 #endif
@@ -359,7 +359,7 @@ int is_onto_map(op_map map) {
   // mak a copy of the to-set elements of the map
   std::vector<idx_g_t> to_elem_copy(map->from->size * map->dim);
   for (int i = 0; i < map->from->size * map->dim; i++) {
-    to_elem_copy[i] = map->map[i]; //Convert local to global index storage type
+    to_elem_copy[i] = map->map_gbl[i];
   }
 
   // sort and remove duplicates from to_elem_copy
@@ -370,11 +370,11 @@ int is_onto_map(op_map map) {
 
   // go through the to-set element range that this local MPI process holds
   // and collect the to-set elements not found in to_elem_copy
-  std::vector<int> not_found;
+  std::vector<idx_g_t> not_found;
   for (int i = 0; i < map->to->size; i++) {
-    int g_index = 
+    idx_g_t g_index = 
         get_global_index(i, my_rank, part_range[map->to->index], comm_size);
-    if (!std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), i)) {
+    if (!std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), (idx_g_t)i)) {
       not_found.push_back(g_index);
     }
   }
@@ -383,14 +383,14 @@ int is_onto_map(op_map map) {
   // allreduce this not_found to form a global_not_found list
   //
   std::vector<int> recv_count(comm_size);
-  idx_l_t count = not_found.size();
+  int count = not_found.size();
   MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_CHECK_WORLD);
 
   // discover global size of the not_found_list
   idx_g_t g_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
 
   // prepare for an allgatherv
-  idx_l_t disp = 0;
+  int disp = 0;
   std::vector<int> displs(comm_size);
   for (int i = 0; i < comm_size; i++) {
     displs[i] = disp;
@@ -418,7 +418,7 @@ int is_onto_map(op_map map) {
 
   // see if any element in the global_not_found is found in the local map-copy
   // and add it to a "found" list
-  std::vector<int> found;
+  std::vector<idx_g_t> found;
   for (idx_g_t i = 0; i < g_count; i++) {
     if (std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), global_not_found[i])) {
       found.push_back(global_not_found[i]);
@@ -537,7 +537,7 @@ void op_halo_create() {
           int part, local_index;
           for (int j = 0; j < map->dim; j++) { // for each element
                                                // pointed at by this entry
-            part = get_partition(map->map[e * map->dim + j],
+            part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
                                  comm_size);
             if (s_i >= cap_s) {
@@ -632,28 +632,28 @@ void op_halo_create() {
     request_send = (MPI_Request *)xmalloc(e_list->ranks_size * sizeof(MPI_Request));
 
     // prepare bits of the mapping tables to be exported
-    int **sbuf = (int **)xmalloc(e_list->ranks_size * sizeof(int *));
+    idx_g_t **sbuf = (idx_g_t **)xmalloc(e_list->ranks_size * sizeof(idx_g_t *));
 
     for (int i = 0; i < e_list->ranks_size; i++) {
-      sbuf[i] = (int *)xmalloc((size_t)e_list->sizes[i] * map->dim * sizeof(int));
+      sbuf[i] = (idx_g_t *)xmalloc((size_t)e_list->sizes[i] * map->dim * sizeof(idx_g_t));
       for (int j = 0; j < e_list->sizes[i]; j++) {
         for (int p = 0; p < map->dim; p++) {
           sbuf[i][j * map->dim + p] =
-              map->map[map->dim * (e_list->list[e_list->disps[i] + j]) + p];
+              map->map_gbl[map->dim * (e_list->list[e_list->disps[i] + j]) + p];
         }
       }
       // printf("\n export from %d to %d map %10s, number of elements of size %d
       // | sending:\n ",
       //    my_rank,e_list.ranks[i],map.name,e_list.sizes[i]);
-      MPI_Isend(sbuf[i], map->dim * e_list->sizes[i], MPI_INT, e_list->ranks[i],
+      MPI_Isend(sbuf[i], map->dim * e_list->sizes[i], get_mpi_type<idx_g_t>(), e_list->ranks[i],
                 m, OP_MPI_WORLD, &request_send[i]);
     }
 
     // prepare space for the incomming mapping tables - realloc each
     // mapping tables in each mpi process
-    OP_map_list[map->index]->map = (int *)xrealloc(
-        OP_map_list[map->index]->map,
-        (map->dim * (size_t)(map->from->size + i_list->size)) * sizeof(int));
+    OP_map_list[map->index]->map_gbl = (idx_g_t *)xrealloc(
+        OP_map_list[map->index]->map_gbl,
+        (map->dim * (size_t)(map->from->size + i_list->size)) * sizeof(idx_g_t));
 
     int init = map->dim * (map->from->size);
     for (int i = 0; i < i_list->ranks_size; i++) {
@@ -661,8 +661,8 @@ void op_halo_create() {
       // recieving: ",
       // my_rank, map->name, i_list->size);
       MPI_Recv(
-          &(OP_map_list[map->index]->map[init + i_list->disps[i] * map->dim]),
-          map->dim * i_list->sizes[i], MPI_INT, i_list->ranks[i], m,
+          &(OP_map_list[map->index]->map_gbl[init + i_list->disps[i] * map->dim]),
+          map->dim * i_list->sizes[i], get_mpi_type<idx_g_t>(), i_list->ranks[i], m,
           OP_MPI_WORLD, MPI_STATUS_IGNORE);
     }
 
@@ -675,7 +675,7 @@ void op_halo_create() {
   }
 
   /*-- STEP 4 - Create import lists for non-execute set elements using mapping
-    table entries including the additional mapping table entries --*/
+  table entries including the additional mapping table entries --*/
 
   OP_import_nonexec_list =
       (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
@@ -709,7 +709,7 @@ void op_halo_create() {
           int local_index = 0;
           for (int j = 0; j < map->dim; j++) { // for each element pointed
                                                // at by this entry
-            part = get_partition(map->map[e * map->dim + j],
+            part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
                                  comm_size);
 
@@ -846,14 +846,14 @@ void op_halo_create() {
 
         // prepare space for the incomming data - realloc each
         // data array in each mpi process
-        dat->data =
-            (char *)xrealloc(dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
+        dat->data = (char *)xrealloc(
+            dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
 
         size_t init = set->size * (size_t)dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(dat->data[init + i_list->disps[i] * (size_t)dat->size]),
-                   (size_t)dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
-                   OP_MPI_WORLD, MPI_STATUS_IGNORE);
+                   (size_t)dat->size * i_list->sizes[i], MPI_CHAR,
+                   i_list->ranks[i], d, OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
 
         MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -952,7 +952,7 @@ void op_halo_create() {
                                                // pointed at by this entry
             int part;
             int local_index = 0;
-            part = get_partition(map->map[e * map->dim + j],
+            part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
                                  comm_size);
 
@@ -991,7 +991,7 @@ void op_halo_create() {
 
               if (found < 0)
                 printf("ERROR: Set %10s Element %d needed on rank %d \
-                    from partition %d\n",
+                from partition %d\n",
                        set->name, local_index, my_rank, part);
             }
           }
@@ -1166,7 +1166,7 @@ void op_halo_create() {
                                   (map->to->size) - (map->to->core_size) - 1);
             if (index < 0)
               printf("Problem in seperating core elements - \
-                  renumbering map\n");
+              renumbering map\n");
             else
               OP_map_list[map->index]->map[e * (size_t)map->dim + j] =
                   map->to->core_size + index;
@@ -1203,7 +1203,7 @@ void op_halo_create() {
       idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
       // memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(idx_g_t));
       // memcpy(&temp[set->core_size], exp_elems[set->index],
-            //  (set->size - set->core_size) * sizeof(idx_g_t));
+      //  (set->size - set->core_size) * sizeof(idx_g_t));
       for (int i = 0; i < set->core_size; i++) {
         temp[i] = core_elems[set->index][i];
       }
@@ -1219,7 +1219,7 @@ void op_halo_create() {
       OP_part_list[set->index]->g_index = temp;
     }
   } else { // OP_part_list exists (i.e. a partitioning has been done)
-           // update the seperation of elements
+    // update the seperation of elements
 
     for (int s = 0; s < OP_set_index; s++) { // for each set
       op_set set = OP_set_list[s];
@@ -1228,8 +1228,7 @@ void op_halo_create() {
       idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
 
       if (set->core_size * sizeof(int) > 0) {
-        //TODO: should not need type conversion here
-        // memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
+        //  memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
         for (int i = 0; i < set->core_size; i++) {
           temp[i] = core_elems[set->index][i];
         }
