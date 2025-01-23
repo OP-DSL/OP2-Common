@@ -87,6 +87,7 @@ module OP2_Fortran_Declarations
     type(c_ptr) ::            to           ! set map to
     integer(kind=c_int) ::    dim          ! dimension of map
     type(c_ptr) ::            map          ! array defining map
+    type(c_ptr) ::            map_gbl      ! array with global indices (long type)
 #ifdef OP2_WITH_CUDAFOR
     type(c_devptr) ::         map_d        ! array defining map on device
 #else
