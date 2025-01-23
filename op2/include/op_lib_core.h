@@ -141,6 +141,7 @@ typedef struct {
       to;           /* set pointed to */
   int dim,          /* dimension of pointer */
       *map;         /* array defining pointer */
+  idx_g_t *map_gbl; /* array with global indices (long type) */
   int *map_d;       /* array on device */
   char const *name; /* name of pointer */
   int user_managed; /* indicates whether the user is managing memory */
