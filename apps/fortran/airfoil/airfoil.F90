@@ -123,7 +123,7 @@ program airfoil
     call op_partition("PARMETIS", "KWAY", edges, pecell, p_x)
     call op_timing2_enter("Main computation")
 
-    call op_decl_dat_temp(cells, 4, "real(8)", rms(1), p_res, "p_res")
+    call op_decl_dat_temp(cells, 4, "real(8)", p_res, "p_res")
 
     ncell_total = op_get_size(cells)
 
