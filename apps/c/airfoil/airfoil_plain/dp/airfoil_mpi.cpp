@@ -62,19 +62,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_lib_mpi.h"
-#include "op_lib_cpp.h"
-
-#ifdef OPENACC
-#ifdef __cplusplus
-extern "C" {
-#endif
-#endif
-
-#ifdef OPENACC
-#ifdef __cplusplus
-}
-#endif
-#endif
+#include "op_seq.h"
 
 //
 // kernel routines for parallel loops
@@ -157,7 +145,7 @@ static void check_scan(int items_received, int items_expected) {
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init_soa(argc, argv, 2,1);
+  op_init(argc, argv, 2);
 
   // MPI for user I/O
   int my_rank;
