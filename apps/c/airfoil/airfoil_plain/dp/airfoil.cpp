@@ -54,29 +54,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 // OP header file
 //
 
-#include "op_lib_cpp.h"
-
-#ifdef OPENACC
-#ifdef __cplusplus
-extern "C" {
-#endif
-#endif
-
-void op_par_loop_airfoil_1_save_soln(char const *, op_set, op_arg, op_arg);
-
-void op_par_loop_airfoil_2_adt_calc(char const *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg);
-
-void op_par_loop_airfoil_3_res_calc(char const *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg);
-
-void op_par_loop_airfoil_4_bres_calc(char const *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg, op_arg);
-
-void op_par_loop_airfoil_5_update(char const *, op_set, op_arg, op_arg, op_arg, op_arg, op_arg);
-
-#ifdef OPENACC
-#ifdef __cplusplus
-}
-#endif
-#endif
+#include "op_seq.h"
 
 //
 // kernel routines for parallel loops
@@ -92,7 +70,7 @@ void op_par_loop_airfoil_5_update(char const *, op_set, op_arg, op_arg, op_arg, 
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init_soa(argc, argv, 2,1);
+  op_init(argc, argv, 2);
 
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
@@ -223,13 +201,13 @@ int main(int argc, char **argv) {
   op_dat p_res = op_decl_dat(cells, 4, "double", res, "p_res");
   free(res);
 
-  op_decl_const2("gam", 1, "double", &gam);
-  op_decl_const2("gm1", 1, "double", &gm1);
-  op_decl_const2("cfl", 1, "double", &cfl);
-  op_decl_const2("eps", 1, "double", &eps);
-  op_decl_const2("mach", 1, "double", &mach);
-  op_decl_const2("alpha", 1, "double", &alpha);
-  op_decl_const2("qinf", 4, "double", qinf);
+  op_decl_const(1, "double", &gam);
+  op_decl_const(1, "double", &gm1);
+  op_decl_const(1, "double", &cfl);
+  op_decl_const(1, "double", &eps);
+  op_decl_const(1, "double", &mach);
+  op_decl_const(1, "double", &alpha);
+  op_decl_const(4, "double", qinf);
 
   op_diagnostic_output();
 
@@ -244,7 +222,7 @@ int main(int argc, char **argv) {
 
     // save old flow solution
 
-    op_par_loop_airfoil_1_save_soln("save_soln", cells,
+    op_par_loop(save_soln, "save_soln", cells,
                 op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_READ),
                 op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_WRITE));
 
@@ -254,7 +232,7 @@ int main(int argc, char **argv) {
 
       // calculate area/timstep
 
-      op_par_loop_airfoil_2_adt_calc("adt_calc", cells,
+      op_par_loop(adt_calc, "adt_calc", cells,
                   op_arg_dat(p_x, 0, pcell, 2, "double", OP_READ),
                   op_arg_dat(p_x, 1, pcell, 2, "double", OP_READ),
                   op_arg_dat(p_x, 2, pcell, 2, "double", OP_READ),
@@ -264,7 +242,7 @@ int main(int argc, char **argv) {
 
       // calculate flux residual
 
-      op_par_loop_airfoil_3_res_calc("res_calc", edges,
+      op_par_loop(res_calc, "res_calc", edges,
                   op_arg_dat(p_x, 0, pedge, 2, "double", OP_READ),
                   op_arg_dat(p_x, 1, pedge, 2, "double", OP_READ),
                   op_arg_dat(p_q, 0, pecell, 4, "double", OP_READ),
@@ -274,7 +252,7 @@ int main(int argc, char **argv) {
                   op_arg_dat(p_res, 0, pecell, 4, "double", OP_INC),
                   op_arg_dat(p_res, 1, pecell, 4, "double", OP_INC));
 
-      op_par_loop_airfoil_4_bres_calc("bres_calc", bedges,
+      op_par_loop(bres_calc, "bres_calc", bedges,
                   op_arg_dat(p_x, 0, pbedge, 2, "double", OP_READ),
                   op_arg_dat(p_x, 1, pbedge, 2, "double", OP_READ),
                   op_arg_dat(p_q, 0, pbecell, 4, "double", OP_READ),
@@ -286,7 +264,7 @@ int main(int argc, char **argv) {
 
       rms = 0.0;
 
-      op_par_loop_airfoil_5_update("update", cells,
+      op_par_loop(update, "update", cells,
                   op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_READ),
                   op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_WRITE),
                   op_arg_dat(p_res, -1, OP_ID, 4, "double", OP_RW),

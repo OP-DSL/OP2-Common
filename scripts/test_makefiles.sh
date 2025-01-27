@@ -69,16 +69,24 @@ echo " "
 echo "**********************************************************************"
 echo "***********************> Building back-end libs with GNU Compilers    "
 echo "**********************************************************************"
+export COMP="GNU"
+
+cd $OP2_CODEGEN_DIR
+rm -rf op2-venv/ 
+python3 -m venv op2-venv
+. op2-venv/bin/activate
+pip3 install -r requirements.txt
+
+cd $OP2_INSTALL_PATH
 . $CURRENT_DIR/$GNU_SOURCE
 make clean; make clean_config; make config; make;
 
 
 echo " "
 echo " "
-echo "=======================> Building Airfoil Plain DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
+echo "=======================> Building Airfoil HDF5 DP with $COMP Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 python3 $OP2_CODEGEN_DIR/op2-translator airfoil.cpp
-python3 $OP2_CODEGEN_DIR/op2-translator airfoil_mpi.cpp
 make clean;make
 
 exit
