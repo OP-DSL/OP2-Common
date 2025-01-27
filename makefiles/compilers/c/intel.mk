@@ -2,7 +2,7 @@
 CONFIG_CC := icc
 CONFIG_CXX := icpc
 
-BASE_CXXFLAGS := -MMD -MP -Wall -D__PURE_INTEL_C99_HEADERS__ -no-multibyte-chars -D__is_assignable=__is_trivially_assignable -std=c++11
+BASE_CXXFLAGS := -MMD -MP -Wall  -D_GLIBCXX_USE_CXX11_ABI=1 -D__PURE_INTEL_C99_HEADERS__ -no-multibyte-chars -D__is_assignable=__is_trivially_assignable -std=c++17
 
 ifndef DEBUG
   BASE_CXXFLAGS += -g -O3

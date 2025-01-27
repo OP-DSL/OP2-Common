@@ -1,0 +1,62 @@
+#A rough example of environmental variables for compiling with PGI compilers
+
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+module purge
+. ~/.bashrc
+
+#OP2 specifics
+export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
+export OP2_COMPILER=nvhpc
+#unset OP_AUTO_SOA
+export OP_AUTO_SOA=1
+echo "Warning, OP_AUTO_SOA=1"
+
+#Python environment for code-gen
+#cd  $OP2_INSTALL_PATH/../translator-v2
+#Make sure the following has been done before activating this source file
+#python3 -m venv op2-venv
+#. op2-venv/bin/activate
+#pip3 install -r requirements.txt
+
+#activate existing environment
+. $OP2_INSTALL_PATH/../translator-v2/op2-venv/bin/activate
+
+#other modules
+module load gcc/8.5.0
+
+#Compilers
+
+
+#External libraries
+export HDF5_SEQ_INSTALL_PATH=/rr-home/gihan/HDF5-NVIDIA-HPC-21
+export HDF5_PAR_INSTALL_PATH=/rr-home/gihan/HDF5-NVIDIA-HPC-21
+export PARMETIS_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi-nvidia_hpc/parmetis-pgi
+export PTSCOTCH_INSTALL_PATH=/rr-home/shared/hydra/apps_pgi-nvidia_hpc/ptscotch-pgi/
+
+#NVIDIA CUDA
+module load cuda/12.5
+#export CUDA_HOME=/opt/cuda/12.5
+#export CUDA_INSTALL_PATH=/opt/cuda/12.5
+
+
+if [ "$(hostname)" == 'telos' ]; then
+  export NV_ARCH=Volta
+  export CUDA_VISIBLE_DEVICES=0
+  echo $NV_ARCH
+elif [ "$(hostname)" == 'demos' ]; then
+  export NV_ARCH=Hopper
+  export CUDA_VISIBLE_DEVICES=0
+  echo $NV_ARCH
+else
+  export NV_ARCH=Pascal
+  export CUDA_VISIBLE_DEVICES=0,1
+  echo $NV_ARCH
+fi
+
+#PGI and MPI Compilers
+module load nvhpc-openmpi3/24.3
+#export MPI_INSTALL_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/comm_libs/openmpi/openmpi-3.1.5/
+#export PATH=$MPI_INSTALL_PATH/bin:$PATH
+#export LD_LIBRARY_PATH=$MPI_INSTALL_PATH/lib:$LD_LIBRARY_PATH

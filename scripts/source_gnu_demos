@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+module purge
+. ~/.bashrc
+
+
+#OP2 specifics
+export OP2_INSTALL_PATH=$HOME/OP2-Common/op2
+export OP2_COMPILER=gnu
+#unset OP_AUTO_SOA
+export OP_AUTO_SOA=1
+echo "Warning, OP_AUTO_SOA=1"
+
+#Python environment for code-gen
+cd  $OP2_INSTALL_PATH/../translator-v2
+#Make sure the following has been done before activating this source file
+#python3 -m venv op2-venv
+#. op2-venv/bin/activate
+#pip3 install -r requirements.txt
+
+#activate existing environment
+. op2-venv/bin/activate
+
+cd -
+
+HYDSYS=$HOME/hydra_sys_bld_deps
+
+export PARMETIS_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/ParMetis/Ver4.0.3/
+export HDF5_SEQ_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/hdf5/Ver1.14.2/ser
+export HDF5_PAR_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/hdf5/Ver1.14.2/par
+
+export MPI_INC=/usr/lib/x86_64-linux-gnu/openmpi/include
+#export MPI_INC=/opt/mpi/openmpi/4.0.4/gnu/9.3.0/include
+
+module load cuda/12.5
+export CUDA_INSTALL_PATH=/opt/cuda/12.5
+
+if [ "$(hostname)" == 'telos' ]; then
+  export NV_ARCH=Volta
+  export CUDA_VISIBLE_DEVICES=0
+  echo $NV_ARCH
+elif [ "$(hostname)" == 'demos' ]; then
+  export NV_ARCH=Hopper
+  export CUDA_VISIBLE_DEVICES=0
+  echo $NV_ARCH
+else
+  export NV_ARCH=Pascal
+  export CUDA_VISIBLE_DEVICES=0,1
+  echo $NV_ARCH
+fi

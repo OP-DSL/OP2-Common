@@ -95,7 +95,7 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
 }
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
-                             char const *name) {
+                              char *data, char const *name) {
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 
   // transpose data
