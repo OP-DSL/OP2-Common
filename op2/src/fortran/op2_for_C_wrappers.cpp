@@ -427,6 +427,10 @@ void op_mpi_free_data(op_dat dat) {
   op_free(dat);
 }
 
+unsigned long op_get_g_index(op_set set) {
+  return (unsigned long) (OP_part_list[set->index]->g_index);
+}
+
 #else
 
 int op_mpi_size () {
@@ -463,6 +467,10 @@ op_dat op_mpi_get_data(op_dat dat) {
 void op_mpi_free_data(op_dat dat) {
   op_free(dat->set);
   op_free(dat);
+}
+
+unsigned long op_get_g_index(op_set set) {
+  return (unsigned long) NULL;
 }
 
 #endif

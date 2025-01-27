@@ -2759,13 +2759,6 @@ void op_mpi_put_data(op_dat dat) {
 }
 
 /*******************************************************************************
- * Routine to fetch the g_index array for the given set
- *******************************************************************************/
-unsigned long op_get_g_index(op_set set) {
-  return (unsigned long) (OP_part_list[set->index]->g_index);
-}
-
-/*******************************************************************************
  * Debug/Diagnostics Routine to initialise import halo data to NaN
  *******************************************************************************/
 
