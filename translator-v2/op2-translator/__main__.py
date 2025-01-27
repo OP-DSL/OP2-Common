@@ -153,12 +153,21 @@ def main(argv=None) -> None:
         ext = os.path.splitext(os.path.basename(program.path))[1]
         new_path = Path(args.out, f"{new_file}{args.suffix}{ext}")
 
-        write_file(new_path, source)
+        write_file(new_path, source, args)
 
         print(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
 
 
-def write_file(path: Path, text: str) -> None:
+def write_file(path: Path, text: str, args: Namespace) -> None:
+    if path.exists():
+        for input_path in args.file_paths:
+            if not path.samefile(input_path):
+                continue
+
+            print(f"Error: generating file '{path}' would overwrite input file")
+            print(f"Pass an output directory with -o <path>")
+            exit(1)
+
     if path.is_file():
         prev_text = path.read_text()
 
@@ -249,7 +258,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
                 f"{name}{extension}",
             )
 
-            write_file(path, source)
+            write_file(path, source, args)
 
         if not fallback:
             print(f"Generated loop host {i} of {len(app.loops())}: {loop.name}")
@@ -265,7 +274,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
         path = Path(args.out, scheme.target.name, name)
 
-        write_file(path, source)
+        write_file(path, source, args)
         print(f"Generated consts file: {path}")
 
     # Generate master kernel file
@@ -285,7 +294,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
 
             path = Path(args.out, scheme.target.name, f"{name}{extension}")
 
-            write_file(path, source)
+            write_file(path, source, args)
             print(f"Generated master kernel file: {path}")
 
 
