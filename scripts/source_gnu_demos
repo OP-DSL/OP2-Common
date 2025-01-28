@@ -33,6 +33,7 @@ export PARMETIS_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/ParM
 export HDF5_SEQ_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/hdf5/Ver1.14.2/ser
 export HDF5_PAR_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/hdf5/Ver1.14.2/par
 
+export MPI_INSTALL_PATH=/usr/
 export MPI_INC=/usr/lib/x86_64-linux-gnu/openmpi/include
 #export MPI_INC=/opt/mpi/openmpi/4.0.4/gnu/9.3.0/include
 
