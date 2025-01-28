@@ -264,7 +264,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             print(f"Generated loop host {i} of {len(app.loops())}: {loop.name}")
 
         if fallback:
-            loop.fallback = True
             print(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
 
     # Generate consts file

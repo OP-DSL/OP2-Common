@@ -676,8 +676,8 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
 
         ctx.error(f"Unsupported specification statement", node)
 
-    if not has_implicit_none:
-        ctx.error(f"No implicit none", spec_part)
+    # if not has_implicit_none:
+    #     ctx.error(f"No implicit none", spec_part)
 
     src = ""
     for name, type_ in ctx.sub_info.types.items():
@@ -1195,9 +1195,11 @@ def translateRealLiteralConstant(real_literal_constant: f2003.Real_Literal_Const
     kind_spec = real_literal_constant.items[1]
     kind_spec_is_float = {
         None: True,
+        "4": True,
+        "RK4": True,
+        "8": False,
         "RK": False,
-        "RK8": False,
-        "RK4": True
+        "RK8": False
     }
 
     if kind_spec not in kind_spec_is_float:

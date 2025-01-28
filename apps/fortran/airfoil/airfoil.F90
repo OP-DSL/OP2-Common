@@ -106,7 +106,7 @@ program airfoil
     call op_decl_dat(cells, 4, "real(8)", q, p_q, "p_q")
     call op_decl_dat(cells, 4, "real(8)", qold, p_qold, "p_qold")
     call op_decl_dat(cells, 1, "real(8)", adt, p_adt, "p_adt")
-    call op_decl_dat(cells, 4, "real(8)", res, p_res, "p_res")
+    ! call op_decl_dat(cells, 4, "real(8)", res, p_res, "p_res")
 
     call release_buffers()
 #endif

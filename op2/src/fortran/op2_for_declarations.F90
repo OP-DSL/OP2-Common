@@ -1593,13 +1593,13 @@ contains
       name2 = C_CHAR_"unnamed" /@/ C_NULL_CHAR
     end if
 
-    if (type == "r4") then
+    if (type == "r4" .or. type == "real(4)") then
       type2 = C_CHAR_"float" /@/ C_NULL_CHAR
       type_size = 4
-    else if (type == "r8") then
+    else if (type == "r8" .or. type == "real(8)") then
       type2 = C_CHAR_"double" /@/ C_NULL_CHAR
       type_size = 8
-    else if (type == "i4") then
+    else if (type == "i4" .or. type == "integer(4)") then
       type2 = C_CHAR_"int" /@/ C_NULL_CHAR
       type_size = 4
     else

@@ -73,7 +73,7 @@ endif
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $$^ -o $$@
+	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@
 
 generate: generated/$(APP_NAME)
 endef
@@ -95,7 +95,7 @@ SEQ_SRC := $(APP_SRC)
 
 $(eval $(call SRC_template,genseq,seq,F90))
 $(eval $(call SRC_template,openmp,openmp,F90))
-$(eval $(call SRC_template,cuda,cuda,CUF))
+$(eval $(call SRC_template,cuda,cuda,F90))
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
