@@ -62,12 +62,12 @@ export OP2_C_APPS_BIN_DIR=$OP2_APPS_DIR/c/bin
 cd ../translator-v2/
 export OP2_CODEGEN_DIR=$PWD
 
+#<<COMMENT
 
-<<COMMENT
 echo " "
 echo " "
 echo "**********************************************************************"
-echo "***********************> Building back-end libs with GNU Compilers    "
+echo "***********************> Building back-end libs with $COMP Compilers  "
 echo "**********************************************************************"
 export COMP="GNU"
 
@@ -79,14 +79,27 @@ pip3 install -r requirements.txt
 
 cd $OP2_INSTALL_PATH
 . $CURRENT_DIR/$GNU_SOURCE
-make clean; make clean_config; make config; make;
+#make clean; make clean_config; make config; make;
 
-COMMENT
+
+echo " "
+echo " "
+echo "**********************************************************************"
+echo "******************************> Building Apps with $COMP Compilers    "
+echo "**********************************************************************"
 
 echo " "
 echo " "
 echo "=======================> Building Airfoil Plain DP with $COMP Compilers"
-cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
+cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
+#code-gen command, implicitly invoked by make : python3 /home/gihan/OP2-Common/translator-v2/op2-translator -v -I /usr/lib/x86_64-linux-gnu/openmpi/include -I. airfoil.cpp -o generated/airfoil
+make clean;make
+ls 
+
+echo " "
+echo " "
+echo "=======================> Building Airfoil Plain SP with $COMP Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/sp
 make clean;make
 ls 
 
@@ -97,108 +110,72 @@ cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
 make clean;make
 ls 
 
-exit
-
-
-
-#*******************************************************************************************************************
 echo " "
 echo " "
-echo "**********************************************************************"
-echo "***********************> Building C back-end libs with Intel Compilers"
-echo "**********************************************************************"
-. $CURRENT_DIR/$INTEL_SOURCE
-make clean; make
-
-echo " "
-echo " "
-echo "=======================> Building Airfoil Plain DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/dp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
-make clean;make
-
-
-
-echo " "
-echo " "
-echo "=======================> Building Airfoil Plain SP with Intel Compilers"
-cd $OP2_APPS_DIR/c/airfoil/airfoil_plain/sp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
-make clean;make
-echo " "
-echo " "
-echo "=======================> Building Airfoil HDF5 DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/dp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-make clean;make
-echo " "
-echo " "
-echo "=======================> Building Airfoil HDF5 SP with Intel Compilers"
+echo "=======================> Building Airfoil HDF5 SP with $COMP Compilers"
 cd $OP2_APPS_DIR/c/airfoil/airfoil_hdf5/sp
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
 make clean;make
-echo " "
-echo " "
-echo "=======================> Building Airfoil TEMPDATS DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp/
-$OP2_C_CODEGEN_DIR/op2.py airfoil.cpp
-$OP2_C_CODEGEN_DIR/op2.py airfoil_mpi.cpp
-make clean;make
-
+ls 
 
 echo " "
 echo " "
-echo "=======================> Building Aero Plain DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
-$OP2_C_CODEGEN_DIR/op2.py aero.cpp
-$OP2_C_CODEGEN_DIR/op2.py aero_mpi.cpp
+echo "=======================> Building Airfoil Tempdats DP with $COMP Compilers"
+cd $OP2_APPS_DIR/c/airfoil/airfoil_tempdats/dp
 make clean;make
-echo " "
-echo " "
-echo "=======================> Building Aero HDF5 DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
-$OP2_C_CODEGEN_DIR/op2.py aero.cpp
-make clean;make
-
-
+ls 
 
 echo " "
 echo " "
-echo "=======================> Building Jac1 Plain DP with Intel Compilers"
-cd $OP2_APPS_DIR/c/jac1/dp/
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
-make clean;make
+echo "=======================> Building Aero Plain DP with $COMP Compilers"
+#cd $OP2_APPS_DIR/c/aero/aero_plain/ -- not working
+make clean; make
+ls
+
 echo " "
 echo " "
-echo "=======================> Building Jac1 Plain SP with Intel Compilers"
-cd $OP2_APPS_DIR/c/jac1/sp/
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
-make clean;make
+echo "=======================> Building Aero HDF5 DP with $COMP Compilers"
+#cd $OP2_APPS_DIR/c/aero/aero_hdf5/ -- not working
+make clean; make
+ls
+
+COMMENT
+
 echo " "
 echo " "
-echo "=======================> Building Jac2 with Intel Compilers"
+echo "=======================> Building Jac1 Plain DP with $COMP Compilers"
+#cd $OP2_APPS_DIR/c/jac1/dp/ -- not working
+make clean; make
+ls
+
+echo " "
+echo " "
+echo "=======================> Building Jac1 Plain SP with $COMP Compilers"
+cd $OP2_APPS_DIR/c/jac1/sp/ 
+make clean; make
+ls
+
+echo " "
+echo " "
+echo "=======================> Building Jac2 with $COMP Compilers"
 cd $OP2_APPS_DIR/c/jac2
-$OP2_C_CODEGEN_DIR/op2.py jac.cpp
-make clean;make
-
+make clean; make
+ls
 
 echo " "
 echo " "
-echo "=======================> Building Reduction with Intel Compilers"
+echo "=======================> Building Reduction with $COMP Compilers"
 cd $OP2_APPS_DIR/c/reduction
-$OP2_C_CODEGEN_DIR/op2.py reduction.cpp
-$OP2_C_CODEGEN_DIR/op2.py reduction_mpi.cpp
-make clean;make
+make clean; make
+ls
 
-#<<COMMENT0
+
+#exit####################
 
 
 echo " "
 echo " "
 echo "**********************************************************************"
-echo "**************************** Running C Apps built with Intel Compilers"
+echo "**************************** Running C Apps built with $COMP Compilers"
 echo "**********************************************************************"
 
 echo " "
@@ -220,6 +197,7 @@ validate "./airfoil_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./airfoil_mpi_openmp OP_PART_SIZE=256"
 
+exit
 
 echo " "
 echo " "

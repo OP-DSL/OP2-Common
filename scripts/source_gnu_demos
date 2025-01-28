@@ -2,6 +2,7 @@
 #unset and set defaults
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
 unset LD_LIBRARY_PATH
+unset CUDA_INSTALL_PATH
 module purge
 . ~/.bashrc
 
@@ -16,6 +17,7 @@ echo "Warning, OP_AUTO_SOA=1"
 #Python environment for code-gen
 cd  $OP2_INSTALL_PATH/../translator-v2
 #Make sure the following has been done before activating this source file
+#rm -rf op2-venv
 #python3 -m venv op2-venv
 #. op2-venv/bin/activate
 #pip3 install -r requirements.txt
@@ -34,7 +36,9 @@ export HDF5_PAR_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/hdf5
 export MPI_INC=/usr/lib/x86_64-linux-gnu/openmpi/include
 #export MPI_INC=/opt/mpi/openmpi/4.0.4/gnu/9.3.0/include
 
-module load cuda/12.5
+#module load cuda/12.5
+#module load nvhpc-openmpi3/24.3
+#export CUDA_INSTALL_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/
 export CUDA_INSTALL_PATH=/opt/cuda/12.5
 
 if [ "$(hostname)" == 'telos' ]; then
