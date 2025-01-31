@@ -40,7 +40,7 @@ arg{{arg.id}}_local
     {{arg.typ}} arg{{arg.id}}_local[{{arg.dim}}] = {0};{{"\n" if loop.last}}
     {% endfor %}
     {% for arg in lh.args|gbl|reduction if lh is indirect and arg is not inc %}
-    memcpy(arg{{arg.id}}_local, arg{{idx}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
+    memcpy(arg{{arg.id}}_local, arg{{arg.id}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
     {% endfor %}
 {% endblock %}
 
