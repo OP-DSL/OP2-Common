@@ -18,9 +18,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        language: [ { name: 'c', ext: 'cpp' } ] # TODO: Add support for { name: 'fortran', ext: 'F90' }
-        optimisation: [ 'seq', 'genseq', 'openmp' ] # TODO: Add support for 'cuda'
-        mesh: [ 'plain' ] # TODO: Add support for 'hdf5'
+        language: [ { name: 'c', ext: 'cpp' } ]
+        optimisation: [ 'seq', 'genseq', 'openmp' ]
+        mesh: [ 'plain' ]
 
     defaults:
       run:
@@ -28,7 +28,6 @@ jobs:
 
     env:
       OP2_COMPILER: gnu
-      # NV_ARCH: Pascal
 
     steps:
       - name: Checkout repository
@@ -36,39 +35,18 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      # - name: Install gfortran # TODO: Cache this step
-      #   if: ${{ matrix.language.name == 'fortran' }}
-      #   run: apt update && apt install -y gfortran
-
-      # - name: Install CUDA Toolkit # TODO: Cache this step
-      #   uses: Jimver/cuda-toolkit@v0.2.4
-      #   if: ${{ matrix.optimisation == 'cuda' }}
-      #   id: install-cuda-toolkit
-      #   with:
-      #     cuda: '11.2.2'
-      #     method: 'network'
-      #     sub-packages: '[ "cudart", "nvcc" ]'
-
-      # - name: Link CUDA runtime
-      #   if: ${{ matrix.optimisation == 'cuda' }}
-      #   run: sudo ln -s "${{steps.install-cuda-toolkit.outputs.CUDA_PATH}}"/lib64/libcudart.so /usr/lib/libcudart.so
-
-      - name: Install Python deps
-        working-directory: translator-v2
-        run: pip3 install -r requirements.txt
-
       - name: Make build config
         working-directory: op2
         run: make config
 
       - name: Build OP2 backend
         working-directory: op2
-        run: make -j seq openmp # TODO: Only build targets required for active the matrix config
+        run: make -j seq openmp
 
       - name: Build airfoil
         run: make airfoil_${{ matrix.optimisation }}
 
-      - name: Get airfoil mesh data # TODO: Replace with a smaller mesh
+      - name: Get airfoil mesh data
         if: ${{ matrix.mesh == 'plain' }}
         run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
 
@@ -77,17 +55,9 @@ jobs:
 
       - name: Validate airfoil output
         run: grep -q "This test is considered PASSED" ~/output.txt || exit 1
-        # Fail the job with a non-zero exit if the airfoil validation fails
 
       - name: Archive airfoil output
         uses: actions/upload-artifact@v4
         with:
           name: airfoil-${{ matrix.language.name }}-${{ matrix.optimisation }}-${{ matrix.mesh }}-output
           path: ~/output.txt
-
-
-  # analyse-airfoil:
-  #   runs-on: ubuntu-latest
-  #   needs: validate-airfoil
-  #   steps:
-  #     TODO: Fetch app output artifact from validate job, extract runtime metric, compare runtime metric with historical artifacts
