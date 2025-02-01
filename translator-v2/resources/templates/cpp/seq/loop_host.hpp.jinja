@@ -23,7 +23,7 @@
         {%- set offset = " + map%s[%d]" % (arg.map_id, arg.map_idx) -%}
     {%- endif -%}
 
-    {%- if arg is not gbl and lh.dat(arg) is not soa %}
+    {%- if arg is not gbl %}
         {%- set offset = "%s * %d" % (offset, lh.dat(arg).dim) %}
     {%- endif -%}
 
