@@ -471,7 +471,7 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
                  (set->size+set->exec_size+set->nonexec_size) * sizeof(char);
 
   if (OP_realloc) {
-    char *new_data = (char *)op_malloc(bytes);
+    char *new_data = (char *)op_calloc(bytes, sizeof(char));
     if (data != NULL)
       memcpy(new_data, data, (size_t)dim * (size_t)size * (size_t)set->size * sizeof(char));
 

@@ -1,102 +1,165 @@
-{% extends "cpp/loop_host.hpp.jinja" %}
+{%- macro variant_str() -%}
+    {%- if lh is direct -%}
+Direct
+    {%- else -%}
+Indirect
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_dim(arg) -%}
+    {%- if (arg is gbl or arg is info) and arg.dim is not none -%}
+{{arg.dim}}
+    {%- elif arg is dat and lh.dat(arg).dim is not none -%}
+{{lh.dat(arg).dim}}
+    {%- else -%}
+arg{{arg.id}}.dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro map_idx(arg) -%}
+    {%- if arg is runtime_map_idx %}
+arg{{arg.id}}.idx
+    {%- else -%}
+{{arg.map_idx}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{% macro map_lookup(arg) -%}
+map{{arg.map_id}}[{{map_idx(arg)}}]
+{%- endmacro %}
 
 {%- macro arg_to_pointer(arg) %}
     {%- if arg is idx and arg is indirect -%}
-&map{{arg.map_id}}[{{arg.map_idx}}]
+idx{{arg.id}}
     {%- elif arg is idx -%}
-&n
+idx
     {%- else -%}
 {{arg_to_pointer2(arg)}}
     {%- endif -%}
-{%- endmacro %}
+{%- endmacro -%}
 
 {%- macro arg_to_pointer2(arg) %}
-    {%- if arg is gbl %}
-        {%- set cast = arg.typ -%}
+    {%- if arg is gbl or arg is info %}
+        {%- set cast = arg.typ.c() -%}
     {%- else -%}
-        {%- set cast = lh.dat(arg).typ -%}
+        {%- set cast = lh.dat(arg).typ.c() -%}
     {%- endif -%}
 
     {%- if arg is direct -%}
         {%- set offset = " + n" -%}
     {%- elif arg is indirect -%}
-        {%- set offset = " + map%s[%d]" % (arg.map_id, arg.map_idx) -%}
+        {%- set offset = " + %s" % (map_lookup(arg)) -%}
     {%- endif -%}
 
-    {%- if arg is not gbl %}
-        {%- set offset = "%s * %d" % (offset, lh.dat(arg).dim) %}
+    {%- if arg is dat %}
+        {%- set offset = "%s * %s" % (offset, arg_dim(arg)) %}
     {%- endif -%}
 
-    {%- if lh is indirect and arg is gbl and arg is reduction %}
-arg{{arg.id}}_local
+    {%- if lh is indirect and arg is gbl and arg is not read %}
+gbl{{arg.id}}_temp
+    {%- elif lh is indirect and arg is info %}
+info{{arg.id}}_temp
     {%- else -%}
 ({{cast}} *)arg{{arg.id}}.data{{offset}}
     {%- endif -%}
 {%- endmacro -%}
 
-{% block host_prologue %}
-{{super()}}
-    {% for arg in lh.args|gbl|reduction if lh is indirect %}
-    {{arg.typ}} arg{{arg.id}}_local[{{arg.dim}}] = {0};{{"\n" if loop.last}}
-    {% endfor %}
-    {% for arg in lh.args|gbl|reduction if lh is indirect and arg is not inc %}
-    memcpy(arg{{arg.id}}_local, arg{{arg.id}}.data, {{arg.dim}} * sizeof({{arg.typ}}));{{"\n" if loop.last}}
-    {% endfor %}
-{% endblock %}
+#include <op_lib_cpp.h>
 
-{% block host_loop %}
-    for (int n = 0; n < set_size; ++n) {
-    {% if lh is indirect %}
-        if (n < set->core_size && n > 0 && n % OP_mpi_test_frequency == 0)
-            op_mpi_test_all(num_args_expanded, args_expanded);
+#include <cstdint>
+#include <cmath>
+#include <cstdio>
 
-        if (n == set->core_size)
-            op_mpi_wait_all{{"_grouped" if config.grouped-}}
-                (num_args_expanded, args_expanded{{", 1" if config.grouped}});
+namespace op2_m_{{lh.name}}{{variant}} {
 
-        {% for map in lh.maps %}
-        int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;
-        {% endfor %}
+{{kernel_func}}}
 
-    {% endif %}
-    {% for arg in lh.args|vec %}
-        {{"const " if arg.access_type == OP.AccessType.READ}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
-        {% for arg_expanded in lh.args_expanded if arg_expanded.id == arg.id %}
-            {{arg_to_pointer(arg_expanded)}}{{"," if not loop.last}}
-        {% endfor %}
-        };
 
-    {% endfor %}
-    {% if lh is indirect and lh.args|gbl|reduction|length > 0 %}
-        if (n == set->size) {
-        {% for arg in lh.args|gbl|reduction %}
-            memcpy(arg{{arg.id}}.data, arg{{arg.id}}_local, {{arg.dim}} * sizeof({{arg.typ}}));
-        {% endfor %}
+void op_par_loop_{{lh.name}}(
+    const char* name,
+    op_set set,
+{% for arg in lh.args %}
+    op_arg arg{{arg.id}}{{"," if not loop.last}}
+{% endfor %}
+) {
+    int n_args = {{lh.args|length}};
+    op_arg args[{{lh.args|length}}];
+
+{% for arg in lh.args %}
+    args[{{loop.index0}}] = arg{{arg.id}};
+{% endfor %}
+
+    int n_exec = op_mpi_halo_exchanges(set, n_args, args);
+
+{% for arg in lh.args|gbl|reject("read") if lh is indirect %}
+    {{arg.typ.c()}} gbl{{arg.id}}_temp[{{arg_dim(arg)}}];
+{% endfor %}
+{% for arg in lh.args|info if lh is indirect %}
+    {{arg.typ.c()}} info{{arg.id}}_temp[{{arg_dim(arg)}}];
+{% endfor %}
+
+{% for arg in lh.args|gbl|reject("read") if lh is indirect %}
+    memcpy(gbl{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+{% endfor %}
+{% for arg in lh.args|info if lh is indirect %}
+    memcpy(info{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+{% endfor %}
+
+    for (int n = 0; n < n_exec; ++n) {
+{% if lh is indirect %}
+        if (n == set->core_size) {
+            op_mpi_wait_all(n_args, args);
         }
 
-    {% endif %}
-        op2_k{{kernel_idx}}::{{lh.kernel}}(
-    {% for arg in lh.args %}
-        {% if arg is not vec %}
+    {% for map in lh.maps %}
+        int *map{{map.id}} = arg{{map.arg_id}}.map_data + n * arg{{map.arg_id}}.map->dim;
+    {% endfor %}
+{% endif %}
+
+{% if lh.args|idx|direct|length > 0 %}
+        int idx = n;
+{% endif %}
+{% for arg in lh.args|idx|indirect %}
+        int idx{{arg.id}} = {{map_lookup(arg)}};
+{% endfor %}
+
+        op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
+{% for arg in lh.args %}
             {{arg_to_pointer(arg)}}{{"," if not loop.last}}
-        {% else %}
-            arg{{arg.id}}_vec{{"," if not loop.last}}
-        {% endif %}
-    {% endfor %}
+{% endfor %}
         );
-    }
-{% endblock %}
 
-{% block host_epilogue %}
-    {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
-    if (set_size == 0 || set_size == set->core_size)
-        op_mpi_wait_all(num_args_expanded, args_expanded);
-
-    {% endif %}
-    {% for arg in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ}} *)arg{{arg.id}}.data);
+{% if lh is indirect %}
+        if (n == set->size - 1) {
+    {% for arg in lh.args|gbl|reject("read") %}
+            memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
     {% endfor %}
-    op_mpi_set_dirtybit(num_args_expanded, args_expanded);
+    {% for arg in lh.args|info %}
+            memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+        }
+{% endif %}
+    }
 
-{{super()}}
-{% endblock %}
+{% if lh is indirect %}
+    if (n_exec < set->size) {
+    {% for arg in lh.args|gbl|reject("read") %}
+        memcpy(arg{{arg.id}}.data, gbl{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+    {% for arg in lh.args|info %}
+        memcpy(arg{{arg.id}}.data, info{{arg.id}}_temp, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
+    {% endfor %}
+    }
+{% endif %}
+
+    if (n_exec == 0 || n_exec == set->core_size)
+        op_mpi_wait_all(n_args, args);
+
+{% if lh.args|gbl|reduction|length > 0 %}
+    {% for arg in lh.args|gbl|reduction %}
+    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
+    {% endfor %}
+{% endif %}
+
+    op_mpi_set_dirtybit(n_args, args);
+}
