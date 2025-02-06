@@ -2,6 +2,7 @@ import copy
 import io
 import os
 import re
+import sys
 import subprocess
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -173,6 +174,7 @@ class Fortran(Lang):
     use_regex_translator = False
 
     parser = None
+    fpp = None
 
     # fparser2 does some dynamic class setup on parser creation, so make sure we always have one for kernel translation
     def __init__(self):
@@ -212,6 +214,13 @@ class Fortran(Lang):
             if args.verbose:
                 print(f"Using regex program translator")
 
+        fpp = os.path.dirname(sys.executable) + "/fpp"
+        if os.path.exists(fpp):
+            self.fpp = fpp
+
+        if args.verbose:
+            print(f"Using packaged fpp for Fortran parsing: {fpp}")
+
     def validate(self, app: Application) -> None:
         # TODO: see fortran.parser
         for program in app.programs:
@@ -221,9 +230,8 @@ class Fortran(Lang):
             fortran.validator.validateLoop(loop, program, app)
 
     def preprocess(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> str:
-        fpp = os.getenv("OP2_FPP")
-        if fpp is not None:
-            args = [fpp, "-P", "-free", "-f90"]
+        if self.fpp:
+            args = [self.fpp, "-P", "-free", "-f90"]
 
             for dir in include_dirs:
                 args.append(f"-I{dir}")
@@ -233,10 +241,7 @@ class Fortran(Lang):
 
             args.append(str(path))
 
-            # print(" ".join(args))
             res = subprocess.run(args, capture_output=True, check=True)
-            # print(res.stderr.decode("utf-8"))
-
             return res.stdout.decode("utf-8")
 
         preprocessor = Preprocessor()
