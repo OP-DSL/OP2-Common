@@ -62,8 +62,14 @@ typedef unsigned int uint;
 typedef long long ll;
 typedef unsigned long long ull;
 
+#include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <cstddef>
+
+#include "SafeLong.h"
 typedef int idx_l_t;
-typedef long long int idx_g_t;
+typedef SafeLong idx_g_t;
 
 /*
  * OP2 global state variables

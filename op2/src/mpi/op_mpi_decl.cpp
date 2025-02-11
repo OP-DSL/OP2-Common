@@ -327,12 +327,23 @@ op_set op_decl_set(idx_g_t size, char const *name) {
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
 
-  //  int *m = (int *)malloc(from->size * dim * sizeof(int));
-  //  memcpy(m, imap, from->size * dim * sizeof(int));
+  idx_g_t *imap_g = (idx_g_t *)malloc(from->size * dim * sizeof(idx_g_t));
+  for (idx_g_t i = 0; i < from->size * dim; i++) {
+    imap_g[i] = (idx_g_t)imap[i];
+  }
 
-  op_map out_map = op_decl_map_core(from, to, dim, imap, name);
-  out_map->user_managed = 0;
-  return out_map;
+  return op_decl_map_long(from, to, dim, imap_g, name);
+}
+
+op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
+                   char const *name) {
+  //Convert from long global indices to shorter local indices. Set size
+  //per process has to be less than INT_MAX
+
+  op_map map = op_decl_map_core(from, to, dim, NULL, name);
+  map->map_gbl = imap_g;
+  map->user_managed = 0;
+  return map;
 }
 
 op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,

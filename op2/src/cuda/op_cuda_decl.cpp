@@ -216,7 +216,10 @@ void op_print(const char *line) { printf("%s\n", line); }
 void op_timers(double *cpu, double *et) { op_timers_core(cpu, et); }
 
 int getSetSizeFromOpArg(op_arg *arg) {
-  return arg->opt ? arg->dat->set->size : 0;
+  if (arg->dat->set->size > std::numeric_limits<int>::max()) {
+    throw std::overflow_error("Set size is too large to be represented as an int");
+  }
+  return arg->opt ? (int)arg->dat->set->size : 0;
 }
 
 void op_renumber(op_map base) { (void)base; }

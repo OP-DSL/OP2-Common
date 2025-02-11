@@ -445,12 +445,15 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     }
   }*/
 
-  int *m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int));
-  if (m == NULL) {
-    printf(" op_decl_map_core error -- error allocating memory to map\n");
-    exit(-1);
+  int *m = NULL;
+  if (imap != NULL) {
+    m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int));
+    if (m == NULL) {
+      printf(" op_decl_map_core error -- error allocating memory to map\n");
+      exit(-1);
+    }
+    memcpy(m, imap, sizeof(int) * from->size * dim);
   }
-  memcpy(m, imap, sizeof(int) * from->size * dim);
 
   if (OP_map_index == OP_map_max) {
     OP_map_max += 10;
@@ -463,8 +466,9 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   }
 
   if (OP_maps_base_index == 1) {
+    #warning long int map, 1 based indexing
     // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
-    for (int i = 0; i < from->size * dim; i++)
+    for (idx_g_t i = 0; i < from->size * dim; i++)
       // imap[i]--;
       m[i]--; // modify op2's copy
   }
