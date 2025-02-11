@@ -947,6 +947,7 @@ void op_halo_create() {
 
         // for each entry in this mapping table: original+execlist
         int len = map->from->size + exec_map_list->size;
+        OP_map_list[map->index]->map = (int *)xmalloc(len * map->dim * sizeof(int));
         for (int e = 0; e < len; e++) {
           for (int j = 0; j < map->dim; j++) { // for each element
                                                // pointed at by this entry
@@ -3051,7 +3052,12 @@ void op_mpi_exit() {
 }
 
 int getSetSizeFromOpArg(op_arg *arg) {
-  return arg->opt ? (arg->dat->set->size +
+  if (arg->dat->set->size + OP_import_exec_list[arg->dat->set->index]->size +
+      OP_import_nonexec_list[arg->dat->set->index]->size >
+      std::numeric_limits<int>::max()) {
+    throw std::overflow_error("Set size is too large to be represented as an int");
+  }
+  return arg->opt ? (int)(arg->dat->set->size +
                      OP_import_exec_list[arg->dat->set->index]->size +
                      OP_import_nonexec_list[arg->dat->set->index]->size)
                   : 0;
