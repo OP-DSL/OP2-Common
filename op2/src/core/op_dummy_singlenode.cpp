@@ -191,7 +191,10 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 void op_partition_reverse() {}
 
 int getSetSizeFromOpArg(op_arg *arg) {
-  return arg->opt ? arg->dat->set->size : 0;
+  if (arg->dat->set->size > std::numeric_limits<int>::max()) {
+    throw std::overflow_error("Set size is too large to be represented as an int");
+  }
+  return arg->opt ? (int)arg->dat->set->size : 0;
 }
 
 int op_is_root() { return 1; }

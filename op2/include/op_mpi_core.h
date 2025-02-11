@@ -190,12 +190,12 @@ MPI_Datatype get_mpi_type() {
     return MPI_LONG_LONG;
   } else if (std::is_same<T, int>::value) {
     return MPI_INT;
-  }
-  #ifdef DEBUG
-  else {
+  } else if (std::is_same<T, idx_g_t>::value) {
+    return MPI_LONG_LONG;
+  } else {
     throw std::runtime_error("Unsupported type");
   }
-  #endif
+  // #endif
 }
 
 #ifdef __cplusplus
