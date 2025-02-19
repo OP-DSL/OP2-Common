@@ -233,6 +233,8 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     include_dirs = set([Path(dir) for [dir] in args.I])
     defines = [define for [define] in args.D]
 
+    fallback_loops = {}
+
     # Generate loop hosts
     for i, (loop, program) in enumerate(app.loops(), 1):
         force_generate = scheme.target == Target.find("seq")
@@ -261,9 +263,11 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             write_file(path, source, args)
 
         if not fallback:
+            fallback_loops[loop.name] = False
             print(f"Generated loop host {i} of {len(app.loops())}: {loop.name}")
 
         if fallback:
+            fallback_loops[loop.name] = True
             print(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
 
     # Generate consts file
@@ -282,7 +286,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         user_types_candidates = [Path(dir, user_types_name) for dir in include_dirs]
         user_types_file = safeFind(user_types_candidates, lambda p: p.is_file())
 
-        files = scheme.genMasterKernel(env, app, user_types_file)
+        files = scheme.genMasterKernel(env, app, user_types_file, fallback_loops)
 
         for index, (source, extension) in enumerate(files):
             Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)

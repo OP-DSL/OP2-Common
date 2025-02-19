@@ -338,8 +338,10 @@ def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, F
                     dimension_attr_spec = attr_spec
                 elif attr_spec.string == "PARAMETER" or isinstance(attr_spec, f2003.Intent_Attr_Spec):
                     continue
+                elif isinstance(attr_spec, f2003.Language_Binding_Spec):
+                    continue
                 else:
-                    ctx.error("Unexpected attr spec", attr_spec)
+                    ctx.error(f"Unexpected attr spec ({type(attr_spec).__name__})", attr_spec)
 
         if dimension_attr_spec is not None:
             attr_array_spec = parseArraySpec(dimension_attr_spec.items[1], ctx)

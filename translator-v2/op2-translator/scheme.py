@@ -130,7 +130,7 @@ class Scheme(Findable["Scheme"]):
         # Generate source from the template
         return template.render(OP=OP, app=app, lang=self.lang, target=self.target), name
 
-    def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path]) -> List[Tuple[str, str]]:
+    def genMasterKernel(self, env: Environment, app: Application, user_types_file: Optional[Path], fallback_loops: Dict[str, bool]) -> List[Tuple[str, str]]:
         user_types = None
         if user_types_file is not None:
             user_types = user_types_file.read_text()
@@ -139,7 +139,8 @@ class Scheme(Findable["Scheme"]):
         for template_path in self.master_kernel_templates:
             template = env.get_template(str(template_path))
 
-            source = template.render(OP=OP, app=app, lang=self.lang, target=self.target, user_types=user_types)
+            source = template.render(OP=OP, app=app, lang=self.lang, target=self.target,
+                                     user_types=user_types, fallback_loops=fallback_loops)
             extension = "".join(template_path.suffixes[:-1])
 
             files.append((source, extension))

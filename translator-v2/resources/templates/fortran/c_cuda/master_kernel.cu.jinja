@@ -40,6 +40,6 @@ void setGblIncAtomic(bool enable);
 
 }
 
-{% for loop_, _ in app.loops() if not loop_.fallback %}
+{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
 #include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "c_hip" else "cuh"}}"
 {% endfor %}
