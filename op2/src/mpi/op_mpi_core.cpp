@@ -123,12 +123,12 @@ void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
 
-    int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-    MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, Comm);
+    idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+    MPI_Allgather(&set->size, 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(), Comm);
 
     part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
 
-    int disp = 0;
+    idx_g_t disp = 0;
     for (int i = 0; i < comm_size; i++) {
       part_range[set->index][2 * i] = disp;
       disp = disp + sizes[i] - 1;
@@ -513,10 +513,10 @@ void op_halo_create() {
 
   // declare temporaty scratch variables to hold set export lists and mapping
   // table export lists
-  int s_i;
+  idx_g_t s_i;
   int *set_list;
 
-  int cap_s = 1000; // keep track of the temp array capacities
+  idx_g_t cap_s = 1000; // keep track of the temp array capacities
 
   // Find all elements of other sets that are pointed to from this set
   // and are owned by other partitions, and construct export lists
