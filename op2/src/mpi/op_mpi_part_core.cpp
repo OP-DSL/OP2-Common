@@ -3305,7 +3305,7 @@ halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
     int part, local_index;
     for (int j = 0; j < primary_map->dim; j++) { // for each element
                                                  // pointed at by this entry
-      part = get_partition(primary_map->map[e * primary_map->dim + j],
+      part = get_partition(primary_map->map_gbl[e * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
       if (c >= cap) {
@@ -3402,7 +3402,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
     for (int j = 0; j < exp_list->sizes[i]; j++) {
       for (int p = 0; p < primary_map->dim; p++) {
         sbuf[i][j * primary_map->dim + p] =
-            primary_map->map[primary_map->dim *
+            primary_map->map_gbl[primary_map->dim *
                                  (exp_list->list[exp_list->disps[i] + j]) +
                              p];
       }
@@ -3444,7 +3444,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
     int part, local_index;
     for (int j = 0; j < primary_map->dim; j++) { // for each element
                                                  // pointed at by this entry
-      part = get_partition(primary_map->map[i * primary_map->dim + j],
+      part = get_partition(primary_map->map_gbl[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
                            comm_size);
 
@@ -3456,7 +3456,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
                 adj[local_index], adj_cap[local_index] * sizeof(int));
           }
           adj[local_index][adj_i[local_index]++] =
-              primary_map->map[i * primary_map->dim + k];
+              primary_map->map_gbl[i * primary_map->dim + k];
         }
       }
     }
