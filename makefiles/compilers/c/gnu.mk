@@ -2,7 +2,7 @@
 CONFIG_CC := gcc
 CONFIG_CXX := g++
 
-BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic
+BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic -fsanitize=address -fsanitize=undefined
 
 ifndef DEBUG
   BASE_CXXFLAGS += -g -O3
