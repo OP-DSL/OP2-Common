@@ -35,6 +35,7 @@
 
 #include <tuple>
 #include <array>
+#include <algorithm>
 
 /*
  * op_util.h
@@ -154,15 +155,11 @@ unsigned op2_hash(const char *s);
 
 int linear_search(int a[], int value, int low, int high);
 
-void op_sort(int *__restrict arr, int n);
-
 void op_sort_2(int *__restrict arr1, int *__restrict arr2, int n);
 
 void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size);
 
 void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim);
-
-int removeDups(int a[], int array_size);
 
 int file_exist(char const *filename);
 
@@ -171,5 +168,17 @@ bool op_type_equivalence(const char *a, const char *b);
 #ifdef __cplusplus
 }
 #endif
+
+// Sort an array
+template <typename T>
+void op_sort(T *__restrict arr, int n) {
+  std::sort(arr, arr + n);
+}
+
+// Remove duplicates in an array, assumes the array is sorted
+template <typename T>
+int removeDups(T *__restrict arr, int n) {
+  return std::unique(arr, arr + n) - arr;
+}
 
 #endif /* __OP_UTIL_H */

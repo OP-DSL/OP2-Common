@@ -154,14 +154,6 @@ int linear_search(int a[], int value, int low, int high) {
 }
 
 /*******************************************************************************
-* Quicksort an array
-*******************************************************************************/
-
-void op_sort(int *__restrict xs, int n) {
-  std::sort(xs, xs + n);
-}
-
-/*******************************************************************************
 * Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
 *******************************************************************************/
 
@@ -200,25 +192,6 @@ void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size
 
 void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim) {
   op_sort_dat(arr, (char *) map, n, dim * sizeof(int));
-}
-
-/*******************************************************************************
-* Remove duplicates in an array
-*******************************************************************************/
-
-int removeDups(int a[], int array_size) {
-  int i, j;
-  j = 0;
-  // Remove the duplicates ...
-  for (i = 1; i < array_size; i++) {
-    if (a[i] != a[j]) {
-      j++;
-      a[j] = a[i]; // Move it to the front
-    }
-  }
-  // The new array size..
-  array_size = (j + 1);
-  return array_size;
 }
 
 /*******************************************************************************
