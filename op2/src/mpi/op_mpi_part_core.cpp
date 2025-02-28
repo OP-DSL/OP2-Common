@@ -386,7 +386,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   for (int i = 0; i < map->from->size; i++) {
     int part, local_index;
     for (int j = 0; j < map->dim; j++) {
-      part = get_partition(map->map[i * map->dim + j],
+      part = get_partition(map->map_gbl[i * map->dim + j],
                            part_range[map->to->index], &local_index, comm_size);
       if (count >= cap) {
         cap = cap * 2;
@@ -3520,7 +3520,7 @@ std::tuple<halo_list, MPI_Request *> create_imp_list(op_map primary_map,
  * Construct adjacency list of the to-set of the primary_map given
  * import and export lists
  *******************************************************************************/
-std::tuple<int **, int *, int *>
+std::tuple<idx_g_t **, int *, int *>
 construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
                    MPI_Request *request_send, int my_rank, int comm_size,
                    idx_g_t **part_range) {
@@ -3529,11 +3529,11 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   //
 
   // prepare bits of the mapping tables to be exported
-  int **sbuf = (int **)xmalloc(exp_list->ranks_size * sizeof(int *));
+  idx_g_t **sbuf = (idx_g_t **)xmalloc(exp_list->ranks_size * sizeof(idx_g_t *));
 
   for (int i = 0; i < exp_list->ranks_size; i++) {
     sbuf[i] =
-        (int *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(int));
+        (idx_g_t *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(idx_g_t));
     for (int j = 0; j < exp_list->sizes[i]; j++) {
       for (int p = 0; p < primary_map->dim; p++) {
         sbuf[i][j * primary_map->dim + p] =
@@ -3542,18 +3542,18 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
                              p];
       }
     }
-    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], MPI_INT,
+    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], get_mpi_type<idx_g_t>(),
               exp_list->ranks[i], primary_map->index, OP_PART_WORLD,
               &request_send[i]);
   }
 
   // prepare space for the incomming mapping tables
-  int *foreign_maps =
-      (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
+  idx_g_t *foreign_maps =
+      (idx_g_t *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(idx_g_t));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
     MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
-             primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
+             primary_map->dim * imp_list->sizes[i], get_mpi_type<idx_g_t>(), imp_list->ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
 
@@ -3562,7 +3562,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
     op_free(sbuf[i]);
   op_free(sbuf);
 
-  int **adj = (int **)xmalloc(primary_map->to->size * sizeof(int *));
+  idx_g_t **adj = (idx_g_t **)xmalloc(primary_map->to->size * sizeof(idx_g_t *));
   int *adj_i = (int *)xmalloc(primary_map->to->size * sizeof(int));
   int *adj_cap = (int *)xmalloc(primary_map->to->size * sizeof(int));
 
@@ -3571,7 +3571,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   for (int i = 0; i < primary_map->to->size; i++)
     adj_cap[i] = primary_map->dim;
   for (int i = 0; i < primary_map->to->size; i++)
-    adj[i] = (int *)xmalloc(adj_cap[i] * sizeof(int));
+    adj[i] = (idx_g_t *)xmalloc(adj_cap[i] * sizeof(idx_g_t));
 
   // go through each from-element of local primary_map and construct adjacency
   // list
@@ -3586,16 +3586,25 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
       if (part == my_rank) {
         for (int k = 0; k < primary_map->dim; k++) {
           if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
+            adj_cap[local_index] = adj_cap[local_index] + primary_map->dim;
+            adj[local_index] = (idx_g_t *)xrealloc(
+                adj[local_index], adj_cap[local_index] * sizeof(idx_g_t));
           }
-          adj[local_index][adj_i[local_index]++] =
+          //Check for duplicates
+          int duplicate = 0;
+          for (int l = 0; l < adj_i[local_index]; l++) {
+            if (adj[local_index][l] == primary_map->map_gbl[i * primary_map->dim + k]) {
+              duplicate = 1;
+              break;
+            }
+          }
+          if (!duplicate) {
+            adj[local_index][adj_i[local_index]++] =
               primary_map->map_gbl[i * primary_map->dim + k];
+          }
         }
       }
     }
-  }
   // go through each from-element of foreign primary_map and add to adjacency
   // list
   for (int i = 0; i < imp_list->size; i++) {
@@ -3609,12 +3618,22 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
       if (part == my_rank) {
         for (int k = 0; k < primary_map->dim; k++) {
           if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
+            adj_cap[local_index] = adj_cap[local_index] + primary_map->dim;
+            adj[local_index] = (idx_g_t *)xrealloc(
+                adj[local_index], adj_cap[local_index] * sizeof(idx_g_t));
           }
-          adj[local_index][adj_i[local_index]++] =
+          //Check for duplicates
+          int duplicate = 0;
+          for (int l = 0; l < adj_i[local_index]; l++) {
+            if (adj[local_index][l] == foreign_maps[i * primary_map->dim + k]) {
+              duplicate = 1;
+              break;
+            }
+          }
+          if (!duplicate) {
+            adj[local_index][adj_i[local_index]++] =
               foreign_maps[i * primary_map->dim + k];
+          }
         }
       }
     }
@@ -3629,7 +3648,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
  *******************************************************************************/
 template <class T>
 std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
-setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
+setup_part_data(op_map primary_map, int my_rank, int comm_size, idx_g_t **adj,
                 int *adj_i, int *adj_cap, idx_g_t **part_range) {
   T comm_size_pm = comm_size;
 
@@ -3660,7 +3679,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, int **adj,
       MPI_Abort(OP_PART_WORLD, 2);
     }
 
-    adj[i] = (int *)xrealloc(adj[i], adj_i[i] * sizeof(int));
+    adj[i] = (idx_g_t *)xrealloc(adj[i], adj_i[i] * sizeof(idx_g_t));
     for (int j = 0; j < adj_i[i]; j++) {
       if (adj[i][j] != g_index) {
         if (count >= cap) {
@@ -3806,11 +3825,12 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
   halo_list exp_list =
       create_exp_list(primary_map, part_range, my_rank, comm_size);
   halo_list imp_list;
- MPI_Request *request_send;
+  MPI_Request *request_send;
   std::tie(imp_list, request_send) =
       create_imp_list(primary_map, my_rank, comm_size, exp_list);
-
-  int **adj, *adj_i, *adj_cap;
+  
+  idx_g_t **adj;
+  int *adj_i, *adj_cap;
   std::tie(adj, adj_i, adj_cap) =
       construct_adj_list(primary_map, exp_list, imp_list, request_send, my_rank,
                          comm_size, part_range);

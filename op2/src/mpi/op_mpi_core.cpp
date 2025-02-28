@@ -947,7 +947,7 @@ void op_halo_create() {
 
         // for each entry in this mapping table: original+execlist
         int len = map->from->size + exec_map_list->size;
-        OP_map_list[map->index]->map = (int *)xmalloc(len * map->dim * sizeof(int));
+        map->map = (int *)xmalloc(len * map->dim * sizeof(int));
         for (int e = 0; e < len; e++) {
           for (int j = 0; j < map->dim; j++) { // for each element
                                                // pointed at by this entry
@@ -997,6 +997,8 @@ void op_halo_create() {
             }
           }
         }
+        free(map->map_gbl);
+        map->map_gbl = NULL;
       }
     }
   }
