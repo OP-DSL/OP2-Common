@@ -148,7 +148,7 @@ herr_t get_dataset_properties(hid_t dset_id,
     size_t name_len = H5Iget_name(dset_id, NULL, 0);
     std::vector<char> name(name_len);
     H5Iget_name(dset_id, name.data(), name_len + 1);
-    op_printf("Error: Do not recognise type of dataset '%s'\n", name);
+    op_printf("Error: Do not recognise type of dataset '%s'\n", &name[0]);
     exit(2);
   }
   dset_props->elem_bytes *= dset_props->dim;
