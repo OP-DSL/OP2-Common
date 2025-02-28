@@ -318,7 +318,7 @@ remains consistent. */
   alpha = 1.0f;
   op_decl_const(1, "double", &alpha);
 
-  op_diagnostic_output();
+  // op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
   op_partition("PARMETIS", "KWAY", edges, ppedge, NULL);
