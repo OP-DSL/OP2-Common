@@ -165,17 +165,17 @@ void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
 * Quick sort arr and organise dat[] elements according to the sorted arr order
 *******************************************************************************/
 
-void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size2) {
+void op_sort_dat(idx_g_t *__restrict arr, char *__restrict dat, int n, int elem_size2) {
   size_t elem_size = elem_size2;
-  int *indicies = (int *) xmalloc(n * sizeof(int));
+  idx_g_t *indicies = (idx_g_t *) xmalloc(n * sizeof(idx_g_t));
 
-  for (int i = 0; i < n; ++i)
+  for (idx_g_t i = 0; i < n; ++i)
     indicies[i] = i;
 
   std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
  
   char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
-  for (int i = 0; i < n; ++i)
+  for (idx_g_t i = 0; i < n; ++i)
     std::copy(dat + indicies[i] * elem_size, dat + (indicies[i] + 1) * elem_size, tmp_dat + i * elem_size);
 
   std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
@@ -190,8 +190,8 @@ void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size
 * Quick sort arr and organise map[] elements according to the sorted arr order
 *******************************************************************************/
 
-void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim) {
-  op_sort_dat(arr, (char *) map, n, dim * sizeof(int));
+void op_sort_map(idx_g_t *__restrict arr, idx_g_t *__restrict map, int n, int dim) {
+  op_sort_dat(arr, (char *) map, n, dim * sizeof(idx_g_t));
 }
 
 /*******************************************************************************
