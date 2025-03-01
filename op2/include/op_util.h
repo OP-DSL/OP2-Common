@@ -157,9 +157,9 @@ int linear_search(int a[], int value, int low, int high);
 
 void op_sort_2(int *__restrict arr1, int *__restrict arr2, int n);
 
-void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size);
+void op_sort_dat(idx_g_t *__restrict arr, char *__restrict dat, int n, int elem_size);
 
-void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim);
+void op_sort_map(idx_g_t *__restrict arr, idx_g_t *__restrict map, int n, int dim);
 
 int file_exist(char const *filename);
 

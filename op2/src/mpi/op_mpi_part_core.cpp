@@ -488,7 +488,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
     int part, local_index;
     int *found_parts = (int*)xmalloc(sizeof(int)*map->dim);
     for (int j = 0; j < map->dim; j++) {
-      part = get_partition(map->map[i * map->dim + j],
+      part = get_partition(map->map_gbl[i * map->dim + j],
                            part_range[map->to->index], &local_index, comm_size);
 
       if (part == my_rank)
@@ -563,7 +563,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     int local_index;
 
     for (int j = 0; j < map->dim; j++) {
-      part = get_partition(map->map[i * map->dim + j],
+      part = get_partition(map->map_gbl[i * map->dim + j],
                            part_range[map->to->index], &local_index, comm_size);
 
       if (part != my_rank) {
@@ -653,7 +653,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   int part;
   for (int i = 0; i < map->from->size; i++) {
     for (int j = 0; j < map->dim; j++) {
-      part = get_partition(map->map[i * map->dim + j],
+      part = get_partition(map->map_gbl[i * map->dim + j],
                            part_range[map->to->index], &local_index, comm_size);
       if (part == my_rank) {
         if (count >= cap) {
@@ -937,12 +937,12 @@ static void renumber_maps(int my_rank, int comm_size) {
     for (int i = 0; i < map->from->size; i++) {
       for (int j = 0; j < map->dim; j++) {
         idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
-                                      map->map[i * map->dim + j], 0, map->to->size - 1);
+                                      map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
         
         if (local_index < 0) // not in this partition
         {
           // store the global index of the element
-          req_list.push_back(map->map[i * map->dim + j]);
+          req_list.push_back(map->map_gbl[i * map->dim + j]);
         }
       }
     }
@@ -1036,17 +1036,17 @@ static void renumber_maps(int my_rank, int comm_size) {
       for (int j = 0; j < map->dim; j++) {
         local_index =
             binary_search(OP_part_list[map->to->index]->g_index,
-                          map->map[i * map->dim + j], 0, map->to->size - 1);
+                          map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
 
         if (local_index < 0) // not in this partition
         {
           // need to search through g_index array
-          int found = binary_search(g_index.data(), map->map[i * map->dim + j], 0,
+          int found = binary_search(g_index.data(), map->map_gbl[i * map->dim + j], 0,
                                     g_count - 1);
           if (found < 0)
             printf("Problem in renumbering\n");
           else {
-            OP_map_list[map->index]->map[i * map->dim + j] =
+            OP_map_list[map->index]->map_gbl[i * map->dim + j] =
                 all_imp_index[found];
           }
         } else // in this partition
@@ -1279,25 +1279,25 @@ static void migrate_all(int my_rank, int comm_size) {
                                                // mappings FROM this set
 
         // prepare bits of the mapping tables to be exported
-        int **sbuf = (int **)xmalloc(exp->ranks_size * sizeof(int *));
+        idx_g_t **sbuf = (idx_g_t **)xmalloc(exp->ranks_size * sizeof(idx_g_t *));
 
         // send mapping table entirs to relevant mpi processes
         for (int i = 0; i < exp->ranks_size; i++) {
-          sbuf[i] = (int *)xmalloc(exp->sizes[i] * map->dim * sizeof(int));
+          sbuf[i] = (idx_g_t *)xmalloc(exp->sizes[i] * map->dim * sizeof(idx_g_t));
           for (int j = 0; j < exp->sizes[i]; j++) {
             for (int p = 0; p < map->dim; p++) {
               sbuf[i][j * map->dim + p] =
-                  map->map[map->dim * (exp->list[exp->disps[i] + j]) + p];
+                  map->map_gbl[map->dim * (exp->list[exp->disps[i] + j]) + p];
             }
           }
           // printf("\n export from %d to %d map %10s, number of elements of
           // size %d | sending:\n ",
           //    my_rank,exp->ranks[i],map->name,exp->sizes[i]);
-          MPI_Isend(sbuf[i], map->dim * exp->sizes[i], MPI_INT, exp->ranks[i],
+          MPI_Isend(sbuf[i], map->dim * exp->sizes[i], get_mpi_type<idx_g_t>(), exp->ranks[i],
                     m, OP_PART_WORLD, &request_send[i]);
         }
 
-        int *rbuf = (int *)xmalloc(map->dim * sizeof(int) * imp->size);
+        idx_g_t *rbuf = (idx_g_t *)xmalloc(map->dim * sizeof(idx_g_t) * imp->size);
 
         // receive mapping table entirs from relevant mpi processes
         for (int i = 0; i < imp->ranks_size; i++) {
@@ -1305,7 +1305,7 @@ static void migrate_all(int my_rank, int comm_size) {
           // %d | recieving: ",
           //    my_rank, map->name, imp->size);
           MPI_Recv(&rbuf[(size_t)imp->disps[i] * map->dim], map->dim * imp->sizes[i],
-                   MPI_INT, imp->ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
+                   get_mpi_type<idx_g_t>(), imp->ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
         }
 
         MPI_Waitall(exp->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -1315,31 +1315,31 @@ static void migrate_all(int my_rank, int comm_size) {
 
         // delete the mapping table entirs that has been sent and create a
         // modified mapping table
-        int *new_map =
-            (int *)xmalloc(sizeof(int) * (set->size + imp->size) * map->dim);
+        idx_g_t *new_map =
+            (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp->size) * map->dim);
 
         count = 0;
         for (int i = 0; i < map->from->size; i++) { // iterate over old size
                                                     // of the maping table
           if (OP_part_list[map->from->index]->elem_part[i] == my_rank) {
             memcpy(&new_map[count * map->dim],
-                   (void *)&OP_map_list[map->index]->map[map->dim * i],
-                   map->dim * sizeof(int));
+                   (void *)&OP_map_list[map->index]->map_gbl[map->dim * i],
+                   map->dim * sizeof(idx_g_t));
             count++;
           }
         }
 
-        if (map->dim * sizeof(int) * imp->size > 0) {
+        if (map->dim * sizeof(idx_g_t) * imp->size > 0) {
           memcpy(&new_map[count * map->dim], (void *)rbuf,
-                 map->dim * sizeof(int) * imp->size);
+                 map->dim * sizeof(idx_g_t) * imp->size);
         }
 
         count = count + imp->size;
-        new_map = (int *)xrealloc(new_map, sizeof(int) * count * map->dim);
+        new_map = (idx_g_t *)xrealloc(new_map, sizeof(idx_g_t) * count * map->dim);
 
         op_free(rbuf);
-        op_free(OP_map_list[map->index]->map);
-        OP_map_list[map->index]->map = new_map;
+        op_free(OP_map_list[map->index]->map_gbl);
+        OP_map_list[map->index]->map_gbl = new_map;
       }
     }
 
@@ -1361,25 +1361,25 @@ static void migrate_all(int my_rank, int comm_size) {
         (MPI_Request *)xmalloc(exp->ranks_size * sizeof(MPI_Request));
 
     // prepare bits of the original g_index array to be exported
-    int **sbuf = (int **)xmalloc(exp->ranks_size * sizeof(int *));
+    idx_g_t **sbuf = (idx_g_t **)xmalloc(exp->ranks_size * sizeof(idx_g_t *));
 
     // send original g_index values to relevant mpi processes
     for (int i = 0; i < exp->ranks_size; i++) {
-      sbuf[i] = (int *)xmalloc(exp->sizes[i] * sizeof(int));
+      sbuf[i] = (idx_g_t *)xmalloc(exp->sizes[i] * sizeof(idx_g_t));
       for (int j = 0; j < exp->sizes[i]; j++) {
         sbuf[i][j] =
             OP_part_list[set->index]->g_index[exp->list[exp->disps[i] + j]];
       }
-      MPI_Isend(sbuf[i], exp->sizes[i], MPI_INT, exp->ranks[i], s,
+      MPI_Isend(sbuf[i], exp->sizes[i], get_mpi_type<idx_g_t>(), exp->ranks[i], s,
                 OP_PART_WORLD, &request_send[i]);
     }
 
-    int *rbuf = (int *)xmalloc(sizeof(int) * imp->size);
+    idx_g_t *rbuf = (idx_g_t *)xmalloc(sizeof(idx_g_t) * imp->size);
 
     // receive original g_index values from relevant mpi processes
     for (int i = 0; i < imp->ranks_size; i++) {
 
-      MPI_Recv(&rbuf[imp->disps[i]], imp->sizes[i], MPI_INT, imp->ranks[i], s,
+      MPI_Recv(&rbuf[imp->disps[i]], imp->sizes[i], get_mpi_type<idx_g_t>(), imp->ranks[i], s,
                OP_PART_WORLD, MPI_STATUS_IGNORE);
     }
     MPI_Waitall(exp->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -1451,9 +1451,9 @@ static void migrate_all(int my_rank, int comm_size) {
 
       if (compare_sets(dat->set, set) == 1) {
         if (set->size > 0) {
-          int *temp = (int *)xmalloc(sizeof(int) * set->size);
+          idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
           memcpy(temp, (void *)OP_part_list[set->index]->g_index,
-                 sizeof(int) * set->size);
+                 sizeof(idx_g_t) * set->size);
           op_sort_dat(temp, dat->data, set->size, dat->size);
           op_free(temp);
         }
@@ -1466,10 +1466,10 @@ static void migrate_all(int my_rank, int comm_size) {
 
       if (compare_sets(map->from, set) == 1) {
         if (set->size > 0) {
-          int *temp = (int *)xmalloc(sizeof(int) * set->size);
+          idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
           memcpy(temp, (void *)OP_part_list[set->index]->g_index,
-                 sizeof(int) * set->size);
-          op_sort_map(temp, OP_map_list[map->index]->map, set->size, map->dim);
+                 sizeof(idx_g_t) * set->size);
+          op_sort_map(temp, OP_map_list[map->index]->map_gbl, set->size, map->dim);
           op_free(temp);
         }
       }
@@ -3547,7 +3547,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
               &request_send[i]);
   }
 
-  // prepare space for the incomming mapping tables
+  // prepare space for the incoming mapping tables
   idx_g_t *foreign_maps =
       (idx_g_t *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(idx_g_t));
 
@@ -3605,6 +3605,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
         }
       }
     }
+  }
   // go through each from-element of foreign primary_map and add to adjacency
   // list
   for (int i = 0; i < imp_list->size; i++) {

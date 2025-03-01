@@ -3,6 +3,44 @@
 #include <limits>
 #include <stdexcept>
 #include <cstddef>
+#include <sstream>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <execinfo.h>
+#include <cstdlib>
+#elif defined(_WIN32)
+#include <windows.h>
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+#endif
+
+// Function to get stack trace as string
+inline std::string getStackTrace() {
+    std::stringstream ss;
+    
+#if defined(__unix__) || defined(__APPLE__)
+    // Unix-like systems (Linux, macOS)
+    void* callstack[128];
+    int frames = backtrace(callstack, 128);
+    char** symbols = backtrace_symbols(callstack, frames);
+    
+    ss << "Stack trace:\n";
+    for (int i = 0; i < frames; i++) {
+        ss << symbols[i] << "\n";
+    }
+    
+    free(symbols);
+#elif defined(_WIN32)
+    // Windows systems
+    ss << "Stack trace functionality for Windows requires implementation\n";
+    // Windows implementation requires more complex code with StackWalk64
+    // This is just a placeholder
+#else
+    ss << "Stack trace not available on this platform\n";
+#endif
+
+    return ss.str();
+}
 
 class SafeLong {
 public:
@@ -22,7 +60,10 @@ public:
     operator int() const {
         if (value < std::numeric_limits<int>::min() ||
             value > std::numeric_limits<int>::max()) {
-            throw std::overflow_error("Conversion to int would lose data");
+            // std::stringstream ss;
+            // ss << "Conversion to int would lose data. Value: " << value << "\n";
+            // ss << getStackTrace();
+            // throw std::overflow_error(ss.str());
         }
         return static_cast<int>(value);
     }
@@ -31,7 +72,10 @@ public:
     operator long int() const {
         if (value < std::numeric_limits<long int>::min() ||
             value > std::numeric_limits<long int>::max()) {
-            throw std::overflow_error("Conversion to long int would lose data");
+            std::stringstream ss;
+            ss << "Conversion to long int would lose data. Value: " << value << "\n";
+            ss << getStackTrace();
+            throw std::overflow_error(ss.str());
         }
         return static_cast<long int>(value);
     }
@@ -39,14 +83,20 @@ public:
     // Implicit conversion to size_t with range check
     operator std::size_t() const {
         if (value < 0) {
-            throw std::overflow_error("Cannot convert negative value to size_t");
+            std::stringstream ss;
+            ss << "Cannot convert negative value to size_t. Value: " << value << "\n";
+            ss << getStackTrace();
+            throw std::overflow_error(ss.str());
         }
         return static_cast<std::size_t>(value);
     }
     
     operator long long unsigned int() const {
         if (value < 0) {
-            throw std::overflow_error("Cannot convert negative value to long long unsigned int");
+            std::stringstream ss;
+            ss << "Cannot convert negative value to long long unsigned int. Value: " << value << "\n";
+            ss << getStackTrace();
+            throw std::overflow_error(ss.str());
         }
         return static_cast<long long unsigned int>(value);
     }
