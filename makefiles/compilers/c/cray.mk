@@ -1,16 +1,16 @@
 # Compiler executables and flags
 CONFIG_CC := cc
-CONFIG_CXX := CC
+CONFIG_CXX := CC 
 
 CONFIG_MPICC := cc
 CONFIG_MPICXX := CC
 
-BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic
+BASE_CXXFLAGS := -MMD -MP -std=c++17 #-Wall -Wextra -pedantic
 
 ifndef DEBUG
   BASE_CXXFLAGS += -g -O3
 else
-  BASE_CXXFLAGS += -g -Og
+  BASE_CXXFLAGS += -g -Og -fsanitize=address -fsanitize=undefined
 endif
 
 CONFIG_CFLAGS ?= -std=c99 $(BASE_CXXFLAGS) $(EXTRA_CFLAGS)

@@ -2564,7 +2564,6 @@ op_dat op_mpi_get_data(op_dat dat) {
                      OP_MPI_WORLD);
   request_send = (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
 
-  int *rbuf;
   cap = 0;
   count = 0;
 
@@ -2579,7 +2578,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   temp_list = (int *)xmalloc(cap * sizeof(int));
 
   for (int i = 0; i < ranks_size; i++) {
-    rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
+    int *rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
     MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], 1, OP_MPI_WORLD,
              MPI_STATUS_IGNORE);
     memcpy(&temp_list[count], (void *)&rbuf[0], sizes[i] * sizeof(int));
@@ -2652,24 +2651,24 @@ op_dat op_mpi_get_data(op_dat dat) {
   // MPI process
   //
   // prepare bits of the original g_index array to be exported
-  int **sbuf = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
+  idx_g_t **sbuf = (idx_g_t **)xmalloc(pe_list->ranks_size * sizeof(idx_g_t *));
 
   // send original g_index values to relevant mpi processes
   for (int i = 0; i < pe_list->ranks_size; i++) {
-    sbuf[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
+    sbuf[i] = (idx_g_t *)xmalloc(pe_list->sizes[i] * sizeof(idx_g_t));
     for (int j = 0; j < pe_list->sizes[i]; j++) {
       sbuf[i][j] = OP_part_list[dat->set->index]
                        ->g_index[pe_list->list[pe_list->disps[i] + j]];
     }
-    MPI_Isend(sbuf[i], pe_list->sizes[i], MPI_INT, pe_list->ranks[i],
+    MPI_Isend(sbuf[i], pe_list->sizes[i], get_mpi_type<idx_g_t>(), pe_list->ranks[i],
               dat->index, OP_MPI_WORLD, &request_send[i]);
   }
 
-  rbuf = (int *)xmalloc(sizeof(int) * pi_list->size);
+  idx_g_t *rbuf = (idx_g_t *)xmalloc(sizeof(idx_g_t) * pi_list->size);
 
   // receive original g_index values from relevant mpi processes
   for (int i = 0; i < pi_list->ranks_size; i++) {
-    MPI_Recv(&rbuf[pi_list->disps[i]], pi_list->sizes[i], MPI_INT,
+    MPI_Recv(&rbuf[pi_list->disps[i]], pi_list->sizes[i], get_mpi_type<idx_g_t>(),
              pi_list->ranks[i], dat->index, OP_MPI_WORLD, MPI_STATUS_IGNORE);
   }
   MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -2679,8 +2678,8 @@ op_dat op_mpi_get_data(op_dat dat) {
 
   // delete the g_index entirs that has been sent and create a
   // modified g_index
-  int *new_g_index =
-      (int *)xmalloc(sizeof(int) * (dat->set->size + pi_list->size));
+  idx_g_t *new_g_index =
+      (idx_g_t *)xmalloc(sizeof(idx_g_t) * (dat->set->size + pi_list->size));
 
   count = 0;
   for (int i = 0; i < dat->set->size; i++) { // iterate over old
@@ -2691,11 +2690,11 @@ op_dat op_mpi_get_data(op_dat dat) {
     }
   }
 
-  if (sizeof(int) * pi_list->size > 0)
-    memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * pi_list->size);
+  if (sizeof(idx_g_t) * pi_list->size > 0)
+    memcpy(&new_g_index[count], (void *)rbuf, sizeof(idx_g_t) * pi_list->size);
 
   count = count + pi_list->size;
-  new_g_index = (int *)xrealloc(new_g_index, sizeof(int) * count);
+  new_g_index = (idx_g_t *)xrealloc(new_g_index, sizeof(idx_g_t) * count);
   op_free(rbuf);
 
   //
