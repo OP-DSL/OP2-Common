@@ -60,10 +60,10 @@ public:
     operator int() const {
         if (value < std::numeric_limits<int>::min() ||
             value > std::numeric_limits<int>::max()) {
-            // std::stringstream ss;
-            // ss << "Conversion to int would lose data. Value: " << value << "\n";
-            // ss << getStackTrace();
-            // throw std::overflow_error(ss.str());
+            std::stringstream ss;
+            ss << "Conversion to int would lose data. Value: " << value << "\n";
+            ss << getStackTrace();
+            throw std::overflow_error(ss.str());
         }
         return static_cast<int>(value);
     }
