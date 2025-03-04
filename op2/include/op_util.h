@@ -77,7 +77,7 @@ struct ZipRef {
   ZipRef& operator=(const std::tuple<Ts...>& rhs) { val_assign(rhs); return *this; };
 
   operator std::tuple<Ts...>() const { return std::apply([](auto&&... p) { return std::tuple((*p)...); }, pointers); }
-  int val() const { return *std::get<0>(pointers); };
+  auto val() const { return *std::get<0>(pointers); };
 
   #define OPERATOR(OP) \
     bool operator OP(const ZipRef& rhs) const { return val() OP rhs.val(); } \
