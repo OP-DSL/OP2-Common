@@ -1053,7 +1053,7 @@ static void renumber_maps(int my_rank, int comm_size) {
         {
           global_index = get_global_index(
               local_index, my_rank, part_range[map->to->index], comm_size);
-          OP_map_list[map->index]->map[i * map->dim + j] = global_index;
+          OP_map_list[map->index]->map_gbl[i * map->dim + j] = global_index;
         }
       }
     }
