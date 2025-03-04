@@ -152,13 +152,28 @@ void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
 
 int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
                   int comm_size) {
-  for (int i = 0; i < comm_size; i++) {
-    if (global_index >= part_range[2 * i] &&
-        global_index <= part_range[2 * i + 1]) {
-      *local_index = global_index - part_range[2 * i];
-      return i;
+  int low = 0;
+  int high = comm_size - 1;
+  
+  while (low <= high) {
+    int mid = low + (high - low) / 2;
+    
+    // Check if global_index is within the range of this partition
+    if (global_index >= part_range[2 * mid] && global_index <= part_range[2 * mid + 1]) {
+      *local_index = global_index - part_range[2 * mid];
+      return mid;
+    }
+    
+    // If global_index is smaller than the start of this partition's range
+    if (global_index < part_range[2 * mid]) {
+      high = mid - 1;
+    } 
+    // If global_index is larger than the end of this partition's range
+    else {
+      low = mid + 1;
     }
   }
+  
   printf("Error: orphan global index\n");
   MPI_Abort(OP_MPI_WORLD, 2);
   return -1;
