@@ -431,6 +431,48 @@ unsigned long op_get_g_index(op_set set) {
   return (unsigned long) (OP_part_list[set->index]->g_index);
 }
 
+void op_mpi_probe_halo_index(op_set set, int in, int *rank, int *out) {
+    if (in < set->size) {
+        printf("op_mpi_probe_halo_index: expected halo index, got: %d (set->size: %d)\n",
+                in, set->size);
+        exit(1);
+    }
+
+    if (in >= set->size + set->exec_size + set->nonexec_size) {
+        printf("op_mpi_probe_halo_index: index out of bounds, got: %d (total size: %d)\n",
+                in, set->size + set->exec_size + set->nonexec_size);
+        exit(1);
+    }
+
+    halo_list hl;
+    int offset;
+
+    char *lt;
+
+    if (in < set->size + set->exec_size) {
+        hl = OP_import_exec_list[set->index];
+        offset = set->size;
+
+        lt = "exec";
+    } else {
+        hl = OP_import_nonexec_list[set->index];
+        offset = set->size + set->exec_size;
+
+        lt = "nonexec";
+    }
+
+    int halo_in = in - offset;
+
+    int idx = 0;
+    for (; idx < hl->ranks_size; idx++) {
+        if (halo_in < hl->disps[idx] + hl->sizes[idx])
+            break;
+    }
+
+    *rank = hl->ranks[idx];
+    *out = hl->list[halo_in];
+}
+
 #else
 
 int op_mpi_size () {
@@ -471,6 +513,10 @@ void op_mpi_free_data(op_dat dat) {
 
 unsigned long op_get_g_index(op_set set) {
   return (unsigned long) NULL;
+}
+
+void op_mpi_probe_halo_index(op_set set, int in, int *rank, int *out) {
+  return;
 }
 
 #endif

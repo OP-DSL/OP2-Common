@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <tuple>
+#include <vector>
 
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -86,6 +87,70 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 
 template <class T>
 void op_partition_kway_generic(op_map primary_map, bool use_kahip);
+
+
+
+template<typename T>
+struct Msg {
+  int to;
+  T msg;
+
+  Msg(int to, T msg) : to{to}, msg{msg} {}
+};
+
+struct Adjacency {
+  int idx1;
+  int idx2;
+};
+
+struct Fpart {
+  int idx;
+  int target_part;
+};
+
+template<typename T>
+static std::vector<T> exchange(const std::vector<Msg<T>> &msgs, int my_rank, int comm_size) {
+  auto num_recv_l = std::vector<int>(comm_size, 0);
+  auto num_recv_g = std::vector<int>(comm_size, 0);
+
+  std::vector<T> recv_msgs;
+
+  int num_send = 0;
+  for (auto& msg : msgs) {
+    if (msg.to != my_rank) {
+      ++num_recv_l[msg.to];
+      ++num_send;
+    } else {
+      recv_msgs.push_back(msg.msg);
+    }
+  }
+
+  MPI_Allreduce(num_recv_l.data(), num_recv_g.data(), comm_size, MPI_INT, MPI_SUM, OP_MPI_WORLD);
+
+  std::vector<MPI_Request> send_reqs;
+  send_reqs.reserve(num_send);
+
+  for (auto& msg : msgs) {
+    if (msg.to == my_rank) continue;
+
+    MPI_Request send_req;
+    MPI_Isend(&msg.msg, sizeof(T), MPI_CHAR, msg.to, 0, OP_MPI_WORLD, &send_req);
+
+    send_reqs.push_back(send_req);
+  }
+
+  int recv_count = 0;
+  while (recv_count < num_recv_g[my_rank]) {
+    T msg;
+    MPI_Recv(&msg, sizeof(T), MPI_CHAR, MPI_ANY_SOURCE, 0, OP_MPI_WORLD, MPI_STATUS_IGNORE);
+    recv_msgs.push_back(msg);
+    ++recv_count;
+  }
+
+  MPI_Waitall(num_send, send_reqs.data(), MPI_STATUSES_IGNORE);
+  return recv_msgs;
+}
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -231,6 +296,65 @@ static void create_imp_list_2(op_set set, int *temp_list, halo_list h_list,
   h_list->disps = disps;
   h_list->sizes = sizes;
   h_list->list = temp_list;
+}
+
+/*******************************************************************************
+ * Routine to force adjacent elements to the same partition
+ *******************************************************************************/
+static void partition_force(op_set primary_set, op_map map, int my_rank,
+                            int comm_size, int **part_range) {
+  if (map->to->index != primary_set->index) {
+    printf("Error in partition_force: map target set (%d) does not match primary set (%d)\n",
+        map->to->index, primary_set->index);
+    exit(-1);
+  }
+
+  part primary_set_part = OP_part_list[primary_set->index];
+
+  std::vector<Msg<Adjacency>> exp_adjacencies;
+  for (int i = 0; i < map->from->size; ++i) {
+    int local_index;
+    int target_part = get_partition(map->map[i * map->dim], part_range[primary_set->index],
+                                    &local_index, comm_size);
+
+    for (int j = 1; j < map->dim; j++) {
+      auto adjacency = Adjacency{map->map[i * map->dim], map->map[i * map->dim + j]};
+      exp_adjacencies.push_back(Msg{target_part, adjacency});
+    }
+  }
+
+  auto adjacencies = exchange(exp_adjacencies, my_rank, comm_size);
+
+  int global_num_changed;
+  do {
+    std::vector<Msg<Fpart>> exp_fparts;
+    for (auto& adjacency : adjacencies) {
+      int local_idx2;
+      int target_part = get_partition(adjacency.idx2, part_range[primary_set->index],
+                                      &local_idx2, comm_size);
+
+      int local_idx1;
+      get_partition(adjacency.idx1, part_range[primary_set->index], &local_idx1, comm_size);
+      auto fpart = Fpart{adjacency.idx2, primary_set_part->elem_part[local_idx1]};
+
+      exp_fparts.push_back(Msg{target_part, fpart});
+    }
+
+    auto fparts = exchange(exp_fparts, my_rank, comm_size);
+
+    int num_changed = 0;
+    for (auto& fpart : fparts) {
+      int local_idx;
+      get_partition(fpart.idx, part_range[primary_set->index], &local_idx, comm_size);
+      if (primary_set_part->elem_part[local_idx] == fpart.target_part) continue;
+
+      primary_set_part->elem_part[local_idx] = fpart.target_part;
+      ++num_changed;
+    }
+
+    MPI_Allreduce(&num_changed, &global_num_changed, 1, MPI_INT, MPI_SUM, OP_MPI_WORLD);
+    op_printf("global_num_changed = %d\n", global_num_changed);
+  } while (global_num_changed > 0);
 }
 
 /*******************************************************************************
@@ -667,6 +791,18 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
   // Compute global partition range information for each set
   int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
+
+  bool force_part_done = false;
+  for (int i = 0; i < OP_map_index; i++) {
+    if (OP_map_list[i]->force_part && force_part_done) {
+      op_printf("Warning: force_part set on multiple maps\n");
+    }
+
+    if (OP_map_list[i]->force_part) {
+      partition_force(primary_set, OP_map_list[i], my_rank, comm_size, part_range);
+      force_part_done = true;
+    }
+  }
 
   int sets_partitioned = 1;
   int maps_used = 0;

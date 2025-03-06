@@ -443,6 +443,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->map_d = NULL;
   map->name = copy_str(name);
   map->user_managed = 1;
+  map->force_part = false;
 
   OP_map_list[OP_map_index] = map;
   OP_map_ptr_table.insert({imap, OP_map_index});
@@ -1527,6 +1528,17 @@ unsigned long op_copy_map_to_fort(int *map) {
     fort_map[i] = item_map->map[i] + 1;
 
   return (unsigned long)(fort_map);
+}
+
+void op_force_part(int *map) {
+  op_map item_map = op_search_map_ptr(map);
+
+  if (item_map == NULL) {
+    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    exit(-1);
+  }
+
+  item_map->force_part = true;
 }
 
 /*******************************************************************************

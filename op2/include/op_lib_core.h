@@ -141,6 +141,7 @@ typedef struct {
   int *map_d;       /* array on device */
   char const *name; /* name of pointer */
   int user_managed; /* indicates whether the user is managing memory */
+  bool force_part;  /* indicates if this map should not be cut - must pointing to prime set */
 } op_map_core;
 
 typedef op_map_core *op_map;

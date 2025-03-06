@@ -91,6 +91,7 @@ module OP2_Fortran_Declarations
 #endif
     type(c_ptr) ::            name         ! map name
     integer(kind=c_int) ::    user_managed ! indicates whether the user is managing memory
+    integer(kind=c_bool) ::   force_part   ! indicates if this map should not be cut - must pointing to prime set
 
   end type op_map_core
 
@@ -397,6 +398,18 @@ module OP2_Fortran_Declarations
       type(c_ptr), value, intent(in) :: set
 
     end function op_get_g_index_c
+
+    subroutine op_mpi_probe_halo_index_c(set, in, rank, out) bind(C, name='op_mpi_probe_halo_index')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      import :: op_set
+      type(c_ptr), value, intent(in) :: set
+
+      integer(kind=c_int), value :: in
+      integer(kind=c_int) :: rank, out
+
+    end subroutine op_mpi_probe_halo_index_c
 
     type(c_ptr) function op_decl_map_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map')
 
@@ -950,6 +963,11 @@ module OP2_Fortran_Declarations
      type(c_ptr), value, intent(in) :: map
    end function
 
+   subroutine op_force_part_c ( map ) BIND(C,name='op_force_part')
+     use, intrinsic :: ISO_C_BINDING
+     type(c_ptr), value, intent(in) :: map
+   end subroutine
+
 
    subroutine op_check_fortran_type_int_c(type) bind(C, name='op_check_fortran_type_int')
 
@@ -1421,7 +1439,12 @@ end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
   end interface op_print_dat_to_txtfile2
 
   interface op_reset_data_ptr
-    module procedure op_reset_data_ptr_r8, op_reset_data_ptr_i4
+    module procedure op_reset_data_ptr_r8,   &
+                     op_reset_data_ptr_r8_2, &
+                     op_reset_data_ptr_r8_3, &
+                     op_reset_data_ptr_i4,   &
+                     op_reset_data_ptr_i4_2, &
+                     op_reset_data_ptr_i4_3
   end interface op_reset_data_ptr
 
   interface op_get_data_ptr
@@ -2084,6 +2107,24 @@ contains
 
   end function op_get_g_index
 
+  subroutine op_mpi_probe_halo_index(set, in, rank, out)
+
+    use, intrinsic :: ISO_C_BINDING
+
+    implicit none
+
+    type(op_set), intent(in) :: set
+
+    integer(kind=c_int), value :: in
+    integer(kind=c_int) :: rank, out
+
+    call op_mpi_probe_halo_index_c(set%setCPtr, in - 1, rank, out)
+
+    rank = rank + 1
+    out = out + 1
+
+  end subroutine op_mpi_probe_halo_index
+
   type(op_arg) function op_arg_idx_struct(idx, map)
     use, intrinsic :: ISO_C_BINDING
     implicit none
@@ -2549,6 +2590,22 @@ contains
 
   end function op_reset_data_ptr_r8
 
+  INTEGER(8) function op_reset_data_ptr_r8_2(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    real(8), dimension(:,:), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_r8_2 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_r8_2
+
+  INTEGER(8) function op_reset_data_ptr_r8_3(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    real(8), dimension(:,:,:), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_r8_3 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_r8_3
+
   ! get the pointer of the data held in an op_dat (via the original pointer) - i4
   INTEGER(8) function op_reset_data_ptr_i4(data,mode)
     use, intrinsic :: ISO_C_BINDING
@@ -2557,6 +2614,22 @@ contains
     op_reset_data_ptr_i4 = op_reset_data_ptr_c(c_loc(data),mode)
 
   end function op_reset_data_ptr_i4
+
+  INTEGER(8) function op_reset_data_ptr_i4_2(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(:,:), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_i4_2 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_i4_2
+
+  INTEGER(8) function op_reset_data_ptr_i4_3(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(:,:,:), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_i4_3 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_i4_3
 
   ! get the pointer of the data held in an op_map
   INTEGER(8) function op_get_map_ptr(map)
@@ -2581,6 +2654,14 @@ contains
     op_copy_map_to_fort = op_copy_map_to_fort_c(c_loc(map))
 
   end function op_copy_map_to_fort
+
+
+  subroutine op_force_part(map)
+    use, intrinsic :: ISO_C_BINDING
+    integer(4), dimension(*), intent(in), target :: map
+    call op_force_part_c(c_loc(map))
+
+  end subroutine op_force_part
 
 end module OP2_Fortran_Declarations
 
