@@ -161,6 +161,10 @@ void op_sort_dat(idx_g_t *__restrict arr, char *__restrict dat, int n, int elem_
 
 void op_sort_map(idx_g_t *__restrict arr, idx_g_t *__restrict map, int n, int dim);
 
+void op_sort_get_permutation(idx_g_t *__restrict arr, int n);
+
+void op_reorder_data(idx_g_t *__restrict permutation, char *__restrict dat, int n, int elem_size);
+
 int file_exist(char const *filename);
 
 bool op_type_equivalence(const char *a, const char *b);

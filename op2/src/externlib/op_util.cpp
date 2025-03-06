@@ -195,6 +195,42 @@ void op_sort_map(idx_g_t *__restrict arr, idx_g_t *__restrict map, int n, int di
 }
 
 /*******************************************************************************
+* Get the permutation of the array
+*******************************************************************************/
+
+void op_sort_get_permutation(idx_g_t *__restrict arr, int n) {
+  idx_g_t *indicies = (idx_g_t *) xmalloc(n * sizeof(idx_g_t));
+
+  for (idx_g_t i = 0; i < n; ++i)
+    indicies[i] = i;
+
+  std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
+
+  std::copy(indicies, indicies + n, arr);
+
+  op_free(indicies);
+
+  return;
+}
+
+/*******************************************************************************
+* Reorder the data according to the permutation
+*******************************************************************************/
+
+void op_reorder_data(idx_g_t *__restrict permutation, char *__restrict dat, int n, int elem_size) {
+  char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
+
+  for (idx_g_t i = 0; i < n; ++i)
+    std::copy(dat + permutation[i] * elem_size, dat + (permutation[i] + 1) * elem_size, tmp_dat + i * elem_size);
+
+  std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
+
+  op_free(tmp_dat);
+
+  return;
+}
+
+/*******************************************************************************
 * Check if a file exists
 *******************************************************************************/
 int file_exist(char const *filename) {
