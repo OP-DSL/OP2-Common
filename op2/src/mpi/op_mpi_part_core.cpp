@@ -962,8 +962,9 @@ static void renumber_maps(int my_rank, int comm_size) {
     int g_count = std::accumulate(recv_count.begin(), recv_count.end(), 0);
 
     // prepare for an allgatherv
-    std::vector<int> displs(comm_size);
-    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin());
+    std::vector<int> displs(comm_size+1);
+    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin()+1);
+    displs[0] = 0;
 
     // allocate memory to hold the global indexes of elements requiring
     // partition details
@@ -983,8 +984,8 @@ static void renumber_maps(int my_rank, int comm_size) {
     // go through the recieved global g_index array and see if any local
     // element's
     // partition details are requested by some foreign process
-    std::vector<int> exp_index;
-    std::vector<int> exp_g_index;
+    std::vector<idx_g_t> exp_index;
+    std::vector<idx_g_t> exp_g_index;
 
     for (int i = 0; i < g_count; i++) {
       idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
@@ -992,20 +993,21 @@ static void renumber_maps(int my_rank, int comm_size) {
       if (local_index >= 0) {
         exp_g_index.push_back(g_index[i]);
 
-        int global_index = get_global_index(local_index, my_rank,
+        idx_g_t global_index = get_global_index(local_index, my_rank,
                                         part_range[map->to->index], comm_size);
         exp_index.push_back(global_index);
       }
     }
     
-    idx_l_t exp_count = exp_index.size();
+    int exp_count = exp_index.size();
 
     // now export to every MPI rank, these partition info with an all-to-all
-    MPI_Allgather(&exp_count, 1, get_mpi_type<idx_l_t>(), recv_count.data(), 1, get_mpi_type<idx_l_t>(),
+    MPI_Allgather(&exp_count, 1, MPI_INT, recv_count.data(), 1, MPI_INT,
                   OP_PART_WORLD);
 
     // compute displacements
-    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin());
+    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin()+1);
+    displs[0] = 0;
 
     // allocate memory to hold the incomming partition details and allgatherv
     g_count = std::accumulate(recv_count.begin(), recv_count.end(), 0);
@@ -1018,8 +1020,8 @@ static void renumber_maps(int my_rank, int comm_size) {
     MPI_Allgatherv(exp_g_index.data(), exp_count, get_mpi_type<idx_g_t>(), g_index.data(), recv_count.data(), displs.data(),
                    get_mpi_type<idx_g_t>(), OP_PART_WORLD);
 
-    MPI_Allgatherv(exp_index.data(), exp_count, get_mpi_type<idx_l_t>(), all_imp_index.data(), recv_count.data(),
-                   displs.data(), get_mpi_type<idx_l_t>(), OP_PART_WORLD);
+    MPI_Allgatherv(exp_index.data(), exp_count, get_mpi_type<idx_g_t>(), all_imp_index.data(), recv_count.data(),
+                   displs.data(), get_mpi_type<idx_g_t>(), OP_PART_WORLD);
 
     exp_index.clear();
     exp_g_index.clear();
@@ -1031,7 +1033,7 @@ static void renumber_maps(int my_rank, int comm_size) {
     // now we hopefully have all the information required to renumber this map
     // so now, again go through each entry of this mapping table and renumber
     for (int i = 0; i < map->from->size; i++) {
-      int local_index;
+      idx_l_t local_index;
       idx_g_t global_index;
       for (int j = 0; j < map->dim; j++) {
         local_index =
