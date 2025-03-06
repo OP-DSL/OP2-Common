@@ -1445,6 +1445,11 @@ static void migrate_all(int my_rank, int comm_size) {
   // values.
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
+    if (set->size == 0) continue;
+    idx_g_t *permutation = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
+    memcpy(permutation, (void *)OP_part_list[set->index]->g_index,
+           sizeof(idx_g_t) * set->size);
+    op_sort_get_permutation(permutation, set->size);
 
     // first ... data on this set
     op_dat_entry *item;
@@ -1477,7 +1482,9 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
     if (set->size > 0)
-      std::sort(OP_part_list[set->index]->g_index, OP_part_list[set->index]->g_index + set->size);
+      op_reorder_data(permutation, (char *)OP_part_list[set->index]->g_index, set->size, sizeof(idx_g_t));
+
+    op_free(permutation);
   }
 
   // cleanup
