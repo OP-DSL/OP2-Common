@@ -137,9 +137,9 @@ idx_l_t binary_search(T a[], U value, int low, int high) {
   return (int) (lb - a);
 }
 
-template idx_l_t binary_search<idx_l_t, idx_l_t>(idx_l_t a[], idx_l_t value, int low, int high);
-template idx_l_t binary_search<idx_g_t, idx_l_t>(idx_g_t a[], idx_l_t value, int low, int high);
 template idx_l_t binary_search<idx_g_t, idx_g_t>(idx_g_t a[], idx_g_t value, int low, int high);
+template idx_l_t binary_search<idx_g_t, idx_l_t>(idx_g_t a[], idx_l_t value, int low, int high);
+template idx_l_t binary_search<idx_l_t, idx_l_t>(idx_l_t a[], idx_l_t value, int low, int high);
 
 /*******************************************************************************
 * Linear search an array for a given value
