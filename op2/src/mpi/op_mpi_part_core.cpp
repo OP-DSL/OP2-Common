@@ -1473,11 +1473,7 @@ static void migrate_all(int my_rank, int comm_size) {
 
       if (compare_sets(map->from, set) == 1) {
         if (set->size > 0) {
-          idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
-          memcpy(temp, (void *)OP_part_list[set->index]->g_index,
-                 sizeof(idx_g_t) * set->size);
-          op_sort_map(temp, OP_map_list[map->index]->map_gbl, set->size, map->dim);
-          op_free(temp);
+          op_reorder_data(permutation, (char *)OP_map_list[map->index]->map_gbl, set->size, map->dim * sizeof(idx_g_t));
         }
       }
     }
