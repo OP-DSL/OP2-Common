@@ -121,6 +121,21 @@ public:
         return temp;
     }
 
+    // Prefix decrement operator (--x)
+    SafeLong& operator--() {
+        value--;
+        return *this;
+    }
+
+    // Postfix decrement operator (x--)
+    SafeLong operator--(int) {
+        SafeLong temp = *this;
+        value--;
+        return temp;
+    }
+    
+    
+
     // Compound assignment operators
     SafeLong& operator+=(const SafeLong &other) {
         value += other.value;

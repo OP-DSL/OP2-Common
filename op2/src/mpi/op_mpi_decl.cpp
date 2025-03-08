@@ -316,56 +316,6 @@ void op_exit() {
 
 void op_rank(int *rank) { MPI_Comm_rank(OP_MPI_WORLD, rank); }
 
-/*
- * Wrappers of core lib
- */
-
-op_set op_decl_set(idx_g_t size, char const *name) {
-  return op_decl_set_core(size, name);
-}
-
-op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
-                   char const *name) {
-
-  idx_g_t *imap_g = (idx_g_t *)malloc(from->size * dim * sizeof(idx_g_t));
-  for (idx_g_t i = 0; i < from->size * dim; i++) {
-    imap_g[i] = (idx_g_t)imap[i];
-  }
-
-  return op_decl_map_long(from, to, dim, imap_g, name);
-}
-
-op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
-                   char const *name) {
-  //Convert from long global indices to shorter local indices. Set size
-  //per process has to be less than INT_MAX
-
-  op_map map = op_decl_map_core(from, to, dim, NULL, name);
-  map->map_gbl = imap_g;
-  map->user_managed = 0;
-  return map;
-}
-
-op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
-                  op_access acc) {
-  return op_arg_dat_core(dat, idx, map, dim, type, acc);
-}
-
-op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
-                      char const *type, op_access acc) {
-  return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
-}
-
-op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
-                       op_access acc) {
-  return op_arg_gbl_core(1, data, dim, type, size, acc);
-}
-
-op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
-                           int size, op_access acc) {
-  return op_arg_gbl_core(opt, data, dim, type, size, acc);
-}
-
 void op_timers(double *cpu, double *et) {
   MPI_Barrier(OP_MPI_WORLD);
   op_timers_core(cpu, et);

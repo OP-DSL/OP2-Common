@@ -465,8 +465,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     }
   }
 
-  if (OP_maps_base_index == 1) {
-    #warning long int map, 1 based indexing
+  if (OP_maps_base_index == 1 && imap != NULL) {
     // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
     for (idx_g_t i = 0; i < from->size * dim; i++)
       // imap[i]--;
@@ -483,7 +482,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->map = m; // use op2's copy instead of imap;
   map->map_d = NULL;
   map->name = copy_str(name);
-  map->user_managed = 1;
+  map->user_managed = 0;
   map->force_part = false;
 
   OP_map_list[OP_map_index] = map;
@@ -693,6 +692,7 @@ void op_exit_core() {
   OP_set_list = NULL;
 
   for (int i = 0; i < OP_map_index; i++) {
+    printf("OP_map_list[%d]->user_managed: %d\n", i, OP_map_list[i]->user_managed);
     if (!OP_map_list[i]->user_managed)
       free(OP_map_list[i]->map);
 

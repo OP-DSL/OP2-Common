@@ -193,6 +193,20 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
   return op_decl_map_core(from, to, dim, imap, name);
 }
 
+op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
+                   char const *name) {
+  //Convert from long global indices to shorter local indices. Set size
+  //per process has to be less than INT_MAX
+  idx_l_t *imap= (idx_l_t*)op_malloc(from->size * dim * sizeof(idx_l_t));
+  for (idx_g_t i = 0; i < from->size * dim; i++) {
+    imap[i] = (idx_l_t)imap_g[i];
+  }
+  op_map map = op_decl_map(from, to, dim, imap, name);
+  map->user_managed = 0;
+  op_free(imap);
+  return map;
+}
+
 op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
                   op_access acc) {
   return op_arg_dat_core(dat, idx, map, dim, type, acc);

@@ -348,7 +348,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     map = (int *)xmalloc(sizeof(long) * l_size * dim);
     H5Dread(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, map);
   } else if (strcmp(typ, "long long") == 0) {
-    map = (int *)xmalloc(sizeof(long) * l_size * dim);
+    map = (int *)xmalloc(sizeof(long long) * l_size * dim);
     H5Dread(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map);
   } else {
     op_printf("unknown type\n");
@@ -364,7 +364,12 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
 
   free((char*)dset_props.type_str);
 
-  op_map new_map = op_decl_map_core(from, to, dim, map, name);
+  op_map new_map;
+  if (strcmp(typ, "int") == 0 || (strcmp(typ, "long") == 0 && sizeof(long) == sizeof(int))) {
+    new_map = op_decl_map(from, to, dim, map, name);
+  } else {
+    new_map = op_decl_map_long(from, to, dim, (idx_g_t*)map, name);
+  }
   free(map);
   new_map->user_managed = 0;
   return new_map;

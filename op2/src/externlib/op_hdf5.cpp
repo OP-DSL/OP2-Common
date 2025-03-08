@@ -223,7 +223,12 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
 
   free((char*)dset_props.type_str);
 
-  op_map new_map = op_decl_map(from, to, dim, map, name);
+  op_map new_map;
+  if (strcmp(typ, "int") == 0 || (strcmp(typ, "long") == 0 && sizeof(long) == sizeof(int))) {
+    new_map = op_decl_map(from, to, dim, map, name);
+  } else {
+    new_map = op_decl_map_long(from, to, dim, (idx_g_t*)map, name);
+  }
   new_map->user_managed = 0;
   return new_map;
 }
