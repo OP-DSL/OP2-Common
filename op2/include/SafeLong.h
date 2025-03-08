@@ -67,6 +67,10 @@ public:
         }
         return static_cast<int>(value);
     }
+    // Implicit conversion to double
+    operator double() const {
+        return static_cast<double>(value);
+    }
 
     // Implicit conversion to longint with range check
     operator long int() const {
