@@ -500,40 +500,6 @@ size_t op_mv_halo_list_device() {
   return total_size;
 }
 
-op_set op_decl_set(idx_g_t size, char const *name) {
-  return op_decl_set_core(size, name);
-}
-
-op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
-                   char const *name) {
-  // int *m = (int *)xmalloc(from->size * dim * sizeof(int));
-  //  memcpy(m, imap, from->size * dim * sizeof(int));
-  op_map out_map = op_decl_map_core(from, to, dim, imap, name);
-  out_map->user_managed = 0;
-  return out_map;
-  // return op_decl_map_core ( from, to, dim, imap, name );
-}
-
-op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
-                  op_access acc) {
-  return op_arg_dat_core(dat, idx, map, dim, type, acc);
-}
-
-op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
-                      char const *type, op_access acc) {
-  return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
-}
-
-op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
-                       op_access acc) {
-  return op_arg_gbl_core(1, data, dim, type, size, acc);
-}
-
-op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
-                           int size, op_access acc) {
-  return op_arg_gbl_core(opt, data, dim, type, size, acc);
-}
-
 void op_printf(const char *format, ...) {
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);

@@ -86,7 +86,7 @@ op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
   for (idx_g_t i = 0; i < from->size * dim; i++) {
     imap[i] = (idx_l_t)imap_g[i];
   }
-  op_map map = op_decl_map_core(from, to, dim, imap, name);
+  op_map map = op_decl_map(from, to, dim, imap, name);
   map->user_managed = 0;
   op_free(imap);
   return map;
