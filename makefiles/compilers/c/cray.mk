@@ -10,7 +10,7 @@ BASE_CXXFLAGS := -MMD -MP -std=c++17 #-Wall -Wextra -pedantic
 ifndef DEBUG
   BASE_CXXFLAGS += -g -O3
 else
-  BASE_CXXFLAGS += -g -Og -fsanitize=address -fsanitize=undefined
+  BASE_CXXFLAGS += -g -O0 -fsanitize=address -fsanitize=undefined
 endif
 
 CONFIG_CFLAGS ?= -std=c99 $(BASE_CXXFLAGS) $(EXTRA_CFLAGS)
