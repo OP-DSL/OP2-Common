@@ -154,13 +154,13 @@ void cutilDeviceInit(int argc, char **argv) {
 
 void op_upload_dat(op_dat dat) {
   if (OP_import_exec_list==NULL) return;
-  int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
+  idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
-    size_t element_size = (size_t)dat->size / dat->dim;
+    int element_size = (size_t)dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
+      for (idx_g_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * round32(set_size) + element_size * j + c] =
               dat->data[(size_t)dat->size * j + element_size * i + c];
@@ -180,15 +180,15 @@ void op_download_dat(op_dat dat) {
   //Check if partitionig is done
   if (OP_import_exec_list==NULL) return;
   //  printf("Downloading %s\n", dat->name);
-  int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
+  idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                  OP_import_nonexec_list[dat->set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
     cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, round32(set_size) * (size_t)dat->size,
                              gpuMemcpyDeviceToHost));
-    size_t element_size = (size_t)dat->size / dat->dim;
+    int element_size = (size_t)dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
+      for (idx_g_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           dat->data[(size_t)dat->size * j + element_size * i + c] =
               temp_data[element_size * i * round32(set_size) + element_size * j + c];
@@ -528,6 +528,7 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 }
 
 void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
+  (void)exec_flag; // unused
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -704,9 +705,9 @@ void op_move_to_device() {
     map_size += map->dim * round32(set_size) * sizeof(int);
   }
 
-  size_t halo_size = op_mv_halo_list_device();
 
   /*
+  size_t halo_size = op_mv_halo_list_device();
   auto as_mib = [](size_t s) { return (double)s / (1024.0 * 1024.0); };
   op_printf("Total device memory usage: %.1f MiB (dats: %.1f MiB, maps: %.1f MiB, halo lists: %.1f Mib)\n",
           as_mib(dat_size + map_size + halo_size), as_mib(dat_size), as_mib(map_size), as_mib(halo_size));
@@ -721,9 +722,11 @@ int op_is_root() {
 
 size_t op2_grp_size_recv_old = 0;
 size_t op2_grp_size_send_old = 0;
+
 void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
       char **send_buffer_device, char **recv_buffer_device, int device, 
       size_t size_send, size_t size_recv) {
+  (void)device; // unused
   if (op2_grp_size_recv_old < size_recv) {
     //if (*recv_buffer_host != NULL) cutilSafeCall(gpuFreeHost(*recv_buffer_host));
     if (*recv_buffer_device != NULL) cutilSafeCall(gpuFree(*recv_buffer_device));

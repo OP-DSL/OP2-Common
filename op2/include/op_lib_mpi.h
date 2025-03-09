@@ -48,7 +48,7 @@ extern halo_list *OP_export_nonexec_list; // ENH list
 
 extern int OP_part_index;
 extern part *OP_part_list;
-extern int **orig_part_range;
+extern idx_g_t **orig_part_range;
 
 /** variables for partial halo exchanges **/
 extern int *OP_map_partial_exchange;
