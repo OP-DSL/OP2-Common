@@ -718,6 +718,9 @@ void op_exit_core() {
 
   // free storage for timing info
 
+  for (int i = 0; i < OP_kern_max; i++) {
+    free(OP_kernels[i].times);
+  }
   free(OP_kernels);
   OP_kernels = NULL;
 
