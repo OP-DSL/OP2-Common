@@ -692,7 +692,6 @@ void op_exit_core() {
   OP_set_list = NULL;
 
   for (int i = 0; i < OP_map_index; i++) {
-    printf("OP_map_list[%d]->user_managed: %d\n", i, OP_map_list[i]->user_managed);
     if (!OP_map_list[i]->user_managed)
       free(OP_map_list[i]->map);
 
@@ -1379,6 +1378,7 @@ void *op_realloc(void *ptr, size_t size) {
 
   void *new_ptr2 = op_malloc(size);
   memcpy(new_ptr2, new_ptr, size);
+  free(new_ptr);
 
   return new_ptr2;
 }
