@@ -358,6 +358,17 @@ module OP2_Fortran_Declarations
 
     end function op_decl_map_c
 
+    type(c_ptr) function op_decl_map_long_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map_long')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in)           :: from, to
+      integer(kind=c_int), value, intent(in)   :: mapdim
+      type(c_ptr), intent(in), value           :: data
+      character(kind=c_char,len=1), intent(in) :: name(*)
+
+    end function op_decl_map_long_c
+
     type(c_ptr) function op_decl_null_map () BIND(C,name='op_decl_null_map')
 
       use, intrinsic :: ISO_C_BINDING
@@ -1886,6 +1897,25 @@ contains
     call c_f_pointer ( map%mapCPtr, map%mapPtr )
 
   end subroutine op_decl_map
+
+  subroutine op_decl_map_long ( from, to, mapdim, dat, map, opname )
+
+    type(op_set), intent(in) :: from, to
+    integer, intent(in) :: mapdim
+    integer(idx_g_t), dimension(*), intent(in), target :: dat
+    type(op_map) :: map
+    character(kind=c_char,len=*), optional :: opName
+
+    if ( present ( opname ) ) then
+      map%mapCPtr = op_decl_map_long_c ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname/@/C_NULL_CHAR )
+    else
+      map%mapCPtr = op_decl_map_long_c ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'/@/C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( map%mapCPtr, map%mapPtr )
+
+  end subroutine op_decl_map_long
 
 
   integer(kind=c_int) function op_free_dat_temp (dat)
