@@ -1439,7 +1439,10 @@ end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
   end interface op_print_dat_to_txtfile2
 
   interface op_reset_data_ptr
-    module procedure op_reset_data_ptr_r8,   &
+    module procedure op_reset_data_ptr_r4,   &
+                     op_reset_data_ptr_r4_2, &
+                     op_reset_data_ptr_r4_3, &
+                     op_reset_data_ptr_r8,   &
                      op_reset_data_ptr_r8_2, &
                      op_reset_data_ptr_r8_3, &
                      op_reset_data_ptr_i4,   &
@@ -2580,6 +2583,31 @@ contains
     op_get_data_ptr_int = op_get_data_ptr_int_c( dat )
 
   end function op_get_data_ptr_int
+
+  ! get the pointer of the data held in an op_dat (via the original pointer) - r4
+  INTEGER(8) function op_reset_data_ptr_r4(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    real(4), dimension(*), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_r4 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_r4
+
+  INTEGER(8) function op_reset_data_ptr_r4_2(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    real(4), dimension(:,:), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_r4_2 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_r4_2
+
+  INTEGER(8) function op_reset_data_ptr_r4_3(data,mode)
+    use, intrinsic :: ISO_C_BINDING
+    real(4), dimension(:,:,:), target :: data
+    integer(kind=c_int), value :: mode
+    op_reset_data_ptr_r4_3 = op_reset_data_ptr_c(c_loc(data),mode)
+
+  end function op_reset_data_ptr_r4_3
 
   ! get the pointer of the data held in an op_dat (via the original pointer) - r8
   INTEGER(8) function op_reset_data_ptr_r8(data,mode)
