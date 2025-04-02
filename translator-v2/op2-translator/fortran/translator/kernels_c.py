@@ -1080,6 +1080,19 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
     items = intrinsic_function_reference.items
     func_name = translateName(items[0], ctx)
 
+    if func_name == "real":
+        arg_spec_list = items[1]
+        kind = translateGeneric(arg_spec_list.items[1], ctx)
+
+        if kind == "rk4":
+            cast = "float"
+        elif kind == "rk8":
+            cast = "double"
+        else:
+            ctx.error(f"Unsupported REAL() kind: {kind}", intrinsic_function_reference)
+
+        return f"({cast})({translateGeneric(arg_spec_list.items[0], ctx)})"
+
     if func_name not in intrinsic_funcs:
         ctx.error(f"Unsupported intrinsic func: {func_name}", intrinsic_function_reference)
 
