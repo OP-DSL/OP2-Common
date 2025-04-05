@@ -1,17 +1,16 @@
 program jac_distributed
 
   ! Use OP2 Fortran bindings and MPI
-  use OP2_FORTRAN_DECLARATIONS
   use OP2_FORTRAN_REFERENCE
-  use op2_fortran_rt_support
-  use, intrinsic :: ISO_C_BINDING
+  use OP2_fortran_rt_support
   use mpi
 
   implicit none
 
   ! Define integer kind for global indices (matches C++ idx_g_t)
   integer, parameter :: idx_k = selected_int_kind(18) ! Kind for 64-bit integers
-  integer(idx_k), parameter :: nn = int(2**15, kind=idx_k) ! Problem size (ensure it's idx_k)
+  integer(idx_k), parameter :: nn = int(2**10, kind=idx_k) ! Problem size (ensure it's idx_k)
+  !integer(idx_k), parameter :: nn = int(2**15, kind=idx_k) ! Problem size (ensure it's idx_k)
   integer, parameter :: niter = 2                     ! Number of iterations
   real(8), parameter :: tolerance = 1.0e-12_8         ! Validation tolerance
 
@@ -65,7 +64,7 @@ program jac_distributed
 
   ! Calculate global node count
   g_nnode = (nn - 1) * (nn - 1)
-  if (my_rank == mpi_root) then
+  if (my_rank == 0) then
      print *, "Global number of nodes = ", g_nnode
   end if
 
@@ -148,6 +147,11 @@ program jac_distributed
     end do
   end do
 
+  ! move to 1-based indexing
+  do local_idx = 1_idx_k, nedge*2
+    pp(local_idx) = pp(local_idx) + 1
+  end do
+
   ! Check if edge counter matches expected local edge count
   if (edge_counter /= nedge) then
      print *, "Rank ", my_rank, ": Mismatch in edge count! Calculated=", nedge, " Filled=", edge_counter
@@ -187,6 +191,7 @@ program jac_distributed
   !--------------------------------------------------------------------------
   ! 5. Main Iteration Loop
   !--------------------------------------------------------------------------
+  call op_timing2_start("Jacobi")
   call op_timing2_enter("Main computation") ! Start timing after setup/partitioning
 
   beta = 1.0_8
@@ -216,7 +221,7 @@ program jac_distributed
          op_arg_gbl(u_sum,              1, "real(8)", OP_INC),  &
          op_arg_gbl(u_max,              1, "real(8)", OP_MAX))
 
-     if (my_rank == mpi_root) then
+     if (my_rank == 0) then
         write (*, "(4X, I0, E16.7, 4X, A, E16.7)") iter, u_max, &
             "u rms = ", sqrt(u_sum / dble(g_nnode))
      end if
@@ -251,13 +256,11 @@ program jac_distributed
   if (allocated(u)) deallocate(u)
   if (allocated(pp)) deallocate(pp)
 
-  call MPI_Finalize(ierr)
-
   ! Exit code 0 for success (no validation failure), 1 for failure
-  if (validation_result /= 0 .and. my_rank == mpi_root) then
+  if (validation_result /= 0 .and. my_rank == 0) then
      print *, "Exiting with status 1 due to validation failure."
      call exit(1)
-  else if (my_rank == mpi_root) then
+  else if (my_rank == 0) then
      print *, "Exiting with status 0 (success)."
   end if
 
@@ -411,14 +414,14 @@ contains !##################### Internal Subroutines and Functions #############
 
     ! Use MPI_Allreduce to combine validation results (logical OR)
     ! Ranks with local_failed=1 will cause global_failed to become 1.
-    call MPI_Allreduce(local_failed, global_failed, 1, MPI_INTEGER, MPI_LOR, MPI_COMM_WORLD, mpi_ierr)
+    call MPI_Allreduce(local_failed, global_failed, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_ierr)
     if (mpi_ierr /= MPI_SUCCESS) then
        print *, "Rank ", rank, ": MPI_Allreduce error in validation!"
        global_failed = 1 ! Force failure indication
     end if
 
     ! Print final status on root rank
-    if (rank == mpi_root) then
+    if (rank == 0) then
        if (global_failed == 0) then
           print *, "Distributed results check PASSED on all ranks!"
        else
