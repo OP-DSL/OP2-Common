@@ -9,8 +9,8 @@ program jac_distributed
 
   ! Define integer kind for global indices (matches C++ idx_g_t)
   integer, parameter :: idx_k = selected_int_kind(18) ! Kind for 64-bit integers
-  integer(idx_k), parameter :: nn = int(2**10, kind=idx_k) ! Problem size (ensure it's idx_k)
-  !integer(idx_k), parameter :: nn = int(2**15, kind=idx_k) ! Problem size (ensure it's idx_k)
+  ! integer(idx_k), parameter :: nn = int(2**13, kind=idx_k) ! Problem size (ensure it's idx_k)
+  integer(idx_k), parameter :: nn = int(2**16, kind=idx_k) ! Problem size (ensure it's idx_k)
   integer, parameter :: niter = 2                     ! Number of iterations
   real(8), parameter :: tolerance = 1.0e-12_8         ! Validation tolerance
 
@@ -97,7 +97,7 @@ program jac_distributed
     end do
   end do
   nedge = nedge_local
-  print *, "Process ", my_rank, ": number of local nodes, edges = ", nnode, nedge
+  !print *, "Process ", my_rank, ": number of local nodes, edges = ", nnode, nedge
 
 
   ! Allocate local arrays based on calculated local sizes
