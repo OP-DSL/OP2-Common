@@ -1683,7 +1683,7 @@ void op_partition_geom(op_dat coords) {
   if (ndims == 3 || ndims == 2 || ndims == 1) {
     xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
     size_t mult = coords->size / coords->dim;
-    for (int i = 0; i < coords->set->size; i++) {
+    for (idx_g_t i = 0; i < coords->set->size; i++) {
       double temp;
       for (int e = 0; e < coords->dim; e++) {
         memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
@@ -1713,8 +1713,8 @@ void op_partition_geom(op_dat coords) {
     op_free(part_range[i]);
   op_free(part_range);
 
-  // saniti check to see if all elements were partitioned
-  for (int i = 0; i < coords->size; i++) {
+  // sanity check to see if all elements were partitioned
+  for (idx_g_t i = 0; i < coords->set->size; i++) {
     if (partition[i] < 0) {
       printf("Partitioning problem: on rank %d, set %s element %d not assigned "
              "a partition\n",
@@ -1808,7 +1808,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   if (ndims == 3 || ndims == 2 || ndims == 1) {
     xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
     size_t mult = coords->size / coords->dim;
-    for (int i = 0; i < coords->set->size; i++) {
+    for (idx_g_t i = 0; i < coords->set->size; i++) {
       double temp;
       for (int e = 0; e < coords->dim; e++) {
         memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
