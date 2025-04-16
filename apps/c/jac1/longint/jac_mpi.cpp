@@ -255,6 +255,7 @@ int main(int argc, char **argv) {
   r  = (double *)malloc(nnode * sizeof(double));
   u  = (double *)malloc(nnode * sizeof(double));
   du = (double *)malloc(nnode * sizeof(double));
+  double *coords = (double *)malloc(nnode * 2 * sizeof(double));
 
   /* Now fill in the local arrays.
 Note: We are still using global indices in pp so that the assembled matrix
@@ -269,6 +270,10 @@ remains consistent. */
     r[local]  = 0.0;
     u[local]  = 0.0;
     du[local] = 0.0;
+
+    /* Calculate and store coordinates */
+    coords[local * 2 + 0] = (double)(i - 1); // x-coordinate
+    coords[local * 2 + 1] = (double)(j - 1); // y-coordinate
 
     /* Self edge */
     pp[2 * edge_counter]     = global;
@@ -314,6 +319,7 @@ remains consistent. */
   op_dat p_r = op_decl_dat(nodes, 1, "double", r, "p_r");
   op_dat p_u = op_decl_dat(nodes, 1, "double", u, "p_u");
   op_dat p_du = op_decl_dat(nodes, 1, "double", du, "p_du");
+  op_dat p_coords = op_decl_dat(nodes, 2, "double", coords, "p_coords");
 
   alpha = 1.0f;
   op_decl_const(1, "double", &alpha);
@@ -321,7 +327,7 @@ remains consistent. */
   // op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
-  op_partition("PARMETIS", "KWAY", edges, ppedge, NULL);
+  op_partition("PTSCOTCH", "KWAY", edges, ppedge, p_coords);
 
   // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -387,6 +393,7 @@ remains consistent. */
   free(A);
   free(r);
   free(du);
+  free(coords);
 
   return result;
 }
