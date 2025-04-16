@@ -48,8 +48,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <tuple>
-#include <array>
 
 #include <op_lib_core.h>
 #include <op_util.h>
@@ -76,7 +74,7 @@ void *xmalloc(size_t size) {
   if (size == 0)
     return (void *)NULL;
 
-  register void *value = op_malloc(size);
+  void *value = op_malloc(size);
   if (value == 0)
     printf("Virtual memory exhausted at malloc\n");
   return value;
@@ -92,7 +90,7 @@ void *xrealloc(void *ptr, size_t size) {
     return (void *)NULL;
   }
 
-  register void *value = op_realloc(ptr, size);
+  void *value = op_realloc(ptr, size);
   if (value == 0)
     printf("Virtual memory exhausted at realloc\n");
   return value;
@@ -106,7 +104,7 @@ void *xcalloc(size_t number, size_t size) {
   if (size == 0)
     return (void *)NULL;
 
-  register void *value = op_calloc(number, size);
+  void *value = op_calloc(number, size);
   if (value == 0)
     printf("Virtual memory exhausted at malloc\n");
   return value;
@@ -131,11 +129,17 @@ int min(int array[], int size) {
 /*******************************************************************************
 * Binary search an array for a given value
 *******************************************************************************/
-int binary_search(int a[], int value, int low, int high) {
+
+template <typename T, typename U>
+idx_l_t binary_search(T a[], U value, int low, int high) {
   auto lb = std::lower_bound(a + low, a + high + 1, value);
   if (lb == a + high + 1 || *lb != value) return -1;
   return (int) (lb - a);
 }
+
+template idx_l_t binary_search<idx_g_t, idx_g_t>(idx_g_t a[], idx_g_t value, int low, int high);
+template idx_l_t binary_search<idx_g_t, idx_l_t>(idx_g_t a[], idx_l_t value, int low, int high);
+template idx_l_t binary_search<idx_l_t, idx_l_t>(idx_l_t a[], idx_l_t value, int low, int high);
 
 /*******************************************************************************
 * Linear search an array for a given value
@@ -150,99 +154,8 @@ int linear_search(int a[], int value, int low, int high) {
 }
 
 /*******************************************************************************
-* Quicksort an array
-*******************************************************************************/
-
-void op_sort(int *__restrict xs, int n) {
-  std::sort(xs, xs + n);
-}
-
-/*******************************************************************************
 * Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
 *******************************************************************************/
-
-// C++23 zip range view at home
-// adapted from https://github.com/dpellegr/ZipIterator
-template<typename... Ts>
-struct ZipRef {
-  std::tuple<Ts*...> pointers;
-
-  ZipRef() = delete;
-  ZipRef(Ts*... pointers): pointers(pointers...) {};
-
-  template <std::size_t I = 0>
-  void copy_assign(const ZipRef& rhs) {
-    *(std::get<I>(pointers)) = *(std::get<I>(rhs.pointers));
-    if constexpr(I + 1 < sizeof...(Ts) ) copy_assign<I + 1>(rhs);
-  }
-
-  template <std::size_t I = 0>
-  void val_assign(const std::tuple<Ts...>& rhs) {
-    *(std::get<I>(pointers)) = std::get<I>(rhs);
-    if constexpr(I + 1 < sizeof...(Ts)) val_assign<I + 1>(rhs);
-  }
-
-  ZipRef& operator=(const ZipRef& rhs) { copy_assign(rhs); return *this; };
-  ZipRef& operator=(const std::tuple<Ts...>& rhs) { val_assign(rhs); return *this; };
-
-  operator std::tuple<Ts...>() const { return std::apply([](auto&&... p) { return std::tuple((*p)...); }, pointers); }
-  int val() const { return *std::get<0>(pointers); };
-
-  #define OPERATOR(OP) \
-    bool operator OP(const ZipRef& rhs) const { return val() OP rhs.val(); } \
-    inline friend bool operator OP(const ZipRef& r, const std::tuple<Ts...>& t) { return r.val() OP std::get<0>(t); } \
-    inline friend bool operator OP(const std::tuple<Ts...>& t, const ZipRef& r) { return std::get<0>(t) OP r.val(); }
-
-    OPERATOR(==) OPERATOR(<=) OPERATOR(>=)
-    OPERATOR(!=) OPERATOR(<)  OPERATOR(>)
-  #undef OPERATOR
-};
-
-template<typename std::size_t I = 0, typename... Ts>
-void swap(const ZipRef<Ts...>& z1, const ZipRef<Ts...>& z2) {
-  std::swap(*std::get<I>(z1.pointers), *std::get<I>(z2.pointers));
-  if constexpr(I + 1 < sizeof...(Ts)) swap<I + 1, Ts...>(z1, z2);
-}
-
-template<typename... Ts>
-struct ZipIter {
-  std::tuple<Ts...> iterators;
-
-  using iterator_category = std::common_type_t<typename std::iterator_traits<Ts>::iterator_category...>;
-  using difference_type   = std::common_type_t<typename std::iterator_traits<Ts>::difference_type...>;
-  using value_type        = std::tuple<typename std::iterator_traits<Ts>::value_type...>;
-  using pointer           = std::tuple<typename std::iterator_traits<Ts>::pointer...>;
-  using reference         = ZipRef<std::remove_reference_t<typename std::iterator_traits<Ts>::reference>...>;
-
-  ZipIter() = delete;
-  ZipIter(Ts... iterators): iterators(iterators...) {};
-
-  ZipIter& operator+=(const difference_type d) { std::apply([&](auto& ...it) { (std::advance(it, d), ...); }, iterators); return *this; }
-
-  ZipIter& operator-=(const difference_type d) { return operator+=(-d); }
-
-  reference operator* () const {return std::apply([](auto&&... it){ return reference(&(*(it))...); }, iterators);}
-
-  ZipIter& operator++() { return operator+=( 1); }
-  ZipIter& operator--() { return operator+=(-1); }
-  ZipIter operator++(int) { ZipIter tmp(*this); operator++(); return tmp; }
-  ZipIter operator--(int) { ZipIter tmp(*this); operator--(); return tmp; }
-
-  difference_type operator-(const ZipIter& rhs) const { return std::get<0>(iterators) - std::get<0>(rhs.iterators); }
-  ZipIter operator+(const difference_type d) const { ZipIter tmp(*this); tmp += d; return tmp; }
-  ZipIter operator-(const difference_type d) const { ZipIter tmp(*this); tmp -= d; return tmp; }
-  inline friend ZipIter operator+(const difference_type d, const ZipIter& z) { return z+d; }
-  inline friend ZipIter operator-(const difference_type d, const ZipIter& z) { return z - d; }
-
-  bool operator==(const ZipIter& rhs) const { return iterators == rhs.iterators; }
-  bool operator!=(const ZipIter& rhs) const { return iterators != rhs.iterators; }
-
-  #define OPERATOR(OP) \
-    bool operator OP(const ZipIter& rhs) const { return std::get<0>(iterators) OP std::get<0>(rhs.iterators); }
-    OPERATOR(<=) OPERATOR(>=)
-    OPERATOR(<)  OPERATOR(>)
-  #undef OPERATOR
-};
 
 void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
   std::sort(ZipIter(xs, ys), ZipIter(xs + n, ys + n));
@@ -252,17 +165,17 @@ void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
 * Quick sort arr and organise dat[] elements according to the sorted arr order
 *******************************************************************************/
 
-void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size2) {
+void op_sort_dat(idx_g_t *__restrict arr, char *__restrict dat, int n, int elem_size2) {
   size_t elem_size = elem_size2;
-  int *indicies = (int *) xmalloc(n * sizeof(int));
+  idx_g_t *indicies = (idx_g_t *) xmalloc(n * sizeof(idx_g_t));
 
-  for (int i = 0; i < n; ++i)
+  for (idx_g_t i = 0; i < n; ++i)
     indicies[i] = i;
 
   std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
  
   char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
-  for (int i = 0; i < n; ++i)
+  for (idx_g_t i = 0; i < n; ++i)
     std::copy(dat + indicies[i] * elem_size, dat + (indicies[i] + 1) * elem_size, tmp_dat + i * elem_size);
 
   std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
@@ -277,27 +190,44 @@ void op_sort_dat(int *__restrict arr, char *__restrict dat, int n, int elem_size
 * Quick sort arr and organise map[] elements according to the sorted arr order
 *******************************************************************************/
 
-void op_sort_map(int *__restrict arr, int *__restrict map, int n, int dim) {
-  op_sort_dat(arr, (char *) map, n, dim * sizeof(int));
+void op_sort_map(idx_g_t *__restrict arr, idx_g_t *__restrict map, int n, int dim) {
+  op_sort_dat(arr, (char *) map, n, dim * sizeof(idx_g_t));
 }
 
 /*******************************************************************************
-* Remove duplicates in an array
+* Get the permutation of the array
 *******************************************************************************/
 
-int removeDups(int a[], int array_size) {
-  int i, j;
-  j = 0;
-  // Remove the duplicates ...
-  for (i = 1; i < array_size; i++) {
-    if (a[i] != a[j]) {
-      j++;
-      a[j] = a[i]; // Move it to the front
-    }
-  }
-  // The new array size..
-  array_size = (j + 1);
-  return array_size;
+void op_sort_get_permutation(idx_g_t *__restrict arr, int n) {
+  idx_g_t *indicies = (idx_g_t *) xmalloc(n * sizeof(idx_g_t));
+
+  for (idx_g_t i = 0; i < n; ++i)
+    indicies[i] = i;
+
+  std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
+
+  std::copy(indicies, indicies + n, arr);
+
+  op_free(indicies);
+
+  return;
+}
+
+/*******************************************************************************
+* Reorder the data according to the permutation
+*******************************************************************************/
+
+void op_reorder_data(idx_g_t *__restrict permutation, char *__restrict dat, int n, int elem_size) {
+  char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
+
+  for (idx_g_t i = 0; i < n; ++i)
+    std::copy(dat + permutation[i] * elem_size, dat + (permutation[i] + 1) * elem_size, tmp_dat + i * elem_size);
+
+  std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
+
+  op_free(tmp_dat);
+
+  return;
 }
 
 /*******************************************************************************
