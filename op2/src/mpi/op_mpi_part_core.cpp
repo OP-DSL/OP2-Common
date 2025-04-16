@@ -91,6 +91,12 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 template <class T>
 void op_partition_kway_generic(op_map primary_map, bool use_kahip);
 
+void op_partition_graph_parmetis(op_map primary_map);
+void op_partition_graph_kahip(op_map primary_map);
+#ifdef HAVE_PTSCOTCH
+void op_partition_graph_ptscotch(op_map primary_map);
+#endif
+
 
 
 template<typename T>
@@ -2176,7 +2182,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
 #ifdef DEBUG
   // check if the  primary_map is an on to map from the from-set to the to-set
   if (is_onto_map(primary_map) != 1) {
-    printf("Map %s is an not an onto map from set %s to set %s \n",
+    printf("Map %s is an not an onto map from set %s to set %s \\n",
            primary_map->name, primary_map->from->name, primary_map->to->name);
     MPI_Abort(OP_PART_WORLD, 2);
   }
@@ -2187,7 +2193,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   /// A SUITABLE ELEMENT ? - not sure if the following is all we need as a check
   ///
   if (primary_map->dim < 3) {
-    printf("Unsuitable primary map for using ParMETIS_V3_PartMeshKway\n");
+    printf("Unsuitable primary map for using ParMETIS_V3_PartMeshKway\\n");
     MPI_Abort(OP_PART_WORLD, 2);
   }
 
@@ -2255,16 +2261,16 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   idx_t ncommonnodes = 1;
 
   if (my_rank == MPI_ROOT) {
-    printf("-----------------------------------------------------------\n");
-    printf("ParMETIS_V3_PartMeshKway Output\n");
-    printf("-----------------------------------------------------------\n");
+    printf("-----------------------------------------------------------\\n");
+    printf("ParMETIS_V3_PartMeshKway Output\\n");
+    printf("-----------------------------------------------------------\\n");
   }
   ParMETIS_V3_PartMeshKway(elemdist, eptr, eind, NULL, &wgtflag, &numflag,
                            &ncon, &ncommonnodes, &comm_size_pm, tpwgts, ubvec,
                            options, &edge_cut, partition, &OP_PART_WORLD);
 
   if (my_rank == MPI_ROOT)
-    printf("-----------------------------------------------------------\n");
+    printf("-----------------------------------------------------------\\n");
   op_free(elemdist);
   op_free(eptr);
   op_free(eind);
@@ -2274,7 +2280,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   // check if all to-set elements have been partitioned
   for (int i = 0; i < primary_map->to->size; i++) {
     if (partition[i] < 0) {
-      printf("Partitioning problem on rank %d, set %s element %d not found\n",
+      printf("Partitioning problem on rank %d, set %s element %d not found\\n",
              my_rank, primary_map->to->name, i);
       MPI_Abort(OP_PART_WORLD, 2);
     }
@@ -2302,385 +2308,7 @@ void op_partition_meshkway(op_map primary_map) // not working !!
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if (my_rank == MPI_ROOT)
-    printf("Max total MeshKway partitioning time = %lf\n", max_time);
-}
-
-#endif
-
-#ifdef HAVE_PTSCOTCH
-
-void op_partition_ptscotch(op_map primary_map) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-#ifdef DEBUG
-  // check if the  primary_map is an on to map from the from-set to the to-set
-  if (is_onto_map(primary_map) != 1) {
-    printf("Map %s is an not an onto map from set %s to set %s \n",
-           primary_map->name, primary_map->from->name, primary_map->to->name);
-    MPI_Abort(OP_PART_WORLD, 2);
-  }
-#endif
-
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
-  // Compute global partition range information for each set
-  idx_g_t **part_range = initialise(my_rank, comm_size);
-
-  /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
-   * -------*/
-
-  //
-  // create export list
-  //
-  int c = 0;
-  idx_g_t cap = 1000;
-  int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
-
-  for (int e = 0; e < primary_map->from->size; e++) { // for each
-                                                      // maping table entry
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(primary_map->map[e * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size);
-      if (c >= cap) {
-        cap = cap * 2;
-        list = (int *)xrealloc(list, cap * sizeof(int));
-      }
-
-      if (part != my_rank) {
-        list[c++] = part; // add to export list
-        list[c++] = e;
-      }
-    }
-  }
-  halo_list exp_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_export_list(primary_map->from, list, exp_list, c, comm_size, my_rank);
-  op_free(list); // free temp list
-
-  //
-  // create import list
-  //
-  int *neighbors, *sizes;
-  int ranks_size;
-
-  //-----Discover neighbors-----
-  ranks_size = 0;
-  neighbors = (int *)xmalloc(comm_size * sizeof(int));
-  sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  // halo_list list = OP_export_exec_list[set->index];
-  find_neighbors_set(exp_list, neighbors, sizes, &ranks_size, my_rank,
-                     comm_size, OP_PART_WORLD);
-  //  MPI_Request request_send[exp_list->ranks_size];
-  MPI_Request *request_send =
-      (MPI_Request *)xmalloc(exp_list->ranks_size * sizeof(MPI_Request));
-
-  int *rbuf, index = 0;
-  cap = 0;
-
-  for (int i = 0; i < exp_list->ranks_size; i++) {
-    int *sbuf = &exp_list->list[exp_list->disps[i]];
-    MPI_Isend(sbuf, exp_list->sizes[i], MPI_INT, exp_list->ranks[i],
-              primary_map->index, OP_PART_WORLD, &request_send[i]);
-  }
-
-  for (int i = 0; i < ranks_size; i++)
-    cap = cap + sizes[i];
-  int *temp = (int *)xmalloc(cap * sizeof(int));
-
-  // import this list from those neighbors
-  for (int i = 0; i < ranks_size; i++) {
-    rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-    MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], primary_map->index,
-             OP_PART_WORLD, MPI_STATUS_IGNORE);
-    memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
-    index = index + sizes[i];
-    op_free(rbuf);
-  }
-  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-
-  halo_list imp_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_import_list(primary_map->from, temp, imp_list, index, neighbors, sizes,
-                     ranks_size, comm_size, my_rank);
-
-  //
-  // Exchange mapping table entries using the import/export lists
-  //
-
-  // prepare bits of the mapping tables to be exported
-  int **sbuf = (int **)xmalloc(exp_list->ranks_size * sizeof(int *));
-
-  for (int i = 0; i < exp_list->ranks_size; i++) {
-    sbuf[i] =
-        (int *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(int));
-    for (int j = 0; j < exp_list->sizes[i]; j++) {
-      for (int p = 0; p < primary_map->dim; p++) {
-        sbuf[i][j * primary_map->dim + p] =
-            primary_map->map[primary_map->dim *
-                                 (exp_list->list[exp_list->disps[i] + j]) +
-                             p];
-      }
-    }
-    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], MPI_INT,
-              exp_list->ranks[i], primary_map->index, OP_PART_WORLD,
-              &request_send[i]);
-  }
-
-  // prepare space for the incomming mapping tables
-  int *foreign_maps =
-      (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
-
-  for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
-             primary_map->dim * imp_list->sizes[i], MPI_INT, imp_list->ranks[i],
-             primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
-  }
-
-  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-  for (int i = 0; i < exp_list->ranks_size; i++)
-    op_free(sbuf[i]);
-  op_free(sbuf);
-
-  int **adj = (int **)xmalloc(primary_map->to->size * sizeof(int *));
-  int *adj_i = (int *)xmalloc(primary_map->to->size * sizeof(int));
-  int *adj_cap = (int *)xmalloc(primary_map->to->size * sizeof(int));
-
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj_i[i] = 0;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj_cap[i] = primary_map->dim;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj[i] = NULL;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj[i] = (int *)xmalloc(adj_cap[i] * sizeof(int));
-  // for(int i = 0; i<primary_map->to->size; i++)adj[i] = (int
-  // *)xcalloc(adj_cap[i], sizeof(int));
-
-  // go through each from-element of local primary_map and construct adjacency
-  // list
-  for (int i = 0; i < primary_map->from->size; i++) {
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(primary_map->map[i * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size);
-
-      if (part == my_rank) {
-        for (int k = 0; k < primary_map->dim; k++) {
-          if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
-          }
-          adj[local_index][adj_i[local_index]++] =
-              primary_map->map[i * primary_map->dim + k];
-        }
-      }
-    }
-  }
-  // go through each from-element of foreign primary_map and add to adjacency
-  // list
-  for (int i = 0; i < imp_list->size; i++) {
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(foreign_maps[i * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size);
-
-      if (part == my_rank) {
-        for (int k = 0; k < primary_map->dim; k++) {
-          if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
-          }
-          adj[local_index][adj_i[local_index]++] =
-              foreign_maps[i * primary_map->dim + k];
-        }
-      }
-    }
-  }
-  op_free(foreign_maps);
-
-  //
-  // Setup data structures for PT-Scotch
-  //
-
-  SCOTCH_Dgraph *grafptr = SCOTCH_dgraphAlloc();
-  SCOTCH_dgraphInit(grafptr, OP_PART_WORLD);
-
-  SCOTCH_Num baseval = 0;
-
-  // vertex local number - number of vertexes on local mpi rank
-  SCOTCH_Num vertlocnbr = primary_map->to->size;
-
-  // vertex local max - put same value as vertlocnbr
-  SCOTCH_Num vertlocmax = vertlocnbr;
-
-  // local vertex adjacency index array, of size (vertlocnbr+1)
-  SCOTCH_Num *vertloctab =
-      (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * (vertlocnbr + 1));
-  cap = (primary_map->to->size) * primary_map->dim;
-
-  SCOTCH_Num *vendloctab = NULL; // not needed
-  SCOTCH_Num *veloloctab = NULL; // not needed
-  SCOTCH_Num *vlblocltab = NULL; // not needed
-
-  // the local adjacency array, of size at least edgelocsiz,
-  // which stores the global indices of end vertices
-  SCOTCH_Num *edgeloctab = (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * cap);
-  int count = 0;
-  int prev_count = 0;
-
-  for (int i = 0; i < primary_map->to->size; i++) {
-    int g_index = get_global_index(
-        i, my_rank, part_range[primary_map->to->index], comm_size);
-    op_sort(adj[i], adj_i[i]);
-    adj_i[i] = removeDups(adj[i], adj_i[i]);
-
-    if (adj_i[i] < 2) {
-      printf("The from set: %s of primary map: %s is not an on to set of "
-             "to-set: %s\n",
-             primary_map->from->name, primary_map->name, primary_map->to->name);
-      printf("Need to select a different primary map\n");
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-
-    adj[i] = (int *)xrealloc(adj[i], adj_i[i] * sizeof(int));
-    for (int j = 0; j < adj_i[i]; j++) {
-      if (adj[i][j] != g_index) {
-        if (count >= cap) {
-          cap = cap * 2;
-          edgeloctab =
-              (SCOTCH_Num *)xrealloc(edgeloctab, sizeof(SCOTCH_Num) * cap);
-        }
-        edgeloctab[count++] = (SCOTCH_Num)adj[i][j];
-      }
-    }
-    if (i != 0) {
-      vertloctab[i] = prev_count;
-      prev_count = count;
-    } else {
-      vertloctab[i] = 0;
-      prev_count = count;
-    }
-  }
-  vertloctab[primary_map->to->size] = count;
-
-  // local number of arcs (that is, twice the number of edges)
-  SCOTCH_Num edgelocnbr = count;
-  SCOTCH_Num edgelocsiz = edgelocnbr; // equal to edgelocnbr
-
-  for (int i = 0; i < primary_map->to->size; i++)
-    op_free(adj[i]);
-  op_free(adj_i);
-  op_free(adj_cap);
-  op_free(adj);
-
-  SCOTCH_Num *edgegsttab = NULL; // not needed
-  SCOTCH_Num *edloloctab = NULL; // not needed
-
-  // clean up before calling Partitioner
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-  op_free(imp_list->list);
-  op_free(imp_list->disps);
-  op_free(imp_list->ranks);
-  op_free(imp_list->sizes);
-  op_free(exp_list->list);
-  op_free(exp_list->disps);
-  op_free(exp_list->ranks);
-  op_free(exp_list->sizes);
-  op_free(imp_list);
-  op_free(exp_list);
-
-  // build a PT-Scotch graph
-  SCOTCH_dgraphBuild(grafptr, baseval, vertlocnbr, vertlocmax, vertloctab,
-                     vendloctab, veloloctab, vlblocltab, edgelocnbr, edgelocsiz,
-                     edgeloctab, edgegsttab, edloloctab);
-  int test = SCOTCH_dgraphCheck(grafptr);
-  if (test == 1) {
-    printf("PT-Scotch Graph Inconsistant - Aborting\n");
-    MPI_Abort(OP_PART_WORLD, 2);
-  }
-
-  SCOTCH_Num *partloctab =
-      (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * primary_map->to->size);
-  for (int i = 0; i < primary_map->to->size; i++) {
-    partloctab[i] = -99;
-  }
-
-  // initialise partition strategy struct
-  SCOTCH_Strat straptr;
-  SCOTCH_stratInit(&straptr);
-
-  // SCOTCH_stratDgraphMapBuild(&straptr,
-  // SCOTCH_STRATQUALITY/*SCOTCH_STRATSCALABILITY*/,
-  // comm_size, comm_size, 1.05);
-
-  // partition the graph
-  SCOTCH_dgraphPart(grafptr, comm_size, &straptr, partloctab);
-  op_free(edgeloctab);
-  op_free(vertloctab);
-
-  // saniti check to see if all elements were partitioned
-  for (int i = 0; i < primary_map->to->size; i++) {
-    if (partloctab[i] < 0) {
-      printf("Partitioning problem: on rank %d, set %s element %d not assigned "
-             "a partition\n",
-             my_rank, primary_map->to->name, i);
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-  }
-
-  // free strat struct
-  SCOTCH_stratExit(&straptr);
-
-  // free PT-Scotch allocated memory space
-  op_free(grafptr);
-
-  // initialise primary set as partitioned
-  OP_part_list[primary_map->to->index]->elem_part = partloctab;
-  OP_part_list[primary_map->to->index]->is_partitioned = 1;
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(primary_map->to, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total PT-Scotch partitioning time = %lf\n", max_time);
-
-  free(request_send);
+    printf("Max total MeshKway partitioning time = %lf\\n", max_time);
 }
 
 #endif
@@ -3151,7 +2779,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_kway(prime_map, true); // use kahip k-way partitioning
+        op_partition_graph_kahip(prime_map); // use kahip k-way partitioning
       else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
@@ -3183,7 +2811,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_ptscotch(prime_map); // use ptscotch kaway partitioning
+        op_partition_graph_ptscotch(prime_map); // use ptscotch kaway partitioning
       else {
         op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
         op_printf("Reverting to trivial block partitioning\n");
@@ -3213,7 +2841,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
     if (strcmp(lib_routine, "KWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
       if (prime_map != NULL)
-        op_partition_kway(prime_map, false); // use parmetis kaway partitioning
+        op_partition_graph_parmetis(prime_map); // use parmetis kaway partitioning
       else {
         op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner "
                   "Specification\n");
@@ -3739,6 +3367,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, idx_g_t **adj,
   real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
   *ubvec = 1.05;
 
+  op_free(hybrid_flags);
   return std::make_tuple(vtxdist, xadj, adjncy, partition_pm, comm_size_pm,
                          ncon, tpwgts, ubvec);
 }
@@ -3912,3 +3541,306 @@ void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
 
   free(request_send);
 }
+
+#ifdef HAVE_PTSCOTCH
+// Helper function to set up PTScotch data structures
+std::tuple<SCOTCH_Dgraph*, SCOTCH_Num*, SCOTCH_Num*, SCOTCH_Num*>
+setup_ptscotch_data(op_map primary_map, int my_rank, int comm_size, idx_g_t **adj,
+                int *adj_i, int *adj_cap, idx_g_t **part_range) {
+
+    SCOTCH_Dgraph *grafptr = SCOTCH_dgraphAlloc();
+    SCOTCH_dgraphInit(grafptr, OP_PART_WORLD);
+
+    SCOTCH_Num baseval = 0;
+
+    // vertex local number - number of vertexes on local mpi rank
+    SCOTCH_Num vertlocnbr = primary_map->to->size;
+
+    // vertex local max - put same value as vertlocnbr
+    SCOTCH_Num vertlocmax = vertlocnbr;
+
+    // local vertex adjacency index array, of size (vertlocnbr+1)
+    SCOTCH_Num *vertloctab =
+        (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * (vertlocnbr + 1));
+    size_t cap = 0; // Calculate capacity based on actual edge count
+    for(int i=0; i<primary_map->to->size; ++i) cap += adj_i[i];
+
+
+    SCOTCH_Num *vendloctab = NULL; // not needed
+    SCOTCH_Num *veloloctab = NULL; // not needed
+    SCOTCH_Num *vlblocltab = NULL; // not needed
+
+    // the local adjacency array, of size at least edgelocsiz,
+    // which stores the global indices of end vertices
+    // Allocate potentially more than needed initially, then realloc down
+    size_t initial_cap = cap > 0 ? cap : 1; // Avoid malloc(0)
+    SCOTCH_Num *edgeloctab = (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * initial_cap);
+    int count = 0;
+    int prev_count = 0;
+
+    for (int i = 0; i < primary_map->to->size; i++) {
+        idx_g_t g_index = get_global_index(
+            i, my_rank, part_range[primary_map->to->index], comm_size);
+
+        // Exclude self-loops during construction for partitioning graph
+        size_t current_edge_count = 0;
+        for (int j = 0; j < adj_i[i]; j++) {
+            if (adj[i][j] != g_index) {
+                 if (count >= initial_cap) { // Check against initial capacity
+                    // This realloc might be expensive if hit often, indicates poor initial cap calculation
+                    printf("PTScotch edgeloctab resize needed - THIS SHOULD NOT HAPPEN OFTEN\n");
+                    initial_cap = initial_cap * 1.5 + 100; // Increase capacity more dynamically
+                    edgeloctab = (SCOTCH_Num *)xrealloc(edgeloctab, sizeof(SCOTCH_Num) * initial_cap);
+                 }
+                edgeloctab[count++] = (SCOTCH_Num)adj[i][j];
+                current_edge_count++;
+            }
+        }
+
+        if (current_edge_count == 0 && primary_map->from != primary_map->to) {
+            // Only warn if it's not a self-map and has no non-self neighbors
+             printf("Warning: Set element %d on rank %d has no non-self neighbours in map %s for PTScotch\n", (int)g_index, my_rank, primary_map->name);
+        }
+
+
+        if (i != 0) {
+            vertloctab[i] = prev_count;
+            prev_count = count;
+        } else {
+            vertloctab[i] = 0;
+            prev_count = count;
+        }
+    }
+    vertloctab[primary_map->to->size] = count;
+
+    // local number of arcs (number of edges excluding self-loops)
+    SCOTCH_Num edgelocnbr = count;
+     // Size must be at least edgelocnbr. Realloc if count < initial_cap.
+    if (count < initial_cap) {
+        edgeloctab = (SCOTCH_Num *)xrealloc(edgeloctab, sizeof(SCOTCH_Num) * (count > 0 ? count:1) ); // Avoid realloc(0)
+    }
+    SCOTCH_Num edgelocsiz = edgelocnbr;
+
+
+    for (int i = 0; i < primary_map->to->size; i++)
+        op_free(adj[i]);
+    op_free(adj_i);
+    op_free(adj_cap);
+    op_free(adj);
+
+    SCOTCH_Num *edgegsttab = NULL; // not needed
+    SCOTCH_Num *edloloctab = NULL; // not needed
+
+
+    // build a PT-Scotch graph
+    SCOTCH_dgraphBuild(grafptr, baseval, vertlocnbr, vertlocmax, vertloctab,
+                        vendloctab, veloloctab, vlblocltab, edgelocnbr, edgelocsiz,
+                        edgeloctab, edgegsttab, edloloctab);
+
+    int test = SCOTCH_dgraphCheck(grafptr);
+    if (test == 1) {
+        printf("PT-Scotch Graph Inconsistent - Aborting\n");
+        MPI_Abort(OP_PART_WORLD, 2);
+    }
+
+    SCOTCH_Num *partloctab =
+        (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * primary_map->to->size);
+    for (SCOTCH_Num i = 0; i < primary_map->to->size; i++) {
+        partloctab[i] = -99;
+    }
+
+    return std::make_tuple(grafptr, partloctab, vertloctab, edgeloctab);
+}
+
+// Helper function to call PTScotch partitioner
+void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SCOTCH_Num *partloctab, SCOTCH_Num *vertloctab, SCOTCH_Num *edgeloctab) {
+    SCOTCH_Strat straptr;
+    SCOTCH_stratInit(&straptr);
+    // Optional: Set specific PTScotch strategy here if needed
+    // SCOTCH_stratDgraphMapBuild(&straptr, SCOTCH_STRATDEFAULT, comm_size, comm_size, 1.05);
+
+    SCOTCH_dgraphPart(grafptr, comm_size, &straptr, partloctab);
+    op_free(vertloctab);
+    op_free(edgeloctab);
+    SCOTCH_stratExit(&straptr);
+    SCOTCH_dgraphExit(grafptr); // Free graph structure inside SCOTCH
+    op_free(grafptr); // Free the pointer allocated by SCOTCH_dgraphAlloc
+}
+
+#endif // HAVE_PTSCOTCH
+
+
+/*******************************************************************************
+ * Generalized Graph Partitioner (handles ParMETIS, KaHIP, PTScotch)
+ *******************************************************************************/
+template <class T> // Keep template for ParMETIS/KaHIP type compatibility
+void op_partition_graph_generic(op_map primary_map, const char* partitioner_name) {
+  // declare timers
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  double time;
+  double max_time;
+
+  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
+
+  // create new communicator for partitioning
+  int my_rank, comm_size;
+  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
+  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
+  MPI_Comm_size(OP_PART_WORLD, &comm_size);
+
+#ifdef DEBUG
+    // check if the  primary_map is an on to map from the from-set to the to-set
+  if (is_onto_map(primary_map) != 1) {
+    printf("Map %s is an not an onto map from set %s to set %s \n",
+           primary_map->name, primary_map->from->name, primary_map->to->name);
+    MPI_Abort(OP_PART_WORLD, 2);
+  }
+#endif
+
+  /*--STEP 0 - initialise partitioning data structures */
+  idx_g_t **part_range = initialise(my_rank, comm_size);
+
+  /*--STEP 1 - Construct adjacency list */
+  halo_list exp_list =
+      create_exp_list(primary_map, part_range, my_rank, comm_size);
+  halo_list imp_list;
+  MPI_Request *request_send;
+  std::tie(imp_list, request_send) =
+      create_imp_list(primary_map, my_rank, comm_size, exp_list);
+
+  idx_g_t **adj;
+  int *adj_i, *adj_cap;
+  std::tie(adj, adj_i, adj_cap) =
+      construct_adj_list(primary_map, exp_list, imp_list, request_send, my_rank,
+                         comm_size, part_range);
+
+  // Clean up import/export lists
+  op_free(imp_list->list); op_free(imp_list->disps); op_free(imp_list->ranks); op_free(imp_list->sizes); op_free(imp_list);
+  op_free(exp_list->list); op_free(exp_list->disps); op_free(exp_list->ranks); op_free(exp_list->sizes); op_free(exp_list);
+
+  /*-- STEP 1.5 - Call Partitioner-Specific Setup & Partition */
+  if (strcmp(partitioner_name, "PARMETIS") == 0 || strcmp(partitioner_name, "KAHIP") == 0) {
+#if defined(HAVE_PARMETIS) || defined(HAVE_KAHIP)
+      bool use_kahip = (strcmp(partitioner_name, "KAHIP") == 0);
+      T *vtxdist, *xadj, *adjncy, *partition_pm;
+      T comm_size_pm, ncon;
+      real_t *tpwgts, *ubvec;
+      // setup_part_data frees adj, adj_i, adj_cap
+      std::tie(vtxdist, xadj, adjncy, partition_pm, comm_size_pm, ncon, tpwgts,
+              ubvec) = setup_part_data<T>(primary_map, my_rank, comm_size, adj,
+                                          adj_i, adj_cap, part_range);
+
+      T edge_cut = 0;
+      T numflag = 0;
+      T wgtflag = 0;
+      T options[3] = {1, 3, 15};
+
+      // clean up part_range before calling Partitioner
+      for (int i = 0; i < OP_set_index; i++) op_free(part_range[i]);
+      op_free(part_range);
+
+      if (my_rank == MPI_ROOT) {
+          printf("-----------------------------------------------------------\n");
+          if (use_kahip) printf("ParHIPPartitionKWay Output\n");
+          else printf("ParMETIS_V3_PartKway Output\n");
+          printf("-----------------------------------------------------------\n");
+      }
+
+#ifdef HAVE_PARMETIS
+      if (!use_kahip) {
+        perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
+                              &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
+                              partition_pm, &OP_PART_WORLD);
+      }
+#endif
+#ifdef HAVE_KAHIP
+      if (use_kahip) {
+          perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
+                                &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
+                                partition_pm, &OP_PART_WORLD);
+      }
+#endif
+
+      if (my_rank == MPI_ROOT) {
+          printf("-----------------------------------------------------------\n");
+      }
+
+      op_free(vtxdist); op_free(xadj); op_free(adjncy); op_free(ubvec); op_free(tpwgts);
+
+      check_partition<T>(primary_map, partition_pm, my_rank, comm_size);
+#else
+      // Error: Library not available
+      if (my_rank == MPI_ROOT) printf("ERROR: %s requested but not compiled.\n", partitioner_name);
+      MPI_Abort(OP_PART_WORLD, 1);
+#endif
+  } else if (strcmp(partitioner_name, "PTSCOTCH") == 0) {
+#ifdef HAVE_PTSCOTCH
+      SCOTCH_Dgraph *grafptr;
+      SCOTCH_Num *partloctab;
+      SCOTCH_Num *vertloctab;
+      SCOTCH_Num *edgeloctab;
+      // setup_ptscotch_data frees adj, adj_i, adj_cap
+      std::tie(grafptr, partloctab, vertloctab, edgeloctab) = setup_ptscotch_data(primary_map, my_rank, comm_size, adj,
+                                        adj_i, adj_cap, part_range);
+
+      // clean up part_range before calling Partitioner
+      for (int i = 0; i < OP_set_index; i++) op_free(part_range[i]);
+      op_free(part_range);
+
+      if (my_rank == MPI_ROOT) {
+          printf("-----------------------------------------------------------\n");
+          printf("PT-Scotch Output\n");
+          printf("-----------------------------------------------------------\n");
+      }
+      perform_ptscotch_partition(grafptr, comm_size, partloctab, vertloctab, edgeloctab);
+      if (my_rank == MPI_ROOT) {
+          printf("-----------------------------------------------------------\n");
+      }
+
+      check_partition(primary_map, partloctab, my_rank, comm_size);
+#else
+      // Error: Library not available
+       if (my_rank == MPI_ROOT) printf("ERROR: PTScotch requested but not compiled.\n");
+      MPI_Abort(OP_PART_WORLD, 1);
+#endif
+  } else {
+       // Error: Unknown partitioner
+       if (my_rank == MPI_ROOT) printf("ERROR: Unknown partitioner '%s'\n", partitioner_name);
+       MPI_Abort(OP_PART_WORLD, 1);
+  }
+
+
+  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
+  partition_all(primary_map->to, my_rank, comm_size);
+  migrate_all(my_rank, comm_size);
+  renumber_maps(my_rank, comm_size);
+
+  /* Final timing and cleanup */
+  op_timers(&cpu_t2, &wall_t2);
+  time = wall_t2 - wall_t1;
+  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
+  MPI_Comm_free(&OP_PART_WORLD);
+  if (my_rank == MPI_ROOT)
+    printf("Max total %s partitioning time = %lf\n", partitioner_name, max_time);
+
+  free(request_send);
+}
+
+
+// Specializations/Wrappers to call the generic function
+#ifdef HAVE_PARMETIS
+void op_partition_graph_parmetis(op_map primary_map) {
+    op_partition_graph_generic<idx_t>(primary_map, "PARMETIS");
+}
+#endif
+#ifdef HAVE_KAHIP
+void op_partition_graph_kahip(op_map primary_map) {
+    op_partition_graph_generic<idxtype>(primary_map, "KAHIP");
+}
+#endif
+#ifdef HAVE_PTSCOTCH
+void op_partition_graph_ptscotch(op_map primary_map) {
+    // Pass dummy template type idx_t, it's ignored by the PTScotch path
+    op_partition_graph_generic<idx_t>(primary_map, "PTSCOTCH");
+}
+#endif
