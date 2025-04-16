@@ -2135,6 +2135,7 @@ void op_halo_destroy() {
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+    op_free(dat->mpi_buffer);
   }
 
   // MPI_Comm_free(&OP_MPI_WORLD);
