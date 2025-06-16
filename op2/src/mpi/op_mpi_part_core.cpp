@@ -50,6 +50,8 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <unistd.h>
+
 
 
 #include <op_lib_c.h>
@@ -318,7 +320,7 @@ static void create_imp_list_2(op_set set, int *temp_list, halo_list h_list,
  * Routine to force adjacent elements to the same partition
  *******************************************************************************/
 static void partition_force(op_set primary_set, op_map map, int my_rank,
-                            int comm_size, int **part_range) {
+                            int comm_size, idx_g_t **part_range) {
   if (map->to->index != primary_set->index) {
     printf("Error in partition_force: map target set (%d) does not match primary set (%d)\n",
         map->to->index, primary_set->index);
@@ -331,7 +333,7 @@ static void partition_force(op_set primary_set, op_map map, int my_rank,
   for (int i = 0; i < map->from->size; ++i) {
     int local_index;
     int target_part = get_partition(map->map[i * map->dim], part_range[primary_set->index],
-                                    &local_index, comm_size);
+                                    &local_index, comm_size, primary_set);
 
     for (int j = 1; j < map->dim; j++) {
       auto adjacency = Adjacency{map->map[i * map->dim], map->map[i * map->dim + j]};
@@ -347,10 +349,10 @@ static void partition_force(op_set primary_set, op_map map, int my_rank,
     for (auto& adjacency : adjacencies) {
       int local_idx2;
       int target_part = get_partition(adjacency.idx2, part_range[primary_set->index],
-                                      &local_idx2, comm_size);
+                                      &local_idx2, comm_size, primary_set);
 
       int local_idx1;
-      get_partition(adjacency.idx1, part_range[primary_set->index], &local_idx1, comm_size);
+      get_partition(adjacency.idx1, part_range[primary_set->index], &local_idx1, comm_size, primary_set);
       auto fpart = Fpart{adjacency.idx2, primary_set_part->elem_part[local_idx1]};
 
       exp_fparts.push_back(Msg{target_part, fpart});
@@ -361,7 +363,7 @@ static void partition_force(op_set primary_set, op_map map, int my_rank,
     int num_changed = 0;
     for (auto& fpart : fparts) {
       int local_idx;
-      get_partition(fpart.idx, part_range[primary_set->index], &local_idx, comm_size);
+      get_partition(fpart.idx, part_range[primary_set->index], &local_idx, comm_size, primary_set);
       if (primary_set_part->elem_part[local_idx] == fpart.target_part) continue;
 
       primary_set_part->elem_part[local_idx] = fpart.target_part;
@@ -393,7 +395,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
     int part, local_index;
     for (int j = 0; j < map->dim; j++) {
       part = get_partition(map->map_gbl[i * map->dim + j],
-                           part_range[map->to->index], &local_index, comm_size);
+                           part_range[map->to->index], &local_index, comm_size, map->to);
       if (count >= cap) {
         cap = cap * 2;
         temp_list = (int *)xrealloc(temp_list, cap * sizeof(int));
@@ -495,7 +497,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
     int *found_parts = (int*)xmalloc(sizeof(int)*map->dim);
     for (int j = 0; j < map->dim; j++) {
       part = get_partition(map->map_gbl[i * map->dim + j],
-                           part_range[map->to->index], &local_index, comm_size);
+                           part_range[map->to->index], &local_index, comm_size, map->to);
 
       if (part == my_rank)
         found_parts[j] = p_set->elem_part[local_index];
@@ -570,7 +572,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
 
     for (int j = 0; j < map->dim; j++) {
       part = get_partition(map->map_gbl[i * map->dim + j],
-                           part_range[map->to->index], &local_index, comm_size);
+                           part_range[map->to->index], &local_index, comm_size, map->to);
 
       if (part != my_rank) {
         if (count >= cap) {
@@ -660,7 +662,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   for (int i = 0; i < map->from->size; i++) {
     for (int j = 0; j < map->dim; j++) {
       part = get_partition(map->map_gbl[i * map->dim + j],
-                           part_range[map->to->index], &local_index, comm_size);
+                           part_range[map->to->index], &local_index, comm_size, map->to);
       if (part == my_rank) {
         if (count >= cap) {
           cap = cap * 2;
@@ -929,7 +931,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
  * Routine to renumber mapping table entries with new partition's indexes
  *******************************************************************************/
 
-static void renumber_maps(int my_rank, int comm_size) {
+static void renumber_maps_original(int my_rank, int comm_size) {
   // get partition rage information
   idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
@@ -1072,6 +1074,251 @@ static void renumber_maps(int my_rank, int comm_size) {
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
+}
+
+// Memory-efficient version using adaptive batched AllGather
+static void renumber_maps_efficient(int my_rank, int comm_size) {
+  // get partition range information
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
+  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
+
+  const size_t INITIAL_BATCH_SIZE = 300000; // Start with 300K elements per batch
+  const size_t MAX_GLOBAL_BATCH_SIZE = 30000000; // 30M elements max globally
+  
+  if (OP_diags > 2) {
+    op_printf("=== USING ADAPTIVE BATCHED RENUMBER_MAPS ===\n");
+    op_printf("Initial batch size: %zu elements\n", INITIAL_BATCH_SIZE);
+    op_printf("Max global batch size: %zu elements\n", MAX_GLOBAL_BATCH_SIZE);
+  }
+
+  // Process each mapping table
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    
+    if (OP_diags > 2) {
+      op_printf("Processing map %d: %s (%s->%s)\n", m, map->name, map->from->name, map->to->name);
+    }
+
+    // Step 1: Collect all required indices locally
+    std::vector<idx_g_t> req_list;
+    for (int i = 0; i < map->from->size; i++) {
+      for (int j = 0; j < map->dim; j++) {
+        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
+                                      map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
+        if (local_index < 0) {
+          req_list.push_back(map->map_gbl[i * map->dim + j]);
+        }
+      }
+    }
+    
+    // Remove duplicates
+    if (req_list.size() > 0) {
+      std::sort(req_list.begin(), req_list.end());
+      req_list.erase(std::unique(req_list.begin(), req_list.end()), req_list.end());
+    }
+
+    if (OP_diags > 2) {
+      op_printf("Local req_list size: %zu\n", req_list.size());
+    }
+
+    // Step 2: Process requests in adaptive batches
+    std::vector<idx_g_t> resolved_global_indices_l(req_list.size(), static_cast<idx_g_t>(-1));
+    std::vector<idx_g_t> resolved_global_indices_g(req_list.size(), static_cast<idx_g_t>(-1));
+    
+    // Synchronize the maximum number of requests across all processes to avoid deadlock
+    size_t local_req_count = req_list.size();
+    size_t max_req_count = 0;
+    MPI_Allreduce(&local_req_count, &max_req_count, 1, MPI_UNSIGNED_LONG, MPI_MAX, OP_PART_WORLD);
+    
+    if (OP_diags > 2) {
+      op_printf("Max req_list size across all processes: %zu\n", max_req_count);
+    }
+    
+    size_t current_batch_size = INITIAL_BATCH_SIZE;
+    
+    // Use the maximum request count to ensure all processes do the same number of iterations
+    size_t batch_start = 0;
+    while (batch_start < max_req_count) {
+      // Calculate batch boundaries, but handle cases where this process has no more work
+      size_t batch_end = std::min(batch_start + current_batch_size, std::max(batch_start, req_list.size()));
+      size_t batch_size = (batch_start < req_list.size()) ? batch_end - batch_start : 0;
+      
+      if (OP_diags > 2) {
+        op_printf("Processing batch %zu-%zu (size %zu) of %zu\n", 
+               batch_start, batch_end > batch_start ? batch_end - 1 : batch_start, batch_size, req_list.size());
+      }
+      
+      // Create batch of requests (empty if this process has no more work)
+      std::vector<idx_g_t> batch_req;
+      if (batch_size > 0) {
+        batch_req.assign(req_list.begin() + batch_start, req_list.begin() + batch_end);
+      }
+      
+      // Check global batch size
+      std::vector<int> batch_recv_count(comm_size);
+      int batch_count = batch_size;
+      MPI_Allgather(&batch_count, 1, MPI_INT, batch_recv_count.data(), 1, MPI_INT, OP_PART_WORLD);
+
+      int total_batch_g_count = std::accumulate(batch_recv_count.begin(), batch_recv_count.end(), 0);
+      
+      if (OP_diags > 2) {
+        op_printf("Global batch size: %d (%.2f MB)\n", 
+               total_batch_g_count, (total_batch_g_count * sizeof(idx_g_t)) / (1024.0 * 1024.0));
+      }
+      
+      // If batch is too large, subdivide it further
+      if (total_batch_g_count > MAX_GLOBAL_BATCH_SIZE && current_batch_size > 1000) {
+        if (OP_diags > 2) {
+          op_printf("Batch too large (%d elements), subdividing to %zu...\n", 
+                 total_batch_g_count, current_batch_size / 2);
+        }
+        current_batch_size = current_batch_size / 2;
+        // Restart this batch with smaller size - don't increment batch_start
+        continue;
+      }
+
+      // Proceed with AllGather for this manageable batch
+      std::vector<int> batch_displs(comm_size + 1);
+      std::partial_sum(batch_recv_count.begin(), batch_recv_count.end(), batch_displs.begin() + 1);
+      batch_displs[0] = 0;
+
+      std::vector<idx_g_t> batch_g_index(total_batch_g_count);
+      // Use null pointer for empty batches, but still participate in collective operation
+      idx_g_t* send_ptr = (batch_count > 0) ? batch_req.data() : nullptr;
+      MPI_Allgatherv(send_ptr, batch_count, get_mpi_type<idx_g_t>(), 
+                     batch_g_index.data(), batch_recv_count.data(), batch_displs.data(),
+                     get_mpi_type<idx_g_t>(), OP_PART_WORLD);
+
+      // Remove duplicates from global batch
+      if (total_batch_g_count > 0) {
+        std::sort(batch_g_index.begin(), batch_g_index.end());
+        batch_g_index.erase(std::unique(batch_g_index.begin(), batch_g_index.end()), batch_g_index.end());
+      }
+
+      // Find local elements and export their global indices
+      std::vector<idx_g_t> batch_exp_g_index;
+      std::vector<idx_g_t> batch_exp_index;
+
+      for (size_t i = 0; i < batch_g_index.size(); i++) {
+        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
+                                      batch_g_index[i], 0, map->to->size - 1);
+        if (local_index >= 0) {
+          batch_exp_g_index.push_back(batch_g_index[i]);
+          idx_g_t global_index = get_global_index(local_index, my_rank,
+                                          part_range[map->to->index], comm_size);
+          batch_exp_index.push_back(global_index);
+        }
+      }
+
+      // Exchange resolved indices
+      int batch_exp_count = batch_exp_index.size();
+      MPI_Allgather(&batch_exp_count, 1, MPI_INT, batch_recv_count.data(), 1, MPI_INT, OP_PART_WORLD);
+
+      std::partial_sum(batch_recv_count.begin(), batch_recv_count.end(), batch_displs.begin() + 1);
+      batch_displs[0] = 0;
+
+      int final_batch_g_count = std::accumulate(batch_recv_count.begin(), batch_recv_count.end(), 0);
+      std::vector<idx_g_t> batch_all_imp_g_index(final_batch_g_count);
+      std::vector<idx_g_t> batch_all_imp_index(final_batch_g_count);
+
+      idx_g_t* exp_g_ptr = (batch_exp_count > 0) ? batch_exp_g_index.data() : nullptr;
+      idx_g_t* exp_ptr = (batch_exp_count > 0) ? batch_exp_index.data() : nullptr;
+      
+      MPI_Allgatherv(exp_g_ptr, batch_exp_count, get_mpi_type<idx_g_t>(),
+                     batch_all_imp_g_index.data(), batch_recv_count.data(), batch_displs.data(),
+                     get_mpi_type<idx_g_t>(), OP_PART_WORLD);
+
+      MPI_Allgatherv(exp_ptr, batch_exp_count, get_mpi_type<idx_g_t>(),
+                     batch_all_imp_index.data(), batch_recv_count.data(), batch_displs.data(),
+                     get_mpi_type<idx_g_t>(), OP_PART_WORLD);
+
+      // Sort by original global index for lookup
+      if (final_batch_g_count > 0) {
+        std::sort(ZipIter(batch_all_imp_g_index.data(), batch_all_imp_index.data()),
+                  ZipIter(batch_all_imp_g_index.data() + final_batch_g_count, 
+                         batch_all_imp_index.data() + final_batch_g_count));
+      }
+
+      // Resolve our batch requests (only if we have work in this batch)
+      if (batch_size > 0) {
+        for (size_t i = 0; i < batch_size; i++) {
+          int found = binary_search(batch_all_imp_g_index.data(), batch_req[i], 0, final_batch_g_count - 1);
+          if (found >= 0) {
+            resolved_global_indices_l[batch_start + i] = batch_all_imp_index[found];
+            resolved_global_indices_g[batch_start + i] = batch_all_imp_g_index[found];
+          }
+        }
+      }
+      // Move to the next batch - all processes must advance by the same amount for synchronization
+      batch_start += current_batch_size;
+    }
+
+    // Step 3: Update the mapping table with resolved indices
+    for (int i = 0; i < map->from->size; i++) {
+      for (int j = 0; j < map->dim; j++) {
+        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
+                                      map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
+        
+        if (local_index < 0) {
+          // Find in our resolved list
+          auto it = std::lower_bound(resolved_global_indices_g.begin(), resolved_global_indices_g.end(), map->map_gbl[i * map->dim + j]);
+          if (it != resolved_global_indices_g.end() && *it == map->map_gbl[i * map->dim + j]) {
+            int req_index = it - resolved_global_indices_g.begin();
+            if (resolved_global_indices_l[req_index] != static_cast<idx_g_t>(-1)) {
+              OP_map_list[map->index]->map_gbl[i * map->dim + j] = resolved_global_indices_l[req_index];
+            } else {
+              printf("ERROR: Could not resolve global index for element %ld on rank %d\n", 
+                     (long long)map->map_gbl[i * map->dim + j], my_rank);
+              // Set recognizable error value
+              OP_map_list[map->index]->map_gbl[i * map->dim + j] = static_cast<idx_g_t>(-999999);
+              MPI_Abort(OP_PART_WORLD, 1);
+            }
+          }
+        } else {
+          // Local element - compute global index
+          idx_g_t global_index = get_global_index(local_index, my_rank, part_range[map->to->index], comm_size);
+          OP_map_list[map->index]->map_gbl[i * map->dim + j] = global_index;
+        }
+      }
+    }
+  }
+  
+  for (int i = 0; i < OP_set_index; i++)
+    op_free(part_range[i]);
+  op_free(part_range);
+  
+  if (OP_diags > 2) {
+    op_printf("=== ADAPTIVE BATCHED RENUMBER_MAPS COMPLETE ===\n");
+  }
+}
+
+
+
+// Main renumber_maps function that chooses implementation based on problem size
+static void renumber_maps(int my_rank, int comm_size) {
+  // Check if we should use the memory-efficient version
+  // Get an estimate of the problem size
+  size_t total_map_entries = 0;
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    total_map_entries += map->from->size * map->dim;
+  }
+  
+  // Use efficient version for large problems or high process counts  
+  // Based on the 92M global aggregation seen in testing, use efficient version more aggressively
+  bool use_efficient = (comm_size >= 256) || (total_map_entries > 500000);
+  
+  if (OP_diags > 2) {
+    op_printf("Total map entries: %zu, comm_size: %d\n", total_map_entries, comm_size);
+    op_printf("Using %s renumber_maps implementation\n", 
+           use_efficient ? "memory-efficient" : "original");
+  }
+  
+  if (use_efficient) {
+    renumber_maps_efficient(my_rank, comm_size);
+  } else {
+    renumber_maps_original(my_rank, comm_size);
+  }
 }
 
 /*******************************************************************************
@@ -1757,18 +2004,6 @@ void op_partition_geom(op_dat coords) {
 
 #endif
 
-void op_partition_kway(op_map primary_map, bool use_kahip) {
-  if (use_kahip) {
-#ifdef HAVE_KAHIP
-    op_partition_kway_generic<idxtype>(primary_map, use_kahip);
-#endif
-  } else {
-#ifdef HAVE_PARMETIS
-    op_partition_kway_generic<idx_t>(primary_map, use_kahip);
-#endif
-  }
-}
-
 #ifdef HAVE_PARMETIS
 
 /*******************************************************************************
@@ -1845,7 +2080,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
                                                  // pointed at by this entry
       part = get_partition(primary_map->map[e * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
-                           comm_size);
+                           comm_size, primary_map->to);
       if (c >= cap) {
         cap = cap * 2;
         list = (int *)xrealloc(list, cap * sizeof(int));
@@ -1964,7 +2199,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
                                                  // pointed at by this entry
       part = get_partition(primary_map->map[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
-                           comm_size);
+                           comm_size, primary_map->to);
 
       if (part == my_rank) {
         for (int k = 0; k < primary_map->dim; k++) {
@@ -1987,7 +2222,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
                                                  // pointed at by this entry
       part = get_partition(foreign_maps[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
-                           comm_size);
+                           comm_size, primary_map->to);
 
       if (part == my_rank) {
         for (int k = 0; k < primary_map->dim; k++) {
@@ -3075,7 +3310,7 @@ halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
                                                  // pointed at by this entry
       part = get_partition(primary_map->map_gbl[e * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
-                           comm_size);
+                           comm_size, primary_map->to);
       if (c >= cap) {
         cap = cap * 2;
         list = (int *)xrealloc(list, cap * sizeof(int));
@@ -3165,14 +3400,18 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   idx_g_t **sbuf = (idx_g_t **)xmalloc(exp_list->ranks_size * sizeof(idx_g_t *));
 
   for (int i = 0; i < exp_list->ranks_size; i++) {
-    sbuf[i] =
-        (idx_g_t *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(idx_g_t));
+    // Check for potential integer overflow in buffer allocation
+    size_t buffer_size = (size_t)exp_list->sizes[i] * primary_map->dim;
+    sbuf[i] = (idx_g_t *)xmalloc(buffer_size * sizeof(idx_g_t));
+    
     for (int j = 0; j < exp_list->sizes[i]; j++) {
+      // Check bounds for exp_list access
+      int list_idx = exp_list->disps[i] + j;
+      int map_elem_idx = exp_list->list[list_idx];
+      
       for (int p = 0; p < primary_map->dim; p++) {
-        sbuf[i][j * primary_map->dim + p] =
-            primary_map->map_gbl[primary_map->dim *
-                                 (exp_list->list[exp_list->disps[i] + j]) +
-                             p];
+        size_t map_idx = (size_t)primary_map->dim * map_elem_idx + p;
+        sbuf[i][j * primary_map->dim + p] = primary_map->map_gbl[map_idx];
       }
     }
     MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], get_mpi_type<idx_g_t>(),
@@ -3181,13 +3420,16 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   }
 
   // prepare space for the incoming mapping tables
-  idx_g_t *foreign_maps =
-      (idx_g_t *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(idx_g_t));
+  size_t foreign_maps_size = (size_t)primary_map->dim * imp_list->size;
+  idx_g_t *foreign_maps = (idx_g_t *)xmalloc(foreign_maps_size * sizeof(idx_g_t));
 
   for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
-             primary_map->dim * imp_list->sizes[i], get_mpi_type<idx_g_t>(), imp_list->ranks[i],
-             primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
+    // Check bounds for import buffer access
+    size_t recv_offset = (size_t)imp_list->disps[i] * primary_map->dim;
+    size_t recv_size = (size_t)primary_map->dim * imp_list->sizes[i];
+    
+    MPI_Recv(&foreign_maps[recv_offset], recv_size, get_mpi_type<idx_g_t>(), 
+             imp_list->ranks[i], primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
 
   MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -3214,7 +3456,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
                                                  // pointed at by this entry
       part = get_partition(primary_map->map_gbl[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
-                           comm_size);
+                           comm_size, primary_map->to);
 
       if (part == my_rank) {
         for (int k = 0; k < primary_map->dim; k++) {
@@ -3247,7 +3489,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
                                                  // pointed at by this entry
       part = get_partition(foreign_maps[i * primary_map->dim + j],
                            part_range[primary_map->to->index], &local_index,
-                           comm_size);
+                           comm_size, primary_map->to);
 
       if (part == my_rank) {
         for (int k = 0; k < primary_map->dim; k++) {
@@ -3423,124 +3665,6 @@ void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
 }
 #endif
 
-/*******************************************************************************
- * Wrapper routine to partition a given set Using
- * ParHIPPartitionKWay or ParMETIS PartKway()
- *******************************************************************************/
-template <class T>
-void op_partition_kway_generic(op_map primary_map, bool use_kahip) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-#ifdef DEBUG
-  // check if the  primary_map is an on to map from the from-set to the to-set
-  if (is_onto_map(primary_map) != 1) {
-    printf("Map %s is an not an onto map from set %s to set %s \n",
-           primary_map->name, primary_map->from->name, primary_map->to->name);
-    MPI_Abort(OP_PART_WORLD, 2);
-  }
-#endif
-
-  /*--STEP 0 - initialise partitioning data structures with the current (block)
-    partitioning information */
-  idx_g_t **part_range = initialise(my_rank, comm_size);
-
-  /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
-   * -------*/
-  halo_list exp_list =
-      create_exp_list(primary_map, part_range, my_rank, comm_size);
-  halo_list imp_list;
-  MPI_Request *request_send;
-  std::tie(imp_list, request_send) =
-      create_imp_list(primary_map, my_rank, comm_size, exp_list);
-  
-  idx_g_t **adj;
-  int *adj_i, *adj_cap;
-  std::tie(adj, adj_i, adj_cap) =
-      construct_adj_list(primary_map, exp_list, imp_list, request_send, my_rank,
-                         comm_size, part_range);
-
-  T *vtxdist, *xadj, *adjncy, *partition_pm;
-  T comm_size_pm, ncon;
-  real_t *tpwgts, *ubvec;
-  std::tie(vtxdist, xadj, adjncy, partition_pm, comm_size_pm, ncon, tpwgts,
-           ubvec) = setup_part_data<T>(primary_map, my_rank, comm_size, adj,
-                                       adj_i, adj_cap, part_range);
-
-  T edge_cut = 0;
-  T numflag = 0;
-  T wgtflag = 0;
-  T options[3] = {1, 3, 15};
-
-  // clean up before calling ParMetis
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-  op_free(imp_list->list);
-  op_free(imp_list->disps);
-  op_free(imp_list->ranks);
-  op_free(imp_list->sizes);
-  op_free(exp_list->list);
-  op_free(exp_list->disps);
-  op_free(exp_list->ranks);
-  op_free(exp_list->sizes);
-  op_free(imp_list);
-  op_free(exp_list);
-
-  if (my_rank == MPI_ROOT) {
-    printf("-----------------------------------------------------------\n");
-    if (use_kahip) {
-      printf("ParHIPPartitionKWay Output\n");
-    } else printf("ParMETIS_V3_PartKway Output\n");
-    printf("-----------------------------------------------------------\n");
-  }
-
-  perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
-                         &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
-                         partition_pm, &OP_PART_WORLD);
-
-  if (my_rank == MPI_ROOT)
-    printf("-----------------------------------------------------------\n");
-  op_free(vtxdist);
-  op_free(xadj);
-  op_free(adjncy);
-  op_free(ubvec);
-  op_free(tpwgts);
-
-  check_partition(primary_map, partition_pm, my_rank, comm_size);
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(primary_map->to, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total Kway partitioning time = %lf\n", max_time);
-
-  free(request_send);
-}
 
 #ifdef HAVE_PTSCOTCH
 // Helper function to set up PTScotch data structures
@@ -3844,3 +3968,4 @@ void op_partition_graph_ptscotch(op_map primary_map) {
     op_partition_graph_generic<idx_t>(primary_map, "PTSCOTCH");
 }
 #endif
+
