@@ -53,26 +53,43 @@ extern "C" {
 
 void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,
                      int soa) {
+  (void)global; // Mark as unused
+  (void)local;  // Mark as unused
   OP_auto_soa = soa;
   op_init_core(argc, argv, diags);
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
+  (void)global; // Mark as unused
+  (void)local;  // Mark as unused
   op_init_core(argc, argv, diags);
 }
-
 
 #ifdef __cplusplus
 }
 #endif
 
-op_set op_decl_set(int size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
-op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
+op_map op_decl_map(op_set from, op_set to, int dim, idx_l_t *imap,
                    char const *name) {
   return op_decl_map_core(from, to, dim, imap, name);
+}
+
+op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
+                   char const *name) {
+  //Convert from long global indices to shorter local indices. Set size
+  //per process has to be less than INT_MAX
+  idx_l_t *imap= (idx_l_t*)op_malloc(from->size * dim * sizeof(idx_l_t));
+  for (idx_g_t i = 0; i < from->size * dim; i++) {
+    imap[i] = (idx_l_t)imap_g[i];
+  }
+  op_map map = op_decl_map(from, to, dim, imap, name);
+  map->user_managed = 0;
+  op_free(imap);
+  return map;
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
@@ -143,6 +160,7 @@ op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
 op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
                            int nargs, op_arg *args, int ninds, int *inds,
                            int staging, int upload) {
+  (void)upload; // Mark as unused
   return op_plan_core(name, set, part_size, nargs, args, ninds, inds, staging);
 }
 
@@ -183,9 +201,12 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
          (high + 1) * dat->size);
 }
 
-int op_get_size(op_set set) { return set->size; }
+idx_g_t op_get_size(op_set set) { return set->size; }
 
-int op_get_global_set_offset(op_set set) { return 0; }
+idx_g_t op_get_global_set_offset(op_set set) {
+  (void)set; // Mark as unused
+  return 0;
+}
 
 void op_printf(const char *format, ...) {
   va_list argptr;
@@ -249,6 +270,10 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   op_print_dat_to_txtfile_core(dat, file_name);
 }
 
-void op_upload_dat(op_dat dat) {}
+void op_upload_dat(op_dat dat) {
+  (void)dat; // Mark as unused
+}
 
-void op_download_dat(op_dat dat) {}
+void op_download_dat(op_dat dat) {
+  (void)dat; // Mark as unused
+}

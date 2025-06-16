@@ -162,7 +162,7 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
 }
 void op_renumber(op_map base) { (void)base; }
 
-void op_renumber_ptr(int *ptr){};
+void op_renumber_ptr(int *ptr){ (void)ptr;}
 
 void op_compute_moment(double t, double *first, double *second) {
   *first = t;
@@ -191,56 +191,16 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 void op_partition_reverse() {}
 
 int getSetSizeFromOpArg(op_arg *arg) {
-  return arg->opt ? arg->dat->set->size : 0;
+  if (arg->dat->set->size > std::numeric_limits<int>::max()) {
+    throw std::overflow_error("Set size is too large to be represented as an int");
+  }
+  return arg->opt ? (int)arg->dat->set->size : 0;
 }
 
 int op_is_root() { return 1; }
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
-typedef struct {
-} op_export_core;
-
-typedef op_export_core *op_export_handle;
-
-typedef struct {
-} op_import_core;
-
-typedef op_import_core *op_import_handle;
-
-void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
-                   double *dtheta_imp, double *alpha) {
-
-  exit(1);
-}
-
-void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
-                  double *dtheta_imp) {
-
-  exit(1);
-}
-
-op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
-  exit(1);
-  return NULL;
-}
-
-op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
-                                op_dat mark) {
-  exit(1);
-  return NULL;
-}
-
-op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
-                                op_set sp_nodes, op_dat coords, op_dat mark) {
-
-  exit(1);
-  return NULL;
-}
-
-void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
-
-void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }
 void deviceSync() {}
 
 #ifdef __cplusplus

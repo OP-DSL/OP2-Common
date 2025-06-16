@@ -99,7 +99,8 @@ extern "C" {
 static char *copy_str(char const *src) {
   const size_t len = strlen(src) + 1;
   char *dest = (char *)op_calloc(len, sizeof(char));
-  return strncpy(dest, src, len);
+  strcpy(dest, src);
+  return dest;
 }
 
 int compare_sets(op_set set1, op_set set2) {
@@ -184,7 +185,7 @@ void op_disable_mpi_reductions(bool disable) {
 *  is not easy to pass through from frotran to C
 */
 void op_set_args(int argc, char *argv) {
-
+  (void)argc;
   char temp[64];
   char *pch;
   pch = strstr(argv, "OP_BLOCK_SIZE=");
@@ -347,7 +348,7 @@ void op_init_core(int argc, char **argv, int diags) {
   TAILQ_INIT(&OP_dat_list);
 }
 
-op_set op_decl_set_core(int size, char const *name) {
+op_set op_decl_set_core(idx_g_t size, char const *name) {
   if (size < 0) {
     printf(" op_decl_set error -- negative/zero size for set: %s\n", name);
     exit(-1);
@@ -408,12 +409,15 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     }
   }*/
 
-  int *m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int));
-  if (m == NULL) {
-    printf(" op_decl_map_core error -- error allocating memory to map\n");
-    exit(-1);
+  int *m = NULL;
+  if (imap != NULL) {
+    m = (int *)malloc((size_t)from->size * (size_t)dim * sizeof(int));
+    if (m == NULL) {
+      printf(" op_decl_map_core error -- error allocating memory to map\n");
+      exit(-1);
+    }
+    memcpy(m, imap, sizeof(int) * from->size * dim);
   }
-  memcpy(m, imap, sizeof(int) * from->size * dim);
 
   if (OP_map_index == OP_map_max) {
     OP_map_max += 10;
@@ -425,9 +429,9 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
     }
   }
 
-  if (OP_maps_base_index == 1) {
+  if (OP_maps_base_index == 1 && imap != NULL) {
     // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
-    for (int i = 0; i < from->size * dim; i++)
+    for (idx_g_t i = 0; i < from->size * dim; i++)
       // imap[i]--;
       m[i]--; // modify op2's copy
   }
@@ -442,7 +446,7 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->map = m; // use op2's copy instead of imap;
   map->map_d = NULL;
   map->name = copy_str(name);
-  map->user_managed = 1;
+  map->user_managed = 0;
   map->force_part = false;
 
   OP_map_list[OP_map_index] = map;
@@ -678,6 +682,9 @@ void op_exit_core() {
 
   // free storage for timing info
 
+  for (int i = 0; i < OP_kern_max; i++) {
+    free(OP_kernels[i].times);
+  }
   free(OP_kernels);
   OP_kernels = NULL;
 
@@ -712,10 +719,10 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
     if (arg.map == NULL && arg.dat->set != set) {
       // op_err_print("dataset set does not match loop set", m, name);
       if (arg.dat->set != set)
-        printf("dataset dat %s with data pointer %lu (%p), on set %p (%s) does not "
+        printf("dataset dat %s with data pointer %llu (%p), on set %p (%s) does not "
                "match loop set %p (%s)\n",
-               arg.dat->name, arg.dat->data, arg.dat->data, arg.dat->set, arg.dat->set->name,
-               set, set->name);
+               arg.dat->name, (long long unsigned int)arg.dat->data, arg.dat->data, (void*)arg.dat->set, arg.dat->set->name,
+               (void*)set, set->name);
     }
 
     if (arg.map != NULL) {
@@ -805,7 +812,7 @@ op_arg op_arg_idx_ptr(int idx, int *map) {
     idx = -1;
 
   if (item_map == NULL && idx != -1) {
-    printf("ERROR: op_map not found for %p pointer\n", map);
+    printf("ERROR: op_map not found for %p pointer\n", (void*)map);
     exit(-1);
   }
 
@@ -842,13 +849,16 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
   }
 
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
-      strcmp(typ, "real*8") == 0)
+      strcmp(typ, "real*8") == 0 || strcmp(typ, "real(8)") == 0 ||
+      (strcmp(typ, "real") == 0 && strcmp(typ, "8") == 0))
     arg.type = doublestr;
   else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
-           strcmp(typ, "real*4") == 0)
+           strcmp(typ, "real*4") == 0 || strcmp(typ, "real(4)") == 0 ||
+           (strcmp(typ, "real") == 0 && strcmp(typ, "4") == 0))
     arg.type = floatstr;
   else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
-           strcmp(typ, "integer*4") == 0)
+           strcmp(typ, "integer*4") == 0 || strcmp(typ, "integer(4)") == 0 ||
+           (strcmp(typ, "integer") == 0 && strcmp(typ, "4") == 0))
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -893,13 +903,16 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   }
 
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
-      strcmp(typ, "real*8") == 0)
+      strcmp(typ, "real*8") == 0 || strcmp(typ, "real(8)") == 0 ||
+      (strcmp(typ, "real") == 0 && strcmp(typ, "8") == 0))
     arg.type = doublestr;
   else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
-           strcmp(typ, "real*4") == 0)
+           strcmp(typ, "real*4") == 0 || strcmp(typ, "real(4)") == 0 ||
+           (strcmp(typ, "real") == 0 && strcmp(typ, "4") == 0))
     arg.type = floatstr;
   else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
-           strcmp(typ, "integer*4") == 0)
+           strcmp(typ, "integer*4") == 0 || strcmp(typ, "integer(4)") == 0 ||
+           (strcmp(typ, "integer") == 0 && strcmp(typ, "4") == 0))
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -926,13 +939,16 @@ op_arg op_arg_info_char(char *data, int dim, const char *typ, int size, int ref)
   arg.size = dim * size;
   arg.data = data;
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
-      strcmp(typ, "real*8") == 0)
+      strcmp(typ, "real*8") == 0 || strcmp(typ, "real(8)") == 0 ||
+      (strcmp(typ, "real") == 0 && strcmp(typ, "8") == 0))
     arg.type = doublestr;
   else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
-           strcmp(typ, "real*4") == 0)
+           strcmp(typ, "real*4") == 0 || strcmp(typ, "real(4)") == 0 ||
+           (strcmp(typ, "real") == 0 && strcmp(typ, "4") == 0))
     arg.type = floatstr;
   else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
-           strcmp(typ, "integer*4") == 0)
+           strcmp(typ, "integer*4") == 0 || strcmp(typ, "integer(4)") == 0 ||
+           (strcmp(typ, "integer") == 0 && strcmp(typ, "4") == 0))
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -969,13 +985,16 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
   arg.size = dim * size;
   arg.data = data;
   if (strcmp(typ, "double") == 0 || strcmp(typ, "r8") == 0 ||
-      strcmp(typ, "real*8") == 0)
+      strcmp(typ, "real*8") == 0 || strcmp(typ, "real(8)") == 0 ||
+      (strcmp(typ, "real") == 0 && strcmp(typ, "8") == 0))
     arg.type = doublestr;
   else if (strcmp(typ, "float") == 0 || strcmp(typ, "r4") == 0 ||
-           strcmp(typ, "real*4") == 0)
+           strcmp(typ, "real*4") == 0 || strcmp(typ, "real(4)") == 0 ||
+           (strcmp(typ, "real") == 0 && strcmp(typ, "4") == 0))
     arg.type = floatstr;
   else if (strcmp(typ, "int") == 0 || strcmp(typ, "i4") == 0 ||
-           strcmp(typ, "integer*4") == 0)
+           strcmp(typ, "integer*4") == 0 || strcmp(typ, "integer(4)") == 0 ||
+           (strcmp(typ, "integer") == 0 && strcmp(typ, "4") == 0))
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
@@ -1010,7 +1029,7 @@ void op_diagnostic_output() {
     printf("\n       set       size\n");
     printf("  -------------------\n");
     for (int n = 0; n < OP_set_index; n++) {
-      printf("%10s %10d\n", OP_set_list[n]->name, OP_set_list[n]->size);
+      printf("%10s %10lld\n", OP_set_list[n]->name, OP_set_list[n]->size);
     }
 
     printf("\n       map        dim       from         to\n");
@@ -1194,10 +1213,19 @@ void op_dump_dat(op_dat data) {
   fflush(stdout);
 
   if (data != NULL) {
-    if (strncmp("real", data->type, 4) == 0) {
+    if (strcmp(data->type, "double") == 0 || strcmp(data->type, "r8") == 0 ||
+        strcmp(data->type, "real*8") == 0 || strcmp(data->type, "real(8)") == 0 ||
+        (strcmp(data->type, "real") == 0 && strcmp(data->type, "8") == 0) ) {
       for (int i = 0; i < data->dim * data->set->size; i++)
         printf("%lf\n", ((double *)data->data)[i]);
-    } else if (strncmp("integer", data->type, 7) == 0) {
+    } else if (strcmp(data->type, "float") == 0 || strcmp(data->type, "r4") == 0 ||
+               strcmp(data->type, "real*4") == 0 || strcmp(data->type, "real(4)") == 0 ||
+               (strcmp(data->type, "real") == 0 && strcmp(data->type, "4") == 0)) {
+      for (int i = 0; i < data->dim * data->set->size; i++)
+        printf("%f\n", ((float *)data->data)[i]);
+    } else if (strcmp(data->type, "integer") == 0 || strcmp(data->type, "i4") == 0 ||
+               strcmp(data->type, "integer*4") == 0 || strcmp(data->type, "integer(4)") == 0 ||
+               (strcmp(data->type, "integer") == 0 && strcmp(data->type, "4") == 0)) {
       for (int i = 0; i < data->dim * data->set->size; i++)
         printf("%d\n", data->data[i]);
     } else {
@@ -1228,7 +1256,7 @@ void op_print_dat_to_binfile_core(op_dat dat, const char *file_name) {
     exit(2);
   }
 
-  if (fwrite(dat->data, dat->size, dat->set->size, fp) < dat->set->size) {
+  if (fwrite(dat->data, dat->size, dat->set->size, fp) < (size_t)dat->set->size) {
     printf("error writing to %s\n", file_name);
     exit(2);
   }
@@ -1242,7 +1270,7 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
     exit(2);
   }
 
-  if (fprintf(fp, "%d %d\n", dat->set->size, dat->dim) < 0) {
+  if (fprintf(fp, "%lld %d\n", dat->set->size, dat->dim) < 0) {
     printf("error writing to %s\n", file_name);
     exit(2);
   }
@@ -1252,7 +1280,8 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
       if (strcmp(dat->type, "double") == 0 ||
           strcmp(dat->type, "double:soa") == 0 ||
           strcmp(dat->type, "double precision") == 0 ||
-          strcmp(dat->type, "real(8)") == 0) {
+          strcmp(dat->type, "real*8") == 0 || strcmp(dat->type, "real(8)") == 0 ||
+          (strcmp(dat->type, "real") == 0 && strcmp(dat->type, "8") == 0)) {
         // if (fprintf(fp, "%2.15lf ", ((double *)dat->data)[i * dat->dim + j])
         // <
         if (((double *)dat->data)[i * dat->dim + j] == -0.0)
@@ -1315,7 +1344,7 @@ void set_maps_base(int base) {
 
 void *op_malloc(size_t size) {
   if (size == 0) return malloc(0);
-  return aligned_alloc(OP2_ALIGNMENT, (size + OP2_ALIGNMENT) - 1 & (-OP2_ALIGNMENT));
+  return aligned_alloc(OP2_ALIGNMENT, ((size + OP2_ALIGNMENT) - 1) & (-OP2_ALIGNMENT));
 }
 
 // malloc to be exposed in Fortran API for use with Cray pointers
@@ -1338,6 +1367,7 @@ void *op_realloc(void *ptr, size_t size) {
 
   void *new_ptr2 = op_malloc(size);
   memcpy(new_ptr2, new_ptr, size);
+  free(new_ptr);
 
   return new_ptr2;
 }
@@ -1382,7 +1412,7 @@ op_arg op_arg_dat_ptr(int opt, char *dat, int idx, int *map, int dim,
     idx = -1;
 
   if (item_map == NULL && idx != -1) {
-    printf("ERROR: op_map not found for %p pointer\n", map);
+    printf("ERROR: op_map not found for %p pointer\n", (void*)map);
     exit(-1);
   }
 
@@ -1498,7 +1528,7 @@ unsigned long op_reset_map_ptr(int *map) {
   op_map item_map = op_search_map_ptr(map);
 
   if (item_map == NULL) {
-    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    printf("ERROR: op_map not found for map with %p pointer\n", (void*)map);
     exit(-1);
   }
 
@@ -1512,14 +1542,14 @@ unsigned long op_copy_map_to_fort(int *map) {
   op_map item_map = op_search_map_ptr(map);
 
   if (item_map == NULL) {
-    printf("ERROR: op_map not found for map with %p pointer\n", map);
+    printf("ERROR: op_map not found for map with %p pointer\n", (void*)map);
     exit(-1);
   }
 
   int *fort_map = (int *) malloc((item_map->from->size + item_map->from->exec_size+1)* item_map->dim * sizeof(int));
   fort_map++; //Sometimes this will return an allocation previously deallocated, but still on the OP_map_ptr_table. Increment by one to avoid
   if (OP_map_ptr_table.count(fort_map)>0) {
-    printf("Error: Map pointer %p already in map_ptr_table\n", fort_map);
+    printf("Error: Map pointer %p already in map_ptr_table\n", (void*)fort_map);
     exit(-1);
   }
   OP_map_ptr_table.insert({fort_map, item_map->index});
@@ -1545,15 +1575,15 @@ void op_force_part(int *map) {
  * Get the local size of a set
  *******************************************************************************/
 
-int op_get_size_local_core(op_set set) { return set->core_size; }
-int op_get_size_local(op_set set) { return set->size; }
+idx_l_t op_get_size_local_core(op_set set) { return set->core_size; }
+idx_l_t op_get_size_local(op_set set) { return set->size; }
 
 /*******************************************************************************
  * Get the local exec size of a set
  *******************************************************************************/
 
-int op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
-int op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
+idx_l_t op_get_size_local_exec(op_set set) { return set->exec_size + set->size; }
+idx_l_t op_get_size_local_full(op_set set) { return set->exec_size + set->nonexec_size + set->size; }
 int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }
 
 int op_is_partitioned() { return OP_is_partitioned; }

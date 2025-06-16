@@ -2,7 +2,7 @@
 CONFIG_CC := gcc
 CONFIG_CXX := g++
 
-BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic
+BASE_CXXFLAGS := -MMD -MP -Wall -Wextra -pedantic #-fsanitize=address -fsanitize=undefined
 
 ifndef DEBUG
   BASE_CXXFLAGS += -g -O3
@@ -11,7 +11,7 @@ ifndef DEBUG
     BASE_CXXFLAGS += -march=native
   endif
 else
-  BASE_CXXFLAGS += -g -Og
+  BASE_CXXFLAGS += -g -Og #-fsanitize=undefined -fsanitize=address
 endif
 
 CONFIG_CFLAGS ?= -std=c99 $(BASE_CXXFLAGS) $(EXTRA_CFLAGS)
