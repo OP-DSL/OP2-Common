@@ -216,7 +216,7 @@ void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
  *******************************************************************************/
 
 int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
-                  int comm_size) {
+                  int comm_size, op_set set) {
   int low = 0;
   int high = comm_size - 1;
   
@@ -239,7 +239,7 @@ int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
     }
   }
   
-  printf("Error: orphan global index\n");
+  printf("Error: orphan global index %lld in set %s\n", global_index, set->name);
   MPI_Abort(OP_MPI_WORLD, 2);
   return -1;
 }
@@ -619,7 +619,7 @@ void op_halo_create() {
                                                // pointed at by this entry
             part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
-                                 comm_size);
+                                 comm_size, map->to);
             if (s_i >= cap_s) {
               cap_s = cap_s * 2;
               set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
@@ -791,7 +791,7 @@ void op_halo_create() {
                                                // at by this entry
             part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
-                                 comm_size);
+                                 comm_size, map->to);
 
             if (s_i >= cap_s) {
               cap_s = cap_s * 2;
@@ -1035,7 +1035,7 @@ void op_halo_create() {
             int local_index = 0;
             part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
-                                 comm_size);
+                                 comm_size, map->to);
 
             if (part == my_rank) {
               OP_map_list[map->index]->map[e * map->dim + j] = local_index;
@@ -2600,7 +2600,7 @@ op_dat op_mpi_get_data(op_dat dat) {
     int local_index;
     OP_part_list[dat->set->index]->elem_part[i] = get_partition(
         OP_part_list[dat->set->index]->g_index[i],
-        orig_part_range[dat->set->index], &local_index, comm_size);
+        orig_part_range[dat->set->index], &local_index, comm_size, dat->set);
   }
 
   halo_list pe_list;
