@@ -52,6 +52,18 @@ public:
     SafeLong(int v) : value(v) {}
     SafeLong(std::size_t v) : value(v) {}
     SafeLong(std::ptrdiff_t v) : value(static_cast<long long>(v)) {}
+    SafeLong(unsigned long long v) {
+        if (v > std::numeric_limits<long long>::max()) {
+            throw std::overflow_error("Conversion to SafeLong would lose data. Value: " + std::to_string(v));
+        }
+        value = v;
+    }
+    SafeLong(double v) {
+        if (v > std::numeric_limits<long long>::max() || v < std::numeric_limits<long long>::min()) {
+            throw std::overflow_error("Conversion to SafeLong would lose data. Value: " + std::to_string(v));
+        }
+        value = static_cast<long long>(v);
+    }
 
     // Getter (for internal use)
     long long get() const { return value; }
@@ -107,6 +119,11 @@ public:
 
     // Implicit conversion to long long int
     operator long long() const { return value; }
+
+    // Implicit conversion to float
+    operator float() const {
+        return static_cast<float>(value);
+    }
 
     // Prefix increment operator (++x)
     SafeLong& operator++() {
