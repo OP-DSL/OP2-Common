@@ -35,9 +35,14 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <extern/rapidhash.h>
+#include <op_lib_mpi_unified.hpp>
+#include <set>
+#include <unordered_map>
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <cassert>
 
 MPI_Comm OP_MPI_IO_WORLD;
 
@@ -331,6 +336,355 @@ void scatter_data_from_buffer_ptr(op_arg arg, halo_list iel, halo_list inl, char
   }
 }
 
+constexpr uint64_t hash_seed_default = RAPID_SEED;
+
+template<typename T>
+static inline uint64_t hash(const T key, uint64_t seed = hash_seed_default) {
+    return rapidhash_withSeed((void *)&key, sizeof(T), seed);
+}
+
+template<typename T>
+static inline uint64_t hash(const T* key, size_t len, uint64_t seed = hash_seed_default) {
+    return rapidhash_withSeed((void *)key, sizeof(T) * len, seed);
+}
+
+template<>
+inline uint64_t hash(const void* key, size_t len, uint64_t seed) {
+    return rapidhash_withSeed(key, len, seed);
+}
+
+struct ExchangeInfo {
+    MPI_Comm comm;
+
+    std::vector<int> dats;
+
+    std::vector<int> send_neighbours;
+    std::vector<int> recv_neighbours;
+
+    std::vector<int> send_sizes;
+    std::vector<int> recv_sizes;
+
+    std::vector<int> send_offsets;
+    std::vector<int> recv_offsets;
+
+    PtrBuffers ptrs;
+};
+
+std::unordered_map<uint64_t, ExchangeInfo> exchanges;
+
+ExchangeInfo *active_exchange_4 = nullptr;
+ExchangeInfo *active_exchange_8 = nullptr;
+
+static op_dat get_dat(int index) {
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries) {
+        if (item->dat->index == index) return item->dat;
+    }
+
+    assert(false);
+}
+
+static std::set<int> get_sets_from_dats(const std::set<int> &dats) {
+    std::set<int> sets;
+    for (auto dat : dats) {
+        sets.insert(get_dat(dat)->set->index);
+    }
+
+    return sets;
+}
+
+static std::set<int> get_neighbours(halo_list list) {
+    std::set<int> neighbours;
+    for (int i = 0; i < list->ranks_size; ++i) {
+        neighbours.insert(list->ranks[i]);
+    }
+
+    return neighbours;
+}
+
+static void extract_import_lists(halo_list hlist, op_dat dat,
+                                 std::unordered_map<int, std::vector<void *>> &lists) {
+    auto elem_size = dat->size / dat->dim;
+    auto stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
+                                         + OP_import_nonexec_list[dat->set->index]->size);
+
+    for (int i = 0; i < hlist->ranks_size; ++i) {
+        auto neighbour = hlist->ranks[i];
+        auto num_elem = hlist->sizes[i];
+        auto list_disp = hlist->disps[i];
+
+        auto& list = lists[neighbour];
+        for (int j = list_disp; j < list_disp + num_elem; ++j) {
+            auto index = hlist->list[j];
+
+            for (int d = 0; d < dat->dim; ++d) {
+                list.push_back(&dat->data_d[elem_size * (index + d * stride)]);
+            }
+        }
+    }
+}
+
+static void extract_export_lists(halo_list hlist, op_dat dat, int offset,
+                                 std::unordered_map<int, std::vector<void *>> &lists) {
+    auto elem_size = dat->size / dat->dim;
+    auto stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
+                                         + OP_import_nonexec_list[dat->set->index]->size);
+
+    for (int i = 0; i < hlist->ranks_size; ++i) {
+        auto neighbour = hlist->ranks[i];
+        auto num_elem = hlist->sizes[i];
+        auto list_disp = hlist->disps[i];
+
+        auto& list = lists[neighbour];
+        for (int j = list_disp; j < list_disp + num_elem; ++j) {
+            for (int d = 0; d < dat->dim; ++d) {
+                list.push_back(&dat->data_d[elem_size * (offset + j + d * stride)]);
+            }
+        }
+    }
+}
+
+// Pre: dats have same element size
+static void init_exchange_info(const std::set<int> &dats, ExchangeInfo& exchange_info) {
+    exchange_info.dats = std::vector(dats.begin(), dats.end());
+    auto sets = get_sets_from_dats(dats);
+
+    std::set<int> send_neighbours;
+    std::set<int> recv_neighbours;
+
+    for (auto set : sets) {
+        send_neighbours.merge(get_neighbours(OP_export_exec_list[set]));
+        send_neighbours.merge(get_neighbours(OP_export_nonexec_list[set]));
+
+        recv_neighbours.merge(get_neighbours(OP_import_exec_list[set]));
+        recv_neighbours.merge(get_neighbours(OP_import_nonexec_list[set]));
+    }
+
+    exchange_info.send_neighbours = std::vector(send_neighbours.begin(), send_neighbours.end());
+    exchange_info.recv_neighbours = std::vector(recv_neighbours.begin(), recv_neighbours.end());
+
+    auto err = MPI_Dist_graph_create_adjacent(
+            OP_MPI_WORLD,
+            exchange_info.recv_neighbours.size(),
+            exchange_info.recv_neighbours.data(),
+            MPI_UNWEIGHTED,
+            exchange_info.send_neighbours.size(),
+            exchange_info.send_neighbours.data(),
+            MPI_UNWEIGHTED,
+            MPI_INFO_NULL,
+            false,
+            &exchange_info.comm
+    );
+
+    if (err != MPI_SUCCESS) {
+        printf("Error: could not create graph communicator: %d\n", err);
+        exit(1);
+    }
+
+    std::unordered_map<int, std::vector<void *>> gather_lists;
+    std::unordered_map<int, std::vector<void *>> scatter_lists;
+
+    for (auto neighbour : send_neighbours) {
+        gather_lists.try_emplace(neighbour);
+    }
+
+    for (auto neighbour : recv_neighbours) {
+        scatter_lists.try_emplace(neighbour);
+    }
+
+    for (auto dat_index : dats) {
+        auto dat = get_dat(dat_index);
+
+        extract_import_lists(OP_export_exec_list[dat->set->index], dat, gather_lists);
+        extract_import_lists(OP_export_nonexec_list[dat->set->index], dat, gather_lists);
+
+        auto import_exec_offset = dat->set->size;
+        auto import_nonexec_offset = dat->set->size + OP_import_exec_list[dat->set->index]->size;
+
+        extract_export_lists(OP_import_exec_list[dat->set->index], dat,
+                             import_exec_offset, scatter_lists);
+        extract_export_lists(OP_import_nonexec_list[dat->set->index], dat,
+                             import_nonexec_offset, scatter_lists);
+    }
+
+    auto offset = 0;
+    for (auto neighbour : send_neighbours) {
+        auto& list = gather_lists[neighbour];
+        exchange_info.send_offsets.push_back(offset);
+
+        auto size = 0;
+        for (auto ptr : list) {
+            exchange_info.ptrs.gather_ptrs.push_back(ptr);
+            ++offset;
+            ++size;
+        }
+
+        exchange_info.send_sizes.push_back(size);
+    }
+
+    offset = 0;
+    for (auto neighbour : recv_neighbours) {
+        auto& list = scatter_lists[neighbour];
+        exchange_info.recv_offsets.push_back(offset);
+
+        auto size = 0;
+        for (auto ptr : list) {
+            exchange_info.ptrs.scatter_ptrs.push_back(ptr);
+            ++offset;
+            ++size;
+        }
+
+        exchange_info.recv_sizes.push_back(size);
+    }
+
+    exchange_info.ptrs.gather_ptrs_d =
+        (void **) copy_to_device(exchange_info.ptrs.gather_ptrs.data(),
+                                 exchange_info.ptrs.gather_ptrs.size() * 8);
+
+    exchange_info.ptrs.scatter_ptrs_d =
+        (void **) copy_to_device(exchange_info.ptrs.scatter_ptrs.data(),
+                                 exchange_info.ptrs.scatter_ptrs.size() * 8);
+}
+
+static ExchangeInfo *get_exchange_info(const std::set<int> &dats) {
+    if (dats.size() == 0) {
+        return nullptr;
+    }
+
+    uint64_t dats_hash = hash_seed_default;
+    for (auto index : dats) {
+        dats_hash = hash(index, dats_hash);
+    }
+
+    auto existing_exchange = exchanges.find(dats_hash);
+    if (existing_exchange != exchanges.end()) {
+        return &existing_exchange->second;
+    }
+
+    auto [new_exchange, inserted] = exchanges.emplace(dats_hash, ExchangeInfo());
+    assert(inserted);
+
+    init_exchange_info(dats, new_exchange->second);
+    return &new_exchange->second;
+}
+
+int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
+    bool exec = false;
+    int size = set->size;
+
+    for (int n = 0; n < nargs; ++n) {
+        if (!args[n].opt) continue;
+        if (args[n].argtype != OP_ARG_DAT || args[n].idx == -1) continue;
+        if (args[n].acc == OP_READ) continue;
+
+        exec = true;
+        size += set->exec_size;
+        break;
+    }
+
+    // Collect list of 4 and 8 byte dats we need to perform exchange for
+    std::set<int> dats_4;
+    std::set<int> dats_8;
+
+    for (int n = 0; n < nargs; ++n) {
+        if (!args[n].opt) continue;
+        if (args[n].argtype != OP_ARG_DAT) continue;
+        if (args[n].acc != OP_READ && args[n].acc != OP_RW) continue;
+        if (args[n].dat->dirtybit != 1) continue;
+        if (!exec && args[n].idx == -1) continue;
+
+        auto elem_size = args[n].dat->size / args[n].dat->dim;
+        assert(elem_size == 4 || elem_size == 8);
+
+        if (elem_size == 4) {
+            dats_4.insert(args[n].dat->index);
+        } else if (elem_size == 8) {
+            dats_8.insert(args[n].dat->index);
+        }
+    }
+
+    wait_scatters();
+
+    active_exchange_4 = get_exchange_info(dats_4);
+    active_exchange_8 = get_exchange_info(dats_8);
+
+    if (active_exchange_4 != nullptr || active_exchange_8 != nullptr) {
+        auto *ptrs_4 = active_exchange_4 != nullptr ? &active_exchange_4->ptrs : nullptr;
+        auto *ptrs_8 = active_exchange_8 != nullptr ? &active_exchange_8->ptrs : nullptr;
+
+        set_ptr_buffers(ptrs_4, ptrs_8);
+
+        realloc_exchange_buffers();
+        initiate_gathers();
+    }
+
+    return size;
+}
+
+void op_mpi_wait_all_unified(int nargs, op_arg *args) {
+    if (active_exchange_4 == nullptr && active_exchange_8 == nullptr) {
+        return;
+    }
+
+    wait_gathers();
+
+    auto [gather_buffer_4, gather_buffer_8] = get_gather_buffers();
+    auto [scatter_buffer_4, scatter_buffer_8] = get_scatter_buffers();
+
+    if (active_exchange_4 != nullptr) {
+        MPI_Neighbor_alltoallv(
+                (void *) gather_buffer_4,
+                active_exchange_4->send_sizes.data(),
+                active_exchange_4->send_offsets.data(),
+                MPI_UINT32_T,
+                (void *) scatter_buffer_4,
+                active_exchange_4->recv_sizes.data(),
+                active_exchange_4->recv_offsets.data(),
+                MPI_UINT32_T,
+                active_exchange_4->comm
+        );
+    }
+
+    if (active_exchange_8 != nullptr) {
+        MPI_Neighbor_alltoallv(
+                (void *) gather_buffer_8,
+                active_exchange_8->send_sizes.data(),
+                active_exchange_8->send_offsets.data(),
+                MPI_UINT64_T,
+                (void *) scatter_buffer_8,
+                active_exchange_8->recv_sizes.data(),
+                active_exchange_8->recv_offsets.data(),
+                MPI_UINT64_T,
+                active_exchange_8->comm
+        );
+    }
+
+    initiate_scatters();
+
+    if (active_exchange_4 != nullptr) {
+        for (auto dat_index : active_exchange_4->dats) {
+            auto dat = get_dat(dat_index);
+
+            dat->dirtybit = 0;
+            dat->dirty_hd = 2;
+        }
+    }
+
+    if (active_exchange_8 != nullptr) {
+        for (auto dat_index : active_exchange_8->dats) {
+            auto dat = get_dat(dat_index);
+
+            dat->dirtybit = 0;
+            dat->dirty_hd = 2;
+        }
+    }
+
+    active_exchange_4 = nullptr;
+    active_exchange_8 = nullptr;
+
+    set_ptr_buffers(nullptr, nullptr);
+}
+
 std::vector<unsigned> partial_flags;
 std::vector<size_t> send_sizes;
 std::vector<size_t> recv_sizes;
@@ -384,6 +738,10 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   }*/
   if (direct_flag == 1)
     return size;
+
+  if (device == 2 && OP_unified_exchanges) {
+      return op_mpi_halo_exchanges_unified(set, nargs, args);
+  }
 
   // not a direct loop ...
   int exec_flag = 0;
@@ -442,7 +800,6 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
 
       //flag, so same dat not checked again
       args[n].dat->dirtybit = 2;
-
       //list of sets on which we have data accessed, and list of MPI neighbors
       if (std::find(sets.begin(), sets.end(), args[n].dat->set->index)== sets.end()) {
         sets.push_back(args[n].dat->set->index);
@@ -590,6 +947,11 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (direct_flag == 1)
     return;
 
+  if (device == 2 && OP_unified_exchanges) {
+      op_mpi_wait_all_unified(nargs, args);
+      return;
+  }
+
   // not a direct loop ...
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
@@ -607,16 +969,26 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     else op_download_buffer_sync();
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
-//       int rank;
-//     MPI_Comm_rank(OP_MPI_WORLD, &rank);
-    //   printf("export from %d to %d, number of elements of size %d | sending:\n ",
-    //                   rank, send_neigh_list[i],
-    //                   send_sizes[i]);
-    //   double *b = (double*)(buf + curr_offset);
-    //   for (int el = 0; el <send_sizes[i]/8; el++)
-    //     printf("%g ", b[el]);
-    //   printf("\n");
-//    printf("rank %d send %d bytes to %d\n", rank, send_sizes[i], send_neigh_list[i]);
+
+      // int rank;
+      // MPI_Comm_rank(OP_MPI_WORLD, &rank);
+      // op_printf("export from %d to %d, number of elements of size %d | sending:\n ",
+      //                 rank, send_neigh_list[i],
+      //                 send_sizes[i]);
+
+      // if (rank == 0) {
+      //     double *b = (double*)(buf + curr_offset);
+      //     int cap = 0;
+      //     for (int el = 0; el < send_sizes[i] / 8; el++) {
+      //       if (cap == 8) break;
+      //       printf("%f ", b[el]);
+      //       cap++;
+      //   }
+      //     printf("\n");
+      // }
+
+      // op_printf("rank %d send %d bytes to %d\n", rank, send_sizes[i], send_neigh_list[i]);
+
       MPI_Isend(buf + curr_offset, send_sizes[i], MPI_CHAR, send_neigh_list[i], op2_grp_tag ,OP_MPI_WORLD, &send_requests[i]);
       curr_offset += send_sizes[i];
     }
