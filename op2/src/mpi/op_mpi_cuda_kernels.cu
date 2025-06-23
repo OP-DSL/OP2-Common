@@ -506,11 +506,12 @@ void ensure_capacity(void **buffer, size_t *size, size_t capacity) {
         return;
     }
 
+    if (*buffer != nullptr) {
+        cutilSafeCall(gpuFreeAsync(*buffer, 0));
+    }
+
     size_t new_size = capacity * 1.2;
-
-    cutilSafeCall(gpuFreeAsync(*buffer, 0));
     cutilSafeCall(gpuMallocAsync(buffer, new_size, 0));
-
     *size = new_size;
 }
 
