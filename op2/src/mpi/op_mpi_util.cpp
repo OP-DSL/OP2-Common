@@ -39,6 +39,7 @@
 #include <op_lib_mpi_unified.hpp>
 #include <set>
 #include <unordered_map>
+#include <map>
 #include <vector>
 #include <algorithm>
 #include <numeric>
@@ -357,6 +358,7 @@ struct ExchangeInfo {
     MPI_Comm comm;
 
     std::vector<int> dats;
+    std::map<int, int> partial_exchanges;
 
     std::vector<int> send_neighbours;
     std::vector<int> recv_neighbours;
@@ -384,15 +386,6 @@ static op_dat get_dat(int index) {
     assert(false);
 }
 
-static std::set<int> get_sets_from_dats(const std::set<int> &dats) {
-    std::set<int> sets;
-    for (auto dat : dats) {
-        sets.insert(get_dat(dat)->set->index);
-    }
-
-    return sets;
-}
-
 static std::set<int> get_neighbours(halo_list list) {
     std::set<int> neighbours;
     for (int i = 0; i < list->ranks_size; ++i) {
@@ -402,8 +395,8 @@ static std::set<int> get_neighbours(halo_list list) {
     return neighbours;
 }
 
-static void extract_import_lists(halo_list hlist, op_dat dat,
-                                 std::unordered_map<int, std::vector<void *>> &lists) {
+static void extract_indirect_lists(halo_list hlist, op_dat dat,
+                                   std::unordered_map<int, std::vector<void *>> &lists) {
     auto elem_size = dat->size / dat->dim;
     auto stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
                                          + OP_import_nonexec_list[dat->set->index]->size);
@@ -424,8 +417,8 @@ static void extract_import_lists(halo_list hlist, op_dat dat,
     }
 }
 
-static void extract_export_lists(halo_list hlist, op_dat dat, int offset,
-                                 std::unordered_map<int, std::vector<void *>> &lists) {
+static void extract_blocked_lists(halo_list hlist, op_dat dat, int offset,
+                                  std::unordered_map<int, std::vector<void *>> &lists) {
     auto elem_size = dat->size / dat->dim;
     auto stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
                                          + OP_import_nonexec_list[dat->set->index]->size);
@@ -445,19 +438,35 @@ static void extract_export_lists(halo_list hlist, op_dat dat, int offset,
 }
 
 // Pre: dats have same element size
-static void init_exchange_info(const std::set<int> &dats, ExchangeInfo& exchange_info) {
-    exchange_info.dats = std::vector(dats.begin(), dats.end());
-    auto sets = get_sets_from_dats(dats);
+static void init_exchange_info(const std::set<int> &dats,
+                               const std::map<int, int> &partial_exchanges,
+                               ExchangeInfo& exchange_info) {
+    exchange_info.dats = std::vector<int>(dats.begin(), dats.end());
+    exchange_info.partial_exchanges = partial_exchanges;
+
+    std::set<int> full_exchange_sets;
+    for (auto dat_index : dats) {
+        if (partial_exchanges.find(dat_index) != partial_exchanges.end()) {
+            continue;
+        }
+
+        full_exchange_sets.insert(get_dat(dat_index)->set->index);
+    }
 
     std::set<int> send_neighbours;
     std::set<int> recv_neighbours;
 
-    for (auto set : sets) {
+    for (auto set : full_exchange_sets) {
         send_neighbours.merge(get_neighbours(OP_export_exec_list[set]));
         send_neighbours.merge(get_neighbours(OP_export_nonexec_list[set]));
 
         recv_neighbours.merge(get_neighbours(OP_import_exec_list[set]));
         recv_neighbours.merge(get_neighbours(OP_import_nonexec_list[set]));
+    }
+
+    for (auto [dat_index, map_index] : partial_exchanges) {
+        send_neighbours.merge(get_neighbours(OP_export_nonexec_permap[map_index]));
+        recv_neighbours.merge(get_neighbours(OP_import_nonexec_permap[map_index]));
     }
 
     exchange_info.send_neighbours = std::vector(send_neighbours.begin(), send_neighbours.end());
@@ -493,18 +502,29 @@ static void init_exchange_info(const std::set<int> &dats, ExchangeInfo& exchange
     }
 
     for (auto dat_index : dats) {
+        if (partial_exchanges.find(dat_index) != partial_exchanges.end()) {
+            continue;
+        }
+
         auto dat = get_dat(dat_index);
 
-        extract_import_lists(OP_export_exec_list[dat->set->index], dat, gather_lists);
-        extract_import_lists(OP_export_nonexec_list[dat->set->index], dat, gather_lists);
+        extract_indirect_lists(OP_export_exec_list[dat->set->index], dat, gather_lists);
+        extract_indirect_lists(OP_export_nonexec_list[dat->set->index], dat, gather_lists);
 
         auto import_exec_offset = dat->set->size;
         auto import_nonexec_offset = dat->set->size + OP_import_exec_list[dat->set->index]->size;
 
-        extract_export_lists(OP_import_exec_list[dat->set->index], dat,
-                             import_exec_offset, scatter_lists);
-        extract_export_lists(OP_import_nonexec_list[dat->set->index], dat,
-                             import_nonexec_offset, scatter_lists);
+        extract_blocked_lists(OP_import_exec_list[dat->set->index], dat,
+                              import_exec_offset, scatter_lists);
+        extract_blocked_lists(OP_import_nonexec_list[dat->set->index], dat,
+                              import_nonexec_offset, scatter_lists);
+    }
+
+    for (auto [dat_index, map_index] : partial_exchanges) {
+        auto dat = get_dat(dat_index);
+
+        extract_indirect_lists(OP_export_nonexec_permap[map_index], dat, gather_lists);
+        extract_indirect_lists(OP_import_nonexec_permap[map_index], dat, scatter_lists);
     }
 
     auto offset = 0;
@@ -546,25 +566,43 @@ static void init_exchange_info(const std::set<int> &dats, ExchangeInfo& exchange
                                  exchange_info.ptrs.scatter_ptrs.size() * 8);
 }
 
-static ExchangeInfo *get_exchange_info(const std::set<int> &dats) {
+static ExchangeInfo *get_exchange_info(const std::set<int> &dats,
+                                       const std::unordered_map<int, std::vector<int>> &maps) {
     if (dats.size() == 0) {
         return nullptr;
     }
 
-    uint64_t dats_hash = hash_seed_default;
+    std::map<int, int> partial_exchanges;
+    uint64_t exchange_hash = hash_seed_default;
+
     for (auto index : dats) {
-        dats_hash = hash(index, dats_hash);
+        exchange_hash = hash(index, exchange_hash);
+
+        auto map_list_it = maps.find(index);
+        if (map_list_it == maps.end()) {
+            continue;
+        }
+
+        auto& map_list = map_list_it->second;
+        if (map_list.size() == 1 && OP_map_partial_exchange[map_list[0]]) {
+            partial_exchanges[index] = map_list[0];
+        }
     }
 
-    auto existing_exchange = exchanges.find(dats_hash);
+    exchange_hash = hash(UINT64_MAX, exchange_hash);
+    for (auto [dat_index, map_index] : partial_exchanges) {
+        exchange_hash = hash(map_index, hash(dat_index, exchange_hash));
+    }
+
+    auto existing_exchange = exchanges.find(exchange_hash);
     if (existing_exchange != exchanges.end()) {
         return &existing_exchange->second;
     }
 
-    auto [new_exchange, inserted] = exchanges.emplace(dats_hash, ExchangeInfo());
+    auto [new_exchange, inserted] = exchanges.emplace(exchange_hash, ExchangeInfo());
     assert(inserted);
 
-    init_exchange_info(dats, new_exchange->second);
+    init_exchange_info(dats, partial_exchanges, new_exchange->second);
     return &new_exchange->second;
 }
 
@@ -586,6 +624,8 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
     std::set<int> dats_4;
     std::set<int> dats_8;
 
+    std::unordered_map<int, std::vector<int>> maps;
+
     for (int n = 0; n < nargs; ++n) {
         if (!args[n].opt) continue;
         if (args[n].argtype != OP_ARG_DAT) continue;
@@ -601,12 +641,16 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
         } else if (elem_size == 8) {
             dats_8.insert(args[n].dat->index);
         }
+
+        if (args[n].map != OP_ID) {
+            maps[args[n].dat->index].push_back(args[n].map->index);
+        }
     }
 
     wait_scatters();
 
-    active_exchange_4 = get_exchange_info(dats_4);
-    active_exchange_8 = get_exchange_info(dats_8);
+    active_exchange_4 = get_exchange_info(dats_4, maps);
+    active_exchange_8 = get_exchange_info(dats_8, maps);
 
     if (active_exchange_4 != nullptr || active_exchange_8 != nullptr) {
         auto *ptrs_4 = active_exchange_4 != nullptr ? &active_exchange_4->ptrs : nullptr;
@@ -664,8 +708,10 @@ void op_mpi_wait_all_unified(int nargs, op_arg *args) {
     if (active_exchange_4 != nullptr) {
         for (auto dat_index : active_exchange_4->dats) {
             auto dat = get_dat(dat_index);
+            auto partial = active_exchange_4->partial_exchanges.find(dat_index)
+                           != active_exchange_4->partial_exchanges.end();
 
-            dat->dirtybit = 0;
+            dat->dirtybit = partial ? 1 : 0;
             dat->dirty_hd = 2;
         }
     }
@@ -673,8 +719,10 @@ void op_mpi_wait_all_unified(int nargs, op_arg *args) {
     if (active_exchange_8 != nullptr) {
         for (auto dat_index : active_exchange_8->dats) {
             auto dat = get_dat(dat_index);
+            auto partial = active_exchange_8->partial_exchanges.find(dat_index)
+                           != active_exchange_8->partial_exchanges.end();
 
-            dat->dirtybit = 0;
+            dat->dirtybit = partial ? 1 : 0;
             dat->dirty_hd = 2;
         }
     }
