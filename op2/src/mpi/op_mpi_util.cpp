@@ -569,7 +569,7 @@ static void init_exchange_info(const std::set<int> &dats,
 }
 
 static ExchangeInfo *get_exchange_info(const std::set<int> &dats,
-                                       const std::unordered_map<int, std::vector<int>> &maps) {
+                                       const std::unordered_map<int, std::set<int>> &maps) {
     if (dats.size() == 0) {
         return nullptr;
     }
@@ -580,14 +580,14 @@ static ExchangeInfo *get_exchange_info(const std::set<int> &dats,
     for (auto index : dats) {
         exchange_hash = hash(index, exchange_hash);
 
-        auto map_list_it = maps.find(index);
-        if (map_list_it == maps.end()) {
+        auto map_elem = maps.find(index);
+        if (map_elem == maps.end()) {
             continue;
         }
 
-        auto& map_list = map_list_it->second;
-        if (map_list.size() == 1 && OP_map_partial_exchange[map_list[0]]) {
-            partial_exchanges[index] = map_list[0];
+        auto map_set = map_elem->second;
+        if (map_set.size() == 1 && OP_map_partial_exchange[*map_set.begin()]) {
+            partial_exchanges[index] = *map_set.begin();
         }
     }
 
@@ -626,7 +626,7 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
     std::set<int> dats_4;
     std::set<int> dats_8;
 
-    std::unordered_map<int, std::vector<int>> maps;
+    std::unordered_map<int, std::set<int>> maps;
 
     for (int n = 0; n < nargs; ++n) {
         if (!args[n].opt) continue;
@@ -645,7 +645,7 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
         }
 
         if (args[n].map != OP_ID) {
-            maps[args[n].dat->index].push_back(args[n].map->index);
+            maps[args[n].dat->index].insert(args[n].map->index);
         }
     }
 
