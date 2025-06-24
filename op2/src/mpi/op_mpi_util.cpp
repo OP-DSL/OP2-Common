@@ -355,7 +355,7 @@ inline uint64_t hash(const void* key, size_t len, uint64_t seed) {
 }
 
 struct ExchangeInfo {
-    MPI_Comm comm;
+    // MPI_Comm comm;
 
     std::vector<int> dats;
     std::map<int, int> partial_exchanges;
@@ -472,6 +472,7 @@ static void init_exchange_info(const std::set<int> &dats,
     exchange_info.send_neighbours = std::vector(send_neighbours.begin(), send_neighbours.end());
     exchange_info.recv_neighbours = std::vector(recv_neighbours.begin(), recv_neighbours.end());
 
+    /*
     auto err = MPI_Dist_graph_create_adjacent(
             OP_MPI_WORLD,
             exchange_info.recv_neighbours.size(),
@@ -489,6 +490,7 @@ static void init_exchange_info(const std::set<int> &dats,
         printf("Error: could not create graph communicator: %d\n", err);
         exit(1);
     }
+    */
 
     std::unordered_map<int, std::vector<void *>> gather_lists;
     std::unordered_map<int, std::vector<void *>> scatter_lists;
@@ -665,6 +667,49 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
     return size;
 }
 
+template<typename T>
+static std::pair<std::vector<MPI_Request>, std::vector<MPI_Request>>
+initiate_exchange(const T *gather_buffer, T *scatter_buffer, const ExchangeInfo *exchange) {
+    std::vector<MPI_Request> send_reqs;
+    std::vector<MPI_Request> recv_reqs;
+
+    if (exchange == nullptr) {
+        return std::make_pair(send_reqs, recv_reqs);
+    }
+
+    send_reqs.resize(exchange->send_neighbours.size());
+    recv_reqs.resize(exchange->recv_neighbours.size());
+
+    assert(sizeof(T) == 4 || sizeof(T) == 8);
+    MPI_Datatype exchange_type = sizeof(T) == 4 ? MPI_UINT32_T : MPI_UINT64_T;
+
+    for (int i = 0; i < exchange->send_neighbours.size(); ++i) {
+        MPI_Isend(
+                (void *) &gather_buffer[exchange->send_offsets[i]],
+                exchange->send_sizes[i],
+                exchange_type,
+                exchange->send_neighbours[i],
+                200,
+                OP_MPI_WORLD,
+                &send_reqs[i]
+        );
+    }
+
+    for (int i = 0; i < exchange->recv_neighbours.size(); ++i) {
+        MPI_Irecv(
+                (void *) &scatter_buffer[exchange->recv_offsets[i]],
+                exchange->recv_sizes[i],
+                exchange_type,
+                exchange->recv_neighbours[i],
+                200,
+                OP_MPI_WORLD,
+                &recv_reqs[i]
+        );
+    }
+
+    return std::make_pair(send_reqs, recv_reqs);
+}
+
 void op_mpi_wait_all_unified(int nargs, op_arg *args) {
     if (active_exchange_4 == nullptr && active_exchange_8 == nullptr) {
         return;
@@ -675,8 +720,17 @@ void op_mpi_wait_all_unified(int nargs, op_arg *args) {
     auto [gather_buffer_4, gather_buffer_8] = get_gather_buffers();
     auto [scatter_buffer_4, scatter_buffer_8] = get_scatter_buffers();
 
+    auto [send_reqs_4, recv_reqs_4] = initiate_exchange(gather_buffer_4, scatter_buffer_4,
+                                                        active_exchange_4);
+    auto [send_reqs_8, recv_reqs_8] = initiate_exchange(gather_buffer_8, scatter_buffer_8,
+                                                        active_exchange_8);
+
+    /*
+    auto num_req = 0;
+    MPI_Request requests[2];
+
     if (active_exchange_4 != nullptr) {
-        MPI_Neighbor_alltoallv(
+        MPI_Ineighbor_alltoallv(
                 (void *) gather_buffer_4,
                 active_exchange_4->send_sizes.data(),
                 active_exchange_4->send_offsets.data(),
@@ -685,12 +739,14 @@ void op_mpi_wait_all_unified(int nargs, op_arg *args) {
                 active_exchange_4->recv_sizes.data(),
                 active_exchange_4->recv_offsets.data(),
                 MPI_UINT32_T,
-                active_exchange_4->comm
+                active_exchange_4->comm,
+                &requests[num_req++]
         );
     }
 
+    std::vector<MPI_Request> requests_8;
     if (active_exchange_8 != nullptr) {
-        MPI_Neighbor_alltoallv(
+        MPI_Ineighbor_alltoallv(
                 (void *) gather_buffer_8,
                 active_exchange_8->send_sizes.data(),
                 active_exchange_8->send_offsets.data(),
@@ -699,11 +755,21 @@ void op_mpi_wait_all_unified(int nargs, op_arg *args) {
                 active_exchange_8->recv_sizes.data(),
                 active_exchange_8->recv_offsets.data(),
                 MPI_UINT64_T,
-                active_exchange_8->comm
+                active_exchange_8->comm,
+                &requests[num_req++]
         );
     }
 
+    MPI_Waitall(num_req, requests, MPI_STATUSES_IGNORE);
+    */
+
+    MPI_Waitall(recv_reqs_4.size(), recv_reqs_4.data(), MPI_STATUSES_IGNORE);
+    MPI_Waitall(recv_reqs_8.size(), recv_reqs_8.data(), MPI_STATUSES_IGNORE);
+
     initiate_scatters();
+
+    MPI_Waitall(send_reqs_4.size(), send_reqs_4.data(), MPI_STATUSES_IGNORE);
+    MPI_Waitall(send_reqs_8.size(), send_reqs_8.data(), MPI_STATUSES_IGNORE);
 
     if (active_exchange_4 != nullptr) {
         for (auto dat_index : active_exchange_4->dats) {
@@ -750,7 +816,9 @@ int op2_grp_counter = 0;
 int op2_grp_tag = 1234;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
-  deviceSync();
+  if (!(device == 2 && OP_unified_exchanges)) {
+      deviceSync();
+  }
 
   int size = set->size;
   int direct_flag = 1;
