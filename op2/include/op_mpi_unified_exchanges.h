@@ -4,8 +4,6 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 
-#include <cassert>
-
 struct DatAccessor {
     void *data;
 
@@ -26,8 +24,6 @@ struct DatAccessor {
 
     template<typename T>
     constexpr T& get(std::size_t i, std::size_t j) {
-        assert(elem_size == sizeof(T));
-
         if (soa) {
             return ((T *) data)[i + j * stride];
         } else {
