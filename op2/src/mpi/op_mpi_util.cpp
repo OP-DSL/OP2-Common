@@ -35,6 +35,7 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <op_timing2.h>
 #include <extern/rapidhash.h>
 #include <op_mpi_unified_exchanges.h>
 #include <set>
@@ -397,6 +398,9 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       return op_mpi_halo_exchanges_unified(set, nargs, args);
   }
 
+
+  if (device == 2) op_timing2::instance().enter2("Halo Exchanges", false);
+
   // not a direct loop ...
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
@@ -543,7 +547,9 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
       halo_list exp_exec_list = OP_export_exec_list[args[n].dat->set->index];
       halo_list exp_nonexec_list = OP_export_nonexec_list[args[n].dat->set->index];
       if (device==1) gather_data_to_buffer_ptr     (args[n], exp_exec_list, exp_nonexec_list, send_buffer_host, send_neigh_list, send_offsets );
-      if (device==2) gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device, send_neigh_list, send_offsets );
+      if (device==2) {
+          gather_data_to_buffer_ptr_cuda(args[n], exp_exec_list, exp_nonexec_list, send_buffer_device, send_neigh_list, send_offsets );
+      }
     }
   }
 
@@ -589,6 +595,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 
+  if (device == 2) op_timing2::instance().exit2();
   return size;
 }
 
@@ -606,6 +613,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
       return;
   }
 
+  if (device == 2) op_timing2::instance().enter2("Wait All", false);
+
   // not a direct loop ...
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
@@ -621,6 +630,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     size_t curr_offset = 0;
     if(OP_gpu_direct) op_gather_sync();
     else op_download_buffer_sync();
+
+    op_timing2::instance().enter2("Exchange buffers", false);
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
 
@@ -657,6 +668,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (recv_neigh_list.size() > 0)
     MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
 
+  op_timing2::instance().exit2(false);
+
   if (device == 2 && !OP_gpu_direct) {
     size_t size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
     op_upload_buffer_async(recv_buffer_device, recv_buffer_host, size_recv);
@@ -683,6 +696,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+
+  if (device == 2) op_timing2::instance().exit2(false);
 }
 
 extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
