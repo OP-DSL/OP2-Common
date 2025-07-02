@@ -28,23 +28,33 @@ size_t gathers_size = 0;
 ScatterSpec *scatters_d;
 size_t scatters_size = 0;
 
-static void ensure_capacity(void **buffer, size_t *size, size_t capacity) {
+static void ensure_capacity(void **buffer, size_t *size, size_t capacity, bool async = true) {
     if (capacity <= *size) {
         return;
     }
 
     if (*buffer != nullptr) {
-        cutilSafeCall(gpuFreeAsync(*buffer, 0));
+        if (async) {
+            cutilSafeCall(gpuFreeAsync(*buffer, 0));
+        } else {
+            cutilSafeCall(gpuFree(*buffer));
+        }
     }
 
     size_t new_size = capacity * 1.2;
-    cutilSafeCall(gpuMallocAsync(buffer, new_size, 0));
+
+    if (async) {
+        cutilSafeCall(gpuMallocAsync(buffer, new_size, 0));
+    } else {
+        cutilSafeCall(gpuMalloc(buffer, new_size));
+    }
+
     *size = new_size;
 }
 
 std::tuple<void *, void *> alloc_exchange_buffers(size_t gather_size, size_t scatter_size) {
-    ensure_capacity(&gather_buf, &gather_buf_size, gather_size);
-    ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size);
+    ensure_capacity(&gather_buf, &gather_buf_size, gather_size, false);
+    ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size, false);
 
     return {gather_buf, scatter_buf};
 }
