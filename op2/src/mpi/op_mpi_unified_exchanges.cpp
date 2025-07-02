@@ -2,6 +2,7 @@
 #include <op_mpi_cuda_unified_kernels.h>
 
 #include <op_lib_mpi.h>
+#include <op_timing2.h>
 
 #include <optional>
 #include <vector>
@@ -113,8 +114,6 @@ struct ExchangeContext {
     std::vector<MPI_Request> recv_reqs;
 
     void reset() {
-        MPI_Waitall(send_reqs.size(), send_reqs.data(), MPI_STATUSES_IGNORE);
-
         exchanges.clear();
 
         gathers_for_neighbour.clear();
@@ -122,9 +121,6 @@ struct ExchangeContext {
 
         send_blocks.clear();
         recv_blocks.clear();
-
-        send_reqs.clear();
-        recv_reqs.clear();
     }
 
     void add(const op_arg& arg) {
@@ -146,7 +142,7 @@ struct ExchangeContext {
             }
         }
 
-        auto exchange = exchanges.emplace_back(arg.dat);
+        auto& exchange = exchanges.emplace_back(arg.dat);
 
         // Do partial exchange if available
         if (arg.map != OP_ID && OP_map_partial_exchange[arg.map->index]) {
@@ -206,22 +202,26 @@ struct ExchangeContext {
     }
 
     void initiate_gathers() {
-        for (auto &[neighbour, gathers] : gathers_for_neighbour) {
-            for (auto &gather : gathers) {
-                start_gather(gather);
-            }
+        if (gathers_for_neighbour.size() > 0) {
+            ::initiate_gathers(gathers_for_neighbour);
         }
 
-        record_gathers();
+        auto recv_index = 0;
+        recv_reqs.resize(recv_blocks.size());
+        for (auto [neighbour, block] : recv_blocks) {
+            block.recv(neighbour, &recv_reqs[recv_index]);
+            ++recv_index;
+        }
     }
 
     void wait_gathers() {
-        ::wait_gathers();
+        if (gathers_for_neighbour.size() > 0) {
+            ::wait_gathers();
+        }
     }
 
     void exchange_buffers() {
         send_reqs.resize(send_blocks.size());
-        recv_reqs.resize(recv_blocks.size());
 
         auto send_index = 0;
         for (auto [neighbour, block] : send_blocks) {
@@ -229,20 +229,21 @@ struct ExchangeContext {
             ++send_index;
         }
 
-        auto recv_index = 0;
-        for (auto [neighbour, block] : recv_blocks) {
-            block.recv(neighbour, &recv_reqs[recv_index]);
-            ++recv_index;
+        if (recv_reqs.size() > 0) {
+            MPI_Waitall(recv_reqs.size(), recv_reqs.data(), MPI_STATUSES_IGNORE);
+            recv_reqs.clear();
         }
-
-        MPI_Waitall(recv_reqs.size(), recv_reqs.data(), MPI_STATUSES_IGNORE);
     }
 
     void initiate_scatters() {
-        for (auto &[neighbour, scatters] : scatters_for_neighbour) {
-            for (auto &scatter : scatters) {
-                start_scatter(scatter);
-            }
+        if (scatters_for_neighbour.size() > 0) {
+            ::initiate_scatters(scatters_for_neighbour);
+            op_scatter_sync();
+        }
+
+        if (send_reqs.size() > 0) {
+            MPI_Waitall(send_reqs.size(), send_reqs.data(), MPI_STATUSES_IGNORE);
+            send_reqs.clear();
         }
     }
 
@@ -261,6 +262,8 @@ ExchangeContext ctx;
 
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
+    op_timing2::instance().enter2("Halo Exchanges Unified", false);
+
     bool exec = false;
     int size = set->size;
 
@@ -281,16 +284,29 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
         ctx.add(args[n]);
     }
 
-    ctx.construct_lists();
-    ctx.alloc_buffers();
+    if (ctx.exchanges.size() > 0) {
+        ctx.construct_lists();
+        ctx.alloc_buffers();
+        ctx.initiate_gathers();
+    }
 
-    ctx.initiate_gathers();
+    op_timing2::instance().exit2(false);
     return size;
 }
 
 void op_mpi_wait_all_unified(int nargs, op_arg *args) {
-    ctx.wait_gathers();
-    ctx.exchange_buffers();
-    ctx.initiate_scatters();
-    ctx.set_dirtybits();
+    op_timing2::instance().enter2("Halo Exchanges Wait Unified", false);
+
+    if (ctx.exchanges.size() > 0) {
+        ctx.wait_gathers();
+
+        op_timing2::instance().enter2("Exchange buffers", false);
+        ctx.exchange_buffers();
+        op_timing2::instance().exit2(false);
+
+        ctx.initiate_scatters();
+        ctx.set_dirtybits();
+    }
+
+    op_timing2::instance().exit2(false);
 }

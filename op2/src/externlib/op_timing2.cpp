@@ -275,6 +275,21 @@ void op_timing2::enter(std::string_view name, bool sync) {
   current_starts.push_back(op_timing2_clock::clock::now());
 }
 
+void op_timing2::enter2(std::string_view name, bool sync) {
+  if (level == op_timing2_level::disabled) return;
+
+  assert(started && !finished);
+  assert(current_scope.size() > 0);
+
+  auto& parent = current_scope.back().get();
+  auto& node = parent.get_child(name);
+
+  if (sync) deviceSync();
+
+  current_scope.push_back(node);
+  current_starts.push_back(op_timing2_clock::clock::now());
+}
+
 void op_timing2::enter_kernel(std::string_view name, std::string_view target, std::string_view variant) {
   if (level == op_timing2_level::disabled) return;
 
@@ -311,6 +326,21 @@ void op_timing2::exit(bool sync) {
     extra_depth--;
     return;
   }
+
+  if (sync) deviceSync();
+
+  auto& node = current_scope.back().get();
+  node.clock.submit(op_timing2_clock::clock::now() - current_starts.back());
+
+  current_scope.pop_back();
+  current_starts.pop_back();
+}
+
+void op_timing2::exit2(bool sync) {
+  if (level == op_timing2_level::disabled) return;
+
+  assert(started && !finished);
+  assert(current_scope.size() > 0);
 
   if (sync) deviceSync();
 
