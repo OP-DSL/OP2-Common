@@ -17,6 +17,8 @@
 #ifdef __HIPCC__
 #include <hipcub/hipcub.hpp>
 namespace cub = hipcub;
+
+#define __grid_constant__
 #endif
 
 namespace op::mpi::unified {
@@ -220,7 +222,7 @@ void initiate_scatters_array(const std::map<int, std::vector<ScatterSpec>> &scat
     }
 
     size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-    scatter_kernel<<<num_blocks, BLOCK_SIZE, 0, op2_grp_secondary>>>(scatters, disps, num_scatters);
+    scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters, disps, num_scatters);
 }
 
 void initiate_scatters(const std::map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
@@ -256,15 +258,15 @@ void initiate_scatters(const std::map<int, std::vector<ScatterSpec>> &scatters_f
 
     ensure_capacity((void **) &scatters_d, &scatters_size, sizeof(ScatterSpec) * scatters.size());
     cutilSafeCall(gpuMemcpyAsync((void *) scatters_d, (void *) scatters.data(),
-                                 sizeof(ScatterSpec) * scatters.size(), gpuMemcpyHostToDevice, op2_grp_secondary));
+                                 sizeof(ScatterSpec) * scatters.size(), gpuMemcpyHostToDevice));
 
     ensure_capacity((void **) &scatter_disps_d, &scatter_disps_size, sizeof(int) * disps.size());
     cutilSafeCall(gpuMemcpyAsync((void *) scatter_disps_d, (void *) disps.data(),
-                                 sizeof(int) * disps.size(), gpuMemcpyHostToDevice, op2_grp_secondary));
+                                 sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
 
 
     size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-    scatter_kernel<<<num_blocks, BLOCK_SIZE, 0, op2_grp_secondary>>>(scatters_d, scatter_disps_d, scatters.size());
+    scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
 }
 
 }
