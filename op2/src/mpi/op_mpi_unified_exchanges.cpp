@@ -237,7 +237,6 @@ struct ExchangeContext {
     void initiate_scatters() {
         if (scatters_for_neighbour.size() > 0) {
             ::initiate_scatters(scatters_for_neighbour);
-            op_scatter_sync();
         }
 
         if (send_reqs.size() > 0) {
