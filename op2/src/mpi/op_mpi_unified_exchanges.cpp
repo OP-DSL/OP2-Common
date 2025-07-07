@@ -2,7 +2,6 @@
 #include <op_mpi_cuda_unified_kernels.h>
 
 #include <op_lib_mpi.h>
-#include <op_timing2.h>
 
 #include <optional>
 #include <vector>
@@ -262,8 +261,6 @@ ExchangeContext ctx;
 
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
-    op_timing2::instance().enter2("Halo Exchanges Unified", false);
-
     bool exec = false;
     int size = set->size;
 
@@ -290,23 +287,14 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
         ctx.initiate_gathers();
     }
 
-    op_timing2::instance().exit2(false);
     return size;
 }
 
 void op_mpi_wait_all_unified(int nargs, op_arg *args) {
-    op_timing2::instance().enter2("Halo Exchanges Wait Unified", false);
-
     if (ctx.exchanges.size() > 0) {
         ctx.wait_gathers();
-
-        op_timing2::instance().enter2("Exchange buffers", false);
         ctx.exchange_buffers();
-        op_timing2::instance().exit2(false);
-
         ctx.initiate_scatters();
         ctx.set_dirtybits();
     }
-
-    op_timing2::instance().exit2(false);
 }
