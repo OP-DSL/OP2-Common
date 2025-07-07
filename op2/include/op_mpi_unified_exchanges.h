@@ -13,6 +13,7 @@ struct DatAccessor {
 
     bool soa;
 
+    DatAccessor() = default;
     DatAccessor(op_dat dat) {
         data = (void *) dat->data_d;
         dim = dat->dim;
@@ -23,7 +24,7 @@ struct DatAccessor {
     }
 
     template<typename T>
-    constexpr T& get(std::size_t i, std::size_t j) {
+    constexpr T& get(std::size_t i, std::size_t j) const {
         if (soa) {
             return ((T *) data)[i + j * stride];
         } else {
@@ -39,6 +40,7 @@ struct GatherSpec {
     DatAccessor dat;
     void *target = nullptr;
 
+    GatherSpec() = default;
     GatherSpec(int size, int *list, DatAccessor dat) :
         size{size}, list{list}, dat{dat} {}
 
@@ -54,6 +56,8 @@ struct ScatterSpec {
 
     DatAccessor dat;
     void *source = nullptr;
+
+    ScatterSpec() = default;
 
     ScatterSpec(int size, int *list, DatAccessor dat) :
         size{size}, list{list}, offset{-1}, dat{dat} {}
