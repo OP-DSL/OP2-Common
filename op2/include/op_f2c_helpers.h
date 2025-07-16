@@ -378,21 +378,20 @@ private:
             const char *opts[] = {
                 jit_arch.c_str(),
                 "--std=c++20",
+#if __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 4
                 "--minimal",
+#endif
                 "--device-as-default-execution-space"
             };
-
-            auto success = gpuRtcCompileProgram(prog, 4, opts);
 #else // OP2_HIP
             const char *opts[] = {
                 "--std=c++20",
                 "-O3",
                 "-munsafe-fp-atomics"
             };
-
-            auto success = gpuRtcCompileProgram(prog, 3, opts);
 #endif
 
+            auto success = gpuRtcCompileProgram(prog, sizeof(opts) / sizeof(char *), opts);
             if (success != GPURTC_SUCCESS) {
                 size_t log_size;
                 NVRTC_SAFE_CALL(gpuRtcGetProgramLogSize(prog, &log_size));
