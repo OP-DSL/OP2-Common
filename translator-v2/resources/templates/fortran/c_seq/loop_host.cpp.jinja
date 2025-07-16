@@ -40,7 +40,7 @@ idx
 
 {%- macro arg_to_pointer2(arg) %}
     {%- if arg is opt and arg is scalar(lh) %}
-arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : 0
+arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : zero_{{lh.dat(arg).typ.c()}}
     {%- elif arg is scalar(lh) %}
 ({{arg_to_pointer3(arg)}})[0]
     {%- else -%}
@@ -124,6 +124,11 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% for arg in lh.args|info if lh is indirect %}
     memcpy(info{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
 {% endfor %}
+
+    int zero_int = 0;
+    bool zero_bool = 0;
+    float zero_float = 0;
+    double zero_double = 0;
 
     for (int n = 0; n < n_exec; ++n) {
 {% if lh is indirect %}
