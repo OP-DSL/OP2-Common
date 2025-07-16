@@ -78,7 +78,13 @@ static bool jit_initialized = false;
 static bool jit_enable = true;
 static bool jit_seq_compile = false;
 static bool jit_debug = false;
-static int jit_max_threads = INT32_MAX;
+
+#if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
+static int jit_max_threads = 16;
+#else
+// No multi-threaded NVVM/hiprtc but still some gain for multithreading
+static int jit_max_threads = 4;
+#endif
 
 static std::atomic_int jit_active_threads = 0;
 
