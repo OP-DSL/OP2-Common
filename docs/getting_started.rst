@@ -15,10 +15,10 @@ Toolchain and Build Dependencies
 These are likely provided in some form by either your distribution's package manager or pre-installed and loaded via commands such as with `Environment Modules <http://modules.sourceforge.net/>`_:
 
 - GNU Make > 4.2
-- A C/C++ compiler: Currently supported compilers are GCC, Clang, Cray, Intel, IBM XL and NVHPC.
+- A C/C++17 compatible compiler: Currently supported compilers are GCC, Clang, Cray, Intel, IBM XL and NVHPC.
 - (Optional) A Fortran compiler: Currently supported compilers are GFortran, Cray, Intel, IBM XL and NVHPC.
 - (Optional) An MPI implementation: Any implementation with the ``mpicc``, ``mpicxx``, and ``mpif90`` wrappers is supported.
-- (Optional) NVIDIA CUDA > 9.2
+- (Optional) NVIDIA CUDA >= 11.8
 
 Library Dependencies
 ^^^^^^^^^^^^^^^^^^^^
