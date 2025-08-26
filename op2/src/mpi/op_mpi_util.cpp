@@ -554,11 +554,11 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     int err = MPI_Comm_get_attr(OP_MPI_WORLD, MPI_TAG_UB, &tag_ub_ptr, &op2_max_tag_set);
 
     if (err != MPI_SUCCESS || !op2_max_tag_set) {
-      printf("error fetching max tag\n");
-      MPI_Abort(OP_MPI_WORLD, -1);
+      op2_max_tag = 32767;
+      op2_max_tag_set = true;
+    } else {
+      op2_max_tag = *tag_ub_ptr;
     }
-
-    op2_max_tag = *tag_ub_ptr;
   }
 
   if (op2_grp_tag == op2_max_tag - 1) {
