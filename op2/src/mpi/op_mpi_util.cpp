@@ -345,7 +345,12 @@ char *send_buffer_device = NULL;
 char *recv_buffer_host = NULL;
 char *recv_buffer_device = NULL;
 int op2_grp_counter = 0;
-int op2_grp_tag = 1234;
+
+int op2_grp_tag_init = 1000;
+int op2_grp_tag = op2_grp_tag_init;
+
+int op2_max_tag;
+int op2_max_tag_set = false;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
   deviceSync();
@@ -543,7 +548,25 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
 //  int rank;
 //  MPI_Comm_rank(OP_MPI_WORLD, &rank);
   size_t curr_offset = 0;
-  op2_grp_tag++;
+
+  if (!op2_max_tag_set) {
+    int *tag_ub_ptr;
+    int err = MPI_Comm_get_attr(OP_MPI_WORLD, MPI_TAG_UB, &tag_ub_ptr, &op2_max_tag_set);
+
+    if (err != MPI_SUCCESS || !op2_max_tag_set) {
+      printf("error fetching max tag\n");
+      MPI_Abort(OP_MPI_WORLD, -1);
+    }
+
+    op2_max_tag = *tag_ub_ptr;
+  }
+
+  if (op2_grp_tag == op2_max_tag - 1) {
+    op2_grp_tag = op2_grp_tag_init;
+  } else {
+    op2_grp_tag++;
+  }
+
   for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
     char *buf = (device==2 && OP_gpu_direct) ? recv_buffer_device : recv_buffer_host;
     //printf("rank %d recv %d bytes from %d\n", rank, recv_sizes[i], recv_neigh_list[i]);
