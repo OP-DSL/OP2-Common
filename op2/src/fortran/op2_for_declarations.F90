@@ -1297,17 +1297,23 @@ end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
     module procedure INTF_ARG_GBL(INTEGER_4, DIM_0), &
                      INTF_ARG_GBL(INTEGER_4, DIM_1), &
                      INTF_ARG_GBL(INTEGER_4, DIM_2), &
+                     INTF_ARG_GBL(INTEGER_4, DIM_3), &
+                     INTF_ARG_GBL(INTEGER_4, DIM_4), &
                      INTF_ARG_GBL(REAL_4,    DIM_0), &
                      INTF_ARG_GBL(REAL_4,    DIM_1), &
                      INTF_ARG_GBL(REAL_4,    DIM_2), &
                      INTF_ARG_GBL(REAL_4,    DIM_3), &
+                     INTF_ARG_GBL(REAL_4,    DIM_4), &
                      INTF_ARG_GBL(REAL_8,    DIM_0), &
                      INTF_ARG_GBL(REAL_8,    DIM_1), &
                      INTF_ARG_GBL(REAL_8,    DIM_2), &
                      INTF_ARG_GBL(REAL_8,    DIM_3), &
+                     INTF_ARG_GBL(REAL_8,    DIM_4), &
                      INTF_ARG_GBL(LOGICAL,   DIM_0), &
                      INTF_ARG_GBL(LOGICAL,   DIM_1), &
-                     INTF_ARG_GBL(LOGICAL,   DIM_2)
+                     INTF_ARG_GBL(LOGICAL,   DIM_2), &
+                     INTF_ARG_GBL(LOGICAL,   DIM_3), &
+                     INTF_ARG_GBL(LOGICAL,   DIM_4)
   end interface op_arg_gbl
 
 #define DECL_ARG_GBL(TYPE, DIM) DECL_ARG_GBL_(TYPE, DIM)
@@ -1552,17 +1558,23 @@ contains
   DECL_ARG_GBL(INTEGER_4, DIM_0)
   DECL_ARG_GBL(INTEGER_4, DIM_1)
   DECL_ARG_GBL(INTEGER_4, DIM_2)
+  DECL_ARG_GBL(INTEGER_4, DIM_3)
+  DECL_ARG_GBL(INTEGER_4, DIM_4)
   DECL_ARG_GBL(REAL_4,    DIM_0)
   DECL_ARG_GBL(REAL_4,    DIM_1)
   DECL_ARG_GBL(REAL_4,    DIM_2)
   DECL_ARG_GBL(REAL_4,    DIM_3)
+  DECL_ARG_GBL(REAL_4,    DIM_4)
   DECL_ARG_GBL(REAL_8,    DIM_0)
   DECL_ARG_GBL(REAL_8,    DIM_1)
   DECL_ARG_GBL(REAL_8,    DIM_2)
   DECL_ARG_GBL(REAL_8,    DIM_3)
+  DECL_ARG_GBL(REAL_8,    DIM_4)
   DECL_ARG_GBL(LOGICAL,   DIM_0)
   DECL_ARG_GBL(LOGICAL,   DIM_1)
   DECL_ARG_GBL(LOGICAL,   DIM_2)
+  DECL_ARG_GBL(LOGICAL,   DIM_3)
+  DECL_ARG_GBL(LOGICAL,   DIM_4)
 
   DECL_OPT_ARG_GBL(INTEGER_4, DIM_0)
   DECL_OPT_ARG_GBL(INTEGER_4, DIM_1)
