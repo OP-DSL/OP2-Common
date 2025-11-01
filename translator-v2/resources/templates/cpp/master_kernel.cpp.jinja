@@ -20,11 +20,6 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
 void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
     {{guard}}
 
-    if (size > MAX_CONST_SIZE) {
-        printf("error: requested size %d for const %s exceeds MAX_CONST_SIZE\n", size, name);
-        exit(1);
-    }
-
     {% for const in app.consts() %}
     if (!strcmp(name, "{{const.ptr}}")) {
         {{caller(const)}}

@@ -961,10 +961,10 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
   code('')
 
   for nc in range (0,len(consts)):
-    if consts[nc]['dim']==1:
+    if str(consts[nc]['dim']).isdigit() and int(consts[nc]['dim'])==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+';')
     else:
-      if consts[nc]['dim'] > 0:
+      if str(consts[nc]['dim']).isdigit() and int(consts[nc]['dim']) > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
@@ -992,8 +992,8 @@ def op2_gen_cuda(master, date, consts, kernels, sets):
     code('                       '+consts[nc]['type'][1:-1]+' *dat){')
     depth = depth + 2
     code('if (!OP_hybrid_gpu) return;')
-    if not consts[nc]['dim'] or int(consts[nc]['dim']) > 1:
-      IF('dim*sizeof('+consts[nc]['type'][1:-1]+')>MAX_CONST_SIZE')
+    if not str(consts[nc]['dim']).isdigit() or int(consts[nc]['dim']) <= 0:
+      IF('dim>MAX_CONST_SIZE')
       code('printf("error: MAX_CONST_SIZE not big enough\\n"); exit(1);')
       ENDIF()
     code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*sizeof('+consts[nc]['type'][1:-1]+')));')
