@@ -83,7 +83,12 @@ idx{{arg.id}}
     {%- elif arg is idx -%}
 idx
     {%- elif arg is opt and arg is scalar(lh) -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit)}} : zero_{{lh.dat(arg).typ.c()}}
+        {%- if arg is gbl or arg is info %}
+            {%- set zero_type = arg.typ.c() -%}
+        {%- else -%}
+            {%- set zero_type = lh.dat(arg).typ.c() -%}
+        {%- endif -%}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit)}} : zero_{{zero_type}}
     {%- else -%}
 {{arg_to_pointer2(arg, jit)}}
     {%- endif -%}

@@ -40,7 +40,12 @@ idx
 
 {%- macro arg_to_pointer2(arg) %}
     {%- if arg is opt and arg is scalar(lh) %}
-arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : zero_{{lh.dat(arg).typ.c()}}
+        {%- if arg is gbl or arg is info %}
+            {%- set zero_type = arg.typ.c() -%}
+        {%- else -%}
+            {%- set zero_type = lh.dat(arg).typ.c() -%}
+        {%- endif -%}
+arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : zero_{{zero_type}}
     {%- elif arg is scalar(lh) %}
 ({{arg_to_pointer3(arg)}})[0]
     {%- else -%}
