@@ -598,7 +598,7 @@ void op_timings_to_csv(const char *outputFileName) {
     }
   }
 
-  bool can_write = (outputFile != NULL);
+  int can_write = (outputFile != NULL);
   MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
 
   if (can_write) {

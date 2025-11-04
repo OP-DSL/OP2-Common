@@ -198,6 +198,11 @@ MPI_Datatype get_mpi_type() {
   // #endif
 }
 
+template <typename T>
+MPI_Datatype get_mpi_type(T* t) {
+  return get_mpi_type<T>();
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
