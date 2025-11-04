@@ -176,7 +176,7 @@ const idx_g_t NN = ((size_t)1)<<15;
 
 int main(int argc, char **argv) {
   // OP initialisation
-  op_init(argc, argv, 2);
+  op_init(argc, argv, 3);
 
   // MPI for user I/O
   int my_rank;

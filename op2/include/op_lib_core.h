@@ -128,7 +128,7 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX, OP_ARG_INF
 
 typedef struct {
   int index;        /* index */
-  idx_g_t size;     /* number of elements in set */
+  idx_l_t size;     /* number of elements in set */
   char const *name; /* name of set */
                     // for MPI support
   int core_size;    /* number of core elements in an mpi process*/

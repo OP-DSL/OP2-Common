@@ -298,11 +298,11 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   idx_g_t g_size = dset_props.size;
 
   // calculate local size of set for this mpi process
-  int l_size = compute_local_size_weight(g_size, comm_size, my_rank);
+  idx_g_t l_size = compute_local_size_weight(g_size, comm_size, my_rank);
   // check if size is accurate
   if (from->size != l_size) {
     op_printf(
-        "map from set size %d in file %s and size %d do not match on rank %d\n",
+        "map from set size %lld in file %s and size %lld do not match on rank %d\n",
         l_size, file, from->size, my_rank);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
@@ -325,8 +325,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   // Each process defines dataset in memory and reads from a hyperslab in the
   // file.
   idx_g_t disp = 0;
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&l_size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t local_size = l_size;
+  MPI_Allgather(&local_size, 1, get_mpi_type(&local_size), sizes, 1, get_mpi_type(sizes), OP_MPI_HDF5_WORLD);
   for (int i = 0; i < my_rank; i++)
     disp = disp + sizes[i];
   op_free(sizes);
@@ -386,7 +387,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     if (OP_diags > 2) {
       idx_g_t to_set_local_size = new_map->to->size;
       idx_g_t to_set_global_size = 0;
-      MPI_Allreduce(&to_set_local_size, &to_set_global_size, 1, get_mpi_type<idx_g_t>(), MPI_SUM, OP_MPI_HDF5_WORLD);
+      MPI_Allreduce(&to_set_local_size, &to_set_global_size, 1, get_mpi_type( &to_set_global_size), MPI_SUM, OP_MPI_HDF5_WORLD);
       //sanity check - indices should be lower than global size
       for (int i = 0; i < l_size; i++) {
         if (new_map->map_gbl[i] >= to_set_global_size) {
@@ -488,7 +489,8 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   // file.
   idx_g_t disp = 0;
   idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
-  MPI_Allgather(&(set->size), 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(), OP_MPI_HDF5_WORLD);
+  idx_g_t set_size = set->size;
+  MPI_Allgather(&set_size, 1, get_mpi_type(&set_size), sizes, 1, get_mpi_type(sizes), OP_MPI_HDF5_WORLD);
   for (int i = 0; i < my_rank; i++)
     disp = disp + sizes[i];
   op_free(sizes);
@@ -717,7 +719,8 @@ void op_dump_to_hdf5(char const *file_name) {
 
     idx_g_t size = 0;
     idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
-    MPI_Allgather(&set->size, 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(), OP_MPI_HDF5_WORLD);
+    idx_g_t set_size = set->size;
+    MPI_Allgather(&set_size, 1, get_mpi_type(&set_size), sizes, 1, get_mpi_type(sizes), OP_MPI_HDF5_WORLD);
     for (int i = 0; i < comm_size; i++)
       size = size + sizes[i];
 
@@ -742,7 +745,8 @@ void op_dump_to_hdf5(char const *file_name) {
     // find total size of map
     idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
     idx_g_t g_size = 0;
-    MPI_Allgather(&map->from->size, 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(),
+    idx_g_t from_set_size = map->from->size;
+    MPI_Allgather(&from_set_size, 1, get_mpi_type(&from_set_size),  sizes, 1, get_mpi_type(sizes),
                   OP_MPI_HDF5_WORLD);
     for (int i = 0; i < comm_size; i++)
       g_size = g_size + sizes[i];
@@ -855,7 +859,8 @@ void op_dump_to_hdf5(char const *file_name) {
     // find total size of dat
     idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
     idx_g_t g_size = 0;
-    MPI_Allgather(&dat->set->size, 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(),
+    idx_g_t dat_set_size = dat->set->size;
+    MPI_Allgather(&dat_set_size, 1, get_mpi_type(&dat_set_size), sizes, 1, get_mpi_type(sizes),
                   OP_MPI_HDF5_WORLD);
     for (int i = 0; i < comm_size; i++)
       g_size = g_size + sizes[i];
@@ -1256,7 +1261,8 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       // find total size of dat
       idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
       idx_g_t g_size = 0;
-      MPI_Allgather(&dat->set->size, 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(),
+      idx_g_t dat_set_size = dat->set->size;
+      MPI_Allgather(&dat_set_size, 1, get_mpi_type(&dat_set_size), sizes, 1, get_mpi_type(sizes),
                     OP_MPI_HDF5_WORLD);
       for (int i = 0; i < comm_size; i++)
         g_size = g_size + sizes[i];
@@ -1349,7 +1355,8 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   // find total size of dat
   idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
   idx_g_t g_size = 0;
-  MPI_Allgather(&dat->set->size, 1, get_mpi_type<idx_g_t>(), sizes, 1, get_mpi_type<idx_g_t>(),
+  idx_g_t dat_set_size = dat->set->size;
+  MPI_Allgather(&dat_set_size, 1, get_mpi_type(&dat_set_size), sizes, 1, get_mpi_type(sizes),
                 OP_MPI_HDF5_WORLD);
   for (int i = 0; i < comm_size; i++)
     g_size = g_size + sizes[i];
