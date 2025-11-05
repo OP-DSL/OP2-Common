@@ -353,9 +353,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('int start,           ')
         code('int end,             ')
+      code('int stride,          ')
       code('int   set_size) {    ')
     else:
-      code('int   set_size ) {')
+      code('int set_size ) {')
       code('')
 
 
@@ -564,7 +565,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]] #non-opt
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + stride * '+str(int(idxs[g_m]))+'];')
 
       #whatever didn't come up and is opt
       for g_m in range(0,nargs):
@@ -574,7 +575,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           else:
             k = k + [mapinds[g_m]]
 
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + stride * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
 
@@ -1064,6 +1065,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('int start = Plan->col_offsets[0][col];')
         code('int end = Plan->col_offsets[0][col+1];')
         code('int nblocks = (end - start - 1)/nthread + 1;')
+        code('int stride = ((set->size+set->exec_size + 31) / 32) * 32;')
       else:
         code('dim3 nblocks = dim3(Plan->ncolblk[col] >= (1<<16) ? 65535 : Plan->ncolblk[col],')
         code('Plan->ncolblk[col] >= (1<<16) ? (Plan->ncolblk[col]-1)/65535+1: 1, 1);')
@@ -1104,6 +1106,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('start,')
         code('end,')
         code('Plan->col_reord,')
+        code('stride,')
       else:
         code('block_offset,')
         code('Plan->blkmap,')
