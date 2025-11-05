@@ -98,24 +98,21 @@ class Scheme(Findable["Scheme"]):
                 loop, program, app, fallback_args["config"], kernel_idx
             )
 
-        # Only fallback
-        if main_args["kernel_func"] is None:
-            rendered = [(t.render(**fallback_args, variant=""), ext) for t, ext in fallback_templates]
-            return (rendered, True)
-
         # Only main
-        if self.fallback is None:
+        if main_args["kernel_func"] and self.fallback is None:
             rendered = [(t.render(**main_args, variant=""), ext) for t, ext in main_templates]
             return (rendered, False)
 
         # Hybrid
-        rendered_main     = [(t.render(**main_args,     variant="_main"),     ext) for t, ext in main_templates]
-        rendered_fallback = [(t.render(**fallback_args, variant="_fallback"), ext) for t, ext in fallback_templates]
+        only_fallback = main_args["kernel_func"] is None
 
-        rendered_hybrid = f"{rendered_main[0][0]}\n\n{rendered_fallback[0][0]}\n\n"
-        rendered_hybrid += fallback_wrapper_template[0].render(**fallback_args)
+        rendered_main     = [(t.render(**main_args,     variant="_m"),     ext) for t, ext in main_templates] if not only_fallback else []
+        rendered_fallback = [(t.render(**fallback_args, variant="_fb"), ext) for t, ext in fallback_templates]
 
-        return ([(rendered_hybrid, fallback_wrapper_template[1])] + rendered_main[1:] + rendered_fallback[1:], False)
+        rendered_hybrid = (f"{rendered_main[0][0]}\n\n" if not only_fallback else "") + f"{rendered_fallback[0][0]}\n\n"
+        rendered_hybrid += fallback_wrapper_template[0].render(**fallback_args, only_fallback=only_fallback)
+
+        return ([(rendered_hybrid, fallback_wrapper_template[1])] + rendered_main[1:] + rendered_fallback[1:], only_fallback)
 
     def genConsts(self, env: Environment, app: Application) -> Tuple[str, str]:
         if self.consts_template is None:

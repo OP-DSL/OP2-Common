@@ -312,6 +312,13 @@ module OP2_Fortran_Declarations
 
     end function op_check_whitelist_c
 
+    subroutine op_check_fallback_mode_c(name) bind(C,name='op_check_fallback_mode')
+
+      use, intrinsic :: ISO_C_BINDING
+      character(kind=c_char) :: name(*)
+
+    end subroutine op_check_fallback_mode_c
+
     subroutine op_disable_mpi_reductions_c(disable) bind(C,name='op_disable_mpi_reductions')
 
       use, intrinsic :: ISO_C_BINDING
@@ -1970,6 +1977,13 @@ contains
     res = op_check_whitelist_c(name /@/ C_NULL_CHAR)
 
   end function op_check_whitelist
+
+  subroutine op_check_fallback_mode(name)
+
+    character(kind=c_char,len=*) :: name
+    call op_check_fallback_mode_c(name /@/ C_NULL_CHAR)
+
+  end subroutine op_check_fallback_mode
 
   subroutine op_disable_mpi_reductions(disable)
 

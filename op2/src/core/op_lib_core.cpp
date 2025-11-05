@@ -73,6 +73,7 @@ int OP_cuda_reductions_mib = 5;
 
 std::vector<std::regex> OP_whitelist = {};
 bool OP_disable_device_execution = false;
+int OP_fallback_mode = 2; // 1 = silent; 2 = warn; 3 = error
 
 /*
  * Lists of sets, maps and dats declared in OP2 programs
@@ -174,6 +175,19 @@ bool op_check_whitelist(const char *name) {
   }
 
   return false;
+}
+
+void op_check_fallback_mode(const char *name) {
+  if (OP_disable_device_execution) return;
+
+  if (OP_fallback_mode == 1) {
+    return;
+  } else if (OP_fallback_mode == 2) {
+    printf("Warning: using fallback kernel for %s\n", name);
+  } else if (OP_fallback_mode == 3) {
+    printf("Error: no device kernel for %s\n", name);
+    exit(1);
+  }
 }
 
 void op_disable_mpi_reductions(bool disable) {
@@ -294,6 +308,28 @@ void op_init_core(int argc, char **argv, int diags) {
       while (std::getline(file, line)) {
         OP_whitelist.push_back(std::regex(line));
       }
+    }
+  }
+
+  if (getenv("OP_FALLBACK_MODE")) {
+    auto val = std::string(getenv("OP_FALLBACK_MODE"));
+    bool known_mode = false;
+
+    if (val == "silent") {
+      OP_fallback_mode = 1;
+      known_mode = true;
+    } else if (val == "warn" || val == "warning") {
+      OP_fallback_mode = 2;
+      known_mode = true;
+    } else if (val == "error") {
+      OP_fallback_mode = 3;
+      known_mode = true;
+    }
+
+    if (known_mode) {
+      op_printf("\n Using fallback mode: %s\n", val.c_str());
+    } else {
+      op_printf("\n Warning: Unknown fallback mode: %s\n", val.c_str());
     }
   }
 

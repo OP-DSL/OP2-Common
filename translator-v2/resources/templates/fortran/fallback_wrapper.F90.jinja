@@ -5,8 +5,10 @@ module op2_m_{{lh.name}}
     use op2_fortran_declarations
     use op2_fortran_rt_support
 
-    use op2_m_{{lh.name}}_fallback
-    use op2_m_{{lh.name}}_main
+    use op2_m_{{lh.name}}_fb
+{% if not only_fallback %}
+    use op2_m_{{lh.name}}_m
+{% endif %}
 
     implicit none
 
@@ -29,23 +31,36 @@ subroutine op2_k_{{lh.name}}( &
     type(op_arg) :: arg{{arg.id}}
 {% endfor %}
 
+{% if only_fallback %}
+    call op_check_fallback_mode("{{lh.name}}")
+    call op2_k_{{lh.name}}_fb( &
+        name, &
+        set, &
+    {% for arg in lh.args %}
+        arg{{arg.id}}{{"," if not loop.last}} &
+    {% endfor %}
+    )
+{% else %}
     if (op_check_whitelist("{{lh.name}}")) then
-        call op2_k_{{lh.name}}_main( &
+        call op2_k_{{lh.name}}_m( &
             name, &
             set, &
-{% for arg in lh.args %}
+    {% for arg in lh.args %}
             arg{{arg.id}}{{"," if not loop.last}} &
-{% endfor %}
+    {% endfor %}
         )
     else
-        call op2_k_{{lh.name}}_fallback( &
+        call op_check_fallback_mode("{{lh.name}}")
+        call op2_k_{{lh.name}}_fb( &
             name, &
             set, &
-{% for arg in lh.args %}
+    {% for arg in lh.args %}
             arg{{arg.id}}{{"," if not loop.last}} &
-{% endfor %}
+    {% endfor %}
         )
     end if
+{% endif %}
+
 end subroutine
 
 end module

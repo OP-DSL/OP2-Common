@@ -39,7 +39,7 @@
 #include <vector>
 #include <algorithm>
 
-extern cudaEvent_t op2_grp_download_event;
+extern gpuEvent_t op2_grp_download_event;
 
 __global__ void export_halo_gather(int *list, char *dat, int copy_size,
                                    size_t elem_size, char *export_buffer) {
@@ -431,7 +431,7 @@ void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, ch
 
   op2_grp_counter++;
 
-  cutilSafeCall(cudaEventRecord(op2_grp_download_event,0));
+  cutilSafeCall(gpuEventRecord(op2_grp_download_event,0));
 }
 
 void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 

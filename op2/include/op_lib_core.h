@@ -325,6 +325,8 @@ void op_disable_device_execution(bool disable);
 
 bool op_check_whitelist(const char *name);
 
+void op_check_fallback_mode(const char *name);
+
 void op_disable_mpi_reductions(bool disable);
 
 void op_upload_dat(op_dat dat);
