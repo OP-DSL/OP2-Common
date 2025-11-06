@@ -114,8 +114,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
 #Optimization settings
     inc_stage=0
-    op_color2_force=1
-    atomics=0
+    op_color2_force=0
+    atomics=1
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -497,7 +497,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + round32(set_size) * '+str(int(idxs[g_m]))+'];')
 
       #whatever didn't come up and is opt
       for g_m in range(0,nargs):
@@ -507,7 +507,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           else:
             k = k + [mapinds[g_m]]
 
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + round32(set_size) * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
 
@@ -564,7 +564,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]] #non-opt
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + round32(set_size) * '+str(int(idxs[g_m]))+'];')
 
       #whatever didn't come up and is opt
       for g_m in range(0,nargs):
@@ -574,7 +574,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           else:
             k = k + [mapinds[g_m]]
 
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_size * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + round32(set_size) * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
 
@@ -964,13 +964,13 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         for g_m in range(0,nargs):
           if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
             k = k + [mapnames[g_m]]
-            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(g_m)+'))')
-            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(g_m)+');')
+            IF('(OP_kernels[' +str(nk)+ '].count==1) || (opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST != round32(getSetSizeFromOpArg(&arg'+str(g_m)+')))')
+            code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = round32(getSetSizeFromOpArg(&arg'+str(g_m)+'));')
             code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
             ENDIF()
       if dir_soa!=-1:
-          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
-          code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
+          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != round32(getSetSizeFromOpArg(&arg'+str(dir_soa)+')))')
+          code('direct_'+name+'_stride_OP2HOST = round32(getSetSizeFromOpArg(&arg'+str(dir_soa)+'));')
           code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
           ENDIF()
 

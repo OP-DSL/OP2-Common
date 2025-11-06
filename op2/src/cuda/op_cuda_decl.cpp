@@ -73,22 +73,23 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
 
   // transpose data
-  size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (data != NULL && (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1))) {
-    char *temp_data = (char *)malloc(dat->size * round32(set_size) * sizeof(char));
+    size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
+    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (int j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size * i * round32(set_size) + element_size * j + c] =
+          temp_data[element_size * i * set_size + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
         }
       }
     }
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
-                      (size_t)dat->size * round32(set_size));
+                      (size_t)dat->size * set_size);
     free(temp_data);
   } else {
+    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       (size_t)dat->size * set_size);
   }
@@ -150,15 +151,15 @@ op_set op_decl_set(int size, char const *name) {
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
   op_map map = op_decl_map_core(from, to, dim, imap, name);
-  int set_size = map->from->size + map->from->exec_size;
-  int *temp_map = (int *)malloc(map->dim * round32(set_size) * sizeof(int));
+  int set_size = round32(map->from->size + map->from->exec_size);
+  int *temp_map = (int *)malloc(map->dim * set_size * sizeof(int));
   for (int i = 0; i < map->dim; i++) {
     for (int j = 0; j < set_size; j++) {
-      temp_map[i * round32(set_size) + j] = map->map[map->dim * j + i];
+      temp_map[i * set_size + j] = map->map[map->dim * j + i];
     }
   }
   op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
-                    sizeof(int) * map->dim * round32(set_size));
+                    sizeof(int) * map->dim * set_size);
   free(temp_map);
   return map;
 }
@@ -290,9 +291,9 @@ void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+        size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
         char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
         int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
@@ -308,6 +309,7 @@ void op_upload_all() {
         dat->dirty_hd = 0;
         free(temp_data);
       } else {
+        size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
         cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, dat->size * set_size,
                                  gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
