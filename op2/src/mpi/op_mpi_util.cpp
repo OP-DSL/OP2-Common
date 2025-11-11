@@ -93,9 +93,9 @@ void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
   int disp = 0;
   T *g_array = 0;
 
-  MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
+  MPI_Allgather(&l_size, 1, get_mpi_type(&l_size), recevcnts, 1, get_mpi_type(recevcnts), OP_MPI_IO_WORLD);
 
-  int g_size = 0;
+  idx_g_t g_size = 0;
   for (int i = 0; i < comm_size; i++) {
     g_size += recevcnts[i];
     recevcnts[i] = elem_size * recevcnts[i];
@@ -180,7 +180,7 @@ void write_file(op_dat dat, const char *file_name) {
   int disp = 0;
   T *g_array = 0;
 
-  MPI_Allgather(&l_size, 1, MPI_INT, recevcnts, 1, MPI_INT, OP_MPI_IO_WORLD);
+  MPI_Allgather(&l_size, 1, get_mpi_type(&l_size), recevcnts, 1, get_mpi_type(recevcnts), OP_MPI_IO_WORLD);
 
   int g_size = 0;
   for (int i = 0; i < comm_size; i++) {
@@ -683,6 +683,8 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
 }
 
 extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  (void) nargs; // unused
+  (void) args; // unused
   if (recv_neigh_list.size()>0) {
     int result;
     MPI_Test(&recv_requests[0],&result,MPI_STATUS_IGNORE);

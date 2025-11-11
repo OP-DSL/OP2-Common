@@ -72,7 +72,7 @@ MPI_Comm OP_MPI_HDF5_WORLD;
 extern "C" {
 #endif
 
-int compute_local_size_weight(int global_size, int mpi_comm_size,
+idx_l_t compute_local_size_weight(idx_g_t global_size, int mpi_comm_size,
                               int mpi_rank) {
   int *hybrid_flags = (int *)xmalloc(mpi_comm_size * sizeof(int));
   MPI_Allgather(&OP_hybrid_gpu, 1, MPI_INT, hybrid_flags, 1, MPI_INT,
@@ -84,15 +84,20 @@ int compute_local_size_weight(int global_size, int mpi_comm_size,
   for (int i = 0; i < mpi_rank; i++)
     cumulative += hybrid_flags[i] == 1 ? OP_hybrid_balance : 1.0;
 
-  int local_start = ((double)global_size) * (cumulative / total);
-  int local_end =
+  free(hybrid_flags);
+  idx_g_t local_start = ((double)global_size) * (cumulative / total);
+  idx_g_t local_end =
       ((double)global_size) *
       ((cumulative + (OP_hybrid_gpu ? OP_hybrid_balance : 1.0)) / total);
   if (mpi_rank + 1 == mpi_comm_size)
     local_end = global_size; // make sure we don't have rounding problems
-  int local_size = local_end - local_start;
+  idx_g_t local_size2 = local_end - local_start;
+  if (local_size2 > INT_MAX) {
+    op_printf("Error, per-rank size of set would be greater than INT_MAX\n");
+    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+  }
 
-  return local_size;
+  return (idx_l_t)local_size2;
 }
 
 /*******************************************************************************
@@ -169,7 +174,6 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
   hid_t file_id;   // file identifier
   hid_t plist_id;  // property list identifier
   hid_t dset_id;   // dataset identifier
-  hid_t dataspace; // data space identifier
   herr_t status;
 
   if (file_exist(file) == 0) {
@@ -218,7 +222,7 @@ op_set op_decl_set_hdf5_infer_size(char const *file, char const *name, char cons
     op_printf("Could not access dataset '%s' in file '%s'\n", set_dataset_name, file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
-  int g_size = dset_props.size;
+  idx_g_t g_size = dset_props.size;
 
   H5Dclose(dset_id);
   H5Fclose(file_id);
@@ -291,14 +295,14 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
-  int g_size = dset_props.size;
+  idx_g_t g_size = dset_props.size;
 
   // calculate local size of set for this mpi process
-  int l_size = compute_local_size_weight(g_size, comm_size, my_rank);
+  idx_g_t l_size = compute_local_size_weight(g_size, comm_size, my_rank);
   // check if size is accurate
   if (from->size != l_size) {
     op_printf(
-        "map from set size %d in file %s and size %d do not match on rank %d\n",
+        "map from set size %lld in file %s and size %lld do not match on rank %d\n",
         l_size, file, from->size, my_rank);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
@@ -310,7 +314,8 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
 
-  const char *typ = dset_props.type_str;
+  char *typ = (char*)xmalloc(sizeof(char) * (strlen(dset_props.type_str) + 1));
+  strcpy(typ, dset_props.type_str);
 
   // Restore previous error handler .. report hdf5 error stack automatically
   H5error_on(old_func, old_client_data);
@@ -319,9 +324,10 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
 
   // Each process defines dataset in memory and reads from a hyperslab in the
   // file.
-  int disp = 0;
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&l_size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+  idx_g_t disp = 0;
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t local_size = l_size;
+  MPI_Allgather(&local_size, 1, get_mpi_type(&local_size), sizes, 1, get_mpi_type(sizes), OP_MPI_HDF5_WORLD);
   for (int i = 0; i < my_rank; i++)
     disp = disp + sizes[i];
   op_free(sizes);
@@ -342,15 +348,19 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
 
   // initialize data buffer and read data
   int *map = 0;
+  int type_size = 0;
   if (strcmp(typ, "int") == 0 || strcmp(typ, "integer(4)") == 0) {
     map = (int *)xmalloc(sizeof(int) * l_size * dim);
     H5Dread(dset_id, H5T_NATIVE_INT, memspace, dataspace, plist_id, map);
+    type_size = sizeof(int);
   } else if (strcmp(typ, "long") == 0) {
     map = (int *)xmalloc(sizeof(long) * l_size * dim);
     H5Dread(dset_id, H5T_NATIVE_LONG, memspace, dataspace, plist_id, map);
+    type_size = sizeof(long);
   } else if (strcmp(typ, "long long") == 0) {
-    map = (int *)xmalloc(sizeof(long) * l_size * dim);
+    map = (int *)xmalloc(sizeof(long long) * l_size * dim);
     H5Dread(dset_id, H5T_NATIVE_LLONG, memspace, dataspace, plist_id, map);
+    type_size = sizeof(long long);
   } else {
     op_printf("unknown type\n");
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
@@ -361,11 +371,35 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   H5Sclose(dataspace);
   H5Dclose(dset_id);
   H5Fclose(file_id);
-  MPI_Comm_free(&OP_MPI_HDF5_WORLD);
+  
 
   free((char*)dset_props.type_str);
 
-  op_map new_map = op_decl_map_core(from, to, dim, map, name);
+  op_map new_map;
+  if (strcmp(typ, "int") == 0 || ((strcmp(typ, "long") == 0 && sizeof(long) == sizeof(int)))) {
+    new_map = op_decl_map(from, to, dim, map, name);
+  } else {
+    if (type_size != sizeof(idx_g_t)) {
+      op_printf("type size %d does not match idx_g_t size %d\n", type_size, sizeof(idx_g_t));
+      MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+    }
+    new_map = op_decl_map_long(from, to, dim, (idx_g_t*)map, name);
+    if (OP_diags > 2) {
+      idx_g_t to_set_local_size = new_map->to->size;
+      idx_g_t to_set_global_size = 0;
+      MPI_Allreduce(&to_set_local_size, &to_set_global_size, 1, get_mpi_type( &to_set_global_size), MPI_SUM, OP_MPI_HDF5_WORLD);
+      //sanity check - indices should be lower than global size
+      for (int i = 0; i < l_size; i++) {
+        if (new_map->map_gbl[i] >= to_set_global_size) {
+          printf("index %lld in map %s is greater than global size %lld\n", new_map->map_gbl[i], name, to_set_global_size);
+          MPI_Abort(OP_MPI_HDF5_WORLD, 2);
+        }
+      }
+      op_printf("map %s was read successfully\n", name);
+    }
+  }
+
+  MPI_Comm_free(&OP_MPI_HDF5_WORLD);
   free(map);
   new_map->user_managed = 0;
   return new_map;
@@ -395,7 +429,6 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
 
   hsize_t count[2]; // hyperslab selection parameters
   hsize_t offset[2];
-  hid_t attr; // attribute identifier
   herr_t status;
 
   if (file_exist(file) == 0) {
@@ -431,7 +464,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
               file);
     MPI_Abort(OP_MPI_HDF5_WORLD, 2);
   }
-  size_t type_size;
+  size_t type_size = 0;
 
   int dat_dim = dset_props.dim;
   if (dat_dim != dim) {
@@ -454,9 +487,10 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   // Create the dataset with default properties and close dataspace.
   // Each process defines dataset in memory and reads from a hyperslab in the
   // file.
-  int disp = 0;
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&(set->size), 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+  idx_g_t disp = 0;
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t set_size = set->size;
+  MPI_Allgather(&set_size, 1, get_mpi_type(&set_size), sizes, 1, get_mpi_type(sizes), OP_MPI_HDF5_WORLD);
   for (int i = 0; i < my_rank; i++)
     disp = disp + sizes[i];
   op_free(sizes);
@@ -531,8 +565,6 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   hid_t file_id;   // file identifier
   hid_t plist_id;  // property list identifier
   hid_t dset_id;   // dataset identifier
-  hid_t dataspace; // data space identifier
-  hid_t attr;      // attribute identifier
   hid_t status;
 
   if (file_exist(file_name) == 0) {
@@ -588,9 +620,8 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   // Create the dataset with default properties and close dataspace.
   dset_id = H5Dopen(file_id, name, H5P_DEFAULT);
-  dataspace = H5Dget_space(dset_id);
 
-  char *data;
+  char *data = nullptr;
   // initialize data buffer and read data
   if (strcmp(typ, "int") == 0 || strcmp(typ, "int(4)") == 0 ||
       strcmp(typ, "integer") == 0 || strcmp(typ, "integer(4)") == 0) {
@@ -686,14 +717,20 @@ void op_dump_to_hdf5(char const *file_name) {
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
-    int size = 0;
-    int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-    MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_HDF5_WORLD);
+    idx_g_t size = 0;
+    idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+    idx_g_t set_size = set->size;
+    MPI_Allgather(&set_size, 1, get_mpi_type(&set_size), sizes, 1, get_mpi_type(sizes), OP_MPI_HDF5_WORLD);
     for (int i = 0; i < comm_size; i++)
       size = size + sizes[i];
 
     // write data
-    H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, &size);
+    if (size > INT_MAX) {
+      H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, &size);
+    } else {
+      int size_int = (int)size;
+      H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, &size_int);
+    }
     H5Sclose(dataspace);
     H5Pclose(plist_id);
     H5Dclose(dset_id);
@@ -706,14 +743,17 @@ void op_dump_to_hdf5(char const *file_name) {
     if (map->dim == 0)
       continue;
     // find total size of map
-    int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-    int g_size = 0;
-    MPI_Allgather(&map->from->size, 1, MPI_INT, sizes, 1, MPI_INT,
+    idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+    idx_g_t g_size = 0;
+    idx_g_t from_set_size = map->from->size;
+    MPI_Allgather(&from_set_size, 1, get_mpi_type(&from_set_size),  sizes, 1, get_mpi_type(sizes),
                   OP_MPI_HDF5_WORLD);
     for (int i = 0; i < comm_size; i++)
       g_size = g_size + sizes[i];
-    if (g_size == 0)
+    if (g_size == 0) {
+      op_free(sizes);
       continue;
+    }
     // Create the dataspace for the dataset.
     dimsf[0] = g_size;
     dimsf[1] = map->dim;
@@ -721,7 +761,7 @@ void op_dump_to_hdf5(char const *file_name) {
 
     // Each process defines dataset in memory and writes it to a hyperslab
     // in the file.
-    int disp = 0;
+    idx_g_t disp = 0;
     for (int i = 0; i < my_rank; i++)
       disp = disp + sizes[i];
     count[0] = map->from->size;
@@ -817,14 +857,17 @@ void op_dump_to_hdf5(char const *file_name) {
     if (dat->size == 0)
       continue;
     // find total size of dat
-    int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-    int g_size = 0;
-    MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT,
+    idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+    idx_g_t g_size = 0;
+    idx_g_t dat_set_size = dat->set->size;
+    MPI_Allgather(&dat_set_size, 1, get_mpi_type(&dat_set_size), sizes, 1, get_mpi_type(sizes),
                   OP_MPI_HDF5_WORLD);
     for (int i = 0; i < comm_size; i++)
       g_size = g_size + sizes[i];
-    if (g_size == 0)
+    if (g_size == 0) {
+      op_free(sizes);
       continue;
+    }
     // Create the dataspace for the dataset.
     dimsf[0] = g_size;
     dimsf[1] = dat->dim;
@@ -832,7 +875,7 @@ void op_dump_to_hdf5(char const *file_name) {
 
     // Each process defines dataset in memory and writes it to a hyperslab
     // in the file.
-    int disp = 0;
+    idx_g_t disp = 0;
     for (int i = 0; i < my_rank; i++)
       disp = disp + sizes[i];
     count[0] = dat->set->size;
@@ -1130,7 +1173,6 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   hid_t dataspace;   // data space identifier
   hid_t plist_id;    // property list identifier
   hid_t memspace;    // memory space identifier
-  hid_t attr;        // attribute identifier
 
   hsize_t dimsf[2]; // dataset dimensions
   hsize_t count[2]; // hyperslab selection parameters
@@ -1185,7 +1227,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       // find element size of this dat with available attributes
       size_t dat_size = 0;
       dat_size = dset_props.elem_bytes;
-      if (dat_size != dat->size) {
+      if (dat_size != (size_t)dat->size) {
         op_printf(
             "dat.size %zu in file %s and dim %d do not match ... aborting\n",
             dat_size, file_name, dat->dim);
@@ -1217,9 +1259,10 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
       //
 
       // find total size of dat
-      int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-      int g_size = 0;
-      MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT,
+      idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+      idx_g_t g_size = 0;
+      idx_g_t dat_set_size = dat->set->size;
+      MPI_Allgather(&dat_set_size, 1, get_mpi_type(&dat_set_size), sizes, 1, get_mpi_type(sizes),
                     OP_MPI_HDF5_WORLD);
       for (int i = 0; i < comm_size; i++)
         g_size = g_size + sizes[i];
@@ -1230,7 +1273,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
       // Each process defines dataset in memory and writes it to a hyperslab
       // in the file.
-      int disp = 0;
+      idx_g_t disp = 0;
       for (int i = 0; i < my_rank; i++)
         disp = disp + sizes[i];
       count[0] = dat->set->size;
@@ -1310,9 +1353,10 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
   H5Pclose(plist_id);
 
   // find total size of dat
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  int g_size = 0;
-  MPI_Allgather(&dat->set->size, 1, MPI_INT, sizes, 1, MPI_INT,
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t g_size = 0;
+  idx_g_t dat_set_size = dat->set->size;
+  MPI_Allgather(&dat_set_size, 1, get_mpi_type(&dat_set_size), sizes, 1, get_mpi_type(sizes),
                 OP_MPI_HDF5_WORLD);
   for (int i = 0; i < comm_size; i++)
     g_size = g_size + sizes[i];
@@ -1324,7 +1368,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
   // Each process defines dataset in memory and writes it to a hyperslab in the
   // file.
-  int disp = 0;
+  idx_g_t disp = 0;
   for (int i = 0; i < my_rank; i++)
     disp = disp + sizes[i];
   count[0] = dat->set->size;
