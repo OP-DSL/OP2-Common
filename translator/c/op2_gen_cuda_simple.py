@@ -113,9 +113,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   for nk in range (0,len(kernels)):
 
 #Optimization settings
-    inc_stage=0
+    inc_stage=1
     op_color2_force=0
-    atomics=1
+    atomics=0
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -353,7 +353,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('int start,           ')
         code('int end,             ')
-      code('int   set_size) {    ')
+      code('int   set_stride,     ')
+      code('int   set_size ) {    ')
     else:
       code('int   set_size ) {')
       code('')
@@ -497,7 +498,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]]
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + round32(set_size) * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_stride * '+str(int(idxs[g_m]))+'];')
 
       #whatever didn't come up and is opt
       for g_m in range(0,nargs):
@@ -507,7 +508,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           else:
             k = k + [mapinds[g_m]]
 
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + round32(set_size) * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + offset_b + set_stride * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
 
@@ -564,7 +565,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if maps[g_m] == OP_MAP and (not optflags[g_m]) and (not mapinds[g_m] in k):
           k = k + [mapinds[g_m]] #non-opt
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + round32(set_size) * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_stride * '+str(int(idxs[g_m]))+'];')
 
       #whatever didn't come up and is opt
       for g_m in range(0,nargs):
@@ -574,7 +575,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           else:
             k = k + [mapinds[g_m]]
 
-          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + round32(set_size) * '+str(int(idxs[g_m]))+'];')
+          code('map'+str(mapinds[g_m])+'idx = opDat'+str(invmapinds[inds[g_m]-1])+'Map[n + set_stride * '+str(int(idxs[g_m]))+'];')
           if optflags[g_m]==1:
             ENDIF()
 
@@ -1112,6 +1113,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('Plan->nthrcol,')
         code('Plan->thrcol,')
         code('Plan->ncolblk[col],')
+      code('round32(set->size+set->exec_size),')
       code('set->size+set->exec_size);')
       code('')
       if reduct:
@@ -1163,7 +1165,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       for g_m in range(0,nargs):
         if inds[g_m]==0:
           code('(<TYP>*)<ARG>.data_d,')
-      code('start,end,set->size+set->exec_size);')
+      code('start,end,')
+      code('round32(set->size+set->exec_size),')
+      code('set->size+set->exec_size);')
       ENDIF()
       if reduct:
         code('if (round==1) mvReductArraysToHost(reduct_bytes);')
@@ -1187,7 +1191,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
           code(indent+'(<TYP> *) <ARG>.data_d,')
         else:
           code(indent+'(<TYP> *) <ARG>.data_d,')
-
       code(indent+'set->size );')
 
     if ninds>0 and not atomics:
