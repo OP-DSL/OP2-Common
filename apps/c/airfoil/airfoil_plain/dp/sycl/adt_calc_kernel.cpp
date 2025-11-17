@@ -3,7 +3,7 @@
 //
 
 //user function
-class adt_calc_kernel;
+class adt_calc_kernel; 
 
 //host stub function
 void op_par_loop_adt_calc(char const *name, op_set set,
