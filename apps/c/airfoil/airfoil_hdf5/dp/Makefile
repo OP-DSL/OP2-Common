@@ -12,10 +12,16 @@ include ../../../../../makefiles/c_app.mk
 ifeq ($(HAVE_HDF5_SEQ),true)
   all: convert_mesh
 endif
+endif
+endif
+endif
 
 ifeq ($(HAVE_HDF5_PAR),true)
   all: convert_mesh_mpi
 endif
+endif
+endif
+
 
 clean: clean_convert_mesh
 

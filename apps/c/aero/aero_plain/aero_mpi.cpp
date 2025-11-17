@@ -138,7 +138,7 @@ static void check_scan(int items_received, int items_expected) {
 int main(int argc, char **argv) {
   // OP initialisation
 
-  op_init(argc, argv, 2);
+  op_init_soa(argc, argv, 2, 1);
 
   // MPI for user I/O
   int my_rank;

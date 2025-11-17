@@ -106,6 +106,10 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
 
+  inc_stage=0
+  op_color2=0
+  op_color2_force=0
+  atomics=1
 ##########################################################################
 #  create new kernel file
 ##########################################################################
@@ -113,9 +117,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   for nk in range (0,len(kernels)):
 
 #Optimization settings
-    inc_stage=1
+    inc_stage=0
     op_color2_force=0
-    atomics=0
+    atomics=1
 
 
     name, nargs, dims, maps, var, typs, accs, idxs, inds, soaflags, optflags, decl_filepath, \
@@ -140,9 +144,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       if maps[i] == OP_MAP and accs[i] == OP_RW:
         j = i
     ind_rw = j >= 0
-
-    if atomics and ind_rw:
-      atomics = 0
 
     if ind_rw or op_color2_force:
         op_color2 = 1
@@ -353,8 +354,8 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       else:
         code('int start,           ')
         code('int end,             ')
-      code('int   set_stride,     ')
-      code('int   set_size ) {    ')
+        code('int *col_reord,      ')
+      code('int   set_size) {    ')
     else:
       code('int   set_size ) {')
       code('')
@@ -598,14 +599,14 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
               first = [i for i in range(0,len(v)) if v[i] == 1]
               first = first[0]
 
-              indent = ' '*(depth+2)
-              for k in range(0,sum(v)):
-                if soaflags[g_m]:
-                  line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
-                else:
-                  line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
-              line = line[:-2]+'};'
-              code(line)
+            indent = ' '*(depth+2)
+            for k in range(0,sum(v)):
+              if soaflags[g_m]:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[map'+str(mapinds[g_m+k])+'idx],\n'
+              else:
+                line = line + indent + ' &ind_arg'+str(inds[first]-1)+'[<DIM> * map'+str(mapinds[g_m+k])+'idx],\n'
+            line = line[:-2]+'};'
+            code(line)
 
 
 
@@ -891,17 +892,15 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('printf(" kernel routine with indirection: '+name+'\\n");')
       ENDIF()
 
-      if not atomics:
-        code('')
-        comm('get plan')
-        code('#ifdef OP_PART_SIZE_'+ str(nk))
-        code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
-        code('#else')
-        code('  int part_size = OP_part_size;')
-        code('#endif')
-        code('')
-      #code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
-      code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
+      code('')
+      comm('get plan')
+      code('#ifdef OP_PART_SIZE_'+ str(nk))
+      code('  int part_size = OP_PART_SIZE_'+str(nk)+';')
+      code('#else')
+      code('  int part_size = OP_part_size;')
+      code('#endif')
+      code('')
+      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
 
 #
 # direct bit
@@ -969,9 +968,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
             code('opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST = round32(getSetSizeFromOpArg(&arg'+str(g_m)+'));')
             code('cudaMemcpyToSymbol(opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2CONSTANT, &opDat'+str(invinds[inds[g_m]-1])+'_'+name+'_stride_OP2HOST,sizeof(int));')
             ENDIF()
-      if dir_soa!=-1:
-          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != round32(getSetSizeFromOpArg(&arg'+str(dir_soa)+')))')
-          code('direct_'+name+'_stride_OP2HOST = round32(getSetSizeFromOpArg(&arg'+str(dir_soa)+'));')
+      if dir_soa<>-1:
+          IF('(OP_kernels[' +str(nk)+ '].count==1) || (direct_'+name+'_stride_OP2HOST != getSetSizeFromOpArg(&arg'+str(dir_soa)+'))')
+          code('direct_'+name+'_stride_OP2HOST = getSetSizeFromOpArg(&arg'+str(dir_soa)+');')
           code('cudaMemcpyToSymbol(direct_'+name+'_stride_OP2CONSTANT,&direct_'+name+'_stride_OP2HOST,sizeof(int));')
           ENDIF()
 
@@ -979,7 +978,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
 # transfer global reduction initial data
 #
 
-    if ninds == 0 or atomics or op_color2:
+    if ninds == 0:
       comm('set CUDA execution parameters')
       code('#ifdef OP_BLOCK_SIZE_'+str(nk))
       code('  int nthread = OP_BLOCK_SIZE_'+str(nk)+';')
@@ -987,30 +986,16 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('  int nthread = OP_block_size;')
       code('#endif')
       code('')
-      if ninds==0:
-        if reduct:
-            code('int nblocks = 400;')
-        else:
-            code('int nblocks = (set_size - 1) / nthread + 1;')
-        code('')
+      code('int nblocks = 200;')
+      code('')
 
     if reduct:
       comm('transfer global reduction data to GPU')
       if ninds>0 and not atomics:
         code('int maxblocks = 0;')
-        if op_color2:
-          FOR('col','0','Plan->ncolors')
-          code('int start = Plan->col_offsets[0][col];')
-          code('int end = Plan->col_offsets[0][col+1];')
-          code('int nblocks = (end - start - 1)/nthread + 1;')
-          code('maxblocks = MAX(maxblocks,nblocks);')
-          ENDFOR()
-        else:
-          FOR('col','0','Plan->ncolors')
-          code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
-          ENDFOR()
-      elif atomics and ninds>0:
-        code('int maxblocks = (MAX(set->core_size, set->size+set->exec_size-set->core_size)-1)/nthread+1;')
+        FOR('col','0','Plan->ncolors')
+        code('maxblocks = MAX(maxblocks,Plan->ncolblk[col]);')
+        ENDFOR()
       else:
         code('int maxblocks = nblocks;')
 
@@ -1125,54 +1110,6 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR() #TODO sztem ez forditva van...
         code('block_offset += Plan->ncolblk[col];')
       ENDIF()
-
-#
-#
-#
-    elif ninds>0 and atomics:
-      if reduct:
-        FOR('round','0','3')
-      else:
-        FOR('round','0','2')
-      IF('round==1')
-      code('op_mpi_wait_all_grouped(nargs, args, 2);')
-      #code('op_mpi_wait_all_cuda(nargs, args);')
-      ENDIF()
-      if reduct:
-        code('int start = round==0 ? 0 : (round==1 ? set->core_size : set->size);')
-        code('int end = round==0 ? set->core_size : (round==1? set->size :  set->size + set->exec_size);')
-      else:
-        code('int start = round==0 ? 0 : set->core_size;')
-        code('int end = round==0 ? set->core_size : set->size + set->exec_size;')
-      IF('end-start>0')
-      code('int nblocks = (end-start-1)/nthread+1;')
-      if reduct:
-        code('int nshared = reduct_size*nthread;')
-        code('op_cuda_'+name+'<<<nblocks,nthread,nshared>>>(')
-      else:
-        code('op_cuda_'+name+'<<<nblocks,nthread>>>(')
-      if nopts > 0:
-        code('optflags,')
-      for m in range(1,ninds+1):
-        g_m = invinds[m-1]
-        code('(<TYP> *)<ARG>.data_d,')
-      if nmaps > 0:
-        k = []
-        for g_m in range(0,nargs):
-          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
-            k = k + [mapnames[g_m]]
-            code('arg'+str(g_m)+'.map_data_d, ')
-      for g_m in range(0,nargs):
-        if inds[g_m]==0:
-          code('(<TYP>*)<ARG>.data_d,')
-      code('start,end,')
-      code('round32(set->size+set->exec_size),')
-      code('set->size+set->exec_size);')
-      ENDIF()
-      if reduct:
-        code('if (round==1) mvReductArraysToHost(reduct_bytes);')
-
-      ENDFOR()
 #
 # kernel call for direct version
 #
@@ -1249,19 +1186,34 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     code('op_timers_core(&cpu_t2, &wall_t2);')
     code('OP_kernels[' +str(nk)+ '].time     += wall_t2 - wall_t1;')
 
-    if ninds == 0:
+    if ninds == 0 or atomics:
       line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
 
       for g_m in range (0,nargs):
         if optflags[g_m]==1:
           IF('<ARG>.opt')
-        if maps[g_m]!=OP_GBL:
+        if maps[g_m]<>OP_GBL:
           if accs[g_m]==OP_READ:
             code(line+' <ARG>.size;')
           else:
             code(line+' <ARG>.size * 2.0f;')
         if optflags[g_m]==1:
           ENDIF()
+    if atomics:
+      for m in range(1,ninds+1):
+        g_m = invinds[m-1]
+        line = 'OP_kernels['+str(nk)+'].transfer += (float)<ARG>.dat->set->size *'
+        if accs[g_m]==OP_READ:
+            code(line+' <ARG>.size;')
+        else:
+            code(line+' <ARG>.size * 2.0f;')
+      if nmaps > 0:
+        k = []
+        for g_m in range(0,nargs):
+          if maps[g_m] == OP_MAP and (not mapnames[g_m] in k):
+            k = k + [mapnames[g_m]]
+            line = 'OP_kernels['+str(nk)+'].transfer += (float)set->size *'
+            code(line+' <ARG>.map->dim*sizeof(int);')
     depth = depth - 2
     code('}')
 
@@ -1297,7 +1249,7 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
     if str(consts[nc]['dim']).isdigit() and int(consts[nc]['dim'])==1:
       code('__constant__ '+consts[nc]['type'][1:-1]+' '+consts[nc]['name']+'_cuda;')
     else:
-      if str(consts[nc]['dim']).isdigit() and int(consts[nc]['dim']) > 0:
+      if consts[nc]['dim'] > 0:
         num = str(consts[nc]['dim'])
       else:
         num = 'MAX_CONST_SIZE'
@@ -1314,15 +1266,17 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
   code('#include "op_cuda_rt_support.h"')
   code('#include "op_cuda_reduction.h"')
 
+  code('')
+  code('void op_decl_const_char(int dim, char const *type,')
+  code('int size, char *dat, char const *name){')
+  depth = depth + 2
+
+  code('if (!OP_hybrid_gpu) return;')
   for nc in range(0,len(consts)):
-    code('')
-    code('void op_decl_const_'+consts[nc]['name']+'(int dim, char const *type,')
-    code('                       '+consts[nc]['type'][1:-1]+' *dat){')
-    depth = depth + 2
-    code('if (!OP_hybrid_gpu) return;')
-    if not str(consts[nc]['dim']).isdigit() or int(consts[nc]['dim']) <= 0:
-      IF('dim>MAX_CONST_SIZE')
-      code('printf("error: MAX_CONST_SIZE not big enough\\n"); exit(1);')
+    IF('!strcmp(name,"'+consts[nc]['name']+'")')
+    if consts[nc]['dim'] < 0:
+      IF('!strcmp(name,"'+consts[nc]['name']+'") && size>MAX_CONST_SIZE) {')
+      code('printf("error: MAX_CONST_SIZE not big enough\n"); exit(1);')
       ENDIF()
     code('cutilSafeCall(cudaMemcpyToSymbol('+consts[nc]['name']+'_cuda, dat, dim*sizeof('+consts[nc]['type'][1:-1]+')));')
     depth = depth - 2

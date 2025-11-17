@@ -66,7 +66,7 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16],
 int main(int argc, char **argv) {
   // OP initialisation
 
-  op_init(argc, argv, 2);
+  op_init_soa(argc, argv, 2, 1);
 
   int *bnode, *cell;
   double *xm; //, *q;

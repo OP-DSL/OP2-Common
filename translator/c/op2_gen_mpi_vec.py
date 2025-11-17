@@ -164,11 +164,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
     file_text += kernel_text
     f.close()
 
-    ## Clang compiler can struggle to vectorize a loop if it uses a mix of
-    ## Python-generated simd arrays for indirect data AND pointers to direct
-    ## data. Fix by also generating simd arrays for direct data:
-    do_gen_direct_simd_arrays = True
-
 #
 # Modified vectorisable version if its an indirect kernel
 # - direct kernels can be vectorised without modification
@@ -230,22 +225,7 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
           #print var2
 
           body_text = re.sub('\*\\b'+var2+'\\b\\s*(?!\[)', var2+'[0]', body_text)
-          array_access_pattern = '\[[\w\(\)\+\-\*\s\\\\]*\]'
-
-          ## It has been observed that vectorisation can fail on loops with increments,
-          ## but replacing them with writes succeeds.
-          ## For example with Clang on particular loops, vectorisation fails with message:
-          ##   "loop not vectorized: loop control flow is not understood by vectorizer"
-          ## replacing increments with writes solves this.
-          ## Replacement is data-safe due to use of local/intermediate SIMD arrays.
-          ## Hopefully the regex is matching all increments.
-          ## And for loops that were being vectorised, this change can give a small perf boost.
-          if maps[i] == OP_MAP and accs[i] == OP_INC:
-            ## Replace 'var' increments with writes:
-            body_text = re.sub(r'('+var2+array_access_pattern+'\s*'+')'+re.escape("+="), r'\1'+'=', body_text)
-
-          ## Append vector array access:
-          body_text = re.sub(r'('+var2+array_access_pattern+')', r'\1'+'[idx]', body_text)
+          body_text = re.sub(r'('+var2+'\[[\w\(\)\+\-\*\s\\\\]*\]'+')', r'\1'+'[idx]', body_text)
 
           var = var + '[][SIMD_VEC]'
           #var = var + '[restrict][SIMD_VEC]'
@@ -396,13 +376,8 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
             code('dat{0}[i] = *((<TYP>*)arg{0}.data);'.format(g_m))
           ENDFOR()
 
-      code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
-      code('  op_mpi_test_all(nargs,args);')
-      IF('(n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)')
-      if grouped:
-        code('op_mpi_wait_all_grouped(nargs, args, 1);')
-      else:
-        code('op_mpi_wait_all(nargs, args);')
+      IF('n+SIMD_VEC >= set->core_size')
+      code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       for g_m in range(0,nargs):
         if do_gen_direct_simd_arrays:
@@ -429,19 +404,6 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       init_dat_template = "dat{0}[{1}][i] = (ptr{0})[idx{0}_<DIM> + {1}];"
       zero_dat_template = "dat{0}[{1}][i] = 0.0;"
       for g_m in range(0,nargs):
-        if do_gen_direct_simd_arrays:
-          ## also 'gather' directly-accessed data, because SOME compilers
-          ## struggle to vectorise otherwise (e.g. Clang).
-          if maps[g_m] != OP_GBL :
-            if accs[g_m] in [OP_READ, OP_RW]:
-              for d in range(0,int(dims[g_m])):
-                code(init_dat_template.format(g_m, d))
-              code('')
-            elif accs[g_m] == OP_INC:
-              for d in range(0,int(dims[g_m])):
-                code(zero_dat_template.format(g_m, d))
-              code('')
-        else:
           if maps[g_m] == OP_MAP :
             if accs[g_m] in [OP_READ, OP_RW]:#and (not mapinds[g_m] in k):
               for d in range(0,int(dims[g_m])):
