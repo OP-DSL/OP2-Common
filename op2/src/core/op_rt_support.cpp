@@ -73,6 +73,7 @@ void op_rt_exit() {
     free(OP_plans[ip].loc_maps);
     free(OP_plans[ip].ncolblk);
     free(OP_plans[ip].nsharedCol);
+    free(OP_plans[ip].nsharedColInd);
     op_free(OP_plans[ip].col_reord);
     if (OP_plans[ip].col_offsets != NULL) {
       op_free(OP_plans[ip].col_offsets[0]);
@@ -925,6 +926,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
   /* work out shared memory requirements */
   OP_plans[ip].nsharedCol = (int *)op_malloc(ncolors * sizeof(int));
+  OP_plans[ip].nsharedColInd = (int *)op_malloc(ncolors * ninds_staged * sizeof(int));
+  memset(OP_plans[ip].nsharedColInd, 0, ncolors * ninds_staged * sizeof(int));
+
   float total_shared = 0;
   for (int col = 0; col < ncolors; col++) {
     OP_plans[ip].nsharedCol[col] = 0;
@@ -940,6 +944,9 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
 
           nbytes +=
               ROUND_UP_64(ind_sizes[m + b * ninds_staged] * dats[m2]->size);
+          OP_plans[ip].nsharedColInd[col+ncolors*m] =
+            MAX(OP_plans[ip].nsharedColInd[col+ncolors*m],
+                ind_sizes[m + b * ninds_staged] * dats[m2]->dim);
         }
         OP_plans[ip].nsharedCol[col] =
             MAX(OP_plans[ip].nsharedCol[col], nbytes);

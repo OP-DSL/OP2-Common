@@ -1,0 +1,20 @@
+export OP2_COMPILER=intel-sycl
+export PATH=/rr-home/shared/istvan/intel_llvm/bin:$PATH
+#/rr-home/istvan/intel_llvm/build_skylake/bin:$PATH
+export LD_LIBRARY_PATH=/rr-home/shared/istvan/intel_llvm/lib:$LD_LIBRARY_PATH
+#/rr-home/istvan/intel_llvm/build_skylake/lib:$LD_LIBRARY_PATH
+export OP2_INSTALL_PATH=/rr-home/gihan/OP2-Common/op2
+export SYCL_INSTALL_PATH=/rr-home/shared/istvan/intel_llvm
+#/rr-home/istvan/intel_llvm
+
+#External libraries
+export HDF5_INSTALL_PATH=/rr-home/gihan/HDF5-Clang-6
+export PARMETIS_INSTALL_PATH=/rr-home/gihan/ParMetis-Clang-6/
+export PTSCOTCH_INSTALL_PATH=/rr-home/gihan/PTScotch-Clang-6/
+export LD_LIBRARY_PATH=/rr-home/gihan/ParMetis-Clang-6/lib:/rr-home/gihan/PTScotch-Clang-6/lib:/rr-home/gihan/HDF5-Clang-6/lib:$LD_LIBRARY_PATH
+
+#MPICH compiled with Clang
+export MPI_INSTALL_PATH=/rr-home/gihan/MPICH-Clang
+export LD_LIBRARY_PATH=$MPI_INSTALL_PATH/lib::$LD_LIBRARY_PATH
+export PATH=$MPI_INSTALL_PATH/bin::$PATH
+

@@ -50,6 +50,7 @@ from op2_gen_openmp import op2_gen_openmp
 from op2_gen_openacc import op2_gen_openacc
 
 from op2_gen_cuda import op2_gen_cuda
+from op2_gen_sycl import op2_gen_sycl
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
 from op2_gen_openmp4 import op2_gen_openmp4
@@ -933,6 +934,9 @@ def main(srcFilesAndDirs=sys.argv[1:]):
   #code generators for NVIDIA GPUs with CUDA
   #op2_gen_cuda(masterFile, date, consts, kernels,sets) # Optimized for Fermi GPUs
   op2_gen_cuda_simple(masterFile, date, consts, kernels, sets, macro_defs) # Optimized for Kepler GPUs
+
+  #code generators for SYCL
+  op2_gen_sycl(masterFile, date, consts, kernels, sets, macro_defs) # Optimized for Kepler GPUs
 
   # generates openmp code as well as cuda code into the same file
   op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application

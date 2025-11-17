@@ -47,6 +47,7 @@
 #include <regex>
 #include <string>
 #include <fstream>
+#include <unistd.h>
 
 /*
  * OP2 global state variables
@@ -75,6 +76,7 @@ std::vector<std::regex> OP_whitelist = {};
 bool OP_disable_device_execution = false;
 int OP_fallback_mode = 2; // 1 = silent; 2 = warn; 3 = error
 
+int OP_sycl_device = 3;
 /*
  * Lists of sets, maps and dats declared in OP2 programs
  */
@@ -273,6 +275,17 @@ void op_set_args(int argc, char *argv) {
     OP_cuda_reductions_mib = atoi(temp + 23);
     op_printf("\n OP_cuda_reductions_mib  = %d \n", OP_cuda_reductions_mib);
   }
+  pch = strstr(argv, "SYCL_DEVICE=");
+  if (pch != NULL) {
+    strncpy(temp, pch, 25);
+    if (strcmp(temp + strlen("SYCL_DEVICE="),"host")==0)
+      OP_sycl_device = 0;
+    else if (strcmp(temp + strlen("SYCL_DEVICE="),"cpu")==0)
+      OP_sycl_device = 1;
+    else if (strcmp(temp + strlen("SYCL_DEVICE="),"gpu")==0)
+      OP_sycl_device = 2;
+  }
+
 }
 
 /*
