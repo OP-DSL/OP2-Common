@@ -10,6 +10,9 @@ from op import OpError
 from store import Application, Entity, Function
 from util import find, safeFind
 
+clobber_funcs = ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]
+clobber_funcs = clobber_funcs + [f"{func}_hydrales" for func in clobber_funcs]
+
 
 def extractDependencies(
     entities: List[Entity], app: Application, scope: List[str] = []
@@ -25,7 +28,7 @@ def extractDependencies(
             continue
 
         for dependency in entity.depends:
-            if dependency in ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]:
+            if dependency in clobber_funcs:
                 continue
 
             dependency_entities = app.findEntities(dependency, entity.program, scope)  # TODO: Loop scope
@@ -83,7 +86,7 @@ def fixHydraIO(func: Function) -> None:
             return False
 
         name_node = fpu.get_child(n, f2003.Name)
-        return name_node.string.lower() in ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]
+        return name_node.string.lower() in clobber_funcs
 
     replaceNodes(func.ast, match_hyd_call, f2003.Stop_Stmt("stop"))
 

@@ -187,7 +187,7 @@ class FortranCuda(Scheme):
             return isinstance(arg, OP.ArgInfo)
 
         def match_reduction(arg):
-            return (not config["gbl_inc_atomic"]) and arg.access_type in [OP.AccessType.INC, OP.AccessType.MIN, OP.AccessType.MAX]
+            return arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX] or (not config["gbl_inc_atomic"] and arg.access_type == OP.AccessType.INC)
 
         def match_work(arg):
             return arg.access_type == OP.AccessType.WORK

@@ -68,7 +68,7 @@ contains
 
 {{kernel_func}}
 
-subroutine op2_k_{{lh.name}}_wrapper( &
+subroutine op2_k_{{lh.name}}_wr( &
 {% for dat in lh.dats %}
     dat{{dat.id}}, &
 {% endfor %}
@@ -225,7 +225,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% for arg in lh.args|info %}
     call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{arg_dim(arg)}}/)){{"\n" if loop.last}}
 {% endfor %}
-    call op2_k_{{lh.name}}_wrapper( &
+    call op2_k_{{lh.name}}_wr( &
 {% for dat in lh.dats %}
         dat{{dat.id}}, &
 {% endfor %}

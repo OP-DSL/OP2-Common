@@ -80,7 +80,7 @@ dat{{arg.dat_id}}({{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}} + 1)
 {%- endmacro -%}
 
 {%- macro kernel_call() -%}
-call op2_k_{{lh.name}}_wrapper<<<num_blocks, block_size>>>( &
+call op2_k_{{lh.name}}_wr<<<num_blocks, block_size>>>( &
     {% for dat in lh.dats %}
     dat{{dat.id}}_d, &
     {% endfor %}
@@ -189,7 +189,7 @@ contains
 {{kernel_func}}
 
 attributes(global) &
-subroutine op2_k_{{lh.name}}_wrapper( &
+subroutine op2_k_{{lh.name}}_wr( &
 {% for dat in lh.dats %}
     dat{{dat.id}}, &
 {% endfor %}
