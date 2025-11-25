@@ -41,6 +41,7 @@
 #define OP2_ARG_POINTERS
 
 #warning "coordinate idxtype with C"
+#define idx_l_t C_INT
 #define idx_g_t C_LONG_LONG
 
 module OP2_Fortran_Declarations
@@ -65,7 +66,7 @@ module OP2_Fortran_Declarations
   type, BIND(C) :: op_set_core
 
     integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
-    integer(kind=idx_g_t) :: size         ! number of elements in the set
+    integer(kind=idx_l_t) :: size         ! number of elements in the set
     type(c_ptr)         :: name         ! set name
     integer(kind=c_int) :: core_size    ! number of core elements in an mpi process
     integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed

@@ -131,6 +131,10 @@ op_dat op_search_dat(op_set set, int dim, char const *type, int size,
   return NULL;
 }
 
+void op_register_map_ptr(int *map_ptr, op_map map) {
+  OP_map_ptr_table.insert({map_ptr, map->index});
+}
+
 op_map op_search_map_ptr(int *map_ptr) {
   if (auto result = OP_map_ptr_table.find(map_ptr); result != OP_map_ptr_table.end())
     return OP_map_list[result->second];
@@ -486,7 +490,10 @@ op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
   map->force_part = false;
 
   OP_map_list[OP_map_index] = map;
-  OP_map_ptr_table.insert({imap, OP_map_index});
+
+  if (imap != NULL) {
+    op_register_map_ptr(imap, map);
+  }
 
   OP_map_index++;
   return map;
@@ -1569,9 +1576,11 @@ unsigned long op_reset_map_ptr(int *map) {
   }
 
   OP_map_ptr_table.erase(map);
-  OP_map_ptr_table.insert({item_map->map, item_map->index});
 
-  return (unsigned long)(item_map->map);
+  int *new_ptr = item_map->map == NULL ? (int *)(item_map->map_gbl) : item_map->map;
+  OP_map_ptr_table.insert({new_ptr, item_map->index});
+
+  return (unsigned long)(new_ptr);
 }
 
 unsigned long op_copy_map_to_fort(int *map) {

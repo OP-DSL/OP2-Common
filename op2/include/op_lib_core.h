@@ -329,6 +329,8 @@ idx_g_t op_get_global_set_offset(op_set set);
 
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 
+void op_register_map_ptr(int *map_ptr, op_map map);
+
 op_map op_search_map_ptr(int *map_ptr);
 
 void op_disable_device_execution(bool disable);

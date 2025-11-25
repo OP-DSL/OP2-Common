@@ -141,6 +141,8 @@ op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
   //per process has to be less than INT_MAX
   map->map_gbl = imap_g2;
   map->user_managed = 0;
+
+  op_register_map_ptr((int *)imap_g, map);
   return map;
 }
 

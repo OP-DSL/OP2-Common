@@ -109,12 +109,12 @@ struct Msg {
 };
 
 struct Adjacency {
-  int idx1;
-  int idx2;
+  idx_g_t idx1;
+  idx_g_t idx2;
 };
 
 struct Fpart {
-  int idx;
+  idx_g_t idx;
   int target_part;
 };
 
@@ -331,11 +331,11 @@ static void partition_force(op_set primary_set, op_map map, int my_rank,
   std::vector<Msg<Adjacency>> exp_adjacencies;
   for (int i = 0; i < map->from->size; ++i) {
     int local_index;
-    int target_part = get_partition(map->map[i * map->dim], part_range[primary_set->index],
+    int target_part = get_partition(map->map_gbl[i * map->dim], part_range[primary_set->index],
                                     &local_index, comm_size, primary_set);
 
     for (int j = 1; j < map->dim; j++) {
-      auto adjacency = Adjacency{map->map[i * map->dim], map->map[i * map->dim + j]};
+      auto adjacency = Adjacency{map->map_gbl[i * map->dim], map->map_gbl[i * map->dim + j]};
       exp_adjacencies.push_back(Msg{target_part, adjacency});
     }
   }
