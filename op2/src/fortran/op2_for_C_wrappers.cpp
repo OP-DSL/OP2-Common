@@ -83,10 +83,10 @@ extern op_kernel * OP_kernels;
 
 extern "C" {
 
-void op_check_fortran_type_int(char *type) {}
-void op_check_fortran_type_float(char *type) {}
-void op_check_fortran_type_double(char *type) {}
-void op_check_fortran_type_bool(char *type) {}
+void op_check_fortran_type_int(char *type) {(void)type;}
+void op_check_fortran_type_float(char *type) {(void)type;}
+void op_check_fortran_type_double(char *type) {(void)type;}
+void op_check_fortran_type_bool(char *type) {(void)type;}
 
 
 /*

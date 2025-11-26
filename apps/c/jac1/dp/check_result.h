@@ -56,6 +56,8 @@ template <class T> int check_result(T *u, int nn, T tol) {
 
   if (!failed)
     op_printf("\nResults check PASSED!\n");
+  else
+    op_printf("\nResults check FAILED!\n");
 
   return failed;
 }

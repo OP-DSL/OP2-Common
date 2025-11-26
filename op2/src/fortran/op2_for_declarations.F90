@@ -40,6 +40,10 @@
 #define UNUSED(x) if (.false.) print *, loc(x)
 #define OP2_ARG_POINTERS
 
+#warning "coordinate idxtype with C"
+#define idx_l_t C_INT
+#define idx_g_t C_LONG_LONG
+
 module OP2_Fortran_Declarations
 
   use, intrinsic :: ISO_C_BINDING
@@ -62,7 +66,7 @@ module OP2_Fortran_Declarations
   type, BIND(C) :: op_set_core
 
     integer(kind=c_int) :: index        ! position in the private OP2 array of op_set_core variables
-    integer(kind=c_int) :: size         ! number of elements in the set
+    integer(kind=idx_l_t) :: size         ! number of elements in the set
     type(c_ptr)         :: name         ! set name
     integer(kind=c_int) :: core_size    ! number of core elements in an mpi process
     integer(kind=c_int) :: exec_size    ! number of additional imported elements to be executed
@@ -84,6 +88,7 @@ module OP2_Fortran_Declarations
     type(c_ptr) ::            to           ! set map to
     integer(kind=c_int) ::    dim          ! dimension of map
     type(c_ptr) ::            map          ! array defining map
+    type(c_ptr) ::            map_gbl      ! array with global indices (long type)
 #ifdef OP2_WITH_CUDAFOR
     type(c_devptr) ::         map_d        ! array defining map on device
 #else
@@ -167,81 +172,6 @@ module OP2_Fortran_Declarations
   type(op_map) :: OP_ID
 #endif
   type(op_map) :: OP_GBL
-
-  type, BIND(C) :: op_export_core
-
-    integer(kind=c_int) :: index
-    integer(kind=c_int) :: coupling_group_size
-    type(c_ptr)         :: coupling_proclist
-
-    integer(kind=c_int) :: num_ifaces
-    type(c_ptr)         :: iface_list
-
-    type(c_ptr)         :: nprocs_per_int
-    type(c_ptr)         :: proclist_per_int
-    type(c_ptr)         :: nodelist_send_size
-    type(c_ptr)         :: nodelist_send
-
-    integer(kind=c_int) :: max_data_size
-    type(c_ptr)         :: send_buf
-    type(c_ptr)         :: requests
-    type(c_ptr)         :: statuses
-
-    type(c_ptr)         :: OP_global_buffer
-    integer(kind=c_int) :: OP_global_buffer_size
-
-    integer(kind=c_int) :: gbl_num_ifaces
-    type(c_ptr)         :: gbl_iface_list
-    type(c_ptr)         :: nprocs_per_gint
-    type(c_ptr)         :: proclist_per_gint
-
-    integer(kind=c_int) :: gbl_offset
-    type(c_ptr)         :: cellsToNodes
-    type(c_ptr)         :: coords
-    type(c_ptr)         :: mark
-
-  end type op_export_core
-
-  type :: op_export_handle
-
-    type(op_export_core), pointer :: exportPtr => null()
-    type(c_ptr)                   :: exportCptr
-    integer(kind=c_int)           :: status = -1
-
-  end type op_export_handle
-
-
-  type, BIND(C) :: op_import_core
-
-    integer(kind=c_int)  :: index
-    integer(kind=c_int)  :: nprocs
-    type(c_ptr)          :: proclist
-    integer(kind=c_int)  :: gbl_offset
-    type(c_ptr)          :: coords
-    type(c_ptr)          :: mark
-    integer(kind=c_int)  :: max_dat_size
-    integer(kind=c_int)  :: num_my_ifaces
-    type(c_ptr)          :: iface_list
-    type(c_ptr)          :: nprocs_per_int
-    type(c_ptr)          :: proclist_per_int
-    type(c_ptr)          :: node_size_per_int
-    type(c_ptr)          :: nodelist_per_int
-    type(c_ptr)          :: recv_buf
-    type(c_ptr)          :: recv2int
-    type(c_ptr)          :: recv2proc
-    type(c_ptr)          :: requests
-    type(c_ptr)          :: statuses
-    type(c_ptr)          :: interp_dist
-
-  end type op_import_core
-
-  type :: op_import_handle
-
-    type(op_import_core), pointer :: importPtr => null()
-    type(c_ptr)                   :: importCptr
-    integer(kind=c_int)           :: status = -1
-
-  end type op_import_handle
 
   ! Declarations of op_par_loop implemented in C
   interface
@@ -344,12 +274,12 @@ module OP2_Fortran_Declarations
 
       import :: op_set_core
 
-      integer(kind=c_int), value, intent(in)    :: setsize
+      integer(kind=idx_g_t), value, intent(in)    :: setsize
       character(kind=c_char,len=1), intent(in)  :: name(*)
 
     end function op_decl_set_c
 
-    INTEGER(kind=c_int) function op_get_size_c ( set ) BIND(C,name='op_get_size')
+    INTEGER(kind=idx_g_t) function op_get_size_c ( set ) BIND(C,name='op_get_size')
       use, intrinsic :: ISO_C_BINDING
 
       import :: op_set
@@ -357,7 +287,7 @@ module OP2_Fortran_Declarations
 
     end function
 
-    INTEGER(kind=c_int) function op_get_global_set_offset_c ( set ) BIND(C,name='op_get_global_set_offset')
+    INTEGER(kind=idx_g_t) function op_get_global_set_offset_c ( set ) BIND(C,name='op_get_global_set_offset')
       use, intrinsic :: ISO_C_BINDING
 
       import :: op_set
@@ -428,6 +358,17 @@ module OP2_Fortran_Declarations
       character(kind=c_char,len=1), intent(in) :: name(*)
 
     end function op_decl_map_c
+
+    type(c_ptr) function op_decl_map_long_c ( from, to, mapdim, data, name ) BIND(C,name='op_decl_map_long')
+
+      use, intrinsic :: ISO_C_BINDING
+
+      type(c_ptr), value, intent(in)           :: from, to
+      integer(kind=c_int), value, intent(in)   :: mapdim
+      type(c_ptr), intent(in), value           :: data
+      character(kind=c_char,len=1), intent(in) :: name(*)
+
+    end function op_decl_map_long_c
 
     type(c_ptr) function op_decl_null_map () BIND(C,name='op_decl_null_map')
 
@@ -845,92 +786,6 @@ module OP2_Fortran_Declarations
 
       character(kind=c_char) :: line(*)
     end subroutine op_print_c
-
-    type (c_ptr) function op_import_init_size_c (nprocs, proclist_ptr, mark) BIND(C,name='op_import_init_size')
-      use ISO_C_BINDING
-
-      import :: op_dat_core
-
-      integer(c_int), value :: nprocs
-      type(c_ptr), value    :: proclist_ptr
-      type(op_dat_core)     :: mark
-
-    end function op_import_init_size_c
-
-    type (c_ptr) function op_import_init_c (exp_handle, coords, mark) BIND(C,name='op_import_init')
-      use ISO_C_BINDING
-
-      import :: op_dat_core
-      import :: op_export_core
-
-      type(op_export_core)  :: exp_handle
-      type(op_dat_core)     :: coords
-      type(op_dat_core)     :: mark
-
-    end function op_import_init_c
-
-    type (c_ptr) function op_export_init_c (nprocs, proclist_ptr, cells2Nodes, sp_nodes, coords, mark) BIND(C,name='op_export_init')
-      use ISO_C_BINDING
-
-      import :: op_dat_core
-      import :: op_map_core
-      import :: op_set_core
-
-      integer(c_int), value :: nprocs
-      type(c_ptr), value    :: proclist_ptr
-      type(op_map_core)     :: cells2Nodes
-      type(op_set_core)     :: sp_nodes
-      type(op_dat_core)     :: coords
-      type(op_dat_core)     :: mark
-
-    end function op_export_init_c
-
-    subroutine op_export_data_c (exp_handle, dat) BIND(C,name='op_export_data')
-      use ISO_C_BINDING
-
-      import :: op_export_core
-      import :: op_dat_core
-
-      type(op_export_core)  :: exp_handle
-      type(op_dat_core)     :: dat
-
-    end subroutine op_export_data_c
-
-    subroutine op_import_data_c (imp_handle, dat) BIND(C,name='op_import_data')
-      use ISO_C_BINDING
-
-      import :: op_import_core
-      import :: op_dat_core
-
-      type(op_import_core)  :: imp_handle
-      type(op_dat_core)     :: dat
-
-    end subroutine op_import_data_c
-
-    subroutine op_inc_theta_c (exp_handle, bc_id, dtheta_exp, dtheta_imp) BIND(C,name='op_inc_theta')
-      use ISO_C_BINDING
-
-      import :: op_export_core
-
-      type(op_export_core)  :: exp_handle
-      type(c_ptr), value    :: bc_id
-      type(c_ptr), value    :: dtheta_exp
-      type(c_ptr), value    :: dtheta_imp
-
-    end subroutine op_inc_theta_c
-
-    subroutine op_theta_init_c (exp_handle, bc_id, dtheta_exp, dtheta_imp, alpha) BIND(C,name='op_theta_init')
-      use ISO_C_BINDING
-
-      import :: op_export_core
-
-      type(op_export_core)  :: exp_handle
-      type(c_ptr), value    :: bc_id
-      type(c_ptr), value    :: dtheta_exp
-      type(c_ptr), value    :: dtheta_imp
-      type(c_ptr), value    :: alpha
-
-    end subroutine op_theta_init_c
 
     subroutine set_maps_base_c (base) BIND(C,name='set_maps_base')
       use ISO_C_BINDING
@@ -2010,7 +1865,7 @@ contains
 
   subroutine op_decl_set ( setsize, set, opname )
 
-    integer(kind=c_int), value, intent(in) :: setsize
+    integer(kind=idx_g_t), value, intent(in) :: setsize
     type(op_set) :: set
     character(kind=c_char,len=*), optional :: opName
 
@@ -2044,6 +1899,25 @@ contains
 
   end subroutine op_decl_map
 
+  subroutine op_decl_map_long ( from, to, mapdim, dat, map, opname )
+
+    type(op_set), intent(in) :: from, to
+    integer, intent(in) :: mapdim
+    integer(idx_g_t), dimension(*), intent(in), target :: dat
+    type(op_map) :: map
+    character(kind=c_char,len=*), optional :: opName
+
+    if ( present ( opname ) ) then
+      map%mapCPtr = op_decl_map_long_c ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), opname/@/C_NULL_CHAR )
+    else
+      map%mapCPtr = op_decl_map_long_c ( from%setCPtr, to%setCPtr, mapdim, c_loc ( dat ), C_CHAR_'NONAME'/@/C_NULL_CHAR )
+    end if
+
+    ! convert the generated C pointer to Fortran pointer and store it inside the op_map variable
+    call c_f_pointer ( map%mapCPtr, map%mapPtr )
+
+  end subroutine op_decl_map_long
+
 
   integer(kind=c_int) function op_free_dat_temp (dat)
     use, intrinsic :: ISO_C_BINDING
@@ -2052,7 +1926,7 @@ contains
     op_free_dat_temp = op_free_dat_temp_c ( dat%dataCPtr )
   end function op_free_dat_temp
 
-  INTEGER function op_get_size (set )
+  INTEGER(kind=idx_g_t) function op_get_size (set )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -2064,7 +1938,7 @@ contains
 
   end function op_get_size
 
-  INTEGER function op_get_global_set_offset (set )
+  INTEGER(kind=idx_g_t) function op_get_global_set_offset (set )
 
     use, intrinsic :: ISO_C_BINDING
 
@@ -2472,128 +2346,6 @@ contains
     call op_fetch_data_idx_c ( dat%dataPtr, c_loc (data), low-1, high-1)
 
   end subroutine op_fetch_data_idx_integer_4
-
-  subroutine op_import_init_size ( nprocs, proclist_ptr, mark, handle )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    integer                       :: nprocs
-    integer, dimension(:), target :: proclist_ptr
-    type(op_dat)                  :: mark
-    type(op_import_handle)        :: handle
-
-    handle%importCptr = op_import_init_size_c ( nprocs, c_loc(proclist_ptr), mark%dataPtr)
-
-    call c_f_pointer ( handle%importCPtr, handle%importPtr )
-
-  end subroutine op_import_init_size
-
-  subroutine op_import_init ( exp_handle, coords, mark, handle )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_export_handle) :: exp_handle
-    type(op_dat)           :: coords
-    type(op_dat)           :: mark
-    type(op_import_handle) :: handle
-
-    handle%importCptr = op_import_init_c ( exp_handle%exportPtr, coords%dataPtr, mark%dataPtr)
-
-    call c_f_pointer ( handle%importCPtr, handle%importPtr )
-
-  end subroutine op_import_init
-
-  subroutine op_export_init ( nprocs, proclist_ptr, cells2Nodes, sp_nodes, coords, mark, handle )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    integer                       :: nprocs
-    integer, dimension(:), target :: proclist_ptr
-    type(op_map)                  :: cells2Nodes
-    type(op_set)                  :: sp_nodes
-    type(op_dat)                  :: coords
-    type(op_dat)                  :: mark
-    type(op_export_handle)        :: handle
-
-    handle%exportCptr = op_export_init_c ( nprocs, c_loc(proclist_ptr), cells2Nodes%mapPtr, &
-     &   sp_nodes%setPtr, coords%dataPtr, mark%dataPtr)
-
-    call c_f_pointer ( handle%exportCPtr, handle%exportPtr )
-
-  end subroutine op_export_init
-
-  subroutine op_export_data ( handle, dat )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_export_handle)      :: handle
-    type(op_dat)                :: dat
-
-    ! local variables
-
-    call op_export_data_c ( handle%exportPtr, dat%dataPtr )
-
-  end subroutine op_export_data
-
-
-  subroutine op_import_data ( handle, dat )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_import_handle)      :: handle
-    type(op_dat)                :: dat
-
-    ! local variables
-
-    call op_import_data_c ( handle%importPtr, dat%dataPtr )
-
-  end subroutine op_import_data
-
-
-  subroutine op_inc_theta ( handle, bc_id, dtheta_exp, dtheta_imp )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_export_handle)             :: handle
-    integer, dimension(:), target      :: bc_id
-    real(kind=8), dimension(:), target :: dtheta_exp
-    real(kind=8), dimension(:), target :: dtheta_imp
-
-    ! local variables
-
-    call op_inc_theta_c ( handle%exportPtr, c_loc(bc_id), c_loc(dtheta_exp), c_loc(dtheta_imp) )
-
-  end subroutine op_inc_theta
-
-  subroutine op_theta_init ( handle, bc_id, dtheta_exp, dtheta_imp, alpha )
-
-    use, intrinsic :: ISO_C_BINDING
-
-    implicit none
-
-    type(op_export_handle)             :: handle
-    integer, dimension(:), target      :: bc_id
-    real(kind=8), dimension(:), target :: dtheta_exp
-    real(kind=8), dimension(:), target :: dtheta_imp
-    real(kind=8), dimension(:), target :: alpha
-
-    ! local variables
-
-    call op_theta_init_c ( handle%exportPtr, c_loc(bc_id), c_loc(dtheta_exp), c_loc(dtheta_imp), c_loc(alpha) )
-
-  end subroutine op_theta_init
 
   ! get the pointer of the data held in an op_dat
   INTEGER(8) function op_get_data_ptr_dat(dat)

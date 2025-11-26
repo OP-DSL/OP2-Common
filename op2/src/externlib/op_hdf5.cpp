@@ -223,7 +223,12 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
 
   free((char*)dset_props.type_str);
 
-  op_map new_map = op_decl_map(from, to, dim, map, name);
+  op_map new_map;
+  if (strcmp(typ, "int") == 0 || (strcmp(typ, "long") == 0 && sizeof(long) == sizeof(int))) {
+    new_map = op_decl_map(from, to, dim, map, name);
+  } else {
+    new_map = op_decl_map_long(from, to, dim, (idx_g_t*)map, name);
+  }
   new_map->user_managed = 0;
   return new_map;
 }
@@ -238,7 +243,6 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   hid_t file_id;   // file identifier
   hid_t dset_id;   // dataset identifier
   hid_t dataspace; // data space identifier
-  hid_t attr;      // attribute identifier
   herr_t status;
 
   if (file_exist(file) == 0) {
@@ -621,16 +625,16 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
   H5Tset_size(atype, attlen + 1);
 
   // read attribute
-  char typ[attlen + 1];
-  H5Aread(attr, atype, typ);
+  std::vector<char> typ(attlen + 1);
+  H5Aread(attr, atype, typ.data());
   H5Aclose(attr);
   H5Sclose(dataspace);
   H5Dclose(dset_id);
-  if (!op_type_equivalence(typ, type)) {
+  if (!op_type_equivalence(typ.data(), type)) {
     op_printf(
         "type of constant %s in file %s and requested type %s do not match, performing automatic type conversion\n",
-        typ, file_name, type);
-    strcpy(typ,type);
+        typ.data(), file_name, type);
+    strcpy(typ.data(),type);
   }
 
   // Create the dataset with default properties and close dataspace.
@@ -639,27 +643,27 @@ void op_get_const_hdf5(char const *name, int dim, char const *type,
 
   char *data;
   // initialize data buffer and read data
-  if (strcmp(typ, "int") == 0 || strcmp(typ, "int(4)") == 0 ||
-      strcmp(typ, "integer") == 0 || strcmp(typ, "integer(4)") == 0) {
+  if (strcmp(typ.data(), "int") == 0 || strcmp(typ.data(), "int(4)") == 0 ||
+      strcmp(typ.data(), "integer") == 0 || strcmp(typ.data(), "integer(4)") == 0) {
     data = (char *)xmalloc(sizeof(int) * const_dim);
     H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     memcpy((void *)const_data, (void *)data, sizeof(int) * const_dim);
-  } else if (strcmp(typ, "long") == 0) {
+  } else if (strcmp(typ.data(), "long") == 0) {
     data = (char *)xmalloc(sizeof(long) * const_dim);
     H5Dread(dset_id, H5T_NATIVE_LONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     memcpy((void *)const_data, (void *)data, sizeof(long) * const_dim);
-  } else if (strcmp(typ, "long long") == 0) {
+  } else if (strcmp(typ.data(), "long long") == 0) {
     data = (char *)xmalloc(sizeof(long long) * const_dim);
     H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     memcpy((void *)const_data, (void *)data, sizeof(long long) * const_dim);
-  } else if (strcmp(typ, "float") == 0 || strcmp(typ, "real(4)") == 0 ||
-             strcmp(typ, "real") == 0) {
+  } else if (strcmp(typ.data(), "float") == 0 || strcmp(typ.data(), "real(4)") == 0 ||
+             strcmp(typ.data(), "real") == 0) {
     data = (char *)xmalloc(sizeof(float) * const_dim);
     H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     memcpy((void *)const_data, (void *)data, sizeof(float) * const_dim);
-  } else if (strcmp(typ, "double") == 0 ||
-             strcmp(typ, "double precision") == 0 ||
-             strcmp(typ, "real(8)") == 0) {
+  } else if (strcmp(typ.data(), "double") == 0 ||
+             strcmp(typ.data(), "double precision") == 0 ||
+             strcmp(typ.data(), "real(8)") == 0) {
     data = (char *)xmalloc(sizeof(double) * const_dim);
     H5Dread(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
     memcpy((void *)const_data, (void *)data, sizeof(double) * const_dim);
@@ -859,7 +863,7 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
       if (attr > 0) {
         H5Aread(attr, H5T_NATIVE_INT, &dat_size);
         H5Aclose(attr);
-        if (dat_size != dat->size) {
+        if (dat_size != (size_t)dat->size) {
           op_printf(
               "dat.size %zu in file %s and dim %d do not match ... aborting\n",
               dat_size, file_name, dat->dim);
@@ -899,14 +903,14 @@ void op_fetch_data_hdf5(op_dat dat, char const *file_name,
       if (attr > 0) {
         int attlen = H5Aget_storage_size(attr);
         H5Tset_size(atype, attlen + 1);
-        char typ[attlen + 1];
-        H5Aread(attr, atype, typ);
+        std::vector<char> typ(attlen + 1);
+        H5Aread(attr, atype, typ.data());
         H5Aclose(attr);
         H5Sclose(dataspace);
         char typ_soa[50];
-        sprintf(typ_soa, "%s:soa", typ);
-        if (!op_type_equivalence(typ, dat->type)) {
-          op_printf("dat.type %s in file %s and type %s do not match\n", typ,
+        sprintf(typ_soa, "%s:soa", typ.data());
+        if (!op_type_equivalence(typ.data(), dat->type)) {
+          op_printf("dat.type %s in file %s and type %s do not match\n", typ.data(),
                     file_name, dat->type);
           exit(2);
         }

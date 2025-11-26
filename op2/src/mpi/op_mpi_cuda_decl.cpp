@@ -44,6 +44,7 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <vector>
 
 //
 // MPI Communicator for halo creation and exchange
@@ -248,14 +249,14 @@ int op_free_dat_temp_char(op_dat dat) {
 size_t op_mv_halo_device(op_set set, op_dat dat) {
   size_t total_size = 0;
 
-  int set_size = set->size + OP_import_exec_list[set->index]->size +
+  idx_g_t set_size = set->size + OP_import_exec_list[set->index]->size +
                  OP_import_nonexec_list[set->index]->size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
-    size_t element_size = (size_t)dat->size / dat->dim;
-    for (size_t i = 0; i < dat->dim; i++) {
-      for (size_t j = 0; j < set_size; j++) {
-        for (size_t c = 0; c < element_size; c++) {
+    int element_size = (size_t)dat->size / dat->dim;
+    for (int i = 0; i < dat->dim; i++) {
+      for (idx_g_t j = 0; j < set_size; j++) {
+        for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * round32(set_size) + element_size * j + c] =
               dat->data[(size_t)dat->size * j + element_size * i + c];
         }
@@ -499,40 +500,6 @@ size_t op_mv_halo_list_device() {
   return total_size;
 }
 
-op_set op_decl_set(int size, char const *name) {
-  return op_decl_set_core(size, name);
-}
-
-op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
-                   char const *name) {
-  // int *m = (int *)xmalloc(from->size * dim * sizeof(int));
-  //  memcpy(m, imap, from->size * dim * sizeof(int));
-  op_map out_map = op_decl_map_core(from, to, dim, imap, name);
-  out_map->user_managed = 0;
-  return out_map;
-  // return op_decl_map_core ( from, to, dim, imap, name );
-}
-
-op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
-                  op_access acc) {
-  return op_arg_dat_core(dat, idx, map, dim, type, acc);
-}
-
-op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
-                      char const *type, op_access acc) {
-  return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
-}
-
-op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
-                       op_access acc) {
-  return op_arg_gbl_core(1, data, dim, type, size, acc);
-}
-
-op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
-                           int size, op_access acc) {
-  return op_arg_gbl_core(opt, data, dim, type, size, acc);
-}
-
 void op_printf(const char *format, ...) {
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
@@ -631,7 +598,7 @@ void op_timings_to_csv(const char *outputFileName) {
     }
   }
 
-  bool can_write = (outputFile != NULL);
+  int can_write = (outputFile != NULL);
   MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
 
   if (can_write) {
@@ -646,25 +613,22 @@ void op_timings_to_csv(const char *outputFileName) {
         }
 
         if (op_is_root()) {
-          double times[OP_kernels[n].ntimes*comm_size];
+          std::vector<double> times(OP_kernels[n].ntimes * comm_size);
           for (int i=0; i<(OP_kernels[n].ntimes*comm_size); i++) times[i] = 0.0f;
-          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times, OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times.data(), OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
-          float plan_times[comm_size];
+          std::vector<float> plan_times(comm_size);
           for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
-          double mpi_times[comm_size];
-          for (int i=0; i<comm_size; i++) mpi_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times, 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+          std::vector<double> mpi_times(comm_size, 0.0);
+          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times.data(), 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
 
-          float transfers[comm_size];
-          for (int i=0; i<comm_size; i++) transfers[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+          std::vector<float> transfers(comm_size, 0.0f);
+          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
-          float transfers2[comm_size];
-          for (int i=0; i<comm_size; i++) transfers2[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2, 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+          std::vector<float> transfers2(comm_size, 0.0f);
+          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
 
           // Have data, now write:
           for (int p=0 ; p<comm_size ; p++) {
@@ -731,15 +695,15 @@ void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    int set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
+    idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
                    OP_import_nonexec_list[dat->set->index]->size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
-        size_t element_size = (size_t)dat->size / dat->dim;
-        for (size_t i = 0; i < dat->dim; i++) {
-          for (size_t j = 0; j < set_size; j++) {
-            for (size_t c = 0; c < element_size; c++) {
+        int element_size = (size_t)dat->size / dat->dim;
+        for (int i = 0; i < dat->dim; i++) {
+          for (idx_g_t j = 0; j < set_size; j++) {
+            for (int c = 0; c < element_size; c++) {
               temp_data[element_size * i * round32(set_size) + element_size * j + c] =
                   dat->data[(size_t)dat->size * j + element_size * i + c];
             }

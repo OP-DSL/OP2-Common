@@ -127,7 +127,7 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
-op_set op_decl_set(int size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
@@ -146,6 +146,20 @@ op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
   op_cpHostToDevice((void **)&(map->map_d), (void **)&(temp_map),
                     (size_t)map->dim * set_size * sizeof(int));
   free(temp_map);
+  return map;
+}
+
+op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
+                   char const *name) {
+  //Convert from long global indices to shorter local indices. Set size
+  //per process has to be less than INT_MAX
+  idx_l_t *imap= (idx_l_t*)op_malloc(from->size * dim * sizeof(idx_l_t));
+  for (idx_g_t i = 0; i < from->size * dim; i++) {
+    imap[i] = (idx_l_t)imap_g[i];
+  }
+  op_map map = op_decl_map(from, to, dim, imap, name);
+  map->user_managed = 0;
+  op_free(imap);
   return map;
 }
 
@@ -169,9 +183,9 @@ op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
   return op_arg_gbl_core(opt, data, dim, type, size, acc);
 }
 
-int op_get_size(op_set set) { return set->size; }
+idx_g_t op_get_size(op_set set) { return set->size; }
 
-int op_get_global_set_offset(op_set set) { return 0; }
+idx_g_t op_get_global_set_offset(op_set set) { return 0; }
 
 void op_printf(const char *format, ...) {
   va_list argptr;
@@ -296,48 +310,3 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
   memcpy((void *)usr_ptr, (void *)&dat->data[low * dat->size],
          (high + 1) * dat->size);
 }
-
-// Dummy for OpenMP compile
-
-typedef struct {
-} op_export_core;
-
-typedef op_export_core *op_export_handle;
-
-typedef struct {
-} op_import_core;
-
-typedef op_import_core *op_import_handle;
-
-op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
-
-  exit(1);
-}
-
-op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
-                                op_dat mark) {
-
-  exit(1);
-}
-
-op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
-                                op_set sp_nodes, op_dat coords, op_dat mark) {
-
-  exit(1);
-}
-
-void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
-                   double *dtheta_imp, double *alpha) {
-
-  exit(1);
-}
-
-void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
-                  double *dtheta_imp) {
-
-  exit(1);
-}
-
-void op_export_data(op_export_handle handle, op_dat dat) { exit(1); }
-
-void op_import_data(op_import_handle handle, op_dat dat) { exit(1); }

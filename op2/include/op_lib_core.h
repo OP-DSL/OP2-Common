@@ -62,6 +62,15 @@ typedef unsigned int uint;
 typedef long long ll;
 typedef unsigned long long ull;
 
+#include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <cstddef>
+
+#include "SafeLong.h"
+typedef int idx_l_t;
+typedef SafeLong idx_g_t;
+
 /*
  * OP2 global state variables
  */
@@ -119,7 +128,7 @@ typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX, OP_ARG_INF
 
 typedef struct {
   int index;        /* index */
-  int size;         /* number of elements in set */
+  idx_l_t size;     /* number of elements in set */
   char const *name; /* name of set */
                     // for MPI support
   int core_size;    /* number of core elements in an mpi process*/
@@ -138,6 +147,7 @@ typedef struct {
       to;           /* set pointed to */
   int dim,          /* dimension of pointer */
       *map;         /* array defining pointer */
+  idx_g_t *map_gbl; /* array with global indices (long type) */
   int *map_d;       /* array on device */
   char const *name; /* name of pointer */
   int user_managed; /* indicates whether the user is managing memory */
@@ -255,7 +265,7 @@ void op_init_core(int, char **, int);
 
 void op_exit_core(void);
 
-op_set op_decl_set_core(int, char const *);
+op_set op_decl_set_core(idx_g_t, char const *);
 
 op_map op_decl_map_core(op_set, op_set, int, int *, char const *);
 
@@ -313,11 +323,13 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
 
 int op_size_of_set(const char *);
 
-int op_get_size(op_set set);
+idx_g_t op_get_size(op_set set);
 
-int op_get_global_set_offset(op_set set);
+idx_g_t op_get_global_set_offset(op_set set);
 
 void check_map(char const *name, op_set from, op_set to, int dim, int *map);
+
+void op_register_map_ptr(int *map_ptr, op_map map);
 
 op_map op_search_map_ptr(int *map_ptr);
 

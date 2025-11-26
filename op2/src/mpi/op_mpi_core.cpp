@@ -46,6 +46,10 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
+#include <numeric>
 
 #include <op_mpi_core.h>
 
@@ -73,7 +77,7 @@ int *set_import_buffer_size;
 
 /*table holding MPI performance of each loop
   (accessed via a hash of loop name) */
-op_mpi_kernel *op_mpi_kernel_tab = NULL;
+std::unordered_map<std::string, op_mpi_kernel *> op_mpi_kernel_map;
 
 //
 // global variables to hold partition information on an MPI rank
@@ -86,13 +90,7 @@ part *OP_part_list;
 // Save original partition ranges
 //
 
-int **orig_part_range = NULL;
-
-// Sliding planes data structures
-int OP_import_index = 0, OP_import_max = 0;
-int OP_export_index = 0, OP_export_max = 0;
-op_import_handle *OP_import_list = NULL;
-op_export_handle *OP_export_list = NULL;
+idx_g_t **orig_part_range = NULL;
 
 // Timing
 double t1, t2, c1, c2;
@@ -101,11 +99,78 @@ double t1, t2, c1, c2;
 extern "C" {
 #endif
 
+
+/*
+ * Wrappers of core lib
+ */
+
+op_set op_decl_set(idx_g_t size, char const *name) {
+  return op_decl_set_core(size, name);
+}
+
+op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
+                   char const *name) {
+
+  idx_g_t *imap_g = (idx_g_t *)malloc(from->size * dim * sizeof(idx_g_t));
+  for (idx_g_t i = 0; i < from->size * dim; i++) {
+    imap_g[i] = (idx_g_t)imap[i];
+  }
+
+  op_map map = op_decl_map_long(from, to, dim, imap_g, name);
+  free(imap_g);
+  return map;
+}
+
+op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
+                   char const *name) {
+
+  op_map map = op_decl_map_core(from, to, dim, NULL, name);
+
+  idx_g_t *imap_g2 = (idx_g_t *)malloc(from->size * dim * sizeof(idx_g_t));
+  for (idx_g_t i = 0; i < from->size * dim; i++) {
+    imap_g2[i] = (idx_g_t)imap_g[i];
+  }
+
+  if (OP_maps_base_index == 1) {
+    // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
+    for (idx_g_t i = 0; i < from->size * dim; i++)
+      // imap[i]--;
+      imap_g2[i]--; // modify op2's copy
+  }
+  //Convert from long global indices to shorter local indices. Set size
+  //per process has to be less than INT_MAX
+  map->map_gbl = imap_g2;
+  map->user_managed = 0;
+
+  op_register_map_ptr((int *)imap_g, map);
+  return map;
+}
+
+op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char const *type,
+                  op_access acc) {
+  return op_arg_dat_core(dat, idx, map, dim, type, acc);
+}
+
+op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
+                      char const *type, op_access acc) {
+  return op_opt_arg_dat_core(opt, dat, idx, map, dim, type, acc);
+}
+
+op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
+                       op_access acc) {
+  return op_arg_gbl_core(1, data, dim, type, size, acc);
+}
+
+op_arg op_opt_arg_gbl_char(int opt, char *data, int dim, const char *type,
+                           int size, op_access acc) {
+  return op_arg_gbl_core(opt, data, dim, type, size, acc);
+}
+
 /*******************************************************************************
  * Routine to declare partition information for a given set
  *******************************************************************************/
 
-void decl_partition(op_set set, int *g_index, int *partition) {
+void decl_partition(op_set set, idx_g_t *g_index, int *partition) {
   part p = (part)xmalloc(sizeof(part_core));
   p->set = set;
   p->g_index = g_index;
@@ -119,18 +184,19 @@ void decl_partition(op_set set, int *g_index, int *partition) {
  * Routine to get partition range on all mpi ranks for all sets
  *******************************************************************************/
 
-void get_part_range(int **part_range, int my_rank, int comm_size,
+void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
                     MPI_Comm Comm) {
   (void)my_rank;
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
 
-    int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-    MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, Comm);
+    idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+    idx_g_t set_size = set->size;
+    MPI_Allgather(&set_size, 1, get_mpi_type(&set_size),  sizes, 1, get_mpi_type(sizes), Comm);
 
-    part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+    part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
 
-    int disp = 0;
+    idx_g_t disp = 0;
     for (int i = 0; i < comm_size; i++) {
       part_range[set->index][2 * i] = disp;
       disp = disp + sizes[i] - 1;
@@ -138,7 +204,7 @@ void get_part_range(int **part_range, int my_rank, int comm_size,
       disp++;
 #ifdef DEBUG
       if (my_rank == MPI_ROOT && OP_diags > 5)
-        printf("range of %10s in rank %d: %d-%d\n", set->name, i,
+        printf("range of %10s in rank %d: %lld-%lld\n", set->name, i,
                part_range[set->index][2 * i],
                part_range[set->index][2 * i + 1]);
 #endif
@@ -152,16 +218,31 @@ void get_part_range(int **part_range, int my_rank, int comm_size,
  * its local index
  *******************************************************************************/
 
-int get_partition(int global_index, int *part_range, int *local_index,
-                  int comm_size) {
-  for (int i = 0; i < comm_size; i++) {
-    if (global_index >= part_range[2 * i] &&
-        global_index <= part_range[2 * i + 1]) {
-      *local_index = global_index - part_range[2 * i];
-      return i;
+int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
+                  int comm_size, op_set set) {
+  int low = 0;
+  int high = comm_size - 1;
+  
+  while (low <= high) {
+    int mid = low + (high - low) / 2;
+    
+    // Check if global_index is within the range of this partition
+    if (global_index >= part_range[2 * mid] && global_index <= part_range[2 * mid + 1]) {
+      *local_index = global_index - part_range[2 * mid];
+      return mid;
+    }
+    
+    // If global_index is smaller than the start of this partition's range
+    if (global_index < part_range[2 * mid]) {
+      high = mid - 1;
+    } 
+    // If global_index is larger than the end of this partition's range
+    else {
+      low = mid + 1;
     }
   }
-  printf("Error: orphan global index\n");
+  
+  printf("Error: orphan global index %lld in set %s\n", global_index, set->name);
   MPI_Abort(OP_MPI_WORLD, 2);
   return -1;
 }
@@ -170,10 +251,10 @@ int get_partition(int global_index, int *part_range, int *local_index,
  * Routine to convert a local index in to a global index
  *******************************************************************************/
 
-int get_global_index(int local_index, int partition, int *part_range,
+idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
                      int comm_size) {
   (void)comm_size;
-  int g_index = part_range[2 * partition] + local_index;
+  idx_g_t g_index = part_range[2 * partition] + local_index;
 #ifdef DEBUG
   if (g_index > part_range[2 * (comm_size - 1) + 1] && OP_diags > 2)
     printf("Global index larger than set size\n");
@@ -203,7 +284,7 @@ void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
       temp[List->ranks[r]] = List->sizes[r];
   }
 
-  MPI_Allgather(temp, comm_size, MPI_INT, r_temp, comm_size, MPI_INT, Comm);
+  MPI_Allgather(temp, comm_size, get_mpi_type(temp), r_temp, comm_size, get_mpi_type(r_temp), Comm);
 
   for (int i = 0; i < comm_size; i++) {
     if (i != my_rank) {
@@ -355,73 +436,63 @@ int is_onto_map(op_map map) {
   MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
 
   // Compute global partition range information for each set
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
 
-  // mak a copy of the to-set elements of the map
-  int *to_elem_copy = (int *)xmalloc((size_t)map->from->size * map->dim * sizeof(int));
-  memcpy(to_elem_copy, (void *)map->map,
-         (size_t)map->from->size * map->dim * sizeof(int));
+  // make a copy of the to-set elements of the map
+  std::vector<idx_g_t> to_elem_copy(map->from->size * map->dim);
+  for (idx_g_t i = 0; i < map->from->size * map->dim; i++) {
+    to_elem_copy[i] = map->map_gbl[i];
+  }
 
   // sort and remove duplicates from to_elem_copy
-  op_sort(to_elem_copy, map->from->size * map->dim);
-  int to_elem_copy_size = removeDups(to_elem_copy, map->from->size * map->dim);
-  to_elem_copy = (int *)xrealloc(to_elem_copy, to_elem_copy_size * sizeof(int));
+  std::sort(to_elem_copy.begin(), to_elem_copy.end());
+  auto it = std::unique(to_elem_copy.begin(), to_elem_copy.end());
+  idx_g_t to_elem_copy_size = std::distance(to_elem_copy.begin(), it);
+  to_elem_copy.resize(to_elem_copy_size);
 
   // go through the to-set element range that this local MPI process holds
   // and collect the to-set elements not found in to_elem_copy
-  int cap = 100;
-  int count = 0;
-  int *not_found = (int *)xmalloc(sizeof(int) * cap);
-  for (int i = 0; i < map->to->size; i++) {
-    int g_index =
+  std::vector<idx_g_t> not_found;
+  for (idx_g_t i = 0; i < map->to->size; i++) {
+    idx_g_t g_index = 
         get_global_index(i, my_rank, part_range[map->to->index], comm_size);
-    if (binary_search(to_elem_copy, i, 0, to_elem_copy_size - 1) < 0) {
-      // add to not_found list
-      if (count >= cap) {
-        cap = cap * 2;
-        not_found = (int *)xrealloc(not_found, cap * sizeof(int));
-      }
-      not_found[count++] = g_index;
+    if (!std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), (idx_g_t)i)) {
+      not_found.push_back(g_index);
     }
   }
 
   //
   // allreduce this not_found to form a global_not_found list
   //
-  int recv_count[comm_size];
-  MPI_Allgather(&count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_CHECK_WORLD);
+  std::vector<int> recv_count(comm_size);
+  int count = not_found.size();
+  MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_CHECK_WORLD);
 
   // discover global size of the not_found_list
-  int g_count = 0;
-  for (int i = 0; i < comm_size; i++)
-    g_count += recv_count[i];
+  idx_g_t g_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
 
   // prepare for an allgatherv
   int disp = 0;
-  int *displs = (int *)xmalloc(comm_size * sizeof(int));
+  std::vector<int> displs(comm_size);
   for (int i = 0; i < comm_size; i++) {
     displs[i] = disp;
     disp = disp + recv_count[i];
   }
 
   // allocate memory to hold the global_not_found list
-  int *global_not_found = (int *)xmalloc(sizeof(int) * g_count);
+  std::vector<idx_g_t> global_not_found(g_count);
 
-  MPI_Allgatherv(not_found, count, MPI_INT, global_not_found, recv_count,
-                 displs, MPI_INT, OP_CHECK_WORLD);
-  op_free(not_found);
-  op_free(displs);
-
+  MPI_Allgatherv(not_found.data(), count, get_mpi_type(not_found.data()), global_not_found.data(), recv_count.data(),
+                 displs.data(), get_mpi_type(global_not_found.data()), OP_CHECK_WORLD);
+  
   // sort and remove duplicates of the global_not_found list
   if (g_count > 0) {
-    op_sort(global_not_found, g_count);
-    g_count = removeDups(global_not_found, g_count);
-    global_not_found = (int *)xrealloc(global_not_found, g_count * sizeof(int));
+    std::sort(global_not_found.begin(), global_not_found.end());
+    g_count = std::unique(global_not_found.begin(), global_not_found.end()) - global_not_found.begin();
+    global_not_found.resize(g_count);
   } else {
     // nothing in the global_not_found list .. i.e. this is an on to map
-    op_free(global_not_found);
-    op_free(to_elem_copy); // op_free(displs);
     for (int i = 0; i < OP_set_index; i++)
       op_free(part_range[i]);
     op_free(part_range);
@@ -430,53 +501,41 @@ int is_onto_map(op_map map) {
 
   // see if any element in the global_not_found is found in the local map-copy
   // and add it to a "found" list
-  cap = 100;
-  count = 0;
-  int *found = (int *)xmalloc(sizeof(int) * cap);
-  for (int i = 0; i < g_count; i++) {
-    if (binary_search(to_elem_copy, global_not_found[i], 0,
-                      to_elem_copy_size - 1) >= 0) {
-      // add to found list
-      if (count >= cap) {
-        cap = cap * 2;
-        found = (int *)xrealloc(found, cap * sizeof(int));
-      }
-      found[count++] = global_not_found[i];
+  std::vector<idx_g_t> found;
+  for (idx_g_t i = 0; i < g_count; i++) {
+    if (std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), global_not_found[i])) {
+      found.push_back(global_not_found[i]);
     }
   }
-  op_free(global_not_found);
+  global_not_found.clear();
+  count = found.size();
 
   //
   // allreduce the "found" elements to form a global_found list
   //
   // recv_count[comm_size];
-  MPI_Allgather(&count, 1, MPI_INT, recv_count, 1, MPI_INT, OP_CHECK_WORLD);
+  MPI_Allgather(&count, 1, get_mpi_type(&count), recv_count.data(), 1, get_mpi_type(recv_count.data()), OP_CHECK_WORLD);
 
   // discover global size of the found_list
-  int g_found_count = 0;
-  for (int i = 0; i < comm_size; i++)
-    g_found_count += recv_count[i];
+  idx_g_t g_found_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
 
   // prepare for an allgatherv
   disp = 0;
-  displs = (int *)xmalloc(comm_size * sizeof(int));
   for (int i = 0; i < comm_size; i++) {
     displs[i] = disp;
     disp = disp + recv_count[i];
   }
 
   // allocate memory to hold the global_found list
-  int *global_found = (int *)xmalloc(sizeof(int) * g_found_count);
-
-  MPI_Allgatherv(found, count, MPI_INT, global_found, recv_count, displs,
-                 MPI_INT, OP_CHECK_WORLD);
-  op_free(found);
+  std::vector<idx_g_t> global_found(g_found_count);
+  MPI_Allgatherv(found.data(), count, get_mpi_type(found.data()), global_found.data(), recv_count.data(),
+                 displs.data(), get_mpi_type(global_found.data()), OP_CHECK_WORLD);
 
   // sort global_found list and remove duplicates
-  if (g_count > 0) {
-    op_sort(global_found, g_found_count);
-    g_found_count = removeDups(global_found, g_found_count);
-    global_found = (int *)xrealloc(global_found, g_found_count * sizeof(int));
+  if (g_found_count > 0) {
+    std::sort(global_found.begin(), global_found.end());
+    g_found_count = std::unique(global_found.begin(), global_found.end()) - global_found.begin();
+    global_found.resize(g_found_count);
   }
 
   // if the global_found list size is smaller than the globla_not_found list
@@ -486,13 +545,10 @@ int is_onto_map(op_map map) {
   if (g_found_count == g_count)
     result = 1;
 
-  op_free(global_found);
-  op_free(displs);
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
   MPI_Comm_free(&OP_CHECK_WORLD);
-  op_free(to_elem_copy);
 
   return result;
 }
@@ -515,16 +571,16 @@ void op_halo_create() {
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
   /* Compute global partition range information for each set*/
-  int **part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
 
   // save this partition range information if it is not already saved during
   // a call to some partitioning routine
   if (orig_part_range == NULL) {
-    orig_part_range = (int **)xmalloc(OP_set_index * sizeof(int *));
+    orig_part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
     for (int s = 0; s < OP_set_index; s++) {
       op_set set = OP_set_list[s];
-      orig_part_range[set->index] = (int *)xmalloc(2 * comm_size * sizeof(int));
+      orig_part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
       for (int j = 0; j < comm_size; j++) {
         orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
         orig_part_range[set->index][2 * j + 1] =
@@ -540,11 +596,13 @@ void op_halo_create() {
 
   // declare temporaty scratch variables to hold set export lists and mapping
   // table export lists
-  int s_i;
+  idx_g_t s_i;
   int *set_list;
 
-  int cap_s = 1000; // keep track of the temp array capacities
+  idx_g_t cap_s = 1000; // keep track of the temp array capacities
 
+  // Find all elements of other sets that are pointed to from this set
+  // and are owned by other partitions, and construct export lists
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
@@ -562,9 +620,9 @@ void op_halo_create() {
           int part, local_index;
           for (int j = 0; j < map->dim; j++) { // for each element
                                                // pointed at by this entry
-            part = get_partition(map->map[e * map->dim + j],
+            part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
-                                 comm_size);
+                                 comm_size, map->to);
             if (s_i >= cap_s) {
               cap_s = cap_s * 2;
               set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
@@ -616,7 +674,7 @@ void op_halo_create() {
       // printf("export from %d to %d set %10s, list of size %d \n",
       // my_rank,list->ranks[i],set->name,list->sizes[i]);
       int *sbuf = &list->list[list->disps[i]];
-      MPI_Isend(sbuf, list->sizes[i], MPI_INT, list->ranks[i], s, OP_MPI_WORLD,
+      MPI_Isend(sbuf, list->sizes[i], get_mpi_type(sbuf), list->ranks[i], s, OP_MPI_WORLD,
                 &request_send[i]);
     }
 
@@ -629,7 +687,7 @@ void op_halo_create() {
       // printf("import from %d to %d set %10s, list of size %d\n",
       // neighbors[i], my_rank, set->name, sizes[i]);
       rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-      MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], s, OP_MPI_WORLD,
+      MPI_Recv(rbuf, sizes[i], get_mpi_type(rbuf), neighbors[i], s, OP_MPI_WORLD,
                MPI_STATUS_IGNORE);
       memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
       index = index + sizes[i];
@@ -657,28 +715,28 @@ void op_halo_create() {
     request_send = (MPI_Request *)xmalloc(e_list->ranks_size * sizeof(MPI_Request));
 
     // prepare bits of the mapping tables to be exported
-    int **sbuf = (int **)xmalloc(e_list->ranks_size * sizeof(int *));
+    idx_g_t **sbuf = (idx_g_t **)xmalloc(e_list->ranks_size * sizeof(idx_g_t *));
 
     for (int i = 0; i < e_list->ranks_size; i++) {
-      sbuf[i] = (int *)xmalloc((size_t)e_list->sizes[i] * map->dim * sizeof(int));
+      sbuf[i] = (idx_g_t *)xmalloc((size_t)e_list->sizes[i] * map->dim * sizeof(idx_g_t));
       for (int j = 0; j < e_list->sizes[i]; j++) {
         for (int p = 0; p < map->dim; p++) {
           sbuf[i][j * map->dim + p] =
-              map->map[map->dim * (e_list->list[e_list->disps[i] + j]) + p];
+              map->map_gbl[map->dim * (e_list->list[e_list->disps[i] + j]) + p];
         }
       }
       // printf("\n export from %d to %d map %10s, number of elements of size %d
       // | sending:\n ",
       //    my_rank,e_list.ranks[i],map.name,e_list.sizes[i]);
-      MPI_Isend(sbuf[i], map->dim * e_list->sizes[i], MPI_INT, e_list->ranks[i],
+      MPI_Isend(sbuf[i], map->dim * e_list->sizes[i], get_mpi_type(sbuf[i]), e_list->ranks[i],
                 m, OP_MPI_WORLD, &request_send[i]);
     }
 
     // prepare space for the incomming mapping tables - realloc each
     // mapping tables in each mpi process
-    OP_map_list[map->index]->map = (int *)xrealloc(
-        OP_map_list[map->index]->map,
-        (map->dim * (size_t)(map->from->size + i_list->size)) * sizeof(int));
+    OP_map_list[map->index]->map_gbl = (idx_g_t *)xrealloc(
+        OP_map_list[map->index]->map_gbl,
+        (map->dim * (size_t)(map->from->size + i_list->size)) * sizeof(idx_g_t));
 
     int init = map->dim * (map->from->size);
     for (int i = 0; i < i_list->ranks_size; i++) {
@@ -686,8 +744,9 @@ void op_halo_create() {
       // recieving: ",
       // my_rank, map->name, i_list->size);
       MPI_Recv(
-          &(OP_map_list[map->index]->map[init + i_list->disps[i] * map->dim]),
-          map->dim * i_list->sizes[i], MPI_INT, i_list->ranks[i], m,
+          &(OP_map_list[map->index]->map_gbl[init + i_list->disps[i] * map->dim]),
+          map->dim * i_list->sizes[i],
+          get_mpi_type(OP_map_list[map->index]->map_gbl), i_list->ranks[i], m,
           OP_MPI_WORLD, MPI_STATUS_IGNORE);
     }
 
@@ -700,7 +759,7 @@ void op_halo_create() {
   }
 
   /*-- STEP 4 - Create import lists for non-execute set elements using mapping
-    table entries including the additional mapping table entries --*/
+  table entries including the additional mapping table entries --*/
 
   OP_import_nonexec_list =
       (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
@@ -731,12 +790,12 @@ void op_halo_create() {
         int len = map->from->size + exec_map_list->size;
         for (int e = 0; e < len; e++) {
           int part;
-          int local_index;
+          int local_index = 0;
           for (int j = 0; j < map->dim; j++) { // for each element pointed
                                                // at by this entry
-            part = get_partition(map->map[e * map->dim + j],
+            part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
-                                 comm_size);
+                                 comm_size, map->to);
 
             if (s_i >= cap_s) {
               cap_s = cap_s * 2;
@@ -799,7 +858,7 @@ void op_halo_create() {
       // sending:\n",
       //    my_rank,list->ranks[i],set->name,list->sizes[i]);
       int *sbuf = &list->list[list->disps[i]];
-      MPI_Isend(sbuf, list->sizes[i], MPI_INT, list->ranks[i], s, OP_MPI_WORLD,
+      MPI_Isend(sbuf, list->sizes[i], get_mpi_type(sbuf), list->ranks[i], s, OP_MPI_WORLD,
                 &request_send[i]);
     }
 
@@ -871,14 +930,14 @@ void op_halo_create() {
 
         // prepare space for the incomming data - realloc each
         // data array in each mpi process
-        dat->data =
-            (char *)xrealloc(dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
+        dat->data = (char *)xrealloc(
+            dat->data, (size_t)(set->size + i_list->size) * (size_t)dat->size);
 
         size_t init = set->size * (size_t)dat->size;
         for (int i = 0; i < i_list->ranks_size; i++) {
           MPI_Recv(&(dat->data[init + i_list->disps[i] * (size_t)dat->size]),
-                   (size_t)dat->size * i_list->sizes[i], MPI_CHAR, i_list->ranks[i], d,
-                   OP_MPI_WORLD, MPI_STATUS_IGNORE);
+                   (size_t)dat->size * i_list->sizes[i], MPI_CHAR,
+                   i_list->ranks[i], d, OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
 
         MPI_Waitall(e_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -972,14 +1031,15 @@ void op_halo_create() {
 
         // for each entry in this mapping table: original+execlist
         int len = map->from->size + exec_map_list->size;
+        map->map = (int *)xmalloc(len * map->dim * sizeof(int));
         for (int e = 0; e < len; e++) {
           for (int j = 0; j < map->dim; j++) { // for each element
                                                // pointed at by this entry
             int part;
             int local_index = 0;
-            part = get_partition(map->map[e * map->dim + j],
+            part = get_partition(map->map_gbl[e * map->dim + j],
                                  part_range[map->to->index], &local_index,
-                                 comm_size);
+                                 comm_size, map->to);
 
             if (part == my_rank) {
               OP_map_list[map->index]->map[e * map->dim + j] = local_index;
@@ -1016,11 +1076,13 @@ void op_halo_create() {
 
               if (found < 0)
                 printf("ERROR: Set %10s Element %d needed on rank %d \
-                    from partition %d\n",
+                from partition %d\n",
                        set->name, local_index, my_rank, part);
             }
           }
         }
+        free(map->map_gbl);
+        map->map_gbl = NULL;
       }
     }
   }
@@ -1191,7 +1253,7 @@ void op_halo_create() {
                                   (map->to->size) - (map->to->core_size) - 1);
             if (index < 0)
               printf("Problem in seperating core elements - \
-                  renumbering map\n");
+              renumbering map\n");
             else
               OP_map_list[map->index]->map[e * (size_t)map->dim + j] =
                   map->to->core_size + index;
@@ -1215,7 +1277,7 @@ void op_halo_create() {
     for (int s = 0; s < OP_set_index; s++) { // for each set
       op_set set = OP_set_list[s];
       // printf("set %s size = %d\n", set.name, set.size);
-      int *g_index = (int *)xmalloc(sizeof(int) * set->size);
+      idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
       int *partition = (int *)xmalloc(sizeof(int) * set->size);
       for (int i = 0; i < set->size; i++) {
         g_index[i] =
@@ -1225,10 +1287,16 @@ void op_halo_create() {
       decl_partition(set, g_index, partition);
 
       // combine core_elems and exp_elems to one memory block
-      int *temp = (int *)xmalloc(sizeof(int) * set->size);
-      memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
-      memcpy(&temp[set->core_size], exp_elems[set->index],
-             (set->size - set->core_size) * sizeof(int));
+      idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
+      // memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(idx_g_t));
+      // memcpy(&temp[set->core_size], exp_elems[set->index],
+      //  (set->size - set->core_size) * sizeof(idx_g_t));
+      for (int i = 0; i < set->core_size; i++) {
+        temp[i] = core_elems[set->index][i];
+      }
+      for (int i = 0; i < set->size - set->core_size; i++) {
+        temp[set->core_size + i] = exp_elems[set->index][i];
+      }
 
       // update OP_part_list[set->index]->g_index
       for (int i = 0; i < set->size; i++) {
@@ -1238,21 +1306,27 @@ void op_halo_create() {
       OP_part_list[set->index]->g_index = temp;
     }
   } else { // OP_part_list exists (i.e. a partitioning has been done)
-           // update the seperation of elements
+    // update the seperation of elements
 
     for (int s = 0; s < OP_set_index; s++) { // for each set
       op_set set = OP_set_list[s];
 
       // combine core_elems and exp_elems to one memory block
-      int *temp = (int *)xmalloc(sizeof(int) * set->size);
+      idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
 
       if (set->core_size * sizeof(int) > 0) {
-        memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
+        //  memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
+        for (int i = 0; i < set->core_size; i++) {
+          temp[i] = core_elems[set->index][i];
+        }
       }
 
-      if ((set->size - set->core_size) * sizeof(int) > 0) {
-        memcpy(&temp[set->core_size], exp_elems[set->index],
-               (set->size - set->core_size) * sizeof(int));
+      if ((set->size - set->core_size) * sizeof(idx_g_t) > 0) {
+        // memcpy(&temp[set->core_size], exp_elems[set->index],
+        //        (set->size - set->core_size) * sizeof(idx_g_t));
+        for (int i = 0; i < set->size - set->core_size; i++) {
+          temp[set->core_size + i] = exp_elems[set->index][i];
+        }
       }
 
       // update OP_part_list[set->index]->g_index
@@ -1296,75 +1370,69 @@ void op_halo_create() {
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
   // compute avg/min/max set sizes and exec sizes accross the MPI universe
-  int avg_size = 0, min_size = 0, max_size = 0;
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
+    
+    {
+      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
+      idx_g_t size = set->size;
+      // number of set elements first
+      MPI_Reduce(&size, &avg_size, 1, get_mpi_type(&size), MPI_SUM, MPI_ROOT,
+                OP_MPI_WORLD);
+      MPI_Reduce(&size, &min_size, 1, get_mpi_type(&size), MPI_MIN, MPI_ROOT,
+                OP_MPI_WORLD);
+      MPI_Reduce(&size, &max_size, 1, get_mpi_type(&size), MPI_MAX, MPI_ROOT,
+                OP_MPI_WORLD);
 
-    // number of set elements first
-    MPI_Reduce(&set->size, &avg_size, 1, MPI_INT, MPI_SUM, MPI_ROOT,
-               OP_MPI_WORLD);
-    MPI_Reduce(&set->size, &min_size, 1, MPI_INT, MPI_MIN, MPI_ROOT,
-               OP_MPI_WORLD);
-    MPI_Reduce(&set->size, &max_size, 1, MPI_INT, MPI_MAX, MPI_ROOT,
-               OP_MPI_WORLD);
-
-    if (my_rank == MPI_ROOT) {
-      printf("Num of %8s (avg | min | max)\n", set->name);
-      printf("total elems         %10d %10d %10d\n", avg_size / comm_size,
-             min_size, max_size);
+      if (my_rank == MPI_ROOT) {
+        printf("Num of %8s (avg | min | max)\n", set->name);
+        printf("total elems         %10d %10d %10d\n", (int)(avg_size / comm_size),
+              (int)min_size, (int)max_size);
+      }
     }
 
-    avg_size = 0;
-    min_size = 0;
-    max_size = 0;
-
-    // number of OWNED elements second
-    MPI_Reduce(&set->core_size, &avg_size, 1, MPI_INT, MPI_SUM, MPI_ROOT,
-               OP_MPI_WORLD);
-    MPI_Reduce(&set->core_size, &min_size, 1, MPI_INT, MPI_MIN, MPI_ROOT,
-               OP_MPI_WORLD);
-    MPI_Reduce(&set->core_size, &max_size, 1, MPI_INT, MPI_MAX, MPI_ROOT,
-               OP_MPI_WORLD);
-
-    if (my_rank == MPI_ROOT) {
-      printf("core elems         %10d %10d %10d \n", avg_size / comm_size,
-             min_size, max_size);
+    {
+      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
+      idx_g_t core_size = set->core_size;
+      // number of OWNED elements second
+      MPI_Reduce(&core_size, &avg_size, 1, get_mpi_type(&core_size), MPI_SUM, MPI_ROOT,
+                OP_MPI_WORLD);
+      MPI_Reduce(&core_size, &min_size, 1, get_mpi_type(&core_size), MPI_MIN, MPI_ROOT,
+                OP_MPI_WORLD);
+      MPI_Reduce(&core_size, &max_size, 1, get_mpi_type(&core_size), MPI_MAX, MPI_ROOT,
+                OP_MPI_WORLD);
+    
+      if (my_rank == MPI_ROOT) {
+        printf("core elems         %10d %10d %10d \n", (int)(avg_size / comm_size),
+              (int)min_size, (int)max_size);
+      }
     }
-    avg_size = 0;
-    min_size = 0;
-    max_size = 0;
 
-    // number of exec halo elements third
-    MPI_Reduce(&OP_import_exec_list[set->index]->size, &avg_size, 1, MPI_INT,
-               MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->size, &min_size, 1, MPI_INT,
-               MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->size, &max_size, 1, MPI_INT,
-               MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-
-    if (my_rank == MPI_ROOT) {
-      printf("exec halo elems     %10d %10d %10d \n", avg_size / comm_size,
-             min_size, max_size);
+    {
+      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
+      idx_g_t exec_size = OP_import_exec_list[set->index]->size;
+      // number of exec halo elements third
+      MPI_Reduce(&exec_size, &avg_size, 1, get_mpi_type(&exec_size), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&exec_size, &min_size, 1, get_mpi_type(&exec_size), MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&exec_size, &max_size, 1, get_mpi_type(&exec_size), MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      if (my_rank == MPI_ROOT) {
+        printf("exec halo elems     %10d %10d %10d \n", (int)(avg_size / comm_size),
+              (int)min_size, (int)max_size);
+      }
     }
-    avg_size = 0;
-    min_size = 0;
-    max_size = 0;
 
-    // number of non-exec halo elements fourth
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->size, &avg_size, 1, MPI_INT,
-               MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->size, &min_size, 1, MPI_INT,
-               MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->size, &max_size, 1, MPI_INT,
-               MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-
-    if (my_rank == MPI_ROOT) {
-      printf("non-exec halo elems %10d %10d %10d \n", avg_size / comm_size,
-             min_size, max_size);
+    {
+      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
+      idx_g_t nonexec_size = OP_import_nonexec_list[set->index]->size;
+      // number of non-exec halo elements fourth
+      MPI_Reduce(&nonexec_size, &avg_size, 1, get_mpi_type(&nonexec_size), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&nonexec_size, &min_size, 1, get_mpi_type(&nonexec_size), MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&nonexec_size, &max_size, 1, get_mpi_type(&nonexec_size), MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      if (my_rank == MPI_ROOT) {
+        printf("non-exec halo elems %10d %10d %10d \n", (int)(avg_size / comm_size),
+              (int)min_size, (int)max_size);
+      }
     }
-    avg_size = 0;
-    min_size = 0;
-    max_size = 0;
     if (my_rank == MPI_ROOT) {
       printf("-----------------------------------------------------\n");
     }
@@ -1376,49 +1444,46 @@ void op_halo_create() {
 
   // compute avg/min/max number of MPI neighbors per process accross the MPI
   // universe
-  avg_size = 0, min_size = 0, max_size = 0;
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-
-    // number of exec halo neighbors first
-    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, &avg_size, 1,
-               MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, &min_size, 1,
-               MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, &max_size, 1,
-               MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-
-    if (my_rank == MPI_ROOT) {
-      printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
-      printf("exec halo elems     %4d %4d %4d\n", avg_size / comm_size,
-             min_size, max_size);
+    {
+      decltype(OP_import_exec_list[set->index]->ranks_size) avg_size = 0, min_size = 0, max_size = 0;
+      // number of exec halo neighbors first
+      MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, &avg_size, 1,
+               get_mpi_type(&OP_import_exec_list[set->index]->ranks_size), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, &min_size, 1,
+                get_mpi_type(&OP_import_exec_list[set->index]->ranks_size), MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&OP_import_exec_list[set->index]->ranks_size, &max_size, 1,
+                get_mpi_type(&OP_import_exec_list[set->index]->ranks_size), MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      if (my_rank == MPI_ROOT) {
+        printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
+        printf("exec halo elems     %4d %4d %4d\n", avg_size / comm_size,
+              (int)min_size, (int)max_size);
+      }
     }
-    avg_size = 0;
-    min_size = 0;
-    max_size = 0;
 
-    // number of non-exec halo neighbors second
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, &avg_size, 1,
-               MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, &min_size, 1,
-               MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-    MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, &max_size, 1,
-               MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-
-    if (my_rank == MPI_ROOT) {
-      printf("non-exec halo elems %4d %4d %4d\n", avg_size / comm_size,
-             min_size, max_size);
+    {
+      decltype(OP_import_nonexec_list[set->index]->ranks_size) avg_size = 0, min_size = 0, max_size = 0;
+      // number of non-exec halo neighbors second
+      MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, &avg_size, 1,
+               get_mpi_type(&OP_import_nonexec_list[set->index]->ranks_size), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, &min_size, 1,
+               get_mpi_type(&OP_import_nonexec_list[set->index]->ranks_size), MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
+      MPI_Reduce(&OP_import_nonexec_list[set->index]->ranks_size, &max_size, 1,
+               get_mpi_type(&OP_import_nonexec_list[set->index]->ranks_size), MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
+      if (my_rank == MPI_ROOT) {
+        printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
+        printf("non-exec halo elems %4d %4d %4d\n", avg_size / comm_size,
+              (int)min_size, (int)max_size);
+      }
     }
-    avg_size = 0;
-    min_size = 0;
-    max_size = 0;
     if (my_rank == MPI_ROOT) {
       printf("-----------------------------------------------------\n");
     }
   }
 
   // compute average worst case halo size in Bytes
-  int tot_halo_size = 0;
+  idx_g_t tot_halo_size = 0;
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
 
@@ -1434,15 +1499,15 @@ void op_halo_create() {
       }
     }
   }
-  int avg_halo_size;
-  MPI_Reduce(&tot_halo_size, &avg_halo_size, 1, MPI_INT, MPI_SUM, MPI_ROOT,
+  idx_g_t avg_halo_size;
+  MPI_Reduce(&tot_halo_size, &avg_halo_size, 1, get_mpi_type(&tot_halo_size), MPI_SUM, MPI_ROOT,
              OP_MPI_WORLD);
 
   // print performance results
   if (my_rank == MPI_ROOT) {
     printf("Max total halo creation time = %lf\n", max_time);
     printf("Average (worst case) Halo size = %d Bytes\n",
-           avg_halo_size / comm_size);
+           (int)(avg_halo_size / comm_size));
   }
 }
 
@@ -1457,8 +1522,8 @@ void op_halo_permap_create() {
   /* --------Step 1: Decide which maps will do partial halo exchange
    * ----------*/
 
-  int *total_halo_sizes = (int *)xcalloc(OP_set_index, sizeof(int));
-  int *map_halo_sizes = (int *)xcalloc(OP_map_index, sizeof(int));
+  idx_g_t *total_halo_sizes = (idx_g_t *)xcalloc(OP_set_index, sizeof(idx_g_t));
+  idx_g_t *map_halo_sizes = (idx_g_t *)xcalloc(OP_map_index, sizeof(idx_g_t));
 
   // Total halo size for each set
   for (int i = 0; i < OP_set_index; i++)
@@ -1476,12 +1541,12 @@ void op_halo_permap_create() {
     }
   }
 
-  int *reduced_total_halo_sizes = (int *)xcalloc(OP_set_index, sizeof(int));
-  int *reduced_map_halo_sizes = (int *)xcalloc(OP_map_index, sizeof(int));
+  idx_g_t *reduced_total_halo_sizes = (idx_g_t *)xcalloc(OP_set_index, sizeof(idx_g_t));
+  idx_g_t *reduced_map_halo_sizes = (idx_g_t *)xcalloc(OP_map_index, sizeof(idx_g_t));
   MPI_Allreduce(total_halo_sizes, reduced_total_halo_sizes, OP_set_index,
-                MPI_INT, MPI_SUM, OP_MPI_WORLD);
-  MPI_Allreduce(map_halo_sizes, reduced_map_halo_sizes, OP_map_index, MPI_INT,
-                MPI_SUM, OP_MPI_WORLD);
+                get_mpi_type(total_halo_sizes), MPI_SUM, OP_MPI_WORLD);
+  MPI_Allreduce(map_halo_sizes, reduced_map_halo_sizes, OP_map_index,
+                get_mpi_type(map_halo_sizes), MPI_SUM, OP_MPI_WORLD);
 
   OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
   for (int i = 0; i < OP_map_index; i++) {
@@ -1764,7 +1829,7 @@ void op_halo_permap_create() {
       send_buffer[2 * j] = import_sizes2[i][j]; //exec count
       send_buffer[2 * j + 1] =
           OP_import_nonexec_permap[i]->sizes[j] - import_sizes2[i][j]; //nonexec count
-      MPI_Isend(&send_buffer[2 * j], 2, MPI_INT,
+      MPI_Isend(&send_buffer[2 * j], 2, get_mpi_type(send_buffer),
                 OP_import_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD,
                 &send_request[j]);
     }
@@ -1814,7 +1879,7 @@ void op_halo_permap_create() {
         (int *)calloc(OP_export_nonexec_permap[i]->ranks_size, sizeof(int));
     OP_export_nonexec_permap[i]->disps[0] = 0;
     for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
-      MPI_Recv(&recv_buffer[2 * j], 2, MPI_INT,
+      MPI_Recv(&recv_buffer[2 * j], 2, get_mpi_type(recv_buffer),
                OP_export_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD,
                &recv_status[j]);
       export_sizes2[i][j] = recv_buffer[2 * j];
@@ -1877,14 +1942,14 @@ void op_halo_permap_create() {
     for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
       MPI_Isend(&OP_import_nonexec_permap[i]
                      ->list[OP_import_nonexec_permap[i]->disps[j]],
-                OP_import_nonexec_permap[i]->sizes[j], MPI_INT,
+                OP_import_nonexec_permap[i]->sizes[j], get_mpi_type(OP_import_nonexec_permap[i]->list),
                 OP_import_nonexec_permap[i]->ranks[j], 1, OP_MPI_WORLD,
                 &send_request[j]);
     }
     for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
       MPI_Recv(&OP_export_nonexec_permap[i]
                     ->list[OP_export_nonexec_permap[i]->disps[j]],
-               OP_export_nonexec_permap[i]->sizes[j], MPI_INT,
+               OP_export_nonexec_permap[i]->sizes[j], get_mpi_type(OP_export_nonexec_permap[i]->list),
                OP_export_nonexec_permap[i]->ranks[j], 1, OP_MPI_WORLD,
                &recv_status[j]);
       for (int k = 0; k < export_sizes2[i][j]; k++) {
@@ -2065,6 +2130,7 @@ void op_halo_destroy() {
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
     op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
+    op_free(dat->mpi_buffer);
   }
 
   // MPI_Comm_free(&OP_MPI_WORLD);
@@ -2529,7 +2595,7 @@ op_dat op_mpi_get_data(op_dat dat) {
     int local_index;
     OP_part_list[dat->set->index]->elem_part[i] = get_partition(
         OP_part_list[dat->set->index]->g_index[i],
-        orig_part_range[dat->set->index], &local_index, comm_size);
+        orig_part_range[dat->set->index], &local_index, comm_size, dat->set);
   }
 
   halo_list pe_list;
@@ -2574,13 +2640,12 @@ op_dat op_mpi_get_data(op_dat dat) {
                      OP_MPI_WORLD);
   request_send = (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
 
-  int *rbuf;
   cap = 0;
   count = 0;
 
   for (int i = 0; i < pe_list->ranks_size; i++) {
     int *sbuf = &pe_list->list[pe_list->disps[i]];
-    MPI_Isend(sbuf, pe_list->sizes[i], MPI_INT, pe_list->ranks[i], 1,
+    MPI_Isend(sbuf, pe_list->sizes[i], get_mpi_type(sbuf), pe_list->ranks[i], 1,
               OP_MPI_WORLD, &request_send[i]);
   }
 
@@ -2589,8 +2654,8 @@ op_dat op_mpi_get_data(op_dat dat) {
   temp_list = (int *)xmalloc(cap * sizeof(int));
 
   for (int i = 0; i < ranks_size; i++) {
-    rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-    MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], 1, OP_MPI_WORLD,
+    int *rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
+    MPI_Recv(rbuf, sizes[i], get_mpi_type(rbuf), neighbors[i], 1, OP_MPI_WORLD,
              MPI_STATUS_IGNORE);
     memcpy(&temp_list[count], (void *)&rbuf[0], sizes[i] * sizeof(int));
     count = count + sizes[i];
@@ -2662,24 +2727,24 @@ op_dat op_mpi_get_data(op_dat dat) {
   // MPI process
   //
   // prepare bits of the original g_index array to be exported
-  int **sbuf = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
+  idx_g_t **sbuf = (idx_g_t **)xmalloc(pe_list->ranks_size * sizeof(idx_g_t *));
 
   // send original g_index values to relevant mpi processes
   for (int i = 0; i < pe_list->ranks_size; i++) {
-    sbuf[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
+    sbuf[i] = (idx_g_t *)xmalloc(pe_list->sizes[i] * sizeof(idx_g_t));
     for (int j = 0; j < pe_list->sizes[i]; j++) {
       sbuf[i][j] = OP_part_list[dat->set->index]
                        ->g_index[pe_list->list[pe_list->disps[i] + j]];
     }
-    MPI_Isend(sbuf[i], pe_list->sizes[i], MPI_INT, pe_list->ranks[i],
+    MPI_Isend(sbuf[i], pe_list->sizes[i], get_mpi_type(sbuf[i]), pe_list->ranks[i],
               dat->index, OP_MPI_WORLD, &request_send[i]);
   }
 
-  rbuf = (int *)xmalloc(sizeof(int) * pi_list->size);
+  idx_g_t *rbuf = (idx_g_t *)xmalloc(sizeof(idx_g_t) * pi_list->size);
 
   // receive original g_index values from relevant mpi processes
   for (int i = 0; i < pi_list->ranks_size; i++) {
-    MPI_Recv(&rbuf[pi_list->disps[i]], pi_list->sizes[i], MPI_INT,
+    MPI_Recv(&rbuf[pi_list->disps[i]], pi_list->sizes[i], get_mpi_type(rbuf),
              pi_list->ranks[i], dat->index, OP_MPI_WORLD, MPI_STATUS_IGNORE);
   }
   MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
@@ -2689,8 +2754,8 @@ op_dat op_mpi_get_data(op_dat dat) {
 
   // delete the g_index entirs that has been sent and create a
   // modified g_index
-  int *new_g_index =
-      (int *)xmalloc(sizeof(int) * (dat->set->size + pi_list->size));
+  idx_g_t *new_g_index =
+      (idx_g_t *)xmalloc(sizeof(idx_g_t) * (dat->set->size + pi_list->size));
 
   count = 0;
   for (int i = 0; i < dat->set->size; i++) { // iterate over old
@@ -2701,11 +2766,11 @@ op_dat op_mpi_get_data(op_dat dat) {
     }
   }
 
-  if (sizeof(int) * pi_list->size > 0)
-    memcpy(&new_g_index[count], (void *)rbuf, sizeof(int) * pi_list->size);
+  if (sizeof(idx_g_t) * pi_list->size > 0)
+    memcpy(&new_g_index[count], (void *)rbuf, sizeof(idx_g_t) * pi_list->size);
 
   count = count + pi_list->size;
-  new_g_index = (int *)xrealloc(new_g_index, sizeof(int) * count);
+  new_g_index = (idx_g_t *)xrealloc(new_g_index, sizeof(idx_g_t) * count);
   op_free(rbuf);
 
   //
@@ -2815,7 +2880,7 @@ void op_compute_moment_across_times(double* times, int ntimes, bool ignore_zeros
   MPI_Reduce(times_moment, times_moment_world, 2, MPI_DOUBLE, MPI_SUM, 0, OP_MPI_WORLD);
 
   int num_times_world;
-  MPI_Reduce(&num_times, &num_times_world, 1, MPI_INT, MPI_SUM, 0, OP_MPI_WORLD);
+  MPI_Reduce(&num_times, &num_times_world, 1, get_mpi_type(&num_times), MPI_SUM, 0, OP_MPI_WORLD);
 
   if (num_times_world != 0) {
     *first = times_moment_world[0] / (double)num_times_world;
@@ -2834,9 +2899,9 @@ void mpi_timing_output() {
   MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
 
-  unsigned int count, tot_count;
-  count = HASH_COUNT(op_mpi_kernel_tab);
-  MPI_Allreduce(&count, &tot_count, 1, MPI_INT, MPI_SUM, OP_MPI_IO_WORLD);
+  int count, tot_count;
+  count = op_mpi_kernel_map.size();
+  MPI_Allreduce(&count, &tot_count, 1, get_mpi_type(&count), MPI_SUM, OP_MPI_IO_WORLD);
 
   if (tot_count > 0) {
     double tot_time;
@@ -2847,7 +2912,8 @@ void mpi_timing_output() {
     printf("Kernel        Count  total time(sec)  Avg time(sec)  \n");
 
     op_mpi_kernel *k;
-    for (k = op_mpi_kernel_tab; k != NULL; k = (op_mpi_kernel *)k->hh.next) {
+    for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end(); it++) {
+      k = it->second;
       if (k->count > 0) {
         printf("%-10s  %6d       %10.4f      %10.4f    \n", k->name, k->count,
                k->time, k->time / k->count);
@@ -2884,7 +2950,8 @@ void mpi_timing_output() {
       printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
 
-    for (k = op_mpi_kernel_tab; k != NULL; k = (op_mpi_kernel *)k->hh.next) {
+    for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end(); it++) {
+      k = it->second;
       MPI_Reduce(&(k->count), &count, 1, MPI_INT, MPI_MAX, MPI_ROOT,
                  OP_MPI_IO_WORLD);
       MPI_Reduce(&(k->time), &avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT,
@@ -2908,14 +2975,16 @@ void mpi_timing_output() {
 void *op_mpi_perf_time(const char *name, double time) {
   op_mpi_kernel *kernel_entry;
 
-  HASH_FIND_STR(op_mpi_kernel_tab, name, kernel_entry);
-  if (kernel_entry == NULL) {
+  auto it = op_mpi_kernel_map.find(name);
+  if (it == op_mpi_kernel_map.end()) {
     kernel_entry = (op_mpi_kernel *)xmalloc(sizeof(op_mpi_kernel));
     kernel_entry->num_indices = 0;
     kernel_entry->time = 0.0;
     kernel_entry->count = 0;
     strncpy((char *)kernel_entry->name, name, NAMESIZE);
-    HASH_ADD_STR(op_mpi_kernel_tab, name, kernel_entry);
+    op_mpi_kernel_map[name] = kernel_entry;
+  } else {
+    kernel_entry = it->second;
   }
 
   kernel_entry->count += 1;
@@ -3021,13 +3090,14 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
 
 void op_mpi_exit() {
   // cleanup performance data - need to do this in some op_mpi_exit() routine
-  op_mpi_kernel *kernel_entry, *tmp;
-  HASH_ITER(hh, op_mpi_kernel_tab, kernel_entry, tmp) {
-    HASH_DEL(op_mpi_kernel_tab, kernel_entry);
+  op_mpi_kernel *kernel_entry;
+  for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end();) {
+    kernel_entry = it->second;
 #ifdef COMM_PERF
     for (int i = 0; i < kernel_entry->num_indices; i++)
-      op_free(kernel_entry->comm_info[i]);
+      op_free(kernel_entry->comm_info[i]); 
 #endif
+    it = op_mpi_kernel_map.erase(it);
     op_free(kernel_entry);
   }
 
@@ -3056,19 +3126,15 @@ void op_mpi_exit() {
   }
   op_free(set_import_buffer_size);
   op_free(OP_map_partial_exchange);
-
-  for (int i = 0; i < OP_import_index; i++)
-    op_free(OP_import_list[i]);
-  if (OP_import_list)
-    op_free(OP_import_list);
-  for (int i = 0; i < OP_export_index; i++)
-    op_free(OP_export_list[i]);
-  if (OP_export_list)
-    op_free(OP_export_list);
 }
 
 int getSetSizeFromOpArg(op_arg *arg) {
-  return arg->opt ? (arg->dat->set->size +
+  if (arg->dat->set->size + OP_import_exec_list[arg->dat->set->index]->size +
+      OP_import_nonexec_list[arg->dat->set->index]->size >
+      std::numeric_limits<int>::max()) {
+    throw std::overflow_error("Set size is too large to be represented as an int");
+  }
+  return arg->opt ? (int)(arg->dat->set->size +
                      OP_import_exec_list[arg->dat->set->index]->size +
                      OP_import_nonexec_list[arg->dat->set->index]->size)
                   : 0;
@@ -3282,16 +3348,18 @@ void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
  * Get the global size of a set
  *******************************************************************************/
 
-int op_get_size(op_set set) {
+idx_g_t op_get_size(op_set set) {
   int my_rank, comm_size;
 
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t size = set->size;
+  MPI_Allgather(&size, 1, get_mpi_type(&size), 
+                sizes, 1, get_mpi_type(sizes), OP_MPI_WORLD);
 
-  int g_size = 0;
+  idx_g_t g_size = 0;
   for (int i = 0; i < comm_size; i++)
     g_size = g_size + sizes[i];
 
@@ -3299,919 +3367,24 @@ int op_get_size(op_set set) {
   return g_size;
 }
 
-int op_get_global_set_offset(op_set set) {
+idx_g_t op_get_global_set_offset(op_set set) {
   int my_rank, comm_size;
 
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  int *sizes = (int *)xmalloc(sizeof(int) * comm_size);
-  MPI_Allgather(&set->size, 1, MPI_INT, sizes, 1, MPI_INT, OP_MPI_WORLD);
+  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
+  idx_g_t size = set->size;
+  MPI_Allgather(&size, 1, get_mpi_type(&size), 
+                sizes, 1, get_mpi_type(sizes), OP_MPI_WORLD);
 
-  int g_offset = 0;
+
+  idx_g_t g_offset = 0;
   for (int i = 0; i < my_rank; i++)
     g_offset = g_offset + sizes[i];
 
   op_free(sizes);
   return g_offset;
-}
-
-/*******************************************************************************
- * Old - Sliding planes implementations
- *******************************************************************************/
-
-op_import_handle op_import_init_size(int nprocs, int *proclist, op_dat mark) {
-
-  int bufpos;
-  MPI_Request requests[nprocs];
-  MPI_Status statuses[nprocs];
-
-  int my_rank, comm_size;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  // set up data structure
-  if (OP_import_index == OP_import_max) {
-    OP_import_max += 10;
-    OP_import_list = (op_import_handle *)xrealloc(
-        OP_import_list, OP_import_max * sizeof(op_import_handle));
-
-    if (OP_import_list == NULL) {
-      printf(" op_import_init error -- error reallocating memory\n");
-      exit(-1);
-    }
-  }
-
-  op_import_handle handle = (op_import_handle)xmalloc(sizeof(op_import_core));
-  handle->index = OP_import_index;
-  handle->nprocs = nprocs;
-  handle->proclist = proclist; // TODO: should we make a copy?
-  OP_import_list[OP_import_index++] = handle;
-
-  // step 1: send node sizes
-  for (int i = 0; i < nprocs; i++) {
-    int count;
-    count = compute_local_size(mark->set->size, nprocs, i);
-    MPI_Isend(&count, 1, MPI_INT, proclist[i], 101, OP_MPI_GLOBAL,
-              &requests[i]);
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-
-  // step 2: send node markers
-  bufpos = 0;
-  for (int i = 0; i < nprocs; i++) {
-    int len = compute_local_size(mark->set->size, nprocs, i) * mark->size;
-    if (len > 0) {
-      MPI_Isend(&mark->data[bufpos], len, MPI_BYTE, proclist[i], 102,
-                OP_MPI_GLOBAL, &requests[i]);
-      bufpos += len;
-    }
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-
-  return handle;
-}
-
-op_export_handle op_export_init(int nprocs, int *proclist, op_map cellsToNodes,
-                                op_set sp_nodes, op_dat coords, op_dat mark) {
-
-  int bufpos;
-  MPI_Request requests[nprocs];
-  MPI_Status statuses[nprocs];
-
-  int mpi_comm_size, mpi_comm_rank;
-  MPI_Comm_size(OP_MPI_WORLD, &mpi_comm_size);
-  MPI_Comm_rank(OP_MPI_WORLD, &mpi_comm_rank);
-
-  int global_comm_size, global_comm_rank;
-  MPI_Comm_size(OP_MPI_GLOBAL, &global_comm_size);
-  MPI_Comm_rank(OP_MPI_GLOBAL, &global_comm_rank);
-
-  // set up data structure
-  if (OP_export_index == OP_export_max) {
-    OP_export_max += 10;
-    OP_export_list = (op_export_handle *)xrealloc(
-        OP_export_list, OP_export_max * sizeof(op_export_handle));
-
-    if (OP_export_list == NULL) {
-      printf(" op_export_init error -- error reallocating memory\n");
-      exit(-1);
-    }
-  }
-
-  op_export_handle handle = (op_export_handle)xmalloc(sizeof(op_export_core));
-  handle->index = OP_export_index;
-  handle->coupling_group_size = nprocs;
-  handle->coupling_proclist = (int *)xmalloc(nprocs * sizeof(int));
-  for (int i = 0; i < nprocs; i++) {
-    handle->coupling_proclist[i] = proclist[i];
-  }
-  OP_export_list[OP_export_index++] = handle;
-
-  op_dat sp_coupled_data =
-      op_decl_dat_temp_char(sp_nodes, 2, "int", 4, "cpld_data");
-
-  // figure out communication patterns
-
-  // mark nodes from cellsToNodes marker
-  op_download_dat(mark);
-  int *node_mark = (int *)xmalloc(cellsToNodes->to->size * sizeof(int));
-  for (int i = 0; i < cellsToNodes->from->size + cellsToNodes->from->exec_size;
-       ++i) {
-    for (int j = 0; j < cellsToNodes->dim; ++j) {
-      int k = cellsToNodes->map[j + i * cellsToNodes->dim];
-      if (k < cellsToNodes->to->size)
-        node_mark[k] = *((int *)(mark->data + sizeof(int) * i));
-    }
-  }
-
-  // step 1: send cells and node sizes
-  for (int i = 0; i < nprocs; i++) {
-    int count[2];
-    count[0] = compute_local_size(cellsToNodes->from->size, nprocs, i);
-    count[1] = compute_local_size(cellsToNodes->to->size, nprocs, i);
-    MPI_Isend(count, 2, MPI_INT, proclist[i], 101, OP_MPI_GLOBAL, &requests[i]);
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-
-  // step 2: send node markers, local node nos. and coords
-  bufpos = 0;
-  for (int i = 0; i < nprocs; i++) {
-    int len = compute_local_size(coords->set->size, nprocs, i);
-    if (len > 0) {
-      MPI_Isend(&(node_mark[bufpos]), len, MPI_INT, proclist[i], 102,
-                OP_MPI_GLOBAL, &requests[i]);
-      bufpos += len;
-    }
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-
-  int *node_local = (int *)xmalloc(cellsToNodes->to->size * sizeof(int));
-  for (int i = 0; i < cellsToNodes->to->size; ++i)
-    node_local[i] = i;
-  bufpos = 0;
-  for (int i = 0; i < nprocs; i++) {
-    int len = compute_local_size(coords->set->size, nprocs, i);
-    if (len > 0) {
-      MPI_Isend(&(node_local[bufpos]), len, MPI_INT, proclist[i], 103,
-                OP_MPI_GLOBAL, &requests[i]);
-      bufpos += len;
-    }
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-  if (node_local)
-    free(node_local);
-
-  op_download_dat(coords);
-  bufpos = 0;
-  for (int i = 0; i < nprocs; i++) {
-    int len = compute_local_size(coords->set->size, nprocs, i) * coords->size;
-    if (len > 0) {
-      MPI_Isend(&(coords->data[bufpos]), len, MPI_BYTE, proclist[i], 104,
-                OP_MPI_GLOBAL, &requests[i]);
-      bufpos += len;
-    }
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-
-  // step 3: receive back sizes
-  int *owned_size = (int *)xmalloc(nprocs * sizeof(int));
-  for (int i = 0; i < nprocs; i++) {
-    MPI_Recv(&owned_size[i], 1, MPI_INT, proclist[i], 105, OP_MPI_GLOBAL,
-             statuses);
-  }
-
-  // step 4: receive back coupling proc and local number
-  for (int i = 0; i < nprocs; i++) {
-    if (owned_size[i] != 0) {
-      int *recv_buffer = (int *)xmalloc(2 * owned_size[i] * sizeof(int));
-
-      MPI_Recv(recv_buffer, 2 * owned_size[i], MPI_INT, proclist[i], 106,
-               OP_MPI_GLOBAL, statuses);
-
-      for (int j = 0; j < owned_size[i]; j++) {
-        int node = recv_buffer[2 * j];
-        int lnum = recv_buffer[2 * j + 1];
-
-        memcpy(&sp_coupled_data->data[node * sp_coupled_data->size],
-               &proclist[i], 4);
-        memcpy(&sp_coupled_data->data[node * sp_coupled_data->size + 4], &lnum,
-               4);
-      }
-
-      if (recv_buffer)
-        free(recv_buffer);
-    }
-  }
-
-  // Exchange halos for op2 proc and local number
-  op_arg *temp_arg = (op_arg *)xmalloc(sizeof(op_arg));
-
-  temp_arg->opt = 1;
-  temp_arg->sent = 0;
-  temp_arg->dat = sp_coupled_data;
-  temp_arg->acc = OP_RW;
-  temp_arg->argtype = OP_ARG_DAT;
-  temp_arg->map = OP_ID;
-
-  sp_coupled_data->dirtybit = 1;
-
-  int exec_flag = 1;
-  op_exchange_halo(temp_arg, exec_flag);
-  op_wait_all(temp_arg);
-
-  // step 5: count wholly owned cell maps
-  int *local_cell_count = (int *)xmalloc(global_comm_size * sizeof(int));
-  int *nonlocal_cell_count = (int *)xmalloc(global_comm_size * sizeof(int));
-  for (int i = 0; i < global_comm_size; i++) {
-    local_cell_count[i] = 0;
-    nonlocal_cell_count[i] = 0;
-  }
-  int local;
-  int node[cellsToNodes->dim], cpl_proc[cellsToNodes->dim];
-  for (int i = 0;
-       i < (cellsToNodes->from->size + cellsToNodes->from->exec_size); i++) {
-    node[0] = cellsToNodes->map[i * cellsToNodes->dim];
-    memcpy(&cpl_proc[0],
-           &sp_coupled_data->data[node[0] * sp_coupled_data->size], 4);
-    local = 1;
-    for (int j = 1; j < cellsToNodes->dim; j++) {
-      node[j] = cellsToNodes->map[i * cellsToNodes->dim + j];
-      memcpy(&cpl_proc[j],
-             &sp_coupled_data->data[node[j] * sp_coupled_data->size], 4);
-      if (cpl_proc[j] != cpl_proc[0])
-        local = 0;
-    }
-    if (local)
-      local_cell_count[cpl_proc[0]]++;
-    else {
-      for (int j = 0; j < cellsToNodes->dim; j++)
-        nonlocal_cell_count[cpl_proc[j]]++;
-    }
-  }
-
-  // step 6: send wholly owned cell map sizes
-  int count[2];
-  for (int i = 0; i < nprocs; i++) {
-    count[0] = local_cell_count[proclist[i]];
-    count[1] = nonlocal_cell_count[proclist[i]];
-    MPI_Isend(count, 2, MPI_INT, proclist[i], 107, OP_MPI_GLOBAL, &requests[i]);
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-
-  // step 7: pack cell maps (with marker first)
-  int *bufp1 = (int *)xmalloc(global_comm_size * sizeof(int));
-  int *bufp2 = (int *)xmalloc(global_comm_size * sizeof(int));
-  for (int i = 0; i < global_comm_size; i++) {
-    bufp1[i] = 0;
-    for (int j = 0; j < i; j++) {
-      bufp1[i] += local_cell_count[j] * (1 + cellsToNodes->dim);
-      bufp1[i] += nonlocal_cell_count[j] * (1 + 2 * cellsToNodes->dim);
-    }
-    bufp2[i] = bufp1[i] + local_cell_count[i] * (1 + cellsToNodes->dim);
-  }
-  int total_buff =
-      bufp2[global_comm_size - 1] +
-      nonlocal_cell_count[global_comm_size - 1] * (1 + 2 * cellsToNodes->dim);
-  int *buf_send = (int *)xmalloc(total_buff * sizeof(int));
-
-  for (int i = 0;
-       i < (cellsToNodes->from->size + cellsToNodes->from->exec_size); i++) {
-    local = 1;
-    node[0] = cellsToNodes->map[i * cellsToNodes->dim];
-    memcpy(&cpl_proc[0],
-           &sp_coupled_data->data[node[0] * sp_coupled_data->size], 4);
-    for (int j = 1; j < cellsToNodes->dim; j++) {
-      node[j] = cellsToNodes->map[i * cellsToNodes->dim + j];
-      memcpy(&cpl_proc[j],
-             &sp_coupled_data->data[node[j] * sp_coupled_data->size], 4);
-      if (cpl_proc[j] != cpl_proc[0])
-        local = 0;
-    }
-    if (local) {
-      memcpy(&buf_send[bufp1[cpl_proc[0]]], &mark->data[i * sizeof(int)], 4);
-      for (int j = 0; j < cellsToNodes->dim; j++) {
-        memcpy(&buf_send[bufp1[cpl_proc[0]] + 1 + j],
-               &sp_coupled_data->data[node[j] * sp_coupled_data->size + 4], 4);
-      }
-      bufp1[cpl_proc[0]] += (1 + cellsToNodes->dim);
-    } else {
-      for (int j = 0; j < cellsToNodes->dim; j++) {
-        memcpy(&buf_send[bufp2[cpl_proc[j]]], &mark->data[i * sizeof(int)], 4);
-        for (int k = 0; k < cellsToNodes->dim; k++) {
-          memcpy(&buf_send[bufp2[cpl_proc[j]] + 2 * k + 1],
-                 &sp_coupled_data->data[node[k] * sp_coupled_data->size], 4);
-          memcpy(&buf_send[bufp2[cpl_proc[j]] + 2 * k + 2],
-                 &sp_coupled_data->data[node[k] * sp_coupled_data->size + 4],
-                 4);
-        }
-        bufp2[cpl_proc[j]] += (1 + 2 * cellsToNodes->dim);
-      }
-    }
-  }
-
-  // step 8: send cell maps
-  for (int i = 0; i < global_comm_size; i++) {
-    bufp1[i] = 0;
-    for (int j = 0; j < i; j++) {
-      bufp1[i] += local_cell_count[j] * (1 + cellsToNodes->dim);
-      bufp1[i] += nonlocal_cell_count[j] * (1 + 2 * cellsToNodes->dim);
-    }
-  }
-
-  for (int i = 0; i < nprocs; i++) {
-    int len = (1 + cellsToNodes->dim) * local_cell_count[proclist[i]] +
-              (1 + 2 * cellsToNodes->dim) * nonlocal_cell_count[proclist[i]];
-    if (len > 0) {
-      MPI_Isend(&buf_send[bufp1[proclist[i]]], len, MPI_INT, proclist[i], 108,
-                OP_MPI_GLOBAL, &requests[i]);
-    }
-  }
-  MPI_Waitall(nprocs, requests, statuses);
-  if (bufp1)
-    free(bufp1);
-  if (bufp2)
-    free(bufp2);
-  if (buf_send)
-    free(buf_send);
-
-  // calculate per interface information
-  int num_ifaces = 0;
-  int *iface_list = NULL;
-  int new_iface;
-  for (int i = 0; i < coords->set->size; i++) {
-    new_iface = 1;
-    for (int j = 0; j < num_ifaces; j++) {
-      if (node_mark[i] == iface_list[j])
-        new_iface = 0;
-    }
-    if (new_iface) {
-      iface_list = (int *)xrealloc(iface_list, (num_ifaces + 1) * sizeof(int));
-      iface_list[num_ifaces] = node_mark[i];
-      num_ifaces++;
-    }
-  }
-
-  int *nprocs_per_int = (int *)xmalloc(num_ifaces * sizeof(int));
-  for (int i = 0; i < num_ifaces; i++)
-    nprocs_per_int[i] = 0;
-
-  int **proclist_per_int = (int **)xmalloc(num_ifaces * sizeof(int *));
-  for (int i = 0; i < num_ifaces; i++)
-    proclist_per_int[i] = NULL;
-
-  for (int i = 0; i < num_ifaces; i++) {
-    for (int j = 0; j < coords->set->size; j++) {
-      if (node_mark[j] == iface_list[i]) {
-        int proc;
-        memcpy(&proc, &sp_coupled_data->data[j * sp_coupled_data->size], 4);
-        int new_proc = 1;
-        for (int k = 0; k < nprocs_per_int[i]; k++) {
-          if (proc == proclist_per_int[i][k])
-            new_proc = 0;
-        }
-        if (new_proc) {
-          proclist_per_int[i] = (int *)xrealloc(
-              proclist_per_int[i], (nprocs_per_int[i] + 1) * sizeof(int));
-          proclist_per_int[i][nprocs_per_int[i]] = proc;
-          nprocs_per_int[i]++;
-        }
-      }
-    }
-  }
-
-  int **nodelist_send_size = (int **)xmalloc(num_ifaces * sizeof(int *));
-  for (int i = 0; i < num_ifaces; i++) {
-    nodelist_send_size[i] = (int *)xmalloc(nprocs_per_int[i] * sizeof(int));
-    for (int j = 0; j < nprocs_per_int[i]; j++)
-      nodelist_send_size[i][j] = 0;
-  }
-
-  for (int i = 0; i < num_ifaces; i++) {
-    for (int j = 0; j < sp_coupled_data->set->size; j++) {
-      int proc;
-      memcpy(&proc, &sp_coupled_data->data[j * sp_coupled_data->size], 4);
-      for (int k = 0; k < nprocs_per_int[i]; k++) {
-        if (node_mark[j] == iface_list[i] && proclist_per_int[i][k] == proc)
-          nodelist_send_size[i][k]++;
-      }
-    }
-  }
-
-  int ***nodelist_send = (int ***)xmalloc(num_ifaces * sizeof(int **));
-  for (int i = 0; i < num_ifaces; i++) {
-    nodelist_send[i] = (int **)xmalloc(nprocs_per_int[i] * sizeof(int *));
-    for (int j = 0; j < nprocs_per_int[i]; j++) {
-      nodelist_send[i][j] =
-          (int *)xmalloc(nodelist_send_size[i][j] * sizeof(int));
-      nodelist_send_size[i][j] = 0;
-    }
-  }
-
-  for (int i = 0; i < num_ifaces; i++) {
-    for (int j = 0; j < sp_coupled_data->set->size; j++) {
-      int proc;
-      memcpy(&proc, &sp_coupled_data->data[j * sp_coupled_data->size], 4);
-      for (int k = 0; k < nprocs_per_int[i]; k++) {
-        if (node_mark[j] == iface_list[i] && proclist_per_int[i][k] == proc)
-          nodelist_send[i][k][nodelist_send_size[i][k]++] = j;
-      }
-    }
-  }
-
-  // int **disps=(int **)xmalloc(num_ifaces*sizeof(int *));
-  MPI_Request **exp_requests =
-      (MPI_Request **)xmalloc(num_ifaces * sizeof(MPI_Request *));
-  MPI_Status **exp_statuses =
-      (MPI_Status **)xmalloc(num_ifaces * sizeof(MPI_Status *));
-  char ***send_buf = (char ***)xmalloc(num_ifaces * sizeof(char **));
-  for (int i = 0; i < num_ifaces; i++) {
-    send_buf[i] = (char **)xmalloc(nprocs_per_int[i] * sizeof(char *));
-
-    for (int j = 0; j < nprocs_per_int[i]; j++)
-      send_buf[i][j] = NULL;
-
-    exp_requests[i] =
-        (MPI_Request *)xmalloc(nprocs_per_int[i] * sizeof(MPI_Request));
-    exp_statuses[i] =
-        (MPI_Status *)xmalloc(nprocs_per_int[i] * sizeof(MPI_Status));
-  }
-
-  handle->num_ifaces = num_ifaces;
-  handle->iface_list = iface_list;
-  handle->nprocs_per_int = nprocs_per_int;
-  handle->proclist_per_int = proclist_per_int;
-  handle->nodelist_send_size = nodelist_send_size;
-  handle->nodelist_send = nodelist_send;
-  handle->OP_global_buffer = NULL;
-  handle->OP_global_buffer_size = 0;
-  handle->max_data_size = 0;
-  handle->send_buf = send_buf;
-  handle->requests = exp_requests;
-  handle->statuses = exp_statuses;
-
-  // create global versions for import
-  int gbl_num_ifaces;
-  MPI_Allreduce(&num_ifaces, &gbl_num_ifaces, 1, MPI_INT, MPI_SUM,
-                OP_MPI_WORLD);
-
-  int *gbl_iface_list =
-      (int *)xmalloc(gbl_num_ifaces * mpi_comm_size * sizeof(int));
-  for (int i = 0; i < num_ifaces; i++)
-    gbl_iface_list[gbl_num_ifaces * mpi_comm_rank + i] = iface_list[i];
-  for (int i = num_ifaces; i < gbl_num_ifaces; i++)
-    gbl_iface_list[gbl_num_ifaces * mpi_comm_rank + i] = 32767;
-
-  MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, gbl_iface_list,
-                gbl_num_ifaces, MPI_INT, OP_MPI_WORLD);
-
-  op_sort(gbl_iface_list, gbl_num_ifaces * mpi_comm_size);
-  gbl_num_ifaces = removeDups(gbl_iface_list, gbl_num_ifaces * mpi_comm_size);
-  if (gbl_iface_list[gbl_num_ifaces - 1] == 32767)
-    gbl_num_ifaces--;
-
-  gbl_iface_list =
-      (int *)xrealloc(gbl_iface_list, gbl_num_ifaces * sizeof(int));
-
-  int **proclist_per_gint = (int **)xmalloc(gbl_num_ifaces * sizeof(int *));
-  for (int i = 0; i < gbl_num_ifaces; i++) {
-    proclist_per_gint[i] = (int *)xmalloc(nprocs * mpi_comm_size * sizeof(int));
-    for (int j = 0; j < nprocs; j++)
-      proclist_per_gint[i][nprocs * mpi_comm_rank + j] = 32767;
-  }
-  for (int i = 0; i < num_ifaces; i++) {
-    for (int j = 0; j < gbl_num_ifaces; j++) {
-      if (iface_list[i] == gbl_iface_list[j]) {
-        for (int k = 0; k < nprocs_per_int[i]; k++)
-          proclist_per_gint[j][nprocs * mpi_comm_rank + k] =
-              proclist_per_int[i][k];
-      }
-    }
-  }
-
-  for (int i = 0; i < gbl_num_ifaces; i++) {
-    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, proclist_per_gint[i],
-                  nprocs, MPI_INT, OP_MPI_WORLD);
-  }
-
-  int *nprocs_per_gint = (int *)xmalloc(gbl_num_ifaces * sizeof(int));
-  for (int i = 0; i < gbl_num_ifaces; i++) {
-    op_sort(proclist_per_gint[i], nprocs * mpi_comm_size);
-    nprocs_per_gint[i] =
-        removeDups(proclist_per_gint[i], nprocs * mpi_comm_size);
-    if (proclist_per_gint[i][nprocs_per_gint[i] - 1] == 32767)
-      nprocs_per_gint[i]--;
-  }
-
-  handle->gbl_num_ifaces = gbl_num_ifaces;
-  handle->gbl_iface_list = gbl_iface_list;
-  handle->nprocs_per_gint = nprocs_per_gint;
-  handle->proclist_per_gint = proclist_per_gint;
-
-  op_free_dat_temp_char(sp_coupled_data);
-
-  return handle;
-}
-
-void op_export_data(op_export_handle handle, op_dat dat) {
-
-  op_download_dat(dat);
-
-  // Resize buffer if necessary
-  if (handle->max_data_size < dat->size) {
-
-    for (int i = 0; i < handle->num_ifaces; i++) {
-      for (int j = 0; j < handle->nprocs_per_int[i]; j++) {
-        int bufsize =
-            3 * sizeof(int) + handle->nodelist_send_size[i][j] * (size_t)dat->size;
-        handle->send_buf[i][j] =
-            (char *)xrealloc(handle->send_buf[i][j], bufsize);
-      }
-    }
-
-    handle->max_data_size = dat->size;
-  }
-
-  // Copy data into buffer and send
-  for (int i = 0; i < handle->num_ifaces; i++) {
-    for (int j = 0; j < handle->nprocs_per_int[i]; j++) {
-      int bufp = 0;
-      memcpy(&handle->send_buf[i][j][bufp], &handle->index, sizeof(int));
-      bufp += sizeof(int);
-      memcpy(&handle->send_buf[i][j][bufp], &handle->iface_list[i],
-             sizeof(int));
-      bufp += sizeof(int);
-      memcpy(&handle->send_buf[i][j][bufp], &dat->size, sizeof(int));
-      bufp += sizeof(int);
-
-      for (int k = 0; k < handle->nodelist_send_size[i][j]; k++) {
-        int node = handle->nodelist_send[i][j][k];
-
-        if (node < 0 || node >= dat->set->size)
-          printf("Error in OP2 packing export data %i %i\n", node,
-                 dat->set->size);
-
-        memcpy(&handle->send_buf[i][j][bufp], &dat->data[node * (size_t)dat->size],
-               dat->size);
-        bufp += dat->size;
-      }
-
-      MPI_Isend(handle->send_buf[i][j], bufp, MPI_BYTE,
-                handle->proclist_per_int[i][j], 1010, OP_MPI_GLOBAL,
-                &handle->requests[i][j]);
-
-      if (OP_diags > 5) {
-        int rank;
-        MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
-        printf("OP2 (%d) sending %d bytes to %d\n", rank, bufp,
-               handle->proclist_per_int[i][j]);
-      }
-    }
-  }
-
-  // TODO: make this non-blocking up to the next export
-  for (int i = 0; i < handle->num_ifaces; i++)
-    MPI_Waitall(handle->nprocs_per_int[i], handle->requests[i],
-                handle->statuses[i]);
-}
-
-op_import_handle op_import_init(op_export_handle exp_handle, op_dat coords,
-                                op_dat mark) {
-
-  int my_rank, comm_size;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  // set up data structure
-  if (OP_import_index == OP_import_max) {
-    OP_import_max += 10;
-    OP_import_list = (op_import_handle *)xrealloc(
-        OP_import_list, OP_import_max * sizeof(op_import_handle));
-
-    if (OP_import_list == NULL) {
-      printf(" op_import_init error -- error reallocating memory\n");
-      exit(-1);
-    }
-  }
-
-  op_import_handle handle = (op_import_handle)xmalloc(sizeof(op_import_core));
-  handle->index = OP_import_index;
-  handle->coords = coords;
-  OP_import_list[OP_import_index++] = handle;
-
-  // count and send data per interface
-  MPI_Request requests[exp_handle->coupling_group_size];
-  MPI_Status statuses[exp_handle->coupling_group_size];
-
-  int *count = (int *)xmalloc(exp_handle->gbl_num_ifaces * sizeof(int));
-
-  for (int i = 0; i < exp_handle->gbl_num_ifaces; i++) {
-    count[i] = 0;
-
-    for (int k = 0; k < mark->set->size; k++) {
-      int node_mark;
-      memcpy(&node_mark, &mark->data[k * mark->size], 4);
-      if (node_mark == exp_handle->gbl_iface_list[i])
-        count[i]++;
-    }
-
-    for (int j = 0; j < exp_handle->nprocs_per_gint[i]; j++) {
-      MPI_Isend(&count[i], 1, MPI_INT, exp_handle->proclist_per_gint[i][j], 401,
-                OP_MPI_GLOBAL, &requests[j]);
-    }
-
-    MPI_Waitall(exp_handle->nprocs_per_gint[i], requests, statuses);
-  }
-
-  // Count local ifaces
-  int num_my_ifaces = 0;
-  for (int i = 0; i < exp_handle->gbl_num_ifaces; i++)
-    if (count[i] > 0)
-      num_my_ifaces++;
-
-  // Copy nprocs and proclist
-  int *nprocs_per_int = (int *)xmalloc(num_my_ifaces * sizeof(int));
-  int **proclist_per_int = (int **)xmalloc(num_my_ifaces * sizeof(int *));
-  int *node_size_per_int = (int *)xmalloc(num_my_ifaces * sizeof(int));
-  int *iface_list = (int *)xmalloc(num_my_ifaces * sizeof(int));
-
-  num_my_ifaces = 0;
-  for (int i = 0; i < exp_handle->gbl_num_ifaces; i++) {
-    if (count[i] > 0) {
-      nprocs_per_int[num_my_ifaces] = exp_handle->nprocs_per_gint[i];
-      proclist_per_int[i] =
-          (int *)xmalloc(nprocs_per_int[num_my_ifaces] * sizeof(int));
-      for (int j = 0; j < nprocs_per_int[num_my_ifaces]; j++)
-        proclist_per_int[num_my_ifaces][j] =
-            exp_handle->proclist_per_gint[i][j];
-      node_size_per_int[num_my_ifaces] = count[i];
-      iface_list[num_my_ifaces] = exp_handle->gbl_iface_list[i];
-      num_my_ifaces++;
-    }
-  }
-
-  // Pack buffers and record sending node ids
-  int **nodelist_per_int = (int **)xmalloc(num_my_ifaces * sizeof(int *));
-  char ***recv_buf = (char ***)xmalloc(num_my_ifaces * sizeof(char **));
-  for (int i = 0; i < num_my_ifaces; i++) {
-    char *send_buffer = (char *)xmalloc(node_size_per_int[i] * coords->size);
-
-    recv_buf[i] = (char **)xmalloc(nprocs_per_int[i] * sizeof(char *));
-
-    nodelist_per_int[i] = (int *)xmalloc(node_size_per_int[i] * sizeof(int));
-
-    int bufpos = 0;
-
-    for (int k = 0; k < mark->set->size; k++) {
-      int node_mark;
-      memcpy(&node_mark, &mark->data[k * mark->size], 4);
-      if (node_mark == iface_list[i]) {
-        memcpy(&send_buffer[bufpos * coords->size],
-               &coords->data[k * coords->size], coords->size);
-        nodelist_per_int[i][bufpos] = k;
-        bufpos++;
-      }
-    }
-
-    for (int j = 0; j < nprocs_per_int[i]; j++) {
-      MPI_Isend(send_buffer, node_size_per_int[i] * coords->size, MPI_BYTE,
-                proclist_per_int[i][j], 402, OP_MPI_GLOBAL, &requests[j]);
-      recv_buf[i][j] = NULL;
-    }
-
-    MPI_Waitall(nprocs_per_int[i], requests, statuses);
-
-    free(send_buffer);
-  }
-
-  int total_recvs = 0;
-  for (int i = 0; i < num_my_ifaces; i++)
-    for (int j = 0; j < nprocs_per_int[i]; j++)
-      total_recvs++;
-
-  int *recv2int = (int *)xmalloc(total_recvs * sizeof(int));
-  int *recv2proc = (int *)xmalloc(total_recvs * sizeof(int));
-  MPI_Request *imp_requests =
-      (MPI_Request *)xmalloc(total_recvs * sizeof(MPI_Request));
-  MPI_Status *imp_statuses =
-      (MPI_Status *)xmalloc(total_recvs * sizeof(MPI_Status));
-
-  total_recvs = 0;
-  for (int i = 0; i < num_my_ifaces; i++) {
-    for (int j = 0; j < nprocs_per_int[i]; j++) {
-      recv2int[total_recvs] = i;
-      recv2proc[total_recvs] = j;
-      total_recvs++;
-    }
-  }
-
-  double *interp_dist = (double *)xmalloc(coords->set->size * sizeof(double));
-
-  handle->num_my_ifaces = num_my_ifaces;
-  handle->iface_list = iface_list;
-  handle->nprocs_per_int = nprocs_per_int;
-  handle->proclist_per_int = proclist_per_int;
-  handle->node_size_per_int = node_size_per_int;
-  handle->nodelist_per_int = nodelist_per_int;
-  handle->recv_buf = recv_buf;
-  handle->max_dat_size = 0;
-  handle->recv2int = recv2int;
-  handle->recv2proc = recv2proc;
-  handle->requests = imp_requests;
-  handle->statuses = imp_statuses;
-  handle->interp_dist = interp_dist;
-
-  return handle;
-}
-
-void op_inc_theta(op_export_handle handle, int *bc_id, double *dtheta_exp,
-                  double *dtheta_imp) {
-
-  if (op_is_root()) {
-    int num_ifaces = handle->gbl_num_ifaces;
-
-    if (handle->OP_global_buffer_size <
-        (sizeof(int) + num_ifaces * (sizeof(int) + 2 * sizeof(double)))) {
-      handle->OP_global_buffer_size =
-          sizeof(int) + num_ifaces * (sizeof(int) + 2 * sizeof(double));
-      handle->OP_global_buffer = (char *)xrealloc(
-          handle->OP_global_buffer, handle->OP_global_buffer_size);
-    }
-
-    int bufp = 0;
-
-    memcpy(&handle->OP_global_buffer[bufp], &handle->index, sizeof(int));
-    bufp += sizeof(int);
-
-    for (int i = 0; i < num_ifaces; i++) {
-
-      int iface = -1;
-      for (int j = 0; j < num_ifaces; j++) {
-        if (bc_id[j] == handle->gbl_iface_list[i]) {
-          iface = j;
-          break;
-        }
-      }
-
-      if (iface == -1)
-        printf("OP2 failed to find interface\n");
-      memcpy(&handle->OP_global_buffer[bufp], &handle->gbl_iface_list[i],
-             sizeof(int));
-      bufp += sizeof(int);
-      memcpy(&handle->OP_global_buffer[bufp], &dtheta_exp[iface],
-             sizeof(double));
-      bufp += sizeof(double);
-      memcpy(&handle->OP_global_buffer[bufp], &dtheta_imp[iface],
-             sizeof(double));
-      bufp += sizeof(double);
-    }
-
-    for (int j = 0; j < handle->coupling_group_size; j++) {
-      // TODO: non-blocking? when sync?
-      MPI_Send(handle->OP_global_buffer, bufp, MPI_BYTE,
-               handle->coupling_proclist[j], 1005, OP_MPI_GLOBAL);
-    }
-  }
-}
-
-void op_import_data(op_import_handle handle, op_dat dat) {
-
-  op_download_dat(dat);
-
-  int recv_dat_size = dat->size + sizeof(double);
-
-  // TODO bounding boxes
-
-  // Reallocate buffer if necessary
-  if (dat->size > handle->max_dat_size) {
-    handle->max_dat_size = dat->size;
-    for (int i = 0; i < handle->num_my_ifaces; i++) {
-      for (int j = 0; j < handle->nprocs_per_int[i]; j++) {
-        handle->recv_buf[i][j] =
-            (char *)xrealloc(handle->recv_buf[i][j],
-                             handle->node_size_per_int[i] * recv_dat_size);
-      }
-    }
-  }
-
-  int total_recvs = 0;
-  for (int i = 0; i < handle->num_my_ifaces; i++) {
-    for (int j = 0; j < handle->nprocs_per_int[i]; j++) {
-
-      if (OP_diags > 5) {
-        int rank;
-        MPI_Comm_rank(OP_MPI_GLOBAL, &rank);
-        printf("OP2 (%d) receiving %d bytes from %d\n", rank,
-               handle->node_size_per_int[i] * recv_dat_size,
-               handle->proclist_per_int[i][j]);
-      }
-
-      int tag = 2000 + handle->iface_list[i];
-      MPI_Irecv(handle->recv_buf[i][j],
-                handle->node_size_per_int[i] * recv_dat_size, MPI_BYTE,
-                handle->proclist_per_int[i][j], tag, OP_MPI_GLOBAL,
-                &handle->requests[total_recvs++]);
-    }
-  }
-
-  int first[handle->num_my_ifaces];
-  for (int i = 0; i < handle->num_my_ifaces; i++)
-    first[i] = 1;
-
-  int next;
-  for (int rec = 0; rec < total_recvs; rec++) {
-    MPI_Status status;
-    MPI_Waitany(total_recvs, handle->requests, &next, &status);
-
-    int i = handle->recv2int[next];
-    int j = handle->recv2proc[next];
-
-    if ((status.MPI_TAG - 2000) != handle->iface_list[i])
-      printf("Error in int in import_data\n");
-
-    if (status.MPI_SOURCE != handle->proclist_per_int[i][j])
-      printf("Error in proc in import_data\n");
-
-    // Unpack data
-    if (first[i]) {
-      for (int k = 0; k < handle->node_size_per_int[i]; k++) {
-        memcpy(&handle->interp_dist[handle->nodelist_per_int[i][k]],
-               &handle->recv_buf[i][j][k * recv_dat_size], sizeof(double));
-        memcpy(&dat->data[handle->nodelist_per_int[i][k] * (size_t)dat->size],
-               &handle->recv_buf[i][j][sizeof(double) + k * recv_dat_size],
-               dat->size);
-      }
-      first[i] = 0;
-    } else {
-      for (int k = 0; k < handle->node_size_per_int[i]; k++) {
-        if (handle->interp_dist[handle->nodelist_per_int[i][k]] > -0.5) {
-          double dist;
-          memcpy(&dist, &handle->recv_buf[i][j][k * recv_dat_size],
-                 sizeof(double));
-          if (dist < handle->interp_dist[handle->nodelist_per_int[i][k]]) {
-            handle->interp_dist[handle->nodelist_per_int[i][k]] = dist;
-            memcpy(&dat->data[handle->nodelist_per_int[i][k] * (size_t)dat->size],
-                   &handle->recv_buf[i][j][sizeof(double) + k * recv_dat_size],
-                   dat->size);
-          }
-        }
-      }
-    }
-  }
-
-  op_upload_dat(dat);
-}
-
-void op_theta_init(op_export_handle handle, int *bc_id, double *dtheta_exp,
-                   double *dtheta_imp, double *alpha) {
-
-  if (op_is_root()) {
-    int num_ifaces = handle->gbl_num_ifaces;
-
-    if (handle->OP_global_buffer_size <
-        (sizeof(int) + num_ifaces * (sizeof(int) + 3 * sizeof(double)))) {
-      handle->OP_global_buffer_size =
-          sizeof(int) + num_ifaces * (sizeof(int) + 3 * sizeof(double));
-      handle->OP_global_buffer = (char *)xrealloc(
-          handle->OP_global_buffer, handle->OP_global_buffer_size);
-    }
-
-    int bufp = 0;
-
-    memcpy(&handle->OP_global_buffer[bufp], &handle->index, sizeof(int));
-    bufp += sizeof(int);
-
-    for (int i = 0; i < num_ifaces; i++) {
-
-      int iface = -1;
-      for (int j = 0; j < num_ifaces; j++) {
-        if (bc_id[j] == handle->gbl_iface_list[i]) {
-          iface = j;
-          break;
-        }
-      }
-
-      if (iface == -1)
-        printf("OP2 failed to find interface\n");
-      memcpy(&handle->OP_global_buffer[bufp], &handle->gbl_iface_list[i],
-             sizeof(int));
-      bufp += sizeof(int);
-      memcpy(&handle->OP_global_buffer[bufp], &alpha[iface], sizeof(double));
-      bufp += sizeof(double);
-      memcpy(&handle->OP_global_buffer[bufp], &dtheta_exp[iface],
-             sizeof(double));
-      bufp += sizeof(double);
-      memcpy(&handle->OP_global_buffer[bufp], &dtheta_imp[iface],
-             sizeof(double));
-      bufp += sizeof(double);
-    }
-
-    for (int j = 0; j < handle->coupling_group_size; j++) {
-      // TODO: non-blocking? when sync?
-      MPI_Send(handle->OP_global_buffer, bufp, MPI_BYTE,
-               handle->coupling_proclist[j], 1001, OP_MPI_GLOBAL);
-    }
-  }
 }
 
 #ifdef __cplusplus
