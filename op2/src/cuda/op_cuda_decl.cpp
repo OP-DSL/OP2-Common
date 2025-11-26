@@ -78,7 +78,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (idx_g_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * set_size + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
@@ -151,10 +151,10 @@ op_set op_decl_set(idx_g_t size, char const *name) {
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
   op_map map = op_decl_map_core(from, to, dim, imap, name);
-  int set_size = round32(map->from->size + map->from->exec_size);
+  size_t set_size = round32(map->from->size + map->from->exec_size);
   int *temp_map = (int *)malloc(map->dim * set_size * sizeof(int));
   for (int i = 0; i < map->dim; i++) {
-    for (int j = 0; j < set_size; j++) {
+    for (size_t j = 0; j < set_size; j++) {
       temp_map[i * set_size + j] = map->map[map->dim * j + i];
     }
   }
@@ -314,7 +314,7 @@ void op_upload_all() {
         char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
         int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
-          for (idx_g_t j = 0; j < set_size; j++) {
+          for (size_t j = 0; j < set_size; j++) {
             for (int c = 0; c < element_size; c++) {
               temp_data[element_size * i * set_size + element_size * j + c] =
                   dat->data[dat->size * j + element_size * i + c];

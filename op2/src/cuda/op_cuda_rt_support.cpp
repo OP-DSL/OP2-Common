@@ -289,7 +289,7 @@ void op_cuda_get_data(op_dat dat) {
     cutilSafeCall(gpuDeviceSynchronize());
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (idx_g_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           dat->data[dat->size * j + element_size * i + c] =
               temp_data[element_size * i * set_size + element_size * j +
@@ -353,7 +353,7 @@ void op_upload_dat(op_dat dat) {
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (idx_g_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           temp_data[element_size * i * set_size + element_size * j + c] =
               dat->data[dat->size * j + element_size * i + c];
@@ -380,7 +380,7 @@ void op_download_dat(op_dat dat) {
                              gpuMemcpyDeviceToHost));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (idx_g_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < set_size; j++) {
         for (int c = 0; c < element_size; c++) {
           dat->data[dat->size * j + element_size * i + c] =
               temp_data[element_size * i * set_size + element_size * j + c];
