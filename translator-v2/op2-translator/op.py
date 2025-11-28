@@ -234,7 +234,7 @@ class Loop:
     dats: List[Dat]
     maps: List[Map]
 
-    consts: Set[str]
+    consts: List[Const]
 
     fallback: bool
 
@@ -250,7 +250,7 @@ class Loop:
         self.args = []
         self.args_expanded = []
 
-        self.consts = set()
+        self.consts = []
 
         self.fallback = False
 
@@ -342,8 +342,10 @@ class Loop:
 
         return idx
 
-    def addConst(self, const: str) -> None:
-        self.consts.add(const)
+    def addConst(self, const: Const) -> None:
+        id = findIdx(self.consts, lambda m: m.ptr == const.ptr)
+        if id is None:
+            self.consts.append(const)
 
     def arg(self, x: Union[Dat, int]) -> Optional[Arg]:
         if isinstance(x, Dat):
@@ -377,6 +379,7 @@ class Loop:
 
         dat_str = "\n    ".join([str(d) for d in self.dats])
         map_str = "\n    ".join([str(m) for m in self.maps])
+        const_str = "\n    ".join([str(c) for c in self.consts])
 
         if len(self.dats) > 0:
             dat_str = f"\n    {dat_str}\n"
@@ -384,8 +387,12 @@ class Loop:
         if len(self.maps) > 0:
             map_str = f"\n    {map_str}\n"
 
+        if len(self.consts) > 0:
+            const_str = f"\n    {const_str}\n"
+
         return (
             f"Loop at {self.loc}:\n    Name: {self.name}\n    Kernel function: {self.kernel}\n\n    {args}\n"
             + dat_str
             + map_str
+            + const_str
         )

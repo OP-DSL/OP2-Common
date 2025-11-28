@@ -71,6 +71,15 @@ void op_mvHostToDevice(void **map, int size, const char* type) {
   *map = data;
 }
 
+void op_cpDeviceToHost(void **data_h, void **data_d, int size) {
+  if (!OP_hybrid_gpu)
+    return;
+
+  op2_queue->wait();
+  op2_queue->memcpy(*data_h, *data_d, size);
+  op2_queue->wait();
+}
+
 void op_cpHostToDevice(void **data_d, void **data_h, int size) {
   if (!OP_hybrid_gpu)
     return;
@@ -417,7 +426,7 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)args;
 }
 
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
   for (int n = 0; n < nargs; n++)
     if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
         args[n].dat->dirty_hd == 1) {
@@ -437,7 +446,8 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   }
 }
 
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)device;
   (void)nargs;
   (void)args;
 }

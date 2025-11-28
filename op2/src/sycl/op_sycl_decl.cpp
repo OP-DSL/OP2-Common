@@ -147,7 +147,7 @@ op_arg op_opt_arg_dat(int opt, op_dat dat, int idx, op_map map, int dim,
 
 op_arg op_arg_gbl_char(char *data, int dim, const char *type, int size,
                        op_access acc) {
-  return op_arg_gbl_core(data, dim, type, size, acc);
+  return op_arg_gbl_core(1, data, dim, type, size, acc);
 }
 
 //

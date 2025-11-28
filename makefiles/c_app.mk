@@ -31,6 +31,10 @@ ifeq ($(HAVE_C),true)
     BUILDABLE_VARIANTS += hip
   endif
 
+  ifeq ($(HAVE_SYCL),true)
+    BUILDABLE_VARIANTS += sycl
+  endif
+
   ifeq ($(HAVE_MPI_C),true)
     BUILDABLE_VARIANTS += $(foreach variant,$(BUILDABLE_VARIANTS),mpi_$(variant))
   endif
@@ -92,6 +96,7 @@ GENSEQ_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/seq/op2_kernels.cpp
 OPENMP_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp/op2_kernels.cpp
 CUDA_SRC   := $(APP_SRC_OP) generated/$(APP_NAME)/cuda/op2_kernels.o
 HIP_SRC    := $(APP_SRC_OP) generated/$(APP_NAME)/hip/op2_kernels.o
+SYCL_SRC    := $(APP_SRC_OP) generated/$(APP_NAME)/sycl/op2_kernels.o
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
@@ -117,6 +122,7 @@ $(eval $(call RULE_template, genseq,,                   SEQ,     MPI))
 $(eval $(call RULE_template, openmp,   $(OMP_CXXFLAGS), OPENMP,  MPI))
 $(eval $(call RULE_template, cuda,,                     CUDA,    MPI_CUDA))
 $(eval $(call RULE_template, hip,,                      HIP,     MPI_HIP))
+$(eval $(call RULE_template, sycl,     $(SYCLCCFLAGS),  SYCL,    MPI_SYCL))
 
 define CUDA_EXTRA_RULES_template =
 $(APP_NAME)_cuda: generated/$(APP_NAME)/cuda/op2_kernels.o
@@ -137,6 +143,16 @@ generated/$(APP_NAME)/hip/op2_kernels.o: generated/$(APP_NAME)
 endef
 
 $(eval $(call HIP_EXTRA_RULES_template))
+
+define SYCL_EXTRA_RULES_template =
+$(APP_NAME)_sycl: generated/$(APP_NAME)/sycl/op2_kernels.o
+$(APP_NAME)_mpi_sycl: generated/$(APP_NAME)/sycl/op2_kernels.o
+
+generated/$(APP_NAME)/sycl/op2_kernels.o: generated/$(APP_NAME)
+	$$(SYCLCC) $$(SYCLCCFLAGS) $(APP_INC) $$(OP2_INC) -DOP2_SYCL -c generated/$(APP_NAME)/sycl/op2_kernels.cpp -o $$@
+endef
+
+$(eval $(call SYCL_EXTRA_RULES_template))
 
 -include $(wildcard *.d)
 

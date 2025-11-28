@@ -94,7 +94,7 @@ void op_sycl_exit();
 
 void op_cpHostToDevice(void **data_d, void **data_h, int size);
 void op_mvHostToDevice(void **map, int size);
-
+void op_cpDeviceToHost(void **data_h, void **data_d, int size);
 /*
  * routines to resize constant/reduct arrays, if necessary
  */

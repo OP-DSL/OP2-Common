@@ -1,0 +1,395 @@
+class {{lh.kernel}}_kernel;
+{% extends "cpp/loop_host.hpp.jinja" %}
+
+{%- macro arg_to_pointer(arg) -%}
+    {%- if arg is gbl and reduction -%}
+gbl{{arg.id}}
+    {%- elif arg is gbl -%}
+arg{{arg.id}}_local
+    {%- elif arg is direct -%}
+&dat{{arg.dat_id}}[n * {{lh.dat(arg).dim}}]
+    {%- else -%}
+&dat{{arg.dat_id}}[opDat{{arg.map_id}}Map[round32(set_size) * {{arg.map_idx}} + n] * {{lh.dat(arg).dim}}]
+    {%- endif -%}
+{%- endmacro -%}
+
+
+{% macro stride_cuda(arg) -%}
+{{-" * op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
+{%- endmacro %}
+
+{% macro opt_cond(arg) %}
+    {%- if arg is opt -%}arg{{arg.id}}.opt{%- endif -%}
+{% endmacro %}
+
+{% macro opt_cond_comp(arg) %}
+    {%- if arg is opt -%}{{opt_cond(arg)}} && {% endif -%}
+{% endmacro %}
+
+{% macro opt_tern(arg, alt = "NULL") %}
+    {%- if arg is opt -%}{{opt_cond(arg)}} ? {{caller()}} : {{alt}}{%- else -%}{{caller()}}{%- endif -%}
+{% endmacro %}
+
+{% macro opt_if(arg) %}
+    {% if arg is opt %}
+    if ({{opt_cond(arg)}}) {
+    {{caller()|indent-}}
+    {{"}"|indent(first = true)}}
+    {% else %}
+{{caller()-}}
+    {% endif %}
+{% endmacro %}
+
+{% macro opt_cuda_cond(arg) %}
+    {%- if arg is opt -%}optflags & 1 << {{lh.optIdx(arg)}}{%- endif -%}
+{% endmacro %}
+
+{% macro opt_cuda_cond_comp(arg) %}
+    {%- if arg is opt -%}{{opt_cuda_cond(arg)}} && {% endif -%}
+{% endmacro %}
+
+{% macro opt_cuda_tern(arg, alt = "NULL") %}
+    {%- if arg is opt -%}{{opt_cuda_cond(arg)}} ? {{caller()}} : {{alt}}{%- else -%}{{caller()}}{%- endif -%}
+{% endmacro %}
+
+{% macro opt_cuda_if(arg) %}
+    {% if arg is opt %}
+    if ({{opt_cuda_cond(arg)}}) {
+    {{caller()|indent-}}
+    {{"}"|indent(first = true)}}
+    {% else %}
+{{caller()-}}
+    {% endif %}
+{% endmacro %}
+
+{% macro map_lookup(arg) -%}
+map{{arg.map_id}}[round32(set_size) * {{arg.map_idx}} + n]
+    {{-(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
+{%- endmacro %}
+
+{% macro arg_to_pointer_cuda(arg) -%}
+    {%- if arg is idx and arg is indirect -%}
+&map{{arg.map_id}}[round32(set_size) * {{arg.map_idx}} + n]
+    {%- elif arg is idx -%}
+&n
+    {%- elif arg is gbl -%}
+gbl{{arg.id}}{{"_local" if arg is reduction}}
+    {%- elif arg is direct -%}
+dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
+    {%- elif arg is vec -%}
+arg{{arg.id}}_vec
+    {%- elif arg is inc and config.atomics -%}
+arg{{arg.id}}_{{arg.map_idx}}_local
+    {%- else -%}
+dat{{arg.dat_id}} + {{map_lookup(arg)}}
+    {%- endif -%}
+{%- endmacro %}
+
+{% block prologue %}
+    {% for dat in lh.dats|soa %}
+int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
+    {% endfor %}
+    {% for dat in lh.dats|soa %}
+__constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
+    {% endfor %}
+
+{% endblock %}
+
+{% block kernel %}
+{% endblock %}
+
+{% block kernel_wrapper %}
+{% endblock %}
+
+{% block host_prologue_early_exit_cleanup %}
+        op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
+        op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
+        op2_queue->wait();
+{% endblock %}
+
+{% block host_prologue %}
+{{super()}}
+
+    {% if lh.args|opt|length > 0 %}
+    unsigned optflags = 0;
+
+    {% for arg in lh.args|opt %}
+        {% call opt_if(arg) %}
+    optflags |= 1 << {{lh.optIdx(arg)}};
+        {% endcall %}
+
+    {% endfor %}
+    {% endif %}
+    {% if config.color2 %}
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    int part_size = OP_PART_SIZE_{{kernel_idx}};
+#else
+    int part_size = OP_part_size;
+#endif
+
+    {% endif %}
+    {% if config.color2 and lh is indirect %}
+    {{indirect_dat_descriptor_def()|indent}}
+    op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
+                        args_expanded, num_dats_indirect, dats_indirect, OP_COLOR2);
+    {% endif %}
+    {% for arg in lh.args|gbl %}
+    {{arg.typ}} *arg{{arg.id}}_host_data = ({{arg.typ}} *)arg{{arg.id}}.data;{{"\n" if loop.last}}
+    {% endfor %}
+    {% if lh.args|gbl|read_or_write|length > 0 %}
+    int const_bytes = 0;
+
+        {% for arg in lh.args|gbl|read_or_write %}
+            {% call opt_if(arg) %}
+    const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
+            {% endcall %}
+        {% endfor %}
+
+    reallocConstArrays(const_bytes);
+    const_bytes = 0;
+
+        {% for arg in lh.args|gbl|read_or_write %}
+            {% call opt_if(arg) %}
+    arg{{arg.id}}.data   = OP_consts_h + const_bytes;
+    arg{{arg.id}}.data_d = OP_consts_d + const_bytes;
+
+    for (int d = 0; d < {{arg.dim}}; ++d)
+        (({{arg.typ}} *)arg{{arg.id}}.data)[d] = arg{{arg.id}}_host_data[d];
+
+    const_bytes += ROUND_UP({{arg.dim}} * sizeof({{arg.typ}}));
+            {% endcall %}
+
+        {% endfor %}
+    mvConstArraysToDevice(const_bytes);
+    {% endif %}
+    {% for dat in lh.dats|soa %}
+
+    if (op2_{{lh.kernel}}_dat{{dat.id}}_stride != round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}))) {
+        op2_{{lh.kernel}}_dat{{dat.id}}_stride = round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
+        cudaMemcpyToSymbol(op2_{{lh.kernel}}_dat{{dat.id}}_stride_d, &op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int));
+    }
+    {% endfor %}
+
+#ifdef OP_BLOCK_SIZE_{{kernel_idx}}
+    int block_size = OP_BLOCK_SIZE_{{kernel_idx}};
+#else
+    int block_size = OP_block_size;
+#endif
+    {% if lh is direct %}
+
+    int num_blocks = 200;
+    {% endif %}
+    {% if lh.args|gbl|reduction|length > 0 %}
+
+        {% if lh is direct %}
+    int max_blocks = num_blocks;
+        {% elif config.atomics %}
+    int max_blocks = (MAX(set->core_size, set->size + set->exec_size - set->core_size) - 1) / block_size + 1;
+        {% else %}
+    int max_blocks = 0;
+    for (int col = 0; col < plan->ncolors; ++col)
+        max_blocks = MAX(max_blocks, plan->ncolblk[col]);
+        {% endif %}
+
+    int reduction_bytes = 0;
+    int reduction_size = 0;
+
+        {% for arg in lh.args|gbl|reduction %}
+            {% call opt_if(arg) %}
+    reduction_bytes += ROUND_UP(max_blocks * {{arg.dim}} * sizeof({{arg.typ}}));
+    reduction_size   = MAX(reduction_size, sizeof({{arg.typ}}));
+            {% endcall %}
+        {% endfor %}
+
+    reallocReductArrays(reduction_bytes);
+    reduction_bytes = 0;
+
+        {% for arg in lh.args|gbl|reduction %}
+            {% call opt_if(arg) %}
+    arg{{arg.id}}.data   = OP_reduct_h + reduction_bytes;
+    arg{{arg.id}}.data_d = OP_reduct_d + reduction_bytes;
+    int arg{{arg.id}}_offset = reduction_bytes / sizeof({{arg.typ}});
+    for (int b = 0; b < max_blocks; ++b) {
+        for (int d = 0; d < {{arg.dim}}; ++d)
+            (({{arg.typ}} *)arg{{arg.id}}.data)[b * {{arg.dim}} + d] = {% if arg.access_type == OP.AccessType.INC -%}
+                ZERO_{{arg.typ}}
+            {%- else -%}
+                arg{{arg.id}}_host_data[d]
+            {%- endif %};
+    }
+
+    reduction_bytes += ROUND_UP(max_blocks * {{arg.dim}} * sizeof({{arg.typ}}));
+            {% endcall %}
+        {% endfor %}
+
+    mvReductArraysToDevice(reduction_bytes);
+    {% endif %}
+{% endblock %}
+
+{% macro kernel_call() %}
+{{lh.kernel}}_kern(
+{% for arg in lh.args %}
+    {{arg_to_pointer(arg)}}{{"," if not loop.last}}
+{% endfor %}
+);
+{%- endmacro %}
+
+{% macro sycl_buffer_extract() %}
+{% for dat in lh.dats %}
+cl::sycl::buffer<{{dat.typ}}, 1> *dat{{dat.arg_id}}_buffer = static_cast<cl::sycl::buffer<{{dat.typ}}, 1>*>((void*)args_expanded[{{dat.arg_id}}].data_d);     // {{dat.ptr}}
+{% endfor %}
+{% for map in lh.maps %}
+cl::sycl::buffer<int, 1> *map{{map.arg_id}}_buffer = static_cast<cl::sycl::buffer<int, 1>*>((void*)args_expanded[{{map.arg_id}}].map_data_d);     // {{map.ptr}}
+{% endfor %}
+{%- endmacro %}
+
+{% macro sycl_buffer_accessors() %}
+{% for dat in lh.dats %}
+{{dat.typ}} *dat{{dat.id}} = ({{dat.typ}} *)arg{{dat.arg_id}}.data_d; // {{dat.ptr}}
+{% endfor %}
+{% for map in lh.maps %}
+int *opDat{{map.id}}Map = (int *)arg{{map.arg_id}}.map_data_d;  // {{map.ptr}}
+{% endfor %}
+{% for arg in lh.args|gbl|reduction %}
+{{arg.typ}} *dat{{arg.id}} = ({{arg.typ}} *)arg{{arg.id}}.data_d;
+sycl::accessor<{{arg.typ}}, 1, sycl::access::mode::read_write, sycl::access::target::local>
+                                red_{{arg.typ}}{{arg.id}}(block_size, cgh); // temp variable for reduction
+{% endfor %}
+
+{% for const in lh.consts %}
+auto {{const.ptr}}_sycl = {{const.ptr}}_p->get_access<cl::sycl::access::mode::read>(cgh);
+{% endfor %}
+{%- endmacro %}
+
+{% block host_loop %}
+    {% if lh is direct %}
+    try {
+    op2_queue->submit([&](cl::sycl::handler& cgh) {
+        {{sycl_buffer_accessors()|indent(8)}}
+        auto kern = [=](cl::sycl::nd_item<1> item) {
+
+            {{kernel_func|indent(12)}}
+
+        {% for arg in lh.args|gbl|reduction %}
+            {{arg.typ}} arg{{arg.id}}_local[{{arg.dim}}];
+            for (int d = 0; d < {{arg.dim}}; ++d) {
+                arg{{arg.id}}_local[d] = {% if arg is inc -%}
+                    ZERO_{{arg.typ}}
+                {%- else -%}
+                    gbl{{arg.id}}[d]
+                {%- endif %};
+            }
+        {% endfor %}
+            for (int n = item.get_global_linear_id(); n < set_size; n += item.get_global_range()[0] ){
+                {{kernel_call()|indent(16)}}
+            }
+
+        {% for arg in lh.args|gbl|reduction %}
+            for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{arg.dim}}; ++d)
+                op_reduction<{{arg.access_type.value}}, 0>(dat{{arg.id}}, arg{{arg.id}}_offset + d + item.get_group_linear_id() * {{arg.dim}},
+                                arg{{arg.id}}_local[d], red_double{{arg.id}}, item);
+        {% endfor %}
+        };
+
+        cgh.parallel_for<class {{lh.kernel}}_kernel>(
+            cl::sycl::nd_range<1>(block_size * num_blocks, block_size), kern);
+    });
+    } catch(cl::sycl::exception const &e) {
+        std::cout << e.what() << std::endl;
+        exit(-1);
+    }
+    {% elif config.atomics %}
+    // ERROR: Atomic Path not implemented
+    {% else %}
+    for (int col = 0; col < plan->ncolors; ++col) {
+        if (col == plan->ncolors_core)
+            op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
+
+        int start = plan->col_offsets[0][col];
+        int end = plan->col_offsets[0][col + 1];
+        int num_blocks = (end - start - 1) / block_size + 1;
+
+        try {
+        op2_queue->submit([&](cl::sycl::handler& cgh) {
+            {{sycl_buffer_accessors()|indent(12)}}
+            int *col_reord = plan->col_reord;
+
+            auto kern = [=](cl::sycl::nd_item<1> item) {
+
+                {{kernel_func|indent(16)}}
+
+                int tid = item.get_global_linear_id();
+                if (tid + start < end) {
+                    int n = col_reord[tid + start];
+
+                    {{kernel_call()|indent(20)}}
+                }
+            };
+
+            cgh.parallel_for<class {{lh.kernel}}_kernel>(
+                cl::sycl::nd_range<1>(block_size * num_blocks, block_size), kern);
+        {% if lh.args|gbl|reduction|length > 0 %}
+
+            if (col == plan->ncolors_owned - 1)
+                mvReductArraysToHost(reduction_bytes);
+        {% endif %}
+        });
+        } catch(cl::sycl::exception const &e) {
+            std::cout << e.what() << std::endl;
+            exit(-1);
+        }
+    }
+    {% endif %}
+{% endblock %}
+
+{% block host_epilogue %}
+    {% if lh.args|gbl|read_write|length > 0 or lh.args|gbl|write|length > 0 %}
+    mvConstArraysToHost(const_bytes);
+    
+        {% for arg in lh.args|gbl if arg is write or arg is read_write %}
+    for (int d = 0; d < {{arg.dim}}; ++d)
+        arg{{arg.id}}_host_data[d]; = (({{arg.typ}} *)arg{{arg.id}}.data)[d];
+        {% endfor %}
+    {% endif %}
+    {% for arg in lh.args|gbl|read_or_write %}
+    arg{{arg.id}}.data = (char *)arg{{arg.id}}_host_data;{{"\n" if loop.last}}
+    {% endfor %}
+    {% if lh.args|gbl|reduction|length > 0 %}
+    mvReductArraysToHost(reduction_bytes);
+    
+    {% endif %}
+    {% for arg in lh.args|gbl|reduction %}
+    for (int b = 0; {{opt_cond_comp(arg)}}b < max_blocks; ++b) {
+        for (int d = 0; d < {{arg.dim}}; ++d)
+        {% if arg.access_type == OP.AccessType.INC %}
+            arg{{arg.id}}_host_data[d] += (({{arg.typ}} *)arg{{arg.id}}.data)[b * {{arg.dim}} + d];
+        {% elif arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX] %}
+            arg{{arg.id}}_host_data[d] = {{arg.access_type.name-}}
+                (arg{{arg.id}}_host_data[d], (({{arg.typ}} *)arg{{arg.id}}.data)[b * {{arg.dim}} + d]);
+        {% endif %}
+    }
+
+    {% endfor %}
+    {% for arg in lh.args|gbl|reduction %}
+        {% call opt_if(arg) %}
+    arg{{arg.id}}.data = (char *)arg{{arg.id}}_host_data;
+    op_mpi_reduce(&arg{{arg.id}}, arg{{arg.id}}_host_data);
+        {% endcall %}
+
+    {% endfor %}
+    op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
+    op2_queue->wait();
+
+{{super()}}
+    {% if lh is direct %}
+        {% for arg in lh.args_expanded|reject("gbl") %}
+            {% call opt_if(arg) %}
+    OP_kernels[{{kernel_idx}}].transfer += (float)set->size * arg{{arg.id}}.size{{-" * 2.0f" if not arg is read}};
+            {% endcall %}
+        {% endfor %}
+    {% elif config.color2 %}
+    OP_kernels[{{kernel_idx}}].transfer  += plan->transfer;
+    OP_kernels[{{kernel_idx}}].transfer2 += plan->transfer2;
+    {% endif %}
+{% endblock %}
+

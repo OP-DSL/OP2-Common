@@ -86,6 +86,12 @@ class OpenMP(Target):
             "thread_timing": False,
         }
 
+class Sycl(Target):
+    name = "sycl"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"grouped": True, "device": 2, "atomics": False, "color2": True, "gbl_inc_atomic": False}
 
 Target.register(Seq)
 Target.register(CSeq)
@@ -93,3 +99,4 @@ Target.register(Cuda)
 Target.register(CCuda)
 Target.register(CHip)
 Target.register(OpenMP)
+Target.register(Sycl)

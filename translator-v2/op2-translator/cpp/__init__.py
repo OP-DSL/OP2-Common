@@ -126,6 +126,7 @@ class Cpp(Lang):
 
         cpp.parser.parseLoops(ast, program)
         cpp.parser.parseMeta(ast_pp.cursor, program)
+        cpp.parser.parseLoopConsts(program)
 
         return program
 

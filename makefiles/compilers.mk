@@ -65,6 +65,11 @@ ifneq ($(shell which $(CONFIG_FC) 2> /dev/null),)
   CONFIG_HAVE_F := true
 endif
 
+ifneq ($(shell which $(CONFIG_SYCLCC) 2> /dev/null),)
+  CONFIG_SYCLCC != which $(CONFIG_SYCLCC)
+  CONFIG_HAVE_SYCL := true
+endif
+
 # Check for the MPI compilers
 ifdef MPI_INSTALL_PATH
   MPI_BIN ?= $(MPI_INSTALL_PATH)/bin/

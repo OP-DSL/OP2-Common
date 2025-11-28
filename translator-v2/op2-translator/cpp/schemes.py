@@ -113,3 +113,48 @@ class CppCuda(Scheme):
 
 
 Scheme.register(CppCuda)
+
+class CppSycl(Scheme):
+    lang = Lang.get("cpp")
+    target = Target.get("sycl")
+
+    fallback = None
+
+    consts_template = None
+    loop_host_templates = [Path("cpp/sycl/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("cpp/sycl/master_kernel.cpp.jinja")]
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        import cpp.translator.kernels as ctk
+
+        kernel_entities = app.findEntities(loop.kernel, program)
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel: {loop.kernel}")
+
+        extracted_entities = ctk.extractDependencies(kernel_entities, app)
+
+        ctk.updateKernelAsLambda(extracted_entities)
+        # ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_sycl")
+
+        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            ctk.insertStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+            )
+
+        return ctk.writeSource(extracted_entities, ";")
+
+
+Scheme.register(CppSycl)

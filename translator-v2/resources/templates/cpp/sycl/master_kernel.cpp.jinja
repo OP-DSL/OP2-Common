@@ -1,0 +1,28 @@
+{% extends "cpp/master_kernel.cpp.jinja" %}
+
+{% block const_decls %}
+    {% for const in app.consts() %}
+cl::sycl::buffer<{{const.typ}}, 1> *{{const.ptr}}_p=NULL;
+    {% endfor %}
+{% endblock %}
+
+{% block includes %}
+    {% if user_types is not none %}
+#ifndef OP_FUN_PREFIX
+#define OP_FUN_PREFIX __host__ __device__
+#endif
+
+    {% endif %}
+{{super()}}
+#include "op_sycl_rt_support.h"
+#include "op_sycl_reduction.h"
+{% endblock %}
+
+{% block const_decl_func %}
+    {% call(const) const_decl_func("if (!OP_hybrid_gpu) return;") %}
+{{const.ptr}}_p = static_cast<cl::sycl::buffer<{{const.typ}}, 1>*>(
+            op_sycl_register_const((void*){{const.ptr}}_p,
+                (void*)new cl::sycl::buffer<{{const.typ}}, 1>(({{const.typ}}*)dat,
+                    cl::sycl::range<1>(dim))));
+    {%- endcall %}
+{% endblock %}

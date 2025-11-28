@@ -1,9 +1,3 @@
-{% block const_decls %}
-    {% for const in app.consts() %}
-extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
-    {% endfor %}
-{% endblock %}
-
 {% block includes %}
     {% if user_types is not none %}
 {{user_types}}
@@ -11,6 +5,12 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
     {% endif %}
 #include "op_lib_cpp.h"
 {%- endblock %}
+
+{% block const_decls %}
+    {% for const in app.consts() %}
+extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+{% endblock %}
 
 {%- macro const_decl_func(guard='') %}
 #ifndef MAX_CONST_SIZE

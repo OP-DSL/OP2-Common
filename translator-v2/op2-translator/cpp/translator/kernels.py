@@ -99,7 +99,7 @@ def insertStride(
             rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(dat_id)}")
 
 
-def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
+def writeSource(entities: List[Tuple[Entity, Rewriter]], end_append: str = "") -> str:
     source = ""
     while len(entities) > 0:
         for i in range(len(entities)):
@@ -114,13 +114,34 @@ def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
             if resolved:
                 entities.pop(i)
                 if source == "":
-                    source = rewriter.rewrite()
+                    source = rewriter.rewrite() + end_append
                 else:
-                    source = source + "\n\n" + rewriter.rewrite()
+                    source = source + "\n\n" + rewriter.rewrite() + end_append
 
-                if isinstance(entity, Type):
+                if isinstance(entity, Type) and end_append != ";":
                     source = source + ";"
 
                 break
 
     return source
+
+
+def updateKernelAsLambda(entities: List[Tuple[Entity, Rewriter]]) -> None:
+    for entity, rewriter in filter(lambda e: isinstance(e[0], Function), entities):
+        tokens_iterator = entity.ast.get_tokens()
+        token = next(tokens_iterator)
+        for i in range(3):
+            if token is None:
+                continue        
+            elif token.spelling == "inline": 
+                replacement1 = lambda typ, _: f"auto"
+                rewriter.update(extentToSpan(token.extent), lambda s: replacement1(s, entity))
+            elif token.spelling == "void":
+                replacement2 = lambda typ, _: f""
+                rewriter.update(extentToSpan(token.extent), lambda s: replacement2(s, entity))
+            else: # not only kernel since it kernel can have dependent functions
+                replacement3 = lambda typ, _: f"{typ}_kern = [=]"
+                rewriter.update(extentToSpan(token.extent), lambda s: replacement3(s, entity))
+                break
+            token = next(tokens_iterator)
+

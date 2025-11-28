@@ -86,6 +86,13 @@ ifeq ($(MAKECMDGOALS),config)
     $(call info_bold,> C/C++ HIP compiler $(TEXT_NOTFOUND); skipping search for HIP libraries)
   endif
 
+  ifeq ($(CONFIG_HAVE_SYCL),true)
+    $(call info_bold,> C/C++ SYCL compiler $(TEXT_FOUND) ($(CONFIG_SYCLCC)); looking for the SYCL libraries)
+    include $(DEPS_DIR)/sycl.mk
+  else
+    $(call info_bold,> C/C++ SYCL compiler $(TEXT_NOTFOUND); skipping search for SYCL libraries)
+  endif
+
   $(info )
 
   ifeq ($(CONFIG_HAVE_MPI_C),true)
@@ -148,6 +155,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C++: $(if $(HAVE_C),$(CXX),not found))
   $(info .   CUDA: $(if $(HAVE_C_CUDA),$(NVCC),not found))
   $(info .   HIP: $(if $(HAVE_C_HIP),$(HIPCC),not found))
+  $(info .   SYCL: $(if $(HAVE_SYCL),$(SYCLCC),not found))
   $(info .   Fortran: $(if $(HAVE_F),$(FC),not found))
   $(info )
   $(info MPI compilers:)
@@ -157,6 +165,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info )
   $(info CUDA libraries: $(call I_STR,CUDA))
   $(info HIP libraries: $(call I_STR,HIP))
+  $(info SYCL libraries: $(call I_STR,SYCL))
   $(info )
   $(info HDF5 I/O:)
   $(info .   Sequential: $(call I_STR,HDF5_SEQ))
@@ -172,15 +181,16 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   C++: $(CXXFLAGS))
   $(info .   CUDA: $(NVCCFLAGS))
   $(info .   HIP: $(HIPCCFLAGS))
+  $(info .   SYCL: $(SYCLCCFLAGS))
   $(info .   Fortran: $(FFLAGS))
   $(info .   CUDA Fortran: $(CUDA_FFLAGS))
   $(info )
 endif
 
-OP2_LIBS_SINGLE_NODE := seq cuda hip openmp openmp4
+OP2_LIBS_SINGLE_NODE := seq cuda hip openmp openmp4 sycl
 OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
 
-OP2_LIBS_MPI := mpi mpi_cuda mpi_hip
+OP2_LIBS_MPI := mpi mpi_cuda mpi_hip mpi_sycl
 OP2_FOR_LIBS_MPI := $(foreach lib,$(OP2_LIBS_MPI),f_$(lib))
 
 OP2_LIBS := hdf5 $(OP2_LIBS_SINGLE_NODE) $(OP2_LIBS_MPI)

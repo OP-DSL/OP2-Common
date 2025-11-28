@@ -7,8 +7,7 @@ from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
 from store import Function, Location, ParseError, Program, Type
-from util import safeFind
-
+from util import safeFind, findIdx
 
 def parseMeta(node: Cursor, program: Program) -> None:
     if node.kind == CursorKind.TYPE_REF:
@@ -82,6 +81,19 @@ def parseFunction(ref_node: Cursor, program: Program) -> None:
         function.depends.add(n.spelling)
 
     program.entities.append(function)
+
+
+def parseLoopConsts(program: Program) -> None:
+    for loop in program.loops:
+        entities = program.findEntities(loop.kernel, [])
+        for entity in entities:
+            for node in entity.ast.walk_preorder():
+                if node.kind != CursorKind.DECL_REF_EXPR:
+                    continue
+                const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
+                if const_id is not None:
+                    loop.addConst(program.consts[const_id])
+        loop.consts.sort(key=lambda c: c.ptr.strip())
 
 
 def parseLoops(translation_unit: TranslationUnit, program: Program) -> None:

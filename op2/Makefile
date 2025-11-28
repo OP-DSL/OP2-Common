@@ -5,7 +5,7 @@ OBJ ?= $(OP2_BUILD_DIR)/obj
 MOD ?= $(OP2_BUILD_DIR)/mod
 MOD_CUDA ?= $(MOD)/cuda
 
-INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC) $(HIP_INC)
+INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC) $(HIP_INC) $(SYCL_INC)
 
 # Calculate the libraries that we can actually build
 ifeq ($(HAVE_C),true)
@@ -37,6 +37,14 @@ ifeq ($(HAVE_C),true)
 
     ifeq ($(MPI_IS_BUILDABLE),true)
       OP2_BUILDABLE_LIBS += mpi_hip
+    endif
+  endif
+
+	ifeq ($(HAVE_SYCL),true)
+    OP2_BUILDABLE_LIBS += sycl
+
+    ifeq ($(MPI_IS_BUILDABLE),true)
+      OP2_BUILDABLE_LIBS += mpi_sycl
     endif
   endif
 
@@ -123,6 +131,11 @@ OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl+hip.o \
 	cuda/op_cuda_rt_support+hip.o \
+	externlib/op_timing2.o)
+
+OP2_SYCL := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	sycl/op_sycl_decl+sycl.o \
+	sycl/op_sycl_rt_support+sycl.o \
 	externlib/op_timing2.o)
 
 OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
@@ -232,6 +245,9 @@ $(OBJ)/mpi/%+cuda.o: src/mpi/%.cpp | $(OBJ)
 $(OBJ)/mpi/%+hip.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -DOP2_HIP -c $< -o $@
 
+$(OBJ)/mpi/%+sycl.o: src/mpi/%.cpp | $(OBJ)
+	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -DOP2_SYCL -c $< -o $@
+
 $(OBJ)/%+mpi.o: src/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -DOPMPI -c $< -o $@
 
@@ -240,6 +256,9 @@ $(OBJ)/%+cuda.o: src/%.cpp | $(OBJ)
 
 $(OBJ)/%+hip.o: src/%.cpp | $(OBJ)
 	$(CXX) $(CXXFLAGS) $(INC) -DOP2_HIP -c $< -o $@
+
+$(OBJ)/%+sycl.o: src/%.cpp | $(OBJ)
+	$(SYCLCC) $(SYCLCCFLAGS) $(INC) -DOP2_SYCL -c $< -o $@
 
 $(OBJ)/%+cuda.o: src/%.cu | $(OBJ)
 	$(NVCC) $(NVCCFLAGS) $(INC) -DOP2_CUDA -c $< -o $@
