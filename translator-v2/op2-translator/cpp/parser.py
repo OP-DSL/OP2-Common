@@ -225,7 +225,7 @@ def parseArgInfo(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict
 
     ptr = parseIdentifier(args[0])
     dim = parseIntExpression(args[1])
-    typ = parseType(parseStringLit(args[2]), loc)
+    typ, _ = parseType(parseStringLit(args[2]), loc)
 
     ref = parseIntExpression(args[3])
 

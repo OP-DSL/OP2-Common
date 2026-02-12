@@ -3,6 +3,10 @@
 {%- macro arg_to_pointer(arg) -%}
     {%- if arg is gbl -%}
 gbl{{arg.id}}
+    {%- elif arg is idx -%}
+&n
+    {%- elif arg is info -%}
+info{{arg.id}}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}} + n * {{lh.dat(arg).dim}}
     {%- else -%}
@@ -15,8 +19,10 @@ arg{{arg.id}}{{"_%s" % (arg.map_idx) if arg is indirect}}_local
 {%- endmacro -%}
 
 {%- macro arg_to_pointer_local(arg) -%}
-    {%- if arg is read -%}
+    {%- if arg is read or arg is idx -%}
 {{arg_to_pointer(arg)}}
+    {%- elif arg is info -%}
+info{{arg.id}}_local[lane]
     {%- else -%}
 {{arg_local(arg)}}[lane]
     {%- endif -%}
@@ -40,6 +46,9 @@ void {{lh.name}}_wrapper(
     {% for arg in lh.args|gbl %}
     {{"const " if arg is read}}{{arg.typ}} *__restrict__ gbl{{arg.id}},
     {% endfor %}
+    {% for arg in lh.args|info %}
+    {{arg.typ}} *__restrict__ info{{arg.id}},
+    {% endfor %}
     int start,
     int end
 ) {
@@ -59,6 +68,9 @@ void {{lh.name}}_wrapper(
         {% endfor %}
         {% for arg in lh.args|gbl|reduction %}
         alignas(SIMD_LEN * 8) {{arg.typ}} {{arg_local(arg)}}[SIMD_LEN][{{arg.dim}}]{{" = {0}" if arg is inc}};
+        {% endfor %}
+        {% for arg in lh.args|info %}
+        alignas(SIMD_LEN * 8) {{arg.typ}} info{{arg.id}}_local[SIMD_LEN][{{arg.dim}}];
         {% endfor %}
 
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
@@ -113,8 +125,16 @@ void {{lh.name}}_wrapper(
             {% if arg is inc %}
                 {{arg_to_pointer(arg)}}[d] += {{arg_to_pointer_local(arg)}}[d];
             {% else %}
+                {% if lh.args|info|count > 0 %}
+                {%- set info_arg = (lh.args | info)[0] %}
+                if (arg{{arg.id}}_local[lane][d] {{">" if arg is max else "<" }} {{arg_to_pointer(arg)}}[d]) {
+                    {{arg_to_pointer(arg)}}[d] = arg{{arg.id}}_local[lane][d];
+                    {{arg_to_pointer(info_arg)}}[d] = info{{info_arg.id}}_local[lane][d];
+                }
+                {% else %}
                 {{arg_to_pointer(arg)}}[d] = {{arg.access_type.name-}}
                     ({{arg_to_pointer(arg)}}[d], {{arg_to_pointer_local(arg)}}[d]);
+                {% endif %}
             {% endif %}
             }
         {% endfor %}
@@ -178,6 +198,10 @@ void {{lh.name}}_wrapper(
             {%- endif %};
     }
     {% endfor %}
+    {% for arg in lh.args|info %}
+    {{arg.typ}} *info{{arg.id}} = ({{arg.typ}} *)arg{{arg.id}}.data;
+    {{arg.typ}} info{{arg.id}}_local[num_threads * 64];
+    {% endfor %}
 {% endblock %}
 
 {% block host_prologue_early_exit_cleanup %}
@@ -208,6 +232,9 @@ void {{lh.name}}_wrapper(
             {% else %}
             ({{arg.typ}} *)arg{{arg.id}}.data,
             {% endif %}
+        {% endfor %}
+        {% for arg in lh.args|info %}
+            info{{arg.id}}_local + 64 * omp_get_thread_num(),
         {% endfor %}
             start,
             end
@@ -242,6 +269,9 @@ void {{lh.name}}_wrapper(
                 ({{arg.typ}} *)arg{{arg.id}}.data,
             {% endif %}
         {% endfor %}
+        {% for arg in lh.args|info %}
+            info{{arg.id}}_local + 64 * omp_get_thread_num(),
+        {% endfor %}
                 offset,
                 offset + num_elem
             );
@@ -259,8 +289,16 @@ void {{lh.name}}_wrapper(
                 {% if arg is inc %}
                 gbl{{arg.id}}[d] += gbl{{arg.id}}_local[thread * 64 + d];
                 {% else %}
+                    {% if lh.args|info|count > 0 %}
+                    {%- set info_arg = (lh.args | info)[0] %}
+                if (gbl{{arg.id}}_local[thread * 64 + d] {{">" if arg is max else "<" }} gbl{{arg.id}}[d]) {
+                    gbl{{arg.id}}[d] = gbl{{arg.id}}_local[thread * 64 + d];
+                    {{arg_to_pointer(info_arg)}}[d] = info{{info_arg.id}}_local[thread * 64 + d];
+                }
+                    {% else %}
                 gbl{{arg.id}}[d] = {{arg.access_type.name-}}
                     (gbl{{arg.id}}[d], gbl{{arg.id}}_local[thread * 64 + d]);
+                    {% endif %}
                 {% endif %}
         }
             {% endfor %}
@@ -282,8 +320,16 @@ void {{lh.name}}_wrapper(
             {% if arg is inc %}
             gbl{{arg.id}}[d] += gbl{{arg.id}}_local[thread * 64 + d];
             {% else %}
+                {% if lh.args|info|count > 0 %}
+                {%- set info_arg = (lh.args | info)[0] %}
+            if (gbl{{arg.id}}_local[thread * 64 + d] {{">" if arg is max else "<" }} gbl{{arg.id}}[d]) {
+                gbl{{arg.id}}[d] = gbl{{arg.id}}_local[thread * 64 + d];
+                {{arg_to_pointer(info_arg)}}[d] = info{{info_arg.id}}_local[thread * 64 + d];
+            }
+                {% else %}
             gbl{{arg.id}}[d] = {{arg.access_type.name-}}
                 (gbl{{arg.id}}[d], gbl{{arg.id}}_local[thread * 64 + d]);
+                {% endif %}
             {% endif %}
     }
             {% endfor %}

@@ -1,5 +1,5 @@
 inline void update(const double *qold, double *q, double *res,
-                   const double *adt, double *rms) {
+                   const double *adt, double *rms, double *maxerr, int *idx, int *errloc) {
   double del, adti;
 
   adti = 1.0f / (*adt);
@@ -8,6 +8,12 @@ inline void update(const double *qold, double *q, double *res,
     del = adti * res[n];
     q[n] = qold[n] - del;
     res[n] = 0.0f;
-    *rms += del * del;
+    double sqdel = del * del;
+    *rms += sqdel;
+
+    if (sqdel > *maxerr) {
+      *maxerr = sqdel;
+      *errloc = *idx;
+    }
   }
 }
