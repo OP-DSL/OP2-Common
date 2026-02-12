@@ -159,8 +159,8 @@ int main(int argc, char **argv) {
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
 
-  int nnode, ncell, nedge, nbedge, niter;
-  double rms;
+  int nnode, ncell, nedge, nbedge, niter, errloc;
+  double rms, maxerr;
 
   /**------------------------BEGIN I/O and PARTITIONING -------------------**/
 
@@ -357,8 +357,8 @@ int main(int argc, char **argv) {
   op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
-  op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
-  // op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
+  // op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
+  op_partition("PARMETIS", "KWAY", cells, pecell, p_x);
 
   // initialise timers for total execution wall time
   op_timers(&cpu_t1, &wall_t1);
@@ -406,19 +406,24 @@ int main(int argc, char **argv) {
       //    update flow field
 
       rms = 0.0;
+      maxerr = 0.0;
+      errloc = 0;
 
       op_par_loop(update, "update", cells,
                   op_arg_dat(p_qold, -1, OP_ID, 4, "double", OP_READ),
                   op_arg_dat(p_q, -1, OP_ID, 4, "double", OP_WRITE),
                   op_arg_dat(p_res, -1, OP_ID, 4, "double", OP_RW),
                   op_arg_dat(p_adt, -1, OP_ID, 1, "double", OP_READ),
-                  op_arg_gbl(&rms, 1, "double", OP_INC));
+                  op_arg_gbl(&rms, 1, "double", OP_INC),
+                  op_arg_gbl(&maxerr, 1, "double", OP_MAX),
+                  op_arg_idx(-1, OP_ID),
+                  op_arg_info(&errloc, 1, "int", 6));
     }
 
     // print iteration history
     rms = sqrt(rms / (double)g_ncell);
     if (iter % 100 == 0)
-      op_printf(" %d  %10.5e \n", iter, rms);
+      op_printf(" %d  %10.5e, max err: %3.15E at %d\n", iter, rms, maxerr, errloc);
 
     if (iter % 1000 == 0 &&
         g_ncell == 720000) { // defailt mesh -- for validation testing

@@ -30,9 +30,9 @@ map{{arg.map_id}}[{{map_idx(arg)}}]
 
 {%- macro arg_to_pointer(arg) %}
     {%- if arg is idx and arg is indirect -%}
-idx{{arg.id}}
+&idx{{arg.id}}
     {%- elif arg is idx -%}
-idx
+&idx
     {%- else -%}
 {{arg_to_pointer2(arg)}}
     {%- endif -%}

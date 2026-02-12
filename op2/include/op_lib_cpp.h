@@ -163,6 +163,14 @@ op_arg op_arg_gbl(T *data, int dim, char const *type, op_access acc) {
 }
 
 template <class T>
+op_arg op_arg_info(T *data, int dim, char const *type, int ref) {
+  if (type_error(data, type))
+    return op_arg_info_char((char *)data, dim, "error", sizeof(T), ref);
+  else
+    return op_arg_info_char((char *)data, dim, type, sizeof(T), ref);
+}
+
+template <class T>
 op_arg op_opt_arg_gbl(int opt, T *data, int dim, char const *type,
                       op_access acc) {
   if (type_error(data, type))
