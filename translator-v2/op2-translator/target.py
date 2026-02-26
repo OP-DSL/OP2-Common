@@ -47,6 +47,12 @@ class Cuda(Target):
     def defaultConfig(self) -> Dict[str, Any]:
         return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
 
+class Hip(Target):
+    name = "hip"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
 
 class CCuda(Target):
     name = "c_cuda"
@@ -90,6 +96,7 @@ class OpenMP(Target):
 Target.register(Seq)
 Target.register(CSeq)
 Target.register(Cuda)
+Target.register(Hip)
 Target.register(CCuda)
 Target.register(CHip)
 Target.register(OpenMP)

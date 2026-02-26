@@ -199,6 +199,7 @@ void {{lh.name}}_wrapper(
     }
     {% endfor %}
     {% for arg in lh.args|info %}
+
     {{arg.typ}} *info{{arg.id}} = ({{arg.typ}} *)arg{{arg.id}}.data;
     {{arg.typ}} info{{arg.id}}_local[num_threads * 64];
     {% endfor %}

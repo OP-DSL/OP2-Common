@@ -1,0 +1,25 @@
+{% extends "cpp/master_kernel.cpp.jinja" %}
+
+{% block const_decls %}
+    {% for const in app.consts() %}
+__constant__ {{const.typ}} {{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+{% endblock %}
+
+{% block includes %}
+    {% if user_types is not none %}
+#ifndef OP_FUN_PREFIX
+#define OP_FUN_PREFIX __host__ __device__
+#endif
+
+    {% endif %}
+{{super()}}
+#include "op_cuda_rt_support.h"
+#include "op_cuda_reduction.h"
+{% endblock %}
+
+{% block const_decl_func %}
+    {% call(const) const_decl_func("if (!OP_hybrid_gpu) return;") %}
+cutilSafeCall(hipMemcpyToSymbol(HIP_SYMBOL({{const.ptr}}_d), dat, dim * size));
+    {%- endcall %}
+{% endblock %}
