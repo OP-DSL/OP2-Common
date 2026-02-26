@@ -367,8 +367,8 @@ int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
 
     if (reduction_bytes_per_thread == 0) return INT32_MAX;
 
-    if (reduction_bytes_per_thread > 1024)
-        printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, reduction_bytes_per_thread);
+    if (reduction_bytes_per_thread > 8 * 1024)
+        op_printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, reduction_bytes_per_thread);
 
     size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
     return std::max(max_total_reduction / ((size_t) block_size * reduction_bytes_per_thread), 1UL);
