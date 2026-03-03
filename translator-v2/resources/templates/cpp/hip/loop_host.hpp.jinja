@@ -227,7 +227,7 @@ __global__ void op_hip_{{lh.name}}(
 
     if (op2_{{lh.kernel}}_dat{{dat.id}}_stride != round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}))) {
         op2_{{lh.kernel}}_dat{{dat.id}}_stride = round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
-        hipMemcpyToSymbol(HIP_SYMBOL(op2_{{lh.kernel}}_dat{{dat.id}}_stride_d), &op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int));
+        cutilSafeCall(hipMemcpyToSymbol(HIP_SYMBOL(op2_{{lh.kernel}}_dat{{dat.id}}_stride_d), &op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int)));
     }
     {% endfor %}
 

@@ -133,7 +133,7 @@ $(APP_NAME)_hip: generated/$(APP_NAME)/hip/op2_kernels.o
 $(APP_NAME)_mpi_hip: generated/$(APP_NAME)/hip/op2_kernels.o
 
 generated/$(APP_NAME)/hip/op2_kernels.o: generated/$(APP_NAME)
-	$$(HIPCC) $$(HIPCCFLAGS) $(APP_INC) $$(OP2_INC) -DOP2_HIP -c generated/$(APP_NAME)/hip/op2_kernels.hip.cpp -o $$@
+	$$(HIPCC) $$(HIPCCFLAGS) $(APP_INC) $$(OP2_INC) -DOP2_HIP -c generated/$(APP_NAME)/hip/op2_kernels.cpp -o $$@
 endef
 
 $(eval $(call HIP_EXTRA_RULES_template))
