@@ -1,7 +1,7 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
 {% macro stride_cuda(arg) -%}
-{{-" * op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
+{{-" * op2_k%s::op2_%s_dat%s_stride_d" % (kernel_idx, lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
 {%- endmacro %}
 
 {% macro opt_cond(arg) %}
@@ -72,12 +72,20 @@ dat{{arg.dat_id}} + {{map_lookup(arg)}}
 {%- endmacro %}
 
 {% block prologue %}
+namespace op2_k{{kernel_idx}} {
+
     {% for dat in lh.dats|soa %}
 int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
     {% endfor %}
     {% for dat in lh.dats|soa %}
 __constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
     {% endfor %}
+
+{% endblock %}
+
+{% block kernel %}
+{{kernel_func}}
+}
 
 {% endblock %}
 
@@ -225,9 +233,9 @@ __global__ void op_cuda_{{lh.name}}(
     {% endif %}
     {% for dat in lh.dats|soa %}
 
-    if (op2_{{lh.kernel}}_dat{{dat.id}}_stride != round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}))) {
-        op2_{{lh.kernel}}_dat{{dat.id}}_stride = round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
-        cudaMemcpyToSymbol(op2_{{lh.kernel}}_dat{{dat.id}}_stride_d, &op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int));
+    if (op2_k{{kernel_idx}}::op2_{{lh.kernel}}_dat{{dat.id}}_stride != round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}))) {
+        op2_k{{kernel_idx}}::op2_{{lh.kernel}}_dat{{dat.id}}_stride = round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
+        cudaMemcpyToSymbol(op2_k{{kernel_idx}}::op2_{{lh.kernel}}_dat{{dat.id}}_stride_d, &op2_k{{kernel_idx}}::op2_{{lh.kernel}}_dat{{dat.id}}_stride, sizeof(int));
     }
     {% endfor %}
 
