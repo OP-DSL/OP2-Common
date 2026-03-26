@@ -7,7 +7,7 @@ from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
 from store import Function, Location, ParseError, Program, Type
-from util import safeFind
+from util import safeFind, findIdx
 
 
 def parseMeta(node: Cursor, program: Program) -> None:
@@ -332,3 +332,14 @@ def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
         return None
 
     return next(node.get_children(), None)
+
+def findLoopConsts(program: Program) -> None:
+    for loop in program.loops:
+        for entity in program.findEntities(loop.kernel, []):
+            for node in entity.ast.walk_preorder():
+                if node.kind != CursorKind.DECL_REF_EXPR:
+                    continue
+                const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
+                if const_id is not None:
+                    loop.addConst(program.consts[const_id])
+                    # print(f"found const {program.consts[const_id].ptr} for loop {loop.name}")

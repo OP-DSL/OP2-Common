@@ -157,3 +157,96 @@ class CppHip(Scheme):
 
 
 Scheme.register(CppHip)
+
+class CppJitCuda(Scheme):
+    lang = Lang.get("cpp")
+    target = Target.get("c_cuda")
+
+    fallback = Scheme.get((Lang.get("cpp"), Target.get("seq")))
+
+    fallback = None
+
+    consts_template = None
+    loop_host_templates = [Path("cpp/jit_cuda/loop_host.h.jinja")]
+    master_kernel_templates = [Path("cpp/jit_cuda/master_kernel.cu.jinja")]
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        import cpp.translator.kernels as ctk
+
+        kernel_entities = app.findEntities(loop.kernel, program)
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel: {loop.kernel}")
+
+        extracted_entities = ctk.extractDependencies(kernel_entities, app)
+
+        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
+
+        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            ctk.insertStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+            )
+
+        return ctk.writeSource(extracted_entities)
+
+
+Scheme.register(CppJitCuda)
+
+
+class CppJitHip(Scheme):
+    lang = Lang.get("cpp")
+    target = Target.get("c_hip")
+
+    fallback = Scheme.get((Lang.get("cpp"), Target.get("seq")))
+
+    fallback = None
+
+    consts_template = None
+    loop_host_templates = [Path("cpp/jit_hip/loop_host.h.jinja")]
+    master_kernel_templates = [Path("cpp/jit_hip/master_kernel.cpp.jinja")]
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        import cpp.translator.kernels as ctk
+
+        kernel_entities = app.findEntities(loop.kernel, program)
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel: {loop.kernel}")
+
+        extracted_entities = ctk.extractDependencies(kernel_entities, app)
+
+        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
+
+        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            ctk.insertStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+            )
+
+        return ctk.writeSource(extracted_entities)
+
+
+Scheme.register(CppJitHip)

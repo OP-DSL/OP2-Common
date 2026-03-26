@@ -118,19 +118,19 @@ OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl+cuda.o \
 	cuda/op_cuda_rt_support+cuda.o \
+	cuda/op2_cuda_rt_wrappers+cuda.o \
 	externlib/op_timing2.o)
 
 OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl+hip.o \
 	cuda/op_cuda_rt_support+hip.o \
+	cuda/op2_cuda_rt_wrappers+hip.o \
 	externlib/op_timing2.o)
 
 OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda+cuda.o \
 	cudaConfigurationParams.o)
 
 OP2_FOR_HIP := $(OP2_HIP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda+hip.o \
 	cudaConfigurationParams.o)
 
 OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
@@ -165,6 +165,7 @@ OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 
 OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_rt_support+mpi+cuda.o \
+	cuda/op2_cuda_rt_wrappers+cuda.o \
 	mpi/op_mpi_core.o \
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_cuda_decl+cuda.o \
@@ -178,6 +179,7 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 
 OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_rt_support+mpi+hip.o \
+	cuda/op2_cuda_rt_wrappers+hip.o \
 	mpi/op_mpi_core.o \
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_cuda_decl+hip.o \
@@ -190,11 +192,9 @@ OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_timing2+mpi.o)
 
 OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda+cuda.o \
 	cudaConfigurationParams.o)
 
 OP2_FOR_MPI_HIP := $(OP2_MPI_HIP) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
-	op2_for_rt_wrappers_cuda+hip.o \
 	cudaConfigurationParams.o)
 
 # Directory rules

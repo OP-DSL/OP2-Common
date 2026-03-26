@@ -11,7 +11,7 @@ $(file > $(DEP_BUILD_LOG),$(CUDA_TEST))
 $(shell $(CUDA_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 
 ifneq ($(.SHELLSTATUS),0)
-  CUDA_LINK ?= -lculibos -lcudart_static -lpthread -lrt -ldl
+  CUDA_LINK ?= -lculibos -lcudart_static -lpthread -lrt -ldl -lcuda -lnvrtc
 
   $(file >> $(DEP_BUILD_LOG),$(CUDA_TEST))
   $(shell $(CUDA_TEST) >> $(DEP_BUILD_LOG) 2>&1)

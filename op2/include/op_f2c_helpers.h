@@ -1,7 +1,7 @@
 #pragma once
 
 #include <extern/rapidhash.h>
-#include <op_timing2.h>
+// #include <op_timing2.h>
 #include <op_gpu_shims.h>
 
 #include <array>
@@ -15,7 +15,8 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
-
+#include <functional>
+// #include <iostream>
 
 #define NVRTC_SAFE_CALL(x)                                                          \
     do {                                                                            \
@@ -371,7 +372,10 @@ private:
                               std::string("#include <op_f2c_params.h>\n") +
                               std::string("\nnamespace f2c = op::f2c;\n") +
                               format_params() + m_src;
-
+        
+        // std::cout << "JIT source for " << m_name << " (hash " << std::hex << hash << std::dec << "): *********\n" << 
+        //     jit_src << "\n*********\n\n";
+        
         auto do_compile = [&](auto jit_src, auto hash) {
             const char *headers[] = { OP_F2C_PRELUDE_DATA, OP_F2C_PARAMS_DATA };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
@@ -517,13 +521,13 @@ public:
 
     void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {
         if (kernel == nullptr) {
-            op_timing2_next("Offline Kernel");
+            // op_timing2_next("Offline Kernel");
             invoke_offline(num_blocks, block_size, args);
 
             return;
         }
 
-        op_timing2_next("JIT Kernel");
+        // op_timing2_next("JIT Kernel");
         kernel->invoke(num_blocks, block_size, args_jit);
     }
 };
