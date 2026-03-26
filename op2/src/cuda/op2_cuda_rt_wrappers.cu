@@ -105,10 +105,20 @@ static bool opt_disabled(const op_arg& arg, const op_arg *args) {
 
 template<typename T, typename F, typename HF>
 static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
-    device_result.ensure_capacity(arg->size * sizeof(char));
+    device_result.ensure_capacity(arg->dim * sizeof(T));
+
+    cudaError_t err = cudaStreamSynchronize(cuda_stream);
+    if (err != cudaSuccess) {
+        printf("Kernel execution error: %s\n", cudaGetErrorString(err));
+    }
 
     size_t required_temp_storage_size = 0;
     op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems);
+
+    cudaError_t errz = cudaStreamSynchronize(cuda_stream);
+    if (errz != cudaSuccess) {
+        printf("Kernel execution errorZ: %s\n", cudaGetErrorString(errz));
+    }
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
@@ -117,7 +127,13 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
             (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems);
 
     std::vector<T> result(arg->dim);
-    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, arg->size * sizeof(char), gpuMemcpyDeviceToHost, cuda_stream));
+
+    // cudaError_t erry = cudaStreamSynchronize(cuda_stream);
+    // if (erry != cudaSuccess) {
+    //     printf("Kernel execution errorY: %s\n", cudaGetErrorString(erry));
+    // }
+
+    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, arg->dim * sizeof(T), gpuMemcpyDeviceToHost, cuda_stream));
     cutilSafeCall(gpuStreamSynchronize(cuda_stream));
 
     for (int d = 0; d < arg->dim; ++d)
@@ -320,14 +336,20 @@ void op_put_all_cuda(int nargs, op_arg *args) {
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     size_t required_size = 0;
 
+    // if (nargs == 5) op_printf("prepareDeviceGbls: start\n");
+
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
+        // if (nargs == 5) op_printf("prepareDeviceGbls: args[%d].size = %d\n", i, args[i].size);
+
         if (needs_per_thread_storage(args[i])) {
             required_size += align(args[i].size * max_threads * sizeof(char));
+            // if (nargs == 5) op_printf("needs_per_thread_storage Required size increased by %zu for arg %d\n", align(args[i].size * max_threads * sizeof(char)), i);
         } else if (needs_device_storage(args[i])) {
             required_size += align(args[i].size * sizeof(char));
+            // if (nargs == 5) op_printf("needs_device_storage Required size increased by %zu for arg %d\n", align(args[i].size * sizeof(char)), i);
         }
     }
 
@@ -340,6 +362,7 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
 
         if (needs_per_thread_storage(args[i])) {
             args[i].data_d = allocated;
+            // op_printf("Assigned per-thread storage for arg %d at device address %p\n", i, args[i].data_d);
             allocated += align(args[i].size * max_threads * sizeof(char));
         } else if (needs_device_storage(args[i])) {
             args[i].data_d = allocated;
