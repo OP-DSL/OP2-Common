@@ -52,7 +52,7 @@ namespace cub = hipcub;
 static constexpr size_t align_size = 128 * sizeof(char);
 static constexpr size_t align(size_t x) { return (x + (align_size) - 1) & ~(align_size - 1); }
 
-static constexpr gpuStream_t cuda_stream = 0;
+static constexpr gpuStream_t gpu_stream = 0;
 
 struct device_buffer {
     void *data = nullptr;
@@ -61,8 +61,8 @@ struct device_buffer {
     void ensure_capacity(size_t requested_size) {
         if (requested_size <= size) return;
 
-        if (data != nullptr) cutilSafeCall(gpuFreeAsync(data, cuda_stream));
-        cutilSafeCall(gpuMallocAsync((void **) &data, requested_size, cuda_stream));
+        if (data != nullptr) cutilSafeCall(gpuFreeAsync(data, gpu_stream));
+        cutilSafeCall(gpuMallocAsync((void **) &data, requested_size, gpu_stream));
         size = requested_size;
     }
 
@@ -107,17 +107,17 @@ template<typename T, typename F, typename HF>
 static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
     device_result.ensure_capacity(arg->dim * sizeof(T));
 
-    cudaError_t err = cudaStreamSynchronize(cuda_stream);
-    if (err != cudaSuccess) {
-        printf("Kernel execution error: %s\n", cudaGetErrorString(err));
+    gpuError_t err = gpuStreamSynchronize(gpu_stream);
+    if (err != gpuSuccess) {
+        printf("Kernel execution error: %s\n", gpuGetErrorString(err));
     }
 
     size_t required_temp_storage_size = 0;
     op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems);
 
-    cudaError_t errz = cudaStreamSynchronize(cuda_stream);
-    if (errz != cudaSuccess) {
-        printf("Kernel execution errorZ: %s\n", cudaGetErrorString(errz));
+    gpuError_t errz = gpuStreamSynchronize(gpu_stream);
+    if (errz != gpuSuccess) {
+        printf("Kernel execution errorZ: %s\n", gpuGetErrorString(errz));
     }
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
@@ -128,13 +128,13 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
 
     std::vector<T> result(arg->dim);
 
-    // cudaError_t erry = cudaStreamSynchronize(cuda_stream);
-    // if (erry != cudaSuccess) {
-    //     printf("Kernel execution errorY: %s\n", cudaGetErrorString(erry));
+    // gpuError_t erry = gpuStreamSynchronize(gpu_stream);
+    // if (erry != gpuSuccess) {
+    //     printf("Kernel execution errorY: %s\n", gpuGetErrorString(erry));
     // }
 
-    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, arg->dim * sizeof(T), gpuMemcpyDeviceToHost, cuda_stream));
-    cutilSafeCall(gpuStreamSynchronize(cuda_stream));
+    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, arg->dim * sizeof(T), gpuMemcpyDeviceToHost, gpu_stream));
+    cutilSafeCall(gpuStreamSynchronize(gpu_stream));
 
     for (int d = 0; d < arg->dim; ++d)
         host_op(((T *) arg->data) + d, result.data() + d);
@@ -157,8 +157,8 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
            (cub::KeyValuePair<int, T> *) device_result.data + d, nelems);
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
-    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, required_result_size, gpuMemcpyDeviceToHost, cuda_stream));
-    cutilSafeCall(gpuStreamSynchronize(cuda_stream));
+    cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, required_result_size, gpuMemcpyDeviceToHost, gpu_stream));
+    cutilSafeCall(gpuStreamSynchronize(gpu_stream));
 
     for (int d = 0; d < args[index].dim; ++d) {
         if (result[d].value == ((T *) args[index].data)[d])
@@ -174,11 +174,11 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
                 (d * max_threads + result[d].key) * payload_elem_size;
 
             cutilSafeCall(gpuMemcpyAsync(payload_data, payload_data_device,
-                                          payload_elem_size, gpuMemcpyDeviceToHost, cuda_stream));
+                                          payload_elem_size, gpuMemcpyDeviceToHost, gpu_stream));
         }
     }
 
-    cutilSafeCall(gpuStreamSynchronize(cuda_stream));
+    cutilSafeCall(gpuStreamSynchronize(gpu_stream));
 }
 
 template<typename T, typename F, typename F2, typename HF>
@@ -205,7 +205,7 @@ template<typename T> static void h_max(T *a, T *b) { *a = std::max(*a, *b); }
 #define cub_reduction_wrap(op, out_type) \
     template<typename T> static gpuError_t op(void *d_temp_storage, size_t &temp_storage_bytes, \
                                                 T *d_in, out_type *d_out, int num_items) { \
-        return cub::DeviceReduce::op(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, cuda_stream); \
+        return cub::DeviceReduce::op(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, gpu_stream); \
     }
 
 cub_reduction_wrap(Sum, T)
@@ -231,7 +231,7 @@ static bool processDeviceGblReductions(op_arg *args, int nargs, int nelems, int 
         if (gbl_inc_atomic && args[i].acc == OP_INC) {
             cutilSafeCall(gpuMemcpyAsync(args[i].data, args[i].data_d,
                           args[i].size * sizeof(char),
-                          gpuMemcpyDeviceToHost, cuda_stream));
+                          gpuMemcpyDeviceToHost, gpu_stream));
 
             needs_sync = true;
             continue;
@@ -276,7 +276,7 @@ static bool processDeviceGblRWs(op_arg *args, int nargs) {
 
         cutilSafeCall(gpuMemcpyAsync(args[i].data, args[i].data_d,
                                       args[i].size * sizeof(char),
-                                      gpuMemcpyDeviceToHost, cuda_stream));
+                                      gpuMemcpyDeviceToHost, gpu_stream));
 
         needs_sync = true;
     }
@@ -371,7 +371,7 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
             if (args[i].acc == OP_WRITE) continue;
             cutilSafeCall(gpuMemcpyAsync(args[i].data_d, args[i].data,
                                           args[i].size * sizeof(char),
-                                          gpuMemcpyHostToDevice, cuda_stream));
+                                          gpuMemcpyHostToDevice, gpu_stream));
         }
     }
 }

@@ -13,7 +13,7 @@ $(file > $(DEP_BUILD_LOG),$(HIP_TEST))
 $(shell $(HIP_TEST) >> $(DEP_BUILD_LOG) 2>&1)
 
 ifneq ($(.SHELLSTATUS),0)
-  HIP_LINK ?= -lamdhip64 -lm
+  HIP_LINK ?= -lamdhip64 -lhiprtc -lm
 
   $(file >> $(DEP_BUILD_LOG),$(HIP_TEST))
   $(shell $(HIP_TEST) >> $(DEP_BUILD_LOG) 2>&1)
