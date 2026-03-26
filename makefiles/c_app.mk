@@ -9,7 +9,7 @@ APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%.cpp)
 
 APP_INC ?= -I.
 
-BASE_VARIANTS := seq genseq openmp cuda hip c_cuda
+BASE_VARIANTS := seq genseq openmp cuda hip c_cuda c_hip
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
