@@ -106,7 +106,7 @@ $(APP_NAME)_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME))
 	$$(CXX) $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(3)) -o $$@
 
 $(APP_NAME)_mpi_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME))
-	$$(MPICXX) $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(4)) -o $$@
+	$$(MPICXX) -DUSE_MPI $$(CXXFLAGS) $(2) $(APP_INC) $$(OP2_INC) $($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_$(4)) -o $$@
 endef
 
 # the same as RULE_template_base but it first strips its arguments of extra space
