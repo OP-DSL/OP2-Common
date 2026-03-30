@@ -111,8 +111,8 @@ Initialisation and Termination
    This routine controls the partitioning of the sets used for distributed memory parallel execution.
 
    :param lib_name: The partitioning library to use, see below.
-   :param lib_routine: The partitioning algorithm to use. Required if using :c:expr:`"PTSCOTCH"`, :c:expr:`"PARMETIS"` or https://kahip.github.io/ as the **lib_name**.
-   :param prime_set: Specifies the set to be partitioned.
+   :param lib_routine: The partitioning algorithm to use.
+   :param prime_set: Specifies the primary set to be partitioned.
    :param prime_map: Specifies the map to be used to create adjacency lists for the **prime_set**. Required if using :c:expr:`"KWAY"` or :c:expr:`"GEOMKWAY"`.
    :param coords: Specifies the geometric coordinates of the **prime_set**. Required if using :c:expr:`"GEOM"` or :c:expr:`"GEOMKWAY"`.
 
@@ -207,6 +207,10 @@ Parallel Loops
    - :c:data:`OP_INC`: Global reduction to compute a sum.
    - :c:data:`OP_MAX`: Global reduction to compute a maximum.
    - :c:data:`OP_MIN`: Global reduction to compute a minimum.
+   - :c:data:`OP_WORK`: Per-thread scratch space initialized with user-defined array values.
+
+   .. note::
+      :c:data:`OP_WORK` is similar to :c:data:`OP_READ`, but is intended for cases where per-thread work arrays are too large to sensibly fit in GPU register space.
 
 .. c:function:: op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char *type, op_access acc)
 
@@ -253,6 +257,27 @@ Parallel Loops
    This routine is equivalent to :c:func:`op_arg_dat()` except for an extra **flag** parameter that governs whether the argument will be used (non-zero) or not (zero). This is intended to ease development of large application codes where many features may be enabled or disabled based on flags.
 
    The argument must not be dereferenced in the user kernel if **flag** is set to zero. If the value of the flag needs to be passed to the kernel then use an additional :c:func:`op_arg_gbl()` argument.
+
+.. c:function:: op_arg op_arg_idx(int idx, op_map map)
+
+   This routine is used to provide the (global) index mapping information to be used within a kernel function. 
+   
+   :param idx: The per-set-element index into the map to use. You may pass a -1 if the identity mapping is used.
+   :param map: The mapping to use. Pass :c:data:`OP_ID` for the identity mapping if no mapping indirection is required.
+
+.. c:function:: op_arg op_arg_info(T *data, int dim, char *type, int size, int ref)
+
+   This routine is used with argmin/argmax operations to determine the (global) index at which the minimum or maximum value occurs. It is intended to be used in conjunction with :c:func:op_arg_idx.
+   The value provided through this argument (for example, the coordinates of the current node) is returned from the location where the corresponding minimum or maximum is found.
+
+   :param data: The data to be associated with the index returned by the argmin/argmax operation.
+   :param dim: The number of data elements.
+   :param type: The datatype, specified as a string, as with :c:func:`op_decl_const()`.
+   :param size: The size of the data.
+   :param ref: Reference index.
+
+   .. warning::
+      This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types.
 
 HDF5 I/O
 ^^^^^^^^
