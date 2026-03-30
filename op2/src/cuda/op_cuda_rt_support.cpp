@@ -281,8 +281,9 @@ void op_cuda_get_data(op_dat dat) {
   else
     return;
   // transpose data
-  size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
+  size_t set_size = (dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
+    set_size = round32(set_size);
     char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
     cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, dat->size * set_size,
                              gpuMemcpyDeviceToHost));
