@@ -1,13 +1,10 @@
 #ifdef USE_MPI
-#include <mpi.h>
 #include "op_lib_mpi.h"
 #endif
 
 #include "op_seq.h"
 
-#include <vector>
-#include <numeric>
-#include <limits>
+#include "../utility.h"
 
 #define TOL 1e-9
 
@@ -18,18 +15,6 @@ void check(bool cond, int idx, const char *msg) {
     op_exit();
     exit(EXIT_FAILURE);
   }
-}
-
-int compute_local_size(int global_size, int mpi_comm_size, int mpi_rank) {
-  const int base = global_size / mpi_comm_size;
-  const int remainder = global_size % mpi_comm_size;
-  return base + ((mpi_rank < remainder) ? 1 : 0);
-}
-
-int get_local_start(int global_size, int mpi_comm_size, int mpi_rank) {
-  const int base = global_size / mpi_comm_size;
-  const int remainder = global_size % mpi_comm_size;
-  return mpi_rank * base + std::min(mpi_rank, remainder);
 }
 
 // --- KERNELS ---
@@ -73,11 +58,7 @@ int main(int argc, char **argv) {
   int my_rank = 0;
   int comm_size = 1;
 
-#ifdef USE_MPI
-  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-  printf("MPI rank %d of %d\n", my_rank, comm_size);
-#endif
+  get_rank_and_size(my_rank, comm_size);
 
   constexpr int gbl_size = 32;
   const int local_size = compute_local_size(gbl_size, comm_size, my_rank);
