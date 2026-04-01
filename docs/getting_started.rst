@@ -100,6 +100,42 @@ If you are using CUDA or HIP, you may also specify a comma separated list of tar
 
 .. warning::
    MPI builds require an MPI wrapper (``mpicxx``) pointing to the compiler defined by ``OP2_COMPILER``. You can manually set the MPI executable path using ``MPI_INSTALL_PATH``.
+
+Application Build Variants
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When building an application, the following parallelisation variants are available as Make targets:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Target
+     - Description
+   * - ``seq``
+     - Single-threaded sequential build using the developer sequential library.
+   * - ``genseq``
+     - Code-generated sequential build (translator-v2 ``seq`` target). Recommended over ``seq`` for performance measurement.
+   * - ``openmp``
+     - Multi-threaded CPU build using OpenMP.
+   * - ``cuda``
+     - NVIDIA GPU build using CUDA (translator-v2 ``cuda`` target, ahead-of-time compiled).
+   * - ``hip``
+     - AMD GPU build using HIP (translator-v2 ``hip`` target, ahead-of-time compiled).
+   * - ``c_cuda``
+     - NVIDIA GPU build using CUDA with JIT compilation (translator-v2 ``c_cuda`` target). Device kernels are compiled at application start-up using NVRTC, enabling runtime specialisation.
+   * - ``c_hip``
+     - AMD GPU build using HIP with JIT compilation (translator-v2 ``c_hip`` target). Device kernels are compiled at application start-up using the HIP RTC library.
+   * - ``mpi_<variant>``
+     - Distributed-memory MPI variant of any of the above (e.g. ``mpi_cuda``, ``mpi_c_hip``). Requires an MPI-enabled OP2 library build.
+
+For example, to build the JIT CUDA variant of the Airfoil benchmark:
+
+.. code-block:: shell
+
+   make -C apps/c/airfoil/airfoil_plain/dp c_cuda
+
+See :doc:`translator` for details on how to generate the required source files for each variant.
    
 Spack
 -----
