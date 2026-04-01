@@ -101,9 +101,9 @@ idx
 
 {%- macro arg_to_pointer2(arg, jit) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
-op2_gbl{{arg.id}}_d
+&op2_gbl{{arg.id}}_d
     {%- elif arg is gbl and arg is read and arg is scalar -%}
-gbl{{arg.id}}
+&gbl{{arg.id}}
     {%- else -%}
 {{arg_to_pointer3(arg)}}
     {%- endif -%}
