@@ -47,7 +47,7 @@ Breaking the execution set into contiguous blocks is good for direct datasets (t
 Plan Construction (``op_plan_core``)
 --------------------------------------
 
-The plan-construction algorithm lives in ``op_plan_core`` inside ``op/src/core/op_lib_core.c``.  It is invoked whenever a parallel loop has at least one indirect dataset.  The following concepts are central to it.
+The plan-construction algorithm lives in ``op_plan_core`` inside ``op2/src/core/op_rt_support.cpp``.  It is invoked whenever a parallel loop has at least one indirect dataset.  The following concepts are central to it.
 
 **Sets, Datasets, and Indirect Datasets**
 
@@ -159,7 +159,7 @@ The generated kernel:
 - Declares all arguments and local working arrays (likely held in registers by nvcc).
 - Retrieves block ID via the ``blkmap`` mapping.
 - Sets shared-memory pointers for indirect datasets.
-- Zeroes incremented indirect data; copies read-only indirect data into shared memory (Fermi) or uses L2 cache (Kepler/later).
+- Zeroes incremented indirect data; copies read-only indirect data into shared memory or relies on L2 cache for reuse.
 - Loops over set elements; with atomics, accumulates increments in thread-local arrays and applies them via ``atomicAdd``; with ``color2``, applies thread colouring with ``__syncthreads`` between colours.
 - Writes back indirect data; completes global reductions.
 
@@ -172,7 +172,7 @@ The OpenMP execution pattern is similar to CUDA but without element colouring wi
 
 **Generated sequential files (``genseq``)**
 
-While OP2 can run sequentially via the generic ``op2_seq.h`` header (used for debugging), the translator generates loop-specific sequential stub files (``genseq``) that reduce overhead by spelling out mapping pointers explicitly and reading indirect mappings only once per iteration.
+While OP2 can run sequentially via the generic ``op_seq.h`` header (used for debugging), the translator generates loop-specific sequential stub files (``genseq``) that reduce overhead by spelling out mapping pointers explicitly and reading indirect mappings only once per iteration.
 
 
 Global Reductions
@@ -191,25 +191,6 @@ Each thread block entry is initialised to the current CPU input value.  Thread-l
 Summation works directly.  Min/max works provided the user has correctly overloaded the inequality operators to form a total order.
 
 In MPI mode, after the per-process loop reduction, ``op_mpi_reduce()`` calls ``MPI_Allreduce`` with the appropriate operation and data type.
-
-
-AVX Vectorisation
------------------
-
-Experimental code generators can produce AVX-vectorised code by combining a number of set elements into vector operations: gathering data into vector registers, executing the user kernel with overloaded vector types, then scattering results.  C++ classes in ``op2_vectype.h`` wrap the vector intrinsics.
-
-Because alignment is critical for directly-accessed data, the loop over set elements is split into three parts: a scalar pre-sweep to align to 256/512 bits, the main vectorised loop, and a scalar post-sweep for the remainder.  Branching within user kernels must be replaced with ``select()`` instructions.
-
-
-Auto-Tuning
------------
-
-Several plan parameters affect performance significantly:
-
-- **Block partition size:** maximising the block size within shared-memory constraints maximises data reuse, but slightly smaller blocks allow multiple blocks to run concurrently on the same SM, letting the hardware scheduler overlap I/O with computation.
-- **Threads per block:** single-element-per-thread gives the scheduler maximum freedom but increases synchronisation cost and register pressure.
-
-These choices are optimal in a per-loop fashion, suggesting the use of auto-tuning strategies (exhaustive search, genetic algorithms, or run-time optimisation) similar to those used in ATLAS or FFTW.
 
 
 MPI Implementation
@@ -270,7 +251,7 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
 Constructing Halo Lists
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-After partitioning, OP2 calls ``op_halo_create()`` (defined in ``op/src/mpi/op_mpi_core.c``) to classify set elements into five categories:
+After partitioning, OP2 calls ``op_halo_create()`` (defined in ``op2/src/mpi/op_mpi_core.cpp``) to classify set elements into five categories:
 
 ``core``
     An element is *core* to the MPI process that owns it if every element referenced through any mapping from that element is also core on that process.
@@ -328,11 +309,11 @@ When ``op_par_loop`` executes under MPI:
 - **Direct loops** (no indirect arguments) loop only over the local set size; no halo exchange is needed.
 - **Indirect loops** use the algorithm:
 
-  1. For each indirect ``op_arg`` with access ``OP_READ`` or ``OP_RW`` and a dirty dirty bit, trigger a halo exchange and clear the dirty bit.
+  1. For each indirect ``op_arg`` with access ``OP_READ`` or ``OP_RW`` and a dirty bit, trigger a halo exchange and clear the dirty bit.
   2. If all indirect arguments are ``OP_READ``, loop over ``set->size``; otherwise loop over ``set->size + ieh->size``.
   3. After the loop, set the dirty bit for each ``op_arg`` with access ``OP_INC``, ``OP_WRITE``, or ``OP_RW``.
 
-``op_exchange_halo()`` (``op/src/mpi/op_mpi_rt_support.c``) checks the conditions, packs halo data into pre-defined send buffers, issues non-blocking ``MPI_Isend`` / ``MPI_Irecv`` operations, and returns immediately.  The ``op_par_loop`` is structured so that:
+``op_exchange_halo()`` (``op2/src/mpi/op_mpi_rt_support.cpp``) checks the conditions, packs halo data into pre-defined send buffers, issues non-blocking ``MPI_Isend`` / ``MPI_Irecv`` operations, and returns immediately.  The ``op_par_loop`` is structured so that:
 
 1. All ``op_exchange_halo()`` calls are issued first.
 2. Core elements are computed (no halo data required).
@@ -361,21 +342,21 @@ Performance Instrumentation
 
 OP2 provides two timer routines:
 
-- ``op_timers_core()`` (``op_lib_core.c``) — elapsed time on a single MPI process.
-- ``op_timers()`` (``op_mpi_decl.c``) — includes an implicit ``MPI_Barrier`` to measure wall time across the whole MPI universe.
+- ``op_timers_core()`` (``op2/src/core/op_lib_core.cpp``) — elapsed time on a single MPI process.
+- ``op_timers()`` (``op2/src/mpi/op_mpi_decl.cpp``) — includes an implicit ``MPI_Barrier`` to measure wall time across the whole MPI universe.
 
 Per-loop statistics are accumulated in an ``op_mpi_kernel`` struct:
 
 .. code-block:: c
 
    typedef struct {
-       char const *name;   // kernel name
-       double time;        // total compute + comm-overlap time
-       int count;          // number of kernel invocations
-       int *op_dat_indices;// op_dat indices requiring MPI halo exports
-       int  num_indices;
-       int *tot_count;     // halo export count per op_dat
-       int *tot_bytes;     // halo export bytes per op_dat
+       UT_hash_handle hh;              // uthash intrusive handle
+       char name[NAMESIZE];            // kernel name
+       double time;                    // total compute + comm-overlap time
+       int count;                      // number of kernel invocations
+       int num_indices;                // number of op_dat communication entries
+       op_dat_mpi_comm_info *comm_info;// per-dat MPI communication info
+       int cap;                        // capacity of comm_info array
    } op_mpi_kernel;
 
 MPI message monitoring can be enabled at compile time with ``-DCOMM_PERF``.  On ``op_exit()``, all halo lists, MPI send buffers, and performance-measurement tables are freed.
@@ -410,7 +391,7 @@ The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.
 Mesh Renumbering
 ~~~~~~~~~~~~~~~~
 
-OP2 implements a mesh renumbering routine using the Gibbs–Poole–Stockmeyer algorithm from PT-Scotch (``op/src/externlib/op_renumber.cpp``) to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.
+OP2 implements a mesh renumbering routine using the Gibbs–Poole–Stockmeyer algorithm from PT-Scotch (``op2/src/externlib/op_renumber.cpp``) to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.
 
 .. note::
    This renumbering currently runs only on a single node (no MPI support).  The recommended workflow is: read an unoptimised mesh into an HDF5 file, apply renumbering to produce an optimised mesh HDF5 file, and use that optimised file for both single-node and distributed-memory runs.
