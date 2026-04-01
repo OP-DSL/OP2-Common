@@ -16,7 +16,7 @@ OpenMP and OpenMP+MPI
 ---------------------
 It is recommended that you assign one MPI rank per NUMA region when executing MPI+OpenMP parallel code. 
 
-Usually for a multi-CPU system a single CPU socket is a single NUMA region. Thus, for a 4 socket system, OP2’s MPI+OpenMP code should be executed with 4 MPI processes with each MPI process having multiple OpenMP threads (typically specified by the ``OMP_NUM_THREAD`` flag). 
+Usually for a multi-CPU system a single CPU socket is a single NUMA region. Thus, for a 4 socket system, OP2's MPI+OpenMP code should be executed with 4 MPI processes with each MPI process having multiple OpenMP threads (typically specified by the ``OMP_NUM_THREADS`` flag). 
 
 Additionally on some systems using ``numactl`` to bind threads to cores could give performance improvements.
 

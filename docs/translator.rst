@@ -3,6 +3,9 @@ Code Generation
 
 OP2 uses a code translator to transform a user's sequential OP2 source files into parallelised variants targeting specific hardware backends. The current OP2 translator is based on Jinja2 templating and ``libclang`` parsing and is the recommended tool for all projects. A **legacy translator** is also retained for compatibility, consisting of a collection of standalone Python scripts.
 
+.. note::
+   **For most users the translator runs automatically.**  Any application that uses the standard OP2 Makefiles (``makefiles/common.mk`` + ``makefiles/c_app.mk`` or ``f_app.mk``) will invoke the translator transparently when you run ``make <variant>``.  You only need to be aware of the translator's options if you are setting up a custom build system, running the translator in isolation for debugging, or need to override its behaviour.
+
 ----
 
 OP2 Translator
@@ -10,6 +13,8 @@ OP2 Translator
 
 Requirements
 ^^^^^^^^^^^^
+
+The translator and its dependencies are bundled inside ``translator-v2/`` and are set up automatically by the OP2 Makefiles.  If you need to run the translator outside the Makefile (e.g., in a custom CI pipeline), install the dependencies manually:
 
 - Python >= 3.8
 - ``libclang`` (for Debian-based systems: ``sudo apt-get install libclang-dev``)
@@ -19,10 +24,10 @@ Requirements
    cd translator-v2
    pip install -r requirements.txt
 
-Usage
-^^^^^
+Manual Usage
+^^^^^^^^^^^^
 
-The translator is invoked as a Python module from the command line:
+When invoked manually, the translator is called as a Python module:
 
 .. code-block:: shell
 
@@ -163,21 +168,22 @@ SoA Data Layout
 
 By default, OP2 stores datasets in Array of Structs (AoS) layout. Struct of Arrays (SoA) layout can improve GPU memory access patterns and is often beneficial for CUDA and HIP targets.
 
-To enable SoA layout, either:
+To enable SoA layout for all datasets, choose one of:
 
-- Set the environment variable before invoking the translator:
+- Append ``:soa`` to individual ``type`` strings in :c:func:`op_decl_dat` calls in your source (per-dataset control).
+- Pass the ``-soa`` flag to the translator.  When using the OP2 Makefiles, append it to the ``TRANSLATOR`` variable in the application Makefile before including ``c_app.mk``:
 
-  .. code-block:: shell
+  .. code-block:: make
 
-     OP_AUTO_SOA=1 python3 op2-translator -t cuda myapp.cpp
+     TRANSLATOR += --force_soa
+     include ../../../../../makefiles/common.mk
+     include ../../../../../makefiles/c_app.mk
 
-- Or pass the ``-soa`` flag directly:
+  Or when invoking the translator manually:
 
   .. code-block:: shell
 
      python3 op2-translator -soa -t cuda myapp.cpp
-
-- Or append ``:soa`` to the ``type`` string in individual :c:func:`op_decl_dat` calls in your source.
 
 ----
 
@@ -244,7 +250,7 @@ Available generators:
 
    * - Script
      - Target
-   * - ``op2_gen_mpiseq.py`` / ``op2_gen_mpiseq3.py``
+   * - ``op2_gen_mpiseq.py`` / ``op2_gen_mpiseq2.py`` / ``op2_gen_mpiseq3.py``
      - MPI + sequential host stubs
    * - ``op2_gen_mpivec.py``
      - MPI + sequential with Intel vectorisation

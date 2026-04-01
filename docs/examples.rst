@@ -16,7 +16,7 @@ Aero
 
 * The Aero mesh (720,000 cells) can be downloaded `here <https://github.com/ZamanLantra/OP2-ci_meshes/raw/refs/heads/main/aero/FE_grid.dat>`__.
 * The Aero HDF5 mesh (720,000 cells) can be downloaded `here <https://github.com/ZamanLantra/OP2-ci_meshes/raw/refs/heads/main/aero/FE_grid.h5>`__.
-* The Aero mesh can also be generated using MATLAB with the mesh generator in ``OP2-Common/apps/mesh_generators/aero.m``.
+* The Aero mesh can also be generated using MATLAB with the mesh generator in ``OP2-Common/apps/mesh_generators/naca_fem.m``.
 
 MGCFD
 -----
