@@ -5,10 +5,6 @@ OP2 uses a code translator to transform a user's sequential OP2 source files int
 
 The next-generation translator (v2) is recommended for all new projects.
 
-.. contents:: On this page
-   :local:
-   :depth: 2
-
 ----
 
 Next-Generation Translator (v2)
