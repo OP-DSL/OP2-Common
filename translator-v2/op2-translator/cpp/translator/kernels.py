@@ -80,9 +80,30 @@ def insertStrides(
         is_vec = arg.map_idx is not None and arg.map_idx < -1
         insertStride(entity.ast, rewriter, entity.parameters[arg_idx], dat.id, is_vec, stride)
 
+def insertArgGblStrides(
+    entity: Entity,
+    rewriter: Rewriter,
+    app: Application,
+    loop: OP.Loop,
+    stride: Callable[[int], str],
+    skip: Optional[Callable[[OP.ArgDat], bool]] = None,
+) -> None:
+
+    if not isinstance(entity, Function):
+        return
+
+    for arg_idx in range(len(loop.args)):
+        arg = loop.args[arg_idx]
+        if not isinstance(arg, OP.ArgGbl):
+            continue
+
+        if skip is not None and skip(arg):
+            continue
+
+        insertStride(entity.ast, rewriter, entity.parameters[arg_idx], 0, False, stride)
 
 def insertStride(
-    ast: Cursor, rewriter: Rewriter, param: str, dat_id: int, is_vec: bool, stride: Callable[[int], str]
+    ast: Cursor, rewriter: Rewriter, param: str, id: int, is_vec: bool, stride: Callable[[int], str]
 ) -> None:
     for node in ast.walk_preorder():
         if node.kind != CursorKind.ARRAY_SUBSCRIPT_EXPR:
@@ -96,7 +117,7 @@ def insertStride(
             ident, _ = next(ident.get_children()).get_children()
 
         if ident.spelling == param:
-            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(dat_id)}")
+            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(id)}")
 
 
 def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
