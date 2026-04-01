@@ -1,14 +1,12 @@
 Code Generation
 ===============
 
-OP2 uses a code translator to transform a user's sequential OP2 source files into parallelised variants targeting specific hardware backends. Two generations of translator are provided: a **legacy translator** (v1) written as a collection of standalone Python scripts, and a **next-generation translator** (v2) based on Jinja2 templating and ``libclang`` parsing.
-
-The next-generation translator (v2) is recommended for all new projects.
+OP2 uses a code translator to transform a user's sequential OP2 source files into parallelised variants targeting specific hardware backends. The current OP2 translator is based on Jinja2 templating and ``libclang`` parsing and is the recommended tool for all projects. A **legacy translator** is also retained for compatibility, consisting of a collection of standalone Python scripts.
 
 ----
 
-Next-Generation Translator (v2)
---------------------------------
+OP2 Translator
+--------------
 
 Requirements
 ^^^^^^^^^^^^
@@ -61,10 +59,10 @@ Example — generate OpenMP and JIT CUDA variants:
 
 The translator produces a ``generated/`` subdirectory in the output directory containing one subdirectory per target (e.g. ``generated/airfoil/openmp/``, ``generated/airfoil/c_cuda/``). Each subdirectory contains the generated ``op2_kernels.*`` file(s) ready to be compiled as part of the application build.
 
-Targets
-^^^^^^^
+C/C++ Targets
+^^^^^^^^^^^^^
 
-The following code-generation targets are available for C/C++ applications:
+The following code-generation targets are available for C/C++ applications (``.cpp`` source files):
 
 .. list-table::
    :header-rows: 1
@@ -97,8 +95,45 @@ All targets have a corresponding distributed-memory MPI variant built automatica
 .. note::
    The ``c_cuda`` and ``c_hip`` JIT targets use the same CUDA/HIP runtime libraries as the ``cuda`` and ``hip`` AOT targets. The key difference is that device kernels are compiled at application launch rather than at build time. This removes the dependency on ``nvcc``/``hipcc`` during the build and allows the GPU architecture to be selected at runtime.
 
+Fortran Targets
+^^^^^^^^^^^^^^^
+
+The language is detected automatically from the file extension (``.F90`` or ``.f90``). The same target name strings are used as for C/C++, and the translator selects the appropriate Fortran code-generation scheme.
+
+Example — generate Fortran OpenMP and C_CUDA variants:
+
+.. code-block:: shell
+
+   python3 op2-translator -t openmp -t c_cuda myapp.F90
+
+The following targets are available for Fortran applications:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 85
+
+   * - Target name
+     - Description
+   * - ``seq``
+     - Code-generated sequential Fortran implementation. Produces a ``master_kernel.F90`` containing all loop host subroutines.
+   * - ``openmp``
+     - Multi-threaded Fortran implementation using OpenMP pragmas. Includes optional SIMD vectorisation of indirect loops.
+   * - ``cuda``
+     - Native Fortran CUDA implementation using CUDA Fortran (``.CUF``). Device kernels are written in Fortran with ``attributes(device)`` annotations. Requires a CUDA Fortran-capable compiler (NVHPC).
+   * - ``c_seq``
+     - Fortran interop with C sequential kernels. Generates both a Fortran host file (``.F90``) and a C kernel file (``.cpp``). Useful for transitioning Fortran applications to portable C kernel implementations.
+   * - ``c_cuda``
+     - Fortran interop with CUDA kernels using JIT compilation via NVRTC. Generates Fortran host code (``.F90``) and CUDA device kernel source (``.cu``). Device kernels are compiled at application start-up. This is the primary recommended GPU target for Fortran applications.
+   * - ``c_hip``
+     - Fortran interop with HIP kernels using JIT compilation via the HIP RTC library. Generates Fortran host code (``.F90``) and HIP device kernel source (``.hip.cpp``). Device kernels are compiled at application start-up.
+
+.. note::
+   For Fortran applications, the ``c_cuda`` and ``c_hip`` JIT targets are the primary recommended GPU backends. The native Fortran ``cuda`` target (CUDA Fortran) is also available but requires the NVHPC compiler.
+
 Choosing Between AOT and JIT GPU Targets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This applies to both C/C++ and Fortran applications:
 
 .. list-table::
    :header-rows: 1
@@ -116,6 +151,9 @@ Choosing Between AOT and JIT GPU Targets
    * - Application start-up overhead
      - None
      - Small (kernel compilation on first run)
+   * - Fortran native GPU Fortran available
+     - Yes (``cuda`` target with NVHPC)
+     - N/A — uses C interop layer
    * - Recommended for
      - Production deployments with a known GPU
      - Portable deployments or rapid development
@@ -143,13 +181,13 @@ To enable SoA layout, either:
 
 ----
 
-Legacy Translator (v1)
------------------------
+Legacy Translator
+-----------------
 
 The v1 translator is a collection of standalone Python scripts located in ``translator/c/`` (C/C++) and ``translator/fortran/`` (Fortran). Each script targets a single parallelisation strategy.
 
 .. note::
-   The v1 translator is retained for compatibility. For new projects, use the :ref:`next-generation translator <Next-Generation Translator (v2)>`.
+   The legacy translator is retained for compatibility. For new projects, use the :ref:`OP2 Translator <OP2 Translator>`.
 
 C/C++ Targets
 ^^^^^^^^^^^^^

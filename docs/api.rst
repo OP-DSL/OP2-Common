@@ -20,7 +20,7 @@ OP2 currently enables users to write a single program at a high-level API declar
 Further to these there are also in-development versions that can emit SYCL and AMD HIP for parallelization on a wider range of GPUs. All of the above can be combined with distributed-memory MPI parallelization to run of clusters of CPU or GPU nodes. The user can either use OP2’s parallel file I/O capabilities for HDF5 files with a specified structure, or perform their own parallel file I/O using custom MPI code.
 
 .. note::
-   This documentation describes the C++ API, but FORTRAN 90 is also supported with a very similar API.
+   This page documents the C/C++ API. See :ref:`api:OP2 Fortran 90 API` for the equivalent Fortran API.
 
 A computational project can be viewed as involving three steps:
 
@@ -413,3 +413,137 @@ Other I/O and Utilities
 .. c:function:: void op_diagnostic_output()
 
    This routine prints diagnostics relating to sets, mappings and datasets.
+
+----
+
+OP2 Fortran 90 API
+------------------
+
+The Fortran 90 API mirrors the C/C++ API closely. The same concepts — sets, maps, dats, constants, and parallel loops — apply directly. This section documents the key differences in calling convention and type syntax.
+
+.. note::
+   A complete worked example using the Fortran API can be found in :gh-blob:`apps/fortran/airfoil/airfoil.F90`.
+
+Initialisation and Shutdown
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   call op_init_base(diags_level, 0)
+   call op_exit()
+
+- ``op_init_base`` takes ``diags_level`` as the first argument (same levels as :c:func:`op_init`). Under MPI builds it also calls ``MPI_Init``.
+- ``op_exit`` finalises OP2 and under MPI builds calls ``MPI_Finalize``.
+
+Declaring Mesh Data
+^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   ! Sets
+   call op_decl_set(size, set_handle, "name")
+
+   ! Maps
+   call op_decl_map(from_set, to_set, dim, imap_array, map_handle, "name")
+
+   ! Datasets
+   call op_decl_dat(set, dim, "type", data_array, dat_handle, "name")
+
+   ! Global constants
+   call op_decl_const(data_variable, dim, "type")
+
+Key differences from C/C++:
+
+- Each declaration takes an **output handle** (``set_handle``, ``map_handle``, ``dat_handle``) as an extra argument to receive the OP2 object.
+- ``op_decl_const`` takes the **data variable first**, followed by ``dim`` and ``"type"`` — the reverse of the C++ argument order.
+- Fortran type strings use Fortran syntax: ``"real(8)"`` (double precision), ``"real(4)"`` (single precision), ``"integer(4)"`` (32-bit integer).
+
+HDF5 Variants
+"""""""""""""
+
+.. code-block:: fortran
+
+   call op_decl_set_hdf5(size_out, set_handle, file_name, "name")
+   call op_decl_map_hdf5(from_set, to_set, dim, map_handle, file_name, "name", stat)
+   call op_decl_dat_hdf5(set, dim, dat_handle, "type", file_name, "name", stat)
+
+Parallel Loops
+^^^^^^^^^^^^^^
+
+In the Fortran API the parallel loop call is named with the number of arguments:
+
+.. code-block:: fortran
+
+   call op_par_loop_N(kernel_subroutine, iteration_set, &
+       op_arg_dat(dat, idx, map, dim, "type", access), &
+       ...)
+
+- ``N`` is the total number of ``op_arg_dat`` / ``op_arg_gbl`` arguments passed.
+- The kernel is passed as a **subroutine reference**.
+- ``op_arg_dat`` and ``op_arg_gbl`` have the same signature as in C/C++, using the same ``OP_READ``, ``OP_WRITE``, ``OP_RW``, ``OP_INC``, ``OP_ID`` constants.
+
+Example from the Fortran Airfoil benchmark:
+
+.. code-block:: fortran
+
+   ! Direct loop (2 arguments)
+   call op_par_loop_2(save_soln, cells, &
+       op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)", OP_READ),  &
+       op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)", OP_WRITE))
+
+   ! Indirect loop (8 arguments)
+   call op_par_loop_8(res_calc, edges, &
+       op_arg_dat(p_x,   1, pedge,  2, "real(8)", OP_READ), &
+       op_arg_dat(p_x,   2, pedge,  2, "real(8)", OP_READ), &
+       op_arg_dat(p_q,   1, pecell, 4, "real(8)", OP_READ), &
+       op_arg_dat(p_q,   2, pecell, 4, "real(8)", OP_READ), &
+       op_arg_dat(p_adt, 1, pecell, 1, "real(8)", OP_READ), &
+       op_arg_dat(p_adt, 2, pecell, 1, "real(8)", OP_READ), &
+       op_arg_dat(p_res, 1, pecell, 4, "real(8)", OP_INC),  &
+       op_arg_dat(p_res, 2, pecell, 4, "real(8)", OP_INC))
+
+   ! Loop with global reduction (8 arguments, including op_arg_gbl)
+   call op_par_loop_8(update, cells, &
+       op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)", OP_READ),  &
+       op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)", OP_WRITE), &
+       op_arg_dat(p_res,  -1, OP_ID, 4, "real(8)", OP_RW),    &
+       op_arg_dat(p_adt,  -1, OP_ID, 1, "real(8)", OP_READ),  &
+       op_arg_gbl(rms, 1, "real(8)", OP_INC))
+
+.. note::
+   ``op_par_loop_N`` is defined for each value of N used in the application. The OP2 Fortran library provides pre-built stubs for common arities, but the code translator generates the correct loop host for each kernel.
+
+Mesh Partitioning
+^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   call op_partition("PARMETIS", "KWAY", prime_set, prime_map, coords_dat)
+
+The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`.
+
+Build Configuration
+^^^^^^^^^^^^^^^^^^^
+
+Fortran application variants are prefixed with ``f_`` in the Make build system:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Target
+     - Description
+   * - ``f_seq``
+     - Sequential Fortran build.
+   * - ``f_openmp``
+     - OpenMP multi-threaded Fortran build.
+   * - ``f_cuda``
+     - Native CUDA Fortran build (requires NVHPC).
+   * - ``f_c_cuda``
+     - Fortran + C CUDA JIT build (recommended GPU target).
+   * - ``f_c_hip``
+     - Fortran + C HIP JIT build.
+   * - ``f_mpi_<variant>``
+     - Distributed-memory MPI variant of any of the above.
+
+For the translator invocation for Fortran sources, see :doc:`translator`.

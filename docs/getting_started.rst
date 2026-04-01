@@ -136,6 +136,38 @@ For example, to build the JIT CUDA variant of the Airfoil benchmark:
    make -C apps/c/airfoil/airfoil_plain/dp c_cuda
 
 See :doc:`translator` for details on how to generate the required source files for each variant.
+
+Fortran Application Build Variants
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Fortran application variants are prefixed with ``f_``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Target
+     - Description
+   * - ``f_seq``
+     - Sequential Fortran build.
+   * - ``f_openmp``
+     - OpenMP multi-threaded Fortran build.
+   * - ``f_cuda``
+     - Native CUDA Fortran build. Requires a CUDA Fortran-capable compiler (NVHPC).
+   * - ``f_c_cuda``
+     - Fortran interop with JIT CUDA kernels (recommended GPU target for Fortran).
+   * - ``f_c_hip``
+     - Fortran interop with JIT HIP kernels.
+   * - ``f_mpi_<variant>``
+     - Distributed-memory MPI variant of any of the above.
+
+For example, to build the Fortran Airfoil benchmark with JIT CUDA:
+
+.. code-block:: shell
+
+   make -C apps/fortran/airfoil f_c_cuda
+
+See :ref:`api:OP2 Fortran 90 API` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
    
 Spack
 -----
