@@ -30,18 +30,19 @@ Execution Plans
 
 Because GPU execution is driven by data residency in graphics memory, the blocking for each parallel loop can be chosen independently for each loop, unlike in MPI where repartitioning is expensive.  Inspired by FFTW, OP2 constructs for each parallel loop an execution **plan** — a customised blocking for the GPU that makes optimum use of the shared memory on each streaming multiprocessor (SM), given the precise memory requirements of that loop.
 
-For *indirect loops* (loops that access datasets indirectly through a mapping), data conflicts are avoided by colouring at two levels:
+For *indirect loops* (loops that access datasets indirectly through a mapping), data conflicts on ``OP_INC`` arguments are resolved using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.  This is the default strategy for all GPU targets (``cuda``, ``hip``, ``c_cuda``, ``c_hip``) in the v2 translator.
 
-1. **Block colouring:** blocks of the same colour have no data conflict, so each colour is dispatched as a separate CUDA kernel call with a synchronisation barrier between colours.
-2. **Thread colouring:** within each block, threads are coloured and increments applied one colour at a time with ``__syncthreads`` synchronisation between thread colours.  This causes some performance loss due to warp divergence but is generally small.
+An alternative **two-level colouring** strategy (``color2`` mode) is also available for cases where atomic operations are undesirable:
+
+1. **Block colouring:** blocks of the same colour have no data conflict, so each colour is dispatched as a separate kernel call with a synchronisation barrier between colours.
+2. **Thread colouring:** within each block, threads are coloured and increments applied one colour at a time with ``__syncthreads`` between thread colours.  This avoids atomics but incurs some warp divergence overhead.
+
+The strategy is selected at code-generation time; the default is ``atomics=True, color2=False``.
 
 Renumbering
 ~~~~~~~~~~~
 
 Breaking the execution set into contiguous blocks is good for direct datasets (they will be in contiguous memory, giving coalesced transfers), but for indirect datasets each mini-partition should ideally reference elements held close together in graphics memory.  OP2 therefore provides an optional renumbering step — for example, recursive coordinate bisection — to improve data locality so that neighbouring elements have proximate memory locations.
-
-For a large application such as Rolls-Royce's HYDRA CFD code (6 GB on a C2070), with a 48 kB shared memory per SM and up to 40 floats per grid node, a 16 kB working set corresponds to roughly 100 nodes per block — large enough for reasonable data reuse but requiring up to 10 block colours to avoid conflicts.
-
 
 Plan Construction (``op_plan_core``)
 --------------------------------------
@@ -64,17 +65,19 @@ For each plan block, and each indirect dataset used in it, the algorithm:
 .. note::
    In cases where two arguments share the same original mapping table (e.g. flow variables and flux residuals both indexed via the edge-to-node mapping), the current implementation duplicates the renumbered mapping table.  Deduplication is a known future improvement.
 
-**Element and Block Colouring**
+**Element and Block Colouring** *(used in ``color2`` mode)*
 
-Colouring is used at two levels to avoid data conflicts.
+When the ``color2`` strategy is selected, colouring is used at two levels to avoid data conflicts.
 
 *Element colouring* assigns a colour to each element such that no two elements of the same colour reference the same indirect dataset element.  The efficient implementation uses a 32-bit integer as a bitmask per indirect dataset element, with bit ``i`` set when the element has been referenced by a colour-``i`` element.  The ``ffs`` instruction finds the first zero bit.  A single pass handles up to 32 colours; in the rare case that more are needed the loop is repeated with the bitmasks re-initialised for the new set of colours.
 
 *Block colouring* follows the same algorithm but considers all indirect dataset elements referenced by all elements in a block (not just by a single element).
 
+When ``atomics=True`` (the default), colouring is still computed to determine ``ncolors_core`` and ``ncolors_owned`` (used for MPI communication overlap), but the actual element ordering used at execution time is the flat permutation in ``col_reord`` — threads within a kernel call process contiguous elements regardless of colour and use ``atomicAdd`` for all indirect increments.
+
 **Block Mapping**
 
-After colouring, ``op_plan_core`` constructs a ``blkmap`` array that maps from a colour-grouped ordering to the actual block storage order.  This, together with the per-colour block count, is all that is needed for later kernel execution.
+The ``blkmap`` / ``col_reord`` arrays map from the colour-grouped or flat element ordering to the stored block order, along with ``col_offsets`` (per-block colour start/end) and ``ncolblk`` (per-colour block counts).
 
 **``op_plan`` Struct**
 
@@ -145,7 +148,8 @@ The stub is the host function called from user code.  It:
 
 1. Transfers any local constants or global-reduction arrays to the GPU.
 2. Calls ``op_plan_get`` to retrieve or construct a plan.
-3. Loops over block colours, dispatching a CUDA kernel for each colour (implicit synchronisation between colours prevents data conflicts).
+3. With the default **atomics** strategy: iterates in two rounds — first over core elements (``[0, set->core_size)``), then over exec-halo elements (``[set->core_size, set->size + set->exec_size)``) after the MPI wait.  Each kernel call dispatches a contiguous range of elements; indirect increments are applied with ``atomicAdd``.
+   With the legacy **color2** strategy: loops over block colours dispatching one kernel per colour; a synchronisation barrier between colours prevents data conflicts.
 4. After the kernel, for global reductions, fetches partial results back to the CPU and combines them.
 
 **CUDA kernel routine**
@@ -156,7 +160,7 @@ The generated kernel:
 - Retrieves block ID via the ``blkmap`` mapping.
 - Sets shared-memory pointers for indirect datasets.
 - Zeroes incremented indirect data; copies read-only indirect data into shared memory (Fermi) or uses L2 cache (Kepler/later).
-- Loops over set elements in the block, applying thread colouring for increments.
+- Loops over set elements; with atomics, accumulates increments in thread-local arrays and applies them via ``atomicAdd``; with ``color2``, applies thread colouring with ``__syncthreads`` between colours.
 - Writes back indirect data; completes global reductions.
 
 .. note::
@@ -397,7 +401,7 @@ Supported partitioners:
 - **ParMetis k-way:** ``op_partition("PARMETIS", "KWAY", ...)`` — graph-based k-way partitioning.
 - **ParMetis geometric k-way:** ``op_partition("PARMETIS", "GEOMKWAY", ...)`` — combined geometric and k-way.
 - **PT-Scotch k-way:** ``op_partition("PTSCOTCH", "KWAY", ...)`` — alternative graph-based partitioner.
-- **Inertial coordinate bisection:** ``op_partition("INERTIAL", ...)`` — built-in, for 3D meshes; based on the original OPlus/Hydra strategy.
+- **Inertial coordinate bisection:** ``op_partition("INERTIAL", ...)`` — built-in, for 3D meshes.
 - **User-defined:** ``op_partition_external()`` — partitioning array supplied externally via an ``op_dat``.
 - **Random:** ``op_partition("RANDOM", ...)`` — for debugging only.
 
@@ -420,7 +424,19 @@ GPU Cluster (MPI + CUDA)
 
 On a GPU cluster, OP2 assigns **one MPI process per GPU**.  Nodes with multiple GPUs run multiple MPI processes; each process selects an available GPU device at runtime.
 
-To overlap computation with communication on the GPU, mini-partitions are assigned exclusively to either core-only or non-core elements.  Block colours are ordered so that all core-element colours come first.  The pseudo-code for executing one ``op_par_loop`` using MPI+CUDA is:
+To overlap computation with communication on the GPU, the execution is split into rounds separated by an MPI wait.  With the default **atomics** strategy, the pseudo-code for one ``op_par_loop`` on a GPU cluster is:
+
+.. code-block:: text
+
+   trigger non-blocking MPI halo exchanges for all dirty op_dats
+
+   round 0: execute GPU kernel over core elements [0, core_size)
+            (no halo data needed — overlaps with MPI communication)
+   round 1: wait for all MPI communications to complete
+            copy import halo data from host to GPU
+            execute GPU kernel over exec-halo elements [core_size, size + exec_size)
+
+With the legacy **color2** strategy, the execution uses block colours to achieve the same overlap:
 
 .. code-block:: text
 
@@ -430,11 +446,13 @@ To overlap computation with communication on the GPU, mini-partitions are assign
        start non-blocking MPI communication
 
    for each colour i:
-       if colour != core colours:
+       if colour == ncolors_core:
            wait for all MPI communications to complete
            for each op_dat requiring a halo exchange:
                copy import halo data from host to GPU
        execute CUDA kernel for colour-i mini-partitions
+
+In both variants, the key property is that ``ncolors_core`` (atomics) or the core-element range marks the boundary between locally-computable work and halo-dependent work.
 
 .. note::
    The above uses PCIe-bridged GPU ↔ host copies for halo data.  When built with GPUDirect support, the intermediate host copy is eliminated and MPI send/receive operations transfer data directly between GPUs over the network fabric.
