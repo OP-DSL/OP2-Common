@@ -20,7 +20,7 @@ OP2 currently enables users to write a single program at a high-level API declar
 Further to these there are also in-development versions that can emit SYCL and AMD HIP for parallelization on a wider range of GPUs. All of the above can be combined with distributed-memory MPI parallelization to run of clusters of CPU or GPU nodes. The user can either use OP2’s parallel file I/O capabilities for HDF5 files with a specified structure, or perform their own parallel file I/O using custom MPI code.
 
 .. note::
-   This page documents the C/C++ API. See :ref:`api:OP2 Fortran 90 API` for the equivalent Fortran API.
+   This page documents the C/C++ API. See :ref:`op2-fortran-api` for the equivalent Fortran API.
 
 A computational project can be viewed as involving three steps:
 
@@ -60,6 +60,8 @@ To achieve the high performance for large applications, a code-generator is need
    Build process for an OpenMP accelerated executable.
 
 In looking at the API specification, users may think it is somewhat verbose in places. For example, users have to re-supply information about the datatype of the datasets being used in a parallel loop. This is a deliberate choice to simplify the task of the code-generator, and therefore hopefully reduce the chance for errors. It is also motivated by the thought that "programming is easy; it’s debugging which is difficult": writing code isn’t time-consuming, it’s correcting it which takes the time. Therefore, it’s not unreasonable to ask the programmer to supply redundant information, but be assured that the code-generator or library will check that all redundant information is self-consistent. If you declare a dataset as being of type :c:type:`OP_DOUBLE` and later say that it is of type :c:type:`OP_FLOAT` this will be flagged up as an error at run-time.
+
+.. _op2-c-api:
 
 OP2 C/C++ API
 -------------
@@ -155,7 +157,7 @@ Initialisation and Termination
 
    :param set: The set the data is associated with.
    :param dim: Number of data elements per set element.
-   :param type: The datatype as a string, as with :c:func:`op_decl_const()`. A qualifier may be added to control data layout - see :ref:`api:Dataset Layout`.
+   :param type: The datatype as a string, as with :c:func:`op_decl_const()`. A qualifier may be added to control data layout - see :ref:`dataset-layout`.
    :param data: Input data of type :c:type:`T` (checked for consistency with **type** at run-time). The data must be provided in AoS form with each of the **dim** elements per set element contiguous in memory.
    :param name: A name to be used for output diagnostics.
 
@@ -171,6 +173,8 @@ Initialisation and Termination
    This routine releases a temporary dataset defined with :c:func:`op_decl_dat_temp()`
 
    :param dat: The dataset to free.
+
+.. _dataset-layout:
 
 Dataset Layout
 ^^^^^^^^^^^^^^
@@ -415,6 +419,8 @@ Other I/O and Utilities
    This routine prints diagnostics relating to sets, mappings and datasets.
 
 ----
+
+.. _op2-fortran-api:
 
 OP2 Fortran 90 API
 ------------------

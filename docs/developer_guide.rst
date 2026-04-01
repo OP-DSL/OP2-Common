@@ -1,7 +1,7 @@
 Developer Guide
 ===============
 
-This guide covers the internal algorithms and implementation details of OP2. It is intended for those who are developing or extending OP2; those who only need to use OP2 in an application should instead read the :ref:`api:OP2 C/C++ API` or :ref:`api:OP2 Fortran 90 API`.
+This guide covers the internal algorithms and implementation details of OP2. It is intended for those who are developing or extending OP2; those who only need to use OP2 in an application should instead read the :ref:`op2-c-api` or :ref:`op2-fortran-api`.
 
 .. note::
    This page incorporates material originally published as two PDF technical reports by Mike Giles, Gihan R. Mudalige, and Istvan Reguly (December 2013).  The original PDFs remain available at `dev.pdf <https://op-dsl.github.io/docs/OP2/dev.pdf>`__ and `mpi-dev.pdf <https://op-dsl.github.io/docs/OP2/mpi-dev.pdf>`__.
@@ -382,7 +382,7 @@ HDF5 File I/O
 
 OP2's HDF5 file format follows the layout of the NACA 0012 airfoil mesh generator (``apps/mesh_generators/naca0012.m``).  The structure and contents of a generated HDF5 file can be inspected with the ``h5dump`` utility.
 
-Parallel HDF5 I/O routines are documented in :ref:`api:OP2 C/C++ API`; an example use is in the ``apps/c/airfoil/airfoil_hdf5`` application.  OP2 assumes that each HDF5 file uses a flat keyword-based hierarchy where set names, map names, and dat names serve as dataset keys.
+Parallel HDF5 I/O routines are documented in :ref:`op2-c-api`; an example use is in the ``apps/c/airfoil/airfoil_hdf5`` application.  OP2 assumes that each HDF5 file uses a flat keyword-based hierarchy where set names, map names, and dat names serve as dataset keys.
 
 
 Partitioning

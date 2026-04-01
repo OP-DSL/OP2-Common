@@ -167,7 +167,7 @@ For example, to build the Fortran Airfoil benchmark with JIT CUDA:
 
    make -C apps/fortran/airfoil f_c_cuda
 
-See :ref:`api:OP2 Fortran 90 API` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
+See :ref:`op2-fortran-api` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
    
 Spack
 -----
