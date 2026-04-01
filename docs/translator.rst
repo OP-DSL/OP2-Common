@@ -1,7 +1,13 @@
 Code Generation
 ===============
 
-OP2 uses a code translator to transform a user's sequential OP2 source files into parallelised variants targeting specific hardware backends. The current OP2 translator is based on Jinja2 templating and ``libclang`` parsing and is the recommended tool for all projects. A **legacy translator** is also retained for compatibility, consisting of a collection of standalone Python scripts.
+OP2 uses a code translator to transform a user's sequential OP2 source files into parallelised variants targeting specific hardware backends. The current OP2 translator uses:
+
+- **libclang** to parse C/C++ source files.
+- **fparser2** (the ``fparser`` PyPI package) to parse Fortran source files.
+- **Jinja2** to render backend-specific kernel code from templates.
+
+It is the recommended tool for all projects. A **legacy translator** is also retained for compatibility, consisting of a collection of standalone Python scripts.
 
 .. note::
    **For most users the translator runs automatically.**  Any application that uses the standard OP2 Makefiles (``makefiles/common.mk`` + ``makefiles/c_app.mk`` or ``f_app.mk``) will invoke the translator transparently when you run ``make <variant>``.  You only need to be aware of the translator's options if you are setting up a custom build system, running the translator in isolation for debugging, or need to override its behaviour.
@@ -17,12 +23,16 @@ Requirements
 The translator and its dependencies are bundled inside ``translator-v2/`` and are set up automatically by the OP2 Makefiles.  If you need to run the translator outside the Makefile (e.g., in a custom CI pipeline), install the dependencies manually:
 
 - Python >= 3.8
-- ``libclang`` (for Debian-based systems: ``sudo apt-get install libclang-dev``)
+- ``libclang`` system library (for Debian-based systems: ``sudo apt-get install libclang-dev``)
+- Python packages: ``jinja2``, ``fparser`` (fparser2 API), ``libclang``, ``pcpp``, ``sympy``
 
 .. code-block:: shell
 
    cd translator-v2
    pip install -r requirements.txt
+
+.. note::
+   The ``fparser`` package provides the ``fparser.two`` (fparser2) API used to parse Fortran source files.  The ``libclang`` Python binding (pinned to 18.1.1 in ``requirements.txt``) wraps the system ``libclang`` shared library used to parse C/C++ source files.  Both are installed automatically by the ``pip install`` command above.
 
 Manual Usage
 ^^^^^^^^^^^^
