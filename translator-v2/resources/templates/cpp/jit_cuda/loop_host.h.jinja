@@ -161,9 +161,6 @@ void *kernel_args[] = {
     {% if lh is indirect and config.color2 %}
     &plan->col_reord,
     {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
-    {% endif %}
     {% if lh.args|opt|length > 0 %}
     &opt_flags,
     {% endif %}
@@ -193,9 +190,6 @@ void *kernel_args_jit[] = {
     {% endfor %}
     {% if lh is indirect and config.color2 %}
     &plan->col_reord,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
     {% endif %}
     {% if lh.args|opt|length > 0 %}
     &opt_flags,
@@ -240,7 +234,11 @@ int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
     {% for dat in lh.dats|soa %}
 __constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
     {% endfor %}
+    {% if args_gbl_per_thread|length > 0 %}
 
+int op2_{{lh.kernel}}_gbl_stride = -1;
+__constant__ int op2_{{lh.kernel}}_gbl_stride_d;
+    {% endif %}
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
@@ -274,9 +272,6 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% if lh is indirect and config.color2 %}
     const int *__restrict col_reord,
     {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    const int stride_gbl,
-    {% endif %}
     {% if lh.args|opt|length > 0 %}
     const unsigned opt_flags,
     {% endif %}
@@ -287,11 +282,13 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     using namespace op2_m_{{lh.name}}{{variant}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
+    {% if lh.args_expanded|indirect|reduction|length > 0 %}
     int zero_int = 0;
     bool zero_bool = 0;
     float zero_float = 0;
     double zero_double = 0;
 
+    {% endif %}
     {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
     {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
     for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
@@ -398,66 +395,8 @@ void op_par_loop_{{lh.name}}(
                                     (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
                                     op2_k_{{lh.name}}{{variant}}_src);
 
-    if (first_invocation) {
-{% for dat in lh.dats|soa %}
-        info.add_param("op2_{{lh.kernel}}_dat{{dat.id}}_stride_d", &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride, &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride_d);
-{% endfor %}
-{% for const in lh.consts %}
-    {% if const.dim == 1 %}
-        info.add_param("op2_const_{{const.ptr}}_d", &{{const.ptr}}, &op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
-    {% else %}
-        info.add_param("op2_const_{{const.ptr}}_d", {{const.ptr}}, sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]), op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
-    {% endif %}
-{% endfor %}
-{% for arg in lh.args|gbl|read|scalar %}
-        info.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
-{% endfor %}
-
-        first_invocation = false;
-    }
-
-{% for arg in lh.args %}
-    args[{{loop.index0}}] = arg{{arg.id}};
-{% endfor %}
-
-    // op_timing2_next("MPI Exchanges");
-    int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
-
-    if (n_exec == 0) {
-        // op_timing2_exit();
-        // op_timing2_exit();
-
-        op_mpi_wait_all_grouped(n_args, args, 2);
-
-{% for arg in lh.args|gbl|reduction %}
-        op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
-{% endfor %}
-
-        op_mpi_set_dirtybit_cuda(n_args, args);
-        // op_timing2_exit();
-        return;
-    }
-
-    setGblIncAtomic({{"true" if config.gbl_inc_atomic else "false"}});
-
-{% for arg in lh.args|gbl|read|scalar %}
-    kernel::op2_gbl{{arg.id}} = (({{arg.typ.c()}} *)arg{{arg.id}}.data)[0];
-{% endfor %}
-
-{% for dat in lh.dats|soa %}
-    kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride = f2c::round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
-{% endfor %}
-
-{% for arg in lh.args|gbl if arg is min or arg is max or arg is work %}
-    static {{arg.typ.c()}}* gbl{{arg.id}}_ref_d = nullptr;
-{% endfor %}
-
-    // op_timing2_next("Get Kernel");
-    auto *kernel_inst = info.get_kernel();
-    // op_timing2_exit();
-
 {% if lh is direct %}
-    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->size);
+    auto [block_limit, block_size] = info.get_launch_config(nullptr, set->size);
     block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
 
     int num_blocks = (set->size + (block_size - 1)) / block_size;
@@ -470,7 +409,7 @@ void op_par_loop_{{lh.name}}(
     std::array<int, 4> sections = {0, set->core_size, set->size, set->size + set->exec_size};
 {% endif %}
 
-    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->core_size);
+    auto [block_limit, block_size] = info.get_launch_config(nullptr, set->core_size);
     block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
 
     int max_blocks = 0;
@@ -521,6 +460,69 @@ void op_par_loop_{{lh.name}}(
     max_blocks = std::min(max_blocks, block_limit);
     // op_timing2_exit();
 {% endif %}
+
+    if (first_invocation) {
+{% for dat in lh.dats|soa %}
+        info.add_param("op2_{{lh.kernel}}_dat{{dat.id}}_stride_d", &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride, &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride_d);
+{% endfor %}
+{% for const in lh.consts %}
+    {% if const.dim == 1 %}
+        info.add_param("op2_const_{{const.ptr}}_d", &{{const.ptr}}, &op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
+    {% else %}
+        info.add_param("op2_const_{{const.ptr}}_d", {{const.ptr}}, sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]), op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
+    {% endif %}
+{% endfor %}
+{% for arg in lh.args|gbl|read|scalar %}
+        info.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
+{% endfor %}
+{% if args_gbl_per_thread|length > 0 %}
+
+        kernel::op2_{{lh.kernel}}_gbl_stride = block_size * max_blocks;
+        info.add_param("op2_{{lh.kernel}}_gbl_stride_d", &kernel::op2_{{lh.kernel}}_gbl_stride, &kernel::op2_{{lh.kernel}}_gbl_stride_d);
+{% endif %}
+
+        first_invocation = false;
+    }
+
+{% for arg in lh.args %}
+    args[{{loop.index0}}] = arg{{arg.id}};
+{% endfor %}
+
+    // op_timing2_next("MPI Exchanges");
+    int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
+
+    if (n_exec == 0) {
+        // op_timing2_exit();
+        // op_timing2_exit();
+
+        op_mpi_wait_all_grouped(n_args, args, 2);
+
+{% for arg in lh.args|gbl|reduction %}
+        op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
+{% endfor %}
+
+        op_mpi_set_dirtybit_cuda(n_args, args);
+        // op_timing2_exit();
+        return;
+    }
+
+    setGblIncAtomic({{"true" if config.gbl_inc_atomic else "false"}});
+
+{% for arg in lh.args|gbl|read|scalar %}
+    kernel::op2_gbl{{arg.id}} = (({{arg.typ.c()}} *)arg{{arg.id}}.data)[0];
+{% endfor %}
+
+{% for dat in lh.dats|soa %}
+    kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride = f2c::round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
+{% endfor %}
+
+{% for arg in lh.args|gbl if arg is min or arg is max or arg is work %}
+    static {{arg.typ.c()}}* gbl{{arg.id}}_ref_d = nullptr;
+{% endfor %}
+
+    // op_timing2_next("Get Kernel");
+    auto *kernel_inst = info.get_kernel();
+    // op_timing2_exit();
 
 {% if lh.args|opt|length > 0 %}
     unsigned opt_flags = 0;
@@ -636,7 +638,7 @@ void op_par_loop_{{lh.name}}(
 
     // op_timing2_enter("Finalise");
 {% for arg in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{arg.id}}, arg{{arg.id}}.data);
+    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
 {% endfor %}
 
     op_mpi_set_dirtybit_cuda(n_args, args);

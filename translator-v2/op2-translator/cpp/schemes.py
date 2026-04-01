@@ -199,6 +199,15 @@ class CppJitCuda(Scheme):
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
             )
 
+            ctk.insertArgGblStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_gbl_stride_d",
+                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN],
+            )
+
         return ctk.writeSource(extracted_entities)
 
 
@@ -244,6 +253,15 @@ class CppJitHip(Scheme):
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+            )
+
+            ctk.insertArgGblStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_gbl_stride_d",
+                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN],
             )
 
         return ctk.writeSource(extracted_entities)
