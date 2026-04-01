@@ -23,7 +23,6 @@ Requirements
 The translator and its dependencies are bundled inside ``translator-v2/`` and are set up automatically by the OP2 Makefiles.  If you need to run the translator outside the Makefile (e.g., in a custom CI pipeline), install the dependencies manually:
 
 - Python >= 3.8
-- ``libclang`` system library (for Debian-based systems: ``sudo apt-get install libclang-dev``)
 - Python packages: ``jinja2``, ``fparser`` (fparser2 API), ``libclang``, ``pcpp``, ``sympy``
 
 .. code-block:: shell
@@ -32,7 +31,7 @@ The translator and its dependencies are bundled inside ``translator-v2/`` and ar
    pip install -r requirements.txt
 
 .. note::
-   The ``fparser`` package provides the ``fparser.two`` (fparser2) API used to parse Fortran source files.  The ``libclang`` Python binding (pinned to 18.1.1 in ``requirements.txt``) wraps the system ``libclang`` shared library used to parse C/C++ source files.  Both are installed automatically by the ``pip install`` command above.
+   No system Clang installation is required.  The ``libclang`` PyPI wheel (pinned to 18.1.1 in ``requirements.txt``) is a self-contained ``manylinux`` wheel that bundles its own ``libclang.so`` — no ``apt install libclang-dev`` or equivalent is needed.  The ``fparser`` package provides the ``fparser.two`` (fparser2) API used to parse Fortran source files.
 
 Manual Usage
 ^^^^^^^^^^^^
