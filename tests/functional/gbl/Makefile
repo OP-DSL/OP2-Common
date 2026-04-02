@@ -4,6 +4,7 @@ APP_NAME := gbl_tests
 APP_SRC := gbl_tests.cpp
 
 VARIANT_FILTER_OUT := mpi_%
+# APP_EXTRA_TRANSLATOR_FLAGS := --force_soa
 
 include ../../../makefiles/c_app.mk
 

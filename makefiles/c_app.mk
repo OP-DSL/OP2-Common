@@ -1,4 +1,4 @@
-TRANSLATOR ?= $(ROOT_DIR)/translator-v2/op2-translator.sh -v
+TRANSLATOR ?= $(ROOT_DIR)/translator-v2/op2-translator.sh -v 
 
 ifneq ($(MPI_INC),)
 	TRANSLATOR += -I $(MPI_INC)
@@ -79,7 +79,7 @@ endif
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $(APP_INC) $$^ -o $$@
+	$(TRANSLATOR) $(APP_EXTRA_TRANSLATOR_FLAGS) $(APP_INC) $$^ -o $$@
 
 generate: generated/$(APP_NAME)
 endef

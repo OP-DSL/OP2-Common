@@ -385,6 +385,10 @@ void op_par_loop_{{lh.name}}(
     int n_args = {{lh.args|length}};
     op_arg args[{{lh.args|length}}];
 
+{% for arg in lh.args %}
+    args[{{loop.index0}}] = arg{{arg.id}};
+{% endfor %}
+
     // op_timing2_enter_kernel("{{lh.name}}", "c_CUDA", "{{variant_str()}}");
     // op_timing2_enter("Init");
 
@@ -483,10 +487,6 @@ void op_par_loop_{{lh.name}}(
 
         first_invocation = false;
     }
-
-{% for arg in lh.args %}
-    args[{{loop.index0}}] = arg{{arg.id}};
-{% endfor %}
 
     // op_timing2_next("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
