@@ -84,9 +84,9 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 
 {%- macro arg_to_pointer_cuda(arg, jit = false) %}
     {%- if arg is idx and arg is indirect -%}
-idx{{arg.id}}
+&idx{{arg.id}}
     {%- elif arg is idx -%}
-idx
+&idx
     {%- elif arg is opt and arg is scalar(lh) -%}
         {%- if arg is gbl or arg is info %}
             {%- set zero_type = arg.typ.c() -%}

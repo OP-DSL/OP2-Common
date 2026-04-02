@@ -1,3 +1,5 @@
+// Not intended to be used with OP_NO_REALLOC flag
+
 #ifdef USE_MPI
 #include "op_lib_mpi.h"
 #endif
