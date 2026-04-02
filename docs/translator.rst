@@ -10,7 +10,7 @@ OP2 uses a code translator to transform a user's sequential OP2 source files int
 It is the recommended tool for all projects. A **legacy translator** is also retained for compatibility, consisting of a collection of standalone Python scripts.
 
 .. note::
-   **For most users the translator runs automatically.**  Any application that uses the standard OP2 Makefiles (``makefiles/common.mk`` + ``makefiles/c_app.mk`` or ``f_app.mk``) will invoke the translator transparently when you run ``make <variant>``.  You only need to be aware of the translator's options if you are setting up a custom build system, running the translator in isolation for debugging, or need to override its behaviour.
+   **For most users the translator runs automatically.**  Any application that uses the standard OP2 Makefiles (``makefiles/common.mk`` + ``makefiles/c_app.mk`` or ``f_app.mk``) will invoke the translator transparently when you run ``make <app_name>_<variant>``.  You only need to be aware of the translator's options if you are setting up a custom build system, running the translator in isolation for debugging, or need to override its behaviour.
 
 ----
 
@@ -99,15 +99,15 @@ The following code-generation targets are available for C/C++ applications (``.c
      - Ahead-of-time compiled AMD GPU implementation using HIP. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Requires ``HIP_INSTALL_PATH`` and ``HIP_ARCH`` to be set.
    * - ``c_cuda``
      - ``c_cuda``
-     - JIT-compiled NVIDIA GPU implementation. Produces ``op2_kernels.cu`` containing device kernel source strings that are compiled at application start-up using NVRTC. Avoids a separate offline CUDA compilation step and enables runtime kernel specialisation. Requires the CUDA runtime library at link time.
+     - JIT-compiled NVIDIA GPU implementation. Produces ``op2_kernels.cu`` compiled by ``nvcc`` during the application build. Device kernel source strings are embedded in the binary via INCBIN and compiled at application start-up by NVRTC, so the GPU architecture is selected at runtime. Requires ``CUDA_INSTALL_PATH`` and ``nvcc``.
    * - ``c_hip``
      - ``c_hip``
-     - JIT-compiled AMD GPU implementation. Produces ``op2_kernels.cpp`` containing device kernel source strings compiled at application start-up using the HIP RTC library. Requires the HIP RTC library at link time.
+     - JIT-compiled AMD GPU implementation. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Device kernel source strings are embedded in the binary and compiled at application start-up by the HIP RTC library, so the GPU architecture is selected at runtime. Requires ``HIP_INSTALL_PATH`` and ``hipcc``.
 
 All targets have a corresponding distributed-memory MPI variant built automatically when an MPI-enabled OP2 library is available (e.g. the ``cuda`` target produces both ``<app>_cuda`` and ``<app>_mpi_cuda``).
 
 .. note::
-   The ``c_cuda`` and ``c_hip`` JIT targets use the same CUDA/HIP runtime libraries as the ``cuda`` and ``hip`` AOT targets. The key difference is that device kernels are compiled at application launch rather than at build time. This removes the dependency on ``nvcc``/``hipcc`` during the build and allows the GPU architecture to be selected at runtime.
+   The ``c_cuda`` and ``c_hip`` JIT targets use the same CUDA/HIP runtime libraries as the ``cuda`` and ``hip`` AOT targets, and both also require ``nvcc``/``hipcc`` at build time. The key difference is that device kernel source is embedded in the binary and compiled at application launch via NVRTC/HIP RTC, allowing the GPU architecture to be selected at runtime rather than fixed at build time.
 
 Fortran Targets
 ^^^^^^^^^^^^^^^
@@ -158,19 +158,19 @@ This applies to both C/C++ and Fortran applications:
      - JIT (``c_cuda`` / ``c_hip``)
    * - Build-time GPU compiler required
      - Yes (``nvcc`` / ``hipcc``)
-     - No
+     - Yes (``nvcc`` / ``hipcc``)
    * - Target architecture fixed at build time
-     - Yes (via ``NV_ARCH`` / ``HIP_ARCH``)
+     - Yes (via ``NV_ARCH`` for NVIDIA; ``HIP_ARCH`` for AMD)
      - No — resolved at application start-up
    * - Application start-up overhead
      - None
-     - Small (kernel compilation on first run)
+     - Small (kernel compilation on first run and when constant values change at runtime)
    * - Fortran native GPU Fortran available
      - Yes (``cuda`` target with NVHPC)
      - N/A — uses C interop layer
    * - Recommended for
-     - Production deployments with a known GPU
-     - Portable deployments or rapid development
+     - Deployments with a known GPU
+     - When a large number of constant values are determined at runtime and used in a kernel
 
 SoA Data Layout
 ^^^^^^^^^^^^^^^
@@ -179,7 +179,13 @@ By default, OP2 stores datasets in Array of Structs (AoS) layout. Struct of Arra
 
 To enable SoA layout for all datasets, choose one of:
 
-- Append ``:soa`` to individual ``type`` strings in :c:func:`op_decl_dat` calls in your source (per-dataset control).
+- Append ``:soa`` to individual ``type`` strings in :c:func:`op_decl_dat` calls in your source for per-dataset control. For example, to store a ``double`` dataset in SoA layout:
+
+  .. code-block:: c
+
+     op_dat p_K = op_decl_dat(cells, 16, "double:soa", K, "p_K");
+
+  Without the suffix the dataset uses the default AoS layout. Note that the data supplied by the user should remain in AoS layout regardless — OP2 performs the conversion internally.
 - Pass the ``-soa`` flag to the translator.  When using the OP2 Makefiles, append it to the ``TRANSLATOR`` variable in the application Makefile before including ``c_app.mk``:
 
   .. code-block:: make
