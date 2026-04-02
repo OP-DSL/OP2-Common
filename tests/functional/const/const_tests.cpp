@@ -1,3 +1,5 @@
+// Not intended to be used with OP_NO_REALLOC flag
+
 #include "op_seq.h"
 #include <vector>
 
