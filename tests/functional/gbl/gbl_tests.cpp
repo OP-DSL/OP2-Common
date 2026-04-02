@@ -60,7 +60,9 @@ int main(int argc, char **argv) {
 
   get_rank_and_size(my_rank, comm_size);
 
-  constexpr int gbl_size = 256;
+  // Use a non-multiple of comm_size, 32 or 64 to make full use of these tests
+  constexpr int gbl_size = 161; 
+
   const int local_size = compute_local_size(gbl_size, comm_size, my_rank);
   double local_start = (double)get_local_start(gbl_size, comm_size, my_rank);
 
