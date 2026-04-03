@@ -4,7 +4,7 @@ Developer Guide
 This guide covers the internal algorithms and implementation details of OP2. It is intended for those who are developing or extending OP2; those who only need to use OP2 in an application should instead read the :ref:`op2-c-api` or :ref:`op2-fortran-api`.
 
 .. note::
-   This page incorporates material originally published as two PDF technical reports by Mike Giles, Gihan R. Mudalige, and Istvan Reguly (December 2013).  The original PDFs remain available at `dev.pdf <https://op-dsl.github.io/docs/OP2/dev.pdf>`__ and `mpi-dev.pdf <https://op-dsl.github.io/docs/OP2/mpi-dev.pdf>`__.
+   This page incorporates material originally published as two PDF technical reports by Mike Giles, Gihan R. Mudalige, and Istvan Reguly (December 2013).  The original PDFs remain available at `dev.pdf <https://op-dsl.github.io/docs/OP2/dev.pdf>`__ and `mpi-dev.pdf <https://op-dsl.github.io/docs/OP2/mpi-dev.pdf>`__. **It is strongly recommended to read these reports in conjunction with this guide, as they contain the core concepts in OP2 that underpin the DSL.**
 
 
 Parallelisation Architecture
