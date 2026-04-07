@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
   op_decl_const(1, "double", &my_const1);
   op_decl_const(4, "double", my_const4);
 
-  op_partition("PARMETIS", "GEOM", set, NULL, dat4);
+  op_partition("", "", NULL, NULL, NULL);
 
   // --- CONST Check ---
   {
