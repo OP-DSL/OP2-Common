@@ -9,7 +9,7 @@
 #include "../utility.h"
 
 #define TOL 1e-9
-#define NN 6
+#define NN 12
 
 // --- Utility functions ---
 void check(bool cond, int idx, int rank, const char *msg) {
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
   op_dat pn_dat3 = op_decl_dat(nodes, 3, "float", mesh.n_dat3.data(), "pn_dat3");
   op_dat pn_dat3_u = op_decl_dat(nodes, 3, "float", mesh.n_dat3.data(), "pn_dat3_u");
 
-  op_partition("PARMETIS", "GEOM", NULL, NULL, NULL);
+  op_partition("", "", NULL, NULL, NULL);
 
   int node_size_inc_halo = nodes->size + nodes->exec_size + nodes->nonexec_size;
   int edge_size_inc_halo = edges->size + edges->exec_size + edges->nonexec_size;

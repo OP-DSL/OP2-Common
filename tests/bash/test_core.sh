@@ -40,9 +40,9 @@ function validate {
     set -e
 
     if [[ $rc != 0 ]]; then
-        echo "TEST FAILED" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        echo $bin "xxxxxxxxxxxxxxxxxxx TEST FAILED" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
     else
-        echo "TEST PASSED" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        echo $bin "+++++++++++++++++++ TEST PASSED"  | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
     fi
 
     rm perf_out
@@ -68,7 +68,9 @@ function check_all_tests {
     set -e
     if [[ $rc != 0 ]]; then
         echo "All ${TEST_APP} Tests Passed" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        return 0
     else
         echo "Some of ${TEST_APP} Tests Failed, Check ${TEST_APP}_test.log file" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        return 1
     fi
 }

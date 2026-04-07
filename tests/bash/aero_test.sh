@@ -4,18 +4,23 @@ set -e
 
 export TEST_APP="aero";
 
-TEST_AERO_CPP=TRUE
-TEST_AERO_FORTRAN=FALSE
+COMPILE_OP2=${COMPILE_OP2:-FALSE}
 
-TEST_PLAIN=TRUE
-TEST_HDF5=TRUE
+TEST_AERO_CPP=${TEST_AERO_CPP:-TRUE}
+TEST_AERO_FORTRAN=${TEST_AERO_FORTRAN:-FALSE}
+
+TEST_PLAIN=${TEST_PLAIN:-TRUE}
+TEST_HDF5=${TEST_HDF5:-TRUE}
 
 source ./test_core.sh
 
-cd $LIB_LOC
-make clean; 
-make config; 
-make -j24;
+if [[ "$COMPILE_OP2" = "TRUE" ]]; then
+    echo "Compiling OP2..." | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+    cd $LIB_LOC
+    make clean; 
+    make config; 
+    make -j24;
+fi
 
 if [[ "$TEST_AERO_CPP" = "TRUE" ]] && [[ "$TEST_PLAIN" = "TRUE" ]]; then
 
