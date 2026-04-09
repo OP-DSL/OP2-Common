@@ -1,0 +1,133 @@
+name: Local CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      - created
+  
+env:
+  SOURCE_SCRIPT: scripts/source_gnuz
+  N_PROC: 64
+  M6_WING_PATH: /home/zl/mgcfd-meshes/M6_wing
+  ROTOR_37_1M_PATH: /home/zl/mgcfd-meshes/Rotor37_1M
+
+jobs:
+  local-test:
+    runs-on: self-hosted
+
+    steps:
+      # 1. Checkout correct branch ---------------------------------------
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          ref: OP2_refactor
+
+      # 2. Debug info ---------------------------------------
+      - name: Print runner info
+        run: |
+          echo "Machine: $(hostname)"
+          echo "PWD: $(pwd)"
+
+      # 3. Configure OP2 ---------------------------------------
+      - name: Configure OP2
+        run: |
+          source "$SOURCE_SCRIPT"
+
+          if [ -f makefiles/.config.mk ]; then
+            echo "Cleaning OP2..."
+            make -C op2 clean
+          fi
+
+          make -C op2 config
+
+      # 4. Compile OP2 ---------------------------------------
+      - name: Compile OP2
+        run: |
+          source "$SOURCE_SCRIPT"
+
+          echo "Building OP2..."
+          make -C op2 -j"$N_PROC"
+
+      # 5. Compile functional tests ---------------------------------------
+      - name: Compile functional tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./functional_test.sh
+
+      # 6. Run functional tests ---------------------------------------
+      - name: Run functional tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          cd tests/bash
+          RUN_TESTS=TRUE ./functional_test.sh
+
+      # 7. Compile aero tests ---------------------------------------
+      - name: Compile Aero tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./aero_test.sh
+
+      # 8. Run aero tests ---------------------------------------
+      - name: Run Aero tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          cd tests/bash
+          RUN_TESTS=TRUE ./aero_test.sh
+
+      # 9. Compile MGCFD tests ---------------------------------------
+      - name: Compile MGCFD tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./mgcfd_test.sh
+
+      # 10. Run MGCFD tests ---------------------------------------
+      - name: Run MGCFD tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          cd tests/bash
+          RUN_TESTS=TRUE ./mgcfd_test.sh
+
+      # 11. Compile airfoil tests ---------------------------------------
+      - name: Compile Airfoil tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./airfoil_test.sh
+
+      # 12. Run airfoil tests ---------------------------------------
+      - name: Run Airfoil tests
+        run: |
+          source "$SOURCE_SCRIPT"
+          cd tests/bash
+          RUN_TESTS=TRUE ./airfoil_test.sh
+
+      # 13. Archive logs ---------------------------------------
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            *.log
+            tests/**/*.log
+
+      # 14. Final status message ---------------------------------------
+      - name: Final status
+        if: success()
+        run: echo "CI tests passed"
+
+      - name: Final failure
+        if: failure()
+        run: echo "Some CI tests failed"
