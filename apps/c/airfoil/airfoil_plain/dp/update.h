@@ -13,7 +13,9 @@ inline void update(const double *qold, double *q, double *res,
 
     if (sqdel > *maxerr) {
       *maxerr = sqdel;
-      *errloc = *idx;
+      // *errloc = *idx; 
+      // Uncomment above when op_arg_info is fully supported
+      // As of now, seq through templates and GPU versions do not support op_arg_info
     }
   }
 }

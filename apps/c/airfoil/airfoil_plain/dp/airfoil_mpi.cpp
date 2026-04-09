@@ -354,7 +354,7 @@ int main(int argc, char **argv) {
   op_decl_const(1, "double", &alpha);
   op_decl_const(4, "double", qinf);
 
-  op_diagnostic_output();
+  // op_diagnostic_output();
 
   // trigger partitioning and halo creation routines
   // op_partition("PTSCOTCH", "KWAY", cells, pecell, p_x);
