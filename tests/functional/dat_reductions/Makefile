@@ -1,3 +1,5 @@
+APP_EXTRA_TRANSLATOR_FLAGS ?= -I $(OP2_INSTALL_PATH)/include
+
 include ../../../makefiles/common.mk
 
 APP_NAME := reduc_tests

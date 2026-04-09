@@ -2,7 +2,7 @@ export SCRIPT_RUN_LOC=$PWD
 export LIB_LOC=$PWD/../../op2
 export APPS_LOC=$PWD/../../apps
 
-precision=( "dp" "sp" )
+precision=( "sp" "dp" )
 
 if [ -f "$SCRIPT_RUN_LOC/${TEST_APP}_test.log" ]; then
     rm $SCRIPT_RUN_LOC/${TEST_APP}_test.log
@@ -30,12 +30,16 @@ function validate {
 
     echo "Running: $cmd" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
-    eval "$cmd" > perf_out 2>&1
+    file_tail=$bin
+    file_tail="${file_tail//./}"     # remove all dots
+    file_tail="${file_tail//\//_}"   # replace / with _
 
-    grep "Max total runtime" perf_out | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+    eval "$cmd" > perf_out_$file_tail 2>&1
+
+    grep "Max total runtime" perf_out_$file_tail | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
     set +e
-    grep -q $grep_word perf_out
+    grep -q $grep_word perf_out_$file_tail
     local rc=$?
     set -e
 
@@ -45,7 +49,7 @@ function validate {
         echo $bin "+++++++++++++++++++ TEST PASSED"  | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
     fi
 
-    rm perf_out
+    rm perf_out_$file_tail
     echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 }
 
