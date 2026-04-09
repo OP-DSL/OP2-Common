@@ -57,7 +57,7 @@ map{{arg.map_id}}[round32(set_size) * {{arg.map_idx}} + n]
     {%- if arg is idx and arg is indirect -%}
 &map{{arg.map_id}}[round32(set_size) * {{arg.map_idx}} + n]
     {%- elif arg is idx -%}
-&n
+&idx
     {%- elif arg is gbl -%}
 gbl{{arg.id}}{{"_local" if arg is reduction}}
     {%- elif arg is direct -%}
@@ -66,6 +66,8 @@ dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
 arg{{arg.id}}_vec
     {%- elif arg is inc and config.atomics -%}
 arg{{arg.id}}_{{arg.map_idx}}_local
+    {%- elif arg is info -%}
+&dummy_info_{{arg.id}}
     {%- else -%}
 dat{{arg.dat_id}} + {{map_lookup(arg)}}
     {%- endif -%}
@@ -101,6 +103,9 @@ __global__ void op_hip_{{lh.name}}(
     {% for arg in lh.args|gbl %}
     {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *__restrict gbl{{arg.id}},
     {% endfor %}
+    {% for arg in lh.args|info %}
+    {{arg.typ.c()}} *__restrict info{{arg.id}},
+    {% endfor %}
     {%- if lh is indirect %}
     {{"int *col_reord," if config.color2}}
     int start,
@@ -122,6 +127,12 @@ __global__ void op_hip_{{lh.name}}(
 
     {% if lh is direct %}
     for (int n = thread_id; n < set_size; n += blockDim.x * gridDim.x) {
+        {% if lh.args|idx|direct|length > 0 %}
+        int idx = n + 1;
+        {% endif %}
+        {% for arg in lh.args|info %}
+        {{arg.typ}} dummy_info_{{arg.id}} = 0; // Remove once op_arg_info functionality is fixed
+        {% endfor %}
         op2_k{{kernel_idx}}::{{lh.kernel}}(
             {% for arg in lh.args %}
             {%+ call opt_hip_tern(arg) %}{{arg_to_pointer_hip(arg)}}{% endcall %}{{-"," if not loop.last}}
@@ -306,6 +317,9 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
     arg{{map.arg_id}}.map_data_d,
     {% endfor %}
     {% for arg in lh.args|gbl %}
+    ({{arg.typ}} *)arg{{arg.id}}.data_d,
+    {% endfor %}
+    {% for arg in lh.args|info %}
     ({{arg.typ}} *)arg{{arg.id}}.data_d,
     {% endfor %}
     {% for extra_arg in varargs %}
