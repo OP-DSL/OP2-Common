@@ -388,7 +388,7 @@ void op_init_core(int argc, char **argv, int diags) {
   TAILQ_INIT(&OP_dat_list);
 }
 
-op_set op_decl_set_core(idx_g_t size, char const *name) {
+op_set op_decl_set_core(idx_l_t size, char const *name) {
   if (size < 0) {
     printf(" op_decl_set error -- negative/zero size for set: %s\n", name);
     exit(-1);
