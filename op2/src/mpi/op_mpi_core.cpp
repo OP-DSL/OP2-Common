@@ -104,7 +104,7 @@ extern "C" {
  * Wrappers of core lib
  */
 
-op_set op_decl_set(idx_l_t size, char const *name) {
+op_set op_decl_set(idx_g_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
