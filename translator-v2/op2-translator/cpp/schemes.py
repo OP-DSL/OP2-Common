@@ -107,6 +107,7 @@ class CppCuda(Scheme):
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+                entities=extracted_entities,
             )
 
         return ctk.writeSource(extracted_entities)
@@ -151,6 +152,7 @@ class CppHip(Scheme):
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+                entities=extracted_entities,
             )
 
         return ctk.writeSource(extracted_entities)
@@ -197,6 +199,7 @@ class CppJitCuda(Scheme):
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+                entities=extracted_entities,
             )
 
             ctk.insertArgGblStrides(
@@ -253,6 +256,7 @@ class CppJitHip(Scheme):
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
                 skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+                entities=extracted_entities,
             )
 
             ctk.insertArgGblStrides(
