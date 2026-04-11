@@ -54,6 +54,15 @@ if [[ "$TEST_CONSTS" = "TRUE" ]]; then
         validate "mpirun -np 4" "const_tests_par_mpi_cuda" "" "passed"
         validate "" "const_tests_seq" "" "passed"
         validate "" "const_tests_genseq" "" "passed"
+
+        validate "OMP_NUM_THREADS=6" "const_tests_soa_openmp" "" "passed"
+        validate "" "const_tests_soa_cuda" "" "passed"
+        validate "mpirun -np 8" "const_tests_soa_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "const_tests_soa_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "const_tests_soa_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "const_tests_soa_par_mpi_cuda" "" "passed"
+        validate "" "const_tests_soa_seq" "" "passed"
+        validate "" "const_tests_soa_genseq" "" "passed"
     fi
 fi
 
@@ -81,6 +90,15 @@ if [[ "$TEST_DAT_REDUC" = "TRUE" ]]; then
         validate "mpirun -np 4" "reduc_tests_par_mpi_cuda" "" "passed"
         validate "" "reduc_tests_seq" "" "passed"
         validate "" "reduc_tests_genseq" "" "passed"
+
+        validate "OMP_NUM_THREADS=6" "reduc_tests_soa_openmp" "" "passed"
+        validate "" "reduc_tests_soa_cuda" "" "passed"
+        validate "mpirun -np 8" "reduc_tests_soa_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "reduc_tests_soa_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "reduc_tests_soa_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "reduc_tests_soa_par_mpi_cuda" "" "passed"
+        validate "" "reduc_tests_soa_seq" "" "passed"
+        validate "" "reduc_tests_soa_genseq" "" "passed"
     fi
 fi
 
@@ -108,6 +126,15 @@ if [[ "$TEST_ARG_GBL" = "TRUE" ]]; then
         validate "mpirun -np 4" "gbl_tests_par_mpi_cuda" "" "passed"
         validate "" "gbl_tests_seq" "" "passed"
         validate "" "gbl_tests_genseq" "" "passed"
+
+        validate "OMP_NUM_THREADS=6" "gbl_tests_soa_openmp" "" "passed"
+        validate "" "gbl_tests_soa_cuda" "" "passed"
+        validate "mpirun -np 8" "gbl_tests_soa_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "gbl_tests_soa_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "gbl_tests_soa_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "gbl_tests_soa_par_mpi_cuda" "" "passed"
+        validate "" "gbl_tests_soa_seq" "" "passed"
+        validate "" "gbl_tests_soa_genseq" "" "passed"
     fi
 fi
 

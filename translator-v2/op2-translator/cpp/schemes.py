@@ -99,6 +99,9 @@ class CppCuda(Scheme):
         ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
 
+        def indirect(loop: OP.Loop) -> bool:
+            return len(loop.maps) > 0
+
         for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
             ctk.insertStrides(
                 entity,
@@ -106,7 +109,7 @@ class CppCuda(Scheme):
                 app,
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
                 entities=extracted_entities,
             )
 
@@ -144,6 +147,9 @@ class CppHip(Scheme):
         ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
 
+        def indirect(loop: OP.Loop) -> bool:
+            return len(loop.maps) > 1
+
         for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
             ctk.insertStrides(
                 entity,
@@ -151,7 +157,7 @@ class CppHip(Scheme):
                 app,
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"],
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
                 entities=extracted_entities,
             )
 
