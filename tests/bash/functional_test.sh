@@ -14,6 +14,7 @@ RUN_TESTS=${RUN_TESTS:-FALSE}
 TEST_CONSTS=${TEST_CONSTS:-TRUE}
 TEST_DAT_REDUC=${TEST_DAT_REDUC:-TRUE}
 TEST_ARG_GBL=${TEST_ARG_GBL:-TRUE}
+TEST_STRIDES=${TEST_STRIDES:-TRUE}
 
 source ./test_core.sh
 
@@ -107,6 +108,42 @@ if [[ "$TEST_ARG_GBL" = "TRUE" ]]; then
         validate "mpirun -np 4" "gbl_tests_par_mpi_cuda" "" "passed"
         validate "" "gbl_tests_seq" "" "passed"
         validate "" "gbl_tests_genseq" "" "passed"
+    fi
+fi
+
+# Compile and run stride tests ------------------------------------------------------
+if [[ "$TEST_STRIDES" = "TRUE" ]]; then
+
+    cd $SCRIPT_RUN_LOC/../${TEST_APP}/strides
+
+    if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
+        echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        
+        make clean; 
+        make;
+    fi
+
+    if [[ "$RUN_TESTS" = "TRUE" ]]; then
+        echo "Running tests on App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+
+        validate "OMP_NUM_THREADS=6" "stride_tests_openmp" "" "passed"
+        validate "" "stride_tests_cuda" "" "passed"
+        validate "mpirun -np 8" "stride_tests_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "stride_tests_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "stride_tests_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "stride_tests_par_mpi_cuda" "" "passed"
+        validate "" "stride_tests_seq" "" "passed"
+        validate "" "stride_tests_genseq" "" "passed"
+
+        validate "OMP_NUM_THREADS=6" "stride_tests_soa_openmp" "" "passed"
+        validate "" "stride_tests_soa_cuda" "" "passed"
+        validate "mpirun -np 8" "stride_tests_soa_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "stride_tests_soa_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "stride_tests_soa_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "stride_tests_soa_par_mpi_cuda" "" "passed"
+        validate "" "stride_tests_soa_seq" "" "passed"
+        validate "" "stride_tests_soa_genseq" "" "passed"
     fi
 fi
 
