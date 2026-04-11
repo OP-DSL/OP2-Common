@@ -71,27 +71,28 @@ void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   op_dat dat = op_decl_dat_core(set, dim, type, size, data, name);
+  
+  size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
 
   // transpose data
   if (data != NULL && (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1))) {
-    size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+    size_t stride = round32(logical_size);
+    char *temp_data = (char *)calloc((size_t)dat->size * stride, sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (int j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < logical_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size * i * set_size + element_size * j + c] =
-              dat->data[dat->size * j + element_size * i + c];
+          temp_data[element_size * i * stride + element_size * j + c] =
+              dat->data[(size_t)dat->size * j + element_size * i + c];
         }
       }
     }
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(temp_data),
-                      (size_t)dat->size * set_size);
+                      (size_t)dat->size * stride);
     free(temp_data);
   } else {
-    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
-                      (size_t)dat->size * set_size);
+                      (size_t)dat->size * logical_size);
   }
 
   return dat;
@@ -292,25 +293,25 @@ void op_upload_all() {
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     if (dat->data_d) {
+      size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-        size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
-        char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+        size_t stride = round32(logical_size);
+        char *temp_data = (char *)calloc((size_t)dat->size * stride, sizeof(char));
         int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
-          for (int j = 0; j < set_size; j++) {
+          for (size_t j = 0; j < logical_size; j++) {
             for (int c = 0; c < element_size; c++) {
-              temp_data[element_size * i * set_size + element_size * j + c] =
-                  dat->data[dat->size * j + element_size * i + c];
+              temp_data[element_size * i * stride + element_size * j + c] =
+                  dat->data[(size_t)dat->size * j + element_size * i + c];
             }
           }
         }
-        cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, dat->size * set_size,
+        cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, dat->size * stride,
                                  gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
         free(temp_data);
       } else {
-        size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-        cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, dat->size * set_size,
+        cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, dat->size * logical_size,
                                  gpuMemcpyHostToDevice));
         dat->dirty_hd = 0;
       }
