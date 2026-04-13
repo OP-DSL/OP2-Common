@@ -190,7 +190,8 @@ def parse(args: Namespace, lang: Lang) -> Application:
 
     if lang.ast_is_serializable:
         try:
-            app.programs = Pool().starmap(parse_file, f_args)
+            # app.programs = Pool().starmap(parse_file, f_args)
+            app.programs = [parse_file(*args) for args in f_args]
         except fortran.FortranSyntaxError as err:
             print()
             print(f"Syntax error in file {err.filename}:")
