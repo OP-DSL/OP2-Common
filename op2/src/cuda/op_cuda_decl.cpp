@@ -77,7 +77,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   // transpose data
   if (data != NULL && (strstr(type, ":soa") != NULL || (OP_auto_soa && dim > 1))) {
     size_t stride = round32(logical_size);
-    char *temp_data = (char *)calloc((size_t)dat->size * stride, sizeof(char));
+    char *temp_data = (char *)malloc((size_t)dat->size * stride * sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
       for (size_t j = 0; j < logical_size; j++) {
@@ -296,7 +296,7 @@ void op_upload_all() {
       size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
         size_t stride = round32(logical_size);
-        char *temp_data = (char *)calloc((size_t)dat->size * stride, sizeof(char));
+        char *temp_data = (char *)malloc((size_t)dat->size * stride * sizeof(char));
         int element_size = dat->size / dat->dim;
         for (int i = 0; i < dat->dim; i++) {
           for (size_t j = 0; j < logical_size; j++) {
