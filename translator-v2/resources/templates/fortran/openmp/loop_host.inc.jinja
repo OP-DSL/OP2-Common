@@ -18,6 +18,8 @@ dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 and rank1_as_scalar else ":"-}}
 arg{{arg.id}}_local(lane, 1)
     {%- elif arg is info -%}
 info{{arg.id}}_local(lane, 1)
+    {%- elif arg is gbl -%}
+gbl{{arg.id}}{{"(1)" if arg.dim == 1 }}
     {%- else -%}
 {{arg_to_pointer(arg, rank1_as_scalar)}}
     {%- endif -%}
