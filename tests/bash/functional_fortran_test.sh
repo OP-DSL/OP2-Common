@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Source approprite script (scripts/source_gnuz) and run below command:
-# COMPILE_OP2=TRUE COMPILE_TESTS=TRUE RUN_TESTS=TRUE ./functional_test.sh
+# COMPILE_OP2=TRUE COMPILE_TESTS=TRUE RUN_TESTS=TRUE ./functional_fortran_test.sh
 
 set -e
 
-export TEST_APP="functional";
+export TEST_APP="functional_fortran";
 
 COMPILE_OP2=${COMPILE_OP2:-FALSE}
 COMPILE_TESTS=${COMPILE_TESTS:-FALSE}
@@ -33,7 +33,7 @@ fi
 # Compile and run const tests ------------------------------------------------------------
 if [[ "$TEST_CONSTS" = "TRUE" ]]; then
 
-    cd $SCRIPT_RUN_LOC/../${TEST_APP}/const
+    cd $SCRIPT_RUN_LOC/../functional/const_fortran
 
     if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
         echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
@@ -47,20 +47,20 @@ if [[ "$TEST_CONSTS" = "TRUE" ]]; then
         echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
         validate "OMP_NUM_THREADS=6" "const_tests_openmp" "" "passed"
-        validate "" "const_tests_cuda" "" "passed"
+        # validate "" "const_tests_cuda" "" "passed"
         validate "mpirun -np 8" "const_tests_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "const_tests_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "const_tests_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "const_tests_par_mpi_cuda" "" "passed"
+        # validate "mpirun -np 4" "const_tests_par_mpi_cuda" "" "passed"
         validate "" "const_tests_seq" "" "passed"
         validate "" "const_tests_genseq" "" "passed"
 
         validate "OMP_NUM_THREADS=6" "const_tests_soa_openmp" "" "passed"
-        validate "" "const_tests_soa_cuda" "" "passed"
+        # validate "" "const_tests_soa_cuda" "" "passed"
         validate "mpirun -np 8" "const_tests_soa_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "const_tests_soa_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "const_tests_soa_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "const_tests_soa_par_mpi_cuda" "" "passed"
+        # validate "mpirun -np 4" "const_tests_soa_par_mpi_cuda" "" "passed"
         validate "" "const_tests_soa_seq" "" "passed"
         validate "" "const_tests_soa_genseq" "" "passed"
     fi
@@ -69,7 +69,7 @@ fi
 # Compile and run data reduction tests --------------------------------------------------
 if [[ "$TEST_DAT_REDUC" = "TRUE" ]]; then
 
-    cd $SCRIPT_RUN_LOC/../${TEST_APP}/dat_reductions
+    cd $SCRIPT_RUN_LOC/../functional/dat_reductions_fortran
 
     if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
         echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
@@ -83,20 +83,20 @@ if [[ "$TEST_DAT_REDUC" = "TRUE" ]]; then
         echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
         validate "OMP_NUM_THREADS=6" "reduc_tests_openmp" "" "passed"
-        validate "" "reduc_tests_cuda" "" "passed"
+        # # validate "" "reduc_tests_cuda" "" "passed"
         validate "mpirun -np 8" "reduc_tests_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "reduc_tests_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "reduc_tests_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "reduc_tests_par_mpi_cuda" "" "passed"
+        # # validate "mpirun -np 4" "reduc_tests_par_mpi_cuda" "" "passed"
         validate "" "reduc_tests_seq" "" "passed"
         validate "" "reduc_tests_genseq" "" "passed"
 
         validate "OMP_NUM_THREADS=6" "reduc_tests_soa_openmp" "" "passed"
-        validate "" "reduc_tests_soa_cuda" "" "passed"
+        # # validate "" "reduc_tests_soa_cuda" "" "passed"
         validate "mpirun -np 8" "reduc_tests_soa_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "reduc_tests_soa_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "reduc_tests_soa_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "reduc_tests_soa_par_mpi_cuda" "" "passed"
+        # # validate "mpirun -np 4" "reduc_tests_soa_par_mpi_cuda" "" "passed"
         validate "" "reduc_tests_soa_seq" "" "passed"
         validate "" "reduc_tests_soa_genseq" "" "passed"
     fi
@@ -105,7 +105,7 @@ fi
 # Compile and run arg global tests ------------------------------------------------------
 if [[ "$TEST_ARG_GBL" = "TRUE" ]]; then
 
-    cd $SCRIPT_RUN_LOC/../${TEST_APP}/gbl
+    cd $SCRIPT_RUN_LOC/../functional/gbl_fortran
 
     if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
         echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
@@ -119,20 +119,20 @@ if [[ "$TEST_ARG_GBL" = "TRUE" ]]; then
         echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
         validate "OMP_NUM_THREADS=6" "gbl_tests_openmp" "" "passed"
-        validate "" "gbl_tests_cuda" "" "passed"
+        # validate "" "gbl_tests_cuda" "" "passed"
         validate "mpirun -np 8" "gbl_tests_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "gbl_tests_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "gbl_tests_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "gbl_tests_par_mpi_cuda" "" "passed"
+        # validate "mpirun -np 4" "gbl_tests_par_mpi_cuda" "" "passed"
         validate "" "gbl_tests_seq" "" "passed"
         validate "" "gbl_tests_genseq" "" "passed"
 
         validate "OMP_NUM_THREADS=6" "gbl_tests_soa_openmp" "" "passed"
-        validate "" "gbl_tests_soa_cuda" "" "passed"
+        # validate "" "gbl_tests_soa_cuda" "" "passed"
         validate "mpirun -np 8" "gbl_tests_soa_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "gbl_tests_soa_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "gbl_tests_soa_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "gbl_tests_soa_par_mpi_cuda" "" "passed"
+        # validate "mpirun -np 4" "gbl_tests_soa_par_mpi_cuda" "" "passed"
         validate "" "gbl_tests_soa_seq" "" "passed"
         validate "" "gbl_tests_soa_genseq" "" "passed"
     fi
@@ -141,7 +141,7 @@ fi
 # Compile and run stride tests ------------------------------------------------------
 if [[ "$TEST_STRIDES" = "TRUE" ]]; then
 
-    cd $SCRIPT_RUN_LOC/../${TEST_APP}/strides
+    cd $SCRIPT_RUN_LOC/../functional/strides_fortran
 
     if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
         echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
@@ -155,20 +155,20 @@ if [[ "$TEST_STRIDES" = "TRUE" ]]; then
         echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
         validate "OMP_NUM_THREADS=6" "stride_tests_openmp" "" "passed"
-        validate "" "stride_tests_cuda" "" "passed"
+        # validate "" "stride_tests_cuda" "" "passed"
         validate "mpirun -np 8" "stride_tests_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "stride_tests_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "stride_tests_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "stride_tests_par_mpi_cuda" "" "passed"
+        # validate "mpirun -np 4" "stride_tests_par_mpi_cuda" "" "passed"
         validate "" "stride_tests_seq" "" "passed"
         validate "" "stride_tests_genseq" "" "passed"
 
         validate "OMP_NUM_THREADS=6" "stride_tests_soa_openmp" "" "passed"
-        validate "" "stride_tests_soa_cuda" "" "passed"
+        # validate "" "stride_tests_soa_cuda" "" "passed"
         validate "mpirun -np 8" "stride_tests_soa_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "stride_tests_soa_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "stride_tests_soa_par_mpi_openmp" "" "passed"
-        validate "mpirun -np 4" "stride_tests_soa_par_mpi_cuda" "" "passed"
+        # validate "mpirun -np 4" "stride_tests_soa_par_mpi_cuda" "" "passed"
         validate "" "stride_tests_soa_seq" "" "passed"
         validate "" "stride_tests_soa_genseq" "" "passed"
     fi

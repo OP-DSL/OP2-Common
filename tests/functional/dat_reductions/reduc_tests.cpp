@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < edges->size; ++i) {
       const float expected = (2 * ((float*)pe_dat1->data)[i] + 3.25);
       // printf("direct_dat1_inc fetched[%d] = %f expected = %f\n", i, fetched[i], expected);
-      check(std::abs(fetched[i] - expected) < TOL, i, my_rank, "read1 failed");
+      check(std::abs(fetched[i] - expected) < TOL, i, my_rank, "direct_dat1_inc failed");
     }
 
     printf("direct_dat1_inc passed [rank %d]\n", my_rank);
@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
       for (int d = 0; d < 4; ++d) {
         const float expected = 2 * ((float*)pe_dat4->data)[i * 4 + d] + 1.325 * d;
         // printf("direct_dat4_inc fetched[%d] = %f expected = %f\n", i*4+d, fetched[i*4+d], expected);
-        check(std::abs(fetched[i * 4 + d] - expected) < TOL, i * 4 + d, my_rank, "read4 failed");
+        check(std::abs(fetched[i * 4 + d] - expected) < TOL, i * 4 + d, my_rank, "direct_dat4_inc failed");
       }
     }
 
