@@ -4,6 +4,10 @@ program const_tests_fortran
   use op2_fortran_declarations
   use op2_fortran_reference
   use op2_fortran_rt_support
+  
+  use const_constants
+  use const_kernels
+  
   use, intrinsic :: iso_c_binding
 
   implicit none
@@ -16,9 +20,6 @@ program const_tests_fortran
   type(op_set) :: dummy_set
   type(op_map) :: dummy_map
   type(op_dat) :: dummy_dat
-
-  real(8), target :: my_const1
-  real(8), dimension(4), target :: my_const4
 
   real(8), dimension(:), allocatable, target :: data1
   real(8), dimension(:), allocatable, target :: data4
@@ -40,15 +41,13 @@ program const_tests_fortran
   call op_decl_dat(set, 1, "real(8)", data1, dat1, "dat1")
   call op_decl_dat(set, 4, "real(8)", data4, dat4, "dat4")
 
-  my_const1 = 20.1d0
-  my_const4 = (/ 30.1d0, 40.2d0, 50.3d0, 60.4d0 /)
-
   call op_decl_const(my_const1, 1, "real(8)")
   call op_decl_const(my_const4, 4, "real(8)")
 
   call nullify_dummy(dummy_set, dummy_map, dummy_dat)
   call op_partition("", "", dummy_set, dummy_map, dummy_dat)
-
+  
+  ! --- CONST Check DIM=1 ---
   call op_par_loop_1(consts1, set, &
     op_arg_dat(dat1, -1, OP_ID, 1, "real(8)", OP_WRITE))
 
@@ -59,6 +58,7 @@ program const_tests_fortran
   end do
   write(*,*) "consts1 passed"
 
+  ! --- CONST Check DIM=4 ---
   call op_par_loop_1(consts4, set, &
     op_arg_dat(dat4, -1, OP_ID, 4, "real(8)", OP_WRITE))
 
@@ -74,8 +74,9 @@ program const_tests_fortran
 
   call op_exit()
 
-contains
+contains ! ---------------------------------------------------------------------------------------------------
 
+  ! --- Utility functions ---
   subroutine check(cond, idx, msg)
     logical, intent(in) :: cond
     integer, intent(in) :: idx
@@ -101,20 +102,5 @@ contains
     nullify(dat_dummy%dataPtr)
     dat_dummy%dataCptr = c_null_ptr
   end subroutine nullify_dummy
-
-  subroutine consts1(dat)
-    real(8), intent(out) :: dat
-
-    dat = my_const1
-  end subroutine consts1
-
-  subroutine consts4(dat)
-    real(8), dimension(4), intent(out) :: dat
-    integer :: d
-
-    do d = 1, 4
-      dat(d) = my_const4(d)
-    end do
-  end subroutine consts4
 
 end program const_tests_fortran

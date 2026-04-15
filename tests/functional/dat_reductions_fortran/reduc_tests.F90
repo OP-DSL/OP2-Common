@@ -4,6 +4,9 @@ program reduc_tests_fortran
   use op2_fortran_declarations
   use op2_fortran_reference
   use op2_fortran_rt_support
+
+  use reduc_kernels
+
   use, intrinsic :: iso_c_binding
 #ifdef USE_MPI
   use mpi
@@ -185,8 +188,9 @@ program reduc_tests_fortran
 
   call op_exit()
 
-contains
+contains ! ---------------------------------------------------------------------------------------------------
 
+  ! --- Utility functions ---
   subroutine check(cond, idx, rank, msg)
     logical, intent(in) :: cond
     integer, intent(in) :: idx
@@ -401,43 +405,5 @@ contains
     l_array = g_array
 #endif
   end subroutine scatter_array_real4
-
-  subroutine indirect_dat1_inc(n0i, n1i, er)
-    real(4), intent(inout) :: n0i
-    real(4), intent(inout) :: n1i
-    real(4), intent(in)    :: er
-
-    n0i = n0i + er
-    n1i = n1i + er
-  end subroutine indirect_dat1_inc
-
-  subroutine indirect_dat3_inc(n0i, n1i, er)
-    real(4), dimension(3), intent(inout) :: n0i
-    real(4), dimension(3), intent(inout) :: n1i
-    real(4), dimension(4), intent(in)    :: er
-    integer :: d
-
-    do d = 1, 3
-      n0i(d) = n0i(d) + er(d)
-      n1i(d) = n1i(d) + er(d)
-    end do
-  end subroutine indirect_dat3_inc
-
-  subroutine direct_dat1_inc(dr, di)
-    real(4), intent(in)    :: dr
-    real(4), intent(inout) :: di
-
-    di = di + (dr + 3.25)
-  end subroutine direct_dat1_inc
-
-  subroutine direct_dat4_inc(dr, di)
-    real(4), dimension(4), intent(in) :: dr
-    real(4), dimension(4), intent(inout) :: di
-    integer :: d
-
-    do d = 1, 4
-      di(d) = di(d) + (dr(d) + 1.325 * (d - 1))
-    end do
-  end subroutine direct_dat4_inc
 
 end program reduc_tests_fortran
