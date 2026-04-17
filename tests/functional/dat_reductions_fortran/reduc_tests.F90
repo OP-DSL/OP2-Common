@@ -198,7 +198,7 @@ contains ! ---------------------------------------------------------------------
     character(len=*), intent(in) :: msg
 
     if (.not. cond) then
-      write(*,*) "ERROR:", trim(msg), "at idx:", idx, "rank:", rank
+      write(*,*) "ERROR:", trim(msg), " at idx:", idx, "rank:", rank
       call op_exit()
       stop 1
     end if

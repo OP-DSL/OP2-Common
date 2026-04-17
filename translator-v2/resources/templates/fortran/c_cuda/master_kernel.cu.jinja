@@ -1,23 +1,52 @@
-{% if target.name == "c_hip" %}
+{%- macro type_c(arg) -%}
+    {%- if arg.typ is instance(OP.Int) -%}
+        int
+    {%- elif arg.typ is instance(OP.Bool) -%}
+        bool
+    {%- elif arg.typ is instance(OP.Float) and arg.typ.size == 32 -%}
+        float
+    {%- else -%}
+        double
+    {%- endif -%}
+{%- endmacro -%}
+
+{% if lang.user_consts_module is not none %}
+    {% if target.name == "c_hip" %}
 #include "hydra_const_list_c_hip.hip.h"
-{% else %}
+    {% else %}
 #include "hydra_const_list_c_cuda.cuh"
+    {% endif %}
 {% endif %}
 
 #define INCBIN_STYLE INCBIN_STYLE_SNAKE
 #define INCBIN_PREFIX
 #include <extern/incbin.h>
-
 {% set tag = range(1000000000, 9999999999) | random %}
 
-#define OP_F2C_PRELUDE OP_F2C_PRELUDE_{{tag}}
+{% if lang.user_consts_module is none %}
+#include <cstdint>
+
+    {% for const in app.consts() %}
+extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+
+    {% for const in app.consts() %}
+static {% if const.dim > 1 %}__device__{% else %}__constant__{% endif %} {{type_c(const)}} op2_const_{{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+
+    {% for const in app.consts() %}
+static uint64_t  op2_const_{{const.ptr}}_hash = 0;
+    {% endfor %}
+
+{% else %}
 #define OP_F2C_PARAMS OP_F2C_PARAMS_{{tag}}
-
-#define OP_F2C_PRELUDE_DATA OP_F2C_PRELUDE_{{tag}}_data
 #define OP_F2C_PARAMS_DATA OP_F2C_PARAMS_{{tag}}_data
-
-INCTXT(OP_F2C_PRELUDE, "op_f2c_prelude.h");
 INCTXT(OP_F2C_PARAMS, "hydra_const_list_params.h");
+
+{% endif %}
+#define OP_F2C_PRELUDE OP_F2C_PRELUDE_{{tag}}
+#define OP_F2C_PRELUDE_DATA OP_F2C_PRELUDE_{{tag}}_data
+INCTXT(OP_F2C_PRELUDE, "op_f2c_prelude.h");
 
 #include <op_f2c_prelude.h>
 #include <op_f2c_helpers.h>

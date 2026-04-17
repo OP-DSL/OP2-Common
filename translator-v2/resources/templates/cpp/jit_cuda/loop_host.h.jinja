@@ -5,7 +5,7 @@
 {%- endif -%}
 
 {% macro stride_cuda(arg) -%}
-{{-" * op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
+{{-" * op2_m_%s%s::op2_%s_dat%s_stride_d" % (lh.name, variant, lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
 {%- endmacro %}
 
 {%- macro variant_str() -%}
@@ -279,7 +279,6 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     const int end,
     const int stride
 ) {
-    using namespace op2_m_{{lh.name}}{{variant}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
     {% if lh.args_expanded|indirect|reduction|length > 0 %}
@@ -310,7 +309,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
         int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
     {% endfor %}
 
-        {{lh.kernel}}(
+        op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
     {% for arg in lh.args %}
             {{arg_to_pointer_cuda(arg, jit)}}{{"," if not loop.last}}
     {% endfor %}

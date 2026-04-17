@@ -113,7 +113,7 @@ contains ! ---------------------------------------------------------------------
     character(len=*), intent(in) :: msg
 
     if (.not. cond) then
-      write(*,*) "ERROR:", trim(msg), "at idx:", idx
+      write(*,*) "ERROR:", trim(msg), " at idx:", idx
       call op_exit()
       stop 1
     end if
