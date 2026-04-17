@@ -292,7 +292,7 @@ class FortranCCuda(Scheme):
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = None
+    consts_template = Path("fortran/c_cuda/consts.F90.jinja")
     loop_host_templates = [Path("fortran/c_cuda/loop_host.F90.jinja"), Path("fortran/c_cuda/loop_host.cuh.jinja")]
     master_kernel_templates = [Path("fortran/c_cuda/master_kernel.F90.jinja"), Path("fortran/c_cuda/master_kernel.cu.jinja")]
 
@@ -388,6 +388,7 @@ Scheme.register(FortranCCuda)
 class FortranCHip(FortranCCuda):
     target = Target.get("c_hip")
 
+    consts_template = Path("fortran/c_hip/consts.F90.jinja")
     loop_host_templates = [Path("fortran/c_hip/loop_host.F90.jinja"), Path("fortran/c_hip/loop_host.hip.h.jinja")]
     master_kernel_templates = [Path("fortran/c_hip/master_kernel.F90.jinja"), Path("fortran/c_hip/master_kernel.hip.cpp.jinja")]
 

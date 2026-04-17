@@ -224,6 +224,9 @@ def insertArgGblStrides(
 def insertStride(
     ast: Cursor, rewriter: Rewriter, param: str, id: int, is_vec: bool, stride: Callable[[int], str]
 ) -> None:
+    if not hasattr(rewriter, "updated_nodes"):
+        rewriter.updated_nodes = set()
+
     for node in ast.walk_preorder():
         if node.kind != CursorKind.ARRAY_SUBSCRIPT_EXPR:
             continue
@@ -236,8 +239,14 @@ def insertStride(
             ident, _ = next(ident.get_children()).get_children()
 
         if ident.spelling == param:
-            rewriter.update(extentToSpan(subscript.extent), lambda s: f"({s}) * {stride(id)}")
+            node_id = node.hash if hasattr(node, "hash") else id(node)
+            if node_id in rewriter.updated_nodes:
+                continue
 
+            rewriter.updated_nodes.add(node_id)
+            span = extentToSpan(subscript.extent)
+
+            rewriter.update(span, lambda s: f"({s}) * {stride(id)}")
 
 def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
     source = ""

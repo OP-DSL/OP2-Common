@@ -370,10 +370,16 @@ def parseIntrinsicType(intrinsic_type_spec: f2003.Intrinsic_Type_Spec, ctx: Cont
 
     kind = None
     if intrinsic_type_spec.items[1] is not None:
-        kind_node = fpu.get_child(intrinsic_type_spec.items[1], f2003.Name)
+        ks = intrinsic_type_spec.items[1]
 
-        if kind_node is not None:
-            kind = kind_node.string.upper()
+        if isinstance(ks, f2003.Kind_Selector):
+            val = ks.items[1]
+
+            if isinstance(val, f2003.Int_Literal_Constant):
+                kind = val.items[0]
+
+            elif isinstance(val, f2003.Name):
+                kind = val.string.upper()
 
     if type_name == "INTEGER":
         if kind in [None, "4", "IK", "IK4"]:
