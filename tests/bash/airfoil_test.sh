@@ -52,10 +52,12 @@ if [[ "$TEST_AIRFOIL_CPP" = "TRUE" ]] && [[ "$TEST_PLAIN" = "TRUE" ]]; then
 
             validate "OMP_NUM_THREADS=6" "airfoil_openmp" "" "PASSED"
             validate "" "airfoil_cuda" "" "PASSED"
+            validate "" "airfoil_c_cuda" "" "PASSED"
             validate "mpirun -np 16" "airfoil_par_mpi_seq" "" "PASSED"
             validate "mpirun -np 16" "airfoil_par_mpi_genseq" "" "PASSED"
             validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_par_mpi_openmp" "" "PASSED"
-            validate "mpirun -np 1" "airfoil_par_mpi_cuda" "" "PASSED"
+            validate "mpirun -np 4" "airfoil_par_mpi_cuda" "" "PASSED"
+            validate "mpirun -np 4" "airfoil_par_mpi_c_cuda" "" "PASSED"
             validate "" "airfoil_seq" "" "PASSED"
             validate "" "airfoil_genseq" "" "PASSED"
         fi
@@ -83,10 +85,12 @@ if [[ "$TEST_AIRFOIL_CPP" = "TRUE" ]] && [[ "$TEST_TEMPDATS" = "TRUE" ]]; then
 
         validate "OMP_NUM_THREADS=6" "airfoil_openmp" "" "PASSED"
         validate "" "airfoil_cuda" "" "PASSED"
+        validate "" "airfoil_c_cuda" "" "PASSED"
         validate "mpirun -np 16" "airfoil_par_mpi_seq" "" "PASSED"
         validate "mpirun -np 16" "airfoil_par_mpi_genseq" "" "PASSED"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_par_mpi_openmp" "" "PASSED"
-        validate "mpirun -np 1" "airfoil_par_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "airfoil_par_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "airfoil_par_mpi_c_cuda" "" "PASSED"
         validate "" "airfoil_seq" "" "PASSED"
         validate "" "airfoil_genseq" "" "PASSED"
     fi
@@ -119,10 +123,12 @@ if [[ "$TEST_AIRFOIL_CPP" = "TRUE" ]] && [[ "$TEST_HDF5" = "TRUE" ]]; then
 
             validate "OMP_NUM_THREADS=6" "airfoil_openmp" "" "PASSED"
             validate "" "airfoil_cuda" "" "PASSED"
+            validate "" "airfoil_c_cuda" "" "PASSED"
             validate "mpirun -np 16" "airfoil_mpi_seq" "" "PASSED"
             validate "mpirun -np 16" "airfoil_mpi_genseq" "" "PASSED"
             validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_mpi_openmp" "" "PASSED"
-            validate "mpirun -np 1" "airfoil_mpi_cuda" "" "PASSED"
+            validate "mpirun -np 4" "airfoil_mpi_cuda" "" "PASSED"
+            validate "mpirun -np 4" "airfoil_mpi_c_cuda" "" "PASSED"
             validate "" "airfoil_seq" "" "PASSED"
             validate "" "airfoil_genseq" "" "PASSED"
         fi
