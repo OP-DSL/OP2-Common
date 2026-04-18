@@ -54,28 +54,28 @@ jobs:
           echo "Building OP2..."
           make -C op2 -j"$N_PROC"
 
-      # 5. Compile functional tests ---------------------------------------
+      # 5. Compile C++ functional tests ---------------------------------------
       - name: Compile C++ functional tests
         run: |
           source "$SOURCE_SCRIPT"
           cd tests/bash
           COMPILE_TESTS=TRUE ./functional_cpp_test.sh
 
-      # 6. Run functional tests ---------------------------------------
+      # 6. Run C++ functional tests ---------------------------------------
       - name: Run C++ functional tests
         run: |
           source "$SOURCE_SCRIPT"
           cd tests/bash
           RUN_TESTS=TRUE ./functional_cpp_test.sh
 
-      # 7. Compile functional tests ---------------------------------------
+      # 7. Compile Fortran functional tests ---------------------------------------
       - name: Compile Fortran functional tests
         run: |
           source "$SOURCE_SCRIPT"
           cd tests/bash
           COMPILE_TESTS=TRUE ./functional_fortran_test.sh
 
-      # 8. Run functional tests ---------------------------------------
+      # 8. Run Fortran functional tests ---------------------------------------
       - name: Run Fortran functional tests
         run: |
           source "$SOURCE_SCRIPT"

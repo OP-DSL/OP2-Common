@@ -79,10 +79,12 @@ if [[ "$RUN_TESTS" = "TRUE" ]]; then
         validate "" "../euler3d_genseq" "-i input.dat -v" "passed"
         validate "OMP_NUM_THREADS=6" "../euler3d_openmp" "-i input.dat -v" "passed"
         validate "" "../euler3d_cuda" "-i input.dat -v" "passed"
+        validate "" "../euler3d_c_cuda" "-i input.dat -v" "passed"
         validate "mpirun -np 16" "../euler3d_mpi_seq" "-i input.dat -v" "passed"
         validate "mpirun -np 16" "../euler3d_mpi_genseq" "-i input.dat -v" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "../euler3d_mpi_openmp" "-i input.dat -v" "passed"
         validate "mpirun -np 4" "../euler3d_mpi_cuda" "-i input.dat -v" "passed"
+        validate "mpirun -np 4" "../euler3d_mpi_c_cuda" "-i input.dat -v" "passed"
     fi
 
     cd $APP_FOLDER
@@ -102,10 +104,12 @@ if [[ "$RUN_TESTS" = "TRUE" ]]; then
         validate "" "../euler3d_genseq" "-i input.dat -v" "passed"
         validate "OMP_NUM_THREADS=6" "../euler3d_openmp" "-i input.dat -v" "passed"
         validate "" "../euler3d_cuda" "-i input.dat -v" "passed"
+        validate "" "../euler3d_c_cuda" "-i input.dat -v" "passed"
         validate "mpirun -np 16" "../euler3d_mpi_seq" "-i input.dat -v" "passed"
         validate "mpirun -np 16" "../euler3d_mpi_genseq" "-i input.dat -v" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "../euler3d_mpi_openmp" "-i input.dat -v" "passed"
         validate "mpirun -np 4" "../euler3d_mpi_cuda" "-i input.dat -v" "passed"
+        validate "mpirun -np 4" "../euler3d_mpi_c_cuda" "-i input.dat -v" "passed"
     fi
 
     check_all_tests

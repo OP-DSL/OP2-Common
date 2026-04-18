@@ -49,10 +49,12 @@ if [[ "$TEST_AERO_CPP" = "TRUE" ]] && [[ "$TEST_PLAIN" = "TRUE" ]]; then
 
         validate "OMP_NUM_THREADS=6" "aero_openmp" "" "PASSED"
         validate "" "aero_cuda" "" "PASSED"
+        validate "" "aero_c_cuda" "" "PASSED"
         validate "mpirun -np 16" "aero_par_mpi_seq" "" "PASSED"
         validate "mpirun -np 16" "aero_par_mpi_genseq" "" "PASSED"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "aero_par_mpi_openmp" "" "PASSED"
-        validate "mpirun -np 1" "aero_par_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "aero_par_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "aero_par_mpi_c_cuda" "" "PASSED"
         validate "" "aero_seq" "" "PASSED"
         validate "" "aero_genseq" "" "PASSED"
     fi
@@ -80,9 +82,11 @@ if [[ "$TEST_AERO_CPP" = "TRUE" ]] && [[ "$TEST_HDF5" = "TRUE" ]]; then
         validate "mpirun -np 16" "aero_mpi_seq" "" "PASSED"
         validate "mpirun -np 16" "aero_mpi_genseq" "" "PASSED"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "aero_mpi_openmp" "" "PASSED"
-        validate "mpirun -np 1" "aero_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "aero_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "aero_mpi_c_cuda" "" "PASSED"
         validate "OMP_NUM_THREADS=6" "aero_openmp" "" "PASSED"
         validate "" "aero_cuda" "" "PASSED"
+        validate "" "aero_c_cuda" "" "PASSED"
         validate "" "aero_seq" "" "PASSED"
         validate "" "aero_genseq" "" "PASSED"
     fi
