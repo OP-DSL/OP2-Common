@@ -1299,14 +1299,21 @@ static void renumber_maps(int my_rank, int comm_size) {
     total_map_entries += map->from->size * map->dim;
   }
   
+  size_t total_global_map_entries = 0;
+  MPI_Allreduce(&total_map_entries, &total_global_map_entries, 1, MPI_UNSIGNED_LONG_LONG, 
+                MPI_SUM, OP_PART_WORLD);
+
   // Use efficient version for large problems or high process counts  
   // Based on the 92M global aggregation seen in testing, use efficient version more aggressively
-  bool use_efficient = (comm_size >= 256) || (total_map_entries > 500000);
+  bool use_efficient = (comm_size >= 256) || (total_global_map_entries > 500000);
   
   if (OP_diags > 3) {
-    op_printf("Total map entries: %zu, comm_size: %d\n", total_map_entries, comm_size);
-    op_printf("Using %s renumber_maps implementation\n", 
-           use_efficient ? "memory-efficient" : "original");
+    op_printf("Total map entries: %zu, Total global map entries: %zu, comm_size: %d, rank: %d\n", 
+          total_map_entries, total_global_map_entries, comm_size, my_rank);
+    
+    if (my_rank == 0)
+      op_printf("Using %s renumber_maps implementation\n", 
+                use_efficient ? "memory-efficient" : "original");
   }
   
   if (use_efficient) {
