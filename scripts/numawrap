@@ -14,7 +14,7 @@ elif [[ -n ${PMI_RANK} ]]
     let lrank=${PMI_RANK}
 elif [[ -n ${PMI_ID} && -n ${MPISPAWN_LOCAL_NPROCS} ]]
     then
-    let lrank=${PMI_ID}%${PERHOST}
+    let lrank=${PMI_ID}%${MPISPAWN_LOCAL_NPROCS}
 elif [[ -n ${MPI_LOCALRANKID} ]]
     then
     let lrank=${MPI_LOCALRANKID}
@@ -24,14 +24,13 @@ fi
 
 export CUDA_VISIBLE_DEVICES=${lrank}
 
-# let lrank=${PMI_RANK}
 echo $lrank
 
-# use  $lrank -lt 2 and  $lrank -ge 2 to distribute and bind 4 procs on to 2 CPUs
-if [[ $lrank -lt 2 ]]; then
-    numactl --cpunodebind=0 ${@}
+# Dynamically bind to NUMA node based on local rank and number of NUMA nodes available
+N_NUMA=$(numactl --hardware | grep 'available:' | awk '{print $2}')
+if [[ -z "$N_NUMA" || $N_NUMA -lt 1 ]]; then
+    N_NUMA=1
 fi
 
-if [[ $lrank -ge 2 ]]; then
-    numactl --cpunodebind=1 ${@}
-fi
+numa_node=$(( lrank % N_NUMA ))
+numactl --cpunodebind=${numa_node} ${@}
