@@ -63,6 +63,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_lib_mpi.h"
 #include "op_seq.h"
+#include "op_timing2.h"
 
 //
 // kernel routines for parallel loops
@@ -145,6 +146,8 @@ static void check_scan(int items_received, int items_expected) {
 int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
+
+  op_timing2_start("airfoil_airfoil_plain_sp_airfoil_mpi");
 
   // MPI for user I/O
   int my_rank;
@@ -445,5 +448,7 @@ int main(int argc, char **argv) {
 
   // print total time for niter interations
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
+  op_timing2_finish();
+  op_timing2_output();
   op_exit();
 }

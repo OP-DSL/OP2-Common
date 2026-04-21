@@ -55,6 +55,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_seq.h"
+#include "op_timing2.h"
 
 //
 // kernel routines for parallel loops
@@ -71,6 +72,8 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
+
+  op_timing2_start("airfoil_airfoil_hdf5_sp_airfoil");
 
   int niter;
   float rms;
@@ -214,5 +217,7 @@ int main(int argc, char **argv) {
 
   op_timing_output();
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
+  op_timing2_finish();
+  op_timing2_output();
   op_exit();
 }

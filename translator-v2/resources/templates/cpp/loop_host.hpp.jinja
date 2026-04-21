@@ -1,3 +1,5 @@
+#include <op_timing2.h>
+
 {% macro arg_dat_redef(arg) %}
     {% set params -%}
 arg{{arg.id}}.dat, {{arg.map_idx}}, arg{{arg.id}}.map, {{lh.dat(arg).dim}}, "{{lh.dat(arg).typ}}", {{arg.access_type.value}}
@@ -30,6 +32,8 @@ namespace op2_k{{kernel_idx}} {
 {% endblock %}
 {% block kernel_wrapper %}
 {% endblock %}
+{% block timing_backend %}cpp{% endblock %}
+{% block timing_variant %}{% if lh is direct %}Direct{% else %}Indirect{% endif %}{% endblock %}
 {% block host_prologue %}
 void op_par_loop_{{lh.name}}(
     const char *name,
@@ -52,20 +56,26 @@ void op_par_loop_{{lh.name}}(
     OP_kernels[{{kernel_idx}}].count += 1;
 
     op_timers_core(&cpu_start, &wall_start);
+    op_timing2_enter_kernel("{{lh.name}}", "{{self.timing_backend()|trim}}", "{{self.timing_variant()|trim}}");
+    op_timing2_enter("MPI Exchanges");
 
     if (OP_diags > 2)
         printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.name}}\n");
 
     int set_size = op_mpi_halo_exchanges{{"_grouped" if config.grouped-}}
         (set, num_args_expanded, args_expanded{{(", %d" % config.device) if config.grouped}});
+{% block host_post_mpi_exchanges %}
+    op_timing2_next("Computation");
+{% endblock %}
 {% endblock %}
 
 {% block host_loop required %}
 {% endblock %}
 
 {% block host_epilogue %}
+    op_timing2_exit();
+    op_timing2_exit();
     op_timers_core(&cpu_end, &wall_end);
     OP_kernels[{{kernel_idx}}].time += wall_end - wall_start;
 {% endblock %}
 }
-

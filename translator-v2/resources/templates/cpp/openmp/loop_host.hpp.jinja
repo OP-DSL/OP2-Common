@@ -1,5 +1,8 @@
 {% extends "cpp/loop_host.hpp.jinja" %}
 
+{% block timing_backend %}openmp{% endblock %}
+{% block host_post_mpi_exchanges %}{% endblock %}
+
 {%- macro arg_to_pointer(arg) -%}
     {%- if arg is gbl -%}
 gbl{{arg.id}}
@@ -164,9 +167,11 @@ void {{lh.name}}_wrapper(
 }
 
 {{super()}}
+    op_timing2_exit();
     {% if lh is indirect %}
     {{indirect_dat_descriptor_def()|indent}}
 
+    op_timing2_enter("Plan");
 #ifdef OP_PART_SIZE_{{kernel_idx}}
     int part_size = OP_PART_SIZE_{{kernel_idx}};
 #else
@@ -175,6 +180,7 @@ void {{lh.name}}_wrapper(
 
     op_plan *plan = op_plan_get_stage_upload(name, set, part_size, num_args_expanded, args_expanded,
         num_dats_indirect, dats_indirect, OP_STAGE_ALL, 0);
+    op_timing2_exit();
     {% endif %}
     {% if lh is direct or lh.args|gbl|reduction|length > 0 %}
 
@@ -203,6 +209,8 @@ void {{lh.name}}_wrapper(
     {{arg.typ}} *info{{arg.id}} = ({{arg.typ}} *)arg{{arg.id}}.data;
     {{arg.typ}} info{{arg.id}}_local[num_threads * 64];
     {% endfor %}
+
+    op_timing2_enter("Computation");
 {% endblock %}
 
 {% block host_prologue_early_exit_cleanup %}
@@ -244,8 +252,11 @@ void {{lh.name}}_wrapper(
     {% else %}
     int block_offset = 0;
     for (int col = 0; col < plan->ncolors; ++col) {
-        if (col == plan->ncolors_core)
+        if (col == plan->ncolors_core) {
+            op_timing2_next("MPI Wait");
             op_mpi_wait_all(num_args_expanded, args_expanded);
+            op_timing2_next("Computation");
+        }
 
         int num_blocks = plan->ncolblk[col];
 
@@ -310,8 +321,21 @@ void {{lh.name}}_wrapper(
 
 {% block host_epilogue %}
     {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
-    if (set_size == set->core_size)
+    if (set_size == set->core_size) {
+        op_timing2_next("MPI Wait");
         op_mpi_wait_all(num_args_expanded, args_expanded);
+        {% if lh.args|gbl|reduction|length > 0 %}
+        op_timing2_next("MPI Reduce");
+        {% else %}
+        op_timing2_next("Finalise");
+        {% endif %}
+    } else {
+        {% if lh.args|gbl|reduction|length > 0 %}
+        op_timing2_next("MPI Reduce");
+        {% else %}
+        op_timing2_next("Finalise");
+        {% endif %}
+    }
 
     {% endif %}
     {% if lh is direct %}
@@ -336,9 +360,17 @@ void {{lh.name}}_wrapper(
             {% endfor %}
 
     {% endif %}
+    {% if lh is direct and lh.args|gbl|reduction|length > 0 %}
+    op_timing2_next("MPI Reduce");
+    {% endif %}
     {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, gbl{{arg.id}});
     {% endfor %}
+    {% if lh.args|gbl|reduction|length > 0 %}
+    op_timing2_next("Finalise");
+    {% elif lh is direct %}
+    op_timing2_next("Finalise");
+    {% endif %}
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 
 {{super()}}
