@@ -45,6 +45,7 @@ program reduc_tests_fortran
   real(4), dimension(:), allocatable :: expected
 
   call op_init_base(0, 0)
+  call op_timing2_start("FortranReductionTests")
 
   call get_rank_and_size(my_rank, comm_size)
 
@@ -185,6 +186,11 @@ program reduc_tests_fortran
  write(*,*) "direct_dat4_inc passed [rank", my_rank, "]"
 
  deallocate(fetched)
+
+  call op_timing2_finish()
+  
+  if (op_is_root() == 1) print *
+    call op_timing2_output()
 
   call op_exit()
 

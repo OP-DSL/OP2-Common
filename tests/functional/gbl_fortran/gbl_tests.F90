@@ -49,6 +49,7 @@ program gbl_tests_fortran
 #endif
 
   call op_init_base(0, 0)
+  call op_timing2_start("FortranGblArgTests")
 
   call get_rank_and_size(my_rank, comm_size)
 
@@ -83,7 +84,7 @@ program gbl_tests_fortran
 
   ! --- READ ---
   g_read1 = 20.0d0
-  call op_par_loop_2(read1, set, &
+  call op_par_loop_2(read1_k, set, &
     op_arg_dat(dat1, -1, OP_ID, 1, "real(8)", OP_WRITE), &
     op_arg_gbl(g_read1, 1, "real(8)", OP_READ))
 
@@ -95,7 +96,7 @@ program gbl_tests_fortran
   write(*,*) "read1 passed"
 
   g_read5 = (/ 30.0d0, 40.0d0, 50.0d0, 60.0d0, 70.0d0 /)
-  call op_par_loop_2(read5, set, &
+  call op_par_loop_2(read5_k, set, &
     op_arg_dat(dat5, -1, OP_ID, 5, "real(8)", OP_WRITE), &
     op_arg_gbl(g_read5, 5, "real(8)", OP_READ))
 
@@ -111,7 +112,7 @@ program gbl_tests_fortran
 
   ! --- INC ---
   g_inc1 = 0.0d0
-  call op_par_loop_2(inc1, set, &
+  call op_par_loop_2(inc1_k, set, &
     op_arg_dat(dat_iota1, -1, OP_ID, 1, "real(8)", OP_READ), &
     op_arg_gbl(g_inc1, 1, "real(8)", OP_INC))
 
@@ -120,7 +121,7 @@ program gbl_tests_fortran
   write(*,*) "inc1 passed"
 
   g_inc5 = 0.0d0
-  call op_par_loop_2(inc5, set, &
+  call op_par_loop_2(inc5_k, set, &
     op_arg_dat(dat_iota5, -1, OP_ID, 5, "real(8)", OP_READ), &
     op_arg_gbl(g_inc5, 5, "real(8)", OP_INC))
 
@@ -137,7 +138,7 @@ program gbl_tests_fortran
 
   ! --- MIN ---
   g_min1 = huge(g_min1)
-  call op_par_loop_2(min1, set, &
+  call op_par_loop_2(min1_k, set, &
     op_arg_dat(dat_iota1, -1, OP_ID, 1, "real(8)", OP_READ), &
     op_arg_gbl(g_min1, 1, "real(8)", OP_MIN))
 
@@ -146,7 +147,7 @@ program gbl_tests_fortran
   write(*,*) "min1 passed"
 
   g_min5 = (/ huge(0.0d0), huge(0.0d0), 0.4d0, huge(0.0d0), huge(0.0d0) /)
-  call op_par_loop_2(min5, set, &
+  call op_par_loop_2(min5_k, set, &
     op_arg_dat(dat_iota5, -1, OP_ID, 5, "real(8)", OP_READ), &
     op_arg_gbl(g_min5, 5, "real(8)", OP_MIN))
 
@@ -158,7 +159,7 @@ program gbl_tests_fortran
 
   ! --- MAX ---
   g_max1 = -huge(g_max1)
-  call op_par_loop_2(max1, set, &
+  call op_par_loop_2(max1_k, set, &
     op_arg_dat(dat_iota1, -1, OP_ID, 1, "real(8)", OP_READ), &
     op_arg_gbl(g_max1, 1, "real(8)", OP_MAX))
 
@@ -167,7 +168,7 @@ program gbl_tests_fortran
   write(*,*) "max1 passed"
 
   g_max5 = (/ -huge(0.0d0), -huge(0.0d0), 1000000000.4d0, -huge(0.0d0), -huge(0.0d0) /)
-  call op_par_loop_2(max5, set, &
+  call op_par_loop_2(max5_k, set, &
     op_arg_dat(dat_iota5, -1, OP_ID, 5, "real(8)", OP_READ), &
     op_arg_gbl(g_max5, 5, "real(8)", OP_MAX))
 
@@ -180,6 +181,11 @@ program gbl_tests_fortran
     call check(abs(g_max5(d) - expected5(d)) < tol, d - 1, "max5 failed")
   end do
   write(*,*) "max5 passed"
+
+  call op_timing2_finish()
+  
+  if (op_is_root() == 1) print *
+    call op_timing2_output()
 
   call op_exit()
 
