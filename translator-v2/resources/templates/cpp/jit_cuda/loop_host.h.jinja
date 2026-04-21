@@ -5,9 +5,11 @@
 {%- endif -%}
 
 {% macro stride_cuda(arg, jit) -%}
+    {% if lh.dat(arg) is soa %}
 {{ " * " }} 
 {{- ("op2_m_%s%s::" % (lh.name, variant)) if not jit else "" -}}
-{{- "op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) if lh.dat(arg) is soa -}}
+{{- "op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) -}}
+    {% endif %}
 {%- endmacro %}
 
 {%- macro variant_str() -%}
