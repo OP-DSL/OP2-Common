@@ -272,7 +272,7 @@ subroutine {{lh.kernel}}_wrapper( &
     call c_f_pointer(plan%blkmap, plan_blkmap, (/ plan%nblocks /))
     call c_f_pointer(plan%nelems, plan_nelems, (/ plan%nblocks /))
     call c_f_pointer(plan%offset, plan_offset, (/ plan%nblocks /))
-    call op_timing2_exit()
+    call op_profile_exit()
 
 {% endif %}
 {% if lh is direct or lh.args|gbl|reduction|length > 0 %}
@@ -296,7 +296,7 @@ subroutine {{lh.kernel}}_wrapper( &
     allocate(info{{arg.id}}_temp(num_threads * {{arg.dim|round_up(64)}}))
 
 {% endfor %}
-    call op_timing2_enter("Computation")
+    call op_profile_enter("Computation")
 {% if lh is direct %}
     !$omp parallel do private(thread, start, end, n)
     do thread = 1, num_threads
@@ -345,9 +345,9 @@ subroutine {{lh.kernel}}_wrapper( &
     block_offset = 0
     do col = 1, plan%ncolors
         if (col == plan%ncolors_core + 1) then
-            call op_timing2_next("MPI Wait")
+            call op_profile_next("MPI Wait")
             call op_mpi_wait_all(size(args), args)
-            call op_timing2_next("Computation")
+            call op_profile_next("Computation")
         end if
 
         num_blocks = plan_ncolblk(col)
@@ -455,10 +455,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     /)
 
     call op_timers_core(start_time)
-    call op_timing2_enter_kernel("{{lh.name}}", "openmp", "{{variant_str()}}")
-    call op_timing2_enter("MPI Exchanges")
+    call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{variant_str()}}")
+    call op_profile_enter("MPI Exchanges")
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
-    call op_timing2_exit()
+    call op_profile_exit()
 
 {% for dat in lh.dats %}
     call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat.dim}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
@@ -475,7 +475,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
 {% endfor %}
 {% if lh is indirect %}
-    call op_timing2_enter("Plan")
+    call op_profile_enter("Plan")
 {% endif %}
     call {{lh.kernel}}_wrapper( &
         name, &
@@ -498,28 +498,28 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     )
 
     if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
-        call op_timing2_enter("MPI Wait")
+        call op_profile_enter("MPI Wait")
         call op_mpi_wait_all(size(args), args)
         {% if lh.args|gbl|reduction|length > 0 %}
-        call op_timing2_next("MPI Reduce")
+        call op_profile_next("MPI Reduce")
         {% else %}
-        call op_timing2_next("Finalise")
+        call op_profile_next("Finalise")
         {% endif %}
     {% elif lh.args|gbl|reduction|length > 0 %}
-        call op_timing2_enter("MPI Reduce")
+        call op_profile_enter("MPI Reduce")
     {% else %}
-        call op_timing2_enter("Finalise")
+        call op_profile_enter("Finalise")
     end if
 
 {% for arg in lh.args|gbl|reduction %}
     call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{arg.id}}, arg{{arg.id}}%data){{"\n" if loop.last}}
 {% endfor %}
 {% if lh.args|gbl|reduction|length > 0 %}
-    call op_timing2_next("Finalise")
+    call op_profile_next("Finalise")
 {% endif %}
     call op_mpi_set_dirtybit(size(args), args)
-    call op_timing2_exit()
-    call op_timing2_exit()
+    call op_profile_exit()
+    call op_profile_exit()
     call op_timers_core(end_time)
 
     ! todo: review kernel transfer calculation

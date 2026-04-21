@@ -29,7 +29,7 @@ program const_tests_fortran
   integer :: i, d
 
   call op_init_base(0, 0)
-  call op_timing2_start("FortranConstTests")
+  call op_profile_start("FortranConstTests")
 
   call op_decl_set(size, set, "my_set")
   write(*,*) "set size =", set%setPtr%size
@@ -73,10 +73,10 @@ program const_tests_fortran
   end do
   write(*,*) "consts4 passed"
 
-  call op_timing2_finish()
+  call op_profile_end()
   
   if (op_is_root() == 1) print *
-    call op_timing2_output()
+    call op_profile_output()
 
   call op_exit()
 

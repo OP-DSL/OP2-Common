@@ -55,7 +55,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_seq.h"
-#include "op_timing2.h"
+#include "op_profile_c.h"
 
 
 static void check_scan(int items_received, int items_expected) {
@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
 
-  op_timing2_start("airfoil_airfoil_hdf5_dp_convert_mesh");
+  op_profile_start("airfoil_airfoil_hdf5_dp_convert_mesh");
 
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   double *x, *q, *qold, *adt, *res;
@@ -222,8 +222,8 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("mach", 1, "double", (char *)&mach, "new_grid_out.h5");
   op_write_const_hdf5("alpha", 1, "double", (char *)&alpha, "new_grid_out.h5");
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
-  op_timing2_finish();
-  op_timing2_output();
+  op_profile_end();
+  op_profile_output();
 
   op_exit();
 }

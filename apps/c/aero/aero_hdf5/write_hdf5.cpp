@@ -55,7 +55,7 @@ int op2_stride;
 #include "op_lib_cpp.h"
 #include "op_lib_mpi.h"
 #include "op_util.h"
-#include "op_timing2.h"
+#include "op_profile_c.h"
 
 //
 // hdf5 header
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
-  op_timing2_start("aero_aero_hdf5_write_hdf5");
+  op_profile_start("aero_aero_hdf5_write_hdf5");
 
   int *bnode, *cell;
   double *xm; //, *q;
@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
   op_halo_create();
 
   op_timing_output();
-  op_timing2_finish();
-  op_timing2_output();
+  op_profile_end();
+  op_profile_output();
   op_exit();
 }

@@ -167,11 +167,11 @@ void {{lh.name}}_wrapper(
 }
 
 {{super()}}
-    op_timing2_exit();
+    op_profile_exit();
     {% if lh is indirect %}
     {{indirect_dat_descriptor_def()|indent}}
 
-    op_timing2_enter("Plan");
+    op_profile_enter("Plan");
 #ifdef OP_PART_SIZE_{{kernel_idx}}
     int part_size = OP_PART_SIZE_{{kernel_idx}};
 #else
@@ -180,7 +180,7 @@ void {{lh.name}}_wrapper(
 
     op_plan *plan = op_plan_get_stage_upload(name, set, part_size, num_args_expanded, args_expanded,
         num_dats_indirect, dats_indirect, OP_STAGE_ALL, 0);
-    op_timing2_exit();
+    op_profile_exit();
     {% endif %}
     {% if lh is direct or lh.args|gbl|reduction|length > 0 %}
 
@@ -210,7 +210,7 @@ void {{lh.name}}_wrapper(
     {{arg.typ}} info{{arg.id}}_local[num_threads * 64];
     {% endfor %}
 
-    op_timing2_enter("Computation");
+    op_profile_enter("Computation");
 {% endblock %}
 
 {% block host_prologue_early_exit_cleanup %}
@@ -253,9 +253,9 @@ void {{lh.name}}_wrapper(
     int block_offset = 0;
     for (int col = 0; col < plan->ncolors; ++col) {
         if (col == plan->ncolors_core) {
-            op_timing2_next("MPI Wait");
+            op_profile_next("MPI Wait");
             op_mpi_wait_all(num_args_expanded, args_expanded);
-            op_timing2_next("Computation");
+            op_profile_next("Computation");
         }
 
         int num_blocks = plan->ncolblk[col];
@@ -322,18 +322,18 @@ void {{lh.name}}_wrapper(
 {% block host_epilogue %}
     {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
     if (set_size == set->core_size) {
-        op_timing2_next("MPI Wait");
+        op_profile_next("MPI Wait");
         op_mpi_wait_all(num_args_expanded, args_expanded);
         {% if lh.args|gbl|reduction|length > 0 %}
-        op_timing2_next("MPI Reduce");
+        op_profile_next("MPI Reduce");
         {% else %}
-        op_timing2_next("Finalise");
+        op_profile_next("Finalise");
         {% endif %}
     } else {
         {% if lh.args|gbl|reduction|length > 0 %}
-        op_timing2_next("MPI Reduce");
+        op_profile_next("MPI Reduce");
         {% else %}
-        op_timing2_next("Finalise");
+        op_profile_next("Finalise");
         {% endif %}
     }
 
@@ -361,15 +361,15 @@ void {{lh.name}}_wrapper(
 
     {% endif %}
     {% if lh is direct and lh.args|gbl|reduction|length > 0 %}
-    op_timing2_next("MPI Reduce");
+    op_profile_next("MPI Reduce");
     {% endif %}
     {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, gbl{{arg.id}});
     {% endfor %}
     {% if lh.args|gbl|reduction|length > 0 %}
-    op_timing2_next("Finalise");
+    op_profile_next("Finalise");
     {% elif lh is direct %}
-    op_timing2_next("Finalise");
+    op_profile_next("Finalise");
     {% endif %}
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
 

@@ -46,7 +46,7 @@ double gm1, gm1i, wtg1[2], xi1[2], Ng1[4], Ng1_xi[4], wtg2[4], Ng2[16],
 //
 
 #include "op_seq.h"
-#include "op_timing2.h"
+#include "op_profile_c.h"
 
 //
 // kernel routines for parallel loops
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 
   op_init(argc, argv, 2);
 
-  op_timing2_start("aero_aero_hdf5_aero");
+  op_profile_start("aero_aero_hdf5_aero");
 
   int *bnode, *cell;
   double *xm; //, *q;
@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
   op_timing_output();
   op_timers(&cpu_t2, &wall_t2);
   op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
-  op_timing2_finish();
-  op_timing2_output();
+  op_profile_end();
+  op_profile_output();
   op_exit();
 }

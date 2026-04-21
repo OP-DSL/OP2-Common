@@ -56,7 +56,7 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "op_lib_cpp.h"
 #include "op_lib_mpi.h"
 #include "op_util.h"
-#include "op_timing2.h"
+#include "op_profile_c.h"
 
 //
 // hdf5 header
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
 
-  op_timing2_start("airfoil_airfoil_hdf5_dp_convert_mesh_mpi");
+  op_profile_start("airfoil_airfoil_hdf5_dp_convert_mesh_mpi");
 
   // MPI for user I/O
   int my_rank;
@@ -352,8 +352,8 @@ int main(int argc, char **argv) {
 
   // create halos - for sanity check
   op_halo_create();
-  op_timing2_finish();
-  op_timing2_output();
+  op_profile_end();
+  op_profile_output();
 
   op_exit();
 }

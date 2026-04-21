@@ -190,7 +190,7 @@ __global__ void op_hip_{{lh.name}}(
 
 {% block host_prologue %}
 {{super()}}
-    op_timing2_exit();
+    op_profile_exit();
 
     {% if lh.args|opt|length > 0 %}
     unsigned optflags = 0;
@@ -213,13 +213,13 @@ __global__ void op_hip_{{lh.name}}(
     {% if config.color2 and lh is indirect %}
 {{indirect_dat_descriptor_def()}}
 
-    op_timing2_enter("Plan");
+    op_profile_enter("Plan");
     op_plan *plan = op_plan_get_stage(name, set, part_size, num_args_expanded,
                         args_expanded, num_dats_indirect, dats_indirect, OP_COLOR2);
-    op_timing2_exit();
+    op_profile_exit();
 
     {% endif %}
-    op_timing2_enter("Prepare GBLs");
+    op_profile_enter("Prepare GBLs");
     {% for arg in lh.args|gbl %}
     {{arg.typ}} *arg{{arg.id}}_host_data = ({{arg.typ}} *)arg{{arg.id}}.data;{{"\n" if loop.last}}
     {% endfor %}
@@ -336,8 +336,8 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
 {%- endmacro %}
 
 {% block host_loop %}
-    op_timing2_exit();
-    op_timing2_enter("Computation");
+    op_profile_exit();
+    op_profile_enter("Computation");
     {% if lh is direct %}
     {{kernel_call("reduction_size * block_size", "set->size")|indent}}
 
@@ -348,9 +348,9 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
     {% elif config.atomics %}
     for (int round = 0; round < {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}; ++round ) {
         if (round == 1) {
-            op_timing2_next("MPI Wait");
+            op_profile_next("MPI Wait");
             op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
-            op_timing2_next("Computation");
+            op_profile_next("Computation");
         }
 
         {% if lh.args|gbl|reduction|length > 0 %}
@@ -377,9 +377,9 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
     {% else %}
     for (int col = 0; col < plan->ncolors; ++col) {
         if (col == plan->ncolors_core) {
-            op_timing2_next("MPI Wait");
+            op_profile_next("MPI Wait");
             op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
-            op_timing2_next("Computation");
+            op_profile_next("Computation");
         }
 
         int start = plan->col_offsets[0][col];
@@ -399,9 +399,9 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
 
 {% block host_epilogue %}
     {% if lh.args|gbl|reduction|length > 0 %}
-    op_timing2_next("MPI Reduce");
+    op_profile_next("MPI Reduce");
     {% else %}
-    op_timing2_next("Finalise");
+    op_profile_next("Finalise");
     {% endif %}
     {% if lh.args|gbl|read_write|length > 0 or lh.args|gbl|write|length > 0 %}
     mvConstArraysToHost(const_bytes);
@@ -434,7 +434,7 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
 
     {% endfor %}
     {% if lh.args|gbl|reduction|length > 0 %}
-    op_timing2_next("Finalise");
+    op_profile_next("Finalise");
     {% endif %}
     op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
     cutilSafeCall(hipDeviceSynchronize());
