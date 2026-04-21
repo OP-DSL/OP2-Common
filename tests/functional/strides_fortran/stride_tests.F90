@@ -37,6 +37,7 @@ program stride_tests_fortran
   real(8) :: expected0, expected1
 
   call op_init_base(0, 0)
+  call op_timing2_start("FortranStrideTests")
 
   call get_rank_and_size(my_rank, comm_size)
 
@@ -102,6 +103,11 @@ program stride_tests_fortran
   end do
   write(*,*) "write5_within_kernel passed"
 
+  call op_timing2_finish()
+  
+  if (op_is_root() == 1) print *
+    call op_timing2_output()
+  
   call op_exit()
 
 contains ! ---------------------------------------------------------------------------------------------------

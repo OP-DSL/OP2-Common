@@ -22,7 +22,7 @@ source ./test_core.sh
 if [[ "$COMPILE_OP2" = "TRUE" ]]; then
     echo "Compiling OP2..." | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
     cd $LIB_LOC
-    if [ -f makefiles/.config.mk ]; then
+    if [ -f ../makefiles/.config.mk ]; then
       echo "Cleaning OP2..."
       make clean
     fi

@@ -1,6 +1,7 @@
 // Not intended to be used with OP_NO_REALLOC flag
 
 #include "op_seq.h"
+#include "op_timing2.h"
 #include <vector>
 
 #define TOL 1e-9
@@ -31,6 +32,7 @@ void consts4(double *dat) {
 int main(int argc, char **argv) {
 
   op_init(argc, argv, 2);
+  op_timing2_start("CppConstTests");
 
   constexpr int size = 32;
   op_set set = op_decl_set(size, "my_set");;
@@ -68,6 +70,9 @@ int main(int argc, char **argv) {
         check(std::abs(data_fetched4[i * 4 + d] - my_const4[d]) < TOL, i * 4 + d, "consts4 failed");
     printf("consts4 passed\n");
   }
+
+  op_timing2_finish();
+  op_timing2_output();
 
   op_exit();
 

@@ -374,10 +374,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     int n_args = {{lh.args|length}};
     op_arg args[{{lh.args|length}}];
 
-    // op_timing2_enter_kernel("{{lh.name}}", "c_CUDA", "{{variant_str()}}");
-    // op_timing2_enter("Init");
+    op_timing2_enter_kernel("{{lh.name}}", "c_CUDA", "{{variant_str()}}");
+    op_timing2_enter("Init");
 
-    // op_timing2_enter("Kernel Info Setup");
+    op_timing2_enter("Kernel Info Setup");
 
     static bool first_invocation = true;
     static op::f2c::KernelInfo info("op2_k_{{lh.name}}{{variant}}_wrapper",
@@ -409,12 +409,12 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     args[{{loop.index0}}] = arg{{arg.id}};
 {% endfor %}
 
-    // op_timing2_next("MPI Exchanges");
+    op_timing2_next("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
 
     if (n_exec == 0) {
-        // op_timing2_exit();
-        // op_timing2_exit();
+        op_timing2_exit();
+        op_timing2_exit();
 
         op_mpi_wait_all_grouped(n_args, args, 2);
 
@@ -423,7 +423,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
         op_mpi_set_dirtybit_cuda(n_args, args);
-        // op_timing2_exit();
+        op_timing2_exit();
         return;
     }
 
@@ -444,9 +444,9 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     static {{arg.typ.c()}}* gbl{{arg.id}}_ref_d = nullptr;
 {% endfor %}
 
-    // op_timing2_next("Get Kernel");
+    op_timing2_next("Get Kernel");
     auto *kernel_inst = info.get_kernel();
-    // op_timing2_exit();
+    op_timing2_exit();
 
 {% if lh is direct %}
     auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->size);
@@ -479,7 +479,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     {%- endfor -%}
     };
 
-    // op_timing2_enter("Plan");
+    op_timing2_enter("Plan");
 
 #ifdef OP_PART_SIZE_{{kernel_idx}}
     int part_size = OP_PART_SIZE_{{kernel_idx}};
@@ -511,7 +511,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     }
 
     max_blocks = std::min(max_blocks, block_limit);
-    // op_timing2_exit();
+    op_timing2_exit();
 {% endif %}
 
 {% if lh.args|opt|length > 0 %}
@@ -521,7 +521,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     {% endfor %}
 {% endif %}
 
-    // op_timing2_enter("Prepare GBLs");
+    op_timing2_enter("Prepare GBLs");
     prepareDeviceGbls(args, n_args, block_size * max_blocks);
     bool exit_sync = false;
 
@@ -529,7 +529,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     arg{{arg.id}} = args[{{loop.index0}}];
 {% endfor %}
 
-    // op_timing2_next("Update GBL Refs");
+    op_timing2_next("Update GBL Refs");
 {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
     if (gbl{{arg.id}}_ref_d == nullptr{{" && arg%s.opt == 1" % arg.id if arg is opt}}) {
         CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}})));
@@ -540,36 +540,36 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
 {% if args_gbl_per_thread|length > 0 %}
-    // op_timing2_next("Init GBLs");
+    op_timing2_next("Init GBLs");
 
     int stride_gbl = block_size * max_blocks;
     {{init_gbls()|indent}}
 {% endif %}
 
-    // op_timing2_exit();
-    // op_timing2_next("Computation");
+    op_timing2_exit();
+    op_timing2_next("Computation");
 
 {% if lh is direct %}
     int start = 0;
     int end = set->size;
 
-    // op_timing2_enter("Kernel");
+    op_timing2_enter("Kernel");
 
     int size = f2c::round32(set->size);
     {{kernel_call()|indent}}
 
-    // op_timing2_next("Process GBLs");
+    op_timing2_next("Process GBLs");
     {{process_gbls()|indent}}
 
-    // op_timing2_exit();
+    op_timing2_exit();
 {% elif config.atomics %}
-    // op_timing2_enter("Kernel");
+    op_timing2_enter("Kernel");
 
     for (int round = 1; round < sections.size(); ++round) {
         if (round == 2) {
-            // op_timing2_next("MPI Wait");
+            op_timing2_next("MPI Wait");
             op_mpi_wait_all_grouped(n_args, args, 2);
-            // op_timing2_next("Kernel");
+            op_timing2_next("Kernel");
         }
 
         int start = sections[round - 1];
@@ -585,22 +585,22 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
         if (round == 2) {
-            // op_timing2_next("Process GBLs");
+            op_timing2_next("Process GBLs");
             {{process_gbls()|indent(12)}}
-            // op_timing2_next("Kernel");
+            op_timing2_next("Kernel");
         }
     {% endif %}
     }
 
-    // op_timing2_exit();
+    op_timing2_exit();
 {% else %}
-    // op_timing2_enter("Kernel");
+    op_timing2_enter("Kernel");
 
     for (int col = 0; col < plan->ncolors; ++col) {
         if (col == plan->ncolors_core) {
-            // op_timing2_next("MPI Wait");
+            op_timing2_next("MPI Wait");
             op_mpi_wait_all_grouped(n_args, args, 2);
-            // op_timing2_next("Kernel");
+            op_timing2_next("Kernel");
         }
 
         int start = plan->col_offsets[0][col];
@@ -614,19 +614,19 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
         if (col == plan->ncolors_owned - 1) {
-            // op_timing2_next("Process GBLs");
+            op_timing2_next("Process GBLs");
             {{process_gbls()|indent(12)}}
-            // op_timing2_next("Kernel");
+            op_timing2_next("Kernel");
         }
     {% endif %}
     }
 
-    // op_timing2_exit();
+    op_timing2_exit();
 {% endif %}
 
-    // op_timing2_exit();
+    op_timing2_exit();
 
-    // op_timing2_enter("Finalise");
+    op_timing2_enter("Finalise");
 {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
 {% endfor %}
@@ -634,6 +634,6 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_mpi_set_dirtybit_cuda(n_args, args);
     if (exit_sync) CUDA_SAFE_CALL({{api_prefix}}StreamSynchronize(0));
 
-    // op_timing2_exit();
-    // op_timing2_exit();
+    op_timing2_exit();
+    op_timing2_exit();
 }
