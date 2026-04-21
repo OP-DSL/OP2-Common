@@ -4,8 +4,10 @@
     {% set api_prefix = "cuda" %}
 {%- endif -%}
 
-{% macro stride_cuda(arg) -%}
-{{-" * op2_m_%s%s::op2_%s_dat%s_stride_d" % (lh.name, variant, lh.kernel, arg.dat_id) if lh.dat(arg) is soa-}}
+{% macro stride_cuda(arg, jit) -%}
+{{ " * " }} 
+{{- ("op2_m_%s%s::" % (lh.name, variant)) if not jit else "" -}}
+{{- "op2_%s_dat%s_stride_d" % (lh.kernel, arg.dat_id) if lh.dat(arg) is soa -}}
 {%- endmacro %}
 
 {%- macro variant_str() -%}
@@ -317,7 +319,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
 
         for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
-            atomicAdd(dat{{arg.dat_id}} + {{map_lookup(arg)}} + d{{stride_cuda(arg)}}, arg{{arg.id}}_{{arg.map_idx}}_local[d]);
+            atomicAdd(dat{{arg.dat_id}} + {{map_lookup(arg)}} + d{{stride_cuda(arg,jit)}}, arg{{arg.id}}_{{arg.map_idx}}_local[d]);
     {% endfor %}
     }
 }

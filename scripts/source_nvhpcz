@@ -12,6 +12,7 @@ export OP2_INSTALL_PATH=$HOME/work3/OP2-Common/op2
 export OP_JIT_DEBUG=1
 export OP_JIT_ENABLE=1
 export OP_JIT_SEQ_COMPILE=1
+export OP_PROFILE_LEVEL=3
 
 # External libraries ---------------------------------------------------------------------------
 EXT_LIB_INSTALL_PATH=$HOME/work2/op2_ci
