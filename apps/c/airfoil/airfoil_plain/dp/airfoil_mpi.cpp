@@ -417,7 +417,7 @@ int main(int argc, char **argv) {
                   op_arg_gbl(&rms, 1, "double", OP_INC),
                   op_arg_gbl(&maxerr, 1, "double", OP_MAX),
                   op_arg_idx(-1, OP_ID),
-                  op_arg_info(&errloc, 1, "int", 6));
+                  op_arg_info(&errloc, 1, "int", 5));
     }
 
     // print iteration history
