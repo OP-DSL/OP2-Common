@@ -6,7 +6,7 @@ export OP2_COMPILER=nvhpc
 # export OP2_F_COMPILER=nvhpc
 # export OP2_C_CUDA_COMPILER=nvhpc
 
-export OP2_INSTALL_PATH=$HOME/work3/OP2-Common/op2
+export OP2_INSTALL_PATH=$PWD/../op2
 
 # export OP_AUTO_SOA=1
 export OP_JIT_DEBUG=1
@@ -19,10 +19,10 @@ EXT_LIB_INSTALL_PATH=$HOME/work2/op2_ci
 
 # export PARMETIS_INSTALL_PATH=$EXT_LIB_INSTALL_PATH/parmetis-4.0.3-gnu-12.2.0-openmpi
 export PARMETIS_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/ParMetis/Ver4.0.3/
-
+export KAHIP_INSTALL_PATH=/home/zl/work4/lib_install/KaHIP-3.25-gnu-12.2.0-openmpi-4.1.4
 # export PTSCOTCH_INSTALL_PATH=$HOME/lib/scotch
 
-# export LD_LIBRARY_PATH=$PARMETIS_INSTALL_PATH/lib:$PTSCOTCH_INSTALL_PATH/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$PARMETIS_INSTALL_PATH/lib:$PTSCOTCH_INSTALL_PATH/lib:$KAHIP_INSTALL_PATH/lib:$LD_LIBRARY_PATH
 
 export HDF5_PAR_INSTALL_PATH=$EXT_LIB_INSTALL_PATH/hdf5-1.14.6-gnu-12.2.0-openmpi
 export HDF5_SEQ_INSTALL_PATH=$EXT_LIB_INSTALL_PATH/hdf5-1.14.6-gnu-12.2.0-seq
