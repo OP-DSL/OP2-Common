@@ -35,7 +35,8 @@ inline void op_arg_set(int n, op_arg& arg, char **p_arg, int halo) {
     if (halo && (arg.acc != OP_READ))
       *p_arg = blank_args;
   } else if (arg.argtype == OP_ARG_INFO) {
-    return;
+    if (halo)
+      *p_arg = blank_args;
   } else if (arg.argtype == OP_ARG_IDX) {
     if (arg.map == NULL || arg.opt == 0) {
       *p_arg = &blank_args[blank_args_size-sizeof(int)]; //this where we'll put the loop counter

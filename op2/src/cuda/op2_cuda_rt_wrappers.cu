@@ -107,18 +107,8 @@ template<typename T, typename F, typename HF>
 static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
     device_result.ensure_capacity(arg->dim * sizeof(T));
 
-    gpuError_t err = gpuStreamSynchronize(gpu_stream);
-    if (err != gpuSuccess) {
-        printf("Kernel execution error: %s\n", gpuGetErrorString(err));
-    }
-
     size_t required_temp_storage_size = 0;
     op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems);
-
-    gpuError_t errz = gpuStreamSynchronize(gpu_stream);
-    if (errz != gpuSuccess) {
-        printf("Kernel execution errorZ: %s\n", gpuGetErrorString(errz));
-    }
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
@@ -127,11 +117,6 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
             (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems);
 
     std::vector<T> result(arg->dim);
-
-    // gpuError_t erry = gpuStreamSynchronize(gpu_stream);
-    // if (erry != gpuSuccess) {
-    //     printf("Kernel execution errorY: %s\n", gpuGetErrorString(erry));
-    // }
 
     cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, arg->dim * sizeof(T), gpuMemcpyDeviceToHost, gpu_stream));
     cutilSafeCall(gpuStreamSynchronize(gpu_stream));
@@ -336,20 +321,14 @@ void op_put_all_cuda(int nargs, op_arg *args) {
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     size_t required_size = 0;
 
-    // if (nargs == 5) op_printf("prepareDeviceGbls: start\n");
-
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
-        // if (nargs == 5) op_printf("prepareDeviceGbls: args[%d].size = %d\n", i, args[i].size);
-
         if (needs_per_thread_storage(args[i])) {
             required_size += align(args[i].size * max_threads * sizeof(char));
-            // if (nargs == 5) op_printf("needs_per_thread_storage Required size increased by %zu for arg %d\n", align(args[i].size * max_threads * sizeof(char)), i);
         } else if (needs_device_storage(args[i])) {
             required_size += align(args[i].size * sizeof(char));
-            // if (nargs == 5) op_printf("needs_device_storage Required size increased by %zu for arg %d\n", align(args[i].size * sizeof(char)), i);
         }
     }
 
