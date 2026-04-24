@@ -18,7 +18,7 @@
  * "Programming the Hilbert Curve") followed by bit-interleaving, then
  * vertices are sorted by Hilbert index.
  *
- * Grid resolution is 20 bits per coordinate - yielding a 60-bit Hilbert
+ * Grid resolution is 21 bits per coordinate - yielding a 63-bit Hilbert
  * index for 3D, well inside a uint64_t. The aspect-ratio-preserving
  * normalisation means short-range axes use fewer of those bits; a stats
  * struct reports the per-axis effective bit-count so the caller can
@@ -113,9 +113,9 @@ inline void hilbert_sfc_order(const double *coords,
   if (num_verts == 0) return;
   if (dim < 2 || dim > 3) return; // caller is expected to validate
 
-  // 20 bits per axis. 2D index <= 40 bits, 3D index <= 60 bits. Both fit
+  // 21 bits per axis. 2D index <= 42 bits, 3D index <= 63 bits. Both fit
   // comfortably in a uint64_t with room to spare.
-  const int bits = 20;
+  const int bits = 21;
   const std::uint32_t scale = (1U << bits) - 1;
 
   // Bounding box per axis.
