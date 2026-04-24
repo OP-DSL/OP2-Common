@@ -335,11 +335,24 @@ def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
 
 def findLoopConsts(program: Program) -> None:
     for loop in program.loops:
+        visited = set()
+
+        def visit_function(func_cursor):
+            if func_cursor is None:
+                return
+            if func_cursor.get_usr() in visited:
+                return
+            visited.add(func_cursor.get_usr())
+
+            for node in func_cursor.walk_preorder():
+                if node.kind == CursorKind.DECL_REF_EXPR:
+                    const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
+                    if const_id is not None:
+                        loop.addConst(program.consts[const_id])
+                elif node.kind == CursorKind.CALL_EXPR:
+                    callee = node.referenced
+                    if callee is not None and callee.kind == CursorKind.FUNCTION_DECL:
+                        visit_function(callee)
+
         for entity in program.findEntities(loop.kernel, []):
-            for node in entity.ast.walk_preorder():
-                if node.kind != CursorKind.DECL_REF_EXPR:
-                    continue
-                const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
-                if const_id is not None:
-                    loop.addConst(program.consts[const_id])
-                    # print(f"found const {program.consts[const_id].ptr} for loop {loop.name}")
+            visit_function(entity.ast)
