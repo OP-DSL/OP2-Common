@@ -30,38 +30,63 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * op_renumber.cpp
+ *
+ * Alternative renumbering entry point. Dispatches to one of several node
+ * ordering algorithms based on the OP_REORDER environment variable:
+ *
+ *     OP_REORDER=none      - no reordering (default)
+ *     OP_REORDER=random    - random permutation (benchmark baseline)
+ *     OP_REORDER=rcm       - Reverse Cuthill-McKee
+ *     OP_REORDER=sloan     - Sloan profile-minimising ordering
+ *     OP_REORDER=hilbert   - Hilbert space-filling curve (needs coords)
+ *
+ * The adjacency-graph construction, permutation propagation and physical
+ * re-application logic are kept identical in spirit to op_renumber.cpp.
+ * The ordering algorithms themselves live in header-only modules:
+ *
+ *     op_renumber_rcm.hpp          - RCM + shared graph utilities
+ *     op_renumber_sloan.hpp        - Sloan (depends on rcm.hpp)
+ *     op_renumber_hilbert_sfc.hpp  - Hilbert SFC (standalone, geometric)
+ *
+ * No external library dependency is required; this translation unit does
+ * not need HAVE_PTSCOTCH.
+ */
+
 #include <op_lib_core.h>
 #include <op_lib_cpp.h>
 #include <op_util.h>
 #include <vector>
 #include <algorithm>
 #include <iterator>
+#include <climits>
+#include <utility>
+#include <cstdlib>
+#include <cstring>
+#include <cctype>
+#include <random>
 #include <op_lib_mpi.h>
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
 
+#include "renumber/rcm.hpp"
+#include "renumber/sloan.hpp"
+#include "renumber/hilbert_sfc.hpp"
+
 using op::mpi::HaloList;
-
-#ifdef HAVE_PTSCOTCH
-#include <scotch.h>
-#endif
-
-#ifdef PARMETIS_VER_4
-#include <metis.h>
-typedef idx_t idxtype;
-#endif
 
 typedef struct {
   int a;
   int b;
 } map2;
 
-int compare(const void *a, const void *b) {
+static int compare(const void *a, const void *b) {
   return ((*(map2 *)a).a - (*(map2 *)b).a);
 }
 
-void check_permutation(int *perm, int size) {
-  std::vector<int> flags(size,0);
+static void check_permutation(int *perm, int size) {
+  std::vector<int> flags(size, 0);
   for (int i = 0; i < size; i++)
     flags[perm[i]] = 1;
   int acc = 0;
@@ -70,10 +95,16 @@ void check_permutation(int *perm, int size) {
   if (acc != size) printf("Permutation map error\n");
 }
 
-// propage renumbering based on a map that points to an already reordered set
-void propagate_reordering(op_set from, op_set to,
-                          std::vector<std::vector<int> > &set_permutations,
-                          std::vector<std::vector<int> > &set_ipermutations) {
+//-----------------------------------------------------------------------------
+// Permutation propagation and physical application (unchanged from the
+// RCM-only version of this file; kept here to avoid spreading OP2 internals
+// across multiple translation units).
+//-----------------------------------------------------------------------------
+
+// Propagate renumbering based on a map that points to an already reordered set.
+static void propagate_reordering(op_set from, op_set to,
+                                 std::vector<std::vector<int> > &set_permutations,
+                                 std::vector<std::vector<int> > &set_ipermutations) {
 
   if (to->size == 0)
     return;
@@ -89,12 +120,13 @@ void propagate_reordering(op_set from, op_set to,
           renum[i].b = i;
         }
         qsort(&renum[0], renum.size(), sizeof(map2), compare);
-        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
+        set_permutations[to->index].resize(to->size + to->exec_size + to->nonexec_size);
         for (int i = 0; i < to->core_size; i++)
           set_permutations[to->index][renum[i].b] = i;
         for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
+        check_permutation(&set_permutations[to->index][0],
+                          to->size + to->exec_size + to->nonexec_size);
         break;
       }
     }
@@ -105,23 +137,25 @@ void propagate_reordering(op_set from, op_set to,
       op_map map = OP_map_list[mapidx];
       if (map->to == to && map->from == from) {
         int counter = 0;
-        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size,-1);
+        set_permutations[to->index].resize(to->size + to->exec_size + to->nonexec_size, -1);
         for (int i = 0; i < from->size; i++) {
           for (int d = 0; d < map->dim; d++) {
-            int idx = map->map[set_ipermutations[from->index][i]*map->dim + d];
-            if (idx < to->core_size && set_permutations[to->index][idx]==-1)
-              set_permutations[to->index][idx]=counter++;
+            int idx = map->map[set_ipermutations[from->index][i] * map->dim + d];
+            if (idx < to->core_size && set_permutations[to->index][idx] == -1)
+              set_permutations[to->index][idx] = counter++;
           }
         }
         int onto = 1;
-        for (int i = 0; i < to->core_size; i++) if (set_permutations[to->index][i]==-1) {onto = 0; break;}
+        for (int i = 0; i < to->core_size; i++)
+          if (set_permutations[to->index][i] == -1) { onto = 0; break; }
         if (!onto) {
           set_permutations[to->index].resize(0);
           continue;
         }
         for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
+        check_permutation(&set_permutations[to->index][0],
+                          to->size + to->exec_size + to->nonexec_size);
         break;
       }
     }
@@ -130,8 +164,8 @@ void propagate_reordering(op_set from, op_set to,
     return;
   }
   else {
-    set_ipermutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
-    for (int i = 0; i < to->size+to->exec_size+to->nonexec_size; i++) {
+    set_ipermutations[to->index].resize(to->size + to->exec_size + to->nonexec_size);
+    for (int i = 0; i < to->size + to->exec_size + to->nonexec_size; i++) {
       set_ipermutations[to->index][set_permutations[to->index][i]] = i;
     }
   }
@@ -152,10 +186,8 @@ void propagate_reordering(op_set from, op_set to,
   }
 }
 
-void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
-                 std::vector<std::vector<int> > &set_ipermutations) {
+static void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations) {
 
-  (void)set_ipermutations;
   if (set_permutations[set->index].size() == 0 && set->core_size > 0) {
     printf("No reordering for set %s, skipping...\n", set->name);
     return;
@@ -164,31 +196,33 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
   if (set->size == 0)
     return;
 
-  //Reorder maps
+  // Reorder maps
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == set) {
-      int *tempmap = (int *)malloc((set->size+set->exec_size) * sizeof(int) * map->dim);
+      int *tempmap = (int *)malloc((set->size + set->exec_size) * sizeof(int) * map->dim);
 
-      for (int i = 0; i < set->size+set->exec_size; i++)
+      for (int i = 0; i < set->size + set->exec_size; i++)
         std::copy(map->map + map->dim * i, map->map + map->dim * (i + 1),
                   tempmap + map->dim * set_permutations[set->index][i]);
       free(map->map);
       map->map = tempmap;
 
     } else if (map->to == set) {
-      for (int i = 0; i < (map->from->size+map->from->exec_size) * map->dim; i++)
+      for (int i = 0; i < (map->from->size + map->from->exec_size) * map->dim; i++)
         map->map[i] = set_permutations[set->index][map->map[i]];
     }
   }
 
-  //Reorder datasets
+  // Reorder datasets
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     if (dat->set == set && dat->data != NULL) {
-      char *tempdata = (char *)malloc((size_t)(set->size+set->exec_size+set->nonexec_size) * (size_t)dat->size);
-      for (unsigned long int i = 0; i < (unsigned long int)(set->size+set->exec_size+set->nonexec_size); i++)
+      char *tempdata = (char *)malloc((size_t)(set->size + set->exec_size + set->nonexec_size) *
+                                      (size_t)dat->size);
+      for (unsigned long int i = 0;
+           i < (unsigned long int)(set->size + set->exec_size + set->nonexec_size); i++)
         std::copy(dat->data + (unsigned long int)dat->size * i,
                   dat->data + (unsigned long int)dat->size * (i + 1),
                   tempdata +
@@ -199,9 +233,9 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
     }
   }
 
-  //Renumber halos: this set's export lists, and the partial-exchange export
-  //lists of every map onto it. The import lists on other ranks are refreshed
-  //once every set is done (op_halo_refresh_imports).
+  // Renumber halos: this set's export lists, and the partial-exchange export
+  // lists of every map onto it. The import lists on other ranks are refreshed
+  // once every set is done (op_halo_refresh_imports).
   std::vector<HaloList *> exports = {&OP_set_halos[set->index].export_exec,
                                      &OP_set_halos[set->index].export_nonexec};
   for (int m = 0; m < (int)OP_map_halos.size(); m++)
@@ -211,306 +245,384 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
     for (idx_l_t i = 0; i < exp->size(); i++)
       exp->list[i] = set_permutations[set->index][exp->list[i]];
 
-  //Reorder mapping back to original (unpartitioned indexing)
-  idx_g_t *new_g_index = (idx_g_t*)malloc(set->size*sizeof(idx_g_t));
+  // Reorder mapping back to original (unpartitioned indexing)
+  idx_g_t *new_g_index = (idx_g_t *)malloc(set->size * sizeof(idx_g_t));
   for (int i = 0; i < set->size; i++)
     new_g_index[set_permutations[set->index][i]] = OP_part_list[set->index]->g_index[i];
   free(OP_part_list[set->index]->g_index);
-  OP_part_list[set->index]->g_index = new_g_index; 
+  OP_part_list[set->index]->g_index = new_g_index;
 }
 
-#ifdef HAVE_PTSCOTCH
-/* Reorder this rank's core elements of base's target set, and of every set the
-   ordering propagates to. It can give up on one rank alone (a core with no
-   edges of its own), so nothing collective may happen in here. */
-static void renumber_owned(op_map base) {
-  op_printf("Renumbering using base map %s\n", base->name);
-/*
-  int generated_partvec = 0;
-  if (FILE *file = fopen("partvec0001_0001", "r")) {
-    fclose(file);
-    int possible[] = {1,  2,  4,   6,   8,   12,  16,   22,   24,
-                      32, 64, 128, 192, 256, 512, 1024, 2048, 4096};
-    for (int i = 0; i < 18; i++) {
-      char buffer[64];
-      sprintf(buffer, "partvec0001_%04d", possible[i]);
-      if (!(file = fopen(buffer, "r")))
-        continue;
-      printf("Processing partitioning for %d partitions\n", possible[i]);
-      int *partvec = (int *)malloc(base->to->size * sizeof(int));
-      int *order = (int *)malloc(base->to->size * sizeof(int));
-      int total_ctr = 0;
-      for (int f = 0; f < possible[i]; f++) {
-        if (f > 0) {
-          fclose(file);
-          sprintf(buffer, "partvec%04d_%04d", f + 1, possible[i]);
-          file = fopen(buffer, "r");
-        }
-        int counter = 0;
-        int id, part;
-        while (fscanf(file, "%d %d", &id, &part) != EOF) {
-          partvec[id] = part - 1;
-          order[id] = counter;
-          counter++;
-          total_ctr++;
-        }
-      }
-      fclose(file);
-      sprintf(buffer, "partvec%04d", possible[i]);
-      op_decl_dat(base->to, 1, "int", partvec, buffer);
-      sprintf(buffer, "ordering%04d", possible[i]);
-      op_decl_dat(base->to, 1, "int", order, buffer);
-      if (total_ctr != base->to->size)
-        printf("Size mismatch %d %d\n", total_ctr, base->to->size);
-      generated_partvec = 1;
+//-----------------------------------------------------------------------------
+// OP_REORDER dispatch
+//-----------------------------------------------------------------------------
+
+enum class ReorderMethod {
+  None,
+  Random,
+  RCM,
+  Sloan,
+  Hilbert
+};
+
+static int str_iequals(const char *a, const char *b) {
+  while (*a && *b) {
+    if (std::tolower((unsigned char)*a) != std::tolower((unsigned char)*b)) return 0;
+    a++; b++;
+  }
+  return *a == 0 && *b == 0;
+}
+
+static const char *method_name(ReorderMethod m) {
+  switch (m) {
+    case ReorderMethod::None:    return "none";
+    case ReorderMethod::Random:  return "random";
+    case ReorderMethod::RCM:     return "RCM";
+    case ReorderMethod::Sloan:   return "Sloan";
+    case ReorderMethod::Hilbert: return "Hilbert SFC";
+  }
+  return "unknown";
+}
+
+static ReorderMethod get_reorder_method() {
+  const char *env = getenv("OP_REORDER");
+  if (env == NULL || env[0] == '\0') return ReorderMethod::None;
+  if (str_iequals(env, "none"))    return ReorderMethod::None;
+  if (str_iequals(env, "random"))  return ReorderMethod::Random;
+  if (str_iequals(env, "rcm"))     return ReorderMethod::RCM;
+  if (str_iequals(env, "sloan"))   return ReorderMethod::Sloan;
+  if (str_iequals(env, "hilbert")) return ReorderMethod::Hilbert;
+  op_printf("Warning: unknown OP_REORDER value '%s', defaulting to none\n", env);
+  return ReorderMethod::None;
+}
+
+// Fisher-Yates shuffle of the identity permutation. Fixed seed so that
+// benchmark runs are reproducible across invocations.
+static void random_order(int num_verts, std::vector<int> &permutation) {
+  permutation.resize(num_verts);
+  for (int i = 0; i < num_verts; i++) permutation[i] = i;
+  std::mt19937 rng(42u);
+  for (int i = num_verts - 1; i > 0; i--) {
+    std::uniform_int_distribution<int> dist(0, i);
+    int j = dist(rng);
+    std::swap(permutation[i], permutation[j]);
+  }
+}
+
+// Heuristic search for a coordinates dat on the given node set. Preference:
+//   1. an op_dat on `node_set` whose name contains "coord", "pos", matches
+//      "x"/"X", or starts with "p_x"/"p_X", with dim in {2,3} and type double.
+//   2. any op_dat on `node_set` with dim in {2,3} and type double.
+// Returns NULL if nothing plausible is found.
+static op_dat find_coords_dat(op_set node_set) {
+  op_dat_entry *item;
+
+  // Pass 1: name-based match.
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    if (dat->set != node_set) continue;
+    if (dat->dim != 2 && dat->dim != 3) continue;
+    if (dat->data == NULL) continue;
+    if (dat->type == NULL || strcmp(dat->type, "double") != 0) continue;
+    const char *name = dat->name ? dat->name : "";
+    if (strstr(name, "coord") || strstr(name, "Coord") ||
+        strstr(name, "pos")   || strstr(name, "Pos")   ||
+        strcmp(name, "x") == 0 || strcmp(name, "X") == 0 ||
+        strncmp(name, "p_x", 3) == 0 || strncmp(name, "p_X", 3) == 0) {
+      return dat;
     }
   }
-*/
-  //-----------------------------------------------------------------------------------------
-  // Build adjacency list
-  //-----------------------------------------------------------------------------------------
-  //base->to->size does not include exec halo
-  std::vector<SCOTCH_Num> row_offsets(base->to->core_size + 1);
-  std::vector<SCOTCH_Num> col_indices;
+
+  // Pass 2: any 2D/3D double dat on this set.
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    op_dat dat = item->dat;
+    if (dat->set != node_set) continue;
+    if (dat->dim != 2 && dat->dim != 3) continue;
+    if (dat->data == NULL) continue;
+    if (dat->type == NULL || strcmp(dat->type, "double") != 0) continue;
+    return dat;
+  }
+
+  return NULL;
+}
+
+//-----------------------------------------------------------------------------
+// Per-edge bandwidth / locality statistic: the maximum pairwise distance
+// between endpoint indices of each edge, averaged and maxed over edges.
+//-----------------------------------------------------------------------------
+static void compute_edge_stats(op_map base, int &max_dist, long &avg_dist) {
+  max_dist = 0;
+  avg_dist = 0;
+  if (base->from->size == 0) return;
+  for (int i = 0; i < base->from->size; i++) {
+    int dist = 0;
+    for (int d1 = 0; d1 < base->dim; d1++)
+      for (int d2 = 0; d2 < base->dim; d2++)
+        dist = std::max(dist, std::abs(base->map[i * base->dim + d1] -
+                                       base->map[i * base->dim + d2]));
+    max_dist = std::max(max_dist, dist);
+    avg_dist += dist;
+  }
+  avg_dist /= base->from->size;
+}
+
+//-----------------------------------------------------------------------------
+// CSR adjacency build (same structure as op_renumber.cpp's local build,
+// extracted into a helper since RCM and Sloan both need it).
+//-----------------------------------------------------------------------------
+static bool build_node_adjacency(op_map base,
+                                 std::vector<int> &row_offsets,
+                                 std::vector<int> &col_indices) {
+  row_offsets.assign(base->to->core_size + 1, 0);
+  col_indices.clear();
+
   if (base->to == base->from) {
+    // Self-referencing map: adjacency is already in `base` directly; just
+    // drop references that fall outside the core-size range.
     col_indices.resize(base->dim * base->from->size);
-    // if map is self-referencing, mapping is the same, except we have to remove references 
-    // the halo
     row_offsets[0] = 0;
     for (int i = 0; i < base->from->size; i++) {
       int rowlen = 0;
       for (int j = 0; j < base->dim; j++)
-        if (base->map[i*base->dim+j] < base->to->core_size)
-          col_indices[row_offsets[i]+rowlen++] = base->map[i*base->dim+j];
-      row_offsets[i+1] = row_offsets[i] + rowlen;
-    }
-    //reduce size to actual size
-    col_indices.resize(row_offsets[base->to->core_size]);
-  } else {
-    // otherwise, construct self-referencing map
-    col_indices.resize(base->from->size * (base->dim - 1) *
-                       (base->dim)); // Worst case memory requirement
-
-    // construct map pointing back, dropping indices referring to the halo
-    std::vector<map2> loopback(base->from->size * base->dim);
-    int sizectr = 0;
-    for (int i = 0; i < base->from->size ; i++) {
-      for (int j = 0; j < base->dim; j++) {
-        if (base->map[i*base->dim+j] < base->to->core_size) {
-          loopback[sizectr].a = base->map[i*base->dim+j];
-          loopback[sizectr].b = i;
-          sizectr++;
-        }
-      }
-    }
-
-    loopback.resize(sizectr);
-    qsort(&loopback[0], loopback.size(), sizeof(map2), compare);
-    
-    row_offsets[0] = 0;
-    row_offsets[1] = 0;
-    row_offsets[base->to->core_size] = 0;
-    for (int i = 0; i < base->dim; i++) {
-      //Drop self-references
-      if (base->map[base->dim * loopback[0].b + i] != 0 &&
-          base->map[base->dim * loopback[0].b + i] < base->to->core_size)
-        col_indices[row_offsets[1]++] =
-            base->map[base->dim * loopback[0].b + i];
-    }
-    int nodectr = 0;
-    for (size_t i = 1; i < loopback.size(); i++) {
-      if (loopback[i].a != loopback[i - 1].a) {
-        nodectr++;
-        row_offsets[nodectr + 1] = row_offsets[nodectr];
-      }
-
-      for (int d1 = 0; d1 < base->dim; d1++) {
-        int id = base->map[base->dim * loopback[i].b + d1];
-        int add = (id != nodectr && id < base->to->core_size);
-        for (int d2 = row_offsets[nodectr];
-             (d2 < row_offsets[nodectr + 1]) && add; d2++) {
-          if (col_indices[d2] == id)
-            add = 0;
-        }
-        if (add)
-          col_indices[row_offsets[nodectr + 1]++] = id;
-      }
-    }
-    if (row_offsets[base->to->core_size] == 0) {
-      printf(
-          "Map %s is not an onto map from %s to %s, or bad partitioning, aborting renumbering...\n",
-          base->name, base->from->name, base->to->name);
-      return;
+        if (base->map[i * base->dim + j] < base->to->core_size)
+          col_indices[row_offsets[i] + rowlen++] = base->map[i * base->dim + j];
+      row_offsets[i + 1] = row_offsets[i] + rowlen;
     }
     col_indices.resize(row_offsets[base->to->core_size]);
-    if (OP_diags>2) op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
-           base->to->name, base->to->name, (int)col_indices.size(),
-           base->from->name, base->from->size);
+    return true;
   }
-  //sanity check
-  for (idx_l_t row = 0; row < (idx_l_t)row_offsets.size()-1; row++) {
-    if (row_offsets[row] == row_offsets[row+1]) printf("Zero length row\n");
-    for (int col = row_offsets[row]; col < row_offsets[row+1]; col++) {
-      if (col_indices[col]<0 || col_indices[col]>=(idx_l_t)row_offsets.size()-1)
+
+  // Build self-referencing node->node map from an edge->node base map.
+  col_indices.resize(base->from->size * (base->dim - 1) * (base->dim));
+
+  std::vector<map2> loopback(base->from->size * base->dim);
+  int sizectr = 0;
+  for (int i = 0; i < base->from->size; i++) {
+    for (int j = 0; j < base->dim; j++) {
+      if (base->map[i * base->dim + j] < base->to->core_size) {
+        loopback[sizectr].a = base->map[i * base->dim + j];
+        loopback[sizectr].b = i;
+        sizectr++;
+      }
+    }
+  }
+
+  loopback.resize(sizectr);
+  qsort(&loopback[0], loopback.size(), sizeof(map2), compare);
+
+  row_offsets[0] = 0;
+  row_offsets[1] = 0;
+  row_offsets[base->to->core_size] = 0;
+  for (int i = 0; i < base->dim; i++) {
+    if (base->map[base->dim * loopback[0].b + i] != 0 &&
+        base->map[base->dim * loopback[0].b + i] < base->to->core_size)
+      col_indices[row_offsets[1]++] =
+          base->map[base->dim * loopback[0].b + i];
+  }
+  int nodectr = 0;
+  for (int i = 1; i < (int)loopback.size(); i++) {
+    if (loopback[i].a != loopback[i - 1].a) {
+      nodectr++;
+      row_offsets[nodectr + 1] = row_offsets[nodectr];
+    }
+
+    for (int d1 = 0; d1 < base->dim; d1++) {
+      int id = base->map[base->dim * loopback[i].b + d1];
+      int add = (id != nodectr && id < base->to->core_size);
+      for (int d2 = row_offsets[nodectr];
+           (d2 < row_offsets[nodectr + 1]) && add; d2++) {
+        if (col_indices[d2] == id)
+          add = 0;
+      }
+      if (add)
+        col_indices[row_offsets[nodectr + 1]++] = id;
+    }
+  }
+  if (row_offsets[base->to->core_size] == 0) {
+    printf(
+        "Map %s is not an onto map from %s to %s, or bad partitioning, aborting renumbering...\n",
+        base->name, base->from->name, base->to->name);
+    return false;
+  }
+  col_indices.resize(row_offsets[base->to->core_size]);
+  if (OP_diags > 2)
+    op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
+              base->to->name, base->to->name, (int)col_indices.size(),
+              base->from->name, base->from->size);
+
+  // Sanity check: graph rows and symmetry.
+  for (int row = 0; row < (int)row_offsets.size() - 1; row++) {
+    if (row_offsets[row] == row_offsets[row + 1]) printf("Zero length row\n");
+    for (int col = row_offsets[row]; col < row_offsets[row + 1]; col++) {
+      if (col_indices[col] < 0 || col_indices[col] >= (int)row_offsets.size() - 1)
         printf("Error col idx %d, but num rows is %lu\n", col_indices[col],
                row_offsets.size() - 1);
       else {
-        //Symmetry
         int found = 0;
-        for (int c2 = row_offsets[col_indices[col]]; c2 < row_offsets[col_indices[col]+1]; c2++) {
+        for (int c2 = row_offsets[col_indices[col]];
+             c2 < row_offsets[col_indices[col] + 1]; c2++) {
           if (col_indices[c2] == row) found = 1;
         }
-        if (!found) printf("Error, symmetry broken at row %d col %d\n",row,col_indices[col]);
+        if (!found) printf("Error, symmetry broken at row %d col %d\n", row, col_indices[col]);
       }
     }
   }
-  //Statistics
-  int max_dist = 0;
-  long avg_dist = 0;
-  for (int i = 0; i < base->from->size; i++) {
-    int dist = 0;
-    for (int d1 = 0; d1 < base->dim; d1++)
-      for (int d2 = 0; d2 < base->dim; d2++)
-        dist = std::max(dist,std::abs(base->map[i*base->dim+d1]-base->map[i*base->dim+d2]));
-    max_dist = std::max(max_dist,dist);
-    avg_dist += dist;
-  }
-  avg_dist /= base->from->size;
-/*
-  if (generated_partvec == 0) {
-#ifdef PARMETIS_VER_4
-    int possible[] = {2,  4,   6,   8,   12,  16,   22,   24,  32,
-                      64, 128, 192, 256, 512, 1024, 2048, 4096};
-    for (int i = 0; i < 17; i++) {
-      int *partvec = (int *)malloc(base->to->size * sizeof(int));
-      idxtype nconstr = 1;
-      idxtype edgecut;
-      idxtype nparts = possible[i];
-      idxtype options[METIS_NOPTIONS];
-      METIS_SetDefaultOptions(options);
-      options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
-      options[METIS_OPTION_NCUTS] = 3;
-      options[METIS_OPTION_NSEPS] = 3;
-      options[METIS_OPTION_NUMBERING] = 0;
-      options[METIS_OPTION_MINCONN] = 1;
+  return true;
+}
 
-      METIS_PartGraphKway((idxtype *)&base->to->size, &nconstr,
-                          (idxtype *)&row_offsets[0],
-                          (idxtype *)&col_indices[0], NULL, NULL, NULL, &nparts,
-                          NULL, NULL, options, &edgecut, (idxtype *)partvec);
-      printf("Metis partitioning precomputed for %d partitions. Edgecut: %d\n",
-             nparts, edgecut);
-      char buffer[50];
-      sprintf(buffer, "partvec%04d", possible[i]);
-      op_decl_dat(base->to, 1, "int", partvec, buffer);
+//-----------------------------------------------------------------------------
+// Public entry point
+//-----------------------------------------------------------------------------
+
+/* Reorder this rank's core elements of base's target set, and of every set the
+   ordering propagates to. It can give up on one rank alone (a core with no
+   edges of its own), so nothing collective may happen in here. */
+static void renumber_owned(op_map base, ReorderMethod method) {
+  op_printf("Renumbering (%s) using base map %s\n", method_name(method), base->name);
+
+  int num_verts = base->to->core_size;
+  if (num_verts == 0) {
+    op_printf("op_renumber: core_size is zero on set %s, nothing to do\n",
+              base->to->name);
+    return;
+  }
+
+  //---------------------------------------------------------------------------
+  // Compute the core-size permutation via the selected algorithm.
+  //---------------------------------------------------------------------------
+  std::vector<int> permutation;
+
+  if (method == ReorderMethod::Random) {
+    random_order(num_verts, permutation);
+
+  } else if (method == ReorderMethod::Hilbert) {
+    op_dat coords_dat = find_coords_dat(base->to);
+    if (coords_dat == NULL) {
+      op_printf("ERROR: Hilbert SFC requires a double-precision 2D/3D "
+                "coordinates dat on set %s, but none was found. "
+                "Aborting renumbering.\n", base->to->name);
+      return;
     }
-#endif
+    op_printf("op_renumber: using dat '%s' (dim %d) as Hilbert SFC coordinates\n",
+              coords_dat->name ? coords_dat->name : "<unnamed>", coords_dat->dim);
+
+    op_renumber_impl::hilbert_sfc_stats hstats;
+    op_renumber_impl::hilbert_sfc_order(
+        reinterpret_cast<const double *>(coords_dat->data),
+        num_verts, coords_dat->dim, permutation, &hstats);
+
+    // Diagnostic log: grid resolution, quantisation collisions, per-axis
+    // effective bits. A large gap between num_verts and distinct_indices
+    // means many vertices collapsed into the same Hilbert bin and the
+    // relative ordering within each bin was decided only by vertex id -
+    // locality quality degrades correspondingly.
+    double ratio = (hstats.num_verts > 0)
+                       ? (double)hstats.distinct_indices /
+                             (double)hstats.num_verts
+                       : 1.0;
+    op_printf("op_renumber: Hilbert SFC quantisation at %d bits/axis\n",
+              hstats.nominal_bits);
+    op_printf("  num_verts         = %d\n", hstats.num_verts);
+    op_printf("  distinct_indices  = %d (%.4f of num_verts)\n",
+              hstats.distinct_indices, ratio);
+    if (hstats.dim == 2) {
+      op_printf("  axis ranges       = [%.3g, %.3g]\n",
+                hstats.axis_range[0], hstats.axis_range[1]);
+      op_printf("  effective bits    = [%.2f, %.2f]\n",
+                hstats.effective_bits[0], hstats.effective_bits[1]);
+    } else {
+      op_printf("  axis ranges       = [%.3g, %.3g, %.3g]\n",
+                hstats.axis_range[0], hstats.axis_range[1],
+                hstats.axis_range[2]);
+      op_printf("  effective bits    = [%.2f, %.2f, %.2f]\n",
+                hstats.effective_bits[0], hstats.effective_bits[1],
+                hstats.effective_bits[2]);
+    }
+    if (ratio < 0.99) {
+      op_printf("WARNING: Hilbert SFC has %.2f%% collision rate - %d of %d "
+                "vertices share a bin with another. Grid resolution may be "
+                "insufficient for this mesh's anisotropy or point density; "
+                "consider increasing bits-per-axis in "
+                "op_renumber_hilbert_sfc.hpp.\n",
+                100.0 * (1.0 - ratio),
+                hstats.num_verts - hstats.distinct_indices,
+                hstats.num_verts);
+    }
+
+  } else {
+    // RCM and Sloan both need the CSR adjacency.
+    std::vector<int> row_offsets, col_indices;
+    if (!build_node_adjacency(base, row_offsets, col_indices)) {
+      return; // error already printed
+    }
+
+    if (method == ReorderMethod::RCM) {
+      op_renumber_impl::rcm_order(row_offsets, col_indices, num_verts, permutation);
+    } else { // Sloan
+      op_renumber_impl::sloan_order(row_offsets, col_indices, num_verts, permutation);
+    }
   }
-*/
-  //
-  // Using SCOTCH for reordering
-  //
-  SCOTCH_Num baseval = 0; // start numbering from 0
-  SCOTCH_Num vertnbr =
-      base->to->core_size; // number of vertices in graph = number of cells in mesh
-  SCOTCH_Num edgenbr = row_offsets[base->to->core_size];
 
-  SCOTCH_Graph *graphptr = SCOTCH_graphAlloc();
-  SCOTCH_graphInit(graphptr);
+  //---------------------------------------------------------------------------
+  // Pre-reordering statistics (computed on the original map so the "before"
+  // numbers correspond to the ordering coming in from the partitioner).
+  //---------------------------------------------------------------------------
+  int max_dist_before;
+  long avg_dist_before;
+  compute_edge_stats(base, max_dist_before, avg_dist_before);
 
-  SCOTCH_Num *verttab = &row_offsets[0];
-
-  SCOTCH_Num *vendtab = &verttab[1]; // = NULL; // Used to calculate vertex
-                                     // degree = verttab[i+1] - verttab[i]
-  SCOTCH_Num *velotab = NULL;        // Vertex load = vertex weight
-  SCOTCH_Num *vlbltab = NULL;
-  SCOTCH_Num *edgetab = &col_indices[0];
-
-  SCOTCH_Num *edlotab = NULL; // Edge load = edge weight
-  SCOTCH_Num *permutation =
-      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
-  SCOTCH_Num *ipermutation =
-      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
-  SCOTCH_Num *cblkptr =
-      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
-  SCOTCH_Num *rangtab =
-      NULL; //(SCOTCH_Num*) malloc(1 + ncell*sizeof(SCOTCH_Num));
-  SCOTCH_Num *treetab = NULL; //(SCOTCH_Num*) malloc(ncell*sizeof(SCOTCH_Num));
-
-  int mesg = 0;
-  mesg = SCOTCH_graphBuild(graphptr, baseval, vertnbr, verttab, vendtab,
-                           velotab, vlbltab, edgenbr, edgetab, edlotab);
-  if (mesg != 0) {
-    op_printf("Error during SCOTCH_graphBuild() \n");
-    exit(-1);
-  }
-
-  SCOTCH_Strat *straptr = SCOTCH_stratAlloc();
-  SCOTCH_stratInit(straptr);
-
-  const char *strategyString = "g";
-  //    char * strategyString = "(g{pass=100})";
-  mesg = SCOTCH_stratGraphOrder(straptr, strategyString);
-  if (mesg != 0) {
-    op_printf("Error during setting strategy string. \n");
-    exit(-1);
-  }
-
-  mesg = SCOTCH_graphOrder(graphptr, straptr, permutation, ipermutation,
-                           cblkptr, rangtab, treetab);
-  if (mesg != 0) {
-    op_printf("Error during SCOTCH_graphOrder() \n");
-    exit(-1);
-  }
-  SCOTCH_graphExit(graphptr);
-  SCOTCH_stratExit(straptr);
-
+  //---------------------------------------------------------------------------
+  // Assemble the full per-set permutation with identity on the halo range.
+  //---------------------------------------------------------------------------
   std::vector<std::vector<int> > set_permutations(OP_set_index);
   std::vector<std::vector<int> > set_ipermutations(OP_set_index);
-  set_permutations[base->to->index].resize(base->to->size + base->to->exec_size + base->to->nonexec_size);
-  std::copy(permutation, permutation + base->to->size,
-            set_permutations[base->to->index].begin());
-  for (int i = base->to->core_size; i < base->to->size + base->to->exec_size + base->to->nonexec_size; i++)
+
+  int to_total = base->to->size + base->to->exec_size + base->to->nonexec_size;
+  set_permutations[base->to->index].resize(to_total);
+  for (int i = 0; i < num_verts; i++)
+    set_permutations[base->to->index][i] = permutation[i];
+  for (int i = num_verts; i < to_total; i++)
     set_permutations[base->to->index][i] = i;
-  check_permutation(&set_permutations[base->to->index][0],base->to->size + base->to->exec_size + base->to->nonexec_size);
-  set_ipermutations[base->to->index].resize(base->to->size + base->to->exec_size + base->to->nonexec_size);
-  std::copy(ipermutation, ipermutation + base->to->size,
-            set_ipermutations[base->to->index].begin());
-  for (int i = base->to->core_size; i < base->to->size + base->to->exec_size + base->to->nonexec_size; i++)
-    set_permutations[base->to->index][i] = i;
+  check_permutation(&set_permutations[base->to->index][0], to_total);
+
+  set_ipermutations[base->to->index].resize(to_total);
+  for (int i = 0; i < to_total; i++) {
+    set_ipermutations[base->to->index][set_permutations[base->to->index][i]] = i;
+  }
+
+  //---------------------------------------------------------------------------
+  // Propagate to connected sets and apply physically.
+  //---------------------------------------------------------------------------
   propagate_reordering(base->to, base->to, set_permutations, set_ipermutations);
   for (int i = 0; i < OP_set_index; i++) {
-    reorder_set(OP_set_list[i], set_permutations, set_ipermutations);
+    reorder_set(OP_set_list[i], set_permutations);
   }
 
   op_move_to_device();
 
-  op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
-  //Statistics
-  max_dist = 0;
-  avg_dist = 0;
-  for (int i = 0; i < base->from->size; i++) {
-    int dist = 0;
-    for (int d1 = 0; d1 < base->dim; d1++)
-      for (int d2 = 0; d2 < base->dim; d2++)
-        dist = std::max(dist,std::abs(base->map[i*base->dim+d1]-base->map[i*base->dim+d2]));
-    max_dist = std::max(max_dist,dist);
-    avg_dist += dist;
-  }
-  avg_dist /= base->from->size;
-  op_printf("After renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
+  //---------------------------------------------------------------------------
+  // Post-reordering statistics.
+  //---------------------------------------------------------------------------
+  int max_dist_after;
+  long avg_dist_after;
+  compute_edge_stats(base, max_dist_after, avg_dist_after);
+
+  op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
+            max_dist_before, avg_dist_before);
+  op_printf("After  renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
+            max_dist_after, avg_dist_after);
 }
-#endif
 
 void op_renumber(op_map base) {
-#ifndef HAVE_PTSCOTCH
-  op_printf("OP2 was not compiled with Scotch, no reordering.\n");
-#else
-  renumber_owned(base);
+  const ReorderMethod method = get_reorder_method();
+  op_printf("op_renumber: OP_REORDER = %s\n", method_name(method));
+  if (method == ReorderMethod::None)
+    return;
+
+  renumber_owned(base, method);
   /* Every rank, reordered or not: other ranks' import lists name elements by
      their owners' numbering, which has just changed. */
   op_halo_refresh_imports();
-#endif
 }
 
 extern "C" void op_renumber_ptr(int *ptr) {
