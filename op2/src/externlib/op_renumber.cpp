@@ -42,6 +42,22 @@
  *     OP_REORDER=sloan     - Sloan profile-minimising ordering
  *     OP_REORDER=hilbert   - Hilbert space-filling curve (needs coords)
  *
+ * Once the primary set's permutation is computed, OP_REORDER_PROPAGATE
+ * controls how that permutation is extended to other sets reachable via
+ * maps (e.g., reordering edges after nodes have been reordered):
+ *
+ *     OP_REORDER_PROPAGATE=lex       - multi-key lex sort over all map
+ *                                      dimensions (default; strict win
+ *                                      over single-key for any dim>1 map)
+ *     OP_REORDER_PROPAGATE=centroid  - Hilbert SFC of stencil centroid;
+ *                                      centroids are averaged from the
+ *                                      already-ordered parent set, so
+ *                                      this requires a coordinates dat
+ *                                      on the primary set
+ *     OP_REORDER_PROPAGATE=single    - legacy single-dim sort by first
+ *                                      map endpoint only (kept for
+ *                                      benchmarking and regression)
+ *
  * The adjacency-graph construction, permutation propagation and physical
  * re-application logic are kept identical in spirit to op_renumber.cpp.
  * The ordering algorithms themselves live in header-only modules:
@@ -53,6 +69,9 @@
  * No external library dependency is required; this translation unit does
  * not need HAVE_PTSCOTCH.
  */
+
+
+
 
 #include <op_lib_core.h>
 #include <op_lib_cpp.h>
@@ -101,8 +120,146 @@ static void check_permutation(int *perm, int size) {
 // across multiple translation units).
 //-----------------------------------------------------------------------------
 
+// Propagation strategy for non-primary sets reached via a map from a set
+// that has already been reordered. Selectable via OP_REORDER_PROPAGATE.
+//
+//  Single   - sort `to`-set elements by the new index of their first map
+//             endpoint only (qsort, not stable). Original behaviour; kept
+//             for benchmarking. Within each first-endpoint bucket the
+//             remaining endpoints are in arbitrary order.
+//  Lex      - sort `to`-set elements lexicographically by all map endpoint
+//             new-indices. Within each first-endpoint bucket the second
+//             endpoint is sorted, the third within that, etc. Improves
+//             cache reuse and GPU coalescing on the second+ endpoint of
+//             every dim>1 map. Default.
+//  Centroid - compute a geometric centroid for each `to`-set element by
+//             averaging the parent set's centroids (or coords, for the
+//             primary set), then reorder via Hilbert SFC on those
+//             centroids. Symmetric across all map dimensions; requires
+//             a coordinates dat on the primary set.
+enum class PropagateMethod {
+  Single,
+  Lex,
+  Centroid,
+};
+
+// Per-call state carried through propagate_reordering recursion.
+struct PropagationContext {
+  PropagateMethod method;
+  int coord_dim;  // 2 or 3 if centroids are available, 0 otherwise.
+  // set_centroids[s] is a flat AoS array of length core_size * coord_dim
+  // for set s, in original (pre-permutation) element order. Empty for
+  // sets that have no centroid available (either coord_dim is 0, or the
+  // set was reordered through a path that didn't propagate centroids).
+  std::vector<std::vector<double> > set_centroids;
+};
+
+// Lex multi-key order: returns indices [0, n) sorted such that for k < k',
+// the tuple (perm[map[order[k]*dim+0]], ..., perm[map[order[k]*dim+dim-1]])
+// is lexicographically less than the corresponding tuple for order[k'].
+// Ties are broken by original index for reproducibility.
+static std::vector<int> compute_lex_order(op_map map,
+                                          const std::vector<int> &fperm,
+                                          int n_elems) {
+  std::vector<int> order(n_elems);
+  for (int i = 0; i < n_elems; i++) order[i] = i;
+
+  const int dim = map->dim;
+  const int *mp = map->map;
+  std::sort(order.begin(), order.end(),
+            [dim, &fperm, mp](int x, int y) {
+              for (int d = 0; d < dim; d++) {
+                int kx = fperm[mp[dim * x + d]];
+                int ky = fperm[mp[dim * y + d]];
+                if (kx != ky) return kx < ky;
+              }
+              return x < y;
+            });
+  return order;
+}
+
+// Compute centroids for the from-set of `map` by averaging the to-set's
+// centroids over the map dimensions. Used by case 1 of propagate_reordering,
+// where the to-set ('parent') is already ordered and has centroids.
+//
+// Returns true on success, false if parent centroids aren't available.
+// Halo entries in the map (parent index >= parent core_size) are skipped:
+// boundary elements average over fewer parents, which biases their centroid
+// slightly inward. That's harmless for SFC ordering.
+static bool compute_centroids_to_from(op_map map, PropagationContext &pctx) {
+  if (pctx.coord_dim == 0) return false;
+  op_set child = map->from;
+  op_set parent = map->to;
+  const std::vector<double> &pc = pctx.set_centroids[parent->index];
+  if (pc.empty()) return false;
+
+  const int cd = pctx.coord_dim;
+  const int n = child->core_size;
+  const int parent_n = (int)(pc.size() / cd);
+
+  std::vector<double> &out = pctx.set_centroids[child->index];
+  out.assign((size_t)n * cd, 0.0);
+
+  for (int i = 0; i < n; i++) {
+    int valid = 0;
+    for (int d = 0; d < map->dim; d++) {
+      int p = map->map[i * map->dim + d];
+      if (p >= 0 && p < parent_n) {
+        for (int c = 0; c < cd; c++)
+          out[(size_t)i * cd + c] += pc[(size_t)p * cd + c];
+        valid++;
+      }
+    }
+    if (valid > 0) {
+      for (int c = 0; c < cd; c++)
+        out[(size_t)i * cd + c] /= (double)valid;
+    }
+  }
+  return true;
+}
+
+// Compute centroids for the to-set of `map` by accumulating from-centroids
+// from every from-element that references each to-element. Used by case 2
+// of propagate_reordering. The to-set's actual ordering comes from the
+// existing first-touch counter logic; centroids are computed alongside
+// purely so that descendants of this to-set can use centroid mode.
+static bool compute_centroids_from_to(op_map map, PropagationContext &pctx) {
+  if (pctx.coord_dim == 0) return false;
+  op_set parent = map->from;
+  op_set child = map->to;
+  const std::vector<double> &pc = pctx.set_centroids[parent->index];
+  if (pc.empty()) return false;
+
+  const int cd = pctx.coord_dim;
+  const int n = child->core_size;
+  const int parent_n = (int)(pc.size() / cd);
+
+  std::vector<double> &out = pctx.set_centroids[child->index];
+  out.assign((size_t)n * cd, 0.0);
+  std::vector<int> touch(n, 0);
+
+  for (int i = 0; i < parent->size && i < parent_n; i++) {
+    for (int d = 0; d < map->dim; d++) {
+      int t = map->map[i * map->dim + d];
+      if (t >= 0 && t < n) {
+        for (int c = 0; c < cd; c++)
+          out[(size_t)t * cd + c] += pc[(size_t)i * cd + c];
+        touch[t]++;
+      }
+    }
+  }
+  for (int i = 0; i < n; i++) {
+    if (touch[i] > 0) {
+      for (int c = 0; c < cd; c++)
+        out[(size_t)i * cd + c] /= (double)touch[i];
+    }
+  }
+  return true;
+}
+
 // Propagate renumbering based on a map that points to an already reordered set.
 static void propagate_reordering(op_set from, op_set to,
+                                 PropagationContext &pctx,
                                  std::vector<std::vector<int> > &set_permutations,
                                  std::vector<std::vector<int> > &set_ipermutations) {
 
@@ -114,19 +271,54 @@ static void propagate_reordering(op_set from, op_set to,
     for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
       op_map map = OP_map_list[mapidx];
       if (map->to == from && map->from == to) {
-        std::vector<map2> renum(to->core_size);
-        for (int i = 0; i < to->core_size; i++) {
-          renum[i].a = set_permutations[from->index][map->map[map->dim * i]];
-          renum[i].b = i;
+        const int n = to->core_size;
+        const int total = to->size + to->exec_size + to->nonexec_size;
+        set_permutations[to->index].resize(total);
+
+        // --- Centroid mode (preferred when available). -----------------
+        bool ordered_via_centroid = false;
+        if (pctx.method == PropagateMethod::Centroid) {
+          if (compute_centroids_to_from(map, pctx)) {
+            std::vector<int> perm;
+            op_renumber_impl::hilbert_sfc_order(
+                pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm);
+            for (int i = 0; i < n; i++)
+              set_permutations[to->index][i] = perm[i];
+            ordered_via_centroid = true;
+          } else {
+            // Centroid requested but parent has none; fall through to lex.
+          }
         }
-        qsort(&renum[0], renum.size(), sizeof(map2), compare);
-        set_permutations[to->index].resize(to->size + to->exec_size + to->nonexec_size);
-        for (int i = 0; i < to->core_size; i++)
-          set_permutations[to->index][renum[i].b] = i;
-        for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
+
+        // --- Lex mode (default) and Single mode (legacy benchmarking). -
+        if (!ordered_via_centroid) {
+          if (pctx.method == PropagateMethod::Single) {
+            std::vector<map2> renum(n);
+            for (int i = 0; i < n; i++) {
+              renum[i].a = set_permutations[from->index][map->map[map->dim * i]];
+              renum[i].b = i;
+            }
+            qsort(&renum[0], renum.size(), sizeof(map2), compare);
+            for (int i = 0; i < n; i++)
+              set_permutations[to->index][renum[i].b] = i;
+          } else {
+            // Lex (default), also fallback path for centroid-without-coords.
+            std::vector<int> order = compute_lex_order(
+                map, set_permutations[from->index], n);
+            for (int i = 0; i < n; i++)
+              set_permutations[to->index][order[i]] = i;
+          }
+          // Best-effort: still try to compute centroids for descendants
+          // even if we used a non-centroid order at this level. Cheap and
+          // makes deeper sets in the tree usable in centroid mode.
+          if (pctx.method == PropagateMethod::Centroid && pctx.coord_dim > 0) {
+            compute_centroids_to_from(map, pctx);
+          }
+        }
+
+        for (int i = n; i < total; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0],
-                          to->size + to->exec_size + to->nonexec_size);
+        check_permutation(&set_permutations[to->index][0], total);
         break;
       }
     }
@@ -156,6 +348,15 @@ static void propagate_reordering(op_set from, op_set to,
           set_permutations[to->index][i] = i;
         check_permutation(&set_permutations[to->index][0],
                           to->size + to->exec_size + to->nonexec_size);
+
+        // Propagate centroids alongside the first-touch ordering so that
+        // descendants of this set can still use centroid mode. The
+        // ordering itself is unchanged from the legacy first-touch logic
+        // - case 2's traversal already inherits locality from the
+        // already-reordered `from` set.
+        if (pctx.method == PropagateMethod::Centroid && pctx.coord_dim > 0) {
+          compute_centroids_from_to(map, pctx);
+        }
         break;
       }
     }
@@ -174,14 +375,14 @@ static void propagate_reordering(op_set from, op_set to,
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->to == to && set_permutations[map->from->index].size() == 0) {
-      propagate_reordering(to, map->from, set_permutations, set_ipermutations);
+      propagate_reordering(to, map->from, pctx, set_permutations, set_ipermutations);
     }
   }
   // find any maps that is to->(*), propagate reordering
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == to && set_permutations[map->to->index].size() == 0) {
-      propagate_reordering(to, map->to, set_permutations, set_ipermutations);
+      propagate_reordering(to, map->to, pctx, set_permutations, set_ipermutations);
     }
   }
 }
@@ -294,6 +495,28 @@ static ReorderMethod get_reorder_method() {
   if (str_iequals(env, "hilbert")) return ReorderMethod::Hilbert;
   op_printf("Warning: unknown OP_REORDER value '%s', defaulting to none\n", env);
   return ReorderMethod::None;
+}
+
+static const char *propagate_method_name(PropagateMethod m) {
+  switch (m) {
+    case PropagateMethod::Single:   return "single";
+    case PropagateMethod::Lex:      return "lex";
+    case PropagateMethod::Centroid: return "centroid";
+  }
+  return "unknown";
+}
+
+static PropagateMethod get_propagate_method() {
+  const char *env = getenv("OP_REORDER_PROPAGATE");
+  if (env == NULL || env[0] == '\0') return PropagateMethod::Lex;
+  if (str_iequals(env, "single") ||
+      str_iequals(env, "legacy"))      return PropagateMethod::Single;
+  if (str_iequals(env, "lex") ||
+      str_iequals(env, "multikey"))    return PropagateMethod::Lex;
+  if (str_iequals(env, "centroid") ||
+      str_iequals(env, "hilbert"))     return PropagateMethod::Centroid;
+  op_printf("Warning: unknown OP_REORDER_PROPAGATE value '%s', defaulting to lex\n", env);
+  return PropagateMethod::Lex;
 }
 
 // Fisher-Yates shuffle of the identity permutation. Fixed seed so that
@@ -477,7 +700,7 @@ static bool build_node_adjacency(op_map base,
 /* Reorder this rank's core elements of base's target set, and of every set the
    ordering propagates to. It can give up on one rank alone (a core with no
    edges of its own), so nothing collective may happen in here. */
-static void renumber_owned(op_map base, ReorderMethod method) {
+static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod propagate) {
   op_printf("Renumbering (%s) using base map %s\n", method_name(method), base->name);
 
   int num_verts = base->to->core_size;
@@ -486,6 +709,11 @@ static void renumber_owned(op_map base, ReorderMethod method) {
               base->to->name);
     return;
   }
+
+  // Locate a coordinates dat on the primary set - needed by Hilbert SFC for
+  // the primary ordering, and by centroid propagation regardless of which
+  // primary method was selected.
+  op_dat coords_dat = find_coords_dat(base->to);
 
   //---------------------------------------------------------------------------
   // Compute the core-size permutation via the selected algorithm.
@@ -496,7 +724,6 @@ static void renumber_owned(op_map base, ReorderMethod method) {
     random_order(num_verts, permutation);
 
   } else if (method == ReorderMethod::Hilbert) {
-    op_dat coords_dat = find_coords_dat(base->to);
     if (coords_dat == NULL) {
       op_printf("ERROR: Hilbert SFC requires a double-precision 2D/3D "
                 "coordinates dat on set %s, but none was found. "
@@ -591,9 +818,37 @@ static void renumber_owned(op_map base, ReorderMethod method) {
   }
 
   //---------------------------------------------------------------------------
+  // Set up the propagation context. In centroid mode, seed the primary set's
+  // centroids from the coords dat (in original/pre-permutation order - the
+  // helpers in propagate_reordering index map entries against this layout).
+  //---------------------------------------------------------------------------
+  PropagationContext pctx;
+  pctx.method = propagate;
+  pctx.coord_dim = 0;
+  pctx.set_centroids.resize(OP_set_index);
+
+  if (propagate == PropagateMethod::Centroid) {
+    if (coords_dat == NULL) {
+      op_printf("WARNING: OP_REORDER_PROPAGATE=centroid requires a "
+                "coordinates dat on set %s, but none was found. "
+                "Falling back to lex multi-key sort.\n", base->to->name);
+      pctx.method = PropagateMethod::Lex;
+    } else {
+      pctx.coord_dim = coords_dat->dim;
+      const double *cd = reinterpret_cast<const double *>(coords_dat->data);
+      pctx.set_centroids[base->to->index].assign(
+          cd, cd + (size_t)num_verts * coords_dat->dim);
+      op_printf("op_renumber: centroid propagation seeded from dat '%s' "
+                "(dim %d) on set %s\n",
+                coords_dat->name ? coords_dat->name : "<unnamed>",
+                coords_dat->dim, base->to->name);
+    }
+  }
+
+  //---------------------------------------------------------------------------
   // Propagate to connected sets and apply physically.
   //---------------------------------------------------------------------------
-  propagate_reordering(base->to, base->to, set_permutations, set_ipermutations);
+  propagate_reordering(base->to, base->to, pctx, set_permutations, set_ipermutations);
   for (int i = 0; i < OP_set_index; i++) {
     reorder_set(OP_set_list[i], set_permutations);
   }
@@ -615,11 +870,13 @@ static void renumber_owned(op_map base, ReorderMethod method) {
 
 void op_renumber(op_map base) {
   const ReorderMethod method = get_reorder_method();
-  op_printf("op_renumber: OP_REORDER = %s\n", method_name(method));
+  const PropagateMethod propagate = get_propagate_method();
+  op_printf("op_renumber: OP_REORDER = %s, OP_REORDER_PROPAGATE = %s\n", method_name(method),
+            propagate_method_name(propagate));
   if (method == ReorderMethod::None)
     return;
 
-  renumber_owned(base, method);
+  renumber_owned(base, method, propagate);
   /* Every rank, reordered or not: other ranks' import lists name elements by
      their owners' numbering, which has just changed. */
   op_halo_refresh_imports();
