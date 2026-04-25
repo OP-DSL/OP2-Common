@@ -34,6 +34,9 @@ size_t scatter_buf_size = 0;
 gpuEvent_t gather_event;
 bool gather_event_initialised = false;
 
+gpuEvent_t scatter_event;
+bool scatter_event_initialised = false;
+
 GatherSpec *gathers_d;
 size_t gathers_size = 0;
 
@@ -267,6 +270,20 @@ void initiate_scatters(const std::map<int, std::vector<ScatterSpec>> &scatters_f
 
     size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
     scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
+
+    if (!scatter_event_initialised) {
+        cutilSafeCall(gpuEventCreateWithFlags(&scatter_event, gpuEventDisableTiming));
+    }
+
+    cutilSafeCall(gpuEventRecord(scatter_event, 0));
+}
+
+void wait_scatters() {
+    if (!scatter_event_initialised) {
+        return;
+    }
+
+    cutilSafeCall(gpuEventSynchronize(scatter_event));
 }
 
 }

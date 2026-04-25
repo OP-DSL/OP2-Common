@@ -35,7 +35,6 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
-#include <op_profile.h>
 #include <extern/rapidhash.h>
 #include <op_mpi_unified_exchanges.h>
 #include <set>
@@ -353,16 +352,15 @@ char *recv_buffer_host = NULL;
 char *recv_buffer_device = NULL;
 int op2_grp_counter = 0;
 
-int op2_grp_tag_init = 1000;
-int op2_grp_tag = op2_grp_tag_init;
+int op2_grp_tag_ini = 0x6000;
+int op2_grp_tag_max = 0x7000;
 
-int op2_max_tag;
-int op2_max_tag_set = false;
+int op2_grp_tag = op2_grp_tag_ini;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
-  if (!(device == 2 && OP_unified_exchanges)) {
+  // if (!(device == 2 && OP_unified_exchanges)) {
       deviceSync();
-  }
+  // }
 
   int size = set->size;
   int direct_flag = 1;
@@ -402,9 +400,6 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   if (device == 2 && OP_unified_exchanges) {
       return op_mpi_halo_exchanges_unified(set, nargs, args);
   }
-
-
-  if (device == 2) op_profile::instance().enter2("Halo Exchanges", false);
 
   // not a direct loop ...
   int exec_flag = 0;
@@ -566,23 +561,8 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
 //  MPI_Comm_rank(OP_MPI_WORLD, &rank);
   size_t curr_offset = 0;
 
-  if (!op2_max_tag_set) {
-    int *tag_ub_ptr;
-    int err = MPI_Comm_get_attr(OP_MPI_WORLD, MPI_TAG_UB, &tag_ub_ptr, &op2_max_tag_set);
-
-    if (err != MPI_SUCCESS || !op2_max_tag_set) {
-      op2_max_tag = 32767;
-      op2_max_tag_set = true;
-    } else {
-      op2_max_tag = *tag_ub_ptr;
-    }
-  }
-
-  if (op2_grp_tag == op2_max_tag - 1) {
-    op2_grp_tag = op2_grp_tag_init;
-  } else {
-    op2_grp_tag++;
-  }
+  op2_grp_tag++;
+  if (op2_grp_tag >= op2_grp_tag_max) op2_grp_tag = op2_grp_tag_ini;
 
   for (unsigned i = 0; i < recv_neigh_list.size(); i++) {
     char *buf = (device==2 && OP_gpu_direct) ? recv_buffer_device : recv_buffer_host;
@@ -618,7 +598,6 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 
-  if (device == 2) op_profile::instance().exit2();
   return size;
 }
 
@@ -636,8 +615,6 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
       return;
   }
 
-  if (device == 2) op_profile::instance().enter2("Wait All", false);
-
   // not a direct loop ...
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
@@ -654,7 +631,6 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
     if(OP_gpu_direct) op_gather_sync();
     else op_download_buffer_sync();
 
-    op_profile::instance().enter2("Exchange buffers", false);
     for (unsigned i = 0; i < send_neigh_list.size(); i++) {
       char *buf = OP_gpu_direct ? send_buffer_device : send_buffer_host;
 
@@ -691,8 +667,6 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (recv_neigh_list.size() > 0)
     MPI_Waitall(recv_neigh_list.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
 
-  op_profile::instance().exit2(false);
-
   if (device == 2 && !OP_gpu_direct) {
     size_t size_recv = std::accumulate(recv_sizes.begin(), recv_sizes.end(), 0u);
     op_upload_buffer_async(recv_buffer_device, recv_buffer_host, size_recv);
@@ -719,8 +693,6 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-
-  if (device == 2) op_profile::instance().exit2(false);
 }
 
 extern "C" void op_mpi_test_all_grouped(int nargs, op_arg *args) {

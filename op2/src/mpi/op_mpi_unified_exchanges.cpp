@@ -2,10 +2,12 @@
 #include <op_mpi_cuda_unified_kernels.h>
 
 #include <op_lib_mpi.h>
+#include <extern/rapidhash.h>
 
 #include <optional>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <cassert>
 
 using namespace op::mpi::unified;
@@ -17,6 +19,27 @@ struct ExchangeSpec {
     ExchangeSpec(op_dat dat) : dat{dat} {}
     bool is_partial() const { return map.has_value(); }
 };
+
+// Pre: exchanges is sorted
+uint64_t hash_exchanges(const std::vector<ExchangeSpec> &exchanges) {
+    static std::vector<uint64_t> buf;
+
+    const size_t n = exchanges.size();
+    if (n > buf.size()) {
+        buf.resize(n);
+    }
+
+    for (size_t i = 0; i < n; ++i) {
+        uint32_t d = (uint32_t)exchanges[i].dat->index;
+        uint32_t m = exchanges[i].map
+                       ? (uint32_t)(*exchanges[i].map)->index
+                       : 0xFFFFFFFFu;
+
+        buf[i] = (uint64_t(d) << 32) | uint64_t(m);
+    }
+
+    return rapidhash(buf.data(), n * sizeof(uint64_t));
+}
 
 void extract_gathers(const ExchangeSpec &exchange,
                      std::map<int, std::vector<GatherSpec>> &gathers) {
@@ -87,13 +110,13 @@ struct Block {
     void *data;
     size_t size;
 
-    void send(int neighbour, MPI_Request *request) {
-        int err = MPI_Isend(data, size, MPI_CHAR, neighbour, 400, OP_MPI_WORLD, request);
+    void send(int neighbour, MPI_Request *request, int tag) {
+        int err = MPI_Isend(data, size, MPI_CHAR, neighbour, tag, OP_MPI_WORLD, request);
         assert(err == MPI_SUCCESS);
     }
 
-    void recv(int neighbour, MPI_Request *request) {
-        int err = MPI_Irecv(data, size, MPI_CHAR, neighbour, 400, OP_MPI_WORLD, request);
+    void recv(int neighbour, MPI_Request *request, int tag) {
+        int err = MPI_Irecv(data, size, MPI_CHAR, neighbour, tag, OP_MPI_WORLD, request);
         assert(err == MPI_SUCCESS);
     }
 };
@@ -101,7 +124,12 @@ struct Block {
 struct ExchangeContext {
     bool exec;
 
+    static constexpr int tag_ini = 0x7000;
+    static constexpr int tag_max = 0x8000;
+    int tag = tag_ini;
+
     std::vector<ExchangeSpec> exchanges;
+    uint64_t exchanges_hash;
 
     std::map<int, std::vector<GatherSpec>> gathers_for_neighbour;
     std::map<int, std::vector<ScatterSpec>> scatters_for_neighbour;
@@ -113,6 +141,9 @@ struct ExchangeContext {
     std::vector<MPI_Request> recv_reqs;
 
     void reset() {
+        tag++;
+        if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
+
         exchanges.clear();
 
         gathers_for_neighbour.clear();
@@ -149,14 +180,23 @@ struct ExchangeContext {
         }
     }
 
-    void construct_lists() {
+    void prepare_and_gather() {
+        if (exchanges.size() == 0) {
+            return;
+        }
+
+        // Normalise exchanges
+        std::sort(exchanges.begin(), exchanges.end(), [](auto& a, auto& b) {
+            return a.dat->index < b.dat->index;
+        });
+
+        exchanges_hash = hash_exchanges(exchanges);
+
         for (auto& exchange : exchanges) {
             extract_gathers(exchange, gathers_for_neighbour);
             extract_scatters(exchange, scatters_for_neighbour);
         }
-    }
 
-    void alloc_buffers() {
         size_t gather_size = 0;
         for (auto &[neighbour, gathers] : gathers_for_neighbour) {
             for (auto &gather : gathers) {
@@ -169,6 +209,12 @@ struct ExchangeContext {
             for (auto &scatter : scatters) {
                 scatter_size += scatter.scatter_size();
             }
+        }
+
+        // Wait for any previous sendreqs to complete
+        if (send_reqs.size() > 0) {
+            MPI_Waitall(send_reqs.size(), send_reqs.data(), MPI_STATUSES_IGNORE);
+            send_reqs.clear();
         }
 
         auto [gather_buf, scatter_buf] = alloc_exchange_buffers(gather_size, scatter_size);
@@ -198,33 +244,37 @@ struct ExchangeContext {
 
             recv_blocks[neighbour] = Block{block_start, scatter_offset - block_start_offset};
         }
-    }
 
-    void initiate_gathers() {
+        // Initiate gathers
         if (gathers_for_neighbour.size() > 0) {
             ::initiate_gathers(gathers_for_neighbour);
         }
 
+        // Wait for previous scatter kernels to complete before initiating MPI recvs
+        ::wait_scatters();
+
         auto recv_index = 0;
         recv_reqs.resize(recv_blocks.size());
         for (auto [neighbour, block] : recv_blocks) {
-            block.recv(neighbour, &recv_reqs[recv_index]);
+            block.recv(neighbour, &recv_reqs[recv_index], tag);
             ++recv_index;
         }
     }
 
-    void wait_gathers() {
+    void exchange_and_scatter() {
+        if (exchanges.size() == 0) {
+            return;
+        }
+
         if (gathers_for_neighbour.size() > 0) {
             ::wait_gathers();
         }
-    }
 
-    void exchange_buffers() {
         send_reqs.resize(send_blocks.size());
 
         auto send_index = 0;
         for (auto [neighbour, block] : send_blocks) {
-            block.send(neighbour, &send_reqs[send_index]);
+            block.send(neighbour, &send_reqs[send_index], tag);
             ++send_index;
         }
 
@@ -232,20 +282,12 @@ struct ExchangeContext {
             MPI_Waitall(recv_reqs.size(), recv_reqs.data(), MPI_STATUSES_IGNORE);
             recv_reqs.clear();
         }
-    }
 
-    void initiate_scatters() {
         if (scatters_for_neighbour.size() > 0) {
             ::initiate_scatters(scatters_for_neighbour);
         }
 
-        if (send_reqs.size() > 0) {
-            MPI_Waitall(send_reqs.size(), send_reqs.data(), MPI_STATUSES_IGNORE);
-            send_reqs.clear();
-        }
-    }
-
-    void set_dirtybits() {
+        // Set dirtybits
         for (auto& exchange : exchanges) {
             if (exchange.is_partial()) continue;
 
@@ -255,9 +297,7 @@ struct ExchangeContext {
     }
 };
 
-
 ExchangeContext ctx;
-
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
     bool exec = false;
@@ -280,20 +320,10 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
         ctx.add(args[n]);
     }
 
-    if (ctx.exchanges.size() > 0) {
-        ctx.construct_lists();
-        ctx.alloc_buffers();
-        ctx.initiate_gathers();
-    }
-
+    ctx.prepare_and_gather();
     return size;
 }
 
 void op_mpi_wait_all_unified(int nargs, op_arg *args) {
-    if (ctx.exchanges.size() > 0) {
-        ctx.wait_gathers();
-        ctx.exchange_buffers();
-        ctx.initiate_scatters();
-        ctx.set_dirtybits();
-    }
+    ctx.exchange_and_scatter();
 }

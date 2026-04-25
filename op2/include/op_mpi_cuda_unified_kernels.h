@@ -14,5 +14,6 @@ void initiate_gathers(const std::map<int, std::vector<GatherSpec>> &gathers_for_
 void initiate_scatters(const std::map<int, std::vector<ScatterSpec>> &scatters_for_neighbour);
 
 void wait_gathers();
+void wait_scatters();
 
 }
