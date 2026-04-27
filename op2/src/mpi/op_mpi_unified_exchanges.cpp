@@ -2,11 +2,10 @@
 #include <op_mpi_cuda_unified_kernels.h>
 
 #include <op_lib_mpi.h>
-#include <extern/rapidhash.h>
 
 #include <optional>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <algorithm>
 #include <cassert>
 
@@ -20,29 +19,8 @@ struct ExchangeSpec {
     bool is_partial() const { return map.has_value(); }
 };
 
-// Pre: exchanges is sorted
-uint64_t hash_exchanges(const std::vector<ExchangeSpec> &exchanges) {
-    static std::vector<uint64_t> buf;
-
-    const size_t n = exchanges.size();
-    if (n > buf.size()) {
-        buf.resize(n);
-    }
-
-    for (size_t i = 0; i < n; ++i) {
-        uint32_t d = (uint32_t)exchanges[i].dat->index;
-        uint32_t m = exchanges[i].map
-                       ? (uint32_t)(*exchanges[i].map)->index
-                       : 0xFFFFFFFFu;
-
-        buf[i] = (uint64_t(d) << 32) | uint64_t(m);
-    }
-
-    return rapidhash(buf.data(), n * sizeof(uint64_t));
-}
-
 void extract_gathers(const ExchangeSpec &exchange,
-                     std::map<int, std::vector<GatherSpec>> &gathers) {
+                     std::unordered_map<int, std::vector<GatherSpec>> &gathers) {
     auto dat = DatAccessor(exchange.dat);
 
     if (exchange.is_partial()) {
@@ -74,7 +52,7 @@ void extract_gathers(const ExchangeSpec &exchange,
 }
 
 void extract_scatters(const ExchangeSpec &exchange,
-                      std::map<int, std::vector<ScatterSpec>> &scatters) {
+                      std::unordered_map<int, std::vector<ScatterSpec>> &scatters) {
     auto dat = DatAccessor(exchange.dat);
 
     if (exchange.is_partial()) {
@@ -129,13 +107,12 @@ struct ExchangeContext {
     int tag = tag_ini;
 
     std::vector<ExchangeSpec> exchanges;
-    uint64_t exchanges_hash;
 
-    std::map<int, std::vector<GatherSpec>> gathers_for_neighbour;
-    std::map<int, std::vector<ScatterSpec>> scatters_for_neighbour;
+    std::unordered_map<int, std::vector<GatherSpec>> gathers_for_neighbour;
+    std::unordered_map<int, std::vector<ScatterSpec>> scatters_for_neighbour;
 
-    std::map<int, Block> send_blocks;
-    std::map<int, Block> recv_blocks;
+    std::unordered_map<int, Block> send_blocks;
+    std::unordered_map<int, Block> recv_blocks;
 
     std::vector<MPI_Request> send_reqs;
     std::vector<MPI_Request> recv_reqs;
@@ -189,8 +166,6 @@ struct ExchangeContext {
         std::sort(exchanges.begin(), exchanges.end(), [](auto& a, auto& b) {
             return a.dat->index < b.dat->index;
         });
-
-        exchanges_hash = hash_exchanges(exchanges);
 
         for (auto& exchange : exchanges) {
             extract_gathers(exchange, gathers_for_neighbour);

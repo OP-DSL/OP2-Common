@@ -107,7 +107,7 @@ __global__ void gather_kernel(__grid_constant__ const GathersT gathers,
 }
 
 template<unsigned N>
-void initiate_gathers_array(const std::map<int, std::vector<GatherSpec>> &gathers_for_neighbour) {
+void initiate_gathers_array(const std::unordered_map<int, std::vector<GatherSpec>> &gathers_for_neighbour) {
     std::array<GatherSpec, N> gathers;
     std::array<int, N> disps;
 
@@ -128,7 +128,7 @@ void initiate_gathers_array(const std::map<int, std::vector<GatherSpec>> &gather
     gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers, disps, num_gathers);
 }
 
-void initiate_gathers(const std::map<int, std::vector<GatherSpec>> &gathers_for_neighbour) {
+void initiate_gathers(const std::unordered_map<int, std::vector<GatherSpec>> &gathers_for_neighbour) {
     if (gathers_for_neighbour.size() == 0) return;
 
     size_t num_gathers = 0;
@@ -207,7 +207,7 @@ __global__ void scatter_kernel(__grid_constant__ const ScattersT scatters,
 }
 
 template<unsigned N>
-void initiate_scatters_array(const std::map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
+void initiate_scatters_array(const std::unordered_map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
     std::array<ScatterSpec, N> scatters;
     std::array<int, N> disps;
 
@@ -228,7 +228,7 @@ void initiate_scatters_array(const std::map<int, std::vector<ScatterSpec>> &scat
     scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters, disps, num_scatters);
 }
 
-void initiate_scatters(const std::map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
+void initiate_scatters(const std::unordered_map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
     if (scatters_for_neighbour.size() == 0) return;
 
     size_t num_scatters = 0;
