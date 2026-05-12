@@ -2,7 +2,8 @@
 # OP2 specifics --------------------------------------------------------------------------------
 export OP2_COMPILER=gnu
 
-export OP2_INSTALL_PATH=$PWD/../op2
+: "${OP2_INSTALL_PATH:=$PWD/../op2}"
+export OP2_INSTALL_PATH
 
 # export OP_AUTO_SOA=1
 export OP_JIT_DEBUG=1
