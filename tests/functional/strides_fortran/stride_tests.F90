@@ -33,8 +33,11 @@ program stride_tests_fortran
   integer :: my_rank
   integer :: comm_size
   integer :: local_start
-  integer :: i, d
+  integer :: i, d, dim1, dim2
   real(8) :: expected0, expected1
+
+  dim1 = 5
+  dim2 = 5
 
   call op_init_base(0, 0)
   call op_timing2_start("FortranStrideTests")
@@ -83,8 +86,8 @@ program stride_tests_fortran
 
   ! --- Function call within kernel Stride Tests ---
   call op_par_loop_3(write5_within_kernel, set, &
-    op_arg_dat(dat5_0, -1, OP_ID, 5, "real(8)", OP_WRITE), &
-    op_arg_dat(dat5_1, -1, OP_ID, 5, "real(8)", OP_WRITE), &
+    op_arg_dat(dat5_0, -1, OP_ID, dim1, "real(8)", OP_WRITE), &
+    op_arg_dat(dat5_1, -1, OP_ID, dim2, "real(8)", OP_WRITE), &
     op_arg_dat(dat_iota1, -1, OP_ID, 1, "real(8)", OP_READ))
 
   allocate(fetched5_1(local_size * 5))

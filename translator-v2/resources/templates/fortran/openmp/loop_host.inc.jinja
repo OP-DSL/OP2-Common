@@ -37,6 +37,14 @@ gbl{{arg.id}}{{"(1)" if arg.dim == 1 }}
     {%- endif -%}
 {%- endmacro -%}
 
+{%- macro dat_dim_w(dat) -%}
+    {%- if dat.dim is not none -%}
+{{dat.dim}}
+    {%- else -%}
+dat{{dat.id}}_dim
+    {%- endif -%}
+{%- endmacro -%}
+
 {% set vectorise = config.vectorise.enable and lh.kernel not in config.vectorise.blacklist %}
 
 #define SIMD_LEN {{config.vectorise.simd_len}}
@@ -74,6 +82,9 @@ subroutine {{lh.kernel}}_wrapper2( &
 {% for arg in lh.args|info %}
     info{{arg.id}}, &
 {% endfor %}
+{% for dat in lh.dats if dat.dim is none %}
+    dat{{dat.arg_id}}_dim, &
+{% endfor %}
     start, &
     end &
 )
@@ -81,7 +92,7 @@ subroutine {{lh.kernel}}_wrapper2( &
 
     ! parameters
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
+    {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
     integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
@@ -93,6 +104,9 @@ subroutine {{lh.kernel}}_wrapper2( &
     {{arg.typ}}, dimension({{arg.dim}}) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: start, end
+{% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.arg_id}}_dim
+{% endfor %}
 
     ! locals
     integer(4) :: n
@@ -197,6 +211,9 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|info %}
     info{{arg.id}}, &
 {% endfor %}
+{% for dat in lh.dats if dat.dim is none %}
+    dat{{dat.arg_id}}_dim, &
+{% endfor %}
     set, &
     args, &
     num_dats_indirect, &
@@ -207,8 +224,11 @@ subroutine {{lh.kernel}}_wrapper( &
     ! parameters
     character(kind=c_char, len=*) :: name
 
+{% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.arg_id}}_dim
+{% endfor %}
 {% for dat in lh.dats %}
-    {{dat.typ}}, dimension({{dat.dim}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
+    {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
     integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
@@ -307,6 +327,9 @@ subroutine {{lh.kernel}}_wrapper( &
     {% for arg in lh.args|info %}
             info{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
     {% endfor %}
+    {% for dat in lh.dats if dat.dim is none %}
+            dat{{dat.arg_id}}_dim, &
+    {% endfor %}
             start, &
             end &
         )
@@ -362,6 +385,9 @@ subroutine {{lh.kernel}}_wrapper( &
                 gbl{{arg.id}}, &
         {% endif %}
     {% endfor %}
+    {% for dat in lh.dats if dat.dim is none %}
+                dat{{dat.arg_id}}_dim, &
+    {% endfor %}
                 offset, &
                 offset + num_elem - 1 &
             )
@@ -414,6 +440,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     integer(4), dimension({{lh.args|length}}) :: dats_indirect
 
     integer(4) :: set_size
+    {% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.arg_id}}_dim
+    {% endfor %}
 
 {% for dat in lh.dats %}
     {{dat.typ}}, pointer, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -429,6 +458,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
     real(8) :: start_time, end_time
     real(4) :: transfer
+{% for dat in lh.dats if dat.dim is none %}
+
+    dat{{dat.arg_id}}_dim = arg{{dat.arg_id}}%dim
+{% endfor %}
 
 {% for arg in lh.args %}
     args({{loop.index}}) = arg{{arg.id}}
@@ -446,7 +479,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
 {% for dat in lh.dats %}
-    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat.dim}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
+    call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat_dim_w(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
@@ -472,6 +505,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
 {% for arg in lh.args|info %}
         info{{arg.id}}, &
+{% endfor %}
+{% for dat in lh.dats if dat.dim is none %}
+        dat{{dat.arg_id}}_dim, &
 {% endfor %}
         set, &
         args, &
