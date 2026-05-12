@@ -12,7 +12,7 @@ on:
       - created
 
 env:
-  SOURCE_SCRIPT: source_gnuz
+  OP2_INSTALL_PATH: ${{ github.workspace }}/op2
   BASH_ENV: ${{ github.workspace }}/scripts/source_gnuz
   N_PROC: 64
   M6_WING_PATH: /home/zl/mgcfd-meshes/M6_wing

@@ -6,7 +6,8 @@ export OP2_COMPILER=nvhpc
 # export OP2_F_COMPILER=nvhpc
 # export OP2_C_CUDA_COMPILER=nvhpc
 
-export OP2_INSTALL_PATH=$PWD/../op2
+: "${OP2_INSTALL_PATH:=$PWD/../op2}"
+export OP2_INSTALL_PATH
 
 # export OP_AUTO_SOA=1
 export OP_JIT_DEBUG=1
