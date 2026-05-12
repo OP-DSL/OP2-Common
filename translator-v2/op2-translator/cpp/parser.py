@@ -7,7 +7,7 @@ from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
 from store import Function, Location, ParseError, Program, Type
-from util import safeFind
+from util import safeFind, findIdx
 
 
 def parseMeta(node: Cursor, program: Program) -> None:
@@ -225,7 +225,7 @@ def parseArgInfo(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict
 
     ptr = parseIdentifier(args[0])
     dim = parseIntExpression(args[1])
-    typ = parseType(parseStringLit(args[2]), loc)
+    typ, _ = parseType(parseStringLit(args[2]), loc)
 
     ref = parseIntExpression(args[3])
 
@@ -332,3 +332,27 @@ def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
         return None
 
     return next(node.get_children(), None)
+
+def findLoopConsts(program: Program) -> None:
+    for loop in program.loops:
+        visited = set()
+
+        def visit_function(func_cursor):
+            if func_cursor is None:
+                return
+            if func_cursor.get_usr() in visited:
+                return
+            visited.add(func_cursor.get_usr())
+
+            for node in func_cursor.walk_preorder():
+                if node.kind == CursorKind.DECL_REF_EXPR:
+                    const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
+                    if const_id is not None:
+                        loop.addConst(program.consts[const_id])
+                elif node.kind == CursorKind.CALL_EXPR:
+                    callee = node.referenced
+                    if callee is not None and callee.kind == CursorKind.FUNCTION_DECL:
+                        visit_function(callee)
+
+        for entity in program.findEntities(loop.kernel, []):
+            visit_function(entity.ast)

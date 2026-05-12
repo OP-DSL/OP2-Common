@@ -122,7 +122,7 @@ f2c::Ptr{gbl{{arg.id}}}
     {%- if arg is direct and lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
-f2c::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}
+f2c::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
     {%- elif lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
@@ -393,9 +393,9 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 {% for const in lh.consts if lh.const_types.get("op2_const_" + const + "_d") is not fcharacter %}
     {% if lh.const_types.get("op2_const_" + const + "_d") is farray %}
-        info.add_param("op2_const_{{const}}_d", {{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
+        info.add_param("op2_const_{{const}}_d", {{"op2_const_" if lang.user_consts_module is none}}{{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{"op2_const_" if lang.user_consts_module is none}}{{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
     {% else %}
-        info.add_param("op2_const_{{const}}_d", &{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
+        info.add_param("op2_const_{{const}}_d", &{{"op2_const_" if lang.user_consts_module is none}}{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
     {% endif %}
 {% endfor %}
 {% for arg in lh.args|gbl|read|scalar %}
@@ -628,7 +628,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
     op_timing2_enter("Finalise");
 {% for arg in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{arg.id}}, arg{{arg.id}}.data);
+    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
 {% endfor %}
 
     op_mpi_set_dirtybit_cuda(n_args, args);

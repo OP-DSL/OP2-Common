@@ -127,6 +127,8 @@ class Cpp(Lang):
         cpp.parser.parseLoops(ast, program)
         cpp.parser.parseMeta(ast_pp.cursor, program)
 
+        cpp.parser.findLoopConsts(program)
+        
         return program
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:

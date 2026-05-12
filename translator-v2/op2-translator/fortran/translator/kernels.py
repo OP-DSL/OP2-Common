@@ -60,6 +60,12 @@ def renameFunctionDefinition(entity: Entity, replacement: str) -> None:
 
     kernel_name.string = replacement
 
+    end_subroutine_stmt = fpu.get_child(entity.ast, f2003.End_Subroutine_Stmt)
+    if end_subroutine_stmt is not None:
+        end_name = fpu.get_child(end_subroutine_stmt, f2003.Name)
+        if end_name is not None:
+            end_name.string = replacement
+
 
 def renameFunctionCalls(entity: Entity, name: str, replacement: str) -> None:
     for node in fpu.walk(entity.ast, f2003.Call_Stmt):

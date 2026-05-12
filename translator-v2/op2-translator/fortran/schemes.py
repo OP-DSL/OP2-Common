@@ -56,7 +56,7 @@ class FortranOpenMP(Scheme):
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = None
+    consts_template = Path("fortran/openmp/consts.F90.jinja")
     loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
     master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
 
@@ -98,6 +98,7 @@ class FortranOpenMP(Scheme):
         for simd_kernel_entity in simd_kernel_entities:
             ftk.insertStrides(
                 simd_kernel_entity,
+                [simd_kernel_entity] + dependencies,
                 loop,
                 app,
                 lambda arg: "SIMD_LEN",
@@ -107,7 +108,7 @@ class FortranOpenMP(Scheme):
         return ftk.writeSource(kernel_entities + simd_kernel_entities + dependencies)
 
 
-# Scheme.register(FortranOpenMP)
+Scheme.register(FortranOpenMP)
 
 
 class FortranCuda(Scheme):
@@ -291,7 +292,7 @@ class FortranCCuda(Scheme):
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = None
+    consts_template = Path("fortran/c_cuda/consts.F90.jinja")
     loop_host_templates = [Path("fortran/c_cuda/loop_host.F90.jinja"), Path("fortran/c_cuda/loop_host.cuh.jinja")]
     master_kernel_templates = [Path("fortran/c_cuda/master_kernel.F90.jinja"), Path("fortran/c_cuda/master_kernel.cu.jinja")]
 
@@ -387,6 +388,7 @@ Scheme.register(FortranCCuda)
 class FortranCHip(FortranCCuda):
     target = Target.get("c_hip")
 
+    consts_template = Path("fortran/c_hip/consts.F90.jinja")
     loop_host_templates = [Path("fortran/c_hip/loop_host.F90.jinja"), Path("fortran/c_hip/loop_host.hip.h.jinja")]
     master_kernel_templates = [Path("fortran/c_hip/master_kernel.F90.jinja"), Path("fortran/c_hip/master_kernel.hip.cpp.jinja")]
 

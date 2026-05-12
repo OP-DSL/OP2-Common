@@ -39,23 +39,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-//
-// mpi header file - included by user for user level mpi
-//
-
-#include <mpi.h>
-
 // global constants
 
 float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
-//
-// OP header file
-//
-
-#include "op_lib_cpp.h"
-#include "op_lib_mpi.h"
-#include "op_util.h"
 
 //
 // hdf5 header
@@ -64,62 +51,11 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 #include "hdf5.h"
 
 //
-// kernel routines for parallel loops
-//
-
-#include "adt_calc.h"
-#include "bres_calc.h"
-#include "res_calc.h"
-#include "save_soln.h"
-#include "update.h"
-
-//
 // op_par_loop declarations
 //
 
 #include "op_seq.h"
 
-static void scatter_float_array(float *g_array, float *l_array, int comm_size,
-                                int g_size, int l_size, int elem_size) {
-  int *sendcnts = (int *)malloc(comm_size * sizeof(int));
-  int *displs = (int *)malloc(comm_size * sizeof(int));
-  int disp = 0;
-
-  for (int i = 0; i < comm_size; i++) {
-    sendcnts[i] = elem_size * compute_local_size(g_size, comm_size, i);
-  }
-  for (int i = 0; i < comm_size; i++) {
-    displs[i] = disp;
-    disp = disp + sendcnts[i];
-  }
-
-  MPI_Scatterv(g_array, sendcnts, displs, MPI_FLOAT, l_array,
-               l_size * elem_size, MPI_FLOAT, MPI_ROOT, MPI_COMM_WORLD);
-
-  free(sendcnts);
-  free(displs);
-}
-
-static void scatter_int_array(int *g_array, int *l_array, int comm_size,
-                              int g_size, int l_size, int elem_size) {
-  int *sendcnts = (int *)malloc(comm_size * sizeof(int));
-  int *displs = (int *)malloc(comm_size * sizeof(int));
-  int disp = 0;
-
-  for (int i = 0; i < comm_size; i++) {
-    sendcnts[i] = elem_size * compute_local_size(g_size, comm_size, i);
-  }
-  for (int i = 0; i < comm_size; i++) {
-    displs[i] = disp;
-    disp = disp + sendcnts[i];
-  }
-
-  MPI_Scatterv(g_array, sendcnts, displs, MPI_INT, l_array, l_size * elem_size,
-               MPI_INT, MPI_ROOT, MPI_COMM_WORLD);
-
-  free(sendcnts);
-  free(displs);
-}
 
 static void check_scan(int items_received, int items_expected) {
   if (items_received != items_expected) {
@@ -136,38 +72,10 @@ int main(int argc, char **argv) {
   // OP initialisation
   op_init(argc, argv, 2);
 
-  // MPI for user I/O
-  int my_rank;
-  int comm_size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   float *x, *q, *qold, *adt, *res;
 
   int nnode, ncell, nedge, nbedge;
-
-  /**------------------------BEGIN  I/O -------------------**/
-
-  char file[] = "new_grid.dat";
-  char file_out[] = "new_grid_out.h5";
-
-  /* read in grid from disk on root processor */
-  FILE *fp;
-
-  if ((fp = fopen(file, "r")) == NULL) {
-    op_printf("can't open file %s\n", file);
-    exit(-1);
-  }
-
-  int g_nnode, g_ncell, g_nedge, g_nbedge;
-
-  check_scan(
-      fscanf(fp, "%d %d %d %d \n", &g_nnode, &g_ncell, &g_nedge, &g_nbedge), 4);
-
-  int *g_becell = 0, *g_ecell = 0, *g_bound = 0, *g_bedge = 0, *g_edge = 0,
-      *g_cell = 0;
-  float *g_x = 0, *g_q = 0, *g_qold = 0, *g_adt = 0, *g_res = 0;
 
   // set constants
 
@@ -189,112 +97,70 @@ int main(int argc, char **argv) {
   qinf[2] = 0.0f;
   qinf[3] = r * e;
 
+  /**------------------------BEGIN  I/O -------------------**/
+
+  char file[] = "new_grid.dat";
+  char file_out[] = "new_grid_out.h5";
+
+  /* read in grid from disk on root processor */
+  FILE *fp;
+
+  if ((fp = fopen(file, "r")) == NULL) {
+    op_printf("can't open file %s\n", file);
+    exit(-1);
+  }
+
+  check_scan(fscanf(fp, "%d %d %d %d \n", &nnode, &ncell, &nedge, &nbedge), 4);
+
   op_printf("reading in grid \n");
   op_printf("Global number of nodes, cells, edges, bedges = %d, %d, %d, %d\n",
-            g_nnode, g_ncell, g_nedge, g_nbedge);
+            nnode, ncell, nedge, nbedge);
 
-  if (my_rank == MPI_ROOT) {
-    g_cell = (int *)malloc(4 * g_ncell * sizeof(int));
-    g_edge = (int *)malloc(2 * g_nedge * sizeof(int));
-    g_ecell = (int *)malloc(2 * g_nedge * sizeof(int));
-    g_bedge = (int *)malloc(2 * g_nbedge * sizeof(int));
-    g_becell = (int *)malloc(g_nbedge * sizeof(int));
-    g_bound = (int *)malloc(g_nbedge * sizeof(int));
+  cell = (int *)op_malloc(4 * ncell * sizeof(int));
+  edge = (int *)op_malloc(2 * nedge * sizeof(int));
+  ecell = (int *)op_malloc(2 * nedge * sizeof(int));
+  bedge = (int *)op_malloc(2 * nbedge * sizeof(int));
+  becell = (int *)op_malloc(nbedge * sizeof(int));
+  bound = (int *)op_malloc(nbedge * sizeof(int));
 
-    g_x = (float *)malloc(2 * g_nnode * sizeof(float));
-    g_q = (float *)malloc(4 * g_ncell * sizeof(float));
-    g_qold = (float *)malloc(4 * g_ncell * sizeof(float));
-    g_res = (float *)malloc(4 * g_ncell * sizeof(float));
-    g_adt = (float *)malloc(g_ncell * sizeof(float));
+  x = (float *)op_malloc(2 * nnode * sizeof(float));
+  q = (float *)op_malloc(4 * ncell * sizeof(float));
+  qold = (float *)op_malloc(4 * ncell * sizeof(float));
+  res = (float *)op_malloc(4 * ncell * sizeof(float));
+  adt = (float *)op_malloc(ncell * sizeof(float));
 
-    for (int n = 0; n < g_nnode; n++) {
-      check_scan(fscanf(fp, "%f %f \n", &g_x[2 * n], &g_x[2 * n + 1]), 2);
-    }
+  for (int n = 0; n < nnode; n++) {
+    check_scan(fscanf(fp, "%f %f \n", &x[2 * n], &x[2 * n + 1]), 2);
+  }
 
-    for (int n = 0; n < g_ncell; n++) {
-      check_scan(fscanf(fp, "%d %d %d %d \n", &g_cell[4 * n],
-                        &g_cell[4 * n + 1], &g_cell[4 * n + 2],
-                        &g_cell[4 * n + 3]),
-                 4);
-    }
+  for (int n = 0; n < ncell; n++) {
+    check_scan(fscanf(fp, "%d %d %d %d \n", &cell[4 * n], &cell[4 * n + 1],
+                      &cell[4 * n + 2], &cell[4 * n + 3]),
+               4);
+  }
 
-    for (int n = 0; n < g_nedge; n++) {
-      check_scan(fscanf(fp, "%d %d %d %d \n", &g_edge[2 * n],
-                        &g_edge[2 * n + 1], &g_ecell[2 * n],
-                        &g_ecell[2 * n + 1]),
-                 4);
-    }
+  for (int n = 0; n < nedge; n++) {
+    check_scan(fscanf(fp, "%d %d %d %d \n", &edge[2 * n], &edge[2 * n + 1],
+                      &ecell[2 * n], &ecell[2 * n + 1]),
+               4);
+  }
 
-    for (int n = 0; n < g_nbedge; n++) {
-      check_scan(fscanf(fp, "%d %d %d %d \n", &g_bedge[2 * n],
-                        &g_bedge[2 * n + 1], &g_becell[n], &g_bound[n]),
-                 4);
-    }
+  for (int n = 0; n < nbedge; n++) {
+    check_scan(fscanf(fp, "%d %d %d %d \n", &bedge[2 * n], &bedge[2 * n + 1],
+                      &becell[n], &bound[n]),
+               4);
+  }
 
-    // initialise flow field and residual
+  // initialise flow field and residual
 
-    for (int n = 0; n < g_ncell; n++) {
-      for (int m = 0; m < 4; m++) {
-        g_q[4 * n + m] = qinf[m];
-        g_res[4 * n + m] = 0.0f;
-      }
+  for (int n = 0; n < ncell; n++) {
+    for (int m = 0; m < 4; m++) {
+      q[4 * n + m] = qinf[m];
+      res[4 * n + m] = 0.0f;
     }
   }
 
   fclose(fp);
-
-  nnode = compute_local_size(g_nnode, comm_size, my_rank);
-  ncell = compute_local_size(g_ncell, comm_size, my_rank);
-  nedge = compute_local_size(g_nedge, comm_size, my_rank);
-  nbedge = compute_local_size(g_nbedge, comm_size, my_rank);
-
-  op_printf(
-      "Number of nodes, cells, edges, bedges on process %d = %d, %d, %d, %d\n",
-      my_rank, nnode, ncell, nedge, nbedge);
-
-  /*Allocate memory to hold local sets, mapping tables and data*/
-  cell = (int *)malloc(4 * ncell * sizeof(int));
-  edge = (int *)malloc(2 * nedge * sizeof(int));
-  ecell = (int *)malloc(2 * nedge * sizeof(int));
-  bedge = (int *)malloc(2 * nbedge * sizeof(int));
-  becell = (int *)malloc(nbedge * sizeof(int));
-  bound = (int *)malloc(nbedge * sizeof(int));
-
-  x = (float *)malloc(2 * nnode * sizeof(float));
-  q = (float *)malloc(4 * ncell * sizeof(float));
-  qold = (float *)malloc(4 * ncell * sizeof(float));
-  res = (float *)malloc(4 * ncell * sizeof(float));
-  adt = (float *)malloc(ncell * sizeof(float));
-
-  /* scatter sets, mappings and data on sets*/
-  scatter_int_array(g_cell, cell, comm_size, g_ncell, ncell, 4);
-  scatter_int_array(g_edge, edge, comm_size, g_nedge, nedge, 2);
-  scatter_int_array(g_ecell, ecell, comm_size, g_nedge, nedge, 2);
-  scatter_int_array(g_bedge, bedge, comm_size, g_nbedge, nbedge, 2);
-  scatter_int_array(g_becell, becell, comm_size, g_nbedge, nbedge, 1);
-  scatter_int_array(g_bound, bound, comm_size, g_nbedge, nbedge, 1);
-
-  scatter_float_array(g_x, x, comm_size, g_nnode, nnode, 2);
-  scatter_float_array(g_q, q, comm_size, g_ncell, ncell, 4);
-  scatter_float_array(g_qold, qold, comm_size, g_ncell, ncell, 4);
-  scatter_float_array(g_res, res, comm_size, g_ncell, ncell, 4);
-  scatter_float_array(g_adt, adt, comm_size, g_ncell, ncell, 1);
-
-  /*Freeing memory allocated to gloabal arrays on rank 0
-    after scattering to all processes*/
-  if (my_rank == MPI_ROOT) {
-    free(g_cell);
-    free(g_edge);
-    free(g_ecell);
-    free(g_bedge);
-    free(g_becell);
-    free(g_bound);
-    free(g_x);
-    free(g_q);
-    free(g_qold);
-    free(g_adt);
-    free(g_res);
-  }
 
   /**------------------------END I/O  -----------------------**/
 
@@ -319,6 +185,13 @@ int main(int argc, char **argv) {
   op_dat p_adt = op_decl_dat(cells, 1, "float", adt, "p_adt");
   op_dat p_res = op_decl_dat(cells, 4, "float", res, "p_res");
 
+  /* Test out creating dataset within a nested path in an HDF5 file
+  -- Remove when needing to create correct Airfoil mesh
+  */
+  op_dat p_x_test =
+      op_decl_dat(nodes, 2, "float", x, "/group3/group2/group1/p_x_test");
+  op_map pedge_test = op_decl_map(edges, nodes, 2, edge, "/group3/pedge_test");
+
   op_decl_const(1, "float", &gam);
   op_decl_const(1, "float", &gm1);
   op_decl_const(1, "float", &cfl);
@@ -327,6 +200,17 @@ int main(int argc, char **argv) {
   op_decl_const(1, "float", &alpha);
   op_decl_const(4, "float", qinf);
 
+  /* Test functionality of fetching data of an op_dat to an HDF5 file*/
+  op_fetch_data_hdf5_file(p_x_test, "test.h5");
+
+  char name[128];
+  int time = 0;
+  sprintf(name, "states_%07i", (int)(time * 100.0));
+  op_fetch_data_hdf5_file_path(p_x_test, "test.h5", name);
+  sprintf(name, "/results/states_%07i", (int)(time * 100.0));
+  op_fetch_data_hdf5_file_path(p_x_test, "test.h5", name);
+
+  /* Test functionality of dumping all the sets,maps and dats to an HDF5 file*/
   op_dump_to_hdf5(file_out);
   op_write_const_hdf5("gam", 1, "float", (char *)&gam, "new_grid_out.h5");
   op_write_const_hdf5("gm1", 1, "float", (char *)&gm1, "new_grid_out.h5");

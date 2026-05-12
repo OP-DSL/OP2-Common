@@ -1,0 +1,139 @@
+name: Local CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      - created
+
+env:
+  OP2_INSTALL_PATH: ${{ github.workspace }}/op2
+  BASH_ENV: ${{ github.workspace }}/scripts/source_gnuz
+  N_PROC: 64
+  M6_WING_PATH: /home/zl/mgcfd-meshes/M6_wing
+  ROTOR_37_1M_PATH: /home/zl/mgcfd-meshes/Rotor37_1M
+
+jobs:
+  local-test:
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.workspace }}
+
+    steps:
+      # 1. Checkout correct branch ---------------------------------------
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          ref: OP2_refactor
+
+      # 2. Debug info ---------------------------------------
+      - name: Print runner info
+        run: |
+          echo "Machine: $(hostname)"
+          echo "PWD: $(pwd)"
+
+      # 3. Configure OP2 ---------------------------------------
+      - name: Configure OP2
+        run: |
+          if [ -f makefiles/.config.mk ]; then
+            echo "Cleaning OP2..."
+            make -C op2 clean
+          fi
+
+          make -C op2 config
+
+      # 4. Compile OP2 ---------------------------------------
+      - name: Compile OP2
+        run: |
+          echo "Building OP2..."
+          make -C op2 -j"$N_PROC"
+
+      # 5. Compile C++ functional tests ---------------------------------------
+      - name: Compile C++ functional tests
+        run: |
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./functional_cpp_test.sh
+
+      # 6. Run C++ functional tests ---------------------------------------
+      - name: Run C++ functional tests
+        run: |
+          cd tests/bash
+          RUN_TESTS=TRUE ./functional_cpp_test.sh
+
+      # 7. Compile Fortran functional tests ---------------------------------------
+      - name: Compile Fortran functional tests
+        run: |
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./functional_fortran_test.sh
+
+      # 8. Run Fortran functional tests ---------------------------------------
+      - name: Run Fortran functional tests
+        run: |
+          cd tests/bash
+          RUN_TESTS=TRUE ./functional_fortran_test.sh
+
+      # 9. Compile aero tests ---------------------------------------
+      - name: Compile Aero tests
+        run: |
+          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./aero_test.sh
+
+      # 10. Run aero tests ---------------------------------------
+      - name: Run Aero tests
+        run: |
+          cd tests/bash
+          RUN_TESTS=TRUE ./aero_test.sh
+
+      # 11. Compile MGCFD tests ---------------------------------------
+      - name: Compile MGCFD tests
+        run: |
+          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./mgcfd_test.sh
+
+      # 12. Run MGCFD tests ---------------------------------------
+      - name: Run MGCFD tests
+        run: |
+          cd tests/bash
+          RUN_TESTS=TRUE ./mgcfd_test.sh
+
+      # 13. Compile airfoil tests ---------------------------------------
+      - name: Compile Airfoil tests
+        run: |
+          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
+          cd tests/bash
+          COMPILE_TESTS=TRUE ./airfoil_test.sh
+
+      # 14. Run airfoil tests ---------------------------------------
+      - name: Run Airfoil tests
+        run: |
+          cd tests/bash
+          RUN_TESTS=TRUE ./airfoil_test.sh
+
+      # 15. Archive logs ---------------------------------------
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            *.log
+            tests/**/*.log
+
+      # 16. Final status message ---------------------------------------
+      - name: Final status
+        if: success()
+        run: echo "CI tests passed"
+
+      - name: Final failure
+        if: failure()
+        run: echo "Some CI tests failed"

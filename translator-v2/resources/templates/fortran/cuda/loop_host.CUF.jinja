@@ -478,7 +478,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
 
 {% for dat in lh.dats %}
-    call c_f_pointer(arg{{dat.arg_id}}%data_d, dat{{dat.id}}_d, (/{{dat_dim(dat)}} * getsetsizefromoparg(arg{{dat.arg_id}})/))
+    call c_f_pointer(arg{{dat.arg_id}}%data_d, dat{{dat.id}}_d, (/{{dat_dim(dat)}} * round32f(getsetsizefromoparg(arg{{dat.arg_id}})) /))
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for map in lh.maps %}
@@ -496,15 +496,15 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
                      {{-"\n" if loop.last}}
 {% endfor %}
 {% if lh.dats|direct(lh)|soa|length > 0 %}
-    if (op2_stride_direct /= getsetsizefromoparg(arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}})) then
-        op2_stride_direct = getsetsizefromoparg(arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}})
+    if (op2_stride_direct /= round32f(getsetsizefromoparg(arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}}))) then
+        op2_stride_direct = round32f(getsetsizefromoparg(arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}}))
         op2_stride_direct_d = op2_stride_direct
     end if
 
 {% endif %}
 {% for dat in lh.dats|indirect(lh)|soa %}
-    if (op2_stride_dat{{dat.id}} /= getsetsizefromoparg(arg{{dat.arg_id}})) then
-        op2_stride_dat{{dat.id}} = getsetsizefromoparg(arg{{dat.arg_id}})
+    if (op2_stride_dat{{dat.id}} /= round32f(getsetsizefromoparg(arg{{dat.arg_id}}))) then
+        op2_stride_dat{{dat.id}} = round32f(getsetsizefromoparg(arg{{dat.arg_id}}))
         op2_stride_dat{{dat.id}}_d = op2_stride_dat{{dat.id}}
     end if{{"\n" if loop.last}}
 {% endfor %}
@@ -563,7 +563,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
             num_blocks = (end - start + (block_size - 1)) / block_size
             num_blocks = min(num_blocks, block_limit)
 
-            {{kernel_call("set%setptr%size + set%setptr%exec_size")|indent(12)}}
+            {{kernel_call("round32f(set%setptr%size + set%setptr%exec_size)")|indent(12)}}
         end if
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
 
@@ -591,7 +591,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         num_blocks = (end - start + (block_size - 1)) / block_size
         num_blocks = min(num_blocks, block_limit)
 
-        {{kernel_call("plan_col_reord", "set%setptr%size + set%setptr%exec_size")|indent(8)}}
+        {{kernel_call("plan_col_reord", "round32f(set%setptr%size + set%setptr%exec_size)")|indent(8)}}
     {% if lh.args|gbl|reject("read")|list|length > 0 %}
 
         if (col == plan%ncolors_owned) then
