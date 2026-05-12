@@ -10,9 +10,10 @@ on:
   release:
     types:
       - created
-  
+
 env:
-  SOURCE_SCRIPT: scripts/source_gnuz
+  SOURCE_SCRIPT: source_gnuz
+  BASH_ENV: ${{ github.workspace }}/scripts/source_gnuz
   N_PROC: 64
   M6_WING_PATH: /home/zl/mgcfd-meshes/M6_wing
   ROTOR_37_1M_PATH: /home/zl/mgcfd-meshes/Rotor37_1M
@@ -20,6 +21,11 @@ env:
 jobs:
   local-test:
     runs-on: self-hosted
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.workspace }}
 
     steps:
       # 1. Checkout correct branch ---------------------------------------
@@ -37,8 +43,6 @@ jobs:
       # 3. Configure OP2 ---------------------------------------
       - name: Configure OP2
         run: |
-          source "$SOURCE_SCRIPT"
-
           if [ -f makefiles/.config.mk ]; then
             echo "Cleaning OP2..."
             make -C op2 clean
@@ -49,43 +53,36 @@ jobs:
       # 4. Compile OP2 ---------------------------------------
       - name: Compile OP2
         run: |
-          source "$SOURCE_SCRIPT"
-
           echo "Building OP2..."
           make -C op2 -j"$N_PROC"
 
       # 5. Compile C++ functional tests ---------------------------------------
       - name: Compile C++ functional tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           COMPILE_TESTS=TRUE ./functional_cpp_test.sh
 
       # 6. Run C++ functional tests ---------------------------------------
       - name: Run C++ functional tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           RUN_TESTS=TRUE ./functional_cpp_test.sh
 
       # 7. Compile Fortran functional tests ---------------------------------------
       - name: Compile Fortran functional tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           COMPILE_TESTS=TRUE ./functional_fortran_test.sh
 
       # 8. Run Fortran functional tests ---------------------------------------
       - name: Run Fortran functional tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           RUN_TESTS=TRUE ./functional_fortran_test.sh
 
       # 9. Compile aero tests ---------------------------------------
       - name: Compile Aero tests
         run: |
-          source "$SOURCE_SCRIPT"
           export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
           cd tests/bash
           COMPILE_TESTS=TRUE ./aero_test.sh
@@ -93,14 +90,12 @@ jobs:
       # 10. Run aero tests ---------------------------------------
       - name: Run Aero tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           RUN_TESTS=TRUE ./aero_test.sh
 
       # 11. Compile MGCFD tests ---------------------------------------
       - name: Compile MGCFD tests
         run: |
-          source "$SOURCE_SCRIPT"
           export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
           cd tests/bash
           COMPILE_TESTS=TRUE ./mgcfd_test.sh
@@ -108,14 +103,12 @@ jobs:
       # 12. Run MGCFD tests ---------------------------------------
       - name: Run MGCFD tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           RUN_TESTS=TRUE ./mgcfd_test.sh
 
       # 13. Compile airfoil tests ---------------------------------------
       - name: Compile Airfoil tests
         run: |
-          source "$SOURCE_SCRIPT"
           export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
           cd tests/bash
           COMPILE_TESTS=TRUE ./airfoil_test.sh
@@ -123,7 +116,6 @@ jobs:
       # 14. Run airfoil tests ---------------------------------------
       - name: Run Airfoil tests
         run: |
-          source "$SOURCE_SCRIPT"
           cd tests/bash
           RUN_TESTS=TRUE ./airfoil_test.sh
 
