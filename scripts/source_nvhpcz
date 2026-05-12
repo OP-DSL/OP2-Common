@@ -33,6 +33,7 @@ module load nvhpc/24.3
 export CUDA_INSTALL_PATH="/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3"
 export CUDA_VISIBLE_DEVICES=0
 export NV_ARCH=Hopper
+export LIBRARY_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3/lib64/stubs:$LIBRARY_PATH
 
 # Set MPI Paths incase not automatically detected ----------------------------------------------
 MPI_PATH=/usr/lib/x86_64-linux-gnu/openmpi
