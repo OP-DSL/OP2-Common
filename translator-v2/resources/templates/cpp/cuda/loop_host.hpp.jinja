@@ -128,7 +128,7 @@ __global__ void op_cuda_{{lh.name}}(
     {% if lh is direct %}
     for (int n = thread_id; n < set_size; n += blockDim.x * gridDim.x) {
         {% if lh.args|idx|direct|length > 0 %}
-        int idx = n + 1;
+        int idx = n;
         {% endif %}
         {% for arg in lh.args|info %}
         {{arg.typ}} dummy_info_{{arg.id}} = 0; // Remove once op_arg_info functionality is fixed
@@ -142,7 +142,9 @@ __global__ void op_cuda_{{lh.name}}(
     {% else %}
     if (thread_id + start < end) {
         int n = {{"thread_id + start" if config.atomics else "col_reord[thread_id + start]"}};
-
+        {% if lh.args|idx|direct|length > 0 %}
+        int idx = n;
+        {% endif %}
         {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
         {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
         for (int d = 0; {{opt_cuda_cond_comp(arg)}}d < {{lh.dat(arg).dim}}; ++d)

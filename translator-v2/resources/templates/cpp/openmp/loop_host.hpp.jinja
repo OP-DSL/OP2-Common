@@ -3,6 +3,8 @@
 {%- macro arg_to_pointer(arg) -%}
     {%- if arg is gbl -%}
 gbl{{arg.id}}
+    {%- elif arg is idx and arg is indirect -%}
+&map{{arg.map_id}}[n * map{{arg.map_id}}_dim + {{arg.map_idx}}]
     {%- elif arg is idx -%}
 &n
     {%- elif arg is info -%}
