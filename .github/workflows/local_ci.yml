@@ -31,6 +31,8 @@ jobs:
       # 1. Checkout correct branch ---------------------------------------
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          ref: OP2_refactor
 
       # 2. Debug info ---------------------------------------
       - name: Print runner info

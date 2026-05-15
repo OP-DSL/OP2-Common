@@ -109,6 +109,9 @@ subroutine {{lh.kernel}}_wrapper2( &
     {{arg.typ}}, dimension({{arg.dim}}) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: start, end
+{% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.arg_id}}_dim
+{% endfor %}
 
     ! locals
     integer(4) :: n
