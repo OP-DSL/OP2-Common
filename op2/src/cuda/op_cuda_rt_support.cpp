@@ -281,26 +281,26 @@ void op_cuda_get_data(op_dat dat) {
   else
     return;
   // transpose data
+  size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
-    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, dat->size * set_size,
+    size_t stride = round32(logical_size);
+    char *temp_data = (char *)malloc((size_t)dat->size * stride * sizeof(char));
+    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, dat->size * stride,
                              gpuMemcpyDeviceToHost));
     cutilSafeCall(gpuDeviceSynchronize());
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (size_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < logical_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          dat->data[dat->size * j + element_size * i + c] =
-              temp_data[element_size * i * set_size + element_size * j +
+          dat->data[(size_t)dat->size * j + element_size * i + c] =
+              temp_data[element_size * i * stride + element_size * j +
                         c];
         }
       }
     }
     free(temp_data);
   } else {
-    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, dat->size * set_size,
+    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, dat->size * logical_size,
                              gpuMemcpyDeviceToHost));
     cutilSafeCall(gpuDeviceSynchronize());
   }
@@ -348,24 +348,24 @@ void cutilDeviceInit(int argc, char **argv) {
 void op_upload_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
+  size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+  size_t stride = round32(logical_size);
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
+    char *temp_data = (char *)calloc((size_t)dat->size * stride, sizeof(char));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (size_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < logical_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          temp_data[element_size * i * set_size + element_size * j + c] =
-              dat->data[dat->size * j + element_size * i + c];
+          temp_data[element_size * i * stride + element_size * j + c] =
+              dat->data[(size_t)dat->size * j + element_size * i + c];
         }
       }
     }
-    cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, set_size * dat->size,
+    cutilSafeCall(gpuMemcpy(dat->data_d, temp_data, stride * dat->size,
                              gpuMemcpyHostToDevice));
     free(temp_data);
   } else {
-    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-    cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, set_size * dat->size,
+    cutilSafeCall(gpuMemcpy(dat->data_d, dat->data, logical_size * dat->size,
                              gpuMemcpyHostToDevice));
   }
 }
@@ -373,24 +373,24 @@ void op_upload_dat(op_dat dat) {
 void op_download_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
+  size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
+  size_t stride = round32(logical_size);
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    size_t set_size = round32(dat->set->size + dat->set->exec_size + dat->set->nonexec_size);
-    char *temp_data = (char *)malloc(dat->size * set_size * sizeof(char));
-    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, set_size * dat->size,
+    char *temp_data = (char *)malloc((size_t)dat->size * stride * sizeof(char));
+    cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, stride * dat->size,
                              gpuMemcpyDeviceToHost));
     int element_size = dat->size / dat->dim;
     for (int i = 0; i < dat->dim; i++) {
-      for (size_t j = 0; j < set_size; j++) {
+      for (size_t j = 0; j < logical_size; j++) {
         for (int c = 0; c < element_size; c++) {
-          dat->data[dat->size * j + element_size * i + c] =
-              temp_data[element_size * i * set_size + element_size * j + c];
+          dat->data[(size_t)dat->size * j + element_size * i + c] =
+              temp_data[element_size * i * stride + element_size * j + c];
         }
       }
     }
     free(temp_data);
   } else {
-    size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
-    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, set_size * dat->size,
+    cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, logical_size * dat->size,
                              gpuMemcpyDeviceToHost));
   }
 }

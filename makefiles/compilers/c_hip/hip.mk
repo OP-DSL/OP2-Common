@@ -5,7 +5,7 @@ else
 endif
 
 ifndef DEBUG
-  HIP_OPT := -g -Ofast
+  HIP_OPT := -g -O3
 else
   HIP_OPT := -g -O0
 endif

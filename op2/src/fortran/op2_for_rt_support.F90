@@ -725,4 +725,10 @@ module OP2_Fortran_RT_Support
     args(5) = arg5
     call op_trigger_halo_exchanges_c(device, name//C_NULL_CHAR, set%setCPtr, nargs, args)
   end subroutine op_trigger_halo_exchanges_5
+
+  pure function round32f(x) result(y)
+    integer(4), intent(in) :: x
+    integer(4) :: y
+    y = iand(x + 31, not(31))
+  end function round32f
 end module OP2_Fortran_RT_Support

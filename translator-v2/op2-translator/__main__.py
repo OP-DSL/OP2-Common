@@ -32,6 +32,7 @@ def main(argv=None) -> None:
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath)
     parser.add_argument("-c", "--config", help="Target configuration", action="append", type=json.loads, default=[])
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
+    parser.add_argument("-mp", "--multiprocess_parse", help="Force Multiprocess Parsing", action="store_true")
 
     parser.add_argument("--suffix", help="Add a suffix to generated program translations", default="")
 
@@ -190,7 +191,10 @@ def parse(args: Namespace, lang: Lang) -> Application:
 
     if lang.ast_is_serializable:
         try:
-            app.programs = Pool().starmap(parse_file, f_args)
+            if args.multiprocess_parse:
+                app.programs = Pool().starmap(parse_file, f_args)
+            else:
+                app.programs = [parse_file(*args) for args in f_args]
         except fortran.FortranSyntaxError as err:
             print()
             print(f"Syntax error in file {err.filename}:")

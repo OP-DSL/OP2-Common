@@ -1,0 +1,45 @@
+module purge
+
+# OP2 specifics --------------------------------------------------------------------------------
+export OP2_COMPILER=nvhpc
+# export OP2_C_COMPILER=gnu
+# export OP2_F_COMPILER=nvhpc
+# export OP2_C_CUDA_COMPILER=nvhpc
+
+: "${OP2_INSTALL_PATH:=$PWD/../op2}"
+export OP2_INSTALL_PATH
+
+# export OP_AUTO_SOA=1
+export OP_JIT_DEBUG=1
+export OP_JIT_ENABLE=1
+export OP_JIT_SEQ_COMPILE=1
+export OP_PROFILE_LEVEL=3
+
+# External libraries ---------------------------------------------------------------------------
+EXT_LIB_INSTALL_PATH=$HOME/work2/op2_ci
+
+# export PARMETIS_INSTALL_PATH=$EXT_LIB_INSTALL_PATH/parmetis-4.0.3-gnu-12.2.0-openmpi
+export PARMETIS_INSTALL_PATH=/rr-home/shared/transfer/toGihan/op2-deps-iynx/ParMetis/Ver4.0.3/
+export KAHIP_INSTALL_PATH=/home/zl/work4/lib_install/KaHIP-3.25-gnu-12.2.0-openmpi-4.1.4
+# export PTSCOTCH_INSTALL_PATH=$HOME/lib/scotch
+
+export LD_LIBRARY_PATH=$PARMETIS_INSTALL_PATH/lib:$PTSCOTCH_INSTALL_PATH/lib:$KAHIP_INSTALL_PATH/lib:$LD_LIBRARY_PATH
+
+export HDF5_PAR_INSTALL_PATH=$EXT_LIB_INSTALL_PATH/hdf5-1.14.6-gnu-12.2.0-openmpi
+export HDF5_SEQ_INSTALL_PATH=$EXT_LIB_INSTALL_PATH/hdf5-1.14.6-gnu-12.2.0-seq
+# export LD_LIBRARY_PATH=$HDF5_INSTALL_PATH/lib:$LD_LIBRARY_PATH
+
+# Load CUDA module and set environment variables for CUDA --------------------------------------
+module load nvhpc/24.3
+export CUDA_INSTALL_PATH="/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3"
+export CUDA_VISIBLE_DEVICES=0
+export NV_ARCH=Hopper
+export LIBRARY_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/cuda/12.3/lib64/stubs:$LIBRARY_PATH
+
+# Set MPI Paths incase not automatically detected ----------------------------------------------
+MPI_PATH=/usr/lib/x86_64-linux-gnu/openmpi
+
+# export MPI_INSTALL_PATH=$MPI_PATH
+export CPLUS_INCLUDE_PATH=$MPI_PATH/include:$CPLUS_INCLUDE_PATH
+export C_INCLUDE_PATH=$MPI_PATH/include:$C_INCLUDE_PATH
+export EXTRA_CXXFLAGS="-I$MPI_PATH/include"

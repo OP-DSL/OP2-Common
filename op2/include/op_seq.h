@@ -28,16 +28,20 @@ template <size_t... Is> struct build_indices<0, Is...> : indices<Is...> {};
 static int blank_args_size = 512+4;
 static char *blank_args = (char *)op_malloc(blank_args_size);
 
-inline void op_arg_set(int n, op_arg arg, char **p_arg, int halo) {
+inline void op_arg_set(int n, op_arg& arg, char **p_arg, int halo) {
   *p_arg = arg.data;
 
   if (arg.argtype == OP_ARG_GBL) {
     if (halo && (arg.acc != OP_READ))
       *p_arg = blank_args;
+  } else if (arg.argtype == OP_ARG_INFO) {
+    if (halo)
+      *p_arg = blank_args;
   } else if (arg.argtype == OP_ARG_IDX) {
-    if (arg.map == NULL || arg.opt == 0)
+    if (arg.map == NULL || arg.opt == 0) {
       *p_arg = &blank_args[blank_args_size-sizeof(int)]; //this where we'll put the loop counter
-    else
+      *((int*)*p_arg) = n;
+    } else
       *p_arg = (char*)&arg.map->map[arg.idx + n * arg.map->dim];
   } else {
     if (arg.map == NULL || arg.opt == 0) // identity mapping
