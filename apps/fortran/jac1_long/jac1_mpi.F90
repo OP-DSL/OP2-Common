@@ -161,8 +161,8 @@ program jac_distributed
   !--------------------------------------------------------------------------
   ! 3. Declare OP2 Sets, Maps, Dats using local sizes and data
   !--------------------------------------------------------------------------
-  call op_decl_set(nnode, nodes, "nodes")
-  call op_decl_set(nedge, edges, "edges")
+  call op_decl_set(int(nnode, 4), nodes, "nodes")
+  call op_decl_set(int(nedge, 4), edges, "edges")
 
   ! Use op_decl_map_long for 64-bit integer indices in pp
   call op_decl_map_long(edges, nodes, 2, pp, ppedge, "ppedge")
@@ -273,29 +273,29 @@ contains !##################### Internal Subroutines and Functions #############
   subroutine res_kernel(A, u, du, beta)
     ! Kernel to compute residual contribution: du[from] += beta * A[edge] * u[to]
     implicit none
-    real(8), dimension(1), intent(in)  :: A     ! OP_READ from p_A (edge data)
-    real(8), dimension(1), intent(in)  :: u     ! OP_READ from p_u (mapped via ppedge index 2 - 'to' node)
-    real(8), dimension(1), intent(inout):: du    ! OP_INC to p_du (mapped via ppedge index 1 - 'from' node)
-    real(8), dimension(1), intent(in)  :: beta  ! OP_READ from global beta
+    real(8), intent(in)  :: A     ! OP_READ from p_A (edge data)
+    real(8), intent(in)  :: u     ! OP_READ from p_u (mapped via ppedge index 2 - 'to' node)
+    real(8), intent(inout):: du    ! OP_INC to p_du (mapped via ppedge index 1 - 'from' node)
+    real(8), intent(in)  :: beta  ! OP_READ from global beta
 
-    du(1) = du(1) + beta(1) * A(1) * u(1)
+    du = du + beta * A * u
   end subroutine res_kernel
 
   subroutine update_kernel(r, du, u, u_sum, u_max)
     ! Kernel to update solution: u += du + alpha*r; du = 0; compute global sums/max
     implicit none
-    real(8), dimension(1), intent(in)    :: r      ! OP_READ from p_r (node data)
-    real(8), dimension(1), intent(inout) :: du     ! OP_RW from p_du (node data)
-    real(8), dimension(1), intent(inout) :: u      ! OP_INC to p_u (node data) - Note: C++ uses OP_INC
-    real(8), dimension(1), intent(inout) :: u_sum  ! OP_INC to global u_sum
-    real(8), dimension(1), intent(inout) :: u_max  ! OP_MAX to global u_max
+    real(8), intent(in)    :: r      ! OP_READ from p_r (node data)
+    real(8), intent(inout) :: du     ! OP_RW from p_du (node data)
+    real(8), intent(inout) :: u      ! OP_INC to p_u (node data) - Note: C++ uses OP_INC
+    real(8), intent(inout) :: u_sum  ! OP_INC to global u_sum
+    real(8), intent(inout) :: u_max  ! OP_MAX to global u_max
 
 
-    u(1) = u(1) + du(1) + alpha * r(1)
-    du(1) = 0.0_8                                  ! Reset du
+    u = u + du + alpha * r
+    du = 0.0_8                                  ! Reset du
 
-    u_sum(1) = u_sum(1) + u(1) ** 2
-    u_max(1) = max(u_max(1), u(1))
+    u_sum = u_sum + u ** 2
+    u_max = max(u_max, u)
 
   end subroutine update_kernel
 

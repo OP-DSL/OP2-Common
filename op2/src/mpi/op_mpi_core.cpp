@@ -104,15 +104,15 @@ extern "C" {
  * Wrappers of core lib
  */
 
-op_set op_decl_set(idx_g_t size, char const *name) {
+op_set op_decl_set(idx_l_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
 op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
                    char const *name) {
 
-  idx_g_t *imap_g = (idx_g_t *)malloc(from->size * dim * sizeof(idx_g_t));
-  for (idx_g_t i = 0; i < from->size * dim; i++) {
+  idx_g_t *imap_g = (idx_g_t *)malloc((idx_g_t)from->size * dim * sizeof(idx_g_t));
+  for (idx_g_t i = 0; i < (idx_g_t)from->size * dim; i++) {
     imap_g[i] = (idx_g_t)imap[i];
   }
 
@@ -126,14 +126,14 @@ op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
 
   op_map map = op_decl_map_core(from, to, dim, NULL, name);
 
-  idx_g_t *imap_g2 = (idx_g_t *)malloc(from->size * dim * sizeof(idx_g_t));
-  for (idx_g_t i = 0; i < from->size * dim; i++) {
+  idx_g_t *imap_g2 = (idx_g_t *)malloc((idx_g_t)from->size * dim * sizeof(idx_g_t));
+  for (idx_g_t i = 0; i < (idx_g_t)from->size * dim; i++) {
     imap_g2[i] = (idx_g_t)imap_g[i];
   }
 
   if (OP_maps_base_index == 1) {
     // convert imap to 0 based indexing -- i.e. reduce each imap value by 1
-    for (idx_g_t i = 0; i < from->size * dim; i++)
+    for (idx_g_t i = 0; i < (idx_g_t)from->size * dim; i++)
       // imap[i]--;
       imap_g2[i]--; // modify op2's copy
   }

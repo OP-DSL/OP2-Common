@@ -67,9 +67,14 @@ typedef unsigned long long ull;
 #include <stdexcept>
 #include <cstddef>
 
+#ifdef USE_SAFELONG // For Debug purposes
 #include "SafeLong.h"
-typedef int idx_l_t;
 typedef SafeLong idx_g_t;
+#else
+typedef long long idx_g_t;
+#endif
+
+typedef int idx_l_t;
 
 /*
  * OP2 global state variables
@@ -265,7 +270,7 @@ void op_init_core(int, char **, int);
 
 void op_exit_core(void);
 
-op_set op_decl_set_core(idx_g_t, char const *);
+op_set op_decl_set_core(idx_l_t, char const *);
 
 op_map op_decl_map_core(op_set, op_set, int, int *, char const *);
 

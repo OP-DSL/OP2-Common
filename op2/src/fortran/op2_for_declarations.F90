@@ -274,7 +274,7 @@ module OP2_Fortran_Declarations
 
       import :: op_set_core
 
-      integer(kind=idx_g_t), value, intent(in)    :: setsize
+      integer(kind=idx_l_t), value, intent(in)    :: setsize
       character(kind=c_char,len=1), intent(in)  :: name(*)
 
     end function op_decl_set_c
@@ -578,7 +578,7 @@ module OP2_Fortran_Declarations
     subroutine op_memalloc ( ptr, bytes ) BIND(C,name='op_malloc2')
       use, intrinsic :: ISO_C_BINDING
 
-      integer*8 :: ptr
+      integer(8) :: ptr
       integer(kind=c_int) :: bytes
 
     end subroutine op_memalloc
@@ -1865,7 +1865,7 @@ contains
 
   subroutine op_decl_set ( setsize, set, opname )
 
-    integer(kind=idx_g_t), value, intent(in) :: setsize
+    integer(kind=idx_l_t), value, intent(in) :: setsize
     type(op_set) :: set
     character(kind=c_char,len=*), optional :: opName
 
@@ -2226,7 +2226,7 @@ contains
     implicit none
 
     character(len=*) :: fileName
-    real*8, dimension(*), target :: dat
+    real(8), dimension(*), target :: dat
 
     call op_print_dat_to_txtfile2_c (c_loc(dat), fileName)
 
@@ -2238,7 +2238,7 @@ contains
     implicit none
 
     character(len=*) :: fileName
-    integer*4, dimension(*), target :: dat
+    integer(4), dimension(*), target :: dat
 
     call op_print_dat_to_txtfile2_c (c_loc(dat), fileName)
 

@@ -75,7 +75,7 @@ extern "C" {
 void op_init(int, char **, int);
 void op_init_soa(int, char **, int, int);
 
-op_set op_decl_set(idx_g_t, char const *);
+op_set op_decl_set(idx_l_t, char const *);
 
 op_map op_decl_map(op_set, op_set, int, idx_l_t *, char const *);
 op_map op_decl_map_long(op_set, op_set, int, idx_g_t *, char const *);

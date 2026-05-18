@@ -127,7 +127,7 @@ int op_free_dat_temp_char(op_dat dat) {
   return op_free_dat_temp_core(dat);
 }
 
-op_set op_decl_set(idx_g_t size, char const *name) {
+op_set op_decl_set(idx_l_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
