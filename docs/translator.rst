@@ -200,6 +200,33 @@ To enable SoA layout for all datasets, choose one of:
 
      python3 op2-translator -soa -t cuda myapp.cpp
 
+Makefile Integration Variables
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When using the OP2 Makefiles (``makefiles/c_app.mk`` / ``makefiles/f_app.mk``), the following Make variables can be set in your application Makefile *before* the ``include`` of the OP2 Makefile fragment to customise the build:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Variable
+     - Description
+   * - ``APP_EXTRA_TRANSLATOR_FLAGS``
+     - Extra command-line flags appended to every translator invocation for the application. Useful for passing additional ``-I`` include paths or ``-D`` defines that the translator needs to parse your source correctly, without altering the shared ``TRANSLATOR`` variable.
+   * - ``VARIANT_FILTER``
+     - A Make pattern (default ``%``, matches everything) used to *keep* only the matching build variants. For example, set ``VARIANT_FILTER := %cuda%`` to build only CUDA-related variants.
+   * - ``VARIANT_FILTER_OUT``
+     - A Make pattern used to *exclude* matching build variants from the set of targets printed and built. For example, ``VARIANT_FILTER_OUT := %hip%`` suppresses all HIP variants.
+
+Example — restrict an application to CUDA variants only and pass an extra define:
+
+.. code-block:: make
+
+   VARIANT_FILTER := %cuda%
+   APP_EXTRA_TRANSLATOR_FLAGS := -DUSE_FEATURE_X
+   include path/to/makefiles/common.mk
+   include path/to/makefiles/c_app.mk
+
 ----
 
 Legacy Translator

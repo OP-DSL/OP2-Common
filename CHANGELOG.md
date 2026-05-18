@@ -56,6 +56,8 @@ Major changes since `v1.1.0` (high-level).
 - Fortran CUDA unknown-dimension reductions (including `op_arg_info`).
 - Improved Fortran `op_decl_*` and `op_arg_*` bindings.
 - Fortran MPI fixes: grouped halo exchanges, tag wrapping for large MPI universes.
+- Timer support added to generated Fortran loop hosts (`c_cuda` and `cuda` Jinja templates): `op_timers` and `op_timing_output` called automatically, enabling per-kernel timing in Fortran applications.
+- Functional tests for Fortran strides added alongside existing `const`, `gbl`, and `dat_reductions` functional test suites.
 
 ### Build system
 
@@ -65,7 +67,9 @@ Major changes since `v1.1.0` (high-level).
 - CUDA version auto-detected from `nvcc`/`nvfortran`; `--minimal` flag added automatically for nvcc ≥ 12.4.
 - `makefiles/c_app.mk` and `makefiles/f_app.mk` simplified; external app builds now supported (applications outside the OP2-Common tree).
 - `VARIANT_FILTER` / `VARIANT_FILTER_OUT` variables allow selective per-app target building.
+- `APP_EXTRA_TRANSLATOR_FLAGS` variable added to `c_app.mk` for per-application translator flag overrides.
 - HDF5 parallel and sequential builds can coexist; app variants needing HDF5 are gated on the appropriate build.
+- JIT HIP Jinja templates converted to symlinks to eliminate duplication.
 
 ### Bug fixes
 
@@ -73,7 +77,7 @@ Major changes since `v1.1.0` (high-level).
 - Fixed CUDA MPI Gather/Scatter non-sync race condition affecting GPUDirect builds.
 - Fixed GPU Direct gather kernel sync (`Fixed syncing gather kernels when using gpudirect`).
 - Fixed import buffer sizes for temporary and overlay dats with partial halo exchanges.
-- Fixed `op_arg_idx` parsing in the translator.
+- Fixed `op_arg_idx` parsing edge cases in the translator and direct/indirect index handling in C/C++ backends.
 - Fixed C indexing with `OP_AUTO_SOA=1`.
 - Fixed `op_par_loop` opt gbl reduction zero-initialisation.
 - Fixed vector arg handling in C++ seq and OpenMP backends.
@@ -81,6 +85,9 @@ Major changes since `v1.1.0` (high-level).
 - Fixed seg fault when `nullptr` passed to `op_decl_dat` with SoA enabled.
 - MPI tag wrapping to avoid `MPI_TAG_UB` overflow on large runs.
 - Fallback to MPI spec maximum tag if `MPI_TAG_UB` attribute is absent on communicator.
+- Fortran OpenMP codegen: pass variables for `dim` of `op_arg_dat` to fix runtime-dimension array handling.
+- Fortran CUDA runtime: fixed `c_cuda`/`c_hip` compilation issue in the Fortran runtime support layer.
+- `numawrap`: fix undefined `PERHOST` variable; generalise NUMA node detection to dynamically query available nodes at runtime.
 
 ### Documentation
 

@@ -172,4 +172,6 @@ See :ref:`op2-fortran-api` for the Fortran API reference and :doc:`translator` f
 Spack
 -----
 
-Coming soon.
+A Spack package for OP2 is not yet available. Building from source using the manual steps above is currently the recommended installation method.
+
+If you are using a Spack-managed environment, the required compilers and libraries (MPI, CUDA, HDF5) will generally be available through the Spack-generated environment or compiler wrappers. Once the appropriate modules or environment is activated, follow the manual build steps. You do not need to set ``X_INSTALL_PATH`` variables if the include and library paths are already injected by the module system.

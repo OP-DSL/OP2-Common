@@ -269,15 +269,16 @@ Parallel Loops
    :param idx: The per-set-element index into the map to use. You may pass a -1 if the identity mapping is used.
    :param map: The mapping to use. Pass :c:data:`OP_ID` for the identity mapping if no mapping indirection is required.
 
-.. c:function:: op_arg op_arg_info(T *data, int dim, char *type, int size, int ref)
+.. c:function:: op_arg op_arg_info(T *data, int dim, char *type, int ref)
 
-   This routine is used with argmin/argmax operations to determine the (global) index at which the minimum or maximum value occurs. It is intended to be used in conjunction with :c:func:op_arg_idx.
+   This routine is used with argmin/argmax operations to determine the (global) index at which the minimum or maximum value occurs. It is intended to be used in conjunction with :c:func:`op_arg_idx`.
    The value provided through this argument (for example, the coordinates of the current node) is returned from the location where the corresponding minimum or maximum is found.
+
+   This is a C++ template function; the element size is deduced automatically from the type ``T``.
 
    :param data: The data to be associated with the index returned by the argmin/argmax operation.
    :param dim: The number of data elements.
    :param type: The datatype, specified as a string, as with :c:func:`op_decl_const()`.
-   :param size: The size of the data.
    :param ref: Reference index.
 
    .. warning::
@@ -391,6 +392,13 @@ Other I/O and Utilities
    :param set: The set to query.
    :returns: The number of elements in the set across all processes.
 
+.. c:function:: int op_get_global_set_offset(op_set set)
+
+   In an MPI execution, returns the global index offset for the partition of **set** owned by the current rank. That is, the first element owned by this rank has global index ``op_get_global_set_offset(set)``. Returns 0 in non-MPI builds.
+
+   :param set: The set to query.
+   :returns: The global element offset for the current MPI rank.
+
 .. c:function:: void op_dump_to_hdf5(const char *file_name)
 
    This routine dumps the contents of all :c:type:`op_set`\ s, :c:type:`op_dat`\ s and :c:type:`op_map`\ s to an HDF5 file *as held internally by OP2*, intended for debugging purposes.
@@ -417,6 +425,26 @@ Other I/O and Utilities
 .. c:function:: void op_diagnostic_output()
 
    This routine prints diagnostics relating to sets, mappings and datasets.
+
+Runtime Environment Variables
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following environment variables can be set at run time to control OP2 behaviour:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Variable
+     - Description
+   * - ``OP_AUTO_SOA``
+     - Set to ``1`` at *translation* time to force SoA data layout for all datasets. Must be set before invoking the translator, not at runtime.
+   * - ``OP_TIME_THREADS``
+     - Set to ``1`` to break down ``op_timings_to_csv`` output per OpenMP thread (and per thread per rank for MPI+OpenMP).
+   * - ``OP_JIT_MAX_THREADS``
+     - Integer. Caps the maximum number of OpenMP threads used inside JIT-compiled (``c_cuda`` / ``c_hip``) host loops. Useful for tuning thread counts independently of ``OMP_NUM_THREADS``.
+   * - ``OP_FALLBACK_MODE``
+     - Set to ``warn`` or ``error``. When the translator emits a fallback sequential kernel for a loop it cannot fully parallelise, ``warn`` prints a warning at runtime when the fallback executes; ``error`` aborts. Unset by default (fallback runs silently).
 
 ----
 
@@ -553,3 +581,18 @@ Fortran application variants are prefixed with ``f_`` in the Make build system:
      - Distributed-memory MPI variant of any of the above.
 
 For the translator invocation for Fortran sources, see :doc:`translator`.
+
+Timers
+^^^^^^
+
+.. code-block:: fortran
+
+   real(8) :: et
+   call op_timers(et)        ! wall-clock time in seconds (since the Epoch)
+   call op_timing_output()   ! print OP2 per-kernel timing summary to stdout
+
+- ``op_timers(et)`` fills ``et`` with the current wall-clock time in seconds. Call it before and after a region to measure elapsed time.
+- ``op_timing_output()`` prints a per-kernel table identical to the C/C++ :c:func:`op_timing_output`.
+
+.. note::
+   Unlike the C/C++ :c:func:`op_timers`, the Fortran version takes only one argument (the wall-clock time ``et``); the ``cpu`` argument is omitted.
