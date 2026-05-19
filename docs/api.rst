@@ -66,6 +66,19 @@ In looking at the API specification, users may think it is somewhat verbose in p
 OP2 C/C++ API
 -------------
 
+Index Types
+^^^^^^^^^^^
+
+OP2 introduces two typedef aliases for index types to support large-scale meshes with more than 2 billion elements:
+
+.. c:type:: idx_l_t
+
+   Alias for ``int``. Used for *local* (per-process) set sizes and mapping table entries.
+
+.. c:type:: idx_g_t
+
+   Alias for ``long long``. Used for *global* element counts and offsets across all MPI processes.
+
 Initialisation and Termination
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -90,7 +103,7 @@ Initialisation and Termination
 
    This routine must be called last to cleanly terminate the OP2 runtime. Under MPI back-ends, this routine also calls :c:func:`MPI_Finalize()` unless its has been called previously. A runtime error will occur if :c:func:`MPI_Finalize()` is called after :c:func:`op_exit()`.
 
-.. c:function:: op_set op_decl_set(idx_g_t size, char *name)
+.. c:function:: op_set op_decl_set(idx_l_t size, char *name)
 
    This routine declares a set.
 
@@ -98,14 +111,24 @@ Initialisation and Termination
    :param name: A name to be used for output diagnostics.
    :returns: A set ID.
 
-.. c:function:: op_map op_decl_map(op_set from, op_set to, int dim, int *imap, char *name)
+.. c:function:: op_map op_decl_map(op_set from, op_set to, int dim, idx_l_t *imap, char *name)
 
    This routine defines a mapping between sets.
          
    :param from: Source set.
    :param to: Destination set.
    :param dim: Number of mappings per source element.
-   :param imap: Mapping table.
+   :param imap: Mapping table, using local (per-process) indices of type :c:type:`idx_l_t`.
+   :param name: A name to be used for output diagnostics.
+
+.. c:function:: op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap, char *name)
+
+   Equivalent to :c:func:`op_decl_map()` but accepts a mapping table with global indices of type :c:type:`idx_g_t`. Use this variant when the mesh contains more than ``INT_MAX`` elements globally.
+
+   :param from: Source set.
+   :param to: Destination set.
+   :param dim: Number of mappings per source element.
+   :param imap: Mapping table, using global indices of type :c:type:`idx_g_t`.
    :param name: A name to be used for output diagnostics.
 
 .. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat coords)
@@ -323,7 +346,7 @@ MPI without HDF5 I/O
 If you wish to use the MPI executables but don't want to use the OP2 HDF5 support, you may perform your own file I/O and then provide the data to OP2 using the normal routines. The behaviour of these routines under MPI is as follows:
 
 - :c:func:`op_decl_set()`: The **size** parameter is the number of elements provided by this MPI process.
-- :c:func:`op_decl_map()`: The **imap** parameter provides the part of the mapping table corresponding to the processes share of the **from** set.
+- :c:func:`op_decl_map()`: The **imap** parameter provides the part of the mapping table corresponding to the processes share of the **from** set, using local :c:type:`idx_l_t` indices. Use :c:func:`op_decl_map_long()` if global :c:type:`idx_g_t` indices are available instead.
 - :c:func:`op_decl_dat()`: The **data** parameter provides the part of the dataset corresponding to the processes share of the **set** set.
 
 For example if an application has 4 processes, 4M nodes and 16M edges, then each process might be responsible for providing 1M nodes and 4M edges.
@@ -392,7 +415,7 @@ Other I/O and Utilities
    :param set: The set to query.
    :returns: The number of elements in the set across all processes.
 
-.. c:function:: int op_get_global_set_offset(op_set set)
+.. c:function:: idx_g_t op_get_global_set_offset(op_set set)
 
    In an MPI execution, returns the global index offset for the partition of **set** owned by the current rank. That is, the first element owned by this rank has global index ``op_get_global_set_offset(set)``. Returns 0 in non-MPI builds.
 
@@ -469,16 +492,27 @@ Initialisation and Shutdown
 - ``op_init_base`` takes ``diags_level`` as the first argument (same levels as :c:func:`op_init`). Under MPI builds it also calls ``MPI_Init``.
 - ``op_exit`` finalises OP2 and under MPI builds calls ``MPI_Finalize``.
 
+Index Types
+^^^^^^^^^^^
+
+The Fortran equivalents of the C index types are:
+
+- ``integer(4)`` — equivalent to :c:type:`idx_l_t`. Used for local (per-process) set sizes and standard mapping table entries.
+- ``integer(8)`` — equivalent to :c:type:`idx_g_t`. Used for global element counts, offsets, and long mapping table entries.
+
 Declaring Mesh Data
 ^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: fortran
 
-   ! Sets
+   ! Sets (size is integer(4) — local element count)
    call op_decl_set(size, set_handle, "name")
 
-   ! Maps
+   ! Maps with local indices (integer(4) array)
    call op_decl_map(from_set, to_set, dim, imap_array, map_handle, "name")
+
+   ! Maps with global indices (integer(8) array — for meshes > INT_MAX elements)
+   call op_decl_map_long(from_set, to_set, dim, imap_array_long, map_handle, "name")
 
    ! Datasets
    call op_decl_dat(set, dim, "type", data_array, dat_handle, "name")
@@ -491,6 +525,7 @@ Key differences from C/C++:
 - Each declaration takes an **output handle** (``set_handle``, ``map_handle``, ``dat_handle``) as an extra argument to receive the OP2 object.
 - ``op_decl_const`` takes the **data variable first**, followed by ``dim`` and ``"type"`` — the reverse of the C++ argument order.
 - Fortran type strings use Fortran syntax: ``"real(8)"`` (double precision), ``"real(4)"`` (single precision), ``"integer(4)"`` (32-bit integer).
+- Use ``op_decl_map_long`` when the mapping table uses global ``integer(8)`` indices (i.e. the mesh has more than ``2^{31}-1`` elements globally).
 
 HDF5 Variants
 """""""""""""
@@ -555,6 +590,18 @@ Mesh Partitioning
    call op_partition("PARMETIS", "KWAY", prime_set, prime_map, coords_dat)
 
 The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`.
+
+Utility Functions
+^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   integer(8) :: gsize, offset
+   gsize  = op_get_size(set_handle)               ! global element count across all ranks
+   offset = op_get_global_set_offset(set_handle)  ! global index of first element on this rank
+
+- ``op_get_size`` returns ``integer(8)`` — the total number of elements in the set across all MPI processes. Equivalent to :c:func:`op_get_size`.
+- ``op_get_global_set_offset`` returns ``integer(8)`` — the global index of the first element owned by the current MPI rank. Returns 0 in non-MPI builds. Equivalent to :c:func:`op_get_global_set_offset`.
 
 Build Configuration
 ^^^^^^^^^^^^^^^^^^^
