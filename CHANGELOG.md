@@ -34,6 +34,14 @@ Major changes since `v1.1.0` (high-level).
 
 ### API additions and changes
 
+- **Large-mesh global index support (PR #251)**: two typedef aliases introduced for index types:
+  - `idx_l_t` (`int`) — local (per-process) set sizes and mapping-table entries.
+  - `idx_g_t` (`long long`) — global element counts and cross-rank offsets.
+- **`op_decl_set` signature change**: `size` parameter is now `idx_l_t` (was `idx_g_t`); set sizes are always local.
+- **`op_decl_map` signature change**: `imap` parameter is now `idx_l_t *` (was `int *`).
+- **New `op_decl_map_long`**: variant of `op_decl_map` accepting `idx_g_t *` for meshes with global element counts exceeding `INT_MAX`; available in C and Fortran.
+- `op_get_global_set_offset` return type changed from `int` to `idx_g_t`.
+- `SafeLong` debug wrapper (`op2/include/SafeLong.h`, `op2/src/core/SafeLong.cpp`): optional arithmetic overflow/underflow checker for `idx_g_t`, enabled via `-DUSE_SAFELONG`.
 - `op_arg_idx` / `op_arg_info` support in C (previously Fortran only); 2-dim map variant added for Fortran.
 - `op_timing2`: improved timing and instrumentation API (`op2/include/op_timing2.h`).
 - `op_mpi_probe_halo_index`, `op_force_part`: new MPI utility routines.
@@ -58,6 +66,12 @@ Major changes since `v1.1.0` (high-level).
 - Fortran MPI fixes: grouped halo exchanges, tag wrapping for large MPI universes.
 - Timer support added to generated Fortran loop hosts (`c_cuda` and `cuda` Jinja templates): `op_timers` and `op_timing_output` called automatically, enabling per-kernel timing in Fortran applications.
 - Functional tests for Fortran strides added alongside existing `const`, `gbl`, and `dat_reductions` functional test suites.
+- `op_decl_map_long` Fortran binding added; Fortran reduction example updated to use revised map/set API.
+
+### Example applications
+
+- New `apps/c/jac1/longint/`: Jacobi iteration demonstrating large-mesh support with `idx_g_t`/`idx_l_t` types and `op_decl_map_long` under MPI.
+- New `apps/fortran/jac1_long/`: Fortran equivalent of the large-mesh Jacobi demo.
 
 ### Build system
 

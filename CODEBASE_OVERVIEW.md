@@ -112,6 +112,7 @@ OP2-Common/
 | `op_hdf5.h` | Parallel HDF5 I/O API |
 | `op_timing2.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
 | `op_util.h` | Utility functions |
+| `SafeLong.h` | Debug wrapper type `SafeLong` for `idx_g_t` — detects integer overflow/underflow at runtime (enabled via `-DUSE_SAFELONG`) |
 | `fortran/` | Fortran C-interop headers |
 | `extern/` | Bundled external headers (`json.hpp`, `uthash.h`) |
 
@@ -150,17 +151,29 @@ void op_exit(void);
 - `diag_level` controls verbosity: `0` = none, `1` = basic setup info, `2` = more detail, `3+` = verbose diagnostic.
 - `op_exit` finalizes OP2 and (under MPI backends) calls `MPI_Finalize`.
 
+### Index Types
+
+OP2 defines two typedef aliases to support meshes with more than 2 billion elements globally:
+
+| Type | Underlying type | Usage |
+|---|---|---|
+| `idx_l_t` | `int` | Local (per-process) set sizes and mapping-table entries |
+| `idx_g_t` | `long long` | Global element counts and cross-rank offsets |
+
+A debug-only `SafeLong` wrapper (`op2/include/SafeLong.h`) can be substituted for `idx_g_t` by compiling with `-DUSE_SAFELONG`; it instruments arithmetic operations to detect overflow/underflow at runtime.
+
 ### Declaring Mesh Data
 
 ```c
-op_set  op_decl_set(int size, char const *name);
-op_map  op_decl_map(op_set from, op_set to, int dim, int *imap, char const *name);
+op_set  op_decl_set(idx_l_t size, char const *name);
+op_map  op_decl_map(op_set from, op_set to, int dim, idx_l_t *imap, char const *name);
+op_map  op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap, char const *name);
 op_dat  op_decl_dat(op_set set, int dim, char const *type, void *data, char const *name);
 void    op_decl_const(int dim, char const *type, void *dat);
 ```
 
 - **sets** represent mesh entities: cells, nodes, edges, boundary faces, etc.
-- **maps** describe connectivity between two sets (e.g. cell→node).
+- **maps** describe connectivity between two sets (e.g. cell→node). Use `op_decl_map_long` when global element counts exceed `INT_MAX`.
 - **dats** hold data associated with a set (e.g. coordinates on nodes, solution on cells).
 - **consts** expose values globally to all kernel functions.
 
@@ -464,6 +477,7 @@ Mesh files (HDF5 format): available at the links in `docs/examples.rst`.
 |---|---|
 | `apps/c/aero/` | 3D aerodynamics application (`aero_plain`, `aero_hdf5`) |
 | `apps/c/jac1/`, `apps/c/jac2/` | Jacobi iteration on unstructured mesh (dp and sp) |
+| `apps/c/jac1/longint/` | Jacobi iteration demonstrating large-mesh support via `idx_g_t`/`idx_l_t` and `op_decl_map_long` |
 | `apps/c/min/` | Minimal OP2 example |
 | `apps/c/reduction/` | Reduction operations demonstration |
 
@@ -473,6 +487,7 @@ Mesh files (HDF5 format): available at the links in `docs/examples.rst`.
 |---|---|
 | `apps/fortran/airfoil/` | Fortran Airfoil benchmark |
 | `apps/fortran/jac1/` | Fortran Jacobi iteration |
+| `apps/fortran/jac1_long/` | Fortran Jacobi iteration with large-mesh global index support (`op_decl_map_long`) |
 | `apps/fortran/reduction/` | Fortran reduction demo |
 
 ### Mesh Generators
