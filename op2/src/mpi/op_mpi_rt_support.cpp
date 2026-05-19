@@ -50,9 +50,9 @@
 #include <op_mpi_core.h>
 #include <op_rt_support.h>
 
-void op_upload_dat(op_dat dat) {}
+void op_upload_dat(op_dat dat) { (void)dat; }
 
-void op_download_dat(op_dat dat) {}
+void op_download_dat(op_dat dat) {(void)dat;}
 
 /*******************************************************************************
  * Main MPI Halo Exchange Function
@@ -201,7 +201,8 @@ void op_exchange_halo(op_arg *arg, int exec_flag) {
 }
 
 void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
-  // printf("HERE\n");
+  (void)exec_flag;
+
   op_dat dat = arg->dat;
 
   if (arg->opt == 0)
@@ -267,9 +268,15 @@ void op_exchange_halo_partial(op_arg *arg, int exec_flag) {
   }
 }
 
-void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {}
+void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
+  (void)arg;
+  (void)exec_flag;
+}
 
-void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {}
+void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
+  (void)arg;
+  (void)exec_flag;
+}
 
 /*******************************************************************************
  * MPI Halo Exchange Wait-all Function (to complete the non-blocking comms)
@@ -301,7 +308,7 @@ void op_wait_all(op_arg *arg) {
   }
 }
 
-void op_wait_all_cuda(op_arg *arg) {}
+void op_wait_all_cuda(op_arg *arg) {(void)arg;}
 
 void op_partition(const char *lib_name, const char *lib_routine,
                   op_set prime_set, op_map prime_map, op_dat coords) {
@@ -318,11 +325,14 @@ int op_is_root() {
 
 void deviceSync() {}
 
-int op2_grp_size_recv_old = 0;
-int op2_grp_size_send_old = 0;
+size_t op2_grp_size_recv_old = 0;
+size_t op2_grp_size_send_old = 0;
 void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
       char **send_buffer_device, char **recv_buffer_device, int device, 
       size_t size_send, size_t size_recv) {
+  (void)device;
+  (void)send_buffer_device;
+  (void)recv_buffer_device;
   if (op2_grp_size_recv_old < size_recv) {
     *recv_buffer_host = (char*)op_realloc(*recv_buffer_host, size_recv);
     op2_grp_size_recv_old = size_recv;
@@ -333,14 +343,36 @@ void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host,
   }
 }
 
-void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {}
-void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_send) {}
+void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send) {
+  (void)send_buffer_device;
+  (void)send_buffer_host;
+  (void)size_send;
+}
+void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_send) {
+  (void)recv_buffer_device;
+  (void)recv_buffer_host;
+  (void)size_send;
+}
 void op_download_buffer_sync() {}
 void op_gather_record() {}
 void op_scatter_sync() {}
 void op_gather_sync() {}
 #include <vector>
 void gather_data_to_buffer_ptr_cuda(op_arg arg, halo_list eel, halo_list enl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets){}
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets){
+  (void)arg;
+  (void)eel;
+  (void)enl;
+  (void)buffer;
+  (void)neigh_list;
+  (void)neigh_offsets;
+}
 void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl, char *buffer, 
-                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets){}
+                               std::vector<int>& neigh_list, std::vector<size_t>& neigh_offsets) {
+  (void)arg;
+  (void)iel;
+  (void)inl;
+  (void)buffer;
+  (void)neigh_list;
+  (void)neigh_offsets;
+}

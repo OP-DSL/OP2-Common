@@ -153,6 +153,7 @@ void propagate_reordering(op_set from, op_set to,
 void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
                  std::vector<std::vector<int> > &set_ipermutations) {
 
+  (void)set_ipermutations;
   if (set_permutations[set->index].size() == 0 && set->core_size > 0) {
     printf("No reordering for set %s, skipping...\n", set->name);
     return;
@@ -213,7 +214,7 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
   }
 
   //Reorder mapping back to original (unpartitioned indexing)
-  int *new_g_index = (int*)malloc(set->size*sizeof(int));
+  idx_g_t *new_g_index = (idx_g_t*)malloc(set->size*sizeof(idx_g_t));
   for (int i = 0; i < set->size; i++)
     new_g_index[set_permutations[set->index][i]] = OP_part_list[set->index]->g_index[i];
   free(OP_part_list[set->index]->g_index);
@@ -225,8 +226,8 @@ void op_renumber(op_map base) {
   op_printf("OP2 was not compiled with Scotch, no reordering.\n");
 #else
   op_printf("Renumbering using base map %s\n", base->name);
-  int generated_partvec = 0;
 /*
+  int generated_partvec = 0;
   if (FILE *file = fopen("partvec0001_0001", "r")) {
     fclose(file);
     int possible[] = {1,  2,  4,   6,   8,   12,  16,   22,   24,
@@ -318,7 +319,7 @@ void op_renumber(op_map base) {
             base->map[base->dim * loopback[0].b + i];
     }
     int nodectr = 0;
-    for (int i = 1; i < loopback.size(); i++) {
+    for (size_t i = 1; i < loopback.size(); i++) {
       if (loopback[i].a != loopback[i - 1].a) {
         nodectr++;
         row_offsets[nodectr + 1] = row_offsets[nodectr];
@@ -348,10 +349,10 @@ void op_renumber(op_map base) {
            base->from->name, base->from->size);
   }
   //sanity check
-  for (int row = 0; row < row_offsets.size()-1; row++) {
+  for (idx_l_t row = 0; row < (idx_l_t)row_offsets.size()-1; row++) {
     if (row_offsets[row] == row_offsets[row+1]) printf("Zero length row\n");
     for (int col = row_offsets[row]; col < row_offsets[row+1]; col++) {
-      if (col_indices[col]<0 || col_indices[col]>=row_offsets.size()-1)
+      if (col_indices[col]<0 || col_indices[col]>=(idx_l_t)row_offsets.size()-1)
         printf("Error col idx %d, but num rows is %lu\n", col_indices[col],
                row_offsets.size() - 1);
       else {
@@ -507,7 +508,7 @@ extern "C" void op_renumber_ptr(int *ptr) {
   op_map item_map = op_search_map_ptr(ptr);
 
   if (item_map == NULL) {
-    printf("ERROR in op_renumber: op_map not found for %p pointer\n", ptr);
+    printf("ERROR in op_renumber: op_map not found for %p pointer\n", (void*)ptr);
     exit(-1);
   }
 

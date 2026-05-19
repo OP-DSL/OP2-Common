@@ -41,6 +41,7 @@ program reduction
 #endif
 
     call op_init_base(0, 0)
+    call op_timing2_start("Reduction")
 
 #ifndef HDF5
     open(file_id, file = file_name)
@@ -124,6 +125,11 @@ program reduction
         print *, 'Time = ', end_time - start_time, 'seconds'
     end if
 
+    call op_timing2_finish()
+
+    if (op_is_root() == 1) print *
+    call op_timing2_output()
+
     call op_exit()
 
 contains
@@ -132,8 +138,8 @@ contains
 
         implicit none
 
-        real(8), dimension(4) :: res
-        integer(4), dimension(1) :: cell_count_result
+        real(8), dimension(4), intent(out) :: res
+        integer(4), intent(out) :: cell_count_result
 
         integer(4) :: d
 
@@ -149,8 +155,8 @@ contains
 
         implicit none
 
-        real(8), dimension(4) :: res
-        integer(4), dimension(1) :: edge_count_result
+        real(8), dimension(4), intent(out) :: res
+        integer(4), intent(out) :: edge_count_result
 
         integer(4) :: d
 

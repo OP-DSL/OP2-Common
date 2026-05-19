@@ -227,7 +227,7 @@ contains
     implicit none
 
     character(kind=c_char,len=*) :: file_name
-    real*8, dimension(*), target :: data
+    real(8), dimension(*), target :: data
 
     call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name//C_NULL_CHAR)
 
@@ -240,7 +240,7 @@ contains
     implicit none
 
     character(kind=c_char,len=*) :: file_name
-    real*8, dimension(:,:), target :: data
+    real(8), dimension(:,:), target :: data
 
     call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name//C_NULL_CHAR)
 
@@ -255,7 +255,7 @@ contains
     implicit none
 
     character(kind=c_char,len=*) :: file_name
-    integer*4, dimension(*), target :: data
+    integer(4), dimension(*), target :: data
 
     call op_fetch_data_hdf5_file_ptr_c (c_loc(data), file_name//C_NULL_CHAR)
 

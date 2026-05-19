@@ -5,7 +5,7 @@ CONFIG_MPIFC := ftn
 ifndef DEBUG
   BASE_FFLAGS += -g -O3
 else
-  BASE_FFLAGS += -g -Og
+  BASE_FFLAGS += -g -O0
 endif
 
 CONFIG_FFLAGS ?= $(BASE_FFLAGS) $(EXTRA_FFLAGS)
