@@ -8,7 +8,14 @@ on:
       - '.github/workflows/update-op2-apps.yml'
     branches:
       - 'master'
-
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'translator/**'
+      - 'makefiles/*_app.mk'
+      - '.github/workflows/update-op2-apps.yml'
+    branches:
+      - master
 jobs:
   update-op2-apps:
     runs-on: ubuntu-latest

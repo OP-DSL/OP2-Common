@@ -1,7 +1,7 @@
 # OP2
 OP2 is a high-level embedded domain specific language for writing **unstructured mesh** algorithms with automatic parallelisation on multi-core and many-core architectures. The API is embedded in both C/C++ and Fortran.
 
-[![Airfoil](https://github.com/OP-DSL/OP2-Common/actions/workflows/airfoil.yml/badge.svg)](https://github.com/OP-DSL/OP2-Common/actions/workflows/airfoil.yml)
+[![CI](https://github.com/OP-DSL/OP2-Common/actions/workflows/local_ci.yml/badge.svg)](https://github.com/OP-DSL/OP2-Common/actions/workflows/local_ci.yml)
 [![Documentation Status](https://readthedocs.org/projects/op2-dsl/badge/?version=latest)](https://op2-dsl.readthedocs.io/en/latest/?badge=latest)
 
 This repository contains the implementation of the code translation tools and run-time support libraries, and is structured as follows:
