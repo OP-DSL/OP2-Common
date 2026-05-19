@@ -1,0 +1,177 @@
+/* Custom theme overrides — pleasant, accessible color palette */
+:root {
+    --doc-bg: #f5f7fb;
+    --content-bg: #ffffff;
+    --text-color: #0f1724;
+    --muted: #5b616b;
+    --accent: #00797a;
+    --accent-dark: #005b57;
+    --heading: #0b2a6f;
+    --sidebar-bg: #f0f4f8;
+    --code-bg: #f7fafc;
+    --border: #dfe6ee;
+}
+
+/* Page background and base text color */
+body {
+    background-color: var(--doc-bg);
+    color: var(--text-color);
+    /* Reduce overall font size by ~1pt */
+    font-size: calc(100% - 1.5pt);
+}
+
+/* Main content area stays white for good contrast */
+.document, .rst-content, .wy-nav-content {
+    background-color: var(--content-bg);
+}
+
+/* Headings: deeper indigo for a crisp, friendly look and extra spacing */
+.rst-content h1, .rst-content h2, .rst-content h3, .rst-content h4, .rst-content h5, .rst-content h6 {
+    color: var(--heading);
+    font-weight: 600;
+    line-height: 1.25;
+    margin-top: 1.4rem;
+    margin-bottom: 1.2rem;
+}
+.rst-content h1 { margin-top: 2rem; margin-bottom: 1.6rem; }
+.rst-content h2 { margin-top: 1.6rem; margin-bottom: 1.3rem; }
+.rst-content h3 { margin-top: 1.3rem; margin-bottom: 1.1rem; }
+
+/* Add spacing between sections to reduce crowding */
+.rst-content .section { margin-bottom: 1.8rem; }
+
+/* Apply spacing rules broadly so they affect all pages */
+article#furo-main-content h1, article#furo-main-content h2, article#furo-main-content h3,
+.document h1, .document h2, .document h3,
+.content h1, .content h2, .content h3 {
+    color: var(--heading);
+    font-weight: 600;
+    line-height: 1.25;
+    margin-top: 1.4rem;
+    margin-bottom: 1.2rem;
+}
+article#furo-main-content h1 { margin-top: 2rem; margin-bottom: 1.6rem; }
+article#furo-main-content h2 { margin-top: 1.6rem; margin-bottom: 1.3rem; }
+article#furo-main-content h3 { margin-top: 1.3rem; margin-bottom: 1.1rem; }
+
+/* Ensure sections outside .rst-content also have spacing */
+article .section, .document .section, .content .section { margin-bottom: 1.8rem; }
+
+/* Links and accents */
+a {
+    color: var(--accent);
+    text-decoration: none;
+    transition: color .12s ease-in-out;
+}
+a:hover, a:focus {
+    color: var(--accent-dark);
+    text-decoration: underline;
+}
+
+/* Sidebar / navigation */
+.wy-nav-side, .sphinxsidebar {
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+}
+.wy-side-nav-search input {
+    background-color: #fff;
+    border: 1px solid var(--border);
+}
+
+/* Code blocks and inline code */
+.highlight pre, .literal-block, pre[class*="language-"] {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    color: var(--text-color);
+    padding: 0.75rem;
+    border-radius: 6px;
+    overflow: auto;
+}
+code, kbd {
+    background: #eef2f5;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    color: var(--text-color);
+}
+
+/* Tables */
+.docutils table, table.docutils {
+    border-collapse: collapse;
+}
+.docutils th {
+    background: linear-gradient(180deg, rgba(10,10,10,0.02), rgba(10,10,10,0));
+    color: var(--heading);
+}
+
+/* Admonitions */
+.admonition, .note, .warning, .admonition-title {
+    border-left: 4px solid var(--accent);
+    background: linear-gradient(180deg,#fff,#fbfdfe);
+    padding: .5rem .75rem;
+}
+
+/* Small UI polish */
+hr { border-color: var(--border); }
+.toctree-l1 > a { color: var(--text-color); }
+a.reference.internal { color: var(--accent); }
+
+/* Increase spacing between headings and following topics/toctrees */
+.toctree-wrapper { margin-bottom: 2rem; }
+.toctree-wrapper ul { margin-top: 0.8rem; margin-bottom: 1.25rem; }
+.toctree-l1 { margin-bottom: 1rem; }
+
+/* Improve readability for smaller screens */
+@media (max-width: 800px) {
+    .wy-nav-side { display: none; }
+}
+
+/* Sidebar logo: place the provided image under the sidebar brand/title */
+.sidebar-brand {
+    position: relative;
+    padding-bottom: 8px;
+}
+.sidebar-brand::before {
+    content: "";
+    display: block;
+    width: 206px;
+    height: 56px;
+    margin-top: 8px;
+    background-image: url('https://op-dsl.github.io/images/op-dsl_logo_small.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(11,19,32,0.12);
+    pointer-events: auto;
+}
+
+/* Hide decorative logo when printing or on small screens */
+@media print {
+    .sidebar-brand::after { display: none !important; }
+}
+@media (max-width: 800px) {
+    .sidebar-brand::after { display: none !important; }
+}
+
+/* Responsive video container for embedded YouTube */
+.video-container {
+    position: relative;
+    width: 100%;
+    max-width: 840px;
+    margin: 1rem 0 1.5rem 0;
+    padding-bottom: 56.25%; /* 16:9 */
+    height: 0;
+    overflow: hidden;
+}
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+@media (max-width: 600px) {
+    .video-container { max-width: 100%; margin: 0.75rem 0 1rem 0; }
+}

@@ -20,7 +20,7 @@ OP2 currently enables users to write a single program at a high-level API declar
 Further to these there are also in-development versions that can emit SYCL and AMD HIP for parallelization on a wider range of GPUs. All of the above can be combined with distributed-memory MPI parallelization to run of clusters of CPU or GPU nodes. The user can either use OP2’s parallel file I/O capabilities for HDF5 files with a specified structure, or perform their own parallel file I/O using custom MPI code.
 
 .. note::
-   This documentation describes the C++ API, but FORTRAN 90 is also supported with a very similar API.
+   This page documents the C/C++ API. See :ref:`op2-fortran-api` for the equivalent Fortran API.
 
 A computational project can be viewed as involving three steps:
 
@@ -60,6 +60,8 @@ To achieve the high performance for large applications, a code-generator is need
    Build process for an OpenMP accelerated executable.
 
 In looking at the API specification, users may think it is somewhat verbose in places. For example, users have to re-supply information about the datatype of the datasets being used in a parallel loop. This is a deliberate choice to simplify the task of the code-generator, and therefore hopefully reduce the chance for errors. It is also motivated by the thought that "programming is easy; it’s debugging which is difficult": writing code isn’t time-consuming, it’s correcting it which takes the time. Therefore, it’s not unreasonable to ask the programmer to supply redundant information, but be assured that the code-generator or library will check that all redundant information is self-consistent. If you declare a dataset as being of type :c:type:`OP_DOUBLE` and later say that it is of type :c:type:`OP_FLOAT` this will be flagged up as an error at run-time.
+
+.. _op2-c-api:
 
 OP2 C/C++ API
 -------------
@@ -111,8 +113,8 @@ Initialisation and Termination
    This routine controls the partitioning of the sets used for distributed memory parallel execution.
 
    :param lib_name: The partitioning library to use, see below.
-   :param lib_routine: The partitioning algorithm to use. Required if using :c:expr:`"PTSCOTCH"`, :c:expr:`"PARMETIS"` or https://kahip.github.io/ as the **lib_name**.
-   :param prime_set: Specifies the set to be partitioned.
+   :param lib_routine: The partitioning algorithm to use.
+   :param prime_set: Specifies the primary set to be partitioned.
    :param prime_map: Specifies the map to be used to create adjacency lists for the **prime_set**. Required if using :c:expr:`"KWAY"` or :c:expr:`"GEOMKWAY"`.
    :param coords: Specifies the geometric coordinates of the **prime_set**. Required if using :c:expr:`"GEOM"` or :c:expr:`"GEOMKWAY"`.
 
@@ -155,7 +157,7 @@ Initialisation and Termination
 
    :param set: The set the data is associated with.
    :param dim: Number of data elements per set element.
-   :param type: The datatype as a string, as with :c:func:`op_decl_const()`. A qualifier may be added to control data layout - see :ref:`api:Dataset Layout`.
+   :param type: The datatype as a string, as with :c:func:`op_decl_const()`. A qualifier may be added to control data layout - see :ref:`dataset-layout`.
    :param data: Input data of type :c:type:`T` (checked for consistency with **type** at run-time). The data must be provided in AoS form with each of the **dim** elements per set element contiguous in memory.
    :param name: A name to be used for output diagnostics.
 
@@ -171,6 +173,8 @@ Initialisation and Termination
    This routine releases a temporary dataset defined with :c:func:`op_decl_dat_temp()`
 
    :param dat: The dataset to free.
+
+.. _dataset-layout:
 
 Dataset Layout
 ^^^^^^^^^^^^^^
@@ -207,6 +211,10 @@ Parallel Loops
    - :c:data:`OP_INC`: Global reduction to compute a sum.
    - :c:data:`OP_MAX`: Global reduction to compute a maximum.
    - :c:data:`OP_MIN`: Global reduction to compute a minimum.
+   - :c:data:`OP_WORK`: Per-thread scratch space initialized with user-defined array values.
+
+   .. note::
+      :c:data:`OP_WORK` is similar to :c:data:`OP_READ`, but is intended for cases where per-thread work arrays are too large to sensibly fit in GPU register space.
 
 .. c:function:: op_arg op_arg_dat(op_dat dat, int idx, op_map map, int dim, char *type, op_access acc)
 
@@ -253,6 +261,28 @@ Parallel Loops
    This routine is equivalent to :c:func:`op_arg_dat()` except for an extra **flag** parameter that governs whether the argument will be used (non-zero) or not (zero). This is intended to ease development of large application codes where many features may be enabled or disabled based on flags.
 
    The argument must not be dereferenced in the user kernel if **flag** is set to zero. If the value of the flag needs to be passed to the kernel then use an additional :c:func:`op_arg_gbl()` argument.
+
+.. c:function:: op_arg op_arg_idx(int idx, op_map map)
+
+   This routine is used to provide the (global) index mapping information to be used within a kernel function. 
+   
+   :param idx: The per-set-element index into the map to use. You may pass a -1 if the identity mapping is used.
+   :param map: The mapping to use. Pass :c:data:`OP_ID` for the identity mapping if no mapping indirection is required.
+
+.. c:function:: op_arg op_arg_info(T *data, int dim, char *type, int ref)
+
+   This routine is used with argmin/argmax operations to determine the (global) index at which the minimum or maximum value occurs. It is intended to be used in conjunction with :c:func:`op_arg_idx`.
+   The value provided through this argument (for example, the coordinates of the current node) is returned from the location where the corresponding minimum or maximum is found.
+
+   This is a C++ template function; the element size is deduced automatically from the type ``T``.
+
+   :param data: The data to be associated with the index returned by the argmin/argmax operation.
+   :param dim: The number of data elements.
+   :param type: The datatype, specified as a string, as with :c:func:`op_decl_const()`.
+   :param ref: Reference index.
+
+   .. warning::
+      This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types.
 
 HDF5 I/O
 ^^^^^^^^
@@ -362,6 +392,13 @@ Other I/O and Utilities
    :param set: The set to query.
    :returns: The number of elements in the set across all processes.
 
+.. c:function:: int op_get_global_set_offset(op_set set)
+
+   In an MPI execution, returns the global index offset for the partition of **set** owned by the current rank. That is, the first element owned by this rank has global index ``op_get_global_set_offset(set)``. Returns 0 in non-MPI builds.
+
+   :param set: The set to query.
+   :returns: The global element offset for the current MPI rank.
+
 .. c:function:: void op_dump_to_hdf5(const char *file_name)
 
    This routine dumps the contents of all :c:type:`op_set`\ s, :c:type:`op_dat`\ s and :c:type:`op_map`\ s to an HDF5 file *as held internally by OP2*, intended for debugging purposes.
@@ -388,3 +425,174 @@ Other I/O and Utilities
 .. c:function:: void op_diagnostic_output()
 
    This routine prints diagnostics relating to sets, mappings and datasets.
+
+Runtime Environment Variables
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following environment variables can be set at run time to control OP2 behaviour:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Variable
+     - Description
+   * - ``OP_AUTO_SOA``
+     - Set to ``1`` at *translation* time to force SoA data layout for all datasets. Must be set before invoking the translator, not at runtime.
+   * - ``OP_TIME_THREADS``
+     - Set to ``1`` to break down ``op_timings_to_csv`` output per OpenMP thread (and per thread per rank for MPI+OpenMP).
+   * - ``OP_JIT_MAX_THREADS``
+     - Integer. Caps the maximum number of OpenMP threads used inside JIT-compiled (``c_cuda`` / ``c_hip``) host loops. Useful for tuning thread counts independently of ``OMP_NUM_THREADS``.
+   * - ``OP_FALLBACK_MODE``
+     - Set to ``warn`` or ``error``. When the translator emits a fallback sequential kernel for a loop it cannot fully parallelise, ``warn`` prints a warning at runtime when the fallback executes; ``error`` aborts. Unset by default (fallback runs silently).
+
+----
+
+.. _op2-fortran-api:
+
+OP2 Fortran 90 API
+------------------
+
+The Fortran 90 API mirrors the C/C++ API closely. The same concepts — sets, maps, dats, constants, and parallel loops — apply directly. This section documents the key differences in calling convention and type syntax.
+
+.. note::
+   A complete worked example using the Fortran API can be found in :gh-blob:`apps/fortran/airfoil/airfoil.F90`.
+
+Initialisation and Shutdown
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   call op_init_base(diags_level, 0)
+   call op_exit()
+
+- ``op_init_base`` takes ``diags_level`` as the first argument (same levels as :c:func:`op_init`). Under MPI builds it also calls ``MPI_Init``.
+- ``op_exit`` finalises OP2 and under MPI builds calls ``MPI_Finalize``.
+
+Declaring Mesh Data
+^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   ! Sets
+   call op_decl_set(size, set_handle, "name")
+
+   ! Maps
+   call op_decl_map(from_set, to_set, dim, imap_array, map_handle, "name")
+
+   ! Datasets
+   call op_decl_dat(set, dim, "type", data_array, dat_handle, "name")
+
+   ! Global constants
+   call op_decl_const(data_variable, dim, "type")
+
+Key differences from C/C++:
+
+- Each declaration takes an **output handle** (``set_handle``, ``map_handle``, ``dat_handle``) as an extra argument to receive the OP2 object.
+- ``op_decl_const`` takes the **data variable first**, followed by ``dim`` and ``"type"`` — the reverse of the C++ argument order.
+- Fortran type strings use Fortran syntax: ``"real(8)"`` (double precision), ``"real(4)"`` (single precision), ``"integer(4)"`` (32-bit integer).
+
+HDF5 Variants
+"""""""""""""
+
+.. code-block:: fortran
+
+   call op_decl_set_hdf5(size_out, set_handle, file_name, "name")
+   call op_decl_map_hdf5(from_set, to_set, dim, map_handle, file_name, "name", stat)
+   call op_decl_dat_hdf5(set, dim, dat_handle, "type", file_name, "name", stat)
+
+Parallel Loops
+^^^^^^^^^^^^^^
+
+In the Fortran API the parallel loop call is named with the number of arguments:
+
+.. code-block:: fortran
+
+   call op_par_loop_N(kernel_subroutine, iteration_set, &
+       op_arg_dat(dat, idx, map, dim, "type", access), &
+       ...)
+
+- ``N`` is the total number of ``op_arg_dat`` / ``op_arg_gbl`` arguments passed.
+- The kernel is passed as a **subroutine reference**.
+- ``op_arg_dat`` and ``op_arg_gbl`` have the same signature as in C/C++, using the same ``OP_READ``, ``OP_WRITE``, ``OP_RW``, ``OP_INC``, ``OP_ID`` constants.
+
+Example from the Fortran Airfoil benchmark:
+
+.. code-block:: fortran
+
+   ! Direct loop (2 arguments)
+   call op_par_loop_2(save_soln, cells, &
+       op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)", OP_READ),  &
+       op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)", OP_WRITE))
+
+   ! Indirect loop (8 arguments)
+   call op_par_loop_8(res_calc, edges, &
+       op_arg_dat(p_x,   1, pedge,  2, "real(8)", OP_READ), &
+       op_arg_dat(p_x,   2, pedge,  2, "real(8)", OP_READ), &
+       op_arg_dat(p_q,   1, pecell, 4, "real(8)", OP_READ), &
+       op_arg_dat(p_q,   2, pecell, 4, "real(8)", OP_READ), &
+       op_arg_dat(p_adt, 1, pecell, 1, "real(8)", OP_READ), &
+       op_arg_dat(p_adt, 2, pecell, 1, "real(8)", OP_READ), &
+       op_arg_dat(p_res, 1, pecell, 4, "real(8)", OP_INC),  &
+       op_arg_dat(p_res, 2, pecell, 4, "real(8)", OP_INC))
+
+   ! Loop with global reduction (8 arguments, including op_arg_gbl)
+   call op_par_loop_8(update, cells, &
+       op_arg_dat(p_qold, -1, OP_ID, 4, "real(8)", OP_READ),  &
+       op_arg_dat(p_q,    -1, OP_ID, 4, "real(8)", OP_WRITE), &
+       op_arg_dat(p_res,  -1, OP_ID, 4, "real(8)", OP_RW),    &
+       op_arg_dat(p_adt,  -1, OP_ID, 1, "real(8)", OP_READ),  &
+       op_arg_gbl(rms, 1, "real(8)", OP_INC))
+
+.. note::
+   ``op_par_loop_N`` is defined for each value of N used in the application. The OP2 Fortran library provides pre-built stubs for common arities, but the code translator generates the correct loop host for each kernel.
+
+Mesh Partitioning
+^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   call op_partition("PARMETIS", "KWAY", prime_set, prime_map, coords_dat)
+
+The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`.
+
+Build Configuration
+^^^^^^^^^^^^^^^^^^^
+
+Fortran application variants are prefixed with ``f_`` in the Make build system:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Target
+     - Description
+   * - ``f_seq``
+     - Sequential Fortran build.
+   * - ``f_openmp``
+     - OpenMP multi-threaded Fortran build.
+   * - ``f_cuda``
+     - Native CUDA Fortran build (requires NVHPC).
+   * - ``f_c_cuda``
+     - Fortran + C CUDA JIT build (recommended GPU target).
+   * - ``f_c_hip``
+     - Fortran + C HIP JIT build.
+   * - ``f_mpi_<variant>``
+     - Distributed-memory MPI variant of any of the above.
+
+For the translator invocation for Fortran sources, see :doc:`translator`.
+
+Timers
+^^^^^^
+
+.. code-block:: fortran
+
+   real(8) :: et
+   call op_timers(et)        ! wall-clock time in seconds (since the Epoch)
+   call op_timing_output()   ! print OP2 per-kernel timing summary to stdout
+
+- ``op_timers(et)`` fills ``et`` with the current wall-clock time in seconds. Call it before and after a region to measure elapsed time.
+- ``op_timing_output()`` prints a per-kernel table identical to the C/C++ :c:func:`op_timing_output`.
+
+.. note::
+   Unlike the C/C++ :c:func:`op_timers`, the Fortran version takes only one argument (the wall-clock time ``et``); the ``cpu`` argument is omitted.

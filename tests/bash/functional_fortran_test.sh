@@ -15,6 +15,7 @@ TEST_CONSTS=${TEST_CONSTS:-TRUE}
 TEST_DAT_REDUC=${TEST_DAT_REDUC:-TRUE}
 TEST_ARG_GBL=${TEST_ARG_GBL:-TRUE}
 TEST_STRIDES=${TEST_STRIDES:-TRUE}
+TEST_ARG_IDX=${TEST_ARG_IDX:-TRUE}
 
 source ./test_core.sh
 
@@ -191,6 +192,47 @@ if [[ "$TEST_STRIDES" = "TRUE" ]]; then
         validate "mpirun -np 4" "stride_tests_soa_par_mpi_c_cuda" "" "passed"
         validate "" "stride_tests_soa_seq" "" "passed"
         validate "" "stride_tests_soa_genseq" "" "passed"
+    fi
+fi
+
+# Compile and run arg idx tests ------------------------------------------------------
+if [[ "$TEST_ARG_IDX" = "TRUE" ]]; then
+
+    cd $SCRIPT_RUN_LOC/../functional/idx_fortran
+
+    if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
+        echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        
+        make clean; 
+        make;
+    fi
+
+    if [[ "$RUN_TESTS" = "TRUE" ]]; then
+        echo "Running tests on App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+
+        validate "OMP_NUM_THREADS=6" "idx_tests_openmp" "" "passed"
+        validate "" "idx_tests_c_cuda" "" "passed"
+        # validate "mpirun -np 8" "idx_tests_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "idx_tests_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "idx_tests_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "idx_tests_par_mpi_c_cuda" "" "passed"
+        # validate "" "idx_tests_seq" "" "passed"
+        validate "" "idx_tests_genseq" "" "passed"
+
+        # validate "" "idx_tests_cuda" "" "passed"
+        # validate "mpirun -np 4" "idx_tests_par_mpi_cuda" "" "passed"
+        # validate "" "idx_tests_soa_cuda" "" "passed"
+        # validate "mpirun -np 4" "idx_tests_soa_par_mpi_cuda" "" "passed"
+
+        validate "OMP_NUM_THREADS=6" "idx_tests_soa_openmp" "" "passed"
+        validate "" "idx_tests_soa_c_cuda" "" "passed"
+        # validate "mpirun -np 8" "idx_tests_soa_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "idx_tests_soa_par_mpi_genseq" "" "passed"
+        validate "OMP_NUM_THREADS=6 mpirun -np 8" "idx_tests_soa_par_mpi_openmp" "" "passed"
+        validate "mpirun -np 4" "idx_tests_soa_par_mpi_c_cuda" "" "passed"
+        # validate "" "idx_tests_soa_seq" "" "passed"
+        validate "" "idx_tests_soa_genseq" "" "passed"
     fi
 fi
 

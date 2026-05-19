@@ -83,7 +83,7 @@ arg{{arg.id}}_idx
 
 {% macro map_lookup(arg) -%}
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
-    {{-(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
+    {{-(" * %d" % lh.dat(arg).dim) if arg is not idx and lh.dat(arg) is not soa}}
 {%- endmacro %}
 
 {%- macro arg_to_pointer_cuda(arg, jit = false) %}
@@ -306,11 +306,11 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
 
     {% if lh.args|idx|direct|length > 0 %}
-        int idx = n + 1;
+        int idx = n;
     {% endif %}
 
     {% for arg in lh.args|idx|indirect %}
-        int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
+        int idx{{arg.id}} = {{map_lookup(arg)}};
     {% endfor %}
 
         op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(

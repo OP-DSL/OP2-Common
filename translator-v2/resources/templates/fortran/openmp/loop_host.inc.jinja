@@ -1,8 +1,10 @@
 {%- macro arg_to_pointer(arg, rank1_as_scalar=false) -%}
     {%- if arg is gbl -%}
 gbl{{arg.id}}
+    {%- elif arg is idx and arg is indirect -%}
+map{{arg.map_id}}({{arg.map_idx}}, n + 1) + 1
     {%- elif arg is idx -%}
-n
+n + 1
     {%- elif arg is info -%}
 info{{arg.id}}
     {%- elif arg is direct -%}
@@ -14,7 +16,7 @@ dat{{arg.dat_id}}({{"1" if lh.dat(arg).dim == 1 and rank1_as_scalar else ":"-}}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer_local(arg, rank1_as_scalar=false) -%}
-    {%- if arg is indirect or (arg is gbl and arg is reduction) -%}
+    {%- if (arg is dat and arg is indirect) or (arg is gbl and arg is reduction) -%}
 arg{{arg.id}}_local(lane, 1)
     {%- elif arg is info -%}
 info{{arg.id}}_local(lane, 1)
@@ -91,6 +93,9 @@ subroutine {{lh.kernel}}_wrapper2( &
     implicit none
 
     ! parameters
+{% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.arg_id}}_dim
+{% endfor %}
 {% for dat in lh.dats %}
     {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
@@ -113,7 +118,7 @@ subroutine {{lh.kernel}}_wrapper2( &
 {% if vectorise %}
     integer(4) :: block, lane, d
 
-    {% for arg in lh.args|indirect %}
+    {% for arg in lh.args|dat|indirect %}
     {{lh.dat(arg).typ}}, dimension(SIMD_LEN, {{lh.dat(arg).dim}}) :: arg{{arg.id}}_local
     {% endfor %}
     {% for arg in lh.args|gbl|reduction %}
@@ -132,7 +137,7 @@ subroutine {{lh.kernel}}_wrapper2( &
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-    {% for arg in lh.args|indirect if arg is read or arg is read_write %}
+    {% for arg in lh.args|dat|indirect if arg is read or arg is read_write %}
             arg{{arg.id}}_local(lane, :) = {{arg_to_pointer(arg)}}
     {% endfor %}
     {% for arg in lh.args|gbl|reduction if arg is not inc %}
@@ -155,7 +160,7 @@ subroutine {{lh.kernel}}_wrapper2( &
         do lane = 1, SIMD_LEN
             n = block + lane - 1
 
-    {% for arg in lh.args|indirect if arg is not read %}
+    {% for arg in lh.args|dat|indirect if arg is not read %}
             {{arg_to_pointer(arg)}} = {{"%s + " % arg_to_pointer(arg) if arg is inc}}arg{{arg.id}}_local(lane, :)
     {% endfor %}
     {% for arg in lh.args|gbl|reduction %}
@@ -470,7 +475,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     num_dats_indirect = {{lh.dats|indirect(lh)|length}}
     dats_indirect = (/
     {%- for arg in lh.args -%}
-        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is indirect else "-1"}}
+        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is dat and arg is indirect else "-1"}}
         {{-", " if not loop.last}}
     {%- endfor -%}
     /)

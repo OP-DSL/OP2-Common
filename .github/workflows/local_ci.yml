@@ -39,6 +39,7 @@ jobs:
         run: |
           echo "Machine: $(hostname)"
           echo "PWD: $(pwd)"
+          git status
 
       # 3. Configure OP2 ---------------------------------------
       - name: Configure OP2
