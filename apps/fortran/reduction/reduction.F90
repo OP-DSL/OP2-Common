@@ -29,8 +29,6 @@ program reduction
     type(op_map) :: pecell
     type(op_dat) :: p_res, p_dummy
 
-    real(kind = c_double) :: start_time, end_time
-
     integer(4) :: i, cell_count_result, edge_count_result
 
 #ifndef HDF5
@@ -90,7 +88,6 @@ program reduction
 #endif
 
     call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_dummy)
-    call op_timers(start_time)
 
     ncell_total = op_get_size(cells)
     nedge_total = op_get_size(edges)
@@ -106,8 +103,6 @@ program reduction
         op_arg_dat(p_res, 1, pecell, 4, "real(8)", OP_RW), &
         op_arg_gbl(edge_count_result, 1, "integer(4)", OP_INC))
 
-    call op_timers(end_time)
-    call op_timing_output()
 
     if (op_is_root() == 1) then
         print *
@@ -122,7 +117,6 @@ program reduction
         end if
 
         print *
-        print *, 'Time = ', end_time - start_time, 'seconds'
     end if
 
     call op_profile_end()

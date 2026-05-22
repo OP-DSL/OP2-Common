@@ -63,6 +63,7 @@ double alpha;
 
 #include "op_lib_mpi.h"
 #include "op_seq.h"
+#include <op_profile.h>
 
 //
 // kernel routines for parallel loops
@@ -151,7 +152,6 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   // timer
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   int *pp;
   double *A, *r, *u, *du;
@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
   op_partition("PARMETIS", "KWAY", edges, ppedge, NULL);
 
   // initialise timers for total execution wall time
-  op_timers(&cpu_t1, &wall_t1);
+  op_profile_start("JAC");
 
   // main iteration loop
 
@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
     op_printf("\n u max/rms = %f %f \n\n", u_max, sqrt(u_sum / g_nnode));
   }
 
-  op_timers(&cpu_t2, &wall_t2);
+  op_profile_end();
 
   // get results data array
   op_fetch_data(p_u, u);
@@ -321,10 +321,9 @@ int main(int argc, char **argv) {
   printf("\n");
 
   // print each mpi process's timing info for each kernel
-  op_timing_output();
+  op_profile_output();
 
   // print total time for niter interations
-  op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
 
   // gather results from all ranks and check
   double *ug = (double *)malloc(sizeof(double) * op_get_size(nodes));

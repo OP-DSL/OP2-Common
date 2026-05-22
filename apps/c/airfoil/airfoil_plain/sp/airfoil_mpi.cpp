@@ -63,6 +63,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_lib_mpi.h"
 #include "op_seq.h"
+#include <op_profile.h>
 
 //
 // kernel routines for parallel loops
@@ -153,7 +154,6 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
   // timer
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   int *becell, *ecell, *bound, *bedge, *edge, *cell;
   float *x, *q, *qold, *adt, *res;
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
 
   /**------------------------BEGIN I/O and PARTITIONING -------------------**/
 
-  op_timers(&cpu_t1, &wall_t1);
+  op_profile_start("Airfoil");
 
   /* read in grid from disk on root processor */
   FILE *fp;
@@ -309,9 +309,6 @@ int main(int argc, char **argv) {
     free(g_res);
   }
 
-  op_timers(&cpu_t2, &wall_t2);
-  op_printf("Max total file read time = %f\n", wall_t2 - wall_t1);
-
   /**------------------------END I/O and PARTITIONING -----------------------**/
 
   // declare sets, pointers, datasets and global constants
@@ -359,7 +356,6 @@ int main(int argc, char **argv) {
   op_partition("PTSCOTCH", "KWAY", NULL, pecell, p_x);
 
   // initialise timers for total execution wall time
-  op_timers(&cpu_t1, &wall_t1);
 
   niter = 1000;
   for (int iter = 1; iter <= niter; iter++) {
@@ -432,7 +428,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  op_timers(&cpu_t2, &wall_t2);
+  op_profile_end();
 
   // get results data array - perhaps can be later handled by a remporary dat
   // op_dat temp = op_mpi_get_data(p_q);
@@ -441,9 +437,8 @@ int main(int argc, char **argv) {
   // print_dat_tofile(temp, "out_grid.dat"); //ASCI
   // print_dat_tobinfile(temp, "out_grid.bin"); //Binary
 
-  op_timing_output();
+  op_profile_output();
 
   // print total time for niter interations
-  op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
   op_exit();
 }

@@ -55,6 +55,7 @@ float gam, gm1, cfl, eps, mach, alpha, qinf[4];
 //
 
 #include "op_seq.h"
+#include <op_profile.h>
 
 //
 // kernel routines for parallel loops
@@ -79,7 +80,6 @@ int main(int argc, char **argv) {
   float rms;
 
   // timer
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // read in grid
 
@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
   op_diagnostic_output();
 
   // initialise timers for total execution wall time
-  op_timers(&cpu_t1, &wall_t1);
+  op_profile_start("Airfoil");
 
   // main time-marching loop
 
@@ -291,9 +291,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  op_timers(&cpu_t2, &wall_t2);
-  op_timing_output();
-  op_printf("Max total runtime = %f\n", wall_t2 - wall_t1);
+  op_profile_end();
+  op_profile_output();
 
   op_exit();
 }
