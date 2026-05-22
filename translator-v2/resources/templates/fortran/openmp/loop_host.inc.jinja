@@ -461,8 +461,6 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% for arg in lh.args|info %}
     {{arg.typ}}, pointer, dimension(:) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
-    real(8) :: start_time, end_time
-    real(4) :: transfer
 {% for dat in lh.dats if dat.dim is none %}
 
     dat{{dat.arg_id}}_dim = arg{{dat.arg_id}}%dim
@@ -480,8 +478,12 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {%- endfor -%}
     /)
 
-    call op_timers_core(start_time)
+    call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{variant_str()}}")
+
+    call op_profile_enter("MPI Exchanges")
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+
+    call op_profile_next("Computation")
 
 {% for dat in lh.dats %}
     call c_f_pointer(arg{{dat.arg_id}}%data, dat{{dat.id}}, (/{{dat_dim_w(dat)}}, getsetsizefromoparg(arg{{dat.arg_id}})/))
@@ -520,6 +522,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         dats_indirect &
     )
 
+    call op_profile_next("MPI Wait")
     if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
         call op_mpi_wait_all(size(args), args)
     end if
@@ -527,13 +530,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% for arg in lh.args|gbl|reduction %}
     call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{arg.id}}, arg{{arg.id}}%data){{"\n" if loop.last}}
 {% endfor %}
+    call op_profile_exit()
+
     call op_mpi_set_dirtybit(size(args), args)
-    call op_timers_core(end_time)
-
-    ! todo: review kernel transfer calculation
-    transfer = 0.0
-
-    call setkerneltime({{kernel_idx}}, name // c_null_char, end_time - start_time, transfer, 0.0, 1)
+    call op_profile_exit()
 end subroutine
 
 end module

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <extern/rapidhash.h>
-// #include <op_timing2.h>
+#include <op_profile.h>
 #include <op_gpu_shims.h>
 
 #include <array>
@@ -528,13 +528,13 @@ public:
 
     void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {
         if (kernel == nullptr) {
-            // op_timing2_next("Offline Kernel");
+            op_profile_next("Offline Kernel");
             invoke_offline(num_blocks, block_size, args);
 
             return;
         }
 
-        // op_timing2_next("JIT Kernel");
+        op_profile_next("JIT Kernel");
         kernel->invoke(num_blocks, block_size, args_jit);
     }
 };

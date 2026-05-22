@@ -246,8 +246,11 @@ void {{lh.name}}_wrapper(
     {% else %}
     int block_offset = 0;
     for (int col = 0; col < plan->ncolors; ++col) {
-        if (col == plan->ncolors_core)
+        if (col == plan->ncolors_core) {
+            op_profile_next("MPI Wait");
             op_mpi_wait_all(num_args_expanded, args_expanded);
+            op_profile_next("Computation");
+        }
 
         int num_blocks = plan->ncolblk[col];
 
@@ -312,6 +315,7 @@ void {{lh.name}}_wrapper(
 
 {% block host_epilogue %}
     {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
+    op_profile_next("MPI Wait");
     if (set_size == set->core_size)
         op_mpi_wait_all(num_args_expanded, args_expanded);
 
@@ -338,10 +342,17 @@ void {{lh.name}}_wrapper(
             {% endfor %}
 
     {% endif %}
+    {% if lh.args|gbl|reduction|length > 0 %}
+    op_profile_next("MPI Reduce");
+
     {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, gbl{{arg.id}});
     {% endfor %}
+    {% endif %}
+    op_profile_exit();
+
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
+    op_profile_exit();
 
 {{super()}}
 {% endblock %}

@@ -43,7 +43,7 @@ Major changes since `v1.1.0` (high-level).
 - `op_get_global_set_offset` return type changed from `int` to `idx_g_t`.
 - `SafeLong` debug wrapper (`op2/include/SafeLong.h`, `op2/src/core/SafeLong.cpp`): optional arithmetic overflow/underflow checker for `idx_g_t`, enabled via `-DUSE_SAFELONG`.
 - `op_arg_idx` / `op_arg_info` support in C (previously Fortran only); 2-dim map variant added for Fortran.
-- `op_timing2`: improved timing and instrumentation API (`op2/include/op_timing2.h`).
+- `op_profile`: improved timing and instrumentation API (`op2/include/op_profile.h`).
 - `op_mpi_probe_halo_index`, `op_force_part`: new MPI utility routines.
 - `op_reset_data_ptr` `real(4)` variants added (Fortran).
 - `op_get_global_set_offset` and Fortran bindings for `op_mpi_get_data`.

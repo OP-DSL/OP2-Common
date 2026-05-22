@@ -340,8 +340,11 @@ op_cuda_{{lh.name}}<<<num_blocks, block_size
 
     {% elif config.atomics %}
     for (int round = 0; round < {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}; ++round ) {
-        if (round == 1)
+        if (round == 1) {
+            op_profile_next("MPI Wait");
             op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
+            op_profile_next("Computation");
+        }
 
         {% if lh.args|gbl|reduction|length > 0 %}
         int start = round == 0 ? 0 : (round == 1 ? set->core_size : set->size);
@@ -366,8 +369,11 @@ op_cuda_{{lh.name}}<<<num_blocks, block_size
     }
     {% else %}
     for (int col = 0; col < plan->ncolors; ++col) {
-        if (col == plan->ncolors_core)
+        if (col == plan->ncolors_core) {
+            op_profile_next("MPI Wait");
             op_mpi_wait_all_grouped(num_args_expanded, args_expanded, 2);
+            op_profile_next("Computation");
+        }
 
         int start = plan->col_offsets[0][col];
         int end = plan->col_offsets[0][col + 1];
@@ -408,6 +414,9 @@ op_cuda_{{lh.name}}<<<num_blocks, block_size
     }
 
     {% endfor %}
+    {% if lh.args|gbl|reduction|length > 0 %}
+    op_profile_next("MPI Reduce");
+
     {% for arg in lh.args|gbl|reduction %}
         {% call opt_if(arg) %}
     arg{{arg.id}}.data = (char *)arg{{arg.id}}_host_data;
@@ -415,8 +424,12 @@ op_cuda_{{lh.name}}<<<num_blocks, block_size
         {% endcall %}
 
     {% endfor %}
+    {% endif %}
+    op_profile_exit();
+
     op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
     cutilSafeCall(cudaDeviceSynchronize());
+    op_profile_exit();
 
 {{super()}}
 

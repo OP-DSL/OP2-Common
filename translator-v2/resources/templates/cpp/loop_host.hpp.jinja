@@ -21,6 +21,7 @@ int dats_indirect[{{lh.args_expanded|length}}] = {
     {% endif %}
 {% endmacro %}
 {% block prologue %}
+#include <op_profile.h>
 {% endblock %}
 {% block kernel %}
 namespace op2_k{{kernel_idx}} {
@@ -53,11 +54,16 @@ void op_par_loop_{{lh.name}}(
 
     op_timers_core(&cpu_start, &wall_start);
 
+    op_profile_enter_kernel(name, "{{config.target}}", "{{"Direct" if lh is direct else "Indirect"}}");
+    op_profile_enter("MPI Exchanges");
+
     if (OP_diags > 2)
         printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.name}}\n");
 
     int set_size = op_mpi_halo_exchanges{{"_grouped" if config.grouped-}}
         (set, num_args_expanded, args_expanded{{(", %d" % config.device) if config.grouped}});
+
+    op_profile_next("Computation");
 {% endblock %}
 
 {% block host_loop required %}

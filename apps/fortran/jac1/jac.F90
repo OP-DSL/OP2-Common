@@ -58,7 +58,7 @@ program jac
     alpha = 1.0
 
     call op_decl_const(alpha, 1, "real(8)")
-    call op_timing2_start("JAC")
+    call op_profile_start("JAC")
 
     beta = 1.0
 
@@ -82,10 +82,10 @@ program jac
         write (*, "(1X, A, F7.4, A, F10.8)") "u max = ", u_max, "; u rms = ", sqrt(u_sum / nnode)
     end do
 
-    call op_timing2_finish()
+    call op_profile_end()
 
     print *
-    call op_timing2_output()
+    call op_profile_output()
 
     allocate(u(nnode))
     call op_fetch_data(p_u, u)

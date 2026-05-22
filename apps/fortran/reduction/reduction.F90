@@ -41,7 +41,7 @@ program reduction
 #endif
 
     call op_init_base(0, 0)
-    call op_timing2_start("Reduction")
+    call op_profile_start("Reduction")
 
 #ifndef HDF5
     open(file_id, file = file_name)
@@ -125,10 +125,10 @@ program reduction
         print *, 'Time = ', end_time - start_time, 'seconds'
     end if
 
-    call op_timing2_finish()
+    call op_profile_end()
 
     if (op_is_root() == 1) print *
-    call op_timing2_output()
+    call op_profile_output()
 
     call op_exit()
 
