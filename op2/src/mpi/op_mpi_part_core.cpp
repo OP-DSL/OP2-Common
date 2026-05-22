@@ -3515,6 +3515,18 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   return std::make_tuple(adj, adj_i, adj_cap);
 }
 
+#ifdef DEBUG
+static inline void check_global_index_int32_range(idx_g_t g_index,
+                                                  const op_map primary_map,
+                                                  int my_rank) {
+  if (g_index < (idx_g_t)INT32_MIN || g_index > (idx_g_t)INT32_MAX) {
+    op_printf("Error: global index out of 32-bit integer range for map %s on rank %d (index=%lld)\n",
+              primary_map->name, my_rank, (long long)g_index);
+    MPI_Abort(OP_PART_WORLD, 2);
+  }
+}
+#endif
+
 /*******************************************************************************
  * Setup variables for k-way partitioning
  *******************************************************************************/
@@ -3540,6 +3552,11 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, idx_g_t **adj,
   for (int i = 0; i < primary_map->to->size; i++) {
     idx_g_t g_index = get_global_index(
         i, my_rank, part_range[primary_map->to->index], comm_size);
+#ifdef DEBUG
+    if constexpr (sizeof(T) == sizeof(int)) {
+      check_global_index_int32_range(g_index, primary_map, my_rank);
+    }
+#endif
     op_sort(adj[i], adj_i[i]);
     adj_i[i] = removeDups(adj[i], adj_i[i]);
 

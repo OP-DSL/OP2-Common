@@ -109,9 +109,6 @@ subroutine {{lh.kernel}}_wrapper2( &
     {{arg.typ}}, dimension({{arg.dim}}) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: start, end
-{% for dat in lh.dats if dat.dim is none %}
-    integer(4) :: dat{{dat.arg_id}}_dim
-{% endfor %}
 
     ! locals
     integer(4) :: n
@@ -478,7 +475,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {%- endfor -%}
     /)
 
-    call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{variant_str()}}")
+    call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{"Direct" if lh is direct else "Indirect"}}")
 
     call op_profile_enter("MPI Exchanges")
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
