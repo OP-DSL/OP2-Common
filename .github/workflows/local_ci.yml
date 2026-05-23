@@ -32,7 +32,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          ref: OP2_refactor
+          token: ${{ github.token }}
 
       # 2. Debug info ---------------------------------------
       - name: Print runner info

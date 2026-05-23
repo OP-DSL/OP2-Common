@@ -4,6 +4,7 @@
 #include <sys/time.h>
 
 #include "op_seq.h"
+#include <op_profile.h>
 
 /* Problem mesh and iterations */
 #define FILE_NAME_PATH "new_grid.h5"
@@ -14,7 +15,7 @@
 double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 /* wall timer routine */
-// Now done using OP2's internal op_timers() call
+// Now done using OP2's internal op_profile API
 
 //outlined elemental kernel - save_soln
 inline void save_soln(const double *q, double *qold) {
@@ -150,7 +151,6 @@ int main(int argc, char **argv) {
   double rms;
 
   // timer
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
 
   // Load unstructured mesh
   op_printf("***** Load mesh and initialization *****\n");
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
   op_partition("BLOCK", "ANY", edges, pecell, p_x);
 
   //start timer
-  op_timers(&cpu_t1, &wall_t1);
+  op_profile_start("Airfoil");
 
   // main time-marching loop
   op_printf("***** Start Main iteration *************\n");
@@ -275,12 +275,8 @@ int main(int argc, char **argv) {
   }
 
   //end timer
-  op_timers(&cpu_t2, &wall_t2);
-
-  // compute and print wall time
-  double walltime = wall_t2 - wall_t1;
-
-  op_printf(" Wall time %lf \n", walltime);
+  op_profile_end();
+  op_profile_output();
 
   //Finalising the OP2 library
   op_exit();

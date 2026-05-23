@@ -49,7 +49,7 @@ program gbl_tests_fortran
 #endif
 
   call op_init_base(0, 0)
-  call op_timing2_start("FortranGblArgTests")
+  call op_profile_start("FortranGblArgTests")
 
   call get_rank_and_size(my_rank, comm_size)
 
@@ -182,10 +182,10 @@ program gbl_tests_fortran
   end do
   write(*,*) "max5 passed"
 
-  call op_timing2_finish()
+  call op_profile_end()
   
   if (op_is_root() == 1) print *
-    call op_timing2_output()
+    call op_profile_output()
 
   call op_exit()
 

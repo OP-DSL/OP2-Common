@@ -5,7 +5,7 @@
 #endif
 
 #include "op_seq.h"
-#include "op_timing2.h"
+#include "op_profile.h"
 
 #include "../utility.h"
 
@@ -41,7 +41,7 @@ void write5_within_kernel(double *dat0, double *dat1, const double *read) {
 int main(int argc, char **argv) {
 
   op_init(argc, argv, 2);
-  op_timing2_start("CppStrideTests");
+  op_profile_start("CppStrideTests");
 
   int my_rank = 0;
   int comm_size = 1;
@@ -112,8 +112,8 @@ int main(int argc, char **argv) {
     printf("write5_within_kernel passed\n");
   }
 
-  op_timing2_finish();
-  op_timing2_output();
+  op_profile_end();
+  op_profile_output();
 
   op_exit();
 

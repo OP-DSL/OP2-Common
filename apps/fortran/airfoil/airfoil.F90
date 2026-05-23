@@ -63,7 +63,7 @@ program airfoil
 #endif
 
     call op_init_base(0, 0)
-    call op_timing2_start("Airfoil")
+    call op_profile_start("Airfoil")
 
 #ifdef HDF5
     call op_print("Declaring OP2 sets (HDF5)")
@@ -121,7 +121,7 @@ program airfoil
     call op_decl_const(qinf, 4, "real(8)")
 
     call op_partition("PARMETIS", "KWAY", edges, pecell, p_x)
-    call op_timing2_enter("Main computation")
+    call op_profile_enter("Main computation")
 
     call op_decl_dat_temp(cells, 4, "real(8)", p_res, "p_res")
 
@@ -184,10 +184,10 @@ program airfoil
 
     iter = op_free_dat_temp(p_res)
 
-    call op_timing2_finish()
+    call op_profile_end()
 
     if (op_is_root() == 1) print *
-    call op_timing2_output()
+    call op_profile_output()
 
     if (op_is_root() == 1 .and. niter == 1000 .and. ncell_total == 720000) then
         diff = abs((100.0_8 * (rms(2) / 0.0001060114637578_8)) - 100.0_8)

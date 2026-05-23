@@ -5,6 +5,7 @@
 #endif
 
 #include "op_seq.h"
+#include "op_profile.h"
 
 #include "../utility.h"
 
@@ -43,6 +44,7 @@ void write_mixed_idx(double *dat, const int *direct_idx, const int *idx0,
 int main(int argc, char **argv) {
 
   op_init(argc, argv, 2);
+  op_profile_start("CppIdxTests");
 
   int my_rank = 0;
   int comm_size = 1;
@@ -156,6 +158,9 @@ int main(int argc, char **argv) {
 
     printf("mixed direct and indirect idx passed [rank %d]\n", my_rank);
   }
+
+  op_profile_end();
+  op_profile_output();
 
   op_exit();
 

@@ -110,7 +110,7 @@ OP2-Common/
 | `op_mpi_core.h` | MPI halo data structures: `halo_list`, import/export lists, MPI comms |
 | `op_lib_mpi.h` | MPI runtime state: exec/non-exec halo lists, partition tables |
 | `op_hdf5.h` | Parallel HDF5 I/O API |
-| `op_timing2.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
+| `op_profile.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
 | `op_util.h` | Utility functions |
 | `SafeLong.h` | Debug wrapper type `SafeLong` for `idx_g_t` — detects integer overflow/underflow at runtime (enabled via `-DUSE_SAFELONG`) |
 | `fortran/` | Fortran C-interop headers |

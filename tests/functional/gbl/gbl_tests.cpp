@@ -5,7 +5,7 @@
 #endif
 
 #include "op_seq.h"
-#include "op_timing2.h"
+#include "op_profile.h"
 
 #include "../utility.h"
 
@@ -57,7 +57,7 @@ void max5(const double *dat, double *g) {
 int main(int argc, char **argv) {
 
   op_init(argc, argv, 2);
-  op_timing2_start("CppGblArgTests");
+  op_profile_start("CppGblArgTests");
 
   int my_rank = 0;
   int comm_size = 1;
@@ -219,8 +219,8 @@ int main(int argc, char **argv) {
     printf("max5 passed\n");
   }
 
-  op_timing2_finish();
-  op_timing2_output();
+  op_profile_end();
+  op_profile_output();
 
   op_exit();
 

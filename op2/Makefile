@@ -111,7 +111,7 @@ OP2_FOR_HDF5 := $(OP2_HDF5) $(addprefix $(OBJ)/fortran/,\
 OP2_SEQ := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	sequential/op_seq.o \
-	externlib/op_timing2.o)
+	externlib/op_profile.o)
 
 OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
@@ -120,13 +120,13 @@ OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl+cuda.o \
 	cuda/op_cuda_rt_support+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
-	externlib/op_timing2.o)
+	externlib/op_profile.o)
 
 OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_decl+hip.o \
 	cuda/op_cuda_rt_support+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
-	externlib/op_timing2.o)
+	externlib/op_profile.o)
 
 OP2_FOR_CUDA := $(OP2_CUDA) $(OP2_FOR_BASE_CUDA) $(addprefix $(OBJ)/fortran/,\
 	cudaConfigurationParams.o)
@@ -137,7 +137,7 @@ OP2_FOR_HIP := $(OP2_HIP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	openmp/op_openmp_decl.o \
-	externlib/op_timing2.o)
+	externlib/op_profile.o)
 
 OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
@@ -145,7 +145,7 @@ OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 OP2_OPENMP4 := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	openmp4/op_openmp4_decl.o \
 	openmp4/op_openmp4_rt_support.o \
-	externlib/op_timing2.o)
+	externlib/op_profile.o)
 
 OP2_FOR_OPENMP4 := $(OP2_OPENMP4) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
@@ -159,7 +159,7 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_util.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o \
-	externlib/op_timing2+mpi.o)
+	externlib/op_profile+mpi.o)
 
 OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers+mpi.o)
@@ -176,7 +176,7 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_util.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o \
-	externlib/op_timing2+mpi.o)
+	externlib/op_profile+mpi.o)
 
 OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	cuda/op_cuda_rt_support+mpi+hip.o \
@@ -190,7 +190,7 @@ OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_util.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o \
-	externlib/op_timing2+mpi.o)
+	externlib/op_profile+mpi.o)
 
 OP2_FOR_MPI_CUDA := $(OP2_MPI_CUDA) $(OP2_FOR_BASE_MPI_CUDA) $(addprefix $(OBJ)/fortran/,\
 	cudaConfigurationParams.o)

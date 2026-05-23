@@ -65,6 +65,7 @@ info{{arg.id}}_temp
 {%- endmacro -%}
 
 #include <op_lib_cpp.h>
+#include <op_profile.h>
 
 #include <cstdint>
 #include <cmath>
@@ -89,7 +90,12 @@ void op_par_loop_{{lh.name}}(
     args[{{loop.index0}}] = arg{{arg.id}};
 {% endfor %}
 
+    op_profile_enter_kernel("{{lh.name}}", "seq", "{{variant_str()}}");
+
+    op_profile_enter("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges(set, n_args, args);
+
+    op_profile_next("Computation");
 
 {% for arg in lh.args|gbl|reject("read") if lh is indirect %}
     {{arg.typ.c()}} gbl{{arg.id}}_temp[{{arg_dim(arg)}}];
@@ -108,7 +114,9 @@ void op_par_loop_{{lh.name}}(
     for (int n = 0; n < n_exec; ++n) {
 {% if lh is indirect %}
         if (n == set->core_size) {
+            op_profile_next("MPI Wait");
             op_mpi_wait_all(n_args, args);
+            op_profile_next("Computation");
         }
 
     {% for map in lh.maps %}
@@ -152,14 +160,20 @@ void op_par_loop_{{lh.name}}(
     }
 {% endif %}
 
+    op_profile_next("MPI Wait");
     if (n_exec == 0 || n_exec == set->core_size)
         op_mpi_wait_all(n_args, args);
 
 {% if lh.args|gbl|reduction|length > 0 %}
+    op_profile_next("MPI Reduce");
+
     {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
     {% endfor %}
 {% endif %}
 
+    op_profile_exit();
+
     op_mpi_set_dirtybit(n_args, args);
+    op_profile_exit();
 }

@@ -191,8 +191,8 @@ program jac_distributed
   !--------------------------------------------------------------------------
   ! 5. Main Iteration Loop
   !--------------------------------------------------------------------------
-  call op_timing2_start("Jacobi")
-  call op_timing2_enter("Main computation") ! Start timing after setup/partitioning
+  call op_profile_start("Jacobi")
+  call op_profile_enter("Main computation") ! Start timing after setup/partitioning
 
   beta = 1.0_8
 
@@ -227,12 +227,12 @@ program jac_distributed
      end if
   end do
 
-  call op_timing2_finish() ! Stop timing
+  call op_profile_end() ! Stop timing
 
   !--------------------------------------------------------------------------
   ! 6. Output Timings and Fetch Results
   !--------------------------------------------------------------------------
-  call op_timing2_output()
+  call op_profile_output()
 
   ! Re-allocate u if it was deallocated earlier, or just use the existing one
   ! Ensure 'u' is allocated with the correct *local* size 'nnode'
