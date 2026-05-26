@@ -44,6 +44,7 @@
 #include <string.h>
 
 #include <op_gpu_shims.h>
+#include <op_f2c_helpers.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -193,6 +194,7 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
 void op_cuda_exit() {
   if (!OP_hybrid_gpu)
     return;
+  op::f2c::jit_exit();
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     cutilSafeCall(gpuFree((item->dat)->data_d));

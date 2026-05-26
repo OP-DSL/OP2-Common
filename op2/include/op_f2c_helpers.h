@@ -88,7 +88,14 @@ static int jit_max_threads = 16;
 static int jit_max_threads = 4;
 #endif
 
-static std::atomic_int jit_active_threads = 0;
+inline std::atomic_int jit_active_threads = 0;
+
+// Wait for all in-flight JIT compilation threads to finish. Must be called
+// before the GPU context is destroyed (i.e. before op_cuda_exit / op_hip_exit).
+inline void jit_exit() {
+    while (jit_active_threads.load(std::memory_order_acquire) > 0)
+        std::this_thread::yield();
+}
 
 static std::string jit_arch = "";
 
