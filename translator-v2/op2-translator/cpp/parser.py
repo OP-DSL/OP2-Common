@@ -141,17 +141,12 @@ def parseBuff(program: Program, args: List[Cursor], loc: Location) -> OP.Buff:
     if len(args) != 4:
         raise ParseError("incorrect number of args passed to op_create_buff", loc)
 
-    line = program.source.splitlines()[loc.line - 1]
-    before = line.split("op_create_buff", 1)[0]
-    match = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*$", before)
-    if match is None:
-        raise ParseError("unable to determine op_buff variable name", loc)
-
-    ptr = match.group(1)
+    ptr = parseStringLit(args[0])
     typ, _ = parseType(parseStringLit(args[1]), loc)
+    size = parseIntExpression(args[2])
     dim = parseIntExpression(args[3])
 
-    return OP.Buff(loc, ptr, dim, typ)
+    return OP.Buff(loc, ptr, size, dim, typ)
 
 
 def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:

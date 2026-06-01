@@ -165,11 +165,12 @@ class Buff:
     loc: Location
     ptr: str
 
-    dim: Optional[int]
+    size: int
+    dim: int
     typ: Type
 
     def __str__(self) -> str:
-        return f"Buff(loc={self.loc}, ptr='{self.ptr}', dim={self.dim}, typ={self.typ})"
+        return f"Buff(loc={self.loc}, ptr='{self.ptr}', size={self.size}, dim={self.dim}, typ={self.typ})"
 
 
 @dataclass(frozen=True)
