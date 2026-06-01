@@ -17,11 +17,18 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
 
     # 2. Update loop calls
     for loop in program.loops:
-        before, after = buffer.get(loop.loc.line - 1).split("op_par_loop", 1)
-        after = re.sub(
-            rf"{loop.kernel}\s*,\s*", "", after, count=1
-        )  # TODO: This assumes that the kernel arg is on the same line as the call
-        buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.name}" + after)
+        if loop.scatter:
+            before, after = buffer.get(loop.loc.line - 1).split("op_par_scatter", 1)
+            after = re.sub(
+                rf"{loop.kernel}\s*,\s*", "", after, count=1
+            )  # TODO: This assumes that the kernel arg is on the same line as the call
+            buffer.update(loop.loc.line - 1, before + f"op_par_scatter_{loop.name}" + after)
+        else:
+            before, after = buffer.get(loop.loc.line - 1).split("op_par_loop", 1)
+            after = re.sub(
+                rf"{loop.kernel}\s*,\s*", "", after, count=1
+            )  # TODO: This assumes that the kernel arg is on the same line as the call
+            buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.name}" + after)
 
     # 3. Update headers
     index = buffer.search(r'\s*#include\s+"op_seq\.h"')
@@ -30,7 +37,10 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
 
     buffer.insert(index, '#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
     for loop in program.loops:
-        prototype = f'void op_par_loop_{loop.name}(char const *, op_set{", op_arg" * len(loop.args)});\n'
+        if loop.scatter:
+            prototype = f'void op_par_scatter_{loop.name}(op_buff, op_buff, char const *{", op_arg" * len(loop.args)});\n'
+        else:
+            prototype = f'void op_par_loop_{loop.name}(char const *, op_set{", op_arg" * len(loop.args)});\n'
         buffer.insert(index, prototype)
     buffer.insert(index, "#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n")
 

@@ -161,6 +161,18 @@ class Dat:
 
 
 @dataclass(frozen=True)
+class Buff:
+    loc: Location
+    ptr: str
+
+    dim: Optional[int]
+    typ: Type
+
+    def __str__(self) -> str:
+        return f"Buff(loc={self.loc}, ptr='{self.ptr}', dim={self.dim}, typ={self.typ})"
+
+
+@dataclass(frozen=True)
 class Arg(ABDC):
     id: int
     loc: Location
@@ -237,8 +249,19 @@ class Loop:
     consts: Set[str]
 
     fallback: bool
+    scatter: bool
+    data_buff: Optional[Buff]
+    map_buff: Optional[Buff]
 
-    def __init__(self, name: str, loc: Location, kernel: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        loc: Location,
+        kernel: str,
+        scatter: bool = False,
+        data_buff: Optional[Buff] = None,
+        map_buff: Optional[Buff] = None,
+    ) -> None:
         self.name = name
 
         self.loc = loc
@@ -253,6 +276,9 @@ class Loop:
         self.consts = set()
 
         self.fallback = False
+        self.scatter = scatter
+        self.data_buff = data_buff
+        self.map_buff = map_buff
 
     def addArgDat(
         self,

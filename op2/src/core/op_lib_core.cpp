@@ -62,7 +62,7 @@ int OP_maps_base_index = 0;
 int OP_realloc = 1;
 
 int OP_set_index = 0, OP_set_max = 0, OP_map_index = 0, OP_map_max = 0,
-    OP_dat_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
+    OP_dat_index = 0, OP_buff_index = 0, OP_kern_max = 0, OP_kern_curr = 0;
 
 int OP_mpi_test_frequency = 1<<30;
 int OP_partial_exchange = 0;
@@ -83,6 +83,7 @@ op_set *OP_set_list;
 op_map *OP_map_list = NULL;
 std::unordered_map<int*, int> OP_map_ptr_table = {};
 Double_linked_list OP_dat_list; /*Head of the double linked list*/
+OpBuffList OP_buff_list;
 op_kernel *OP_kernels;
 
 const char *doublestr = "double";
@@ -386,6 +387,7 @@ void op_init_core(int argc, char **argv, int diags) {
 
   /*Initialize the double linked list to hold op_dats*/
   TAILQ_INIT(&OP_dat_list);
+  TAILQ_INIT(&OP_buff_list);
 }
 
 op_set op_decl_set_core(idx_l_t size, char const *name) {
@@ -575,6 +577,74 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   return dat;
 }
 
+op_buff op_create_buff_core(char const *name, char const *type, int type_size,
+                            idx_l_t count, int dim) {
+  if (count < 0) {
+    printf("op_create_buff error -- negative size for buffer: %s\n", name);
+    exit(-1);
+  }
+
+  if (dim <= 0) {
+    printf("op_create_buff error -- negative/zero dimension for buffer: %s\n",
+           name);
+    exit(-1);
+  }
+
+  if (type_size <= 0) {
+    printf("op_create_buff error -- invalid type size for buffer: %s\n", name);
+    exit(-1);
+  }
+
+  op_buff buff = (op_buff)op_malloc(sizeof(op_buff_core));
+  buff->index = OP_buff_index;
+  buff->dim = dim;
+  buff->count = count;
+  buff->size = dim * type_size;
+  buff->data = (char *)op_calloc((size_t)count * (size_t)buff->size,
+                                 sizeof(char));
+  buff->data_d = NULL;
+  buff->name = copy_str(name);
+  buff->type = copy_str(type);
+  buff->dirty_hd = 0;
+
+  op_buff_entry *item = (op_buff_entry *)op_malloc(sizeof(op_buff_entry));
+  if (item == NULL) {
+    printf(" op_create_buff error -- error allocating memory to buffer list "
+           "entry\n");
+    exit(-1);
+  }
+  item->buff = buff;
+
+  if (TAILQ_EMPTY(&OP_buff_list)) {
+    TAILQ_INSERT_HEAD(&OP_buff_list, item, entries);
+  } else {
+    TAILQ_INSERT_TAIL(&OP_buff_list, item, entries);
+  }
+
+  OP_buff_index++;
+  return buff;
+}
+
+int op_free_buff_core(op_buff buff) {
+  int success = -1;
+  op_buff_entry *item;
+  op_buff_entry *tmp_item;
+  for (item = TAILQ_FIRST(&OP_buff_list); item != NULL; item = tmp_item) {
+    tmp_item = TAILQ_NEXT(item, entries);
+    if (item->buff == buff) {
+      free(item->buff->data);
+      free((char *)item->buff->name);
+      free((char *)item->buff->type);
+      TAILQ_REMOVE(&OP_buff_list, item, entries);
+      free(item->buff);
+      free(item);
+      success = 1;
+      break;
+    }
+  }
+  return success;
+}
+
 /*
  * overlay dats
  */
@@ -723,6 +793,16 @@ void op_exit_core() {
     free(item);
   }
 
+  op_buff_entry *buff_item;
+  while ((buff_item = TAILQ_FIRST(&OP_buff_list))) {
+    free(buff_item->buff->data);
+    free((char *)buff_item->buff->name);
+    free((char *)buff_item->buff->type);
+    TAILQ_REMOVE(&OP_buff_list, buff_item, entries);
+    free(buff_item->buff);
+    free(buff_item);
+  }
+
   // free storage for timing info
 
   for (int i = 0; i < OP_kern_max; i++) {
@@ -738,6 +818,7 @@ void op_exit_core() {
   OP_map_index = 0;
   OP_map_max = 0;
   OP_dat_index = 0;
+  OP_buff_index = 0;
   OP_kern_max = 0;
 }
 
@@ -880,8 +961,8 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
     arg.size = dat->size;
     arg.data = dat->data;
     arg.data_d = dat->data_d;
-    arg.map_data_d = (idx == -1 ? NULL : map->map_d);
-    arg.map_data = (idx == -1 ? NULL : map->map);
+    arg.map_data_d = (idx == -1 || map == NULL ? NULL : map->map_d);
+    arg.map_data = (idx == -1 || map == NULL ? NULL : map->map);
   } else {
     /* set default values */
     arg.size = -1;

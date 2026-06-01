@@ -124,6 +124,12 @@ void op_cuda_exit() {
     #pragma omp target exit data map(from: (item->dat)->data_d)
     free((item->dat)->data_d);
   }
+  op_buff_entry *buff_item;
+  TAILQ_FOREACH(buff_item, &OP_buff_list, entries) {
+#pragma omp target exit data map(from : buff_item->buff->data_d)
+    free(buff_item->buff->data_d);
+    buff_item->buff->data_d = NULL;
+  }
   /*
   for (int ip = 0; ip < OP_plan_index; ip++) {
     OP_plans[ip].ind_map = NULL;
@@ -240,6 +246,14 @@ void op_upload_dat(op_dat dat) {
   #pragma omp target update to(dat->data_d[:set_size*dat->size])
 }
 
+void op_upload_buff(op_buff buff) {
+  if (!OP_hybrid_gpu || buff == NULL || buff->data_d == NULL)
+    return;
+  memcpy(buff->data_d, buff->data, (size_t)buff->count * (size_t)buff->size);
+#pragma omp target update to(buff->data_d[ : buff->count * buff->size])
+  buff->dirty_hd = 0;
+}
+
 void op_download_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
@@ -258,6 +272,14 @@ void op_download_dat(op_dat dat) {
   } else {
     memcpy(dat->data,dat->data_d,dat->size * dat->set->size); 
   }
+}
+
+void op_download_buff(op_buff buff) {
+  if (!OP_hybrid_gpu || buff == NULL || buff->data_d == NULL)
+    return;
+#pragma omp target update from(buff->data_d[ : buff->count * buff->size])
+  memcpy(buff->data, buff->data_d, (size_t)buff->count * (size_t)buff->size);
+  buff->dirty_hd = 0;
 }
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) { //TODO itt a download + dirty allitas ekv egy getdata hivassal
