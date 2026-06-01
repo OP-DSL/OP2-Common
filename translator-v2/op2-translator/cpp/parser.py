@@ -115,8 +115,14 @@ def parseCall(node: Cursor, macros: Dict[Location, str], program: Program) -> No
     if name == "op_decl_const":
         program.consts.append(parseConst(args, loc))
 
+    elif name == "op_create_buff":
+        program.buffs.append(parseBuff(program, args, loc))
+
     elif name == "op_par_loop":
         program.loops.append(parseLoop(program, args, loc, macros))
+
+    elif name == "op_par_scatter":
+        program.loops.append(parseScatter(program, args, loc, macros))
 
 
 def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
@@ -129,6 +135,23 @@ def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
     ptr = parseIdentifier(args[2], raw=False)
 
     return OP.Const(loc, ptr, dim, typ)
+
+
+def parseBuff(program: Program, args: List[Cursor], loc: Location) -> OP.Buff:
+    if len(args) != 4:
+        raise ParseError("incorrect number of args passed to op_create_buff", loc)
+
+    line = program.source.splitlines()[loc.line - 1]
+    before = line.split("op_create_buff", 1)[0]
+    match = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*$", before)
+    if match is None:
+        raise ParseError("unable to determine op_buff variable name", loc)
+
+    ptr = match.group(1)
+    typ, _ = parseType(parseStringLit(args[1]), loc)
+    dim = parseIntExpression(args[3])
+
+    return OP.Buff(loc, ptr, dim, typ)
 
 
 def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:
@@ -166,6 +189,59 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
 
         else:
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
+
+    return loop
+
+
+def parseScatter(program: Program, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Loop:
+    if len(args) < 4:
+        raise ParseError("incorrect number of args passed to op_par_scatter", loc)
+
+    data_buff_ptr = parseIdentifier(args[0])
+    map_buff_ptr = parseIdentifier(args[1])
+
+    data_buff = safeFind(program.buffs, lambda b: b.ptr == data_buff_ptr)
+    if data_buff is None:
+        raise ParseError(f"unknown op_buff: {data_buff_ptr}", parseLocation(args[0]))
+
+    map_buff = safeFind(program.buffs, lambda b: b.ptr == map_buff_ptr)
+    if map_buff is None:
+        raise ParseError(f"unknown op_buff: {map_buff_ptr}", parseLocation(args[1]))
+
+    if map_buff.typ != OP.Int(True, 32):
+        raise ParseError("op_par_scatter mapping buffer must have type int", parseLocation(args[1]))
+
+    kernel = parseIdentifier(args[2])
+    name = f"{program.path.stem}_{len(program.loops) + 1}_{kernel}"
+
+    loop = OP.Loop(name, loc, kernel, scatter=True, data_buff=data_buff, map_buff=map_buff)
+
+    for node in args[4:]:
+        name = node.spelling
+
+        arg_loc = parseLocation(node)
+        arg_args = list(node.get_arguments())
+
+        if name == "op_arg_dat":
+            parseArgDat(loop, False, arg_args, arg_loc, macros)
+
+        elif name == "op_opt_arg_dat":
+            parseArgDat(loop, True, arg_args, arg_loc, macros)
+
+        elif name == "op_arg_gbl":
+            parseArgGbl(loop, False, arg_args, arg_loc, macros)
+
+        elif name == "op_opt_arg_gbl":
+            parseArgGbl(loop, True, arg_args, arg_loc, macros)
+
+        elif name == "op_arg_idx":
+            parseArgIdx(loop, arg_args, arg_loc, macros)
+
+        elif name == "op_arg_info":
+            parseArgInfo(loop, arg_args, arg_loc, macros)
+
+        else:
+            raise ParseError(f"invalid scatter argument {name}", parseLocation(node))
 
     return loop
 

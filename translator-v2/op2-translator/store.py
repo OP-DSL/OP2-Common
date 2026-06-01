@@ -86,6 +86,7 @@ class Program:
     source: str
 
     consts: List[OP.Const] = field(default_factory=list)
+    buffs: List[OP.Buff] = field(default_factory=list)
     loops: List[OP.Loop] = field(default_factory=list)
 
     entities: List[Entity] = field(default_factory=list)
@@ -105,11 +106,15 @@ class Program:
 
     def __str__(self) -> str:
         consts_str = "\n    ".join([str(const) for const in self.consts])
+        buffs_str = "\n    ".join([str(buff) for buff in self.buffs])
         loops_str = "\n".join([str(loop) for loop in self.loops])
         entities_str = "\n".join([str(entity) for entity in self.entities])
 
         if len(self.consts) > 0:
             consts_str = f"    {consts_str}\n"
+
+        if len(self.buffs) > 0:
+            buffs_str = f"    {buffs_str}\n"
 
         if len(self.loops) > 0:
             loops_str = indent(f"\n{loops_str}", "    ")
@@ -117,7 +122,7 @@ class Program:
         # if len(self.entities) > 0:
         #     entities_str = indent(f"\n{entities_str}\n", "    ")
 
-        return f"Program in '{self.path}':\n" + consts_str + loops_str  # + entities_str
+        return f"Program in '{self.path}':\n" + consts_str + buffs_str + loops_str  # + entities_str
 
 
 @dataclass

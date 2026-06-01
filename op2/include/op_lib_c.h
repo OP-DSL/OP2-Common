@@ -59,6 +59,7 @@ extern int OP_set_index, OP_set_max, OP_map_index, OP_map_max, OP_dat_index,
 extern op_set *OP_set_list;
 extern op_map *OP_map_list;
 extern Double_linked_list OP_dat_list;
+extern OpBuffList OP_buff_list;
 extern op_kernel *OP_kernels;
 extern double OP_plan_time;
 extern int OP_auto_soa;
@@ -81,6 +82,10 @@ op_map op_decl_map(op_set, op_set, int, idx_l_t *, char const *);
 op_map op_decl_map_long(op_set, op_set, int, idx_g_t *, char const *);
 
 op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);
+
+op_buff op_create_buff_char(char const *, char const *, int, idx_l_t, int);
+op_buff op_create_buff(char const *, char const *, idx_l_t, int);
+int op_free_buff(op_buff);
 
 op_dat op_decl_dat_overlay(op_set, op_dat);
 op_dat op_decl_dat_overlay_ptr(op_set, char *);
@@ -107,6 +112,8 @@ op_dat op_fetch_data_file_char(op_dat);
 void op_upload_all();
 
 void op_fetch_data_idx_char(op_dat, char *, int, int);
+
+void op_fetch_buff_char(op_buff, char *);
 
 void op_exit();
 

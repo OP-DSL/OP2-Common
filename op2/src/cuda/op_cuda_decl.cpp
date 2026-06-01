@@ -98,6 +98,46 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
   return dat;
 }
 
+op_buff op_create_buff_char(char const *name, char const *type, int type_size,
+                            idx_l_t size, int dim) {
+  op_buff buff = op_create_buff_core(name, type, type_size, size, dim);
+  op_cpHostToDevice((void **)&(buff->data_d), (void **)&(buff->data),
+                    (size_t)buff->count * (size_t)buff->size);
+  return buff;
+}
+
+static int op_type_size_from_string(char const *type) {
+  if (!strcmp(type, "double") || !strcmp(type, "double:soa"))
+    return sizeof(double);
+  if (!strcmp(type, "float") || !strcmp(type, "float:soa"))
+    return sizeof(float);
+  if (!strcmp(type, "int") || !strcmp(type, "int:soa"))
+    return sizeof(int);
+  if (!strcmp(type, "uint") || !strcmp(type, "uint:soa"))
+    return sizeof(uint);
+  if (!strcmp(type, "ll") || !strcmp(type, "ll:soa"))
+    return sizeof(ll);
+  if (!strcmp(type, "ull") || !strcmp(type, "ull:soa"))
+    return sizeof(ull);
+  if (!strcmp(type, "bool") || !strcmp(type, "bool:soa"))
+    return sizeof(bool);
+
+  printf("op_create_buff error -- unknown builtin type: %s\n", type);
+  exit(-1);
+}
+
+op_buff op_create_buff(char const *name, char const *type, idx_l_t size,
+                       int dim) {
+  return op_create_buff_char(name, type, op_type_size_from_string(type), size,
+                             dim);
+}
+
+int op_free_buff(op_buff buff) {
+  if (buff != NULL && buff->data_d != NULL)
+    cutilSafeCall(gpuFree(buff->data_d));
+  return op_free_buff_core(buff);
+}
+
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
   return op_decl_dat_overlay_core(set, dat);
 }
@@ -352,6 +392,12 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
   // need to copy data into memory pointed to by usr_ptr
   memcpy((void *)usr_ptr, (void *)&dat->data[low * dat->size],
          (high + 1) * dat->size);
+}
+
+void op_fetch_buff_char(op_buff buff, char *usr_ptr) {
+  op_download_buff(buff);
+  memcpy((void *)usr_ptr, (void *)buff->data,
+         (size_t)buff->count * (size_t)buff->size);
 }
 
 #ifdef __cplusplus

@@ -198,6 +198,12 @@ void op_cuda_exit() {
     cutilSafeCall(gpuFree((item->dat)->data_d));
   }
 
+  op_buff_entry *buff_item;
+  TAILQ_FOREACH(buff_item, &OP_buff_list, entries) {
+    cutilSafeCall(gpuFree(buff_item->buff->data_d));
+    buff_item->buff->data_d = NULL;
+  }
+
   for (int ip = 0; ip < OP_plan_index; ip++) {
     OP_plans[ip].ind_map = NULL;
     OP_plans[ip].loc_map = NULL;
@@ -370,6 +376,15 @@ void op_upload_dat(op_dat dat) {
   }
 }
 
+void op_upload_buff(op_buff buff) {
+  if (buff == NULL || buff->data_d == NULL)
+    return;
+  cutilSafeCall(gpuMemcpy(buff->data_d, buff->data,
+                         (size_t)buff->count * (size_t)buff->size,
+                         gpuMemcpyHostToDevice));
+  buff->dirty_hd = 0;
+}
+
 void op_download_dat(op_dat dat) {
   if (!OP_hybrid_gpu)
     return;
@@ -393,6 +408,15 @@ void op_download_dat(op_dat dat) {
     cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, logical_size * dat->size,
                              gpuMemcpyDeviceToHost));
   }
+}
+
+void op_download_buff(op_buff buff) {
+  if (buff == NULL || buff->data_d == NULL)
+    return;
+  cutilSafeCall(gpuMemcpy(buff->data, buff->data_d,
+                         (size_t)buff->count * (size_t)buff->size,
+                         gpuMemcpyDeviceToHost));
+  buff->dirty_hd = 0;
 }
 
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
