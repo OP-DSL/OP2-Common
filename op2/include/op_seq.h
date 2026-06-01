@@ -62,60 +62,6 @@ inline void op_args_check(op_set set, int nargs, op_arg *args, int *ninds,
     op_arg_check(set, n, args[n], ninds, name);
 }
 
-template <typename T>
-inline T *op_scatter_arg_ptr(op_arg &arg, int *scatter_map) {
-  if (arg.argtype == OP_ARG_DAT) {
-    int map_idx = arg.idx >= 0 ? arg.idx : 0;
-    return (T *)(arg.data + scatter_map[map_idx] * arg.size);
-  }
-
-  if (arg.argtype == OP_ARG_IDX) {
-    int map_idx = arg.idx >= 0 ? arg.idx : 0;
-    return (T *)&scatter_map[map_idx];
-  }
-
-  return (T *)arg.data;
-}
-
-template <typename DATA, typename... T, size_t... I>
-void op_par_scatter_impl(indices<I...>, op_buff data_buff, op_buff map_buff,
-                         void (*kernel)(DATA *, T *...), char const *name,
-                         op_arg (&args)[sizeof...(T)]) {
-  (void)name;
-
-  if (data_buff->dirty_hd == 2)
-    op_download_buff(data_buff);
-  if (map_buff->dirty_hd == 2)
-    op_download_buff(map_buff);
-
-  for (size_t i = 0; i < sizeof...(T); ++i) {
-    if (args[i].argtype == OP_ARG_DAT && args[i].dat->dirty_hd == 2)
-      op_download_dat(args[i].dat);
-  }
-
-  for (int n = 0; n < data_buff->count; ++n) {
-    DATA *scatter_data = (DATA *)data_buff->data + n * data_buff->dim;
-    int *scatter_map = (int *)map_buff->data + n * map_buff->dim;
-    kernel(scatter_data, op_scatter_arg_ptr<T>(args[I], scatter_map)...);
-  }
-
-  for (size_t i = 0; i < sizeof...(T); ++i) {
-    if (args[i].argtype == OP_ARG_DAT && args[i].acc != OP_READ)
-      args[i].dat->dirty_hd = 1;
-  }
-}
-
-template <typename DATA, typename... T, typename... OPARG>
-void op_par_scatter(op_buff data_buff, op_buff map_buff,
-                    void (*kernel)(DATA *, T *...), char const *name,
-                    OPARG... arguments) {
-  static_assert(sizeof...(T) == sizeof...(OPARG),
-                "op_par_scatter kernel and op_arg counts differ");
-  op_arg args[sizeof...(OPARG)] = {arguments...};
-  op_par_scatter_impl(build_indices<sizeof...(OPARG)>(), data_buff, map_buff,
-                      kernel, name, args);
-}
-
 //#if __cplusplus >= 201103L
 #if false
 //

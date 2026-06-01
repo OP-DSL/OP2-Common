@@ -54,16 +54,6 @@ void op_upload_dat(op_dat dat) { (void)dat; }
 
 void op_download_dat(op_dat dat) {(void)dat;}
 
-void op_upload_buff(op_buff buff) {
-  if (buff != NULL)
-    buff->dirty_hd = 0;
-}
-
-void op_download_buff(op_buff buff) {
-  if (buff != NULL)
-    buff->dirty_hd = 0;
-}
-
 /*******************************************************************************
  * Main MPI Halo Exchange Function
  *******************************************************************************/

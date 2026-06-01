@@ -58,11 +58,7 @@ class Scheme(Findable["Scheme"]):
         def get_template(path):
             return env.get_template(str(path)), "".join(path.suffixes[:-1])
 
-        template_paths = self.loop_host_templates
-        if loop.scatter:
-            template_paths = [Path(str(path).replace("loop_host", "scatter_host")) for path in template_paths]
-
-        main_templates = map(get_template, template_paths)
+        main_templates = map(get_template, self.loop_host_templates)
         main_args = {
             "OP": OP,
             "lh": loop,
@@ -93,10 +89,7 @@ class Scheme(Findable["Scheme"]):
 
         if self.fallback is not None:
             fallback_wrapper_template = get_template(self.lang.fallback_wrapper_template)
-            fallback_paths = self.fallback.loop_host_templates
-            if loop.scatter:
-                fallback_paths = [Path(str(path).replace("loop_host", "scatter_host")) for path in fallback_paths]
-            fallback_templates = map(get_template, fallback_paths)
+            fallback_templates = map(get_template, self.fallback.loop_host_templates)
 
             fallback_args = dict(main_args)
 

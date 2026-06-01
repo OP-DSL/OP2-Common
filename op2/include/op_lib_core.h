@@ -182,20 +182,6 @@ typedef op_dat_core *op_dat;
 
 typedef struct {
   int index;        /* index */
-  int dim,          /* dimension of each buffer entry */
-      size;         /* size of each buffer entry in bytes */
-  idx_l_t count;    /* number of entries in the buffer */
-  char *data,       /* data on host */
-      *data_d;      /* data on device (GPU) */
-  char const *type, /* datatype */
-      *name;        /* name of buffer */
-  int dirty_hd;     /* flag to indicate dirty status on host and device */
-} op_buff_core;
-
-typedef op_buff_core *op_buff;
-
-typedef struct {
-  int index;        /* index */
   op_dat dat;       /* dataset */
   op_map map;       /* indirect mapping */
   int dim,          /* dimension of data */
@@ -252,15 +238,6 @@ typedef struct op_dat_entry_core op_dat_entry;
 
 typedef TAILQ_HEAD(, op_dat_entry_core) Double_linked_list;
 
-struct op_buff_entry_core {
-  op_buff buff;
-  TAILQ_ENTRY(op_buff_entry_core) entries;
-};
-
-typedef struct op_buff_entry_core op_buff_entry;
-
-typedef TAILQ_HEAD(, op_buff_entry_core) OpBuffList;
-
 /*
  * min / max definitions
  */
@@ -298,10 +275,6 @@ op_set op_decl_set_core(idx_l_t, char const *);
 op_map op_decl_map_core(op_set, op_set, int, int *, char const *);
 
 op_dat op_decl_dat_core(op_set, int, char const *, int, char *, char const *);
-
-op_buff op_create_buff_core(char const *, char const *, int, idx_l_t, int);
-
-int op_free_buff_core(op_buff);
 
 op_dat op_decl_dat_overlay_core(op_set, op_dat);
 
@@ -376,10 +349,6 @@ void op_disable_mpi_reductions(bool disable);
 void op_upload_dat(op_dat dat);
 
 void op_download_dat(op_dat dat);
-
-void op_upload_buff(op_buff buff);
-
-void op_download_buff(op_buff buff);
 
 /*******************************************************************************
 * Core MPI lib function prototypes

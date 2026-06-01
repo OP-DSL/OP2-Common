@@ -176,15 +176,6 @@ void op_upload_dat(op_dat dat) {
   }
 }
 
-void op_upload_buff(op_buff buff) {
-  if (buff == NULL || buff->data_d == NULL)
-    return;
-  cutilSafeCall(gpuMemcpy(buff->data_d, buff->data,
-                         (size_t)buff->count * (size_t)buff->size,
-                         gpuMemcpyHostToDevice));
-  buff->dirty_hd = 0;
-}
-
 void op_download_dat(op_dat dat) {
   //Check if partitionig is done
   if (OP_import_exec_list==NULL) return;
@@ -209,15 +200,6 @@ void op_download_dat(op_dat dat) {
     cutilSafeCall(gpuMemcpy(dat->data, dat->data_d, set_size * (size_t)dat->size,
                              gpuMemcpyDeviceToHost));
   }
-}
-
-void op_download_buff(op_buff buff) {
-  if (buff == NULL || buff->data_d == NULL)
-    return;
-  cutilSafeCall(gpuMemcpy(buff->data, buff->data_d,
-                         (size_t)buff->count * (size_t)buff->size,
-                         gpuMemcpyDeviceToHost));
-  buff->dirty_hd = 0;
 }
 
 void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {

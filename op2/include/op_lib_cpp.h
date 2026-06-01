@@ -115,14 +115,12 @@ extern int OP_set_index, OP_set_max, OP_map_index, OP_map_max, OP_dat_index,
 extern op_set *OP_set_list;
 extern op_map *OP_map_list;
 extern Double_linked_list OP_dat_list;
-extern OpBuffList OP_buff_list;
 extern op_kernel *OP_kernels;
 extern double OP_plan_time;
 
 op_dat op_decl_dat_char(op_set, int, char const *, int, char *, char const *);
 op_dat op_decl_dat_temp_char(op_set, int, char const *, int, char const *);
 int op_free_dat_temp_char(op_dat dat);
-op_buff op_create_buff_char(char const *, char const *, int, idx_l_t, int);
 
 /* Implementation */
 
@@ -136,18 +134,6 @@ op_dat op_decl_dat(op_set set, int dim, char const *type, T *data,
   }
 
   return op_decl_dat_char(set, dim, type, sizeof(T), (char *)data, name);
-}
-
-template <class T>
-op_buff op_create_buff(char const *name, char const *type, idx_l_t size,
-                       int dim) {
-  T *type_probe = NULL;
-  if (type_error(type_probe, type)) {
-    printf("incorrect type specified for buffer \"%s\" \n", name);
-    exit(1);
-  }
-
-  return op_create_buff_char(name, type, sizeof(T), size, dim);
 }
 
 template <class T>
@@ -214,10 +200,6 @@ template <class T> void op_fetch_data(op_dat dat, T *usr_ptr) {
 template <class T>
 void op_fetch_data_idx(op_dat dat, T *usr_ptr, int low, int high) {
   op_fetch_data_idx_char(dat, (char *)usr_ptr, low, high);
-}
-
-template <class T> void op_fetch_buff(op_buff buff, T *usr_ptr) {
-  op_fetch_buff_char(buff, (char *)usr_ptr);
 }
 
 //
