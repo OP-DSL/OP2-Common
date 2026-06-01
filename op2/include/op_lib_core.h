@@ -181,6 +181,19 @@ typedef struct {
 typedef op_dat_core *op_dat;
 
 typedef struct {
+  int dim;           /* number of components per element */
+  int size;          /* number of elements in buffer */
+  int elem_size;     /* sizeof(base type) per component */
+  char *data;        /* data on host */
+  char *data_d;      /* data on device */
+  char const *type;  /* datatype string */
+  char const *name;  /* name of buffer */
+  int dirty_hd;      /* 0=clean, 1=host newer, 2=device newer */
+} op_buff_core;
+
+typedef op_buff_core *op_buff;
+
+typedef struct {
   int index;        /* index */
   op_dat dat;       /* dataset */
   op_map map;       /* indirect mapping */
@@ -275,6 +288,12 @@ op_set op_decl_set_core(idx_l_t, char const *);
 op_map op_decl_map_core(op_set, op_set, int, int *, char const *);
 
 op_dat op_decl_dat_core(op_set, int, char const *, int, char *, char const *);
+
+op_buff op_decl_buff_core(int size, int dim, char const *type, int type_size,
+                          char const *name);
+void op_free_buff_core(op_buff buff);
+void op_buff_upload(op_buff buff);
+void op_buff_download(op_buff buff);
 
 op_dat op_decl_dat_overlay_core(op_set, op_dat);
 

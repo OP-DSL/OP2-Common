@@ -23,7 +23,15 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
         )  # TODO: This assumes that the kernel arg is on the same line as the call
         buffer.update(loop.loc.line - 1, before + f"op_par_loop_{loop.name}" + after)
 
-    # 3. Update headers
+    # 3. Update scatter calls
+    for scatter in program.scatters:
+        before, after = buffer.get(scatter.loc.line - 1).split("op_par_scatter", 1)
+        after = re.sub(
+            rf"{scatter.kernel}\s*,\s*", "", after, count=1
+        )
+        buffer.update(scatter.loc.line - 1, before + f"op_par_scatter_{scatter.name}" + after)
+
+    # 4. Update headers
     index = buffer.search(r'\s*#include\s+"op_seq\.h"')
     assert index is not None
     index += 2
@@ -32,9 +40,12 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
     for loop in program.loops:
         prototype = f'void op_par_loop_{loop.name}(char const *, op_set{", op_arg" * len(loop.args)});\n'
         buffer.insert(index, prototype)
+    for scatter in program.scatters:
+        prototype = f'void op_par_scatter_{scatter.name}(char const *, op_buff, op_buff{", op_arg" * len(scatter.args)});\n'
+        buffer.insert(index, prototype)
     buffer.insert(index, "#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n")
 
-    # 4. Update init call TODO: Use a line number from the program
+    # 5. Update init call TODO: Use a line number from the program
     source = buffer.translate()
     if force_soa:
         source = re.sub(r"\bop_init\b\s*\((.*)\)", "op_init_soa(\\1,1)", source)

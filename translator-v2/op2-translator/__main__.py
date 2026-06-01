@@ -274,6 +274,27 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             fallback_loops[loop.name] = True
             print(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
 
+    # Generate scatter hosts
+    for i, (scatter, program) in enumerate(app.scatters(), 1):
+        res = scheme.genScatterHost(env, scatter, program, app, i, args.config)
+
+        if res is None:
+            print(f"Skipping scatter host {i} ({scatter.name}): no template for {scheme}")
+            continue
+
+        files, _ = res
+
+        Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
+        for index, (source, extension) in enumerate(files):
+            name = f"{scatter.name}_scatter_kernel"
+            if index > 0:
+                name += f"_aux{index}"
+
+            path = Path(args.out, scheme.target.name, f"{name}{extension}")
+            write_file(path, source, args)
+
+        print(f"Generated scatter host {i} of {len(app.scatters())}: {scatter.name}")
+
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:
         source, name = scheme.genConsts(env, app)

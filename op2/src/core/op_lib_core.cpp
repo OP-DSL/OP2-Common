@@ -576,6 +576,49 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
 }
 
 /*
+ * op_buff: lightweight multi-dimensional buffer (no MPI, no partitioning)
+ */
+op_buff op_decl_buff_core(int size, int dim, char const *type, int type_size,
+                          char const *name) {
+  if (size <= 0) {
+    printf("op_decl_buff error -- invalid size for buffer: %s\n", name);
+    exit(-1);
+  }
+  if (dim <= 0) {
+    printf("op_decl_buff error -- negative/zero dimension for buffer: %s\n", name);
+    exit(-1);
+  }
+
+  op_buff buff = (op_buff)op_malloc(sizeof(op_buff_core));
+  buff->size = size;
+  buff->dim = dim;
+  buff->elem_size = type_size;
+  buff->data = (char *)op_calloc((size_t)size * (size_t)dim * (size_t)type_size, sizeof(char));
+  buff->data_d = NULL;
+  buff->type = copy_str(type);
+  buff->name = copy_str(name);
+  buff->dirty_hd = 0;
+
+  return buff;
+}
+
+void op_free_buff_core(op_buff buff) {
+  if (buff == NULL) return;
+  op_free(buff->data);
+  op_free((void *)buff->type);
+  op_free((void *)buff->name);
+  if (buff->data_d != NULL) {
+    /* Device memory freed by backend-specific override */
+    buff->data_d = NULL;
+  }
+  op_free(buff);
+}
+
+/* Default (CPU-only) implementations: no-ops since data_d is NULL */
+void op_buff_upload(op_buff buff) { (void)buff; }
+void op_buff_download(op_buff buff) { (void)buff; }
+
+/*
  * overlay dats
  */
 op_dat op_decl_dat_overlay_core(op_set set, op_dat dat) {

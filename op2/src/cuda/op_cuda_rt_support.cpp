@@ -395,6 +395,24 @@ void op_download_dat(op_dat dat) {
   }
 }
 
+void op_buff_upload(op_buff buff) {
+  if (!OP_hybrid_gpu) return;
+  const size_t bytes = (size_t)buff->size * (size_t)buff->dim * (size_t)buff->elem_size;
+  if (buff->data_d == NULL)
+    cutilSafeCall(op_deviceMalloc(&buff->data_d, bytes));
+  cutilSafeCall(gpuMemcpy(buff->data_d, buff->data, bytes, gpuMemcpyHostToDevice));
+  cutilSafeCall(gpuDeviceSynchronize());
+  buff->dirty_hd = 0;
+}
+
+void op_buff_download(op_buff buff) {
+  if (!OP_hybrid_gpu || buff->data_d == NULL) return;
+  const size_t bytes = (size_t)buff->size * (size_t)buff->dim * (size_t)buff->elem_size;
+  cutilSafeCall(gpuMemcpy(buff->data, buff->data_d, bytes, gpuMemcpyDeviceToHost));
+  cutilSafeCall(gpuDeviceSynchronize());
+  buff->dirty_hd = 0;
+}
+
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++)
     if (args[n].opt && args[n].argtype == OP_ARG_DAT &&

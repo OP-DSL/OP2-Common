@@ -16,6 +16,7 @@ class CppSeq(Scheme):
 
     consts_template = None
     loop_host_templates = [Path("cpp/seq/loop_host.hpp.jinja")]
+    scatter_host_templates = [Path("cpp/seq/scatter_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/seq/master_kernel.cpp.jinja")]
 
     def translateKernel(
@@ -47,6 +48,7 @@ class CppOpenMP(Scheme):
 
     consts_template = None
     loop_host_templates = [Path("cpp/openmp/loop_host.hpp.jinja")]
+    scatter_host_templates = [Path("cpp/openmp/scatter_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/openmp/master_kernel.cpp.jinja")]
 
     def translateKernel(
@@ -78,6 +80,7 @@ class CppCuda(Scheme):
 
     consts_template = None
     loop_host_templates = [Path("cpp/cuda/loop_host.hpp.jinja")]
+    scatter_host_templates = [Path("cpp/cuda/scatter_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/cuda/master_kernel.cu.jinja")]
 
     def translateKernel(
@@ -115,6 +118,26 @@ class CppCuda(Scheme):
 
         return ctk.writeSource(extracted_entities)
 
+    def translateScatterKernel(
+        self,
+        scatter,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        import cpp.translator.kernels as ctk
+
+        kernel_entities = app.findEntities(scatter.kernel, program)
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find scatter kernel: {scatter.kernel}")
+
+        extracted_entities = ctk.extractDependencies(kernel_entities, app)
+        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
+
+        return ctk.writeSource(extracted_entities)
+
 
 Scheme.register(CppCuda)
 
@@ -126,6 +149,7 @@ class CppHip(Scheme):
 
     consts_template = None
     loop_host_templates = [Path("cpp/hip/loop_host.hpp.jinja")]
+    scatter_host_templates = []
     master_kernel_templates = [Path("cpp/hip/master_kernel.cpp.jinja")]
 
     def translateKernel(
@@ -176,6 +200,7 @@ class CppJitCuda(Scheme):
 
     consts_template = None
     loop_host_templates = [Path("cpp/jit_cuda/loop_host.h.jinja")]
+    scatter_host_templates = []
     master_kernel_templates = [Path("cpp/jit_cuda/master_kernel.cu.jinja")]
 
     def translateKernel(
@@ -236,6 +261,7 @@ class CppJitHip(Scheme):
 
     consts_template = None
     loop_host_templates = [Path("cpp/jit_hip/loop_host.h.jinja")]
+    scatter_host_templates = []
     master_kernel_templates = [Path("cpp/jit_hip/master_kernel.cpp.jinja")]
 
     def translateKernel(

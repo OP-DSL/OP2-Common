@@ -87,6 +87,7 @@ class Program:
 
     consts: List[OP.Const] = field(default_factory=list)
     loops: List[OP.Loop] = field(default_factory=list)
+    scatters: List[OP.Scatter] = field(default_factory=list)
 
     entities: List[Entity] = field(default_factory=list)
 
@@ -170,9 +171,13 @@ class Application:
     def loops(self) -> List[Tuple[OP.Loop, Program]]:
         return flatten([list(map(lambda l: (l, p), p.loops)) for p in self.programs])
 
+    def scatters(self) -> List[Tuple[OP.Scatter, Program]]:
+        return flatten([list(map(lambda s: (s, p), p.scatters)) for p in self.programs])
+
     def validate(self, lang: Lang) -> None:
         self.validateConsts(lang)
         self.validateLoops(lang)
+        self.validateScatters(lang)
 
         # Language specific verification
         lang.validate(self)
@@ -204,6 +209,15 @@ class Application:
                     self.validateArgGbl(arg, loop, lang)
 
             # self.validateKernel(loop, program, lang) TODO
+
+    def validateScatters(self, lang: Lang) -> None:
+        for scatter, program in self.scatters():
+            for arg in scatter.args:
+                if isinstance(arg, OP.ArgDat):
+                    self.validateArgDat(arg, scatter, lang)
+
+                if isinstance(arg, OP.ArgGbl):
+                    self.validateArgGbl(arg, scatter, lang)
 
     def validateArgDat(self, arg: OP.ArgDat, loop: OP.Loop, lang: Lang) -> None:
         valid_access_types = [OP.AccessType.READ, OP.AccessType.WRITE, OP.AccessType.RW, OP.AccessType.INC]

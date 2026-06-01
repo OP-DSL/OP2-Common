@@ -1,0 +1,82 @@
+{%- macro arg_dim(arg) -%}
+    {%- if (arg is gbl or arg is info) and arg.dim is not none -%}
+{{arg.dim}}
+    {%- elif arg is dat and sh.dat(arg).dim is not none -%}
+{{sh.dat(arg).dim}}
+    {%- else -%}
+arg{{arg.id}}.dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro scatter_map_idx(arg) -%}
+    {%- if arg is dat -%}
+        {%- if arg.map_idx is not none and arg.map_idx >= 0 -%}
+{{arg.map_idx}}
+        {%- else -%}
+0
+        {%- endif -%}
+    {%- else -%}
+0
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro dat_ptr(arg) -%}
+    {%- if arg is dat -%}
+({{sh.dat(arg).typ.c()}} *)(arg{{arg.id}}.data + map_data[i * map_buff->dim + {{scatter_map_idx(arg)}}] * arg{{arg.id}}.size)
+    {%- elif arg is gbl -%}
+({{arg.typ.c()}} *)arg{{arg.id}}.data
+    {%- endif -%}
+{%- endmacro -%}
+
+#include <op_lib_cpp.h>
+#include <op_profile.h>
+#include <omp.h>
+
+#include <cstdint>
+#include <cstring>
+
+namespace op2_m_{{sh.name}}{{variant}} {
+
+{{kernel_func}}}
+
+
+void op_par_scatter_{{sh.name}}(
+    const char* name,
+    op_buff data_buff,
+    op_buff map_buff
+{% for arg in sh.args %}
+    , op_arg arg{{arg.id}}
+{% endfor %}
+) {
+    int n_args = {{sh.args|length}};
+    op_arg args[{{sh.args|length}}];
+
+{% for arg in sh.args %}
+    args[{{loop.index0}}] = arg{{arg.id}};
+{% endfor %}
+
+    op_profile_enter_kernel("{{sh.name}}", "openmp", "Scatter");
+
+    const int n_elem = data_buff->size;
+    const int map_dim = map_buff->dim;
+    const int *map_data = reinterpret_cast<const int *>(map_buff->data);
+
+#pragma omp parallel for schedule(static)
+    for (int i = 0; i < n_elem; ++i) {
+        {{sh.data_buff_typ.c() if sh.data_buff_typ else "char"}} *buf_ptr =
+            reinterpret_cast<{{sh.data_buff_typ.c() if sh.data_buff_typ else "char"}} *>(data_buff->data) +
+            i * data_buff->dim;
+
+        op2_m_{{sh.name}}{{variant}}::{{sh.kernel}}(
+            buf_ptr
+{% for arg in sh.args %}
+            , {{dat_ptr(arg)}}
+{% endfor %}
+        );
+    }
+
+    op_profile_exit();
+
+    op_mpi_set_dirtybit(n_args, args);
+    op_profile_exit();
+}

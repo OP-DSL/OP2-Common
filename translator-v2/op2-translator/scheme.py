@@ -24,6 +24,7 @@ class Scheme(Findable["Scheme"]):
 
     consts_template: Optional[Path]
     loop_host_templates: List[Path]
+    scatter_host_templates: List[Path] = []
     master_kernel_templates: List[Path]
 
     def __str__(self) -> str:
@@ -154,6 +155,47 @@ class Scheme(Findable["Scheme"]):
         kernel_idx: int,
     ) -> str:
         pass
+
+    def translateScatterKernel(
+        self,
+        scatter: OP.Scatter,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        return self.translateKernel(scatter, program, app, config, kernel_idx)
+
+    def genScatterHost(
+        self,
+        env: Environment,
+        scatter: OP.Scatter,
+        program: Program,
+        app: Application,
+        kernel_idx: int,
+        config_overrides: List[Dict[str, Dict[str, Any]]],
+    ) -> Optional[Tuple[List[Tuple[str, str]], bool]]:
+        if not self.scatter_host_templates:
+            return None
+
+        def get_template(path):
+            return env.get_template(str(path)), "".join(path.suffixes[:-1])
+
+        templates = list(map(get_template, self.scatter_host_templates))
+        kernel_func = None
+
+        try:
+            kernel_func = self.translateScatterKernel(scatter, program, app, {}, kernel_idx)
+        except Exception as e:
+            print(f"Error: scatter kernel translation for {scatter.name} failed: {e}")
+
+        if kernel_func is None:
+            return None
+
+        rendered = [(t.render(OP=OP, sh=scatter, kernel_idx=kernel_idx,
+                              lang=self.lang, kernel_func=kernel_func, variant=""), ext)
+                    for t, ext in templates]
+        return (rendered, False)
 
     def matches(self, key: Tuple[Lang, Target]) -> bool:
         if not (isinstance(key, tuple) and len(key) == 2 and isinstance(key[0], Lang) and isinstance(key[1], Target)):

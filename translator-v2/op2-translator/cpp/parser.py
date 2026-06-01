@@ -118,6 +118,9 @@ def parseCall(node: Cursor, macros: Dict[Location, str], program: Program) -> No
     elif name == "op_par_loop":
         program.loops.append(parseLoop(program, args, loc, macros))
 
+    elif name == "op_par_scatter":
+        program.scatters.append(parseScatter(program, args, loc, macros))
+
 
 def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
     if len(args) != 3:
@@ -168,6 +171,41 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
 
     return loop
+
+
+def parseScatter(program: Program, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> OP.Scatter:
+    if len(args) < 4:
+        raise ParseError("incorrect number of args passed to op_par_scatter", loc)
+
+    data_buff_ptr = parseIdentifier(args[0])
+    map_buff_ptr = parseIdentifier(args[1])
+    kernel = parseIdentifier(args[2])
+    name = f"{program.path.stem}_{len(program.scatters) + 1}_{kernel}"
+
+    scatter = OP.Scatter(name, loc, kernel, data_buff_ptr, map_buff_ptr)
+
+    for node in args[4:]:
+        arg_name = node.spelling
+
+        arg_loc = parseLocation(node)
+        arg_args = list(node.get_arguments())
+
+        if arg_name == "op_arg_dat":
+            parseArgDat(scatter, False, arg_args, arg_loc, macros)
+
+        elif arg_name == "op_opt_arg_dat":
+            parseArgDat(scatter, True, arg_args, arg_loc, macros)
+
+        elif arg_name == "op_arg_gbl":
+            parseArgGbl(scatter, False, arg_args, arg_loc, macros)
+
+        elif arg_name == "op_opt_arg_gbl":
+            parseArgGbl(scatter, True, arg_args, arg_loc, macros)
+
+        else:
+            raise ParseError(f"invalid scatter argument {arg_name}", parseLocation(node))
+
+    return scatter
 
 
 def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:

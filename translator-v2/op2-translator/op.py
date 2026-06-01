@@ -389,3 +389,93 @@ class Loop:
             + dat_str
             + map_str
         )
+
+
+@dataclass(frozen=True)
+class ScatterBuff:
+    ptr: str           # variable name of the buffer
+    dim: Optional[int] # buffer dimension (None if not statically known)
+    typ: Optional[Type] # element type (None if not statically known)
+
+
+class Scatter:
+    name: str
+    loc: Location
+    kernel: str
+
+    data_buff_ptr: str          # variable name of data buffer
+    map_buff_ptr: str           # variable name of map buffer
+    data_buff_dim: Optional[int]
+    map_buff_dim: Optional[int]
+    data_buff_typ: Optional[Type]
+
+    args: List[Arg]
+    dats: List[Dat]
+    maps: List[Map]
+
+    def __init__(self, name: str, loc: Location, kernel: str,
+                 data_buff_ptr: str, map_buff_ptr: str) -> None:
+        self.name = name
+        self.loc = loc
+        self.kernel = kernel
+        self.data_buff_ptr = data_buff_ptr
+        self.map_buff_ptr = map_buff_ptr
+        self.data_buff_dim = None
+        self.map_buff_dim = None
+        self.data_buff_typ = None
+        self.dats = []
+        self.maps = []
+        self.args = []
+
+    def addArgDat(
+        self,
+        loc: Location,
+        dat_ptr: str,
+        dat_dim: Optional[int],
+        dat_typ: Type,
+        dat_soa: bool,
+        map_ptr: Optional[str],
+        map_idx: Optional[int],
+        access_type: AccessType,
+        opt: bool = False,
+    ) -> None:
+        arg_id = len(self.args)
+
+        dat_id = findIdx(self.dats, lambda d: d.ptr == dat_ptr)
+        if dat_id is None:
+            dat_id = len(self.dats)
+            dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
+            self.dats.append(dat)
+        elif self.dats[dat_id].dim is None and dat_dim is not None:
+            self.dats[dat_id] = dataclasses.replace(self.dats[dat_id], dim=dat_dim)
+
+        map_id = None
+        if map_ptr is not None:
+            map_id = findIdx(self.maps, lambda m: m.ptr == map_ptr)
+            if map_id is None:
+                map_id = len(self.maps)
+                self.maps.append(Map(map_id, map_ptr, arg_id))
+
+        arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_idx)
+        self.args.append(arg)
+
+    def addArgGbl(
+        self, loc: Location, ptr: str, dim: Optional[int], typ: Type,
+        access_type: AccessType, opt: bool
+    ) -> None:
+        arg_id = len(self.args)
+        self.args.append(ArgGbl(arg_id, loc, access_type, opt, ptr, dim, typ))
+
+    def dat(self, x) -> Optional[Dat]:
+        if isinstance(x, ArgDat):
+            return self.dats[x.dat_id]
+        if isinstance(x, int) and x < len(self.dats):
+            return self.dats[x]
+        return None
+
+    def __str__(self) -> str:
+        args = "\n    ".join([str(a) for a in self.args])
+        return (
+            f"Scatter at {self.loc}:\n    Name: {self.name}\n    Kernel: {self.kernel}\n"
+            f"    data_buff: {self.data_buff_ptr}  map_buff: {self.map_buff_ptr}\n    {args}\n"
+        )

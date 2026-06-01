@@ -137,6 +137,18 @@ op_dat op_decl_dat(op_set set, int dim, char const *type, T *data,
 }
 
 template <class T>
+op_buff op_decl_buff(int size, int dim, char const *type, char const *name) {
+  T *dummy = nullptr;
+  if (type_error(dummy, type)) {
+    printf("incorrect type specified for buffer \"%s\" \n", name);
+    exit(1);
+  }
+  return op_decl_buff_core(size, dim, type, sizeof(T), name);
+}
+
+inline void op_free_buff(op_buff buff) { op_free_buff_core(buff); }
+
+template <class T>
 void op_decl_const2(char const *name, int dim, char const *type, T *data) {
   if (type_error(data, type)) {
     printf("incorrect type specified for constant \"%s\" \n", name);

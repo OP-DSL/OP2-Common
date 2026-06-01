@@ -1,0 +1,120 @@
+{%- macro scatter_map_idx(arg) -%}
+    {%- if arg is dat -%}
+        {%- if arg.map_idx is not none and arg.map_idx >= 0 -%}
+{{arg.map_idx}}
+        {%- else -%}
+0
+        {%- endif -%}
+    {%- else -%}
+0
+    {%- endif -%}
+{%- endmacro -%}
+
+#include <op_lib_cpp.h>
+#include <op_cuda_rt_support.h>
+#include <op_gpu_shims.h>
+#include <op_profile.h>
+
+#include <cstdint>
+
+namespace op2_m_{{sh.name}}{{variant}} {
+
+{{kernel_func}}}
+
+
+__global__ void op_cuda_scatter_{{sh.name}}(
+    {{sh.data_buff_typ.c() if sh.data_buff_typ else "char"}} *__restrict__ data_buff_d,
+    int data_buff_dim,
+    const int *__restrict__ map_buff_d,
+    int map_buff_dim
+{% for arg in sh.args|dat %}
+    , {{"const " if arg is read}}{{sh.dat(arg).typ.c()}} *__restrict__ dat{{arg.dat_id}}
+{% endfor %}
+{% for arg in sh.args|gbl %}
+    , {{arg.typ.c()}} *gbl{{arg.id}}
+{% endfor %}
+    , int n_elem
+) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n_elem) return;
+
+    {{sh.data_buff_typ.c() if sh.data_buff_typ else "char"}} *buf_ptr = data_buff_d + i * data_buff_dim;
+
+    op2_m_{{sh.name}}{{variant}}::{{sh.kernel}}(
+        buf_ptr
+{% for arg in sh.args %}
+    {% if arg is dat %}
+        , dat{{arg.dat_id}} + map_buff_d[i * map_buff_dim + {{scatter_map_idx(arg)}}] * {{sh.dat(arg).dim if sh.dat(arg).dim else "1"}}
+    {% elif arg is gbl %}
+        , gbl{{arg.id}}
+    {% endif %}
+{% endfor %}
+    );
+}
+
+
+void op_par_scatter_{{sh.name}}(
+    const char* name,
+    op_buff data_buff,
+    op_buff map_buff
+{% for arg in sh.args %}
+    , op_arg arg{{arg.id}}
+{% endfor %}
+) {
+    int n_args = {{sh.args|length}};
+    op_arg args[{{sh.args|length}}];
+
+{% for arg in sh.args %}
+    args[{{loop.index0}}] = arg{{arg.id}};
+{% endfor %}
+
+    op_profile_enter_kernel("{{sh.name}}", "cuda", "Scatter");
+
+    /* Ensure data_buff is on device */
+    if (data_buff->dirty_hd == 1 || data_buff->data_d == NULL)
+        op_buff_upload(data_buff);
+
+    /* Ensure map_buff is on device */
+    if (map_buff->dirty_hd == 1 || map_buff->data_d == NULL)
+        op_buff_upload(map_buff);
+
+    /* Ensure op_dat device data is current */
+{% for arg in sh.args|dat %}
+    if (arg{{arg.id}}.dat->dirty_hd == 1) {
+        op_upload_dat(arg{{arg.id}}.dat);
+        arg{{arg.id}}.dat->dirty_hd = 0;
+    }
+    {{sh.dat(arg).typ.c()}} *dat{{arg.dat_id}}_d = ({{sh.dat(arg).typ.c()}} *)arg{{arg.id}}.dat->data_d;
+{% endfor %}
+{% for arg in sh.args|gbl %}
+    {{arg.typ.c()}} *gbl{{arg.id}}_d = ({{arg.typ.c()}} *)arg{{arg.id}}.data_d;
+{% endfor %}
+
+    const int n_elem = data_buff->size;
+    int block_size = 128;
+    int num_blocks = (n_elem + block_size - 1) / block_size;
+
+    op_cuda_scatter_{{sh.name}}<<<num_blocks, block_size>>>(
+        ({{sh.data_buff_typ.c() if sh.data_buff_typ else "char"}} *)data_buff->data_d,
+        data_buff->dim,
+        (const int *)map_buff->data_d,
+        map_buff->dim
+{% for arg in sh.args|dat %}
+        , dat{{arg.dat_id}}_d
+{% endfor %}
+{% for arg in sh.args|gbl %}
+        , gbl{{arg.id}}_d
+{% endfor %}
+        , n_elem
+    );
+
+    cutilSafeCall(gpuDeviceSynchronize());
+
+    /* Mark written dats as device-side dirty */
+{% for arg in sh.args|dat|reject("read") %}
+    arg{{arg.id}}.dat->dirty_hd = 2;
+{% endfor %}
+
+    op_mpi_set_dirtybit_cuda(n_args, args);
+    op_profile_exit();
+}

@@ -3878,4 +3878,59 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 }
 
 #endif /* __cplusplus >= 201103L a.k.a. c++11 */
+
+//
+// op_par_scatter: scatter data from op_buff to op_dats via an integer mapping.
+// Iterates over data_buff->size elements.
+// Kernel signature: void kernel(DataT *buf_elem, T0 *dat0, T1 *dat1, ...)
+//   - buf_elem: pointer to element i in data_buff
+//   - dat_n: pointer to element map_buff[i * map_buff->dim + arg.idx] in op_dat
+//
+// op_arg_dat map_idx selects which component of map_buff to use per op_dat arg.
+//
+
+#if __cplusplus >= 201402L
+
+template <typename DataT, typename... T, typename... OPARG, size_t... I>
+void op_par_scatter_impl(indices<I...>, op_buff data_buff, op_buff map_buff,
+                         void (*kernel)(DataT *, T *...), char const *name,
+                         OPARG... arguments) {
+  constexpr int N = sizeof...(OPARG);
+  op_arg args[N] = {arguments...};
+
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timers_core(&cpu_t1, &wall_t1);
+
+  const int n_elem = data_buff->size;
+  const int map_dim = map_buff->dim;
+  const int *map_data = reinterpret_cast<const int *>(map_buff->data);
+
+  for (int i = 0; i < n_elem; ++i) {
+    DataT *buf_ptr = reinterpret_cast<DataT *>(data_buff->data) + i * data_buff->dim;
+
+    kernel(buf_ptr,
+           reinterpret_cast<T *>(
+               args[I].data +
+               ((args[I].argtype == OP_ARG_DAT)
+                    ? map_data[i * map_dim + (args[I].idx >= 0 ? args[I].idx : 0)] *
+                          args[I].size
+                    : 0))...);
+  }
+
+  op_mpi_set_dirtybit(N, args);
+
+  op_timers_core(&cpu_t2, &wall_t2);
+  op_mpi_perf_time(name, wall_t2 - wall_t1);
+}
+
+template <typename DataT, typename... T, typename... OPARG>
+void op_par_scatter(op_buff data_buff, op_buff map_buff,
+                    void (*kernel)(DataT *, T *...), char const *name,
+                    OPARG... arguments) {
+  op_par_scatter_impl(build_indices<sizeof...(T)>{}, data_buff, map_buff,
+                      kernel, name, arguments...);
+}
+
+#endif /* __cplusplus >= 201402L */
+
 #endif /* __OP_SEQ_H */
