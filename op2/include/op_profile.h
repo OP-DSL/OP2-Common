@@ -1,16 +1,12 @@
 #ifndef __OP_PROFILE_H
 #define __OP_PROFILE_H
 
-#include <extern/json.hpp>
-
 #include <chrono>
 #include <optional>
 #include <functional>
 #include <vector>
 #include <string>
 #include <string_view>
-
-using json = nlohmann::json;
 
 /*
  * Tree-based timing code for instrumentation of OP2 applications. See the op_profile class (and its C API) for the
@@ -64,10 +60,6 @@ std::string to_string(const op_profile_clock& clock,
                       const std::optional<std::reference_wrapper<const op_profile_clock>> parent = std::nullopt);
 
 
-/* JSON conversion implementations */
-void to_json(json& j, const op_profile_clock& clock);
-void from_json(const json& j, op_profile_clock& clock);
-
 /* ----------------------------------------- op_profile_node ----------------------------------------- */
 
 /* Node type for the timing tree nodes */
@@ -110,10 +102,6 @@ struct op_profile_node {
   void output(unsigned indent = 0,
               const std::optional<std::reference_wrapper<const op_profile_node>> parent = std::nullopt);
 };
-
-/* JSON conversion implementations */
-void to_json(json& j, const op_profile_node& node);
-void from_json(const json& j, op_profile_node& node);
 
 /* ----------------------------------------- op_profile ----------------------------------------- */
 
