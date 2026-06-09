@@ -128,7 +128,7 @@ enum class op_profile_level {
 /* The timing class, instantiated as a singleton "timing" - interact through that */
 class op_profile {
 private:
-  op_profile_level level = op_profile_level::simple;
+  op_profile_level level = op_profile_level::disabled;
 
   std::vector<std::reference_wrapper<op_profile_node>> current_scope;
   std::vector<op_profile_clock::clock::time_point> current_starts;

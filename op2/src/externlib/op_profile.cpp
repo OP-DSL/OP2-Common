@@ -239,6 +239,8 @@ void op_profile::start(std::string_view name) {
       std::printf("warning: OP_PROFILE_LEVEL set to unsupported value: %s\n", level_str);
     else
       level = static_cast<op_profile_level>(level_int);
+  } else {
+      level = op_profile_level::simple;
   }
 
   if (level == op_profile_level::disabled) return;
