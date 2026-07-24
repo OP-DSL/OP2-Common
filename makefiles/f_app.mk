@@ -188,7 +188,7 @@ $(APP_NAME)_mpi_c_hip: generated/$(APP_NAME)/c_hip/op2_kernels.o
 
 generated/$(APP_NAME)/c_hip/op2_kernels.o: generated/$(APP_NAME)
 	$$(HIPCC) $$(HIPCCFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) -DOP2_HIP \
-	    -c generated/$(APP_NAME)/c_hip/op2_kernels_aux1.cu -o $$@
+	    -c generated/$(APP_NAME)/c_hip/op2_kernels_aux1.hip.cpp -o $$@
 endef
 
 $(eval $(call C_HIP_EXTRA_RULES_template))
