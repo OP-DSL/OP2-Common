@@ -1,3 +1,4 @@
+import logging
 import os
 import importlib
 import subprocess
@@ -15,6 +16,17 @@ from store import Application, Location, ParseError, Program
 
 import clang.cindex
 
+logger = logging.getLogger(__name__)
+
+# libclang diagnostic severities (clang.cindex.Diagnostic.{Ignored,Note,Warning,Error,Fatal})
+# mapped to logging levels.
+_DIAGNOSTIC_LEVELS = {
+    clang.cindex.Diagnostic.Ignored: logging.DEBUG,
+    clang.cindex.Diagnostic.Note: logging.DEBUG,
+    clang.cindex.Diagnostic.Warning: logging.WARNING,
+    clang.cindex.Diagnostic.Error: logging.ERROR,
+    clang.cindex.Diagnostic.Fatal: logging.ERROR,
+}
 
 SYSTEM_INCLUDES = None
 
@@ -27,9 +39,6 @@ class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
         self.line_directive = None
-
-    def on_comment(self, tok: str) -> bool:
-        return True
 
     def on_error(self, file: str, line: int, msg: str) -> None:
         loc = Location(file, line, 0)
@@ -112,7 +121,7 @@ class Cpp(Lang):
             # if diagnostic.severity >= clang.cindex.Diagnostic.Error:
             #     raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
 
-            print(diagnostic)
+            logger.log(_DIAGNOSTIC_LEVELS.get(diagnostic.severity, logging.WARNING), str(diagnostic))
 
         return translation_unit, source
 

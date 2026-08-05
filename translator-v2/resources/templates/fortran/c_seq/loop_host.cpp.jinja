@@ -130,10 +130,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     memcpy(info{{arg.id}}_temp, arg{{arg.id}}.data, {{arg_dim(arg)}} * sizeof({{arg.typ.c()}}));
 {% endfor %}
 
-    int zero_int = 0;
-    bool zero_bool = 0;
-    float zero_float = 0;
-    double zero_double = 0;
+    [[maybe_unused]] int zero_int = 0;
+    [[maybe_unused]] bool zero_bool = 0;
+    [[maybe_unused]] float zero_float = 0;
+    [[maybe_unused]] double zero_double = 0;
 
     for (int n = 0; n < n_exec; ++n) {
 {% if lh is indirect %}
