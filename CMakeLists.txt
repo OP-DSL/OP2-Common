@@ -241,3 +241,21 @@ add_subdirectory(op2)
 # alongside the runtime libs
 # ---------------------------------------------------------------------------
 include(OP2Translator)
+
+# ---------------------------------------------------------------------------
+# App-build support (translator wrapper + variant executable helper)
+# ---------------------------------------------------------------------------
+# In-tree counterpart of what OP2Config.cmake sets downstream. CACHE INTERNAL
+# so op2_add_app_variants() (called from inside a function()) sees it from
+# any directory scope.
+set(OP2_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/op2/include" CACHE INTERNAL "")
+if(MPI_FOUND)
+    set(OP2_HAS_MPI TRUE CACHE INTERNAL "")
+else()
+    set(OP2_HAS_MPI FALSE CACHE INTERNAL "")
+endif()
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OP2AppSupport.cmake")
+
+if(OP2_ENABLE_APPS)
+    add_subdirectory(apps)
+endif()
