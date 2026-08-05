@@ -1,8 +1,8 @@
 import copy
 import io
+import logging
 import os
 import re
-import sys
 import subprocess
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -21,6 +21,8 @@ import fortran.validator
 import op as OP
 from language import Lang
 from store import Application, Location, ParseError, Program
+
+logger = logging.getLogger(__name__)
 
 
 def base_deepcopy(self, memo):
@@ -106,9 +108,9 @@ def walk(node_list, types=None, indent=0, debug=False):
     for child in node_list:
         if debug:
             if isinstance(child, str):
-                print(indent * "  " + "child type = ", type(child), repr(child))
+                logger.debug(indent * "  " + "child type = %s %r", type(child), child)
             else:
-                print(indent * "  " + "child type = ", type(child))
+                logger.debug(indent * "  " + "child type = %s", type(child))
         if types is None or isinstance(child, types):
             local_list.append(child)
         # Recurse down
@@ -192,34 +194,33 @@ class Fortran(Lang):
     def parseArgs(self, args: Namespace) -> None:
         if args.consts_module is not None:
             self.consts_module = args.consts_module
-
-            if args.verbose:
-                print(f"Using consts module: {self.consts_module}")
+            logger.debug(f"Using consts module: {self.consts_module}")
 
         if args.extra_consts_list is not None:
             self.extra_consts_list = args.extra_consts_list
-
-            if args.verbose:
-                print(f"Using extra consts list: {self.extra_consts_list}")
+            logger.debug(f"Using extra consts list: {self.extra_consts_list}")
 
         if args.user_consts_module is not None:
             self.user_consts_module = args.user_consts_module
-
-            if args.verbose:
-                print(f"Using consts module: {self.user_consts_module}")
+            logger.debug(f"Using consts module: {self.user_consts_module}")
 
         if args.regex_program_translator:
             self.use_regex_translator = True
+            logger.debug("Using regex program translator")
 
-            if args.verbose:
-                print(f"Using regex program translator")
-
-        fpp = os.path.dirname(sys.executable) + "/fpp"
+        # fpp is a bundled binary, not a Python package - locate it relative
+        # to this file's own install location (translator-v2/fpp/fpp
+        # in-tree, libexec/op2/translator/fpp/fpp when installed), the same
+        # pattern jinja.py uses for ../resources/templates.  Not relative to
+        # sys.executable: that only worked when fpp was copied next to a
+        # CMake-managed venv's python3, which no longer happens - Python is
+        # now a found dependency, not one this project provisions.
+        fpp = str(Path(__file__).resolve().parent.parent.parent / "fpp" / "fpp")
         if os.path.exists(fpp):
             self.fpp = fpp
-
-        if args.verbose:
-            print(f"Using packaged fpp for Fortran parsing: {fpp}")
+            logger.debug(f"Using packaged fpp for Fortran parsing: {fpp}")
+        else:
+            logger.debug(f"Packaged fpp not found at {fpp} - falling back to pcpp for Fortran preprocessing")
 
     def validate(self, app: Application) -> None:
         # TODO: see fortran.parser

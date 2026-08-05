@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Callable, List, Optional, Tuple, Union, Set
 
 import fparser.two.Fortran2003 as f2003
@@ -11,6 +12,8 @@ import op as OP
 from op import OpError
 from store import Application, Entity, Function, Program
 from util import find, safeFind
+
+logger = logging.getLogger(__name__)
 
 
 def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
@@ -144,6 +147,36 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
             loop.fallback = True
 
+    # Check that kernel parameter shapes match op_arg dimensions.
+    #
+    # For a dim=1 op_arg the dispatch loop passes a single-element indexing of
+    # an assumed-shape array (e.g. dat0(1, n) or gbl3(1)).  Fortran only
+    # accepts that when the dummy is a scalar - a `dimension(1)` dummy triggers
+    # "Element of assumed-shape or pointer array passed to array dummy" at
+    # compile time.  For a dim=N op_arg the dispatch passes dat0(:, n), which
+    # requires the dummy to be a rank-1 array.
+    for idx, arg in enumerate(loop.args):
+        if not isinstance(arg, (OP.ArgDat, OP.ArgGbl)):
+            continue
+
+        if isinstance(arg, OP.ArgGbl):
+            arg_dim = arg.dim
+        else:
+            arg_dim = loop.dat(arg).dim
+
+        if arg_dim is None:
+            continue  # runtime dim - can't check statically
+
+        violations = []
+        fu.mapParam(kernel_entities[0], idx, entities, checkParamShape, arg_dim, violations)
+
+        if len(violations) > 0:
+            param_name = kernel_entities[0].parameters[idx]
+            expected = "scalar" if arg_dim == 1 else f"rank-1 array of dimension({arg_dim})"
+            printViolations(loop, f"kernel parameter shape mismatch (op_arg dim={arg_dim}, expected {expected})",
+                            violations, (idx, param_name))
+            loop.fallback = True
+
     # Check for runtime-dimension stack arrays (very slow for GPU)
     violations = []
     for entity in entities:
@@ -155,17 +188,15 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:
     if arg is not None:
-        print(f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:")
+        header = f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:"
     else:
-        print(f"{loop.loc}: Warning: {loop.kernel} {warning}:")
+        header = f"{loop.loc}: Warning: {loop.kernel} {warning}:"
 
-    for violation in violations[:5]:
-        print(f"    {violation}")
-
+    lines = [header] + [f"    {v}" for v in violations[:5]]
     if len(violations) > 5:
-        print(f"    ({len(violations) - 5} more)")
+        lines.append(f"    ({len(violations) - 5} more)")
 
-    print()
+    logger.warning("\n".join(lines))
 
 
 def checkStatements(func: Function, violations: List[str]) -> None:
@@ -259,6 +290,35 @@ def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations
                     continue
 
         violations.append(msg(f"{fu.getItem(node).line}"))
+
+
+def checkParamShape(func: Function, param_idx: int, arg_dim: int, violations: List[str]) -> None:
+    """Verify a kernel parameter's declared shape matches the op_arg dimension.
+
+    dim=1 op_args require the kernel parameter to be a scalar (no dimension
+    spec).  dim>1 op_args require a rank-1 explicit-shape array of the exact
+    dimension.  Assumed-shape parameters (dimension(:)) are accepted for
+    dim>1 args since parseDimensions returns None for both cases and we
+    can't tell them apart here - those pass silently, matching how the
+    slice check already ignores them.
+    """
+    dims = fu.parseDimensions(func, func.parameters[param_idx])
+
+    def msg(reason: str) -> str:
+        return f"In {func.name} (arg {param_idx + 1}, {func.parameters[param_idx]}): {reason}"
+
+    if arg_dim == 1:
+        if dims is not None:
+            violations.append(msg(f"declared with dimension {dims}, must be a scalar"))
+    else:
+        if dims is None:
+            return  # scalar or assumed-shape - leave to other checks
+        if len(dims) != 1:
+            violations.append(msg(f"declared with multi-dimensional shape {dims}, must be rank-1 dimension({arg_dim})"))
+        else:
+            lb, ub = dims[0]
+            if lb != "1" or ub != str(arg_dim):
+                violations.append(msg(f"declared dimension {dims}, must be dimension({arg_dim})"))
 
 
 def checkConstRead(func: Function, const_ptrs: List[str], violations: List[str]) -> None:
