@@ -416,7 +416,7 @@ int main(int argc, char **argv) {
     if (iter % 1000 == 0 &&
         g_ncell == 720000) { // defailt mesh -- for validation testing
       op_printf(" %d  %3.16f \n", iter, rms);
-      float diff = fabsf((100.0 * (rms / 0.000105987)) - 100.0);
+      float diff = fabs((100.0 * (rms / 0.000105987)) - 100.0);
       op_printf("\n\nTest problem with %d cells is within %3.15E %% of the "
                 "expected solution\n",
                 720000, diff);
