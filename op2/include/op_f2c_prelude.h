@@ -36,6 +36,13 @@ DEVICE inline void trap() {
 using int64_t = long long int;
 using IndexType = int;
 
+// Avoids <type_traits> (not reliably available under NVRTC JIT compilation)
+template<typename U> struct is_const_type { static constexpr bool value = false; };
+template<typename U> struct is_const_type<const U> { static constexpr bool value = true; };
+
+template<bool B, typename R = void> struct enable_if {};
+template<typename R> struct enable_if<true, R> { using type = R; };
+
 template<typename T>
 struct Ptr {
     T* data;
@@ -44,6 +51,8 @@ struct Ptr {
     constexpr Ptr(T* data) : data{data} {}
     constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
 
+    // Excluded when T is already const, else this is a conversion to its own type (nvcc #554-D)
+    template<typename U = T, typename = typename enable_if<!is_const_type<U>::value>::type>
     constexpr operator Ptr<const T>() const { return Ptr<const T>{data, stride}; }
 };
 

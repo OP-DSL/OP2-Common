@@ -51,12 +51,10 @@ program jac_distributed
   !--------------------------------------------------------------------------
   ! 1. Initialize MPI and OP2
   !--------------------------------------------------------------------------
-  call MPI_Init(ierr)
-  call MPI_Comm_rank(MPI_COMM_WORLD, my_rank, ierr)
-  call MPI_Comm_size(MPI_COMM_WORLD, comm_size, ierr)
-
-  ! Initialize OP2 (level 2 for some diagnostics)
   call op_init(2)
+
+  call op_mpi_rank(my_rank)
+  comm_size = op_mpi_size()
 
   !--------------------------------------------------------------------------
   ! 2. Distributed Mesh Initialization
@@ -213,11 +211,11 @@ program jac_distributed
     ! Update loop (update)
     u_sum = 0.0_8
     u_max = 0.0_8
-    ! Arguments: r (node, read), du (node, rw), u (node, inc), u_sum (gbl, inc), u_max (gbl, max)
+    ! Arguments: r (node, read), du (node, rw), u (node, rw), u_sum (gbl, inc), u_max (gbl, max)
     call op_par_loop_5(update_kernel, nodes, &
          op_arg_dat(p_r,  -1, OP_ID,    1, "real(8)", OP_READ), & ! r[node]
          op_arg_dat(p_du, -1, OP_ID,    1, "real(8)", OP_RW),   & ! du[node] (read and zeroed)
-         op_arg_dat(p_u,  -1, OP_ID,    1, "real(8)", OP_INC),  & ! u[node] += ...
+         op_arg_dat(p_u,  -1, OP_ID,    1, "real(8)", OP_RW),   & ! u[node] updated, then read for u_sum/u_max
          op_arg_gbl(u_sum,              1, "real(8)", OP_INC),  &
          op_arg_gbl(u_max,              1, "real(8)", OP_MAX))
 
@@ -249,7 +247,7 @@ program jac_distributed
   !--------------------------------------------------------------------------
   ! 8. Finalize
   !--------------------------------------------------------------------------
-  call MPI_Barrier(MPI_COMM_WORLD, ierr)
+  call op_barrier()
   call op_exit()
 
   ! Deallocate remaining host arrays
@@ -286,7 +284,7 @@ contains !##################### Internal Subroutines and Functions #############
     implicit none
     real(8), intent(in)    :: r      ! OP_READ from p_r (node data)
     real(8), intent(inout) :: du     ! OP_RW from p_du (node data)
-    real(8), intent(inout) :: u      ! OP_INC to p_u (node data) - Note: C++ uses OP_INC
+    real(8), intent(inout) :: u      ! OP_RW to p_u (node data)
     real(8), intent(inout) :: u_sum  ! OP_INC to global u_sum
     real(8), intent(inout) :: u_max  ! OP_MAX to global u_max
 
