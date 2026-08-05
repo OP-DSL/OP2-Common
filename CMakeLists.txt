@@ -235,3 +235,9 @@ endif()
 # Library targets
 # ---------------------------------------------------------------------------
 add_subdirectory(op2)
+
+# ---------------------------------------------------------------------------
+# Translator (Python) - find a suitable interpreter, install its source
+# alongside the runtime libs
+# ---------------------------------------------------------------------------
+include(OP2Translator)
