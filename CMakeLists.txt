@@ -264,3 +264,8 @@ if(OP2_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# ---------------------------------------------------------------------------
+# Configuration summary
+# ---------------------------------------------------------------------------
+include(OP2Summary)
