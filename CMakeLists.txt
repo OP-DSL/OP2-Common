@@ -259,3 +259,8 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OP2AppSupport.cmake")
 if(OP2_ENABLE_APPS)
     add_subdirectory(apps)
 endif()
+
+if(OP2_ENABLE_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
