@@ -269,3 +269,47 @@ endif()
 # Configuration summary
 # ---------------------------------------------------------------------------
 include(OP2Summary)
+
+# ---------------------------------------------------------------------------
+# Install / export
+# ---------------------------------------------------------------------------
+if(NOT OP2_ENABLE_INSTALL)
+    return()
+endif()
+
+include(CMakePackageConfigHelpers)
+
+install(EXPORT OP2Targets
+    FILE        OP2Targets.cmake
+    NAMESPACE   op2::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/op2")
+
+# PATH_VARS: OP2Config.cmake refers to these as @PACKAGE_<var>@, resolved
+# against PACKAGE_PREFIX_DIR, so it stays correct for any install layout.
+set(OP2_INSTALL_INCLUDEDIR  "${CMAKE_INSTALL_INCLUDEDIR}/op2")
+set(OP2_INSTALL_TRANSLATORDIR "${CMAKE_INSTALL_LIBEXECDIR}/op2/translator")
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/OP2Config.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/OP2Config.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/op2"
+    PATH_VARS OP2_INSTALL_INCLUDEDIR OP2_INSTALL_TRANSLATORDIR)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/OP2ConfigVersion.cmake"
+    COMPATIBILITY SameMajorVersion)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/OP2Config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/OP2ConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/op2")
+
+# Find modules are deliberately not installed: partitioners are pinned by
+# path via install(EXPORT) and never searched again, so a consumer needs no
+# CMAKE_MODULE_PATH for them.
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/OP2AppSupport.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/OP2TranslatorProbe.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/op2")
+
+# The translator payload's own install rules live in cmake/OP2Translator.cmake.
