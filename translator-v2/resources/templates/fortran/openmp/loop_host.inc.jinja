@@ -1,3 +1,5 @@
+{% import "fortran/utils.jinja" as utils %}
+
 {%- macro arg_to_pointer(arg, rank1_as_scalar=false) -%}
     {%- if arg is gbl -%}
 gbl{{arg.id}}
@@ -441,7 +443,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     integer(4) :: num_dats_indirect
     integer(4), dimension({{lh.args|length}}) :: dats_indirect
 
-    integer(4) :: set_size
+    integer(4) :: n_exec
     {% for dat in lh.dats if dat.dim is none %}
     integer(4) :: dat{{dat.arg_id}}_dim
     {% endfor %}
@@ -463,6 +465,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     dat{{dat.arg_id}}_dim = arg{{dat.arg_id}}%dim
 {% endfor %}
 
+    integer(8) :: bytes_moved
+
 {% for arg in lh.args %}
     args({{loop.index}}) = arg{{arg.id}}
 {% endfor %}
@@ -478,7 +482,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{"Direct" if lh is direct else "Indirect"}}")
 
     call op_profile_enter("MPI Exchanges")
-    set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+    n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
 
     call op_profile_next("Computation")
 
@@ -520,7 +524,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     )
 
     call op_profile_next("MPI Wait")
-    if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
+    if ((n_exec .eq. 0) .or. (n_exec .eq. set%setptr%core_size)) then
         call op_mpi_wait_all(size(args), args)
     end if
 
@@ -530,6 +534,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_exit()
 
     call op_mpi_set_dirtybit(size(args), args)
+
+    {{ utils.calculate_bytes_moved(lh)|indent(4) }}
     call op_profile_exit()
 end subroutine
 

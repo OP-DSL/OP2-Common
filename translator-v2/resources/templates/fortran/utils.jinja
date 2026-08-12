@@ -1,0 +1,30 @@
+{# utils.jinja #}
+
+{% macro calculate_bytes_moved(lh) %}
+bytes_moved = 0
+{% if lh is direct %}
+    {% for arg in lh.args_expanded|reject("gbl")|reject("info") %}
+bytes_moved = bytes_moved + int(n_exec, kind=8) * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }}
+    {% endfor %}
+{% else %}
+    {% set ns = namespace(dats=[]) %}
+    {% for arg in lh.args_expanded %}
+        {% if arg is not gbl and arg.dat_id not in ns.dats %}
+            {% set ns.dats = ns.dats + [arg.dat_id] %}
+            {% if arg.map_id is not none %}
+bytes_moved = bytes_moved + int(getSetSizeFromOpArg(arg{{arg.id}}), kind=8) * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }}
+            {% else %}
+bytes_moved = bytes_moved + int(n_exec, kind=8) * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+    {% set ns = namespace(maps=[]) %}
+    {% for arg in lh.args_expanded %}
+        {% if arg is dat and arg.map_id is not none and arg.map_id not in ns.maps %}
+            {% set ns.maps = ns.maps + [arg.map_id] %}
+bytes_moved = bytes_moved + int(n_exec, kind=8) * getmapdimfromoparg(arg{{arg.id}}) * 4
+        {% endif %}
+    {% endfor %}
+{% endif %}
+call setBytesMoved(bytes_moved)
+{% endmacro %}

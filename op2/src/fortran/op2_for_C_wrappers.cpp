@@ -70,6 +70,7 @@
 
 #include <op_lib_c.h>
 #include <op_util.h>
+#include <op_profile.h>
 
 #ifdef OPMPI
 #include <mpi.h>
@@ -556,6 +557,10 @@ void setKernelTime (int id, char name[], double kernelTime, float transfer, floa
   OP_kernels[id].time += (float)kernelTime;
   OP_kernels[id].transfer += transfer;
   OP_kernels[id].transfer2 += transfer2;
+}
+
+void setBytesMoved(int64_t bytes) {
+  op_profile_bytes_moved(bytes);
 }
 
 void decrement_all_mappings () {

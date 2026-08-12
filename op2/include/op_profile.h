@@ -79,6 +79,7 @@ struct op_profile_node {
 
   op_profile_node_type type = op_profile_node_type::standard;
   op_profile_clock clock;
+  int64_t bytes_moved = 0;
 
   std::size_t num_ranks = 1;
 
@@ -160,6 +161,9 @@ public:
   /* Helper to stop the previous section, and start a new one, equivalent to exit() then enter(name) */
   void next(std::string_view name);
 
+  /* Add bytes transferred within a kernel section */
+  void bytes_moved(int64_t bytes);
+
   /* Finish a kernel section, recording elapsed time. Sync controls if deviceSync() will be called */
   void exit(bool sync = true);
 
@@ -202,6 +206,8 @@ void op_profile_enter(const char* name);
 void op_profile_enter_kernel(const char* name, const char* target, const char* variant);
 
 void op_profile_next(const char* name);
+
+void op_profile_bytes_moved(int64_t bytes);
 
 void op_profile_exit();
 void op_profile_end();

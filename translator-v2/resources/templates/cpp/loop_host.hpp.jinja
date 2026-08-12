@@ -1,3 +1,5 @@
+{% import "cpp/utils.jinja" as utils %}
+
 {% macro arg_dat_redef(arg) %}
     {% set params -%}
 arg{{arg.id}}.dat, {{arg.map_idx}}, arg{{arg.id}}.map, {{lh.dat(arg).dim}}, "{{lh.dat(arg).typ}}", {{arg.access_type.value}}
@@ -46,21 +48,13 @@ void op_par_loop_{{lh.name}}(
     args_expanded[{{loop.index0}}] = {{arg_dat_redef(arg) if lh.args[arg.id] is vec else "arg%d" % arg.id}};
     {% endfor %}
 
-    double cpu_start, cpu_end, wall_start, wall_end;
-    op_timing_realloc({{kernel_idx}});
-
-    OP_kernels[{{kernel_idx}}].name = name;
-    OP_kernels[{{kernel_idx}}].count += 1;
-
-    op_timers_core(&cpu_start, &wall_start);
-
     op_profile_enter_kernel(name, "{{config.target}}", "{{"Direct" if lh is direct else "Indirect"}}");
     op_profile_enter("MPI Exchanges");
 
     if (OP_diags > 2)
         printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.name}}\n");
 
-    int set_size = op_mpi_halo_exchanges{{"_grouped" if config.grouped-}}
+    int n_exec = op_mpi_halo_exchanges{{"_grouped" if config.grouped-}}
         (set, num_args_expanded, args_expanded{{(", %d" % config.device) if config.grouped}});
 
     op_profile_next("Computation");
@@ -70,8 +64,10 @@ void op_par_loop_{{lh.name}}(
 {% endblock %}
 
 {% block host_epilogue %}
-    op_timers_core(&cpu_end, &wall_end);
-    OP_kernels[{{kernel_idx}}].time += wall_end - wall_start;
+
+    {{ utils.calculate_bytes_moved(lh)|indent(4) }}
+
+    op_profile_exit();
 {% endblock %}
 }
 
