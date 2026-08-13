@@ -187,6 +187,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     type(op_arg), dimension({{lh.args|length}}) :: args
 
     integer(4) :: n_exec
+    {% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.id}}_dim
+    {% endfor %}
 
 {% for dat in lh.dats %}
     {{dat.typ}}, pointer, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -211,6 +214,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     call op_profile_enter("MPI Exchanges")
     n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+{% for dat in lh.dats if dat.dim is none %}
+
+    dat{{dat.id}}_dim = arg{{dat.arg_id}}%dim
+{% endfor %}
 
     call op_profile_next("Computation")
 

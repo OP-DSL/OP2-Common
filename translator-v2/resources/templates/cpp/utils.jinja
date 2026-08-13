@@ -4,7 +4,7 @@
 int64_t bytes_moved = 0;
 {% if lh is direct %}
     {% for arg in lh.args_expanded|reject("gbl")|reject("info") %}
-bytes_moved += (int64_t)n_exec * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }};
+bytes_moved += (int64_t)n_exec * {{ lh.dat(arg).dim if lh.dat(arg).dim is not none else "arg" ~ lh.dat(arg).arg_id ~ ".dim" }} * {{ lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }};
     {% endfor %}
 {% else %}
     {% set ns = namespace(dats=[]) %}
@@ -12,9 +12,9 @@ bytes_moved += (int64_t)n_exec * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size //
         {% if arg is not gbl and arg.dat_id not in ns.dats %}
             {% set ns.dats = ns.dats + [arg.dat_id] %}
             {% if arg.map_id is not none %}
-bytes_moved += (int64_t)arg{{arg.id}}.dat->set->size * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }};
+bytes_moved += (int64_t)arg{{arg.id}}.dat->set->size * {{ lh.dat(arg).dim if lh.dat(arg).dim is not none else "arg" ~ lh.dat(arg).arg_id ~ ".dim" }} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }};
             {% else %}
-bytes_moved += (int64_t)n_exec * {{lh.dat(arg).dim}} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }};
+bytes_moved += (int64_t)n_exec * {{ lh.dat(arg).dim if lh.dat(arg).dim is not none else "arg" ~ lh.dat(arg).arg_id ~ ".dim" }} * {{lh.dat(arg).typ.size // 8}}{{ " * 2" if not arg is read }};
             {% endif %}
         {% endif %}
     {% endfor %}

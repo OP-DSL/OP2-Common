@@ -87,7 +87,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     info{{arg.id}}, &
 {% endfor %}
 {% for dat in lh.dats if dat.dim is none %}
-    dat{{dat.arg_id}}_dim, &
+    dat{{dat.id}}_dim, &
 {% endfor %}
     start, &
     end &
@@ -96,7 +96,7 @@ subroutine {{lh.kernel}}_wrapper2( &
 
     ! parameters
 {% for dat in lh.dats if dat.dim is none %}
-    integer(4) :: dat{{dat.arg_id}}_dim
+    integer(4) :: dat{{dat.id}}_dim
 {% endfor %}
 {% for dat in lh.dats %}
     {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -118,7 +118,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     integer(4) :: block, lane, d
 
     {% for arg in lh.args|dat|indirect %}
-    {{lh.dat(arg).typ}}, dimension(SIMD_LEN, {{lh.dat(arg).dim}}) :: arg{{arg.id}}_local
+    {{lh.dat(arg).typ}}, dimension(SIMD_LEN, {{dat_dim_w(lh.dat(arg))}}) :: arg{{arg.id}}_local
     {% endfor %}
     {% for arg in lh.args|gbl|reduction %}
     {{arg.typ}}, dimension(SIMD_LEN, {{arg.dim}}) :: arg{{arg.id}}_local
@@ -216,7 +216,7 @@ subroutine {{lh.kernel}}_wrapper( &
     info{{arg.id}}, &
 {% endfor %}
 {% for dat in lh.dats if dat.dim is none %}
-    dat{{dat.arg_id}}_dim, &
+    dat{{dat.id}}_dim, &
 {% endfor %}
     set, &
     args, &
@@ -229,7 +229,7 @@ subroutine {{lh.kernel}}_wrapper( &
     character(kind=c_char, len=*) :: name
 
 {% for dat in lh.dats if dat.dim is none %}
-    integer(4) :: dat{{dat.arg_id}}_dim
+    integer(4) :: dat{{dat.id}}_dim
 {% endfor %}
 {% for dat in lh.dats %}
     {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -332,7 +332,7 @@ subroutine {{lh.kernel}}_wrapper( &
             info{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none %}
-            dat{{dat.arg_id}}_dim, &
+            dat{{dat.id}}_dim, &
     {% endfor %}
             start, &
             end &
@@ -390,7 +390,7 @@ subroutine {{lh.kernel}}_wrapper( &
         {% endif %}
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none %}
-                dat{{dat.arg_id}}_dim, &
+                dat{{dat.id}}_dim, &
     {% endfor %}
                 offset, &
                 offset + num_elem - 1 &
@@ -445,8 +445,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     integer(4) :: n_exec
     {% for dat in lh.dats if dat.dim is none %}
-    integer(4) :: dat{{dat.arg_id}}_dim
+    integer(4) :: dat{{dat.id}}_dim
     {% endfor %}
+
+    integer(8) :: bytes_moved
 
 {% for dat in lh.dats %}
     {{dat.typ}}, pointer, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -462,10 +464,8 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
 {% for dat in lh.dats if dat.dim is none %}
 
-    dat{{dat.arg_id}}_dim = arg{{dat.arg_id}}%dim
+    dat{{dat.id}}_dim = arg{{dat.arg_id}}%dim
 {% endfor %}
-
-    integer(8) :: bytes_moved
 
 {% for arg in lh.args %}
     args({{loop.index}}) = arg{{arg.id}}
@@ -515,7 +515,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         info{{arg.id}}, &
 {% endfor %}
 {% for dat in lh.dats if dat.dim is none %}
-        dat{{dat.arg_id}}_dim, &
+        dat{{dat.id}}_dim, &
 {% endfor %}
         set, &
         args, &
