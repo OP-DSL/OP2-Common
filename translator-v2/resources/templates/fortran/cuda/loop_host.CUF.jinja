@@ -367,6 +367,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     real(8) :: start_time, end_time
     real(4) :: transfer
     integer(8) :: bytes_moved
+{% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.id}}_dim
+{% endfor %}
 
     integer(4) :: num_blocks, max_blocks, block_size, block_limit
     integer(4) :: start, end
@@ -384,6 +387,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     integer(4), dimension(:), pointer :: plan_ncolblk, plan_color2_offsets
     integer(4), dimension(:), pointer, device :: plan_col_reord
 {% endif %}
+{% for dat in lh.dats if dat.dim is none %}
+
+    dat{{dat.id}}_dim = arg{{dat.arg_id}}%dim
+{% endfor %}
 
 {% for arg in lh.args %}
     args({{loop.index}}) = arg{{arg.id}}
