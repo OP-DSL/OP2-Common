@@ -38,6 +38,7 @@
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op_f2c_helpers.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
@@ -541,6 +542,7 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 */
 
 void op_exit() {
+  op::f2c::jit_finalize(); // joins JIT threads while the CUDA context is alive
   // need to free buffer_d used for mpi comms in each op_dat
   if (OP_hybrid_gpu) {
     op_dat_entry *item;
