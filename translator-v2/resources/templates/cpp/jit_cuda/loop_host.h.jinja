@@ -407,7 +407,8 @@ void op_par_loop_{{lh.name}}(
     static bool first_invocation = true;
     static op::f2c::KernelInfo info("op2_k_{{lh.name}}{{variant}}_wrapper",
                                     (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-                                    op2_k_{{lh.name}}{{variant}}_src);
+                                    op2_k_{{lh.name}}{{variant}}_src,
+                                    OP_F2C_PRELUDE_DATA);
 
 {% if lh is direct %}
     auto [block_limit, block_size] = info.get_launch_config(nullptr, set->size);

@@ -386,7 +386,9 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     static bool first_invocation = true;
     static op::f2c::KernelInfo info("op2_k_{{lh.name}}{{variant}}_wrapper",
                                     (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-                                    op2_k_{{lh.name}}{{variant}}_src);
+                                    op2_k_{{lh.name}}{{variant}}_src,
+                                    OP_F2C_PRELUDE_DATA,
+                                    {% if lang.user_consts_module is not none %}OP_F2C_PARAMS_DATA{% else %}nullptr{% endif %});
 
     if (first_invocation) {
 {% if lh.dats|direct(lh)|soa|length > 0 %}
