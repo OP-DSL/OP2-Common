@@ -48,7 +48,7 @@ void op_par_loop_{{lh.name}}(
     args_expanded[{{loop.index0}}] = {{arg_dat_redef(arg) if lh.args[arg.id] is vec else "arg%d" % arg.id}};
     {% endfor %}
 
-    op_profile_enter_kernel(name, "{{config.target}}", "{{"Direct" if lh is direct else "Indirect"}}");
+    op_profile_enter_kernel("{{lh.name}}", "{{config.target}}", "{{"Direct" if lh is direct else "Indirect"}}");
     op_profile_enter("MPI Exchanges");
 
     if (OP_diags > 2)

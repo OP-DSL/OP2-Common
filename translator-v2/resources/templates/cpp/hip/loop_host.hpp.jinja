@@ -427,19 +427,6 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
 
     op_mpi_set_dirtybit_cuda(num_args_expanded, args_expanded);
     cutilSafeCall(hipDeviceSynchronize());
-    op_profile_exit();
 
 {{super()}}
-
-    {% if lh is direct %}
-        {% for arg in lh.args_expanded|reject("gbl") %}
-            {% call opt_if(arg) %}
-    OP_kernels[{{kernel_idx}}].transfer += (float)set->size * arg{{arg.id}}.size{{-" * 2.0f" if not arg is read}};
-            {% endcall %}
-        {% endfor %}
-    {% elif config.color2 %}
-    OP_kernels[{{kernel_idx}}].transfer  += plan->transfer;
-    OP_kernels[{{kernel_idx}}].transfer2 += plan->transfer2;
-    {% endif %}
-    {#- TODO: Transfer estimation with indirect + atomics? #}
 {% endblock %}
