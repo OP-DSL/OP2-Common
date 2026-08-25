@@ -355,13 +355,18 @@ endif()
 
 file(WRITE "${CMAKE_BINARY_DIR}/op2-deps.cmake" "${_cache_lines}")
 
+# Deliberately not DEPENDS on the dep targets: this file's content is settled
+# at configure time, and gating it on every dependency building meant one
+# failure left the user with the others installed but nothing naming them. A
+# *_ROOT pointing at a prefix that was never populated costs nothing - OP2's
+# find_package for that dependency reports it as not found and the build drops
+# those variants, which is the right outcome.
 if(_all_dep_targets)
     add_custom_target(op2_deps_cache ALL
         COMMAND ${CMAKE_COMMAND} -E make_directory "${_prefix}"
         COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_BINARY_DIR}/op2-deps.cmake"
             "${_prefix}/op2-deps.cmake"
-        DEPENDS ${_all_dep_targets}
         COMMENT "Writing ${_prefix}/op2-deps.cmake"
         VERBATIM
     )
