@@ -211,7 +211,10 @@ function(_op2_configure_fortran_target tgt)
         $<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-ffree-line-length-none;-ffixed-line-length-none;-fcray-pointer>
         $<$<COMPILE_LANG_AND_ID:Fortran,NVHPC,PGI>:-Mextend>)
 
-    # INTERFACE only: a static archive is never linked itself.
+    # INTERFACE, not PRIVATE: the stack trampoline that provokes the warning
+    # is emitted into the generated kernels an app compiles, so it is the
+    # consumer's Fortran-linked executable that needs the flag. OP2's own
+    # libraries never do - they link with the C++ driver even when shared.
     if(OP2_LINKER_HAS_NO_WARN_EXECSTACK)
         target_link_options(${tgt} INTERFACE
             $<$<LINK_LANGUAGE:Fortran>:-Wl,--no-warn-execstack>)
