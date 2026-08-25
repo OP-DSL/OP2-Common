@@ -196,17 +196,19 @@ endfunction()
 # op2_translate(OUT_DIR <dir> LANGUAGE <cpp|fortran>
 #               SOURCES <src...> VARIANTS <variant...>
 #               [PROPS_TARGET <tgt>] [EXTRA_ARGS <arg...>]
-#               [OUTPUTS_VAR <var>])
+#               [OUTPUTS_VAR <var>] [TARGET_NAME <name>])
 # ---------------------------------------------------------------------------
 # Emits one add_custom_command that reruns the translator when SOURCES or the
-# translator itself change. PROPS_TARGET's compile definitions/include dirs
-# are forwarded to the translator. OUTPUTS_VAR gets the generated files, which
-# a target in this directory can list as sources to pick up the dependency.
+# translator itself change, plus a custom target owning it. PROPS_TARGET's
+# compile definitions/include dirs are forwarded to the translator.
+# OUTPUTS_VAR gets the generated files, which a target in this directory
+# lists as sources; that target must also depend on TARGET_NAME - see the
+# note on it below. TARGET_NAME defaults to a name derived from OUT_DIR.
 # ---------------------------------------------------------------------------
 function(op2_translate)
     cmake_parse_arguments(_A
         ""
-        "OUT_DIR;LANGUAGE;PROPS_TARGET;OUTPUTS_VAR"
+        "OUT_DIR;LANGUAGE;PROPS_TARGET;OUTPUTS_VAR;TARGET_NAME"
         "SOURCES;VARIANTS;EXTRA_ARGS"
         ${ARGN})
 
@@ -249,6 +251,19 @@ function(op2_translate)
         set(_incs_flags "$<$<BOOL:${_incs_genex}>:-I;$<JOIN:${_incs_genex},;-I;>>")
     endif()
 
+    # Absolute, because a relative DEPENDS entry is matched against the OUTPUTs
+    # of other custom commands in this directory: two op2_add_app_variants()
+    # calls sharing a source basename would otherwise each pull in the other's
+    # translator command, which is how one command ends up running per call in
+    # a directory rather than once.
+    set(_sources "")
+    foreach(_s IN LISTS _A_SOURCES)
+        if(NOT IS_ABSOLUTE "${_s}")
+            set(_s "${CMAKE_CURRENT_SOURCE_DIR}/${_s}")
+        endif()
+        list(APPEND _sources "${_s}")
+    endforeach()
+
     file(MAKE_DIRECTORY "${_A_OUT_DIR}")
     _op2_translator_outputs("${_A_LANGUAGE}" "${_A_VARIANTS}" "${_A_OUT_DIR}"
         "${_A_SOURCES}" _outputs)
@@ -279,12 +294,22 @@ function(op2_translate)
             -o "${_A_OUT_DIR}"
             ${_A_SOURCES}
         COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${_outputs}
-        DEPENDS ${_A_SOURCES} ${OP2_TRANSLATOR_DEPENDS}
+        DEPENDS ${_sources} ${OP2_TRANSLATOR_DEPENDS}
         DEPFILE "${_depfile}"
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "OP2 translator → ${_A_OUT_DIR}"
         VERBATIM)
+
+    # Every variant compiling this output depends on this target rather than
+    # only listing the files: Makefile generators copy a custom command's rule
+    # into each consuming target, which ran the translator once per variant -
+    # and concurrently, over the same output directory. See "Generating Files
+    # for Multiple Targets" in the add_custom_command docs.
+    if(NOT _A_TARGET_NAME)
+        string(MAKE_C_IDENTIFIER "op2_translate_${_A_OUT_DIR}" _A_TARGET_NAME)
+    endif()
+    add_custom_target(${_A_TARGET_NAME} DEPENDS ${_outputs})
 
     if(_A_OUTPUTS_VAR)
         set(${_A_OUTPUTS_VAR} "${_outputs}" PARENT_SCOPE)
@@ -425,14 +450,17 @@ function(op2_add_app_variants)
             break()
         endif()
     endforeach()
+    set(_translate_target "")
     if(_needs_translator)
+        set(_translate_target "${_A_NAME}_translate")
         op2_translate(
             OUT_DIR      "${_A_OUTPUT_DIR}"
             LANGUAGE     "${_A_LANGUAGE}"
             SOURCES      ${_A_SOURCES}
             VARIANTS     ${_buildable}
             PROPS_TARGET ${_props}
-            EXTRA_ARGS   ${_A_TRANSLATOR_ONLY_ARGS})
+            EXTRA_ARGS   ${_A_TRANSLATOR_ONLY_ARGS}
+            TARGET_NAME  "${_translate_target}")
     endif()
 
     # 4. Emit each executable variant.
@@ -446,6 +474,9 @@ function(op2_add_app_variants)
             OUT_DIR  "${_A_OUTPUT_DIR}"
             PROPS    "${_props}"
             WITH_HDF5 "${_A_WITH_HDF5}")
+        if(_translate_target)
+            add_dependencies("${_A_NAME}_${_v}" ${_translate_target})
+        endif()
         list(APPEND _created "${_A_NAME}_${_v}")
         # Skipped when the whole build has OP2_ENABLE_INSTALL=OFF.
         if(_A_INSTALL AND (NOT DEFINED OP2_ENABLE_INSTALL OR OP2_ENABLE_INSTALL))
