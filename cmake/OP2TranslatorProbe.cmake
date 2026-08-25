@@ -6,10 +6,12 @@
 # sets _op2_translator_pkg_dir (invoked as `python3 <dir>`) and
 # _op2_translator_reqs_file (named in the guidance message only).
 #
-# Sets OP2_HAS_TRANSLATOR and OP2_TRANSLATOR_COMMAND, CACHE INTERNAL so they
-# stay visible to op2_add_app_variants() from any directory scope.
+# Sets OP2_HAS_TRANSLATOR, OP2_TRANSLATOR_COMMAND and OP2_TRANSLATOR_DEPENDS,
+# CACHE INTERNAL so they stay visible to op2_add_app_variants() from any
+# directory scope.
 set(OP2_HAS_TRANSLATOR FALSE CACHE INTERNAL "")
 set(OP2_TRANSLATOR_COMMAND "" CACHE INTERNAL "")
+set(OP2_TRANSLATOR_DEPENDS "" CACHE INTERNAL "")
 
 find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
 if(NOT Python3_Interpreter_FOUND)
@@ -31,6 +33,18 @@ execute_process(
 if(_op2_translator_probe EQUAL 0)
     set(OP2_TRANSLATOR_COMMAND "${Python3_EXECUTABLE}" "${_op2_translator_pkg_dir}" CACHE INTERNAL "")
     set(OP2_HAS_TRANSLATOR TRUE CACHE INTERNAL "")
+
+    # What the translator emits is decided by its own sources and templates, so
+    # they join every op2_translate() dependency list - without them, editing a
+    # template leaves already-generated code in place. resources/ and fpp/ sit
+    # beside the package in both the in-tree and the installed layout.
+    # CONFIGURE_DEPENDS so a newly added template re-runs configure.
+    get_filename_component(_op2_translator_root "${_op2_translator_pkg_dir}" DIRECTORY)
+    file(GLOB_RECURSE _op2_translator_deps CONFIGURE_DEPENDS
+        "${_op2_translator_pkg_dir}/*.py"
+        "${_op2_translator_root}/resources/*"
+        "${_op2_translator_root}/fpp/fpp")
+    set(OP2_TRANSLATOR_DEPENDS "${_op2_translator_deps}" CACHE INTERNAL "")
     message(STATUS "OP2: translator   = found (${Python3_EXECUTABLE})")
 else()
     message(STATUS
