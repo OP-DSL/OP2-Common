@@ -36,9 +36,10 @@ unset(_op2_lang)
 unset(_op2_required_languages)
 
 # Each dependency below defaults to the one OP2 was built against, overridable
-# by the package's usual knobs. OP2's libraries are static and get relinked by
-# the consumer, so finding a *different* build is what breaks, not finding
-# none - and a path that's since moved is ignored, not pinned to.
+# by the package's usual knobs. Finding a *different* build is what breaks, not
+# finding none: a static OP2 relinks these into the consumer's binary and a
+# shared one has already bound them, so a mismatch bites either way. A path
+# that has since moved is ignored, not pinned to.
 
 # Only the components something in the link graph names: FindMPI/FindOpenMP
 # fail outright on a component whose language isn't enabled, not just waste
