@@ -13,16 +13,21 @@ set(_libs
     "${SRC}/parallel/parallel_src/libparhip_interface_static.a"
 )
 
-foreach(_lib ${_libs})
-    if(EXISTS "${_lib}")
-        get_filename_component(_name "${_lib}" NAME)
-        # Strip accidental double "lib" prefix from modified_kahip target name
-        string(REPLACE "liblibmodified_kahip_interface.a"
-                       "libmodified_kahip_interface.a" _name "${_name}")
-        file(COPY_FILE "${_lib}" "${DST}/lib/${_name}")
-    else()
-        message(WARNING "install_kahip: ${_lib} not found - skipping")
+foreach(_lib IN LISTS _libs)
+    # Fatal, not a warning: a partial install degrades quietly rather than
+    # loudly. find_package(KaHIP) would just report KaHIP as not found and OP2
+    # would configure without KaHIP partitioning, which is easy to miss in a
+    # status line. The deps build asks for these targets by name, so a missing
+    # one means the KaHIP build changed shape or failed.
+    if(NOT EXISTS "${_lib}")
+        message(FATAL_ERROR "install_kahip: ${_lib} was not built")
     endif()
+
+    get_filename_component(_name "${_lib}" NAME)
+    # Strip accidental double "lib" prefix from modified_kahip target name
+    string(REPLACE "liblibmodified_kahip_interface.a"
+                   "libmodified_kahip_interface.a" _name "${_name}")
+    file(COPY_FILE "${_lib}" "${DST}/lib/${_name}")
 endforeach()
 
 file(COPY_FILE
