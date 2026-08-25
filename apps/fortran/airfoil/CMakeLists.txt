@@ -17,8 +17,7 @@ op2_add_app_variants(
     SOURCES  ${_airfoil_srcs}
     TRANSLATOR_ONLY_ARGS ${_airfoil_translator_args}
     COMPILE_DEFINITIONS  PLAIN
-    EXCLUDE_VARIANTS
-        mpi_seq mpi_genseq mpi_openmp mpi_cuda mpi_c_cuda mpi_c_hip)
+    EXCLUDE_VARIANTS mpi_*)
 
 op2_add_app_variants(
     NAME     airfoil_arg_ptrs
@@ -26,8 +25,7 @@ op2_add_app_variants(
     SOURCES  ${_airfoil_srcs}
     TRANSLATOR_ONLY_ARGS ${_airfoil_translator_args}
     COMPILE_DEFINITIONS  ARG_PTRS
-    EXCLUDE_VARIANTS
-        mpi_seq mpi_genseq mpi_openmp mpi_cuda mpi_c_cuda mpi_c_hip)
+    EXCLUDE_VARIANTS mpi_*)
 
 op2_add_app_variants(
     NAME     airfoil_hdf5

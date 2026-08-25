@@ -50,7 +50,6 @@ function(op2_add_functional_tests)
     get_filename_component(_category "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
     set(_A_NAME "${_category}")
 
-    set(_mpi_variants mpi_seq mpi_genseq mpi_openmp mpi_cuda mpi_hip mpi_c_cuda mpi_c_hip)
     set(_all_targets "")
 
     # 1. Build the four legacy variant-families (plain / par / soa / soa_par).
@@ -60,7 +59,7 @@ function(op2_add_functional_tests)
     # op2_add_app_variants()'s own tracking rather than a separate counter.
     op2_add_app_variants(
         NAME "${_A_NAME}" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-        EXCLUDE_VARIANTS ${_mpi_variants} ${_A_EXCLUDE_VARIANTS}
+        EXCLUDE_VARIANTS mpi_* ${_A_EXCLUDE_VARIANTS}
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -68,7 +67,7 @@ function(op2_add_functional_tests)
 
     op2_add_app_variants(
         NAME "${_A_NAME}_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-        VARIANTS ${_mpi_variants} EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+        VARIANTS mpi_* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -76,7 +75,7 @@ function(op2_add_functional_tests)
 
     op2_add_app_variants(
         NAME "${_A_NAME}_soa" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-        EXCLUDE_VARIANTS ${_mpi_variants} ${_A_EXCLUDE_VARIANTS}
+        EXCLUDE_VARIANTS mpi_* ${_A_EXCLUDE_VARIANTS}
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -84,7 +83,7 @@ function(op2_add_functional_tests)
 
     op2_add_app_variants(
         NAME "${_A_NAME}_soa_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-        VARIANTS ${_mpi_variants} EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+        VARIANTS mpi_* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -100,7 +99,14 @@ function(op2_add_functional_tests)
     # variant narrowing (no CUDA, no MPI, ...) just means fewer add_test()
     # calls, never a configure error.
     set(_all_names "${_A_NAME}" "${_A_NAME}_par" "${_A_NAME}_soa" "${_A_NAME}_soa_par")
-    set(_all_variants seq genseq openmp cuda hip c_cuda c_hip ${_mpi_variants})
+
+    # Literal names here, not the mpi_* glob used above: this loop builds target
+    # names to test with if(TARGET). Every non-MPI variant has an mpi_ form, so
+    # the MPI half is derived rather than restated.
+    set(_all_variants seq genseq openmp cuda hip c_cuda c_hip)
+    foreach(_v IN LISTS _all_variants)
+        list(APPEND _all_variants "mpi_${_v}")
+    endforeach()
 
     # Directory count for the summary line - a different unit (source dirs,
     # one per call here) than the TESTS bucket's own NAMES/COUNT (one entry
