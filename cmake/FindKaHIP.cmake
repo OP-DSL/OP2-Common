@@ -1,7 +1,12 @@
 # FindKaHIP.cmake
 #
 # Locates the parallel KaHIP interface (ParHIP) required for MPI mesh
-# partitioning.  Sets the imported target KaHIP::ParHIP on success.
+# partitioning.
+# Results come back in the cache variables below, not an imported target: OP2
+# links the partitioners by path so install(EXPORT) pins the exact artefacts,
+# and this module is not installed for a consumer to load. An imported target
+# here would be recorded in OP2Targets.cmake and fail every consumer with
+# "target not found".
 #
 # OP2 only uses KaHIP in MPI contexts (op_mpi_part_core.cpp calls
 # ParHIPPartitionKWay), so only the parallel library is needed.
@@ -46,19 +51,6 @@ endif()
 # Sequential internals that parhip_interface_static depends on at link time.
 find_library(KaHIP_MODIFIED_LIBRARY NAMES modified_kahip_interface
     HINTS ${_kahip_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-
-if(KaHIP_INCLUDE_DIR AND KaHIP_ParHIP_LIBRARY)
-    if(NOT TARGET KaHIP::ParHIP)
-        add_library(KaHIP::ParHIP UNKNOWN IMPORTED)
-        set_target_properties(KaHIP::ParHIP PROPERTIES
-            IMPORTED_LOCATION             "${KaHIP_ParHIP_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${KaHIP_INCLUDE_DIR}")
-        if(KaHIP_MODIFIED_LIBRARY)
-            set_property(TARGET KaHIP::ParHIP APPEND PROPERTY
-                INTERFACE_LINK_LIBRARIES "${KaHIP_MODIFIED_LIBRARY}")
-        endif()
-    endif()
-endif()
 
 find_package_handle_standard_args(KaHIP
     REQUIRED_VARS KaHIP_INCLUDE_DIR KaHIP_ParHIP_LIBRARY
