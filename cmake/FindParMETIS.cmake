@@ -7,9 +7,13 @@
 # here would be recorded in OP2Targets.cmake and fail every consumer with
 # "target not found".
 #
-# Hints (cache and env, checked in order):
-#   ParMETIS: ParMETIS_ROOT (matches find_package(ParMETIS)), ParMETIS_DIR, PARMETIS_DIR
-#   METIS:    METIS_ROOT, METIS_DIR (fall back to ParMETIS hints if not set)
+# Hints (cache and env):
+#   ParMETIS: ParMETIS_ROOT is searched automatically by find_* inside a module
+#             loaded by find_package(ParMETIS); ParMETIS_DIR and PARMETIS_DIR
+#             are hinted explicitly
+#   METIS:    METIS_ROOT and METIS_DIR, both hinted explicitly - METIS is not
+#             the package being found, so its ROOT gets no automatic search.
+#             Falls back to the ParMETIS hints when unset
 #
 # Validates that ParMETIS was built with 64-bit indices (sizeof(idx_t) == 8) as
 # required by OP2 (idx_g_t is long long).  The check fails if a 32-bit METIS build is found.
@@ -24,7 +28,6 @@
 include(FindPackageHandleStandardArgs)
 
 set(_parmetis_hints
-    "${ParMETIS_ROOT}"      "$ENV{ParMETIS_ROOT}"
     "${ParMETIS_DIR}"       "$ENV{ParMETIS_DIR}"
     "${PARMETIS_DIR}"       "$ENV{PARMETIS_DIR}"
 )
@@ -35,28 +38,16 @@ set(_metis_hints
 )
 
 find_path(ParMETIS_INCLUDE_DIR NAMES parmetis.h
-    HINTS ${_parmetis_hints} PATH_SUFFIXES include NO_DEFAULT_PATH)
-if(NOT ParMETIS_INCLUDE_DIR)
-    find_path(ParMETIS_INCLUDE_DIR NAMES parmetis.h PATH_SUFFIXES include)
-endif()
+    HINTS ${_parmetis_hints} PATH_SUFFIXES include)
 
 find_library(ParMETIS_LIBRARY NAMES parmetis
-    HINTS ${_parmetis_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-if(NOT ParMETIS_LIBRARY)
-    find_library(ParMETIS_LIBRARY NAMES parmetis PATH_SUFFIXES lib lib64)
-endif()
+    HINTS ${_parmetis_hints} PATH_SUFFIXES lib lib64)
 
 find_path(METIS_INCLUDE_DIR NAMES metis.h
-    HINTS ${_metis_hints} PATH_SUFFIXES include NO_DEFAULT_PATH)
-if(NOT METIS_INCLUDE_DIR)
-    find_path(METIS_INCLUDE_DIR NAMES metis.h PATH_SUFFIXES include)
-endif()
+    HINTS ${_metis_hints} PATH_SUFFIXES include)
 
 find_library(METIS_LIBRARY NAMES metis
-    HINTS ${_metis_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-if(NOT METIS_LIBRARY)
-    find_library(METIS_LIBRARY NAMES metis PATH_SUFFIXES lib lib64)
-endif()
+    HINTS ${_metis_hints} PATH_SUFFIXES lib lib64)
 
 # Validate 64-bit index width via a compile-time sizeof check on idx_t.
 # parmetis.h includes metis.h which defines idx_t; it also includes mpi.h.

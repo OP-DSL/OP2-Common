@@ -7,8 +7,9 @@
 # here would be recorded in OP2Targets.cmake and fail every consumer with
 # "target not found".
 #
-# Hints (cache and env, checked in order):
-#   PTScotch_ROOT   - matches find_package(PTScotch)
+# Hints (cache and env):
+#   PTScotch_ROOT   - searched automatically by find_* inside a module loaded
+#                     by find_package(PTScotch), so it needs no explicit hint
 #   SCOTCH_DIR      - Spack / module-system convention
 #   PTSCOTCH_DIR    - alternate module-system convention
 #
@@ -25,35 +26,22 @@
 include(FindPackageHandleStandardArgs)
 
 set(_ptscotch_hints
-    "${PTScotch_ROOT}"      "$ENV{PTScotch_ROOT}"
     "${SCOTCH_DIR}"         "$ENV{SCOTCH_DIR}"
     "${PTSCOTCH_DIR}"       "$ENV{PTSCOTCH_DIR}"
 )
 
 find_path(PTScotch_INCLUDE_DIR NAMES ptscotch.h scotch.h
-    HINTS ${_ptscotch_hints} PATH_SUFFIXES include NO_DEFAULT_PATH)
-if(NOT PTScotch_INCLUDE_DIR)
-    find_path(PTScotch_INCLUDE_DIR NAMES ptscotch.h scotch.h PATH_SUFFIXES include)
-endif()
+    HINTS ${_ptscotch_hints} PATH_SUFFIXES include)
 
 find_library(PTScotch_LIBRARY NAMES ptscotch
-    HINTS ${_ptscotch_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-if(NOT PTScotch_LIBRARY)
-    find_library(PTScotch_LIBRARY NAMES ptscotch PATH_SUFFIXES lib lib64)
-endif()
+    HINTS ${_ptscotch_hints} PATH_SUFFIXES lib lib64)
 
 find_library(PTScotch_ERR_LIBRARY NAMES ptscotcherr
-    HINTS ${_ptscotch_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-if(NOT PTScotch_ERR_LIBRARY)
-    find_library(PTScotch_ERR_LIBRARY NAMES ptscotcherr PATH_SUFFIXES lib lib64)
-endif()
+    HINTS ${_ptscotch_hints} PATH_SUFFIXES lib lib64)
 
 # Scotch (serial) is needed at link time alongside PT-Scotch
 find_library(PTScotch_SCOTCH_LIBRARY NAMES scotch
-    HINTS ${_ptscotch_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-if(NOT PTScotch_SCOTCH_LIBRARY)
-    find_library(PTScotch_SCOTCH_LIBRARY NAMES scotch PATH_SUFFIXES lib lib64)
-endif()
+    HINTS ${_ptscotch_hints} PATH_SUFFIXES lib lib64)
 
 # Validate 64-bit index width via a compile-time sizeof check.
 # ptscotch.h includes mpi.h, so MPI include dirs must be on the search path.
