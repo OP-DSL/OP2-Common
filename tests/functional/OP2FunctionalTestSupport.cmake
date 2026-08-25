@@ -51,6 +51,20 @@ function(op2_add_functional_tests)
     set(_A_NAME "${_category}")
 
     set(_all_targets "")
+    set(_all_variants "")
+
+    # op2_add_app_variants() reports exactly which targets it created, so take
+    # its word rather than rebuilding <name>_<variant> from a variant list and
+    # probing with if(TARGET). The family name is a known prefix, which is what
+    # makes the variant recoverable - a target name alone is ambiguous, since
+    # the base can contain underscores too (const_soa_par_mpi_seq).
+    macro(_op2_take_family _family)
+        foreach(_t IN LISTS _fam_targets)
+            list(APPEND _all_targets "${_t}")
+            string(REGEX REPLACE "^${_family}_" "" _variant "${_t}")
+            list(APPEND _all_variants "${_variant}")
+        endforeach()
+    endmacro()
 
     # 1. Build the four legacy variant-families (plain / par / soa / soa_par).
     # USE_MPI needs no explicit COMPILE_DEFINITIONS: _op2_add_variant_executable()
@@ -63,7 +77,7 @@ function(op2_add_functional_tests)
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
-    list(APPEND _all_targets ${_fam_targets})
+    _op2_take_family("${_A_NAME}")
 
     op2_add_app_variants(
         NAME "${_A_NAME}_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
@@ -71,7 +85,7 @@ function(op2_add_functional_tests)
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
-    list(APPEND _all_targets ${_fam_targets})
+    _op2_take_family("${_A_NAME}_par")
 
     op2_add_app_variants(
         NAME "${_A_NAME}_soa" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
@@ -79,7 +93,7 @@ function(op2_add_functional_tests)
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
-    list(APPEND _all_targets ${_fam_targets})
+    _op2_take_family("${_A_NAME}_soa")
 
     op2_add_app_variants(
         NAME "${_A_NAME}_soa_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
@@ -87,7 +101,7 @@ function(op2_add_functional_tests)
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
-    list(APPEND _all_targets ${_fam_targets})
+    _op2_take_family("${_A_NAME}_soa_par")
 
     if(_A_LINK_LIBRARIES)
         foreach(_t IN LISTS _all_targets)
@@ -98,28 +112,18 @@ function(op2_add_functional_tests)
     # 2. Register one ctest per executable target that actually got created -
     # variant narrowing (no CUDA, no MPI, ...) just means fewer add_test()
     # calls, never a configure error.
-    set(_all_names "${_A_NAME}" "${_A_NAME}_par" "${_A_NAME}_soa" "${_A_NAME}_soa_par")
-
-    # Literal names here, not the mpi_* glob used above: this loop builds target
-    # names to test with if(TARGET). Every non-MPI variant has an mpi_ form, so
-    # the MPI half is derived rather than restated.
-    set(_all_variants seq genseq openmp cuda hip c_cuda c_hip)
-    foreach(_v IN LISTS _all_variants)
-        list(APPEND _all_variants "mpi_${_v}")
-    endforeach()
-
     # Directory count for the summary line - a different unit (source dirs,
     # one per call here) than the TESTS bucket's own NAMES/COUNT (one entry
     # per variant-family call above), so it's tracked with its own property
     # rather than forced through _op2_summary_track().
     set_property(GLOBAL APPEND PROPERTY OP2_SUMMARY_TESTS_DIRS "${_category}")
 
-    foreach(_base_name IN LISTS _all_names)
-        foreach(_v IN LISTS _all_variants)
-            set(_tgt "${_base_name}_${_v}")
-            if(NOT TARGET ${_tgt})
-                continue()
-            endif()
+    if(_all_targets)
+        list(LENGTH _all_targets _n_targets)
+        math(EXPR _last_target "${_n_targets} - 1")
+        foreach(_i RANGE ${_last_target})
+            list(GET _all_targets ${_i} _tgt)
+            list(GET _all_variants ${_i} _v)
 
             # A real list via list(APPEND ...), not a pre-joined ";"-string:
             # MPIEXEC_PREFLAGS/POSTFLAGS are empty by default, and a string
@@ -163,5 +167,5 @@ function(op2_add_functional_tests)
                     ENVIRONMENT "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
             endif()
         endforeach()
-    endforeach()
+    endif()
 endfunction()
