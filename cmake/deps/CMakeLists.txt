@@ -18,7 +18,7 @@ find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
-option(OP2_DEPS_HDF5     "Build HDF5 serial and parallel libraries" ON)
+option(OP2_DEPS_HDF5     "Build HDF5 (MPI-parallel)"                ON)
 option(OP2_DEPS_PARMETIS "Build ParMETIS + METIS (64-bit indices)"  ON)
 option(OP2_DEPS_PTSCOTCH "Build PT-Scotch (64-bit indices)"         ON)
 option(OP2_DEPS_KAHIP    "Build KaHIP with ParHIP (MPI)"            ON)
@@ -73,12 +73,6 @@ function(_op2_deps_url_hash dep out_var)
     set(${out_var} URL_HASH "SHA256=${_hash}" PARENT_SCOPE)
 endfunction()
 
-# HDF5 variant: parallel (with MPI) or serial.
-# AUTO -> ON if MPI found, OFF otherwise.  Explicit ON errors out if MPI is missing.
-set(OP2_DEPS_HDF5_PARALLEL "AUTO" CACHE STRING
-    "Build HDF5 with MPI support (ON/OFF/AUTO; AUTO=ON if MPI found)")
-set_property(CACHE OP2_DEPS_HDF5_PARALLEL PROPERTY STRINGS AUTO ON OFF)
-
 # ---------------------------------------------------------------------------
 # Install prefix - defaults to <repo_root>/deps
 # ---------------------------------------------------------------------------
@@ -98,7 +92,7 @@ if(CMAKE_Fortran_COMPILER)
 endif()
 
 # ---------------------------------------------------------------------------
-# MPI - required for all parallel deps
+# MPI - required: every dependency here is built against it, HDF5 included
 # ---------------------------------------------------------------------------
 find_package(MPI COMPONENTS C CXX REQUIRED)
 if(NOT MPI_C_COMPILER)
@@ -134,7 +128,7 @@ if(MPI_Fortran_FOUND)
     message(STATUS "OP2Deps: MPI Fortran    = ${MPI_Fortran_COMPILER}")
 endif()
 message(STATUS "OP2Deps: parallel jobs  = ${PARALLEL_LEVEL}")
-message(STATUS "OP2Deps: HDF5           = ${OP2_DEPS_HDF5}  (${OP2_DEPS_HDF5_VERSION}, parallel=${OP2_DEPS_HDF5_PARALLEL})")
+message(STATUS "OP2Deps: HDF5           = ${OP2_DEPS_HDF5}  (${OP2_DEPS_HDF5_VERSION}, parallel)")
 message(STATUS "OP2Deps: ParMETIS       = ${OP2_DEPS_PARMETIS}  (${OP2_DEPS_PARMETIS_VERSION})")
 message(STATUS "OP2Deps: PT-Scotch      = ${OP2_DEPS_PTSCOTCH}  (${OP2_DEPS_PTSCOTCH_VERSION})")
 message(STATUS "OP2Deps: KaHIP          = ${OP2_DEPS_KAHIP}  (${OP2_DEPS_KAHIP_VERSION})")
@@ -153,27 +147,9 @@ endif()
 set(_all_dep_targets "")
 
 # ---------------------------------------------------------------------------
-# HDF5 (single install; parallel if MPI available, otherwise serial)
+# HDF5 (single MPI-parallel install)
 # ---------------------------------------------------------------------------
 if(OP2_DEPS_HDF5)
-    # Resolve AUTO / ON / OFF for the parallel flag
-    if(OP2_DEPS_HDF5_PARALLEL STREQUAL "AUTO")
-        if(MPI_C_COMPILER)
-            set(_hdf5_parallel TRUE)
-        else()
-            set(_hdf5_parallel FALSE)
-        endif()
-    elseif(OP2_DEPS_HDF5_PARALLEL)
-        if(NOT MPI_C_COMPILER)
-            message(FATAL_ERROR
-                "OP2_DEPS_HDF5_PARALLEL=ON but no MPI C wrapper found - "
-                "set MPI_C_COMPILER or use AUTO/OFF.")
-        endif()
-        set(_hdf5_parallel TRUE)
-    else()
-        set(_hdf5_parallel FALSE)
-    endif()
-
     # Parse "1.14.4-3" into tag components: hdf5_1.14.4.3
     if(NOT OP2_DEPS_HDF5_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)-([0-9]+)$")
         message(FATAL_ERROR
@@ -187,22 +163,16 @@ if(OP2_DEPS_HDF5)
 
     # HDF5's CMake build produces hdf5-config.cmake, which OP2 discovers via
     # find_package(HDF5 CONFIG); the autoconf build ships no config file.
-    if(_hdf5_parallel)
-        set(_hdf5_c_compiler ${MPI_C_COMPILER})
-        if(MPI_Fortran_FOUND)
-            set(_hdf5_fortran_compiler ${MPI_Fortran_COMPILER})
-        elseif(CMAKE_Fortran_COMPILER)
-            set(_hdf5_fortran_compiler ${CMAKE_Fortran_COMPILER})
-        else()
-            set(_hdf5_fortran_compiler "")
-        endif()
+    # Built through the MPI wrappers: OP2's MPI variants need a parallel HDF5,
+    # and MPI is required here anyway. The Fortran bindings prefer the MPI
+    # wrapper too, falling back to the plain compiler and then to no bindings.
+    set(_hdf5_c_compiler ${MPI_C_COMPILER})
+    if(MPI_Fortran_FOUND)
+        set(_hdf5_fortran_compiler ${MPI_Fortran_COMPILER})
+    elseif(CMAKE_Fortran_COMPILER)
+        set(_hdf5_fortran_compiler ${CMAKE_Fortran_COMPILER})
     else()
-        set(_hdf5_c_compiler ${CMAKE_C_COMPILER})
-        if(CMAKE_Fortran_COMPILER)
-            set(_hdf5_fortran_compiler ${CMAKE_Fortran_COMPILER})
-        else()
-            set(_hdf5_fortran_compiler "")
-        endif()
+        set(_hdf5_fortran_compiler "")
     endif()
 
     set(_hdf5_cmake_args
@@ -219,12 +189,8 @@ if(OP2_DEPS_HDF5)
         -DHDF5_BUILD_TOOLS=OFF
         -DHDF5_BUILD_HL_LIB=ON
         -DHDF5_BUILD_CPP_LIB=OFF
+        -DHDF5_ENABLE_PARALLEL=ON
     )
-    if(_hdf5_parallel)
-        list(APPEND _hdf5_cmake_args -DHDF5_ENABLE_PARALLEL=ON)
-    else()
-        list(APPEND _hdf5_cmake_args -DHDF5_ENABLE_PARALLEL=OFF)
-    endif()
     if(_hdf5_fortran_compiler)
         list(APPEND _hdf5_cmake_args
             -DHDF5_BUILD_FORTRAN=ON
