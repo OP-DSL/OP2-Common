@@ -230,6 +230,7 @@ if(OP2_DEPS_PARMETIS)
             -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
             -DCMAKE_BUILD_TYPE=Release
             -DBUILD_SHARED_LIBS=OFF
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             -DMETIS_PATH=${_parmetis_src}/metis
             -DGKLIB_PATH=${_parmetis_src}/metis/GKlib
         BUILD_COMMAND
@@ -303,6 +304,7 @@ if(OP2_DEPS_KAHIP)
             -DMPI_C_COMPILER=${MPI_C_COMPILER}
             -DMPI_CXX_COMPILER=${MPI_CXX_COMPILER}
             -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             -DNONATIVEOPTIMIZATIONS=ON
         BUILD_COMMAND
             ${CMAKE_COMMAND} --build ${_kahip_bin}
