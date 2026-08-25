@@ -90,6 +90,11 @@ class Program:
 
     entities: List[Entity] = field(default_factory=list)
 
+    # Files this program was parsed from besides its own path - the resolved
+    # #includes, for build-system dependency tracking. Left empty by languages
+    # that cannot report them.
+    includes: Set[Path] = field(default_factory=set)
+
     def findEntities(self, name: str, scope: List[str] = []) -> List[Entity]:
         def in_scope(e):
             return len(e.scope) <= len(scope) and all(map(lambda s: s[0] == s[1], zip(e.scope, scope)))

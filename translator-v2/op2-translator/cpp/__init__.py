@@ -125,6 +125,27 @@ class Cpp(Lang):
 
         return translation_unit, source
 
+    def resolvedIncludes(self, translation_unit: Any) -> Set[Path]:
+        # Headers reached from this translation unit, for depfile emission.
+        # Toolchain headers are dropped the way `gcc -MM` drops them: they are
+        # the dirs we passed as -isystem above, and tying retranslation to a
+        # compiler update buys nothing. Only includes clang actually resolved
+        # appear here - an unresolvable one is a build failure regardless.
+        system_dirs = [str(Path(dir).resolve()) + os.sep for dir in (SYSTEM_INCLUDES or [])]
+
+        includes: Set[Path] = set()
+        for inclusion in translation_unit.get_includes():
+            if inclusion.include is None:
+                continue
+
+            resolved = Path(inclusion.include.name).resolve()
+            if any(str(resolved).startswith(dir) for dir in system_dirs):
+                continue
+
+            includes.add(resolved)
+
+        return includes
+
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         import cpp.parser
 
@@ -132,6 +153,10 @@ class Cpp(Lang):
         ast_pp, source_pp = self.parseFile(path, frozenset(include_dirs), frozenset(defines), preprocess=True)
 
         program = Program(path, ast_pp, source_pp)
+
+        # From the unpreprocessed parse: pcpp has already expanded the includes
+        # out of the preprocessed one.
+        program.includes = self.resolvedIncludes(ast)
 
         cpp.parser.parseLoops(ast, program)
         cpp.parser.parseMeta(ast_pp.cursor, program)

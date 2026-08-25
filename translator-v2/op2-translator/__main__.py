@@ -11,7 +11,7 @@ from multiprocessing import Pool
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import cpp
 import fortran
@@ -53,6 +53,7 @@ def main(argv=None) -> None:
     parser.add_argument("-v", "--verbose", help="Increase verbosity (-v info, -vv debug)", action="count", default=0)
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath)
+    parser.add_argument("--depfile", help="Write a Make-style depfile of the sources read", type=str)
     parser.add_argument("-c", "--config", help="Target configuration", action="append", type=json.loads, default=[])
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
     parser.add_argument("-mp", "--multiprocess_parse", help="Force Multiprocess Parsing", action="store_true")
@@ -183,6 +184,39 @@ def main(argv=None) -> None:
 
         logger.info(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
 
+    if args.depfile is not None:
+        write_depfile(Path(args.depfile), generated_paths, app)
+
+
+def escape_depfile_path(path: Path) -> str:
+    # Per the depfile grammar: '$' doubles, '#' and ' ' are backslash-escaped.
+    return str(path).replace("$", "$$").replace("#", "\\#").replace(" ", "\\ ")
+
+
+def write_depfile(path: Path, targets: List[Path], app: Application) -> None:
+    # One rule naming every generated file, so whichever of them the build
+    # system asks about is present. Absolute paths throughout, which sidesteps
+    # the question of what a relative path in a depfile is relative to.
+    if len(targets) == 0:
+        return
+
+    dependencies: Set[Path] = set()
+    for program in list(app.programs) + ([app.consts_module] if app.consts_module is not None else []):
+        dependencies.add(Path(program.path).resolve())
+        dependencies |= program.includes
+
+    rule = " ".join(escape_depfile_path(target.resolve()) for target in targets) + ":"
+    for dependency in sorted(dependencies):
+        rule += " \\\n    " + escape_depfile_path(dependency)
+
+    path.write_text(rule + "\n")
+    logger.info(f"Wrote depfile: {path} ({len(dependencies)} dependencies)")
+
+
+# Every path write_file() is asked for, whether or not the content turned out
+# to be identical - these are the depfile's targets.
+generated_paths: List[Path] = []
+
 
 def write_file(path: Path, text: str, args: Namespace) -> None:
     if path.exists():
@@ -192,6 +226,8 @@ def write_file(path: Path, text: str, args: Namespace) -> None:
 
             logger.error(f"generating file '{path}' would overwrite input file\nPass an output directory with -o <path>")
             sys.exit(1)
+
+    generated_paths.append(path)
 
     if path.is_file():
         prev_text = path.read_text()
