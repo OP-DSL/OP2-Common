@@ -534,6 +534,8 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   OP_plans[ip].ninds_staged = ninds_staged;
   OP_plans[ip].part_size = part_size;
   OP_plans[ip].nblocks = nblocks;
+  OP_plans[ip].nblocks_core = 0;
+  OP_plans[ip].nblocks_owned = 0;
   OP_plans[ip].ncolors_core = 0;
   OP_plans[ip].ncolors_owned = 0;
   OP_plans[ip].count = 1;
@@ -596,6 +598,11 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
     } else {
       next_offset = prev_offset + bsize;
     }
+
+    if (set->core_size > 0 && next_offset <= set->core_size)
+      OP_plans[ip].nblocks_core = b + 1;
+    if (next_offset <= set->size)
+      OP_plans[ip].nblocks_owned = b + 1;
 
     if (staging == OP_COLOR2) {
       prev_offset = 0;

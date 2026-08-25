@@ -71,6 +71,8 @@ typedef struct {
   short *loc_map; /* concatenated maps to local indices, renumbered as needed */
   short **loc_maps;  /* maps to local indices, renumbered as needed */
   int nblocks;       /* number of blocks */
+  int nblocks_core;  /* number of core blocks in MPI */
+  int nblocks_owned; /* number of blocks with owned elements in MPI */
   int *nelems;       /* number of elements in each block */
   int *nelems_d;     /* number of elements in each block on the GPU (Fortran) */
   int ncolors_core;  /* mumber of core colors in MPI */

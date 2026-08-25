@@ -65,6 +65,7 @@ class CCuda(Target):
             "atomics": True,
             "color2": False,
             "gbl_inc_atomic": False,
+            "smem_atomics": True,
             "func_prefix": "__device__",
             "hip": False
         }

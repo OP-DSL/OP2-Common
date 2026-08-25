@@ -180,6 +180,7 @@ private:
     std::string m_name;
 
     bool m_loaded = false;
+    int m_smem_limit = 0;
     char *m_cubin;
 
     gpuDrvModule_t m_module;
@@ -201,9 +202,16 @@ public:
     JitKernel(const JitKernel&) = delete;
     JitKernel(char *cubin, std::string_view name) : m_cubin{cubin}, m_name{name} {}
 
-    void invoke(int num_blocks, int block_size, void **args) {
+    void invoke(int num_blocks, int block_size, void **args, int shared_bytes = 0) {
         ensure_loaded();
-        CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
+
+        if (shared_bytes > 48 * 1024 && shared_bytes > m_smem_limit) {
+            CU_SAFE_CALL(gpuDrvFuncSetAttribute(m_kernel,
+                gpuDrvFuncAttributeMaxDynamicSharedMemorySize, shared_bytes));
+            m_smem_limit = shared_bytes;
+        }
+
+        CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, shared_bytes,
                                         NULL, args, 0));
 
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
@@ -339,6 +347,8 @@ private:
     std::vector<JitParam> m_params;
     std::string m_src;
 
+    int m_offline_smem_limit = 0;
+
     std::mutex m_jit_kernels_mutex;
     std::unordered_map<uint64_t, JitKernel> m_jit_kernels;
 
@@ -443,11 +453,17 @@ private:
         return compilation_thread;
     }
 
-    void invoke_offline(int num_blocks, int block_size, void **args) {
+    void invoke_offline(int num_blocks, int block_size, void **args, int shared_bytes = 0) {
         for (auto& param : m_params)
             param.upload();
 
-        CUDA_SAFE_CALLN(gpuLaunchKernel(m_kernel, num_blocks, block_size, args, 0, 0));
+        if (shared_bytes > 48 * 1024 && shared_bytes > m_offline_smem_limit) {
+            CUDA_SAFE_CALL(gpuFuncSetAttribute(m_kernel,
+                gpuFuncAttributeMaxDynamicSharedMemorySize, shared_bytes));
+            m_offline_smem_limit = shared_bytes;
+        }
+
+        CUDA_SAFE_CALLN(gpuLaunchKernel(m_kernel, num_blocks, block_size, args, shared_bytes, 0));
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
 
         if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
@@ -526,16 +542,17 @@ public:
         return {INT32_MAX, 128};
     }
 
-    void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {
+    void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit,
+                int shared_bytes = 0) {
         if (kernel == nullptr) {
             op_profile_next("Offline Kernel");
-            invoke_offline(num_blocks, block_size, args);
+            invoke_offline(num_blocks, block_size, args, shared_bytes);
 
             return;
         }
 
         op_profile_next("JIT Kernel");
-        kernel->invoke(num_blocks, block_size, args_jit);
+        kernel->invoke(num_blocks, block_size, args_jit, shared_bytes);
     }
 };
 

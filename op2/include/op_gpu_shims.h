@@ -66,11 +66,17 @@
 #define gpuGetDeviceProperties cudaGetDeviceProperties
 
 #define gpuFuncGetAttributes cudaFuncGetAttributes
+#define gpuFuncSetAttribute cudaFuncSetAttribute
+#define gpuFuncAttributeMaxDynamicSharedMemorySize cudaFuncAttributeMaxDynamicSharedMemorySize
+#define gpuDevAttrMaxSharedMemoryPerBlockOptin cudaDevAttrMaxSharedMemoryPerBlockOptin
 
 // Driver API
 #define gpuDrvResult_t CUresult
 #define gpuDrvModule_t CUmodule
 #define gpuDrvFunction_t CUfunction
+
+#define gpuDrvFuncSetAttribute cuFuncSetAttribute
+#define gpuDrvFuncAttributeMaxDynamicSharedMemorySize CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
 
 #define gpuDrvGetErrorName cuGetErrorName
 #define gpuDrvModuleLoadData cuModuleLoadData
@@ -158,11 +164,19 @@
 #define gpuGetDeviceProperties hipGetDeviceProperties
 
 #define gpuFuncGetAttributes hipFuncGetAttributes
+#define gpuFuncSetAttribute hipFuncSetAttribute
+#define gpuFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
+#define gpuDevAttrMaxSharedMemoryPerBlockOptin hipDeviceAttributeMaxSharedMemoryPerBlock
 
 // Driver API
 #define gpuDrvResult_t hipError_t
 #define gpuDrvModule_t hipModule_t
 #define gpuDrvFunction_t hipFunction_t
+
+// HIP has no separate driver-API function-attribute setter; hipFuncSetAttribute
+// accepts a hipFunction_t (driver handle) directly.
+#define gpuDrvFuncSetAttribute hipFuncSetAttribute
+#define gpuDrvFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData
