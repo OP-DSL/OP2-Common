@@ -23,10 +23,55 @@ option(OP2_DEPS_PARMETIS "Build ParMETIS + METIS (64-bit indices)"  ON)
 option(OP2_DEPS_PTSCOTCH "Build PT-Scotch (64-bit indices)"         ON)
 option(OP2_DEPS_KAHIP    "Build KaHIP with ParHIP (MPI)"            ON)
 
-set(OP2_DEPS_HDF5_VERSION     "1.14.4-3" CACHE STRING "HDF5 version to fetch and build")
-set(OP2_DEPS_PARMETIS_VERSION "4.0.3"    CACHE STRING "ParMETIS version to fetch and build")
-set(OP2_DEPS_PTSCOTCH_VERSION "7.0.4"    CACHE STRING "PT-Scotch version to fetch and build")
-set(OP2_DEPS_KAHIP_VERSION    "3.25"     CACHE STRING "KaHIP version to fetch and build")
+# Pinned version and the SHA-256 of that version's tarball, each checked
+# against a fresh upstream download. Bump the pair together.
+#
+# PT-Scotch and KaHIP are fetched as forge-generated archives rather than
+# uploaded release assets, and those are not contractually byte-stable. A
+# mismatch there may mean the forge regenerated the tarball rather than
+# anything sinister - check, then set the SHA256 cache entry below.
+set(_op2_deps_hdf5_version     "1.14.4-3")
+set(_op2_deps_hdf5_sha256      "019ac451d9e1cf89c0482ba2a06f07a46166caf23f60fea5ef3c37724a318e03")
+set(_op2_deps_parmetis_version "4.0.3")
+set(_op2_deps_parmetis_sha256  "f2d9a231b7cf97f1fee6e8c9663113ebf6c240d407d3c118c55b3633d6be6e5f")
+set(_op2_deps_ptscotch_version "7.0.4")
+set(_op2_deps_ptscotch_sha256  "8ef4719d6a3356e9c4ca7fefd7e2ac40deb69779a5c116f44da75d13b3d2c2c3")
+set(_op2_deps_kahip_version    "3.25")
+set(_op2_deps_kahip_sha256     "3abad20158887b585b4d4792c35fa9023b7fd634b2bc4494334a3951b69f4842")
+
+set(OP2_DEPS_HDF5_VERSION     "${_op2_deps_hdf5_version}"     CACHE STRING "HDF5 version to fetch and build")
+set(OP2_DEPS_PARMETIS_VERSION "${_op2_deps_parmetis_version}" CACHE STRING "ParMETIS version to fetch and build")
+set(OP2_DEPS_PTSCOTCH_VERSION "${_op2_deps_ptscotch_version}" CACHE STRING "PT-Scotch version to fetch and build")
+set(OP2_DEPS_KAHIP_VERSION    "${_op2_deps_kahip_version}"    CACHE STRING "KaHIP version to fetch and build")
+
+foreach(_dep HDF5 PARMETIS PTSCOTCH KAHIP)
+    set(OP2_DEPS_${_dep}_SHA256 "" CACHE STRING
+        "SHA-256 of the tarball, needed only when overriding OP2_DEPS_${_dep}_VERSION")
+    mark_as_advanced(OP2_DEPS_${_dep}_SHA256)
+endforeach()
+
+# Yields the URL_HASH argument pair for ExternalProject_Add, or nothing.
+# Overriding a version without supplying its checksum turns verification off
+# for that download rather than failing on a checksum meant for another
+# tarball - loudly, because an unverified download is worth noticing.
+function(_op2_deps_url_hash dep out_var)
+    string(TOUPPER "${dep}" _DEP)
+
+    if(OP2_DEPS_${_DEP}_SHA256)
+        set(_hash "${OP2_DEPS_${_DEP}_SHA256}")
+    elseif(OP2_DEPS_${_DEP}_VERSION STREQUAL "${_op2_deps_${dep}_version}")
+        set(_hash "${_op2_deps_${dep}_sha256}")
+    else()
+        message(WARNING
+            "OP2Deps: ${dep} ${OP2_DEPS_${_DEP}_VERSION} has no checksum - the "
+            "pinned one belongs to ${_op2_deps_${dep}_version}. This download "
+            "will NOT be verified. Set OP2_DEPS_${_DEP}_SHA256 to restore it.")
+        set(${out_var} "" PARENT_SCOPE)
+        return()
+    endif()
+
+    set(${out_var} URL_HASH "SHA256=${_hash}" PARENT_SCOPE)
+endfunction()
 
 # HDF5 variant: parallel (with MPI) or serial.
 # AUTO -> ON if MPI found, OFF otherwise.  Explicit ON errors out if MPI is missing.
@@ -188,8 +233,10 @@ if(OP2_DEPS_HDF5)
         list(APPEND _hdf5_cmake_args -DHDF5_BUILD_FORTRAN=OFF)
     endif()
 
+    _op2_deps_url_hash(hdf5 _hdf5_url_hash)
     ExternalProject_Add(hdf5
         URL            "${_hdf5_url}"
+        ${_hdf5_url_hash}
         DOWNLOAD_DIR   "${CMAKE_BINARY_DIR}/downloads"
         SOURCE_DIR     "${CMAKE_BINARY_DIR}/hdf5-src"
         BINARY_DIR     "${CMAKE_BINARY_DIR}/hdf5-build"
@@ -214,8 +261,10 @@ if(OP2_DEPS_PARMETIS)
     set(_parmetis_src "${CMAKE_BINARY_DIR}/parmetis-src")
     set(_parmetis_bin "${CMAKE_BINARY_DIR}/parmetis-build")
 
+    _op2_deps_url_hash(parmetis _parmetis_url_hash)
     ExternalProject_Add(parmetis
         URL            "${_parmetis_url}"
+        ${_parmetis_url_hash}
         SOURCE_DIR     "${_parmetis_src}"
         BINARY_DIR     "${_parmetis_bin}"
         INSTALL_DIR    "${_prefix}/parmetis"
@@ -264,8 +313,10 @@ if(OP2_DEPS_PTSCOTCH)
         @ONLY
     )
 
+    _op2_deps_url_hash(ptscotch _ptscotch_url_hash)
     ExternalProject_Add(ptscotch
         URL            "${_ptscotch_url}"
+        ${_ptscotch_url_hash}
         SOURCE_DIR     "${_ptscotch_src}"
         BINARY_DIR     "${CMAKE_BINARY_DIR}/ptscotch-stamps"
         INSTALL_DIR    "${_prefix}/ptscotch"
@@ -292,8 +343,10 @@ if(OP2_DEPS_KAHIP)
     set(_kahip_src "${CMAKE_BINARY_DIR}/kahip-src")
     set(_kahip_bin "${CMAKE_BINARY_DIR}/kahip-build")
 
+    _op2_deps_url_hash(kahip _kahip_url_hash)
     ExternalProject_Add(kahip
         URL            "${_kahip_url}"
+        ${_kahip_url_hash}
         SOURCE_DIR     "${_kahip_src}"
         BINARY_DIR     "${_kahip_bin}"
         INSTALL_DIR    "${_prefix}/kahip"
