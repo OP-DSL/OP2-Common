@@ -524,20 +524,31 @@ void op2_k_{{lh.name}}{{variant}}_smem_wrapper(
     const int elem_start = blk_offsets[b];
     const int elem_end = blk_offsets[b] + blk_nelems[b];
 
-    for (int n = elem_start + threadIdx.x; n < elem_end; n += blockDim.x) {
-    {% if lh.args|idx|direct|length > 0 %}
+{% macro elem_body(indent) %}
+{%- set i = " " * indent -%}
+{{i}}{%- if lh.args|idx|direct|length > 0 -%}
         int idx = n + 1;
-    {% endif %}
-
-    {% for arg in lh.args|idx|indirect %}
+{{i}}{%- endif -%}
+{{i}}{%- for arg in lh.args|idx|indirect -%}
         int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
-    {% endfor %}
-
-        {{lh.kernel}}(
-    {% for arg in lh.args %}
-            {{arg_to_pointer_smem(arg, jit)}}{{"," if not loop.last}}
-    {% endfor %}
+{{i}}{%- endfor -%}
+{{i}}{{lh.kernel}}(
+{{i}}{%- for arg in lh.args -%}
+        {{arg_to_pointer_smem(arg, jit)}}{{"," if not loop.last}}
+{{i}}{%- endfor -%}
         );
+{% endmacro %}
+    // Single-edge-per-thread fast path: when the plan block holds at most
+    // blockDim.x elements, each thread handles exactly one element and the
+    // compiler emits straight-line code, hiding shared-memory atomic latency
+    // across warps instead of exposing it serially per thread.
+    if (blk_nelems[b] <= (int)blockDim.x) {
+        const int n = elem_start + threadIdx.x;
+        if (n < elem_end) {
+    {{ elem_body(8) }}        }
+    } else {
+        for (int n = elem_start + threadIdx.x; n < elem_end; n += blockDim.x) {
+    {{ elem_body(12) }}        }
     }
     __syncthreads();
 

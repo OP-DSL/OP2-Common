@@ -457,9 +457,20 @@ private:
         for (auto& param : m_params)
             param.upload();
 
-        if (shared_bytes > 48 * 1024 && shared_bytes > m_offline_smem_limit) {
+
+        if (shared_bytes > 0 && shared_bytes != m_offline_smem_limit) {
             CUDA_SAFE_CALL(gpuFuncSetAttribute(m_kernel,
                 gpuFuncAttributeMaxDynamicSharedMemorySize, shared_bytes));
+            // Prefer a shared-memory-heavy L1/smem split for this function
+            // only. OP2's device-wide default is gpuFuncCachePreferL1, which
+            // on Volta+ shrinks the per-SM shared-memory carve-out enough
+            // that even a few KB of dynamic smem limits residency to a
+            // single block per SM. Kernels staging indirect INC data in
+            // shared memory need the opposite split; the unused reserved
+            // portion still services L1 on modern architectures.
+            CUDA_SAFE_CALL(gpuFuncSetAttribute(m_kernel,
+                gpuFuncAttributePreferredSharedMemoryCarveout,
+                gpuSharedmemCarveoutMaxShared));
             m_offline_smem_limit = shared_bytes;
         }
 

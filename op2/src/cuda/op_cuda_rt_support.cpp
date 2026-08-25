@@ -333,7 +333,12 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     gpuFree(test);
 
-    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
+    // NOTE: gpuDeviceSetCacheConfig(gpuFuncCachePreferL1) removed: on Volta+
+    // the L1/shared split is chosen per kernel, and this device-wide hint
+    // shrank the shared-memory carve-out enough to limit smem-staging
+    // kernels to a single block per SM. Individual kernels that want an
+    // L1-heavy split can set cudaFuncAttributePreferredSharedMemoryCarveout
+    // themselves; the default split serves both use cases well.
 
     int deviceId = -1;
     gpuGetDevice(&deviceId);

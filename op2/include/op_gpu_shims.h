@@ -68,6 +68,8 @@
 #define gpuFuncGetAttributes cudaFuncGetAttributes
 #define gpuFuncSetAttribute cudaFuncSetAttribute
 #define gpuFuncAttributeMaxDynamicSharedMemorySize cudaFuncAttributeMaxDynamicSharedMemorySize
+#define gpuFuncAttributePreferredSharedMemoryCarveout cudaFuncAttributePreferredSharedMemoryCarveout
+#define gpuSharedmemCarveoutMaxShared cudaSharedmemCarveoutMaxShared
 #define gpuDevAttrMaxSharedMemoryPerBlockOptin cudaDevAttrMaxSharedMemoryPerBlockOptin
 
 // Driver API
@@ -166,6 +168,11 @@
 #define gpuFuncGetAttributes hipFuncGetAttributes
 #define gpuFuncSetAttribute hipFuncSetAttribute
 #define gpuFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
+#define gpuFuncAttributePreferredSharedMemoryCarveout hipFuncAttributePreferredSharedMemoryCarveout
+#ifndef HIP_SHARED_MEM_CARVEOUT_MAX_SHARED
+#define HIP_SHARED_MEM_CARVEOUT_MAX_SHARED 100
+#endif
+#define gpuSharedmemCarveoutMaxShared HIP_SHARED_MEM_CARVEOUT_MAX_SHARED
 #define gpuDevAttrMaxSharedMemoryPerBlockOptin hipDeviceAttributeMaxSharedMemoryPerBlock
 
 // Driver API
