@@ -11,8 +11,9 @@
 # OP2 only uses KaHIP in MPI contexts (op_mpi_part_core.cpp calls
 # ParHIPPartitionKWay), so only the parallel library is needed.
 #
-# Hints (cache and env, checked in order):
-#   KaHIP_ROOT - matches find_package(KaHIP)
+# Hints (cache and env):
+#   KaHIP_ROOT - searched automatically by find_* inside a module loaded by
+#                find_package(KaHIP), so it needs no explicit hint
 #   KAHIP_DIR  - Spack / module-system convention
 #
 # Installed layout produced by scripts/setup_deps.sh:
@@ -31,26 +32,18 @@
 include(FindPackageHandleStandardArgs)
 
 set(_kahip_hints
-    "${KaHIP_ROOT}"     "$ENV{KaHIP_ROOT}"
     "${KAHIP_DIR}"      "$ENV{KAHIP_DIR}"
 )
 
 find_path(KaHIP_INCLUDE_DIR NAMES parhip_interface.h
-    HINTS ${_kahip_hints} PATH_SUFFIXES include NO_DEFAULT_PATH)
-if(NOT KaHIP_INCLUDE_DIR)
-    find_path(KaHIP_INCLUDE_DIR NAMES parhip_interface.h PATH_SUFFIXES include)
-endif()
+    HINTS ${_kahip_hints} PATH_SUFFIXES include)
 
 find_library(KaHIP_ParHIP_LIBRARY NAMES parhip_interface_static parhip_interface
-    HINTS ${_kahip_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
-if(NOT KaHIP_ParHIP_LIBRARY)
-    find_library(KaHIP_ParHIP_LIBRARY NAMES parhip_interface_static parhip_interface
-        PATH_SUFFIXES lib lib64)
-endif()
+    HINTS ${_kahip_hints} PATH_SUFFIXES lib lib64)
 
 # Sequential internals that parhip_interface_static depends on at link time.
 find_library(KaHIP_MODIFIED_LIBRARY NAMES modified_kahip_interface
-    HINTS ${_kahip_hints} PATH_SUFFIXES lib lib64 NO_DEFAULT_PATH)
+    HINTS ${_kahip_hints} PATH_SUFFIXES lib lib64)
 
 find_package_handle_standard_args(KaHIP
     REQUIRED_VARS KaHIP_INCLUDE_DIR KaHIP_ParHIP_LIBRARY
