@@ -263,7 +263,7 @@ function(op2_translate)
             -o "${_A_OUT_DIR}"
             ${_A_SOURCES}
         COMMAND ${CMAKE_COMMAND} -E touch "${_stamp}"
-        DEPENDS ${_A_SOURCES}
+        DEPENDS ${_A_SOURCES} ${OP2_TRANSLATOR_DEPENDS}
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "OP2 translator → ${_A_OUT_DIR}"
