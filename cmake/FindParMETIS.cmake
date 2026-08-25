@@ -1,7 +1,11 @@
 # FindParMETIS.cmake
 #
 # Locates ParMETIS and its METIS dependency.
-# Sets imported target ParMETIS::ParMETIS on success.
+# Results come back in the cache variables below, not an imported target: OP2
+# links the partitioners by path so install(EXPORT) pins the exact artefacts,
+# and this module is not installed for a consumer to load. An imported target
+# here would be recorded in OP2Targets.cmake and fail every consumer with
+# "target not found".
 #
 # Hints (cache and env, checked in order):
 #   ParMETIS: ParMETIS_ROOT (matches find_package(ParMETIS)), ParMETIS_DIR, PARMETIS_DIR
@@ -98,21 +102,6 @@ int main(void) { return 0; }
 " ParMETIS_HAS_IDX64)
     cmake_pop_check_state()
     unset(_parmetis_probe_lang)
-endif()
-
-if(ParMETIS_INCLUDE_DIR AND ParMETIS_LIBRARY AND METIS_LIBRARY)
-    if(NOT TARGET ParMETIS::ParMETIS)
-        add_library(ParMETIS::ParMETIS UNKNOWN IMPORTED)
-        set_target_properties(ParMETIS::ParMETIS PROPERTIES
-            IMPORTED_LOCATION             "${ParMETIS_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${ParMETIS_INCLUDE_DIR}")
-        set_property(TARGET ParMETIS::ParMETIS APPEND PROPERTY
-            INTERFACE_LINK_LIBRARIES "${METIS_LIBRARY}")
-        if(METIS_INCLUDE_DIR)
-            set_property(TARGET ParMETIS::ParMETIS APPEND PROPERTY
-                INTERFACE_INCLUDE_DIRECTORIES "${METIS_INCLUDE_DIR}")
-        endif()
-    endif()
 endif()
 
 find_package_handle_standard_args(ParMETIS

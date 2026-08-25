@@ -1,7 +1,11 @@
 # FindPTScotch.cmake
 #
 # Locates PT-Scotch (parallel graph partitioning library).
-# Sets imported target PTScotch::PTScotch on success.
+# Results come back in the cache variables below, not an imported target: OP2
+# links the partitioners by path so install(EXPORT) pins the exact artefacts,
+# and this module is not installed for a consumer to load. An imported target
+# here would be recorded in OP2Targets.cmake and fail every consumer with
+# "target not found".
 #
 # Hints (cache and env, checked in order):
 #   PTScotch_ROOT   - matches find_package(PTScotch)
@@ -93,23 +97,9 @@ int main(void) { return 0; }
     unset(_ptscotch_probe_lang)
 endif()
 
-# No zlib: libscotch references gz* only from its compressed-file members, and
-# OP2 builds graphs in memory - it calls no SCOTCH_*Load/*Save - so those
-# members are never pulled out of the archive.
-if(PTScotch_INCLUDE_DIR AND PTScotch_LIBRARY)
-    if(NOT TARGET PTScotch::PTScotch)
-        add_library(PTScotch::PTScotch UNKNOWN IMPORTED)
-        set_target_properties(PTScotch::PTScotch PROPERTIES
-            IMPORTED_LOCATION             "${PTScotch_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${PTScotch_INCLUDE_DIR}")
-        foreach(_extra PTScotch_ERR_LIBRARY PTScotch_SCOTCH_LIBRARY)
-            if(${_extra})
-                set_property(TARGET PTScotch::PTScotch APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES "${${_extra}}")
-            endif()
-        endforeach()
-    endif()
-endif()
+# No zlib among the libraries above: libscotch references gz* only from its
+# compressed-file members, and OP2 builds graphs in memory - it calls no
+# SCOTCH_*Load/*Save - so those members are never pulled out of the archive.
 
 find_package_handle_standard_args(PTScotch
     REQUIRED_VARS PTScotch_INCLUDE_DIR PTScotch_LIBRARY PTScotch_HAS_IDX64
