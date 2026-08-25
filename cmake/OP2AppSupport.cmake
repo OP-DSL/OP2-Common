@@ -12,6 +12,12 @@
 # OP2_HAS_TRANSLATOR the same way CUDA/HIP/OpenMP variants gate on their own
 # toolchains.
 
+# op2_add_app_variants(INSTALL) installs into CMAKE_INSTALL_BINDIR. A consumer
+# reaching this through find_package(OP2) has not necessarily defined it, and
+# this module must not depend on the caller having done so. Re-including is
+# harmless: GNUInstallDirs keeps any value already set.
+include(GNUInstallDirs)
+
 # ---------------------------------------------------------------------------
 # Internal: variant -> attributes lookup table. Per (language, variant): the
 # toolchain it needs (see _op2_toolchain_available), translator target
