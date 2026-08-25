@@ -190,17 +190,17 @@ endfunction()
 # op2_translate(OUT_DIR <dir> LANGUAGE <cpp|fortran>
 #               SOURCES <src...> VARIANTS <variant...>
 #               [PROPS_TARGET <tgt>] [EXTRA_ARGS <arg...>]
-#               [OUTPUTS_VAR <var>] [STAMP_VAR <var>])
+#               [OUTPUTS_VAR <var>])
 # ---------------------------------------------------------------------------
-# Emits one add_custom_command that reruns the translator when SOURCES
-# change. PROPS_TARGET's compile definitions/include dirs are forwarded to
-# the translator. OUTPUTS_VAR gets the generated files, STAMP_VAR the stamp
-# that sequences the translator ahead of anything compiling them.
+# Emits one add_custom_command that reruns the translator when SOURCES or the
+# translator itself change. PROPS_TARGET's compile definitions/include dirs
+# are forwarded to the translator. OUTPUTS_VAR gets the generated files, which
+# a target in this directory can list as sources to pick up the dependency.
 # ---------------------------------------------------------------------------
 function(op2_translate)
     cmake_parse_arguments(_A
         ""
-        "OUT_DIR;LANGUAGE;PROPS_TARGET;OUTPUTS_VAR;STAMP_VAR"
+        "OUT_DIR;LANGUAGE;PROPS_TARGET;OUTPUTS_VAR"
         "SOURCES;VARIANTS;EXTRA_ARGS"
         ${ARGN})
 
@@ -247,14 +247,17 @@ function(op2_translate)
     _op2_translator_outputs("${_A_LANGUAGE}" "${_A_VARIANTS}" "${_A_OUT_DIR}"
         "${_A_SOURCES}" _outputs)
 
-    # Use a stamp file as the single OUTPUT so Make/Ninja run the translator
-    # once per rebuild; the real generated files are BYPRODUCTS.  Downstream
-    # source files depend on the stamp via OBJECT_DEPENDS (set in
-    # _op2_add_variant_executable).
-    set(_stamp "${_A_OUT_DIR}/.op2-translate.stamp")
+    # The translator leaves an output untouched when its content would not
+    # change, so a regenerated file can stay older than the source it came
+    # from; without the refresh below the command would rerun on every build.
+    # touch_nocreate, not touch: an output the translator did not emit has to
+    # stay missing and fail loudly rather than appear as an empty file.
+    #
+    # Per-loop kernel headers are emitted alongside these and deliberately not
+    # listed - they are #included by the master kernel unit, so the compiler's
+    # own depfile tracks them.
     add_custom_command(
-        OUTPUT "${_stamp}"
-        BYPRODUCTS ${_outputs}
+        OUTPUT ${_outputs}
         COMMAND ${OP2_TRANSLATOR_COMMAND}
             ${_target_args}
             "${_defs_flags}"
@@ -262,7 +265,7 @@ function(op2_translate)
             ${_A_EXTRA_ARGS}
             -o "${_A_OUT_DIR}"
             ${_A_SOURCES}
-        COMMAND ${CMAKE_COMMAND} -E touch "${_stamp}"
+        COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${_outputs}
         DEPENDS ${_A_SOURCES} ${OP2_TRANSLATOR_DEPENDS}
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -271,9 +274,6 @@ function(op2_translate)
 
     if(_A_OUTPUTS_VAR)
         set(${_A_OUTPUTS_VAR} "${_outputs}" PARENT_SCOPE)
-    endif()
-    if(_A_STAMP_VAR)
-        set(${_A_STAMP_VAR} "${_stamp}" PARENT_SCOPE)
     endif()
 endfunction()
 
@@ -411,7 +411,6 @@ function(op2_add_app_variants)
             break()
         endif()
     endforeach()
-    set(_stamp "")
     if(_needs_translator)
         op2_translate(
             OUT_DIR      "${_A_OUTPUT_DIR}"
@@ -419,8 +418,7 @@ function(op2_add_app_variants)
             SOURCES      ${_A_SOURCES}
             VARIANTS     ${_buildable}
             PROPS_TARGET ${_props}
-            EXTRA_ARGS   ${_A_TRANSLATOR_ONLY_ARGS}
-            STAMP_VAR    _stamp)
+            EXTRA_ARGS   ${_A_TRANSLATOR_ONLY_ARGS})
     endif()
 
     # 4. Emit each executable variant.
@@ -432,7 +430,6 @@ function(op2_add_app_variants)
             LANGUAGE "${_A_LANGUAGE}"
             SOURCES  ${_A_SOURCES}
             OUT_DIR  "${_A_OUTPUT_DIR}"
-            STAMP    "${_stamp}"
             PROPS    "${_props}"
             WITH_HDF5 "${_A_WITH_HDF5}")
         list(APPEND _created "${_A_NAME}_${_v}")
@@ -454,7 +451,7 @@ endfunction()
 function(_op2_add_variant_executable)
     cmake_parse_arguments(_A
         ""
-        "NAME;VARIANT;LANGUAGE;OUT_DIR;STAMP;PROPS;WITH_HDF5"
+        "NAME;VARIANT;LANGUAGE;OUT_DIR;PROPS;WITH_HDF5"
         "SOURCES"
         ${ARGN})
 
@@ -490,19 +487,6 @@ function(_op2_add_variant_executable)
 
     set(_tgt "${_A_NAME}_${_A_VARIANT}")
     add_executable(${_tgt} ${_srcs})
-
-    # GENERATED silences the generate step for files that don't exist yet;
-    # OBJECT_DEPENDS on the stamp routes the whole variant through one
-    # dependency edge, so the translator runs once per rebuild, not per file.
-    if(_xt)
-        foreach(_s IN LISTS _srcs)
-            set_source_files_properties("${_s}" PROPERTIES GENERATED TRUE)
-        endforeach()
-        if(_A_STAMP)
-            set_source_files_properties(${_srcs} PROPERTIES
-                OBJECT_DEPENDS "${_A_STAMP}")
-        endif()
-    endif()
 
     target_link_libraries(${_tgt} PRIVATE ${_A_PROPS} ${_lib})
 
