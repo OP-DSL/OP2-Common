@@ -541,25 +541,20 @@ if(NOT OP2_ENABLE_INSTALL)
     return()
 endif()
 
-if(_op2_targets_c)
-    install(TARGETS ${_op2_targets_c}
+if(_op2_targets_c OR _op2_targets_for)
+    install(TARGETS ${_op2_targets_c} ${_op2_targets_for}
         EXPORT  OP2Targets
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endif()
 
-if(_op2_targets_for)
-    install(TARGETS ${_op2_targets_for}
-        EXPORT  OP2Targets
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-    foreach(_t IN LISTS _op2_targets_for)
-        install(DIRECTORY "${PROJECT_BINARY_DIR}/mod/${_t}/"
-            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2/fortran/${_t}")
-    endforeach()
-endif()
+# Fortran variants additionally ship the .mod files they generate; an empty
+# list makes this a no-op, so it needs no guard of its own.
+foreach(_t IN LISTS _op2_targets_for)
+    install(DIRECTORY "${PROJECT_BINARY_DIR}/mod/${_t}/"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2/fortran/${_t}")
+endforeach()
 
 install(DIRECTORY "${_inc}/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
