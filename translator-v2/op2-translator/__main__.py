@@ -235,9 +235,18 @@ def write_file(path: Path, text: str, args: Namespace) -> None:
         if text == prev_text:
             return
 
-    with path.open("w") as f:
-        # f.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-        f.write(text)
+    # Write-then-rename, not a plain open("w"): truncate-then-write leaves a
+    # window where a reader sees a half-written file, and the build system may
+    # run translator processes over one output directory in parallel.
+    # os.replace is atomic within a filesystem, and the pid in the temporary
+    # name keeps two writers off the same scratch file.
+    tmp_path = path.with_name(f"{path.name}.tmp{os.getpid()}")
+    try:
+        tmp_path.write_text(text)
+        os.replace(tmp_path, path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def parse(args: Namespace, lang: Lang) -> Application:
