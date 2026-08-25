@@ -16,8 +16,7 @@ if(CMAKE_Fortran_COMPILER)
         set(OP2_TEST_MPI_FORTRAN_EXCLUDE "")
     else()
         set(OP2_TEST_MPI_FORTRAN_LINK    "")
-        set(OP2_TEST_MPI_FORTRAN_EXCLUDE
-            mpi_seq mpi_genseq mpi_openmp mpi_cuda mpi_hip mpi_c_cuda mpi_c_hip)
+        set(OP2_TEST_MPI_FORTRAN_EXCLUDE mpi_*)
     endif()
 
     add_subdirectory(const_fortran)

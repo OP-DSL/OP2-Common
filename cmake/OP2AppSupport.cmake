@@ -155,6 +155,30 @@ function(_op2_compute_buildable_variants OUT_VAR LANG)
 endfunction()
 
 # ---------------------------------------------------------------------------
+# Internal: expand variant selectors against a candidate list. Entries are
+# shell-style globs, so an app writes `mpi_*` rather than restating every MPI
+# variant - the role `mpi_%` plays in the GNU Make build's VARIANT_FILTER. An
+# exact name is simply a glob with no wildcard in it. Matching against the
+# candidates rather than the full table keeps the existing behaviour that
+# naming an unavailable variant is not an error.
+# ---------------------------------------------------------------------------
+function(_op2_match_variants OUT_VAR CANDIDATES PATTERNS)
+    set(_matched "")
+    foreach(_pattern IN LISTS PATTERNS)
+        string(REPLACE "." "\\." _regex "${_pattern}")
+        string(REPLACE "*" ".*" _regex "${_regex}")
+        foreach(_candidate IN LISTS CANDIDATES)
+            if(_candidate MATCHES "^${_regex}$")
+                list(APPEND _matched "${_candidate}")
+            endif()
+        endforeach()
+    endforeach()
+
+    list(REMOVE_DUPLICATES _matched)
+    set(${OUT_VAR} "${_matched}" PARENT_SCOPE)
+endfunction()
+
+# ---------------------------------------------------------------------------
 # Internal: the exact files the translator will emit, known at configure
 # time - no globbing, no priming run.
 # ---------------------------------------------------------------------------
@@ -341,8 +365,9 @@ endfunction()
 #                      [TARGETS_VAR <var>])
 # ---------------------------------------------------------------------------
 # Builds <name>_<variant> for every variant this environment supports.
-# VARIANTS/EXCLUDE_VARIANTS narrow the set; asking for an unavailable variant
-# is not an error. COMPILE_DEFINITIONS/INCLUDE_DIRECTORIES must be passed
+# VARIANTS/EXCLUDE_VARIANTS narrow the set and accept shell-style globs, so
+# `EXCLUDE_VARIANTS mpi_*` drops every MPI form without naming them; asking for
+# an unavailable variant is not an error. COMPILE_DEFINITIONS/INCLUDE_DIRECTORIES must be passed
 # here, not applied to the resulting targets - the translator runs against
 # them at configure time. WITH_HDF5 links the standalone HDF5 API alongside
 # non-MPI variants; INSTALL adds the executables to the install set.
@@ -390,17 +415,12 @@ function(op2_add_app_variants)
     # 1. Resolve buildable variants.
     _op2_compute_buildable_variants(_buildable "${_A_LANGUAGE}")
     if(_A_VARIANTS)
-        set(_selected "")
-        foreach(_v IN LISTS _A_VARIANTS)
-            if(_v IN_LIST _buildable)
-                list(APPEND _selected ${_v})
-            endif()
-        endforeach()
-        set(_buildable "${_selected}")
+        _op2_match_variants(_buildable "${_buildable}" "${_A_VARIANTS}")
     endif()
     if(_A_EXCLUDE_VARIANTS)
-        foreach(_v IN LISTS _A_EXCLUDE_VARIANTS)
-            list(REMOVE_ITEM _buildable ${_v})
+        _op2_match_variants(_excluded "${_buildable}" "${_A_EXCLUDE_VARIANTS}")
+        foreach(_v IN LISTS _excluded)
+            list(REMOVE_ITEM _buildable "${_v}")
         endforeach()
     endif()
 

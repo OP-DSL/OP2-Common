@@ -11,7 +11,7 @@ op2_add_app_variants(
     NAME     jac1_long_par
     LANGUAGE fortran
     SOURCES  jac1_mpi.F90
-    VARIANTS mpi_seq mpi_genseq mpi_openmp mpi_cuda mpi_c_cuda mpi_c_hip
+    VARIANTS mpi_*
     TARGETS_VAR jac1_long_targets)
 
 foreach(_t IN LISTS jac1_long_targets)
