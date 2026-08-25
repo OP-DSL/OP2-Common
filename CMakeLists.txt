@@ -116,6 +116,26 @@ if(OP2_ENABLE_HIP)
 endif()
 
 # ---------------------------------------------------------------------------
+# Shared-library support (BUILD_SHARED_LIBS) - symbol containment + RPATH
+# ---------------------------------------------------------------------------
+# Only meaningful under BUILD_SHARED_LIBS, but probed unconditionally since
+# it's a one-time check reused by every op2_* target (see op2/CMakeLists.txt).
+include(CheckLinkerFlag)
+check_linker_flag(CXX "-Wl,--exclude-libs=ALL" OP2_LINKER_HAS_EXCLUDE_LIBS)
+
+# Fixes the *install* tree only - build-tree executables already get a
+# correct RPATH from CMake's own defaults. USE_LINK_PATH covers external
+# shared deps at non-standard paths (a non-system MPI/HDF5/hip); the
+# explicit $ORIGIN entry keeps OP2's own install prefix relocatable. Guarded
+# so a parent project doing add_subdirectory(op2) can set its own policy.
+# A downstream find_package(OP2) consumer needs the equivalent in its own
+# project - OP2 can't inject RPATH policy into someone else's build.
+if(NOT DEFINED CMAKE_INSTALL_RPATH)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+endif()
+
+# ---------------------------------------------------------------------------
 # MPI
 # ---------------------------------------------------------------------------
 if(OP2_ENABLE_MPI)

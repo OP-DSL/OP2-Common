@@ -27,6 +27,16 @@ Cache options controlling which library variants and pieces of the tree get buil
 
 Every feature is *soft-fail*: if the required compiler or dependency is missing, the affected variants silently drop with a status message. Toggling `OFF` is only needed when you want the feature explicitly hidden.
 
+## Shared vs static libraries
+
+OP2 honours the standard CMake `BUILD_SHARED_LIBS` - not an OP2-specific option. `OFF` (CMake's own default) builds every `op2_*` target `STATIC`, exactly as before this was supported. `ON` switches every one of them to `SHARED`; there is no mode that builds both at once, so pick whichever your project needs at configure time.
+
+A few things specific to going shared:
+
+- **The partitioner and HDF5 static archives get absorbed into each `.so`.** Building a `.so` is a real link step (unlike a static archive, which only records the requirement), so PT-Scotch/ParMETIS/METIS/KaHIP/HDF5's object code becomes part of `libop2_mpi.so` etc. `-Wl,--exclude-libs=ALL` hides symbols pulled in from those archives from the `.so`'s exported table - OP2's own object code isn't in an archive at this link step, so this only touches what got absorbed, not OP2's own public API (which mixes several naming conventions - `op_*`/`OP_*`, gfortran-mangled Fortran module procedures, and a handful of plain-named C-Fortran bridge helpers - so a name-based export list isn't a viable way to draw this line). This is what prevents a symbol collision if your own project also links PT-Scotch/ParMETIS/HDF5 directly.
+- **PIC is required for every static dependency being linked into a shared OP2.** The `scripts/setup_deps.sh` bootstrap already builds HDF5, PT-Scotch, ParMETIS and KaHIP with position-independent code, so `BUILD_SHARED_LIBS=ON` against those "just works". A **system- or module-provided** partitioner or HDF5 has no such guarantee - if a shared OP2 build fails at link time with "recompile with -fPIC", that's the site's library, not something OP2's CMake can fix for you.
+- **Installed executables get an RPATH back to OP2's own install prefix automatically** (see [Downstream usage](#downstream-usage) for what a consumer needs to do for its own executables).
+
 ## Dependency hints
 
 OP2 finds its dependencies via CMake's standard mechanisms. You can point the build at your deps in any of the ways below - pick whichever fits your environment. All variables accept both cache-form (`-DFOO=…`) and env-var-form (`export FOO=…`) unless noted.
@@ -121,7 +131,7 @@ Point CMake at the OP2 install prefix with `-DCMAKE_PREFIX_PATH=/opt/op2`. That 
 
 The mesh partitioners (PT-Scotch, ParMETIS/METIS, KaHIP) are **pinned**: OP2 links them by library path, so `install(EXPORT)` records the exact artefacts it was built against in `OP2Targets.cmake`, and none of them is searched for again. This is deliberate. `libop2_mpi.a` is compiled against those specific headers, and the partitioner APIs are not ABI-stable across builds - `scotch.h` sizes its opaque handles per build (`double dummy[N]`) and OP2 stack-allocates a `SCOTCH_Strat` - so binding a different build would corrupt memory rather than fail to link. **To change partitioner, rebuild OP2**; the libraries take seconds to build. If a pinned library has since been deleted or moved, the build stops with that path named, rather than silently binding whatever else happens to be installed.
 
-Everything else - MPI, OpenMP, CUDA, HIP, HDF5 - provides CMake imported targets, so it is **re-found** rather than pinned, and the usual hints apply. But because OP2's libraries are static, your application relinks those same libraries into its own binaries: finding a *different* build of one is what breaks, not finding none. So each re-found dependency **defaults to the one OP2 was built against**:
+Everything else - MPI, OpenMP, CUDA, HIP, HDF5 - provides CMake imported targets, so it is **re-found** rather than pinned, and the usual hints apply. If OP2 was built `STATIC` (the default), your application relinks those same libraries into its own binary: finding a *different* build of one is what breaks, not finding none. If OP2 was built `SHARED`, MPI/OpenMP/CUDA/HIP are still your own binary's direct runtime dependencies exactly as before (a `.so`-to-`.so` link, nothing new there), but the partitioners and HDF5 are no longer separate runtime dependencies at all - they were absorbed into `libop2_*.so` itself at OP2's own build time (see [Shared vs static libraries](#shared-vs-static-libraries)). Either way, each re-found dependency **defaults to the one OP2 was built against**:
 
 | Dependency | Default recorded | Overridden by | Suppressed when |
 |---|---|---|---|
@@ -134,6 +144,12 @@ Everything else - MPI, OpenMP, CUDA, HIP, HDF5 - provides CMake imported targets
 These are defaults, not pins - anything you set explicitly wins, and a recorded path that has since moved is ignored so the install stays usable. On a cluster where the same modules are loaded for OP2 and for your application, the defaults simply agree with what discovery would have found anyway; they matter when they would not have. Baking the MPI wrapper is the significant one: it determines every include and library path `FindMPI` derives, and MPI has no cross-implementation ABI, so an OP2 built against Open MPI cannot link against MPICH.
 
 HDF5 is additionally **checked**, because it is the one whose mismatch can be quiet: a wrong MPI leaves undefined references at link time, and a toolkit too old for OP2's CUDA/HIP dialect is rejected at generate time, but OP2 links HDF5 statically and calls version-specific symbols, so a mismatched build can link cleanly and then misbehave. The HDF5 you supply must be **compatible with the version OP2 was built against** (HDF5's own policy - same major.minor series) and **parallel if OP2's is**. Either mismatch fails `find_package(OP2)` with a message saying which.
+
+If you consume a `SHARED` OP2 build, your own executables need to be able to find `libop2_*.so` at runtime. OP2 sets `RPATH` on the executables **it** installs (its own tests and apps), but `op2_add_app_variants(... INSTALL)` called from *your* project builds *your* executables - OP2 has no way to inject `RPATH` policy into a build it doesn't control. Set the usual CMake knobs in your own project, the same as you would for any other shared-library dependency:
+
+```cmake
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+```
 
 If you call `find_package(OP2)` somewhere other than your top-level `CMakeLists.txt` - say in one subdirectory, and `op2_add_app_variants()` in a sibling - add the `GLOBAL` keyword:
 

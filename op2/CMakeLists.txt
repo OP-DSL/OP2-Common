@@ -165,9 +165,28 @@ function(_op2_configure_target tgt)
     # it onto the generated imported target, keeping op2:: include dirs -I
     # rather than the imported-target default of -isystem - needed because
     # INCTXT's .incbin (extern/incbin.h) only searches -I.
+    #
+    # VERSION/SOVERSION are no-ops on a STATIC target - harmless to set
+    # unconditionally rather than gate on BUILD_SHARED_LIBS.
     set_target_properties(${tgt} PROPERTIES
         POSITION_INDEPENDENT_CODE ON
-        IMPORTED_NO_SYSTEM TRUE)
+        IMPORTED_NO_SYSTEM TRUE
+        VERSION   ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR})
+
+    # Partitioner/HDF5 static archives get absorbed into the .so at its own
+    # link step (unlike a static archive, which just records the link
+    # requirement), so without this their symbols land in the .so's default-
+    # visibility exported table. --exclude-libs works per-archive, not by
+    # symbol name: OP2's own object files aren't in an archive at this link
+    # step, so this hides exactly what got absorbed and nothing OP2 defines
+    # itself - no naming convention to keep in sync as the API grows (OP2's
+    # own public surface mixes op_*/OP_*, gfortran-mangled module procedures,
+    # and plain-named C-Fortran bridge helpers, so a name-based allowlist
+    # would need constant upkeep and silently break on anything it misses).
+    if(BUILD_SHARED_LIBS AND OP2_LINKER_HAS_EXCLUDE_LIBS)
+        target_link_options(${tgt} PRIVATE "-Wl,--exclude-libs=ALL")
+    endif()
 endfunction()
 
 # Generated kernels call constexpr host helpers from __global__ functions,
@@ -260,7 +279,7 @@ endfunction()
 # ===========================================================================
 
 # --- op2_seq - sequential, single-node -------------------------------------
-add_library(op2_seq STATIC ${_op2_core_srcs} ${_op2_backend_seq_srcs})
+add_library(op2_seq ${_op2_core_srcs} ${_op2_backend_seq_srcs})
 _op2_configure_target(op2_seq)
 _op2_register_c(op2_seq)
 
@@ -268,7 +287,7 @@ _op2_register_c(op2_seq)
 # As with op2_for_openmp below: the link is a usage requirement for the
 # generated kernels, not something this library's own sources need.
 if(OpenMP_CXX_FOUND)
-    add_library(op2_openmp STATIC ${_op2_core_srcs} ${_op2_backend_openmp_srcs})
+    add_library(op2_openmp ${_op2_core_srcs} ${_op2_backend_openmp_srcs})
     _op2_configure_target(op2_openmp)
     target_link_libraries(op2_openmp PUBLIC OpenMP::OpenMP_CXX)
     _op2_register_c(op2_openmp)
@@ -276,7 +295,7 @@ endif()
 
 # --- op2_cuda - NVIDIA GPU via CUDA ----------------------------------------
 if(CMAKE_CUDA_COMPILER)
-    add_library(op2_cuda STATIC ${_op2_core_srcs} ${_op2_backend_cuda_srcs})
+    add_library(op2_cuda ${_op2_core_srcs} ${_op2_backend_cuda_srcs})
     _op2_configure_target(op2_cuda)
     _op2_configure_cuda_target(op2_cuda)
     target_compile_definitions(op2_cuda PRIVATE OP2_CUDA)
@@ -286,7 +305,7 @@ endif()
 
 # --- op2_hip - AMD GPU via HIP (same sources as op2_cuda) ------------------
 if(CMAKE_HIP_COMPILER)
-    add_library(op2_hip STATIC ${_op2_core_srcs} ${_op2_backend_cuda_srcs})
+    add_library(op2_hip ${_op2_core_srcs} ${_op2_backend_cuda_srcs})
     _op2_configure_target(op2_hip)
     _op2_configure_hip_target(op2_hip)
     target_compile_definitions(op2_hip PRIVATE OP2_HIP)
@@ -297,7 +316,7 @@ endif()
 
 # --- op2_hdf5 - sequential HDF5 I/O (standalone, no MPI) -------------------
 if(HDF5_FOUND)
-    add_library(op2_hdf5 STATIC ${_op2_hdf5_only_srcs})
+    add_library(op2_hdf5 ${_op2_hdf5_only_srcs})
     _op2_configure_target(op2_hdf5)
     target_link_libraries(op2_hdf5 PUBLIC ${_op2_hdf5_link_targets})
     _op2_register_c(op2_hdf5)
@@ -307,7 +326,7 @@ endif()
 if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
 
     # --- op2_mpi (CPU) ---
-    add_library(op2_mpi STATIC
+    add_library(op2_mpi
         ${_op2_core_srcs}
         ${_op2_backend_mpi_backbone_srcs}
         ${_op2_backend_mpi_cpu_overlay_srcs})
@@ -319,7 +338,7 @@ if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
 
     # --- op2_mpi_cuda ---
     if(CMAKE_CUDA_COMPILER)
-        add_library(op2_mpi_cuda STATIC
+        add_library(op2_mpi_cuda
             ${_op2_core_srcs}
             ${_op2_backend_mpi_backbone_srcs}
             ${_op2_backend_mpi_cuda_overlay_srcs})
@@ -334,7 +353,7 @@ if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
 
     # --- op2_mpi_hip ---
     if(CMAKE_HIP_COMPILER)
-        add_library(op2_mpi_hip STATIC
+        add_library(op2_mpi_hip
             ${_op2_core_srcs}
             ${_op2_backend_mpi_backbone_srcs}
             ${_op2_backend_mpi_cuda_overlay_srcs})
@@ -356,7 +375,7 @@ endif() # MPI + parallel HDF5
 if(CMAKE_Fortran_COMPILER)
 
     # --- op2_for_seq ---
-    add_library(op2_for_seq STATIC
+    add_library(op2_for_seq
         ${_op2_core_srcs}
         ${_op2_backend_seq_srcs}
         ${_op2_fortran_base_srcs}
@@ -368,7 +387,7 @@ if(CMAKE_Fortran_COMPILER)
     # No source here uses OpenMP - the !$omp directives live in generated
     # kernels, so this link is a usage requirement, not a build need.
     if(OpenMP_Fortran_FOUND)
-        add_library(op2_for_openmp STATIC
+        add_library(op2_for_openmp
             ${_op2_core_srcs}
             ${_op2_backend_openmp_srcs}
             ${_op2_fortran_base_srcs}
@@ -382,7 +401,7 @@ if(CMAKE_Fortran_COMPILER)
     # Needs only the Fortran API declarations module, not the full runtime
     # bridge, so it references _for_declarations_pp directly.
     if(HDF5_FOUND)
-        add_library(op2_for_hdf5 STATIC
+        add_library(op2_for_hdf5
             ${_op2_hdf5_only_srcs}
             "${_for_declarations_pp}"
             ${_op2_fortran_hdf5_srcs})
@@ -395,7 +414,7 @@ if(CMAKE_Fortran_COMPILER)
     # OP2_WITH_CUDAFOR (enabling 'use cudafor') only fires for compilers that
     # support CUDA Fortran (NVHPC/PGI with -cuda).
     if(CMAKE_CUDA_COMPILER)
-        add_library(op2_for_cuda STATIC
+        add_library(op2_for_cuda
             ${_op2_core_srcs}
             ${_op2_backend_cuda_srcs}
             ${_op2_fortran_base_srcs}
@@ -414,7 +433,7 @@ if(CMAKE_Fortran_COMPILER)
 
     # --- op2_for_hip - same sources as op2_for_cuda, promotes .cu to HIP ---
     if(CMAKE_HIP_COMPILER)
-        add_library(op2_for_hip STATIC
+        add_library(op2_for_hip
             ${_op2_core_srcs}
             ${_op2_backend_cuda_srcs}
             ${_op2_fortran_base_srcs}
@@ -434,7 +453,7 @@ if(CMAKE_Fortran_COMPILER)
     if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
 
         # --- op2_for_mpi ---
-        add_library(op2_for_mpi STATIC
+        add_library(op2_for_mpi
             ${_op2_core_srcs}
             ${_op2_backend_mpi_backbone_srcs}
             ${_op2_backend_mpi_cpu_overlay_srcs}
@@ -450,7 +469,7 @@ if(CMAKE_Fortran_COMPILER)
 
         # --- op2_for_mpi_cuda ---
         if(CMAKE_CUDA_COMPILER)
-            add_library(op2_for_mpi_cuda STATIC
+            add_library(op2_for_mpi_cuda
                 ${_op2_core_srcs}
                 ${_op2_backend_mpi_backbone_srcs}
                 ${_op2_backend_mpi_cuda_overlay_srcs}
@@ -473,7 +492,7 @@ if(CMAKE_Fortran_COMPILER)
 
         # --- op2_for_mpi_hip ---
         if(CMAKE_HIP_COMPILER)
-            add_library(op2_for_mpi_hip STATIC
+            add_library(op2_for_mpi_hip
                 ${_op2_core_srcs}
                 ${_op2_backend_mpi_backbone_srcs}
                 ${_op2_backend_mpi_cuda_overlay_srcs}
@@ -525,13 +544,17 @@ endif()
 if(_op2_targets_c)
     install(TARGETS ${_op2_targets_c}
         EXPORT  OP2Targets
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endif()
 
 if(_op2_targets_for)
     install(TARGETS ${_op2_targets_for}
         EXPORT  OP2Targets
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
     foreach(_t IN LISTS _op2_targets_for)
         install(DIRECTORY "${PROJECT_BINARY_DIR}/mod/${_t}/"
             DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2/fortran/${_t}")
