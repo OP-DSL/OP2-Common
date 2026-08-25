@@ -142,6 +142,16 @@ class Preprocessor(pcpp.Preprocessor):
         super(Preprocessor, self).__init__(lexer)
 
         self.line_directive = None
+        self.includes: Set[Path] = set()
+
+    def on_file_open(self, is_system_include, includepath):
+        # Called once per candidate path, so record only after the base class
+        # has opened it - a path that does not exist raises out of here and
+        # pcpp moves on to the next include dir.
+        handle = super(Preprocessor, self).on_file_open(is_system_include, includepath)
+        self.includes.add(Path(includepath).resolve())
+
+        return handle
 
     def on_comment(self, tok):
         return tok.type == self.t_COMMENT2
@@ -230,7 +240,35 @@ class Fortran(Lang):
         for loop, program in app.loops():
             fortran.validator.validateLoop(loop, program, app)
 
-    def preprocess(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> str:
+    def fppIncludes(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Set[Path]:
+        # A second fpp pass: -M reports the files it read but suppresses the
+        # preprocessed output, so it cannot be folded into the run that
+        # produces the source. Its output is one '<object>: <dependency>' rule
+        # per line, with paths relative to the working directory.
+        args = [self.fpp, "-P", "-free", "-f90", "-M"]
+
+        for dir in include_dirs:
+            args.append(f"-I{dir}")
+
+        for define in defines:
+            args.append(f"-D{define}")
+
+        args.append(str(path))
+
+        res = subprocess.run(args, capture_output=True, check=True)
+
+        includes: Set[Path] = set()
+        for line in res.stdout.decode("utf-8").splitlines():
+            _, separator, dependency = line.partition(":")
+
+            if separator and dependency.strip():
+                includes.add(Path(dependency.strip()).resolve())
+
+        return includes
+
+    def preprocess(
+        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
+    ) -> Tuple[str, Set[Path]]:
         if self.fpp:
             args = [self.fpp, "-P", "-free", "-f90"]
 
@@ -243,7 +281,7 @@ class Fortran(Lang):
             args.append(str(path))
 
             res = subprocess.run(args, capture_output=True, check=True)
-            return res.stdout.decode("utf-8")
+            return res.stdout.decode("utf-8"), self.fppIncludes(path, include_dirs, defines)
 
         preprocessor = Preprocessor()
 
@@ -270,12 +308,12 @@ class Fortran(Lang):
         source = re.sub(r"__FILE__", f'"{path}"', source)
         source = re.sub(r"__LINE__", "0", source)
 
-        return source
+        return source, preprocessor.includes
 
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
-    ) -> Tuple[f2003.Program, str]:
-        source = self.preprocess(path, include_dirs, defines)
+    ) -> Tuple[f2003.Program, str, Set[Path]]:
+        source, includes = self.preprocess(path, include_dirs, defines)
 
         try:
             reader = FortranStringReader(source, include_dirs=list(include_dirs))
@@ -283,11 +321,15 @@ class Fortran(Lang):
         except fparser.two.utils.FortranSyntaxError as err:
             raise FortranSyntaxError(str(err), path.name)
 
-        return ast, source
+        return ast, source, includes
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
-        return fortran.parser.parseProgram(ast, source, path)
+        ast, source, includes = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
+
+        program = fortran.parser.parseProgram(ast, source, path)
+        program.includes = includes
+
+        return program
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
         if self.use_regex_translator:

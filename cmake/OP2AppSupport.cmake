@@ -253,18 +253,11 @@ function(op2_translate)
     _op2_translator_outputs("${_A_LANGUAGE}" "${_A_VARIANTS}" "${_A_OUT_DIR}"
         "${_A_SOURCES}" _outputs)
 
-    # C++ only: the translator reports the headers libclang resolved, so a
-    # kernel body living in an #included header retranslates when edited.
-    # Fortran reaches its kernels through modules that are already named in
-    # SOURCES, and its preprocessor's include set is not reported yet, so it
-    # gets no depfile rather than a misleading empty one.
-    set(_depfile_args "")
-    set(_depfile_keyword "")
-    if(_A_LANGUAGE STREQUAL "cpp")
-        set(_depfile "${_A_OUT_DIR}/.op2-translate.d")
-        set(_depfile_args --depfile "${_depfile}")
-        set(_depfile_keyword DEPFILE "${_depfile}")
-    endif()
+    # The translator reports the files it read - headers libclang resolved for
+    # C++, includes the preprocessor pulled in for Fortran - so a kernel body
+    # living in an included file retranslates when edited. This is the same
+    # contract CMake gives a compiler with -MD/-MF.
+    set(_depfile "${_A_OUT_DIR}/.op2-translate.d")
 
     # The translator leaves an output untouched when its content would not
     # change, so a regenerated file can stay older than the source it came
@@ -282,12 +275,12 @@ function(op2_translate)
             "${_defs_flags}"
             "${_incs_flags}"
             ${_A_EXTRA_ARGS}
-            ${_depfile_args}
+            --depfile "${_depfile}"
             -o "${_A_OUT_DIR}"
             ${_A_SOURCES}
         COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${_outputs}
         DEPENDS ${_A_SOURCES} ${OP2_TRANSLATOR_DEPENDS}
-        ${_depfile_keyword}
+        DEPFILE "${_depfile}"
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "OP2 translator → ${_A_OUT_DIR}"
