@@ -20,7 +20,8 @@ program airfoil
     character(*), parameter :: file_name = "new_grid.dat"
     character(*), parameter :: file_name_h5 = "new_grid.h5"
 
-    integer(4), parameter :: niter = 1000
+    character(len=32) :: env_niter
+    integer(4) :: niter
     integer(4) :: iter, k
 
     integer(4) :: nnode, ncell, nbedge, nedge
@@ -63,6 +64,11 @@ program airfoil
 #endif
 
     call op_init_base(0, 0)
+    niter = 1000
+    call get_environment_variable("OP2_NITER", env_niter)
+    if (len_trim(env_niter) > 0) then
+        read(env_niter, *) niter
+    end if
     call op_profile_start("Airfoil")
 
 #ifdef HDF5

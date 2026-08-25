@@ -70,6 +70,29 @@ typedef struct {
   int *nindirect;    /* total sizes for indirect datasets */
   short *loc_map; /* concatenated maps to local indices, renumbered as needed */
   short **loc_maps;  /* maps to local indices, renumbered as needed */
+
+  /* --- smem-atomics staging (OP_STAGE_INC plans) ---
+   * Per staged arg m2 (in args order), one uint16 control word per element:
+   *   bits 0..13 : smem slot index in 4-byte units for this element's
+   *                reference into the staged dat
+   *   bit  14    : owner    - this element's thread flushes this slot to gmem
+   *   bit  15    : exclusive- no other block references this gmem cell, so a
+   *                plain store may replace atomicAdd on flush
+   * Words are stored per staged arg with leading dimension exec_length,
+   * mirroring loc_map's layout. The slot field is a compact cell index
+   * (0..stage_capacity-1) assigned by first touch within the block; the
+   * shared-memory layout is component-major with per-dat region bases that
+   * are compile-time constants in the generated kernel, so no per-block
+   * base/size arrays are needed. staging_bytes is the exact static
+   * footprint (sum over staged dats of stage_capacity * dat size); the
+   * kernel is only used when it fits the device's opt-in limit.
+   */
+  unsigned short *stage_words; /* [nargs_staged][exec_length] control words */
+  unsigned short **stage_word_maps; /* per-staged-arg pointers into stage_words */
+  int stage_capacity;  /* max elements per block = max_b nelems[b] */
+  int staging_bytes;   /* static staging footprint in bytes */
+  unsigned short **stage_word_maps_d; /* device copies for kernel launch */
+
   int nblocks;       /* number of blocks */
   int nblocks_core;  /* number of core blocks in MPI */
   int nblocks_owned; /* number of blocks with owned elements in MPI */

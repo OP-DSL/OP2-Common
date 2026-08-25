@@ -517,6 +517,7 @@ public:
         m_params.emplace_back(name, data, len, lookup_symbol(symbol), hash_device_ptr);
     }
 
+
     JitKernel *get_kernel() {
         auto hash = hash_params();
 

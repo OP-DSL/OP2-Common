@@ -77,7 +77,7 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
-{%- macro arg_to_pointer_cuda(arg, jit = false) %}
+{%- macro arg_to_pointer_cuda(arg, jit = false, smem = false) %}
     {%- if arg is idx and arg is indirect -%}
 idx{{arg.id}}
     {%- elif arg is idx -%}
@@ -88,25 +88,25 @@ idx
         {%- else -%}
             {%- set zero_type = lh.dat(arg).typ.c() -%}
         {%- endif -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit)}} : zero_{{zero_type}}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, smem)}} : zero_{{zero_type}}
     {%- else -%}
-{{arg_to_pointer2(arg, jit)}}
+{{arg_to_pointer2(arg, jit, smem)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer2(arg, jit) -%}
+{%- macro arg_to_pointer2(arg, jit, smem) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
 op2_gbl{{arg.id}}_d
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 gbl{{arg.id}}
     {%- elif arg is scalar(lh) -%}
-{{arg_to_pointer3(arg)}}.data[0]
+{{arg_to_pointer3(arg, smem)}}.data[0]
     {%- else -%}
-{{arg_to_pointer3(arg)}}
+{{arg_to_pointer3(arg, smem)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg) -%}
+{%- macro arg_to_pointer3(arg, smem) -%}
     {%- if arg is info -%}
 f2c::Ptr{info{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
@@ -114,12 +114,14 @@ f2c::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg is gbl -%}
 f2c::Ptr{gbl{{arg.id}}}
     {%- else -%}
-{{arg_to_pointer4(arg)}}
+{{arg_to_pointer4(arg, smem)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer4(arg) -%}
-    {%- if arg is direct and lh.dat(arg) is soa -%}
+{%- macro arg_to_pointer4(arg, smem) -%}
+    {%- if smem and arg is dat and arg is indirect and arg is inc -%}
+f2c::Ptr{( {{lh.dat(arg).typ.c()}}*)(stage_base_dat{{lh.dat(arg).id}}) + (word_{{arg.id}} & STAGE_SLOT_MASK), stage_cap}
+    {%- elif arg is direct and lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
 f2c::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
@@ -150,64 +152,7 @@ f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
     {{- lh.args|dat|indirect(lh)|inc|list|index(arg) -}}
 {%- endmacro -%}
 
-{%- macro smem_local_nodes(dat) -%}
-ind_sizes[{{dats_smem|map(attribute='id')|list|index(dat.id)}} + b * nstaged]
-{%- endmacro -%}
-
-{%- macro smem_arg_to_pointer4(arg) -%}
-    {%- if arg is dat and arg is indirect and arg is inc -%}
-        {%- if lh.dat(arg) is soa -%}
-f2c::Ptr{smem_dat{{arg.dat_id}} + loc_map[{{smem_loc_slot(arg)}} * loc_stride + n], {{smem_local_nodes(lh.dat(arg))}}}
-        {%- else -%}
-f2c::Ptr{smem_dat{{arg.dat_id}} + loc_map[{{smem_loc_slot(arg)}} * loc_stride + n] * {{dat_dim_w(lh.dat(arg))}}}
-        {%- endif -%}
-    {%- else -%}
-{{arg_to_pointer4(arg)}}
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro arg_to_pointer3_smem(arg) -%}
-    {%- if arg is info -%}
-f2c::Ptr{info{{arg.id}} + thread_id, stride_gbl}
-    {%- elif arg in args_gbl_per_thread -%}
-f2c::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
-    {%- elif arg is gbl -%}
-f2c::Ptr{gbl{{arg.id}}}
-    {%- else -%}
-{{smem_arg_to_pointer4(arg)}}
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro arg_to_pointer2_smem(arg, jit) -%}
-    {%- if jit and arg is gbl and arg is read and arg is scalar -%}
-op2_gbl{{arg.id}}_d
-    {%- elif arg is gbl and arg is read and arg is scalar -%}
-gbl{{arg.id}}
-    {%- elif arg is scalar(lh) -%}
-{{arg_to_pointer3_smem(arg)}}.data[0]
-    {%- else -%}
-{{arg_to_pointer3_smem(arg)}}
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro arg_to_pointer_smem(arg, jit = false) %}
-    {%- if arg is idx and arg is indirect -%}
-idx{{arg.id}}
-    {%- elif arg is idx -%}
-idx
-    {%- elif arg is opt and arg is scalar(lh) -%}
-        {%- if arg is gbl or arg is info -%}
-            {%- set zero_type = arg.typ.c() -%}
-        {%- else -%}
-            {%- set zero_type = lh.dat(arg).typ.c() -%}
-        {%- endif -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2_smem(arg, jit)}} : zero_{{zero_type}}
-    {%- else -%}
-{{arg_to_pointer2_smem(arg, jit)}}
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro kernel_call() -%}
+{%- macro kernel_call(smem = false) -%}
 void *kernel_args[] = {
     {% for dat in lh.dats %}
     &arg{{dat.arg_id}}.data_d,
@@ -224,7 +169,7 @@ void *kernel_args[] = {
     {% for arg in lh.args|info %}
     &arg{{arg.id}}.data_d,
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (smem and dat in dats_smem)) %}
     &arg{{dat.arg_id}}.dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
@@ -242,6 +187,14 @@ void *kernel_args[] = {
     &start,
     &end,
     &size
+    {%- if smem -%}
+    ,
+    {% for arg in args_smem %}
+    &plan->stage_word_maps[{{lh.args|index(arg)}}],
+    {% endfor %}
+    &plan->stage_capacity,
+    &block0
+    {%- endif %}
 };
 
 void *kernel_args_jit[] = {
@@ -257,7 +210,7 @@ void *kernel_args_jit[] = {
     {% for arg in lh.args|info %}
     &arg{{arg.id}}.data_d,
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (smem and dat in dats_smem)) %}
     &arg{{dat.arg_id}}.dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
@@ -275,59 +228,22 @@ void *kernel_args_jit[] = {
     &start,
     &end,
     &size
-};
-
-info.invoke(kernel_inst, num_blocks, block_size, kernel_args, kernel_args_jit);
-{%- endmacro -%}
-
-{% if use_smem_atomics %}
-{%- macro kernel_call_smem() -%}
-void *kernel_args_smem[] = {
-    {% for dat in lh.dats %}
-    &arg{{dat.arg_id}}.data_d,
+    {%- if smem -%}
+    ,
+    {% for arg in args_smem %}
+    &plan->stage_word_maps[{{lh.args|index(arg)}}],
     {% endfor %}
-    {% for map in lh.maps %}
-    &arg{{map.arg_id}}.map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar %}
-    (void *)arg{{arg.id}}.data,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    &arg{{dat.arg_id}}.dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-    &arg{{arg.id}}.idx,
-    {% endfor %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-    &opt_flags,
-    {% endif %}
-    &start,
-    &end,
-    &size,
-    &plan->ind_map,
-    &plan->ind_offs,
-    &plan->ind_sizes,
-    &plan->loc_map,
-    &plan->offset_d,
-    &plan->nelems_d,
-    &nstaged,
-    &exec_length,
+    &plan->stage_capacity,
     &block0
+    {%- endif %}
 };
 
-info_smem.invoke(kernel_inst_smem, num_blocks, block_size, kernel_args_smem, kernel_args_smem,
-                 plan->nshared);
-{%- endmacro -%}
+{% if smem %}
+info_smem.invoke(kernel_inst_smem, num_blocks, block_size, kernel_args, kernel_args, plan->nshared);
+{% else %}
+info.invoke(kernel_inst, num_blocks, block_size, kernel_args, kernel_args_jit);
 {% endif %}
+{%- endmacro -%}
 
 {%- macro init_gbls() -%}
 op2_k_{{lh.name}}{{variant}}_init_gbls<<<max_blocks, block_size>>>(
@@ -459,7 +375,7 @@ void op2_k_{{lh.name}}{{variant}}_smem_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or dat in dats_smem) %}
     const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
@@ -474,14 +390,10 @@ void op2_k_{{lh.name}}{{variant}}_smem_wrapper(
     const int start,
     const int end,
     const int stride,
-    const int *__restrict ind_map,
-    const int *__restrict ind_offs,
-    const int *__restrict ind_sizes,
-    const short *__restrict loc_map,
-    const int *__restrict blk_offsets,
-    const int *__restrict blk_nelems,
-    const int nstaged,
-    const int loc_stride,
+    {% for arg in args_smem %}
+    const unsigned short *__restrict stage_words{{arg.id}},
+    {% endfor %}
+    const int stage_capacity,
     const int block0
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
@@ -495,89 +407,91 @@ void op2_k_{{lh.name}}{{variant}}_smem_wrapper(
     double zero_double = 0;
 
     const int b = block0 + blockIdx.x;
+    const unsigned STAGE_SLOT_MASK = 0x3FFFu;
+    const unsigned STAGE_OWNER_BIT = 1u << 14;
+    const unsigned STAGE_EXCL_BIT = 1u << 15;
 
-    // Carve per-staged-dat shared-memory staging buffers, matching the
-    // host-side nshared computation (ROUND_UP_64 per dat).
-    char *smem_base = op2_smem;
+    // Staged-cell capacity is a plan-time constant (max elements per block).
+    // Each staged dat gets a fixed component-major sub-region: element (k,d)
+    // at stage_base_datX[k + d*C] in T-units. Consecutive cells of one
+    // component are contiguous, so both accumulate and flush are conflict-
+    // free; the Ptr stride matches the gmem SoA idiom.
+    const int stage_cap = stage_capacity;
     {% for dat in dats_smem %}
-    {{dat.typ.c()}} *smem_dat{{dat.id}} = ({{dat.typ.c()}} *)smem_base;
-    smem_base += (({{smem_local_nodes(dat)}} * (int)sizeof({{dat.typ.c()}}) * {{dat_dim_w(dat)}} + 63) & ~63);
+    {% set di = dats_smem|map(attribute='id')|list|index(dat.id) %}
+    char *stage_base_dat{{dat.id}} =
+        op2_smem{% for prev in dats_smem[:di] %} + stage_cap * {{dat_dim_w(prev)}} * (int)sizeof({{prev.typ.c()}}){% endfor %};
     {% endfor %}
-
-    // Zero the staging buffers.
-    {% for dat in dats_smem %}
-    {% set opt_args = args_smem|selectattr('dat_id', 'equalto', dat.id)|select('opt')|list %}
-    {% if opt_args|length > 0 %}
-    if ({%- for arg in opt_args -%}
-        (opt_flags & (1 << {{lh.optIdx(arg)}})){{" || " if not loop.last}}
-    {%- endfor %}) {
-        for (int i = threadIdx.x; i < {{smem_local_nodes(dat)}} * {{dat_dim_w(dat)}}; i += blockDim.x)
-            smem_dat{{dat.id}}[i] = 0;
-    }
-    {% else %}
-    for (int i = threadIdx.x; i < {{smem_local_nodes(dat)}} * {{dat_dim_w(dat)}}; i += blockDim.x)
-        smem_dat{{dat.id}}[i] = 0;
-    {% endif %}
-    {% endfor %}
+    // Zero the entire staging buffer once.
+    for (int i = threadIdx.x;
+         i < (stage_cap * ({% for dat in dats_smem %}{{dat_dim_w(dat)}} * (int)sizeof({{dat.typ.c()}}){{" + " if not loop.last}}{% endfor %})) / 4;
+         i += blockDim.x)
+        reinterpret_cast<int*>(op2_smem)[i] = 0;
     __syncthreads();
 
-    const int elem_start = blk_offsets[b];
-    const int elem_end = blk_offsets[b] + blk_nelems[b];
+    const int elem_start = start + blockIdx.x * blockDim.x;
+    const int elem_end = min(elem_start + blockDim.x, end);
 
-{% macro elem_body(indent) %}
-{%- set i = " " * indent -%}
-{{i}}{%- if lh.args|idx|direct|length > 0 -%}
+    for (int n = elem_start + threadIdx.x; n < elem_end; n += blockDim.x) {
+    {% if lh.args|idx|direct|length > 0 %}
         int idx = n + 1;
-{{i}}{%- endif -%}
-{{i}}{%- for arg in lh.args|idx|indirect -%}
+    {% endif %}
+
+    {% for arg in lh.args|idx|indirect %}
         int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
-{{i}}{%- endfor -%}
-{{i}}{{lh.kernel}}(
-{{i}}{%- for arg in lh.args -%}
-        {{arg_to_pointer_smem(arg, jit)}}{{"," if not loop.last}}
-{{i}}{%- endfor -%}
+    {% endfor %}
+
+    {% for arg in args_smem %}
+        const unsigned word_{{arg.id}} = stage_words{{arg.id}}[n];
+    {% endfor %}
+
+        {{lh.kernel}}(
+    {% for arg in lh.args %}
+            {{arg_to_pointer_cuda(arg, jit, smem=true)}}{{"," if not loop.last}}
+    {% endfor %}
         );
-{% endmacro %}
-    // Single-edge-per-thread fast path: when the plan block holds at most
-    // blockDim.x elements, each thread handles exactly one element and the
-    // compiler emits straight-line code, hiding shared-memory atomic latency
-    // across warps instead of exposing it serially per thread.
-    if (blk_nelems[b] <= (int)blockDim.x) {
-        const int n = elem_start + threadIdx.x;
-        if (n < elem_end) {
-    {{ elem_body(8) }}        }
-    } else {
-        for (int n = elem_start + threadIdx.x; n < elem_end; n += blockDim.x) {
-    {{ elem_body(12) }}        }
     }
     __syncthreads();
 
-    // Flush: one global atomicAdd per (distinct local node, component) per
-    // staged dat.
-    {% for dat in dats_smem %}
-    {% set staged_m = dats_smem|map(attribute='id')|list|index(dat.id) %}
-    {% set opt_args = args_smem|selectattr('dat_id', 'equalto', dat.id)|select('opt')|list %}
-    {% if opt_args|length > 0 %}
-    if ({%- for arg in opt_args -%}
-        (opt_flags & (1 << {{lh.optIdx(arg)}})){{" || " if not loop.last}}
-    {%- endfor %}) {
+    // Flush: each thread that owns a slot (owner bit set in its control
+    // word) writes the staged delta back to global memory. Exclusive slots
+    // (referenced by no other block) use a plain store; the rest atomicAdd.
+    // The global id was already loaded as part of the gather (map lookup),
+    // so no indirection is needed here.
+    {% for arg in args_smem %}
+    {% set dat = lh.dat(arg) %}
+    {% if arg is opt %}
+    if (opt_flags & (1 << {{lh.optIdx(arg)}})) {
     {% else %}
     {
     {% endif %}
-        const int local_nodes = {{smem_local_nodes(dat)}};
-        const int *nodes = ind_map + {{staged_m}} * loc_stride + ind_offs[{{staged_m}} + b * nstaged];
-
-        for (int ln = threadIdx.x; ln < local_nodes; ln += blockDim.x) {
-            const int gn = nodes[ln];
-
-            for (int d = 0; d < {{dat_dim_w(dat)}}; ++d)
+        for (int n = elem_start + threadIdx.x; n < elem_end; n += blockDim.x) {
+            const unsigned w = stage_words{{arg.id}}[n];
+            if (!(w & STAGE_OWNER_BIT))
+                continue;
+            const int gn = {{map_lookup(arg)}};
+            const unsigned ln = w & STAGE_SLOT_MASK;
+            for (int d = 0; d < {{dat_dim_w(dat)}}; ++d) {
             {%- if dat is soa %}
-                atomicAdd(&dat{{dat.id}}[gn + d * op2_stride_dat{{dat.id}}_d],
-                          smem_dat{{dat.id}}[ln + d * local_nodes]);
+                {{dat.typ.c()}} delta =
+                    (( {{dat.typ.c()}} const*)(stage_base_dat{{dat.id}}))[ln + d * stage_cap];
+                if (w & STAGE_EXCL_BIT) {
+                    // Sole referencing block: a non-atomic read-modify-write.
+                    // No other block or kernel touches gn concurrently, so
+                    // the load-add-store is race-free and skips RED.
+                    dat{{dat.id}}[gn + d * op2_stride_dat{{dat.id}}_d] += delta;
+                } else {
+                    atomicAdd(&dat{{dat.id}}[gn + d * op2_stride_dat{{dat.id}}_d], delta);
+                }
             {%- else %}
-                atomicAdd(&dat{{dat.id}}[gn * {{dat_dim_w(dat)}} + d],
-                          smem_dat{{dat.id}}[ln * {{dat_dim_w(dat)}} + d]);
+                {{dat.typ.c()}} delta =
+                    (( {{dat.typ.c()}} const*)(stage_base_dat{{dat.id}}))[ln + d * stage_cap];
+                if (w & STAGE_EXCL_BIT)
+                    dat{{dat.id}}[gn * {{dat_dim_w(dat)}} + d] += delta;
+                else
+                    atomicAdd(&dat{{dat.id}}[gn * {{dat_dim_w(dat)}} + d], delta);
             {%- endif %}
+            }
         }
     }
     {% endfor %}
@@ -795,8 +709,14 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
         smem_atomics_env_read = true;
     }
 
+    // Eligibility: the static staging capacity must fit the opt-in smem
+    // limit, and every cell index must fit the 14-bit slot field. Both are
+    // plan-time quantities (dims are resolved by the time the plan builds),
+    // so no device-array dereference is needed here.
     const bool use_smem = smem_atomics_env && plan->ninds_staged > 0 &&
-                          plan->nshared > 0 && plan->nshared <= max_smem_optin;
+                          plan->stage_capacity > 0 &&
+                          plan->staging_bytes <= max_smem_optin &&
+                          plan->stage_capacity <= 16383; /* 14-bit slot field */
 
     static op::f2c::KernelInfo info_smem("op2_k_{{lh.name}}{{variant}}_smem_wrapper",
                                          (void *)op2_k_{{lh.name}}{{variant}}_smem_wrapper,
@@ -955,10 +875,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
                 }
 
                 int num_blocks = block1 - block0;
-                int nstaged = plan->ninds_staged;
+                int block_size = plan->part_size;
 
                 int size = f2c::round32(set->size + set->exec_size);
-                {{kernel_call_smem()|indent(16)}}
+                {{kernel_call(smem=true)|indent(16)}}
             } else
             {% endif %}
             {

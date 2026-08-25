@@ -185,6 +185,39 @@ op_plan *op_plan_get_stage_upload(char const *name, op_set set, int part_size,
     plan->nelems_d = plan->nelems;
     op_mvHostToDevice((void **)&(plan->blkmap), sizeof(int) * plan->nblocks);
     plan->blkmap_d = plan->blkmap;
+
+    /* smem-atomics staging arrays (OP_STAGE_INC plans only) */
+    if (plan->stage_words != NULL) {
+      int nstaged_args = 0;
+      for (int m = 0; m < nargs; m++)
+        if (plan->stage_word_maps[m] != NULL)
+          nstaged_args++;
+
+      /* upload the concatenated words, then rebuild per-arg device pointers
+       * in staged order */
+      op_mvHostToDevice((void **)&(plan->stage_words),
+                        sizeof(unsigned short) * (size_t)nstaged_args *
+                            set_size);
+      {
+        unsigned short *base = plan->stage_words;
+        int w = 0;
+        for (int m = 0; m < nargs; m++)
+          if (plan->stage_word_maps[m] != NULL)
+            plan->stage_word_maps[m] = base + (size_t)set_size * (w++);
+      }
+
+      /* device-side array of per-arg device pointers */
+      unsigned short **host_ptrs =
+          (unsigned short **)malloc(nargs * sizeof(unsigned short *));
+      memcpy(host_ptrs, plan->stage_word_maps,
+             nargs * sizeof(unsigned short *));
+      cutilSafeCall(op_deviceMalloc((void **)&plan->stage_word_maps_d,
+                                    sizeof(unsigned short *) * nargs));
+      cutilSafeCall(gpuMemcpy(plan->stage_word_maps_d, host_ptrs,
+                              sizeof(unsigned short *) * nargs,
+                              gpuMemcpyHostToDevice));
+      free(host_ptrs);
+    }
   }
 
   return plan;

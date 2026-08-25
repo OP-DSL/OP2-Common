@@ -483,6 +483,40 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
   OP_plans[ip].nindirect = (int *)op_calloc(ninds, sizeof(int));
   OP_plans[ip].loc_maps = (short **)op_malloc(nargs * sizeof(short *));
   OP_plans[ip].nelems = (int *)op_malloc(nblocks * sizeof(int));
+
+  /* --- smem-atomics staging arrays (OP_STAGE_INC only) ---
+   * stage_words: one uint16 per (staged arg, element).
+   * slot_counts[m3][gid]: how many blocks reference global id gid of staged
+   * dat m3 -- used for the exclusive flag. Sized to the to-set extent.
+   */
+  int nstaged_args = 0;
+  for (int m = 0; m < nargs; m++)
+    if (inds_staged[m] >= 0)
+      nstaged_args++;
+  OP_plans[ip].stage_words = NULL;
+  OP_plans[ip].stage_word_maps = NULL;
+  OP_plans[ip].stage_capacity = 0;
+  OP_plans[ip].staging_bytes = 0;
+  if (staging == OP_STAGE_INC && ninds_staged > 0) {
+    OP_plans[ip].stage_words =
+        (unsigned short *)op_malloc((size_t)nstaged_args * exec_length *
+                                    sizeof(unsigned short));
+    OP_plans[ip].stage_word_maps =
+        (unsigned short **)op_malloc(nargs * sizeof(unsigned short *));
+    {
+      int wcounter = 0;
+      for (int m = 0; m < nargs; m++) {
+        if (inds_staged[m] >= 0) {
+          OP_plans[ip].stage_word_maps[m] =
+              &OP_plans[ip].stage_words[(size_t)exec_length * wcounter];
+          wcounter++;
+        } else {
+          OP_plans[ip].stage_word_maps[m] = NULL;
+        }
+      }
+    }
+  }
+
   OP_plans[ip].ncolblk =
       (int *)op_calloc(exec_length, sizeof(int)); /* max possibly needed */
   OP_plans[ip].blkmap = (int *)op_calloc(nblocks, sizeof(int));
@@ -955,22 +989,200 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
     }
   }
 
+  /* static staging capacity: max elements per block; per-dat sizes are
+   * known here from args (dims resolved at plan build time), so the
+   * staging footprint is exact and the eligibility check is runtime-only
+   * in the sense of plan data, not translation-time data. */
+  if (staging == OP_STAGE_INC && ninds_staged > 0) {
+    /* static staging capacity: max distinct referenced cells per staged dat
+     * over all blocks. Distinct referenced cells per block is ind_sizes[m3 + b*ninds_staged]. */
+    int cap = 0;
+    for (int m3 = 0; m3 < ninds_staged; m3++) {
+      for (int b = 0; b < nblocks; b++) {
+        cap = MAX(cap, ind_sizes[m3 + b * ninds_staged]);
+      }
+    }
+    int max_nelems = 0;
+    for (int b = 0; b < nblocks; b++)
+      max_nelems = MAX(max_nelems, nelems[b]);
+
+    int bytes_per_set = 0;
+    for (int m3 = 0; m3 < ninds_staged; m3++) {
+      int dat_size = 0;
+      for (int q = 0; q < nargs; q++) {
+        if (inds_staged[q] == m3 && args[q].opt) {
+          dat_size = args[q].dat->size;
+          break;
+        }
+      }
+      bytes_per_set += dat_size;
+    }
+    OP_plans[ip].stage_capacity = cap;
+    OP_plans[ip].staging_bytes = cap * bytes_per_set;
+    OP_plans[ip].part_size = max_nelems;
+  }
+
   OP_plans[ip].nshared = 0;
   total_shared = 0;
 
-  for (int b = 0; b < nblocks; b++) {
-    int nbytes = 0;
-    for (int m = 0; m < ninds_staged; m++) {
-      int m2 = 0;
-      while (inds_staged[m2] != m)
-        m2++;
-      if (args[m2].opt == 0)
-        continue;
+  if (staging == OP_STAGE_INC && ninds_staged > 0) {
+    /* static staging footprint: capacity * sum(dat sizes), rounded to
+     * shared-memory allocation granularity */
+    OP_plans[ip].nshared = ROUND_UP_64(OP_plans[ip].staging_bytes);
+  } else {
+    for (int b = 0; b < nblocks; b++) {
+      int nbytes = 0;
+      for (int m = 0; m < ninds_staged; m++) {
+        int m2 = 0;
+        while (inds_staged[m2] != m)
+          m2++;
+        if (args[m2].opt == 0)
+          continue;
 
-      nbytes += ROUND_UP_64(ind_sizes[m + b * ninds_staged] * dats[m2]->size);
+        nbytes += ROUND_UP_64(ind_sizes[m + b * ninds_staged] * dats[m2]->size);
+      }
+      OP_plans[ip].nshared = MAX(OP_plans[ip].nshared, nbytes);
+      total_shared += nbytes;
     }
-    OP_plans[ip].nshared = MAX(OP_plans[ip].nshared, nbytes);
-    total_shared += nbytes;
+  }
+
+  /* --- build smem-atomics staging control words (OP_STAGE_INC only) ---
+   *
+   * For each staged arg m2 and each element e, pack into one uint16:
+   *   bits 0..13 : smem slot (4-byte units) of this element's staged cell
+   *   bit  14    : owner     - this element's thread flushes the slot
+   *   bit  15    : exclusive - no other block references this gmem cell,
+   *                            so a plain store may replace atomicAdd
+   *
+   * Slots are assigned per block in first-touch order over elements; each
+   * distinct cell of staged dat m3 consumes words_per_cell slots.
+   * The slot field is a compact cell index; region bases are compile-time
+   * constants in the generated kernel (see stage_capacity/staging_bytes).
+   *
+   * Exclusivity: a gmem cell referenced by exactly one block is exclusive
+   * (locally consistent only -- MPI sections handle cross-rank cases).
+   */
+  if (staging == OP_STAGE_INC && ninds_staged > 0) {
+    const unsigned short OWN_BIT = 1u << 14;
+    const unsigned short EXC_BIT = 1u << 15;
+    const unsigned short SLOT_MASK = (unsigned short)(OWN_BIT - 1);
+
+    /* to-set extent per staged dat (for refcount sizing) */
+    int *to_sizes = (int *)op_malloc(ninds_staged * sizeof(int));
+    for (int m3 = 0; m3 < ninds_staged; m3++) {
+      int mw = -1;
+      for (int q = 0; q < nargs; q++)
+        if (inds_staged[q] == m3 && args[q].opt) {
+          mw = q;
+          break;
+        }
+      to_sizes[m3] =
+          mw < 0 ? 0
+                 : (maps[mw]->to)->exec_size + (maps[mw]->to)->nonexec_size +
+                       (maps[mw]->to)->size;
+    }
+
+    /* refcnt[m3][gid] = number of blocks referencing gid */
+    int **refcnt = (int **)op_malloc(ninds_staged * sizeof(int *));
+    for (int m3 = 0; m3 < ninds_staged; m3++)
+      refcnt[m3] =
+          (int *)op_calloc(to_sizes[m3] > 0 ? to_sizes[m3] : 1, sizeof(int));
+
+    for (int b = 0; b < nblocks; b++) {
+      for (int m3 = 0; m3 < ninds_staged; m3++) {
+        int base = ind_offs[m3 + b * ninds_staged];
+        int count = ind_sizes[m3 + b * ninds_staged];
+        for (int k = 0; k < count; k++) {
+          int gid = OP_plans[ip].ind_maps[m3][base + k];
+          if (gid >= 0 && gid < to_sizes[m3])
+            refcnt[m3][gid]++;
+        }
+      }
+    }
+
+    /* per block: reset work[] sentinels, assign first-touch slots,
+     * emit words with owner/exclusive flags. Owner = first element (in
+     * element order, over all staged args of that dat) referencing a gid;
+     * tracked with a per-block "seen" marker table. */
+    /* dedicated slot tables per staged dat, sized to the to-set extent.
+     * Encoding: 0xFFFFFFFF = unassigned; bit30 = owner-marked this block;
+     * low 30 bits = first-touch slot base. */
+    unsigned int **seen = (unsigned int **)op_malloc(ninds_staged *
+                                                     sizeof(unsigned int *));
+    for (int m3 = 0; m3 < ninds_staged; m3++)
+      seen[m3] = (unsigned int *)op_malloc(
+          (to_sizes[m3] > 0 ? to_sizes[m3] : 1) * sizeof(unsigned int));
+
+    for (int b = 0; b < nblocks; b++) {
+      int prev = OP_plans[ip].offset[b];
+      int next = prev + OP_plans[ip].nelems[b];
+
+      /* reset inverse mappings: mark all this block's gids unassigned */
+      for (int m3 = 0; m3 < ninds_staged; m3++) {
+        int base = ind_offs[m3 + b * ninds_staged];
+        int count = ind_sizes[m3 + b * ninds_staged];
+        for (int k = 0; k < count; k++) {
+          int gid = OP_plans[ip].ind_maps[m3][base + k];
+          seen[m3][gid] = 0xFFFFFFFFu;
+        }
+      }
+
+      /* first-touch compact cell index: distinct (dat, gid) pairs get
+       * k = 0,1,2,... in element order; duplicate elements and duplicate
+       * args referencing the same cell fold onto one slot. The capacity is
+       * stage_capacity = max_b nelems[b] (a plan-time constant), so the
+       * generated kernel's per-dat region bases are compile-time constants
+       * and no per-block slot_base/size arrays are needed. seen[m3][gid]
+       * stores (k | OWNER_MARK) with OWNER_MARK set on first touch; k is
+       * bounded by stage_capacity <= 16383, well inside uint32. */
+      const unsigned int OWNED_FLAG = 1u << 30;
+      int *kcount = (int *)op_calloc(ninds_staged, sizeof(int));
+      for (int m2 = 0; m2 < nargs; m2++) {
+        if (inds_staged[m2] < 0)
+          continue;
+        int m3 = inds_staged[m2];
+        for (int e = prev; e < next; e++) {
+          int gid = maps[m2]->map[idxs[m2] + e * maps[m2]->dim];
+          unsigned int entry = seen[m3][gid];
+          unsigned short word;
+          if (entry == 0xFFFFFFFFu) {
+            /* first touch this block: assign compact index */
+            word = (unsigned short)(kcount[m3]++);
+            seen[m3][gid] = ((unsigned int)word) | OWNED_FLAG;
+            if (refcnt[m3][gid] == 1)
+              word |= EXC_BIT;
+            word |= OWN_BIT;
+          } else {
+            word = (unsigned short)(entry & 0x3FFFFFFFu);
+            if (!(entry & OWNED_FLAG)) {
+              seen[m3][gid] = entry | OWNED_FLAG;
+              word |= OWN_BIT;
+              if (refcnt[m3][gid] == 1)
+                word |= EXC_BIT;
+            }
+          }
+          OP_plans[ip].stage_word_maps[m2][e] = word;
+        }
+      }
+      /* reset sentinel for next block */
+      for (int m3 = 0; m3 < ninds_staged; m3++) {
+        int base = ind_offs[m3 + b * ninds_staged];
+        int count = ind_sizes[m3 + b * ninds_staged];
+        for (int k = 0; k < count; k++) {
+          int gid = OP_plans[ip].ind_maps[m3][base + k];
+          seen[m3][gid] = 0xFFFFFFFFu;
+        }
+      }
+      op_free(kcount);
+    }
+
+    for (int m3 = 0; m3 < ninds_staged; m3++)
+      op_free(seen[m3]);
+    op_free(seen);
+    for (int m3 = 0; m3 < ninds_staged; m3++)
+      op_free(refcnt[m3]);
+    op_free(refcnt);
+    op_free(to_sizes);
   }
 
   /* work out total bandwidth requirements */
@@ -1024,7 +1236,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
             fac * ind_sizes[m + b * ninds] *
             dats[m2]->size; // simply read all data one by one
 
-        /* work out how many cache lines are used by indirect addressing */
+  /* work out how many cache lines are used by indirect addressing */
 
         int i_map, l_new, l_old;
         int e0 = ind_offs[m + b * ninds];       // where it starts
@@ -1070,7 +1282,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
               ((i_map + 1) * dats[m2]->size - 1) /
               (dats[m2]->dim * OP_cache_line_size); // primitve type's last byte
           transfer3 += fac * (l_new - l_old) * dats[m2]->dim *
-                       OP_cache_line_size; // load it
+            OP_cache_line_size; // if not loaded yet, load it all
           l_old = l_new;
         }
 
@@ -1080,7 +1292,6 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
         if (accs[m2] == OP_RW)
           fac = 2.0f;
         OP_plans[ip].transfer += fac * ind_sizes[m + b * ninds] * sizeof(int);
-        OP_plans[ip].transfer2 += fac * ind_sizes[m + b * ninds] * sizeof(int);
         transfer3 += fac * ind_sizes[m + b * ninds] * sizeof(int);
       }
     }
@@ -1102,7 +1313,7 @@ op_plan *op_plan_core(char const *name, op_set set, int part_size, int nargs,
     printf(" data transfer (used)   = %.2f MB \n",
            OP_plans[ip].transfer / (1024.0f * 1024.0f));
     printf(" data transfer (total)  = %.2f MB \n",
-           OP_plans[ip].transfer2 / (1024.0f * 1024.0f));
+           total_shared / (1024.0f * 1024.0f));
     printf(" SoA/AoS transfer ratio = %.2f \n\n",
            transfer3 / OP_plans[ip].transfer2);
   }
