@@ -16,7 +16,10 @@ if(NOT OP2_ENABLE_HDF5)
     return()
 endif()
 
-find_package(HDF5 CONFIG QUIET COMPONENTS C)
+# Listing the flavours as components is what makes the config report the target
+# names it exports, in HDF5_<COMPONENT>_<FLAVOUR>_LIBRARY; asking for one the
+# install lacks is not an error, it just reports FOUND 0.
+find_package(HDF5 CONFIG QUIET COMPONENTS C HL static shared)
 
 if(NOT HDF5_FOUND)
     message(STATUS
@@ -32,30 +35,33 @@ else()
     set(OP2_HDF5_IS_PARALLEL "${HDF5_IS_PARALLEL}")
 endif()
 
-# Target name varies by HDF5 version/build (1.14 uses "hdf5-static", others
-# "hdf5::hdf5-static"); pick the first available.
-foreach(_cand
-        hdf5::hdf5-static hdf5::hdf5-shared hdf5::hdf5
-        hdf5-static       hdf5-shared)
-    if(TARGET ${_cand})
-        set(_op2_hdf5_target "${_cand}")
-        break()
+# Prefer the flavour matching how OP2 itself is being built. A static HDF5 is
+# absorbed into each libop2_*.so that links it - eight of them - so a process
+# loading two of those libraries gets two private HDF5 instances with separate
+# global state, where one shared HDF5 is shared by all of them. Only a
+# preference: an install offering just one flavour still works.
+if(BUILD_SHARED_LIBS)
+    set(_op2_hdf5_flavours shared static)
+else()
+    set(_op2_hdf5_flavours static shared)
+endif()
+
+foreach(_flavour IN LISTS _op2_hdf5_flavours)
+    if(NOT HDF5_${_flavour}_C_FOUND)
+        continue()
     endif()
-endforeach()
-foreach(_cand
-        hdf5::hdf5_hl-static hdf5::hdf5_hl-shared hdf5::hdf5_hl
-        hdf5_hl-static       hdf5_hl-shared)
-    if(TARGET ${_cand})
-        set(_op2_hdf5_hl_target "${_cand}")
-        break()
+    string(TOUPPER "${_flavour}" _f)
+    set(_op2_hdf5_target "${HDF5_C_${_f}_LIBRARY}")
+    if(HDF5_${_flavour}_HL_FOUND)
+        set(_op2_hdf5_hl_target "${HDF5_HL_${_f}_LIBRARY}")
     endif()
+    break()
 endforeach()
 
 if(NOT _op2_hdf5_target)
     message(WARNING
-        "OP2: HDF5 config found but no usable target exported "
-        "(looked for hdf5::hdf5-static/-shared/hdf5::hdf5) - "
-        "HDF5-dependent libraries will not be built")
+        "OP2: HDF5 config found but reported neither a static nor a shared C "
+        "library - HDF5-dependent libraries will not be built")
     set(HDF5_FOUND FALSE)
     return()
 endif()
