@@ -197,7 +197,16 @@ def write_depfile(path: Path, targets: List[Path], app: Application) -> None:
     # One rule naming every generated file, so whichever of them the build
     # system asks about is present. Absolute paths throughout, which sidesteps
     # the question of what a relative path in a depfile is relative to.
+    #
+    # With no targets there is no rule to write, but the file is still
+    # truncated rather than left alone: an earlier run's rule left in place
+    # would go on feeding the build system dependencies this run never
+    # claimed. Both Make and Ninja accept an empty depfile: it states no
+    # rule, so neither can conclude anything is up to date from it, and the
+    # fallback is a rebuild rather than a wrong answer.
     if len(targets) == 0:
+        path.write_text("")
+        logger.info(f"Wrote empty depfile: {path} (nothing generated)")
         return
 
     dependencies: Set[Path] = set()
