@@ -43,14 +43,6 @@ void op_decl_const_char(int dim, const char *type, int size, char *dat, const ch
     // Unused with JIT
 }
 
-extern "C" {
-
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
-bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
-void setGblIncAtomic(bool enable);
-
-}
-
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
 #include "{{loop_.name}}_kernel.h"
 {% endfor %}

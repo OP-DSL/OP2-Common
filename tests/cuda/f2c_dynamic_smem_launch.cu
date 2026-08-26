@@ -119,11 +119,11 @@ int main(int argc, char **argv) {
 
         op::f2c::KernelInfo info(
             "f2c_dynamic_smem_launch", "c_CUDA", "Direct",
-            op::f2c::ExecutionPolicy::direct(),
+            op::f2c::ExecutionPolicy::direct(false),
             "f2c_dynamic_smem_baseline",
             reinterpret_cast<const void *>(f2c_dynamic_smem_baseline),
             baseline_source);
-        info.register_smem_variant(
+        info.register_staged_variant(
             "f2c_dynamic_smem_staged",
             reinterpret_cast<const void *>(f2c_dynamic_smem_staged),
             staged_source);
