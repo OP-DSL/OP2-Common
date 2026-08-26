@@ -80,6 +80,7 @@ static bool jit_initialized = false;
 static bool jit_enable = true;
 static bool jit_seq_compile = false;
 static bool jit_debug = false;
+static bool jit_force = false;
 
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
 static int jit_max_threads = 16;
@@ -127,6 +128,18 @@ static void jit_init() {
 
         if (seq_compile == "1" || seq_compile == "yes" || seq_compile == "true")
             jit_seq_compile = true;
+    }
+
+    char *force_str = std::getenv("OP_JIT_FORCE");
+    if (force_str != nullptr) {
+        auto force = std::string(force_str);
+        std::transform(force.begin(), force.end(), force.begin(),
+            [](auto c){ return std::tolower(c); });
+
+        if (force == "1" || force == "yes" || force == "true") {
+            std::printf("Forcing JIT compilation regardless of register count\n");
+            jit_force = true;
+        }
     }
 
     char *max_threads_str = getenv("OP_JIT_MAX_THREADS");
@@ -345,7 +358,7 @@ private:
     std::unordered_map<uint64_t, HashInfo> m_hash_infos;
 
     bool is_jit_candidate() {
-        return m_kernel_attrs.numRegs > 32;
+        return jit_force || m_kernel_attrs.numRegs > 32;
     }
 
     uint64_t hash_params() {
