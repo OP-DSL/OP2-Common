@@ -345,17 +345,28 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
                       op_arg *args) const {
 {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
         static {{arg.typ.c()}} *gbl{{arg.id}}_ref_d = nullptr;
+        static int gbl{{arg.id}}_ref_capacity = 0;
+        const int gbl{{arg.id}}_ref_dim =
+            {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}};
 
-        if (gbl{{arg.id}}_ref_d == nullptr{{" && args[%s].opt == 1" % arg.id if arg is opt}}) {
+    {% if arg is opt %}
+        if (args[{{arg.id}}].opt == 1) {
+    {% endif %}
+        if (gbl{{arg.id}}_ref_capacity < gbl{{arg.id}}_ref_dim) {
+            if (gbl{{arg.id}}_ref_d != nullptr)
+                CUDA_SAFE_CALL({{api_prefix}}Free(gbl{{arg.id}}_ref_d));
             CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d,
-                {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}} * sizeof({{arg.typ.c()}})));
+                gbl{{arg.id}}_ref_dim * sizeof({{arg.typ.c()}})));
+            gbl{{arg.id}}_ref_capacity = gbl{{arg.id}}_ref_dim;
         }
 
-        {{"if (args[%s].opt == 1) " % arg.id if arg is opt-}}
-            CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(
-                gbl{{arg.id}}_ref_d, args[{{arg.id}}].data,
-                {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}} * sizeof({{arg.typ.c()}}),
-                {{api_prefix}}MemcpyHostToDevice, 0));
+        CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(
+            gbl{{arg.id}}_ref_d, args[{{arg.id}}].data,
+            gbl{{arg.id}}_ref_dim * sizeof({{arg.typ.c()}}),
+            {{api_prefix}}MemcpyHostToDevice, 0));
+    {% if arg is opt %}
+        }
+    {% endif %}
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
         {{init_gbls()|indent(8)}}
@@ -369,7 +380,8 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
 static op::f2c::ExecutionPolicy
 op2_k_{{lh.name}}{{variant}}_execution_policy() {
 {% if lh is direct %}
-    return op::f2c::ExecutionPolicy::direct();
+    return op::f2c::ExecutionPolicy::direct(
+        {{"true" if config.gbl_inc_atomic else "false"}});
 {% elif config.atomics %}
     return op::f2c::ExecutionPolicy::atomics(
         {{"true" if config.gbl_inc_atomic else "false"}});
@@ -385,7 +397,9 @@ op2_k_{{lh.name}}{{variant}}_execution_policy() {
 #else
     constexpr int part_size = -1;
 #endif
-    return op::f2c::ExecutionPolicy::color2(indirect_dats, part_size);
+    return op::f2c::ExecutionPolicy::color2(
+        indirect_dats, part_size,
+        {{"true" if config.gbl_inc_atomic else "false"}});
 {% endif %}
 }
 

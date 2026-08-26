@@ -258,7 +258,7 @@ struct ExecutionSection {
     int size() const { return end - start; }
 };
 
-class ExecutionSections {
+class ExecutionSchedule {
 private:
     enum class Kind {
         direct,
@@ -271,22 +271,22 @@ private:
     op_plan *m_plan = nullptr;
     bool m_separate_owned = false;
 
-    ExecutionSections(Kind kind, op_set set, op_plan *plan,
+    ExecutionSchedule(Kind kind, op_set set, op_plan *plan,
                       bool separate_owned)
         : m_kind{kind}, m_set{set}, m_plan{plan},
           m_separate_owned{separate_owned} {}
 
 public:
-    static ExecutionSections direct(op_set set) {
-        return ExecutionSections{Kind::direct, set, nullptr, false};
+    static ExecutionSchedule direct(op_set set) {
+        return ExecutionSchedule{Kind::direct, set, nullptr, false};
     }
 
-    static ExecutionSections atomics(op_set set, bool separate_owned) {
-        return ExecutionSections{Kind::atomics, set, nullptr, separate_owned};
+    static ExecutionSchedule atomics(op_set set, bool separate_owned) {
+        return ExecutionSchedule{Kind::atomics, set, nullptr, separate_owned};
     }
 
-    static ExecutionSections color2(op_plan *plan) {
-        return ExecutionSections{Kind::color2, nullptr, plan, false};
+    static ExecutionSchedule color2(op_set set, op_plan *plan) {
+        return ExecutionSchedule{Kind::color2, set, plan, false};
     }
 
     int size() const {
@@ -326,6 +326,55 @@ public:
         assert(false);
         return {0, 0};
     }
+
+    // Every exchange is paired with exactly one wait, so exactly one index in
+    // [0, size()] answers true; size() means after the last section, which is
+    // where a color2 plan with no non-core colour waits.
+    bool wait_before(int index) const {
+        assert(index >= 0 && index <= size());
+
+        switch (m_kind) {
+        case Kind::direct:
+            // A direct loop reads no halo: its exchange only brings the dats
+            // to this device.
+            return index == 0;
+        case Kind::atomics:
+            return index == 1;
+        case Kind::color2:
+            return index == m_plan->ncolors_core;
+        }
+
+        assert(false);
+        return false;
+    }
+
+    bool process_globals_after(int index) const {
+        assert(index >= 0 && index < size());
+
+        switch (m_kind) {
+        case Kind::direct:
+            return index == 0;
+        case Kind::atomics:
+            return index == 1;
+        case Kind::color2:
+            return index == m_plan->ncolors_owned - 1;
+        }
+
+        assert(false);
+        return false;
+    }
+
+    int set_stride() const {
+        int size = m_set->size;
+        if (m_kind != Kind::direct)
+            size += m_set->exec_size;
+
+        return (size + 31) & ~31;
+    }
+
+    int *color_reorder() const {
+        return m_kind == Kind::color2 ? m_plan->col_reord : nullptr;
+    }
 };
 
 enum class KernelVariant {
@@ -341,14 +390,14 @@ struct KernelExecutionOptions {
 struct KernelExecution {
     KernelVariant variant;
     JitKernel *jit_kernel;
-    ExecutionSections sections;
+    ExecutionSchedule schedule;
     int block_size;
     int block_limit;
     int max_blocks;
     int shared_bytes;
 
     int num_blocks(int section_index) const {
-        auto section = sections[section_index];
+        auto section = schedule[section_index];
         int blocks = (section.size() + block_size - 1) / block_size;
         return std::min(blocks, block_limit);
     }
@@ -374,8 +423,8 @@ private:
           m_part_size{part_size}, m_indirect_dats{std::move(indirect_dats)} {}
 
 public:
-    static ExecutionPolicy direct() {
-        return {Kind::direct, false, -1, {}};
+    static ExecutionPolicy direct(bool gbl_inc_atomic) {
+        return {Kind::direct, gbl_inc_atomic, -1, {}};
     }
 
     static ExecutionPolicy atomics(bool gbl_inc_atomic) {
@@ -384,8 +433,8 @@ public:
 
     template<std::size_t N>
     static ExecutionPolicy color2(const std::array<int, N>& indirect_dats,
-                                  int part_size = -1) {
-        return {Kind::color2, false, part_size,
+                                  int part_size, bool gbl_inc_atomic) {
+        return {Kind::color2, gbl_inc_atomic, part_size,
                 {indirect_dats.begin(), indirect_dats.end()}};
     }
 
@@ -403,10 +452,6 @@ public:
 };
 
 struct LaunchContext {
-    KernelVariant variant;
-    op_plan *plan;
-    int block_size;
-    int max_blocks;
     int global_stride;
     unsigned opt_flags;
     int start;
@@ -795,8 +840,8 @@ public:
             join_compilations(*m_staged);
     }
 
-    void register_smem_variant(std::string_view name, const void *kernel,
-                               std::string_view src) {
+    void register_staged_variant(std::string_view name, const void *kernel,
+                                 std::string_view src) {
         if (m_staged != nullptr) {
             std::fprintf(stderr,
                          "error: staged implementation already registered (in %s)\n",
@@ -880,13 +925,13 @@ private:
         return {INT32_MAX, 128};
     }
 
-    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
+    KernelExecution prepare(op_arg *args, int nargs, ExecutionSchedule schedule,
                             KernelExecutionOptions options) {
         auto& impl = implementation(options.variant);
 
         int max_section_size = 0;
-        for (int i = 0; i < sections.size(); ++i)
-            max_section_size = std::max(max_section_size, sections[i].size());
+        for (int i = 0; i < schedule.size(); ++i)
+            max_section_size = std::max(max_section_size, schedule[i].size());
 
         auto [block_limit, block_size] = get_launch_config(nullptr, max_section_size);
         block_limit = std::min(
@@ -895,14 +940,15 @@ private:
                                       m_policy.gbl_inc_atomic()));
 
         int max_blocks = 0;
-        for (int i = 0; i < sections.size(); ++i) {
-            int section_blocks = (sections[i].size() + block_size - 1) / block_size;
+        for (int i = 0; i < schedule.size(); ++i) {
+            int section_blocks =
+                (schedule[i].size() + block_size - 1) / block_size;
             max_blocks = std::max(max_blocks, section_blocks);
         }
 
         max_blocks = std::min(max_blocks, block_limit);
 
-        KernelExecution execution{options.variant, nullptr, sections, block_size,
+        KernelExecution execution{options.variant, nullptr, schedule, block_size,
                                   block_limit, max_blocks, options.shared_bytes};
 
         for (auto& param : m_params)
@@ -928,8 +974,12 @@ private:
 
     static bool has_global_output(op_arg *args, int nargs) {
         for (int i = 0; i < nargs; ++i) {
-            if (args[i].opt != 0 && args[i].argtype == OP_ARG_GBL &&
-                args[i].acc != OP_READ)
+            if (args[i].opt == 0 || args[i].argtype != OP_ARG_GBL)
+                continue;
+
+            if (args[i].acc == OP_INC || args[i].acc == OP_MIN ||
+                args[i].acc == OP_MAX || args[i].acc == OP_RW ||
+                args[i].acc == OP_WRITE)
                 return true;
         }
 
@@ -1005,9 +1055,7 @@ public:
         op_profile_enter_kernel(m_profile_name.c_str(), m_profile_target.c_str(),
                                 m_profile_variant.c_str());
         op_profile_enter("Init");
-        op_profile_enter("Kernel Info Setup");
-
-        op_profile_next("MPI Exchanges");
+        op_profile_enter("MPI Exchanges");
         int n_exec = op_mpi_halo_exchanges(set, nargs, args, 2);
 
         if (n_exec == 0) {
@@ -1024,15 +1072,14 @@ public:
 
         bool global_reduction = has_global_reduction(args, nargs);
         bool global_output = has_global_output(args, nargs);
-        op_plan *plan = nullptr;
-        ExecutionSections sections = ExecutionSections::direct(set);
+        ExecutionSchedule schedule = ExecutionSchedule::direct(set);
 
         switch (m_policy.kind()) {
         case ExecutionPolicy::Kind::direct:
-            sections = ExecutionSections::direct(set);
+            schedule = ExecutionSchedule::direct(set);
             break;
         case ExecutionPolicy::Kind::atomics:
-            sections = ExecutionSections::atomics(set, global_reduction);
+            schedule = ExecutionSchedule::atomics(set, global_reduction);
             break;
         case ExecutionPolicy::Kind::color2: {
             op_profile_enter("Plan");
@@ -1048,10 +1095,10 @@ public:
                 std::exit(1);
             }
 
-            plan = op_plan_get_stage(
+            op_plan *plan = op_plan_get_stage(
                 m_profile_name.c_str(), set, part_size, nargs, args,
                 m_policy.ninds(), m_policy.indirect_dats(), OP_COLOR2);
-            sections = ExecutionSections::color2(plan);
+            schedule = ExecutionSchedule::color2(set, plan);
 
             op_profile_exit();
             break;
@@ -1059,7 +1106,7 @@ public:
         }
 
         op_profile_next("Get Kernel");
-        auto execution = prepare(args, nargs, sections, options);
+        auto execution = prepare(args, nargs, schedule, options);
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
@@ -1076,41 +1123,23 @@ public:
         op_profile_enter("Kernel");
 
         bool exit_sync = false;
-        for (int section_index = 0; section_index < sections.size();
+        for (int section_index = 0; section_index < schedule.size();
              ++section_index) {
-            // Every exchange is paired with exactly one wait.  A direct loop
-            // reads no halo: its exchange only brings the dats to this device.
-            bool wait =
-                (m_policy.kind() == ExecutionPolicy::Kind::direct &&
-                 section_index == 0) ||
-                (m_policy.kind() == ExecutionPolicy::Kind::atomics &&
-                 section_index == 1) ||
-                (m_policy.kind() == ExecutionPolicy::Kind::color2 &&
-                 section_index == plan->ncolors_core);
-            if (wait) {
+            if (schedule.wait_before(section_index)) {
                 op_profile_next("MPI Wait");
                 op_mpi_wait_all(nargs, args);
                 op_profile_next("Kernel");
             }
 
-            auto section = sections[section_index];
+            auto section = schedule[section_index];
             if (section.size() > 0) {
                 LaunchContext launch{
-                    execution.variant,
-                    plan,
-                    execution.block_size,
-                    execution.max_blocks,
                     global_stride,
                     0,
                     section.start,
                     section.end,
-                    static_cast<int>((set->size +
-                                      (m_policy.kind() == ExecutionPolicy::Kind::direct
-                                           ? 0
-                                           : set->exec_size) +
-                                      31) &
-                                     ~31),
-                    plan == nullptr ? nullptr : plan->col_reord};
+                    schedule.set_stride(),
+                    schedule.color_reorder()};
 
                 int num_blocks = execution.num_blocks(section_index);
                 if (execution.variant == KernelVariant::baseline)
@@ -1121,13 +1150,8 @@ public:
                         execution, num_blocks, launch, args, bindings);
             }
 
-            bool process_globals =
-                global_output &&
-                ((m_policy.kind() == ExecutionPolicy::Kind::atomics &&
-                  section_index == 1) ||
-                 (m_policy.kind() == ExecutionPolicy::Kind::color2 &&
-                  section_index == plan->ncolors_owned - 1));
-            if (process_globals) {
+            if (global_output &&
+                schedule.process_globals_after(section_index)) {
                 op_profile_next("Process GBLs");
                 exit_sync |= processDeviceGblsWithPolicy(
                     args, nargs, global_stride, global_stride,
@@ -1136,29 +1160,20 @@ public:
             }
         }
 
-        // A color2 plan with no non-core colour has no section to wait before.
-        if (m_policy.kind() == ExecutionPolicy::Kind::color2 &&
-            plan->ncolors_core == plan->ncolors) {
+        if (schedule.wait_before(schedule.size())) {
             op_profile_next("MPI Wait");
             op_mpi_wait_all(nargs, args);
             op_profile_next("Kernel");
-        }
-
-        if (m_policy.kind() == ExecutionPolicy::Kind::direct) {
-            op_profile_next("Process GBLs");
-            exit_sync |= processDeviceGblsWithPolicy(
-                args, nargs, global_stride, global_stride,
-                m_policy.gbl_inc_atomic());
         }
 
         op_profile_exit();
         op_profile_exit();
 
         op_profile_enter("Finalise");
-        reduce_mpi_globals(args, nargs);
-        op_mpi_set_dirtybit_cuda(nargs, args);
         if (exit_sync)
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+        reduce_mpi_globals(args, nargs);
+        op_mpi_set_dirtybit_cuda(nargs, args);
 
         op_profile_exit();
         op_profile_exit();

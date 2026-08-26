@@ -60,14 +60,6 @@ INCTXT(OP_F2C_PRELUDE, "op_f2c_prelude.h");
 
 namespace f2c = op::f2c;
 
-extern "C" {
-
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
-bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
-void setGblIncAtomic(bool enable);
-
-}
-
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
 #include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "c_hip" else "cuh"}}"
 {% endfor %}
