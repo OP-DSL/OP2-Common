@@ -145,6 +145,15 @@ These are defaults, not pins - anything you set explicitly wins, and a recorded 
 
 HDF5 is additionally **checked**, because it is the one whose mismatch can be quiet: a wrong MPI leaves undefined references at link time, and a toolkit too old for OP2's CUDA/HIP dialect is rejected at generate time, but OP2 links HDF5 statically and calls version-specific symbols, so a mismatched build can link cleanly and then misbehave. The HDF5 you supply must be **compatible with the version OP2 was built against** (HDF5's own policy - same major.minor series) and **parallel if OP2's is**. Either mismatch fails `find_package(OP2)` with a message saying which.
 
+HDF5 and the partitioners are linked `PRIVATE`, in both library types, so neither appears in your compile line: no public OP2 header exposes either API. A static OP2 still hands the libraries themselves to your link line (CMake exports a static target's private dependencies as `$<LINK_ONLY:>`), so this changes what you *compile* against, not what you link.
+
+If your own code calls the raw HDF5 API alongside OP2, name HDF5 explicitly. `find_package(OP2)` has already found it - the same install OP2 was built against, unless you steered it elsewhere - and publishes the targets it chose as `OP2_HDF5_LIBRARIES`:
+
+```cmake
+find_package(OP2 CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE op2::op2_mpi ${OP2_HDF5_LIBRARIES})
+```
+
 If you consume a `SHARED` OP2 build, your own executables need to be able to find `libop2_*.so` at runtime. OP2 sets `RPATH` on the executables **it** installs (its own tests and apps), but `op2_add_app_variants(... INSTALL)` called from *your* project builds *your* executables - OP2 has no way to inject `RPATH` policy into a build it doesn't control. Set the usual CMake knobs in your own project, the same as you would for any other shared-library dependency:
 
 ```cmake
