@@ -105,8 +105,8 @@ static const char *op_hdf5_type_to_string(hid_t t) {
   return (const char *)text;
 }
 
-herr_t get_dataset_properties(hid_t dset_id,
-                              op_hdf5_dataset_properties *dset_props) {
+static herr_t get_dataset_properties(hid_t dset_id,
+                                     op_hdf5_dataset_properties *dset_props) {
   hid_t status;
 
   if (dset_props == NULL) {
