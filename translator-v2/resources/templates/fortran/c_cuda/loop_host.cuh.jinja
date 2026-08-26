@@ -19,41 +19,11 @@ Indirect (colouring)
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
 
-{%- macro type_c(arg) -%}
-    {%- if arg.typ is instance(OP.Int) -%}
-        int
-    {%- elif arg.typ is instance(OP.Bool) -%}
-        bool
-    {%- elif arg.typ.size == 32 -%}
-        float
-    {%- else -%}
-        double
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro gbl_dim(arg) -%}
-    {%- if arg.dim is not none -%}
-{{arg.dim}}
-    {%- else -%}
-arg{{arg.id}}.dim
-    {%- endif -%}
-{%- endmacro -%}
-
 {%- macro gbl_dim_w(arg) -%}
     {%- if arg.dim is not none -%}
 {{arg.dim}}
     {%- else -%}
 arg{{arg.id}}_dim
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro arg_dim(arg) -%}
-    {%- if (arg is gbl or arg is info) and arg.dim is not none -%}
-{{arg.dim}}
-    {%- elif arg is dat and lh.dat(arg).dim is not none -%}
-{{lh.dat(arg).dim}}
-    {%- else -%}
-arg{{arg.id}}.dim
     {%- endif -%}
 {%- endmacro -%}
 
@@ -130,101 +100,24 @@ f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro kernel_call() -%}
-void *kernel_args[] = {
-    {% for dat in lh.dats %}
-    &arg{{dat.arg_id}}.data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-    &arg{{map.arg_id}}.map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar %}
-    (void *)arg{{arg.id}}.data,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    &arg{{dat.arg_id}}.dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-    &arg{{arg.id}}.idx,
-    {% endfor %}
-    {% if lh is indirect and config.color2 %}
-    &plan->col_reord,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-    &opt_flags,
-    {% endif %}
-    &start,
-    &end,
-    &size
-};
-
-void *kernel_args_jit[] = {
-    {% for dat in lh.dats %}
-    &arg{{dat.arg_id}}.data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-    &arg{{map.arg_id}}.map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    &arg{{dat.arg_id}}.dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-    &arg{{arg.id}}.idx,
-    {% endfor %}
-    {% if lh is indirect and config.color2 %}
-    &plan->col_reord,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-    &opt_flags,
-    {% endif %}
-    &start,
-    &end,
-    &size
-};
-
-info.invoke(execution, num_blocks, kernel_args, kernel_args_jit);
-{%- endmacro -%}
-
 {%- macro init_gbls() -%}
-op2_k_{{lh.name}}{{variant}}_init_gbls<<<max_blocks, block_size>>>(
+op2_k_{{lh.name}}{{variant}}_init_gbls<<<context.max_blocks, context.block_size>>>(
     {% for arg in args_gbl_per_thread %}
-    ({{arg.typ.c()}} *)arg{{arg.id}}.data_d,
+    ({{arg.typ.c()}} *)args[{{arg.id}}].data_d,
     {% endfor %}
     {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
     gbl{{arg.id}}_ref_d,
     {% endfor %}
     {% for arg in args_gbl_per_thread if arg.dim is none %}
-    arg{{arg.id}}.dim,
+    args[{{arg.id}}].dim,
     {% endfor %}
     {% for arg in args_gbl_per_thread if arg is opt %}
-    arg{{arg.id}}.opt,
+    args[{{arg.id}}].opt,
     {% endfor %}
-    stride_gbl
+    context.global_stride
 );
 
 CUDA_SAFE_CALL({{api_prefix}}PeekAtLastError());
-{%- endmacro -%}
-
-{%- macro process_gbls() -%}
-exit_sync = processDeviceGbls(args, n_args, block_size * max_blocks, block_size * max_blocks);
 {%- endmacro -%}
 
 namespace op2_m_{{lh.name}}{{variant}} {
@@ -365,248 +258,192 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 }
 {% endif %}
 
+struct op2_k_{{lh.name}}{{variant}}_bindings {
+    template<op::f2c::KernelVariant Variant>
+    auto make_arguments(op::f2c::LaunchContext& launch, op_arg *args) const {
+{% if lh.args|opt|length > 0 %}
+        launch.opt_flags = 0;
+    {% for arg in lh.args|opt %}
+        if (args[{{arg.id}}].opt)
+            launch.opt_flags |= 1 << {{lh.optIdx(arg)}};
+    {% endfor %}
+{% endif %}
+
+        auto offline = std::array{
+    {% for dat in lh.dats %}
+            (void *)&args[{{dat.arg_id}}].data_d,
+    {% endfor %}
+    {% for map in lh.maps %}
+            (void *)&args[{{map.arg_id}}].map_data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
+            (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar %}
+            (void *)args[{{arg.id}}].data,
+    {% endfor %}
+    {% for arg in lh.args|info %}
+            (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+            (void *)&args[{{dat.arg_id}}].dim,
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+            (void *)&args[{{arg.id}}].idx,
+    {% endfor %}
+    {% if lh is indirect and config.color2 %}
+            (void *)&launch.color_reorder,
+    {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+            (void *)&launch.global_stride,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+            (void *)&launch.opt_flags,
+    {% endif %}
+            (void *)&launch.start,
+            (void *)&launch.end,
+            (void *)&launch.set_stride
+        };
+
+        auto jit = std::array{
+    {% for dat in lh.dats %}
+            (void *)&args[{{dat.arg_id}}].data_d,
+    {% endfor %}
+    {% for map in lh.maps %}
+            (void *)&args[{{map.arg_id}}].map_data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
+            (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for arg in lh.args|info %}
+            (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+            (void *)&args[{{dat.arg_id}}].dim,
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+            (void *)&args[{{arg.id}}].idx,
+    {% endfor %}
+    {% if lh is indirect and config.color2 %}
+            (void *)&launch.color_reorder,
+    {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+            (void *)&launch.global_stride,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+            (void *)&launch.opt_flags,
+    {% endif %}
+            (void *)&launch.start,
+            (void *)&launch.end,
+            (void *)&launch.set_stride
+        };
+
+        return op::f2c::KernelArguments{offline, jit};
+    }
+
+    void init_globals(const op::f2c::GlobalInitContext& context,
+                      op_arg *args) const {
+{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
+        static {{arg.typ.c()}} *gbl{{arg.id}}_ref_d = nullptr;
+
+        if (gbl{{arg.id}}_ref_d == nullptr{{" && args[%s].opt == 1" % arg.id if arg is opt}}) {
+            CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d,
+                {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}} * sizeof({{arg.typ.c()}})));
+        }
+
+        {{"if (args[%s].opt == 1) " % arg.id if arg is opt-}}
+            CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(
+                gbl{{arg.id}}_ref_d, args[{{arg.id}}].data,
+                {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}} * sizeof({{arg.typ.c()}}),
+                {{api_prefix}}MemcpyHostToDevice, 0));
+{% endfor %}
+{% if args_gbl_per_thread|length > 0 %}
+        {{init_gbls()|indent(8)}}
+{% else %}
+        (void)context;
+        (void)args;
+{% endif %}
+    }
+};
+
+static op::f2c::ExecutionPolicy
+op2_k_{{lh.name}}{{variant}}_execution_policy() {
+{% if lh is direct %}
+    return op::f2c::ExecutionPolicy::direct();
+{% elif config.atomics %}
+    return op::f2c::ExecutionPolicy::atomics(
+        {{"true" if config.gbl_inc_atomic else "false"}});
+{% else %}
+    static constexpr std::array<int, {{lh.args|length}}> indirect_dats = {
+    {%- for arg in lh.args -%}
+        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is dat and arg is indirect else "-1"}}
+        {{-", " if not loop.last}}
+    {%- endfor -%}
+    };
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    constexpr int part_size = OP_PART_SIZE_{{kernel_idx}};
+#else
+    constexpr int part_size = -1;
+#endif
+    return op::f2c::ExecutionPolicy::color2(indirect_dats, part_size);
+{% endif %}
+}
+
+static bool op2_k_{{lh.name}}{{variant}}_register_info(
+    op::f2c::KernelInfo& info) {
+    namespace kernel = op2_m_{{lh.name}}{{variant}};
+
+{% if lh.dats|direct(lh)|soa|length > 0 %}
+    info.add_dat_stride_param("op2_stride_direct_d",
+        &kernel::op2_stride_direct,
+        {{lh.args|direct(lh)|soa(lh)|first|attr("id")}},
+        &kernel::op2_stride_direct_d);
+{% endif %}
+{% for dat in lh.dats|indirect(lh)|soa %}
+    info.add_dat_stride_param("op2_stride_dat{{dat.id}}_d",
+        &kernel::op2_stride_dat{{dat.id}}, {{dat.arg_id}},
+        &kernel::op2_stride_dat{{dat.id}}_d);
+{% endfor %}
+{% for const in lh.consts if lh.const_types.get("op2_const_" + const + "_d") is not fcharacter %}
+    {% if lh.const_types.get("op2_const_" + const + "_d") is farray %}
+    info.add_param("op2_const_{{const}}_d", {{"op2_const_" if lang.user_consts_module is none}}{{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{"op2_const_" if lang.user_consts_module is none}}{{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
+    {% else %}
+    info.add_param("op2_const_{{const}}_d", &{{"op2_const_" if lang.user_consts_module is none}}{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
+    {% endif %}
+{% endfor %}
+{% for arg in lh.args|gbl|read|scalar %}
+    info.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
+        &kernel::op2_gbl{{arg.id}}, {{arg.id}});
+{% endfor %}
+    return true;
+}
+
+static op::f2c::KernelInfo& op2_k_{{lh.name}}{{variant}}_info() {
+    static op::f2c::KernelInfo info(
+        "{{lh.name}}", "c_CUDA", "{{variant_str()}}",
+        op2_k_{{lh.name}}{{variant}}_execution_policy(),
+        "op2_k_{{lh.name}}{{variant}}_wrapper",
+        (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
+        op2_k_{{lh.name}}{{variant}}_src);
+    static const bool registered =
+        op2_k_{{lh.name}}{{variant}}_register_info(info);
+    (void)registered;
+    return info;
+}
+
 extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_set set,
 {% for arg in lh.args %}
     op_arg arg{{arg.id}}{{"," if not loop.last}}
 {% endfor %}
 ) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}};
-
-    int n_args = {{lh.args|length}};
-    op_arg args[{{lh.args|length}}];
-
-    op_profile_enter_kernel("{{lh.name}}", "c_CUDA", "{{variant_str()}}");
-    op_profile_enter("Init");
-
-    op_profile_enter("Kernel Info Setup");
-
-    static bool first_invocation = true;
-    static op::f2c::KernelInfo info("op2_k_{{lh.name}}{{variant}}_wrapper",
-                                    (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-                                    op2_k_{{lh.name}}{{variant}}_src);
-
-    if (first_invocation) {
-{% if lh.dats|direct(lh)|soa|length > 0 %}
-        info.add_param("op2_stride_direct_d", &kernel::op2_stride_direct, &kernel::op2_stride_direct_d);
-{% endif %}
-{% for dat in lh.dats|indirect(lh)|soa %}
-        info.add_param("op2_stride_dat{{dat.id}}_d", &kernel::op2_stride_dat{{dat.id}}, &kernel::op2_stride_dat{{dat.id}}_d);
-{% endfor %}
-{% for const in lh.consts if lh.const_types.get("op2_const_" + const + "_d") is not fcharacter %}
-    {% if lh.const_types.get("op2_const_" + const + "_d") is farray %}
-        info.add_param("op2_const_{{const}}_d", {{"op2_const_" if lang.user_consts_module is none}}{{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{"op2_const_" if lang.user_consts_module is none}}{{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
-    {% else %}
-        info.add_param("op2_const_{{const}}_d", &{{"op2_const_" if lang.user_consts_module is none}}{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
-    {% endif %}
-{% endfor %}
-{% for arg in lh.args|gbl|read|scalar %}
-        info.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
-{% endfor %}
-
-        first_invocation = false;
-    }
-
+    op_arg args[] = {
 {% for arg in lh.args %}
-    args[{{loop.index0}}] = arg{{arg.id}};
+        arg{{arg.id}}{{"," if not loop.last}}
 {% endfor %}
-
-    op_profile_next("MPI Exchanges");
-    int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
-
-    if (n_exec == 0) {
-        op_profile_exit();
-        op_profile_exit();
-
-        op_mpi_wait_all_grouped(n_args, args, 2);
-
-{% for arg in lh.args|gbl|reduction %}
-        op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
-{% endfor %}
-
-        op_mpi_set_dirtybit_cuda(n_args, args);
-        op_profile_exit();
-        return;
-    }
-
-    setGblIncAtomic({{"true" if config.gbl_inc_atomic else "false"}});
-
-{% for arg in lh.args|gbl|read|scalar %}
-    kernel::op2_gbl{{arg.id}} = (({{arg.typ.c()}} *)arg{{arg.id}}.data)[0];
-{% endfor %}
-
-{% if lh.dats|direct(lh)|soa|length > 0 %}
-    kernel::op2_stride_direct = f2c::round32(getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}}));
-{% endif %}
-{% for dat in lh.dats|indirect(lh)|soa %}
-    kernel::op2_stride_dat{{dat.id}} = f2c::round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
-{% endfor %}
-
-{% for arg in lh.args|gbl if arg is min or arg is max or arg is work %}
-    static {{arg.typ.c()}}* gbl{{arg.id}}_ref_d = nullptr;
-{% endfor %}
-
-{% if config.color2 %}
-    int n_dats_indirect = {{lh.dats|indirect(lh)|length}};
-    std::array<int, {{lh.args|length}}> dats_indirect = {
-    {%- for arg in lh.args -%}
-        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is dat and arg is indirect else "-1"}}
-        {{-", " if not loop.last}}
-    {%- endfor -%}
     };
 
-    op_profile_enter("Plan");
-
-#ifdef OP_PART_SIZE_{{kernel_idx}}
-    int part_size = OP_PART_SIZE_{{kernel_idx}};
-#else
-    int part_size = OP_part_size;
-#endif
-
-    op_plan *plan = op_plan_get_stage("{{lh.name}}", set, part_size, n_args,
-                        args, n_dats_indirect, dats_indirect.data(), OP_COLOR2);
-
-    op_profile_exit();
-{% endif %}
-
-    op_profile_next("Get Kernel");
-{% if lh is direct %}
-    auto execution = info.prepare(args, n_args,
-        op::f2c::ExecutionSections::direct(set));
-{% elif config.atomics %}
-    auto execution = info.prepare(args, n_args,
-        op::f2c::ExecutionSections::atomics(
-            set, {{"true" if lh.args|gbl|reduction|length > 0 else "false"}}));
-{% elif config.color2 %}
-    auto execution = info.prepare(args, n_args,
-        op::f2c::ExecutionSections::color2(plan));
-{% endif %}
-    op_profile_exit();
-
-    int block_size = execution.block_size;
-    int max_blocks = execution.max_blocks;
-
-{% if lh.args|opt|length > 0 %}
-    unsigned opt_flags = 0;
-    {% for arg in lh.args|opt %}
-    if (arg{{arg.id}}.opt) opt_flags |= 1 << {{lh.optIdx(arg)}};
-    {% endfor %}
-{% endif %}
-
-    op_profile_enter("Prepare GBLs");
-    prepareDeviceGbls(args, n_args, block_size * max_blocks);
-    bool exit_sync = false;
-
-{% for arg in lh.args %}
-    arg{{arg.id}} = args[{{loop.index0}}];
-{% endfor %}
-
-    op_profile_next("Update GBL Refs");
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    if (gbl{{arg.id}}_ref_d == nullptr{{" && arg%s.opt == 1" % arg.id if arg is opt}}) {
-        CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}})));
-    }
-
-    {{"if (arg%s.opt == 1) " % arg.id if arg is opt-}}
-        CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(gbl{{arg.id}}_ref_d, arg{{arg.id}}.data, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}}), {{api_prefix}}MemcpyHostToDevice, 0));
-{% endfor %}
-
-{% if args_gbl_per_thread|length > 0 %}
-    op_profile_next("Init GBLs");
-
-    int stride_gbl = block_size * max_blocks;
-    {{init_gbls()|indent}}
-{% endif %}
-
-    op_profile_exit();
-    op_profile_next("Computation");
-
-{% if lh is direct %}
-    auto section = execution.sections[0];
-    int start = section.start;
-    int end = section.end;
-    int num_blocks = execution.num_blocks(0);
-
-    op_profile_enter("Kernel");
-
-    int size = f2c::round32(set->size);
-    {{kernel_call()|indent}}
-
-    op_profile_next("Process GBLs");
-    {{process_gbls()|indent}}
-
-    op_profile_exit();
-{% elif config.atomics %}
-    op_profile_enter("Kernel");
-
-    for (int round = 0; round < execution.sections.size(); ++round) {
-        if (round == 1) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all_grouped(n_args, args, 2);
-            op_profile_next("Kernel");
-        }
-
-        auto section = execution.sections[round];
-        int start = section.start;
-        int end = section.end;
-
-        if (end - start > 0) {
-            int num_blocks = execution.num_blocks(round);
-
-            int size = f2c::round32(set->size + set->exec_size);
-            {{kernel_call()|indent(12)}}
-        }
-
-    {% if lh.args|gbl|reject("read")|list|length > 0 %}
-        if (round == 1) {
-            op_profile_next("Process GBLs");
-            {{process_gbls()|indent(12)}}
-            op_profile_next("Kernel");
-        }
-    {% endif %}
-    }
-
-    op_profile_exit();
-{% else %}
-    op_profile_enter("Kernel");
-
-    for (int col = 0; col < plan->ncolors; ++col) {
-        if (col == plan->ncolors_core) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all_grouped(n_args, args, 2);
-            op_profile_next("Kernel");
-        }
-
-        auto section = execution.sections[col];
-        int start = section.start;
-        int end = section.end;
-        int num_blocks = execution.num_blocks(col);
-
-        int size = f2c::round32(set->size + set->exec_size);
-        {{kernel_call()|indent(8)}}
-
-    {% if lh.args|gbl|reject("read")|list|length > 0 %}
-        if (col == plan->ncolors_owned - 1) {
-            op_profile_next("Process GBLs");
-            {{process_gbls()|indent(12)}}
-            op_profile_next("Kernel");
-        }
-    {% endif %}
-    }
-
-    op_profile_exit();
-{% endif %}
-
-    op_profile_exit();
-
-    op_profile_enter("Finalise");
-{% for arg in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
-{% endfor %}
-
-    op_mpi_set_dirtybit_cuda(n_args, args);
-    if (exit_sync) CUDA_SAFE_CALL({{api_prefix}}StreamSynchronize(0));
-
-    op_profile_exit();
-    op_profile_exit();
+    op2_k_{{lh.name}}{{variant}}_info().invoke(
+        set, args, {{lh.args|length}},
+        op2_k_{{lh.name}}{{variant}}_bindings{});
 }

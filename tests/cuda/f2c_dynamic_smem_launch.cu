@@ -65,6 +65,19 @@ bool env_enabled(const char *name) {
     return value != nullptr && value[0] != '\0' && value[0] != '0';
 }
 
+struct DynamicSmemBindings {
+    int *output_d;
+    int last_word;
+
+    template<op::f2c::KernelVariant Variant>
+    auto make_arguments(op::f2c::LaunchContext&, op_arg *) {
+        auto args = std::array<void *, 2>{&output_d, &last_word};
+        return op::f2c::KernelArguments{args, args};
+    }
+
+    void init_globals(const op::f2c::GlobalInitContext&, op_arg *) {}
+};
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -105,6 +118,8 @@ int main(int argc, char **argv) {
         set.core_size = 1;
 
         op::f2c::KernelInfo info(
+            "f2c_dynamic_smem_launch", "c_CUDA", "Direct",
+            op::f2c::ExecutionPolicy::direct(),
             "f2c_dynamic_smem_baseline",
             reinterpret_cast<const void *>(f2c_dynamic_smem_baseline),
             baseline_source);
@@ -114,17 +129,16 @@ int main(int argc, char **argv) {
             staged_source);
 
         int last_word = shared_bytes / static_cast<int>(sizeof(int)) - 1;
-        void *kernel_args[] = {&output_d, &last_word};
 
         for (int invocation = 0; invocation < 10; ++invocation) {
-            auto execution = info.prepare(
-                nullptr, 0, op::f2c::ExecutionSections::direct(&set),
+            auto result = info.invoke(
+                &set, nullptr, 0,
+                DynamicSmemBindings{output_d, last_word},
                 op::f2c::KernelExecutionOptions{
                     op::f2c::KernelVariant::staged, shared_bytes});
 
-            saw_jit |= execution.jit_kernel != nullptr;
-            launched_blocks = execution.num_blocks(0);
-            info.invoke(execution, launched_blocks, kernel_args, kernel_args);
+            saw_jit |= result.used_jit;
+            launched_blocks = result.max_blocks;
         }
 
         CUDA_SAFE_CALL(gpuDeviceSynchronize());

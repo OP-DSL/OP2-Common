@@ -17,12 +17,23 @@
 #include <mutex>
 #include <atomic>
 #include <algorithm>
+#include <cstring>
 #include <functional>
 #include <memory>
+#include <utility>
 // #include <iostream>
 
-extern "C" int getBlockLimit(op_arg *args, int nargs, int block_size,
-                              const char *name);
+extern "C" {
+int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
+                            const char *name, bool gbl_inc_atomic);
+void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
+                                 bool gbl_inc_atomic);
+bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,
+                                 int max_threads, bool gbl_inc_atomic);
+op_plan *op_plan_get_stage(char const *name, op_set set, int part_size,
+                           int nargs, op_arg *args, int ninds, int *inds,
+                           int staging);
+}
 
 #define NVRTC_SAFE_CALL(x)                                                          \
     do {                                                                            \
@@ -343,12 +354,103 @@ struct KernelExecution {
     }
 };
 
+class ExecutionPolicy {
+public:
+    enum class Kind {
+        direct,
+        atomics,
+        color2,
+    };
+
+private:
+    Kind m_kind;
+    bool m_gbl_inc_atomic = false;
+    int m_part_size = -1;
+    std::vector<int> m_indirect_dats;
+
+    ExecutionPolicy(Kind kind, bool gbl_inc_atomic, int part_size,
+                    std::vector<int> indirect_dats)
+        : m_kind{kind}, m_gbl_inc_atomic{gbl_inc_atomic},
+          m_part_size{part_size}, m_indirect_dats{std::move(indirect_dats)} {}
+
+public:
+    static ExecutionPolicy direct() {
+        return {Kind::direct, false, -1, {}};
+    }
+
+    static ExecutionPolicy atomics(bool gbl_inc_atomic) {
+        return {Kind::atomics, gbl_inc_atomic, -1, {}};
+    }
+
+    template<std::size_t N>
+    static ExecutionPolicy color2(const std::array<int, N>& indirect_dats,
+                                  int part_size = -1) {
+        return {Kind::color2, false, part_size,
+                {indirect_dats.begin(), indirect_dats.end()}};
+    }
+
+    Kind kind() const { return m_kind; }
+    bool gbl_inc_atomic() const { return m_gbl_inc_atomic; }
+    int part_size() const { return m_part_size; }
+    std::size_t nargs() const { return m_indirect_dats.size(); }
+    int ninds() const {
+        int max_ind = -1;
+        for (int ind : m_indirect_dats)
+            max_ind = std::max(max_ind, ind);
+        return max_ind + 1;
+    }
+    int *indirect_dats() { return m_indirect_dats.data(); }
+};
+
+struct LaunchContext {
+    KernelVariant variant;
+    op_plan *plan;
+    int block_size;
+    int max_blocks;
+    int global_stride;
+    unsigned opt_flags;
+    int start;
+    int end;
+    int set_stride;
+    int *color_reorder;
+};
+
+struct GlobalInitContext {
+    int block_size;
+    int max_blocks;
+    int global_stride;
+};
+
+template<std::size_t OfflineN, std::size_t JitN>
+struct KernelArguments {
+    std::array<void *, OfflineN> offline;
+    std::array<void *, JitN> jit;
+};
+
+template<std::size_t OfflineN, std::size_t JitN>
+KernelArguments(std::array<void *, OfflineN>, std::array<void *, JitN>)
+    -> KernelArguments<OfflineN, JitN>;
+
+struct KernelInvocationResult {
+    bool used_jit;
+    KernelVariant variant;
+    int block_size;
+    int max_blocks;
+};
+
 enum class ParamType {
     i32,
     i64,
     f32,
     f64,
     logical,
+};
+
+enum class ParamSource {
+    external,
+    scalar_arg,
+    dat_stride,
+    global_stride,
 };
 
 template<typename T> struct JitTypes {};
@@ -371,6 +473,8 @@ private:
 
     ParamType m_type;
     bool m_array;
+    ParamSource m_source;
+    int m_arg_index;
 
     uint64_t m_hash_last = 0;
 
@@ -380,15 +484,46 @@ private:
 public:
     template<typename T>
     JitParam(std::string_view name, T *data, T *data_d = nullptr,
-             uint64_t *hash_device_ptr = nullptr)
+             uint64_t *hash_device_ptr = nullptr,
+             ParamSource source = ParamSource::external,
+             int arg_index = -1)
         : m_name{name}, m_data{data}, m_data_d{data_d}, m_n_elems{1}, m_elem_size{sizeof(T)},
-          m_type{JitTypes<T>::value}, m_array{false}, m_hash_device_ptr{hash_device_ptr} {}
+          m_type{JitTypes<T>::value}, m_array{false}, m_source{source},
+          m_arg_index{arg_index}, m_hash_device_ptr{hash_device_ptr} {}
 
     template<typename T>
     JitParam(std::string_view name, T *data, std::size_t len, T *data_d = nullptr,
              uint64_t *hash_device_ptr = nullptr)
         : m_name{name}, m_data{data}, m_data_d{data_d}, m_n_elems{len}, m_elem_size{sizeof(T)},
-          m_type{JitTypes<T>::value}, m_array{true}, m_hash_device_ptr{hash_device_ptr} {}
+          m_type{JitTypes<T>::value}, m_array{true},
+          m_source{ParamSource::external}, m_arg_index{-1},
+          m_hash_device_ptr{hash_device_ptr} {}
+
+    void update(op_arg *args, int nargs, const KernelExecution& execution) {
+        switch (m_source) {
+        case ParamSource::external:
+            return;
+        case ParamSource::scalar_arg:
+            assert(m_arg_index >= 0 && m_arg_index < nargs);
+            assert(args[m_arg_index].data != nullptr);
+            std::memcpy(m_data, args[m_arg_index].data, m_elem_size);
+            return;
+        case ParamSource::dat_stride: {
+            assert(m_arg_index >= 0 && m_arg_index < nargs);
+            assert(m_elem_size == sizeof(int) && m_n_elems == 1);
+            int size = getSetSizeFromOpArg(&args[m_arg_index]);
+            *static_cast<int *>(m_data) = (size + 31) & ~31;
+            return;
+        }
+        case ParamSource::global_stride:
+            assert(m_elem_size == sizeof(int) && m_n_elems == 1);
+            *static_cast<int *>(m_data) =
+                execution.block_size * execution.max_blocks;
+            return;
+        }
+
+        __builtin_unreachable();
+    }
 
     uint64_t hash() {
         m_hash_last = op::f2c::hash(m_data, m_n_elems * m_elem_size, hash_seed_default);
@@ -479,6 +614,10 @@ struct KernelImplementation {
 class KernelInfo {
 private:
     std::string m_name;
+    std::string m_profile_name;
+    std::string m_profile_target;
+    std::string m_profile_variant;
+    ExecutionPolicy m_policy;
     KernelImplementation m_baseline;
     std::unique_ptr<KernelImplementation> m_staged;
     std::vector<JitParam> m_params;
@@ -632,8 +771,12 @@ private:
 
 public:
     KernelInfo(const KernelInfo&) = delete;
-    KernelInfo(std::string_view name, const void *kernel, std::string_view src)
-        : m_name{name}, m_baseline{name, kernel, src} {
+    KernelInfo(std::string_view profile_name, std::string_view profile_target,
+               std::string_view profile_variant, ExecutionPolicy policy,
+               std::string_view name, const void *kernel, std::string_view src)
+        : m_name{name}, m_profile_name{profile_name},
+          m_profile_target{profile_target}, m_profile_variant{profile_variant},
+          m_policy{std::move(policy)}, m_baseline{name, kernel, src} {
         jit_init();
         CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_baseline.offline_attrs,
                                             m_baseline.offline_kernel));
@@ -679,6 +822,28 @@ public:
         m_params.emplace_back(name, data, len, lookup_symbol(symbol), hash_device_ptr);
     }
 
+    template<typename T>
+    void add_scalar_arg_param(std::string_view name, T *data, int arg_index,
+                              const T *symbol = nullptr,
+                              uint64_t *hash_device_ptr = nullptr) {
+        m_params.emplace_back(name, data, lookup_symbol(symbol), hash_device_ptr,
+                              ParamSource::scalar_arg, arg_index);
+    }
+
+    void add_dat_stride_param(std::string_view name, int *data, int arg_index,
+                              const int *symbol = nullptr,
+                              uint64_t *hash_device_ptr = nullptr) {
+        m_params.emplace_back(name, data, lookup_symbol(symbol), hash_device_ptr,
+                              ParamSource::dat_stride, arg_index);
+    }
+
+    void add_global_stride_param(std::string_view name, int *data,
+                                 const int *symbol = nullptr,
+                                 uint64_t *hash_device_ptr = nullptr) {
+        m_params.emplace_back(name, data, lookup_symbol(symbol), hash_device_ptr,
+                              ParamSource::global_stride, -1);
+    }
+
 private:
     JitKernel *get_kernel(KernelImplementation& impl) {
         auto hash = hash_params();
@@ -715,11 +880,8 @@ private:
         return {INT32_MAX, 128};
     }
 
-public:
-    template<typename PrepareParams>
     KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
-                            KernelExecutionOptions options,
-                            PrepareParams prepare_params) {
+                            KernelExecutionOptions options) {
         auto& impl = implementation(options.variant);
 
         int max_section_size = 0;
@@ -727,8 +889,10 @@ public:
             max_section_size = std::max(max_section_size, sections[i].size());
 
         auto [block_limit, block_size] = get_launch_config(nullptr, max_section_size);
-        block_limit = std::min(block_limit,
-                               ::getBlockLimit(args, nargs, block_size, m_name.c_str()));
+        block_limit = std::min(
+            block_limit,
+            ::getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(),
+                                      m_policy.gbl_inc_atomic()));
 
         int max_blocks = 0;
         for (int i = 0; i < sections.size(); ++i) {
@@ -741,33 +905,73 @@ public:
         KernelExecution execution{options.variant, nullptr, sections, block_size,
                                   block_limit, max_blocks, options.shared_bytes};
 
-        // Some JIT parameters, such as the C++ backend's global-reduction
-        // stride, depend on the launch dimensions. Set them before hashing.
-        prepare_params(execution);
+        for (auto& param : m_params)
+            param.update(args, nargs, execution);
+
         execution.jit_kernel = get_kernel(impl);
 
         return execution;
     }
 
-    template<typename PrepareParams>
-    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
-                            PrepareParams prepare_params) {
-        return prepare(args, nargs, sections, KernelExecutionOptions{},
-                       prepare_params);
+    static bool has_global_reduction(op_arg *args, int nargs) {
+        for (int i = 0; i < nargs; ++i) {
+            if (args[i].opt == 0 || args[i].argtype != OP_ARG_GBL)
+                continue;
+
+            if (args[i].acc == OP_INC || args[i].acc == OP_MIN ||
+                args[i].acc == OP_MAX)
+                return true;
+        }
+
+        return false;
     }
 
-    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections) {
-        return prepare(args, nargs, sections, KernelExecutionOptions{});
+    static bool has_global_output(op_arg *args, int nargs) {
+        for (int i = 0; i < nargs; ++i) {
+            if (args[i].opt != 0 && args[i].argtype == OP_ARG_GBL &&
+                args[i].acc != OP_READ)
+                return true;
+        }
+
+        return false;
     }
 
-    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
-                            KernelExecutionOptions options) {
-        return prepare(args, nargs, sections, options,
-                       [](const KernelExecution&) {});
+    static bool is_type(const char *actual, const char *expected) {
+        return actual != nullptr && std::strcmp(actual, expected) == 0;
     }
 
-    void invoke(const KernelExecution& execution, int num_blocks, void **args,
-                void **args_jit) {
+    void reduce_mpi_globals(op_arg *args, int nargs) {
+        for (int i = 0; i < nargs; ++i) {
+            auto& arg = args[i];
+            if (arg.opt == 0 || arg.argtype != OP_ARG_GBL ||
+                (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
+                continue;
+
+            if (is_type(arg.type, "double") || is_type(arg.type, "r8") ||
+                is_type(arg.type, "real*8") || is_type(arg.type, "real(8)")) {
+                op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
+            } else if (is_type(arg.type, "float") || is_type(arg.type, "r4") ||
+                       is_type(arg.type, "real*4") || is_type(arg.type, "real(4)")) {
+                op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
+            } else if (is_type(arg.type, "int") || is_type(arg.type, "i4") ||
+                       is_type(arg.type, "integer*4") ||
+                       is_type(arg.type, "integer(4)")) {
+                op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
+            } else if (is_type(arg.type, "bool") ||
+                       is_type(arg.type, "logical")) {
+                op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
+            } else {
+                std::fprintf(stderr,
+                             "error: unsupported MPI reduction type '%s' (in %s)\n",
+                             arg.type == nullptr ? "<null>" : arg.type,
+                             m_name.c_str());
+                std::exit(1);
+            }
+        }
+    }
+
+    void launch_section(const KernelExecution& execution, int num_blocks,
+                        void **args, void **args_jit) {
         auto& impl = implementation(execution.variant);
 
         if (execution.jit_kernel == nullptr) {
@@ -781,6 +985,174 @@ public:
         op_profile_next("JIT Kernel");
         execution.jit_kernel->invoke(num_blocks, execution.block_size, args_jit,
                                      execution.shared_bytes);
+    }
+
+    template<KernelVariant Variant, typename Bindings>
+    void bind_and_launch(const KernelExecution& execution, int num_blocks,
+                         LaunchContext& launch, op_arg *args,
+                         Bindings& bindings) {
+        auto kernel_args =
+            bindings.template make_arguments<Variant>(launch, args);
+        launch_section(execution, num_blocks, kernel_args.offline.data(),
+                       kernel_args.jit.data());
+    }
+
+public:
+    template<typename Bindings>
+    KernelInvocationResult invoke(
+        op_set set, op_arg *args, int nargs, Bindings bindings,
+        KernelExecutionOptions options = KernelExecutionOptions{}) {
+        op_profile_enter_kernel(m_profile_name.c_str(), m_profile_target.c_str(),
+                                m_profile_variant.c_str());
+        op_profile_enter("Init");
+        op_profile_enter("Kernel Info Setup");
+
+        op_profile_next("MPI Exchanges");
+        int n_exec = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);
+
+        if (n_exec == 0) {
+            op_profile_exit();
+            op_profile_exit();
+
+            op_mpi_wait_all_grouped(nargs, args, 2);
+            reduce_mpi_globals(args, nargs);
+            op_mpi_set_dirtybit_cuda(nargs, args);
+            op_profile_exit();
+
+            return {false, options.variant, 0, 0};
+        }
+
+        bool global_reduction = has_global_reduction(args, nargs);
+        bool global_output = has_global_output(args, nargs);
+        op_plan *plan = nullptr;
+        ExecutionSections sections = ExecutionSections::direct(set);
+
+        switch (m_policy.kind()) {
+        case ExecutionPolicy::Kind::direct:
+            sections = ExecutionSections::direct(set);
+            break;
+        case ExecutionPolicy::Kind::atomics:
+            sections = ExecutionSections::atomics(set, global_reduction);
+            break;
+        case ExecutionPolicy::Kind::color2: {
+            op_profile_enter("Plan");
+
+            int part_size = m_policy.part_size() >= 0
+                                ? m_policy.part_size()
+                                : OP_part_size;
+            if (m_policy.nargs() != static_cast<std::size_t>(nargs) ||
+                m_policy.ninds() == 0) {
+                std::fprintf(stderr,
+                             "error: invalid color2 indirect dat mapping (in %s)\n",
+                             m_name.c_str());
+                std::exit(1);
+            }
+
+            plan = op_plan_get_stage(
+                m_profile_name.c_str(), set, part_size, nargs, args,
+                m_policy.ninds(), m_policy.indirect_dats(), OP_COLOR2);
+            sections = ExecutionSections::color2(plan);
+
+            op_profile_exit();
+            break;
+        }
+        }
+
+        op_profile_next("Get Kernel");
+        auto execution = prepare(args, nargs, sections, options);
+        op_profile_exit();
+
+        op_profile_enter("Prepare GBLs");
+        int global_stride = execution.block_size * execution.max_blocks;
+        prepareDeviceGblsWithPolicy(args, nargs, global_stride,
+                                    m_policy.gbl_inc_atomic());
+
+        GlobalInitContext global_init{execution.block_size,
+                                      execution.max_blocks, global_stride};
+        bindings.init_globals(global_init, args);
+        op_profile_exit();
+
+        op_profile_next("Computation");
+        op_profile_enter("Kernel");
+
+        bool exit_sync = false;
+        for (int section_index = 0; section_index < sections.size();
+             ++section_index) {
+            bool wait =
+                (m_policy.kind() == ExecutionPolicy::Kind::atomics &&
+                 section_index == 1) ||
+                (m_policy.kind() == ExecutionPolicy::Kind::color2 &&
+                 section_index == plan->ncolors_core);
+            if (wait) {
+                op_profile_next("MPI Wait");
+                op_mpi_wait_all_grouped(nargs, args, 2);
+                op_profile_next("Kernel");
+            }
+
+            auto section = sections[section_index];
+            if (section.size() > 0) {
+                LaunchContext launch{
+                    execution.variant,
+                    plan,
+                    execution.block_size,
+                    execution.max_blocks,
+                    global_stride,
+                    0,
+                    section.start,
+                    section.end,
+                    static_cast<int>((set->size +
+                                      (m_policy.kind() == ExecutionPolicy::Kind::direct
+                                           ? 0
+                                           : set->exec_size) +
+                                      31) &
+                                     ~31),
+                    plan == nullptr ? nullptr : plan->col_reord};
+
+                int num_blocks = execution.num_blocks(section_index);
+                if (execution.variant == KernelVariant::baseline)
+                    bind_and_launch<KernelVariant::baseline>(
+                        execution, num_blocks, launch, args, bindings);
+                else
+                    bind_and_launch<KernelVariant::staged>(
+                        execution, num_blocks, launch, args, bindings);
+            }
+
+            bool process_globals =
+                global_output &&
+                ((m_policy.kind() == ExecutionPolicy::Kind::atomics &&
+                  section_index == 1) ||
+                 (m_policy.kind() == ExecutionPolicy::Kind::color2 &&
+                  section_index == plan->ncolors_owned - 1));
+            if (process_globals) {
+                op_profile_next("Process GBLs");
+                exit_sync |= processDeviceGblsWithPolicy(
+                    args, nargs, global_stride, global_stride,
+                    m_policy.gbl_inc_atomic());
+                op_profile_next("Kernel");
+            }
+        }
+
+        if (m_policy.kind() == ExecutionPolicy::Kind::direct) {
+            op_profile_next("Process GBLs");
+            exit_sync |= processDeviceGblsWithPolicy(
+                args, nargs, global_stride, global_stride,
+                m_policy.gbl_inc_atomic());
+        }
+
+        op_profile_exit();
+        op_profile_exit();
+
+        op_profile_enter("Finalise");
+        reduce_mpi_globals(args, nargs);
+        op_mpi_set_dirtybit_cuda(nargs, args);
+        if (exit_sync)
+            CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+
+        op_profile_exit();
+        op_profile_exit();
+
+        return {execution.jit_kernel != nullptr, execution.variant,
+                execution.block_size, execution.max_blocks};
     }
 };
 
