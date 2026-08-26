@@ -74,6 +74,17 @@ endif()
 set(_op2_have_openmp_cxx     "${OpenMP_CXX_FOUND}"     CACHE INTERNAL "")
 set(_op2_have_openmp_fortran "${OpenMP_Fortran_FOUND}" CACHE INTERNAL "")
 
+# Probed here rather than in the top-level CMakeLists, because this module is
+# also included by a downstream find_package(OP2) consumer, which never sees
+# OP2's own cache. Used for the NVRTC builtins link below; ELF-only, so a
+# toolchain without it just skips that.
+if(NOT DEFINED _op2_linker_has_push_state)
+    include(CheckLinkerFlag)
+    check_linker_flag(CXX "-Wl,--push-state,--no-as-needed,--pop-state"
+                      _op2_linker_push_state_ok)
+    set(_op2_linker_has_push_state "${_op2_linker_push_state_ok}" CACHE INTERNAL "")
+endif()
+
 # Is the toolchain named in a variant's `needs` column present?  An unknown
 # name is a typo in the variant table, and fails loudly rather than quietly
 # marking the variant unbuildable.
@@ -584,6 +595,23 @@ function(_op2_add_variant_executable)
     if(_base STREQUAL "c_cuda")
         if(TARGET CUDA::nvrtc AND TARGET CUDA::cuda_driver)
             target_link_libraries(${_tgt} PRIVATE CUDA::nvrtc CUDA::cuda_driver)
+
+            # NVRTC dlopen()s libnvrtc-builtins on its first compile, and that
+            # lookup never consults the executable's DT_RUNPATH - only the
+            # calling object's (libnvrtc declares none), LD_LIBRARY_PATH and
+            # the system path. So with CUDA outside the system path, which is
+            # any module or Spack install, JIT fails at runtime even though
+            # the link and the nvrtc load both succeeded. Naming the builtins
+            # as a direct dependency has the loader resolve it at startup
+            # through the executable's own RUNPATH, and NVRTC's dlopen then
+            # finds it already loaded. --no-as-needed because nothing
+            # references a builtins symbol, so the entry is dropped otherwise.
+            if(TARGET CUDA::nvrtc_builtins AND _op2_linker_has_push_state)
+                target_link_libraries(${_tgt} PRIVATE
+                    "-Wl,--push-state,--no-as-needed"
+                    CUDA::nvrtc_builtins
+                    "-Wl,--pop-state")
+            endif()
         endif()
     elseif(_base STREQUAL "c_hip")
         if(TARGET hip::hiprtc)
