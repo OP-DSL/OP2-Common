@@ -322,7 +322,7 @@ function(op2_translate)
         DEPFILE "${_depfile}"
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        COMMENT "OP2 translator → ${_A_OUT_DIR}"
+        COMMENT "OP2 translator -> ${_A_OUT_DIR}"
         VERBATIM)
 
     # Every variant compiling this output depends on this target rather than

@@ -10,8 +10,9 @@
 #         -DCPP=<preprocessor executable, typically ${CMAKE_C_COMPILER}>
 #         -P op2_preprocess_fortran.cmake
 #
-# Replaces the earlier `cpp | sed | sed | sed | tr` shell pipeline; the
-# transformations here mirror it exactly.
+# The GNU Make build does the same job with a `cpp | sed | sed | sed | tr`
+# shell pipeline (op2/Makefile, the %+cpp.F90 rule); the transformations here
+# mirror it exactly.
 
 foreach(_arg IN ITEMS INPUT OUTPUT INCLUDE_DIR CPP)
     if(NOT DEFINED ${_arg})
@@ -33,7 +34,7 @@ if(NOT _rc EQUAL 0)
         "op2_preprocess_fortran: preprocess of ${INPUT} failed (exit ${_rc})\n${_stderr}")
 endif()
 
-# Replicates the sed/tr chain from the original shell pipeline:
+# The sed/tr half of that pipeline:
 #   sed 's/##//g'          - strip token-paste artifacts
 #   sed 's/"@"//g'         - strip quoted @
 #   sed 's|/@/|//|g'       - /@/  -> //
