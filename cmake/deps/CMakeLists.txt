@@ -325,6 +325,13 @@ if(OP2_DEPS_KAHIP)
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             -DNONATIVEOPTIMIZATIONS=ON
+            # KaHIP links MPI::MPI_CXX into every parallel target. Without this,
+            # an mpi.h that still declares the MPI-2 C++ bindings makes the
+            # compiler emit their vtables into parhip_interface.cpp.o, and every
+            # consumer then needs libmpi_cxx to link - which FindMPI does not
+            # provide unless the MPICXX component was requested, and which recent
+            # MPIs do not ship at all. OP2 uses the C API only.
+            -DMPI_CXX_SKIP_MPICXX=ON
         BUILD_COMMAND
             ${CMAKE_COMMAND} --build ${_kahip_bin}
                 --target kahip_static parhip_interface_static
