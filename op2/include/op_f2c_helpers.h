@@ -18,6 +18,7 @@
 #include <atomic>
 #include <algorithm>
 #include <functional>
+#include <memory>
 // #include <iostream>
 
 extern "C" int getBlockLimit(op_arg *args, int nargs, int block_size,
@@ -197,6 +198,7 @@ private:
     std::string m_name;
 
     bool m_loaded = false;
+    int m_max_dynamic_shared_bytes = 0;
     char *m_cubin;
 
     gpuDrvModule_t m_module;
@@ -218,9 +220,19 @@ public:
     JitKernel(const JitKernel&) = delete;
     JitKernel(char *cubin, std::string_view name) : m_cubin{cubin}, m_name{name} {}
 
-    void invoke(int num_blocks, int block_size, void **args) {
+    void invoke(int num_blocks, int block_size, void **args,
+                int shared_bytes) {
         ensure_loaded();
-        CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1, 0,
+
+        if (shared_bytes > m_max_dynamic_shared_bytes) {
+            CU_SAFE_CALL(gpuDrvFuncSetAttribute(
+                m_kernel, gpuDrvFuncAttributeMaxDynamicSharedMemorySize,
+                shared_bytes));
+            m_max_dynamic_shared_bytes = shared_bytes;
+        }
+
+        CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1,
+                                        block_size, 1, 1, shared_bytes,
                                         NULL, args, 0));
 
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
@@ -305,12 +317,24 @@ public:
     }
 };
 
+enum class KernelVariant {
+    baseline,
+    staged,
+};
+
+struct KernelExecutionOptions {
+    KernelVariant variant = KernelVariant::baseline;
+    int shared_bytes = 0;
+};
+
 struct KernelExecution {
+    KernelVariant variant;
     JitKernel *jit_kernel;
     ExecutionSections sections;
     int block_size;
     int block_limit;
     int max_blocks;
+    int shared_bytes;
 
     int num_blocks(int section_index) const {
         auto section = sections[section_index];
@@ -437,23 +461,45 @@ struct HashInfo {
     std::thread jit_thread;
 };
 
+struct KernelImplementation {
+    std::string name;
+    const void *offline_kernel;
+    gpuFuncAttributes_t offline_attrs;
+    std::string source;
+
+    int offline_max_dynamic_shared_bytes = 0;
+    std::unordered_map<uint64_t, JitKernel> jit_kernels;
+    std::unordered_map<uint64_t, HashInfo> hash_infos;
+
+    KernelImplementation(std::string_view name_, const void *offline_kernel_,
+                         std::string_view source_)
+        : name{name_}, offline_kernel{offline_kernel_}, source{source_} {}
+};
+
 class KernelInfo {
 private:
     std::string m_name;
-    const void* m_kernel;
-
-    gpuFuncAttributes_t m_kernel_attrs;
-
+    KernelImplementation m_baseline;
+    std::unique_ptr<KernelImplementation> m_staged;
     std::vector<JitParam> m_params;
-    std::string m_src;
-
     std::mutex m_jit_kernels_mutex;
-    std::unordered_map<uint64_t, JitKernel> m_jit_kernels;
 
-    std::unordered_map<uint64_t, HashInfo> m_hash_infos;
+    KernelImplementation& implementation(KernelVariant variant) {
+        if (variant == KernelVariant::baseline)
+            return m_baseline;
 
-    bool is_jit_candidate() {
-        return jit_force || m_kernel_attrs.numRegs > 32;
+        if (m_staged == nullptr) {
+            std::fprintf(stderr,
+                         "error: staged implementation requested but not registered (in %s)\n",
+                         m_name.c_str());
+            std::exit(1);
+        }
+
+        return *m_staged;
+    }
+
+    bool is_jit_candidate(const KernelImplementation& impl) {
+        return jit_force || impl.offline_attrs.numRegs > 32;
     }
 
     uint64_t hash_params() {
@@ -474,7 +520,7 @@ private:
         return src;
     }
 
-    std::thread compile(uint64_t hash) {
+    std::thread compile(KernelImplementation& impl, uint64_t hash) {
         ++jit_active_threads;
 
         std::string jit_src = std::string("#include <op_f2c_prelude.h>\n") +
@@ -482,12 +528,12 @@ private:
                               std::string("#include <op_f2c_params.h>\n") +
 #endif
                               std::string("\nnamespace f2c = op::f2c;\n") +
-                              format_params() + m_src;
+                              format_params() + impl.source;
         
-        // std::cout << "JIT source [" << m_name << " (hash " << std::hex << hash << std::dec << ")]:" << 
+        // std::cout << "JIT source [" << impl.name << " (hash " << std::hex << hash << std::dec << ")]:" <<
         //     " ***\n" << jit_src << "\n***\n\n";
         
-        auto do_compile = [&](auto jit_src, auto hash) {
+        auto do_compile = [this, &impl](auto jit_src, auto hash) {
 #ifdef OP_F2C_PARAMS
             const char *headers[] = { OP_F2C_PRELUDE_DATA, OP_F2C_PARAMS_DATA };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
@@ -496,7 +542,7 @@ private:
             const char *header_names[] = { "op_f2c_prelude.h" };
 #endif
             gpuRtcProgram_t prog;
-            NVRTC_SAFE_CALL(gpuRtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
+            NVRTC_SAFE_CALL(gpuRtcCreateProgram(&prog, jit_src.c_str(), impl.name.c_str(),
                             sizeof(headers) / sizeof(headers[0]), headers, header_names));
 
 #ifdef OP2_CUDA
@@ -540,8 +586,9 @@ private:
             NVRTC_SAFE_CALL(gpuRtcDestroyProgram(&prog));
 
             std::scoped_lock lock(m_jit_kernels_mutex);
-            auto [it, inserted] = m_jit_kernels.emplace(std::piecewise_construct,
-                    std::forward_as_tuple(hash), std::forward_as_tuple(cubin, m_name));
+            auto [it, inserted] = impl.jit_kernels.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(hash),
+                    std::forward_as_tuple(cubin, impl.name));
 
             assert(inserted);
             --jit_active_threads;
@@ -551,11 +598,23 @@ private:
         return compilation_thread;
     }
 
-    void invoke_offline(int num_blocks, int block_size, void **args) {
+    void invoke_offline(KernelImplementation& impl, int num_blocks,
+                        int block_size, void **args,
+                        int shared_bytes) {
         for (auto& param : m_params)
             param.upload();
 
-        CUDA_SAFE_CALLN(gpuLaunchKernel(m_kernel, num_blocks, block_size, args, 0, 0));
+        if (shared_bytes > impl.offline_max_dynamic_shared_bytes) {
+            CUDA_SAFE_CALLN(gpuFuncSetAttribute(
+                impl.offline_kernel,
+                gpuFuncAttributeMaxDynamicSharedMemorySize,
+                shared_bytes));
+            impl.offline_max_dynamic_shared_bytes = shared_bytes;
+        }
+
+        CUDA_SAFE_CALLN(gpuLaunchKernel(impl.offline_kernel, num_blocks,
+                                        block_size, args,
+                                        shared_bytes, 0));
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
 
         if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
@@ -574,16 +633,38 @@ private:
 public:
     KernelInfo(const KernelInfo&) = delete;
     KernelInfo(std::string_view name, const void *kernel, std::string_view src)
-        : m_name{name}, m_kernel{kernel}, m_src{src} {
+        : m_name{name}, m_baseline{name, kernel, src} {
         jit_init();
-        CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_kernel_attrs, m_kernel));
+        CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_baseline.offline_attrs,
+                                            m_baseline.offline_kernel));
     }
 
     ~KernelInfo() {
-        for (auto& [hash, hash_info] : m_hash_infos) {
-            if (hash_info.jit_thread.joinable())
-                hash_info.jit_thread.join();
+        auto join_compilations = [](KernelImplementation& impl) {
+            for (auto& [hash, hash_info] : impl.hash_infos) {
+                if (hash_info.jit_thread.joinable())
+                    hash_info.jit_thread.join();
+            }
+        };
+
+        join_compilations(m_baseline);
+        if (m_staged != nullptr)
+            join_compilations(*m_staged);
+    }
+
+    void register_smem_variant(std::string_view name, const void *kernel,
+                               std::string_view src) {
+        if (m_staged != nullptr) {
+            std::fprintf(stderr,
+                         "error: staged implementation already registered (in %s)\n",
+                         m_name.c_str());
+            std::exit(1);
         }
+
+        auto staged = std::make_unique<KernelImplementation>(name, kernel, src);
+        CUDA_SAFE_CALL(gpuFuncGetAttributes(&staged->offline_attrs,
+                                            staged->offline_kernel));
+        m_staged = std::move(staged);
     }
 
     template<typename T>
@@ -599,30 +680,29 @@ public:
     }
 
 private:
-    JitKernel *get_kernel() {
+    JitKernel *get_kernel(KernelImplementation& impl) {
         auto hash = hash_params();
 
-        if (!jit_enable || !is_jit_candidate())
+        if (!jit_enable || !is_jit_candidate(impl))
             return nullptr;
 
-        auto [hash_elem, inserted] = m_hash_infos.insert({hash, HashInfo()});
+        auto [hash_elem, inserted] = impl.hash_infos.insert({hash, HashInfo()});
         hash_elem->second.count++;
 
-        m_jit_kernels_mutex.lock();
-
-        auto kernel_elem = m_jit_kernels.find(hash);
-        if (kernel_elem != m_jit_kernels.end()) {
-            m_jit_kernels_mutex.unlock();
-            return &kernel_elem->second;
+        {
+            std::scoped_lock lock(m_jit_kernels_mutex);
+            auto kernel_elem = impl.jit_kernels.find(hash);
+            if (kernel_elem != impl.jit_kernels.end())
+                return &kernel_elem->second;
         }
 
-        m_jit_kernels_mutex.unlock();
-
         if (hash_elem->second.count > 8 && !hash_elem->second.jit_started && jit_active_threads < jit_max_threads) {
-            if (jit_debug) std::printf("compiling %s for hash %lx\n", m_name.c_str(), hash);
+            if (jit_debug)
+                std::printf("compiling %s for hash %lx\n",
+                            impl.name.c_str(), hash);
 
             hash_elem->second.jit_started = true;
-            hash_elem->second.jit_thread = compile(hash);
+            hash_elem->second.jit_thread = compile(impl, hash);
 
             if (jit_seq_compile)
                 hash_elem->second.jit_thread.join();
@@ -638,7 +718,10 @@ private:
 public:
     template<typename PrepareParams>
     KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
+                            KernelExecutionOptions options,
                             PrepareParams prepare_params) {
+        auto& impl = implementation(options.variant);
+
         int max_section_size = 0;
         for (int i = 0; i < sections.size(); ++i)
             max_section_size = std::max(max_section_size, sections[i].size());
@@ -655,31 +738,49 @@ public:
 
         max_blocks = std::min(max_blocks, block_limit);
 
-        KernelExecution execution{nullptr, sections, block_size, block_limit, max_blocks};
+        KernelExecution execution{options.variant, nullptr, sections, block_size,
+                                  block_limit, max_blocks, options.shared_bytes};
 
         // Some JIT parameters, such as the C++ backend's global-reduction
         // stride, depend on the launch dimensions. Set them before hashing.
         prepare_params(execution);
-        execution.jit_kernel = get_kernel();
+        execution.jit_kernel = get_kernel(impl);
 
         return execution;
     }
 
+    template<typename PrepareParams>
+    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
+                            PrepareParams prepare_params) {
+        return prepare(args, nargs, sections, KernelExecutionOptions{},
+                       prepare_params);
+    }
+
     KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections) {
-        return prepare(args, nargs, sections, [](const KernelExecution&) {});
+        return prepare(args, nargs, sections, KernelExecutionOptions{});
+    }
+
+    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
+                            KernelExecutionOptions options) {
+        return prepare(args, nargs, sections, options,
+                       [](const KernelExecution&) {});
     }
 
     void invoke(const KernelExecution& execution, int num_blocks, void **args,
                 void **args_jit) {
+        auto& impl = implementation(execution.variant);
+
         if (execution.jit_kernel == nullptr) {
             op_profile_next("Offline Kernel");
-            invoke_offline(num_blocks, execution.block_size, args);
+            invoke_offline(impl, num_blocks, execution.block_size, args,
+                           execution.shared_bytes);
 
             return;
         }
 
         op_profile_next("JIT Kernel");
-        execution.jit_kernel->invoke(num_blocks, execution.block_size, args_jit);
+        execution.jit_kernel->invoke(num_blocks, execution.block_size, args_jit,
+                                     execution.shared_bytes);
     }
 };
 
