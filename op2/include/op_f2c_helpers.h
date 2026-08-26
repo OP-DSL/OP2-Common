@@ -1,6 +1,7 @@
 #pragma once
 
 #include <extern/rapidhash.h>
+#include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <op_gpu_shims.h>
 
@@ -18,6 +19,9 @@
 #include <algorithm>
 #include <functional>
 // #include <iostream>
+
+extern "C" int getBlockLimit(op_arg *args, int nargs, int block_size,
+                              const char *name);
 
 #define NVRTC_SAFE_CALL(x)                                                          \
     do {                                                                            \
@@ -221,6 +225,97 @@ public:
 
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
         if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
+    }
+};
+
+struct ExecutionSection {
+    int start;
+    int end;
+
+    int size() const { return end - start; }
+};
+
+class ExecutionSections {
+private:
+    enum class Kind {
+        direct,
+        atomics,
+        color2,
+    };
+
+    Kind m_kind;
+    op_set m_set = nullptr;
+    op_plan *m_plan = nullptr;
+    bool m_separate_owned = false;
+
+    ExecutionSections(Kind kind, op_set set, op_plan *plan,
+                      bool separate_owned)
+        : m_kind{kind}, m_set{set}, m_plan{plan},
+          m_separate_owned{separate_owned} {}
+
+public:
+    static ExecutionSections direct(op_set set) {
+        return ExecutionSections{Kind::direct, set, nullptr, false};
+    }
+
+    static ExecutionSections atomics(op_set set, bool separate_owned) {
+        return ExecutionSections{Kind::atomics, set, nullptr, separate_owned};
+    }
+
+    static ExecutionSections color2(op_plan *plan) {
+        return ExecutionSections{Kind::color2, nullptr, plan, false};
+    }
+
+    int size() const {
+        switch (m_kind) {
+        case Kind::direct:
+            return 1;
+        case Kind::atomics:
+            return m_separate_owned ? 3 : 2;
+        case Kind::color2:
+            return m_plan->ncolors;
+        }
+
+        assert(false);
+        return 0;
+    }
+
+    ExecutionSection operator[](int index) const {
+        assert(index >= 0 && index < size());
+
+        switch (m_kind) {
+        case Kind::direct:
+            return {0, static_cast<int>(m_set->size)};
+        case Kind::atomics:
+            if (index == 0)
+                return {0, m_set->core_size};
+            if (m_separate_owned && index == 1)
+                return {m_set->core_size, static_cast<int>(m_set->size)};
+
+            return {m_separate_owned ? static_cast<int>(m_set->size)
+                                     : m_set->core_size,
+                    static_cast<int>(m_set->size) + m_set->exec_size};
+        case Kind::color2:
+            return {m_plan->col_offsets[0][index],
+                    m_plan->col_offsets[0][index + 1]};
+        }
+
+        assert(false);
+        return {0, 0};
+    }
+};
+
+struct KernelExecution {
+    JitKernel *jit_kernel;
+    ExecutionSections sections;
+    int block_size;
+    int block_limit;
+    int max_blocks;
+
+    int num_blocks(int section_index) const {
+        auto section = sections[section_index];
+        int blocks = (section.size() + block_size - 1) / block_size;
+        return std::min(blocks, block_limit);
     }
 };
 
@@ -503,6 +598,7 @@ public:
         m_params.emplace_back(name, data, len, lookup_symbol(symbol), hash_device_ptr);
     }
 
+private:
     JitKernel *get_kernel() {
         auto hash = hash_params();
 
@@ -539,16 +635,51 @@ public:
         return {INT32_MAX, 128};
     }
 
-    void invoke(JitKernel *kernel, int num_blocks, int block_size, void **args, void **args_jit) {
-        if (kernel == nullptr) {
+public:
+    template<typename PrepareParams>
+    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections,
+                            PrepareParams prepare_params) {
+        int max_section_size = 0;
+        for (int i = 0; i < sections.size(); ++i)
+            max_section_size = std::max(max_section_size, sections[i].size());
+
+        auto [block_limit, block_size] = get_launch_config(nullptr, max_section_size);
+        block_limit = std::min(block_limit,
+                               ::getBlockLimit(args, nargs, block_size, m_name.c_str()));
+
+        int max_blocks = 0;
+        for (int i = 0; i < sections.size(); ++i) {
+            int section_blocks = (sections[i].size() + block_size - 1) / block_size;
+            max_blocks = std::max(max_blocks, section_blocks);
+        }
+
+        max_blocks = std::min(max_blocks, block_limit);
+
+        KernelExecution execution{nullptr, sections, block_size, block_limit, max_blocks};
+
+        // Some JIT parameters, such as the C++ backend's global-reduction
+        // stride, depend on the launch dimensions. Set them before hashing.
+        prepare_params(execution);
+        execution.jit_kernel = get_kernel();
+
+        return execution;
+    }
+
+    KernelExecution prepare(op_arg *args, int nargs, ExecutionSections sections) {
+        return prepare(args, nargs, sections, [](const KernelExecution&) {});
+    }
+
+    void invoke(const KernelExecution& execution, int num_blocks, void **args,
+                void **args_jit) {
+        if (execution.jit_kernel == nullptr) {
             op_profile_next("Offline Kernel");
-            invoke_offline(num_blocks, block_size, args);
+            invoke_offline(num_blocks, execution.block_size, args);
 
             return;
         }
 
         op_profile_next("JIT Kernel");
-        kernel->invoke(num_blocks, block_size, args_jit);
+        execution.jit_kernel->invoke(num_blocks, execution.block_size, args_jit);
     }
 };
 
