@@ -36,7 +36,7 @@ else()
 endif()
 
 if(CMAKE_CUDA_COMPILER)
-    set(_summary_cuda "${CMAKE_CUDA_COMPILER_ID} ${CMAKE_CUDA_COMPILER_VERSION} → ${CMAKE_CUDA_ARCHITECTURES}")
+    set(_summary_cuda "${CMAKE_CUDA_COMPILER_ID} ${CMAKE_CUDA_COMPILER_VERSION} -> ${CMAKE_CUDA_ARCHITECTURES}")
 else()
     set(_summary_cuda "(no compiler found)")
 endif()
