@@ -241,36 +241,58 @@ function(_op2_mark_cu_as_hip tgt)
     endforeach()
 endfunction()
 
+# HDF5 and the partitioners are linked PRIVATE, under both library types. No
+# public OP2 header exposes either API, so they are implementation detail,
+# and saying so keeps the two BUILD_SHARED_LIBS modes telling the consumer
+# the same story:
+#
+#   SHARED - the archives are resolved at OP2's own link step and
+#     --exclude-libs=ALL hides what came in. Re-exporting them would hand the
+#     consumer a second, *visible* copy of a library whose object code is
+#     already inside the .so - two HDF5s with separate global state in one
+#     process, exactly what preferring the shared HDF5 flavour in
+#     OP2HDF5.cmake sets out to avoid.
+#
+#   STATIC - a .a only records the requirement, so these must still reach the
+#     consumer's link line; PRIVATE does that, since CMake exports a static
+#     target's private deps as $<LINK_ONLY:>. What PRIVATE drops is the usage
+#     requirements - notably HDF5's include dir, which under PUBLIC landed as
+#     an -isystem into OP2's own deps/ tree on every consumer TU, whether or
+#     not it touched HDF5.
+#
+# A consumer calling the raw HDF5 API alongside OP2 finds HDF5 itself;
+# OP2Config.cmake records HDF5_DIR, so find_package(HDF5 CONFIG) resolves to
+# the same install OP2 was built against without further hints.
+
 # Attach optional partitioner deps + defines to an MPI target.
 #
 # By library path, not through the Find modules' imported targets: pins the
-# exact artefacts install(EXPORT) records, since the partitioner APIs aren't
-# ABI-stable across builds (e.g. scotch.h's opaque handles) - a substituted
-# build corrupts memory rather than failing to link. Rebuild OP2 to change
-# partitioner.
-#
-# Include dirs are PRIVATE: no public OP2 header exposes these APIs.
+# exact artefacts, since the partitioner APIs aren't ABI-stable across builds
+# (e.g. scotch.h's opaque handles) - a substituted build corrupts memory
+# rather than failing to link. Rebuild OP2 to change partitioner. A static
+# OP2 pins them by recording those paths in install(EXPORT); a shared one
+# pins them harder still, by absorbing the archives outright.
 function(_op2_link_partitioners tgt)
     if(PTScotch_FOUND)
-        target_link_libraries(${tgt} PUBLIC "${PTScotch_LIBRARY}")
+        target_link_libraries(${tgt} PRIVATE "${PTScotch_LIBRARY}")
         foreach(_extra PTScotch_ERR_LIBRARY PTScotch_SCOTCH_LIBRARY)
             if(${_extra})
-                target_link_libraries(${tgt} PUBLIC "${${_extra}}")
+                target_link_libraries(${tgt} PRIVATE "${${_extra}}")
             endif()
         endforeach()
         target_include_directories(${tgt} PRIVATE "${PTScotch_INCLUDE_DIR}")
         target_compile_definitions(${tgt} PRIVATE HAVE_PTSCOTCH)
     endif()
     if(ParMETIS_FOUND)
-        target_link_libraries(${tgt} PUBLIC "${ParMETIS_LIBRARY}" "${METIS_LIBRARY}")
+        target_link_libraries(${tgt} PRIVATE "${ParMETIS_LIBRARY}" "${METIS_LIBRARY}")
         target_include_directories(${tgt} PRIVATE
             "${ParMETIS_INCLUDE_DIR}" "${METIS_INCLUDE_DIR}")
         target_compile_definitions(${tgt} PRIVATE HAVE_PARMETIS PARMETIS_VER_4)
     endif()
     if(KaHIP_FOUND)
-        target_link_libraries(${tgt} PUBLIC "${KaHIP_ParHIP_LIBRARY}")
+        target_link_libraries(${tgt} PRIVATE "${KaHIP_ParHIP_LIBRARY}")
         if(KaHIP_MODIFIED_LIBRARY)
-            target_link_libraries(${tgt} PUBLIC "${KaHIP_MODIFIED_LIBRARY}")
+            target_link_libraries(${tgt} PRIVATE "${KaHIP_MODIFIED_LIBRARY}")
         endif()
         target_include_directories(${tgt} PRIVATE "${KaHIP_INCLUDE_DIR}")
         target_compile_definitions(${tgt} PRIVATE HAVE_KAHIP)
@@ -321,7 +343,7 @@ endif()
 if(HDF5_FOUND)
     add_library(op2_hdf5 ${_op2_hdf5_only_srcs})
     _op2_configure_target(op2_hdf5)
-    target_link_libraries(op2_hdf5 PUBLIC ${_op2_hdf5_link_targets})
+    target_link_libraries(op2_hdf5 PRIVATE ${_op2_hdf5_link_targets})
     _op2_register_c(op2_hdf5)
 endif()
 
@@ -335,7 +357,9 @@ if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
         ${_op2_backend_mpi_cpu_overlay_srcs})
     _op2_configure_target(op2_mpi)
     target_compile_definitions(op2_mpi PRIVATE OPMPI)
-    target_link_libraries(op2_mpi PUBLIC MPI::MPI_CXX ${_op2_hdf5_link_targets})
+    target_link_libraries(op2_mpi
+        PUBLIC  MPI::MPI_CXX
+        PRIVATE ${_op2_hdf5_link_targets})
     _op2_link_partitioners(op2_mpi)
     _op2_register_c(op2_mpi)
 
@@ -348,8 +372,9 @@ if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
         _op2_configure_target(op2_mpi_cuda)
         _op2_configure_cuda_target(op2_mpi_cuda)
         target_compile_definitions(op2_mpi_cuda PRIVATE OPMPI OP2_CUDA)
-        target_link_libraries(op2_mpi_cuda PUBLIC
-            MPI::MPI_CXX CUDA::cudart ${_op2_hdf5_link_targets})
+        target_link_libraries(op2_mpi_cuda
+            PUBLIC  MPI::MPI_CXX CUDA::cudart
+            PRIVATE ${_op2_hdf5_link_targets})
         _op2_link_partitioners(op2_mpi_cuda)
         _op2_register_c(op2_mpi_cuda)
     endif()
@@ -363,8 +388,9 @@ if(MPI_CXX_FOUND AND HDF5_FOUND AND OP2_HDF5_IS_PARALLEL)
         _op2_configure_target(op2_mpi_hip)
         _op2_configure_hip_target(op2_mpi_hip)
         target_compile_definitions(op2_mpi_hip PRIVATE OPMPI OP2_HIP)
-        target_link_libraries(op2_mpi_hip PUBLIC
-            MPI::MPI_CXX hip::host ${_op2_hdf5_link_targets})
+        target_link_libraries(op2_mpi_hip
+            PUBLIC  MPI::MPI_CXX hip::host
+            PRIVATE ${_op2_hdf5_link_targets})
         _op2_mark_cu_as_hip(op2_mpi_hip ${_op2_backend_mpi_cuda_overlay_srcs})
         _op2_link_partitioners(op2_mpi_hip)
         _op2_register_c(op2_mpi_hip)
@@ -409,7 +435,7 @@ if(CMAKE_Fortran_COMPILER)
             "${_for_declarations_pp}"
             ${_op2_fortran_hdf5_srcs})
         _op2_configure_fortran_target(op2_for_hdf5)
-        target_link_libraries(op2_for_hdf5 PUBLIC ${_op2_hdf5_link_targets})
+        target_link_libraries(op2_for_hdf5 PRIVATE ${_op2_hdf5_link_targets})
         _op2_register_for(op2_for_hdf5)
     endif()
 
@@ -465,8 +491,9 @@ if(CMAKE_Fortran_COMPILER)
             ${_op2_fortran_cuda_stub_srcs})
         _op2_configure_fortran_target(op2_for_mpi)
         target_compile_definitions(op2_for_mpi PRIVATE OPMPI)
-        target_link_libraries(op2_for_mpi PUBLIC
-            MPI::MPI_CXX ${_op2_hdf5_link_targets})
+        target_link_libraries(op2_for_mpi
+            PUBLIC  MPI::MPI_CXX
+            PRIVATE ${_op2_hdf5_link_targets})
         _op2_link_partitioners(op2_for_mpi)
         _op2_register_for(op2_for_mpi)
 
@@ -482,8 +509,9 @@ if(CMAKE_Fortran_COMPILER)
             _op2_configure_fortran_target(op2_for_mpi_cuda)
             _op2_configure_cuda_target(op2_for_mpi_cuda)
             target_compile_definitions(op2_for_mpi_cuda PRIVATE OPMPI OP2_CUDA)
-            target_link_libraries(op2_for_mpi_cuda PUBLIC
-                MPI::MPI_CXX CUDA::cudart ${_op2_hdf5_link_targets})
+            target_link_libraries(op2_for_mpi_cuda
+                PUBLIC  MPI::MPI_CXX CUDA::cudart
+                PRIVATE ${_op2_hdf5_link_targets})
             if(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC|PGI")
                 target_compile_definitions(op2_for_mpi_cuda PRIVATE OP2_WITH_CUDAFOR)
                 target_compile_options(op2_for_mpi_cuda PRIVATE
@@ -505,8 +533,9 @@ if(CMAKE_Fortran_COMPILER)
             _op2_configure_fortran_target(op2_for_mpi_hip)
             _op2_configure_hip_target(op2_for_mpi_hip)
             target_compile_definitions(op2_for_mpi_hip PRIVATE OPMPI OP2_HIP)
-            target_link_libraries(op2_for_mpi_hip PUBLIC
-                MPI::MPI_CXX hip::host ${_op2_hdf5_link_targets})
+            target_link_libraries(op2_for_mpi_hip
+                PUBLIC  MPI::MPI_CXX hip::host
+                PRIVATE ${_op2_hdf5_link_targets})
             _op2_mark_cu_as_hip(op2_for_mpi_hip ${_op2_backend_mpi_cuda_overlay_srcs})
             _op2_link_partitioners(op2_for_mpi_hip)
             _op2_register_for(op2_for_mpi_hip)

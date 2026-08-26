@@ -138,6 +138,13 @@ if(OP2_HAS_HDF5)
     endif()
     unset(_op2_hdf5_parallel)
     unset(_op2_hdf5_version)
+
+    # The HDF5 targets OP2 itself linked, under a public name. OP2 links HDF5
+    # PRIVATE, so it reaches a consumer as a link-time requirement only, with
+    # no include dir - an application that calls the raw HDF5 API alongside
+    # OP2 names these to compile against the same install. Target names, not
+    # paths: the find_package(HDF5) above defines them.
+    set(OP2_HDF5_LIBRARIES "@_op2_hdf5_link_targets@")
 endif()
 
 # ---------------------------------------------------------------------------
