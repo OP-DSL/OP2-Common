@@ -100,6 +100,16 @@ static bool jit_seq_compile = false;
 static bool jit_debug = false;
 static bool jit_force = false;
 
+// Step 7 exposes force-on only: unset and 0 both stay on the baseline wrapper,
+// and an architecture-driven auto policy arrives with the rest of the dispatch
+// work.  Correctness checks are never bypassed by the force.
+enum class HierSmemPolicy {
+    off,
+    force_on,
+};
+
+static HierSmemPolicy hier_smem_policy = HierSmemPolicy::off;
+
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
 static int jit_max_threads = 16;
 #else
@@ -135,6 +145,18 @@ static void jit_init() {
         if (debug == "1" || debug == "yes" || debug == "true") {
             std::printf("Enabling JIT debug\n");
             jit_debug = true;
+        }
+    }
+
+    char *hier_smem_str = std::getenv("OP_HIER_SMEM_ATOMICS");
+    if (hier_smem_str != nullptr) {
+        auto hier_smem = std::string(hier_smem_str);
+        std::transform(hier_smem.begin(), hier_smem.end(), hier_smem.begin(),
+            [](auto c){ return std::tolower(c); });
+
+        if (hier_smem == "1" || hier_smem == "yes" || hier_smem == "true") {
+            std::printf("Enabling hierarchical shared-memory atomics\n");
+            hier_smem_policy = HierSmemPolicy::force_on;
         }
     }
 
@@ -1063,15 +1085,20 @@ private:
         HierSmemFallbackReason hier_smem_reason =
             HierSmemFallbackReason::none;
 
-        // Step 5 keeps planning behind an explicit test-only activation.
-        if (options.plan_hier_smem_for_testing) {
-            if (variant != KernelVariant::staged || m_staged == nullptr ||
-                !m_staging_descriptor.has_value() ||
+        // Staging is requested either by the environment policy or by the
+        // direct-API tests, which drive it without a generated loop host.
+        bool request_staging =
+            hier_smem_policy == HierSmemPolicy::force_on ||
+            options.plan_hier_smem_for_testing;
+
+        if (request_staging) {
+            if (m_staged == nullptr || !m_staging_descriptor.has_value() ||
                 m_policy.kind() != ExecutionPolicy::Kind::atomics) {
                 variant = KernelVariant::baseline;
                 hier_smem_reason =
                     HierSmemFallbackReason::incompatible_argument;
             } else {
+                variant = KernelVariant::staged;
                 std::array<ExecutionSection, 3> sections;
                 assert(schedule.size() <= static_cast<int>(sections.size()));
                 for (int i = 0; i < schedule.size(); ++i)
