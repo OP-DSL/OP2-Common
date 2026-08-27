@@ -41,8 +41,15 @@ struct HierSmemStagingDescriptor {
     int chunk_size_override = -1;
 };
 
+// Why an eligible-looking loop ran the baseline wrapper.  These are stable
+// diagnostic names, reported once per loop or plan at OP_diags > 3.
 enum class HierSmemFallbackReason {
     none,
+    // Dispatch outcomes, decided before any plan is built.
+    disabled,             // OP_HIER_SMEM_ATOMICS=0
+    unvalidated_device,   // automatic policy has no measurements for this GPU
+    not_staged,           // loop registered no staged wrapper
+    // Plan outcomes, decided once per cache key.
     no_active_increment,
     incompatible_argument,
     insufficient_shared_memory,
