@@ -188,10 +188,9 @@ std::size_t calculate_shared_bytes(
     std::size_t shared_bytes = 0;
     for (std::size_t dat_index = 0; dat_index < resolved.dats.size();
          ++dat_index) {
+        // Inactive groups keep their place with a zero-length region, so the
+        // staged wrapper can walk this layout without branching on opt state.
         const auto& dat = resolved.dats[dat_index];
-        if (dat.dat == nullptr)
-            continue;
-
         std::size_t alignment = dat.scalar_alignment;
         shared_bytes = (shared_bytes + alignment - 1) & ~(alignment - 1);
         shared_bytes += touched[dat_index].size() *
@@ -202,18 +201,13 @@ std::size_t calculate_shared_bytes(
     return shared_bytes;
 }
 
-// Return the padding the region layout can insert.  The first active region
-// starts at offset zero, so only the regions after it can need aligning.
+// Return the padding the region layout can insert.  The first region starts at
+// offset zero, so only the regions after it can need aligning.
 std::size_t alignment_slack(const ResolvedInput& resolved) {
     std::size_t slack = 0;
-    bool first = true;
-    for (const auto& dat : resolved.dats) {
-        if (dat.dat == nullptr)
-            continue;
-        if (!first)
-            slack += dat.scalar_alignment - 1;
-        first = false;
-    }
+    for (std::size_t dat_index = 1; dat_index < resolved.dats.size();
+         ++dat_index)
+        slack += resolved.dats[dat_index].scalar_alignment - 1;
 
     return slack;
 }

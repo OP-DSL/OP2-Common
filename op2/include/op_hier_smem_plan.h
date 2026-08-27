@@ -1,5 +1,6 @@
 #pragma once
 
+#include <op_f2c_prelude.h>
 #include <op_lib_core.h>
 
 #include <cstddef>
@@ -50,36 +51,6 @@ enum class HierSmemFallbackReason {
 // Convert a fallback reason to its stable diagnostic name.
 std::string_view
 hier_smem_fallback_reason_name(HierSmemFallbackReason reason);
-
-using HierSmemStageWord = std::uint32_t;
-
-inline constexpr HierSmemStageWord hier_smem_slot_mask = 0x3fffffffu;
-inline constexpr HierSmemStageWord hier_smem_owner_bit = 0x40000000u;
-inline constexpr HierSmemStageWord hier_smem_exclusive_bit = 0x80000000u;
-
-// Encode a validated slot and its flush metadata into one device word.
-inline constexpr HierSmemStageWord
-hier_smem_pack_stage_word(std::uint32_t slot, bool owner,
-                          bool exclusive = false) {
-    return slot | (owner ? hier_smem_owner_bit : 0u) |
-           (exclusive ? hier_smem_exclusive_bit : 0u);
-}
-
-// Extract the block-local slot from a packed device word.
-inline constexpr std::uint32_t
-hier_smem_stage_slot(HierSmemStageWord word) {
-    return word & hier_smem_slot_mask;
-}
-
-// Test whether this source/argument reference owns the slot flush.
-inline constexpr bool hier_smem_stage_owner(HierSmemStageWord word) {
-    return (word & hier_smem_owner_bit) != 0;
-}
-
-// Test whether an owner may flush without a global atomic.
-inline constexpr bool hier_smem_stage_exclusive(HierSmemStageWord word) {
-    return (word & hier_smem_exclusive_bit) != 0;
-}
 
 struct HierSmemPlanOptions {
     int block_size = 128;

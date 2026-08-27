@@ -32,6 +32,44 @@ DEVICE inline void trap() {
 #endif
 }
 
+/* Hierarchical shared-memory atomics control word, one per staged argument
+   and source element:
+
+     bits  0..29  block-local shared-memory slot
+     bit      30  owner, the reference that flushes the slot
+     bit      31  exclusive, owner may flush without a global atomic
+
+   The host planner writes these and both the offline and JIT staged wrappers
+   read them, so they are defined here where all three can see one copy. */
+using HierSmemStageWord = unsigned int;
+
+constexpr HierSmemStageWord hier_smem_slot_mask = 0x3fffffffu;
+constexpr HierSmemStageWord hier_smem_owner_bit = 0x40000000u;
+constexpr HierSmemStageWord hier_smem_exclusive_bit = 0x80000000u;
+
+// Encode a validated slot and its flush metadata into one device word.
+DEVICE constexpr HierSmemStageWord
+hier_smem_pack_stage_word(unsigned int slot, bool owner,
+                          bool exclusive = false) {
+    return slot | (owner ? hier_smem_owner_bit : 0u) |
+           (exclusive ? hier_smem_exclusive_bit : 0u);
+}
+
+// Extract the block-local slot from a packed device word.
+DEVICE constexpr unsigned int hier_smem_stage_slot(HierSmemStageWord word) {
+    return word & hier_smem_slot_mask;
+}
+
+// Test whether this source/argument reference owns the slot flush.
+DEVICE constexpr bool hier_smem_stage_owner(HierSmemStageWord word) {
+    return (word & hier_smem_owner_bit) != 0;
+}
+
+// Test whether an owner may flush without a global atomic.
+DEVICE constexpr bool hier_smem_stage_exclusive(HierSmemStageWord word) {
+    return (word & hier_smem_exclusive_bit) != 0;
+}
+
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
 using int64_t = long long int;
 using IndexType = int;

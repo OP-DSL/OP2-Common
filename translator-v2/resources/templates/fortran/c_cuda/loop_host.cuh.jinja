@@ -77,7 +77,7 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
-{%- macro arg_to_pointer_cuda(arg, jit = false) %}
+{%- macro arg_to_pointer_cuda(arg, jit = false, staged = false) %}
     {%- if arg is idx and arg is indirect -%}
 idx{{arg.id}}
     {%- elif arg is idx -%}
@@ -88,25 +88,25 @@ idx
         {%- else -%}
             {%- set zero_type = lh.dat(arg).typ.c() -%}
         {%- endif -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit)}} : zero_{{zero_type}}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged)}} : zero_{{zero_type}}
     {%- else -%}
-{{arg_to_pointer2(arg, jit)}}
+{{arg_to_pointer2(arg, jit, staged)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer2(arg, jit) -%}
+{%- macro arg_to_pointer2(arg, jit, staged = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
 op2_gbl{{arg.id}}_d
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 gbl{{arg.id}}
     {%- elif arg is scalar(lh) -%}
-{{arg_to_pointer3(arg)}}.data[0]
+{{arg_to_pointer3(arg, staged)}}.data[0]
     {%- else -%}
-{{arg_to_pointer3(arg)}}
+{{arg_to_pointer3(arg, staged)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg) -%}
+{%- macro arg_to_pointer3(arg, staged = false) -%}
     {%- if arg is info -%}
 f2c::Ptr{info{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
@@ -114,12 +114,15 @@ f2c::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg is gbl -%}
 f2c::Ptr{gbl{{arg.id}}}
     {%- else -%}
-{{arg_to_pointer4(arg)}}
+{{arg_to_pointer4(arg, staged)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer4(arg) -%}
-    {%- if arg is direct and lh.dat(arg) is soa -%}
+{%- macro arg_to_pointer4(arg, staged = false) -%}
+    {%- if staged and arg in args_hier_smem -%}
+        {%- set group = hier_smem.dat_ids|index(arg.dat_id) -%}
+f2c::Ptr{op2_stage{{group}} + f2c::hier_smem_stage_slot(stage_words[{{args_hier_smem|index(arg)}} * stride + n]), op2_stage{{group}}_count}
+    {%- elif arg is direct and lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
 f2c::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
@@ -167,6 +170,119 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 {% endfor %}
 
 {{kernel_func}}}
+
+{#- Whether any argument in a staged group is active for this launch. -#}
+{%- macro hier_smem_group_active(dat_id) -%}
+    {%- set members = args_hier_smem|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- if members|reject("opt")|list|length > 0 -%}
+true
+    {%- else -%}
+        {%- for arg in members -%}
+((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0{{" || " if not loop.last}}
+        {%- endfor -%}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- One staged increment flushed back to its global target. -#}
+{% macro hier_smem_flush(arg, index) %}
+{% set dat = lh.dat(arg) %}
+{% set group = hier_smem.dat_ids|index(arg.dat_id) %}
+        for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
+             n += blockDim.x) {
+{% if arg is opt %}
+            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) == 0)
+                break;
+
+{% endif %}
+            f2c::HierSmemStageWord word = stage_words[{{index}} * stride + n];
+            if (!f2c::hier_smem_stage_owner(word))
+                continue;
+
+            unsigned int slot = f2c::hier_smem_stage_slot(word);
+            int target = {{map_lookup(arg)}};
+
+            for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
+{% if dat is soa %}
+                atomicAdd(
+                    &dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d],
+                    op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
+{% else %}
+                atomicAdd(
+                    &dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c],
+                    op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
+{% endif %}
+        }
+{% endmacro %}
+
+{%- macro hier_smem_body(jit = false) %}
+    extern __shared__ char op2_stage_smem[];
+
+    {% for dat_id in hier_smem.dat_ids %}
+    const bool op2_stage{{loop.index0}}_active = {{hier_smem_group_active(dat_id)}};
+    {% endfor %}
+
+    // Physical blocks grid-stride over this section's plan chunks; the plan
+    // guarantees no chunk spans a section boundary.
+    for (int chunk = chunk_begin + blockIdx.x; chunk < chunk_end;
+         chunk += gridDim.x) {
+        const int op2_source_begin = source_offsets[chunk];
+        const int op2_source_end = source_offsets[chunk + 1];
+        const int *op2_chunk_counts =
+            stage_counts + chunk * {{hier_smem.dat_ids|length}};
+
+        // Walk the same region layout the host planner sized this chunk for.
+        char *op2_stage_cursor = op2_stage_smem;
+    {% for dat_id in hier_smem.dat_ids %}
+        {% set dat = lh.dat(dat_id) %}
+        {% if not loop.first %}
+        op2_stage_cursor = (char *)(((size_t)op2_stage_cursor +
+                                     (alignof({{dat.typ.c()}}) - 1)) &
+                                    ~(size_t)(alignof({{dat.typ.c()}}) - 1));
+        {% endif %}
+        {{dat.typ.c()}} *op2_stage{{loop.index0}} =
+            ({{dat.typ.c()}} *)op2_stage_cursor;
+        const int op2_stage{{loop.index0}}_count =
+            op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
+        op2_stage_cursor += (size_t)op2_stage{{loop.index0}}_count *
+                            {{dat_dim_w(dat)}} * sizeof({{dat.typ.c()}});
+    {% endfor %}
+
+        // Clear every region before accumulating into it.
+    {% for dat_id in hier_smem.dat_ids %}
+        for (int i = threadIdx.x;
+             i < op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}};
+             i += blockDim.x)
+            op2_stage{{loop.index0}}[i] = 0;
+    {% endfor %}
+        __syncthreads();
+
+        for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
+             n += blockDim.x) {
+    {% if lh.args|idx|direct|length > 0 %}
+            int idx = n + 1;
+    {% endif %}
+    {% for arg in lh.args|idx|indirect %}
+            int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
+    {% endfor %}
+            {{lh.kernel}}(
+    {% for arg in lh.args %}
+                {{arg_to_pointer_cuda(arg, jit, staged=true)}}{{"," if not loop.last}}
+    {% endfor %}
+            );
+        }
+
+        __syncthreads();
+
+        // One contribution per distinct target reaches global memory.
+    {% for arg in args_hier_smem %}
+{{- hier_smem_flush(arg, loop.index0)}}
+    {% endfor %}
+
+        // Keep the next iteration from clearing memory a warp is still
+        // flushing.
+        __syncthreads();
+    }
+{%- endmacro %}
 
 {% macro kernel_wrapper(jit = false, staged = false) %}
 extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
@@ -221,20 +337,12 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     [[maybe_unused]] double zero_double = 0;
 
     {% if staged %}
-    // The staged body is still the baseline one: this step only proves the
-    // wrapper, its ABI and its registration are generated correctly.  Step 7
-    // replaces the loop below with the shared-memory accumulation that
-    // consumes these, so they are unused for now.
-    (void)source_offsets;
-    (void)stage_words;
-    (void)stage_counts;
-    (void)chunk_begin;
-    (void)chunk_end;
-    {% for dat in lh.dats if dat.dim is none and dat is soa and dat.id in hier_smem.dat_ids %}
-    (void)dat{{dat.id}}_dim;
-    {% endfor %}
-    {% endif %}
-
+    (void)start;
+    (void)end;
+    (void)thread_id;
+{{hier_smem_body(jit)}}
+}
+    {% else %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
     {% if lh is indirect and config.color2 %}
         int n = col_reord[i];
@@ -257,6 +365,7 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
         );
     }
 }
+    {% endif %}
 {% endmacro %}
 
 {{kernel_wrapper()}}
