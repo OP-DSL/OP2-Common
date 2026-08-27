@@ -364,6 +364,12 @@ hier_smem_fallback_reason_name(HierSmemFallbackReason reason) {
     switch (reason) {
     case HierSmemFallbackReason::none:
         return "none";
+    case HierSmemFallbackReason::disabled:
+        return "disabled";
+    case HierSmemFallbackReason::unvalidated_device:
+        return "unvalidated_device";
+    case HierSmemFallbackReason::not_staged:
+        return "not_staged";
     case HierSmemFallbackReason::no_active_increment:
         return "no_active_increment";
     case HierSmemFallbackReason::incompatible_argument:

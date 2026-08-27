@@ -22,6 +22,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <set>
 #include <utility>
 // #include <iostream>
 
@@ -100,15 +101,21 @@ static bool jit_seq_compile = false;
 static bool jit_debug = false;
 static bool jit_force = false;
 
-// Step 7 exposes force-on only: unset and 0 both stay on the baseline wrapper,
-// and an architecture-driven auto policy arrives with the rest of the dispatch
-// work.  Correctness checks are never bypassed by the force.
+// OP_HIER_SMEM_ATOMICS selects the hierarchical shared-memory atomics policy:
+//
+//   0 / no / false     always run the baseline global-atomic wrapper
+//   1 / yes / true     stage wherever a loop is technically eligible
+//   unset / auto       use the validated per-architecture policy
+//
+// Forcing on bypasses the performance policy but never the eligibility checks:
+// an ineligible loop still falls back, with a reason.
 enum class HierSmemPolicy {
     off,
-    force_on,
+    on,
+    automatic,
 };
 
-static HierSmemPolicy hier_smem_policy = HierSmemPolicy::off;
+static HierSmemPolicy hier_smem_policy = HierSmemPolicy::automatic;
 
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
 static int jit_max_threads = 16;
@@ -156,7 +163,15 @@ static void jit_init() {
 
         if (hier_smem == "1" || hier_smem == "yes" || hier_smem == "true") {
             std::printf("Enabling hierarchical shared-memory atomics\n");
-            hier_smem_policy = HierSmemPolicy::force_on;
+            hier_smem_policy = HierSmemPolicy::on;
+        } else if (hier_smem == "0" || hier_smem == "no" ||
+                   hier_smem == "false") {
+            hier_smem_policy = HierSmemPolicy::off;
+        } else if (hier_smem != "auto") {
+            std::fprintf(stderr,
+                         "warning: ignoring OP_HIER_SMEM_ATOMICS='%s', "
+                         "expected 0, 1 or auto\n",
+                         hier_smem_str);
         }
     }
 
@@ -709,6 +724,7 @@ private:
     std::unique_ptr<KernelImplementation> m_staged;
     std::optional<HierSmemStagingDescriptor> m_staging_descriptor;
     detail::HierSmemPlanCache m_hier_smem_cache;
+    std::set<HierSmemFallbackReason> m_hier_smem_reported;
     std::optional<std::size_t> m_hier_smem_capacity;
     bool m_plan_owner_registered = false;
     std::vector<JitParam> m_params;
@@ -1065,6 +1081,58 @@ private:
         });
     }
 
+    // Whether a staged wrapper exists to launch.  Checked before any policy
+    // question, since it is a property of translation.
+    HierSmemFallbackReason hier_smem_registration() const {
+        return m_staged == nullptr ? HierSmemFallbackReason::not_staged
+                                   : HierSmemFallbackReason::none;
+    }
+
+    // Whether a plan can be built for that wrapper.  Separate from the above
+    // because the direct-API tests launch a staged wrapper of their own with
+    // explicit shared bytes and no staging descriptor.
+    HierSmemFallbackReason hier_smem_plannable() const {
+        if (!m_staging_descriptor.has_value() ||
+            m_policy.kind() != ExecutionPolicy::Kind::atomics)
+            return HierSmemFallbackReason::not_staged;
+
+        return HierSmemFallbackReason::none;
+    }
+
+    // Whether the environment policy wants staging for a generated loop.  The
+    // decision lives here so that nothing about it leaks into generated code.
+    HierSmemFallbackReason hier_smem_policy_allows() const {
+        switch (hier_smem_policy) {
+        case HierSmemPolicy::off:
+            return HierSmemFallbackReason::disabled;
+        case HierSmemPolicy::on:
+            return HierSmemFallbackReason::none;
+        case HierSmemPolicy::automatic:
+            // Conservative until the measurement campaign establishes which
+            // architectures gain: every device stays on the baseline, and
+            // known-regressing parts must stay here even once it does.
+            return HierSmemFallbackReason::unvalidated_device;
+        }
+
+        return HierSmemFallbackReason::unvalidated_device;
+    }
+
+    // Report a fallback once per loop, at diagnostic verbosity.  Plan-level
+    // reasons are already built once per cache key; this covers the dispatch
+    // decisions, which are re-evaluated on every invocation.
+    void report_hier_smem_fallback(HierSmemFallbackReason reason) {
+        if (OP_diags <= 3 || reason == HierSmemFallbackReason::none)
+            return;
+
+        if (!m_hier_smem_reported.insert(reason).second)
+            return;
+
+        std::printf("hier_smem: %s runs the baseline wrapper (%s)\n",
+                    m_profile_name.c_str(),
+                    std::string(hier_smem_fallback_reason_name(reason))
+                        .c_str());
+    }
+
     KernelExecution prepare(op_set set, op_arg *args, int nargs,
                             ExecutionSchedule schedule,
                             KernelExecutionOptions options) {
@@ -1085,40 +1153,46 @@ private:
         HierSmemFallbackReason hier_smem_reason =
             HierSmemFallbackReason::none;
 
-        // Staging is requested either by the environment policy or by the
-        // direct-API tests, which drive it without a generated loop host.
-        bool request_staging =
-            hier_smem_policy == HierSmemPolicy::force_on ||
-            options.plan_hier_smem_for_testing;
+        // Generated loops arrive with the default baseline variant and let the
+        // policy decide.  The direct-API tests instead name the variant
+        // themselves, and separately choose whether they want a real plan.
+        bool caller_chose_staging = options.variant == KernelVariant::staged;
+        bool wants_plan =
+            !caller_chose_staging || options.plan_hier_smem_for_testing;
 
-        if (request_staging) {
-            if (m_staged == nullptr || !m_staging_descriptor.has_value() ||
-                m_policy.kind() != ExecutionPolicy::Kind::atomics) {
-                variant = KernelVariant::baseline;
-                hier_smem_reason =
-                    HierSmemFallbackReason::incompatible_argument;
-            } else {
-                variant = KernelVariant::staged;
-                std::array<ExecutionSection, 3> sections;
-                assert(schedule.size() <= static_cast<int>(sections.size()));
-                for (int i = 0; i < schedule.size(); ++i)
-                    sections[static_cast<std::size_t>(i)] = schedule[i];
+        hier_smem_reason = hier_smem_registration();
+        if (hier_smem_reason == HierSmemFallbackReason::none && wants_plan)
+            hier_smem_reason = hier_smem_plannable();
+        if (hier_smem_reason == HierSmemFallbackReason::none &&
+            !caller_chose_staging)
+            hier_smem_reason = hier_smem_policy_allows();
 
-                const auto& cached = get_hier_smem_plan(
-                    set, std::span<const op_arg>{args,
-                                                static_cast<std::size_t>(nargs)},
-                    std::span<const ExecutionSection>{
-                        sections.data(),
-                        static_cast<std::size_t>(schedule.size())},
-                    block_size);
-                hier_smem_reason = cached.reason();
-                if (cached) {
-                    hier_smem_plan = cached.plan();
-                    hier_smem_device = cached.device_view();
-                } else {
-                    variant = KernelVariant::baseline;
-                }
+        if (hier_smem_reason == HierSmemFallbackReason::none && wants_plan) {
+            variant = KernelVariant::staged;
+            std::array<ExecutionSection, 3> sections;
+            assert(schedule.size() <= static_cast<int>(sections.size()));
+            for (int i = 0; i < schedule.size(); ++i)
+                sections[static_cast<std::size_t>(i)] = schedule[i];
+
+            const auto& cached = get_hier_smem_plan(
+                set, std::span<const op_arg>{args,
+                                            static_cast<std::size_t>(nargs)},
+                std::span<const ExecutionSection>{
+                    sections.data(),
+                    static_cast<std::size_t>(schedule.size())},
+                block_size);
+            hier_smem_reason = cached.reason();
+            if (cached) {
+                hier_smem_plan = cached.plan();
+                hier_smem_device = cached.device_view();
             }
+        }
+
+        if (hier_smem_reason == HierSmemFallbackReason::none) {
+            variant = KernelVariant::staged;
+        } else {
+            variant = KernelVariant::baseline;
+            report_hier_smem_fallback(hier_smem_reason);
         }
 
         // Reduction scratch uses the selected plan's capped physical grid.
