@@ -4,6 +4,7 @@
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <op_gpu_shims.h>
+#include <op_hier_smem_plan.h>
 
 #include <array>
 #include <vector>
@@ -249,13 +250,6 @@ public:
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
         if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
     }
-};
-
-struct ExecutionSection {
-    int start;
-    int end;
-
-    int size() const { return end - start; }
 };
 
 class ExecutionSchedule {

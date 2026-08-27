@@ -14,4 +14,5 @@ else
 endif
 
 CONFIG_NVCCFLAGS ?= $(foreach arch,$(CUDA_GEN),-gencode arch=compute_$(arch),code=sm_$(arch)) \
-  -m64 -Xptxas=-v --expt-relaxed-constexpr $(NVCC_OPT) $(EXTRA_NVCCFLAGS)
+  -m64 -std=c++20 -Xptxas=-v --expt-relaxed-constexpr $(NVCC_OPT) \
+  $(EXTRA_NVCCFLAGS)

@@ -1,3 +1,4 @@
+add_subdirectory(unit)
 add_subdirectory(functional)
 
 if(CMAKE_CUDA_COMPILER)
