@@ -19,6 +19,28 @@ Indirect (colouring)
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
 
+{# The staged wrapper accumulates every indirect increment in shared memory, so
+   a loop qualifies only when all of them can be staged together: a supported
+   scalar type, and a single map component per argument.  Vec arguments carry a
+   negative map_idx that this template does not expand, so they disqualify the
+   loop rather than reaching the planner, which indexes by map component.  Dat
+   ids are collected in first-use order and become the staged-dat groups the
+   descriptor and the shared-region layout are ordered by. #}
+{%- set args_hier_smem = lh.args|dat|indirect(lh)|inc|list -%}
+{%- set hier_smem = namespace(supported=true, dat_ids=[]) -%}
+{%- for arg in args_hier_smem -%}
+    {%- set typ = lh.dat(arg).typ -%}
+    {%- if arg is vec -%}
+        {%- set hier_smem.supported = false -%}
+    {%- elif not ((typ is instance(OP.Float) and typ.size in [32, 64]) or
+                  (typ is instance(OP.Int) and typ.signed and typ.size == 32)) -%}
+        {%- set hier_smem.supported = false -%}
+    {%- elif arg.dat_id not in hier_smem.dat_ids -%}
+        {%- set hier_smem.dat_ids = hier_smem.dat_ids + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set has_hier_smem = config.atomics and args_hier_smem|length > 0 and hier_smem.supported -%}
+
 {%- macro gbl_dim_w(arg) -%}
     {%- if arg.dim is not none -%}
 {{arg.dim}}
@@ -32,6 +54,14 @@ arg{{arg.id}}_dim
 {{dat.dim}}
     {%- else -%}
 dat{{dat.id}}_dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro hier_smem_scalar_type(dat) -%}
+    {%- if dat.typ is instance(OP.Float) -%}
+op::f2c::HierSmemScalarType::f{{dat.typ.size}}
+    {%- else -%}
+op::f2c::HierSmemScalarType::i32
     {%- endif -%}
 {%- endmacro -%}
 
@@ -138,9 +168,9 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 
 {{kernel_func}}}
 
-{% macro kernel_wrapper(jit = false) %}
+{% macro kernel_wrapper(jit = false, staged = false) %}
 extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
-void op2_k_{{lh.name}}{{variant}}_wrapper(
+void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ.c()}} *__restrict dat{{dat.id}},
     {% endfor %}
@@ -156,7 +186,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem.dat_ids)) %}
     const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
@@ -173,7 +203,14 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride
+    const int stride{{"," if staged}}
+    {% if staged %}
+    const int *__restrict source_offsets,
+    const unsigned int *__restrict stage_words,
+    const int *__restrict stage_counts,
+    const int chunk_begin,
+    const int chunk_end
+    {% endif %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -182,6 +219,21 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     [[maybe_unused]] bool zero_bool = 0;
     [[maybe_unused]] float zero_float = 0;
     [[maybe_unused]] double zero_double = 0;
+
+    {% if staged %}
+    // The staged body is still the baseline one: this step only proves the
+    // wrapper, its ABI and its registration are generated correctly.  Step 7
+    // replaces the loop below with the shared-memory accumulation that
+    // consumes these, so they are unused for now.
+    (void)source_offsets;
+    (void)stage_words;
+    (void)stage_counts;
+    (void)chunk_begin;
+    (void)chunk_end;
+    {% for dat in lh.dats if dat.dim is none and dat is soa and dat.id in hier_smem.dat_ids %}
+    (void)dat{{dat.id}}_dim;
+    {% endfor %}
+    {% endif %}
 
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
     {% if lh is indirect and config.color2 %}
@@ -218,6 +270,20 @@ using int64_t = long long int;
 
 {{kernel_wrapper(jit=true)}}
 )_op2_k";
+
+{% if has_hier_smem %}
+{{kernel_wrapper(staged=true)}}
+
+const char op2_k_{{lh.name}}{{variant}}_staged_src[] = R"_op2_k(
+namespace op2_m_{{lh.name}}{{variant}} {
+
+using int64_t = long long int;
+
+{{kernel_func}}}
+
+{{kernel_wrapper(jit=true, staged=true)}}
+)_op2_k";
+{% endif %}
 
 {% if args_gbl_per_thread|length > 0 %}
 __global__
@@ -258,6 +324,49 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 }
 {% endif %}
 
+{% macro kernel_arguments(jit = false, staged = false) %}
+    {% for dat in lh.dats %}
+            (void *)&args[{{dat.arg_id}}].data_d,
+    {% endfor %}
+    {% for map in lh.maps %}
+            (void *)&args[{{map.arg_id}}].map_data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
+            (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar if not jit %}
+            (void *)args[{{arg.id}}].data,
+    {% endfor %}
+    {% for arg in lh.args|info %}
+            (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem.dat_ids)) %}
+            (void *)&args[{{dat.arg_id}}].dim,
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+            (void *)&args[{{arg.id}}].idx,
+    {% endfor %}
+    {% if lh is indirect and config.color2 %}
+            (void *)&launch.color_reorder,
+    {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+            (void *)&launch.global_stride,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+            (void *)&launch.opt_flags,
+    {% endif %}
+            (void *)&launch.start,
+            (void *)&launch.end,
+            (void *)&launch.set_stride{{"," if staged}}
+    {% if staged %}
+            (void *)&launch.staged.plan.source_offsets,
+            (void *)&launch.staged.plan.stage_words,
+            (void *)&launch.staged.plan.stage_counts,
+            (void *)&launch.staged.chunk_begin,
+            (void *)&launch.staged.chunk_end
+    {% endif %}
+{%- endmacro %}
+
 struct op2_k_{{lh.name}}{{variant}}_bindings {
     template<op::f2c::KernelVariant Variant>
     auto make_arguments(op::f2c::LaunchContext& launch, op_arg *args) const {
@@ -269,76 +378,35 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
     {% endfor %}
 {% endif %}
 
+{% if has_hier_smem %}
+        if constexpr (Variant == op::f2c::KernelVariant::baseline) {
+            auto offline = std::array{
+{{kernel_arguments()}}
+            };
+            auto jit = std::array{
+{{kernel_arguments(jit=true)}}
+            };
+            return op::f2c::KernelArguments{offline, jit};
+        } else {
+            auto offline = std::array{
+{{kernel_arguments(staged=true)}}
+            };
+            auto jit = std::array{
+{{kernel_arguments(jit=true, staged=true)}}
+            };
+            return op::f2c::KernelArguments{offline, jit};
+        }
+{% else %}
         auto offline = std::array{
-    {% for dat in lh.dats %}
-            (void *)&args[{{dat.arg_id}}].data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-            (void *)&args[{{map.arg_id}}].map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-            (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar %}
-            (void *)args[{{arg.id}}].data,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-            (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-            (void *)&args[{{dat.arg_id}}].dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-            (void *)&args[{{arg.id}}].idx,
-    {% endfor %}
-    {% if lh is indirect and config.color2 %}
-            (void *)&launch.color_reorder,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-            (void *)&launch.global_stride,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-            (void *)&launch.opt_flags,
-    {% endif %}
-            (void *)&launch.start,
-            (void *)&launch.end,
-            (void *)&launch.set_stride
+{{kernel_arguments()}}
         };
 
         auto jit = std::array{
-    {% for dat in lh.dats %}
-            (void *)&args[{{dat.arg_id}}].data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-            (void *)&args[{{map.arg_id}}].map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-            (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-            (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-            (void *)&args[{{dat.arg_id}}].dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-            (void *)&args[{{arg.id}}].idx,
-    {% endfor %}
-    {% if lh is indirect and config.color2 %}
-            (void *)&launch.color_reorder,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-            (void *)&launch.global_stride,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-            (void *)&launch.opt_flags,
-    {% endif %}
-            (void *)&launch.start,
-            (void *)&launch.end,
-            (void *)&launch.set_stride
+{{kernel_arguments(jit=true)}}
         };
 
         return op::f2c::KernelArguments{offline, jit};
+{% endif %}
     }
 
     void init_globals(const op::f2c::GlobalInitContext& context,
@@ -429,6 +497,31 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
     info.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
+{% if has_hier_smem %}
+    static constexpr std::array staged_args = {
+    {% for arg in args_hier_smem %}
+        op::f2c::HierSmemArgDescriptor{ {{arg.id}},
+            {{hier_smem.dat_ids|index(arg.dat_id)}} },
+    {% endfor %}
+    };
+    static constexpr std::array staged_dats = {
+    {% for dat_id in hier_smem.dat_ids %}
+        op::f2c::HierSmemDatDescriptor{
+            {{hier_smem_scalar_type(lh.dat(dat_id))}} },
+    {% endfor %}
+    };
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    constexpr int staged_part_size = OP_PART_SIZE_{{kernel_idx}};
+#else
+    constexpr int staged_part_size = -1;
+#endif
+    info.register_staged_variant(
+        "op2_k_{{lh.name}}{{variant}}_staged_wrapper",
+        (void *)op2_k_{{lh.name}}{{variant}}_staged_wrapper,
+        op2_k_{{lh.name}}{{variant}}_staged_src,
+        op::f2c::HierSmemStagingDescriptor{
+            staged_args, staged_dats, staged_part_size});
+{% endif %}
     return true;
 }
 
