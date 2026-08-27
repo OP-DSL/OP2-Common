@@ -4,6 +4,7 @@
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <op_gpu_shims.h>
+#include <op_hier_smem_cache.h>
 #include <op_hier_smem_plan.h>
 
 #include <array>
@@ -374,6 +375,11 @@ enum class KernelVariant {
 struct KernelExecutionOptions {
     KernelVariant variant = KernelVariant::baseline;
     int shared_bytes = 0;
+    bool plan_hier_smem_for_testing = false;
+
+    static KernelExecutionOptions hierarchical_test() {
+        return {KernelVariant::staged, 0, true};
+    }
 };
 
 struct KernelExecution {
@@ -384,11 +390,29 @@ struct KernelExecution {
     int block_limit;
     int max_blocks;
     int shared_bytes;
+    const HierSmemPlan *hier_smem_plan;
+    HierSmemPlanDeviceView hier_smem_device;
+    HierSmemFallbackReason hier_smem_reason;
 
     int num_blocks(int section_index) const {
+        if (hier_smem_plan != nullptr) {
+            int blocks = hier_smem_plan->section_chunk_offsets[section_index + 1] -
+                         hier_smem_plan->section_chunk_offsets[section_index];
+            return std::min(blocks, block_limit);
+        }
+
         auto section = schedule[section_index];
         int blocks = (section.size() + block_size - 1) / block_size;
         return std::min(blocks, block_limit);
+    }
+
+    int dynamic_shared_bytes(int section_index) const {
+        if (hier_smem_plan == nullptr)
+            return shared_bytes;
+
+        auto bytes = hier_smem_plan->section_shared_bytes[section_index];
+        assert(bytes <= static_cast<std::size_t>(INT32_MAX));
+        return static_cast<int>(bytes);
     }
 };
 
@@ -447,6 +471,12 @@ struct LaunchContext {
     int end;
     int set_stride;
     int *color_reorder;
+
+    struct {
+        HierSmemPlanDeviceView plan;
+        int chunk_begin;
+        int chunk_end;
+    } staged;
 };
 
 struct GlobalInitContext {
@@ -470,6 +500,7 @@ struct KernelInvocationResult {
     KernelVariant variant;
     int block_size;
     int max_blocks;
+    HierSmemFallbackReason hier_smem_reason = HierSmemFallbackReason::none;
 };
 
 enum class ParamType {
@@ -654,6 +685,10 @@ private:
     ExecutionPolicy m_policy;
     KernelImplementation m_baseline;
     std::unique_ptr<KernelImplementation> m_staged;
+    std::optional<HierSmemStagingDescriptor> m_staging_descriptor;
+    detail::HierSmemPlanCache m_hier_smem_cache;
+    std::optional<std::size_t> m_hier_smem_capacity;
+    bool m_plan_owner_registered = false;
     std::vector<JitParam> m_params;
     std::mutex m_jit_kernels_mutex;
 
@@ -803,6 +838,19 @@ private:
         return data_d;
     }
 
+    static void release_hier_smem_plans_callback(void *owner) {
+        static_cast<KernelInfo *>(owner)->m_hier_smem_cache.clear();
+    }
+
+    void register_plan_owner() {
+        if (m_plan_owner_registered)
+            return;
+
+        register_hier_smem_plan_owner(
+            this, &KernelInfo::release_hier_smem_plans_callback);
+        m_plan_owner_registered = true;
+    }
+
 public:
     KernelInfo(const KernelInfo&) = delete;
     KernelInfo(std::string_view profile_name, std::string_view profile_target,
@@ -827,10 +875,16 @@ public:
         join_compilations(m_baseline);
         if (m_staged != nullptr)
             join_compilations(*m_staged);
+
+        if (m_plan_owner_registered)
+            unregister_hier_smem_plan_owner(this);
+        m_hier_smem_cache.clear();
     }
 
     void register_staged_variant(std::string_view name, const void *kernel,
-                                 std::string_view src) {
+                                 std::string_view src,
+                                 std::optional<HierSmemStagingDescriptor>
+                                     descriptor = std::nullopt) {
         if (m_staged != nullptr) {
             std::fprintf(stderr,
                          "error: staged implementation already registered (in %s)\n",
@@ -842,6 +896,11 @@ public:
         CUDA_SAFE_CALL(gpuFuncGetAttributes(&staged->offline_attrs,
                                             staged->offline_kernel));
         m_staged = std::move(staged);
+        m_staging_descriptor = descriptor;
+    }
+
+    HierSmemPlanCacheStatistics hier_smem_plan_cache_statistics() const {
+        return m_hier_smem_cache.statistics();
     }
 
     template<typename T>
@@ -914,10 +973,80 @@ private:
         return {INT32_MAX, 128};
     }
 
-    KernelExecution prepare(op_arg *args, int nargs, ExecutionSchedule schedule,
-                            KernelExecutionOptions options) {
-        auto& impl = implementation(options.variant);
+    // Return the staged wrapper's usable dynamic shared-memory capacity.
+    // OP2 fixes the device at initialization, so this is resolved once.
+    std::size_t hier_smem_device_capacity() {
+        assert(m_staged != nullptr);
+        if (m_hier_smem_capacity.has_value())
+            return *m_hier_smem_capacity;
 
+        int device = -1;
+        CUDA_SAFE_CALL(gpuGetDevice(&device));
+
+        gpuDeviceProp_t properties;
+        CUDA_SAFE_CALL(gpuGetDeviceProperties(&properties, device));
+
+        std::size_t total = properties.sharedMemPerBlock;
+#ifdef OP2_CUDA
+        total = std::max(total,
+                         static_cast<std::size_t>(
+                             properties.sharedMemPerBlockOptin));
+#endif
+        auto static_bytes = static_cast<std::size_t>(
+            m_staged->offline_attrs.sharedSizeBytes);
+        m_hier_smem_capacity = total > static_bytes ? total - static_bytes : 0;
+        return *m_hier_smem_capacity;
+    }
+
+    // Reject staged wrappers that omit an active indirect increment.
+    static bool all_indirect_increments_covered(
+        std::span<const op_arg> args,
+        const HierSmemStagingDescriptor& descriptor) {
+        std::vector<bool> covered(args.size(), false);
+        for (const auto& arg : descriptor.args) {
+            assert(arg.arg_index >= 0 &&
+                   static_cast<std::size_t>(arg.arg_index) < args.size());
+            covered[static_cast<std::size_t>(arg.arg_index)] = true;
+        }
+
+        for (std::size_t i = 0; i < args.size(); ++i) {
+            const op_arg& arg = args[i];
+            if (arg.opt != 0 && arg.argtype == OP_ARG_DAT &&
+                arg.acc == OP_INC && arg.idx >= 0 && !covered[i])
+                return false;
+        }
+
+        return true;
+    }
+
+    // Look up or build the plan for the current loop configuration.
+    const detail::HierSmemPlanCacheEntry& get_hier_smem_plan(
+        op_set set, std::span<const op_arg> args,
+        std::span<const ExecutionSection> sections, int block_size) {
+        assert(m_staging_descriptor.has_value());
+        register_plan_owner();
+
+        HierSmemPlanOptions plan_options{
+            block_size, OP_part_size, hier_smem_device_capacity()};
+        auto key = detail::make_hier_smem_plan_key(
+            set, args, static_cast<int>(sections.size()),
+            *m_staging_descriptor, plan_options);
+
+        return m_hier_smem_cache.get_or_build(std::move(key), [&]() {
+            if (!all_indirect_increments_covered(args, *m_staging_descriptor))
+                return HierSmemPlanBuildResult{
+                    HierSmemFallbackReason::incompatible_argument,
+                    std::nullopt};
+
+            return build_hier_smem_plan(
+                set, args, sections, *m_staging_descriptor, plan_options);
+        });
+    }
+
+    KernelExecution prepare(op_set set, op_arg *args, int nargs,
+                            ExecutionSchedule schedule,
+                            KernelExecutionOptions options) {
+        // Resolve the common physical launch policy first.
         int max_section_size = 0;
         for (int i = 0; i < schedule.size(); ++i)
             max_section_size = std::max(max_section_size, schedule[i].size());
@@ -928,22 +1057,69 @@ private:
             ::getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(),
                                       m_policy.gbl_inc_atomic()));
 
+        KernelVariant variant = options.variant;
+        const HierSmemPlan *hier_smem_plan = nullptr;
+        HierSmemPlanDeviceView hier_smem_device;
+        HierSmemFallbackReason hier_smem_reason =
+            HierSmemFallbackReason::none;
+
+        // Step 5 keeps planning behind an explicit test-only activation.
+        if (options.plan_hier_smem_for_testing) {
+            if (variant != KernelVariant::staged || m_staged == nullptr ||
+                !m_staging_descriptor.has_value() ||
+                m_policy.kind() != ExecutionPolicy::Kind::atomics) {
+                variant = KernelVariant::baseline;
+                hier_smem_reason =
+                    HierSmemFallbackReason::incompatible_argument;
+            } else {
+                std::array<ExecutionSection, 3> sections;
+                assert(schedule.size() <= static_cast<int>(sections.size()));
+                for (int i = 0; i < schedule.size(); ++i)
+                    sections[static_cast<std::size_t>(i)] = schedule[i];
+
+                const auto& cached = get_hier_smem_plan(
+                    set, std::span<const op_arg>{args,
+                                                static_cast<std::size_t>(nargs)},
+                    std::span<const ExecutionSection>{
+                        sections.data(),
+                        static_cast<std::size_t>(schedule.size())},
+                    block_size);
+                hier_smem_reason = cached.reason();
+                if (cached) {
+                    hier_smem_plan = cached.plan();
+                    hier_smem_device = cached.device_view();
+                } else {
+                    variant = KernelVariant::baseline;
+                }
+            }
+        }
+
+        // Reduction scratch uses the selected plan's capped physical grid.
         int max_blocks = 0;
         for (int i = 0; i < schedule.size(); ++i) {
-            int section_blocks =
-                (schedule[i].size() + block_size - 1) / block_size;
+            int section_blocks = 0;
+            if (hier_smem_plan == nullptr) {
+                section_blocks =
+                    (schedule[i].size() + block_size - 1) / block_size;
+            } else {
+                section_blocks =
+                    hier_smem_plan->section_chunk_offsets[i + 1] -
+                    hier_smem_plan->section_chunk_offsets[i];
+            }
             max_blocks = std::max(max_blocks, section_blocks);
         }
 
         max_blocks = std::min(max_blocks, block_limit);
 
-        KernelExecution execution{options.variant, nullptr, schedule, block_size,
-                                  block_limit, max_blocks, options.shared_bytes};
+        KernelExecution execution{
+            variant, nullptr, schedule, block_size, block_limit, max_blocks,
+            options.shared_bytes, hier_smem_plan, hier_smem_device,
+            hier_smem_reason};
 
         for (auto& param : m_params)
             param.update(args, nargs, execution);
 
-        execution.jit_kernel = get_kernel(impl);
+        execution.jit_kernel = get_kernel(implementation(variant));
 
         return execution;
     }
@@ -1009,30 +1185,34 @@ private:
         }
     }
 
-    void launch_section(const KernelExecution& execution, int num_blocks,
+    void launch_section(const KernelExecution& execution, int section_index,
+                        int num_blocks,
                         void **args, void **args_jit) {
         auto& impl = implementation(execution.variant);
 
         if (execution.jit_kernel == nullptr) {
             op_profile_next("Offline Kernel");
             invoke_offline(impl, num_blocks, execution.block_size, args,
-                           execution.shared_bytes);
+                           execution.dynamic_shared_bytes(section_index));
 
             return;
         }
 
         op_profile_next("JIT Kernel");
         execution.jit_kernel->invoke(num_blocks, execution.block_size, args_jit,
-                                     execution.shared_bytes);
+                                     execution.dynamic_shared_bytes(
+                                         section_index));
     }
 
     template<KernelVariant Variant, typename Bindings>
-    void bind_and_launch(const KernelExecution& execution, int num_blocks,
+    void bind_and_launch(const KernelExecution& execution, int section_index,
+                         int num_blocks,
                          LaunchContext& launch, op_arg *args,
                          Bindings& bindings) {
         auto kernel_args =
             bindings.template make_arguments<Variant>(launch, args);
-        launch_section(execution, num_blocks, kernel_args.offline.data(),
+        launch_section(execution, section_index, num_blocks,
+                       kernel_args.offline.data(),
                        kernel_args.jit.data());
     }
 
@@ -1095,7 +1275,7 @@ public:
         }
 
         op_profile_next("Get Kernel");
-        auto execution = prepare(args, nargs, schedule, options);
+        auto execution = prepare(set, args, nargs, schedule, options);
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
@@ -1128,15 +1308,28 @@ public:
                     section.start,
                     section.end,
                     schedule.set_stride(),
-                    schedule.color_reorder()};
+                    schedule.color_reorder(),
+                    {}};
+
+                if (execution.hier_smem_plan != nullptr) {
+                    launch.staged.plan = execution.hier_smem_device;
+                    launch.staged.chunk_begin =
+                        execution.hier_smem_plan
+                            ->section_chunk_offsets[section_index];
+                    launch.staged.chunk_end =
+                        execution.hier_smem_plan
+                            ->section_chunk_offsets[section_index + 1];
+                }
 
                 int num_blocks = execution.num_blocks(section_index);
                 if (execution.variant == KernelVariant::baseline)
                     bind_and_launch<KernelVariant::baseline>(
-                        execution, num_blocks, launch, args, bindings);
+                        execution, section_index, num_blocks, launch, args,
+                        bindings);
                 else
                     bind_and_launch<KernelVariant::staged>(
-                        execution, num_blocks, launch, args, bindings);
+                        execution, section_index, num_blocks, launch, args,
+                        bindings);
             }
 
             if (global_output &&
@@ -1162,7 +1355,8 @@ public:
         op_profile_exit();
 
         return {execution.jit_kernel != nullptr, execution.variant,
-                execution.block_size, execution.max_blocks};
+                execution.block_size, execution.max_blocks,
+                execution.hier_smem_reason};
     }
 };
 

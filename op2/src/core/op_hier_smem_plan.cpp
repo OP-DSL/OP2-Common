@@ -3,11 +3,20 @@
 #include <algorithm>
 #include <cassert>
 #include <limits>
+#include <mutex>
 #include <unordered_map>
 #include <utility>
 
 namespace op::f2c {
 namespace {
+
+struct PlanOwner {
+    void *owner;
+    HierSmemPlanReleaseCallback release;
+};
+
+std::mutex plan_owners_mutex;
+std::vector<PlanOwner> plan_owners;
 
 struct ResolvedDat {
     op_dat dat = nullptr;
@@ -413,6 +422,35 @@ HierSmemPlanBuildResult build_hier_smem_plan(
     HierSmemPlan plan;
     build_candidate(resolved, sections, chunk_size, plan);
     return {HierSmemFallbackReason::none, std::move(plan)};
+}
+
+void register_hier_smem_plan_owner(void *owner,
+                                   HierSmemPlanReleaseCallback release) {
+    assert(owner != nullptr && release != nullptr);
+    std::scoped_lock lock(plan_owners_mutex);
+    assert(std::none_of(plan_owners.begin(), plan_owners.end(),
+                        [owner](const PlanOwner& item) {
+                            return item.owner == owner;
+                        }));
+    plan_owners.push_back({owner, release});
+}
+
+void unregister_hier_smem_plan_owner(void *owner) {
+    std::scoped_lock lock(plan_owners_mutex);
+    std::erase_if(plan_owners, [owner](const PlanOwner& item) {
+        return item.owner == owner;
+    });
+}
+
+void release_hier_smem_plan_device_storage() {
+    std::vector<PlanOwner> owners;
+    {
+        std::scoped_lock lock(plan_owners_mutex);
+        owners = plan_owners;
+    }
+
+    for (const auto& owner : owners)
+        owner.release(owner.owner);
 }
 
 } // namespace op::f2c

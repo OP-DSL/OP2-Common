@@ -127,4 +127,12 @@ HierSmemPlanBuildResult build_hier_smem_plan(
     const HierSmemStagingDescriptor& descriptor,
     const HierSmemPlanOptions& options);
 
+using HierSmemPlanReleaseCallback = void (*)(void *owner);
+
+// Register device-owning plan caches for explicit backend shutdown.
+void register_hier_smem_plan_owner(void *owner,
+                                   HierSmemPlanReleaseCallback release);
+void unregister_hier_smem_plan_owner(void *owner);
+void release_hier_smem_plan_device_storage();
+
 } // namespace op::f2c

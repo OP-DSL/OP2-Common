@@ -38,6 +38,7 @@
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op_hier_smem_plan.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
@@ -541,6 +542,8 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 */
 
 void op_exit() {
+  op::f2c::release_hier_smem_plan_device_storage();
+
   // need to free buffer_d used for mpi comms in each op_dat
   if (OP_hybrid_gpu) {
     op_dat_entry *item;
