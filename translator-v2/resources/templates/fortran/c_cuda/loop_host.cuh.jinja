@@ -183,12 +183,13 @@ true
     {%- endif -%}
 {%- endmacro -%}
 
-{#- The global element an owner flushes to, for component c. -#}
+{#- The owner's global element as an f2c::Ptr; its stride carries the layout,
+    so the staging helpers need no AoS/SoA variants. -#}
 {%- macro hier_smem_global(arg, dat) -%}
     {%- if dat is soa -%}
-dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d]
+f2c::Ptr{dat{{arg.dat_id}} + target, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
-dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c]
+f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -203,21 +204,14 @@ dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c]
                 break;
 
 {% endif %}
+            // Only owners are ever marked exclusive, so this covers both.
             f2c::HierSmemStageWord word = stage_words[{{index}} * stride + n];
-            if (!f2c::hier_smem_stage_owner(word))
-                continue;
-
             if (!f2c::hier_smem_stage_exclusive(word))
                 continue;
 
-            unsigned int slot = f2c::hier_smem_stage_slot(word);
-            // Nothing else in this section touches an exclusive target, so
-            // starting from its current value lets the flush be a plain store.
             // The load lands here, where the accumulation below hides it.
             int target = {{map_lookup(arg)}};
-            for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
-                op2_stage{{group}}[slot + c * op2_stage{{group}}_count] =
-                    {{hier_smem_global(arg, dat)}};
+            f2c::hier_smem_seed(word, {{hier_smem_global(arg, dat)}}, op2_stage{{group}}, op2_stage{{group}}_count, {{dat_dim_w(dat)}});
         }
 {% endmacro %}
 
@@ -236,21 +230,8 @@ dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c]
             if (!f2c::hier_smem_stage_owner(word))
                 continue;
 
-            unsigned int slot = f2c::hier_smem_stage_slot(word);
             int target = {{map_lookup(arg)}};
-
-            // An exclusive slot was seeded with the target's old value, so
-            // it already holds the total and needs no read-modify-write here.
-            if (f2c::hier_smem_stage_exclusive(word)) {
-                for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
-                    {{hier_smem_global(arg, dat)}} =
-                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count];
-            } else {
-                for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
-                    atomicAdd(
-                        &{{hier_smem_global(arg, dat)}},
-                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
-            }
+            f2c::hier_smem_flush(word, {{hier_smem_global(arg, dat)}}, op2_stage{{group}}, op2_stage{{group}}_count, {{dat_dim_w(dat)}});
         }
 {% endmacro %}
 
@@ -274,25 +255,13 @@ dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c]
         char *op2_stage_cursor = op2_stage_smem;
     {% for dat_id in hier_smem.dat_ids %}
         {% set dat = lh.dat(dat_id) %}
-        {% if not loop.first %}
-        op2_stage_cursor = (char *)(((size_t)op2_stage_cursor +
-                                     (alignof({{dat.typ.c()}}) - 1)) &
-                                    ~(size_t)(alignof({{dat.typ.c()}}) - 1));
-        {% endif %}
-        {{dat.typ.c()}} *op2_stage{{loop.index0}} =
-            ({{dat.typ.c()}} *)op2_stage_cursor;
-        const int op2_stage{{loop.index0}}_count =
-            op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
-        op2_stage_cursor += (size_t)op2_stage{{loop.index0}}_count *
-                            {{dat_dim_w(dat)}} * sizeof({{dat.typ.c()}});
+        const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
+        {{dat.typ.c()}} *op2_stage{{loop.index0}} = f2c::hier_smem_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
     {% endfor %}
 
         // Clear every region before accumulating into it.
     {% for dat_id in hier_smem.dat_ids %}
-        for (int i = threadIdx.x;
-             i < op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}};
-             i += blockDim.x)
-            op2_stage{{loop.index0}}[i] = 0;
+        f2c::hier_smem_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
     {% endfor %}
         __syncthreads();
 
