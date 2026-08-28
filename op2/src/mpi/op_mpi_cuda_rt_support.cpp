@@ -137,7 +137,15 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     cutilSafeCall(gpuFree(test));
 
-    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
+    // No device-wide cache config: on Volta and later the L1 cache and shared
+    // memory are one resource whose split the driver already chooses per
+    // kernel launch.  gpuDeviceSetCacheConfig(gpuFuncCachePreferL1) replaced
+    // that per-kernel decision with one blunt global answer, which starved
+    // kernels staging indirect increments in shared memory: on an H100 a 4 KB
+    // staged allocation was enough to cap residency at one block per SM.
+    // Leaving the driver to size it costs kernels that use no shared memory
+    // nothing measurable, and individual kernels that want a specific split
+    // can still hint via gpuFuncAttributePreferredSharedMemoryCarveout.
 
     int deviceId = -1;
     gpuGetDevice(&deviceId);
