@@ -82,6 +82,7 @@ function(op2_add_functional_tests)
     op2_add_app_variants(
         NAME "${_A_NAME}_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
         VARIANTS mpi_* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+        COMPILE_DEFINITIONS USE_MPI
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -98,6 +99,7 @@ function(op2_add_functional_tests)
     op2_add_app_variants(
         NAME "${_A_NAME}_soa_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
         VARIANTS mpi_* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+        COMPILE_DEFINITIONS USE_MPI
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
