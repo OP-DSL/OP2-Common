@@ -117,6 +117,10 @@ enum class HierSmemPolicy {
 
 static HierSmemPolicy hier_smem_policy = HierSmemPolicy::automatic;
 
+// Validation control: OP_HIER_SMEM_EXCLUSIVE=0 keeps every owner on a global
+// atomic, so a run can be compared against one that uses exclusive flushes.
+static bool hier_smem_exclusive = true;
+
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
 static int jit_max_threads = 16;
 #else
@@ -152,6 +156,18 @@ static void jit_init() {
         if (debug == "1" || debug == "yes" || debug == "true") {
             std::printf("Enabling JIT debug\n");
             jit_debug = true;
+        }
+    }
+
+    char *hier_smem_excl_str = std::getenv("OP_HIER_SMEM_EXCLUSIVE");
+    if (hier_smem_excl_str != nullptr) {
+        auto excl = std::string(hier_smem_excl_str);
+        std::transform(excl.begin(), excl.end(), excl.begin(),
+            [](auto c){ return std::tolower(c); });
+
+        if (excl == "0" || excl == "no" || excl == "false") {
+            std::printf("Disabling hierarchical exclusive flushes\n");
+            hier_smem_exclusive = false;
         }
     }
 
@@ -1065,12 +1081,36 @@ private:
         register_plan_owner();
 
         HierSmemPlanOptions plan_options{
-            block_size, OP_part_size, hier_smem_device_capacity()};
+            block_size, OP_part_size, hier_smem_device_capacity(),
+            hier_smem_exclusive};
         auto key = detail::make_hier_smem_plan_key(
             set, args, static_cast<int>(sections.size()),
             *m_staging_descriptor, plan_options);
 
-        return m_hier_smem_cache.get_or_build(std::move(key), [&]() {
+        auto report = [this](const detail::HierSmemPlanCacheEntry& entry) {
+            if (OP_diags <= 3)
+                return;
+
+            if (const HierSmemPlan *plan = entry.plan()) {
+                const auto& stats = plan->statistics;
+                std::printf(
+                    "hier_smem: %s chunk %d, %zu chunks, %zu refs, "
+                    "%zu owners (%zu exclusive, %zu atomic), "
+                    "compression %.2fx\n",
+                    m_profile_name.c_str(), plan->selected_chunk_size,
+                    plan->num_chunks(), stats.raw_references,
+                    stats.distinct_targets, stats.exclusive_owners,
+                    stats.distinct_targets - stats.exclusive_owners,
+                    stats.distinct_targets > 0
+                        ? static_cast<double>(stats.raw_references) /
+                              static_cast<double>(stats.distinct_targets)
+                        : 0.0);
+            }
+        };
+
+        auto before = m_hier_smem_cache.statistics().builds;
+        const auto& entry = m_hier_smem_cache.get_or_build(
+            std::move(key), [&]() {
             if (!all_indirect_increments_covered(args, *m_staging_descriptor))
                 return HierSmemPlanBuildResult{
                     HierSmemFallbackReason::incompatible_argument,
@@ -1079,6 +1119,12 @@ private:
             return build_hier_smem_plan(
                 set, args, sections, *m_staging_descriptor, plan_options);
         });
+
+        // Only the build that created this entry reports it.
+        if (m_hier_smem_cache.statistics().builds != before)
+            report(entry);
+
+        return entry;
     }
 
     // Whether a staged wrapper exists to launch.  Checked before any policy

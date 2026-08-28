@@ -63,11 +63,18 @@ struct HierSmemPlanOptions {
     int block_size = 128;
     int requested_chunk_size = 0;
     std::size_t shared_memory_limit = 0;
+    // Marking exclusive owners changes the packed words, so a plan built with
+    // it off is a different plan and is keyed separately.
+    bool exclusive_flush = true;
 };
 
 struct HierSmemPlanStatistics {
     std::size_t raw_references = 0;
     std::size_t distinct_targets = 0;
+    // Owners whose target occurs in exactly one chunk of its section, so the
+    // flush needs no global atomic.  The rest of distinct_targets flush with
+    // atomicAdd.
+    std::size_t exclusive_owners = 0;
 };
 
 struct HierSmemPlan {

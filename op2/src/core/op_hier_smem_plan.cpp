@@ -236,9 +236,17 @@ std::size_t bytes_per_source_element(const ResolvedInput& resolved) {
 }
 
 // Construct the complete host plan for one fixed candidate chunk size.
+// Resolve the global target an argument reaches from one source element.
+inline int staged_target(const op_arg& arg, int source) {
+    return arg.map_data[static_cast<std::size_t>(source) *
+                            static_cast<std::size_t>(arg.map->dim) +
+                        static_cast<std::size_t>(arg.idx)];
+}
+
 void build_candidate(const ResolvedInput& resolved,
                      std::span<const ExecutionSection> sections,
-                     int chunk_size, HierSmemPlan& plan) {
+                     int chunk_size, bool exclusive_flush,
+                     HierSmemPlan& plan) {
     plan = {};
     plan.selected_chunk_size = chunk_size;
     plan.set_stride = resolved.set_stride;
@@ -259,15 +267,19 @@ void build_candidate(const ResolvedInput& resolved,
     plan.section_chunk_offsets.reserve(sections.size() + 1);
     plan.section_shared_bytes.reserve(sections.size());
 
-    // Allocate one reusable target-to-slot inverse map per active dat.
+    // Allocate one reusable target-to-slot inverse map per active dat, plus
+    // the per-section chunk tally that decides exclusivity.
     std::vector<std::vector<int>> inverse(resolved.dats.size());
     std::vector<std::vector<int>> touched(resolved.dats.size());
+    std::vector<std::vector<int>> section_chunks(resolved.dats.size());
+    std::vector<std::vector<int>> section_targets(resolved.dats.size());
     for (std::size_t dat_index = 0; dat_index < resolved.dats.size();
          ++dat_index) {
         if (resolved.dats[dat_index].dat != nullptr) {
             const auto target_extent = static_cast<std::size_t>(
                 resolved.dats[dat_index].target_extent);
             inverse[dat_index].assign(target_extent, -1);
+            section_chunks[dat_index].assign(target_extent, 0);
         }
     }
 
@@ -306,11 +318,7 @@ void build_candidate(const ResolvedInput& resolved,
 
                     const auto dat_index = static_cast<std::size_t>(
                         arg_desc.dat_index);
-                    std::size_t map_offset =
-                        static_cast<std::size_t>(source) *
-                            static_cast<std::size_t>(arg.map->dim) +
-                        static_cast<std::size_t>(arg.idx);
-                    int target = arg.map_data[map_offset];
+                    int target = staged_target(arg, source);
                     // op_decl_map validates targets, and the baseline wrapper
                     // indexes just as blindly as this does.
                     assert(target >= 0 &&
@@ -322,6 +330,15 @@ void build_candidate(const ResolvedInput& resolved,
                     if (owner) {
                         slot = static_cast<int>(touched[dat_index].size());
                         touched[dat_index].push_back(target);
+
+                        // One tally per chunk that reaches this target: a
+                        // target seen in a single chunk of the section can be
+                        // flushed without a global atomic.
+                        auto& chunks = section_chunks[dat_index][
+                            static_cast<std::size_t>(target)];
+                        if (chunks == 0)
+                            section_targets[dat_index].push_back(target);
+                        ++chunks;
                     }
 
                     std::size_t word_index =
@@ -348,6 +365,52 @@ void build_candidate(const ResolvedInput& resolved,
 
             plan.source_offsets.push_back(end);
             start = end;
+        }
+
+        // Every chunk in this section is now counted, so a second pass can
+        // mark the owners whose target this section reaches exactly once.
+        // Chunks within a section may run concurrently on different blocks;
+        // separate sections are ordered on the stream, so they cannot race.
+        if (exclusive_flush) {
+            for (int source = section.start; source < section.end; ++source) {
+                for (std::size_t staged_arg = 0;
+                     staged_arg < resolved.arg_descriptors.size();
+                     ++staged_arg) {
+                    const auto& arg_desc =
+                        resolved.arg_descriptors[staged_arg];
+                    const op_arg& arg = resolved.args[static_cast<std::size_t>(
+                        arg_desc.arg_index)];
+                    if (arg.opt == 0)
+                        continue;
+
+                    std::size_t word_index =
+                        staged_arg * static_cast<std::size_t>(plan.set_stride) +
+                        static_cast<std::size_t>(source);
+                    auto word = plan.stage_words[word_index];
+                    if (!hier_smem_stage_owner(word))
+                        continue;
+
+                    const auto dat_index = static_cast<std::size_t>(
+                        arg_desc.dat_index);
+                    int target = staged_target(arg, source);
+                    if (section_chunks[dat_index][
+                            static_cast<std::size_t>(target)] != 1)
+                        continue;
+
+                    plan.stage_words[word_index] = word |
+                                                   hier_smem_exclusive_bit;
+                    ++plan.statistics.exclusive_owners;
+                }
+            }
+        }
+
+        // Clear only the targets this section reached.
+        for (std::size_t dat_index = 0; dat_index < section_targets.size();
+             ++dat_index) {
+            for (int target : section_targets[dat_index])
+                section_chunks[dat_index][
+                    static_cast<std::size_t>(target)] = 0;
+            section_targets[dat_index].clear();
         }
 
         plan.section_chunk_offsets.push_back(
@@ -420,7 +483,8 @@ HierSmemPlanBuildResult build_hier_smem_plan(
         blocks * options.block_size));
 
     HierSmemPlan plan;
-    build_candidate(resolved, sections, chunk_size, plan);
+    build_candidate(resolved, sections, chunk_size, options.exclusive_flush,
+                    plan);
     return {HierSmemFallbackReason::none, std::move(plan)};
 }
 
