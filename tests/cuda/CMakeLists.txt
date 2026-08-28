@@ -46,13 +46,13 @@ op2_test_link_nvrtc_builtins(f2c_hier_smem_cache)
 
 add_test(NAME f2c_hier_smem_cache_offline COMMAND f2c_hier_smem_cache)
 set_tests_properties(f2c_hier_smem_cache_offline PROPERTIES
-    ENVIRONMENT "OP_JIT_ENABLE=0"
+    ENVIRONMENT "OP_JIT_ENABLE=0;OP_HIER_SMEM_ATOMICS=auto"
     LABELS "cuda;unit")
 
 add_test(NAME f2c_hier_smem_cache_jit COMMAND f2c_hier_smem_cache)
 set_tests_properties(f2c_hier_smem_cache_jit PROPERTIES
     ENVIRONMENT
-        "OP_JIT_ENABLE=1;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1"
+        "OP_JIT_ENABLE=1;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1;OP_HIER_SMEM_ATOMICS=auto"
     LABELS "cuda;unit")
 
 if(TARGET op2_mpi_cuda AND MPIEXEC_EXECUTABLE)
