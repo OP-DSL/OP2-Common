@@ -669,8 +669,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
     };
     static constexpr std::array staged_dats = {
     {% for dat_id in hier_smem.dat_ids %}
-        op::f2c::HierSmemDatDescriptor{
-            {{hier_smem_scalar_type(lh.dat(dat_id))}} },
+        {{hier_smem_scalar_type(lh.dat(dat_id))}},
     {% endfor %}
     };
 #ifdef OP_PART_SIZE_{{kernel_idx}}

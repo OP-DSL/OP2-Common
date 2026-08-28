@@ -1237,6 +1237,11 @@ private:
             if (cached) {
                 hier_smem_plan = cached.plan();
                 hier_smem_device = cached.device_view();
+
+                // The wrapper's single stride argument indexes both the maps
+                // and the packed words, so the plan has to have been built
+                // against the same stride the schedule reports.
+                assert(hier_smem_plan->set_stride == schedule.set_stride());
             }
         }
 

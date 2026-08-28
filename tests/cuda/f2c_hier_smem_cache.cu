@@ -102,8 +102,8 @@ struct Fixture {
     std::vector<int> map_values;
     std::array<op_arg, 2> args{};
     std::array<f2c::HierSmemArgDescriptor, 1> arg_descriptor{{{0, 0}}};
-    std::array<f2c::HierSmemDatDescriptor, 1> dat_descriptor{{
-        {f2c::HierSmemScalarType::f64},
+    std::array<f2c::HierSmemScalarType, 1> dat_descriptor{{
+        f2c::HierSmemScalarType::f64,
     }};
 
     Fixture() : map_values(256) {

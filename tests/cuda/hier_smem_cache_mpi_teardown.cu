@@ -73,8 +73,7 @@ int main(int argc, char **argv) {
     std::array args{arg};
     std::array sections{f2c::ExecutionSection{0, source.size}};
     std::array arg_descriptors{f2c::HierSmemArgDescriptor{0, 0}};
-    std::array dat_descriptors{
-        f2c::HierSmemDatDescriptor{f2c::HierSmemScalarType::f64}};
+    std::array dat_descriptors{f2c::HierSmemScalarType::f64};
     f2c::HierSmemStagingDescriptor descriptor{
         arg_descriptors, dat_descriptors, 128};
 

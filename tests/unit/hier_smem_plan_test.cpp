@@ -92,10 +92,10 @@ struct MixedFixture {
         {2, 1},
         {3, 2},
     }};
-    std::array<f2c::HierSmemDatDescriptor, 3> dat_desc{{
-        {f2c::HierSmemScalarType::f64},
-        {f2c::HierSmemScalarType::i32},
-        {f2c::HierSmemScalarType::f32},
+    std::array<f2c::HierSmemScalarType, 3> dat_desc{{
+        f2c::HierSmemScalarType::f64,
+        f2c::HierSmemScalarType::i32,
+        f2c::HierSmemScalarType::f32,
     }};
     std::array<f2c::ExecutionSection, 2> sections{{{0, 2}, {2, 6}}};
 
@@ -146,8 +146,8 @@ struct ChunkFixture {
     op_map_core map{};
     std::array<op_arg, 1> args{};
     std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
-    std::array<f2c::HierSmemDatDescriptor, 1> dat_desc{{
-        {f2c::HierSmemScalarType::f64},
+    std::array<f2c::HierSmemScalarType, 1> dat_desc{{
+        f2c::HierSmemScalarType::f64,
     }};
     std::array<f2c::ExecutionSection, 1> sections{{{0, 1024}}};
 
@@ -296,9 +296,9 @@ void test_optional_and_alignment() {
     fixture.args[1].opt = 0;
     fixture.args[2].opt = 0;
     std::array<f2c::HierSmemArgDescriptor, 2> arg_desc{{{3, 0}, {0, 1}}};
-    std::array<f2c::HierSmemDatDescriptor, 2> dat_desc{{
-        {f2c::HierSmemScalarType::f32},
-        {f2c::HierSmemScalarType::f64},
+    std::array<f2c::HierSmemScalarType, 2> dat_desc{{
+        f2c::HierSmemScalarType::f32,
+        f2c::HierSmemScalarType::f64,
     }};
     auto descriptor = f2c::HierSmemStagingDescriptor{
         arg_desc, dat_desc, -1};
@@ -362,11 +362,11 @@ void test_runtime_fallbacks() {
             {2, 2},
             {3, 3},
         }};
-        std::array<f2c::HierSmemDatDescriptor, 4> dat_desc{{
-            {f2c::HierSmemScalarType::f64},
-            {f2c::HierSmemScalarType::f64},
-            {f2c::HierSmemScalarType::i32},
-            {f2c::HierSmemScalarType::f32},
+        std::array<f2c::HierSmemScalarType, 4> dat_desc{{
+            f2c::HierSmemScalarType::f64,
+            f2c::HierSmemScalarType::f64,
+            f2c::HierSmemScalarType::i32,
+            f2c::HierSmemScalarType::f32,
         }};
         auto descriptor = f2c::HierSmemStagingDescriptor{
             arg_desc, dat_desc, -1};
@@ -395,8 +395,8 @@ struct ExclusiveFixture {
     op_map_core map{};
     std::vector<op_arg> args;
     std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
-    std::array<f2c::HierSmemDatDescriptor, 1> dat_desc{{
-        {f2c::HierSmemScalarType::f64},
+    std::array<f2c::HierSmemScalarType, 1> dat_desc{{
+        f2c::HierSmemScalarType::f64,
     }};
 
     ExclusiveFixture() {

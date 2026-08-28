@@ -22,8 +22,9 @@ struct ResolvedDat {
     op_dat dat = nullptr;
     int dimension = 0;
     int target_extent = 0;
+    // Doubles as the region's alignment: every supported scalar type has
+    // alignof == sizeof.
     std::size_t scalar_size = 0;
-    std::size_t scalar_alignment = 0;
 };
 
 struct ResolvedInput {
@@ -34,24 +35,19 @@ struct ResolvedInput {
     std::vector<ResolvedDat> dats;
 };
 
-struct ScalarLayout {
-    std::size_t size;
-    std::size_t alignment;
-};
-
-// Return the native layout represented by a translated scalar type.
-ScalarLayout scalar_layout(HierSmemScalarType type) {
+// Return the native size of a translated scalar type.
+std::size_t scalar_size(HierSmemScalarType type) {
     switch (type) {
     case HierSmemScalarType::f32:
-        return {sizeof(float), alignof(float)};
+        return sizeof(float);
     case HierSmemScalarType::f64:
-        return {sizeof(double), alignof(double)};
+        return sizeof(double);
     case HierSmemScalarType::i32:
-        return {sizeof(int), alignof(int)};
+        return sizeof(int);
     }
 
     assert(false);
-    return {};
+    return 0;
 }
 
 // Select and block-align the chunk size requested for this kernel.
@@ -93,12 +89,9 @@ HierSmemFallbackReason resolve_input(
     // Scalar layout is fixed by translation; runtime arguments supply the
     // active dat identity and dimension.
     for (std::size_t dat_index = 0; dat_index < descriptor.dats.size();
-         ++dat_index) {
-        auto layout = scalar_layout(descriptor.dats[dat_index].scalar_type);
-        auto& dat = resolved.dats[dat_index];
-        dat.scalar_size = layout.size;
-        dat.scalar_alignment = layout.alignment;
-    }
+         ++dat_index)
+        resolved.dats[dat_index].scalar_size =
+            scalar_size(descriptor.dats[dat_index]);
 
     // Resolve optional state and the runtime identities behind each group.
     std::vector<bool> staged_args(args.size(), false);
@@ -191,7 +184,7 @@ std::size_t calculate_shared_bytes(
         // Inactive groups keep their place with a zero-length region, so the
         // staged wrapper can walk this layout without branching on opt state.
         const auto& dat = resolved.dats[dat_index];
-        std::size_t alignment = dat.scalar_alignment;
+        std::size_t alignment = dat.scalar_size;
         shared_bytes = (shared_bytes + alignment - 1) & ~(alignment - 1);
         shared_bytes += touched[dat_index].size() *
                         static_cast<std::size_t>(dat.dimension) *
@@ -207,7 +200,7 @@ std::size_t alignment_slack(const ResolvedInput& resolved) {
     std::size_t slack = 0;
     for (std::size_t dat_index = 1; dat_index < resolved.dats.size();
          ++dat_index)
-        slack += resolved.dats[dat_index].scalar_alignment - 1;
+        slack += resolved.dats[dat_index].scalar_size - 1;
 
     return slack;
 }

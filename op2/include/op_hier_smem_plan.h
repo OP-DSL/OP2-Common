@@ -31,13 +31,10 @@ struct HierSmemArgDescriptor {
     int dat_index;
 };
 
-struct HierSmemDatDescriptor {
-    HierSmemScalarType scalar_type;
-};
-
 struct HierSmemStagingDescriptor {
     std::span<const HierSmemArgDescriptor> args;
-    std::span<const HierSmemDatDescriptor> dats;
+    // Scalar type of each staged dat group, in shared-region order.
+    std::span<const HierSmemScalarType> dats;
     int chunk_size_override = -1;
 };
 
