@@ -80,6 +80,9 @@ struct HierSmemPlanStatistics {
 struct HierSmemPlan {
     int selected_chunk_size = 0;
     int set_stride = 0;
+    // Lets the staged wrapper skip its seed pass, which would otherwise read
+    // every packed word back from global memory to find nothing.
+    int has_exclusive = 0;
 
     std::vector<int> source_offsets;
     std::vector<int> section_chunk_offsets;

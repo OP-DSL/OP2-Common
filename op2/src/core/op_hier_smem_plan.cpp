@@ -485,6 +485,7 @@ HierSmemPlanBuildResult build_hier_smem_plan(
     HierSmemPlan plan;
     build_candidate(resolved, sections, chunk_size, options.exclusive_flush,
                     plan);
+    plan.has_exclusive = plan.statistics.exclusive_owners > 0 ? 1 : 0;
     return {HierSmemFallbackReason::none, std::move(plan)};
 }
 
