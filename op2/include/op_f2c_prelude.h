@@ -32,9 +32,54 @@ DEVICE inline void trap() {
 #endif
 }
 
+/* Hierarchical shared-memory atomics control word, one per staged argument
+   and source element:
+
+     bits  0..29  block-local shared-memory slot
+     bit      30  owner, the reference that flushes the slot
+     bit      31  exclusive, owner may flush without a global atomic
+
+   The host planner writes these and both the offline and JIT staged wrappers
+   read them, so they are defined here where all three can see one copy. */
+using HierSmemStageWord = unsigned int;
+
+constexpr HierSmemStageWord hier_smem_slot_mask = 0x3fffffffu;
+constexpr HierSmemStageWord hier_smem_owner_bit = 0x40000000u;
+constexpr HierSmemStageWord hier_smem_exclusive_bit = 0x80000000u;
+
+// Encode a validated slot and its flush metadata into one device word.
+DEVICE constexpr HierSmemStageWord
+hier_smem_pack_stage_word(unsigned int slot, bool owner,
+                          bool exclusive = false) {
+    return slot | (owner ? hier_smem_owner_bit : 0u) |
+           (exclusive ? hier_smem_exclusive_bit : 0u);
+}
+
+// Extract the block-local slot from a packed device word.
+DEVICE constexpr unsigned int hier_smem_stage_slot(HierSmemStageWord word) {
+    return word & hier_smem_slot_mask;
+}
+
+// Test whether this source/argument reference owns the slot flush.
+DEVICE constexpr bool hier_smem_stage_owner(HierSmemStageWord word) {
+    return (word & hier_smem_owner_bit) != 0;
+}
+
+// Test whether an owner may flush without a global atomic.
+DEVICE constexpr bool hier_smem_stage_exclusive(HierSmemStageWord word) {
+    return (word & hier_smem_exclusive_bit) != 0;
+}
+
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
 using int64_t = long long int;
 using IndexType = int;
+
+// Avoids <type_traits> (not reliably available under NVRTC JIT compilation)
+template<typename U> struct is_const_type { static constexpr bool value = false; };
+template<typename U> struct is_const_type<const U> { static constexpr bool value = true; };
+
+template<bool B, typename R = void> struct enable_if {};
+template<typename R> struct enable_if<true, R> { using type = R; };
 
 template<typename T>
 struct Ptr {
@@ -44,8 +89,79 @@ struct Ptr {
     constexpr Ptr(T* data) : data{data} {}
     constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
 
+    // Excluded when T is already const, else this is a conversion to its own type (nvcc #554-D)
+    template<typename U = T, typename = typename enable_if<!is_const_type<U>::value>::type>
     constexpr operator Ptr<const T>() const { return Ptr<const T>{data, stride}; }
 };
+
+/* Hierarchical shared-memory staging helpers.
+
+   A staged wrapper carves one dense region per staged dat out of its dynamic
+   shared allocation, accumulates into it, then flushes each region's owners
+   back to global memory.  These keep that arithmetic in one reviewable place
+   instead of emitting it per dat and per argument from the template.
+
+   The AoS/SoA distinction never reaches them: a caller passes the global
+   element as a Ptr, whose stride already encodes the layout (1 for AoS, the
+   dat's SoA stride otherwise), exactly as the accumulation path does.
+
+   Thread indices are parameters rather than reads of threadIdx so that this
+   header stays compilable for the host, where the planner includes it. */
+
+// Carve the next region out of the shared buffer, advancing the cursor.
+// Every supported scalar type has alignof == sizeof, so one value does both.
+template<typename T>
+DEVICE inline T *hier_smem_region(char *&cursor, IndexType count,
+                                  IndexType dim) {
+    constexpr size_t alignment = sizeof(T);
+    cursor = (char *)(((size_t)cursor + (alignment - 1)) &
+                      ~(size_t)(alignment - 1));
+
+    T *base = (T *)cursor;
+    cursor += (size_t)count * (size_t)dim * sizeof(T);
+    return base;
+}
+
+// Cooperatively zero a region before accumulating into it.
+template<typename T>
+DEVICE inline void hier_smem_clear(T *region, IndexType elements,
+                                   IndexType lane, IndexType lanes) {
+    for (IndexType i = lane; i < elements; i += lanes)
+        region[i] = 0;
+}
+
+// Seed an exclusive owner's slot from its target's current value, so the
+// flush below can store rather than read-modify-write.
+template<typename T>
+DEVICE inline void hier_smem_seed(HierSmemStageWord word, Ptr<T> target,
+                                  T *region, IndexType count, IndexType dim) {
+    IndexType slot = (IndexType)hier_smem_stage_slot(word);
+    for (IndexType c = 0; c < dim; ++c)
+        region[slot + c * count] = target.data[c * target.stride];
+}
+
+#if defined(__CUDACC__) || defined(__HIPCC__)
+// Flush one owner's slot back to its target.  An exclusive owner is the only
+// reference to that target in its schedule section, and its slot was seeded
+// with the target's previous value, so it already holds the total and can be
+// stored outright; everything else has to add into whatever other blocks in
+// the section are contributing.
+template<typename T>
+DEVICE inline void hier_smem_flush(HierSmemStageWord word, Ptr<T> target,
+                                   const T *region, IndexType count,
+                                   IndexType dim) {
+    IndexType slot = (IndexType)hier_smem_stage_slot(word);
+
+    if (hier_smem_stage_exclusive(word)) {
+        for (IndexType c = 0; c < dim; ++c)
+            target.data[c * target.stride] = region[slot + c * count];
+    } else {
+        for (IndexType c = 0; c < dim; ++c)
+            atomicAdd(&target.data[c * target.stride],
+                      region[slot + c * count]);
+    }
+}
+#endif
 
 struct Extent {
     const IndexType lower;

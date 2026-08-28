@@ -31,11 +31,11 @@ extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
     {% endfor %}
 
     {% for const in app.consts() %}
-static {% if const.dim > 1 %}__device__{% else %}__constant__{% endif %} {{type_c(const)}} op2_const_{{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+[[maybe_unused]] static {% if const.dim > 1 %}__device__{% else %}__constant__{% endif %} {{type_c(const)}} op2_const_{{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
     {% endfor %}
 
     {% for const in app.consts() %}
-static uint64_t  op2_const_{{const.ptr}}_hash = 0;
+[[maybe_unused]] static uint64_t op2_const_{{const.ptr}}_hash = 0;
     {% endfor %}
 
 {% else %}
@@ -59,15 +59,6 @@ INCTXT(OP_F2C_PRELUDE, "op_f2c_prelude.h");
 #include <cstdio>
 
 namespace f2c = op::f2c;
-
-extern "C" {
-
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
-bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
-int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name);
-void setGblIncAtomic(bool enable);
-
-}
 
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
 #include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "c_hip" else "cuh"}}"
