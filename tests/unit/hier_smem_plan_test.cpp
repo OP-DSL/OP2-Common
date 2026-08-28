@@ -195,6 +195,43 @@ int stage_count(const f2c::HierSmemPlan& plan, std::size_t num_stage_dats,
     return plan.stage_counts[chunk * num_stage_dats + staged_dat];
 }
 
+// A chunk that spanned two schedule sections would be launched by whichever
+// section came first, so its later half would run before the halo wait or
+// after the globals had already been processed.  The planner chunks each
+// section separately to prevent that; this checks the resulting plan.
+void check_chunks_within_sections(
+    const f2c::HierSmemPlan& plan,
+    std::span<const f2c::ExecutionSection> sections) {
+    CHECK(plan.section_chunk_offsets.size() == sections.size() + 1);
+    CHECK(plan.section_chunk_offsets.front() == 0);
+    CHECK(plan.section_chunk_offsets.back() ==
+          static_cast<int>(plan.num_chunks()));
+
+    for (std::size_t section = 0; section < sections.size(); ++section) {
+        int first = plan.section_chunk_offsets[section];
+        int last = plan.section_chunk_offsets[section + 1];
+        CHECK(first <= last);
+
+        for (int chunk = first; chunk < last; ++chunk) {
+            int begin = plan.source_offsets[static_cast<std::size_t>(chunk)];
+            int end = plan.source_offsets[static_cast<std::size_t>(chunk) + 1];
+            CHECK(begin < end);
+            CHECK(begin >= sections[section].start);
+            CHECK(end <= sections[section].end);
+        }
+
+        // The section's chunks must also cover it exactly.
+        if (first < last) {
+            CHECK(plan.source_offsets[static_cast<std::size_t>(first)] ==
+                  sections[section].start);
+            CHECK(plan.source_offsets[static_cast<std::size_t>(last)] ==
+                  sections[section].end);
+        } else {
+            CHECK(sections[section].size() == 0);
+        }
+    }
+}
+
 void test_mixed_plan() {
     MixedFixture fixture;
     auto result = fixture.build();
@@ -238,6 +275,7 @@ void test_mixed_plan() {
 
     CHECK(plan.statistics.raw_references == 18);
     CHECK(plan.statistics.distinct_targets == 10);
+    check_chunks_within_sections(plan, fixture.sections);
 }
 
 void test_optional_and_alignment() {
@@ -398,6 +436,7 @@ void test_exclusive_within_one_section() {
     auto result = fixture.build(sections);
     CHECK(result);
     CHECK(result.plan->num_chunks() == 2);
+    check_chunks_within_sections(*result.plan, sections);
 
     auto owners = sources_with(*result.plan, result.plan->set_stride,
                                f2c::hier_smem_stage_owner);
@@ -425,6 +464,7 @@ void test_exclusive_is_per_section() {
     auto result = fixture.build(sections);
     CHECK(result);
     CHECK(result.plan->num_chunks() == 2);
+    check_chunks_within_sections(*result.plan, sections);
 
     auto exclusive = sources_with(*result.plan, result.plan->set_stride,
                                   f2c::hier_smem_stage_exclusive);

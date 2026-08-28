@@ -302,6 +302,42 @@ int main(int argc, char **argv) {
         CHECK(statistics.builds == 4);
         CHECK(statistics.uploads == 2);
 
+        // Reduction scratch is sized from the largest capped physical grid of
+        // any one section, never from the plan's total chunk count.  Splitting
+        // the set into two non-empty sections separates the two: each section
+        // is one chunk, so max_blocks must stay 1 even though the plan holds
+        // two chunks overall.
+        {
+            Fixture split;
+            split.source.core_size = 128;
+
+            f2c::KernelInfo split_info(
+                "f2c_hier_smem_split", "c_CUDA", "Atomics",
+                f2c::ExecutionPolicy::atomics(false),
+                "f2c_hier_smem_cache_baseline",
+                reinterpret_cast<const void *>(f2c_hier_smem_cache_baseline),
+                baseline_source);
+            split_info.register_staged_variant(
+                "f2c_hier_smem_cache_staged",
+                reinterpret_cast<const void *>(f2c_hier_smem_cache_staged),
+                staged_source, split.descriptor());
+
+            CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
+            auto split_result = split_info.invoke(
+                &split.source, split.args.data(), split.args.size(),
+                Bindings{output_d, split.shared_bytes() - 1},
+                f2c::KernelExecutionOptions::hierarchical_test());
+            CUDA_SAFE_CALL(gpuDeviceSynchronize());
+            CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
+                                     gpuMemcpyDeviceToHost));
+
+            CHECK(split_result.variant == f2c::KernelVariant::staged);
+            // The last launch is the second section: chunk 1 of 2.
+            CHECK(output[5] == 1);
+            CHECK(output[6] == 2);
+            CHECK(split_result.max_blocks == 1);
+        }
+
         CUDA_SAFE_CALL(gpuFree(output_d));
         output_d = nullptr;
         op_exit();
