@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <span>
 #include <vector>
 
 namespace f2c = op::f2c;
@@ -225,11 +226,14 @@ void test_mixed_plan() {
 
     for (int source = 0; source < 6; ++source) {
         CHECK(stage_word(plan, 3, source) == 0);
+        // Only an owner ever flushes, so only an owner may be exclusive.
         for (std::size_t staged_arg = 0;
              staged_arg < fixture.arg_desc.size();
-             ++staged_arg)
-            CHECK(!f2c::hier_smem_stage_exclusive(
-                stage_word(plan, staged_arg, source)));
+             ++staged_arg) {
+            auto word = stage_word(plan, staged_arg, source);
+            CHECK(!f2c::hier_smem_stage_exclusive(word) ||
+                  f2c::hier_smem_stage_owner(word));
+        }
     }
 
     CHECK(plan.statistics.raw_references == 18);
@@ -336,6 +340,121 @@ void test_runtime_fallbacks() {
     }
 }
 
+// One dat reached through one map, with a target layout chosen so that every
+// owner's expected exclusivity can be checked by hand:
+//
+//   source  0 1 2 3 | 4 5 6 7      chunk 0 = [0,4), chunk 1 = [4,8)
+//   target  0 0 1 1 | 1 2 2 3
+//
+// target 0 appears only in chunk 0, targets 2 and 3 only in chunk 1, and
+// target 1 spans both.  So the owners at sources 0, 5 and 7 are exclusive and
+// the owners at sources 2 and 4 are not.
+struct ExclusiveFixture {
+    op_set_core source{};
+    op_set_core target{};
+    op_dat_core dat{};
+    std::vector<int> map_values{0, 0, 1, 1, 1, 2, 2, 3};
+    op_map_core map{};
+    std::vector<op_arg> args;
+    std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
+    std::array<f2c::HierSmemDatDescriptor, 1> dat_desc{{
+        {f2c::HierSmemScalarType::f64},
+    }};
+
+    ExclusiveFixture() {
+        initialize_set(source, 8);
+        initialize_set(target, 4);
+        initialize_dat(dat, &target, 1, sizeof(double), "double");
+        initialize_map(map, &source, &target, map_values);
+        args.push_back(make_dat_arg(&dat, &map, 1, "double", sizeof(double)));
+    }
+
+    f2c::HierSmemPlanBuildResult build(
+        std::span<const f2c::ExecutionSection> sections,
+        bool exclusive = true) {
+        f2c::HierSmemPlanOptions options{4, 4, 1024, exclusive};
+        return f2c::build_hier_smem_plan(
+            &source, args, sections, {arg_desc, dat_desc, -1}, options);
+    }
+};
+
+// Collect the source elements whose word carries the given flag.
+std::vector<int> sources_with(const f2c::HierSmemPlan& plan, int stride,
+                              bool (*flag)(f2c::HierSmemStageWord)) {
+    std::vector<int> out;
+    for (int source = 0; source < stride; ++source) {
+        auto word = plan.stage_words[static_cast<std::size_t>(source)];
+        if (flag(word))
+            out.push_back(source);
+    }
+
+    return out;
+}
+
+void test_exclusive_within_one_section() {
+    ExclusiveFixture fixture;
+    std::array<f2c::ExecutionSection, 1> sections{{{0, 8}}};
+
+    auto result = fixture.build(sections);
+    CHECK(result);
+    CHECK(result.plan->num_chunks() == 2);
+
+    auto owners = sources_with(*result.plan, result.plan->set_stride,
+                               f2c::hier_smem_stage_owner);
+    auto exclusive = sources_with(*result.plan, result.plan->set_stride,
+                                  f2c::hier_smem_stage_exclusive);
+
+    CHECK((owners == std::vector<int>{0, 2, 4, 5, 7}));
+    CHECK((exclusive == std::vector<int>{0, 5, 7}));
+    CHECK(result.plan->statistics.distinct_targets == 5);
+    CHECK(result.plan->statistics.exclusive_owners == 3);
+
+    // Every exclusive word is also an owner; the flush relies on that.
+    for (int source : exclusive)
+        CHECK(f2c::hier_smem_stage_owner(
+            result.plan->stage_words[static_cast<std::size_t>(source)]));
+}
+
+void test_exclusive_is_per_section() {
+    ExclusiveFixture fixture;
+    // The same chunk boundary as above, but now the two chunks are separate
+    // schedule sections.  Their launches are ordered on the stream, so target
+    // 1 appearing in both no longer forces an atomic in either.
+    std::array<f2c::ExecutionSection, 2> sections{{{0, 4}, {4, 8}}};
+
+    auto result = fixture.build(sections);
+    CHECK(result);
+    CHECK(result.plan->num_chunks() == 2);
+
+    auto exclusive = sources_with(*result.plan, result.plan->set_stride,
+                                  f2c::hier_smem_stage_exclusive);
+    CHECK((exclusive == std::vector<int>{0, 2, 4, 5, 7}));
+    CHECK(result.plan->statistics.exclusive_owners == 5);
+}
+
+void test_exclusive_can_be_disabled() {
+    ExclusiveFixture fixture;
+    std::array<f2c::ExecutionSection, 1> sections{{{0, 8}}};
+
+    auto enabled = fixture.build(sections, true);
+    auto disabled = fixture.build(sections, false);
+    CHECK(enabled);
+    CHECK(disabled);
+
+    CHECK(disabled.plan->statistics.exclusive_owners == 0);
+    CHECK(sources_with(*disabled.plan, disabled.plan->set_stride,
+                       f2c::hier_smem_stage_exclusive).empty());
+
+    // Disabling exclusivity must change nothing but that one bit.
+    CHECK(enabled.plan->source_offsets == disabled.plan->source_offsets);
+    CHECK(enabled.plan->stage_counts == disabled.plan->stage_counts);
+    CHECK(enabled.plan->statistics.distinct_targets ==
+          disabled.plan->statistics.distinct_targets);
+    for (std::size_t i = 0; i < disabled.plan->stage_words.size(); ++i)
+        CHECK((enabled.plan->stage_words[i] & ~f2c::hier_smem_exclusive_bit) ==
+              disabled.plan->stage_words[i]);
+}
+
 void test_packed_word_boundaries() {
     constexpr auto word = f2c::hier_smem_pack_stage_word(
         f2c::hier_smem_slot_mask, true, true);
@@ -375,6 +494,9 @@ int main() {
         test_mixed_plan();
         test_optional_and_alignment();
         test_chunk_sizes_and_clamping();
+        test_exclusive_within_one_section();
+        test_exclusive_is_per_section();
+        test_exclusive_can_be_disabled();
         test_runtime_fallbacks();
         test_packed_word_boundaries();
         test_plan_owner_lifecycle();

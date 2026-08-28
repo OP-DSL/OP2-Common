@@ -201,16 +201,30 @@ true
             unsigned int slot = f2c::hier_smem_stage_slot(word);
             int target = {{map_lookup(arg)}};
 
-            for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
+            // An exclusive owner is the only reference to this target in
+            // its schedule section, so nothing else can be writing it while
+            // this block runs and a plain read-modify-write is enough.
+            if (f2c::hier_smem_stage_exclusive(word)) {
+                for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
 {% if dat is soa %}
-                atomicAdd(
-                    &dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d],
-                    op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
+                    dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d] +=
+                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count];
 {% else %}
-                atomicAdd(
-                    &dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c],
-                    op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
+                    dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c] +=
+                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count];
 {% endif %}
+            } else {
+                for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
+{% if dat is soa %}
+                    atomicAdd(
+                        &dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d],
+                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
+{% else %}
+                    atomicAdd(
+                        &dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c],
+                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
+{% endif %}
+            }
         }
 {% endmacro %}
 

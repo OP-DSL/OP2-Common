@@ -251,7 +251,10 @@ int main(int argc, char **argv) {
         CHECK(output[0] == 0);
         CHECK(output[1] == 256);
         CHECK(output[2] == 4);
-        CHECK(output[3] == static_cast<int>(f2c::hier_smem_owner_bit));
+        // This fixture is a single chunk, so its section reaches every target
+        // exactly once and each owner flushes without a global atomic.
+        CHECK(output[3] == static_cast<int>(f2c::hier_smem_owner_bit |
+                                            f2c::hier_smem_exclusive_bit));
         CHECK(output[4] == 0);
         CHECK(output[5] == 0);
         CHECK(output[6] == 1);
