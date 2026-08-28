@@ -183,6 +183,44 @@ true
     {%- endif -%}
 {%- endmacro -%}
 
+{#- The global element an owner flushes to, for component c. -#}
+{%- macro hier_smem_global(arg, dat) -%}
+    {%- if dat is soa -%}
+dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d]
+    {%- else -%}
+dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c]
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- Seed one staged region through the single owner of each of its slots. -#}
+{% macro hier_smem_init(arg, index) %}
+{% set dat = lh.dat(arg) %}
+{% set group = hier_smem.dat_ids|index(arg.dat_id) %}
+        for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
+             n += blockDim.x) {
+{% if arg is opt %}
+            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) == 0)
+                break;
+
+{% endif %}
+            f2c::HierSmemStageWord word = stage_words[{{index}} * stride + n];
+            if (!f2c::hier_smem_stage_owner(word))
+                continue;
+
+            if (!f2c::hier_smem_stage_exclusive(word))
+                continue;
+
+            unsigned int slot = f2c::hier_smem_stage_slot(word);
+            // Nothing else in this section touches an exclusive target, so
+            // starting from its current value lets the flush be a plain store.
+            // The load lands here, where the accumulation below hides it.
+            int target = {{map_lookup(arg)}};
+            for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
+                op2_stage{{group}}[slot + c * op2_stage{{group}}_count] =
+                    {{hier_smem_global(arg, dat)}};
+        }
+{% endmacro %}
+
 {#- One staged increment flushed back to its global target. -#}
 {% macro hier_smem_flush(arg, index) %}
 {% set dat = lh.dat(arg) %}
@@ -201,29 +239,17 @@ true
             unsigned int slot = f2c::hier_smem_stage_slot(word);
             int target = {{map_lookup(arg)}};
 
-            // An exclusive owner is the only reference to this target in
-            // its schedule section, so nothing else can be writing it while
-            // this block runs and a plain read-modify-write is enough.
+            // An exclusive slot was seeded with the target's old value, so
+            // it already holds the total and needs no read-modify-write here.
             if (f2c::hier_smem_stage_exclusive(word)) {
                 for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
-{% if dat is soa %}
-                    dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d] +=
+                    {{hier_smem_global(arg, dat)}} =
                         op2_stage{{group}}[slot + c * op2_stage{{group}}_count];
-{% else %}
-                    dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c] +=
-                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count];
-{% endif %}
             } else {
                 for (int c = 0; c < {{dat_dim_w(dat)}}; ++c)
-{% if dat is soa %}
                     atomicAdd(
-                        &dat{{arg.dat_id}}[target + c * op2_stride_dat{{arg.dat_id}}_d],
+                        &{{hier_smem_global(arg, dat)}},
                         op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
-{% else %}
-                    atomicAdd(
-                        &dat{{arg.dat_id}}[target * {{dat_dim_w(dat)}} + c],
-                        op2_stage{{group}}[slot + c * op2_stage{{group}}_count]);
-{% endif %}
             }
         }
 {% endmacro %}
@@ -269,6 +295,18 @@ true
             op2_stage{{loop.index0}}[i] = 0;
     {% endfor %}
         __syncthreads();
+
+        // Seed the exclusive slots from their targets' current values so the
+        // flush can store rather than read-modify-write.  The load lands here,
+        // where the accumulation below hides its latency.  Skipped wholesale
+        // when the plan has no exclusive owner, since the scan would otherwise
+        // re-read every packed word from global memory to find nothing.
+        if (has_exclusive) {
+    {% for arg in args_hier_smem %}
+{{- hier_smem_init(arg, loop.index0)}}
+    {% endfor %}
+            __syncthreads();
+        }
 
         for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
              n += blockDim.x) {
@@ -339,7 +377,8 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     const unsigned int *__restrict stage_words,
     const int *__restrict stage_counts,
     const int chunk_begin,
-    const int chunk_end
+    const int chunk_end,
+    const int has_exclusive
     {% endif %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
@@ -486,7 +525,8 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
             (void *)&launch.staged.plan.stage_words,
             (void *)&launch.staged.plan.stage_counts,
             (void *)&launch.staged.chunk_begin,
-            (void *)&launch.staged.chunk_end
+            (void *)&launch.staged.chunk_end,
+            (void *)&launch.staged.has_exclusive
     {% endif %}
 {%- endmacro %}
 

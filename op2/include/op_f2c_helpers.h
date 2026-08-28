@@ -529,6 +529,7 @@ struct LaunchContext {
         HierSmemPlanDeviceView plan;
         int chunk_begin;
         int chunk_end;
+        int has_exclusive;
     } staged;
 };
 
@@ -1466,6 +1467,8 @@ public:
                     launch.staged.chunk_end =
                         execution.hier_smem_plan
                             ->section_chunk_offsets[section_index + 1];
+                    launch.staged.has_exclusive =
+                        execution.hier_smem_plan->has_exclusive;
                 }
 
                 int num_blocks = execution.num_blocks(section_index);
