@@ -2811,16 +2811,220 @@ op_dat op_mpi_get_data(op_dat dat) {
 }
 
 /*******************************************************************************
- * Routine to put (modify) a the data held in a distributed op_dat
+ * Routine to put user data held in the original block partition into a
+ * distributed op_dat (reverse of op_mpi_get_data)
  *******************************************************************************/
 
-void op_mpi_put_data(op_dat dat) {
-  (void)dat;
-  // the op_dat in parameter list is modified
-  // need the orig_part_range and OP_part_list
+void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
+  int my_rank, comm_size;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  // need to do some checks to see if the input op_dat has the same dimensions
-  // and other values as the internal op_dat
+  char *src = (char *)ptr;
+
+  // No partitioning information: data is already in declaration order
+  if (orig_part_range == NULL || OP_part_list == NULL) {
+    if (local_size != (size_t)dat->set->size) {
+      printf("Error: op_mpi_put_data local_size %zu does not match set size %d "
+             "for dat %s\n",
+             local_size, dat->set->size, dat->name);
+      MPI_Abort(OP_MPI_WORLD, 2);
+    }
+    if (local_size > 0)
+      memcpy(dat->data, src, local_size * (size_t)dat->size);
+    dat->dirtybit = 1;
+    dat->dirty_hd = 1;
+    return;
+  }
+
+  idx_g_t orig_start = orig_part_range[dat->set->index][2 * my_rank];
+  idx_g_t orig_end = orig_part_range[dat->set->index][2 * my_rank + 1];
+  size_t orig_size =
+      (orig_end >= orig_start) ? (size_t)(orig_end - orig_start + 1) : 0;
+
+  if (local_size != orig_size) {
+    printf("Error: op_mpi_put_data local_size %zu does not match original "
+           "partition size %zu for dat %s on rank %d\n",
+           local_size, orig_size, dat->name, my_rank);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
+
+  //
+  // for each currently owned element, find the original rank and local index
+  //
+  part p = OP_part_list[dat->set->index];
+  int *orig_rank = (int *)xmalloc(sizeof(int) * dat->set->size);
+  int *orig_local = (int *)xmalloc(sizeof(int) * dat->set->size);
+
+  for (int i = 0; i < dat->set->size; i++) {
+    orig_rank[i] = get_partition(p->g_index[i], orig_part_range[dat->set->index],
+                                 &orig_local[i], comm_size, dat->set);
+  }
+
+  halo_list pe_list;
+  halo_list pi_list;
+
+  //
+  // create export list: current-local elements that originally belonged
+  // elsewhere (we need to receive data for these from the original ranks)
+  //
+  int count = 0;
+  int cap = 1000;
+  int *temp_list = (int *)xmalloc(cap * sizeof(int));
+
+  for (int i = 0; i < dat->set->size; i++) {
+    if (orig_rank[i] != my_rank) {
+      if (count >= cap) {
+        cap = cap * 2;
+        temp_list = (int *)xrealloc(temp_list, cap * sizeof(int));
+      }
+      temp_list[count++] = orig_rank[i];
+      temp_list[count++] = i;
+    } else {
+      memcpy(&dat->data[(size_t)dat->size * i],
+             &src[(size_t)dat->size * orig_local[i]], dat->size);
+    }
+  }
+
+  pe_list = (halo_list)xmalloc(sizeof(halo_list_core));
+  create_export_list(dat->set, temp_list, pe_list, count, comm_size, my_rank);
+  op_free(temp_list);
+
+  //
+  // create import list: original ranks learn which current ranks need their data
+  //
+  int *neighbors, *sizes;
+  int ranks_size;
+  MPI_Request *request_send;
+
+  ranks_size = 0;
+  neighbors = (int *)xmalloc(comm_size * sizeof(int));
+  sizes = (int *)xmalloc(comm_size * sizeof(int));
+
+  find_neighbors_set(pe_list, neighbors, sizes, &ranks_size, my_rank, comm_size,
+                     OP_MPI_WORLD);
+  request_send =
+      (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
+
+  cap = 0;
+  count = 0;
+
+  for (int i = 0; i < pe_list->ranks_size; i++) {
+    int *sbuf = &pe_list->list[pe_list->disps[i]];
+    MPI_Isend(sbuf, pe_list->sizes[i], get_mpi_type(sbuf), pe_list->ranks[i], 1,
+              OP_MPI_WORLD, &request_send[i]);
+  }
+
+  for (int i = 0; i < ranks_size; i++)
+    cap = cap + sizes[i];
+  temp_list = (int *)xmalloc(cap * sizeof(int));
+
+  for (int i = 0; i < ranks_size; i++) {
+    int *rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
+    MPI_Recv(rbuf, sizes[i], get_mpi_type(rbuf), neighbors[i], 1, OP_MPI_WORLD,
+             MPI_STATUS_IGNORE);
+    memcpy(&temp_list[count], (void *)&rbuf[0], sizes[i] * sizeof(int));
+    count = count + sizes[i];
+    op_free(rbuf);
+  }
+
+  MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+  pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
+  create_import_list(dat->set, temp_list, pi_list, count, neighbors, sizes,
+                     ranks_size, comm_size, my_rank);
+
+  //
+  // send original local indices of requested elements to the original ranks
+  //
+  int **sbuf_idx = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
+
+  for (int i = 0; i < pe_list->ranks_size; i++) {
+    sbuf_idx[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
+    for (int j = 0; j < pe_list->sizes[i]; j++) {
+      int index = pe_list->list[pe_list->disps[i] + j];
+      sbuf_idx[i][j] = orig_local[index];
+    }
+    MPI_Isend(sbuf_idx[i], pe_list->sizes[i], get_mpi_type(sbuf_idx[i]),
+              pe_list->ranks[i], dat->index, OP_MPI_WORLD, &request_send[i]);
+  }
+
+  int *rbuf_idx = (int *)xmalloc(sizeof(int) * pi_list->size);
+
+  for (int i = 0; i < pi_list->ranks_size; i++) {
+    MPI_Recv(&rbuf_idx[pi_list->disps[i]], pi_list->sizes[i],
+             get_mpi_type(rbuf_idx), pi_list->ranks[i], dat->index, OP_MPI_WORLD,
+             MPI_STATUS_IGNORE);
+  }
+  MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+  for (int i = 0; i < pe_list->ranks_size; i++)
+    op_free(sbuf_idx[i]);
+  op_free(sbuf_idx);
+
+  //
+  // original ranks pack user data and send it to the current owners
+  //
+  char **sbuf_char = (char **)xmalloc(pi_list->ranks_size * sizeof(char *));
+  MPI_Request *request_send_data =
+      (MPI_Request *)xmalloc(pi_list->ranks_size * sizeof(MPI_Request));
+
+  for (int i = 0; i < pi_list->ranks_size; i++) {
+    sbuf_char[i] =
+        (char *)xmalloc((size_t)pi_list->sizes[i] * (size_t)dat->size);
+    for (int j = 0; j < pi_list->sizes[i]; j++) {
+      int ol = rbuf_idx[pi_list->disps[i] + j];
+      if (ol < 0 || (size_t)ol >= orig_size) {
+        printf("Error: op_mpi_put_data original local index %d out of range "
+               "(orig_size %zu) for dat %s on rank %d\n",
+               ol, orig_size, dat->name, my_rank);
+        MPI_Abort(OP_MPI_WORLD, 2);
+      }
+      memcpy(&sbuf_char[i][j * (size_t)dat->size],
+             &src[(size_t)dat->size * ol], dat->size);
+    }
+    MPI_Isend(sbuf_char[i], (size_t)dat->size * pi_list->sizes[i], MPI_CHAR,
+              pi_list->ranks[i], dat->index, OP_MPI_WORLD,
+              &request_send_data[i]);
+  }
+
+  char *rbuf_char = (char *)xmalloc((size_t)dat->size * pe_list->size);
+  for (int i = 0; i < pe_list->ranks_size; i++) {
+    MPI_Recv(&rbuf_char[pe_list->disps[i] * (size_t)dat->size],
+             (size_t)dat->size * pe_list->sizes[i], MPI_CHAR, pe_list->ranks[i],
+             dat->index, OP_MPI_WORLD, MPI_STATUS_IGNORE);
+  }
+
+  MPI_Waitall(pi_list->ranks_size, request_send_data, MPI_STATUSES_IGNORE);
+  for (int i = 0; i < pi_list->ranks_size; i++)
+    op_free(sbuf_char[i]);
+  op_free(sbuf_char);
+  op_free(request_send_data);
+  op_free(rbuf_idx);
+
+  // scatter received data into current local positions
+  for (int i = 0; i < pe_list->size; i++) {
+    int index = pe_list->list[i];
+    memcpy(&dat->data[(size_t)dat->size * index],
+           &rbuf_char[(size_t)dat->size * i], dat->size);
+  }
+  op_free(rbuf_char);
+
+  // cleanup
+  op_free(orig_rank);
+  op_free(orig_local);
+  op_free(pe_list->ranks);
+  op_free(pe_list->disps);
+  op_free(pe_list->sizes);
+  op_free(pe_list->list);
+  op_free(pe_list);
+  op_free(pi_list->ranks);
+  op_free(pi_list->disps);
+  op_free(pi_list->sizes);
+  op_free(pi_list->list);
+  op_free(pi_list);
+  op_free(request_send);
+
+  dat->dirtybit = 1;
+  dat->dirty_hd = 1;
 }
 
 /*******************************************************************************

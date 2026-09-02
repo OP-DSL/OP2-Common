@@ -261,7 +261,10 @@ void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name);
 
 void print_dat_to_binfile_mpi(op_dat dat, const char *file_name);
 
-void op_mpi_put_data(op_dat dat);
+/* Scatter user data from the original block partition into the current
+ * (repartitioned) layout of dat. ptr holds local_size elements, which must
+ * match this rank's original block-partitioned set size. */
+void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size);
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
                  MPI_Fint local);
