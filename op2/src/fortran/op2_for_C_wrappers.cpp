@@ -66,6 +66,8 @@
  * Fortran specific core library functions
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <op_lib_c.h>
@@ -504,6 +506,19 @@ op_dat op_mpi_get_data(op_dat dat) {
   temp_dat->size = dat->size;
 
   return temp_dat;
+}
+
+void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
+  if (local_size != (size_t)dat->set->size) {
+    printf("Error: op_mpi_put_data local_size %zu does not match set size %d "
+           "for dat %s\n",
+           local_size, dat->set->size, dat->name);
+    exit(2);
+  }
+  if (local_size > 0)
+    memcpy(dat->data, ptr, local_size * (size_t)dat->size);
+  dat->dirtybit = 1;
+  dat->dirty_hd = 1;
 }
 
 void op_mpi_free_data(op_dat dat) {

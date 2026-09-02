@@ -699,6 +699,17 @@ module OP2_Fortran_Declarations
 
    end subroutine op_mpi_free_data_c
 
+   subroutine op_mpi_put_data_c(dat, ptr, local_size) BIND(C, name='op_mpi_put_data')
+
+     use, intrinsic :: ISO_C_BINDING
+     import :: op_dat_core
+
+     type(op_dat_core) :: dat
+     type(c_ptr), value :: ptr
+     integer(kind=c_size_t), value :: local_size
+
+   end subroutine op_mpi_put_data_c
+
    subroutine printFirstDatPosition (data) BIND(C,name='printFirstDatPosition')
      import :: op_dat_core
 
@@ -1297,6 +1308,10 @@ end function INTF_DECL_DAT_OVERLAY(TYPE, DIM)
   interface op_fetch_data
     module procedure op_fetch_data_real_8, op_fetch_data_real_4, op_fetch_data_integer_4
   end interface op_fetch_data
+
+  interface op_mpi_put_data
+    module procedure op_mpi_put_data_real_8, op_mpi_put_data_real_4, op_mpi_put_data_integer_4
+  end interface op_mpi_put_data
 
   interface op_fetch_data_idx
     module procedure op_fetch_data_idx_real_8, op_fetch_data_idx_real_4, op_fetch_data_idx_integer_4
@@ -2274,6 +2289,45 @@ contains
     call op_mpi_free_data_c(dat%dataCPtr)
 
   end subroutine op_mpi_free_data
+
+  subroutine op_mpi_put_data_real_8(dat, data, local_size)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(op_dat) :: dat
+    real(8), dimension(*), target :: data
+    integer, intent(in) :: local_size
+
+    call op_mpi_put_data_c(dat%dataPtr, c_loc(data), int(local_size, kind=c_size_t))
+
+  end subroutine op_mpi_put_data_real_8
+
+  subroutine op_mpi_put_data_real_4(dat, data, local_size)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(op_dat) :: dat
+    real, dimension(*), target :: data
+    integer, intent(in) :: local_size
+
+    call op_mpi_put_data_c(dat%dataPtr, c_loc(data), int(local_size, kind=c_size_t))
+
+  end subroutine op_mpi_put_data_real_4
+
+  subroutine op_mpi_put_data_integer_4(dat, data, local_size)
+
+    use, intrinsic :: ISO_C_BINDING
+    implicit none
+
+    type(op_dat) :: dat
+    integer(4), dimension(*), target :: data
+    integer, intent(in) :: local_size
+
+    call op_mpi_put_data_c(dat%dataPtr, c_loc(data), int(local_size, kind=c_size_t))
+
+  end subroutine op_mpi_put_data_integer_4
 
   subroutine op_print (line)
 
