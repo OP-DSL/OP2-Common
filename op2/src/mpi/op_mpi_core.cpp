@@ -2891,7 +2891,8 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   op_free(temp_list);
 
   //
-  // create import list: original ranks learn which current ranks need their data
+  // create import list: send each original rank the original local indices it
+  // must supply, so pi_list->list is directly the pack list for the data below
   //
   int *neighbors, *sizes;
   int ranks_size;
@@ -2909,10 +2910,13 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   cap = 0;
   count = 0;
 
+  int **sbuf_idx = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
   for (int i = 0; i < pe_list->ranks_size; i++) {
-    int *sbuf = &pe_list->list[pe_list->disps[i]];
-    MPI_Isend(sbuf, pe_list->sizes[i], get_mpi_type(sbuf), pe_list->ranks[i], 1,
-              OP_MPI_WORLD, &request_send[i]);
+    sbuf_idx[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
+    for (int j = 0; j < pe_list->sizes[i]; j++)
+      sbuf_idx[i][j] = orig_local[pe_list->list[pe_list->disps[i] + j]];
+    MPI_Isend(sbuf_idx[i], pe_list->sizes[i], get_mpi_type(sbuf_idx[i]),
+              pe_list->ranks[i], 1, OP_MPI_WORLD, &request_send[i]);
   }
 
   for (int i = 0; i < ranks_size; i++)
@@ -2929,36 +2933,12 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   }
 
   MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-  pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_import_list(dat->set, temp_list, pi_list, count, neighbors, sizes,
-                     ranks_size, comm_size, my_rank);
-
-  //
-  // send original local indices of requested elements to the original ranks
-  //
-  int **sbuf_idx = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
-
-  for (int i = 0; i < pe_list->ranks_size; i++) {
-    sbuf_idx[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
-    for (int j = 0; j < pe_list->sizes[i]; j++) {
-      int index = pe_list->list[pe_list->disps[i] + j];
-      sbuf_idx[i][j] = orig_local[index];
-    }
-    MPI_Isend(sbuf_idx[i], pe_list->sizes[i], get_mpi_type(sbuf_idx[i]),
-              pe_list->ranks[i], dat->index, OP_MPI_WORLD, &request_send[i]);
-  }
-
-  int *rbuf_idx = (int *)xmalloc(sizeof(int) * pi_list->size);
-
-  for (int i = 0; i < pi_list->ranks_size; i++) {
-    MPI_Recv(&rbuf_idx[pi_list->disps[i]], pi_list->sizes[i],
-             get_mpi_type(rbuf_idx), pi_list->ranks[i], dat->index, OP_MPI_WORLD,
-             MPI_STATUS_IGNORE);
-  }
-  MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
   for (int i = 0; i < pe_list->ranks_size; i++)
     op_free(sbuf_idx[i]);
   op_free(sbuf_idx);
+  pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
+  create_import_list(dat->set, temp_list, pi_list, count, neighbors, sizes,
+                     ranks_size, comm_size, my_rank);
 
   //
   // original ranks pack user data and send it to the current owners
@@ -2971,7 +2951,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     sbuf_char[i] =
         (char *)xmalloc((size_t)pi_list->sizes[i] * (size_t)dat->size);
     for (int j = 0; j < pi_list->sizes[i]; j++) {
-      int ol = rbuf_idx[pi_list->disps[i] + j];
+      int ol = pi_list->list[pi_list->disps[i] + j];
       if (ol < 0 || (size_t)ol >= orig_size) {
         printf("Error: op_mpi_put_data original local index %d out of range "
                "(orig_size %zu) for dat %s on rank %d\n",
@@ -2998,7 +2978,6 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     op_free(sbuf_char[i]);
   op_free(sbuf_char);
   op_free(request_send_data);
-  op_free(rbuf_idx);
 
   // scatter received data into current local positions
   for (int i = 0; i < pe_list->size; i++) {
