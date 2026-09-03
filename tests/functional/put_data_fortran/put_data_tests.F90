@@ -30,7 +30,7 @@ program put_data_tests_fortran
   real(8), dimension(:), allocatable, target :: n_out1, n_out3, e_out4
   real(8), dimension(:), allocatable, target :: e_gath2
   real(8), dimension(:), allocatable, target :: put_n1, put_n3, put_e4
-  real(8), dimension(:), allocatable :: fetched
+  real(8), dimension(:), allocatable :: want_g2
 
   integer(4) :: g_node, g_nedge
   integer(4) :: orig_nnode, orig_nedge
@@ -117,97 +117,49 @@ program put_data_tests_fortran
     end do
   end do
 
+  ! gather2 over edge g reads nodes g and g + 1 of pn_dat1
+  allocate(want_g2(orig_nedge * 2))
+  do i = 0, orig_nedge - 1
+    g = edge_start + i
+    want_g2(i * 2 + 1) = real(g + 1, 8) * 17.0d0
+    want_g2(i * 2 + 2) = real(g + 2, 8) * 17.0d0
+  end do
+
   call op_mpi_put_data(pn_dat1, put_n1, orig_nnode)
   call op_mpi_put_data(pn_dat3, put_n3, orig_nnode)
   call op_mpi_put_data(pe_dat4, put_e4, orig_nedge)
 
-  allocate(fetched(orig_nnode))
-  call op_fetch_data(pn_dat1, fetched)
-  do i = 1, orig_nnode
-    call check(abs(fetched(i) - put_n1(i)) < tol, i, my_rank, &
-      "put/fetch dim=1 nodes failed")
-  end do
-  write(*,*) "put/fetch dim=1 nodes passed [rank", my_rank, "]"
-  deallocate(fetched)
+  call check_fetch(pn_dat1, put_n1, orig_nnode, my_rank, "put/fetch dim=1 nodes")
+  call check_fetch(pn_dat3, put_n3, orig_nnode * 3, my_rank, "put/fetch dim=3 nodes")
+  call check_fetch(pe_dat4, put_e4, orig_nedge * 4, my_rank, "put/fetch dim=4 edges")
 
-  allocate(fetched(orig_nnode * 3))
-  call op_fetch_data(pn_dat3, fetched)
-  do i = 1, orig_nnode * 3
-    call check(abs(fetched(i) - put_n3(i)) < tol, i, my_rank, &
-      "put/fetch dim=3 nodes failed")
-  end do
-  write(*,*) "put/fetch dim=3 nodes passed [rank", my_rank, "]"
-  deallocate(fetched)
-
-  allocate(fetched(orig_nedge * 4))
-  call op_fetch_data(pe_dat4, fetched)
-  do i = 1, orig_nedge * 4
-    call check(abs(fetched(i) - put_e4(i)) < tol, i, my_rank, &
-      "put/fetch dim=4 edges failed")
-  end do
-  write(*,*) "put/fetch dim=4 edges passed [rank", my_rank, "]"
-  deallocate(fetched)
-
+  ! Direct kernel reads after put (covers the host -> device upload)
   call op_par_loop_2(copy1, nodes, &
     op_arg_dat(pn_out1, -1, OP_ID, 1, "real(8)", OP_WRITE), &
     op_arg_dat(pn_dat1, -1, OP_ID, 1, "real(8)", OP_READ))
-
-  allocate(fetched(orig_nnode))
-  call op_fetch_data(pn_out1, fetched)
-  do i = 1, orig_nnode
-    call check(abs(fetched(i) - put_n1(i)) < tol, i, my_rank, &
-      "kernel after put dim=1 nodes failed")
-  end do
-  write(*,*) "kernel after put dim=1 nodes passed [rank", my_rank, "]"
-  deallocate(fetched)
+  call check_fetch(pn_out1, put_n1, orig_nnode, my_rank, "kernel after put dim=1 nodes")
 
   call op_par_loop_2(copy3, nodes, &
     op_arg_dat(pn_out3, -1, OP_ID, 3, "real(8)", OP_WRITE), &
     op_arg_dat(pn_dat3, -1, OP_ID, 3, "real(8)", OP_READ))
-
-  allocate(fetched(orig_nnode * 3))
-  call op_fetch_data(pn_out3, fetched)
-  do i = 1, orig_nnode * 3
-    call check(abs(fetched(i) - put_n3(i)) < tol, i, my_rank, &
-      "kernel after put dim=3 nodes failed")
-  end do
-  write(*,*) "kernel after put dim=3 nodes passed [rank", my_rank, "]"
-  deallocate(fetched)
+  call check_fetch(pn_out3, put_n3, orig_nnode * 3, my_rank, "kernel after put dim=3 nodes")
 
   call op_par_loop_2(copy4, edges, &
     op_arg_dat(pe_out4, -1, OP_ID, 4, "real(8)", OP_WRITE), &
     op_arg_dat(pe_dat4, -1, OP_ID, 4, "real(8)", OP_READ))
+  call check_fetch(pe_out4, put_e4, orig_nedge * 4, my_rank, "kernel after put dim=4 edges")
 
-  allocate(fetched(orig_nedge * 4))
-  call op_fetch_data(pe_out4, fetched)
-  do i = 1, orig_nedge * 4
-    call check(abs(fetched(i) - put_e4(i)) < tol, i, my_rank, &
-      "kernel after put dim=4 edges failed")
-  end do
-  write(*,*) "kernel after put dim=4 edges passed [rank", my_rank, "]"
-  deallocate(fetched)
-
-  ! Indirect read after put: halos must carry the put values even though they
-  ! were exchanged and clean before the put
+  ! Indirect read after put: the halos must carry the put values even though
+  ! they were exchanged and clean at the time of the put
   call op_par_loop_3(gather2, edges, &
     op_arg_dat(pe_gath2, -1, OP_ID, 2, "real(8)", OP_WRITE), &
     op_arg_dat(pn_dat1, 1, m_e2n, 1, "real(8)", OP_READ), &
     op_arg_dat(pn_dat1, 2, m_e2n, 1, "real(8)", OP_READ))
+  call check_fetch(pe_gath2, want_g2, orig_nedge * 2, my_rank, "indirect read after put")
 
-  allocate(fetched(orig_nedge * 2))
-  call op_fetch_data(pe_gath2, fetched)
-  do i = 0, orig_nedge - 1
-    ! edge g joins nodes g and g + 1
-    g = edge_start + i
-    call check(abs(fetched(i * 2 + 1) - real(g + 1, 8) * 17.0d0) < tol, i, my_rank, &
-      "indirect read after put failed")
-    call check(abs(fetched(i * 2 + 2) - real(g + 2, 8) * 17.0d0) < tol, i, my_rank, &
-      "indirect read after put (halo) failed")
-  end do
-  write(*,*) "indirect read after put passed [rank", my_rank, "]"
-  deallocate(fetched)
-
-  ! Put over a dat whose device copy is the newer one
+  ! Put over a dat whose device copy is the newer one.
+  ! Do not fetch pn_dat1 between the poison loop and the put: a fetch clears
+  ! dirty_hd, which is the very state this is meant to put over.
   call op_par_loop_1(poison, nodes, &
     op_arg_dat(pn_dat1, -1, OP_ID, 1, "real(8)", OP_WRITE))
 
@@ -217,18 +169,8 @@ program put_data_tests_fortran
     op_arg_dat(pe_gath2, -1, OP_ID, 2, "real(8)", OP_WRITE), &
     op_arg_dat(pn_dat1, 1, m_e2n, 1, "real(8)", OP_READ), &
     op_arg_dat(pn_dat1, 2, m_e2n, 1, "real(8)", OP_READ))
-
-  allocate(fetched(orig_nedge * 2))
-  call op_fetch_data(pe_gath2, fetched)
-  do i = 0, orig_nedge - 1
-    g = edge_start + i
-    call check(abs(fetched(i * 2 + 1) - real(g + 1, 8) * 17.0d0) < tol, i, my_rank, &
-      "put over device-resident data failed")
-    call check(abs(fetched(i * 2 + 2) - real(g + 2, 8) * 17.0d0) < tol, i, my_rank, &
-      "put over device-resident data (halo) failed")
-  end do
-  write(*,*) "put over device-resident data passed [rank", my_rank, "]"
-  deallocate(fetched)
+  call check_fetch(pe_gath2, want_g2, orig_nedge * 2, my_rank, &
+    "put over device-resident data")
 
   call op_profile_end()
 
@@ -250,6 +192,25 @@ contains
       stop 1
     end if
   end subroutine check
+
+  ! Fetch dat back into original block order and compare against expect.
+  subroutine check_fetch(dat, expect, n, rank, what)
+    type(op_dat) :: dat
+    real(8), dimension(*), intent(in) :: expect
+    integer, intent(in) :: n, rank
+    character(len=*), intent(in) :: what
+
+    real(8), dimension(:), allocatable :: fetched
+    integer :: i
+
+    allocate(fetched(n))
+    call op_fetch_data(dat, fetched)
+    do i = 1, n
+      call check(abs(fetched(i) - expect(i)) < tol, i, rank, what)
+    end do
+    deallocate(fetched)
+    write(*,*) trim(what), " passed [rank", rank, "]"
+  end subroutine check_fetch
 
   subroutine nullify_dummy(map_dummy, dat_dummy)
     use, intrinsic :: iso_c_binding

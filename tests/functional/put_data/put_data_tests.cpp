@@ -24,6 +24,16 @@ void check(bool cond, int idx, int rank, const char *msg) {
   }
 }
 
+// Fetch dat back into original block order and compare against expect.
+void check_fetch(op_dat dat, const std::vector<double> &expect, int my_rank,
+                 const char *what) {
+  std::vector<double> fetched(expect.size(), 0.0);
+  op_fetch_data(dat, fetched.data());
+  for (size_t i = 0; i < expect.size(); ++i)
+    check(std::abs(fetched[i] - expect[i]) < TOL, (int)i, my_rank, what);
+  printf("%s passed [rank %d]\n", what, my_rank);
+}
+
 // --- KERNELS ---
 void copy1(double *out, const double *in) { *out = *in; }
 
@@ -112,118 +122,60 @@ int main(int argc, char **argv) {
       put_e4[i * 4 + d] = (double)(g + 1) * 3.0 + 1000.5 * d;
   }
 
+  // gather2 over edge g reads nodes g and g + 1 of pn_dat1
+  std::vector<double> want_g2(orig_nedge * 2);
+  for (int i = 0; i < orig_nedge; ++i) {
+    const int g = edge_start + i;
+    want_g2[i * 2] = (double)(g + 1) * 17.0;
+    want_g2[i * 2 + 1] = (double)(g + 2) * 17.0;
+  }
+
   op_mpi_put_data(pn_dat1, put_n1.data(), (size_t)orig_nnode);
   op_mpi_put_data(pn_dat3, put_n3.data(), (size_t)orig_nnode);
   op_mpi_put_data(pe_dat4, put_e4.data(), (size_t)orig_nedge);
 
   // --- Fetch back into original block order ---
-  {
-    std::vector<double> fetched(orig_nnode, 0.0);
-    op_fetch_data(pn_dat1, fetched.data());
-    for (int i = 0; i < orig_nnode; ++i)
-      check(std::abs(fetched[i] - put_n1[i]) < TOL, i, my_rank,
-            "put/fetch dim=1 nodes failed");
-    printf("put/fetch dim=1 nodes passed [rank %d]\n", my_rank);
-  }
-  {
-    std::vector<double> fetched(orig_nnode * 3, 0.0);
-    op_fetch_data(pn_dat3, fetched.data());
-    for (int i = 0; i < orig_nnode * 3; ++i)
-      check(std::abs(fetched[i] - put_n3[i]) < TOL, i, my_rank,
-            "put/fetch dim=3 nodes failed");
-    printf("put/fetch dim=3 nodes passed [rank %d]\n", my_rank);
-  }
-  {
-    std::vector<double> fetched(orig_nedge * 4, 0.0);
-    op_fetch_data(pe_dat4, fetched.data());
-    for (int i = 0; i < orig_nedge * 4; ++i)
-      check(std::abs(fetched[i] - put_e4[i]) < TOL, i, my_rank,
-            "put/fetch dim=4 edges failed");
-    printf("put/fetch dim=4 edges passed [rank %d]\n", my_rank);
-  }
+  check_fetch(pn_dat1, put_n1, my_rank, "put/fetch dim=1 nodes");
+  check_fetch(pn_dat3, put_n3, my_rank, "put/fetch dim=3 nodes");
+  check_fetch(pe_dat4, put_e4, my_rank, "put/fetch dim=4 edges");
 
-  // --- Kernel reads after put (covers dirtybit / device upload) ---
-  {
-    op_par_loop(copy1, "copy1", nodes,
-                op_arg_dat(pn_out1, -1, OP_ID, 1, "double", OP_WRITE),
-                op_arg_dat(pn_dat1, -1, OP_ID, 1, "double", OP_READ));
+  // --- Direct kernel reads after put (covers the host -> device upload) ---
+  op_par_loop(copy1, "copy1", nodes,
+              op_arg_dat(pn_out1, -1, OP_ID, 1, "double", OP_WRITE),
+              op_arg_dat(pn_dat1, -1, OP_ID, 1, "double", OP_READ));
+  check_fetch(pn_out1, put_n1, my_rank, "kernel after put dim=1 nodes");
 
-    std::vector<double> fetched(orig_nnode, 0.0);
-    op_fetch_data(pn_out1, fetched.data());
-    for (int i = 0; i < orig_nnode; ++i)
-      check(std::abs(fetched[i] - put_n1[i]) < TOL, i, my_rank,
-            "kernel after put dim=1 nodes failed");
-    printf("kernel after put dim=1 nodes passed [rank %d]\n", my_rank);
-  }
-  {
-    op_par_loop(copy3, "copy3", nodes,
-                op_arg_dat(pn_out3, -1, OP_ID, 3, "double", OP_WRITE),
-                op_arg_dat(pn_dat3, -1, OP_ID, 3, "double", OP_READ));
+  op_par_loop(copy3, "copy3", nodes,
+              op_arg_dat(pn_out3, -1, OP_ID, 3, "double", OP_WRITE),
+              op_arg_dat(pn_dat3, -1, OP_ID, 3, "double", OP_READ));
+  check_fetch(pn_out3, put_n3, my_rank, "kernel after put dim=3 nodes");
 
-    std::vector<double> fetched(orig_nnode * 3, 0.0);
-    op_fetch_data(pn_out3, fetched.data());
-    for (int i = 0; i < orig_nnode * 3; ++i)
-      check(std::abs(fetched[i] - put_n3[i]) < TOL, i, my_rank,
-            "kernel after put dim=3 nodes failed");
-    printf("kernel after put dim=3 nodes passed [rank %d]\n", my_rank);
-  }
-  {
-    op_par_loop(copy4, "copy4", edges,
-                op_arg_dat(pe_out4, -1, OP_ID, 4, "double", OP_WRITE),
-                op_arg_dat(pe_dat4, -1, OP_ID, 4, "double", OP_READ));
+  op_par_loop(copy4, "copy4", edges,
+              op_arg_dat(pe_out4, -1, OP_ID, 4, "double", OP_WRITE),
+              op_arg_dat(pe_dat4, -1, OP_ID, 4, "double", OP_READ));
+  check_fetch(pe_out4, put_e4, my_rank, "kernel after put dim=4 edges");
 
-    std::vector<double> fetched(orig_nedge * 4, 0.0);
-    op_fetch_data(pe_out4, fetched.data());
-    for (int i = 0; i < orig_nedge * 4; ++i)
-      check(std::abs(fetched[i] - put_e4[i]) < TOL, i, my_rank,
-            "kernel after put dim=4 edges failed");
-    printf("kernel after put dim=4 edges passed [rank %d]\n", my_rank);
-  }
-
-  // --- Indirect read after put: halos must carry the put values even though
-  // --- they were exchanged and clean before the put
-  {
-    op_par_loop(gather2, "gather2", edges,
-                op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
-                op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
-                op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
-
-    std::vector<double> fetched(orig_nedge * 2, 0.0);
-    op_fetch_data(pe_gath2, fetched.data());
-    for (int i = 0; i < orig_nedge; ++i) {
-      // edge g joins nodes g and g + 1
-      const int g = edge_start + i;
-      check(std::abs(fetched[i * 2] - (double)(g + 1) * 17.0) < TOL, i, my_rank,
-            "indirect read after put failed");
-      check(std::abs(fetched[i * 2 + 1] - (double)(g + 2) * 17.0) < TOL, i,
-            my_rank, "indirect read after put (halo) failed");
-    }
-    printf("indirect read after put passed [rank %d]\n", my_rank);
-  }
+  // --- Indirect read after put: the halos must carry the put values even
+  // though they were exchanged and clean at the time of the put ---
+  op_par_loop(gather2, "gather2", edges,
+              op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
+              op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
+              op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
+  check_fetch(pe_gath2, want_g2, my_rank, "indirect read after put");
 
   // --- Put over a dat whose device copy is the newer one ---
-  {
-    op_par_loop(poison, "poison", nodes,
-                op_arg_dat(pn_dat1, -1, OP_ID, 1, "double", OP_WRITE));
+  // Do not fetch pn_dat1 between the poison loop and the put: a fetch clears
+  // dirty_hd, which is the very state this is meant to put over.
+  op_par_loop(poison, "poison", nodes,
+              op_arg_dat(pn_dat1, -1, OP_ID, 1, "double", OP_WRITE));
 
-    op_mpi_put_data(pn_dat1, put_n1.data(), (size_t)orig_nnode);
+  op_mpi_put_data(pn_dat1, put_n1.data(), (size_t)orig_nnode);
 
-    op_par_loop(gather2, "gather2", edges,
-                op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
-                op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
-                op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
-
-    std::vector<double> fetched(orig_nedge * 2, 0.0);
-    op_fetch_data(pe_gath2, fetched.data());
-    for (int i = 0; i < orig_nedge; ++i) {
-      const int g = edge_start + i;
-      check(std::abs(fetched[i * 2] - (double)(g + 1) * 17.0) < TOL, i, my_rank,
-            "put over device-resident data failed");
-      check(std::abs(fetched[i * 2 + 1] - (double)(g + 2) * 17.0) < TOL, i,
-            my_rank, "put over device-resident data (halo) failed");
-    }
-    printf("put over device-resident data passed [rank %d]\n", my_rank);
-  }
+  op_par_loop(gather2, "gather2", edges,
+              op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
+              op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
+              op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
+  check_fetch(pe_gath2, want_g2, my_rank, "put over device-resident data");
 
   op_profile_end();
   op_profile_output();
