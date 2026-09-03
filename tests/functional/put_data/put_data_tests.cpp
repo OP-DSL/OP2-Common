@@ -1,5 +1,8 @@
 // Not intended to be used with OP_NO_REALLOC flag
 
+// op_mpi_put_data is only provided by the MPI library, so this test is only
+// built for the MPI variants. The guard is for the translator, which parses
+// this file without the MPI include paths.
 #ifdef USE_MPI
 #include "op_lib_mpi.h"
 #endif
@@ -8,8 +11,6 @@
 #include "op_profile.h"
 
 #include "../utility.h"
-
-#include <cstring>
 
 #define TOL 1e-9
 #define NN 48
@@ -21,22 +22,6 @@ void check(bool cond, int idx, int rank, const char *msg) {
     op_exit();
     exit(EXIT_FAILURE);
   }
-}
-
-void put_orig_data(op_dat dat, void *ptr, size_t local_size) {
-#ifdef USE_MPI
-  op_mpi_put_data(dat, ptr, local_size);
-#else
-  if (local_size != (size_t)dat->set->size) {
-    printf("ERROR: local_size %zu does not match set size %d for dat %s\n",
-           local_size, dat->set->size, dat->name);
-    op_exit();
-    exit(EXIT_FAILURE);
-  }
-  memcpy(dat->data, ptr, local_size * (size_t)dat->size);
-  dat->dirty_hd = 1;
-  dat->dirtybit = 1;
-#endif
 }
 
 // --- KERNELS ---
@@ -51,6 +36,14 @@ void copy4(double *out, const double *in) {
   for (int d = 0; d < 4; ++d)
     out[d] = in[d];
 }
+
+// reads both end nodes of an edge, so it touches halo values
+void gather2(double *out, const double *n0, const double *n1) {
+  out[0] = *n0;
+  out[1] = *n1;
+}
+
+void poison(double *out) { *out = -999.0; }
 
 // --- main ---
 int main(int argc, char **argv) {
@@ -77,6 +70,7 @@ int main(int argc, char **argv) {
   std::vector<double> n_out1(orig_nnode, 0.0);
   std::vector<double> n_out3(orig_nnode * 3, 0.0);
   std::vector<double> e_out4(orig_nedge * 4, 0.0);
+  std::vector<double> e_gath2(orig_nedge * 2, 0.0);
 
   op_set nodes = op_decl_set(orig_nnode, "nodes");
   op_set edges = op_decl_set(orig_nedge, "edges");
@@ -89,16 +83,18 @@ int main(int argc, char **argv) {
   op_dat pn_out1 = op_decl_dat(nodes, 1, "double", n_out1.data(), "pn_out1");
   op_dat pn_out3 = op_decl_dat(nodes, 3, "double", n_out3.data(), "pn_out3");
   op_dat pe_out4 = op_decl_dat(edges, 4, "double", e_out4.data(), "pe_out4");
+  op_dat pe_gath2 = op_decl_dat(edges, 2, "double", e_gath2.data(), "pe_gath2");
 
-#ifdef USE_MPI
   // Random partition so elements actually move across ranks.
   // The map is required so the edge set is partitioned with the nodes.
-  (void)m_e2n;
   op_partition("RANDOM", "", nodes, NULL, NULL);
-#else
-  (void)m_e2n;
-  op_partition("", "", NULL, NULL, NULL);
-#endif
+
+  // Indirect loop before any put, so the halos are exchanged and clean
+  // (dirtybit == 0) by the time the puts below happen.
+  op_par_loop(gather2, "gather2", edges,
+              op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
+              op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
+              op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
 
   std::vector<double> put_n1(orig_nnode);
   std::vector<double> put_n3(orig_nnode * 3);
@@ -116,9 +112,9 @@ int main(int argc, char **argv) {
       put_e4[i * 4 + d] = (double)(g + 1) * 3.0 + 1000.5 * d;
   }
 
-  put_orig_data(pn_dat1, put_n1.data(), (size_t)orig_nnode);
-  put_orig_data(pn_dat3, put_n3.data(), (size_t)orig_nnode);
-  put_orig_data(pe_dat4, put_e4.data(), (size_t)orig_nedge);
+  op_mpi_put_data(pn_dat1, put_n1.data(), (size_t)orig_nnode);
+  op_mpi_put_data(pn_dat3, put_n3.data(), (size_t)orig_nnode);
+  op_mpi_put_data(pe_dat4, put_e4.data(), (size_t)orig_nedge);
 
   // --- Fetch back into original block order ---
   {
@@ -182,6 +178,51 @@ int main(int argc, char **argv) {
       check(std::abs(fetched[i] - put_e4[i]) < TOL, i, my_rank,
             "kernel after put dim=4 edges failed");
     printf("kernel after put dim=4 edges passed [rank %d]\n", my_rank);
+  }
+
+  // --- Indirect read after put: halos must carry the put values even though
+  // --- they were exchanged and clean before the put
+  {
+    op_par_loop(gather2, "gather2", edges,
+                op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
+                op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
+                op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
+
+    std::vector<double> fetched(orig_nedge * 2, 0.0);
+    op_fetch_data(pe_gath2, fetched.data());
+    for (int i = 0; i < orig_nedge; ++i) {
+      // edge g joins nodes g and g + 1
+      const int g = edge_start + i;
+      check(std::abs(fetched[i * 2] - (double)(g + 1) * 17.0) < TOL, i, my_rank,
+            "indirect read after put failed");
+      check(std::abs(fetched[i * 2 + 1] - (double)(g + 2) * 17.0) < TOL, i,
+            my_rank, "indirect read after put (halo) failed");
+    }
+    printf("indirect read after put passed [rank %d]\n", my_rank);
+  }
+
+  // --- Put over a dat whose device copy is the newer one ---
+  {
+    op_par_loop(poison, "poison", nodes,
+                op_arg_dat(pn_dat1, -1, OP_ID, 1, "double", OP_WRITE));
+
+    op_mpi_put_data(pn_dat1, put_n1.data(), (size_t)orig_nnode);
+
+    op_par_loop(gather2, "gather2", edges,
+                op_arg_dat(pe_gath2, -1, OP_ID, 2, "double", OP_WRITE),
+                op_arg_dat(pn_dat1, 0, m_e2n, 1, "double", OP_READ),
+                op_arg_dat(pn_dat1, 1, m_e2n, 1, "double", OP_READ));
+
+    std::vector<double> fetched(orig_nedge * 2, 0.0);
+    op_fetch_data(pe_gath2, fetched.data());
+    for (int i = 0; i < orig_nedge; ++i) {
+      const int g = edge_start + i;
+      check(std::abs(fetched[i * 2] - (double)(g + 1) * 17.0) < TOL, i, my_rank,
+            "put over device-resident data failed");
+      check(std::abs(fetched[i * 2 + 1] - (double)(g + 2) * 17.0) < TOL, i,
+            my_rank, "put over device-resident data (halo) failed");
+    }
+    printf("put over device-resident data passed [rank %d]\n", my_rank);
   }
 
   op_profile_end();
