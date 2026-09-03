@@ -8,9 +8,9 @@ program put_data_tests_fortran
   use put_data_kernels
 
   use, intrinsic :: iso_c_binding
-#ifdef USE_MPI
+  ! op_mpi_put_data is only meaningful under MPI, so this test is only built
+  ! for the MPI variants.
   use mpi
-#endif
 
   implicit none
 
@@ -21,13 +21,14 @@ program put_data_tests_fortran
   type(op_map) :: m_e2n
   type(op_dat) :: pn_dat1, pn_dat3, pe_dat4
   type(op_dat) :: pn_out1, pn_out3, pe_out4
-  type(op_set) :: dummy_set
+  type(op_dat) :: pe_gath2
   type(op_map) :: dummy_map
   type(op_dat) :: dummy_dat
 
   integer(4), dimension(:), allocatable, target :: e2n
   real(8), dimension(:), allocatable, target :: n_init1, n_init3, e_init4
   real(8), dimension(:), allocatable, target :: n_out1, n_out3, e_out4
+  real(8), dimension(:), allocatable, target :: e_gath2
   real(8), dimension(:), allocatable, target :: put_n1, put_n3, put_e4
   real(8), dimension(:), allocatable :: fetched
 
@@ -66,12 +67,14 @@ program put_data_tests_fortran
   allocate(n_out1(orig_nnode))
   allocate(n_out3(orig_nnode * 3))
   allocate(e_out4(orig_nedge * 4))
+  allocate(e_gath2(orig_nedge * 2))
   n_init1 = -1.0d0
   n_init3 = -1.0d0
   e_init4 = -1.0d0
   n_out1 = 0.0d0
   n_out3 = 0.0d0
   e_out4 = 0.0d0
+  e_gath2 = 0.0d0
 
   call op_decl_set(orig_nnode, nodes, "nodes")
   call op_decl_set(orig_nedge, edges, "edges")
@@ -83,13 +86,18 @@ program put_data_tests_fortran
   call op_decl_dat(nodes, 1, "real(8)", n_out1, pn_out1, "pn_out1")
   call op_decl_dat(nodes, 3, "real(8)", n_out3, pn_out3, "pn_out3")
   call op_decl_dat(edges, 4, "real(8)", e_out4, pe_out4, "pe_out4")
+  call op_decl_dat(edges, 2, "real(8)", e_gath2, pe_gath2, "pe_gath2")
 
-  call nullify_dummy(dummy_set, dummy_map, dummy_dat)
-#ifdef USE_MPI
+  call nullify_dummy(dummy_map, dummy_dat)
+  ! Random partition so elements actually move across ranks.
   call op_partition("RANDOM", "", nodes, dummy_map, dummy_dat)
-#else
-  call op_partition("", "", dummy_set, dummy_map, dummy_dat)
-#endif
+
+  ! Indirect loop before any put, so the halos are exchanged and clean
+  ! (dirtybit == 0) by the time the puts below happen.
+  call op_par_loop_3(gather2, edges, &
+    op_arg_dat(pe_gath2, -1, OP_ID, 2, "real(8)", OP_WRITE), &
+    op_arg_dat(pn_dat1, 1, m_e2n, 1, "real(8)", OP_READ), &
+    op_arg_dat(pn_dat1, 2, m_e2n, 1, "real(8)", OP_READ))
 
   allocate(put_n1(orig_nnode))
   allocate(put_n3(orig_nnode * 3))
@@ -179,6 +187,49 @@ program put_data_tests_fortran
   write(*,*) "kernel after put dim=4 edges passed [rank", my_rank, "]"
   deallocate(fetched)
 
+  ! Indirect read after put: halos must carry the put values even though they
+  ! were exchanged and clean before the put
+  call op_par_loop_3(gather2, edges, &
+    op_arg_dat(pe_gath2, -1, OP_ID, 2, "real(8)", OP_WRITE), &
+    op_arg_dat(pn_dat1, 1, m_e2n, 1, "real(8)", OP_READ), &
+    op_arg_dat(pn_dat1, 2, m_e2n, 1, "real(8)", OP_READ))
+
+  allocate(fetched(orig_nedge * 2))
+  call op_fetch_data(pe_gath2, fetched)
+  do i = 0, orig_nedge - 1
+    ! edge g joins nodes g and g + 1
+    g = edge_start + i
+    call check(abs(fetched(i * 2 + 1) - real(g + 1, 8) * 17.0d0) < tol, i, my_rank, &
+      "indirect read after put failed")
+    call check(abs(fetched(i * 2 + 2) - real(g + 2, 8) * 17.0d0) < tol, i, my_rank, &
+      "indirect read after put (halo) failed")
+  end do
+  write(*,*) "indirect read after put passed [rank", my_rank, "]"
+  deallocate(fetched)
+
+  ! Put over a dat whose device copy is the newer one
+  call op_par_loop_1(poison, nodes, &
+    op_arg_dat(pn_dat1, -1, OP_ID, 1, "real(8)", OP_WRITE))
+
+  call op_mpi_put_data(pn_dat1, put_n1, orig_nnode)
+
+  call op_par_loop_3(gather2, edges, &
+    op_arg_dat(pe_gath2, -1, OP_ID, 2, "real(8)", OP_WRITE), &
+    op_arg_dat(pn_dat1, 1, m_e2n, 1, "real(8)", OP_READ), &
+    op_arg_dat(pn_dat1, 2, m_e2n, 1, "real(8)", OP_READ))
+
+  allocate(fetched(orig_nedge * 2))
+  call op_fetch_data(pe_gath2, fetched)
+  do i = 0, orig_nedge - 1
+    g = edge_start + i
+    call check(abs(fetched(i * 2 + 1) - real(g + 1, 8) * 17.0d0) < tol, i, my_rank, &
+      "put over device-resident data failed")
+    call check(abs(fetched(i * 2 + 2) - real(g + 2, 8) * 17.0d0) < tol, i, my_rank, &
+      "put over device-resident data (halo) failed")
+  end do
+  write(*,*) "put over device-resident data passed [rank", my_rank, "]"
+  deallocate(fetched)
+
   call op_profile_end()
 
   if (op_is_root() == 1) print *
@@ -200,14 +251,11 @@ contains
     end if
   end subroutine check
 
-  subroutine nullify_dummy(set_dummy, map_dummy, dat_dummy)
+  subroutine nullify_dummy(map_dummy, dat_dummy)
     use, intrinsic :: iso_c_binding
-    type(op_set), intent(inout) :: set_dummy
     type(op_map), intent(inout) :: map_dummy
     type(op_dat), intent(inout) :: dat_dummy
 
-    nullify(set_dummy%setPtr)
-    set_dummy%setCptr = c_null_ptr
     nullify(map_dummy%mapPtr)
     map_dummy%mapCptr = c_null_ptr
     nullify(dat_dummy%dataPtr)
@@ -217,15 +265,11 @@ contains
   subroutine get_rank_and_size(rank, size)
     integer, intent(out) :: rank
     integer, intent(out) :: size
-#ifdef USE_MPI
     integer :: ierr
+
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
     call MPI_Comm_size(MPI_COMM_WORLD, size, ierr)
     write(*,*) "MPI rank", rank, "of", size
-#else
-    rank = 0
-    size = 1
-#endif
   end subroutine get_rank_and_size
 
   integer function compute_local_size(global_size, mpi_comm_size, mpi_rank)

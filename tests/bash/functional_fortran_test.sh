@@ -253,23 +253,15 @@ if [[ "$TEST_PUT_DATA" = "TRUE" ]]; then
         echo "Running tests on App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
         echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
-        validate "OMP_NUM_THREADS=6" "put_data_tests_openmp" "" "passed"
-        validate "" "put_data_tests_c_cuda" "" "passed"
         validate "mpirun -np 8" "put_data_tests_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "put_data_tests_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "put_data_tests_par_mpi_openmp" "" "passed"
         validate "mpirun -np 4" "put_data_tests_par_mpi_c_cuda" "" "passed"
-        validate "" "put_data_tests_seq" "" "passed"
-        validate "" "put_data_tests_genseq" "" "passed"
 
-        validate "OMP_NUM_THREADS=6" "put_data_tests_soa_openmp" "" "passed"
-        validate "" "put_data_tests_soa_c_cuda" "" "passed"
         validate "mpirun -np 8" "put_data_tests_soa_par_mpi_seq" "" "passed"
         validate "mpirun -np 8" "put_data_tests_soa_par_mpi_genseq" "" "passed"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "put_data_tests_soa_par_mpi_openmp" "" "passed"
         validate "mpirun -np 4" "put_data_tests_soa_par_mpi_c_cuda" "" "passed"
-        validate "" "put_data_tests_soa_seq" "" "passed"
-        validate "" "put_data_tests_soa_genseq" "" "passed"
     fi
 fi
 
