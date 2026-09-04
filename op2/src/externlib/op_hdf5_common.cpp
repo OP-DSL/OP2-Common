@@ -37,6 +37,13 @@
  * HDF5 I/O routines for the OP2 back end
  *
  * written by: Gihan R. Mudalige, (Started 27-10-2017)
+ *
+ * This file is #included into op_hdf5.cpp and op_mpi_hdf5.cpp rather than
+ * compiled on its own, and those two never end up in the same library. Hence
+ * static: every definition here is used only by the translation unit that
+ * pulled it in, and giving them external linkage would export them from each
+ * libop2_*.so - where the generic names (create_path) invite collisions with
+ * the application, and any duplicate is interposed across OP2's own libraries.
  */
 
 #include <assert.h>
@@ -59,7 +66,7 @@ typedef struct {
 } op_hdf5_dataset_properties;
 
 /* Temporarily switch off HDF5 error handler*/
-void H5error_off(H5E_auto_t* old_func, void **old_client_data) {
+static void H5error_off(H5E_auto_t* old_func, void **old_client_data) {
   assert(old_func);
   assert(old_client_data);
 
@@ -69,11 +76,11 @@ void H5error_off(H5E_auto_t* old_func, void **old_client_data) {
 }
 
 /* Restore previous error handler .. report hdf5 error stack automatically*/
-void H5error_on(H5E_auto_t old_func, void *old_client_data) {
+static void H5error_on(H5E_auto_t old_func, void *old_client_data) {
   H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
 }
 
-const char *op_hdf5_type_to_string(hid_t t) {
+static const char *op_hdf5_type_to_string(hid_t t) {
   char *text = NULL;
   if (H5Tequal(t, H5T_NATIVE_INT)) {
     text = (char *)malloc(4 * sizeof(char));
@@ -98,8 +105,8 @@ const char *op_hdf5_type_to_string(hid_t t) {
   return (const char *)text;
 }
 
-herr_t get_dataset_properties(hid_t dset_id,
-                              op_hdf5_dataset_properties *dset_props) {
+static herr_t get_dataset_properties(hid_t dset_id,
+                                     op_hdf5_dataset_properties *dset_props) {
   hid_t status;
 
   if (dset_props == NULL) {
@@ -158,7 +165,7 @@ herr_t get_dataset_properties(hid_t dset_id,
 
 /*create path specified by map or dat ->name for a map or dataset
   within an HDF5 file*/
-void create_path(const char *name, hid_t file_id) {
+static void create_path(const char *name, hid_t file_id) {
 
   hid_t group_id;
   herr_t status;

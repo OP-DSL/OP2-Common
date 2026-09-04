@@ -109,20 +109,20 @@ contains
 
     subroutine res(A, u, du, beta)
         implicit none
-        real(8), dimension(1) :: A, u, du, beta
+        real(8) :: A, u, du, beta
 
-        du(1) = du(1) + beta(1) * A(1) * u(1)
+        du = du + beta * A * u
     end subroutine
 
     subroutine update(r, du, u, u_sum, u_max)
         implicit none
-        real(8), dimension(1) :: r, du, u, u_sum, u_max
+        real(8) :: r, du, u, u_sum, u_max
 
-        u(1) = u(1) + du(1) + alpha * r(1)
-        du(1) = 0.0
+        u = u + du + alpha * r
+        du = 0.0
 
-        u_sum(1) = u_sum(1) + u(1) ** 2
-        u_max(1) = max(u_max(1), u(1))
+        u_sum = u_sum + u ** 2
+        u_max = max(u_max, u)
     end subroutine
 
     subroutine init_data()

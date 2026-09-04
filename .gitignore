@@ -12,6 +12,11 @@
 # Python artifacts
 *.pyc
 
+# Build and dependency directories (repo root only - cmake/deps/ holds
+# tracked dependency-build scripts, not build output)
+/build/
+/deps/
+
 # Miscellaneous
 *~
 *.swp

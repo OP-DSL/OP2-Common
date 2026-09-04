@@ -449,18 +449,12 @@ void op_mpi_probe_halo_index(op_set set, int in, int *rank, int *out) {
     halo_list hl;
     int offset;
 
-    char *lt;
-
     if (in < set->size + set->exec_size) {
         hl = OP_import_exec_list[set->index];
         offset = set->size;
-
-        lt = "exec";
     } else {
         hl = OP_import_nonexec_list[set->index];
         offset = set->size + set->exec_size;
-
-        lt = "nonexec";
     }
 
     int halo_in = in - offset;

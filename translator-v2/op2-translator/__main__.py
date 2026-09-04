@@ -1,14 +1,17 @@
 import cProfile
 import dataclasses
 import json
+import logging
 import os
 import pdb
 import pstats
+import sys
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from multiprocessing import Pool
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
+from typing import Dict, List, Set, Tuple
 
 import cpp
 import fortran
@@ -20,6 +23,26 @@ from store import Application, ParseError
 from target import Target
 from util import getVersion, safeFind
 
+logger = logging.getLogger(__name__)
+
+
+def configure_logging(args: Namespace) -> None:
+    console_level = {0: logging.WARNING, 1: logging.INFO}.get(args.verbose, logging.DEBUG)
+
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(console_level)
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    log_path = Path(args.out, "op2-translator.log")
+    file_handler = logging.FileHandler(log_path, mode="w")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)  # must be <= the lowest handler level (DEBUG) or the file handler starves
+    root.addHandler(console_handler)
+    root.addHandler(file_handler)
+
 
 def main(argv=None) -> None:
     # Build arg parser
@@ -27,9 +50,10 @@ def main(argv=None) -> None:
 
     # Flags
     parser.add_argument("-V", "--version", help="Version", action="version", version=getVersion())
-    parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
+    parser.add_argument("-v", "--verbose", help="Increase verbosity (-v info, -vv debug)", action="count", default=0)
     parser.add_argument("-d", "--dump", help="JSON store dump", action="store_true")
     parser.add_argument("-o", "--out", help="Output directory", type=isDirPath)
+    parser.add_argument("--depfile", help="Write a Make-style depfile of the sources read", type=str)
     parser.add_argument("-c", "--config", help="Target configuration", action="append", type=json.loads, default=[])
     parser.add_argument("-soa", "--force_soa", help="Force Structs of Arrays", action="store_true")
     parser.add_argument("-mp", "--multiprocess_parse", help="Force Multiprocess Parsing", action="store_true")
@@ -67,6 +91,8 @@ def main(argv=None) -> None:
     if args.out is None:
         args.out = file_parents[0]
 
+    configure_logging(args)
+
     script_parents = list(Path(__file__).resolve().parents)
     if len(script_parents) >= 3 and script_parents[2].stem == "OP2-Common":
         args.I = [[str(script_parents[2].joinpath("op2/include"))]] + args.I
@@ -78,16 +104,19 @@ def main(argv=None) -> None:
 
     # Validate the file extensions
     if not extensions:
-        exit("Missing file extensions, unable to determine target language.")
+        logger.error("Missing file extensions, unable to determine target language.")
+        sys.exit(1)
     elif len(extensions) > 1:
-        exit("Varying file extensions, unable to determine target language.")
+        logger.error("Varying file extensions, unable to determine target language.")
+        sys.exit(1)
     else:
         [extension] = extensions
 
     lang = Lang.find(extension)
 
     if lang is None:
-        exit(f"Unknown file extension: {extension}")
+        logger.error(f"Unknown file extension: {extension}")
+        sys.exit(1)
 
     lang.parseArgs(args)
 
@@ -102,8 +131,8 @@ def main(argv=None) -> None:
     try:
         app = parse(args, lang)
     except ParseError as e:
-        print(e)
-        exit(1)
+        logger.error(str(e))
+        sys.exit(1)
 
     if args.consts_module is not None:
         app.consts_module = lang.parseProgram(Path(args.consts_module), include_dirs, defines)
@@ -121,30 +150,27 @@ def main(argv=None) -> None:
             for loop in program.loops:
                 loop.dats = [dataclasses.replace(dat, soa=True) for dat in loop.dats]
 
-    if args.verbose:
-        print()
-        print(app)
+    if args.verbose >= 2:
+        logger.debug("%s", app)
 
     # Validation phase
     try:
-        print()
-        print("Validating...")
+        logger.info("Validating...")
         validate(args, lang, app)
     except OpError as e:
-        print(e)
-        exit(1)
+        logger.error(str(e))
+        sys.exit(1)
 
     for [target] in args.target:
         target = Target.find(target)
         scheme = Scheme.find((lang, target))
 
         if not scheme:
-            print(f"No scheme registered for {lang}/{target}\n")
+            logger.warning(f"No scheme registered for {lang}/{target}")
             continue
 
-        print(f"Translation scheme: {scheme}")
+        logger.info(f"Translation scheme: {scheme}")
         codegen(args, scheme, app, args.force_soa)
-        print()
 
     # Generate program translations
     for i, program in enumerate(app.programs, 1):
@@ -156,7 +182,49 @@ def main(argv=None) -> None:
 
         write_file(new_path, source, args)
 
-        print(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
+        logger.info(f"Translated program {i} of {len(args.file_paths)}: {new_path}")
+
+    if args.depfile is not None:
+        write_depfile(Path(args.depfile), generated_paths, app)
+
+
+def escape_depfile_path(path: Path) -> str:
+    # Per the depfile grammar: '$' doubles, '#' and ' ' are backslash-escaped.
+    return str(path).replace("$", "$$").replace("#", "\\#").replace(" ", "\\ ")
+
+
+def write_depfile(path: Path, targets: List[Path], app: Application) -> None:
+    # One rule naming every generated file, so whichever of them the build
+    # system asks about is present. Absolute paths throughout, which sidesteps
+    # the question of what a relative path in a depfile is relative to.
+    #
+    # With no targets there is no rule to write, but the file is still
+    # truncated rather than left alone: an earlier run's rule left in place
+    # would go on feeding the build system dependencies this run never
+    # claimed. Both Make and Ninja accept an empty depfile: it states no
+    # rule, so neither can conclude anything is up to date from it, and the
+    # fallback is a rebuild rather than a wrong answer.
+    if len(targets) == 0:
+        path.write_text("")
+        logger.info(f"Wrote empty depfile: {path} (nothing generated)")
+        return
+
+    dependencies: Set[Path] = set()
+    for program in list(app.programs) + ([app.consts_module] if app.consts_module is not None else []):
+        dependencies.add(Path(program.path).resolve())
+        dependencies |= program.includes
+
+    rule = " ".join(escape_depfile_path(target.resolve()) for target in targets) + ":"
+    for dependency in sorted(dependencies):
+        rule += " \\\n    " + escape_depfile_path(dependency)
+
+    path.write_text(rule + "\n")
+    logger.info(f"Wrote depfile: {path} ({len(dependencies)} dependencies)")
+
+
+# Every path write_file() is asked for, whether or not the content turned out
+# to be identical - these are the depfile's targets.
+generated_paths: List[Path] = []
 
 
 def write_file(path: Path, text: str, args: Namespace) -> None:
@@ -165,9 +233,10 @@ def write_file(path: Path, text: str, args: Namespace) -> None:
             if not path.samefile(input_path):
                 continue
 
-            print(f"Error: generating file '{path}' would overwrite input file")
-            print(f"Pass an output directory with -o <path>")
-            exit(1)
+            logger.error(f"generating file '{path}' would overwrite input file\nPass an output directory with -o <path>")
+            sys.exit(1)
+
+    generated_paths.append(path)
 
     if path.is_file():
         prev_text = path.read_text()
@@ -175,32 +244,41 @@ def write_file(path: Path, text: str, args: Namespace) -> None:
         if text == prev_text:
             return
 
-    with path.open("w") as f:
-        # f.write(f"{scheme.lang.com_delim} Auto-generated at {datetime.now()} by op2-translator\n\n")
-        f.write(text)
+    # Write-then-rename, not a plain open("w"): truncate-then-write leaves a
+    # window where a reader sees a half-written file, and the build system may
+    # run translator processes over one output directory in parallel.
+    # os.replace is atomic within a filesystem, and the pid in the temporary
+    # name keeps two writers off the same scratch file.
+    tmp_path = path.with_name(f"{path.name}.tmp{os.getpid()}")
+    try:
+        tmp_path.write_text(text)
+        os.replace(tmp_path, path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def parse(args: Namespace, lang: Lang) -> Application:
     f_args = [(i, raw_path, lang, args) for i, raw_path in enumerate(args.file_paths, 1)]
 
-    print(f"Parsing files:")
-    for raw_path in args.file_paths:
-        print(f"    {raw_path}")
+    logger.info("Parsing files:\n" + "\n".join(f"    {p}" for p in args.file_paths))
 
     app = Application()
 
     if lang.ast_is_serializable:
         try:
+            # Logging handlers are configured before this Pool() is constructed, so forked
+            # workers inherit them (fork start method, the Linux default). parse_file() has
+            # no logging calls today; if that changes, be aware forked workers would hold
+            # duplicated file descriptors over the same log file with no cross-process
+            # write synchronization, risking interleaved lines under -mp.
             if args.multiprocess_parse:
                 app.programs = Pool().starmap(parse_file, f_args)
             else:
                 app.programs = [parse_file(*args) for args in f_args]
         except fortran.FortranSyntaxError as err:
-            print()
-            print(f"Syntax error in file {err.filename}:")
-            print(err.message)
-
-            exit(1)
+            logger.error(f"Syntax error in file {err.filename}:\n{err.message}")
+            sys.exit(1)
     else:
         app.programs = []
         for a in f_args:
@@ -239,7 +317,36 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
 
     fallback_loops = {}
 
-    # Generate loop hosts
+    # Generate loop hosts.
+    #
+    # Per-loop outputs are written as N separate files (one per op_par_loop
+    # call), preserving source-level navigation, per-loop debugging line
+    # numbers, and independent editability.  How the master compile unit
+    # brings them in depends on the language:
+    #
+    #   * C++ variants: master `#include`s each per-loop `.hpp` / `.h` /
+    #     `.cuh` / `.hip.h` file - headers, resolved at compile time.
+    #   * Fortran variants: master `#include`s each per-loop `.F90` file
+    #     via CPP preprocessing (Fortran files with capital .F90 are
+    #     preprocessed by every mainstream Fortran compiler).  Per-loop
+    #     files define Fortran modules; concatenation via `#include` puts
+    #     all modules in the master's compilation unit.
+    #
+    # Fortran per-loop templates declare various extensions (.F90, .CUF,
+    # .inc) in the scheme, but the fallback-wrapper mechanic can substitute
+    # extensions on hybrid loops.  We normalize every Fortran per-loop
+    # output to `.F90` so the master template's `#include` line is
+    # unambiguous - `.CUF` semantics (CUDA Fortran) are covered by the
+    # `-cuda` compile flag we pass to nvfortran on the app target.
+    #
+    # C++ helper compile units (currently only c_seq's per-loop `.cpp`) are
+    # still amalgamated - c_seq isn't wired up in the CMake build so this
+    # code path is exercised only by direct translator use.
+    FORTRAN_COMPILE_EXTENSIONS = {".F90", ".CUF", ".inc"}
+    PER_LOOP_HEADER_EXTENSIONS = {".hpp", ".h", ".cuh", ".hip.h", ".mod"}
+
+    per_loop_buffers: Dict[Tuple[int, str], List[str]] = {}
+
     for i, (loop, program) in enumerate(app.loops(), 1):
         force_generate = scheme.target == Target.find("seq")
 
@@ -247,32 +354,46 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
 
         if res is None:
-            print(f"Error: unable to generate loop host {i}")
+            logger.warning(f"unable to generate loop host {i}")
             continue
 
         files, fallback = res
 
         Path(args.out, scheme.target.name).mkdir(parents=True, exist_ok=True)
         for index, (source, extension) in enumerate(files):
-            name = f"{loop.name}_kernel"
-            if index > 0:
-                name += f"_aux{index}"
+            if extension in FORTRAN_COMPILE_EXTENSIONS:
+                extension = ".F90"  # normalize Fortran per-loop to a uniform extension
+                per_loop = True
+            elif extension in PER_LOOP_HEADER_EXTENSIONS:
+                per_loop = True
+            else:
+                per_loop = False
 
-            path = Path(
-                args.out,
-                scheme.target.name,
-                f"{name}{extension}",
-            )
-
-            write_file(path, source, args)
+            if per_loop:
+                name = f"{loop.name}_kernel"
+                if index > 0:
+                    name += f"_aux{index}"
+                path = Path(args.out, scheme.target.name, f"{name}{extension}")
+                write_file(path, source, args)
+            else:
+                per_loop_buffers.setdefault((index, extension), []).append(source)
 
         if not fallback:
             fallback_loops[loop.name] = False
-            print(f"Generated loop host {i} of {len(app.loops())}: {loop.name}")
+            logger.info(f"Generated loop host {i} of {len(app.loops())}: {loop.name}")
 
         if fallback:
             fallback_loops[loop.name] = True
-            print(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
+            logger.warning(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
+
+    # Write the amalgamated per-loop compile-unit files (only c_seq's C++
+    # helpers reach this path today).
+    for (index, extension), sources in per_loop_buffers.items():
+        name = "op2_loop_kernel"
+        if index > 0:
+            name += f"_aux{index}"
+        path = Path(args.out, scheme.target.name, f"{name}{extension}")
+        write_file(path, "\n".join(sources), args)
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:
@@ -282,7 +403,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         path = Path(args.out, scheme.target.name, name)
 
         write_file(path, source, args)
-        print(f"Generated consts file: {path}")
+        logger.info(f"Generated consts file: {path}")
 
     # Generate master kernel file
     if len(scheme.master_kernel_templates) > 0:
@@ -302,7 +423,7 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
             path = Path(args.out, scheme.target.name, f"{name}{extension}")
 
             write_file(path, source, args)
-            print(f"Generated master kernel file: {path}")
+            logger.info(f"Generated master kernel file: {path}")
 
 
 def isDirPath(path):

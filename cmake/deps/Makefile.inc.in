@@ -1,0 +1,21 @@
+EXE     =
+LIB     = .a
+OBJ     = .o
+
+MAKE    = @MAKE_EXECUTABLE@
+AR      = ar
+ARFLAGS = -ruv
+CAT     = cat
+CCS     = @CMAKE_C_COMPILER@
+CCP     = @MPI_C_COMPILER@
+CCD     = @MPI_C_COMPILER@
+CFLAGS  = -O3 -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED \
+          -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER -DINTSIZE64 -fPIC
+LDFLAGS = -lz -lm -lpthread
+CP      = cp
+BISON   = bison
+FLEX    = flex
+LN      = ln
+MKDIR   = mkdir
+MV      = mv
+RANLIB  = ranlib

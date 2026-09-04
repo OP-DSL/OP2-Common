@@ -94,10 +94,14 @@ mod/%:
 # $(1) = variant name
 define SRC_template =
 $(call UPPERCASE,$(1))_SRC := generated/$(APP_NAME)/$(2)/op2_consts.F90 \
-                              generated/$(APP_NAME)/$(2)/*_kernel.$(3) \
                               generated/$(APP_NAME)/$(2)/op2_kernels.F90 \
                               $(APP_SRC_OP)
 endef
+# Note: per-loop `<loop>_kernel.F90` files are #include'd by op2_kernels.F90 at
+# preprocessing time; they must NOT be listed here or the module definitions
+# get compiled twice (once standalone, once inside op2_kernels) which produces
+# duplicate-symbol link errors.  The $(3) argument is retained on the callers
+# below for backwards signature compatibility but is unused.
 
 SEQ_SRC := $(APP_SRC)
 

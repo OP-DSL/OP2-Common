@@ -1,4 +1,5 @@
 import re
+from ctypes import c_int, c_void_p
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -8,6 +9,21 @@ from clang.cindex import conf as clang_internal  # type: ignore
 import op as OP
 from store import Function, Location, ParseError, Program, Type
 from util import safeFind, findIdx
+
+
+# libclang's Python bindings (cindex.py) don't declare argtypes/restype for the
+# CXEvalResult API - the functions get ctypes' default c_int restype, which on
+# 64-bit systems truncates the opaque CXEvalResult pointer returned by
+# clang_Cursor_Evaluate and segfaults on the subsequent getAsInt call.  Fix by
+# stamping the correct signatures on first import.  Idempotent.
+_clang_lib = clang_internal.lib
+if _clang_lib.clang_Cursor_Evaluate.restype is not c_void_p:
+    _clang_lib.clang_Cursor_Evaluate.argtypes = [Cursor]
+    _clang_lib.clang_Cursor_Evaluate.restype = c_void_p
+    _clang_lib.clang_EvalResult_getAsInt.argtypes = [c_void_p]
+    _clang_lib.clang_EvalResult_getAsInt.restype = c_int
+    _clang_lib.clang_EvalResult_dispose.argtypes = [c_void_p]
+    _clang_lib.clang_EvalResult_dispose.restype = None
 
 
 def parseMeta(node: Cursor, program: Program) -> None:

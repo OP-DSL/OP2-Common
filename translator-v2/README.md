@@ -1,31 +1,62 @@
 # OP2 Code Generation
 
-### Requirements
+The translator parses OP2 API calls in user source and generates per-target
+kernel dispatch code. It's invoked automatically by the CMake app-build helper
+`op2_add_app_variants()` and by the legacy GNU Make files under `makefiles/`.
+
+### Dependencies
 
 - Python >= 3.8
-- libclang (for Debian based systems: `sudo apt-get install libclang-dev`)
+- Python packages: `jinja2`, `fparser`, `pcpp`, `sympy`, `libclang` (imports
+  as `clang.cindex`). Install with `pip install -r requirements.txt`.
 
-### Getting Started
+Python is a dependency you provide, the same way as MPI or HDF5 - CMake
+finds a suitable interpreter (via `Python3_EXECUTABLE`), it doesn't create a
+venv or run pip for you. If the picked interpreter doesn't have these
+packages importable, configure reports `OP2_HAS_TRANSLATOR=FALSE` with a
+message explaining what's missing.
 
-- Navigate to project directory `cd translator`
-- Install python packages `pip3 install -r requirements.txt`
-- Invoke the CLI with `python3 op2-translator`
+### Building the translator
 
-### Brief Code Overview
+Nothing to build - the top-level OP2 `cmake -B build` step probes for a
+Python 3.8+ interpreter with the packages above already installed, and
+installs the translator's source alongside the runtime libs.
 
-- `__main__.py`
-  - Entry point of op2-translator. Handles the arguments passed to op2-translator and calls the appropriate parser, validator and code generator.
-- `jinja.py`
-  - Configures the Jinja templating engine.
-- `language.py`
-  - Contains the `Lang` class used to hold information for the programming langauge that code is being generated for (currently C/C++ or FORTRAN).
-- `op.py`
-  - Holds classes representing OP2 sets, maps, dats, args and loops. The parser creates instances of these classes with the information needed by the code generator.
-- `optimisation.py`
-  - Contains the `Opt` class that is used to store information about the various optimisations that code can be generated for (sequential, OpenMP, CUDA).
-- `scheme.py`
-  - Contains the `Scheme` class that is used to generate code for each combination of language and optimisation. Each scheme is registered at the bottom of this file.
-- `store.py`
-  - Contains classes that are used during the parsing of the source files and store information about the overall program.
-- `resources/templates`
-  - The subdirectories within contain the Jinja templates used during the code generation.
+Once installed, the translator is available at
+`<install-prefix>/bin/op2-translator` (on `$PATH`, invokes `python3` from
+`PATH`) and as `${Python3_EXECUTABLE}
+<install-prefix>/libexec/op2/translator/pkg` (invoked internally by
+`op2_add_app_variants`).
+
+### Manual invocation (development)
+
+For running the translator directly against a single source file during
+development:
+
+```bash
+python3 translator-v2/op2-translator \
+    -t seq -o /tmp/out \
+    -I translator-v2/op2-translator \
+    -I op2/include \
+    apps/c/airfoil/airfoil_plain/dp/airfoil.cpp
+```
+
+The `translator-v2/op2-translator.sh` wrapper does the same lookup automatically
+and is what the legacy `makefiles/{c,f}_app.mk` invoke.
+
+### Brief code overview
+
+- `__main__.py` - CLI entry point. Handles arguments, drives parsing,
+  validation, and code generation.
+- `jinja.py` - Configures the Jinja templating engine (templates live under
+  `../resources/templates/`).
+- `language.py` - Abstract `Lang` base with concrete `Cpp` / `Fortran`
+  subclasses in `cpp/` and `fortran/`.
+- `op.py` - Data classes for OP2 primitives (`Set`, `Map`, `Dat`, `Arg*`,
+  `Loop`, `AccessType`, `Type`).
+- `scheme.py` - Binds a `Lang` to a `Target` (backend); each combination
+  gets a registered scheme that produces host + kernel code.
+- `store.py` - Parses source, populates `Application` / `Program`
+  containers, tracks entity dependencies.
+- `../resources/templates/` - Jinja templates for each language/target
+  combination.

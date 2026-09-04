@@ -2,6 +2,6 @@
 #define OP_FUN_PREFIX
 #endif
 
-static inline OP_FUN_PREFIX double maxfun(double a, double b) {
+[[maybe_unused]] static inline OP_FUN_PREFIX double maxfun(double a, double b) {
    return a>b ? a : b;
 }
