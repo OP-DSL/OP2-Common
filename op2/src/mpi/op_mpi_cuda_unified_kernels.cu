@@ -25,29 +25,49 @@ namespace op::unified_exchanges {
 
 constexpr int BLOCK_SIZE = 128;
 
-void *gather_buf = nullptr;
-size_t gather_buf_size = 0;
+class CudaBackend final : public Backend {
+public:
+    // The gather and scatter kernels are asynchronous.
+    CudaBackend() : Backend{false} {}
 
-void *scatter_buf = nullptr;
-size_t scatter_buf_size = 0;
+    ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) override;
 
-gpuEvent_t gather_event;
-bool gather_event_initialised = false;
+    void initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) override;
+    void initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) override;
 
-gpuEvent_t scatter_event;
-bool scatter_event_initialised = false;
+    void wait_gathers() override;
+    void wait_scatters() override;
 
-GatherSpec *gathers_d;
-size_t gathers_size = 0;
+private:
+    void *gather_buf = nullptr;
+    size_t gather_buf_size = 0;
 
-int *gather_disps_d;
-size_t gather_disps_size = 0;
+    void *scatter_buf = nullptr;
+    size_t scatter_buf_size = 0;
 
-ScatterSpec *scatters_d;
-size_t scatters_size = 0;
+    gpuEvent_t gather_event;
+    bool gather_event_initialised = false;
 
-int *scatter_disps_d;
-size_t scatter_disps_size = 0;
+    gpuEvent_t scatter_event;
+    bool scatter_event_initialised = false;
+
+    GatherSpec *gathers_d;
+    size_t gathers_size = 0;
+
+    int *gather_disps_d;
+    size_t gather_disps_size = 0;
+
+    ScatterSpec *scatters_d;
+    size_t scatters_size = 0;
+
+    int *scatter_disps_d;
+    size_t scatter_disps_size = 0;
+};
+
+Backend *device_backend() {
+    static CudaBackend backend;
+    return &backend;
+}
 
 static void ensure_capacity(void **buffer, size_t *size, size_t capacity, bool async = true) {
     if (capacity <= *size) {
@@ -73,13 +93,7 @@ static void ensure_capacity(void **buffer, size_t *size, size_t capacity, bool a
     *size = new_size;
 }
 
-const Backend &backend() {
-    // The gather and scatter kernels are asynchronous.
-    static const Backend b{false};
-    return b;
-}
-
-ExchangeBuffers alloc_exchange_buffers(size_t gather_size, size_t scatter_size) {
+ExchangeBuffers CudaBackend::alloc_buffers(size_t gather_size, size_t scatter_size) {
     ensure_capacity(&gather_buf, &gather_buf_size, gather_size, false);
     ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size, false);
 
@@ -103,7 +117,7 @@ __global__ void gather_kernel(__grid_constant__ const GathersT gathers,
 }
 
 template<unsigned N>
-void initiate_gathers_array(const std::unordered_map<int, std::vector<GatherSpec>> &gathers_for_neighbour) {
+void initiate_gathers_array(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
     std::array<GatherSpec, N> gathers;
     std::array<int, N> disps;
 
@@ -124,7 +138,7 @@ void initiate_gathers_array(const std::unordered_map<int, std::vector<GatherSpec
     gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers, disps, num_gathers);
 }
 
-void initiate_gathers(const std::unordered_map<int, std::vector<GatherSpec>> &gathers_for_neighbour) {
+void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
     if (gathers_for_neighbour.size() == 0) return;
 
     size_t num_gathers = 0;
@@ -173,7 +187,7 @@ void initiate_gathers(const std::unordered_map<int, std::vector<GatherSpec>> &ga
     cutilSafeCall(gpuEventRecord(gather_event, 0));
 }
 
-void wait_gathers() {
+void CudaBackend::wait_gathers() {
     cutilSafeCall(gpuEventSynchronize(gather_event));
 }
 
@@ -193,7 +207,7 @@ __global__ void scatter_kernel(__grid_constant__ const ScattersT scatters,
 }
 
 template<unsigned N>
-void initiate_scatters_array(const std::unordered_map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
+void initiate_scatters_array(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
     std::array<ScatterSpec, N> scatters;
     std::array<int, N> disps;
 
@@ -214,7 +228,7 @@ void initiate_scatters_array(const std::unordered_map<int, std::vector<ScatterSp
     scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters, disps, num_scatters);
 }
 
-void initiate_scatters(const std::unordered_map<int, std::vector<ScatterSpec>> &scatters_for_neighbour) {
+void CudaBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
     if (scatters_for_neighbour.size() == 0) return;
 
     size_t num_scatters = 0;
@@ -263,7 +277,7 @@ void initiate_scatters(const std::unordered_map<int, std::vector<ScatterSpec>> &
     cutilSafeCall(gpuEventRecord(scatter_event, 0));
 }
 
-void wait_scatters() {
+void CudaBackend::wait_scatters() {
     if (!scatter_event_initialised) {
         return;
     }

@@ -383,10 +383,11 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
 // therefore not compiled in here (it needs the device gather/scatter kernels
 // and the device-resident halo lists), and these stubs satisfy the call sites
 // in op_mpi_util.cpp - same arrangement as the *_cuda helpers above.
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
+int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
   (void)set;
   (void)nargs;
   (void)args;
+  (void)device;
   printf("op_mpi_halo_exchanges_unified: unified exchanges require a GPU "
          "build (op2_mpi_cuda / op2_mpi_hip)\n");
   exit(-1);

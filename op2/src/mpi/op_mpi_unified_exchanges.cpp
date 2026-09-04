@@ -11,6 +11,18 @@
 
 namespace op::unified_exchanges {
 
+Backend &backend_for(int device) {
+    Backend *backend = (device == 2) ? device_backend() : nullptr;
+
+    if (backend == nullptr) {
+        std::printf("op_mpi_halo_exchanges_unified: no unified exchange backend "
+                    "for device %d in this library\n", device);
+        std::exit(-1);
+    }
+
+    return *backend;
+}
+
 static std::vector<signed char> soa_cache;
 
 static bool dat_is_soa(op_dat dat) {
@@ -128,12 +140,16 @@ struct ExchangeContext {
     std::vector<MPI_Request> send_reqs;
     std::vector<MPI_Request> recv_reqs;
 
+    Backend *backend = nullptr;
+
     // Spec counts, not map sizes: the maps keep their keys between exchanges so
     // a neighbour can be present with an empty vector.
     size_t n_gather_specs = 0;
     size_t n_scatter_specs = 0;
 
-    void reset() {
+    void reset(int device) {
+        backend = &backend_for(device);
+
         tag++;
         if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
 
@@ -215,7 +231,7 @@ struct ExchangeContext {
             send_reqs.clear();
         }
 
-        auto bufs = alloc_exchange_buffers(gather_size, scatter_size);
+        auto bufs = backend->alloc_buffers(gather_size, scatter_size);
 
         size_t gather_offset = 0;
         for (auto &[neighbour, gathers] : gathers_for_neighbour) {
@@ -247,17 +263,17 @@ struct ExchangeContext {
 
         // Initiate gathers
         if (n_gather_specs > 0) {
-            initiate_gathers(gathers_for_neighbour);
+            backend->initiate_gathers(gathers_for_neighbour);
         }
 
         // A synchronous backend has already filled the send blocks, so the sends
         // can go out now rather than at wait-all.
-        if (backend().synchronous) {
+        if (backend->synchronous) {
             post_sends();
         }
 
         // Wait for previous scatter kernels to complete before initiating MPI recvs
-        wait_scatters();
+        backend->wait_scatters();
 
         post_recvs();
     }
@@ -287,9 +303,9 @@ struct ExchangeContext {
             return;
         }
 
-        if (!backend().synchronous) {
+        if (!backend->synchronous) {
             if (n_gather_specs > 0) {
-                wait_gathers();
+                backend->wait_gathers();
             }
 
             post_sends();
@@ -301,7 +317,7 @@ struct ExchangeContext {
         }
 
         if (n_scatter_specs > 0) {
-            initiate_scatters(scatters_for_neighbour);
+            backend->initiate_scatters(scatters_for_neighbour);
         }
 
         // Set dirtybits
@@ -320,7 +336,7 @@ ExchangeContext ctx;
 
 using namespace op::unified_exchanges;
 
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
+int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
     bool exec = false;
     int size = set->size;
 
@@ -334,7 +350,7 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
         break;
     }
 
-    ctx.reset();
+    ctx.reset(device);
     ctx.exec = exec;
 
     for (int n = 0; n < nargs; ++n) {

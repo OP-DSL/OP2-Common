@@ -398,7 +398,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
     return size;
 
   if (device == 2 && OP_unified_exchanges) {
-      return op_mpi_halo_exchanges_unified(set, nargs, args);
+      return op_mpi_halo_exchanges_unified(set, nargs, args, device);
   }
 
   // not a direct loop ...
