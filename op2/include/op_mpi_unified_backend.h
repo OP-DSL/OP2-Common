@@ -34,6 +34,17 @@ public:
     explicit Backend(bool synchronous) : synchronous{synchronous} {}
     virtual ~Backend() = default;
 
+    // Where this backend reads and writes a dat, and in which layout. Host data
+    // is always AoS; the device copy may be SoA.
+    virtual DatAccessor accessor(op_dat dat) const = 0;
+
+    // Halo element-index lists, in the memory this backend gathers from. The
+    // host keeps them in halo_list::list, a device backend in its own copies.
+    virtual int *exec_export_list(int set_index) const = 0;
+    virtual int *nonexec_export_list(int set_index) const = 0;
+    virtual int *nonexec_export_permap(int map_index) const = 0;
+    virtual int *nonexec_import_permap(int map_index) const = 0;
+
     virtual ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) = 0;
 
     virtual void initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) = 0;
@@ -43,7 +54,10 @@ public:
     virtual void wait_scatters() = 0;
 };
 
-// Null in a library variant built without that backend.
+// Always available: the host backend has no accelerator dependency.
+Backend *host_backend();
+
+// Null in a library variant built without an accelerator backend.
 Backend *device_backend();
 
 // Selects from the device argument, aborting if that backend is unavailable.

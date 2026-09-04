@@ -1,0 +1,95 @@
+#include <op_mpi_unified_backend.h>
+
+#include <cstdlib>
+#include <cstring>
+
+namespace op::unified_exchanges {
+
+class HostBackend final : public Backend {
+public:
+    // The gather is a plain loop, so it has finished by the time it returns.
+    HostBackend() : Backend{true} {}
+
+    DatAccessor accessor(op_dat dat) const override;
+
+    int *exec_export_list(int set_index) const override {
+        return OP_export_exec_list[set_index]->list;
+    }
+    int *nonexec_export_list(int set_index) const override {
+        return OP_export_nonexec_list[set_index]->list;
+    }
+    int *nonexec_export_permap(int map_index) const override {
+        return OP_export_nonexec_permap[map_index]->list;
+    }
+    int *nonexec_import_permap(int map_index) const override {
+        return OP_import_nonexec_permap[map_index]->list;
+    }
+
+    ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) override;
+
+    void initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) override;
+    void initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) override;
+
+    void wait_gathers() override {}
+    void wait_scatters() override {}
+
+private:
+    void *gather_buf = nullptr;
+    size_t gather_buf_size = 0;
+
+    void *scatter_buf = nullptr;
+    size_t scatter_buf_size = 0;
+};
+
+static void ensure_capacity(void **buffer, size_t *size, size_t capacity) {
+    if (capacity <= *size) {
+        return;
+    }
+
+    size_t new_size = capacity * 1.2;
+
+    free(*buffer);
+    *buffer = malloc(new_size);
+
+    *size = new_size;
+}
+
+DatAccessor HostBackend::accessor(op_dat dat) const {
+    // The host copy is always AoS, so the stride is unused.
+    return DatAccessor((void *) dat->data, dat->dim, 0, dat->size / dat->dim, false);
+}
+
+ExchangeBuffers HostBackend::alloc_buffers(size_t gather_size, size_t scatter_size) {
+    ensure_capacity(&gather_buf, &gather_buf_size, gather_size);
+    ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size);
+
+    // MPI sends and receives straight out of the same buffers.
+    return {gather_buf, scatter_buf, gather_buf, scatter_buf};
+}
+
+void HostBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
+    for (auto &[neighbour, gathers] : gathers_for_neighbour) {
+        for (auto &gather : gathers) {
+            for (int i = 0; i < gather.size; ++i) {
+                gather_element(gather, i);
+            }
+        }
+    }
+}
+
+void HostBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
+    for (auto &[neighbour, scatters] : scatters_for_neighbour) {
+        for (auto &scatter : scatters) {
+            for (int i = 0; i < scatter.size; ++i) {
+                scatter_element(scatter, i);
+            }
+        }
+    }
+}
+
+Backend *host_backend() {
+    static HostBackend backend;
+    return &backend;
+}
+
+}

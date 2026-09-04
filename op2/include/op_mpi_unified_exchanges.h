@@ -27,6 +27,10 @@ struct DatAccessor {
     bool soa;
 
     DatAccessor() = default;
+
+    DatAccessor(void *data, int dim, int stride, int elem_size, bool soa)
+        : data{data}, dim{dim}, stride{stride}, elem_size{elem_size}, soa{soa} {}
+
     DatAccessor(op_dat dat) : DatAccessor(dat, strstr(dat->type, ":soa") != NULL ||
                                                (OP_auto_soa && dat->dim > 1)) {}
 

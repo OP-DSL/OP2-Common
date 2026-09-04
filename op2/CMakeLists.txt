@@ -84,6 +84,8 @@ set(_op2_backend_mpi_backbone_srcs
     "${_src}/mpi/op_mpi_part_core.cpp"
     "${_src}/mpi/op_mpi_hdf5.cpp"
     "${_src}/mpi/op_mpi_util.cpp"
+    "${_src}/mpi/op_mpi_unified_exchanges.cpp"
+    "${_src}/mpi/op_mpi_unified_host.cpp"
     "${_src}/externlib/op_util.cpp"
     "${_src}/externlib/op_renumber.cpp"
 )
@@ -102,7 +104,6 @@ set(_op2_backend_mpi_cuda_overlay_srcs
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
     "${_src}/mpi/op_mpi_cuda_rt_support.cpp"
     "${_src}/mpi/op_mpi_cuda_kernels.cu"
-    "${_src}/mpi/op_mpi_unified_exchanges.cpp"
     "${_src}/mpi/op_mpi_cuda_unified_kernels.cu"
 )
 

@@ -377,26 +377,10 @@ void scatter_data_from_buffer_ptr_cuda(op_arg arg, halo_list iel, halo_list inl,
   (void)neigh_offsets;
 }
 
-// The unified halo exchange path is GPU-only: op_mpi_halo_exchanges_grouped()
-// and op_mpi_wait_all_grouped() only dispatch to it when device == 2, which
-// never happens in this CPU-only library. op_mpi_unified_exchanges.cpp is
-// therefore not compiled in here (it needs the device gather/scatter kernels
-// and the device-resident halo lists), and these stubs satisfy the call sites
-// in op_mpi_util.cpp - same arrangement as the *_cuda helpers above.
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
-  (void)set;
-  (void)nargs;
-  (void)args;
-  (void)device;
-  printf("op_mpi_halo_exchanges_unified: unified exchanges require a GPU "
-         "build (op2_mpi_cuda / op2_mpi_hip)\n");
-  exit(-1);
-}
+// This library variant has no accelerator backend, so unified exchanges only
+// ever run on the host one. Same arrangement as the *_cuda stubs above.
+#include <op_mpi_unified_backend.h>
 
-void op_mpi_wait_all_unified(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-  printf("op_mpi_wait_all_unified: unified exchanges require a GPU build "
-         "(op2_mpi_cuda / op2_mpi_hip)\n");
-  exit(-1);
+namespace op::unified_exchanges {
+Backend *device_backend() { return nullptr; }
 }

@@ -12,7 +12,7 @@
 namespace op::unified_exchanges {
 
 Backend &backend_for(int device) {
-    Backend *backend = (device == 2) ? device_backend() : nullptr;
+    Backend *backend = (device == 2) ? device_backend() : host_backend();
 
     if (backend == nullptr) {
         std::printf("op_mpi_halo_exchanges_unified: no unified exchange backend "
@@ -23,17 +23,6 @@ Backend &backend_for(int device) {
     return *backend;
 }
 
-static std::vector<signed char> soa_cache;
-
-static bool dat_is_soa(op_dat dat) {
-    if ((std::size_t) dat->index >= soa_cache.size()) soa_cache.resize(dat->index + 1, -1);
-    if (soa_cache[dat->index] < 0)
-        soa_cache[dat->index] =
-            (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) ? 1 : 0;
-
-    return soa_cache[dat->index] != 0;
-}
-
 struct ExchangeSpec {
     op_dat dat;
     std::optional<op_map> map = std::nullopt;
@@ -42,15 +31,15 @@ struct ExchangeSpec {
     bool is_partial() const { return map.has_value(); }
 };
 
-void extract_gathers(const ExchangeSpec &exchange,
-                     std::unordered_map<int, std::vector<GatherSpec>> &gathers) {
-    auto dat = DatAccessor(exchange.dat, dat_is_soa(exchange.dat));
+void extract_gathers(const Backend &backend, const ExchangeSpec &exchange,
+                     SpecsByNeighbour<GatherSpec> &gathers) {
+    auto dat = backend.accessor(exchange.dat);
 
     if (exchange.is_partial()) {
         auto nonexec_list = OP_export_nonexec_permap[(*exchange.map)->index];
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-            auto list = export_nonexec_list_partial_d[(*exchange.map)->index] + nonexec_list->disps[i];
+            auto list = backend.nonexec_export_permap((*exchange.map)->index) + nonexec_list->disps[i];
             auto gather_spec = GatherSpec(nonexec_list->sizes[i], list, dat);
             gathers[nonexec_list->ranks[i]].push_back(gather_spec);
         }
@@ -62,27 +51,27 @@ void extract_gathers(const ExchangeSpec &exchange,
     auto nonexec_list = OP_export_nonexec_list[exchange.dat->set->index];
 
     for (int i = 0; i < exec_list->ranks_size; ++i) {
-        auto list = export_exec_list_d[exchange.dat->set->index] + exec_list->disps[i];
+        auto list = backend.exec_export_list(exchange.dat->set->index) + exec_list->disps[i];
         auto gather_spec = GatherSpec(exec_list->sizes[i], list, dat);
         gathers[exec_list->ranks[i]].push_back(gather_spec);
     }
 
     for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-        auto list = export_nonexec_list_d[exchange.dat->set->index] + nonexec_list->disps[i];
+        auto list = backend.nonexec_export_list(exchange.dat->set->index) + nonexec_list->disps[i];
         auto gather_spec = GatherSpec(nonexec_list->sizes[i], list, dat);
         gathers[nonexec_list->ranks[i]].push_back(gather_spec);
     }
 }
 
-void extract_scatters(const ExchangeSpec &exchange,
-                      std::unordered_map<int, std::vector<ScatterSpec>> &scatters) {
-    auto dat = DatAccessor(exchange.dat, dat_is_soa(exchange.dat));
+void extract_scatters(const Backend &backend, const ExchangeSpec &exchange,
+                      SpecsByNeighbour<ScatterSpec> &scatters) {
+    auto dat = backend.accessor(exchange.dat);
 
     if (exchange.is_partial()) {
         auto nonexec_list = OP_import_nonexec_permap[(*exchange.map)->index];
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-            auto list = import_nonexec_list_partial_d[(*exchange.map)->index] + nonexec_list->disps[i];
+            auto list = backend.nonexec_import_permap((*exchange.map)->index) + nonexec_list->disps[i];
             auto scatter_spec = ScatterSpec(nonexec_list->sizes[i], list, dat);
             scatters[nonexec_list->ranks[i]].push_back(scatter_spec);
         }
@@ -131,8 +120,8 @@ struct ExchangeContext {
 
     std::vector<ExchangeSpec> exchanges;
 
-    std::unordered_map<int, std::vector<GatherSpec>> gathers_for_neighbour;
-    std::unordered_map<int, std::vector<ScatterSpec>> scatters_for_neighbour;
+    SpecsByNeighbour<GatherSpec> gathers_for_neighbour;
+    SpecsByNeighbour<ScatterSpec> scatters_for_neighbour;
 
     std::unordered_map<int, Block> send_blocks;
     std::unordered_map<int, Block> recv_blocks;
@@ -205,8 +194,8 @@ struct ExchangeContext {
         });
 
         for (auto& exchange : exchanges) {
-            extract_gathers(exchange, gathers_for_neighbour);
-            extract_scatters(exchange, scatters_for_neighbour);
+            extract_gathers(*backend, exchange, gathers_for_neighbour);
+            extract_scatters(*backend, exchange, scatters_for_neighbour);
         }
 
         size_t gather_size = 0;

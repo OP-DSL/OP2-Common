@@ -397,7 +397,7 @@ extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args
   if (direct_flag == 1)
     return size;
 
-  if (device == 2 && OP_unified_exchanges) {
+  if (OP_unified_exchanges) {
       return op_mpi_halo_exchanges_unified(set, nargs, args, device);
   }
 
@@ -610,7 +610,7 @@ extern "C"  void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   if (direct_flag == 1)
     return;
 
-  if (device == 2 && OP_unified_exchanges) {
+  if (OP_unified_exchanges) {
       op_mpi_wait_all_unified(nargs, args);
       return;
   }

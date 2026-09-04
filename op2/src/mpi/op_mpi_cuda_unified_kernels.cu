@@ -30,6 +30,21 @@ public:
     // The gather and scatter kernels are asynchronous.
     CudaBackend() : Backend{false} {}
 
+    DatAccessor accessor(op_dat dat) const override;
+
+    int *exec_export_list(int set_index) const override {
+        return export_exec_list_d[set_index];
+    }
+    int *nonexec_export_list(int set_index) const override {
+        return export_nonexec_list_d[set_index];
+    }
+    int *nonexec_export_permap(int map_index) const override {
+        return export_nonexec_list_partial_d[map_index];
+    }
+    int *nonexec_import_permap(int map_index) const override {
+        return import_nonexec_list_partial_d[map_index];
+    }
+
     ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) override;
 
     void initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) override;
@@ -63,6 +78,27 @@ private:
     int *scatter_disps_d;
     size_t scatter_disps_size = 0;
 };
+
+// The soa flag depends only on the dat's type string and dim, so compute the
+// strstr once per dat rather than on every exchange.
+static std::vector<signed char> soa_cache;
+
+static bool dat_is_soa(op_dat dat) {
+    if ((std::size_t) dat->index >= soa_cache.size()) soa_cache.resize(dat->index + 1, -1);
+    if (soa_cache[dat->index] < 0)
+        soa_cache[dat->index] =
+            (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) ? 1 : 0;
+
+    return soa_cache[dat->index] != 0;
+}
+
+DatAccessor CudaBackend::accessor(op_dat dat) const {
+    int stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
+                                        + OP_import_nonexec_list[dat->set->index]->size);
+
+    return DatAccessor((void *) dat->data_d, dat->dim, stride, dat->size / dat->dim,
+                       dat_is_soa(dat));
+}
 
 Backend *device_backend() {
     static CudaBackend backend;
