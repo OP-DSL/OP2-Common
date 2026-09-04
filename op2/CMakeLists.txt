@@ -102,6 +102,8 @@ set(_op2_backend_mpi_cuda_overlay_srcs
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
     "${_src}/mpi/op_mpi_cuda_rt_support.cpp"
     "${_src}/mpi/op_mpi_cuda_kernels.cu"
+    "${_src}/mpi/op_mpi_unified_exchanges.cpp"
+    "${_src}/mpi/op_mpi_cuda_unified_kernels.cu"
 )
 
 # --- Fortran groups ------------------------------------------------------
