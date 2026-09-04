@@ -1,5 +1,5 @@
 #include <op_mpi_unified_exchanges.h>
-#include <op_mpi_cuda_unified_kernels.h>
+#include <op_mpi_unified_backend.h>
 
 #include <op_lib_mpi.h>
 
