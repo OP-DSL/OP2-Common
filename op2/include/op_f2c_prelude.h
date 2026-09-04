@@ -25,10 +25,10 @@ constexpr int round32(int x) { return (x + 31) & ~31; }
 constexpr size_t round32(size_t x) { return (x + 31) & ~31; }
 
 DEVICE inline void trap() {
-#ifdef __HIPCC__
-    __builtin_trap();
+#if defined(__CUDA_ARCH__)
+    __trap();
 #else
-    assert(false);
+    __builtin_trap();
 #endif
 }
 
