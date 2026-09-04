@@ -1,3 +1,5 @@
+{% extends "cpp/loop_host.hpp.jinja" %}
+
 {%- if config.hip -%}
     {% set api_prefix = "hip" %}
 {%- else -%}
@@ -230,25 +232,6 @@ CUDA_SAFE_CALL({{api_prefix}}PeekAtLastError());
 exit_sync = processDeviceGbls(args, n_args, block_size * max_blocks, block_size * max_blocks);
 {%- endmacro -%}
 
-namespace op2_m_{{lh.name}}{{variant}} {
-
-    {% for dat in lh.dats|soa %}
-int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
-    {% endfor %}
-    {% for dat in lh.dats|soa %}
-__constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
-    {% endfor %}
-    {% if args_gbl_per_thread|length > 0 %}
-
-int op2_{{lh.kernel}}_gbl_stride = -1;
-__constant__ int op2_{{lh.kernel}}_gbl_stride_d;
-    {% endif %}
-{% for arg in lh.args|gbl|read|scalar %}
-{{arg.typ.c()}} op2_gbl{{arg.id}};
-{% endfor %}
-
-{{kernel_func}}}
-
 {% macro kernel_wrapper(jit = false) %}
 extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
 void op2_k_{{lh.name}}{{variant}}_wrapper(
@@ -327,16 +310,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
 }
 {% endmacro %}
 
-{{kernel_wrapper()}}
-
-const char op2_k_{{lh.name}}{{variant}}_src[] = R"_op2_k(
-namespace op2_m_{{lh.name}}{{variant}} {
-
-{{kernel_func}}}
-
-{{kernel_wrapper(jit=true)}}
-)_op2_k";
-
+{% block prologue %}
 {% if args_gbl_per_thread|length > 0 %}
 __global__
 static void op2_k_{{lh.name}}{{variant}}_init_gbls(
@@ -354,8 +328,6 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 {% endfor %}
     int stride
 ) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}};
-
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
 {% for arg in args_gbl_per_thread %}
@@ -376,6 +348,41 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 }
 {% endif %}
 
+namespace op2_m_{{lh.name}}{{variant}} {
+    {% for dat in lh.dats|soa %}
+int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
+    {% endfor %}
+    {% for dat in lh.dats|soa %}
+__constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
+    {% endfor %}
+    {% if args_gbl_per_thread|length > 0 %}
+int op2_{{lh.kernel}}_gbl_stride = -1;
+__constant__ int op2_{{lh.kernel}}_gbl_stride_d;
+    {% endif %}
+{% for arg in lh.args|gbl|read|scalar %}
+{{arg.typ.c()}} op2_gbl{{arg.id}};
+{% endfor %}
+{% endblock %}
+
+{% block kernel %}
+{{kernel_func}}}
+{% endblock %}
+
+{% block kernel_wrapper %}
+
+{{kernel_wrapper()}}
+
+const char op2_k_{{lh.name}}{{variant}}_src[] = R"_op2_k(
+namespace op2_m_{{lh.name}}{{variant}} {
+
+{{kernel_func}}}
+
+{{kernel_wrapper(jit=true)}}
+)_op2_k";
+
+{% endblock %}
+
+{% block host_prologue %}
 void op_par_loop_{{lh.name}}(
     const char *name,
     op_set set,
@@ -514,7 +521,6 @@ void op_par_loop_{{lh.name}}(
 {% for arg in lh.args|gbl|read|scalar %}
     kernel::op2_gbl{{arg.id}} = (({{arg.typ.c()}} *)arg{{arg.id}}.data)[0];
 {% endfor %}
-
 {% for dat in lh.dats|soa %}
     kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride = f2c::round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
 {% endfor %}
@@ -560,6 +566,9 @@ void op_par_loop_{{lh.name}}(
 {% endif %}
 
     op_profile_exit();
+{% endblock %}
+
+{% block host_loop %}
     op_profile_next("Computation");
 
 {% if lh is direct %}
@@ -638,7 +647,9 @@ void op_par_loop_{{lh.name}}(
 {% endif %}
 
     op_profile_exit();
+{% endblock %}
 
+{% block host_epilogue %}
     op_profile_enter("Finalise");
 {% for arg in lh.args|gbl|reduction %}
     op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
@@ -648,5 +659,6 @@ void op_par_loop_{{lh.name}}(
     if (exit_sync) CUDA_SAFE_CALL({{api_prefix}}StreamSynchronize(0));
 
     op_profile_exit();
-    op_profile_exit();
-}
+    
+{{super()}}
+{% endblock %}
