@@ -1,8 +1,8 @@
 Getting Started
 ===============
 
-Manual Build
-------------
+GNU Make Build
+--------------
 
 Toolchain and Build Dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -169,9 +169,44 @@ For example, to build the Fortran Airfoil benchmark with JIT CUDA:
 
 See :ref:`op2-fortran-api` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
    
+CMake Build
+-----------
+
+OP2 also ships a CMake build, which builds the same runtime libraries as the
+GNU Make build above and additionally drives the translator, the example apps,
+and the functional tests. The two build systems sit side by side: the GNU Make
+build is unaffected, and either can be used.
+
+``scripts/setup_deps.sh`` bootstraps the library dependencies (HDF5, ParMETIS,
+PT-Scotch and KaHIP) into ``deps/`` and writes a CMake cache initializer, so a
+full configure needs no dependency hints of its own:
+
+.. code-block:: shell
+
+   scripts/setup_deps.sh
+   cmake -B build -C deps/op2-deps.cmake
+   cmake --build build -j$(nproc)
+
+Every feature is soft-failing: a missing compiler or library skips the affected
+library variants with a status message rather than failing the configure, and
+an end-of-configure summary reports what was found and what will be built. To
+build the example apps and register the functional tests with ``ctest``, add
+``-DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON``.
+
+An installed OP2 is consumed with standard config-mode discovery:
+
+.. code-block:: cmake
+
+   find_package(OP2 CONFIG REQUIRED)
+   target_link_libraries(my_app PRIVATE op2::op2_mpi)
+
+See :doc:`cmake` for the full CMake reference: every option, dependency hint,
+and downstream discovery variable, plus the ``op2_add_app_variants()`` and
+``op2_translate()`` helpers that come with ``find_package(OP2)``.
+
 Spack
 -----
 
-A Spack package for OP2 is not yet available. Building from source using the manual steps above is currently the recommended installation method.
+A Spack package for OP2 is not yet available. Building from source using either of the methods above is currently the recommended installation method.
 
-If you are using a Spack-managed environment, the required compilers and libraries (MPI, CUDA, HDF5) will generally be available through the Spack-generated environment or compiler wrappers. Once the appropriate modules or environment is activated, follow the manual build steps. You do not need to set ``X_INSTALL_PATH`` variables if the include and library paths are already injected by the module system.
+If you are using a Spack-managed environment, the required compilers and libraries (MPI, CUDA, HDF5) will generally be available through the Spack-generated environment or compiler wrappers. Once the appropriate modules or environment is activated, follow the build steps above. You do not need to set ``X_INSTALL_PATH`` variables if the include and library paths are already injected by the module system.
