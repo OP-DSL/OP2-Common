@@ -243,36 +243,35 @@ void initiate_scatters(const std::unordered_map<int, std::vector<ScatterSpec>> &
         else if (num_scatters <= 32) initiate_scatters_array<32>(scatters_for_neighbour);
         else if (num_scatters <= 64) initiate_scatters_array<64>(scatters_for_neighbour);
         else if (num_scatters <= 128) initiate_scatters_array<128>(scatters_for_neighbour);
+    } else {
+        size_t total_scatter_size = 0;
+        std::vector<ScatterSpec> scatters;
+        std::vector<int> disps;
 
-        return;
-    }
-
-    size_t total_scatter_size = 0;
-    std::vector<ScatterSpec> scatters;
-    std::vector<int> disps;
-
-    for (auto &[neighbour, scatters_batch] : scatters_for_neighbour) {
-        for (auto& scatter : scatters_batch) {
-            scatters.push_back(scatter);
-            total_scatter_size += scatter.size;
-            disps.push_back(total_scatter_size);
+        for (auto &[neighbour, scatters_batch] : scatters_for_neighbour) {
+            for (auto& scatter : scatters_batch) {
+                scatters.push_back(scatter);
+                total_scatter_size += scatter.size;
+                disps.push_back(total_scatter_size);
+            }
         }
+
+        ensure_capacity((void **) &scatters_d, &scatters_size, sizeof(ScatterSpec) * scatters.size());
+        cutilSafeCall(gpuMemcpyAsync((void *) scatters_d, (void *) scatters.data(),
+                                     sizeof(ScatterSpec) * scatters.size(), gpuMemcpyHostToDevice));
+
+        ensure_capacity((void **) &scatter_disps_d, &scatter_disps_size, sizeof(int) * disps.size());
+        cutilSafeCall(gpuMemcpyAsync((void *) scatter_disps_d, (void *) disps.data(),
+                                     sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
+
+
+        size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+        scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
     }
-
-    ensure_capacity((void **) &scatters_d, &scatters_size, sizeof(ScatterSpec) * scatters.size());
-    cutilSafeCall(gpuMemcpyAsync((void *) scatters_d, (void *) scatters.data(),
-                                 sizeof(ScatterSpec) * scatters.size(), gpuMemcpyHostToDevice));
-
-    ensure_capacity((void **) &scatter_disps_d, &scatter_disps_size, sizeof(int) * disps.size());
-    cutilSafeCall(gpuMemcpyAsync((void *) scatter_disps_d, (void *) disps.data(),
-                                 sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
-
-
-    size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-    scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
 
     if (!scatter_event_initialised) {
         cutilSafeCall(gpuEventCreateWithFlags(&scatter_event, gpuEventDisableTiming));
+        scatter_event_initialised = true;
     }
 
     cutilSafeCall(gpuEventRecord(scatter_event, 0));
