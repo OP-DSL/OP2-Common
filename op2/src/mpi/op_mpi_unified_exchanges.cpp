@@ -215,16 +215,16 @@ struct ExchangeContext {
             send_reqs.clear();
         }
 
-        auto [gather_buf, scatter_buf] = alloc_exchange_buffers(gather_size, scatter_size);
+        auto bufs = alloc_exchange_buffers(gather_size, scatter_size);
 
         size_t gather_offset = 0;
         for (auto &[neighbour, gathers] : gathers_for_neighbour) {
             if (gathers.empty()) continue;
-            auto block_start = (void *) ((char * ) gather_buf + gather_offset);
+            auto block_start = (void *) ((char * ) bufs.gather_mpi + gather_offset);
             auto block_start_offset = gather_offset;
 
             for (auto &gather : gathers) {
-                gather.target = (void *) ((char * ) gather_buf + gather_offset);
+                gather.target = (void *) ((char * ) bufs.gather + gather_offset);
                 gather_offset += gather.gather_size();
             }
 
@@ -234,11 +234,11 @@ struct ExchangeContext {
         size_t scatter_offset = 0;
         for (auto &[neighbour, scatters] : scatters_for_neighbour) {
             if (scatters.empty()) continue;
-            auto block_start = (void *) ((char * ) scatter_buf + scatter_offset);
+            auto block_start = (void *) ((char * ) bufs.scatter_mpi + scatter_offset);
             auto block_start_offset = scatter_offset;
 
             for (auto& scatter : scatters) {
-                scatter.source = (void *) ((char * ) scatter_buf + scatter_offset);
+                scatter.source = (void *) ((char * ) bufs.scatter + scatter_offset);
                 scatter_offset += scatter.scatter_size();
             }
 
