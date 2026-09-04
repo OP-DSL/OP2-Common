@@ -41,7 +41,32 @@ jobs:
           echo "PWD: $(pwd)"
           git status
 
-      # 3. Configure OP2 ---------------------------------------
+      # 3. Provide a Python for the translator ---------------------------------------
+      # OP2 ships no interpreter: the translator runs on whatever Python the
+      # environment provides, and every code-generated variant below needs it.
+      # Prefer the runner's own python3 when it already has the dependencies,
+      # and fall back to a throwaway venv so the job does not depend on the
+      # runner image having them installed.
+      - name: Provide a Python for the translator
+        run: |
+          if python3 -c "import jinja2, fparser, pcpp, sympy, clang.cindex" 2>/dev/null; then
+            echo "Using runner python3: $(command -v python3)"
+            echo "OP2_PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+          else
+            echo "Runner python3 lacks the translator dependencies, building a venv"
+            python3 -m venv "$RUNNER_TEMP/op2-translator-venv"
+            "$RUNNER_TEMP/op2-translator-venv/bin/pip" install --quiet \
+                -r translator-v2/requirements.txt
+            echo "OP2_PYTHON=$RUNNER_TEMP/op2-translator-venv/bin/python3" >> "$GITHUB_ENV"
+          fi
+
+      - name: Report the translator Python
+        run: |
+          echo "OP2_PYTHON=$OP2_PYTHON"
+          "$OP2_PYTHON" --version
+          "$OP2_PYTHON" -c "import jinja2, fparser, pcpp, sympy, clang.cindex; print('translator deps OK')"
+
+      # 4. Configure OP2 ---------------------------------------
       - name: Configure OP2
         run: |
           if [ -f makefiles/.config.mk ]; then
@@ -51,76 +76,76 @@ jobs:
 
           make -C op2 config
 
-      # 4. Compile OP2 ---------------------------------------
+      # 5. Compile OP2 ---------------------------------------
       - name: Compile OP2
         run: |
           echo "Building OP2..."
           make -C op2 -j"$N_PROC"
 
-      # 5. Compile C++ functional tests ---------------------------------------
+      # 6. Compile C++ functional tests ---------------------------------------
       - name: Compile C++ functional tests
         run: |
           cd tests/bash
           COMPILE_TESTS=TRUE ./functional_cpp_test.sh
 
-      # 6. Run C++ functional tests ---------------------------------------
+      # 7. Run C++ functional tests ---------------------------------------
       - name: Run C++ functional tests
         run: |
           cd tests/bash
           RUN_TESTS=TRUE ./functional_cpp_test.sh
 
-      # 7. Compile Fortran functional tests ---------------------------------------
+      # 8. Compile Fortran functional tests ---------------------------------------
       - name: Compile Fortran functional tests
         run: |
           cd tests/bash
           COMPILE_TESTS=TRUE ./functional_fortran_test.sh
 
-      # 8. Run Fortran functional tests ---------------------------------------
+      # 9. Run Fortran functional tests ---------------------------------------
       - name: Run Fortran functional tests
         run: |
           cd tests/bash
           RUN_TESTS=TRUE ./functional_fortran_test.sh
 
-      # 9. Compile aero tests ---------------------------------------
+      # 10. Compile aero tests ---------------------------------------
       - name: Compile Aero tests
         run: |
           export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
           cd tests/bash
           COMPILE_TESTS=TRUE ./aero_test.sh
 
-      # 10. Run aero tests ---------------------------------------
+      # 11. Run aero tests ---------------------------------------
       - name: Run Aero tests
         run: |
           cd tests/bash
           RUN_TESTS=TRUE ./aero_test.sh
 
-      # 11. Compile MGCFD tests ---------------------------------------
+      # 12. Compile MGCFD tests ---------------------------------------
       - name: Compile MGCFD tests
         run: |
           export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
           cd tests/bash
           COMPILE_TESTS=TRUE ./mgcfd_test.sh
 
-      # 12. Run MGCFD tests ---------------------------------------
+      # 13. Run MGCFD tests ---------------------------------------
       - name: Run MGCFD tests
         run: |
           cd tests/bash
           RUN_TESTS=TRUE ./mgcfd_test.sh
 
-      # 13. Compile airfoil tests ---------------------------------------
+      # 14. Compile airfoil tests ---------------------------------------
       - name: Compile Airfoil tests
         run: |
           export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
           cd tests/bash
           COMPILE_TESTS=TRUE ./airfoil_test.sh
 
-      # 14. Run airfoil tests ---------------------------------------
+      # 15. Run airfoil tests ---------------------------------------
       - name: Run Airfoil tests
         run: |
           cd tests/bash
           RUN_TESTS=TRUE ./airfoil_test.sh
 
-      # 15. Archive logs ---------------------------------------
+      # 16. Archive logs ---------------------------------------
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -130,7 +155,7 @@ jobs:
             *.log
             tests/**/*.log
 
-      # 16. Final status message ---------------------------------------
+      # 17. Final status message ---------------------------------------
       - name: Final status
         if: success()
         run: echo "CI tests passed"

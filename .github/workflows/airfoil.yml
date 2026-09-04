@@ -35,6 +35,20 @@ jobs:
         with:
           token: ${{ github.token }}
 
+      # The translator is plain Python run from the environment - OP2 ships no
+      # interpreter of its own - so genseq/openmp, which are code-generated,
+      # need one with its dependencies before anything is built.
+      - name: Set up Python for the translator
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: translator-v2/requirements.txt
+
+      - name: Install translator dependencies
+        working-directory: ${{ github.workspace }}
+        run: python3 -m pip install -r translator-v2/requirements.txt
+
       - name: Make build config
         working-directory: op2
         run: make config
