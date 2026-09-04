@@ -171,6 +171,7 @@ void initiate_gathers(const std::unordered_map<int, std::vector<GatherSpec>> &ga
 
     if (!gather_event_initialised) {
         cutilSafeCall(gpuEventCreateWithFlags(&gather_event, gpuEventDisableTiming));
+        gather_event_initialised = true;
     }
 
     cutilSafeCall(gpuEventRecord(gather_event, 0));
