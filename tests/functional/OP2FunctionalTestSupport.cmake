@@ -13,6 +13,8 @@
 #     [SOA_TRANSLATOR_ARGS <a...>] # additionally applied to just the soa/
 #                                  # soa_par families, default --force_soa
 #     [EXCLUDE_VARIANTS <v...>]    # threaded into all four variant-family calls below
+#     [MPI_ONLY]                   # build only the _par / _soa_par families,
+#                                  # for a test whose API exists only under MPI
 #     [MPI_RANKS_LOWCOST <n>]      # default 8 (seq/genseq/openmp)
 #     [MPI_RANKS_GPU <n>]          # default 4 (cuda/c_cuda/hip/c_hip)
 #     [OMP_NUM_THREADS <n>]        # default 6
@@ -29,7 +31,7 @@
 # ---------------------------------------------------------------------------
 function(op2_add_functional_tests)
     cmake_parse_arguments(_A
-        ""
+        "MPI_ONLY"
         "LANGUAGE;MPI_RANKS_LOWCOST;MPI_RANKS_GPU;OMP_NUM_THREADS"
         "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES"
         ${ARGN})
@@ -66,18 +68,21 @@ function(op2_add_functional_tests)
         endforeach()
     endmacro()
 
-    # 1. Build the four legacy variant-families (plain / par / soa / soa_par).
+    # 1. Build the four legacy variant-families (plain / par / soa / soa_par),
+    # or under MPI_ONLY just the two _par ones.
     # USE_MPI needs no explicit COMPILE_DEFINITIONS: _op2_add_variant_executable()
     # already applies it to every mpi_-prefixed target. SUMMARY_BUCKET TESTS
     # routes these into the test count instead of the "Apps:" line, reusing
     # op2_add_app_variants()'s own tracking rather than a separate counter.
-    op2_add_app_variants(
-        NAME "${_A_NAME}" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-        EXCLUDE_VARIANTS mpi_* ${_A_EXCLUDE_VARIANTS}
-        TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
-        SUMMARY_BUCKET TESTS
-        TARGETS_VAR _fam_targets)
-    _op2_take_family("${_A_NAME}")
+    if(NOT _A_MPI_ONLY)
+        op2_add_app_variants(
+            NAME "${_A_NAME}" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
+            EXCLUDE_VARIANTS mpi_* ${_A_EXCLUDE_VARIANTS}
+            TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
+            SUMMARY_BUCKET TESTS
+            TARGETS_VAR _fam_targets)
+        _op2_take_family("${_A_NAME}")
+    endif()
 
     op2_add_app_variants(
         NAME "${_A_NAME}_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
@@ -87,13 +92,15 @@ function(op2_add_functional_tests)
         TARGETS_VAR _fam_targets)
     _op2_take_family("${_A_NAME}_par")
 
-    op2_add_app_variants(
-        NAME "${_A_NAME}_soa" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-        EXCLUDE_VARIANTS mpi_* ${_A_EXCLUDE_VARIANTS}
-        TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
-        SUMMARY_BUCKET TESTS
-        TARGETS_VAR _fam_targets)
-    _op2_take_family("${_A_NAME}_soa")
+    if(NOT _A_MPI_ONLY)
+        op2_add_app_variants(
+            NAME "${_A_NAME}_soa" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
+            EXCLUDE_VARIANTS mpi_* ${_A_EXCLUDE_VARIANTS}
+            TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
+            SUMMARY_BUCKET TESTS
+            TARGETS_VAR _fam_targets)
+        _op2_take_family("${_A_NAME}_soa")
+    endif()
 
     op2_add_app_variants(
         NAME "${_A_NAME}_soa_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
