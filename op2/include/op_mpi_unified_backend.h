@@ -19,6 +19,14 @@ struct ExchangeBuffers {
     void *scatter_mpi;
 };
 
+struct Backend {
+    // The gather has completed by the time initiate_gathers() returns, so the
+    // sends can be posted straight away instead of waiting until wait-all.
+    bool synchronous;
+};
+
+const Backend &backend();
+
 ExchangeBuffers alloc_exchange_buffers(size_t gather_size, size_t scatter_size);
 
 void initiate_gathers(const std::unordered_map<int, std::vector<GatherSpec>> &gathers_for_neighbour);

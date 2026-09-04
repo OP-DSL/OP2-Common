@@ -73,6 +73,12 @@ static void ensure_capacity(void **buffer, size_t *size, size_t capacity, bool a
     *size = new_size;
 }
 
+const Backend &backend() {
+    // The gather and scatter kernels are asynchronous.
+    static const Backend b{false};
+    return b;
+}
+
 ExchangeBuffers alloc_exchange_buffers(size_t gather_size, size_t scatter_size) {
     ensure_capacity(&gather_buf, &gather_buf_size, gather_size, false);
     ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size, false);

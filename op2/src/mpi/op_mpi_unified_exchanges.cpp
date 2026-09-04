@@ -250,11 +250,32 @@ struct ExchangeContext {
             ::initiate_gathers(gathers_for_neighbour);
         }
 
+        // A synchronous backend has already filled the send blocks, so the sends
+        // can go out now rather than at wait-all.
+        if (backend().synchronous) {
+            post_sends();
+        }
+
         // Wait for previous scatter kernels to complete before initiating MPI recvs
         ::wait_scatters();
 
-        auto recv_index = 0;
+        post_recvs();
+    }
+
+    void post_sends() {
+        send_reqs.resize(send_blocks.size());
+
+        auto send_index = 0;
+        for (auto [neighbour, block] : send_blocks) {
+            block.send(neighbour, &send_reqs[send_index], tag);
+            ++send_index;
+        }
+    }
+
+    void post_recvs() {
         recv_reqs.resize(recv_blocks.size());
+
+        auto recv_index = 0;
         for (auto [neighbour, block] : recv_blocks) {
             block.recv(neighbour, &recv_reqs[recv_index], tag);
             ++recv_index;
@@ -266,16 +287,12 @@ struct ExchangeContext {
             return;
         }
 
-        if (n_gather_specs > 0) {
-            ::wait_gathers();
-        }
+        if (!backend().synchronous) {
+            if (n_gather_specs > 0) {
+                ::wait_gathers();
+            }
 
-        send_reqs.resize(send_blocks.size());
-
-        auto send_index = 0;
-        for (auto [neighbour, block] : send_blocks) {
-            block.send(neighbour, &send_reqs[send_index], tag);
-            ++send_index;
+            post_sends();
         }
 
         if (recv_reqs.size() > 0) {
