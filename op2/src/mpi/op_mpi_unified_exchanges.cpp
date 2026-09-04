@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <cassert>
 
-using namespace op::mpi::unified;
+namespace op::unified_exchanges {
 
 static std::vector<signed char> soa_cache;
 
@@ -247,7 +247,7 @@ struct ExchangeContext {
 
         // Initiate gathers
         if (n_gather_specs > 0) {
-            ::initiate_gathers(gathers_for_neighbour);
+            initiate_gathers(gathers_for_neighbour);
         }
 
         // A synchronous backend has already filled the send blocks, so the sends
@@ -257,7 +257,7 @@ struct ExchangeContext {
         }
 
         // Wait for previous scatter kernels to complete before initiating MPI recvs
-        ::wait_scatters();
+        wait_scatters();
 
         post_recvs();
     }
@@ -289,7 +289,7 @@ struct ExchangeContext {
 
         if (!backend().synchronous) {
             if (n_gather_specs > 0) {
-                ::wait_gathers();
+                wait_gathers();
             }
 
             post_sends();
@@ -301,7 +301,7 @@ struct ExchangeContext {
         }
 
         if (n_scatter_specs > 0) {
-            ::initiate_scatters(scatters_for_neighbour);
+            initiate_scatters(scatters_for_neighbour);
         }
 
         // Set dirtybits
@@ -315,6 +315,10 @@ struct ExchangeContext {
 };
 
 ExchangeContext ctx;
+
+}  // namespace op::unified_exchanges
+
+using namespace op::unified_exchanges;
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args) {
     bool exec = false;

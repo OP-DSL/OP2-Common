@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace op::mpi::unified {
+namespace op::unified_exchanges {
 
 struct ExchangeBuffers {
     // Where the gather and scatter kernels write and read.

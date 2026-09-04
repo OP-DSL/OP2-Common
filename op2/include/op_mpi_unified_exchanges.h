@@ -15,6 +15,8 @@
 #define OP2_UNIFIED_HD
 #endif
 
+namespace op::unified_exchanges {
+
 struct DatAccessor {
     void *data;
 
@@ -136,5 +138,9 @@ OP2_UNIFIED_HD inline void scatter_element(const ScatterSpec &s, std::size_t ind
     }
 }
 
+}
+
+// Entry points from op_mpi_util.cpp, global to match the rest of the runtime's
+// op_* interface.
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args);
 void op_mpi_wait_all_unified(int nargs, op_arg *args);

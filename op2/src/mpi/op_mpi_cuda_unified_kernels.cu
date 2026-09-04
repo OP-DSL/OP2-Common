@@ -21,7 +21,7 @@ namespace cub = hipcub;
 #define __grid_constant__
 #endif
 
-namespace op::mpi::unified {
+namespace op::unified_exchanges {
 
 constexpr int BLOCK_SIZE = 128;
 
