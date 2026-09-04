@@ -11,6 +11,17 @@
 
 using namespace op::mpi::unified;
 
+static std::vector<signed char> soa_cache;
+
+static bool dat_is_soa(op_dat dat) {
+    if ((std::size_t) dat->index >= soa_cache.size()) soa_cache.resize(dat->index + 1, -1);
+    if (soa_cache[dat->index] < 0)
+        soa_cache[dat->index] =
+            (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) ? 1 : 0;
+
+    return soa_cache[dat->index] != 0;
+}
+
 struct ExchangeSpec {
     op_dat dat;
     std::optional<op_map> map = std::nullopt;
@@ -21,7 +32,7 @@ struct ExchangeSpec {
 
 void extract_gathers(const ExchangeSpec &exchange,
                      std::unordered_map<int, std::vector<GatherSpec>> &gathers) {
-    auto dat = DatAccessor(exchange.dat);
+    auto dat = DatAccessor(exchange.dat, dat_is_soa(exchange.dat));
 
     if (exchange.is_partial()) {
         auto nonexec_list = OP_export_nonexec_permap[(*exchange.map)->index];
@@ -53,7 +64,7 @@ void extract_gathers(const ExchangeSpec &exchange,
 
 void extract_scatters(const ExchangeSpec &exchange,
                       std::unordered_map<int, std::vector<ScatterSpec>> &scatters) {
-    auto dat = DatAccessor(exchange.dat);
+    auto dat = DatAccessor(exchange.dat, dat_is_soa(exchange.dat));
 
     if (exchange.is_partial()) {
         auto nonexec_list = OP_import_nonexec_permap[(*exchange.map)->index];
@@ -117,17 +128,27 @@ struct ExchangeContext {
     std::vector<MPI_Request> send_reqs;
     std::vector<MPI_Request> recv_reqs;
 
+    // Spec counts, not map sizes: the maps keep their keys between exchanges so
+    // a neighbour can be present with an empty vector.
+    size_t n_gather_specs = 0;
+    size_t n_scatter_specs = 0;
+
     void reset() {
         tag++;
         if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
 
         exchanges.clear();
 
-        gathers_for_neighbour.clear();
-        scatters_for_neighbour.clear();
+        // Keep the buckets and the inner vectors' capacity: clearing the maps
+        // frees every node and vector, so each exchange would reallocate them.
+        for (auto &[neighbour, gathers] : gathers_for_neighbour) gathers.clear();
+        for (auto &[neighbour, scatters] : scatters_for_neighbour) scatters.clear();
 
         send_blocks.clear();
         recv_blocks.clear();
+
+        n_gather_specs = 0;
+        n_scatter_specs = 0;
     }
 
     void add(const op_arg& arg) {
@@ -174,6 +195,7 @@ struct ExchangeContext {
 
         size_t gather_size = 0;
         for (auto &[neighbour, gathers] : gathers_for_neighbour) {
+            n_gather_specs += gathers.size();
             for (auto &gather : gathers) {
                 gather_size += gather.gather_size();
             }
@@ -181,6 +203,7 @@ struct ExchangeContext {
 
         size_t scatter_size = 0;
         for (auto &[neighbour, scatters] : scatters_for_neighbour) {
+            n_scatter_specs += scatters.size();
             for (auto &scatter : scatters) {
                 scatter_size += scatter.scatter_size();
             }
@@ -196,6 +219,7 @@ struct ExchangeContext {
 
         size_t gather_offset = 0;
         for (auto &[neighbour, gathers] : gathers_for_neighbour) {
+            if (gathers.empty()) continue;
             auto block_start = (void *) ((char * ) gather_buf + gather_offset);
             auto block_start_offset = gather_offset;
 
@@ -209,6 +233,7 @@ struct ExchangeContext {
 
         size_t scatter_offset = 0;
         for (auto &[neighbour, scatters] : scatters_for_neighbour) {
+            if (scatters.empty()) continue;
             auto block_start = (void *) ((char * ) scatter_buf + scatter_offset);
             auto block_start_offset = scatter_offset;
 
@@ -221,7 +246,7 @@ struct ExchangeContext {
         }
 
         // Initiate gathers
-        if (gathers_for_neighbour.size() > 0) {
+        if (n_gather_specs > 0) {
             ::initiate_gathers(gathers_for_neighbour);
         }
 
@@ -241,7 +266,7 @@ struct ExchangeContext {
             return;
         }
 
-        if (gathers_for_neighbour.size() > 0) {
+        if (n_gather_specs > 0) {
             ::wait_gathers();
         }
 
@@ -258,7 +283,7 @@ struct ExchangeContext {
             recv_reqs.clear();
         }
 
-        if (scatters_for_neighbour.size() > 0) {
+        if (n_scatter_specs > 0) {
             ::initiate_scatters(scatters_for_neighbour);
         }
 

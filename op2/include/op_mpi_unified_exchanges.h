@@ -14,13 +14,16 @@ struct DatAccessor {
     bool soa;
 
     DatAccessor() = default;
-    DatAccessor(op_dat dat) {
+    DatAccessor(op_dat dat) : DatAccessor(dat, strstr(dat->type, ":soa") != NULL ||
+                                               (OP_auto_soa && dat->dim > 1)) {}
+
+    DatAccessor(op_dat dat, bool soa) {
         data = (void *) dat->data_d;
         dim = dat->dim;
         stride =  round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
                                          + OP_import_nonexec_list[dat->set->index]->size);
         elem_size = dat->size / dat->dim;
-        soa = strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1);
+        this->soa = soa;
     }
 
     template<typename T>
