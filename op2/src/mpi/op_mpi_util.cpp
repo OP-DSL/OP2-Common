@@ -358,9 +358,9 @@ int op2_grp_tag_max = 0x7000;
 int op2_grp_tag = op2_grp_tag_ini;
 
 extern "C" int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
-  // if (!(device == 2 && OP_unified_exchanges)) {
+  if (!(device == 2 && OP_unified_exchanges)) {
       deviceSync();
-  // }
+  }
 
   int size = set->size;
   int direct_flag = 1;
