@@ -1,16 +1,12 @@
 #ifndef __OP_PROFILE_H
 #define __OP_PROFILE_H
 
-#include <extern/json.hpp>
-
 #include <chrono>
 #include <optional>
 #include <functional>
 #include <vector>
 #include <string>
 #include <string_view>
-
-using json = nlohmann::json;
 
 /*
  * Tree-based timing code for instrumentation of OP2 applications. See the op_profile class (and its C API) for the
@@ -64,10 +60,6 @@ std::string to_string(const op_profile_clock& clock,
                       const std::optional<std::reference_wrapper<const op_profile_clock>> parent = std::nullopt);
 
 
-/* JSON conversion implementations */
-void to_json(json& j, const op_profile_clock& clock);
-void from_json(const json& j, op_profile_clock& clock);
-
 /* ----------------------------------------- op_profile_node ----------------------------------------- */
 
 /* Node type for the timing tree nodes */
@@ -111,10 +103,6 @@ struct op_profile_node {
               const std::optional<std::reference_wrapper<const op_profile_node>> parent = std::nullopt);
 };
 
-/* JSON conversion implementations */
-void to_json(json& j, const op_profile_node& node);
-void from_json(const json& j, op_profile_node& node);
-
 /* ----------------------------------------- op_profile ----------------------------------------- */
 
 /* Timing detail level, set before timing init/start */
@@ -128,7 +116,7 @@ enum class op_profile_level {
 /* The timing class, instantiated as a singleton "timing" - interact through that */
 class op_profile {
 private:
-  op_profile_level level = op_profile_level::simple;
+  op_profile_level level = op_profile_level::disabled;
 
   std::vector<std::reference_wrapper<op_profile_node>> current_scope;
   std::vector<op_profile_clock::clock::time_point> current_starts;

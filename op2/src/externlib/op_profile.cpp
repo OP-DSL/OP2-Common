@@ -11,6 +11,17 @@
 #include <sstream>
 #include <fstream>
 
+#include <extern/json.hpp>
+
+using json = nlohmann::json;
+
+/* JSON conversion implementations */
+void to_json(json& j, const op_profile_clock& clock);
+void from_json(const json& j, op_profile_clock& clock);
+
+void to_json(json& j, const op_profile_node& node);
+void from_json(const json& j, op_profile_node& node);
+
 /* (De-)serialisation support for std::chrono::durations, assumes that the rep/period 
  * you are deserialising to matches that which was used for serialisation. */
 namespace nlohmann {
@@ -239,6 +250,8 @@ void op_profile::start(std::string_view name) {
       std::printf("warning: OP_PROFILE_LEVEL set to unsupported value: %s\n", level_str);
     else
       level = static_cast<op_profile_level>(level_int);
+  } else {
+      level = op_profile_level::simple;
   }
 
   if (level == op_profile_level::disabled) return;
