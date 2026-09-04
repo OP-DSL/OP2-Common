@@ -25,6 +25,29 @@ namespace op::mpi::unified {
 
 constexpr int BLOCK_SIZE = 128;
 
+__device__ inline void unsupported_elem_size(int elem_size) {
+    std::printf("op_mpi_unified_exchanges: unsupported element size %d\n", elem_size);
+#ifdef __HIPCC__
+    __builtin_trap();
+#else
+    __trap();
+#endif
+}
+
+template<typename T>
+__device__ inline void gather_components(const GatherSpec &g, std::size_t index, std::size_t set_elem) {
+    for (int i = 0; i < g.dat.dim; ++i) {
+        ((T *) g.target)[index * g.dat.dim + i] = g.dat.template get<T>(set_elem, i);
+    }
+}
+
+template<typename T>
+__device__ inline void scatter_components(const ScatterSpec &s, std::size_t index, std::size_t set_elem) {
+    for (int i = 0; i < s.dat.dim; ++i) {
+        s.dat.template get<T>(set_elem, i) = ((const T *) s.source)[index * s.dat.dim + i];
+    }
+}
+
 void *gather_buf = nullptr;
 size_t gather_buf_size = 0;
 
@@ -93,16 +116,12 @@ __global__ void gather_kernel(__grid_constant__ const GathersT gathers,
     auto index = lb > 0 ? thread_id - disps[lb - 1] : thread_id;
 
     auto set_elem = gather.list[index];
-    if (gather.dat.elem_size == 4) {
-        for (int i = 0; i < gather.dat.dim; ++i) {
-            ((std::uint32_t *) gather.target)[index * gather.dat.dim + i] =
-                gather.dat.template get<std::uint32_t>(set_elem, i);
-        }
-    } else {
-        for (int i = 0; i < gather.dat.dim; ++i) {
-            ((std::uint64_t *) gather.target)[index * gather.dat.dim + i] =
-                gather.dat.template get<std::uint64_t>(set_elem, i);
-        }
+    switch (gather.dat.elem_size) {
+        case 1:  gather_components<std::uint8_t> (gather, index, set_elem); break;
+        case 2:  gather_components<std::uint16_t>(gather, index, set_elem); break;
+        case 4:  gather_components<std::uint32_t>(gather, index, set_elem); break;
+        case 8:  gather_components<std::uint64_t>(gather, index, set_elem); break;
+        default: unsupported_elem_size(gather.dat.elem_size); break;
     }
 }
 
@@ -194,16 +213,12 @@ __global__ void scatter_kernel(__grid_constant__ const ScattersT scatters,
     auto index = lb > 0 ? thread_id - disps[lb - 1] : thread_id;
 
     auto set_elem = scatter.is_indirect() ? scatter.list[index] : scatter.offset + index;
-    if (scatter.dat.elem_size == 4) {
-        for (int i = 0; i < scatter.dat.dim; ++i) {
-            scatter.dat.template get<std::uint32_t>(set_elem, i) =
-                ((std::uint32_t *) scatter.source)[index * scatter.dat.dim + i];
-        }
-    } else {
-        for (int i = 0; i < scatter.dat.dim; ++i) {
-            scatter.dat.template get<std::uint64_t>(set_elem, i) =
-                ((std::uint64_t *) scatter.source)[index * scatter.dat.dim + i];
-        }
+    switch (scatter.dat.elem_size) {
+        case 1:  scatter_components<std::uint8_t> (scatter, index, set_elem); break;
+        case 2:  scatter_components<std::uint16_t>(scatter, index, set_elem); break;
+        case 4:  scatter_components<std::uint32_t>(scatter, index, set_elem); break;
+        case 8:  scatter_components<std::uint64_t>(scatter, index, set_elem); break;
+        default: unsupported_elem_size(scatter.dat.elem_size); break;
     }
 }
 
