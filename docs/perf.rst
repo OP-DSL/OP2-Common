@@ -6,11 +6,25 @@ Performance Tuning
 Executing with GPUDirect
 ------------------------
 
-OP2 supports execution with GPU direct MPI when using the MPI + CUDA builds. 
+OP2 supports execution with GPU direct MPI when using the MPI + CUDA builds.
 
-To enable this, simply pass ``-gpudirect`` as a command line argument when running the executable.
+This is detected automatically at ``op_init`` and needs no flag: OP2 asks the MPI
+library whether it is CUDA or ROCm aware (``MPIX_Query_cuda_support`` and
+``MPIX_Query_rocm_support``), and for the MPI implementations that offer no such
+query it falls back to the vendor variables ``MPICH_GPU_SUPPORT_ENABLED``,
+``I_MPI_OFFLOAD`` and ``MV2_USE_CUDA``. The decision is printed once at startup as
+``OP2: GPU-direct MPI = ...`` along with the mechanism that decided it.
 
-You may also have to user certain environment variables depending on MPI implementation, so check your cluster's user-guide.
+Detection only ever turns the feature *on* when it can confirm support, because
+handing a device pointer to an MPI that cannot take one fails inside the transport,
+whereas staging through host memory is always correct and merely slower.
+
+Set ``OP2_GPU_DIRECT`` to override the detection in either direction: ``1`` forces
+it on for an MPI that supports it but does not advertise it, ``0`` forces the
+staged path for comparison or to work around a broken transport.
+
+Note that some MPI implementations need their own environment variables set before
+they will accept device pointers at all, so check your cluster's user guide.
 
 OpenMP and OpenMP+MPI
 ---------------------

@@ -235,8 +235,8 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
      - Disables internal data copy on ``op_decl_dat``/``op_decl_map``; the user's pointer is used directly.
    * - ``OP_TEST_FREQ=<n>``
      - Frequency of ``MPI_Test`` polling during computation-communication overlap.
-   * - ``-gpudirect``
-     - Enable NVIDIA GPUDirect for direct GPU-to-GPU MPI transfers.
+   * - ``OP2_GPU_DIRECT=<0|1>``
+     - Environment variable only.  Overrides the automatic GPU-direct MPI detection: ``1`` forces device pointers to be handed to MPI, ``0`` forces staging through host memory.  Without it OP2 detects support at ``op_init``; see :ref:`perf`.
    * - ``OP_AUTO_SOA``
      - Automatically convert all dataset storage to SoA layout on the device.
    * - ``OP_PARTIAL_EXCHANGE``

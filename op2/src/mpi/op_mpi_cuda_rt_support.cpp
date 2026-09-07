@@ -340,8 +340,8 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 // pointer to an MPI that cannot take one segfaults inside the transport, while
 // staging through host memory is always correct and merely slower.
 //
-// Called once from op_init, after MPI is up (the capability queries need it) and
-// after op_init_core has parsed -gpudirect.
+// Called once from op_init, after MPI is up, because the capability queries need
+// it. OP2_GPU_DIRECT overrides the detection in either direction.
 void op_gpu_direct_init() {
     static bool resolved = false;
     if (resolved) return;
@@ -351,13 +351,10 @@ void op_gpu_direct_init() {
     const char *override_env = getenv("OP2_GPU_DIRECT");
 
     if (override_env != NULL) {
-        // The only way to force it off on an MPI that reports support.
         OP_gpu_direct = atoi(override_env) != 0;
         reason = "OP2_GPU_DIRECT";
-    } else if (OP_gpu_direct) {
-        reason = "-gpudirect argument";
     } else {
-        reason = "not detected, pass -gpudirect or set OP2_GPU_DIRECT=1 to force";
+        reason = "not detected, set OP2_GPU_DIRECT=1 to force";
 
 #if defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
         if (!OP_gpu_direct && MPIX_Query_cuda_support() == 1) {
@@ -827,7 +824,7 @@ void op_gather_record() {
 }
 
 void op_gather_sync() {
-  // Explicitly sync the gather kernels when using -gpudirect
+  // Explicitly sync the gather kernels when using GPU direct
   // as op_download_buffer_async won't be called
   cutilSafeCall(gpuEventSynchronize(op2_grp_download_event));
 }

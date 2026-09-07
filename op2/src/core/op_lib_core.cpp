@@ -236,11 +236,6 @@ void op_set_args(int argc, char *argv) {
     OP_mpi_test_frequency = atoi(temp + 13);
     op_printf("\n OP_mpi_test_frequency  = %d \n", OP_mpi_test_frequency);
   }
-  pch = strstr(argv, "-gpudirect");
-  if (pch != NULL) {
-    OP_gpu_direct = 1;
-    op_printf("\n Enabling GPU Direct\n");
-  }
   pch = strstr(argv, "OP_UNIFIED_EXCHANGES");
   if (pch != NULL) {
     OP_unified_exchanges = 1;
@@ -375,10 +370,6 @@ void op_init_core(int argc, char **argv, int diags) {
       op_printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
     }
 
-    if ( strncmp ( argv[n], "-gpudirect", 10 ) == 0 ) {
-      OP_gpu_direct = 1;
-      op_printf ( "\n Enabling GPU Direct \n" );
-    }
     if ( strncmp ( argv[n], "OP_AUTO_SOA", 9 ) == 0 ) {
       OP_auto_soa = 1;
       op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
