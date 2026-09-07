@@ -431,13 +431,28 @@ void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   (void)args;
 }
 
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device){
-  (void)device;
-  return device == 1 ? op_mpi_halo_exchanges(set, nargs, args) : op_mpi_halo_exchanges_cuda(set, nargs, args);
+int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
+  for (int n = 0; n < nargs; n++) {
+    if (!args[n].opt || args[n].argtype != OP_ARG_DAT)
+      continue;
+
+    if (device == 2 && args[n].dat->dirty_hd == 1) {
+      op_upload_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+
+    if (device == 1 && args[n].dat->dirty_hd == 2) {
+      op_download_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+  }
+
+  return set->size;
 }
 
 void op_mpi_wait_all_unified(int nargs, op_arg *args) {
-  op_mpi_wait_all(nargs, args);
+  (void)nargs;
+  (void)args;
 }
 
 void op_mpi_test_all(int nargs, op_arg *args) {
