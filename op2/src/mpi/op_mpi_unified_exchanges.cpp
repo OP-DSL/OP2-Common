@@ -40,8 +40,7 @@ void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
             auto list = placement.nonexec_export_permap + nonexec_list->disps[i];
-            auto gather_spec = GatherSpec(nonexec_list->sizes[i], list, dat);
-            gathers[nonexec_list->ranks[i]].push_back(gather_spec);
+            gathers[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i], list, dat);
         }
 
         return;
@@ -52,14 +51,12 @@ void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange
 
     for (int i = 0; i < exec_list->ranks_size; ++i) {
         auto list = placement.exec_export + exec_list->disps[i];
-        auto gather_spec = GatherSpec(exec_list->sizes[i], list, dat);
-        gathers[exec_list->ranks[i]].push_back(gather_spec);
+        gathers[exec_list->ranks[i]].emplace_back(exec_list->sizes[i], list, dat);
     }
 
     for (int i = 0; i < nonexec_list->ranks_size; ++i) {
         auto list = placement.nonexec_export + nonexec_list->disps[i];
-        auto gather_spec = GatherSpec(nonexec_list->sizes[i], list, dat);
-        gathers[nonexec_list->ranks[i]].push_back(gather_spec);
+        gathers[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i], list, dat);
     }
 }
 
@@ -72,8 +69,7 @@ void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchang
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
             auto list = placement.nonexec_import_permap + nonexec_list->disps[i];
-            auto scatter_spec = ScatterSpec(nonexec_list->sizes[i], list, dat);
-            scatters[nonexec_list->ranks[i]].push_back(scatter_spec);
+            scatters[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i], list, dat);
         }
 
         return;
@@ -86,13 +82,13 @@ void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchang
     auto nonexec_offset = exchange.dat->set->size + OP_import_exec_list[exchange.dat->set->index]->size;
 
     for (int i = 0; i < exec_list->ranks_size; ++i) {
-        auto scatter_spec = ScatterSpec(exec_list->sizes[i], exec_offset + exec_list->disps[i], dat);
-        scatters[exec_list->ranks[i]].push_back(scatter_spec);
+        scatters[exec_list->ranks[i]].emplace_back(exec_list->sizes[i],
+                                                   (int) (exec_offset + exec_list->disps[i]), dat);
     }
 
     for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-        auto scatter_spec = ScatterSpec(nonexec_list->sizes[i], nonexec_offset + nonexec_list->disps[i], dat);
-        scatters[nonexec_list->ranks[i]].push_back(scatter_spec);
+        scatters[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i],
+                                                      (int) (nonexec_offset + nonexec_list->disps[i]), dat);
     }
 }
 
@@ -123,8 +119,10 @@ struct ExchangeContext {
     SpecsByNeighbour<GatherSpec> gathers_for_neighbour;
     SpecsByNeighbour<ScatterSpec> scatters_for_neighbour;
 
-    std::unordered_map<int, Block> send_blocks;
-    std::unordered_map<int, Block> recv_blocks;
+    // Built once and iterated once per exchange, so a vector beats a map:
+    // clear() keeps the capacity instead of freeing a node per neighbour.
+    std::vector<std::pair<int, Block>> send_blocks;
+    std::vector<std::pair<int, Block>> recv_blocks;
 
     std::vector<MPI_Request> send_reqs;
     std::vector<MPI_Request> recv_reqs;
@@ -236,7 +234,7 @@ struct ExchangeContext {
                 gather_offset += gather.gather_size();
             }
 
-            send_blocks[neighbour] = Block{block_start, gather_offset - block_start_offset};
+            send_blocks.emplace_back(neighbour, Block{block_start, gather_offset - block_start_offset});
         }
 
         size_t scatter_offset = 0;
@@ -250,7 +248,7 @@ struct ExchangeContext {
                 scatter_offset += scatter.scatter_size();
             }
 
-            recv_blocks[neighbour] = Block{block_start, scatter_offset - block_start_offset};
+            recv_blocks.emplace_back(neighbour, Block{block_start, scatter_offset - block_start_offset});
         }
 
         // Initiate gathers
