@@ -28,20 +28,10 @@ struct DatAccessor {
 
     DatAccessor() = default;
 
+    // Deliberately no op_dat constructor: where a dat's data lives and how it is
+    // strided is the backend's business, so each one fills this in itself.
     DatAccessor(void *data, int dim, int stride, int elem_size, bool soa)
         : data{data}, dim{dim}, stride{stride}, elem_size{elem_size}, soa{soa} {}
-
-    DatAccessor(op_dat dat) : DatAccessor(dat, strstr(dat->type, ":soa") != NULL ||
-                                               (OP_auto_soa && dat->dim > 1)) {}
-
-    DatAccessor(op_dat dat, bool soa) {
-        data = (void *) dat->data_d;
-        dim = dat->dim;
-        stride =  round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
-                                         + OP_import_nonexec_list[dat->set->index]->size);
-        elem_size = dat->size / dat->dim;
-        this->soa = soa;
-    }
 
     template<typename T>
     constexpr T& get(std::size_t i, std::size_t j) const {
