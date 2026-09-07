@@ -73,6 +73,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   op_init_core(argc, argv, diags);
 
   cutilDeviceInit(argc, argv);
+  op_gpu_direct_init();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
@@ -95,6 +96,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   op_init_core(argc, argv, diags);
 
   cutilDeviceInit(argc, argv);
+  op_gpu_direct_init();
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,

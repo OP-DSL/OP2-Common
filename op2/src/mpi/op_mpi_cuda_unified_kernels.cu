@@ -50,10 +50,6 @@ public:
     void wait_scatters() override;
 
 private:
-    // -1 until the first exchange, then 0 or 1. When 0 the exchange is staged
-    // through pinned host buffers, because MPI cannot read device memory.
-    int gpu_direct = -1;
-
     void *gather_buf = nullptr;
     size_t gather_buf_size = 0;
 
@@ -165,17 +161,13 @@ static void ensure_host_capacity(void **buffer, size_t *size, size_t capacity) {
 }
 
 ExchangeBuffers CudaBackend::alloc_buffers(size_t gather_size, size_t scatter_size) {
-    if (gpu_direct < 0) {
-        gpu_direct = mpi_supports_device_buffers() ? 1 : 0;
-    }
-
     ensure_capacity(&gather_buf, &gather_buf_size, gather_size, false);
     ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size, false);
 
     gather_used = gather_size;
     scatter_used = scatter_size;
 
-    if (gpu_direct) {
+    if (OP_gpu_direct) {
         return {gather_buf, scatter_buf, gather_buf, scatter_buf};
     }
 
@@ -294,7 +286,7 @@ void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_f
 
     // Staged: the send buffer has to reach the host before the sends go out, and
     // wait_gathers() covers this because it is enqueued before the event.
-    if (!gpu_direct && gather_used > 0) {
+    if (!OP_gpu_direct && gather_used > 0) {
         cutilSafeCall(gpuMemcpyAsync(gather_host, gather_buf, gather_used,
                                      gpuMemcpyDeviceToHost, 0));
     }
@@ -305,7 +297,7 @@ void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_f
 void CudaBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
     // Staged: the received data is in host memory, so it has to reach the device
     // before the scatter kernel reads it.
-    if (!gpu_direct && scatter_used > 0) {
+    if (!OP_gpu_direct && scatter_used > 0) {
         cutilSafeCall(gpuMemcpyAsync(scatter_buf, scatter_host, scatter_used,
                                      gpuMemcpyHostToDevice, 0));
     }

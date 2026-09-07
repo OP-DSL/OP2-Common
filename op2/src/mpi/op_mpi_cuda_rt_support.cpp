@@ -335,51 +335,52 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
 #include <mpi-ext.h>
 #endif
 
-namespace op::unified_exchanges {
+// Resolve OP_gpu_direct: whether MPI can send and receive straight out of device
+// memory. Layered, and only ever promotes to "yes", because passing a device
+// pointer to an MPI that cannot take one segfaults inside the transport, while
+// staging through host memory is always correct and merely slower.
+//
+// Called once from op_init, after MPI is up (the capability queries need it) and
+// after op_init_core has parsed -gpudirect.
+void op_gpu_direct_init() {
+    static bool resolved = false;
+    if (resolved) return;
+    resolved = true;
 
-// Layered, and only ever promotes to "yes": passing a device pointer to an MPI
-// that cannot take one segfaults inside the transport, while staging through
-// host memory is always correct, just slower.
-bool mpi_supports_device_buffers() {
-    static int cached = -1;
-    static const char *reason = "";
-
-    if (cached >= 0) return cached != 0;
-
+    const char *reason;
     const char *override_env = getenv("OP2_GPU_DIRECT");
 
     if (override_env != NULL) {
-        cached = atoi(override_env) != 0;
+        // The only way to force it off on an MPI that reports support.
+        OP_gpu_direct = atoi(override_env) != 0;
         reason = "OP2_GPU_DIRECT";
     } else if (OP_gpu_direct) {
-        cached = 1;
-        reason = "OP_GPU_DIRECT argument";
+        reason = "-gpudirect argument";
     } else {
-        cached = 0;
-        reason = "no detection matched, set OP2_GPU_DIRECT=1 to force";
+        reason = "not detected, pass -gpudirect or set OP2_GPU_DIRECT=1 to force";
 
 #if defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
-        if (cached == 0 && MPIX_Query_cuda_support() == 1) {
-            cached = 1;
+        if (!OP_gpu_direct && MPIX_Query_cuda_support() == 1) {
+            OP_gpu_direct = 1;
             reason = "MPIX_Query_cuda_support";
         }
 #endif
 #if defined(MPIX_ROCM_AWARE_SUPPORT) && MPIX_ROCM_AWARE_SUPPORT
-        if (cached == 0 && MPIX_Query_rocm_support() == 1) {
-            cached = 1;
+        if (!OP_gpu_direct && MPIX_Query_rocm_support() == 1) {
+            OP_gpu_direct = 1;
             reason = "MPIX_Query_rocm_support";
         }
 #endif
         // MPIs with no capability query at all: Cray MPICH, Intel MPI, MVAPICH.
         // These say the user asked for GPU support, not that it is present.
-        if (cached == 0) {
+        if (!OP_gpu_direct) {
             static const char *hints[] = {"MPICH_GPU_SUPPORT_ENABLED", "I_MPI_OFFLOAD",
                                           "MV2_USE_CUDA"};
             for (const char *hint : hints) {
                 const char *value = getenv(hint);
 
                 if (value != NULL && atoi(value) != 0) {
-                    cached = 1;
+                    OP_gpu_direct = 1;
                     reason = hint;
                     break;
                 }
@@ -387,10 +388,7 @@ bool mpi_supports_device_buffers() {
         }
     }
 
-    op_printf("unified exchanges: GPU-direct MPI = %s (%s)\n", cached ? "yes" : "no", reason);
-    return cached != 0;
-}
-
+    op_printf("OP2: GPU-direct MPI = %s (%s)\n", OP_gpu_direct ? "yes" : "no", reason);
 }
 
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {

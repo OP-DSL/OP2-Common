@@ -59,6 +59,10 @@ extern halo_list *OP_export_nonexec_permap;
 extern "C" {
 #endif
 
+/** Resolve OP_gpu_direct, once, from op_init. Only meaningful in a build with a
+    device backend; the CPU-only variants leave OP_gpu_direct at 0. **/
+void op_gpu_direct_init();
+
 /** Gather halo data in buffer on the device **/
 void gather_data_to_buffer(op_arg arg, halo_list exp_exec_list,
                            halo_list exp_nonexec_list);

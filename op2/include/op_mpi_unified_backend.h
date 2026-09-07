@@ -62,11 +62,6 @@ public:
     virtual void wait_scatters() = 0;
 };
 
-// Whether MPI can send and receive directly out of device memory. Lives in a
-// C++ TU rather than the .cu because that one sets OP_MPI_CORE_NOMPI to keep
-// <mpi.h> away from nvcc, and the capability query needs it.
-bool mpi_supports_device_buffers();
-
 // Always available: the host backend has no accelerator dependency.
 Backend *host_backend();
 
