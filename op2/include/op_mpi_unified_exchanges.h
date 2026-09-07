@@ -107,8 +107,10 @@ OP2_UNIFIED_HD inline void scatter_components(const ScatterSpec &s, std::size_t 
     }
 }
 
-// Copy one halo element. index is the element's position within the spec.
-OP2_UNIFIED_HD inline void gather_element(const GatherSpec &g, std::size_t index) {
+// Copy one halo element. index is the element's position within the spec. The
+// two are overloads of one name so the device kernel and the host loop can be
+// written once against a spec type.
+OP2_UNIFIED_HD inline void copy_element(const GatherSpec &g, std::size_t index) {
     std::size_t set_elem = g.list[index];
 
     switch (g.dat.elem_size) {
@@ -120,7 +122,7 @@ OP2_UNIFIED_HD inline void gather_element(const GatherSpec &g, std::size_t index
     }
 }
 
-OP2_UNIFIED_HD inline void scatter_element(const ScatterSpec &s, std::size_t index) {
+OP2_UNIFIED_HD inline void copy_element(const ScatterSpec &s, std::size_t index) {
     std::size_t set_elem = s.is_indirect() ? s.list[index] : s.offset + index;
 
     switch (s.dat.elem_size) {

@@ -185,196 +185,139 @@ ExchangeBuffers CudaBackend::alloc_buffers(size_t gather_size, size_t scatter_si
     return {gather_buf, scatter_buf, gather_host, scatter_host};
 }
 
-template<typename GathersT, typename DispsT>
-__global__ void gather_kernel(__grid_constant__ const GathersT gathers,
-                              __grid_constant__ const DispsT disps,
-                              __grid_constant__ const int num_gathers) {
+// The specs carry everything the copy needs, so one kernel covers both
+// directions. It stays templated on the spec type rather than taking a flag, so
+// gather and scatter remain separate instantiations and separate rows in a
+// profile.
+template<typename SpecsT, typename DispsT>
+__global__ void halo_copy_kernel(__grid_constant__ const SpecsT specs,
+                                 __grid_constant__ const DispsT disps,
+                                 __grid_constant__ const int num_specs) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
-    int lb = cub::LowerBound(disps, num_gathers, thread_id + 1);
-    if (lb == num_gathers) return;
+    int lb = cub::LowerBound(disps, num_specs, thread_id + 1);
+    if (lb == num_specs) return;
 
-    auto& gather = gathers[lb];
     auto index = lb > 0 ? thread_id - disps[lb - 1] : thread_id;
 
-    gather_element(gather, index);
+    copy_element(specs[lb], index);
 }
 
-template<unsigned N>
-void initiate_gathers_array(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
-    std::array<GatherSpec, N> gathers;
+// Specs small enough to ride along as kernel parameters.
+template<unsigned N, typename SpecT>
+static void launch_inline(const SpecsByNeighbour<SpecT> &specs_for_neighbour) {
+    std::array<SpecT, N> specs;
     std::array<int, N> disps;
 
-    int num_gathers = 0;
-    size_t total_gather_size = 0;
-    for (auto &[neighbour, gathers_batch] : gathers_for_neighbour) {
-        for (auto& gather : gathers_batch) {
-            gathers[num_gathers] = gather;
+    int num_specs = 0;
+    size_t total_size = 0;
+    for (auto &[neighbour, batch] : specs_for_neighbour) {
+        for (auto &spec : batch) {
+            specs[num_specs] = spec;
 
-            total_gather_size += gather.size;
-            disps[num_gathers] = total_gather_size;
+            total_size += spec.size;
+            disps[num_specs] = total_size;
 
-            ++num_gathers;
+            ++num_specs;
         }
     }
 
-    size_t num_blocks = (total_gather_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+    size_t num_blocks = (total_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
     if (num_blocks == 0) return;
 
-    gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers, disps, num_gathers);
+    halo_copy_kernel<<<num_blocks, BLOCK_SIZE>>>(specs, disps, num_specs);
+}
+
+// Too many to pass by value, so stage them through device memory.
+template<typename SpecT>
+static void launch_staged(const SpecsByNeighbour<SpecT> &specs_for_neighbour,
+                          SpecT **specs_d, size_t *specs_capacity,
+                          int **disps_d, size_t *disps_capacity) {
+    std::vector<SpecT> specs;
+    std::vector<int> disps;
+
+    size_t total_size = 0;
+    for (auto &[neighbour, batch] : specs_for_neighbour) {
+        for (auto &spec : batch) {
+            specs.push_back(spec);
+
+            total_size += spec.size;
+            disps.push_back(total_size);
+        }
+    }
+
+    ensure_capacity((void **) specs_d, specs_capacity, sizeof(SpecT) * specs.size());
+    cutilSafeCall(gpuMemcpyAsync((void *) *specs_d, (void *) specs.data(),
+                                 sizeof(SpecT) * specs.size(), gpuMemcpyHostToDevice));
+
+    ensure_capacity((void **) disps_d, disps_capacity, sizeof(int) * disps.size());
+    cutilSafeCall(gpuMemcpyAsync((void *) *disps_d, (void *) disps.data(),
+                                 sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
+
+    size_t num_blocks = (total_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+    if (num_blocks == 0) return;
+
+    halo_copy_kernel<<<num_blocks, BLOCK_SIZE>>>(*specs_d, *disps_d, (int) specs.size());
+}
+
+template<typename SpecT>
+static void launch_copies(const SpecsByNeighbour<SpecT> &specs_for_neighbour,
+                          SpecT **specs_d, size_t *specs_capacity,
+                          int **disps_d, size_t *disps_capacity) {
+    size_t num_specs = 0;
+    for (auto &[neighbour, batch] : specs_for_neighbour) {
+        num_specs += batch.size();
+    }
+
+    if (num_specs == 0) return;
+
+    if      (num_specs <= 4)  launch_inline<4>(specs_for_neighbour);
+    else if (num_specs <= 8)  launch_inline<8>(specs_for_neighbour);
+    else if (num_specs <= 16) launch_inline<16>(specs_for_neighbour);
+    else if (num_specs <= 32) launch_inline<32>(specs_for_neighbour);
+    else if (num_specs <= max_inline_specs) launch_inline<64>(specs_for_neighbour);
+    else launch_staged(specs_for_neighbour, specs_d, specs_capacity, disps_d, disps_capacity);
+}
+
+static void record_event(gpuEvent_t &event, bool &initialised) {
+    if (!initialised) {
+        cutilSafeCall(gpuEventCreateWithFlags(&event, gpuEventDisableTiming));
+        initialised = true;
+    }
+
+    cutilSafeCall(gpuEventRecord(event, 0));
 }
 
 void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
-    if (gathers_for_neighbour.size() == 0) return;
+    launch_copies(gathers_for_neighbour, &gathers_d, &gathers_size,
+                  &gather_disps_d, &gather_disps_size);
 
-    size_t num_gathers = 0;
-    for (auto &[neighbour, gathers_batch] : gathers_for_neighbour) {
-        num_gathers += gathers_batch.size();
-    }
-
-    if (num_gathers <= max_inline_specs) {
-        if      (num_gathers <= 4)  initiate_gathers_array<4>(gathers_for_neighbour);
-        else if (num_gathers <= 8)  initiate_gathers_array<8>(gathers_for_neighbour);
-        else if (num_gathers <= 16) initiate_gathers_array<16>(gathers_for_neighbour);
-        else if (num_gathers <= 32) initiate_gathers_array<32>(gathers_for_neighbour);
-        else                        initiate_gathers_array<64>(gathers_for_neighbour);
-    } else {
-        size_t total_gather_size = 0;
-        std::vector<GatherSpec> gathers;
-        std::vector<int> disps;
-
-        for (auto &[neighbour, gathers_batch] : gathers_for_neighbour) {
-            for (auto& gather : gathers_batch) {
-                gathers.push_back(gather);
-                total_gather_size += gather.size;
-                disps.push_back(total_gather_size);
-            }
-        }
-
-        ensure_capacity((void **) &gathers_d, &gathers_size, sizeof(GatherSpec) * gathers.size());
-        cutilSafeCall(gpuMemcpyAsync((void *) gathers_d, (void *) gathers.data(),
-                                     sizeof(GatherSpec) * gathers.size(), gpuMemcpyHostToDevice));
-
-
-        ensure_capacity((void **) &gather_disps_d, &gather_disps_size, sizeof(int) * disps.size());
-        cutilSafeCall(gpuMemcpyAsync((void *) gather_disps_d, (void *) disps.data(),
-                                     sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
-
-        size_t num_blocks = (total_gather_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-        if (num_blocks > 0) {
-            gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers_d, gather_disps_d, gathers.size());
-        }
-    }
-
+    // Staged: the send buffer has to reach the host before the sends go out, and
+    // wait_gathers() covers this because it is enqueued before the event.
     if (!gpu_direct && gather_used > 0) {
         cutilSafeCall(gpuMemcpyAsync(gather_host, gather_buf, gather_used,
                                      gpuMemcpyDeviceToHost, 0));
     }
 
-    if (!gather_event_initialised) {
-        cutilSafeCall(gpuEventCreateWithFlags(&gather_event, gpuEventDisableTiming));
-        gather_event_initialised = true;
-    }
-
-    cutilSafeCall(gpuEventRecord(gather_event, 0));
-}
-
-void CudaBackend::wait_gathers() {
-    cutilSafeCall(gpuEventSynchronize(gather_event));
-}
-
-template<typename ScattersT, typename DispsT>
-__global__ void scatter_kernel(__grid_constant__ const ScattersT scatters,
-                               __grid_constant__ const DispsT disps,
-                               __grid_constant__ const int num_scatters) {
-    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-
-    int lb = cub::LowerBound(disps, num_scatters, thread_id + 1);
-    if (lb == num_scatters) return;
-
-    auto& scatter = scatters[lb];
-    auto index = lb > 0 ? thread_id - disps[lb - 1] : thread_id;
-
-    scatter_element(scatter, index);
-}
-
-template<unsigned N>
-void initiate_scatters_array(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
-    std::array<ScatterSpec, N> scatters;
-    std::array<int, N> disps;
-
-    int num_scatters = 0;
-    size_t total_scatter_size = 0;
-    for (auto &[neighbour, scatters_batch] : scatters_for_neighbour) {
-        for (auto& scatter : scatters_batch) {
-            scatters[num_scatters] = scatter;
-
-            total_scatter_size += scatter.size;
-            disps[num_scatters] = total_scatter_size;
-
-            ++num_scatters;
-        }
-    }
-
-    size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-    if (num_blocks == 0) return;
-
-    scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters, disps, num_scatters);
+    record_event(gather_event, gather_event_initialised);
 }
 
 void CudaBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
-    if (scatters_for_neighbour.size() == 0) return;
-
-    size_t num_scatters = 0;
-    for (auto &[neighbour, scatters_batch] : scatters_for_neighbour) {
-        num_scatters += scatters_batch.size();
-    }
-
+    // Staged: the received data is in host memory, so it has to reach the device
+    // before the scatter kernel reads it.
     if (!gpu_direct && scatter_used > 0) {
         cutilSafeCall(gpuMemcpyAsync(scatter_buf, scatter_host, scatter_used,
                                      gpuMemcpyHostToDevice, 0));
     }
 
-    if (num_scatters <= max_inline_specs) {
-        if      (num_scatters <= 4)  initiate_scatters_array<4>(scatters_for_neighbour);
-        else if (num_scatters <= 8)  initiate_scatters_array<8>(scatters_for_neighbour);
-        else if (num_scatters <= 16) initiate_scatters_array<16>(scatters_for_neighbour);
-        else if (num_scatters <= 32) initiate_scatters_array<32>(scatters_for_neighbour);
-        else                         initiate_scatters_array<64>(scatters_for_neighbour);
-    } else {
-        size_t total_scatter_size = 0;
-        std::vector<ScatterSpec> scatters;
-        std::vector<int> disps;
+    launch_copies(scatters_for_neighbour, &scatters_d, &scatters_size,
+                  &scatter_disps_d, &scatter_disps_size);
 
-        for (auto &[neighbour, scatters_batch] : scatters_for_neighbour) {
-            for (auto& scatter : scatters_batch) {
-                scatters.push_back(scatter);
-                total_scatter_size += scatter.size;
-                disps.push_back(total_scatter_size);
-            }
-        }
+    record_event(scatter_event, scatter_event_initialised);
+}
 
-        ensure_capacity((void **) &scatters_d, &scatters_size, sizeof(ScatterSpec) * scatters.size());
-        cutilSafeCall(gpuMemcpyAsync((void *) scatters_d, (void *) scatters.data(),
-                                     sizeof(ScatterSpec) * scatters.size(), gpuMemcpyHostToDevice));
-
-        ensure_capacity((void **) &scatter_disps_d, &scatter_disps_size, sizeof(int) * disps.size());
-        cutilSafeCall(gpuMemcpyAsync((void *) scatter_disps_d, (void *) disps.data(),
-                                     sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
-
-
-        size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-        if (num_blocks > 0) {
-            scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
-        }
-    }
-
-    if (!scatter_event_initialised) {
-        cutilSafeCall(gpuEventCreateWithFlags(&scatter_event, gpuEventDisableTiming));
-        scatter_event_initialised = true;
-    }
-
-    cutilSafeCall(gpuEventRecord(scatter_event, 0));
+void CudaBackend::wait_gathers() {
+    cutilSafeCall(gpuEventSynchronize(gather_event));
 }
 
 void CudaBackend::wait_scatters() {

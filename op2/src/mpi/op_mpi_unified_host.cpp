@@ -65,24 +65,23 @@ ExchangeBuffers HostBackend::alloc_buffers(size_t gather_size, size_t scatter_si
     return {gather_buf, scatter_buf, gather_buf, scatter_buf};
 }
 
-void HostBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
-    for (auto &[neighbour, gathers] : gathers_for_neighbour) {
-        for (auto &gather : gathers) {
-            for (int i = 0; i < gather.size; ++i) {
-                gather_element(gather, i);
+template<typename SpecT>
+static void run_copies(const SpecsByNeighbour<SpecT> &specs_for_neighbour) {
+    for (auto &[neighbour, specs] : specs_for_neighbour) {
+        for (auto &spec : specs) {
+            for (int i = 0; i < spec.size; ++i) {
+                copy_element(spec, i);
             }
         }
     }
 }
 
+void HostBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
+    run_copies(gathers_for_neighbour);
+}
+
 void HostBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
-    for (auto &[neighbour, scatters] : scatters_for_neighbour) {
-        for (auto &scatter : scatters) {
-            for (int i = 0; i < scatter.size; ++i) {
-                scatter_element(scatter, i);
-            }
-        }
-    }
+    run_copies(scatters_for_neighbour);
 }
 
 Backend *host_backend() {
