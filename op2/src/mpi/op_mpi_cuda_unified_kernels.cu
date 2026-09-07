@@ -25,6 +25,15 @@ namespace op::unified_exchanges {
 
 constexpr int BLOCK_SIZE = 128;
 
+// Up to this many specs are passed straight to the kernel as a by-value array;
+// beyond it they are staged through device memory. The cap is a portability
+// limit, not a tuning knob: 64 specs is 3332 bytes of kernel parameters, and
+// CUDA allowed only 4 KB before 12.1 (HIP's kernarg segment is similarly small,
+// and __grid_constant__ is compiled away there). A 128 rung would need 6660
+// bytes. Raising it buys almost nothing anyway - parameter size barely moves the
+// launch cost, measured at 3.1 us for 416 bytes against 3.7 us for 6.6 KB.
+constexpr size_t max_inline_specs = 64;
+
 class CudaBackend final : public Backend {
 public:
     // The gather and scatter kernels are asynchronous.
@@ -221,13 +230,12 @@ void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_f
         num_gathers += gathers_batch.size();
     }
 
-    if (num_gathers <= 128) {
-        if      (num_gathers <= 4)   initiate_gathers_array<4>(gathers_for_neighbour);
-        else if (num_gathers <= 8)   initiate_gathers_array<8>(gathers_for_neighbour);
-        else if (num_gathers <= 16)  initiate_gathers_array<16>(gathers_for_neighbour);
-        else if (num_gathers <= 32)  initiate_gathers_array<32>(gathers_for_neighbour);
-        else if (num_gathers <= 64)  initiate_gathers_array<64>(gathers_for_neighbour);
-        else if (num_gathers <= 128) initiate_gathers_array<128>(gathers_for_neighbour);
+    if (num_gathers <= max_inline_specs) {
+        if      (num_gathers <= 4)  initiate_gathers_array<4>(gathers_for_neighbour);
+        else if (num_gathers <= 8)  initiate_gathers_array<8>(gathers_for_neighbour);
+        else if (num_gathers <= 16) initiate_gathers_array<16>(gathers_for_neighbour);
+        else if (num_gathers <= 32) initiate_gathers_array<32>(gathers_for_neighbour);
+        else                        initiate_gathers_array<64>(gathers_for_neighbour);
     } else {
         size_t total_gather_size = 0;
         std::vector<GatherSpec> gathers;
@@ -321,13 +329,12 @@ void CudaBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatter
                                      gpuMemcpyHostToDevice, 0));
     }
 
-    if (num_scatters <= 128) {
+    if (num_scatters <= max_inline_specs) {
         if      (num_scatters <= 4)  initiate_scatters_array<4>(scatters_for_neighbour);
         else if (num_scatters <= 8)  initiate_scatters_array<8>(scatters_for_neighbour);
         else if (num_scatters <= 16) initiate_scatters_array<16>(scatters_for_neighbour);
         else if (num_scatters <= 32) initiate_scatters_array<32>(scatters_for_neighbour);
-        else if (num_scatters <= 64) initiate_scatters_array<64>(scatters_for_neighbour);
-        else if (num_scatters <= 128) initiate_scatters_array<128>(scatters_for_neighbour);
+        else                         initiate_scatters_array<64>(scatters_for_neighbour);
     } else {
         size_t total_scatter_size = 0;
         std::vector<ScatterSpec> scatters;
