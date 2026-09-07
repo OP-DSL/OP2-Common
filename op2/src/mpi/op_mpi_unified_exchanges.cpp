@@ -3,7 +3,6 @@
 
 #include <op_lib_mpi.h>
 
-#include <optional>
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
@@ -25,10 +24,12 @@ Backend &backend_for(int device) {
 
 struct ExchangeSpec {
     op_dat dat;
-    std::optional<op_map> map = std::nullopt;
+
+    // Null unless this dat is going out as a partial exchange over that map.
+    op_map map = nullptr;
 
     ExchangeSpec(op_dat dat) : dat{dat} {}
-    bool is_partial() const { return map.has_value(); }
+    bool is_partial() const { return map != nullptr; }
 };
 
 void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange,
@@ -36,7 +37,7 @@ void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange
     auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
-        auto nonexec_list = OP_export_nonexec_permap[(*exchange.map)->index];
+        auto nonexec_list = OP_export_nonexec_permap[exchange.map->index];
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
             auto list = placement.nonexec_export_permap + nonexec_list->disps[i];
@@ -65,7 +66,7 @@ void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchang
     auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
-        auto nonexec_list = OP_import_nonexec_permap[(*exchange.map)->index];
+        auto nonexec_list = OP_import_nonexec_permap[exchange.map->index];
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
             auto list = placement.nonexec_import_permap + nonexec_list->disps[i];
@@ -134,8 +135,10 @@ struct ExchangeContext {
     size_t n_gather_specs = 0;
     size_t n_scatter_specs = 0;
 
-    void reset(int device) {
+    void reset(int device, bool exec) {
         backend = &backend_for(device);
+
+        this->exec = exec;
 
         tag++;
         if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
@@ -164,8 +167,8 @@ struct ExchangeContext {
         for (auto& exchange : exchanges) {
             if (arg.dat->index == exchange.dat->index) {
                 // Fallback to full exchange if map mismatch
-                if (exchange.is_partial() && (arg.map == OP_ID || (*exchange.map)->index != arg.map->index)) {
-                    exchange.map = std::nullopt;
+                if (exchange.is_partial() && (arg.map == OP_ID || exchange.map->index != arg.map->index)) {
+                    exchange.map = nullptr;
                 }
 
                 // Already doing full exchange - nothing to add
@@ -192,8 +195,7 @@ struct ExchangeContext {
         });
 
         for (auto& exchange : exchanges) {
-            auto placement = backend->placement(
-                exchange.dat, exchange.is_partial() ? *exchange.map : nullptr);
+            auto placement = backend->placement(exchange.dat, exchange.map);
 
             extract_gathers(placement, exchange, gathers_for_neighbour);
             extract_scatters(placement, exchange, scatters_for_neighbour);
@@ -357,8 +359,7 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int devic
         break;
     }
 
-    ctx.reset(device);
-    ctx.exec = exec;
+    ctx.reset(device, exec);
 
     for (int n = 0; n < nargs; ++n) {
         ctx.add(args[n]);
