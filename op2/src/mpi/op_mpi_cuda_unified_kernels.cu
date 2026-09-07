@@ -75,16 +75,16 @@ private:
     gpuEvent_t scatter_event;
     bool scatter_event_initialised = false;
 
-    GatherSpec *gathers_d;
+    GatherSpec *gathers_d = nullptr;
     size_t gathers_size = 0;
 
-    int *gather_disps_d;
+    int *gather_disps_d = nullptr;
     size_t gather_disps_size = 0;
 
-    ScatterSpec *scatters_d;
+    ScatterSpec *scatters_d = nullptr;
     size_t scatters_size = 0;
 
-    int *scatter_disps_d;
+    int *scatter_disps_d = nullptr;
     size_t scatter_disps_size = 0;
 };
 
@@ -219,6 +219,8 @@ void initiate_gathers_array(const SpecsByNeighbour<GatherSpec> &gathers_for_neig
     }
 
     size_t num_blocks = (total_gather_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+    if (num_blocks == 0) return;
+
     gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers, disps, num_gathers);
 }
 
@@ -259,7 +261,9 @@ void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_f
                                      sizeof(int) * disps.size(), gpuMemcpyHostToDevice));
 
         size_t num_blocks = (total_gather_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-        gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers_d, gather_disps_d, gathers.size());
+        if (num_blocks > 0) {
+            gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers_d, gather_disps_d, gathers.size());
+        }
     }
 
     if (!gpu_direct && gather_used > 0) {
@@ -313,6 +317,8 @@ void initiate_scatters_array(const SpecsByNeighbour<ScatterSpec> &scatters_for_n
     }
 
     size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+    if (num_blocks == 0) return;
+
     scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters, disps, num_scatters);
 }
 
@@ -358,7 +364,9 @@ void CudaBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatter
 
 
         size_t num_blocks = (total_scatter_size + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-        scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
+        if (num_blocks > 0) {
+            scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(scatters_d, scatter_disps_d, scatters.size());
+        }
     }
 
     if (!scatter_event_initialised) {
