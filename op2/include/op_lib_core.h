@@ -388,6 +388,10 @@ int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int devic
 void op_mpi_test_all_grouped(int nargs, op_arg *args);
 void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
 
+int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device);
+
+void op_mpi_wait_all_unified(int nargs, op_arg *args);
+
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation

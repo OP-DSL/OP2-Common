@@ -329,6 +329,23 @@ ExchangeContext ctx;
 using namespace op::unified_exchanges;
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
+    // Bring each dat into the space this loop runs in. op_mpi_halo_exchanges_grouped
+    // does this for every arg before it returns for a direct loop, so it has to
+    // happen here too, not just for the args that end up being exchanged.
+    for (int n = 0; n < nargs; ++n) {
+        if (!args[n].opt || args[n].argtype != OP_ARG_DAT) continue;
+
+        if (device == 2 && args[n].dat->dirty_hd == 1) {
+            op_upload_dat(args[n].dat);
+            args[n].dat->dirty_hd = 0;
+        }
+
+        if (device == 1 && args[n].dat->dirty_hd == 2) {
+            op_download_dat(args[n].dat);
+            args[n].dat->dirty_hd = 0;
+        }
+    }
+
     bool exec = false;
     int size = set->size;
 

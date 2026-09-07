@@ -44,7 +44,6 @@
 
 //#include <op_lib_core.h>
 #include <op_lib_c.h>
-#include <op_mpi_unified_exchanges.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
 #include <vector>
@@ -3353,10 +3352,6 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
   if (direct_flag == 1)
     return size;
 
-  if (OP_unified_exchanges) {
-    return op_mpi_halo_exchanges_unified(set, nargs, args, 1);
-  }
-
   // not a direct loop ...
   int exec_flag = 0;
   for (int n = 0; n < nargs; n++) {
@@ -3505,19 +3500,6 @@ void op_mpi_test_all(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
-  if (OP_unified_exchanges) {
-    int direct_flag = 1;
-    for (int n = 0; n < nargs; n++)
-      if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
-        direct_flag = 0;
-
-    if (direct_flag == 0) {
-      op_mpi_wait_all_unified(nargs, args);
-    }
-
-    return;
-  }
-
   op_timers_core(&c1, &t1);
   for (int n = 0; n < nargs; n++) {
     op_wait_all(&args[n]);

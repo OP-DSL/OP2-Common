@@ -209,7 +209,7 @@ void {{lh.name}}_wrapper(
 
 {% block host_prologue_early_exit_cleanup %}
     {% if lh is indirect %}
-        op_mpi_wait_all(num_args_expanded, args_expanded);
+        op_mpi_wait_all_unified(num_args_expanded, args_expanded);
 
     {% endif %}
     {% for arg in lh.args|gbl|reduction %}
@@ -248,7 +248,7 @@ void {{lh.name}}_wrapper(
     for (int col = 0; col < plan->ncolors; ++col) {
         if (col == plan->ncolors_core) {
             op_profile_next("MPI Wait");
-            op_mpi_wait_all(num_args_expanded, args_expanded);
+            op_mpi_wait_all_unified(num_args_expanded, args_expanded);
             op_profile_next("Computation");
         }
 
@@ -317,7 +317,7 @@ void {{lh.name}}_wrapper(
     {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
     op_profile_next("MPI Wait");
     if (set_size == set->core_size)
-        op_mpi_wait_all(num_args_expanded, args_expanded);
+        op_mpi_wait_all_unified(num_args_expanded, args_expanded);
 
     {% endif %}
     {% if lh is direct %}

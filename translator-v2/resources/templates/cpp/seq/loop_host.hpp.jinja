@@ -93,7 +93,7 @@ void op_par_loop_{{lh.name}}(
     op_profile_enter_kernel("{{lh.name}}", "seq", "{{variant_str()}}");
 
     op_profile_enter("MPI Exchanges");
-    int n_exec = op_mpi_halo_exchanges(set, n_args, args);
+    int n_exec = op_mpi_halo_exchanges_unified(set, n_args, args, {{config.device}});
 
     op_profile_next("Computation");
 
@@ -115,7 +115,7 @@ void op_par_loop_{{lh.name}}(
 {% if lh is indirect %}
         if (n == set->core_size) {
             op_profile_next("MPI Wait");
-            op_mpi_wait_all(n_args, args);
+            op_mpi_wait_all_unified(n_args, args);
             op_profile_next("Computation");
         }
 
@@ -162,7 +162,7 @@ void op_par_loop_{{lh.name}}(
 
     op_profile_next("MPI Wait");
     if (n_exec == 0 || n_exec == set->core_size)
-        op_mpi_wait_all(n_args, args);
+        op_mpi_wait_all_unified(n_args, args);
 
 {% if lh.args|gbl|reduction|length > 0 %}
     op_profile_next("MPI Reduce");
