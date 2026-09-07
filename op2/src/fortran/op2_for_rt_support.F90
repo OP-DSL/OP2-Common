@@ -531,7 +531,7 @@ module OP2_Fortran_RT_Support
 
     end subroutine setKernelTime
 
-    subroutine op_trigger_halo_exchanges_c(device, name, set, nargs, args) BIND(C,name='op_trigger_halo_exchanges_c')
+    subroutine op_trigger_halo_exchanges_c(device, name, set, nargs, args) BIND(C,name='op_trigger_halo_exchanges')
     use, intrinsic :: ISO_C_BINDING
     use OP2_Fortran_Declarations
 

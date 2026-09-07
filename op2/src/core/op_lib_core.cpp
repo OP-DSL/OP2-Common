@@ -1638,6 +1638,19 @@ int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }
 
 int op_is_partitioned() { return OP_is_partitioned; }
 
+void op_trigger_halo_exchanges(int device, const char *name, op_set set, int nargs,
+                               op_arg *args) {
+  (void)name;
+
+  op_mpi_halo_exchanges_unified(set, nargs, args, device);
+  op_mpi_wait_all_unified(nargs, args);
+
+  if (device == 1)
+    op_mpi_set_dirtybit(nargs, args);
+  else
+    op_mpi_set_dirtybit_cuda(nargs, args);
+}
+
 #ifdef __cplusplus
 }
 #endif
