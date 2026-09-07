@@ -331,6 +331,68 @@ void op_exchange_halo_cuda(op_arg *arg, int exec_flag) {
   }
 }
 
+#if __has_include(<mpi-ext.h>)
+#include <mpi-ext.h>
+#endif
+
+namespace op::unified_exchanges {
+
+// Layered, and only ever promotes to "yes": passing a device pointer to an MPI
+// that cannot take one segfaults inside the transport, while staging through
+// host memory is always correct, just slower.
+bool mpi_supports_device_buffers() {
+    static int cached = -1;
+    static const char *reason = "";
+
+    if (cached >= 0) return cached != 0;
+
+    const char *override_env = getenv("OP2_GPU_DIRECT");
+
+    if (override_env != NULL) {
+        cached = atoi(override_env) != 0;
+        reason = "OP2_GPU_DIRECT";
+    } else if (OP_gpu_direct) {
+        cached = 1;
+        reason = "OP_GPU_DIRECT argument";
+    } else {
+        cached = 0;
+        reason = "no detection matched, set OP2_GPU_DIRECT=1 to force";
+
+#if defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+        if (cached == 0 && MPIX_Query_cuda_support() == 1) {
+            cached = 1;
+            reason = "MPIX_Query_cuda_support";
+        }
+#endif
+#if defined(MPIX_ROCM_AWARE_SUPPORT) && MPIX_ROCM_AWARE_SUPPORT
+        if (cached == 0 && MPIX_Query_rocm_support() == 1) {
+            cached = 1;
+            reason = "MPIX_Query_rocm_support";
+        }
+#endif
+        // MPIs with no capability query at all: Cray MPICH, Intel MPI, MVAPICH.
+        // These say the user asked for GPU support, not that it is present.
+        if (cached == 0) {
+            static const char *hints[] = {"MPICH_GPU_SUPPORT_ENABLED", "I_MPI_OFFLOAD",
+                                          "MV2_USE_CUDA"};
+            for (const char *hint : hints) {
+                const char *value = getenv(hint);
+
+                if (value != NULL && atoi(value) != 0) {
+                    cached = 1;
+                    reason = hint;
+                    break;
+                }
+            }
+        }
+    }
+
+    op_printf("unified exchanges: GPU-direct MPI = %s (%s)\n", cached ? "yes" : "no", reason);
+    return cached != 0;
+}
+
+}
+
 void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag) {
   op_dat dat = arg->dat;
 

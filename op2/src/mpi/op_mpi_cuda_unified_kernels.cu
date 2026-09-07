@@ -30,20 +30,7 @@ public:
     // The gather and scatter kernels are asynchronous.
     CudaBackend() : Backend{false} {}
 
-    DatAccessor accessor(op_dat dat) const override;
-
-    int *exec_export_list(int set_index) const override {
-        return export_exec_list_d[set_index];
-    }
-    int *nonexec_export_list(int set_index) const override {
-        return export_nonexec_list_d[set_index];
-    }
-    int *nonexec_export_permap(int map_index) const override {
-        return export_nonexec_list_partial_d[map_index];
-    }
-    int *nonexec_import_permap(int map_index) const override {
-        return import_nonexec_list_partial_d[map_index];
-    }
+    DatPlacement placement(op_dat dat, op_map partial_map) const override;
 
     ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) override;
 
@@ -54,11 +41,24 @@ public:
     void wait_scatters() override;
 
 private:
+    // -1 until the first exchange, then 0 or 1. When 0 the exchange is staged
+    // through pinned host buffers, because MPI cannot read device memory.
+    int gpu_direct = -1;
+
     void *gather_buf = nullptr;
     size_t gather_buf_size = 0;
 
     void *scatter_buf = nullptr;
     size_t scatter_buf_size = 0;
+
+    void *gather_host = nullptr;
+    size_t gather_host_size = 0;
+
+    void *scatter_host = nullptr;
+    size_t scatter_host_size = 0;
+
+    size_t gather_used = 0;
+    size_t scatter_used = 0;
 
     gpuEvent_t gather_event;
     bool gather_event_initialised = false;
@@ -92,12 +92,23 @@ static bool dat_is_soa(op_dat dat) {
     return soa_cache[dat->index] != 0;
 }
 
-DatAccessor CudaBackend::accessor(op_dat dat) const {
+DatPlacement CudaBackend::placement(op_dat dat, op_map partial_map) const {
     int stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
                                         + OP_import_nonexec_list[dat->set->index]->size);
 
-    return DatAccessor((void *) dat->data_d, dat->dim, stride, dat->size / dat->dim,
-                       dat_is_soa(dat));
+    DatPlacement placement;
+    placement.dat = DatAccessor((void *) dat->data_d, dat->dim, stride, dat->size / dat->dim,
+                                dat_is_soa(dat));
+
+    if (partial_map != nullptr) {
+        placement.nonexec_export_permap = export_nonexec_list_partial_d[partial_map->index];
+        placement.nonexec_import_permap = import_nonexec_list_partial_d[partial_map->index];
+    } else {
+        placement.exec_export = export_exec_list_d[dat->set->index];
+        placement.nonexec_export = export_nonexec_list_d[dat->set->index];
+    }
+
+    return placement;
 }
 
 Backend *device_backend() {
@@ -129,12 +140,40 @@ static void ensure_capacity(void **buffer, size_t *size, size_t capacity, bool a
     *size = new_size;
 }
 
+static void ensure_host_capacity(void **buffer, size_t *size, size_t capacity) {
+    if (capacity <= *size) {
+        return;
+    }
+
+    if (*buffer != nullptr) {
+        cutilSafeCall(gpuHostFree(*buffer));
+    }
+
+    size_t new_size = capacity * 1.2;
+    cutilSafeCall(gpuHostMalloc(buffer, new_size));
+
+    *size = new_size;
+}
+
 ExchangeBuffers CudaBackend::alloc_buffers(size_t gather_size, size_t scatter_size) {
+    if (gpu_direct < 0) {
+        gpu_direct = mpi_supports_device_buffers() ? 1 : 0;
+    }
+
     ensure_capacity(&gather_buf, &gather_buf_size, gather_size, false);
     ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size, false);
 
-    // GPU-direct: MPI reads and writes the device buffers directly.
-    return {gather_buf, scatter_buf, gather_buf, scatter_buf};
+    gather_used = gather_size;
+    scatter_used = scatter_size;
+
+    if (gpu_direct) {
+        return {gather_buf, scatter_buf, gather_buf, scatter_buf};
+    }
+
+    ensure_host_capacity(&gather_host, &gather_host_size, gather_size);
+    ensure_host_capacity(&scatter_host, &scatter_host_size, scatter_size);
+
+    return {gather_buf, scatter_buf, gather_host, scatter_host};
 }
 
 template<typename GathersT, typename DispsT>
@@ -215,6 +254,11 @@ void CudaBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_f
         gather_kernel<<<num_blocks, BLOCK_SIZE>>>(gathers_d, gather_disps_d, gathers.size());
     }
 
+    if (!gpu_direct && gather_used > 0) {
+        cutilSafeCall(gpuMemcpyAsync(gather_host, gather_buf, gather_used,
+                                     gpuMemcpyDeviceToHost, 0));
+    }
+
     if (!gather_event_initialised) {
         cutilSafeCall(gpuEventCreateWithFlags(&gather_event, gpuEventDisableTiming));
         gather_event_initialised = true;
@@ -270,6 +314,11 @@ void CudaBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatter
     size_t num_scatters = 0;
     for (auto &[neighbour, scatters_batch] : scatters_for_neighbour) {
         num_scatters += scatters_batch.size();
+    }
+
+    if (!gpu_direct && scatter_used > 0) {
+        cutilSafeCall(gpuMemcpyAsync(scatter_buf, scatter_host, scatter_used,
+                                     gpuMemcpyHostToDevice, 0));
     }
 
     if (num_scatters <= 128) {

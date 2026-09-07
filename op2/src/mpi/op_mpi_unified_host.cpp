@@ -10,20 +10,7 @@ public:
     // The gather is a plain loop, so it has finished by the time it returns.
     HostBackend() : Backend{true} {}
 
-    DatAccessor accessor(op_dat dat) const override;
-
-    int *exec_export_list(int set_index) const override {
-        return OP_export_exec_list[set_index]->list;
-    }
-    int *nonexec_export_list(int set_index) const override {
-        return OP_export_nonexec_list[set_index]->list;
-    }
-    int *nonexec_export_permap(int map_index) const override {
-        return OP_export_nonexec_permap[map_index]->list;
-    }
-    int *nonexec_import_permap(int map_index) const override {
-        return OP_import_nonexec_permap[map_index]->list;
-    }
+    DatPlacement placement(op_dat dat, op_map partial_map) const override;
 
     ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) override;
 
@@ -54,9 +41,20 @@ static void ensure_capacity(void **buffer, size_t *size, size_t capacity) {
     *size = new_size;
 }
 
-DatAccessor HostBackend::accessor(op_dat dat) const {
+DatPlacement HostBackend::placement(op_dat dat, op_map partial_map) const {
+    DatPlacement placement;
     // The host copy is always AoS, so the stride is unused.
-    return DatAccessor((void *) dat->data, dat->dim, 0, dat->size / dat->dim, false);
+    placement.dat = DatAccessor((void *) dat->data, dat->dim, 0, dat->size / dat->dim, false);
+
+    if (partial_map != nullptr) {
+        placement.nonexec_export_permap = OP_export_nonexec_permap[partial_map->index]->list;
+        placement.nonexec_import_permap = OP_import_nonexec_permap[partial_map->index]->list;
+    } else {
+        placement.exec_export = OP_export_exec_list[dat->set->index]->list;
+        placement.nonexec_export = OP_export_nonexec_list[dat->set->index]->list;
+    }
+
+    return placement;
 }
 
 ExchangeBuffers HostBackend::alloc_buffers(size_t gather_size, size_t scatter_size) {

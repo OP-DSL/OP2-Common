@@ -22,6 +22,21 @@ struct ExchangeBuffers {
     void *scatter_mpi;
 };
 
+// Where a backend finds a dat's data and the halo index lists that go with it.
+// Host data is always AoS and its lists live in halo_list::list; a device
+// backend keeps its own copies of both.
+struct DatPlacement {
+    DatAccessor dat;
+
+    // Full exchange, indexed by set.
+    int *exec_export = nullptr;
+    int *nonexec_export = nullptr;
+
+    // Partial exchange, indexed by map.
+    int *nonexec_export_permap = nullptr;
+    int *nonexec_import_permap = nullptr;
+};
+
 // One backend per place a dat's data can live. A single binary runs both host
 // and device loops, so the backend is selected per exchange from the device
 // argument rather than fixed at link time.
@@ -34,16 +49,9 @@ public:
     explicit Backend(bool synchronous) : synchronous{synchronous} {}
     virtual ~Backend() = default;
 
-    // Where this backend reads and writes a dat, and in which layout. Host data
-    // is always AoS; the device copy may be SoA.
-    virtual DatAccessor accessor(op_dat dat) const = 0;
-
-    // Halo element-index lists, in the memory this backend gathers from. The
-    // host keeps them in halo_list::list, a device backend in its own copies.
-    virtual int *exec_export_list(int set_index) const = 0;
-    virtual int *nonexec_export_list(int set_index) const = 0;
-    virtual int *nonexec_export_permap(int map_index) const = 0;
-    virtual int *nonexec_import_permap(int map_index) const = 0;
+    // Everything about a dat that differs between memory spaces, asked once per
+    // exchange. Only the pair matching the exchange kind is filled in.
+    virtual DatPlacement placement(op_dat dat, op_map partial_map) const = 0;
 
     virtual ExchangeBuffers alloc_buffers(size_t gather_size, size_t scatter_size) = 0;
 
@@ -53,6 +61,11 @@ public:
     virtual void wait_gathers() = 0;
     virtual void wait_scatters() = 0;
 };
+
+// Whether MPI can send and receive directly out of device memory. Lives in a
+// C++ TU rather than the .cu because that one sets OP_MPI_CORE_NOMPI to keep
+// <mpi.h> away from nvcc, and the capability query needs it.
+bool mpi_supports_device_buffers();
 
 // Always available: the host backend has no accelerator dependency.
 Backend *host_backend();

@@ -31,15 +31,15 @@ struct ExchangeSpec {
     bool is_partial() const { return map.has_value(); }
 };
 
-void extract_gathers(const Backend &backend, const ExchangeSpec &exchange,
+void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange,
                      SpecsByNeighbour<GatherSpec> &gathers) {
-    auto dat = backend.accessor(exchange.dat);
+    auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
         auto nonexec_list = OP_export_nonexec_permap[(*exchange.map)->index];
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-            auto list = backend.nonexec_export_permap((*exchange.map)->index) + nonexec_list->disps[i];
+            auto list = placement.nonexec_export_permap + nonexec_list->disps[i];
             auto gather_spec = GatherSpec(nonexec_list->sizes[i], list, dat);
             gathers[nonexec_list->ranks[i]].push_back(gather_spec);
         }
@@ -51,27 +51,27 @@ void extract_gathers(const Backend &backend, const ExchangeSpec &exchange,
     auto nonexec_list = OP_export_nonexec_list[exchange.dat->set->index];
 
     for (int i = 0; i < exec_list->ranks_size; ++i) {
-        auto list = backend.exec_export_list(exchange.dat->set->index) + exec_list->disps[i];
+        auto list = placement.exec_export + exec_list->disps[i];
         auto gather_spec = GatherSpec(exec_list->sizes[i], list, dat);
         gathers[exec_list->ranks[i]].push_back(gather_spec);
     }
 
     for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-        auto list = backend.nonexec_export_list(exchange.dat->set->index) + nonexec_list->disps[i];
+        auto list = placement.nonexec_export + nonexec_list->disps[i];
         auto gather_spec = GatherSpec(nonexec_list->sizes[i], list, dat);
         gathers[nonexec_list->ranks[i]].push_back(gather_spec);
     }
 }
 
-void extract_scatters(const Backend &backend, const ExchangeSpec &exchange,
+void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchange,
                       SpecsByNeighbour<ScatterSpec> &scatters) {
-    auto dat = backend.accessor(exchange.dat);
+    auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
         auto nonexec_list = OP_import_nonexec_permap[(*exchange.map)->index];
 
         for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-            auto list = backend.nonexec_import_permap((*exchange.map)->index) + nonexec_list->disps[i];
+            auto list = placement.nonexec_import_permap + nonexec_list->disps[i];
             auto scatter_spec = ScatterSpec(nonexec_list->sizes[i], list, dat);
             scatters[nonexec_list->ranks[i]].push_back(scatter_spec);
         }
@@ -194,8 +194,11 @@ struct ExchangeContext {
         });
 
         for (auto& exchange : exchanges) {
-            extract_gathers(*backend, exchange, gathers_for_neighbour);
-            extract_scatters(*backend, exchange, scatters_for_neighbour);
+            auto placement = backend->placement(
+                exchange.dat, exchange.is_partial() ? *exchange.map : nullptr);
+
+            extract_gathers(placement, exchange, gathers_for_neighbour);
+            extract_scatters(placement, exchange, scatters_for_neighbour);
         }
 
         size_t gather_size = 0;
