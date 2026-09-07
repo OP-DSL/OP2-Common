@@ -269,6 +269,18 @@ module OP2_Fortran_RT_Support
 
     end function op_mpi_halo_exchanges_grouped
 
+    integer(kind=c_int) function op_mpi_halo_exchanges_unified (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges_unified')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(c_ptr), value ::         set        ! iteration set
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
+      integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
+
+    end function op_mpi_halo_exchanges_unified
+
     subroutine op_mpi_wait_all (argsNumber, args) BIND(C,name='op_mpi_wait_all')
 
       use, intrinsic :: ISO_C_BINDING
@@ -291,6 +303,16 @@ module OP2_Fortran_RT_Support
       integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
       type(op_arg), dimension(*) :: args       ! array with op_args
       integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
+
+    end subroutine
+
+    subroutine op_mpi_wait_all_unified (argsNumber, args) BIND(C,name='op_mpi_wait_all_unified')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
+      type(op_arg), dimension(*) :: args       ! array with op_args
 
     end subroutine
 

@@ -390,13 +390,13 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_enter("Init")
 
     call op_profile_enter("MPI Exchanges")
-    n_exec = op_mpi_halo_exchanges_grouped(set%setcptr, size(args), args, 2)
+    n_exec = op_mpi_halo_exchanges_unified(set%setcptr, size(args), args, {{config.device}})
 
     if (n_exec == 0) then
         call op_profile_exit()
         call op_profile_exit()
 
-        call op_mpi_wait_all_grouped(size(args), args, 2)
+        call op_mpi_wait_all_unified(size(args), args)
 {% for arg in lh.args|gbl|reduction %}
         call op_mpi_reduce_{{type_c(arg)}}(arg{{arg.id}}, arg{{arg.id}}%data)
 {% endfor %}
@@ -552,7 +552,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     do round = 1, {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}
         if (round == 2) then
             call op_profile_next("MPI Wait")
-            call op_mpi_wait_all_grouped(size(args), args, 2)
+            call op_mpi_wait_all_unified(size(args), args)
             call op_profile_next("Kernel")
         end if
 
@@ -581,7 +581,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     do col = 1, plan%ncolors
         if (col == plan%ncolors_core + 1) then
             call op_profile_next("MPI Wait")
-            call op_mpi_wait_all_grouped(size(args), args, 2)
+            call op_mpi_wait_all_unified(size(args), args)
             call op_profile_next("Kernel")
         end if
 

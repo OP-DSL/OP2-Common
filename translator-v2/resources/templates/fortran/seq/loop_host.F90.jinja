@@ -129,7 +129,7 @@ subroutine op2_k_{{lh.name}}_wr( &
     {% if lh is indirect %}
         if (n == set%setptr%core_size + 1) then
             call op_profile_next("MPI Wait")
-            call op_mpi_wait_all(size(args), args)
+            call op_mpi_wait_all_unified(size(args), args)
             call op_profile_next("Computation")
         end if
 
@@ -207,7 +207,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_enter_kernel("{{lh.name}}", "seq", "{{variant_str()}}")
 
     call op_profile_enter("MPI Exchanges")
-    n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+    n_exec = op_mpi_halo_exchanges_unified(set%setcptr, size(args), args, {{config.device}})
 
     call op_profile_next("Computation")
 
@@ -248,7 +248,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     call op_profile_next("MPI Wait")
     if ((n_exec == 0) .or. (n_exec == set%setptr%core_size)) then
-        call op_mpi_wait_all(size(args), args)
+        call op_mpi_wait_all_unified(size(args), args)
     end if
 
 {% if lh.args|gbl|reduction|length > 0 %}

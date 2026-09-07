@@ -412,13 +412,13 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
     op_profile_next("MPI Exchanges");
-    int n_exec = op_mpi_halo_exchanges_grouped(set, n_args, args, 2);
+    int n_exec = op_mpi_halo_exchanges_unified(set, n_args, args, {{config.device}});
 
     if (n_exec == 0) {
         op_profile_exit();
         op_profile_exit();
 
-        op_mpi_wait_all_grouped(n_args, args, 2);
+        op_mpi_wait_all_unified(n_args, args);
 
 {% for arg in lh.args|gbl|reduction %}
         op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
@@ -570,7 +570,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     for (int round = 1; round < sections.size(); ++round) {
         if (round == 2) {
             op_profile_next("MPI Wait");
-            op_mpi_wait_all_grouped(n_args, args, 2);
+            op_mpi_wait_all_unified(n_args, args);
             op_profile_next("Kernel");
         }
 
@@ -601,7 +601,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     for (int col = 0; col < plan->ncolors; ++col) {
         if (col == plan->ncolors_core) {
             op_profile_next("MPI Wait");
-            op_mpi_wait_all_grouped(n_args, args, 2);
+            op_mpi_wait_all_unified(n_args, args);
             op_profile_next("Kernel");
         }
 

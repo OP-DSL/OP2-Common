@@ -360,7 +360,7 @@ subroutine {{lh.kernel}}_wrapper( &
     block_offset = 0
     do col = 1, plan%ncolors
         if (col == plan%ncolors_core + 1) then
-            call op_mpi_wait_all(size(args), args)
+            call op_mpi_wait_all_unified(size(args), args)
         end if
 
         num_blocks = plan_ncolblk(col)
@@ -478,7 +478,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{"Direct" if lh is direct else "Indirect"}}")
 
     call op_profile_enter("MPI Exchanges")
-    set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+    set_size = op_mpi_halo_exchanges_unified(set%setcptr, size(args), args, {{config.device}})
 
     call op_profile_next("Computation")
 
@@ -521,7 +521,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     call op_profile_next("MPI Wait")
     if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
-        call op_mpi_wait_all(size(args), args)
+        call op_mpi_wait_all_unified(size(args), args)
     end if
 
 {% for arg in lh.args|gbl|reduction %}
