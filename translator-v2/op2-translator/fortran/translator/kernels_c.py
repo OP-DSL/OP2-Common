@@ -498,7 +498,7 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
         elif not param.is_const_local:
             param.is_const = False
 
-        if param.is_const == None and ("atomicAdd", 0) in param.as_arg:
+        if param.is_const == None and ("f2c::atomic_add", 0) in param.as_arg:
             param.is_const = False
 
 
@@ -556,7 +556,7 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
         func_name = translateName(func_name_node, ctx)
         sub_info = ctx.info.subprograms.get(func_name)
 
-        if func_name != "atomicAdd" and sub_info is None:
+        if func_name != "f2c::atomic_add" and sub_info is None:
             return None
 
         arg_idx = [id(item) for item in parent.items].index(id(node))
@@ -853,7 +853,7 @@ def translateName(name: f2003.Name, ctx: Optional[Context] = None) -> str:
         return raw
 
     rename = {
-        "atomicadd": "atomicAdd",
+        "atomicadd": "f2c::atomic_add",
     }
 
     if raw in rename:
@@ -1111,7 +1111,7 @@ def translateActualArgSpecList(actual_arg_spec_list: f2003.Actual_Arg_Spec_List,
 
 # Handles Actual_Arg_Spec_Lists and Section_Subscript_Lists for functions
 def translateArgList(arg_list: List[f2003.Base], ctx: Context, call_target: str) -> str:
-    if call_target == "atomicAdd":
+    if call_target == "f2c::atomic_add":
         assert(len(arg_list) == 2)
         return ", ".join([f"&({translateGeneric(arg_list[0], ctx)})", translateGeneric(arg_list[1], ctx)])
 

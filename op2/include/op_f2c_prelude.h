@@ -32,6 +32,17 @@ DEVICE inline void trap() {
 #endif
 }
 
+template<typename T>
+DEVICE inline void atomic_add(T *addr, T val) {
+#if defined(__CUDACC__)
+    (void) atomicAdd(addr, val);
+#endif
+
+#if defined(__HIPCC__)
+    (void) __hip_atomic_fetch_add(addr, val, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
+#endif
+}
+
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
 using int64_t = long long int;
 using IndexType = int;
