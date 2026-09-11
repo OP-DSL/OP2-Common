@@ -266,44 +266,6 @@ idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range
 }
 
 /*******************************************************************************
- * Routine to find the MPI neighbors given a halo list
- *******************************************************************************/
-
-void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
-                        int *ranks_size, int my_rank, int comm_size,
-                        MPI_Comm Comm) {
-  int *temp = (int *)xmalloc(comm_size * sizeof(int));
-  int *r_temp = (int *)xmalloc(comm_size * comm_size * sizeof(int));
-
-  for (int r = 0; r < comm_size * comm_size; r++)
-    r_temp[r] = -99;
-  for (int r = 0; r < comm_size; r++)
-    temp[r] = -99;
-
-  int n = 0;
-
-  for (int r = 0; r < comm_size; r++) {
-    if (List->ranks[r] >= 0)
-      temp[List->ranks[r]] = List->sizes[r];
-  }
-
-  MPI_Allgather(temp, comm_size, get_mpi_type(temp), r_temp, comm_size, get_mpi_type(r_temp), Comm);
-
-  for (int i = 0; i < comm_size; i++) {
-    if (i != my_rank) {
-      if (r_temp[i * comm_size + my_rank] > 0) {
-        neighbors[n] = i;
-        sizes[n] = r_temp[i * comm_size + my_rank];
-        n++;
-      }
-    }
-  }
-  *ranks_size = n;
-  op_free(temp);
-  op_free(r_temp);
-}
-
-/*******************************************************************************
  * Routine to create a generic halo list
  * (used in both import and export list creation)
  *******************************************************************************/

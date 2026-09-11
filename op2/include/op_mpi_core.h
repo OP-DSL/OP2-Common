@@ -222,10 +222,6 @@ int get_partition(idx_g_t global_index, idx_g_t *part_range, idx_l_t *local_inde
 idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
                      int comm_size);
 
-void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
-                        int *ranks_size, int my_rank, int comm_size,
-                        MPI_Comm Comm);
-
 void create_list(int *list, int *ranks, int *disps, int *sizes, int *ranks_size,
                  int *total, int *temp_list, int size, int comm_size,
                  int my_rank);
