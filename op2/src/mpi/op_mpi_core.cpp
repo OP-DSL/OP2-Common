@@ -43,6 +43,9 @@
 #include <mpi.h>
 
 //#include <op_lib_core.h>
+#include <span>
+
+#include <op_mpi_comm.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
@@ -399,6 +402,52 @@ void create_import_list(op_set set, int *temp_list, halo_list h_list,
   h_list->list = temp_list;
 }
 
+/* An import list from what an exchange delivered: one entry per sending rank,
+   ranks ascending, each holding what that rank sent. */
+static halo_list import_list_from(op_set set, const op::mpi::Received<int> &got,
+                                  MPI_Comm comm) {
+  int my_rank, comm_size;
+  MPI_Comm_rank(comm, &my_rank);
+  MPI_Comm_size(comm, &comm_size);
+
+  const int n = got.num_neighbours();
+
+  /* create_import_list adopts these three allocations. */
+  int *ranks = (int *)xmalloc(std::max(n, 1) * sizeof(int));
+  int *sizes = (int *)xmalloc(std::max(n, 1) * sizeof(int));
+  int *list = (int *)xmalloc(std::max<std::size_t>(got.size(), 1) * sizeof(int));
+
+  std::copy(got.ranks.begin(), got.ranks.end(), ranks);
+  std::copy(got.counts.begin(), got.counts.end(), sizes);
+  std::copy(got.begin(), got.end(), list);
+
+  halo_list imp = (halo_list)xmalloc(sizeof(halo_list_core));
+  create_import_list(set, list, imp, (int)got.size(), ranks, sizes, n,
+                     comm_size, my_rank);
+  return imp;
+}
+
+/*******************************************************************************
+ * Build the import list matching an export list
+ *
+ * Sends each neighbour its slice of the export list and groups what comes back
+ * by sender. This is the discovery step halo creation needs: the senders
+ * are not known in advance, but NBX discovers them without a collective, so the
+ * counts no longer have to be established up front.
+ *******************************************************************************/
+
+halo_list exchange_export_list(op_set set, halo_list exp, MPI_Comm comm) {
+  /* One message per neighbour, each viewing the export list in place - a
+     halo_list is already one contiguous block per rank. */
+  std::vector<op::mpi::msg::BlockView<int>> messages;
+  messages.reserve(exp->ranks_size);
+  for (int i = 0; i < exp->ranks_size; i++)
+    messages.emplace_back(exp->ranks[i], exp->list + exp->disps[i],
+                          (std::size_t)exp->sizes[i]);
+
+  return import_list_from(set, op::mpi::sparse::exchange(comm, messages), comm);
+}
+
 /*******************************************************************************
  * Routine to create an nonexec-import list (only a wrapper)
  *******************************************************************************/
@@ -407,18 +456,6 @@ static void create_nonexec_import_list(op_set set, int *temp_list,
                                        halo_list h_list, int size,
                                        int comm_size, int my_rank) {
   create_export_list(set, temp_list, h_list, size, comm_size, my_rank);
-}
-
-/*******************************************************************************
- * Routine to create an nonexec-export list (only a wrapper)
- *******************************************************************************/
-
-static void create_nonexec_export_list(op_set set, int *temp_list,
-                                       halo_list h_list, int total_size,
-                                       int *ranks, int *sizes, int ranks_size,
-                                       int comm_size, int my_rank) {
-  create_import_list(set, temp_list, h_list, total_size, ranks, sizes,
-                     ranks_size, comm_size, my_rank);
 }
 
 /*******************************************************************************
@@ -650,59 +687,13 @@ void op_halo_create() {
 
   OP_import_exec_list = (halo_list *)xmalloc(OP_set_index * sizeof(halo_list));
 
-  int *neighbors, *sizes;
-  int ranks_size;
   MPI_Request *request_send;
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
-    //-----Discover neighbors-----
-    ranks_size = 0;
-    neighbors = (int *)xmalloc(comm_size * sizeof(int));
-    sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-    halo_list list = OP_export_exec_list[set->index];
-
-    find_neighbors_set(list, neighbors, sizes, &ranks_size, my_rank, comm_size,
-                       OP_MPI_WORLD);
-    request_send = (MPI_Request *)xmalloc(list->ranks_size * sizeof(MPI_Request));
-
-    int *rbuf, cap = 0, index = 0;
-
-    for (int i = 0; i < list->ranks_size; i++) {
-      // printf("export from %d to %d set %10s, list of size %d \n",
-      // my_rank,list->ranks[i],set->name,list->sizes[i]);
-      int *sbuf = &list->list[list->disps[i]];
-      MPI_Isend(sbuf, list->sizes[i], get_mpi_type(sbuf), list->ranks[i], s, OP_MPI_WORLD,
-                &request_send[i]);
-    }
-
-    for (int i = 0; i < ranks_size; i++)
-      cap = cap + sizes[i];
-    int *temp = (int *)xmalloc(cap * sizeof(int));
-
-    // import this list from those neighbors
-    for (int i = 0; i < ranks_size; i++) {
-      // printf("import from %d to %d set %10s, list of size %d\n",
-      // neighbors[i], my_rank, set->name, sizes[i]);
-      rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-      MPI_Recv(rbuf, sizes[i], get_mpi_type(rbuf), neighbors[i], s, OP_MPI_WORLD,
-               MPI_STATUS_IGNORE);
-      memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
-      index = index + sizes[i];
-      op_free(rbuf);
-    }
-
-    MPI_Waitall(list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-    op_free(request_send);
-
-    // create import lists
-    // printf("creating importlist with number of neighbors %d\n",ranks_size);
-    halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
-    create_import_list(set, temp, h_list, index, neighbors, sizes, ranks_size,
-                       comm_size, my_rank);
-    OP_import_exec_list[set->index] = h_list;
+    OP_import_exec_list[set->index] =
+        exchange_export_list(set, OP_export_exec_list[set->index], OP_MPI_WORLD);
   }
 
   /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
@@ -841,53 +832,11 @@ void op_halo_create() {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
-    //-----Discover neighbors-----
-    ranks_size = 0;
-    neighbors = (int *)xmalloc(comm_size * sizeof(int));
-    sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-    halo_list list = OP_import_nonexec_list[set->index];
-    find_neighbors_set(list, neighbors, sizes, &ranks_size, my_rank, comm_size,
-                       OP_MPI_WORLD);
-
-    request_send = (MPI_Request *)xmalloc(list->ranks_size * sizeof(MPI_Request));
-    int *rbuf, cap = 0, index = 0;
-
-    for (int i = 0; i < list->ranks_size; i++) {
-      // printf("import to %d from %d set %10s, nonexec list of size %d |
-      // sending:\n",
-      //    my_rank,list->ranks[i],set->name,list->sizes[i]);
-      int *sbuf = &list->list[list->disps[i]];
-      MPI_Isend(sbuf, list->sizes[i], get_mpi_type(sbuf), list->ranks[i], s, OP_MPI_WORLD,
-                &request_send[i]);
-    }
-
-    for (int i = 0; i < ranks_size; i++)
-      cap = cap + sizes[i];
-    int *temp = (int *)xmalloc(cap * sizeof(int));
-
-    // export this list to those neighbors
-    for (int i = 0; i < ranks_size; i++) {
-      // printf("export to %d from %d set %10s, list of size %d | recieving:\n",
-      //    neighbors[i], my_rank, set->name, sizes[i]);
-      rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-      MPI_Recv(rbuf, sizes[i], MPI_INT, neighbors[i], s, OP_MPI_WORLD,
-               MPI_STATUS_IGNORE);
-      memcpy(&temp[index], (void *)&rbuf[0], sizes[i] * sizeof(int));
-      index = index + sizes[i];
-      op_free(rbuf);
-    }
-
-    MPI_Waitall(list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-    op_free(request_send);
-
-    // create import lists
-    // printf("creating nonexec set export list with number of neighbors
-    // %d\n",ranks_size);
-    halo_list h_list = (halo_list)xmalloc(sizeof(halo_list_core));
-    create_nonexec_export_list(set, temp, h_list, index, neighbors, sizes,
-                               ranks_size, comm_size, my_rank);
-    OP_export_nonexec_list[set->index] = h_list;
+    /* The nonexec import list was built unilaterally from the received map
+       entries, so its owners do not know about it; sending it back is what
+       gives them their export list. */
+    OP_export_nonexec_list[set->index] =
+        exchange_export_list(set, OP_import_nonexec_list[set->index], OP_MPI_WORLD);
   }
 
   /*-STEP 6 - Exchange execute set elements/data using the import/export
@@ -2627,45 +2576,11 @@ op_dat op_mpi_get_data(op_dat dat) {
   //
   // create import list
   //
-  int *neighbors, *sizes;
-  int ranks_size;
-  MPI_Request *request_send;
+  pi_list = exchange_export_list(dat->set, pe_list, OP_MPI_WORLD);
 
-  //-----Discover neighbors-----
-  ranks_size = 0;
-  neighbors = (int *)xmalloc(comm_size * sizeof(int));
-  sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  find_neighbors_set(pe_list, neighbors, sizes, &ranks_size, my_rank, comm_size,
-                     OP_MPI_WORLD);
-  request_send = (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
-
-  cap = 0;
-  count = 0;
-
-  for (int i = 0; i < pe_list->ranks_size; i++) {
-    int *sbuf = &pe_list->list[pe_list->disps[i]];
-    MPI_Isend(sbuf, pe_list->sizes[i], get_mpi_type(sbuf), pe_list->ranks[i], 1,
-              OP_MPI_WORLD, &request_send[i]);
-  }
-
-  for (int i = 0; i < ranks_size; i++)
-    cap = cap + sizes[i];
-  temp_list = (int *)xmalloc(cap * sizeof(int));
-
-  for (int i = 0; i < ranks_size; i++) {
-    int *rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-    MPI_Recv(rbuf, sizes[i], get_mpi_type(rbuf), neighbors[i], 1, OP_MPI_WORLD,
-             MPI_STATUS_IGNORE);
-    memcpy(&temp_list[count], (void *)&rbuf[0], sizes[i] * sizeof(int));
-    count = count + sizes[i];
-    op_free(rbuf);
-  }
-
-  MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-  pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_import_list(dat->set, temp_list, pi_list, count, neighbors, sizes,
-                     ranks_size, comm_size, my_rank);
+  /* Reused by both data migrations below. */
+  MPI_Request *request_send =
+      (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
 
   //
   // migrate the temp "data" array to the original MPI ranks
@@ -2894,51 +2809,23 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   // create import list: send each original rank the original local indices it
   // must supply, so pi_list->list is directly the pack list for the data below
   //
-  int *neighbors, *sizes;
-  int ranks_size;
-  MPI_Request *request_send;
-
-  ranks_size = 0;
-  neighbors = (int *)xmalloc(comm_size * sizeof(int));
-  sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  find_neighbors_set(pe_list, neighbors, sizes, &ranks_size, my_rank, comm_size,
-                     OP_MPI_WORLD);
-  request_send =
-      (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
-
-  cap = 0;
-  count = 0;
-
-  int **sbuf_idx = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
-  for (int i = 0; i < pe_list->ranks_size; i++) {
-    sbuf_idx[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
-    for (int j = 0; j < pe_list->sizes[i]; j++)
-      sbuf_idx[i][j] = orig_local[pe_list->list[pe_list->disps[i] + j]];
-    MPI_Isend(sbuf_idx[i], pe_list->sizes[i], get_mpi_type(sbuf_idx[i]),
-              pe_list->ranks[i], 1, OP_MPI_WORLD, &request_send[i]);
-  }
-
-  for (int i = 0; i < ranks_size; i++)
-    cap = cap + sizes[i];
-  temp_list = (int *)xmalloc(cap * sizeof(int));
-
-  for (int i = 0; i < ranks_size; i++) {
-    int *rbuf = (int *)xmalloc(sizes[i] * sizeof(int));
-    MPI_Recv(rbuf, sizes[i], get_mpi_type(rbuf), neighbors[i], 1, OP_MPI_WORLD,
-             MPI_STATUS_IGNORE);
-    memcpy(&temp_list[count], (void *)&rbuf[0], sizes[i] * sizeof(int));
-    count = count + sizes[i];
-    op_free(rbuf);
-  }
-
-  MPI_Waitall(pe_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
+  /* Unlike the other sites this sends a translated index, not the list entry
+     itself, so the payload has to be materialised - but in pe_list order, so
+     pe_list's own ranks and sizes describe it. */
+  std::vector<int> want;
+  want.reserve(pe_list->size);
   for (int i = 0; i < pe_list->ranks_size; i++)
-    op_free(sbuf_idx[i]);
-  op_free(sbuf_idx);
-  pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_import_list(dat->set, temp_list, pi_list, count, neighbors, sizes,
-                     ranks_size, comm_size, my_rank);
+    for (int j = 0; j < pe_list->sizes[i]; j++)
+      want.push_back(orig_local[pe_list->list[pe_list->disps[i] + j]]);
+
+  std::vector<op::mpi::msg::BlockView<int>> messages;
+  messages.reserve(pe_list->ranks_size);
+  for (int i = 0; i < pe_list->ranks_size; i++)
+    messages.emplace_back(pe_list->ranks[i], want.data() + pe_list->disps[i],
+                          (std::size_t)pe_list->sizes[i]);
+
+  pi_list = import_list_from(
+      dat->set, op::mpi::sparse::exchange(OP_MPI_WORLD, messages), OP_MPI_WORLD);
 
   //
   // original ranks pack user data and send it to the current owners
@@ -3000,7 +2887,6 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   op_free(pi_list->sizes);
   op_free(pi_list->list);
   op_free(pi_list);
-  op_free(request_send);
 
   dat->dirtybit = 1;
   dat->dirty_hd = 1;
