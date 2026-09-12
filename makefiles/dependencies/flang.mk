@@ -63,5 +63,5 @@ ifeq ($(CONFIG_HAVE_CMAKE),true)
   endif
 else
   $(call info_bold,> LLVM Flang skipped (cmake $(TEXT_NOTFOUND)))
-  $(info .   CMake >= 3.20 is required to build op2-flang-scan)
+  $(info .   CMake >= 3.26 is required to build op2-flang-scan)
 endif

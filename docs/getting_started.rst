@@ -13,7 +13,7 @@ Toolchain and Build Dependencies
 - Optional: **MPI implementation** supporting ``mpicc``, ``mpicxx``, and ``mpif90`` compiler wrappers.
 - Optional: **NVIDIA CUDA** >= 11.8
 - Optional: **AMD HIP** (ROCm)
-- Optional: **CMake** >= 3.20 and **LLVM Flang** >= 23 (parser libraries). Required to build ``op2-flang-scan``, the helper used by the optional LLVM Flang Fortran parser translation path.
+- Optional: **CMake** >= 3.26 and **LLVM Flang** >= 23 (parser libraries). Required to build ``op2-flang-scan``, the helper used by the optional LLVM Flang Fortran parser translation path.
 
 These are likely provided in some form by either your distribution's package manager or pre-installed and loaded via commands such as with `Environment Modules <http://modules.sourceforge.net/>`_.
 
@@ -224,7 +224,7 @@ The ``op2-flang-scan`` scanner uses LLVM Flang's parse-tree API via the tuple-cl
 - Flang parser headers (``include/flang/Parser/parsing.h``)
 - The Flang parser libraries (``libFortranParser`` and related ``Fortran*`` archives)
 - The LLVM CMake package (``lib/cmake/llvm/LLVMConfig.cmake``)
-- **CMake** >= 3.20 (and optionally **Ninja**)
+- **CMake** >= 3.26 (and optionally **Ninja**)
 
 LLVM 18-22 expose an older named-member layout which is not compatible with the scanner.
 
