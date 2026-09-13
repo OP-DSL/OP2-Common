@@ -15,6 +15,10 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 import op as OP
 from store import Application, Function, Location, ParseError, Program
 
+# re-use the type string parser from the fparser2 path, so both paths
+# produce identical OP.Type instances for the same input
+from fortran.parser import parseType  # noqa: E402
+
 
 # Binary discovery
 
@@ -25,10 +29,9 @@ def _repo_build_candidates() -> List[Path]:
     """
     Default locations of op2-flang-scan relative to this file.
 
-    The library build (`make -C op2`) installs the binary into ``op2/bin``.
-    A standalone CMake build lands in ``translator-v2/flang-scan/build``.
+    The library build (`make -C op2`) installs the binary into `op2/bin`.
+    A standalone CMake build lands in `translator-v2/flang-scan/build`.
     """
-    # fortran/flang_parser.py -> translator-v2/op2-translator/fortran/
     here = Path(__file__).resolve()
     translator_v2 = here.parents[2]
     repo_root = translator_v2.parent
@@ -99,8 +102,8 @@ def run_scan(
     Run op2-flang-scan on the given (already preprocessed) source text and
     return the parsed JSON document.
 
-    ``include_dirs`` are forwarded as ``-I`` so Flang can resolve Fortran
-    ``INCLUDE`` the same way fparser2's ``FortranStringReader`` does.
+    `include_dirs` are forwarded as `-I` so Flang can resolve Fortran
+    `INCLUDE` the same way fparser2's `FortranStringReader` does.
     """
     results = run_scan_batch([(path, source)], scan_bin, include_dirs=include_dirs)
     data = results[path]
@@ -115,18 +118,18 @@ def run_scan_batch(
     include_dirs: Optional[Iterable[Path]] = None,
 ) -> Dict[Path, Dict[str, Any]]:
     """
-    Scan many preprocessed translation units in a single op2-flang-scan process.
+    Scan many preprocessed translation units using a single op2-flang-scan process.
 
     Each unit still gets its own Flang Prescan+Parse (Flang has no multi-TU parsing),
     but LLVM load / process spawn happens only once.
 
-    Returns a map from input ``Path`` to the per-file JSON document.
-    Failed units have an ``"error"`` string field instead of usable ``events``.
+    Returns a map from input `Path` to the per-file JSON document.
+    Failed units have an `"error"` string field instead of usable `events`.
     """
     if not units:
         return {}
 
-    # single-unit fast path keeps the historical --stdin CLI (and cwd hint)
+    # single-unit fast path uses --stdin CLI (and cwd hint)
     if len(units) == 1:
         path, source = units[0]
         cmd = [str(scan_bin), "--stdin", "--path", str(path)]
@@ -283,11 +286,6 @@ def _make_loc(path: Path, node_loc: Optional[Dict[str, int]]) -> Location:
     return Location(str(path), line, col)
 
 
-# re-use the type string parser from the fparser2 path, so both paths
-# produce identical OP.Type instances for the same input
-from fortran.parser import parseType  # noqa: E402
-
-
 # Event dispatch
 
 _PAR_LOOP_RE = re.compile(r"^op_par_loop_\d+$")
@@ -296,7 +294,7 @@ _SUBPROGRAM_KINDS = ("subroutine_subprogram", "function_subprogram")
 
 def _flang_call_names(entity: Function) -> Set[str]:
     """
-    Get the lower-cased names of unambiguous ``CALL`` statements in ``flang_body``.
+    Get the lower-cased names of unambiguous `CALL` statements in `flang_body`.
     """
     body = getattr(entity, "flang_body", None) or {}
     names: Set[str] = set()
@@ -482,13 +480,13 @@ def _parse_loop(program: Program, args: List[Dict[str, Any]], loc: Location) -> 
 
 def build_program_from_flang(path: Path, source: str, data: Dict[str, Any]) -> Program:
     """
-    Build a complete ``Program`` from the JSON emitted by op2-flang-scan.
+    Build a complete `Program` from the JSON emitted by op2-flang-scan.
 
-    Populates loops, consts, and Function entities (each with ``flang_source``,
+    Populates loops, consts, and Function entities (each with `flang_source`,
     parameters, and raw dependency names). Cross-file resolution of known
-    callees (and retention of unknown ``CALL`` names) is deferred to
-    ``resolve_flang_dependencies`` once every translation unit has been loaded
-    into the ``Application``.
+    callees (and retention of unknown `CALL` names) is deferred to
+    `resolve_flang_dependencies` once every translation unit has been
+    loaded into the `Application`.
     """
     program = Program(path, None, source)
     setattr(program, "used_parser", "flang")
@@ -534,13 +532,13 @@ def populate_program(program: Program, data: Dict[str, Any]) -> None:
 
 def resolve_flang_dependencies(app: Application) -> None:
     """
-    Resolve each entity's ``depends`` set against the application.
+    Resolve each entity's `depends` set against the application.
 
-    The scanner records a superset of ``CallStmt`` names (always real calls) and
-    ``FunctionReference`` names (real calls or array indexing, which Flang cannot
-    tell apart without a symbol table). ``CallStmt`` names stay even if they do
-    not resolve, whereas ``FunctionReference`` names stay only if they resolve to
-    a ``Function``.
+    The scanner records a superset of `CallStmt` names (always real calls) and
+    `FunctionReference` names (real calls or array indexing, which Flang cannot
+    tell apart without a symbol table). `CallStmt` names stay even if they do
+    not resolve, whereas `FunctionReference` names stay only if they resolve to
+    a `Function`.
     """
     known_names: Set[str] = set()
     for program in app.programs:

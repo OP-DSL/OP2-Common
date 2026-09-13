@@ -1,7 +1,7 @@
 """
-Flang port of ``fortran.translator.kernels_c`` (translating a Fortran
-kernel subroutine/function to C++), operating on the ``decls``/
-``stmts`` JSON produced by ``op2-flang-scan`` instead of an fparser2 AST.
+Flang port of `fortran.translator.kernels_c` (translating a Fortran kernel
+subroutine/function to C++), operating on the `decls`/ `stmts` JSON
+produced by `op2-flang-scan` instead of an fparser2 AST.
 """
 
 from __future__ import annotations
@@ -85,8 +85,9 @@ class Context:
 
 def _flang_body(entity: Function) -> Dict[str, Any]:
     """
-    Return the decls/stmts JSON (`flang_body`) attached to `entity`
-    by ``op2-flang-scan``. Raises if translator not run with `--parser flang`.
+    Return the decls/stmts JSON (`flang_body`) attached to `entity`.
+
+    Raises `OpError` if translator not run with `--parser flang`.
     """
     body = getattr(entity, "flang_body", None)
     if body is None:
@@ -102,6 +103,61 @@ def canTranslateWithFlang(entities: List[Function]) -> bool:
 
 
 # parseInfo
+
+def _ftypeFromOpType(typ: OP.Type, dim: int) -> FType:
+    """
+    Convert an OP2 `Type` (and array `dim`) into the `FType`
+    used by the C++ emission.
+    """
+    if isinstance(typ, OP.Int):
+        if not typ.signed:
+            raise OpError(f"Unsupported unsigned const type: {typ}")
+        inner: FPrimitive = FInteger(typ.size // 8)
+    elif isinstance(typ, OP.Float):
+        inner = FReal(typ.size // 8)
+    elif isinstance(typ, OP.Bool):
+        inner = FLogical()
+    else:
+        raise OpError(f"Unsupported const type for Flang translation: {typ}")
+
+    if dim <= 1:
+        return inner
+
+    return FArray([("1", str(dim))], inner)
+
+
+def buildConstsInfo(app: Application, const_rename: Optional[Callable[[str], str]]) -> Dict[str, FType]:
+    """
+    Map each application const (optionally renamed by `const_rename`) to
+    an `FType`.
+    """
+    consts: Dict[str, FType] = {}
+
+    for c in app.consts():
+        actual_name = const_rename(c.ptr) if const_rename else c.ptr
+        consts[actual_name] = _ftypeFromOpType(c.typ, c.dim)
+
+    return consts
+
+
+def parseArraySpec(dim_obj: Dict[str, Any], ctx: Context) -> List[Tuple[str, str]]:
+    """
+    Translate an explicit shape array spec into `(lower, upper)` bound pairs.
+    """
+    if dim_obj.get("kind") != "explicit":
+        ctx.error(f"Unsupported array spec: {dim_obj}")
+
+    shape_spec_list = []
+    for d in dim_obj.get("shape", []):
+        ub = translateExpr(d["ub"], ctx)
+
+        if d.get("lb") is None:
+            shape_spec_list.append(("1", ub))
+        else:
+            shape_spec_list.append((translateExpr(d["lb"], ctx), ub))
+
+    return shape_spec_list
+
 
 def parseInfo(
     entities: List[Function],
@@ -140,46 +196,47 @@ def parseInfo(
     return info
 
 
-def _ftypeFromOpType(typ: OP.Type, dim: int) -> FType:
+def parseIntrinsicType(type_obj: Dict[str, Any], ctx: Context) -> FType:
     """
-    Convert an OP2 `Type` (and optional array `dim`) into the `FType`
-    used by the C++ emission.
+    Translate a Flang intrinsic type into an `FInteger` / `FReal` /
+    `FLogical` / `FCharacter`.
     """
-    if isinstance(typ, OP.Int):
-        if not typ.signed:
-            raise OpError(f"Unsupported unsigned const type: {typ}")
-        inner: FPrimitive = FInteger(typ.size // 8)
-    elif isinstance(typ, OP.Float):
-        inner = FReal(typ.size // 8)
-    elif isinstance(typ, OP.Bool):
-        inner = FLogical()
-    else:
-        raise OpError(f"Unsupported const type for Flang translation: {typ}")
+    if type_obj.get("kind") != "intrinsic":
+        ctx.error(f"Unable to parse intrinsic type: {type_obj}")
 
-    if dim <= 1:
-        return inner
+    base = type_obj.get("base")
+    kind_text = type_obj.get("kind_text")
+    kind_norm = kind_text.upper() if (kind_text is not None and not kind_text.isdigit()) else kind_text
 
-    return FArray([("1", str(dim))], inner)
+    if base == "integer":
+        if kind_norm in (None, "4", "IK", "IK4"):
+            return FInteger(4)
+        elif kind_norm in ("8", "IK8"):
+            return FInteger(8)
 
+    elif base == "real":
+        if kind_norm in (None, "4", "RK4"):
+            return FReal(4)
+        elif kind_norm in ("8", "RK", "RK8"):
+            return FReal(8)
 
-def buildConstsInfo(app: Application, const_rename: Optional[Callable[[str], str]]) -> Dict[str, FType]:
-    """
-    Map each application const (optionally renamed by `const_rename`) to
-    an `FType`.
-    """
-    consts: Dict[str, FType] = {}
+    elif base == "logical":
+        if kind_norm in (None, "LK"):
+            return FLogical()
 
-    for c in app.consts():
-        actual_name = const_rename(c.ptr) if const_rename else c.ptr
-        consts[actual_name] = _ftypeFromOpType(c.typ, c.dim)
+    elif base == "character":
+        charlen = type_obj.get("charlen")
+        if charlen is None:
+            ctx.error("Unknown character type spec")
+        return FCharacter(translateExpr(charlen, ctx))
 
-    return consts
+    ctx.error(f"Unable to parse intrinsic type: {type_obj}")
 
 
 def parseSubprogramInfo(entity: Function) -> SubprogramInfo:
     """
-    Collect the name, dummy parameters, and (for functions) result
-    variable of a kernel or helper from `entity.flang_body`.
+    Collect the name, dummy parameters, and result variable
+    of a kernel or helper from `entity.flang_body`.
     """
     body = _flang_body(entity)
     sub_info = SubprogramInfo(entity.name, body)
@@ -247,62 +304,6 @@ def parseTypes(decls: List[Dict[str, Any]], ctx: Context) -> Dict[str, FType]:
                 type_map[name] = FArray(own_spec, intrinsic_type)
 
     return type_map
-
-
-def parseIntrinsicType(type_obj: Dict[str, Any], ctx: Context) -> FType:
-    """
-    Translate a Flang intrinsic type into an `FInteger` / `FReal` /
-    `FLogical` / `FCharacter`.
-    """
-    if type_obj.get("kind") != "intrinsic":
-        ctx.error(f"Unable to parse intrinsic type: {type_obj}")
-
-    base = type_obj.get("base")
-    kind_text = type_obj.get("kind_text")
-    kind_norm = kind_text.upper() if (kind_text is not None and not kind_text.isdigit()) else kind_text
-
-    if base == "integer":
-        if kind_norm in (None, "4", "IK", "IK4"):
-            return FInteger(4)
-        elif kind_norm in ("8", "IK8"):
-            return FInteger(8)
-
-    elif base == "real":
-        if kind_norm in (None, "4", "RK4"):
-            return FReal(4)
-        elif kind_norm in ("8", "RK", "RK8"):
-            return FReal(8)
-
-    elif base == "logical":
-        if kind_norm in (None, "LK"):
-            return FLogical()
-
-    elif base == "character":
-        charlen = type_obj.get("charlen")
-        if charlen is None:
-            ctx.error("Unknown character type spec")
-        return FCharacter(translateExpr(charlen, ctx))
-
-    ctx.error(f"Unable to parse intrinsic type: {type_obj}")
-
-
-def parseArraySpec(dim_obj: Dict[str, Any], ctx: Context) -> List[Tuple[str, str]]:
-    """
-    Translate an explicit shape array spec into `(lower, upper)` bound pairs.
-    """
-    if dim_obj.get("kind") != "explicit":
-        ctx.error(f"Unsupported array spec: {dim_obj}")
-
-    shape_spec_list = []
-    for d in dim_obj.get("shape", []):
-        ub = translateExpr(d["ub"], ctx)
-
-        if d.get("lb") is None:
-            shape_spec_list.append(("1", ub))
-        else:
-            shape_spec_list.append((translateExpr(d["lb"], ctx), ub))
-
-    return shape_spec_list
 
 
 def resolveOpArgs(entities: List[Function], info: Info, loop: OP.Loop) -> None:
@@ -470,6 +471,7 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
 def tryResolveParams(ctx: Context) -> bool:
     """
     Propagate callee `is_const` back onto unresolved parameters of `ctx.sub_info`.
+
     Returns True if any parameter is waiting on a callee.
     """
     has_unresolved = False
@@ -523,42 +525,103 @@ def translate(info: Info) -> str:
     return decls + "\n" + srcs
 
 
-def translateSubprogram(ctx: Context) -> Tuple[str, str]:
+def translateCallStmt(call_stmt: Dict[str, Any], ctx: Context) -> str:
     """
-    Translate one Fortran subprogram to a C++ prototype and definition.
+    Translate a CALL statement to `name(args);`.
     """
-    body = ctx.sub_info.body
+    call_target = translateName(call_stmt["name"], ctx)
+    args = call_stmt.get("args", [])
 
-    param_decls = []
-    for param in ctx.sub_info.params:
-        assert param.is_const is not None
-        param_type = ctx.sub_info.types[param.name]
+    if len(args) == 0:
+        return f"{call_target}();\n"
 
-        if isinstance(param_type, FPrimitive):
-            if param.is_const:
-                param_decls.append(f"const {param_type.asC()} {param.name}")
-            else:
-                param_decls.append(f"{param_type.asC()}& {param.name}")
+    return f"{call_target}({translateArgList(args, ctx, call_target)});\n"
+
+
+def translateDataStmt(data_stmt: Dict[str, Any], ctx: Context) -> str:
+    """
+    Translate a DATA statement into a sequence of C++ assignments.
+    """
+    src = ""
+
+    for s in data_stmt.get("sets", []):
+        objects = s.get("objects", [])
+        values = s.get("values", [])
+
+        if len(values) != 1:
+            ctx.error("Unsupported multiple value data statement")
+
+        if values[0].get("repeated"):
+            ctx.error("Unsupported repeat in data statement")
+
+        value = translateExpr(values[0]["value"], ctx)
+
+        assert len(objects) > 0
+        for obj in objects:
+            src += f"{translateExpr(obj, ctx)} = {value};\n"
+
+    return src
+
+
+def translateDoConstruct(do_stmt: Dict[str, Any], ctx: Context) -> str:
+    """
+    Translate a WHILE or counted DO loop.
+    """
+    mode = do_stmt.get("mode")
+    body = "".join(translateStmt(s, ctx) for s in do_stmt.get("body", []))
+
+    if mode == "while":
+        header = f"while ({translateExpr(do_stmt['cond'], ctx)})"
+    elif mode == "counted":
+        var = translateName(do_stmt["var"], ctx)
+        lb = translateExpr(do_stmt["lb"], ctx)
+        ub = translateExpr(do_stmt["ub"], ctx)
+
+        if do_stmt.get("step") is None:
+            header = f"for ({var} = {lb}; {var} <= {ub}; ++{var})"
         else:
-            const = "const " if param.is_const else ""
-            param_decls.append(f"f2c::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
+            step = translateExpr(do_stmt["step"], ctx)
+            header = f"for ({var} = {lb}; {var} <= {ub}; {var} += {step})"
+    else:
+        ctx.error("Unsupported labelled/concurrent do construct")
 
-    return_type = "void"
-    if ctx.sub_info.isFunction():
-        return_type = ctx.sub_info.functionType().asC()
+    return f"{header} {{\n{indent(body)}\n}}\n"
 
-    prefix = ctx.info.config.get("func_prefix")
-    prefix = f"{prefix} " if prefix else ""
 
-    src_decl = f"static {prefix}{return_type} {ctx.sub_info.name}(\n    "
-    src_decl += ",\n    ".join(param_decls) + "\n)"
+def translateExecutionPart(stmts: List[Dict[str, Any]], ctx: Context) -> str:
+    """
+    Translate the executable statements of a subprogram.
+    """
+    src = ""
+    last = ""
 
-    src = src_decl + " {\n"
-    src += indent(translateSpecificationPart(body.get("decls", []), ctx)) + "\n"
-    src += indent(translateExecutionPart(body.get("stmts", []), ctx))
-    src += "\n}"
+    for stmt in stmts:
+        last = translateStmt(stmt, ctx)
+        src += last
 
-    return src_decl + ";", src
+    if ctx.sub_info.isFunction() and not last.startswith("return"):
+        src += f"return {ctx.sub_info.func_return_var};\n"
+
+    return src
+
+
+def translateIfConstruct(if_construct: Dict[str, Any], ctx: Context) -> str:
+    """
+    Translate an IF / ELSE IF / ELSE construct.
+    """
+    parts = []
+
+    for i, branch in enumerate(if_construct.get("branches", [])):
+        body = indent("".join(translateStmt(s, ctx) for s in branch.get("body", [])))
+
+        if branch.get("cond") is not None:
+            header = "if" if i == 0 else "} else if"
+            parts.append(f"{header} ({translateExpr(branch['cond'], ctx)}) {{\n{body}\n")
+        else:
+            parts.append(f"}} else {{\n{body}\n")
+
+    parts.append("}\n")
+    return "".join(parts)
 
 
 def translateSpecificationPart(decls: List[Dict[str, Any]], ctx: Context) -> str:
@@ -591,7 +654,7 @@ def translateSpecificationPart(decls: List[Dict[str, Any]], ctx: Context) -> str
             init_src += translateDataStmt(decl, ctx)
             continue
 
-        # DeclCollector only emits type_decl/parameter_stmt/data_stmt, nothing else should reach this point
+        # op2-flang-scan's DeclCollector only emits type_decl/parameter_stmt/data_stmt; nothing else should reach this point
         continue
 
     src = ""
@@ -617,48 +680,6 @@ def translateSpecificationPart(decls: List[Dict[str, Any]], ctx: Context) -> str
             src += f"const {type_.asSpan('f2c::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
 
     return src + "\n" + init_src
-
-
-def translateDataStmt(data_stmt: Dict[str, Any], ctx: Context) -> str:
-    """
-    Translate a DATA statement into a sequence of C++ assignments.
-    """
-    src = ""
-
-    for s in data_stmt.get("sets", []):
-        objects = s.get("objects", [])
-        values = s.get("values", [])
-
-        if len(values) != 1:
-            ctx.error("Unsupported multiple value data statement")
-
-        if values[0].get("repeated"):
-            ctx.error("Unsupported repeat in data statement")
-
-        value = translateExpr(values[0]["value"], ctx)
-
-        assert len(objects) > 0
-        for obj in objects:
-            src += f"{translateExpr(obj, ctx)} = {value};\n"
-
-    return src
-
-
-def translateExecutionPart(stmts: List[Dict[str, Any]], ctx: Context) -> str:
-    """
-    Translate the executable statements of a subprogram.
-    """
-    src = ""
-    last = ""
-
-    for stmt in stmts:
-        last = translateStmt(stmt, ctx)
-        src += last
-
-    if ctx.sub_info.isFunction() and not last.startswith("return"):
-        src += f"return {ctx.sub_info.func_return_var};\n"
-
-    return src
 
 
 def translateStmt(stmt: Dict[str, Any], ctx: Context) -> str:
@@ -703,61 +724,42 @@ def translateStmt(stmt: Dict[str, Any], ctx: Context) -> str:
     ctx.error(f"Unsupported statement: {stmt.get('tag', kind)}")
 
 
-def translateCallStmt(call_stmt: Dict[str, Any], ctx: Context) -> str:
+def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     """
-    Translate a CALL statement to `name(args);`.
+    Translate one Fortran subprogram to a C++ prototype and definition.
     """
-    call_target = translateName(call_stmt["name"], ctx)
-    args = call_stmt.get("args", [])
+    body = ctx.sub_info.body
 
-    if len(args) == 0:
-        return f"{call_target}();\n"
+    param_decls = []
+    for param in ctx.sub_info.params:
+        assert param.is_const is not None
+        param_type = ctx.sub_info.types[param.name]
 
-    return f"{call_target}({translateArgList(args, ctx, call_target)});\n"
-
-
-def translateIfConstruct(if_construct: Dict[str, Any], ctx: Context) -> str:
-    """
-    Translate an IF / ELSE IF / ELSE construct.
-    """
-    parts = []
-
-    for i, branch in enumerate(if_construct.get("branches", [])):
-        body = indent("".join(translateStmt(s, ctx) for s in branch.get("body", [])))
-
-        if branch.get("cond") is not None:
-            header = "if" if i == 0 else "} else if"
-            parts.append(f"{header} ({translateExpr(branch['cond'], ctx)}) {{\n{body}\n")
+        if isinstance(param_type, FPrimitive):
+            if param.is_const:
+                param_decls.append(f"const {param_type.asC()} {param.name}")
+            else:
+                param_decls.append(f"{param_type.asC()}& {param.name}")
         else:
-            parts.append(f"}} else {{\n{body}\n")
+            const = "const " if param.is_const else ""
+            param_decls.append(f"f2c::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
 
-    parts.append("}\n")
-    return "".join(parts)
+    return_type = "void"
+    if ctx.sub_info.isFunction():
+        return_type = ctx.sub_info.functionType().asC()
 
+    prefix = ctx.info.config.get("func_prefix")
+    prefix = f"{prefix} " if prefix else ""
 
-def translateDoConstruct(do_stmt: Dict[str, Any], ctx: Context) -> str:
-    """
-    Translate a WHILE or counted DO loop.
-    """
-    mode = do_stmt.get("mode")
-    body = "".join(translateStmt(s, ctx) for s in do_stmt.get("body", []))
+    src_decl = f"static {prefix}{return_type} {ctx.sub_info.name}(\n    "
+    src_decl += ",\n    ".join(param_decls) + "\n)"
 
-    if mode == "while":
-        header = f"while ({translateExpr(do_stmt['cond'], ctx)})"
-    elif mode == "counted":
-        var = translateName(do_stmt["var"], ctx)
-        lb = translateExpr(do_stmt["lb"], ctx)
-        ub = translateExpr(do_stmt["ub"], ctx)
+    src = src_decl + " {\n"
+    src += indent(translateSpecificationPart(body.get("decls", []), ctx)) + "\n"
+    src += indent(translateExecutionPart(body.get("stmts", []), ctx))
+    src += "\n}"
 
-        if do_stmt.get("step") is None:
-            header = f"for ({var} = {lb}; {var} <= {ub}; ++{var})"
-        else:
-            step = translateExpr(do_stmt["step"], ctx)
-            header = f"for ({var} = {lb}; {var} <= {ub}; {var} += {step})"
-    else:
-        ctx.error("Unsupported labelled/concurrent do construct")
-
-    return f"{header} {{\n{indent(body)}\n}}\n"
+    return src_decl + ";", src
 
 
 # Names
@@ -840,7 +842,68 @@ INTRINSIC_FUNCS = {
     "dtanh": "f2c::tanh",
 }
 
-_LEVEL4_OPS = {".eq.", ".ne.", ".lt.", ".le.", ".gt.", ".ge."}
+
+def _refNameAndItems(expr: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]], bool]:
+    """
+    Unpack a `part_ref` or `funcref` into `(name, items, allow_slice)`.
+    """
+    if expr["kind"] == "part_ref":
+        return expr["name"], expr.get("subscripts", []), True
+
+    return expr["name"], expr.get("args", []), False
+
+
+def translateArgList(items: List[Dict[str, Any]], ctx: Context, call_target: str) -> str:
+    """
+    Translate the argument list of a call.
+    """
+    if call_target == "atomicAdd":
+        assert len(items) == 2
+        return ", ".join([f"&({translateExpr(items[0], ctx)})", translateExpr(items[1], ctx)])
+
+    target_sub = ctx.info.subprograms[call_target]
+
+    args = []
+    for item, target_type in zip(items, [target_sub.types[p.name] for p in target_sub.params]):
+        if isinstance(target_type, FArray) and item.get("kind") in ("part_ref", "funcref"):
+            name = translateName(item["name"], ctx)
+
+            if name in ctx.info.functionNames():
+                ctx.error("Unsupported function return as array argument")
+
+            if name not in ctx.sub_info.types:
+                ctx.error("Unsupported const part-ref as arg")
+
+            subs = item.get("subscripts") if item["kind"] == "part_ref" else item.get("args", [])
+            if any(s.get("kind") == "triplet" for s in subs):
+                ctx.error("Unsupported slice part-ref as arg")
+
+            arg = f"{name}.ptr_at({', '.join(translateExpr(s, ctx) for s in subs)})"
+        elif isinstance(target_type, FArray) and item.get("kind") != "name":
+            ctx.error("Unsupported expression passed to array argument")
+        else:
+            arg = translateExpr(item, ctx)
+
+        args.append(arg)
+
+    return ", ".join(args)
+
+
+def translateBinaryExpr(expr: Dict[str, Any], ctx: Context) -> str:
+    """
+    Translate a binary operator.
+    """
+    op = expr["op"]
+    left = translateExpr(expr["left"], ctx)
+    right = translateExpr(expr["right"], ctx)
+
+    if op == "**":
+        return f"f2c::pow({left}, {right})"
+
+    if op == "//":
+        ctx.error("Unsupported character concatenation operator")
+
+    return f"{left} {op} {right}"
 
 
 def translateExpr(expr: Dict[str, Any], ctx: Context) -> str:
@@ -885,28 +948,29 @@ def translateExpr(expr: Dict[str, Any], ctx: Context) -> str:
     ctx.error(f"Unsupported expression kind: {kind}")
 
 
-def translateBinaryExpr(expr: Dict[str, Any], ctx: Context) -> str:
-    """
-    Translate a binary operator.
-    """
-    op = expr["op"]
-    left = translateExpr(expr["left"], ctx)
-    right = translateExpr(expr["right"], ctx)
-
-    if op == "**":
-        return f"f2c::pow({left}, {right})"
-
-    if op == "//":
-        ctx.error("Unsupported character concatenation operator")
-
-    return f"{left} {op} {right}"
-
-
 def translateIntLiteral(expr: Dict[str, Any], ctx: Context) -> str:
     if expr.get("kind_text") is not None:
         ctx.error(f"Unsupported int literal kind specifier: {expr['kind_text']}")
 
     return expr["text"]
+
+
+def translateIntrinsicCall(func_name: str, items: List[Dict[str, Any]], ctx: Context) -> str:
+    if func_name == "real":
+        if len(items) != 2:
+            ctx.error("Expected REAL(x, kind)")
+
+        kind = translateExpr(items[1], ctx)
+        if kind == "rk4":
+            cast = "float"
+        elif kind == "rk8":
+            cast = "double"
+        else:
+            ctx.error(f"Unsupported REAL() kind: {kind}")
+
+        return f"({cast})({translateExpr(items[0], ctx)})"
+
+    return f"{INTRINSIC_FUNCS[func_name]}({', '.join(translateExpr(item, ctx) for item in items)})"
 
 
 def translateRealLiteral(expr: Dict[str, Any], ctx: Context) -> str:
@@ -937,16 +1001,6 @@ def translateRealLiteral(expr: Dict[str, Any], ctx: Context) -> str:
         raw = re.sub(r"[dD]", "e", raw)
 
     return raw + "f" if is_float else raw
-
-
-def _refNameAndItems(expr: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]], bool]:
-    """
-    Unpack a `part_ref` or `funcref` into `(name, items, allow_slice)`.
-    """
-    if expr["kind"] == "part_ref":
-        return expr["name"], expr.get("subscripts", []), True
-
-    return expr["name"], expr.get("args", []), False
 
 
 def translateRef(expr: Dict[str, Any], ctx: Context) -> str:
@@ -1012,57 +1066,3 @@ def translateRef(expr: Dict[str, Any], ctx: Context) -> str:
         index += f" + ({translateExpr(extra, ctx)} - ({array_type.shape[i][0]})) * {'*'.join(sizes[:i])}"
 
     return f"{name}[({index}) - 1]"
-
-
-def translateIntrinsicCall(func_name: str, items: List[Dict[str, Any]], ctx: Context) -> str:
-    if func_name == "real":
-        if len(items) != 2:
-            ctx.error("Expected REAL(x, kind)")
-
-        kind = translateExpr(items[1], ctx)
-        if kind == "rk4":
-            cast = "float"
-        elif kind == "rk8":
-            cast = "double"
-        else:
-            ctx.error(f"Unsupported REAL() kind: {kind}")
-
-        return f"({cast})({translateExpr(items[0], ctx)})"
-
-    return f"{INTRINSIC_FUNCS[func_name]}({', '.join(translateExpr(item, ctx) for item in items)})"
-
-
-def translateArgList(items: List[Dict[str, Any]], ctx: Context, call_target: str) -> str:
-    """
-    Translate the argument list of a call.
-    """
-    if call_target == "atomicAdd":
-        assert len(items) == 2
-        return ", ".join([f"&({translateExpr(items[0], ctx)})", translateExpr(items[1], ctx)])
-
-    target_sub = ctx.info.subprograms[call_target]
-
-    args = []
-    for item, target_type in zip(items, [target_sub.types[p.name] for p in target_sub.params]):
-        if isinstance(target_type, FArray) and item.get("kind") in ("part_ref", "funcref"):
-            name = translateName(item["name"], ctx)
-
-            if name in ctx.info.functionNames():
-                ctx.error("Unsupported function return as array argument")
-
-            if name not in ctx.sub_info.types:
-                ctx.error("Unsupported const part-ref as arg")
-
-            subs = item.get("subscripts") if item["kind"] == "part_ref" else item.get("args", [])
-            if any(s.get("kind") == "triplet" for s in subs):
-                ctx.error("Unsupported slice part-ref as arg")
-
-            arg = f"{name}.ptr_at({', '.join(translateExpr(s, ctx) for s in subs)})"
-        elif isinstance(target_type, FArray) and item.get("kind") != "name":
-            ctx.error("Unsupported expression passed to array argument")
-        else:
-            arg = translateExpr(item, ctx)
-
-        args.append(arg)
-
-    return ", ".join(args)

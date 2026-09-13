@@ -3,15 +3,15 @@ Text-level kernel rewriting for the --parser flang code path.
 The helpers in this module are Flang-driven equivalents of the
 fparser2-based rewriters in `fortran.translator.kernels`.
 
-fparser2 helper                         flang_writer equivalent
---------------------------------------  -----------------------
-ftk.writeSource(entities, prologue)     write_source
-ftk.renameConsts(lang, entities, ...)   rename_consts
-ftk.renameEntities(entities, replace)   rename_entities
-ftk.fixHydraIO(entity)                  fix_hydra_io
-ftk.removeExternals(entity)             remove_externals
-ftk.insertStrides(...)                  insert_strides
-ftk.insertAtomicIncs(..., c_api=False)  insert_atomic_incs
+fparser2 helper                          flang_writer equivalent
+--------------------------------------   -----------------------
+ftk.writeSource(entities, prologue)      write_source
+ftk.renameConsts(lang, entities, ...)    rename_consts
+ftk.renameEntities(entities, replace)    rename_entities
+ftk.fixHydraIO(entity)                   fix_hydra_io
+ftk.removeExternals(entity)              remove_externals
+ftk.insertStrides(...)                   insert_strides
+ftk.insertAtomicIncs(..., c_api=False)   insert_atomic_incs
 """
 
 from __future__ import annotations
@@ -87,7 +87,7 @@ def _substitute_outside_strings(source: str, replace_chunk: Callable[[str], str]
 # Mutations
 
 def rename_consts(
-    lang: Lang,
+    lang: Lang,  # kept for API symmetry
     entities: Sequence[Entity],
     app: Application,
     replacement: Callable[[str], str],
@@ -139,7 +139,7 @@ def rename_entities(entities: Sequence[Entity], replacement: Callable[[str], str
 
 def rename_function_calls(entity: Function, name: str, replacement: str) -> None:
     """
-    Rewrite ``call <name>(...)`` and function-style references ``<name>(...)``
+    Rewrite `call <name>(...)` and function-style references `<name>(...)`
     inside the entity body.
     """
     if not getattr(entity, "flang_source", None):
@@ -219,8 +219,8 @@ _HYDRA_CALL_RE = re.compile(
 
 def fix_hydra_io(entity: Function) -> None:
     """
-    Replace ``write(...)`` statements with ``continue`` and certain hydra
-    helper calls with ``stop``.
+    Replace `write(...)` statements with `continue` and certain hydra
+    helper calls with `stop`.
     """
     if not getattr(entity, "flang_source", None):
         return
@@ -235,7 +235,7 @@ def fix_hydra_io(entity: Function) -> None:
 
 def remove_externals(entity: Function) -> None:
     """
-    Strip ``external`` declarations from `entity.flang_source`.
+    Strip `external` declarations from `entity.flang_source`.
     """
     if not getattr(entity, "flang_source", None):
         return
@@ -250,7 +250,7 @@ def remove_externals(entity: Function) -> None:
 
 def _ensure_op2_ret_decl(source: str) -> str:
     """
-    Insert ``integer(4) :: op2_ret`` into the source.
+    Insert `integer(4) :: op2_ret` into the source.
     """
     if re.search(r"\binteger\s*\(?\s*4?\s*\)?\s*::\s*op2_ret\b", source, flags=re.IGNORECASE):
         return source
@@ -291,8 +291,8 @@ def _ensure_op2_ret_decl(source: str) -> str:
 
 def _erase_param_dimensions(source: str, param: str) -> str:
     """
-    Collapse the parameter's explicit shape to assumed-size ``*`` in both
-    ``dimension(...)`` attributes and entity-level ``name(bounds)`` forms.
+    Collapse the parameter's explicit shape to assumed-size `*` in both
+    `dimension(...)` attributes and entity-level `name(bounds)` forms.
     """
     lines = source.splitlines(keepends=True)
     out: List[str] = []
@@ -392,8 +392,8 @@ def _flatten_index(subscript_text: str, dims: List[Tuple[str, Optional[str]]]) -
 def _insert_stride_on_entity(entity: Function, param_idx: int, stride: str) -> bool:
     """
     Rewrite indexed references to the given dummy parameter as
-    ``param(op2_s(index, stride))``, flattening multi-dimensional
-    subscripts and collapsing the parameter's declared shape to ``*``.
+    `param(op2_s(index, stride))`, flattening multi-dimensional
+    subscripts and collapsing the declared shape to `*`.
     """
     if not getattr(entity, "flang_source", None):
         return False
@@ -424,7 +424,7 @@ def _insert_stride_on_entity(entity: Function, param_idx: int, stride: str) -> b
 
 def _iter_param_indexings(source: str, param: str) -> List[Tuple[int, int, str]]:
     """
-    Return (start, end, subscript_text) for every ``param(...)`` occurrence
+    Return (start, end, subscript_text) for every `param(...)` occurrence
     outside string literals.
     """
     hits: List[Tuple[int, int, str]] = []
@@ -466,8 +466,10 @@ def _iter_param_indexings(source: str, param: str) -> List[Tuple[int, int, str]]
 
 def _lhs_token_pattern(lhs: str) -> str:
     """
-    Regex for a whole LHS reference. Bare names use a word boundary so
-    ``res`` does not match inside ``residual``.
+    Regex for a whole LHS reference.
+
+    Bare names use a word boundary so, for example,
+    `res` does not match inside `residual`.
     """
     escaped = re.escape(lhs)
     if "(" in lhs:
@@ -477,8 +479,8 @@ def _lhs_token_pattern(lhs: str) -> str:
 
 def _param_dims(entity: Function, param: str) -> Optional[List[Tuple[str, Optional[str]]]]:
     """
-    Return explicit shape bounds for `param` from ``flang_body["decls"]``, or
-    None if the parameter has no array shape.
+    Return explicit shape bounds for `param` from `flang_body["decls"]`,
+    or None if the parameter has no array shape.
     """
     body = getattr(entity, "flang_body", None)
     if body is None:
@@ -509,9 +511,9 @@ def _param_dims(entity: Function, param: str) -> Optional[List[Tuple[str, Option
 
 def _replace_fortran_increments(source: str, param: str, typ: OP.Type) -> Tuple[str, bool]:
     """
-    Rewrite single-line increment assignments ``param = param +/- expr`` as
-    ``op2_ret = atomicAdd(param, amount)``.
-    
+    Rewrite single-line increment assignments `param = param +/- expr` as
+    `op2_ret = atomicAdd(param, amount)`.
+
     Returns the rewritten source and a bool indicating whether any
     replacement was made.
     """
@@ -562,7 +564,7 @@ def _replace_lhs_with_zero(rhs: str, lhs: str, zero: str) -> str:
 
 def _rhs_is_increment_of(lhs: str, rhs: str) -> bool:
     """
-    True if `rhs` looks like ``lhs +/- expr`` or ``expr +/- lhs``.
+    True if `rhs` looks like `lhs +/- expr` or `expr +/- lhs`.
     """
     token = _lhs_token_pattern(lhs)
     return re.search(
@@ -613,8 +615,8 @@ def insert_atomic_incs(
     match: Callable[[Any], bool],
 ) -> None:
     """
-    Rewrite increments to ``op2_ret = atomicAdd(...)`` and declare
-    ``integer(4) :: op2_ret``.
+    Rewrite increments to `op2_ret = atomicAdd(...)` and declare
+    `integer(4) :: op2_ret`.
 
     Mirrors fparser2's `insertAtomicIncs`.
     """
@@ -708,8 +710,9 @@ def write_source(entities: Sequence[Entity], prologue: Optional[str] = None) -> 
     """
     Emit the Flang-derived source text for the given entities, concatenated in
     the same order that `fortran.translator.kernels.writeSource` uses
-    (innermost dependencies last). The optional `prologue` is prepended to
-    each entity, matching the fparser2-based API.
+    (innermost dependencies last).
+
+    The optional `prologue` is prepended to each entity.
     """
 
     # late import to avoid a circular dependency between flang_writer and fortran.translator.kernels

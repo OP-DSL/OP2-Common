@@ -17,7 +17,8 @@ from target import Target
 from util import find
 
 
-# Schemes that have already warned the user that they fall back to fparser2 under --parser flang
+# schemes that have already warned the user that they
+# fall back to fparser2 under --parser flang
 _FLANG_FALLBACK_WARNED: set = set()
 
 

@@ -1,13 +1,13 @@
 """
 Flang/JSON-tree equivalents of the fparser2 AST mutations in
-``fortran.translator.kernels`` that ``fortran/schemes.py`` applies
+`fortran.translator.kernels` that `fortran/schemes.py` applies
 to kernel entities before kernel-to-C++ translation.
 
-fparser2 helper (fortran.translator.kernels)  flang_kernels equivalent
---------------------------------------------  --------------------------
-renameConsts                                  rename_consts
-fixHydraIO                                    fix_hydra_io
-insertAtomicIncs                              insert_atomic_incs
+fparser2 helper    flang_kernels equivalent
+---------------    ------------------------
+renameConsts       rename_consts
+fixHydraIO         fix_hydra_io
+insertAtomicIncs   insert_atomic_incs
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ from store import Function
 
 def _resync_flat_views(body: Dict[str, Any]) -> None:
     """
-    Rebuild ``assignments`` and ``calls`` from ``stmts``.
+    Rebuild `assignments` and `calls` from `stmts`.
 
     The scanner emits those flat lists in parallel with the statement tree.
-    Kernel rewrites only mutate ``stmts``, so analysis that still reads the
-    flat views (``resolveParamAccesses``, the validator on a rewritten copy)
+    Kernel rewrites only mutate `stmts`, so analysis that still reads the
+    flat views (`resolveParamAccesses`, the validator on a rewritten copy)
     must see the same tree.
     """
     assignments: List[Dict[str, Any]] = []
@@ -70,9 +70,6 @@ def _walk_stmt_bodies(
     Call `visit_body` on `stmts` and on every nested body reachable through
     if/do control flow. Returns True if `visit_body` returned True for any
     of them.
-
-    ``if_stmt`` children are walked via a one-element list, then written
-    back so replacements of the inner statement stick on the parent node.
     """
     modified = visit_body(stmts)
 
@@ -98,8 +95,8 @@ def _walk_stmt_bodies(
 
 def _rename_idents(node: Any, targets: Set[str], replacement: Callable[[str], str]) -> None:
     """
-    Recursively rename every "name"/"part_ref"/"funcref" identifier
-    occurrence (and "do" loop control variables) within a decls/stmts
+    Recursively rename every `name` / `part_ref` / `funcref` identifier
+    occurrence (and `do` loop control variables) within a decls/stmts
     JSON subtree whose identifier is in `targets`.
     """
     if isinstance(node, list):
@@ -172,9 +169,8 @@ def fix_hydra_io(entities: List[Function]) -> None:
     """
     Flang equivalent of fortran.translator.kernels.fixHydraIO.
 
-    Unlike the fparser2 path, WRITE statements need no rewrite here as
-    fortran/flang_kernels_c.py's statement translator already turns every
-    "write" node into a no-op comment, so there's nothing to clobber.
+    WRITE statements need no rewrite here as flang_kernels_c.py's statement
+    translator already turns every "write" node into a no-op comment.
     """
     for entity in entities:
         body = getattr(entity, "flang_body", None)
@@ -188,7 +184,8 @@ def fix_hydra_io(entities: List[Function]) -> None:
 
 def _is_add_or_sub_expr(expr: Dict[str, Any]) -> bool:
     """
-    True if `expr` is a `+`/`-` binary expression (fparser2 Level_2_Expr).
+    True if `expr` is a `+`/`-` binary expression.
+
     Parentheses are unwrapped so `param = (param + x)` still counts.
     """
     expr = _unwrap_parens(expr)

@@ -47,7 +47,8 @@ def ensure_fparser2_ast(
 
 def _attach_entity_asts(program: Program, ast) -> None:
     """
-    Walk an fparser2 AST and copy subprogram nodes onto Flang-built entities with the same name.
+    Walk an fparser2 AST and copy subprogram nodes onto Flang-built
+    entities with the same name.
     """
     temp = fortran.parser.parseProgram(ast, program.source, program.path)
     ast_by_name = {
@@ -63,7 +64,8 @@ def _attach_entity_asts(program: Program, ast) -> None:
         if node is not None:
             entity.ast = node
 
-    # if Flang missed a subprogram that fparser2 found, add it so downstream code can still resolve dependencies
+    # if Flang missed a subprogram that fparser2 found, add it
+    # so downstream code can still resolve dependencies
     existing = {entity.name.lower() for entity in program.entities}
     for entity in temp.entities:
         if not isinstance(entity, Function):
