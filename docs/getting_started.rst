@@ -210,12 +210,12 @@ and downstream discovery variable, plus the ``op2_add_app_variants()`` and
 ``op2_translate()`` helpers that come with ``find_package(OP2)``.
 
 LLVM Flang (optional Fortran parser)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------------
 
 By default the OP2 translator parses Fortran with **fparser2**; **LLVM Flang** is an optional alternative parsing path which uses the Flang parser libraries via a C++ helper (``op2-flang-scan``). This typically offers better Fortran standards coverage and improved robustness over fparser2, but can be somewhat tedious (and storage intensive) to install.
 
 Installing LLVM Flang
-"""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^
 
 The ``op2-flang-scan`` scanner uses LLVM Flang's parse-tree API via the tuple-class layout that was introduced in **LLVM 23**.
 
@@ -283,7 +283,7 @@ A from source build of ``llvm-project`` with Flang and MLIR typically takes 30-6
 ``op2-flang-scan`` only needs the parser libraries, not a full Clang/Flang compiler toolchain, which is why ``LLVM_ENABLE_PROJECTS`` omits ``clang``. MLIR is required to build Flang, even though the scanner does not lower to MLIR.
 
 Building ``op2-flang-scan``
-"""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Once LLVM Flang is installed, configure and build OP2 as usual. The library build compiles the scanner and installs it next to the OP2 libraries:
 
@@ -300,7 +300,7 @@ The binary is installed to ``op2/bin/op2-flang-scan``. To build only the scanner
    make -C op2 flang-scan
 
 Using the Flang parser
-""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^
 
 The translator still defaults to fparser2. To change the translation pipeline to use Flang, set ``OP2_FORTRAN_PARSER`` before building an application:
 
