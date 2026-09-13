@@ -217,7 +217,7 @@ By default the OP2 translator parses Fortran with **fparser2**; **LLVM Flang** i
 Installing LLVM Flang
 ^^^^^^^^^^^^^^^^^^^^^
 
-The ``op2-flang-scan`` scanner uses LLVM Flang's parse-tree API via the tuple-class layout that was introduced in **LLVM 23**.
+The ``op2-flang-scan`` scanner uses LLVM Flang's parse-tree API.
 
 **Requirement: LLVM Flang >= 23**, including:
 
@@ -226,11 +226,11 @@ The ``op2-flang-scan`` scanner uses LLVM Flang's parse-tree API via the tuple-cl
 - The LLVM CMake package (``lib/cmake/llvm/LLVMConfig.cmake``)
 - **CMake** >= 3.26 (and optionally **Ninja**)
 
-LLVM 18-22 expose an older named-member layout which is not compatible with the scanner.
+LLVM <= 22 exposes an older named-member layout on some nodes of the parse-tree API, which is not compatible with the scanner.
 
 **1. Distro packages (LLVM >= 23)**
 
-On Debian / Ubuntu, official archive packages do not currently cover LLVM 23 and later. The LLVM project's APT repository can be used instead (`apt.llvm.org <https://apt.llvm.org/>`_), which publishes ``libflang-23-dev`` (and newer) for supported releases.
+On Debian / Ubuntu, official archive packages may not cover LLVM >= 23. The LLVM project's APT repository can be used instead (`apt.llvm.org <https://apt.llvm.org/>`_), which publishes supported releases.
 
 .. code-block:: shell
 
@@ -256,11 +256,11 @@ Alternatively, on Fedora (when the packaged Flang is >= 23):
    brew install llvm cmake ninja
    export LLVM_INSTALL_PATH="$(brew --prefix llvm)"
 
-Confirm ``$(brew --prefix llvm)/bin/llvm-config --version`` is **>= 23** to ensure a compatible version is installed. If this is not available, the from-source build recipe below can be used instead.
+Confirm ``$(brew --prefix llvm)/bin/llvm-config --version`` is **>= 23** to ensure a compatible version is installed. If this is not available, the from source build recipe below can be used instead.
 
 **3. Build from source**
 
-A from source build of ``llvm-project`` with Flang and MLIR typically takes 30-60 minutes and around 20-30 GB of disk space. On WSL, build on the Linux filesystem (``$HOME``), not ``/mnt/c``.
+A from source build of ``llvm-project`` with Flang and MLIR can take 30-60 minutes and around 20-30 GB of disk space. On WSL, build on the Linux filesystem (``$HOME``), not ``/mnt/c``.
 
 .. code-block:: shell
 
@@ -280,7 +280,7 @@ A from source build of ``llvm-project`` with Flang and MLIR typically takes 30-6
    cmake --build build --target install -j$(nproc)
    export LLVM_INSTALL_PATH=$HOME/.local/llvm
 
-``op2-flang-scan`` only needs the parser libraries, not a full Clang/Flang compiler toolchain, which is why ``LLVM_ENABLE_PROJECTS`` omits ``clang``. MLIR is required to build Flang, even though the scanner does not lower to MLIR.
+``op2-flang-scan`` only needs the parser libraries, not a full Clang/Flang compiler toolchain, which is why ``LLVM_ENABLE_PROJECTS`` omits ``clang``. MLIR is required to build Flang, even though it's not used by the scanner.
 
 Building ``op2-flang-scan``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -336,7 +336,7 @@ For example, to translate and run sequential Airfoil with the Flang pipeline:
    make -C apps/fortran/airfoil airfoil_plain_genseq
    ./apps/fortran/airfoil/airfoil_plain_genseq
 
-If Flang fails to parse a file, that file falls back to fparser2 automatically, avoiding any possible regressions.
+If Flang fails to parse a file, that file falls back to fparser2 with a warning.
 
 Spack
 -----

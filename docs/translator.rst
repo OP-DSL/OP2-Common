@@ -32,7 +32,7 @@ The translator and its dependencies are bundled inside ``translator-v2/`` and ar
    pip install -r requirements.txt
 
 .. note::
-   No system Clang installation is required for C/C++ parsing.  The ``libclang`` PyPI wheel (pinned to 18.1.1 in ``requirements.txt``) is a self-contained ``manylinux`` wheel that bundles its own ``libclang.so`` — no ``apt install libclang-dev`` or equivalent is needed.  The ``fparser`` package provides the ``fparser.two`` (fparser2) API used to parse Fortran source files by default.
+   No system Clang installation is required.  The ``libclang`` PyPI wheel (pinned to 18.1.1 in ``requirements.txt``) is a self-contained ``manylinux`` wheel that bundles its own ``libclang.so`` — no ``apt install libclang-dev`` or equivalent is needed.  The ``fparser`` package provides the ``fparser.two`` (fparser2) API used to parse Fortran source files.
 
    The optional LLVM Flang Fortran parser path uses a separate C++ helper (``op2-flang-scan``) built against LLVM's Flang libraries. See :doc:`getting_started` for install and setup instructions.
 
@@ -121,30 +121,6 @@ Fortran Targets
 
 The language is detected automatically from the file extension (``.F90`` or ``.f90``). The same target name strings are used as for C/C++, and the translator selects the appropriate Fortran code-generation scheme.
 
-Fortran Parsers
-^^^^^^^^^^^^^^^
-
-Two Fortran parsers are supported by the translator, via separate paths of the translation pipeline:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Backend
-     - Description
-   * - ``fparser2``
-     - Default. Pure-Python parser from the ``fparser`` package. No extra native dependencies.
-   * - ``flang``
-     - LLVM Flang parser via ``op2-flang-scan``, providing broader Fortran standards coverage and improved robustness. Requires LLVM Flang >= 23 libraries at OP2 library build time.
-
-When using the OP2 Makefiles, the default parser can be set with the ``OP2_FORTRAN_PARSER`` environment variable, or by appending ``--parser flang`` to ``OP2_EXTRA_TRANSLATOR_FLAGS``. Alternatively the parser can be selected directly at translator invocation:
-
-.. code-block:: shell
-
-   python3 op2-translator --parser flang -t openmp -t c_cuda myapp.F90
-
-The translator locates the ``op2-flang-scan`` binary in the search order: ``--flang-scan``, ``OP2_FLANG_SCAN``, ``op2/bin/op2-flang-scan``, ``translator-v2/flang-scan/build/op2-flang-scan``, then ``PATH``. If Flang fails to parse a file, that file falls back to fparser2.
-
 Example — generate Fortran OpenMP and C_CUDA variants:
 
 .. code-block:: shell
@@ -174,6 +150,27 @@ The following targets are available for Fortran applications:
 
 .. note::
    For Fortran applications, the ``c_cuda`` and ``c_hip`` JIT targets are the primary recommended GPU backends. The native Fortran ``cuda`` target (CUDA Fortran) is also available but requires the NVHPC compiler.
+
+Two Fortran parsers are supported by the translator, via separate paths of the translation pipeline:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Backend
+     - Description
+   * - ``fparser2``
+     - The default Python-based parser from the ``fparser`` package.
+   * - ``flang``
+     - LLVM Flang parser via ``op2-flang-scan``, providing broader Fortran standards coverage and improved robustness. Requires LLVM Flang >= 23 libraries at OP2 library build time.
+
+When using the OP2 Makefiles, the default parser can be set with the ``OP2_FORTRAN_PARSER`` environment variable, or by appending ``--parser flang`` to ``OP2_EXTRA_TRANSLATOR_FLAGS``. Alternatively the parser can be selected directly at translator invocation:
+
+.. code-block:: shell
+
+   python3 op2-translator --parser flang -t openmp -t c_cuda myapp.F90
+
+The translator locates the ``op2-flang-scan`` binary in the search order: ``--flang-scan``, ``OP2_FLANG_SCAN``, ``op2/bin/op2-flang-scan``, ``translator-v2/flang-scan/build/op2-flang-scan``, then ``PATH``.
 
 Choosing Between AOT and JIT GPU Targets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
