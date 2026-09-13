@@ -1,5 +1,24 @@
 TRANSLATOR ?= $(ROOT_DIR)/translator-v2/op2-translator.sh -v
 
+# Extra flags forwarded to the OP2 translator
+OP2_EXTRA_TRANSLATOR_FLAGS ?=
+
+# Fortran parser pipeline (fparser2 or flang)
+OP2_FORTRAN_PARSER ?= fparser2
+
+ifneq ($(filter $(OP2_FORTRAN_PARSER),fparser2 flang),$(OP2_FORTRAN_PARSER))
+  $(error OP2_FORTRAN_PARSER must be "fparser2" or "flang" (got "$(OP2_FORTRAN_PARSER)"))
+endif
+
+ifeq ($(OP2_FORTRAN_PARSER),flang)
+  OP2_EXTRA_TRANSLATOR_FLAGS += --parser flang
+  ifeq ($(OP2_FLANG_SCAN),)
+    ifneq ($(wildcard $(OP2_BUILD_DIR)/bin/op2-flang-scan),)
+      export OP2_FLANG_SCAN := $(OP2_BUILD_DIR)/bin/op2-flang-scan
+    endif
+  endif
+endif
+
 ifneq ($(F_HAS_PARALLEL_BUILDS),true)
   .NOTPARALLEL:
 endif
@@ -81,7 +100,7 @@ endif
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@
+	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $(OP2_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@
 
 generate: generated/$(APP_NAME)
 endef

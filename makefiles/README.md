@@ -7,6 +7,10 @@ This is included at the start of both the primary OP2 makefile in `op2/Makefile`
  * `OP2_COMPILER`: Equivalent to `OP2_C_COMPILER=X OP2_F_COMPILER=X OP2_C_CUDA_COMPILER=nvhpc`.
  * `OP2_PROFILE`: A potential alternative (although not necessarily) to specifiying `OP2_COMPILER` or the `OP2_{C, C_CUDA, F}_COMPILER` variables, this specifies the basename of the profile under `profiles/` that is included to help setup compilation in a particular build environment. More information [below](#profiles-profiles).
  * (optional) `OP2_BUILD_DIR`: The directory under which OP2's `lib/` `mod/` and `obj/` folders and contents will be built. This defaults to `OP2-Common/op2` which should be acceptable for most cases.
+ * (optional) `LLVM_INSTALL_PATH`: Prefix of an LLVM install that includes the Flang parser headers and libraries. Used at `make config` time to decide whether `op2-flang-scan` can be built. Typical values are `$HOME/.local/llvm` or `/usr/lib/llvm-23`.
+ * (optional) `OP2_FORTRAN_PARSER`: Parsing pipeline used by `f_app.mk`. `fparser2` (default) or `flang`.
+ * (optional) `OP2_FLANG_SCAN`: Path to the `op2-flang-scan` binary. Set automatically to `$(OP2_BUILD_DIR)/bin/op2-flang-scan` when `OP2_FORTRAN_PARSER=flang` and that file exists.
+ * (optional) `OP2_EXTRA_TRANSLATOR_FLAGS`: Extra flags forwarded to every translator invocation (such as `--parser flang`).
 
 In addition, most variables defined as a result of the inclusion of `common.mk` and the respective compiler/profile makefiles can be overriden on input, for example to use `mpic++` instead of `mpicxx`: `make MPICXX=mpic++ ...`.
 
@@ -60,6 +64,8 @@ This directory contains makefiles corresponding to each library dependency of OP
  2. The test executable is compiled with both the `X_INC_PATH` and `X_LIB_PATH` set but *without* the expected flags needed to link to the library (for example `-lparmetis -lmetis`). This is done to detect if the dependency is automatically linked by a compiler wrapper or similar.
  3. If the previous test fails the `X_LINK` variable is then set to the expected flags needed to link the library, and the test executable is recompiled.
  4. If either of the tests succeeded, then the `HAVE_X` variable is set to `true`, and the `X_INC` and `X_LIB` variables are set in accordance.
+
+`flang.mk` is an exception, it looks for CMake and an LLVM prefix containing Flang parser headers (`include/flang/Parser/parsing.h`), `libFortranParser`, and the LLVM CMake package. When found it sets `HAVE_FLANG`, `LLVM_INSTALL_PATH`, `FLANG_SCAN_CMAKE`, and `FLANG_SCAN_CMAKE_GENERATOR`, and `op2/Makefile` then builds `op2-flang-scan` as part of the library build.
 
 ### `{c, f}_app.mk`: Generic app rules
 These are generic makefiles that define a complete set of build rules for the common source structures found in the apps. The variants that will be built depend on the available compilers and compiler features. All of the possible variants currently are:

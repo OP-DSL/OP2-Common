@@ -103,6 +103,10 @@ ifeq ($(MAKECMDGOALS),config)
   endif
 
   $(info )
+  $(call info_bold,> looking for LLVM Flang (optional Fortran parser for op2-flang-scan))
+  include $(DEPS_DIR)/flang.mk
+
+  $(info )
   $(shell rm -f $(DEP_BUILD_LOG))
 
   CONFIG_VARS := $(sort $(filter CONFIG_%,$(.VARIABLES)))
@@ -166,6 +170,8 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info .   PT-Scotch: $(call I_STR,PTSCOTCH))
   $(info .   ParMETIS: $(call I_STR,PARMETIS))
   $(info .   KaHIP: $(call I_STR,KAHIP))
+  $(info )
+  $(info LLVM Flang (op2-flang-scan): $(if $(HAVE_FLANG),$(LLVM_INSTALL_PATH),not found))
   $(info )
   $(info Compilation flags:)
   $(info .   C: $(CFLAGS))

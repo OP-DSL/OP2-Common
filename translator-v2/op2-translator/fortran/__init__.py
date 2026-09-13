@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
@@ -15,6 +16,9 @@ from fparser.common.readfortran import FortranStringReader
 from fparser.two.parser import ParserFactory
 from fparser.two.utils import Base, _set_parent
 
+import fortran.flang_parser
+import fortran.flang_validator
+import fortran.fparser2_fallback
 import fortran.parser
 import fortran.translator.program
 import fortran.validator
@@ -185,12 +189,27 @@ class Fortran(Lang):
     user_consts_module = None
     use_regex_translator = False
 
+    requested_parser = "fparser2"  # "fparser2" (default) or "flang"
+    flang_scan_bin = None
+    _include_dirs: Set[Path] = set()
+    _defines: List[str] = []
+
     parser = None
     fpp = None
 
     # fparser2 does some dynamic class setup on parser creation, so make sure we always have one for kernel translation
     def __init__(self):
         self.parser = ParserFactory().create(std="f2008")
+
+    def _ensure_ast_flang_programs(self, app: Application) -> None:
+        for program in app.programs:
+            if getattr(program, "used_parser", "fparser2") != "flang":
+                continue
+            if program.ast is not None:
+                continue
+            fortran.fparser2_fallback.ensure_fparser2_ast(
+                self, program, self._include_dirs, self._defines
+            )
 
     def addArgs(self, parser: ArgumentParser) -> None:
         parser.add_argument("--consts-module", help="(Fortran) Custom consts module")
@@ -199,6 +218,17 @@ class Fortran(Lang):
         parser.add_argument("--user-consts-module", help="(Fortran) Use a custom consts module", default=None)
         parser.add_argument(
             "--regex-program-translator", help="(Fortran) Use the regex-based program translator", action="store_true"
+        )
+        parser.add_argument(
+            "--parser",
+            help="(Fortran) Parser pipeline to use for translation",
+            choices=["fparser2", "flang"],
+            default="fparser2",
+        )
+        parser.add_argument(
+            "--flang-scan",
+            help="(Fortran) Path to the op2-flang-scan binary (used with --parser flang)",
+            default=None,
         )
 
     def parseArgs(self, args: Namespace) -> None:
@@ -217,6 +247,18 @@ class Fortran(Lang):
         if args.regex_program_translator:
             self.use_regex_translator = True
             logger.debug("Using regex program translator")
+            if args.verbose:
+                print("Using regex program translator")
+
+        self.requested_parser = getattr(args, "parser", "fparser2")
+        self.flang_scan_bin = getattr(args, "flang_scan", None)
+
+        # used for programs/loops that use fparser2 fallback, so need an AST
+        self._include_dirs = set(Path(d[0]) for d in getattr(args, "I", []))
+        self._defines = [d[0] for d in getattr(args, "D", [])]
+
+        if args.verbose:
+            print(f"Requested Fortran parser: {self.requested_parser}")
 
         # fpp is a bundled binary, not a Python package - locate it relative
         # to this file's own install location (translator-v2/fpp/fpp
@@ -234,10 +276,26 @@ class Fortran(Lang):
 
     def validate(self, app: Application) -> None:
         # TODO: see fortran.parser
+
+        if fortran.flang_parser.parsed_with_flang(app):
+            fortran.flang_parser.resolve_flang_dependencies(app)
+
         for program in app.programs:
-            fortran.parser.parseFunctionDependencies(program, app)
+            if getattr(program, "used_parser", "fparser2") == "fparser2":
+                fortran.parser.parseFunctionDependencies(program, app)
 
         for loop, program in app.loops():
+            used_parser = getattr(program, "used_parser", "fparser2")
+
+            # use the Flang validator whenever the kernel and all its dependencies were parsed by Flang
+            if used_parser == "flang" and fortran.flang_validator.can_validate_with_flang(loop, program, app):
+                fortran.flang_validator.validateLoop(loop, program, app)
+                continue
+
+            if used_parser == "flang":
+                # ensure every program in the app has an fparser2 AST before falling back to fparser2
+                self._ensure_ast_flang_programs(app)
+
             fortran.validator.validateLoop(loop, program, app)
 
     def fppIncludes(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Set[Path]:
@@ -324,15 +382,114 @@ class Fortran(Lang):
         return ast, source, includes
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        ast, source, includes = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
+        source, includes = self.preprocess(path, frozenset(include_dirs), frozenset(defines))
+
+        if self.requested_parser == "flang":
+            try:
+                scan_bin = fortran.flang_parser.resolve_scan_binary(self.flang_scan_bin)
+                data = fortran.flang_parser.run_scan(
+                    source, path, scan_bin, include_dirs=include_dirs
+                )
+                program = fortran.flang_parser.build_program_from_flang(path, source, data)
+                program.includes = includes
+                return program
+            except ParseError as err:
+                print(
+                    f"Warning: Flang parse failed for {path}; "
+                    f"falling back to fparser2: {err}",
+                    file=sys.stderr,
+                )
+
+        return self.parseProgramFparser2(path, source, include_dirs, includes)
+
+    def parseProgramFparser2(
+        self,
+        path: Path,
+        source: str,
+        include_dirs: Set[Path],
+        includes: Optional[Set[Path]] = None,
+    ) -> Program:
+        try:
+            reader = FortranStringReader(source, include_dirs=list(include_dirs))
+            ast = self.parser(reader)
+        except fparser.two.utils.FortranSyntaxError as err:
+            raise FortranSyntaxError(str(err), path.name)
 
         program = fortran.parser.parseProgram(ast, source, path)
-        program.includes = includes
-
+        setattr(program, "used_parser", "fparser2")
+        program.includes = includes or set()
         return program
 
+    def parsePrograms(
+        self, paths: List[Path], include_dirs: Set[Path], defines: List[str]
+    ) -> List[Program]:
+        """
+        Parse many Fortran sources into Programs (when using ``--parser flang``).
+
+        Preprocesses every file then runs a single ``op2-flang-scan --batch``
+        subprocess to only invoke LLVM load and process spawn once.
+        Per-file Flang failures fall back to fparser2 individually.
+        """
+        if self.requested_parser != "flang" or not paths:
+            return [self.parseProgram(p, include_dirs, defines) for p in paths]
+
+        frozen_inc = frozenset(include_dirs)
+        frozen_defs = frozenset(defines)
+        prepared: List[Tuple[Path, str, Set[Path]]] = []
+        for path in paths:
+            source, includes = self.preprocess(path, frozen_inc, frozen_defs)
+            prepared.append((path, source, includes))
+
+        try:
+            scan_bin = fortran.flang_parser.resolve_scan_binary(self.flang_scan_bin)
+            scanned = fortran.flang_parser.run_scan_batch(
+                [(path, source) for path, source, _ in prepared],
+                scan_bin,
+                include_dirs=include_dirs,
+            )
+        except ParseError as err:
+            print(
+                f"Warning: Flang batch scan failed; "
+                f"falling back to per-file parsing: {err}",
+                file=sys.stderr,
+            )
+            return [self.parseProgram(p, include_dirs, defines) for p in paths]
+
+        programs: List[Program] = []
+        for path, source, includes in prepared:
+            data = scanned[path]
+            if data.get("error"):
+                print(
+                    f"Warning: Flang parse failed for {path}; "
+                    f"falling back to fparser2: {data['error']}",
+                    file=sys.stderr,
+                )
+                programs.append(self.parseProgramFparser2(path, source, include_dirs, includes))
+                continue
+            try:
+                program = fortran.flang_parser.build_program_from_flang(path, source, data)
+                program.includes = includes
+                programs.append(program)
+            except ParseError as err:
+                print(
+                    f"Warning: Flang build failed for {path}; "
+                    f"falling back to fparser2: {err}",
+                    file=sys.stderr,
+                )
+                programs.append(self.parseProgramFparser2(path, source, include_dirs, includes))
+        return programs
+
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
-        if self.use_regex_translator:
+        if getattr(program, "used_parser", "fparser2") == "flang":
+            return fortran.translator.program.translateProgram2(program, force_soa)
+
+        if self.use_regex_translator or program.ast is None:
+            if program.ast is None and not self.use_regex_translator:
+                print(
+                    f"Warning: fparser2 AST unavailable for {program.path}; "
+                    f"using regex program translator fallback.",
+                    file=sys.stderr,
+                )
             return fortran.translator.program.translateProgram2(program, force_soa)
 
         return fortran.translator.program.translateProgram(program, force_soa)

@@ -2,16 +2,61 @@ import copy
 import traceback
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Iterable
 
+import fortran.flang_kernels as fk
+import fortran.flang_kernels_c as fk_c
+import fortran.flang_writer as fwriter
 import fortran.translator.kernels as ftk
 import fortran.translator.kernels_c as ftk_c
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, ParseError, Program
+from store import Application, Function, ParseError, Program
 from target import Target
 from util import find
+
+
+# schemes that have already warned the user that they
+# fall back to fparser2 under --parser flang
+_FLANG_FALLBACK_WARNED: set = set()
+
+
+def _all_entities_have_flang_source(entities: Iterable) -> bool:
+    """
+    Return True if every entity is a Function and carries a flang_source.
+    """
+    saw_any = False
+    for e in entities:
+        if not isinstance(e, Function):
+            return False
+        if not getattr(e, "flang_source", None):
+            return False
+        saw_any = True
+    return saw_any
+
+
+def _use_flang_kernels_c(lang: Lang, entities: Iterable) -> bool:
+    """
+    Return True if --parser flang is selected and every entity carries flang_body.
+    """
+    if getattr(lang, "requested_parser", "fparser2") != "flang":
+        return False
+
+    return fk_c.canTranslateWithFlang(list(entities))
+
+
+def _warn_flang_fallback_once(lang: Lang, scheme_name: str) -> None:
+    if getattr(lang, "requested_parser", "fparser2") != "flang":
+        return
+    if scheme_name in _FLANG_FALLBACK_WARNED:
+        return
+    print(
+        f"Warning: --parser flang does not yet drive kernel translation for "
+        f"{scheme_name}; falling back to the fparser2 path for this scheme.",
+        file=sys.stderr,
+    )
+    _FLANG_FALLBACK_WARNED.add(scheme_name)
 
 
 class FortranSeq(Scheme):
@@ -41,10 +86,25 @@ class FortranSeq(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        if self.lang.user_consts_module is None:
-            ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
+        all_entities = kernel_entities + dependencies
 
-        return ftk.writeSource(kernel_entities + dependencies)
+        use_flang = (
+            getattr(self.lang, "requested_parser", "fparser2") == "flang"
+            and _all_entities_have_flang_source(all_entities)
+        )
+
+        if use_flang:
+            if self.lang.user_consts_module is None:
+                fwriter.rename_consts(
+                    self.lang, all_entities, app, lambda const: f"op2_const_{const}"
+                )
+            return fwriter.write_source(all_entities)
+
+        if self.lang.user_consts_module is None:
+            ftk.renameConsts(
+                self.lang, all_entities, app, lambda const: f"op2_const_{const}"
+            )
+        return ftk.writeSource(all_entities)
 
 
 Scheme.register(FortranSeq)
@@ -77,13 +137,7 @@ class FortranOpenMP(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
-
-        if not config["vectorise"]:
-            return ftk.writeSource(kernel_entities + dependencies)
-
-        simd_kernel_entities = copy.deepcopy(kernel_entities)
-        ftk.renameEntities(simd_kernel_entities, lambda name: f"{name}_simd")
+        all_entities = kernel_entities + dependencies
 
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
@@ -94,6 +148,44 @@ class FortranOpenMP(Scheme):
                 OP.AccessType.MIN,
                 OP.AccessType.MAX,
             ]
+
+        use_flang = (
+            getattr(self.lang, "requested_parser", "fparser2") == "flang"
+            and _all_entities_have_flang_source(all_entities)
+        )
+
+        if use_flang:
+            fwriter.rename_consts(
+                self.lang, all_entities, app, lambda const: f"op2_const_{const}"
+            )
+
+            if not config["vectorise"]:
+                return fwriter.write_source(all_entities)
+
+            simd_kernel_entities = copy.deepcopy(kernel_entities)
+            fwriter.rename_entities(simd_kernel_entities, lambda name: f"{name}_simd")
+
+            for simd_kernel_entity in simd_kernel_entities:
+                fwriter.insert_strides(
+                    [simd_kernel_entity] + dependencies,
+                    loop,
+                    lambda arg: "SIMD_LEN",
+                    match=lambda arg: match_indirect(arg) or match_gbl_reduction(arg),
+                )
+
+            return fwriter.write_source(
+                kernel_entities + simd_kernel_entities + dependencies
+            )
+
+        _warn_flang_fallback_once(self.lang, f"Fortran/{self.target.name}")
+
+        ftk.renameConsts(self.lang, all_entities, app, lambda const: f"op2_const_{const}")
+
+        if not config["vectorise"]:
+            return ftk.writeSource(all_entities)
+
+        simd_kernel_entities = copy.deepcopy(kernel_entities)
+        ftk.renameEntities(simd_kernel_entities, lambda name: f"{name}_simd")
 
         for simd_kernel_entity in simd_kernel_entities:
             ftk.insertStrides(
@@ -164,13 +256,7 @@ class FortranCuda(Scheme):
         kernel_entities = copy.deepcopy(kernel_entities)
         dependencies = copy.deepcopy(dependencies)
 
-        ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}_d")
-
-        for entity in kernel_entities + dependencies:
-            ftk.fixHydraIO(entity)
-
-        for entity in kernel_entities + dependencies:
-            ftk.removeExternals(entity)
+        all_entities = kernel_entities + dependencies
 
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
@@ -193,9 +279,71 @@ class FortranCuda(Scheme):
         def match_work(arg):
             return arg.access_type == OP.AccessType.WORK
 
+        use_flang = (
+            getattr(self.lang, "requested_parser", "fparser2") == "flang"
+            and _all_entities_have_flang_source(all_entities)
+        )
+
+        if use_flang:
+            fwriter.rename_consts(
+                self.lang, all_entities, app, lambda const: f"op2_const_{const}_d"
+            )
+
+            for entity in all_entities:
+                fwriter.fix_hydra_io(entity)
+                fwriter.remove_externals(entity)
+
+            modified = fwriter.insert_strides(
+                all_entities,
+                loop,
+                lambda arg: "direct",
+                lambda arg: match_soa(arg) and not match_indirect(arg),
+            )
+
+            modified = fwriter.insert_strides(
+                all_entities,
+                loop,
+                lambda arg: f"dat{arg.dat_id}",
+                lambda arg: match_soa(arg) and match_indirect(arg),
+                modified,
+            )
+
+            modified = fwriter.insert_strides(
+                all_entities,
+                loop,
+                lambda arg: "gbl",
+                lambda arg: (match_gbl(arg) and (match_reduction(arg) or match_work(arg))) or match_info(arg),
+                modified,
+            )
+
+            fwriter.insert_atomic_incs(
+                all_entities,
+                loop,
+                lambda arg: match_indirect(arg) and match_atomic_inc(arg),
+            )
+
+            if config["gbl_inc_atomic"]:
+                fwriter.insert_atomic_incs(
+                    all_entities,
+                    loop,
+                    lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
+                )
+
+            return fwriter.write_source(all_entities, "attributes(device) &\n")
+
+        _warn_flang_fallback_once(self.lang, f"Fortran/{self.target.name}")
+
+        ftk.renameConsts(self.lang, all_entities, app, lambda const: f"op2_const_{const}_d")
+
+        for entity in all_entities:
+            ftk.fixHydraIO(entity)
+
+        for entity in all_entities:
+            ftk.removeExternals(entity)
+
         modified = ftk.insertStrides(
             kernel_entities[0],
-            kernel_entities + dependencies,
+            all_entities,
             loop,
             app,
             lambda arg: f"direct",
@@ -204,7 +352,7 @@ class FortranCuda(Scheme):
 
         modified = ftk.insertStrides(
             kernel_entities[0],
-            kernel_entities + dependencies,
+            all_entities,
             loop,
             app,
             lambda arg: f"dat{arg.dat_id}",
@@ -214,7 +362,7 @@ class FortranCuda(Scheme):
 
         modified = ftk.insertStrides(
             kernel_entities[0],
-            kernel_entities + dependencies,
+            all_entities,
             loop,
             app,
             lambda arg: f"gbl",
@@ -224,7 +372,7 @@ class FortranCuda(Scheme):
 
         ftk.insertAtomicIncs(
             kernel_entities[0],
-            kernel_entities + dependencies,
+            all_entities,
             loop,
             app,
             lambda arg: match_indirect(arg) and match_atomic_inc(arg),
@@ -233,13 +381,13 @@ class FortranCuda(Scheme):
         if config["gbl_inc_atomic"]:
             ftk.insertAtomicIncs(
                 kernel_entities[0],
-                kernel_entities + dependencies,
+                all_entities,
                 loop,
                 app,
                 lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
             )
 
-        return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")
+        return ftk.writeSource(all_entities, "attributes(device) &\n")
 
 
 Scheme.register(FortranCuda)
@@ -273,13 +421,22 @@ class FortranCSeq(Scheme):
         kernel_entity = copy.deepcopy(kernel_entity)
         dependencies = copy.deepcopy(dependencies)
 
-        for entity in [kernel_entity] + dependencies:
+        all_entities = [kernel_entity] + dependencies
+
+        if _use_flang_kernels_c(self.lang, all_entities):
+            fk.fix_hydra_io(all_entities)
+            info = fk_c.parseInfo(all_entities, app, loop, config)
+            return fk_c.translate(info)
+
+        _warn_flang_fallback_once(self.lang, f"Fortran/{self.target.name}")
+
+        for entity in all_entities:
             ftk.fixHydraIO(entity)
 
-        for entity in [kernel_entity] + dependencies:
+        for entity in all_entities:
             ftk.removeExternals(entity)
 
-        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config)
+        info = ftk_c.parseInfo(all_entities, app, loop, config)
         return ftk_c.translate(info)
 
 
@@ -337,13 +494,7 @@ class FortranCCuda(Scheme):
         kernel_entity = copy.deepcopy(kernel_entity)
         dependencies = copy.deepcopy(dependencies)
 
-        for entity in [kernel_entity] + dependencies:
-            ftk.fixHydraIO(entity)
-
-        for entity in [kernel_entity] + dependencies:
-            ftk.removeExternals(entity)
-
-        ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, lambda const: f"op2_const_{const}_d")
+        all_entities = [kernel_entity] + dependencies
 
         def const_rename(const):
             return f"op2_const_{const}_d"
@@ -357,9 +508,41 @@ class FortranCCuda(Scheme):
         def match_gbl(arg):
             return isinstance(arg, OP.ArgGbl)
 
+        if _use_flang_kernels_c(self.lang, all_entities):
+            fk.fix_hydra_io(all_entities)
+            fk.rename_consts(all_entities, app.constPtrs(), const_rename)
+
+            fk.insert_atomic_incs(
+                all_entities,
+                loop,
+                lambda arg: match_indirect(arg) and match_atomic_inc(arg),
+            )
+
+            if config["gbl_inc_atomic"]:
+                fk.insert_atomic_incs(
+                    all_entities,
+                    loop,
+                    lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
+                )
+
+            info = fk_c.parseInfo(all_entities, app, loop, config, const_rename=const_rename)
+            setattr(loop, "const_types", info.consts)
+
+            return fk_c.translate(info)
+
+        _warn_flang_fallback_once(self.lang, f"Fortran/{self.target.name}")
+
+        for entity in all_entities:
+            ftk.fixHydraIO(entity)
+
+        for entity in all_entities:
+            ftk.removeExternals(entity)
+
+        ftk.renameConsts(self.lang, all_entities, app, const_rename)
+
         ftk.insertAtomicIncs(
             kernel_entity,
-            [kernel_entity] + dependencies,
+            all_entities,
             loop,
             app,
             lambda arg: match_indirect(arg) and match_atomic_inc(arg),
@@ -369,14 +552,14 @@ class FortranCCuda(Scheme):
         if config["gbl_inc_atomic"]:
             ftk.insertAtomicIncs(
                 kernel_entity,
-                [kernel_entity] + dependencies,
+                all_entities,
                 loop,
                 app,
                 lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
                 c_api=True,
             )
 
-        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
+        info = ftk_c.parseInfo(all_entities, app, loop, config, const_rename=const_rename)
         setattr(loop, "const_types", info.consts);
 
         return ftk_c.translate(info)

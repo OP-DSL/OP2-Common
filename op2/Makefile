@@ -4,6 +4,7 @@ LIB ?= $(OP2_BUILD_DIR)/lib
 OBJ ?= $(OP2_BUILD_DIR)/obj
 MOD ?= $(OP2_BUILD_DIR)/mod
 MOD_CUDA ?= $(MOD)/cuda
+BIN ?= $(OP2_BUILD_DIR)/bin
 
 INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC) $(HIP_INC)
 
@@ -55,14 +56,23 @@ ifneq ($(MAKECMDGOALS),clean)
 endif
 
 # Build rules
-.PHONY: all clean $(OP2_LIBS) $(OP2_FOR_LIBS)
+.PHONY: all clean flang-scan $(OP2_LIBS) $(OP2_FOR_LIBS)
 
+ifeq ($(HAVE_FLANG),true)
+  ifneq ($(MAKECMDGOALS),clean)
+    $(info Flang scanner: op2-flang-scan will be built against $(LLVM_INSTALL_PATH))
+    $(info )
+  endif
+all: $(OP2_BUILDABLE_LIBS) flang-scan
+else
 all: $(OP2_BUILDABLE_LIBS)
+endif
 
 clean:
 	-rm -rf $(OBJ)
 	-rm -rf $(LIB)
 	-rm -rf $(MOD)
+	-rm -rf $(BIN)
 
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\
@@ -207,6 +217,9 @@ $(OBJ):
 $(LIB):
 	@mkdir -p $@
 
+$(BIN):
+	@mkdir -p $@
+
 $(MOD):
 	@mkdir -p $@
 
@@ -302,3 +315,26 @@ endef
 
 # Expand the template for all of the libraries (seq, ..., mpi_cuda)
 $(foreach lib,$(OP2_LIBS),$(eval $(call OP2_LIB_RULES_template,$(lib))))
+
+FLANG_SCAN_SRC := $(ROOT_DIR)/translator-v2/flang-scan
+FLANG_SCAN_BUILD := $(OBJ)/flang-scan
+FLANG_SCAN_BIN := $(BIN)/op2-flang-scan
+
+ifeq ($(HAVE_FLANG),true)
+flang-scan: $(FLANG_SCAN_BIN)
+
+$(FLANG_SCAN_BIN): $(FLANG_SCAN_SRC)/op2-flang-scan.cpp \
+                   $(FLANG_SCAN_SRC)/CMakeLists.txt | $(BIN)
+	$(FLANG_SCAN_CMAKE) -S $(FLANG_SCAN_SRC) -B $(FLANG_SCAN_BUILD) \
+	    -G "$(FLANG_SCAN_CMAKE_GENERATOR)" \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    -DCMAKE_PREFIX_PATH="$(LLVM_INSTALL_PATH)" \
+	    -DLLVM_DIR="$(LLVM_INSTALL_PATH)/lib/cmake/llvm" \
+	    -DCMAKE_INSTALL_PREFIX="$(OP2_BUILD_DIR)"
+	$(FLANG_SCAN_CMAKE) --build $(FLANG_SCAN_BUILD) --parallel
+	$(FLANG_SCAN_CMAKE) --install $(FLANG_SCAN_BUILD)
+else
+flang-scan:
+	$(error LLVM Flang was not found. Set LLVM_INSTALL_PATH to an LLVM+Flang \
+prefix (>=23) and re-run "make -C op2 config". See docs/getting_started.rst)
+endif

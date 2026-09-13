@@ -7,10 +7,20 @@ from store import Program
 
 
 def translateProgram2(program: Program, force_soa: bool) -> str:
+    """
+    Regex-based main-program translation.
+
+    Rewrites `program.source` directly with targeted regexes instead of walking
+    and mutating an AST, performing the same rewrites as `translateProgram`.
+    """
     src = program.source
     kernel_id = 1
 
-    def repl(m):
+    def repl_const(m):
+        const_ptr = m.group(2)
+        return f"{m.group(1)}call op_decl_const_{const_ptr.lower()}({const_ptr}, {m.group(3).strip()})"
+
+    def repl_loop(m):
         nonlocal kernel_id
 
         r = f'{m.group(1)}call op2_k_{program.path.stem}_{kernel_id}_{m.group(2)}("{m.group(2)}", '
@@ -20,8 +30,28 @@ def translateProgram2(program: Program, force_soa: bool) -> str:
 
     flags = re.MULTILINE | re.IGNORECASE
 
-    src = re.sub(r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*", repl, src, flags=flags)
+    src = re.sub(
+        r"^(\s*)call\s*op_decl_const\s*\(\s*(\w+)\s*,\s*([^,]+),\s*.*\)\s*$",
+        repl_const,
+        src,
+        flags=flags,
+    )
+    src = re.sub(r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*", repl_loop, src, flags=flags)
     src = re.sub(r"^(\s*)(use op2_fortran_reference)", r"\1\2\n\1use op2_kernels", src, flags=flags)
+
+    if force_soa:
+
+        def repl_soa(m):
+            call_args = m.group(3).strip()
+            new_args = f"{call_args}, 1" if call_args else "1"
+            return f"{m.group(1)}call {m.group(2)}_soa({new_args})"
+
+        src = re.sub(
+            r"^(\s*)call\s*(op_init|op_init_base|op_mpi_init)\s*\(([^)]*)\)",
+            repl_soa,
+            src,
+            flags=flags,
+        )
 
     return src
 

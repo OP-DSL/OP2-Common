@@ -264,6 +264,26 @@ def parse(args: Namespace, lang: Lang) -> Application:
     logger.info("Parsing files:\n" + "\n".join(f"    {p}" for p in args.file_paths))
 
     app = Application()
+    include_dirs = set([Path(dir) for [dir] in args.I])
+    defines = [define for [define] in args.D]
+
+    parse_programs = getattr(lang, "parsePrograms", None)
+    use_flang_batch = (
+        callable(parse_programs)
+        and getattr(lang, "requested_parser", None) == "flang"
+        and not args.multiprocess_parse
+    )
+
+    if use_flang_batch:
+        try:
+            app.programs = parse_programs(
+                [Path(p) for p in args.file_paths], include_dirs, defines
+            )
+        except fortran.FortranSyntaxError as err:
+            print(f"Syntax error in file {err.filename}:")
+            print(err.message)
+            exit(1)
+        return app
 
     if lang.ast_is_serializable:
         try:

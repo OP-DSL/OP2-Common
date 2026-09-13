@@ -1,2 +1,8 @@
 # Files with CPP automatically ran on them
 *+cpp.*
+
+# Library build tree (objects, flang-scan CMake build)
+/obj/
+
+# Library-built helper binaries (op2-flang-scan)
+/bin/
