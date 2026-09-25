@@ -415,6 +415,10 @@ subroutine {{lh.kernel}}_wrapper( &
         end do
     {% endfor %}
     end do
+
+    if (plan%ncolors_core == plan%ncolors) then
+        call op_mpi_wait_all_unified(size(args), args)
+    end if
 {% endif %}
 end subroutine
 
@@ -479,6 +483,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     call op_profile_enter("MPI Exchanges")
     set_size = op_mpi_halo_exchanges_unified(set%setcptr, size(args), args, {{config.device}})
+{% if lh is direct %}
+    {# A direct loop reads no halo: its exchange only brings the dats to this device. #}
+    call op_mpi_wait_all_unified(size(args), args)
+{% endif %}
 
     call op_profile_next("Computation")
 
@@ -518,11 +526,6 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         num_dats_indirect, &
         dats_indirect &
     )
-
-    call op_profile_next("MPI Wait")
-    if ((set_size .eq. 0) .or. (set_size .eq. set%setptr%core_size)) then
-        call op_mpi_wait_all_unified(size(args), args)
-    end if
 
 {% for arg in lh.args|gbl|reduction %}
     call op_mpi_reduce_{{arg.typ.__repr__()}}(arg{{arg.id}}, arg{{arg.id}}%data){{"\n" if loop.last}}

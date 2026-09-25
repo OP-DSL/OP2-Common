@@ -94,6 +94,10 @@ void op_par_loop_{{lh.name}}(
 
     op_profile_enter("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges_unified(set, n_args, args, {{config.device}});
+{% if lh is direct %}
+    {# A direct loop reads no halo: its exchange only brings the dats to this device. #}
+    op_mpi_wait_all_unified(n_args, args);
+{% endif %}
 
     op_profile_next("Computation");
 
@@ -160,9 +164,11 @@ void op_par_loop_{{lh.name}}(
     }
 {% endif %}
 
+{% if lh is indirect %}
     op_profile_next("MPI Wait");
     if (n_exec == 0 || n_exec == set->core_size)
         op_mpi_wait_all_unified(n_args, args);
+{% endif %}
 
 {% if lh.args|gbl|reduction|length > 0 %}
     op_profile_next("MPI Reduce");

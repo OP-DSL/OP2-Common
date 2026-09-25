@@ -493,12 +493,18 @@ void op_par_loop_{{lh.name}}(
 
     op_profile_next("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges_unified(set, n_args, args, 2);
+{% if lh is direct %}
+    {# A direct loop reads no halo: its exchange only brings the dats to this device. #}
+    op_mpi_wait_all_unified(n_args, args);
+{% endif %}
 
     if (n_exec == 0) {
         op_profile_exit();
         op_profile_exit();
 
+{% if lh is indirect %}
         op_mpi_wait_all_unified(n_args, args);
+{% endif %}
 
 {% for arg in lh.args|gbl|reduction %}
         op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
@@ -632,6 +638,12 @@ void op_par_loop_{{lh.name}}(
             op_profile_next("Kernel");
         }
     {% endif %}
+    }
+
+    if (plan->ncolors_core == plan->ncolors) {
+        op_profile_next("MPI Wait");
+        op_mpi_wait_all_unified(n_args, args);
+        op_profile_next("Kernel");
     }
 
     op_profile_exit();

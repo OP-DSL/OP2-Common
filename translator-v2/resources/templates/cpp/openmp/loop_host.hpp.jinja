@@ -207,17 +207,6 @@ void {{lh.name}}_wrapper(
     {% endfor %}
 {% endblock %}
 
-{% block host_prologue_early_exit_cleanup %}
-    {% if lh is indirect %}
-        op_mpi_wait_all_unified(num_args_expanded, args_expanded);
-
-    {% endif %}
-    {% for arg in lh.args|gbl|reduction %}
-        op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ}} *)arg{{arg.id}}.data);
-    {% endfor %}
-        op_mpi_set_dirtybit(num_args_expanded, args_expanded);
-{% endblock %}
-
 {% block host_loop %}
     {% if lh is direct %}
     #pragma omp parallel for
@@ -314,9 +303,9 @@ void {{lh.name}}_wrapper(
 {% endblock %}
 
 {% block host_epilogue %}
-    {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
+    {% if lh is indirect -%} {# a direct loop waited in the prologue #}
     op_profile_next("MPI Wait");
-    if (set_size == set->core_size)
+    if (plan->ncolors_core == plan->ncolors)
         op_mpi_wait_all_unified(num_args_expanded, args_expanded);
 
     {% endif %}
