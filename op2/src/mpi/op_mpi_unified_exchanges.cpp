@@ -111,6 +111,10 @@ struct Block {
 struct ExchangeContext {
     bool exec;
 
+    // Where the scatter lands: 1 host, 2 device. Recorded because the copy that
+    // receives the halo is the one that becomes current (see exchange_and_scatter).
+    int device = 1;
+
     static constexpr int tag_ini = 0x7000;
     static constexpr int tag_max = 0x8000;
     int tag = tag_ini;
@@ -138,6 +142,7 @@ struct ExchangeContext {
     void reset(int device, bool exec) {
         backend = &backend_for(device);
 
+        this->device = device;
         this->exec = exec;
 
         tag++;
@@ -316,8 +321,13 @@ struct ExchangeContext {
         for (auto& exchange : exchanges) {
             if (exchange.is_partial()) continue;
 
+            // The scatter wrote into this backend's copy, so that copy is now the
+            // current one: dirty_hd 1 means the host copy is newer, 2 the device
+            // copy. A constant 2 made a host exchange in an MPI+CUDA build claim
+            // the device was current, and the next host loop then downloaded the
+            // stale device copy over the halo it had just received.
             exchange.dat->dirtybit = 0;
-            exchange.dat->dirty_hd = 2;
+            exchange.dat->dirty_hd = device;
         }
     }
 };
