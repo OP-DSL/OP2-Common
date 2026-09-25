@@ -446,27 +446,21 @@ void op_mpi_probe_halo_index(op_set set, int in, int *rank, int *out) {
         exit(1);
     }
 
-    halo_list hl;
-    int offset;
-
-    if (in < set->size + set->exec_size) {
-        hl = OP_import_exec_list[set->index];
-        offset = set->size;
-    } else {
-        hl = OP_import_nonexec_list[set->index];
-        offset = set->size + set->exec_size;
-    }
+    const bool exec = in < set->size + set->exec_size;
+    const HaloList &hl = exec ? OP_set_halos[set->index].import_exec
+                              : OP_set_halos[set->index].import_nonexec;
+    const int offset = exec ? set->size : set->size + set->exec_size;
 
     int halo_in = in - offset;
 
     int idx = 0;
-    for (; idx < hl->ranks_size; idx++) {
-        if (halo_in < hl->disps[idx] + hl->sizes[idx])
+    for (; idx < hl.ranks_size(); idx++) {
+        if (halo_in < hl.disps[idx] + hl.sizes[idx])
             break;
     }
 
-    *rank = hl->ranks[idx];
-    *out = hl->list[halo_in];
+    *rank = hl.ranks[idx];
+    *out = hl.list[halo_in];
 }
 
 #else

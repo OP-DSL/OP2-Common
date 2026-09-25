@@ -149,8 +149,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // create empty data block to assign to this temporary dat (including the
   // halos)
-  size_t set_size = (size_t)set->size + (size_t)OP_import_exec_list[set->index]->size
-                                      + (size_t)OP_import_nonexec_list[set->index]->size;
+  size_t set_size = (size_t)set->size + (size_t)OP_set_halos[set->index].import_exec.size()
+                                      + (size_t)OP_set_halos[set->index].import_nonexec.size();
 
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
@@ -173,8 +173,8 @@ int op_free_dat_temp_char(op_dat dat) {
 size_t op_mv_halo_device(op_set set, op_dat dat) {
   size_t total_size = 0;
 
-  idx_g_t set_size = set->size + OP_import_exec_list[set->index]->size +
-                 OP_import_nonexec_list[set->index]->size;
+  idx_g_t set_size = set->size + OP_set_halos[set->index].import_exec.size() +
+                 OP_set_halos[set->index].import_nonexec.size();
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
     int element_size = (size_t)dat->size / dat->dim;
@@ -205,9 +205,9 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
 /* op_cpHostToDevice takes the host pointer by address. A halo list owns its
    storage, so hand it a plain pointer - never the address of the owner, which a
    (void **) cast would accept without complaint. Returns the bytes uploaded. */
-static size_t upload_list(idx_l_t **device, halo_list list) {
-  const size_t bytes = list->size * sizeof(idx_l_t);
-  void *host = list->list.get();
+static size_t upload_list(idx_l_t **device, const HaloList &list) {
+  const size_t bytes = list.size() * sizeof(idx_l_t);
+  void *host = list.list.get();
   op_cpHostToDevice((void **)device, &host, bytes);
   return bytes;
 }
@@ -227,7 +227,7 @@ size_t op_mv_halo_list_device() {
     op_set set = OP_set_list[s];
     export_exec_list_d[set->index] = NULL;
 
-    total_size += upload_list(&export_exec_list_d[set->index], OP_export_exec_list[set->index]);
+    total_size += upload_list(&export_exec_list_d[set->index], OP_set_halos[set->index].export_exec);
   }
 
   if (export_nonexec_list_d != NULL) {
@@ -242,7 +242,7 @@ size_t op_mv_halo_list_device() {
     op_set set = OP_set_list[s];
     export_nonexec_list_d[set->index] = NULL;
 
-    total_size += upload_list(&export_nonexec_list_d[set->index], OP_export_nonexec_list[set->index]);
+    total_size += upload_list(&export_nonexec_list_d[set->index], OP_set_halos[set->index].export_nonexec);
   }
 
   if ( export_nonexec_list_partial_d!= NULL) {
@@ -259,7 +259,7 @@ size_t op_mv_halo_list_device() {
     op_map map = OP_map_list[s];
     export_nonexec_list_partial_d[map->index] = NULL;
 
-    total_size += upload_list(&export_nonexec_list_partial_d[map->index], OP_export_nonexec_permap[map->index]);
+    total_size += upload_list(&export_nonexec_list_partial_d[map->index], OP_map_halos[map->index].export_nonexec);
   }
 
   if ( import_nonexec_list_partial_d!= NULL) {
@@ -276,7 +276,7 @@ size_t op_mv_halo_list_device() {
     op_map map = OP_map_list[s];
     import_nonexec_list_partial_d[map->index] = NULL;
 
-    total_size += upload_list(&import_nonexec_list_partial_d[map->index], OP_import_nonexec_permap[map->index]);
+    total_size += upload_list(&import_nonexec_list_partial_d[map->index], OP_map_halos[map->index].import_nonexec);
   }
 
   return total_size;
@@ -468,8 +468,8 @@ void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
-                   OP_import_nonexec_list[dat->set->index]->size;
+    idx_g_t set_size = dat->set->size + OP_set_halos[dat->set->index].import_exec.size() +
+                   OP_set_halos[dat->set->index].import_nonexec.size();
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));

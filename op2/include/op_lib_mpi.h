@@ -40,11 +40,7 @@
 #include <op_lib_core.h>
 #include <op_mpi_core.h>
 
-extern halo_list *OP_export_exec_list; // EEH list
-extern halo_list *OP_import_exec_list; // IEH list
-
-extern halo_list *OP_import_nonexec_list; // INH list
-extern halo_list *OP_export_nonexec_list; // ENH list
+extern std::vector<SetHalo> OP_set_halos; // by set index; empty until halo creation
 
 extern int OP_part_index;
 extern part *OP_part_list;
@@ -52,8 +48,7 @@ extern idx_g_t **orig_part_range;
 
 /** variables for partial halo exchanges **/
 extern int *OP_map_partial_exchange;
-extern halo_list *OP_import_nonexec_permap;
-extern halo_list *OP_export_nonexec_permap;
+extern std::vector<MapHalo> OP_map_halos; // by map index; empty until halo creation
 
 #ifdef __cplusplus
 extern "C" {

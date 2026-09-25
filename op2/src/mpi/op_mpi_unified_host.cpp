@@ -48,11 +48,11 @@ DatPlacement HostBackend::placement(op_dat dat, op_map partial_map) const {
     placement.dat = DatAccessor((void *) dat->data, dat->dim, 0, dat->size / dat->dim, false);
 
     if (partial_map != nullptr) {
-        placement.nonexec_export_permap = OP_export_nonexec_permap[partial_map->index]->list.get();
-        placement.nonexec_import_permap = OP_import_nonexec_permap[partial_map->index]->list.get();
+        placement.nonexec_export_permap = OP_map_halos[partial_map->index].export_nonexec.list.get();
+        placement.nonexec_import_permap = OP_map_halos[partial_map->index].import_nonexec.list.get();
     } else {
-        placement.exec_export = OP_export_exec_list[dat->set->index]->list.get();
-        placement.nonexec_export = OP_export_nonexec_list[dat->set->index]->list.get();
+        placement.exec_export = OP_set_halos[dat->set->index].export_exec.list.get();
+        placement.nonexec_export = OP_set_halos[dat->set->index].export_nonexec.list.get();
     }
 
     return placement;

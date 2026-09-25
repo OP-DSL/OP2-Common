@@ -189,7 +189,7 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size) {
  * carries its own partition. part_list receives those partitions in list order.
  *******************************************************************************/
 
-static halo_list export_list_from_triples(op_set set, const int *triples,
+static HaloList export_list_from_triples(op_set set, const int *triples,
                                           int n_ints, int comm_size,
                                           std::vector<int> &part_list) {
   std::vector<int> ranks;
@@ -314,46 +314,46 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
       }
     }
   }
-  halo_list pi_list = halo_list_from_pairs(map->to, temp_list, count, comm_size);
+  HaloList pi_list = halo_list_from_pairs(map->to, temp_list, count, comm_size);
   op_free(temp_list);
 
   // now, discover neighbors and create export list of "to" elements
-  halo_list pe_list =
-      exchange_export_list(map->to, pi_list, OP_PART_WORLD);
+  HaloList pe_list =
+      halo_list_transpose(map->to, pi_list, OP_PART_WORLD);
 
   // use the import and export lists to exchange partition information of
   // this "to" set
   MPI_Request *request_send_p =
-      (MPI_Request *)xmalloc(pe_list->ranks_size * sizeof(MPI_Request));
+      (MPI_Request *)xmalloc(pe_list.ranks_size() * sizeof(MPI_Request));
 
   // first - prepare partition information of the "to" set element to be
   // exported
-  int **sbuf = (int **)xmalloc(pe_list->ranks_size * sizeof(int *));
-  for (int i = 0; i < pe_list->ranks_size; i++) {
+  int **sbuf = (int **)xmalloc(pe_list.ranks_size() * sizeof(int *));
+  for (int i = 0; i < pe_list.ranks_size(); i++) {
     // printf("export to %d from rank %d set %s of size %d\n",
-    //   pe_list->ranks[i], my_rank, map->to->name, pe_list->sizes[i] );
-    sbuf[i] = (int *)xmalloc(pe_list->sizes[i] * sizeof(int));
-    for (int j = 0; j < pe_list->sizes[i]; j++) {
-      int elem = pe_list->list[pe_list->disps[i] + j];
+    //   pe_list.ranks[i], my_rank, map->to->name, pe_list.sizes[i] );
+    sbuf[i] = (int *)xmalloc(pe_list.sizes[i] * sizeof(int));
+    for (int j = 0; j < pe_list.sizes[i]; j++) {
+      int elem = pe_list.list[pe_list.disps[i] + j];
       sbuf[i][j] = p_set->elem_part[elem];
     }
-    MPI_Isend(sbuf[i], pe_list->sizes[i], get_mpi_type(sbuf[i]), pe_list->ranks[i], 2,
+    MPI_Isend(sbuf[i], pe_list.sizes[i], get_mpi_type(sbuf[i]), pe_list.ranks[i], 2,
               OP_PART_WORLD, &request_send_p[i]);
   }
 
   // second - prepare space for the incomming partition information of the "to"
   // set
-  int *imp_part = (int *)xmalloc(sizeof(int) * pi_list->size);
+  int *imp_part = (int *)xmalloc(sizeof(int) * pi_list.size());
 
   // third - receive
-  for (int i = 0; i < pi_list->ranks_size; i++) {
+  for (int i = 0; i < pi_list.ranks_size(); i++) {
     // printf("import from %d to rank %d set %s of size %d\n",
-    //    pi_list->ranks[i], my_rank, map->to->name, pi_list->sizes[i] );
-    MPI_Recv(&imp_part[pi_list->disps[i]], pi_list->sizes[i], get_mpi_type(imp_part),
-             pi_list->ranks[i], 2, OP_PART_WORLD, MPI_STATUS_IGNORE);
+    //    pi_list.ranks[i], my_rank, map->to->name, pi_list.sizes[i] );
+    MPI_Recv(&imp_part[pi_list.disps[i]], pi_list.sizes[i], get_mpi_type(imp_part),
+             pi_list.ranks[i], 2, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
-  MPI_Waitall(pe_list->ranks_size, request_send_p, MPI_STATUSES_IGNORE);
-  for (int i = 0; i < pe_list->ranks_size; i++)
+  MPI_Waitall(pe_list.ranks_size(), request_send_p, MPI_STATUSES_IGNORE);
+  for (int i = 0; i < pe_list.ranks_size(); i++)
     op_free(sbuf[i]);
   op_free(sbuf);
 
@@ -374,12 +374,12 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
         found_parts[j] = p_set->elem_part[local_index];
       else // get partition information from imported data
       {
-        int r = binary_search(pi_list->ranks.data(), part, 0, pi_list->ranks_size - 1);
+        int r = binary_search(pi_list.ranks.data(), part, 0, pi_list.ranks_size() - 1);
         if (r >= 0) {
-          int elem = binary_search(&pi_list->list[pi_list->disps[r]],
-                                   local_index, 0, pi_list->sizes[r] - 1);
+          int elem = binary_search(&pi_list.list[pi_list.disps[r]],
+                                   local_index, 0, pi_list.sizes[r] - 1);
           if (elem >= 0)
-            found_parts[j] = imp_part[pi_list->disps[r] + elem];
+            found_parts[j] = imp_part[pi_list.disps[r] + elem];
           else {
             printf("Element %d not found in partition import list\n",
                    local_index);
@@ -400,8 +400,6 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
 
   // cleanup
   op_free(imp_part);
-  delete pi_list;
-  delete pe_list;
 
   free(request_send_p);
 
@@ -449,7 +447,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
 
   // the "to" elements' new partitions, exported to each mpi rank, in pe_list order
   std::vector<int> part_list_e;
-  halo_list pe_list =
+  HaloList pe_list =
       export_list_from_triples(map->to, temp_list, count, comm_size, part_list_e);
   op_free(temp_list);
 
@@ -457,18 +455,18 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
      taken only once it is fully built; keep it that way, or the reserve stops
      being an optimisation and becomes the only thing keeping them valid. */
   std::vector<ToPart> to_parts_payload;
-  to_parts_payload.reserve(pe_list->size);
-  for (int i = 0; i < pe_list->ranks_size; i++)
-    for (int j = 0; j < pe_list->sizes[i]; j++)
-      to_parts_payload.push_back(ToPart{pe_list->list[pe_list->disps[i] + j],
-                                        part_list_e[pe_list->disps[i] + j]});
+  to_parts_payload.reserve(pe_list.size());
+  for (int i = 0; i < pe_list.ranks_size(); i++)
+    for (int j = 0; j < pe_list.sizes[i]; j++)
+      to_parts_payload.push_back(ToPart{pe_list.list[pe_list.disps[i] + j],
+                                        part_list_e[pe_list.disps[i] + j]});
 
   std::vector<op::mpi::msg::BlockView<ToPart>> to_part_messages;
-  to_part_messages.reserve(pe_list->ranks_size);
-  for (int i = 0; i < pe_list->ranks_size; i++)
-    to_part_messages.emplace_back(pe_list->ranks[i],
-                                  to_parts_payload.data() + pe_list->disps[i],
-                                  (std::size_t)pe_list->sizes[i]);
+  to_part_messages.reserve(pe_list.ranks_size());
+  for (int i = 0; i < pe_list.ranks_size(); i++)
+    to_part_messages.emplace_back(pe_list.ranks[i],
+                                  to_parts_payload.data() + pe_list.disps[i],
+                                  (std::size_t)pe_list.sizes[i]);
 
   auto to_parts = op::mpi::sparse::exchange(OP_PART_WORLD, to_part_messages);
 
@@ -484,7 +482,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     part_list_i[i] = to_parts.data[i].part;
   }
 
-  halo_list pi_list =
+  HaloList pi_list =
       halo_list_from_groups(map->to, std::move(to_parts.ranks),
                             std::move(to_parts.counts), std::move(imported));
 
@@ -515,14 +513,14 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   }
 
   // copy pi_list.list and part_list_i to to_elems and parts
-  if (count + pi_list->size > 0) {
-    to_elems = (int *)xrealloc(to_elems, sizeof(int) * (count + pi_list->size));
-    parts = (int *)xrealloc(parts, sizeof(int) * (count + pi_list->size));
+  if (count + pi_list.size() > 0) {
+    to_elems = (int *)xrealloc(to_elems, sizeof(int) * (count + pi_list.size()));
+    parts = (int *)xrealloc(parts, sizeof(int) * (count + pi_list.size()));
   }
 
-  if (pi_list->size > 0) {
-    memcpy(&to_elems[count], (void *)&pi_list->list[0], pi_list->size * sizeof(int));
-    memcpy(&parts[count], (void *)part_list_i.data(), pi_list->size * sizeof(int));
+  if (pi_list.size() > 0) {
+    memcpy(&to_elems[count], (void *)&pi_list.list[0], pi_list.size() * sizeof(int));
+    memcpy(&parts[count], (void *)part_list_i.data(), pi_list.size() * sizeof(int));
   }
 
   int *partition = (int *)xmalloc(sizeof(int) * map->to->size);
@@ -530,7 +528,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     partition[i] = -99;
   }
 
-  count = count + pi_list->size;
+  count = count + pi_list.size();
 
   // sort both to_elems[] and correspondingly parts[] arrays
   if (count > 0)
@@ -578,7 +576,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     }
   }
 
-  if (count + pi_list->size > 0) {
+  if (count + pi_list.size() > 0) {
     op_free(to_elems);
     op_free(parts);
   }
@@ -619,10 +617,6 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   } else {
     op_free(partition);
   }
-
-  // cleanup
-  delete pi_list;
-  delete pe_list;
 
   return result;
 }
@@ -1159,8 +1153,8 @@ static void migrate_all(int my_rank, int comm_size) {
    * ----------*/
 
   // create imp/exp lists for reverse migration
-  std::vector<halo_list> pe_list(OP_set_index); // export list for each set
-  std::vector<halo_list> pi_list(OP_set_index); // import list for each set
+  std::vector<HaloList> pe_list(OP_set_index); // export list for each set
+  std::vector<HaloList> pi_list(OP_set_index); // import list for each set
 
   // create partition export lists
   int *temp_list;
@@ -1195,7 +1189,7 @@ static void migrate_all(int my_rank, int comm_size) {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     pi_list[set->index] =
-        exchange_export_list(set, pe_list[set->index], OP_PART_WORLD);
+        halo_list_transpose(set, pe_list[set->index], OP_PART_WORLD);
   }
 
   /*--STEP 2 - Perform Partitioning Data migration
@@ -1205,12 +1199,12 @@ static void migrate_all(int my_rank, int comm_size) {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
-    halo_list imp = pi_list[set->index];
-    halo_list exp = pe_list[set->index];
+    const HaloList &imp = pi_list[set->index];
+    const HaloList &exp = pe_list[set->index];
 
-    //    MPI_Request request_send[exp->ranks_size];
+    //    MPI_Request request_send[exp.ranks_size()];
     MPI_Request *request_send =
-        (MPI_Request *)xmalloc(exp->ranks_size * sizeof(MPI_Request));
+        (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
 
     // migrate data defined on this set
     op_dat_entry *item;
@@ -1223,41 +1217,41 @@ static void migrate_all(int my_rank, int comm_size) {
                                               // is defined on this set
 
         // prepare bits of the data array to be exported
-        char **sbuf = (char **)xmalloc(exp->ranks_size * sizeof(char *));
+        char **sbuf = (char **)xmalloc(exp.ranks_size() * sizeof(char *));
 
-        for (int i = 0; i < exp->ranks_size; i++) {
-          sbuf[i] = (char *)xmalloc(exp->sizes[i] * (size_t)dat->size);
-          for (int j = 0; j < exp->sizes[i]; j++) {
-            int index = exp->list[exp->disps[i] + j];
+        for (int i = 0; i < exp.ranks_size(); i++) {
+          sbuf[i] = (char *)xmalloc(exp.sizes[i] * (size_t)dat->size);
+          for (int j = 0; j < exp.sizes[i]; j++) {
+            int index = exp.list[exp.disps[i] + j];
             memcpy(&sbuf[i][j * (size_t)dat->size],
                    (void *)&dat->data[(size_t)dat->size * (index)], dat->size);
           }
-          //MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp->sizes[i], MPI_DOUBLE, exp->ranks[i],
+          //MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp.sizes[i], MPI_DOUBLE, exp.ranks[i],
           //          d, OP_PART_WORLD, &request_send[i]);
-          if ((size_t)dat->size * exp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
-          MPI_Isend(sbuf[i], (size_t)dat->size * exp->sizes[i], MPI_CHAR, exp->ranks[i],
+          if ((size_t)dat->size * exp.sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
+          MPI_Isend(sbuf[i], (size_t)dat->size * exp.sizes[i], MPI_CHAR, exp.ranks[i],
                     d, OP_PART_WORLD, &request_send[i]);
         }
 
-        char *rbuf = (char *)xmalloc((size_t)dat->size * imp->size);
-        for (int i = 0; i < imp->ranks_size; i++) {
-          //MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size/sizeof(double) * imp->sizes[i],
-          //         MPI_DOUBLE, imp->ranks[i], d, OP_PART_WORLD,
+        char *rbuf = (char *)xmalloc((size_t)dat->size * imp.size());
+        for (int i = 0; i < imp.ranks_size(); i++) {
+          //MPI_Recv(&rbuf[(size_t)imp.disps[i] * (size_t)dat->size], (size_t)dat->size/sizeof(double) * imp.sizes[i],
+          //         MPI_DOUBLE, imp.ranks[i], d, OP_PART_WORLD,
           //         MPI_STATUS_IGNORE);
-          if ((size_t)dat->size * imp->sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
-          MPI_Recv(&rbuf[(size_t)imp->disps[i] * (size_t)dat->size], (size_t)dat->size * imp->sizes[i],
-                   MPI_CHAR, imp->ranks[i], d, OP_PART_WORLD,
+          if ((size_t)dat->size * imp.sizes[i] > (size_t)INT_MAX) printf("Integer overflow at %s: %d\n",__FILE__,__LINE__);
+          MPI_Recv(&rbuf[(size_t)imp.disps[i] * (size_t)dat->size], (size_t)dat->size * imp.sizes[i],
+                   MPI_CHAR, imp.ranks[i], d, OP_PART_WORLD,
                    MPI_STATUS_IGNORE);
         }
 
-        MPI_Waitall(exp->ranks_size, request_send, MPI_STATUSES_IGNORE);
-        for (int i = 0; i < exp->ranks_size; i++)
+        MPI_Waitall(exp.ranks_size(), request_send, MPI_STATUSES_IGNORE);
+        for (int i = 0; i < exp.ranks_size(); i++)
           op_free(sbuf[i]);
         op_free(sbuf);
 
         // delete the data entirs that has been sent and create a
         // modified data array
-        char *new_dat = (char *)xmalloc((size_t)dat->size * (set->size + imp->size));
+        char *new_dat = (char *)xmalloc((size_t)dat->size * (set->size + imp.size()));
 
         count = 0;
         for (int i = 0; i < dat->set->size; i++) // iterate over old set size
@@ -1269,12 +1263,12 @@ static void migrate_all(int my_rank, int comm_size) {
           }
         }
 
-        if ((size_t)dat->size * (size_t)imp->size > 0) {
+        if ((size_t)dat->size * (size_t)imp.size() > 0) {
           memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf,
-                 (size_t)dat->size * (size_t)imp->size);
+                 (size_t)dat->size * (size_t)imp.size());
         }
 
-        count = count + imp->size;
+        count = count + imp.size();
         new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
         op_free(rbuf);
 
@@ -1290,12 +1284,12 @@ static void migrate_all(int my_rank, int comm_size) {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
-    halo_list imp = pi_list[set->index];
-    halo_list exp = pe_list[set->index];
+    const HaloList &imp = pi_list[set->index];
+    const HaloList &exp = pe_list[set->index];
 
-    //    MPI_Request request_send[exp->ranks_size];
+    //    MPI_Request request_send[exp.ranks_size()];
     MPI_Request *request_send =
-        (MPI_Request *)xmalloc(exp->ranks_size * sizeof(MPI_Request));
+        (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
 
     // migrate mapping tables from this set
     for (int m = 0; m < OP_map_index; m++) { // for each maping table
@@ -1305,44 +1299,44 @@ static void migrate_all(int my_rank, int comm_size) {
                                                // mappings FROM this set
 
         // prepare bits of the mapping tables to be exported
-        idx_g_t **sbuf = (idx_g_t **)xmalloc(exp->ranks_size * sizeof(idx_g_t *));
+        idx_g_t **sbuf = (idx_g_t **)xmalloc(exp.ranks_size() * sizeof(idx_g_t *));
 
         // send mapping table entirs to relevant mpi processes
-        for (int i = 0; i < exp->ranks_size; i++) {
-          sbuf[i] = (idx_g_t *)xmalloc(exp->sizes[i] * map->dim * sizeof(idx_g_t));
-          for (int j = 0; j < exp->sizes[i]; j++) {
+        for (int i = 0; i < exp.ranks_size(); i++) {
+          sbuf[i] = (idx_g_t *)xmalloc(exp.sizes[i] * map->dim * sizeof(idx_g_t));
+          for (int j = 0; j < exp.sizes[i]; j++) {
             for (int p = 0; p < map->dim; p++) {
               sbuf[i][j * map->dim + p] =
-                  map->map_gbl[map->dim * (exp->list[exp->disps[i] + j]) + p];
+                  map->map_gbl[map->dim * (exp.list[exp.disps[i] + j]) + p];
             }
           }
           // printf("\n export from %d to %d map %10s, number of elements of
           // size %d | sending:\n ",
-          //    my_rank,exp->ranks[i],map->name,exp->sizes[i]);
-          MPI_Isend(sbuf[i], map->dim * exp->sizes[i], get_mpi_type(sbuf[i]), exp->ranks[i],
+          //    my_rank,exp.ranks[i],map->name,exp.sizes[i]);
+          MPI_Isend(sbuf[i], map->dim * exp.sizes[i], get_mpi_type(sbuf[i]), exp.ranks[i],
                     m, OP_PART_WORLD, &request_send[i]);
         }
 
-        idx_g_t *rbuf = (idx_g_t *)xmalloc(map->dim * sizeof(idx_g_t) * imp->size);
+        idx_g_t *rbuf = (idx_g_t *)xmalloc(map->dim * sizeof(idx_g_t) * imp.size());
 
         // receive mapping table entirs from relevant mpi processes
-        for (int i = 0; i < imp->ranks_size; i++) {
+        for (int i = 0; i < imp.ranks_size(); i++) {
           // printf("\n imported on to %d map %10s, number of elements of size
           // %d | recieving: ",
-          //    my_rank, map->name, imp->size);
-          MPI_Recv(&rbuf[(size_t)imp->disps[i] * map->dim], map->dim * imp->sizes[i],
-                   get_mpi_type(rbuf), imp->ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
+          //    my_rank, map->name, imp.size());
+          MPI_Recv(&rbuf[(size_t)imp.disps[i] * map->dim], map->dim * imp.sizes[i],
+                   get_mpi_type(rbuf), imp.ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
         }
 
-        MPI_Waitall(exp->ranks_size, request_send, MPI_STATUSES_IGNORE);
-        for (int i = 0; i < exp->ranks_size; i++)
+        MPI_Waitall(exp.ranks_size(), request_send, MPI_STATUSES_IGNORE);
+        for (int i = 0; i < exp.ranks_size(); i++)
           op_free(sbuf[i]);
         op_free(sbuf);
 
         // delete the mapping table entirs that has been sent and create a
         // modified mapping table
         idx_g_t *new_map =
-            (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp->size) * map->dim);
+            (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp.size()) * map->dim);
 
         count = 0;
         for (int i = 0; i < map->from->size; i++) { // iterate over old size
@@ -1355,12 +1349,12 @@ static void migrate_all(int my_rank, int comm_size) {
           }
         }
 
-        if (map->dim * sizeof(idx_g_t) * imp->size > 0) {
+        if (map->dim * sizeof(idx_g_t) * imp.size() > 0) {
           memcpy(&new_map[count * map->dim], (void *)rbuf,
-                 map->dim * sizeof(idx_g_t) * imp->size);
+                 map->dim * sizeof(idx_g_t) * imp.size());
         }
 
-        count = count + imp->size;
+        count = count + imp.size();
         new_map = (idx_g_t *)xrealloc(new_map, sizeof(idx_g_t) * count * map->dim);
 
         op_free(rbuf);
@@ -1379,43 +1373,43 @@ static void migrate_all(int my_rank, int comm_size) {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
 
-    halo_list imp = pi_list[set->index];
-    halo_list exp = pe_list[set->index];
+    const HaloList &imp = pi_list[set->index];
+    const HaloList &exp = pe_list[set->index];
 
-    //    MPI_Request request_send[exp->ranks_size];
+    //    MPI_Request request_send[exp.ranks_size()];
     MPI_Request *request_send =
-        (MPI_Request *)xmalloc(exp->ranks_size * sizeof(MPI_Request));
+        (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
 
     // prepare bits of the original g_index array to be exported
-    idx_g_t **sbuf = (idx_g_t **)xmalloc(exp->ranks_size * sizeof(idx_g_t *));
+    idx_g_t **sbuf = (idx_g_t **)xmalloc(exp.ranks_size() * sizeof(idx_g_t *));
 
     // send original g_index values to relevant mpi processes
-    for (int i = 0; i < exp->ranks_size; i++) {
-      sbuf[i] = (idx_g_t *)xmalloc(exp->sizes[i] * sizeof(idx_g_t));
-      for (int j = 0; j < exp->sizes[i]; j++) {
+    for (int i = 0; i < exp.ranks_size(); i++) {
+      sbuf[i] = (idx_g_t *)xmalloc(exp.sizes[i] * sizeof(idx_g_t));
+      for (int j = 0; j < exp.sizes[i]; j++) {
         sbuf[i][j] =
-            OP_part_list[set->index]->g_index[exp->list[exp->disps[i] + j]];
+            OP_part_list[set->index]->g_index[exp.list[exp.disps[i] + j]];
       }
-      MPI_Isend(sbuf[i], exp->sizes[i], get_mpi_type(sbuf[i]), exp->ranks[i], s,
+      MPI_Isend(sbuf[i], exp.sizes[i], get_mpi_type(sbuf[i]), exp.ranks[i], s,
                 OP_PART_WORLD, &request_send[i]);
     }
 
-    idx_g_t *rbuf = (idx_g_t *)xmalloc(sizeof(idx_g_t) * imp->size);
+    idx_g_t *rbuf = (idx_g_t *)xmalloc(sizeof(idx_g_t) * imp.size());
 
     // receive original g_index values from relevant mpi processes
-    for (int i = 0; i < imp->ranks_size; i++) {
+    for (int i = 0; i < imp.ranks_size(); i++) {
 
-      MPI_Recv(&rbuf[imp->disps[i]], imp->sizes[i], get_mpi_type(rbuf), imp->ranks[i], s,
+      MPI_Recv(&rbuf[imp.disps[i]], imp.sizes[i], get_mpi_type(rbuf), imp.ranks[i], s,
                OP_PART_WORLD, MPI_STATUS_IGNORE);
     }
-    MPI_Waitall(exp->ranks_size, request_send, MPI_STATUSES_IGNORE);
-    for (int i = 0; i < exp->ranks_size; i++)
+    MPI_Waitall(exp.ranks_size(), request_send, MPI_STATUSES_IGNORE);
+    for (int i = 0; i < exp.ranks_size(); i++)
       op_free(sbuf[i]);
     op_free(sbuf);
 
     // delete the g_index entirs that has been sent and create a
     // modified g_index
-    idx_g_t *new_g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp->size));
+    idx_g_t *new_g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp.size()));
 
     count = 0;
     for (int i = 0; i < set->size; i++) { // iterate over old
@@ -1426,11 +1420,11 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
 
-    if (imp->size > 0) {
-      std::copy(rbuf, rbuf + imp->size, new_g_index + count);
+    if (imp.size() > 0) {
+      std::copy(rbuf, rbuf + imp.size(), new_g_index + count);
     }
 
-    count = count + imp->size;
+    count = count + imp.size();
     new_g_index = (idx_g_t *)xrealloc(new_g_index, sizeof(idx_g_t) * count);
     int *new_part = (int *)xmalloc(sizeof(int) * count);
     for (int i = 0; i < count; i++)
@@ -1507,13 +1501,6 @@ static void migrate_all(int my_rank, int comm_size) {
     op_free(permutation);
   }
 
-  // cleanup
-  // destroy pe_list, pi_list
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    delete pe_list[set->index];
-    delete pi_list[set->index];
-  }
 }
 
 /*****************************************************************************************************************************************
@@ -1854,54 +1841,54 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
       }
     }
   }
-  halo_list exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
+  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
   op_free(list); // free temp list
 
   //
   // create import list
   //
-  halo_list imp_list =
-      exchange_export_list(primary_map->from, exp_list, OP_PART_WORLD);
+  HaloList imp_list =
+      halo_list_transpose(primary_map->from, exp_list, OP_PART_WORLD);
 
   /* Reused by the mapping table exchange below. */
   MPI_Request *request_send =
-      (MPI_Request *)xmalloc(exp_list->ranks_size * sizeof(MPI_Request));
+      (MPI_Request *)xmalloc(exp_list.ranks_size() * sizeof(MPI_Request));
 
   //
   // Exchange mapping table entries using the import/export lists
   //
 
   // prepare bits of the mapping tables to be exported
-  int **sbuf = (int **)xmalloc(exp_list->ranks_size * sizeof(int *));
+  int **sbuf = (int **)xmalloc(exp_list.ranks_size() * sizeof(int *));
 
-  for (int i = 0; i < exp_list->ranks_size; i++) {
+  for (int i = 0; i < exp_list.ranks_size(); i++) {
     sbuf[i] =
-        (int *)xmalloc(exp_list->sizes[i] * primary_map->dim * sizeof(int));
-    for (int j = 0; j < exp_list->sizes[i]; j++) {
+        (int *)xmalloc(exp_list.sizes[i] * primary_map->dim * sizeof(int));
+    for (int j = 0; j < exp_list.sizes[i]; j++) {
       for (int p = 0; p < primary_map->dim; p++) {
         sbuf[i][j * primary_map->dim + p] =
             primary_map->map[primary_map->dim *
-                                 (exp_list->list[exp_list->disps[i] + j]) +
+                                 (exp_list.list[exp_list.disps[i] + j]) +
                              p];
       }
     }
-    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], get_mpi_type(sbuf[i]),
-              exp_list->ranks[i], primary_map->index, OP_PART_WORLD,
+    MPI_Isend(sbuf[i], primary_map->dim * exp_list.sizes[i], get_mpi_type(sbuf[i]),
+              exp_list.ranks[i], primary_map->index, OP_PART_WORLD,
               &request_send[i]);
   }
 
   // prepare space for the incomming mapping tables
   int *foreign_maps =
-      (int *)xmalloc(primary_map->dim * (imp_list->size) * sizeof(int));
+      (int *)xmalloc(primary_map->dim * (imp_list.size()) * sizeof(int));
 
-  for (int i = 0; i < imp_list->ranks_size; i++) {
-    MPI_Recv(&foreign_maps[(size_t)imp_list->disps[i] * primary_map->dim],
-             primary_map->dim * imp_list->sizes[i], get_mpi_type(foreign_maps), imp_list->ranks[i],
+  for (int i = 0; i < imp_list.ranks_size(); i++) {
+    MPI_Recv(&foreign_maps[(size_t)imp_list.disps[i] * primary_map->dim],
+             primary_map->dim * imp_list.sizes[i], get_mpi_type(foreign_maps), imp_list.ranks[i],
              primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
 
-  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-  for (int i = 0; i < exp_list->ranks_size; i++)
+  MPI_Waitall(exp_list.ranks_size(), request_send, MPI_STATUSES_IGNORE);
+  for (int i = 0; i < exp_list.ranks_size(); i++)
     op_free(sbuf[i]);
   op_free(sbuf);
 
@@ -1941,7 +1928,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   }
   // go through each from-element of foreign primary_map and add to adjacency
   // list
-  for (int i = 0; i < imp_list->size; i++) {
+  for (int i = 0; i < imp_list.size(); i++) {
     int part, local_index;
     for (int j = 0; j < primary_map->dim; j++) { // for each element
                                                  // pointed at by this entry
@@ -2044,8 +2031,8 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
-  delete imp_list;
-  delete exp_list;
+  imp_list = HaloList();
+  exp_list = HaloList();
 
   if (my_rank == MPI_ROOT) {
     printf("-----------------------------------------------------------\n");
@@ -3008,7 +2995,7 @@ idx_g_t **initialise(int my_rank, int comm_size) {
 /*******************************************************************************
  * Create export list
  *******************************************************************************/
-halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
+HaloList create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
                           int comm_size) {
   //
   // create export list
@@ -3036,7 +3023,7 @@ halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
       }
     }
   }
-  halo_list exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
+  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
   op_free(list); // free temp list
 
   return exp_list;
@@ -3045,16 +3032,16 @@ halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
 /*******************************************************************************
  * Create import list
  *******************************************************************************/
-std::tuple<halo_list, MPI_Request *> create_imp_list(op_map primary_map,
-                                                     halo_list exp_list) {
-  halo_list imp_list =
-      exchange_export_list(primary_map->from, exp_list, OP_PART_WORLD);
+std::tuple<HaloList, MPI_Request *> create_imp_list(op_map primary_map,
+                                                     const HaloList &exp_list) {
+  HaloList imp_list =
+      halo_list_transpose(primary_map->from, exp_list, OP_PART_WORLD);
 
   /* construct_adj_list sends the mapping table entries on these. */
   MPI_Request *request_send =
-      (MPI_Request *)xmalloc(exp_list->ranks_size * sizeof(MPI_Request));
+      (MPI_Request *)xmalloc(exp_list.ranks_size() * sizeof(MPI_Request));
 
-  return std::make_tuple(imp_list, request_send);
+  return std::make_tuple(std::move(imp_list), request_send);
 }
 
 /*******************************************************************************
@@ -3062,7 +3049,7 @@ std::tuple<halo_list, MPI_Request *> create_imp_list(op_map primary_map,
  * import and export lists
  *******************************************************************************/
 std::tuple<idx_g_t **, int *, int *>
-construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
+construct_adj_list(op_map primary_map, const HaloList &exp_list, const HaloList &imp_list,
                    MPI_Request *request_send, int my_rank, int comm_size,
                    idx_g_t **part_range) {
   //
@@ -3070,43 +3057,43 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   //
 
   // prepare bits of the mapping tables to be exported
-  idx_g_t **sbuf = (idx_g_t **)xmalloc(exp_list->ranks_size * sizeof(idx_g_t *));
+  idx_g_t **sbuf = (idx_g_t **)xmalloc(exp_list.ranks_size() * sizeof(idx_g_t *));
 
-  for (int i = 0; i < exp_list->ranks_size; i++) {
+  for (int i = 0; i < exp_list.ranks_size(); i++) {
     // Check for potential integer overflow in buffer allocation
-    size_t buffer_size = (size_t)exp_list->sizes[i] * primary_map->dim;
+    size_t buffer_size = (size_t)exp_list.sizes[i] * primary_map->dim;
     sbuf[i] = (idx_g_t *)xmalloc(buffer_size * sizeof(idx_g_t));
     
-    for (int j = 0; j < exp_list->sizes[i]; j++) {
+    for (int j = 0; j < exp_list.sizes[i]; j++) {
       // Check bounds for exp_list access
-      int list_idx = exp_list->disps[i] + j;
-      int map_elem_idx = exp_list->list[list_idx];
+      int list_idx = exp_list.disps[i] + j;
+      int map_elem_idx = exp_list.list[list_idx];
       
       for (int p = 0; p < primary_map->dim; p++) {
         size_t map_idx = (size_t)primary_map->dim * map_elem_idx + p;
         sbuf[i][j * primary_map->dim + p] = primary_map->map_gbl[map_idx];
       }
     }
-    MPI_Isend(sbuf[i], primary_map->dim * exp_list->sizes[i], get_mpi_type(sbuf[i]),
-              exp_list->ranks[i], primary_map->index+2*exp_list->ranks[i]+3*my_rank, OP_PART_WORLD,
+    MPI_Isend(sbuf[i], primary_map->dim * exp_list.sizes[i], get_mpi_type(sbuf[i]),
+              exp_list.ranks[i], primary_map->index+2*exp_list.ranks[i]+3*my_rank, OP_PART_WORLD,
               &request_send[i]);
   }
 
   // prepare space for the incoming mapping tables
-  size_t foreign_maps_size = (size_t)primary_map->dim * imp_list->size;
+  size_t foreign_maps_size = (size_t)primary_map->dim * imp_list.size();
   idx_g_t *foreign_maps = (idx_g_t *)xmalloc(foreign_maps_size * sizeof(idx_g_t));
 
-  for (int i = 0; i < imp_list->ranks_size; i++) {
+  for (int i = 0; i < imp_list.ranks_size(); i++) {
     // Check bounds for import buffer access
-    size_t recv_offset = (size_t)imp_list->disps[i] * primary_map->dim;
-    int recv_size = (size_t)primary_map->dim * imp_list->sizes[i];
+    size_t recv_offset = (size_t)imp_list.disps[i] * primary_map->dim;
+    int recv_size = (size_t)primary_map->dim * imp_list.sizes[i];
     
     MPI_Recv(&foreign_maps[recv_offset], recv_size, get_mpi_type(&foreign_maps[recv_offset]), 
-             imp_list->ranks[i], primary_map->index+2*my_rank+3*imp_list->ranks[i], OP_PART_WORLD, MPI_STATUS_IGNORE);
+             imp_list.ranks[i], primary_map->index+2*my_rank+3*imp_list.ranks[i], OP_PART_WORLD, MPI_STATUS_IGNORE);
   }
 
-  MPI_Waitall(exp_list->ranks_size, request_send, MPI_STATUSES_IGNORE);
-  for (int i = 0; i < exp_list->ranks_size; i++)
+  MPI_Waitall(exp_list.ranks_size(), request_send, MPI_STATUSES_IGNORE);
+  for (int i = 0; i < exp_list.ranks_size(); i++)
     op_free(sbuf[i]);
   op_free(sbuf);
 
@@ -3156,7 +3143,7 @@ construct_adj_list(op_map primary_map, halo_list exp_list, halo_list imp_list,
   }
   // go through each from-element of foreign primary_map and add to adjacency
   // list
-  for (int i = 0; i < imp_list->size; i++) {
+  for (int i = 0; i < imp_list.size(); i++) {
     int part, local_index;
     for (int j = 0; j < primary_map->dim; j++) { // for each element
                                                  // pointed at by this entry
@@ -3515,9 +3502,9 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
   idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--STEP 1 - Construct adjacency list */
-  halo_list exp_list =
+  HaloList exp_list =
       create_exp_list(primary_map, part_range, my_rank, comm_size);
-  halo_list imp_list;
+  HaloList imp_list;
   MPI_Request *request_send;
   std::tie(imp_list, request_send) =
       create_imp_list(primary_map, exp_list);
@@ -3528,9 +3515,9 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
       construct_adj_list(primary_map, exp_list, imp_list, request_send, my_rank,
                          comm_size, part_range);
 
-  // Clean up import/export lists
-  delete imp_list;
-  delete exp_list;
+  // Free the import/export lists before the partitioner runs
+  imp_list = HaloList();
+  exp_list = HaloList();
 
   /*-- STEP 1.5 - Call Partitioner-Specific Setup & Partition */
   if (strcmp(partitioner_name, "PARMETIS") == 0 || strcmp(partitioner_name, "KAHIP") == 0) {

@@ -23,7 +23,7 @@ struct ExchangeBuffers {
 };
 
 // Where a backend finds a dat's data and the halo index lists that go with it.
-// Host data is always AoS and its lists live in halo_list::list; a device
+// Host data is always AoS and its lists live in HaloList::list; a device
 // backend keeps its own copies of both.
 struct DatPlacement {
     DatAccessor dat;

@@ -268,23 +268,22 @@ After partitioning, OP2 calls ``op_halo_create()`` (defined in ``op2/src/mpi/op_
 ``export non-execute halo (enh)``
     Elements in ``core`` that are referenced by elements on foreign processes must be exported (if not already in ``eeh``).  ``enh`` is a subset of ``core``.
 
-The halo list structure (``halo_list_core``, ``op2/include/op_mpi_core.h``) stores, for each set, one contiguous block of ``list`` per neighbouring rank:
+A halo list (``HaloList``, ``op2/include/op_mpi_core.h``) holds one contiguous block of ``list`` per neighbouring rank:
 
 .. code-block:: c++
 
-   struct halo_list_core {
+   struct HaloList {
        op_set set;                       // set to which this list belongs
-       idx_l_t size;                     // number of elements in the list
        std::vector<int> ranks;           // MPI ranks to export to / import from, ascending
-       int ranks_size;                   // number of neighbouring MPI ranks
-       std::vector<idx_l_t> disps;       // displacement for each rank's element list
-       std::vector<idx_l_t> sizes;       // number of elements per rank
-       std::unique_ptr<idx_l_t[]> list;  // the full element list, null when size is 0
+       std::vector<idx_l_t> sizes;       // number of elements per rank, each > 0
+       std::vector<idx_l_t> disps;       // prefix sum of sizes: where each rank's block starts
+       std::unique_ptr<idx_l_t[]> list;  // the full element list, null when empty
+
+       int ranks_size() const;           // ranks.size()
+       idx_l_t size() const;             // total entries in list
    };
 
-Each array holds exactly ``ranks_size`` (or ``size``) entries, and the list owns them.  Lists are built with ``halo_list_from_pairs()`` or ``halo_list_from_groups()`` and freed with ``delete``.
-
-Four global arrays — ``OP_export_exec_list``, ``OP_import_exec_list``, ``OP_import_nonexec_list``, ``OP_export_nonexec_list`` — are indexed by ``set->index``.
+It is a value that owns its arrays.  Lists are built with ``halo_list_from_pairs()`` or ``halo_list_from_groups()``, and ``halo_list_transpose()`` turns an export list into the matching import list or the reverse.  A set's four lists live in ``OP_set_halos[set->index]`` (``SetHalo``: ``export_exec``, ``import_exec``, ``export_nonexec``, ``import_nonexec``), and a map's partial-exchange lists in ``OP_map_halos[map->index]`` (``MapHalo``).
 
 Halo creation in ``op_halo_create()`` proceeds in 11 steps:
 
@@ -332,7 +331,7 @@ This maximises overlap of computation with communication.
 Partial Halo Exchange
 ~~~~~~~~~~~~~~~~~~~~~
 
-For loops over a *boundary set* with sparse connectivity to an internal set, exchanging the full internal halo is wasteful.  OP2 implements a partial halo exchange via ``op_halo_permap_create()``: a per-mapping halo is computed and used if the number of mapping table entries crossing partition boundaries (for that map) is less than 30% of the full halo size for the exchanged set.
+For loops over a *boundary set* with sparse connectivity to an internal set, exchanging the full internal halo is wasteful.  OP2 implements a partial halo exchange via ``op_halo_permap_create()``: a per-mapping halo is computed and used if the number of mapping table entries crossing partition boundaries (for that map) is less than 30% of the full halo size for the exchanged set.  Each rank finds the halo elements the map reaches, groups them by owner, and sends each owner their positions in the halo it receives from that owner; the owner translates the positions through its own export lists.
 
 Global Operations
 ~~~~~~~~~~~~~~~~~

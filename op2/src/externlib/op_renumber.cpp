@@ -198,20 +198,9 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
   }
 
   //Renumber halos
-  halo_list exp_exec_list = OP_export_exec_list[set->index];
-  halo_list exp_nonexec_list = OP_export_nonexec_list[set->index];
-  if (exp_exec_list->ranks_size > 0) {
-    int halolen = exp_exec_list->disps[exp_exec_list->ranks_size-1] + exp_exec_list->sizes[exp_exec_list->ranks_size-1];
-    for (int i = 0; i < halolen; i++) {
-      exp_exec_list->list[i] = set_permutations[set->index][exp_exec_list->list[i]];
-    }
-  }
-  if (exp_nonexec_list->ranks_size > 0) {
-    int halolen = exp_nonexec_list->disps[exp_nonexec_list->ranks_size-1] + exp_nonexec_list->sizes[exp_nonexec_list->ranks_size-1];
-    for (int i = 0; i < halolen; i++) {
-      exp_nonexec_list->list[i] = set_permutations[set->index][exp_nonexec_list->list[i]];
-    }
-  }
+  for (HaloList *exp : {&OP_set_halos[set->index].export_exec, &OP_set_halos[set->index].export_nonexec})
+    for (idx_l_t i = 0; i < exp->size(); i++)
+      exp->list[i] = set_permutations[set->index][exp->list[i]];
 
   //Reorder mapping back to original (unpartitioned indexing)
   idx_g_t *new_g_index = (idx_g_t*)malloc(set->size*sizeof(idx_g_t));

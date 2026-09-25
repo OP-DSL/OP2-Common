@@ -39,27 +39,27 @@ void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange
     auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
-        auto nonexec_list = OP_export_nonexec_permap[exchange.map->index];
+        const auto &nonexec_list = OP_map_halos[exchange.map->index].export_nonexec;
 
-        for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-            auto list = placement.nonexec_export_permap + nonexec_list->disps[i];
-            gathers[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i], list, dat);
+        for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
+            auto list = placement.nonexec_export_permap + nonexec_list.disps[i];
+            gathers[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i], list, dat);
         }
 
         return;
     }
 
-    auto exec_list = OP_export_exec_list[exchange.dat->set->index];
-    auto nonexec_list = OP_export_nonexec_list[exchange.dat->set->index];
+    const auto &exec_list = OP_set_halos[exchange.dat->set->index].export_exec;
+    const auto &nonexec_list = OP_set_halos[exchange.dat->set->index].export_nonexec;
 
-    for (int i = 0; i < exec_list->ranks_size; ++i) {
-        auto list = placement.exec_export + exec_list->disps[i];
-        gathers[exec_list->ranks[i]].emplace_back(exec_list->sizes[i], list, dat);
+    for (int i = 0; i < exec_list.ranks_size(); ++i) {
+        auto list = placement.exec_export + exec_list.disps[i];
+        gathers[exec_list.ranks[i]].emplace_back(exec_list.sizes[i], list, dat);
     }
 
-    for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-        auto list = placement.nonexec_export + nonexec_list->disps[i];
-        gathers[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i], list, dat);
+    for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
+        auto list = placement.nonexec_export + nonexec_list.disps[i];
+        gathers[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i], list, dat);
     }
 }
 
@@ -68,30 +68,30 @@ void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchang
     auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
-        auto nonexec_list = OP_import_nonexec_permap[exchange.map->index];
+        const auto &nonexec_list = OP_map_halos[exchange.map->index].import_nonexec;
 
-        for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-            auto list = placement.nonexec_import_permap + nonexec_list->disps[i];
-            scatters[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i], list, dat);
+        for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
+            auto list = placement.nonexec_import_permap + nonexec_list.disps[i];
+            scatters[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i], list, dat);
         }
 
         return;
     }
 
-    auto exec_list = OP_import_exec_list[exchange.dat->set->index];
-    auto nonexec_list = OP_import_nonexec_list[exchange.dat->set->index];
+    const auto &exec_list = OP_set_halos[exchange.dat->set->index].import_exec;
+    const auto &nonexec_list = OP_set_halos[exchange.dat->set->index].import_nonexec;
 
     auto exec_offset = exchange.dat->set->size;
-    auto nonexec_offset = exchange.dat->set->size + OP_import_exec_list[exchange.dat->set->index]->size;
+    auto nonexec_offset = exchange.dat->set->size + exec_list.size();
 
-    for (int i = 0; i < exec_list->ranks_size; ++i) {
-        scatters[exec_list->ranks[i]].emplace_back(exec_list->sizes[i],
-                                                   (int) (exec_offset + exec_list->disps[i]), dat);
+    for (int i = 0; i < exec_list.ranks_size(); ++i) {
+        scatters[exec_list.ranks[i]].emplace_back(exec_list.sizes[i],
+                                                   (int) (exec_offset + exec_list.disps[i]), dat);
     }
 
-    for (int i = 0; i < nonexec_list->ranks_size; ++i) {
-        scatters[nonexec_list->ranks[i]].emplace_back(nonexec_list->sizes[i],
-                                                      (int) (nonexec_offset + nonexec_list->disps[i]), dat);
+    for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
+        scatters[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i],
+                                                      (int) (nonexec_offset + nonexec_list.disps[i]), dat);
     }
 }
 

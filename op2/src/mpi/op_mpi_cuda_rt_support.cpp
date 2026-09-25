@@ -144,9 +144,9 @@ void cutilDeviceInit(int argc, char **argv) {
 }
 
 void op_upload_dat(op_dat dat) {
-  if (OP_import_exec_list==NULL) return;
-  idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
-                 OP_import_nonexec_list[dat->set->index]->size;
+  if (OP_set_halos.empty()) return;
+  idx_g_t set_size = dat->set->size + OP_set_halos[dat->set->index].import_exec.size() +
+                 OP_set_halos[dat->set->index].import_nonexec.size();
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
     int element_size = (size_t)dat->size / dat->dim;
@@ -169,10 +169,10 @@ void op_upload_dat(op_dat dat) {
 
 void op_download_dat(op_dat dat) {
   //Check if partitionig is done
-  if (OP_import_exec_list==NULL) return;
+  if (OP_set_halos.empty()) return;
   //  printf("Downloading %s\n", dat->name);
-  idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
-                 OP_import_nonexec_list[dat->set->index]->size;
+  idx_g_t set_size = dat->set->size + OP_set_halos[dat->set->index].import_exec.size() +
+                 OP_set_halos[dat->set->index].import_nonexec.size();
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)xmalloc((size_t)dat->size * round32(set_size) * sizeof(char));
     cutilSafeCall(gpuMemcpy(temp_data, dat->data_d, round32(set_size) * (size_t)dat->size,

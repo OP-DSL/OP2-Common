@@ -98,8 +98,8 @@ static bool dat_is_soa(op_dat dat) {
 }
 
 DatPlacement CudaBackend::placement(op_dat dat, op_map partial_map) const {
-    int stride = round32(dat->set->size + OP_import_exec_list[dat->set->index]->size
-                                        + OP_import_nonexec_list[dat->set->index]->size);
+    int stride = round32(dat->set->size + OP_set_halos[dat->set->index].import_exec.size()
+                                        + OP_set_halos[dat->set->index].import_nonexec.size());
 
     DatPlacement placement;
     placement.dat = DatAccessor((void *) dat->data_d, dat->dim, stride, dat->size / dat->dim,
