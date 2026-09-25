@@ -313,12 +313,14 @@ When ``op_par_loop`` executes under MPI:
   2. If all indirect arguments are ``OP_READ``, loop over ``set->size``; otherwise loop over ``set->size + ieh->size``.
   3. After the loop, set the dirty bit for each ``op_arg`` with access ``OP_INC``, ``OP_WRITE``, or ``OP_RW``.
 
-``op_exchange_halo()`` (``op2/src/mpi/op_mpi_rt_support.cpp``) checks the conditions, packs halo data into pre-defined send buffers, issues non-blocking ``MPI_Isend`` / ``MPI_Irecv`` operations, and returns immediately.  The ``op_par_loop`` is structured so that:
+``op_mpi_halo_exchanges_unified()`` (``op2/src/mpi/op_mpi_unified_exchanges.cpp``) checks the conditions for every argument of the loop at once, gathers all the halo data bound for each neighbour into one buffer (in a single kernel launch on a device), issues one non-blocking ``MPI_Isend`` / ``MPI_Irecv`` per neighbour, and returns immediately.  The ``op_par_loop`` is structured so that:
 
-1. All ``op_exchange_halo()`` calls are issued first.
+1. ``op_mpi_halo_exchanges_unified()`` is called before the loop.
 2. Core elements are computed (no halo data required).
-3. ``op_wait_all()`` is called.
+3. ``op_mpi_wait_all_unified()`` completes the communication and scatters the received data into the halo.
 4. The remaining elements (``ieh``) are computed.
+
+The older entry points ``op_mpi_halo_exchanges()``, ``op_mpi_halo_exchanges_cuda()`` and ``op_mpi_halo_exchanges_grouped()``, with their ``op_mpi_wait_all*()`` counterparts, forward to these.
 
 This maximises overlap of computation with communication.
 

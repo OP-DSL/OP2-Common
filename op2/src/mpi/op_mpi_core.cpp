@@ -73,7 +73,6 @@ halo_list *OP_export_nonexec_list; // ENH list
 int *OP_map_partial_exchange; // flag for each map
 halo_list *OP_import_nonexec_permap;
 halo_list *OP_export_nonexec_permap;
-int *set_import_buffer_size;
 //
 // global array to hold dirty_bits for op_dats
 //
@@ -998,38 +997,9 @@ void op_halo_create() {
     }
   }
 
-  /*-STEP 9 ---------------- Create MPI send Buffers-----------------------*/
-
-  op_dat_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-
-    op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-    halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-    halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-
-    mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
-    mpi_buf->buf_nonexec = (char *)xmalloc((size_t)(nonexec_e_list->size) * (size_t)dat->size);
-
-    halo_list exec_i_list = OP_import_exec_list[dat->set->index];
-    halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-    mpi_buf->s_req = (MPI_Request *)xmalloc(
-        sizeof(MPI_Request) *
-        (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-    mpi_buf->r_req = (MPI_Request *)xmalloc(
-        sizeof(MPI_Request) *
-        (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-    mpi_buf->s_num_req = 0;
-    mpi_buf->r_num_req = 0;
-    dat->mpi_buffer = mpi_buf;
-  }
-
   // set dirty bits of all data arrays to 0
   // for each data array
-  item = NULL;
+  op_dat_entry *item = NULL;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
     dat->dirtybit = 0;
@@ -1488,10 +1458,6 @@ void op_halo_permap_create() {
     }
   }
 
-  set_import_buffer_size = (int *)xcalloc(OP_set_index, sizeof(int));
-  for (int i = 0; i < OP_set_index; i++)
-    set_import_buffer_size[i] = 0;
-
   for (int i = 0; i < OP_map_index; i++) {
     if (!OP_map_partial_exchange[i])
       continue;
@@ -1667,10 +1633,6 @@ void op_halo_permap_create() {
             ->sizes[OP_import_nonexec_permap[i]->ranks_size - 1];
     OP_import_nonexec_permap[i]
         ->sizes[OP_import_nonexec_permap[i]->ranks_size - 1] = 0;
-
-    set_import_buffer_size[map->to->index] =
-        MAX(set_import_buffer_size[map->to->index],
-            OP_import_nonexec_permap[i]->size);
 
     //
     // Populate halo lists with offsets into current halo segment (exec/nonexec
@@ -1940,30 +1902,6 @@ void op_halo_permap_create() {
   }
 
   //
-  // resize mpi_buffers to accommodate import data before scattering to actual
-  // positions
-  //
-  for (int i = 0; i < OP_set_index; i++) {
-    // NJH
-    op_set set = OP_set_list[i];
-    if (set_import_buffer_size[i] == 0)
-      continue;
-    op_dat_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list, entries) {
-      op_dat dat = item->dat;
-      // NJH
-      if (compare_sets(set, dat->set) == 1) { // if this data array
-                                              // is defined on this set
-
-        halo_list nonexec_e_list = OP_export_nonexec_list[i];
-        ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec = (char *)xrealloc(
-            ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec,
-            (nonexec_e_list->size + set_import_buffer_size[i]) * (size_t)dat->size);
-      }
-    }
-  }
-
-  //
   // Sanity checks
   //
   for (int i = 0; i < OP_map_index; i++) {
@@ -2033,16 +1971,6 @@ void op_halo_destroy() {
   op_free(OP_import_nonexec_list);
   op_free(OP_export_exec_list);
   op_free(OP_export_nonexec_list);
-
-  item = NULL;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-    op_free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-    op_free(dat->mpi_buffer);
-  }
 
   // MPI_Comm_free(&OP_MPI_WORLD);
 }
@@ -3132,7 +3060,7 @@ void op_mpi_exit() {
     op_free(kernel_entry);
   }
 
-  // free memory allocated to halos and mpi_buffers
+  // free memory allocated to halos
   op_halo_destroy();
   // free memory used for holding partition information
   op_partition_destroy();
@@ -3155,7 +3083,6 @@ void op_mpi_exit() {
       op_free(OP_export_nonexec_permap[i]);
     }
   }
-  op_free(set_import_buffer_size);
   op_free(OP_map_partial_exchange);
 }
 
@@ -3172,146 +3099,6 @@ int getSetSizeFromOpArg(op_arg *arg) {
 }
 
 int getHybridGPU() { return OP_hybrid_gpu; }
-
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
-  int size = set->size;
-  int direct_flag = 1;
-
-  if (OP_diags > 0) {
-    int dummy;
-    for (int n = 0; n < nargs; n++)
-      op_arg_check(set, n, args[n], &dummy, "halo_exchange mpi");
-  }
-
-  if (OP_hybrid_gpu) {
-    for (int n = 0; n < nargs; n++)
-      if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-          args[n].dat->dirty_hd == 2) {
-        op_download_dat(args[n].dat);
-        args[n].dat->dirty_hd = 0;
-      }
-  }
-
-  // check if this is a direct loop
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
-      direct_flag = 0;
-
-  if (direct_flag == 1)
-    return size;
-
-  // not a direct loop ...
-  int exec_flag = 0;
-  for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
-      size = set->size + set->exec_size;
-      exec_flag = 1;
-    }
-  }
-  op_timers_core(&c1, &t1);
-  for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
-      if (args[n].map == OP_ID) {
-        op_exchange_halo(&args[n], exec_flag);
-      } else {
-        // Check if dat-map combination was already done or if there is a
-        // mismatch (same dat, diff map)
-        int found = 0;
-        int fallback = 0;
-        for (int m = 0; m < nargs; m++) {
-          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map)
-            found = 1;
-          else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
-            fallback = 1;
-        }
-        // If there was a map mismatch with other argument, do full halo
-        // exchange
-        if (fallback)
-          op_exchange_halo(&args[n], exec_flag);
-        else if (!found) { // Otherwise, if partial halo exchange is enabled for
-                           // this map, do it
-          if (OP_map_partial_exchange[args[n].map->index])
-            op_exchange_halo_partial(&args[n], exec_flag);
-          else
-            op_exchange_halo(&args[n], exec_flag);
-        }
-      }
-    }
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-  return size;
-}
-
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  int size = set->size;
-  int direct_flag = 1;
-
-  if (OP_diags > 0) {
-    int dummy;
-    for (int n = 0; n < nargs; n++)
-      op_arg_check(set, n, args[n], &dummy, "halo_exchange cuda");
-  }
-
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-        args[n].dat->dirty_hd == 1) {
-      op_upload_dat(args[n].dat);
-      args[n].dat->dirty_hd = 0;
-    }
-
-  // check if this is a direct loop
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT && args[n].idx != -1)
-      direct_flag = 0;
-
-  if (direct_flag == 1)
-    return size;
-
-  // not a direct loop ...
-  int exec_flag = 0;
-  for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].idx != -1 && args[n].acc != OP_READ) {
-      size = set->size + set->exec_size;
-      exec_flag = 1;
-    }
-  }
-  op_timers_core(&c1, &t1);
-  for (int n = 0; n < nargs; n++) {
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT) {
-      if (args[n].map == OP_ID) {
-        op_exchange_halo_cuda(&args[n], exec_flag);
-      } else {
-        // Check if dat-map combination was already done or if there is a
-        // mismatch (same dat, diff map)
-        int found = 0;
-        int fallback = 0;
-        for (int m = 0; m < nargs; m++) {
-          if (m < n && args[n].dat == args[m].dat && args[n].map == args[m].map)
-            found = 1;
-          else if (args[n].dat == args[m].dat && args[n].map != args[m].map)
-            fallback = 1;
-        }
-        // If there was a map mismatch with other argument, do full halo
-        // exchange
-        if (fallback)
-          op_exchange_halo_cuda(&args[n], exec_flag);
-        else if (!found) { // Otherwise, if partial halo exchange is enabled for
-                           // this map, do it
-          if (OP_map_partial_exchange[args[n].map->index])
-            op_exchange_halo_partial_cuda(&args[n], exec_flag);
-          else
-            op_exchange_halo_cuda(&args[n], exec_flag);
-        }
-      }
-    }
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-  return size;
-}
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args) {
 
@@ -3331,40 +3118,71 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   }
 }
 
-int op_mpi_test(op_arg *arg) {
-  if (arg->opt && arg->argtype == OP_ARG_DAT && arg->sent == 1) {
-    int result;
-    if (((op_mpi_buffer)(arg->dat->mpi_buffer))->s_num_req>0)
-      MPI_Test(((op_mpi_buffer)(arg->dat->mpi_buffer))->s_req,&result,MPI_STATUS_IGNORE);
-    return 1;
+/*******************************************************************************
+ * The per-dat and grouped exchange entry points
+ *
+ * translator-v1 code, and anything else written against the older API, calls
+ * these. The per-dat and grouped exchanges that implemented them are gone; they
+ * now run the unified exchange, which writes the same halo bytes, and keep the
+ * two things the old drivers did around it: argument checks under OP_diags, and
+ * MPI time charged to the current kernel.
+ *******************************************************************************/
+
+static int exchange_via_unified(op_set set, int nargs, op_arg *args, int device) {
+  if (OP_diags > 0) {
+    int dummy;
+    for (int n = 0; n < nargs; n++)
+      op_arg_check(set, n, args[n], &dummy, "halo_exchange mpi");
   }
-  return 0;
+  double cpu_start, wall_start, cpu_end, wall_end;
+  op_timers_core(&cpu_start, &wall_start);
+  const int size = op_mpi_halo_exchanges_unified(set, nargs, args, device);
+  op_timers_core(&cpu_end, &wall_end);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
+  return size;
 }
 
+static void wait_via_unified(int nargs, op_arg *args) {
+  double cpu_start, wall_start, cpu_end, wall_end;
+  op_timers_core(&cpu_start, &wall_start);
+  op_mpi_wait_all_unified(nargs, args);
+  op_timers_core(&cpu_end, &wall_end);
+  if (OP_kern_max > 0)
+    OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
+}
+
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
+  return exchange_via_unified(set, nargs, args, 1);
+}
+
+int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
+  return exchange_via_unified(set, nargs, args, 2);
+}
+
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
+  return exchange_via_unified(set, nargs, args, device);
+}
+
+void op_mpi_wait_all(int nargs, op_arg *args) { wait_via_unified(nargs, args); }
+
+void op_mpi_wait_all_cuda(int nargs, op_arg *args) { wait_via_unified(nargs, args); }
+
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)device;
+  wait_via_unified(nargs, args);
+}
+
+/* Progress pokes for the per-dat exchange's outstanding sends. The unified
+   exchange has nothing to poke, so these do nothing. */
 void op_mpi_test_all(int nargs, op_arg *args) {
-  for (int n = 0; n < nargs; n++) {
-    if (op_mpi_test(&args[n])) return;
-  }
+  (void)nargs;
+  (void)args;
 }
 
-void op_mpi_wait_all(int nargs, op_arg *args) {
-  op_timers_core(&c1, &t1);
-  for (int n = 0; n < nargs; n++) {
-    op_wait_all(&args[n]);
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-}
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
-  op_timers_core(&c1, &t1);
-  for (int n = 0; n < nargs; n++) {
-    op_wait_all_cuda(&args[n]);
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
+void op_mpi_test_all_grouped(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
 }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {

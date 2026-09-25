@@ -108,6 +108,7 @@ module OP2_Fortran_Declarations
 
   end type op_map
 
+  ! Mirrors op_dat_core in op_lib_core.h field for field: keep the two in step.
   type, BIND(C) :: op_dat_core
 
     integer(kind=c_int) ::    index        ! position in the private OP2 array of op_dat_core variables
@@ -122,7 +123,6 @@ module OP2_Fortran_Declarations
 #endif
     type(c_ptr) ::            type         ! data type
     type(c_ptr) ::            name         ! data name
-    type(c_ptr) ::            buffer_d     ! buffer for MPI halo sends on the device
     integer(kind=c_int) ::    dirtybit     ! flag to indicate MPI halo exchange is needed
     integer(kind=c_int) ::    dirty_hd     ! flag to indicate dirty status on host and device
     integer(kind=c_int) ::    user_managed ! indicates whether the user is managing memory

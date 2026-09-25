@@ -103,7 +103,6 @@ set(_op2_backend_mpi_cuda_overlay_srcs
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
     "${_src}/mpi/op_mpi_cuda_rt_support.cpp"
-    "${_src}/mpi/op_mpi_cuda_kernels.cu"
     "${_src}/mpi/op_mpi_cuda_unified_kernels.cu"
 )
 

@@ -595,7 +595,7 @@ coalesce_by_destination(std::span<const M> messages) {
 /* The sparse exchange itself.
  *
  * Namespaced away from op::mpi because "exchange" already means halo exchange
- * throughout OP2 - op_mpi_halo_exchanges, op_exchange_halo, OP_PARTIAL_EXCHANGE
+ * throughout OP2 - op_mpi_halo_exchanges, op_trigger_halo_exchanges, OP_PARTIAL_EXCHANGE
  * and several hundred other uses - and this is not that. This is the dynamic
  * sparse data exchange of Hoefler et al.: setup-time discovery and delivery
  * where no rank knows in advance who will send to it. Written out, the call site

@@ -3012,9 +3012,6 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   if (partial_halo_flag == 1) // only do partial halo
     op_halo_permap_create();  // creation if a valid partitioning is done
   else {
-    set_import_buffer_size = (int *)xmalloc(OP_set_index * sizeof(int));
-    for (int i = 0; i < OP_set_index; i++)
-      set_import_buffer_size[i] = 0;
     OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
     for (int i = 0; i < OP_map_index; i++)
       OP_map_partial_exchange[i] = 0;

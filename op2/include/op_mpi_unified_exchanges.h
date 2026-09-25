@@ -141,7 +141,7 @@ OP2_UNIFIED_HD inline void copy_element(const ScatterSpec &s, std::size_t index)
 
 }
 
-// Entry points from op_mpi_util.cpp, global to match the rest of the runtime's
-// op_* interface.
+// Entry points, global to match the rest of the runtime's op_* interface. The
+// older per-dat and grouped names forward here (op_mpi_core.cpp).
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device);
 void op_mpi_wait_all_unified(int nargs, op_arg *args);

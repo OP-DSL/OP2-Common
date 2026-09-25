@@ -137,32 +137,6 @@ typedef struct {
   int cap;
 } op_mpi_kernel;
 
-// Structs and functions that use MPI definitions
-#ifndef OP_MPI_CORE_NOMPI
-
-/*******************************************************************************
-* Buffer struct used in non-blocking mpi halo sends/receives
-*******************************************************************************/
-
-typedef struct {
-  // buffer holding exec halo to be exported;
-  char *buf_exec;
-  // buffer holding nonexec halo to be exported;
-  char *buf_nonexec;
-  // pointed to hold the MPI_Reqest for sends
-  MPI_Request *s_req;
-  // pointed to hold the MPI_Reqest for receives
-  MPI_Request *r_req;
-  // number of send MPI_Reqests in flight at a given time for this op_dat
-  int s_num_req;
-  // number of receive MPI_Reqests in flight at a given time for this op_dat
-  int r_num_req;
-} op_mpi_buffer_core;
-
-typedef op_mpi_buffer_core *op_mpi_buffer;
-
-#endif /* OP_MPI_CORE_NOMPI */
-
 /** external variables **/
 
 extern int OP_part_index;
@@ -172,14 +146,9 @@ extern idx_g_t **orig_part_range;
 /** export list on the device **/
 
 extern idx_l_t **export_exec_list_d;
-extern idx_l_t **export_exec_list_disps_d;
 extern idx_l_t **export_nonexec_list_d;
-extern idx_l_t **export_nonexec_list_disps_d;
 extern idx_l_t **export_nonexec_list_partial_d;
 extern idx_l_t **import_nonexec_list_partial_d;
-extern idx_l_t *set_import_buffer_size;
-extern idx_l_t **import_exec_list_disps_d;
-extern idx_l_t **import_nonexec_list_disps_d;
 
 // Structs and functions that use MPI definitions
 #ifndef OP_MPI_CORE_NOMPI
@@ -321,25 +290,6 @@ void op_partition_ptscotch(op_map primary_map);
 #endif
 
 void op_move_to_device();
-
-/*******************************************************************************
-* External functions defined in op_mpi_(cuda)_rt_support.c
-*******************************************************************************/
-
-void op_exchange_halo(op_arg *arg, int exec_flag);
-void op_exchange_halo_partial(op_arg *arg, int exec_flag);
-void op_wait_all(op_arg *arg);
-int op_mpi_test(op_arg *arg);
-void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
-void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
-void op_wait_all_cuda(op_arg *arg);
-
-void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send);
-void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv);
-void op_download_buffer_sync();
-void op_gather_record();
-void op_scatter_sync();
-void op_gather_sync();
 
 #ifdef __cplusplus
 }

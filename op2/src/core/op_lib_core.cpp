@@ -53,7 +53,7 @@
  */
 
 int OP_diags = 0, OP_part_size = 0, OP_block_size = 64,
-    OP_cache_line_size = 128, OP_gpu_direct = 0, OP_unified_exchanges = 0;
+    OP_cache_line_size = 128, OP_gpu_direct = 0;
 
 double OP_hybrid_balance = 1.0;
 int OP_hybrid_gpu = 0;
@@ -235,11 +235,6 @@ void op_set_args(int argc, char *argv) {
     strncpy(temp, pch, 25);
     OP_mpi_test_frequency = atoi(temp + 13);
     op_printf("\n OP_mpi_test_frequency  = %d \n", OP_mpi_test_frequency);
-  }
-  pch = strstr(argv, "OP_UNIFIED_EXCHANGES");
-  if (pch != NULL) {
-    OP_unified_exchanges = 1;
-    op_printf("\n Enabling unified exchanges\n");
   }
   pch = strstr(argv, "OP_AUTO_SOA");
   if (pch != NULL) {
@@ -536,9 +531,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->name = copy_str(name);
   dat->type = copy_str(type);
   dat->size = dim * size;
-  dat->mpi_buffer = NULL;
-  dat->buffer_d = NULL;
-  dat->buffer_d_r = NULL;
   dat->dirty_hd = 0;
   dat->dirtybit = 1;
 
@@ -605,9 +597,6 @@ op_dat op_decl_dat_overlay_core(op_set set, op_dat dat) {
   overlay_dat->type = dat->type;
   overlay_dat->size = dat->size;
   overlay_dat->user_managed = dat->user_managed;
-  overlay_dat->mpi_buffer = dat->mpi_buffer;
-  overlay_dat->buffer_d = dat->buffer_d;
-  overlay_dat->buffer_d_r = dat->buffer_d_r;
   overlay_dat->dirty_hd = dat->dirty_hd;
   overlay_dat->dirtybit = dat->dirtybit;
 

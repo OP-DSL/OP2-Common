@@ -339,9 +339,9 @@ ExchangeContext ctx;
 using namespace op::unified_exchanges;
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
-    // Bring each dat into the space this loop runs in. op_mpi_halo_exchanges_grouped
-    // does this for every arg before it returns for a direct loop, so it has to
-    // happen here too, not just for the args that end up being exchanged.
+    // Bring each dat into the space this loop runs in - every arg, not just the
+    // ones that end up being exchanged, since a direct loop exchanges nothing but
+    // still reads whichever copy is current.
     for (int n = 0; n < nargs; ++n) {
         if (!args[n].opt || args[n].argtype != OP_ARG_DAT) continue;
 

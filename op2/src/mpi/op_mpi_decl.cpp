@@ -123,35 +123,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 }
 
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
-  op_dat overlay_dat = op_decl_dat_overlay_core(set, dat);
-
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)overlay_dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra)
-                                         * (size_t)overlay_dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-
-  overlay_dat->mpi_buffer = mpi_buf;
-
-  return overlay_dat;
+  return op_decl_dat_overlay_core(set, dat);
 }
 
 op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
@@ -176,48 +148,10 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
-  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
-
-  // create empty data block to assign to this temporary dat (including the
-  // halos)
-
-  // need to allocate mpi_buffers for this new temp_dat
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra) * (size_t)dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[dat->set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-  dat->mpi_buffer = mpi_buf;
-
-  return dat;
+  return op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 }
 
-int op_free_dat_temp_char(op_dat dat) {
-  // need to free mpi_buffers used in this op_dat
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-  free(dat->mpi_buffer);
-  return op_free_dat_temp_core(dat);
-}
+int op_free_dat_temp_char(op_dat dat) { return op_free_dat_temp_core(dat); }
 
 void op_upload_all() {}
 
@@ -438,25 +372,4 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   free(temp->data);
   free(temp->set);
   free(temp);
-}
-
-void op_debug_arg(int n, op_arg arg) {
-  op_dat dat;
-
-  dat = arg.dat;
-
-  int my_rank;
-  op_rank(&my_rank);
-
-  if (arg.argtype == OP_ARG_DAT) {
-    printf("NJH %i debug %s\n", my_rank, dat->name);
-    printf("NJH %i debug %p\n", my_rank,
-           ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-
-    if (n == 3 && (strcmp(dat->name, "dist") == 0)) {
-      printf("NJH %i trying free here...\n", my_rank);
-      free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-      printf("NJH %i succeeded free here...\n", my_rank);
-    };
-  }
 }

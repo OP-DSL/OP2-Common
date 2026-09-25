@@ -120,35 +120,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 }
 
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
-  op_dat overlay_dat = op_decl_dat_overlay_core(set, dat);
-
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)overlay_dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra)
-                                         * (size_t)overlay_dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-
-  overlay_dat->mpi_buffer = mpi_buf;
-
-  return overlay_dat;
+  return op_decl_dat_overlay_core(set, dat);
 }
 
 op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
@@ -182,11 +154,6 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall(
-        op_deviceMalloc((void **)&(dat->buffer_d_r),
-                   (size_t)dat->size * ((size_t)OP_import_exec_list[set->index]->size +
-                                        (size_t)OP_import_nonexec_list[set->index]->size)));
-
     op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
     op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
   } else {
@@ -194,55 +161,10 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
     op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size);
   }
 
-  // need to allocate mpi_buffers for this new temp_dat
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra) * (size_t)dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[dat->set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-  dat->mpi_buffer = mpi_buf;
-
-  // need to allocate device buffers for mpi comms for this new temp_dat
-  cutilSafeCall(op_deviceMalloc((void **)&(dat->buffer_d),
-      (size_t)dat->size * (OP_export_exec_list[set->index]->size +
-                           OP_export_nonexec_list[set->index]->size +
-                           set_import_buffer_size[set->index])));
-
   return dat;
 }
 
 int op_free_dat_temp_char(op_dat dat) {
-  // need to free mpi_buffers use in this op_dat
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-  free(dat->mpi_buffer);
-
-  // need to free device buffers used in mpi comms
-  cutilSafeCall(gpuFree(dat->buffer_d));
-
-  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall(gpuFree(dat->buffer_d_r));
-  }
-
   // free data on device
   cutilSafeCall(gpuFree(dat->data_d));
   return op_free_dat_temp_core(dat);
@@ -269,16 +191,6 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
     free(temp_data);
 
     total_size += (size_t)dat->size * round32(set_size) * sizeof(char);
-
-    if (dat->buffer_d_r != NULL) cutilSafeCall(gpuFree(dat->buffer_d_r));
-    cutilSafeCall(
-        op_deviceMalloc((void **)&(dat->buffer_d_r),
-                   (size_t)dat->size * (OP_import_exec_list[set->index]->size +
-                                        OP_import_nonexec_list[set->index]->size)));
-
-    total_size += (size_t)dat->size * (OP_import_exec_list[set->index]->size +
-                                       OP_import_nonexec_list[set->index]->size);
-
   } else {
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       (size_t)dat->size * set_size);
@@ -286,16 +198,6 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
     total_size += (size_t)dat->size * set_size * sizeof(char);
   }
   dat->dirty_hd = 0;
-  if (dat->buffer_d != NULL) cutilSafeCall(gpuFree(dat->buffer_d));
-  cutilSafeCall(
-      op_deviceMalloc((void **)&(dat->buffer_d),
-                 (size_t)dat->size * (OP_export_exec_list[set->index]->size +
-                                      OP_export_nonexec_list[set->index]->size +
-                                      set_import_buffer_size[set->index])));
-
-  total_size += (size_t)dat->size * (OP_export_exec_list[set->index]->size +
-                                     OP_export_nonexec_list[set->index]->size +
-                                     set_import_buffer_size[set->index]);
 
   return total_size;
 }
@@ -339,122 +241,6 @@ size_t op_mv_halo_list_device() {
                       OP_export_nonexec_list[set->index]->size * sizeof(int));
 
     total_size += OP_export_nonexec_list[set->index]->size * sizeof(int);
-  }
-
-  //for grouped, we need the disps array on device too
-  if (export_exec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_exec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_exec_list_disps_d[OP_set_list[s]->index]));
-    free(export_exec_list_disps_d);
-  }
-  export_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    export_exec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_export_exec_list[set->index]
-        ->disps[OP_export_exec_list[set->index]->ranks_size] =
-        OP_export_exec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_export_exec_list[set->index]
-                      ->disps[OP_export_exec_list[set->index]->ranks_size - 1] +
-                  OP_export_exec_list[set->index]
-                      ->sizes[OP_export_exec_list[set->index]->ranks_size - 1];
-    op_cpHostToDevice((void **)&(export_exec_list_disps_d[set->index]),
-                      (void **)&(OP_export_exec_list[set->index]->disps),
-                      (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-
-  if (export_nonexec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_disps_d[OP_set_list[s]->index]));
-    free(export_nonexec_list_disps_d);
-  }
-  export_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    export_nonexec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_export_nonexec_list[set->index]
-        ->disps[OP_export_nonexec_list[set->index]->ranks_size] =
-        OP_export_nonexec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_export_nonexec_list[set->index]
-                      ->disps[OP_export_nonexec_list[set->index]->ranks_size -
-                              1] +
-                  OP_export_nonexec_list[set->index]
-                      ->sizes[OP_export_nonexec_list[set->index]->ranks_size -
-                              1];
-    op_cpHostToDevice((void **)&(export_nonexec_list_disps_d[set->index]),
-                      (void **)&(OP_export_nonexec_list[set->index]->disps),
-                      (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-  if (import_exec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (import_exec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(import_exec_list_disps_d[OP_set_list[s]->index]));
-    free(import_exec_list_disps_d);
-  }
-  import_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    import_exec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_import_exec_list[set->index]
-        ->disps[OP_import_exec_list[set->index]->ranks_size] =
-        OP_import_exec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_import_exec_list[set->index]
-                      ->disps[OP_import_exec_list[set->index]->ranks_size - 1] +
-                  OP_import_exec_list[set->index]
-                      ->sizes[OP_import_exec_list[set->index]->ranks_size - 1];
-    op_cpHostToDevice((void **)&(import_exec_list_disps_d[set->index]),
-                      (void **)&(OP_import_exec_list[set->index]->disps),
-                      (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-
-  if (import_nonexec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (import_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(import_nonexec_list_disps_d[OP_set_list[s]->index]));
-    free(import_nonexec_list_disps_d);
-  }
-  import_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    import_nonexec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_import_nonexec_list[set->index]
-        ->disps[OP_import_nonexec_list[set->index]->ranks_size] =
-        OP_import_nonexec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_import_nonexec_list[set->index]
-                      ->disps[OP_import_nonexec_list[set->index]->ranks_size -
-                              1] +
-                  OP_import_nonexec_list[set->index]
-                      ->sizes[OP_import_nonexec_list[set->index]->ranks_size -
-                              1];
-    op_cpHostToDevice((void **)&(import_nonexec_list_disps_d[set->index]),
-                      (void **)&(OP_import_nonexec_list[set->index]->disps),
-                      (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int);
   }
 
   if ( export_nonexec_list_partial_d!= NULL) {
@@ -543,17 +329,8 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 */
 
 void op_exit() {
-  // need to free buffer_d used for mpi comms in each op_dat
+  // free the device halo lists
   if (OP_hybrid_gpu) {
-    op_dat_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list, entries) {
-      if (strstr(item->dat->type, ":soa") != NULL ||
-          (OP_auto_soa && item->dat->dim > 1)) {
-        cutilSafeCall(gpuFree((item->dat)->buffer_d_r));
-      }
-      cutilSafeCall(gpuFree((item->dat)->buffer_d));
-    }
-
     for (int i = 0; i < OP_set_index; i++) {
       if (export_exec_list_d[i] != NULL)
         cutilSafeCall(gpuFree(export_exec_list_d[i]));
