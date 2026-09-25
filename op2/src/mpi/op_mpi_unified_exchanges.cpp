@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
+#include <string>
 
 namespace op::unified_exchanges {
 
@@ -119,9 +121,12 @@ struct ExchangeContext {
     static constexpr int tag_max = 0x8000;
     int tag = tag_ini;
 
+    // The set of the exchange that has not been waited for yet, null when there
+    // is none. See unpaired().
+    op_set unwaited = nullptr;
+
     // The dats of the outstanding exchange: filled by add(), emptied once
-    // exchange_and_scatter() has completed it. Empty means nothing is in flight,
-    // which is what makes a second wait a no-op.
+    // exchange_and_scatter() has completed it.
     std::vector<ExchangeSpec> exchanges;
 
     SpecsByNeighbour<GatherSpec> gathers_for_neighbour;
@@ -355,17 +360,25 @@ struct ExchangeContext {
 
 ExchangeContext ctx;
 
+// Every exchange is followed by exactly one wait before the next exchange, even
+// when it moved nothing. A caller that skips the wait may already have read a
+// stale halo, and nothing later can tell, so an unpaired call stops the job
+// rather than being tidied up.
+[[noreturn]] void unpaired(const std::string &problem) {
+    std::fprintf(stderr, "OP2: %s. Every halo exchange (op_mpi_halo_exchanges*) must be followed by "
+                         "exactly one wait (op_mpi_wait_all*) before the next exchange.\n", problem.c_str());
+    MPI_Abort(OP_MPI_WORLD, 1);
+    std::abort();
+}
+
 }  // namespace op::unified_exchanges
 
 using namespace op::unified_exchanges;
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
-    // Finish the previous exchange if its caller never waited for it: its
-    // receives are still landing in buffers this exchange reuses, and on the
-    // device its sends have not even gone out. translator-v1's OpenMP loop, for
-    // one, waits only when the plan has non-core colours. First, because
-    // finishing it moves dirty_hd, which the sync below reads.
-    ctx.exchange_and_scatter();
+    if (ctx.unwaited != nullptr)
+        unpaired(std::string("the halo exchange on set '") + ctx.unwaited->name + "' was never waited for");
+    ctx.unwaited = set;
 
     // Bring each dat into the space this loop runs in - every arg, not just the
     // ones that end up being exchanged, since a direct loop exchanges nothing but
@@ -408,9 +421,18 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int devic
 }
 
 void op_mpi_wait_all_unified(int, op_arg *) {
+    if (ctx.unwaited == nullptr)
+        unpaired("a wait with no halo exchange to wait for");
+
     ctx.exchange_and_scatter();
+    ctx.unwaited = nullptr;
 }
 
 void op_mpi_test_all_unified(int, op_arg *) {
     ctx.test();
+}
+
+void op_mpi_unified_exit() {
+    if (ctx.unwaited != nullptr)
+        unpaired(std::string("op_exit with the halo exchange on set '") + ctx.unwaited->name + "' never waited for");
 }

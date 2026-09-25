@@ -2955,6 +2955,8 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
  *******************************************************************************/
 
 void op_mpi_exit() {
+  op_mpi_unified_exit();
+
   // cleanup performance data - need to do this in some op_mpi_exit() routine
   op_mpi_kernel *kernel_entry;
   for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end();) {
