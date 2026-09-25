@@ -332,10 +332,10 @@ halo_list halo_list_from_pairs(op_set set, const int *pairs, int n_ints,
 
 }  // extern "C++"
 
-/* An import list from what an exchange delivered: one entry per sending rank,
+/* A halo list from what an exchange delivered: one entry per sending rank,
    ranks ascending, each holding what that rank sent. Takes the exchange's
    buffers over rather than copying them. */
-static halo_list import_list_from(op_set set, op::mpi::Received<int> &&got) {
+static halo_list halo_list_from_received(op_set set, op::mpi::Received<int> &&got) {
   return halo_list_from_groups(set, std::move(got.ranks), std::move(got.counts),
                                std::move(got.data));
 }
@@ -358,7 +358,7 @@ halo_list exchange_export_list(op_set set, halo_list exp, MPI_Comm comm) {
     messages.emplace_back(exp->ranks[i], exp->list.get() + exp->disps[i],
                           (std::size_t)exp->sizes[i]);
 
-  return import_list_from(set, op::mpi::sparse::exchange(comm, messages));
+  return halo_list_from_received(set, op::mpi::sparse::exchange(comm, messages));
 }
 
 /*******************************************************************************
@@ -1333,538 +1333,150 @@ void op_halo_create() {
 
 /*******************************************************************************
  * Create map-specific halo exchange tables
+ *
+ * A map is exchanged partially when, summed over all ranks, its entries into the
+ * halo of the set it points to number fewer than 30% of that halo. For each such
+ * map every rank builds two lists:
+ *
+ *   import  the halo elements the map reaches from [core_size, size + exec_size),
+ *           as local indices, grouped by owning rank and in halo order
+ *   export  for each rank importing from this one, the local indices of the
+ *           owned elements it needs
+ *
+ * An importer names each element it needs by its position in the halo it
+ * receives from that owner - the exec block, then the nonexec block - and the
+ * owner translates positions through its own export lists. Positions, not
+ * indices: an import list holds the owner's indices from before halo creation
+ * reordered the owned elements, so only positions agree on both sides.
  *******************************************************************************/
 
+/* Where rank sits in a list's ranks, or -1. */
+static int rank_slot(halo_list h, int rank) {
+  auto it = std::lower_bound(h->ranks.begin(), h->ranks.end(), rank);
+  return it != h->ranks.end() && *it == rank ? (int)(it - h->ranks.begin()) : -1;
+}
+
 void op_halo_permap_create() {
-
-  int rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &rank);
-  /* --------Step 1: Decide which maps will do partial halo exchange
-   * ----------*/
-
-  idx_g_t *total_halo_sizes = (idx_g_t *)xcalloc(OP_set_index, sizeof(idx_g_t));
-  idx_g_t *map_halo_sizes = (idx_g_t *)xcalloc(OP_map_index, sizeof(idx_g_t));
-
-  // Total halo size for each set
-  for (int i = 0; i < OP_set_index; i++)
-    total_halo_sizes[i] =
-        OP_set_list[i]->nonexec_size + OP_set_list[i]->exec_size;
-
-  // See how many map elements point outside of partition (incl. duplicates)
-  for (int i = 0; i < OP_map_index; i++) {
-    op_map map = OP_map_list[i];
-    for (int e = map->from->core_size;
-         e < map->from->size + map->from->exec_size; e++) {
+  /* Which maps are partially exchanged: halo references against halo size. */
+  std::vector<idx_g_t> halo_sizes(OP_set_index), map_halo_sizes(OP_map_index);
+  for (int s = 0; s < OP_set_index; s++)
+    halo_sizes[s] = OP_set_list[s]->exec_size + OP_set_list[s]->nonexec_size;
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    for (int e = map->from->core_size; e < map->from->size + map->from->exec_size; e++)
       for (int j = 0; j < map->dim; j++)
         if (map->map[e * map->dim + j] >= map->to->size)
-          map_halo_sizes[i]++;
-    }
+          map_halo_sizes[m]++;
   }
-
-  idx_g_t *reduced_total_halo_sizes = (idx_g_t *)xcalloc(OP_set_index, sizeof(idx_g_t));
-  idx_g_t *reduced_map_halo_sizes = (idx_g_t *)xcalloc(OP_map_index, sizeof(idx_g_t));
-  MPI_Allreduce(total_halo_sizes, reduced_total_halo_sizes, OP_set_index,
-                get_mpi_type(total_halo_sizes), MPI_SUM, OP_MPI_WORLD);
-  MPI_Allreduce(map_halo_sizes, reduced_map_halo_sizes, OP_map_index,
-                get_mpi_type(map_halo_sizes), MPI_SUM, OP_MPI_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, halo_sizes.data(), OP_set_index, get_mpi_type<idx_g_t>(),
+                MPI_SUM, OP_MPI_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, map_halo_sizes.data(), OP_map_index, get_mpi_type<idx_g_t>(),
+                MPI_SUM, OP_MPI_WORLD);
 
   OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
-  for (int i = 0; i < OP_map_index; i++) {
-    OP_map_partial_exchange[i] = OP_partial_exchange && (double)reduced_map_halo_sizes[i] <
-    (double)reduced_total_halo_sizes[OP_map_list[i]->to->index]*0.3;
-     if (OP_partial_exchange) op_printf("Mapping %s partially exchanged: %d (%d < 0.3*%d)\n", OP_map_list[i]->name, OP_map_partial_exchange[i],
-     reduced_map_halo_sizes[i],
-     reduced_total_halo_sizes[OP_map_list[i]->to->index]);
-  }
-  op_free(reduced_total_halo_sizes);
-  op_free(reduced_map_halo_sizes);
-  op_free(total_halo_sizes);
-  op_free(map_halo_sizes);
-
-  /* --------Step 2: go through maps, determine import subset
-   * -----------------*/
-  // Zeroed: maps without a partial exchange keep a null list, which delete skips.
-  OP_import_nonexec_permap =
-      (halo_list *)xcalloc(OP_map_index, sizeof(halo_list));
-  OP_export_nonexec_permap =
-      (halo_list *)xcalloc(OP_map_index, sizeof(halo_list));
-  std::vector<std::vector<int>> import_sizes2(OP_map_index);
-  std::vector<std::vector<int>> export_sizes2(OP_map_index);
-
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_partial_exchange[i]) {
-      OP_import_nonexec_permap[i] = new halo_list_core;
-      OP_export_nonexec_permap[i] = new halo_list_core;
-    }
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    OP_map_partial_exchange[m] = OP_partial_exchange &&
+        (double)map_halo_sizes[m] < (double)halo_sizes[map->to->index] * 0.3;
+    if (OP_partial_exchange)
+      op_printf("Mapping %s partially exchanged: %d (%lld < 0.3*%lld)\n", map->name,
+                OP_map_partial_exchange[m], (long long)map_halo_sizes[m],
+                (long long)halo_sizes[map->to->index]);
   }
 
-  for (int i = 0; i < OP_map_index; i++) {
-    if (!OP_map_partial_exchange[i])
+  /* Zeroed: a map without a partial exchange keeps null lists, which delete skips. */
+  OP_import_nonexec_permap = (halo_list *)xcalloc(OP_map_index, sizeof(halo_list));
+  OP_export_nonexec_permap = (halo_list *)xcalloc(OP_map_index, sizeof(halo_list));
+
+  for (int m = 0; m < OP_map_index; m++) {
+    if (!OP_map_partial_exchange[m])
       continue;
-    op_map map = OP_map_list[i];
-    OP_import_nonexec_permap[i]->set = map->to;
-    OP_import_nonexec_permap[i]->size = 0;
+    op_map map = OP_map_list[m];
+    op_set to = map->to;
+    const halo_list imp[2] = {OP_import_exec_list[to->index], OP_import_nonexec_list[to->index]};
+    const halo_list exp[2] = {OP_export_exec_list[to->index], OP_export_nonexec_list[to->index]};
 
-    //
-    // Merge exec and non-exec neighbors for the target set (import halo)
-    //
-    OP_import_nonexec_permap[i]->ranks_size = 0;
-    int total = (OP_import_exec_list[map->to->index]->ranks_size +
-                 OP_import_nonexec_list[map->to->index]->ranks_size);
-    OP_import_nonexec_permap[i]->ranks.assign(total, 0);
-    for (int j = 0; j < total; j++) {
-      int merge =
-          j < OP_import_exec_list[map->to->index]->ranks_size
-              ? OP_import_exec_list[map->to->index]->ranks[j]
-              : OP_import_nonexec_list[map->to->index]
-                    ->ranks[j -
-                            OP_import_exec_list[map->to->index]->ranks_size];
-      int found = 0;
-      for (int k = 0; k < OP_import_nonexec_permap[i]->ranks_size; k++) {
-        if (merge == OP_import_nonexec_permap[i]->ranks[k]) {
-          found = 1;
-          break;
-        }
-      }
-      if (!found)
-        OP_import_nonexec_permap[i]
-            ->ranks[OP_import_nonexec_permap[i]->ranks_size++] = merge;
-    }
-    op_sort(OP_import_nonexec_permap[i]->ranks.data(),
-            OP_import_nonexec_permap[i]->ranks_size);
-
-    //
-    // Count how many we will actually need from each of them for this
-    // particular map
-    //
-    OP_import_nonexec_permap[i]->disps.assign(OP_import_nonexec_permap[i]->ranks_size, 0);
-    OP_import_nonexec_permap[i]->sizes.assign(OP_import_nonexec_permap[i]->ranks_size, 0);
-    import_sizes2[i].assign(OP_import_nonexec_permap[i]->ranks_size, 0);
-
-    // Create flag array: -1 for halo elements that are not eccessed by this
-    // map, gbl partition ID for elements that are
-    int *scratch = (int *)xmalloc((map->to->exec_size + map->to->nonexec_size) *
-                                  sizeof(int));
-    for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
-      scratch[j] = -1;
-    }
-    for (int e = map->from->core_size;
-         e < map->from->size + map->from->exec_size; e++) {
-      for (int j = 0; j < map->dim; j++) {
-        // I know based on index whether it's exec or nonzexec halo region, one
-        // less search!
-        if (map->map[e * map->dim + j] >= map->to->size) {
-          int target_partition = 0;
-          if (map->map[e * map->dim + j] < map->to->size + map->to->exec_size) {
-            int index = map->map[e * map->dim + j] - map->to->size;
-            while (target_partition <
-                       OP_import_exec_list[map->to->index]->ranks_size - 1 &&
-                   index >= OP_import_exec_list[map->to->index]
-                                ->disps[target_partition + 1])
-              target_partition++;
-            if (!(index >= OP_import_exec_list[map->to->index]
-                               ->disps[target_partition] &&
-                  index < OP_import_exec_list[map->to->index]
-                                  ->disps[target_partition] +
-                              OP_import_exec_list[map->to->index]
-                                  ->sizes[target_partition]))
-              printf(
-                  "ERROR:  exec index out of bounds of halo region! part idx "
-                  "%d/%d, index: %d %d-%d\n",
-                  target_partition,
-                  OP_import_exec_list[map->to->index]->ranks_size, index,
-                  OP_import_exec_list[map->to->index]->disps[target_partition],
-                  OP_import_exec_list[map->to->index]->sizes[target_partition]);
-            target_partition =
-                OP_import_exec_list[map->to->index]->ranks[target_partition];
-          } else {
-            int index =
-                map->map[e * map->dim + j] - map->to->size - map->to->exec_size;
-            while (target_partition <
-                       OP_import_nonexec_list[map->to->index]->ranks_size - 1 &&
-                   index >= OP_import_nonexec_list[map->to->index]
-                                ->disps[target_partition + 1])
-              target_partition++;
-            if (!(index >= OP_import_nonexec_list[map->to->index]
-                               ->disps[target_partition] &&
-                  index < OP_import_nonexec_list[map->to->index]
-                                  ->disps[target_partition] +
-                              OP_import_nonexec_list[map->to->index]
-                                  ->sizes[target_partition]))
-              printf("ERROR: nonexec index out of bounds of halo region! part "
-                     "idx %d/%d, index: %d %d-%d\n",
-                     target_partition,
-                     OP_import_nonexec_list[map->to->index]->ranks_size, index,
-                     OP_import_nonexec_list[map->to->index]
-                         ->disps[target_partition],
-                     OP_import_nonexec_list[map->to->index]
-                         ->sizes[target_partition]);
-            target_partition =
-                OP_import_nonexec_list[map->to->index]->ranks[target_partition];
-          }
-          scratch[map->map[e * map->dim + j] - map->to->size] =
-              target_partition;
-        }
-      }
-    }
-
-    // Find which index the partition ID is at in the permap halo list, and add
-    // to import size for that source
-
-    for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
-      if (scratch[j] >= 0) {
-        int target =
-            linear_search(OP_import_nonexec_permap[i]->ranks.data(), scratch[j], 0,
-                          OP_import_nonexec_permap[i]->ranks_size - 1);
-        if (j < map->to->exec_size) {
-          int target_ori = linear_search(
-              OP_import_exec_list[map->to->index]->ranks.data(), scratch[j], 0,
-              OP_import_exec_list[map->to->index]->ranks_size - 1);
-          if (target_ori == -1 ||
-              !(j >= OP_import_exec_list[map->to->index]->disps[target_ori] &&
-                j < OP_import_exec_list[map->to->index]->disps[target_ori] +
-                        OP_import_exec_list[map->to->index]->sizes[target_ori]))
-            printf("ERROR: scratch exec position out of range 1\n");
-        } else {
-          int target_ori = linear_search(
-              OP_import_nonexec_list[map->to->index]->ranks.data(), scratch[j], 0,
-              OP_import_nonexec_list[map->to->index]->ranks_size - 1);
-          if (target_ori == -1 ||
-              !(j - map->to->exec_size >=
-                    OP_import_nonexec_list[map->to->index]->disps[target_ori] &&
-                j - map->to->exec_size <
-                    OP_import_nonexec_list[map->to->index]->disps[target_ori] +
-                        OP_import_nonexec_list[map->to->index]
-                            ->sizes[target_ori])) {
-            printf("ERROR %d: scratch exec position out of range 2\n", rank);
-            printf("ERROR %d: target_ori %d \n", rank, target_ori);
-            printf("ERROR %d: j %d \n", rank, j);
-            printf("ERROR %d: map->to->exec_size %d \n", rank,
-                   map->to->exec_size);
-            printf("ERROR %d: j - map->to->exec_size %d \n", rank,
-                   j - map->to->exec_size);
-            printf("ERROR %d: map->to->index %d \n", rank, map->to->index);
-            printf("ERROR %d: disps %d \n", rank,
-                   OP_import_nonexec_list[map->to->index]->disps[target_ori]);
-            printf("ERROR %d: sizes %d \n", rank,
-                   OP_import_nonexec_list[map->to->index]->sizes[target_ori]);
-          }
-        }
-        scratch[j] = target;
-        OP_import_nonexec_permap[i]->sizes[target]++;
-      }
-    }
-
-    // Cumulative sum to determine total size (disps[0] is already 0, and does
-    // not exist when there are no ranks)
-    for (int j = 1; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
-      OP_import_nonexec_permap[i]->disps[j] =
-          OP_import_nonexec_permap[i]->disps[j - 1] +
-          OP_import_nonexec_permap[i]->sizes[j - 1];
-      OP_import_nonexec_permap[i]->sizes[j - 1] = 0;
-    }
-    // the last block's end; a map with no neighbours here has no last block
-    OP_import_nonexec_permap[i]->size =
-        OP_import_nonexec_permap[i]->ranks_size == 0
-            ? 0
-            : OP_import_nonexec_permap[i]->disps[OP_import_nonexec_permap[i]->ranks_size - 1] +
-                  OP_import_nonexec_permap[i]->sizes[OP_import_nonexec_permap[i]->ranks_size - 1];
-    if (OP_import_nonexec_permap[i]->ranks_size > 0)
-      OP_import_nonexec_permap[i]
-          ->sizes[OP_import_nonexec_permap[i]->ranks_size - 1] = 0;
-
-    //
-    // Populate halo lists with offsets into current halo segment (exec/nonexec
-    // and source partition)
-    //
-    if (OP_import_nonexec_permap[i]->size > 0)
-      OP_import_nonexec_permap[i]->list =
-          std::make_unique_for_overwrite<idx_l_t[]>(OP_import_nonexec_permap[i]->size);
-    for (int j = 0; j < map->to->exec_size + map->to->nonexec_size; j++) {
-      if (scratch[j] >= 0) {
-        int local_offset = -1;
-        int target_partition = OP_import_nonexec_permap[i]->ranks[scratch[j]];
-        if (j < map->to->exec_size) {
-          int target_partition_idx = linear_search(
-              OP_import_exec_list[map->to->index]->ranks.data(), target_partition, 0,
-              OP_import_exec_list[map->to->index]->ranks_size - 1);
-          if (target_partition_idx == -1 ||
-              !(j >= OP_import_exec_list[map->to->index]
-                         ->disps[target_partition_idx] &&
-                j < OP_import_exec_list[map->to->index]
-                            ->disps[target_partition_idx] +
-                        OP_import_exec_list[map->to->index]
-                            ->sizes[target_partition_idx]))
-            printf("ERROR: population exec position out of range\n");
-          local_offset =
-              j -
-              OP_import_exec_list[map->to->index]->disps[target_partition_idx];
-          import_sizes2[i][scratch[j]]++;
-        } else {
-          int target_partition_idx = linear_search(
-              OP_import_nonexec_list[map->to->index]->ranks.data(), target_partition,
-              0, OP_import_nonexec_list[map->to->index]->ranks_size - 1);
-          if (target_partition_idx == -1 ||
-              !(j - map->to->exec_size >= OP_import_nonexec_list[map->to->index]
-                                              ->disps[target_partition_idx] &&
-                j - map->to->exec_size <
-                    OP_import_nonexec_list[map->to->index]
-                            ->disps[target_partition_idx] +
-                        OP_import_nonexec_list[map->to->index]
-                            ->sizes[target_partition_idx]))
-            printf("ERROR: scratch exec position out of range 3\n");
-          local_offset = j -
-                         OP_import_nonexec_list[map->to->index]
-                             ->disps[target_partition_idx] -
-                         OP_import_exec_list[map->to->index]->size;
-        }
-        OP_import_nonexec_permap[i]
-            ->list[OP_import_nonexec_permap[i]->disps[scratch[j]] +
-                   OP_import_nonexec_permap[i]->sizes[scratch[j]]] =
-            local_offset;
-        OP_import_nonexec_permap[i]->sizes[scratch[j]]++;
-      }
-    }
-    op_free(scratch);
-
-    //
-    // Let the other ranks know how many elements we will need from their
-    // exec/nonexec halo regions
-    //
-    int *send_buffer = (int *)xmalloc(
-        2 * OP_import_nonexec_permap[i]->ranks_size * sizeof(int));
-    MPI_Status *send_status = (MPI_Status *)xmalloc(
-        OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
-    MPI_Request *send_request = (MPI_Request *)xmalloc(
-        OP_import_nonexec_permap[i]->ranks_size * sizeof(MPI_Request));
-
-    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
-      send_buffer[2 * j] = import_sizes2[i][j]; //exec count
-      send_buffer[2 * j + 1] =
-          OP_import_nonexec_permap[i]->sizes[j] - import_sizes2[i][j]; //nonexec count
-      MPI_Isend(&send_buffer[2 * j], 2, get_mpi_type(send_buffer),
-                OP_import_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD,
-                &send_request[j]);
-    }
-
-    OP_export_nonexec_permap[i]->set = map->to;
-    OP_export_nonexec_permap[i]->size = 0;
-    //
-    // Merge exec and non-exec neighbors for the target set (export halo)
-    //
-    OP_export_nonexec_permap[i]->ranks_size = 0;
-    total = (OP_export_exec_list[map->to->index]->ranks_size +
-             OP_export_nonexec_list[map->to->index]->ranks_size);
-    OP_export_nonexec_permap[i]->ranks.assign(total, 0);
-    for (int j = 0; j < total; j++) {
-      int merge =
-          j < OP_export_exec_list[map->to->index]->ranks_size
-              ? OP_export_exec_list[map->to->index]->ranks[j]
-              : OP_export_nonexec_list[map->to->index]
-                    ->ranks[j -
-                            OP_export_exec_list[map->to->index]->ranks_size];
-      int found = 0;
-      for (int k = 0; k < OP_export_nonexec_permap[i]->ranks_size; k++) {
-        if (merge == OP_export_nonexec_permap[i]->ranks[k]) {
-          found = 1;
-          break;
-        }
-      }
-      if (!found)
-        OP_export_nonexec_permap[i]
-            ->ranks[OP_export_nonexec_permap[i]->ranks_size++] = merge;
-    }
-    op_sort(OP_export_nonexec_permap[i]->ranks.data(),
-            OP_export_nonexec_permap[i]->ranks_size);
-
-    //
-    // Receive sizes, allocate export lists
-    //
-    int *recv_buffer = (int *)xmalloc(
-        2 * OP_export_nonexec_permap[i]->ranks_size * sizeof(int));
-    MPI_Status *recv_status = (MPI_Status *)xmalloc(
-        OP_export_nonexec_permap[i]->ranks_size * sizeof(MPI_Status));
-    OP_export_nonexec_permap[i]->disps.assign(OP_export_nonexec_permap[i]->ranks_size, 0);
-    OP_export_nonexec_permap[i]->sizes.assign(OP_export_nonexec_permap[i]->ranks_size, 0);
-    export_sizes2[i].assign(OP_export_nonexec_permap[i]->ranks_size, 0);
-    for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
-      MPI_Recv(&recv_buffer[2 * j], 2, get_mpi_type(recv_buffer),
-               OP_export_nonexec_permap[i]->ranks[j], 0, OP_MPI_WORLD,
-               &recv_status[j]);
-      export_sizes2[i][j] = recv_buffer[2 * j];
-      OP_export_nonexec_permap[i]->sizes[j] =
-          recv_buffer[2 * j] + recv_buffer[2 * j + 1];
-      if (j > 0)
-        OP_export_nonexec_permap[i]->disps[j] =
-            OP_export_nonexec_permap[i]->disps[j - 1] +
-            OP_export_nonexec_permap[i]->sizes[j - 1];
-    }
-    MPI_Waitall(OP_import_nonexec_permap[i]->ranks_size, send_request,
-                send_status);
-    op_free(send_buffer);
-    op_free(recv_buffer);
-
-    // the last block's end; a map with no neighbours here has no last block
-    OP_export_nonexec_permap[i]->size =
-        OP_export_nonexec_permap[i]->ranks_size == 0
-            ? 0
-            : OP_export_nonexec_permap[i]->disps[OP_export_nonexec_permap[i]->ranks_size - 1] +
-                  OP_export_nonexec_permap[i]->sizes[OP_export_nonexec_permap[i]->ranks_size - 1];
-    if (OP_export_nonexec_permap[i]->size > 0)
-      OP_export_nonexec_permap[i]->list =
-          std::make_unique_for_overwrite<idx_l_t[]>(OP_export_nonexec_permap[i]->size);
-
-    //
-    // Collapse import and export lists (remove 0 size destinations)
-    //
-    int new_size = 0;
-    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
-      if (OP_import_nonexec_permap[i]->sizes[j] > 0) {
-        OP_import_nonexec_permap[i]->sizes[new_size] =
-            OP_import_nonexec_permap[i]->sizes[j];
-        import_sizes2[i][new_size] = import_sizes2[i][j];
-        OP_import_nonexec_permap[i]->disps[new_size] =
-            OP_import_nonexec_permap[i]->disps[j];
-        OP_import_nonexec_permap[i]->ranks[new_size] =
-            OP_import_nonexec_permap[i]->ranks[j];
-        new_size++;
-      }
-    }
-    OP_import_nonexec_permap[i]->ranks_size = new_size;
-    OP_import_nonexec_permap[i]->ranks.resize(new_size);
-    OP_import_nonexec_permap[i]->sizes.resize(new_size);
-    OP_import_nonexec_permap[i]->disps.resize(new_size);
-
-    new_size = 0;
-    for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
-      if (OP_export_nonexec_permap[i]->sizes[j] > 0) {
-        OP_export_nonexec_permap[i]->sizes[new_size] =
-            OP_export_nonexec_permap[i]->sizes[j];
-        export_sizes2[i][new_size] = export_sizes2[i][j];
-        OP_export_nonexec_permap[i]->disps[new_size] =
-            OP_export_nonexec_permap[i]->disps[j];
-        OP_export_nonexec_permap[i]->ranks[new_size] =
-            OP_export_nonexec_permap[i]->ranks[j];
-        new_size++;
-      }
-    }
-    OP_export_nonexec_permap[i]->ranks_size = new_size;
-    OP_export_nonexec_permap[i]->ranks.resize(new_size);
-    OP_export_nonexec_permap[i]->sizes.resize(new_size);
-    OP_export_nonexec_permap[i]->disps.resize(new_size);
-
-    //
-    // Send and Receive export lists, substitute local indices
-    //
-    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
-      MPI_Isend(&OP_import_nonexec_permap[i]
-                     ->list[OP_import_nonexec_permap[i]->disps[j]],
-                OP_import_nonexec_permap[i]->sizes[j], get_mpi_type(OP_import_nonexec_permap[i]->list.get()),
-                OP_import_nonexec_permap[i]->ranks[j], 1, OP_MPI_WORLD,
-                &send_request[j]);
-    }
-    for (int j = 0; j < OP_export_nonexec_permap[i]->ranks_size; j++) {
-      MPI_Recv(&OP_export_nonexec_permap[i]
-                    ->list[OP_export_nonexec_permap[i]->disps[j]],
-               OP_export_nonexec_permap[i]->sizes[j], get_mpi_type(OP_export_nonexec_permap[i]->list.get()),
-               OP_export_nonexec_permap[i]->ranks[j], 1, OP_MPI_WORLD,
-               &recv_status[j]);
-      for (int k = 0; k < export_sizes2[i][j]; k++) {
-        int element = OP_export_nonexec_permap[i]
-                          ->list[OP_export_nonexec_permap[i]->disps[j] + k];
-        int source_partition_idx =
-            linear_search(OP_export_exec_list[map->to->index]->ranks.data(),
-                          OP_export_nonexec_permap[i]->ranks[j], 0,
-                          OP_export_exec_list[map->to->index]->ranks_size - 1);
-        if (source_partition_idx == -1)
-          printf("ERROR: exec source partition for export not found\n");
-        OP_export_nonexec_permap[i]
-            ->list[OP_export_nonexec_permap[i]->disps[j] + k] =
-            OP_export_exec_list[map->to->index]
-                ->list[OP_export_exec_list[map->to->index]
-                           ->disps[source_partition_idx] +
-                       element];
-      }
-      for (int k = export_sizes2[i][j];
-           k < OP_export_nonexec_permap[i]->sizes[j]; k++) {
-        int element = OP_export_nonexec_permap[i]
-                          ->list[OP_export_nonexec_permap[i]->disps[j] + k];
-        int source_partition_idx = linear_search(
-            OP_export_nonexec_list[map->to->index]->ranks.data(),
-            OP_export_nonexec_permap[i]->ranks[j], 0,
-            OP_export_nonexec_list[map->to->index]->ranks_size - 1);
-        if (source_partition_idx == -1)
-          printf("ERROR: nonexec source partition for export not found\n");
-        OP_export_nonexec_permap[i]
-            ->list[OP_export_nonexec_permap[i]->disps[j] + k] =
-            OP_export_nonexec_list[map->to->index]
-                ->list[OP_export_nonexec_list[map->to->index]
-                           ->disps[source_partition_idx] +
-                       element];
-      }
-    }
-    MPI_Waitall(OP_import_nonexec_permap[i]->ranks_size, send_request,
-                send_status);
-    for (int j = 0; j < OP_import_nonexec_permap[i]->ranks_size; j++) {
-      for (int k = 0; k < import_sizes2[i][j]; k++) {
-        int element = OP_import_nonexec_permap[i]
-                          ->list[OP_import_nonexec_permap[i]->disps[j] + k];
-        int source_partition_idx =
-            linear_search(OP_import_exec_list[map->to->index]->ranks.data(),
-                          OP_import_nonexec_permap[i]->ranks[j], 0,
-                          OP_import_exec_list[map->to->index]->ranks_size - 1);
-        if (source_partition_idx == -1)
-          printf("ERROR: exec source partition for import not found\n");
-        OP_import_nonexec_permap[i]
-            ->list[OP_import_nonexec_permap[i]->disps[j] + k] =
-            map->to->size +
-            OP_import_exec_list[map->to->index]->disps[source_partition_idx] +
-            element;
-      }
-      for (int k = import_sizes2[i][j];
-           k < OP_import_nonexec_permap[i]->sizes[j]; k++) {
-        int element = OP_import_nonexec_permap[i]
-                          ->list[OP_import_nonexec_permap[i]->disps[j] + k];
-        int source_partition_idx = linear_search(
-            OP_import_nonexec_list[map->to->index]->ranks.data(),
-            OP_import_nonexec_permap[i]->ranks[j], 0,
-            OP_import_nonexec_list[map->to->index]->ranks_size - 1);
-        if (source_partition_idx == -1)
-          printf("ERROR: nonexec source partition for import not found\n");
-        OP_import_nonexec_permap[i]
-            ->list[OP_import_nonexec_permap[i]->disps[j] + k] =
-            map->to->size + map->to->exec_size +
-            OP_import_nonexec_list[map->to->index]
-                ->disps[source_partition_idx] +
-            element;
-      }
-    }
-
-    op_free(recv_status);
-    op_free(send_status);
-    op_free(send_request);
-  }
-
-  //
-  // Sanity checks
-  //
-  for (int i = 0; i < OP_map_index; i++) {
-    if (OP_map_partial_exchange[i] == 0)
-      continue;
-    op_map map = OP_map_list[i];
-    for (int e = map->from->core_size;
-         e < map->from->size + map->from->exec_size; e++) {
+    std::vector<char> reached(to->exec_size + to->nonexec_size, 0);
+    for (int e = map->from->core_size; e < map->from->size + map->from->exec_size; e++)
       for (int j = 0; j < map->dim; j++)
-        if (map->map[e * map->dim + j] >= map->to->size) {
-          int idx = linear_search(OP_import_nonexec_permap[i]->list.get(),
-                                  map->map[e * map->dim + j], 0,
-                                  OP_import_nonexec_permap[i]->size - 1);
-          if (idx == -1) {
-            printf("ERROR: map element not found in partial halo exchange "
-                   "list!\n");
+        if (map->map[e * map->dim + j] >= to->size)
+          reached[map->map[e * map->dim + j] - to->size] = 1;
+
+    /* Every rank either halo region imports from, ascending, and how much of
+       each one's halo is its exec block. */
+    std::vector<int> owners(imp[0]->ranks);
+    owners.insert(owners.end(), imp[1]->ranks.begin(), imp[1]->ranks.end());
+    std::sort(owners.begin(), owners.end());
+    owners.erase(std::unique(owners.begin(), owners.end()), owners.end());
+    auto slot = [&](int rank) {
+      return (int)(std::lower_bound(owners.begin(), owners.end(), rank) - owners.begin());
+    };
+    std::vector<idx_l_t> exec_from(owners.size(), 0);
+    for (int b = 0; b < imp[0]->ranks_size; b++)
+      exec_from[slot(imp[0]->ranks[b])] = imp[0]->sizes[b];
+
+    /* Each reached element with its owner's slot, its position in the halo from
+       that owner, and its local index - in halo order, so every owner's
+       elements come out in halo order too. */
+    auto for_each_reached = [&](auto &&visit) {
+      for (int r = 0; r < 2; r++) {
+        const idx_l_t region = r == 0 ? 0 : to->exec_size;
+        for (int b = 0; b < imp[r]->ranks_size; b++) {
+          const int o = slot(imp[r]->ranks[b]);
+          const idx_l_t first = r == 0 ? 0 : exec_from[o];
+          for (idx_l_t k = 0; k < imp[r]->sizes[b]; k++) {
+            const idx_l_t h = region + imp[r]->disps[b] + k;
+            if (reached[h])
+              visit(o, first + k, to->size + h);
           }
         }
+      }
+    };
+
+    /* Counting sort by owner. */
+    std::vector<idx_l_t> count(owners.size(), 0);
+    for_each_reached([&](int o, idx_l_t, idx_l_t) { count[o]++; });
+    std::vector<idx_l_t> start(owners.size() + 1, 0);
+    for (std::size_t o = 0; o < owners.size(); o++)
+      start[o + 1] = start[o] + count[o];
+    std::vector<int> positions(start.back());
+    std::unique_ptr<idx_l_t[]> indices;
+    if (start.back() > 0)
+      indices = std::make_unique_for_overwrite<idx_l_t[]>(start.back());
+    std::vector<idx_l_t> next(start.begin(), start.end() - 1);
+    for_each_reached([&](int o, idx_l_t position, idx_l_t index) {
+      positions[next[o]] = position;
+      indices[next[o]++] = index;
+    });
+
+    /* positions is complete, so the messages can borrow it. */
+    std::vector<int> ranks;
+    std::vector<idx_l_t> sizes;
+    std::vector<op::mpi::msg::BlockView<int>> messages;
+    for (std::size_t o = 0; o < owners.size(); o++) {
+      if (count[o] == 0)
+        continue;
+      ranks.push_back(owners[o]);
+      sizes.push_back(count[o]);
+      messages.emplace_back(owners[o], positions.data() + start[o], (std::size_t)count[o]);
     }
+    OP_import_nonexec_permap[m] =
+        halo_list_from_groups(to, std::move(ranks), std::move(sizes), std::move(indices));
+
+    /* As an owner: turn each requested position into the element's local index. */
+    op::mpi::Received<int> wanted = op::mpi::sparse::exchange(OP_MPI_WORLD, messages);
+    for (std::size_t g = 0; g < wanted.ranks.size(); g++) {
+      const int be = rank_slot(exp[0], wanted.ranks[g]);
+      const int bn = rank_slot(exp[1], wanted.ranks[g]);
+      const idx_l_t exec_to = be < 0 ? 0 : exp[0]->sizes[be];
+      for (int k = 0; k < wanted.counts[g]; k++) {
+        int &p = wanted.data[wanted.disps[g] + k];
+        assert(p < exec_to + (bn < 0 ? 0 : exp[1]->sizes[bn]));
+        p = p < exec_to ? exp[0]->list[exp[0]->disps[be] + p]
+                        : exp[1]->list[exp[1]->disps[bn] + p - exec_to];
+      }
+    }
+    OP_export_nonexec_permap[m] = halo_list_from_received(to, std::move(wanted));
   }
 }
 
@@ -2630,7 +2242,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     messages.emplace_back(pe_list->ranks[i], want.data() + pe_list->disps[i],
                           (std::size_t)pe_list->sizes[i]);
 
-  pi_list = import_list_from(dat->set, op::mpi::sparse::exchange(OP_MPI_WORLD, messages));
+  pi_list = halo_list_from_received(dat->set, op::mpi::sparse::exchange(OP_MPI_WORLD, messages));
 
   //
   // original ranks pack user data and send it to the current owners
