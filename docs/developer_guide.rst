@@ -268,23 +268,25 @@ After partitioning, OP2 calls ``op_halo_create()`` (defined in ``op2/src/mpi/op_
 ``export non-execute halo (enh)``
     Elements in ``core`` that are referenced by elements on foreign processes must be exported (if not already in ``eeh``).  ``enh`` is a subset of ``core``.
 
-The halo list structure (``halo_list_core``) stores, for each set:
+The halo list structure (``halo_list_core``, ``op2/include/op_mpi_core.h``) stores, for each set, one contiguous block of ``list`` per neighbouring rank:
 
-.. code-block:: c
+.. code-block:: c++
 
-   typedef struct {
-       op_set set;      // set to which this list belongs
-       int size;        // number of elements in the list
-       int *ranks;      // MPI ranks to export to / import from
-       int  ranks_size; // number of neighbouring MPI ranks
-       int *disps;      // displacement for each rank's element list
-       int *sizes;      // number of elements per rank
-       int *list;       // the full element list
-   } halo_list_core;
+   struct halo_list_core {
+       op_set set;                       // set to which this list belongs
+       idx_l_t size;                     // number of elements in the list
+       std::vector<int> ranks;           // MPI ranks to export to / import from, ascending
+       int ranks_size;                   // number of neighbouring MPI ranks
+       std::vector<idx_l_t> disps;       // displacement for each rank's element list
+       std::vector<idx_l_t> sizes;       // number of elements per rank
+       std::unique_ptr<idx_l_t[]> list;  // the full element list, null when size is 0
+   };
+
+Each array holds exactly ``ranks_size`` (or ``size``) entries, and the list owns them.  Lists are built with ``halo_list_from_pairs()`` or ``halo_list_from_groups()`` and freed with ``delete``.
 
 Four global arrays — ``OP_export_exec_list``, ``OP_import_exec_list``, ``OP_import_nonexec_list``, ``OP_export_nonexec_list`` — are indexed by ``set->index``.
 
-Halo creation in ``op_halo_create()`` proceeds in 12 steps:
+Halo creation in ``op_halo_create()`` proceeds in 11 steps:
 
 1. Build ``eeh`` export lists (elements whose referenced data spans a partition boundary).
 2. Exchange ``eeh`` lists between neighbours to construct ``ieh`` import lists.
@@ -294,10 +296,9 @@ Halo creation in ``op_halo_create()`` proceeds in 12 steps:
 6. Exchange execute-halo data; append to each ``op_dat->data`` array.
 7. Exchange non-execute halo data; append to each ``op_dat->data`` array.
 8. Renumber all mapping tables to use local indices.
-9. Create MPI send buffers (``op_mpi_buffer`` struct) for each ``op_dat``.
-10. Separate core elements into a contiguous block (index range ``[0, set->core_size)``); elements in ``[set->core_size, set->size)`` are export-execute-halo (``eeh``) elements.  The full iteration range, including imported halo elements, extends to ``set->size + set->exec_size + set->nonexec_size``.  The ``op_set_core`` struct exposes ``core_size``, ``exec_size``, and ``nonexec_size`` for this purpose.
-11. Save the original set-element ordering (stored in the ``part`` struct) for ``op_fetch_data()`` and output routines.
-12. Free temporaries; compute a rough estimate of the average worst-case halo size.
+9. Separate core elements into a contiguous block (index range ``[0, set->core_size)``); elements in ``[set->core_size, set->size)`` are export-execute-halo (``eeh``) elements.  The full iteration range, including imported halo elements, extends to ``set->size + set->exec_size + set->nonexec_size``.  The ``op_set_core`` struct exposes ``core_size``, ``exec_size``, and ``nonexec_size`` for this purpose.
+10. Save the original set-element ordering (stored in the ``part`` struct) for ``op_fetch_data()`` and output routines.
+11. Free temporaries; compute a rough estimate of the average worst-case halo size.
 
 After halo creation, the element ordering within each set is: ``core | eeh | ieh | inh``, with sizes ``set->core_size``, ``set->size - set->core_size``, ``set->exec_size``, ``set->nonexec_size``.
 
@@ -339,7 +340,7 @@ For ``op_arg`` of type ``OP_ARG_GBL`` (global reduction), contributions from the
 Fetching Data
 ~~~~~~~~~~~~~
 
-``op_fetch_data()`` returns the current values of an ``op_dat``'s data array in the original element order that was supplied to OP2 (before repartitioning).  The implementation copies the current data and reorders it using the original global indices saved in step 11 of halo creation.
+``op_fetch_data()`` returns the current values of an ``op_dat``'s data array in the original element order that was supplied to OP2 (before repartitioning).  The implementation copies the current data and reorders it using the original global indices saved in step 10 of halo creation.
 
 Performance Instrumentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -363,7 +364,7 @@ Per-loop statistics are accumulated in an ``op_mpi_kernel`` struct:
        int cap;                        // capacity of comm_info array
    } op_mpi_kernel;
 
-MPI message monitoring can be enabled at compile time with ``-DCOMM_PERF``.  On ``op_exit()``, all halo lists, MPI send buffers, and performance-measurement tables are freed.
+MPI message monitoring can be enabled at compile time with ``-DCOMM_PERF``.  On ``op_exit()``, all halo lists and performance-measurement tables are freed.
 
 
 HDF5 File I/O
