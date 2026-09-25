@@ -386,6 +386,8 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int devic
 
 void op_mpi_wait_all_unified(int nargs, op_arg *args);
 
+void op_mpi_test_all_unified(int nargs, op_arg *args);
+
 /* Exchange the halos of args and wait for them, outside of an op_par_loop.
    device is 1 for host, 2 for device, and says where the data is wanted. */
 void op_trigger_halo_exchanges(int device, const char *name, op_set set, int nargs,

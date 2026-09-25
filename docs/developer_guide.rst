@@ -320,7 +320,9 @@ When ``op_par_loop`` executes under MPI:
 3. ``op_mpi_wait_all_unified()`` completes the communication and scatters the received data into the halo.
 4. The remaining elements (``ieh``) are computed.
 
-The older entry points ``op_mpi_halo_exchanges()``, ``op_mpi_halo_exchanges_cuda()`` and ``op_mpi_halo_exchanges_grouped()``, with their ``op_mpi_wait_all*()`` counterparts, forward to these.
+During step 2, ``op_mpi_test_all_unified()`` progresses the outstanding messages without blocking.  A second wait for the same exchange does nothing, and an exchange that is never waited for is completed at the start of the next one.
+
+The older entry points ``op_mpi_halo_exchanges()``, ``op_mpi_halo_exchanges_cuda()`` and ``op_mpi_halo_exchanges_grouped()``, with their ``op_mpi_wait_all*()`` and ``op_mpi_test_all*()`` counterparts, forward to these.
 
 This maximises overlap of computation with communication.
 

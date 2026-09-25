@@ -119,6 +119,9 @@ struct ExchangeContext {
     static constexpr int tag_max = 0x8000;
     int tag = tag_ini;
 
+    // The dats of the outstanding exchange: filled by add(), emptied once
+    // exchange_and_scatter() has completed it. Empty means nothing is in flight,
+    // which is what makes a second wait a no-op.
     std::vector<ExchangeSpec> exchanges;
 
     SpecsByNeighbour<GatherSpec> gathers_for_neighbour;
@@ -329,6 +332,24 @@ struct ExchangeContext {
             exchange.dat->dirtybit = 0;
             exchange.dat->dirty_hd = device;
         }
+
+        exchanges.clear();
+    }
+
+    // Progress the outstanding requests without blocking, completing them if
+    // they are done. The receives complete here only as far as MPI goes: the
+    // scatter still waits for exchange_and_scatter().
+    void test() {
+        test_requests(recv_reqs);
+        test_requests(send_reqs);
+    }
+
+    static void test_requests(std::vector<MPI_Request> &reqs) {
+        if (reqs.empty()) return;
+
+        int done = 0;
+        MPI_Testall(reqs.size(), reqs.data(), &done, MPI_STATUSES_IGNORE);
+        if (done) reqs.clear();
     }
 };
 
@@ -339,6 +360,13 @@ ExchangeContext ctx;
 using namespace op::unified_exchanges;
 
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
+    // Finish the previous exchange if its caller never waited for it: its
+    // receives are still landing in buffers this exchange reuses, and on the
+    // device its sends have not even gone out. translator-v1's OpenMP loop, for
+    // one, waits only when the plan has non-core colours. First, because
+    // finishing it moves dirty_hd, which the sync below reads.
+    ctx.exchange_and_scatter();
+
     // Bring each dat into the space this loop runs in - every arg, not just the
     // ones that end up being exchanged, since a direct loop exchanges nothing but
     // still reads whichever copy is current.
@@ -379,6 +407,10 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int devic
     return size;
 }
 
-void op_mpi_wait_all_unified(int nargs, op_arg *args) {
+void op_mpi_wait_all_unified(int, op_arg *) {
     ctx.exchange_and_scatter();
+}
+
+void op_mpi_test_all_unified(int, op_arg *) {
+    ctx.test();
 }

@@ -3072,17 +3072,9 @@ void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
   wait_via_unified(nargs, args);
 }
 
-/* Progress pokes for the per-dat exchange's outstanding sends. The unified
-   exchange has nothing to poke, so these do nothing. */
-void op_mpi_test_all(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
+void op_mpi_test_all(int nargs, op_arg *args) { op_mpi_test_all_unified(nargs, args); }
 
-void op_mpi_test_all_grouped(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
+void op_mpi_test_all_grouped(int nargs, op_arg *args) { op_mpi_test_all_unified(nargs, args); }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {

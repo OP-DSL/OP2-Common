@@ -455,6 +455,11 @@ void op_mpi_wait_all_unified(int nargs, op_arg *args) {
   (void)args;
 }
 
+void op_mpi_test_all_unified(int nargs, op_arg *args) {
+  (void)nargs;
+  (void)args;
+}
+
 void op_mpi_test_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
