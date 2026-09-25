@@ -33,6 +33,9 @@
 #ifndef __OP_MPI_CORE_H
 #define __OP_MPI_CORE_H
 
+#include <memory>
+#include <vector>
+
 /*
  * op_mpi_core.h
  *
@@ -61,22 +64,26 @@ extern MPI_Comm OP_MPI_GLOBAL;
 * MPI halo list data type
 *******************************************************************************/
 
-typedef struct {
-  // set related to this list
-  op_set set;
-  // number of elements in this list (local elements & indices)
-  idx_l_t size;
-  // MPI ranks to be exported to or imported from
-  int *ranks;
-  // number of MPI neighbors to be exported to or imported from
-  int ranks_size;
-  // displacements for the starting point of each rank's element list (local elements & indices)
-  idx_l_t *disps;
-  // number of elements exported to or imported from each ranks (local elements & indices)
-  idx_l_t *sizes;
-  // the list of all elements (local elements & indices)
-  idx_l_t *list;
-} halo_list_core;
+/* One halo list: for each neighbour rank, a contiguous block of `list`.
+ *
+ *   ranks      ascending and unique, ranks_size of them
+ *   sizes[i]   how many entries ranks[i] has, at list[disps[i] .. disps[i] + sizes[i])
+ *   disps      the prefix sum of sizes, disps[0] == 0
+ *   list       size entries in all; null when size is 0
+ *
+ * Every array holds exactly its valid entries - no comm_size-long tails - and the
+ * list owns them: delete it and they go with it. What an entry of `list` means
+ * depends on which list this is (see op_lib_mpi.h). Build one with
+ * halo_list_from_pairs or halo_list_from_groups. */
+struct halo_list_core {
+  op_set set = nullptr;
+  idx_l_t size = 0;
+  std::vector<int> ranks;
+  int ranks_size = 0;
+  std::vector<idx_l_t> disps;
+  std::vector<idx_l_t> sizes;
+  std::unique_ptr<idx_l_t[]> list;
+};
 
 typedef halo_list_core *halo_list;
 
@@ -172,6 +179,20 @@ MPI_Datatype get_mpi_type(T* t) {
   return get_mpi_type<T>();
 }
 
+/* Build a halo_list. Named for how a list is built rather than for which list it
+   becomes: an export list and the nonexec import list are both built from pairs.
+   The caller owns the result and deletes it. */
+
+/* From (rank, index) pairs, n_ints ints in all: each rank's indices sorted and
+   deduplicated, ranks that end up with none left out. */
+halo_list halo_list_from_pairs(op_set set, const int *pairs, int n_ints, int comm_size);
+
+/* From groups already formed, taking ownership of all three: ranks ascending and
+   unique, sizes[i] > 0 entries of list for ranks[i], in that order. */
+halo_list halo_list_from_groups(op_set set, std::vector<int> ranks,
+                                std::vector<idx_l_t> sizes,
+                                std::unique_ptr<idx_l_t[]> list);
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -191,20 +212,9 @@ int get_partition(idx_g_t global_index, idx_g_t *part_range, idx_l_t *local_inde
 idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
                      int comm_size);
 
-void create_list(int *list, int *ranks, int *disps, int *sizes, int *ranks_size,
-                 int *total, int *temp_list, int size, int comm_size,
-                 int my_rank);
-
-void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
-                        int comm_size, int my_rank);
-
 /* Build the import list matching an export list, discovering the senders with a
    sparse exchange rather than a collective. */
 halo_list exchange_export_list(op_set set, halo_list exp, MPI_Comm comm);
-
-void create_import_list(op_set set, int *temp_list, halo_list h_list,
-                        int total_size, int *ranks, int *sizes, int ranks_size,
-                        int comm_size, int my_rank);
 
 int is_onto_map(op_map map);
 

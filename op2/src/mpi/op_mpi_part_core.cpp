@@ -184,96 +184,41 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size) {
 }
 
 /*******************************************************************************
- * Special routine to create export list during partitioning map->to set
- * from map_>from set in partition_to_set()
+ * Export list for partition_to_set(), from (rank, local index, new partition)
+ * triples: grouped by rank, but neither sorted nor deduplicated, since each entry
+ * carries its own partition. part_list receives those partitions in list order.
  *******************************************************************************/
 
-static int *create_exp_list_2(op_set set, int *temp_list, halo_list h_list,
-                              int *part_list, int size, int comm_size,
-                              int my_rank) {
-  (void)my_rank;
-  int *ranks = (int *)xmalloc(comm_size * sizeof(int));
-  int *to_list = (int *)xmalloc((size / 3) * sizeof(int));
-  part_list = (int *)xmalloc((size / 3) * sizeof(int));
-  int *disps = (int *)xmalloc(comm_size * sizeof(int));
-  int *sizes = (int *)xmalloc(comm_size * sizeof(int));
-
-  int index = 0;
-  size_t total_size = 0;
-
-  // negative values set as an initialisation
-  for (int r = 0; r < comm_size; r++) {
-    disps[r] = ranks[r] = -99;
-    sizes[r] = 0;
-  }
+static halo_list export_list_from_triples(op_set set, const int *triples,
+                                          int n_ints, int comm_size,
+                                          std::vector<int> &part_list) {
+  std::vector<int> ranks;
+  std::vector<idx_l_t> sizes;
+  std::vector<idx_l_t> to;
+  part_list.clear();
 
   for (int r = 0; r < comm_size; r++) {
-    sizes[index] = 0;
-    disps[index] = 0;
-    int *temp_to = (int *)xmalloc((size / 3) * sizeof(int));
-    int *temp_part = (int *)xmalloc((size / 3) * sizeof(int));
-
-    for (int i = 0; i < size; i = i + 3) {
-      if (temp_list[i] == r) {
-        temp_to[sizes[index]] = temp_list[i + 1];
-        temp_part[sizes[index]] = temp_list[i + 2];
-        sizes[index]++;
+    int n = 0;
+    for (int i = 0; i < n_ints; i += 3) {
+      if (triples[i] == r) {
+        to.push_back(triples[i + 1]);
+        part_list.push_back(triples[i + 2]);
+        n++;
       }
     }
-
-    if (sizes[index] > 0) {
-      ranks[index] = r;
-      // no sorting
-      total_size = total_size + sizes[index];
-      // no eleminating duplicates
-      if (index > 0)
-        disps[index] = disps[index - 1] + sizes[index - 1];
-
-      // add to end of t_list and p_list
-      for (int e = 0; e < sizes[index]; e++) {
-        to_list[disps[index] + e] = temp_to[e];
-        part_list[disps[index] + e] = temp_part[e];
-      }
-      index++;
+    if (n > 0) {
+      ranks.push_back(r);
+      sizes.push_back(n);
     }
-    op_free(temp_to);
-    op_free(temp_part);
   }
 
-  h_list->set = set;
-  h_list->size = total_size;
-  h_list->ranks = ranks;
-  h_list->ranks_size = index;
-  h_list->disps = disps;
-  h_list->sizes = sizes;
-  h_list->list = to_list;
-
-  return part_list;
-}
-
-/*******************************************************************************
- * Special routine to create import list during partitioning map->to set
- * from map_>from set in partition_to_set()
- *******************************************************************************/
-
-static void create_imp_list_2(op_set set, int *temp_list, halo_list h_list,
-                              int total_size, int *ranks, int *sizes,
-                              int ranks_size, int comm_size, int my_rank) {
-  (void)my_rank;
-  int *disps = (int *)xmalloc(comm_size * sizeof(int));
-  disps[0] = 0;
-  for (int i = 0; i < ranks_size; i++) {
-    if (i > 0)
-      disps[i] = disps[i - 1] + sizes[i - 1];
+  std::unique_ptr<idx_l_t[]> list;
+  if (!to.empty()) {
+    list = std::make_unique_for_overwrite<idx_l_t[]>(to.size());
+    std::copy(to.begin(), to.end(), list.get());
   }
-
-  h_list->set = set;
-  h_list->size = total_size;
-  h_list->ranks = ranks;
-  h_list->ranks_size = ranks_size;
-  h_list->disps = disps;
-  h_list->sizes = sizes;
-  h_list->list = temp_list;
+  return halo_list_from_groups(set, std::move(ranks), std::move(sizes),
+                               std::move(list));
 }
 
 /*******************************************************************************
@@ -351,7 +296,6 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   size_t count = 0;
   int *temp_list = (int *)xmalloc(cap * sizeof(int));
 
-  halo_list pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
 
   // go through the map and build an import list of the non-local "to" elements
   for (int i = 0; i < map->from->size; i++) {
@@ -370,7 +314,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
       }
     }
   }
-  create_export_list(map->to, temp_list, pi_list, count, comm_size, my_rank);
+  halo_list pi_list = halo_list_from_pairs(map->to, temp_list, count, comm_size);
   op_free(temp_list);
 
   // now, discover neighbors and create export list of "to" elements
@@ -430,7 +374,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
         found_parts[j] = p_set->elem_part[local_index];
       else // get partition information from imported data
       {
-        int r = binary_search(pi_list->ranks, part, 0, pi_list->ranks_size - 1);
+        int r = binary_search(pi_list->ranks.data(), part, 0, pi_list->ranks_size - 1);
         if (r >= 0) {
           int elem = binary_search(&pi_list->list[pi_list->disps[r]],
                                    local_index, 0, pi_list->sizes[r] - 1);
@@ -456,16 +400,8 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
 
   // cleanup
   op_free(imp_part);
-  op_free(pi_list->list);
-  op_free(pi_list->ranks);
-  op_free(pi_list->sizes);
-  op_free(pi_list->disps);
-  op_free(pi_list);
-  op_free(pe_list->list);
-  op_free(pe_list->ranks);
-  op_free(pe_list->sizes);
-  op_free(pe_list->disps);
-  op_free(pe_list);
+  delete pi_list;
+  delete pe_list;
 
   free(request_send_p);
 
@@ -484,9 +420,6 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   int count = 0;
   int *temp_list = (int *)xmalloc(cap * sizeof(int));
 
-  halo_list pe_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  int *part_list_e = NULL; // corresponding "to" element's partition infomation
-  // exported to an mpi rank
 
   // go through the map and if any element pointed to by a mapping table entry
   //(i.e. a "from" set element) is in a foreign partition, add the partition
@@ -514,8 +447,10 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     }
   }
 
-  part_list_e = create_exp_list_2(map->to, temp_list, pe_list, part_list_e,
-                                  count, comm_size, my_rank);
+  // the "to" elements' new partitions, exported to each mpi rank, in pe_list order
+  std::vector<int> part_list_e;
+  halo_list pe_list =
+      export_list_from_triples(map->to, temp_list, count, comm_size, part_list_e);
   op_free(temp_list);
 
   /* Built in pe_list order so it matches pe_list's own disps. The spans are
@@ -537,24 +472,21 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
 
   auto to_parts = op::mpi::sparse::exchange(OP_PART_WORLD, to_part_messages);
 
-  /* create_imp_list_2 adopts these four allocations. */
-  int ranks_size = to_parts.num_neighbours();
-  int *neighbors = (int *)xmalloc(std::max(ranks_size, 1) * sizeof(int));
-  int *sizes = (int *)xmalloc(std::max(ranks_size, 1) * sizeof(int));
-  std::copy(to_parts.ranks.begin(), to_parts.ranks.end(), neighbors);
-  std::copy(to_parts.counts.begin(), to_parts.counts.end(), sizes);
-
+  /* Split each arrival into the element (the import list) and its partition.
+     Filled before the grouping is moved out: to_parts.size() is derived from it. */
   count = (int)to_parts.size();
-  int *temp_list_t = (int *)xmalloc(std::max(count, 1) * sizeof(int));
-  int *part_list_i = (int *)xmalloc(std::max(count, 1) * sizeof(int));
+  std::unique_ptr<idx_l_t[]> imported;
+  if (count > 0)
+    imported = std::make_unique_for_overwrite<idx_l_t[]>(count);
+  std::vector<int> part_list_i(count);
   for (int i = 0; i < count; i++) {
-    temp_list_t[i] = to_parts.data[i].elem;
+    imported[i] = to_parts.data[i].elem;
     part_list_i[i] = to_parts.data[i].part;
   }
 
-  halo_list pi_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_imp_list_2(map->to, temp_list_t, pi_list, count, neighbors, sizes,
-                    ranks_size, comm_size, my_rank);
+  halo_list pi_list =
+      halo_list_from_groups(map->to, std::move(to_parts.ranks),
+                            std::move(to_parts.counts), std::move(imported));
 
   //-----go through local mapping table as well as the imported information
   // and partition the "to" set
@@ -590,7 +522,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
 
   if (pi_list->size > 0) {
     memcpy(&to_elems[count], (void *)&pi_list->list[0], pi_list->size * sizeof(int));
-    memcpy(&parts[count], (void *)&part_list_i[0], pi_list->size * sizeof(int));
+    memcpy(&parts[count], (void *)part_list_i.data(), pi_list->size * sizeof(int));
   }
 
   int *partition = (int *)xmalloc(sizeof(int) * map->to->size);
@@ -689,18 +621,8 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   }
 
   // cleanup
-  op_free(pi_list->list);
-  op_free(pi_list->ranks);
-  op_free(pi_list->sizes);
-  op_free(pi_list->disps);
-  op_free(pi_list);
-  op_free(pe_list->list);
-  op_free(pe_list->ranks);
-  op_free(pe_list->sizes);
-  op_free(pe_list->disps);
-  op_free(pe_list);
-  op_free(part_list_i);
-  op_free(part_list_e);
+  delete pi_list;
+  delete pe_list;
 
   return result;
 }
@@ -1265,9 +1187,7 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
     // create partition export list
-    pe_list[set->index] = (halo_list)xmalloc(sizeof(halo_list_core));
-    create_export_list(set, temp_list, pe_list[set->index], count, comm_size,
-                       my_rank);
+    pe_list[set->index] = halo_list_from_pairs(set, temp_list, count, comm_size);
     op_free(temp_list);
   }
 
@@ -1591,17 +1511,8 @@ static void migrate_all(int my_rank, int comm_size) {
   // destroy pe_list, pi_list
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    op_free(pe_list[set->index]->ranks);
-    op_free(pe_list[set->index]->disps);
-    op_free(pe_list[set->index]->sizes);
-    op_free(pe_list[set->index]->list);
-
-    op_free(pi_list[set->index]->ranks);
-    op_free(pi_list[set->index]->disps);
-    op_free(pi_list[set->index]->sizes);
-    op_free(pi_list[set->index]->list);
-    op_free(pe_list[set->index]);
-    op_free(pi_list[set->index]);
+    delete pe_list[set->index];
+    delete pi_list[set->index];
   }
 }
 
@@ -1943,8 +1854,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
       }
     }
   }
-  halo_list exp_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_export_list(primary_map->from, list, exp_list, c, comm_size, my_rank);
+  halo_list exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
   op_free(list); // free temp list
 
   //
@@ -2134,16 +2044,8 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
-  op_free(imp_list->list);
-  op_free(imp_list->disps);
-  op_free(imp_list->ranks);
-  op_free(imp_list->sizes);
-  op_free(exp_list->list);
-  op_free(exp_list->disps);
-  op_free(exp_list->ranks);
-  op_free(exp_list->sizes);
-  op_free(imp_list);
-  op_free(exp_list);
+  delete imp_list;
+  delete exp_list;
 
   if (my_rank == MPI_ROOT) {
     printf("-----------------------------------------------------------\n");
@@ -3134,8 +3036,7 @@ halo_list create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
       }
     }
   }
-  halo_list exp_list = (halo_list)xmalloc(sizeof(halo_list_core));
-  create_export_list(primary_map->from, list, exp_list, c, comm_size, my_rank);
+  halo_list exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
   op_free(list); // free temp list
 
   return exp_list;
@@ -3628,8 +3529,8 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
                          comm_size, part_range);
 
   // Clean up import/export lists
-  op_free(imp_list->list); op_free(imp_list->disps); op_free(imp_list->ranks); op_free(imp_list->sizes); op_free(imp_list);
-  op_free(exp_list->list); op_free(exp_list->disps); op_free(exp_list->ranks); op_free(exp_list->sizes); op_free(exp_list);
+  delete imp_list;
+  delete exp_list;
 
   /*-- STEP 1.5 - Call Partitioner-Specific Setup & Partition */
   if (strcmp(partitioner_name, "PARMETIS") == 0 || strcmp(partitioner_name, "KAHIP") == 0) {

@@ -202,6 +202,14 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
   return total_size;
 }
 
+/* op_cpHostToDevice takes the host pointer by address. A halo list owns its
+   storage, so hand it a plain pointer - never the address of the owner, which a
+   (void **) cast would accept without complaint. */
+static void upload_list(int **device, halo_list list) {
+  void *host = list->list.get();
+  op_cpHostToDevice((void **)device, &host, list->size * sizeof(int));
+}
+
 size_t op_mv_halo_list_device() {
   size_t total_size = 0;
 
@@ -217,9 +225,7 @@ size_t op_mv_halo_list_device() {
     op_set set = OP_set_list[s];
     export_exec_list_d[set->index] = NULL;
 
-    op_cpHostToDevice((void **)&(export_exec_list_d[set->index]),
-                      (void **)&(OP_export_exec_list[set->index]->list),
-                      OP_export_exec_list[set->index]->size * sizeof(int));
+    upload_list(&export_exec_list_d[set->index], OP_export_exec_list[set->index]);
 
     total_size += OP_export_exec_list[set->index]->size * sizeof(int);
   }
@@ -236,9 +242,7 @@ size_t op_mv_halo_list_device() {
     op_set set = OP_set_list[s];
     export_nonexec_list_d[set->index] = NULL;
 
-    op_cpHostToDevice((void **)&(export_nonexec_list_d[set->index]),
-                      (void **)&(OP_export_nonexec_list[set->index]->list),
-                      OP_export_nonexec_list[set->index]->size * sizeof(int));
+    upload_list(&export_nonexec_list_d[set->index], OP_export_nonexec_list[set->index]);
 
     total_size += OP_export_nonexec_list[set->index]->size * sizeof(int);
   }
@@ -257,9 +261,7 @@ size_t op_mv_halo_list_device() {
     op_map map = OP_map_list[s];
     export_nonexec_list_partial_d[map->index] = NULL;
 
-    op_cpHostToDevice((void **)&(export_nonexec_list_partial_d[map->index]),
-                      (void **)&(OP_export_nonexec_permap[map->index]->list),
-                      OP_export_nonexec_permap[map->index]->size * sizeof(int));
+    upload_list(&export_nonexec_list_partial_d[map->index], OP_export_nonexec_permap[map->index]);
 
     total_size += OP_export_nonexec_permap[map->index]->size * sizeof(int);
   }
@@ -278,9 +280,7 @@ size_t op_mv_halo_list_device() {
     op_map map = OP_map_list[s];
     import_nonexec_list_partial_d[map->index] = NULL;
 
-    op_cpHostToDevice((void **)&(import_nonexec_list_partial_d[map->index]),
-                      (void **)&(OP_import_nonexec_permap[map->index]->list),
-                      OP_import_nonexec_permap[map->index]->size * sizeof(int));
+    upload_list(&import_nonexec_list_partial_d[map->index], OP_import_nonexec_permap[map->index]);
 
     total_size += OP_import_nonexec_permap[map->index]->size * sizeof(int);
   }
