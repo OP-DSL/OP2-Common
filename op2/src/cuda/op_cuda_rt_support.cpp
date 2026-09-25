@@ -395,42 +395,9 @@ void op_download_dat(op_dat dat) {
   }
 }
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-        args[n].dat->dirty_hd == 2) {
-      op_download_dat(args[n].dat);
-      args[n].dat->dirty_hd = 0;
-    }
-  return set->size;
-}
-
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
-  (void)device;
-  return device == 1 ? op_mpi_halo_exchanges(set, nargs, args) : op_mpi_halo_exchanges_cuda(set, nargs, args);
-}
-
-void op_mpi_set_dirtybit(int nargs, op_arg *args) {
-  for (int n = 0; n < nargs; n++) {
-    if ((args[n].opt == 1) && (args[n].argtype == OP_ARG_DAT) &&
-        (args[n].acc == OP_INC || args[n].acc == OP_WRITE ||
-         args[n].acc == OP_RW)) {
-      args[n].dat->dirty_hd = 1;
-    }
-  }
-}
-
-void op_mpi_wait_all(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
-  (void)device;
-  (void)nargs;
-  (void)args;
-}
-
+/* Without MPI there are no halos, so an exchange is only the host/device sync:
+   bring each dat into the space the loop runs in. The older per-dat and grouped
+   names forward here, as they do in the MPI libraries. */
 int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
   for (int n = 0; n < nargs; n++) {
     if (!args[n].opt || args[n].argtype != OP_ARG_DAT)
@@ -460,24 +427,39 @@ void op_mpi_test_all_unified(int nargs, op_arg *args) {
   (void)args;
 }
 
-void op_mpi_test_all(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_test_all_grouped(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
+  return op_mpi_halo_exchanges_unified(set, nargs, args, 1);
 }
 
 int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-        args[n].dat->dirty_hd == 1) {
-      op_upload_dat(args[n].dat);
-      args[n].dat->dirty_hd = 0;
+  return op_mpi_halo_exchanges_unified(set, nargs, args, 2);
+}
+
+int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
+  return op_mpi_halo_exchanges_unified(set, nargs, args, device);
+}
+
+void op_mpi_wait_all(int nargs, op_arg *args) { op_mpi_wait_all_unified(nargs, args); }
+
+void op_mpi_wait_all_cuda(int nargs, op_arg *args) { op_mpi_wait_all_unified(nargs, args); }
+
+void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
+  (void)device;
+  op_mpi_wait_all_unified(nargs, args);
+}
+
+void op_mpi_test_all(int nargs, op_arg *args) { op_mpi_test_all_unified(nargs, args); }
+
+void op_mpi_test_all_grouped(int nargs, op_arg *args) { op_mpi_test_all_unified(nargs, args); }
+
+void op_mpi_set_dirtybit(int nargs, op_arg *args) {
+  for (int n = 0; n < nargs; n++) {
+    if ((args[n].opt == 1) && (args[n].argtype == OP_ARG_DAT) &&
+        (args[n].acc == OP_INC || args[n].acc == OP_WRITE ||
+         args[n].acc == OP_RW)) {
+      args[n].dat->dirty_hd = 1;
     }
-  return set->size;
+  }
 }
 
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
@@ -488,11 +470,6 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
       args[n].dat->dirty_hd = 2;
     }
   }
-}
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
 }
 
 void op_mpi_reset_halos(int nargs, op_arg *args) {
