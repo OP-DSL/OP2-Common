@@ -58,10 +58,10 @@
 // export lists on the device
 //
 
-int **export_exec_list_d = NULL;
-int **export_nonexec_list_d = NULL;
-int **export_nonexec_list_partial_d = NULL;
-int **import_nonexec_list_partial_d = NULL;
+idx_l_t **export_exec_list_d = NULL;
+idx_l_t **export_nonexec_list_d = NULL;
+idx_l_t **export_nonexec_list_partial_d = NULL;
+idx_l_t **import_nonexec_list_partial_d = NULL;
 
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;

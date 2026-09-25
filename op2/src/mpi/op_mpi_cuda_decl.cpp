@@ -204,10 +204,12 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
 
 /* op_cpHostToDevice takes the host pointer by address. A halo list owns its
    storage, so hand it a plain pointer - never the address of the owner, which a
-   (void **) cast would accept without complaint. */
-static void upload_list(int **device, halo_list list) {
+   (void **) cast would accept without complaint. Returns the bytes uploaded. */
+static size_t upload_list(idx_l_t **device, halo_list list) {
+  const size_t bytes = list->size * sizeof(idx_l_t);
   void *host = list->list.get();
-  op_cpHostToDevice((void **)device, &host, list->size * sizeof(int));
+  op_cpHostToDevice((void **)device, &host, bytes);
+  return bytes;
 }
 
 size_t op_mv_halo_list_device() {
@@ -219,15 +221,13 @@ size_t op_mv_halo_list_device() {
         cutilSafeCall(gpuFree(export_exec_list_d[OP_set_list[s]->index]));
     free(export_exec_list_d);
   }
-  export_exec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+  export_exec_list_d = (idx_l_t **)xmalloc(sizeof(idx_l_t *) * OP_set_index);
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     export_exec_list_d[set->index] = NULL;
 
-    upload_list(&export_exec_list_d[set->index], OP_export_exec_list[set->index]);
-
-    total_size += OP_export_exec_list[set->index]->size * sizeof(int);
+    total_size += upload_list(&export_exec_list_d[set->index], OP_export_exec_list[set->index]);
   }
 
   if (export_nonexec_list_d != NULL) {
@@ -236,15 +236,13 @@ size_t op_mv_halo_list_device() {
         cutilSafeCall(gpuFree(export_nonexec_list_d[OP_set_list[s]->index]));
     free(export_nonexec_list_d);
   }
-  export_nonexec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
+  export_nonexec_list_d = (idx_l_t **)xmalloc(sizeof(idx_l_t *) * OP_set_index);
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     export_nonexec_list_d[set->index] = NULL;
 
-    upload_list(&export_nonexec_list_d[set->index], OP_export_nonexec_list[set->index]);
-
-    total_size += OP_export_nonexec_list[set->index]->size * sizeof(int);
+    total_size += upload_list(&export_nonexec_list_d[set->index], OP_export_nonexec_list[set->index]);
   }
 
   if ( export_nonexec_list_partial_d!= NULL) {
@@ -253,7 +251,7 @@ size_t op_mv_halo_list_device() {
         cutilSafeCall(gpuFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(export_nonexec_list_partial_d);
   }
-  export_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
+  export_nonexec_list_partial_d = (idx_l_t **)calloc(sizeof(idx_l_t *) * OP_map_index,1);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
@@ -261,9 +259,7 @@ size_t op_mv_halo_list_device() {
     op_map map = OP_map_list[s];
     export_nonexec_list_partial_d[map->index] = NULL;
 
-    upload_list(&export_nonexec_list_partial_d[map->index], OP_export_nonexec_permap[map->index]);
-
-    total_size += OP_export_nonexec_permap[map->index]->size * sizeof(int);
+    total_size += upload_list(&export_nonexec_list_partial_d[map->index], OP_export_nonexec_permap[map->index]);
   }
 
   if ( import_nonexec_list_partial_d!= NULL) {
@@ -272,7 +268,7 @@ size_t op_mv_halo_list_device() {
         cutilSafeCall(gpuFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
     free(import_nonexec_list_partial_d);
   }
-  import_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
+  import_nonexec_list_partial_d = (idx_l_t **)calloc(sizeof(idx_l_t *) * OP_map_index,1);
 
   for (int s = 0; s < OP_map_index; s++) { // for each set
     if (!OP_map_partial_exchange[s])
@@ -280,9 +276,7 @@ size_t op_mv_halo_list_device() {
     op_map map = OP_map_list[s];
     import_nonexec_list_partial_d[map->index] = NULL;
 
-    upload_list(&import_nonexec_list_partial_d[map->index], OP_import_nonexec_permap[map->index]);
-
-    total_size += OP_import_nonexec_permap[map->index]->size * sizeof(int);
+    total_size += upload_list(&import_nonexec_list_partial_d[map->index], OP_import_nonexec_permap[map->index]);
   }
 
   return total_size;
