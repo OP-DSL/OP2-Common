@@ -840,6 +840,10 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
       code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
     else:
       code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
+    # A direct loop reads no halo: its exchange only brings the dats to this
+    # device. Every exchange needs its wait, so it waits at once.
+    if ninds == 0:
+      code('CALL op_mpi_wait_all'+('' if host_exec else '_cuda')+'(numberOfOpDats,opArgArray)')
     code('')
 
     code('opSetCore => set%setPtr')
@@ -967,12 +971,15 @@ def op2_gen_openmp4(master, date, consts, kernels, hydra,bookleaf):
             code('& opDat'+str(g_m+1)+'Local, &')
       code('& sliceStart, sliceEnd, opSetCore%size+opSetCore%exec_size+opSetCore%nonexec_size)')
 
-    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-    if host_exec:
-      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    else:
-      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
-    ENDIF()
+    # The colour loop waits before colour 1, so wait here exactly when it has no
+    # colour 1.
+    if ninds > 0:
+      IF('actualPlan_'+name+'%ncolors .LE. 1')
+      if host_exec:
+        code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
+      else:
+        code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+      ENDIF()
 
     if ninds==0:
       for g_m in range(0,nargs):

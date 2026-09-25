@@ -234,6 +234,13 @@ def op2_gen_seq(master, date, consts, kernels):
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
     else:
       code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+    # A direct loop reads no halo: its exchange only brings the dats to this
+    # device. Every exchange needs its wait, so it waits at once.
+    if ninds == 0:
+      if grouped:
+        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      else:
+        code('op_mpi_wait_all(nargs, args);')
 
     code('')
     IF('set_size > 0')

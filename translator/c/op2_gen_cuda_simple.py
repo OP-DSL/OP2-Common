@@ -914,6 +914,9 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
       code('')
       code('int set_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 2);')
       #code('op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      # A direct loop reads no halo: its exchange only brings the dats to this
+      # device. Every exchange needs its wait, so it waits at once.
+      code('op_mpi_wait_all_grouped(nargs, args, 2);')
 
     IF('set_size > 0')
     code('')
@@ -1125,6 +1128,12 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         ENDFOR() #TODO sztem ez forditva van...
         code('block_offset += Plan->ncolblk[col];')
       ENDIF()
+      # The colour loop waits at ncolors_core, which a plan with no colour past
+      # the core never reaches. (Not set_size == core_size: with no non-core
+      # element ncolors_core stays 0, so the loop has already waited.)
+      IF('Plan->ncolors_core == Plan->ncolors')
+      code('op_mpi_wait_all_grouped(nargs, args, 2);')
+      ENDIF()
 
 #
 #
@@ -1238,6 +1247,11 @@ def op2_gen_cuda_simple(master, date, consts, kernels,sets, macro_defs):
         code('op_mpi_reduce(&<ARG>,<ARG>h);')
 
     ENDIF()
+    # An empty set runs neither loop above.
+    if ninds>0:
+      IF('set_size == 0')
+      code('op_mpi_wait_all_grouped(nargs, args, 2);')
+      ENDIF()
     code('op_mpi_set_dirtybit_cuda(nargs, args);')
 
 #

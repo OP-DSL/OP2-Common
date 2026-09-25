@@ -337,6 +337,9 @@ def op2_gen_openacc(master, date, consts, kernels):
       ENDIF()
       code('')
       code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      # A direct loop reads no halo: its exchange only brings the dats to this
+      # device. Every exchange needs its wait, so it waits at once.
+      code('op_mpi_wait_all_cuda(nargs, args);')
 
     code('')
     for g_m in range(0,nargs):
@@ -574,8 +577,10 @@ def op2_gen_openacc(master, date, consts, kernels):
     code('')
 
     #zero set size issues
+    # The colour loop waits before colour 1, so wait here exactly when it has no
+    # colour 1 (ncolors stays 0 for an empty set).
     if ninds>0:
-      IF('set_size == 0 || set_size == set->core_size || ncolors == 1')
+      IF('ncolors <= 1')
       code('op_mpi_wait_all_cuda(nargs, args);')
       ENDIF()
 

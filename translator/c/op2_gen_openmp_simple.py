@@ -260,6 +260,9 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       ENDIF()
       code('')
       code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+      # A direct loop reads no halo: its exchange only brings the dats to this
+      # device. Every exchange needs its wait, so it waits at once.
+      code('op_mpi_wait_all(nargs, args);')
 
 #
 # set number of threads in x86 execution and create arrays for reduction
@@ -490,13 +493,19 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
     if ninds>0:
       code('OP_kernels['+str(nk)+'].transfer  += Plan->transfer;')
       code('OP_kernels['+str(nk)+'].transfer2 += Plan->transfer2;')
+      # The colour loop waits at ncolors_core, which a plan with no colour past
+      # the core never reaches. (Not set_size == core_size: with no non-core
+      # element ncolors_core stays 0, so the loop has already waited.)
+      IF('Plan->ncolors_core == Plan->ncolors')
+      code('op_mpi_wait_all(nargs, args);')
+      ENDIF()
 
     ENDIF()
     code('')
 
     #zero set size issues
     if ninds>0:
-      IF('set_size == 0 || set_size == set->core_size')
+      IF('set_size == 0')
       code('op_mpi_wait_all(nargs, args);')
       ENDIF()
 

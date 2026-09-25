@@ -1245,6 +1245,10 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     code('')
     #code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
     code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,2)')
+    # A direct loop reads no halo: its exchange only brings the dats to this
+    # device. Every exchange needs its wait, so it waits at once.
+    if ninds == 0:
+      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)')
     if not atomics:
       IF('n_upper.GT.0')
     code('threadsPerBlock = getBlockSize(userSubroutine//C_NULL_CHAR,set%setPtr%size)')
@@ -1439,6 +1443,12 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         code('& set%setPtr%size+set%setPtr%exec_size)')
       ENDIF()
       ENDDO()
+      # The colour loop waits at ncolors_core, which a plan with no colour past
+      # the core never reaches. (The atomic rounds always reach round 1.)
+      if not atomics:
+        IF('actualPlan_'+name+'%ncolors_core .EQ. actualPlan_'+name+'%ncolors')
+        code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)')
+        ENDIF()
       code('')
     else: #direct loop host stub call
       code('CALL op_cuda_'+name+' <<<blocksPerGrid,threadsPerBlock,dynamicSharedMemorySize>>>( &')
@@ -1462,10 +1472,11 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
     code('')
     if not atomics:
       ENDIF()
-      IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
-      #code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
-      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)')
-      ENDIF()
+      # An empty set skips the colour loop above.
+      if ninds > 0:
+        IF('n_upper .EQ. 0')
+        code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,2)')
+        ENDIF()
       code('')
 
     code('')

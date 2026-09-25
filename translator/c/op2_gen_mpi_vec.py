@@ -368,6 +368,13 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
       code('int exec_size = op_mpi_halo_exchanges_grouped(set, nargs, args, 1);')
     else:
       code('int exec_size = op_mpi_halo_exchanges(set, nargs, args);')
+    # A direct loop reads no halo: its exchange only brings the dats to this
+    # device. Every exchange needs its wait, so it waits at once.
+    if ninds == 0:
+      if grouped:
+        code('op_mpi_wait_all_grouped(nargs, args, 1);')
+      else:
+        code('op_mpi_wait_all(nargs, args);')
 
     code('')
     IF('exec_size >0')
@@ -398,7 +405,9 @@ def op2_gen_mpi_vec(master, date, consts, kernels):
 
       code('if (n<set->core_size && n>0 && n % OP_mpi_test_frequency == 0)')
       code('  op_mpi_test_all(nargs,args);')
-      IF('(n+SIMD_VEC >= set->core_size) && (n+SIMD_VEC-set->core_size < SIMD_VEC)')
+      # Wait before the block holding core_size: with the remainder loop's
+      # n == core_size, exactly one of the two fires when core_size < exec_size.
+      IF('n <= set->core_size && set->core_size < n+SIMD_VEC')
       if grouped:
         code('op_mpi_wait_all_grouped(nargs, args, 1);')
       else:

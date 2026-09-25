@@ -552,14 +552,6 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
           code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
     #code('& 0, n_upper)')
     code('& opSetCore%core_size, n_upper,numberOfOpDats,opArgArray,2147483647)')
-
-
-    IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-    if grouped:
-      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
-    else:
-      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    ENDIF()
     code('')
 
 
