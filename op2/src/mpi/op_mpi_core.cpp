@@ -54,6 +54,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <cstdint>
 #include <numeric>
 
 #include <op_mpi_core.h>
@@ -290,34 +291,32 @@ HaloList halo_list_from_groups(op_set set, std::vector<int> ranks,
   return h;
 }
 
-/* Scans the pairs once per rank, O(comm_size * n) - kept as it was for now, so
-   that changing how lists are stored and changing how they are built are
-   separate steps. */
-HaloList halo_list_from_pairs(op_set set, const int *pairs, int n_ints,
-                              int comm_size) {
+HaloList halo_list_from_pairs(op_set set, const int *pairs, int n_ints) {
+  /* Each pair packed as rank:index, so one sort groups by rank and orders every
+     rank's indices, and unique drops the repeats. No comm_size-long array: the
+     cost is the pairs', whatever the number of ranks. */
+  const int n = n_ints / 2;
+  std::vector<std::uint64_t> keys(n);
+  for (int i = 0; i < n; i++) {
+    assert(pairs[2 * i] >= 0 && pairs[2 * i + 1] >= 0);
+    keys[i] = (std::uint64_t)pairs[2 * i] << 32 | (std::uint32_t)pairs[2 * i + 1];
+  }
+  std::sort(keys.begin(), keys.end());
+  keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+
   std::vector<int> ranks;
   std::vector<idx_l_t> sizes;
-  std::vector<idx_l_t> flat;
-  std::vector<int> one_rank(std::max(n_ints / 2, 1));
-
-  for (int r = 0; r < comm_size; r++) {
-    int n = 0;
-    for (int i = 0; i < n_ints; i += 2)
-      if (pairs[i] == r)
-        one_rank[n++] = pairs[i + 1];
-    if (n == 0)
-      continue;
-    op_sort(one_rank.data(), n);
-    n = removeDups(one_rank.data(), n);
-    ranks.push_back(r);
-    sizes.push_back(n);
-    flat.insert(flat.end(), one_rank.begin(), one_rank.begin() + n);
-  }
-
   std::unique_ptr<idx_l_t[]> list;
-  if (!flat.empty()) {
-    list = std::make_unique_for_overwrite<idx_l_t[]>(flat.size());
-    std::copy(flat.begin(), flat.end(), list.get());
+  if (!keys.empty())
+    list = std::make_unique_for_overwrite<idx_l_t[]>(keys.size());
+  for (std::size_t k = 0; k < keys.size(); k++) {
+    const int rank = (int)(keys[k] >> 32);
+    if (ranks.empty() || ranks.back() != rank) {
+      ranks.push_back(rank);
+      sizes.push_back(0);
+    }
+    sizes.back()++;
+    list[k] = (idx_l_t)(std::uint32_t)keys[k];
   }
   return halo_list_from_groups(set, std::move(ranks), std::move(sizes),
                                std::move(list));
@@ -565,7 +564,7 @@ void op_halo_create() {
     // create set export list
     // printf("creating set export list for set %10s of size %d\n",
     // set->name,s_i);
-    OP_set_halos[set->index].export_exec = halo_list_from_pairs(set, set_list, s_i, comm_size);
+    OP_set_halos[set->index].export_exec = halo_list_from_pairs(set, set_list, s_i);
     op_free(set_list); // free temp list
   }
 
@@ -700,7 +699,7 @@ void op_halo_create() {
 
     // Create the non-exec set import list. It is built from (rank, index) pairs
     // like an export list: these are the elements this rank needs, by owner.
-    OP_set_halos[set->index].import_nonexec = halo_list_from_pairs(set, set_list, s_i, comm_size);
+    OP_set_halos[set->index].import_nonexec = halo_list_from_pairs(set, set_list, s_i);
     op_free(set_list); // free temp list
   }
 
@@ -1985,7 +1984,7 @@ op_dat op_mpi_get_data(op_dat dat) {
     }
   }
 
-  HaloList pe_list = halo_list_from_pairs(dat->set, temp_list, count, comm_size);
+  HaloList pe_list = halo_list_from_pairs(dat->set, temp_list, count);
   op_free(temp_list);
 
   //
@@ -2204,7 +2203,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     }
   }
 
-  HaloList pe_list = halo_list_from_pairs(dat->set, temp_list, count, comm_size);
+  HaloList pe_list = halo_list_from_pairs(dat->set, temp_list, count);
   op_free(temp_list);
 
   //

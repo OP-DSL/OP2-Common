@@ -50,6 +50,7 @@
 #include <span>
 #include <vector>
 #include <algorithm>
+#include <cstdint>
 #include <numeric>
 #include <unistd.h>
 
@@ -190,32 +191,33 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size) {
  *******************************************************************************/
 
 static HaloList export_list_from_triples(op_set set, const int *triples,
-                                          int n_ints, int comm_size,
-                                          std::vector<int> &part_list) {
+                                         int n_ints, std::vector<int> &part_list) {
+  /* Each triple's rank and position packed as rank:position, so one sort groups
+     by rank and keeps each rank's triples in the order given. */
+  const int n = n_ints / 3;
+  std::vector<std::uint64_t> order(n);
+  for (int i = 0; i < n; i++) {
+    assert(triples[3 * i] >= 0);
+    order[i] = (std::uint64_t)triples[3 * i] << 32 | (std::uint32_t)i;
+  }
+  std::sort(order.begin(), order.end());
+
   std::vector<int> ranks;
   std::vector<idx_l_t> sizes;
-  std::vector<idx_l_t> to;
-  part_list.clear();
-
-  for (int r = 0; r < comm_size; r++) {
-    int n = 0;
-    for (int i = 0; i < n_ints; i += 3) {
-      if (triples[i] == r) {
-        to.push_back(triples[i + 1]);
-        part_list.push_back(triples[i + 2]);
-        n++;
-      }
-    }
-    if (n > 0) {
-      ranks.push_back(r);
-      sizes.push_back(n);
-    }
-  }
-
   std::unique_ptr<idx_l_t[]> list;
-  if (!to.empty()) {
-    list = std::make_unique_for_overwrite<idx_l_t[]>(to.size());
-    std::copy(to.begin(), to.end(), list.get());
+  if (n > 0)
+    list = std::make_unique_for_overwrite<idx_l_t[]>(n);
+  part_list.resize(n);
+  for (int k = 0; k < n; k++) {
+    const int rank = (int)(order[k] >> 32);
+    const int i = (int)(std::uint32_t)order[k];
+    if (ranks.empty() || ranks.back() != rank) {
+      ranks.push_back(rank);
+      sizes.push_back(0);
+    }
+    sizes.back()++;
+    list[k] = triples[3 * i + 1];
+    part_list[k] = triples[3 * i + 2];
   }
   return halo_list_from_groups(set, std::move(ranks), std::move(sizes),
                                std::move(list));
@@ -314,7 +316,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
       }
     }
   }
-  HaloList pi_list = halo_list_from_pairs(map->to, temp_list, count, comm_size);
+  HaloList pi_list = halo_list_from_pairs(map->to, temp_list, count);
   op_free(temp_list);
 
   // now, discover neighbors and create export list of "to" elements
@@ -448,7 +450,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   // the "to" elements' new partitions, exported to each mpi rank, in pe_list order
   std::vector<int> part_list_e;
   HaloList pe_list =
-      export_list_from_triples(map->to, temp_list, count, comm_size, part_list_e);
+      export_list_from_triples(map->to, temp_list, count, part_list_e);
   op_free(temp_list);
 
   /* Built in pe_list order so it matches pe_list's own disps. The spans are
@@ -1181,7 +1183,7 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
     // create partition export list
-    pe_list[set->index] = halo_list_from_pairs(set, temp_list, count, comm_size);
+    pe_list[set->index] = halo_list_from_pairs(set, temp_list, count);
     op_free(temp_list);
   }
 
@@ -1841,7 +1843,7 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
       }
     }
   }
-  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
+  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c);
   op_free(list); // free temp list
 
   //
@@ -3023,7 +3025,7 @@ HaloList create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
       }
     }
   }
-  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c, comm_size);
+  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c);
   op_free(list); // free temp list
 
   return exp_list;

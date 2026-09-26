@@ -201,7 +201,7 @@ MPI_Datatype get_mpi_type(T* t) {
 
 /* From (rank, index) pairs, n_ints ints in all: each rank's indices sorted and
    deduplicated, ranks that end up with none left out. */
-HaloList halo_list_from_pairs(op_set set, const int *pairs, int n_ints, int comm_size);
+HaloList halo_list_from_pairs(op_set set, const int *pairs, int n_ints);
 
 /* From groups already formed, taking ownership of all three: ranks ascending and
    unique, sizes[i] > 0 entries of list for ranks[i], in that order. */
