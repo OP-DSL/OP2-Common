@@ -1061,6 +1061,10 @@ void op_halo_create() {
     }
   }
 
+  /* Step 10 moved owned elements and rewrote the export lists; the import lists
+     other ranks hold still name the old positions. */
+  op_halo_refresh_imports();
+
   /*-STEP 11 ----------- Save the original set element
    * indexes------------------*/
 
@@ -1311,6 +1315,29 @@ void op_halo_create() {
 }
 
 /*******************************************************************************
+ * Bring the import lists up to date with their owners' numbering
+ *
+ * Every import list is the transpose of the export lists that feed it, block for
+ * block and position for position, so transposing the current export lists
+ * gives the same layout with current entries. Nothing in an exchange reads the
+ * entries - received data lands at disps - but op_mpi_probe_halo_index hands
+ * them to callers as the element's index on its owner.
+ *******************************************************************************/
+
+void op_halo_refresh_imports() {
+  for (int s = 0; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
+    SetHalo &halo = OP_set_halos[set->index];
+    for (auto [exp, imp] : {std::pair{&halo.export_exec, &halo.import_exec},
+                            std::pair{&halo.export_nonexec, &halo.import_nonexec}}) {
+      HaloList current = halo_list_transpose(set, *exp, OP_MPI_WORLD);
+      assert(current.ranks == imp->ranks && current.sizes == imp->sizes);
+      *imp = std::move(current);
+    }
+  }
+}
+
+/*******************************************************************************
  * Create map-specific halo exchange tables
  *
  * A map is exchanged partially when, summed over all ranks, its entries into the
@@ -1324,9 +1351,8 @@ void op_halo_create() {
  *
  * An importer names each element it needs by its position in the halo it
  * receives from that owner - the exec block, then the nonexec block - and the
- * owner translates positions through its own export lists. Positions, not
- * indices: an import list holds the owner's indices from before halo creation
- * reordered the owned elements, so only positions agree on both sides.
+ * owner translates positions through its own export lists, so the result does
+ * not depend on the values the import lists hold.
  *******************************************************************************/
 
 /* Where rank sits in a list's ranks, or -1. */

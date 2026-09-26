@@ -91,8 +91,7 @@ struct HaloList {
 struct SetHalo {
   HaloList export_exec;     // local indices of owned elements a neighbour executes over
   HaloList import_exec;     // the elements received to execute over, in halo order: each
-                            // one's index on its owner, from before halo creation reordered
-                            // the owned elements (so not the owner's current index)
+                            // one's current local index on its owner
   HaloList export_nonexec;  // local indices of owned elements a neighbour only reads
   HaloList import_nonexec;  // as import_exec, for elements only read
 };
@@ -244,6 +243,12 @@ int is_onto_map(op_map map);
 void op_halo_create();
 
 void op_halo_permap_create();
+
+/* Refill every set's import lists from their owners' export lists, so each entry
+   is again the element's current local index on its owner. An owner that
+   reorders its elements rewrites only its own export lists; call this after it
+   does. The layout is unchanged. Collective over OP_MPI_WORLD. */
+void op_halo_refresh_imports();
 
 void op_halo_destroy();
 

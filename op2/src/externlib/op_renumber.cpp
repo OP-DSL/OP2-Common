@@ -197,8 +197,15 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
     }
   }
 
-  //Renumber halos
-  for (HaloList *exp : {&OP_set_halos[set->index].export_exec, &OP_set_halos[set->index].export_nonexec})
+  //Renumber halos: this set's export lists, and the partial-exchange export
+  //lists of every map onto it. The import lists on other ranks are refreshed
+  //once every set is done (op_halo_refresh_imports).
+  std::vector<HaloList *> exports = {&OP_set_halos[set->index].export_exec,
+                                     &OP_set_halos[set->index].export_nonexec};
+  for (int m = 0; m < (int)OP_map_halos.size(); m++)
+    if (OP_map_list[m]->to == set)
+      exports.push_back(&OP_map_halos[m].export_nonexec);
+  for (HaloList *exp : exports)
     for (idx_l_t i = 0; i < exp->size(); i++)
       exp->list[i] = set_permutations[set->index][exp->list[i]];
 
@@ -210,10 +217,11 @@ void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
   OP_part_list[set->index]->g_index = new_g_index; 
 }
 
-void op_renumber(op_map base) {
-#ifndef HAVE_PTSCOTCH
-  op_printf("OP2 was not compiled with Scotch, no reordering.\n");
-#else
+#ifdef HAVE_PTSCOTCH
+/* Reorder this rank's core elements of base's target set, and of every set the
+   ordering propagates to. It can give up on one rank alone (a core with no
+   edges of its own), so nothing collective may happen in here. */
+static void renumber_owned(op_map base) {
   op_printf("Renumbering using base map %s\n", base->name);
 /*
   int generated_partvec = 0;
@@ -489,7 +497,17 @@ void op_renumber(op_map base) {
   }
   avg_dist /= base->from->size;
   op_printf("After renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
+}
+#endif
 
+void op_renumber(op_map base) {
+#ifndef HAVE_PTSCOTCH
+  op_printf("OP2 was not compiled with Scotch, no reordering.\n");
+#else
+  renumber_owned(base);
+  /* Every rank, reordered or not: other ranks' import lists name elements by
+     their owners' numbering, which has just changed. */
+  op_halo_refresh_imports();
 #endif
 }
 

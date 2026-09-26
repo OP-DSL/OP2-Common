@@ -285,6 +285,8 @@ A halo list (``HaloList``, ``op2/include/op_mpi_core.h``) holds one contiguous b
 
 It is a value that owns its arrays.  Lists are built with ``halo_list_from_pairs()`` or ``halo_list_from_groups()``, and ``halo_list_transpose()`` turns an export list into the matching import list or the reverse.  A set's four lists live in ``OP_set_halos[set->index]`` (``SetHalo``: ``export_exec``, ``import_exec``, ``export_nonexec``, ``import_nonexec``), and a map's partial-exchange lists in ``OP_map_halos[map->index]`` (``MapHalo``).
 
+An export list holds local indices of owned elements.  An import list holds, for each halo element, its current local index on its owner; ``op_mpi_probe_halo_index()`` returns that index with the owner's rank.  An owner that reorders its elements rewrites only its own export lists, so the import lists everywhere are then refilled from them with ``op_halo_refresh_imports()`` - at the end of halo creation, and at the end of ``op_renumber()``, which also remaps the partial-exchange export lists.
+
 Halo creation in ``op_halo_create()`` proceeds in 11 steps:
 
 1. Build ``eeh`` export lists (elements whose referenced data spans a partition boundary).
@@ -295,7 +297,7 @@ Halo creation in ``op_halo_create()`` proceeds in 11 steps:
 6. Exchange execute-halo data; append to each ``op_dat->data`` array.
 7. Exchange non-execute halo data; append to each ``op_dat->data`` array.
 8. Renumber all mapping tables to use local indices.
-9. Separate core elements into a contiguous block (index range ``[0, set->core_size)``); elements in ``[set->core_size, set->size)`` are export-execute-halo (``eeh``) elements.  The full iteration range, including imported halo elements, extends to ``set->size + set->exec_size + set->nonexec_size``.  The ``op_set_core`` struct exposes ``core_size``, ``exec_size``, and ``nonexec_size`` for this purpose.
+9. Separate core elements into a contiguous block (index range ``[0, set->core_size)``); elements in ``[set->core_size, set->size)`` are export-execute-halo (``eeh``) elements.  The full iteration range, including imported halo elements, extends to ``set->size + set->exec_size + set->nonexec_size``.  The ``op_set_core`` struct exposes ``core_size``, ``exec_size``, and ``nonexec_size`` for this purpose.  Moving the owned elements changes their indices, so the import lists are then refreshed from the rewritten export lists.
 10. Save the original set-element ordering (stored in the ``part`` struct) for ``op_fetch_data()`` and output routines.
 11. Free temporaries; compute a rough estimate of the average worst-case halo size.
 
