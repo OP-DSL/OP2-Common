@@ -106,11 +106,11 @@ DatPlacement CudaBackend::placement(op_dat dat, op_map partial_map) const {
                                 dat_is_soa(dat));
 
     if (partial_map != nullptr) {
-        placement.nonexec_export_permap = export_nonexec_list_partial_d[partial_map->index];
-        placement.nonexec_import_permap = import_nonexec_list_partial_d[partial_map->index];
+        placement.nonexec_export_permap = OP_map_halos_d[partial_map->index].export_nonexec.get();
+        placement.nonexec_import_permap = OP_map_halos_d[partial_map->index].import_nonexec.get();
     } else {
-        placement.exec_export = export_exec_list_d[dat->set->index];
-        placement.nonexec_export = export_nonexec_list_d[dat->set->index];
+        placement.exec_export = OP_set_halos_d[dat->set->index].export_exec.get();
+        placement.nonexec_export = OP_set_halos_d[dat->set->index].export_nonexec.get();
     }
 
     return placement;

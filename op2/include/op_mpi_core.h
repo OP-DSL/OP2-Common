@@ -166,12 +166,25 @@ extern int OP_part_index;
 extern part *OP_part_list;
 extern idx_g_t **orig_part_range;
 
-/** export list on the device **/
+/* A halo list's entries in device memory, freed with it. The deleter is defined
+   by the GPU library, so this header needs no GPU headers. */
+struct DeviceFree {
+  void operator()(idx_l_t *p) const;
+};
+using DeviceList = std::unique_ptr<idx_l_t, DeviceFree>;
 
-extern idx_l_t **export_exec_list_d;
-extern idx_l_t **export_nonexec_list_d;
-extern idx_l_t **export_nonexec_list_partial_d;
-extern idx_l_t **import_nonexec_list_partial_d;
+/* The device copies of the lists the unified exchange gathers and scatters
+   through, uploaded by op_mv_halo_list_device and null until then (or for good,
+   in a CPU library). A full exchange scatters by offset, so a set's import lists
+   stay on the host. */
+struct DeviceSetHalo {
+  DeviceList export_exec, export_nonexec;
+};
+struct DeviceMapHalo {
+  DeviceList export_nonexec, import_nonexec;
+};
+extern std::vector<DeviceSetHalo> OP_set_halos_d; // by set index
+extern std::vector<DeviceMapHalo> OP_map_halos_d; // by map index
 
 // Structs and functions that use MPI definitions
 #ifndef OP_MPI_CORE_NOMPI

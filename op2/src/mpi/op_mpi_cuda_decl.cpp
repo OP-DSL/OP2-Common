@@ -202,83 +202,36 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
   return total_size;
 }
 
-/* op_cpHostToDevice takes the host pointer by address. A halo list owns its
-   storage, so hand it a plain pointer - never the address of the owner, which a
-   (void **) cast would accept without complaint. Returns the bytes uploaded. */
-static size_t upload_list(idx_l_t **device, const HaloList &list) {
-  const size_t bytes = list.size() * sizeof(idx_l_t);
-  void *host = list.list.get();
-  op_cpHostToDevice((void **)device, &host, bytes);
-  return bytes;
-}
-
+/* Upload every list the unified exchange reads on the device, replacing (and so
+   freeing) any earlier copies: after op_renumber the host lists have changed. */
 size_t op_mv_halo_list_device() {
   size_t total_size = 0;
+  auto upload = [&](const HaloList &list) {
+    /* op_cpHostToDevice takes the host pointer by address: hand it a plain
+       pointer, never the address of the owner, which a (void **) cast would
+       accept without complaint. */
+    idx_l_t *device = nullptr;
+    void *host = list.list.get();
+    const size_t bytes = list.size() * sizeof(idx_l_t);
+    op_cpHostToDevice((void **)&device, &host, bytes);
+    total_size += bytes;
+    return DeviceList(device);
+  };
 
-  if (export_exec_list_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_exec_list_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_exec_list_d[OP_set_list[s]->index]));
-    free(export_exec_list_d);
-  }
-  export_exec_list_d = (idx_l_t **)xmalloc(sizeof(idx_l_t *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
+  OP_set_halos_d = std::vector<DeviceSetHalo>(OP_set_index);
+  for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-    export_exec_list_d[set->index] = NULL;
-
-    total_size += upload_list(&export_exec_list_d[set->index], OP_set_halos[set->index].export_exec);
+    OP_set_halos_d[set->index].export_exec = upload(OP_set_halos[set->index].export_exec);
+    OP_set_halos_d[set->index].export_nonexec = upload(OP_set_halos[set->index].export_nonexec);
   }
 
-  if (export_nonexec_list_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_nonexec_list_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_d[OP_set_list[s]->index]));
-    free(export_nonexec_list_d);
-  }
-  export_nonexec_list_d = (idx_l_t **)xmalloc(sizeof(idx_l_t *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    export_nonexec_list_d[set->index] = NULL;
-
-    total_size += upload_list(&export_nonexec_list_d[set->index], OP_set_halos[set->index].export_nonexec);
-  }
-
-  if ( export_nonexec_list_partial_d!= NULL) {
-    for (int s = 0; s < OP_map_index; s++)
-      if (OP_map_partial_exchange[s] && export_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
-    free(export_nonexec_list_partial_d);
-  }
-  export_nonexec_list_partial_d = (idx_l_t **)calloc(sizeof(idx_l_t *) * OP_map_index,1);
-
-  for (int s = 0; s < OP_map_index; s++) { // for each set
-    if (!OP_map_partial_exchange[s])
+  OP_map_halos_d = std::vector<DeviceMapHalo>(OP_map_index);
+  for (int m = 0; m < (int)OP_map_halos.size(); m++) {
+    if (!OP_map_partial_exchange[m])
       continue;
-    op_map map = OP_map_list[s];
-    export_nonexec_list_partial_d[map->index] = NULL;
-
-    total_size += upload_list(&export_nonexec_list_partial_d[map->index], OP_map_halos[map->index].export_nonexec);
+    OP_map_halos_d[m].export_nonexec = upload(OP_map_halos[m].export_nonexec);
+    OP_map_halos_d[m].import_nonexec = upload(OP_map_halos[m].import_nonexec);
   }
-
-  if ( import_nonexec_list_partial_d!= NULL) {
-    for (int s = 0; s < OP_map_index; s++)
-      if (OP_map_partial_exchange[s] && import_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
-    free(import_nonexec_list_partial_d);
-  }
-  import_nonexec_list_partial_d = (idx_l_t **)calloc(sizeof(idx_l_t *) * OP_map_index,1);
-
-  for (int s = 0; s < OP_map_index; s++) { // for each set
-    if (!OP_map_partial_exchange[s])
-      continue;
-    op_map map = OP_map_list[s];
-    import_nonexec_list_partial_d[map->index] = NULL;
-
-    total_size += upload_list(&import_nonexec_list_partial_d[map->index], OP_map_halos[map->index].import_nonexec);
-  }
-
   return total_size;
 }
 
@@ -323,21 +276,9 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 */
 
 void op_exit() {
-  // free the device halo lists
-  if (OP_hybrid_gpu) {
-    for (int i = 0; i < OP_set_index; i++) {
-      if (export_exec_list_d[i] != NULL)
-        cutilSafeCall(gpuFree(export_exec_list_d[i]));
-      if (export_nonexec_list_d[i] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_d[i]));
-    }
-    for (int i = 0; i < OP_map_index; i++) {
-      if (!OP_map_partial_exchange[i])
-        continue;
-      cutilSafeCall(gpuFree(export_nonexec_list_partial_d[i]));
-      cutilSafeCall(gpuFree(import_nonexec_list_partial_d[i]));
-    }
-  }
+  // free the device halo lists, while the device is still up
+  OP_set_halos_d = std::vector<DeviceSetHalo>();
+  OP_map_halos_d = std::vector<DeviceMapHalo>();
 
   op_mpi_exit();
   op_cuda_exit(); // frees dat_d memory

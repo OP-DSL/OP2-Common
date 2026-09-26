@@ -55,13 +55,15 @@
 #include <op_util.h>
 
 //
-// export lists on the device
+// halo lists on the device
 //
 
-idx_l_t **export_exec_list_d = NULL;
-idx_l_t **export_nonexec_list_d = NULL;
-idx_l_t **export_nonexec_list_partial_d = NULL;
-idx_l_t **import_nonexec_list_partial_d = NULL;
+std::vector<DeviceSetHalo> OP_set_halos_d;
+std::vector<DeviceMapHalo> OP_map_halos_d;
+
+/* The return code is not checked: a list still alive at static destruction, if
+   op_exit was never called, is freed after the runtime has begun unloading. */
+void DeviceFree::operator()(idx_l_t *p) const { (void)gpuFree(p); }
 
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
