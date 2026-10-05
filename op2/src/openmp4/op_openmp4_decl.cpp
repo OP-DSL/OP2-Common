@@ -307,6 +307,6 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
     exit(2);
   }
   // need to copy data into memory pointed to by usr_ptr
-  memcpy((void *)usr_ptr, (void *)&dat->data[low * dat->size],
-         (high + 1) * dat->size);
+  memcpy((void *)usr_ptr, (void *)&dat->data[(size_t)low * dat->size],
+         (size_t)(high - low + 1) * dat->size);
 }

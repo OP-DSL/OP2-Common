@@ -457,4 +457,9 @@ void op_mpi_test_all(int, op_arg *) {
 void op_mpi_unified_exit() {
     if (ctx.unwaited != nullptr)
         unpaired(std::string("op_exit with the halo exchange on set '") + ctx.unwaited->name + "' never waited for");
+    // Each exchange completes the previous one's sends; nothing follows the last.
+    if (!ctx.send_reqs.empty()) {
+        MPI_Waitall(ctx.send_reqs.size(), ctx.send_reqs.data(), MPI_STATUSES_IGNORE);
+        ctx.send_reqs.clear();
+    }
 }

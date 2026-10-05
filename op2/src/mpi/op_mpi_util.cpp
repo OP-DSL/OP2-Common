@@ -36,25 +36,15 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+#include <op_mpi_halo.h>
+
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <limits>
 #include <vector>
 
 MPI_Comm OP_MPI_IO_WORLD;
-
-void _mpi_allgather(int *l, int *g, int size, int *recevcnts, int *displs,
-                    MPI_Comm comm) {
-  MPI_Allgatherv(l, size, MPI_INT, g, recevcnts, displs, MPI_INT, comm);
-}
-
-void _mpi_allgather(float *l, float *g, int size, int *recevcnts, int *displs,
-                    MPI_Comm comm) {
-  MPI_Allgatherv(l, size, MPI_FLOAT, g, recevcnts, displs, MPI_FLOAT, comm);
-}
-
-void _mpi_allgather(double *l, double *g, int size, int *recevcnts, int *displs,
-                    MPI_Comm comm) {
-  MPI_Allgatherv(l, size, MPI_DOUBLE, g, recevcnts, displs, MPI_DOUBLE, comm);
-}
 
 void _mpi_gather(int *l, int *g, int size, int *recevcnts, int *displs,
                  MPI_Comm comm) {
@@ -71,60 +61,6 @@ void _mpi_gather(double *l, double *g, int size, int *recevcnts, int *displs,
                  MPI_Comm comm) {
   MPI_Gatherv(l, size, MPI_DOUBLE, g, recevcnts, displs, MPI_DOUBLE, MPI_ROOT,
               comm);
-}
-
-template <typename T>
-void gather_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
-  // create new communicator
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_IO_WORLD);
-  MPI_Comm_rank(OP_MPI_IO_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_IO_WORLD, &comm_size);
-
-  // compute local number of elements in dat
-  int count = dat->set->size;
-
-  T *l_array = (T *)xmalloc(dat->dim * (count) * sizeof(T));
-  memcpy(l_array, (void *)&(dat->data[0]), (size_t)dat->size * count);
-  int l_size = count;
-  size_t elem_size = dat->dim;
-  int *recevcnts = (int *)xmalloc(comm_size * sizeof(int));
-  int *displs = (int *)xmalloc(comm_size * sizeof(int));
-  int disp = 0;
-  T *g_array = 0;
-
-  MPI_Allgather(&l_size, 1, get_mpi_type(&l_size), recevcnts, 1, get_mpi_type(recevcnts), OP_MPI_IO_WORLD);
-
-  idx_g_t g_size = 0;
-  for (int i = 0; i < comm_size; i++) {
-    g_size += recevcnts[i];
-    recevcnts[i] = elem_size * recevcnts[i];
-  }
-  for (int i = 0; i < comm_size; i++) {
-    displs[i] = disp;
-    disp = disp + recevcnts[i];
-  }
-
-  g_array = (T *)xmalloc(elem_size * g_size * sizeof(T));
-
-  // need to all-gather dat->data and copy this to the memory block pointed by
-  // usr_ptr
-  _mpi_allgather(l_array, g_array, l_size * elem_size, recevcnts, displs,
-                 OP_MPI_IO_WORLD);
-
-  if (low < 0 || high > g_size - 1) {
-    printf("op_fetch_data: Indices not within range of elements held in %s\n",
-           dat->name);
-    MPI_Abort(OP_MPI_IO_WORLD, -1);
-  }
-  memcpy((void *)usr_ptr, (void *)&g_array[low * (size_t)dat->size],
-         (high + 1) * (size_t)dat->size);
-
-  free(l_array);
-  free(recevcnts);
-  free(displs);
-  free(g_array);
-  MPI_Comm_free(&OP_MPI_IO_WORLD);
 }
 
 void checked_write(int v, const char *file_name) {
@@ -217,19 +153,30 @@ void write_file(op_dat dat, const char *file_name) {
 }
 
 /*******************************************************************************
-* Routine to fetch data from an op_dat to user allocated memory block under hdf5
-* -- placed in op_mpi_core.c as this routine does not use any hdf5 functions
+* Rows [low, high] of a dat in the layout as declared (what op_mpi_get_data
+* returns) into usr_ptr, on every rank. Each rank fills in the rows of the range it
+* holds and leaves the rest zero, and a bitwise OR over the ranks completes the
+* range everywhere: nothing bigger than the range, nothing sized by the number of
+* ranks, and no need to know the dat's type.
 *******************************************************************************/
 
 void fetch_data_hdf5(op_dat dat, char *usr_ptr, int low, int high) {
-  if (strcmp(dat->type, "double") == 0)
-    gather_data_hdf5<double>(dat, usr_ptr, low, high);
-  else if (strcmp(dat->type, "float") == 0)
-    gather_data_hdf5<float>(dat, usr_ptr, low, high);
-  else if (strcmp(dat->type, "int") == 0)
-    gather_data_hdf5<int>(dat, usr_ptr, low, high);
-  else
-    printf("Unknown type %s, cannot error in fetch_data_hdf5() \n", dat->type);
+  const idx_g_t first = op::mpi::sum_below_rank(dat->set->size, OP_MPI_WORLD);
+  const idx_g_t total = op::mpi::sum_over_ranks(dat->set->size, OP_MPI_WORLD);
+  if (low < 0 || high > total - 1 || low > high)
+    op::mpi::fail("op_fetch_data: indices %d to %d not within the %lld elements of %s\n", low, high, (long long)total,
+                  dat->name);
+
+  const std::size_t row = dat->size, bytes = (std::size_t)(high - low + 1) * row;
+  std::memset(usr_ptr, 0, bytes);
+  const idx_g_t from = std::max<idx_g_t>(low, first), to = std::min<idx_g_t>(high + 1, first + dat->set->size);
+  if (from < to)
+    std::memcpy(usr_ptr + (from - low) * row, dat->data + (from - first) * row, (to - from) * row);
+
+  // in pieces: an MPI count is an int
+  const std::size_t piece = std::numeric_limits<int>::max();
+  for (std::size_t done = 0; done < bytes; done += piece)
+    MPI_Allreduce(MPI_IN_PLACE, usr_ptr + done, (int)std::min(piece, bytes - done), MPI_BYTE, MPI_BOR, OP_MPI_WORLD);
 }
 
 /*******************************************************************************

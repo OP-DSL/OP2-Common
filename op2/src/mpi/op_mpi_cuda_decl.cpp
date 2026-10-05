@@ -142,9 +142,8 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
     }
   }
 
-  if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
-  }
+  if (item_dat == NULL)
+    op::mpi::fail("ERROR: op_dat not found for dat with %p pointer\n", (void *)dat);
 
   return op_decl_dat_overlay(set, item_dat);
 }
@@ -154,9 +153,8 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 
   // create empty data block to assign to this temporary dat (including the
-  // halos)
-  size_t set_size = (size_t)set->size + (size_t)OP_set_halos[set->index].import_exec.size()
-                                      + (size_t)OP_set_halos[set->index].import_nonexec.size();
+  // halos, none before partitioning)
+  size_t set_size = (size_t)set->size + set->exec_size + set->nonexec_size;
 
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
@@ -179,8 +177,7 @@ int op_free_dat_temp_char(op_dat dat) {
 size_t op_mv_halo_device(op_set set, op_dat dat) {
   size_t total_size = 0;
 
-  idx_g_t set_size = set->size + OP_set_halos[set->index].import_exec.size() +
-                 OP_set_halos[set->index].import_nonexec.size();
+  idx_g_t set_size = set->size + set->exec_size + set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
     int element_size = (size_t)dat->size / dat->dim;
@@ -298,8 +295,12 @@ void op_exit() {
 }
 
 void op_timing_output() {
+  double max_plan_time = 0.0;
+  MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, OP_MPI_WORLD);
   op_timing_output_core();
-  printf("Total plan time: %8.4f\n", OP_plan_time);
+  if (op_is_root())
+    printf("Total plan time: %8.4f\n", max_plan_time);
+  mpi_timing_output();
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
@@ -332,8 +333,7 @@ void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    idx_g_t set_size = dat->set->size + OP_set_halos[dat->set->index].import_exec.size() +
-                   OP_set_halos[dat->set->index].import_nonexec.size();
+    idx_g_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));

@@ -40,6 +40,7 @@
 #include <op_lib_core.h>
 #include <op_lib_mpi.h>
 #include <op_mpi_core.h>
+#include <op_mpi_halo.h>
 #include <op_rt_support.h>
 #include <op_util.h>
 #include <vector>
@@ -139,9 +140,8 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
     }
   }
 
-  if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
-  }
+  if (item_dat == NULL)
+    op::mpi::fail("ERROR: op_dat not found for dat with %p pointer\n", (void *)dat);
 
   return op_decl_dat_overlay(set, item_dat);
 }
@@ -261,7 +261,7 @@ void op_timing_output() {
              OP_MPI_WORLD);
   op_timing_output_core();
   if (op_is_root())
-    printf("Total plan time: %8.4f\n", OP_plan_time);
+    printf("Total plan time: %8.4f\n", max_plan_time);
   mpi_timing_output();
 }
 

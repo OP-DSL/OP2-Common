@@ -105,6 +105,11 @@ idx_l_t compute_local_size_weight(idx_g_t global_size, int mpi_comm_size,
 * Routine to read an op_set from an hdf5 file
 *******************************************************************************/
 
+/* How a set or map element count is stored: int, as files have always had it,
+   unless the count does not fit. Written from an idx_g_t and read as long long,
+   which HDF5 converts from either. */
+static hid_t count_type(idx_g_t count) { return count > INT_MAX ? H5T_NATIVE_LLONG : H5T_NATIVE_INT; }
+
 op_set op_decl_set_hdf5(char const *file, char const *name) {
   // create new communicator
   int my_rank, comm_size;
@@ -145,9 +150,9 @@ op_set op_decl_set_hdf5(char const *file, char const *name) {
   plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
-  int g_size = 0;
-  // read data
-  H5Dread(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, &g_size);
+  // read as long long, whichever count_type the file holds
+  idx_g_t g_size = 0;
+  H5Dread(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, &g_size);
 
   H5Pclose(plist_id);
   H5Dclose(dset_id);
@@ -301,12 +306,9 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
   // calculate local size of set for this mpi process
   idx_g_t l_size = compute_local_size_weight(g_size, comm_size, my_rank);
   // check if size is accurate
-  if (from->size != l_size) {
-    op_printf(
-        "map from set size %lld in file %s and size %lld do not match on rank %d\n",
-        l_size, file, from->size, my_rank);
-    MPI_Abort(OP_MPI_HDF5_WORLD, 2);
-  }
+  if (from->size != l_size)
+    op::mpi::fail("map from set size %lld in file %s and size %d do not match on rank %d\n", (long long)l_size, file,
+                  from->size, my_rank);
 
   int map_dim = dset_props.dim;
   if (map_dim != dim) {
@@ -698,23 +700,18 @@ void op_dump_to_hdf5(char const *file_name) {
     hsize_t dimsf_set[] = {1};
     dataspace = H5Screate_simple(1, dimsf_set, NULL);
 
+    idx_g_t size = op::mpi::sum_over_ranks(set->size, OP_MPI_HDF5_WORLD);
+
     // Create the dataset with default properties and close dataspace.
-    dset_id = H5Dcreate(file_id, set->name, H5T_NATIVE_INT, dataspace,
+    dset_id = H5Dcreate(file_id, set->name, count_type(size), dataspace,
                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     // Create property list for collective dataset write.
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
-    idx_g_t size = op::mpi::sum_over_ranks(set->size, OP_MPI_HDF5_WORLD);
-
-    // write data
-    if (size > INT_MAX) {
-      H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, &size);
-    } else {
-      int size_int = (int)size;
-      H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, plist_id, &size_int);
-    }
+    // write data (HDF5 converts to the dataset's type)
+    H5Dwrite(dset_id, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL, plist_id, &size);
     H5Sclose(dataspace);
     H5Pclose(plist_id);
     H5Dclose(dset_id);
@@ -786,11 +783,11 @@ void op_dump_to_hdf5(char const *file_name) {
     hsize_t dims = 1;
     dataspace = H5Screate_simple(1, &dims, NULL);
 
-    // Create an int attribute - size
-    hid_t attribute = H5Acreate(dset_id, "size", H5T_NATIVE_INT, dataspace,
+    // Create an attribute - size
+    hid_t attribute = H5Acreate(dset_id, "size", count_type(g_size), dataspace,
                                 H5P_DEFAULT, H5P_DEFAULT);
-    // Write the attribute data.
-    H5Awrite(attribute, H5T_NATIVE_INT, &g_size);
+    // Write the attribute data (HDF5 converts to the attribute's type).
+    H5Awrite(attribute, H5T_NATIVE_LLONG, &g_size);
     // Close the attribute.
     H5Aclose(attribute);
 
@@ -1452,11 +1449,8 @@ void op_fetch_data_hdf5_file_ptr(char *data, const char *file_name) {
       break;
     }
   }
-  // printf("\n");
-  if (item_dat == NULL) {
-    printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
-           data);
-  }
+  if (item_dat == NULL)
+    op::mpi::fail("ERROR in op_fetch_data_hdf5_file_ptr: op_dat not found for dat with %p pointer\n", (void *)data);
 
   op_fetch_data_hdf5(item_dat, file_name, item_dat->name);
 }
