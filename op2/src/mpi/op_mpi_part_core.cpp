@@ -848,29 +848,31 @@ void op_partition_geom(op_dat coords) {
 /* The primary set's ranks by recursive bisection along the inertial axes, for
    partition_with. */
 static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t **part_range) {
+  if (x_dat->size != 3 * (int)sizeof(double)) {
+    printf("Inertial partitioning needs coordinates of three doubles: %s holds %d bytes per element\n",
+           x_dat->name, x_dat->size);
+    MPI_Abort(OP_PART_WORLD, 1);
+  }
   double *x = (double *)xmalloc(x_dat->set->size * x_dat->dim * sizeof(double));
   memcpy(x, x_dat->data, x_dat->set->size * x_dat->dim * sizeof(double));
 
-  MPI_Comm mpi_comm = OP_PART_WORLD;
-  MPI_Group current_group;
-  MPI_Comm_group(mpi_comm, &current_group);
+  MPI_Comm mpi_comm = OP_PART_WORLD; // halved at each level
 
   /* - STEP 1 figure out partitioning - */
-  int global_size =
-      part_range[x_dat->set->index][2 * (comm_size - 1) + 1] + 1;   // losg
-  int block_lower = part_range[x_dat->set->index][2 * my_rank];     // losg1
-  int block_upper = part_range[x_dat->set->index][2 * my_rank + 1]; // losg2
-  int block_size = block_upper - block_lower + 1;                   // losgd
+  idx_g_t *range = part_range[x_dat->set->index];
+  idx_g_t global_size = range[2 * (comm_size - 1) + 1] + 1; // losg
+  idx_g_t block_lower = range[2 * my_rank];                 // losg1
+  int block_size = x_dat->set->size;                        // losgd
 
-  int *global_indices = (int *)xmalloc((block_size>0?block_size:1) * sizeof(int));
+  idx_g_t *global_indices = (idx_g_t *)xmalloc((block_size > 0 ? block_size : 1) * sizeof(idx_g_t));
   for (int i = 0; i < block_size; i++)
     global_indices[i] = block_lower + i;
   int nlevel = 0;
   while ((1 << nlevel) < comm_size)
     nlevel++;
 
-  int current_part_size = block_size;   // losl
-  int current_group_size = global_size; // lopl
+  int current_part_size = block_size;       // losl
+  idx_g_t current_group_size = global_size; // lopl
 
   MPI_Request s_request, s_request2;
   MPI_Status s_status, s_status2;
@@ -991,10 +993,10 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
       double dlower = distmin_g;
       double dupper = distmax_g;
       double dsplit = distavg_g;
-      long nsplit = ((long)current_group_size * (long)(comm_size / 2)) / (long)comm_size;
-      int nlower_g = 0;
+      idx_g_t nsplit = current_group_size * (comm_size / 2) / comm_size;
+      idx_g_t nlower_g = 0;
       while (1) {
-        int nlower = 0;
+        idx_g_t nlower = 0;
         nlower_g = 0;
         for (int i = 0; i < current_part_size; i++)
           nlower += (dist[i] <= dsplit ? 1 : 0);
@@ -1012,15 +1014,15 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
         if (dupper - dlower < 1e-8 * dbnd)
           break;
       }
-      int current_group_lower = nlower_g;
-      int current_group_upper = current_group_size - nlower_g;
+      idx_g_t current_group_lower = nlower_g;
+      idx_g_t current_group_upper = current_group_size - nlower_g;
 
       double *x_keep =
           (double *)xmalloc(3 * (current_part_size>0?current_part_size:1) * sizeof(double));
-      int *idx_gbl_keep = (int *)xmalloc(current_part_size * sizeof(int));
+      idx_g_t *idx_gbl_keep = (idx_g_t *)xmalloc(current_part_size * sizeof(idx_g_t));
       double *x_send =
           (double *)xmalloc(3 * (current_part_size>0?current_part_size:1) * sizeof(double));
-      int *idx_gbl_send = (int *)xmalloc((current_part_size>1?current_part_size:1) * sizeof(int));
+      idx_g_t *idx_gbl_send = (idx_g_t *)xmalloc((current_part_size > 1 ? current_part_size : 1) * sizeof(idx_g_t));
       int keep_ctr = 0;
       int send_ctr = 0;
       if (my_rank <= comm_size / 2 - 1) {
@@ -1073,10 +1075,10 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
       x = (double *)xrealloc(
           x_keep, (keep_ctr + size_0 + size_1 + 1) * 3 *
                       sizeof(double)); // Implicitly assign x = x_keep
-      global_indices = (int *)xrealloc(
+      global_indices = (idx_g_t *)xrealloc(
           idx_gbl_keep,
           (keep_ctr + size_0 + size_1 + 1) *
-              sizeof(int)); // Implicitly assign global_indices = idx_gbl_keep
+              sizeof(idx_g_t)); // Implicitly assign global_indices = idx_gbl_keep
       current_part_size = keep_ctr + size_0 + size_1;
 
       MPI_Wait(&s_request, &s_status);
@@ -1100,129 +1102,48 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
                  target_part - 1, 2, mpi_comm, &r_status);
       }
 
-      // Divide group in two
-      int *processes_lower = (int *)xmalloc(comm_size / 2 * sizeof(int));
-      int *processes_upper =
-          (int *)xmalloc((comm_size - comm_size / 2) * sizeof(int));
-      for (int i = 0; i < comm_size / 2; i++)
-        processes_lower[i] = i;
-      for (int i = 0; i < comm_size - comm_size / 2; i++)
-        processes_upper[i] = comm_size / 2 + i;
-
-      MPI_Group lower_group, upper_group;
-      MPI_Group_incl(current_group, comm_size / 2, processes_lower,
-                     &lower_group);
-      MPI_Group_incl(current_group, comm_size - comm_size / 2, processes_upper,
-                     &upper_group);
-      MPI_Comm lower_comm, upper_comm;
-      MPI_Comm_create(mpi_comm, lower_group, &lower_comm);
-      MPI_Comm_create(mpi_comm, upper_group, &upper_comm);
-
-      // Join one of the groups
-      if (my_rank <= comm_size / 2 - 1) {
-        current_group_size = current_group_lower;
-        current_group = lower_group;
-        mpi_comm = lower_comm;
-      } else {
-        current_group_size = current_group_upper;
-        current_group = upper_group;
-        mpi_comm = upper_comm;
-      }
-      MPI_Comm_rank(mpi_comm, &my_rank);
-      MPI_Comm_size(mpi_comm, &comm_size);
-      // free stuff
-      op_free(dist);
-      op_free(processes_lower);
-      op_free(processes_upper);
+      // Divide the group in two, the lower half of the ranks and the upper, in order
+      const bool lower = my_rank <= comm_size / 2 - 1;
+      current_group_size = lower ? current_group_lower : current_group_upper;
+      MPI_Comm half;
+      MPI_Comm_split(mpi_comm, lower ? 0 : 1, my_rank, &half);
       MPI_Wait(&s_request, &s_status);
       MPI_Wait(&s_request2, &s_status2);
+      if (mpi_comm != OP_PART_WORLD)
+        MPI_Comm_free(&mpi_comm);
+      mpi_comm = half;
+      MPI_Comm_rank(mpi_comm, &my_rank);
+      MPI_Comm_size(mpi_comm, &comm_size);
+      op_free(dist);
       op_free(idx_gbl_send);
       op_free(x_send);
     }
   }
   op_free(x);
-  op_sort(global_indices, current_part_size);
+  if (mpi_comm != OP_PART_WORLD)
+    MPI_Comm_free(&mpi_comm);
   // back to the whole communicator
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
-  // start binning (global indices -> processes)
-  int *sizes = (int *)xcalloc(comm_size, sizeof(int));
-  int target = 0;
-  for (int i = 0; i < current_part_size; i++) {
-    while (
-        !(orig_part_range[x_dat->set->index][2 * target] <= global_indices[i] &&
-          orig_part_range[x_dat->set->index][2 * target + 1] >=
-              global_indices[i]))
-      target++;
-    sizes[target]++;
-  }
-  int *sizes_recv = (int *)xcalloc(comm_size, sizeof(int));
-  MPI_Alltoall(sizes, 1, get_mpi_type(sizes), sizes_recv, 1, get_mpi_type(sizes_recv), OP_PART_WORLD);
 
-  // Sanity check
-  int total_size = 0;
-  for (int i = 0; i < comm_size; i++)
-    total_size += sizes_recv[i];
-  if (total_size != block_size) {
-    printf("Error at rank %d: original(%d) vs. collected(%d) size mismatch! "
-           "Aborting...\n",
-           my_rank, block_size, total_size);
+  // Tell each element's declaring rank which rank it ended on. Sorted, the
+  // elements for one rank are one run, so one message.
+  std::sort(global_indices, global_indices + current_part_size);
+  auto ended_on = op::mpi::sparse::exchange_by(
+      OP_PART_WORLD, std::span<const idx_g_t>(global_indices, current_part_size), [&](idx_g_t g) {
+        int local_index;
+        return get_partition(g, range, &local_index, comm_size, x_dat->set);
+      });
+  op_free(global_indices);
+  if (ended_on.size() != (std::size_t)block_size) {
+    printf("Error at rank %d: original(%d) vs. collected(%zu) size mismatch! Aborting...\n", my_rank, block_size,
+           ended_on.size());
     MPI_Abort(OP_PART_WORLD, 2);
   }
-
-  // How many partitions we are sending to/receiving from
-  int send_count = 0;
-  int recv_count = 0;
-  for (int i = 0; i < comm_size; i++) {
-    if (sizes[i])
-      send_count++;
-    if (sizes_recv[i])
-      recv_count++;
-  }
-
-  // Send
-  MPI_Request *send_requests =
-      (MPI_Request *)xmalloc(send_count * sizeof(MPI_Request));
-  MPI_Request *recv_requests =
-      (MPI_Request *)xmalloc(recv_count * sizeof(MPI_Request));
-  MPI_Status *send_statuses =
-      (MPI_Status *)xmalloc(send_count * sizeof(MPI_Status));
-  MPI_Status *recv_statuses =
-      (MPI_Status *)xmalloc(recv_count * sizeof(MPI_Status));
-  int *global_indices_recv = (int *)xmalloc(total_size * sizeof(int));
-  send_count = 0;
-  recv_count = 0;
-  int send_offset = 0;
-  int recv_offset = 0;
-  for (int i = 0; i < comm_size; i++) {
-    if (sizes[i]) {
-      MPI_Isend(&global_indices[send_offset], sizes[i], get_mpi_type(global_indices), i, 0,
-                OP_PART_WORLD, &send_requests[send_count]);
-      send_offset += sizes[i];
-      send_count++;
-    }
-    if (sizes_recv[i]) {
-      MPI_Irecv(&global_indices_recv[recv_offset], sizes_recv[i], get_mpi_type(global_indices_recv), i, 0,
-                OP_PART_WORLD, &recv_requests[recv_count]);
-      recv_offset += sizes_recv[i];
-      recv_count++;
-    }
-  }
-  MPI_Waitall(recv_count, recv_requests, recv_statuses);
   int *partition = (int *)xmalloc(sizeof(int) * x_dat->set->size);
-  recv_count = 0;
-  recv_offset = 0;
-  for (int i = 0; i < comm_size; i++) {
-    if (sizes_recv[i]) {
-      for (int j = recv_offset; j < recv_offset + sizes_recv[i]; j++)
-        partition[global_indices_recv[j] - block_lower] = i;
-      recv_offset += sizes_recv[i];
-      recv_count++;
-    }
-  }
-  MPI_Waitall(send_count, send_requests, send_statuses);
-  op_free(global_indices_recv);
-  op_free(global_indices);
+  for (int i = 0; i < ended_on.num_neighbours(); i++)
+    for (idx_g_t g : ended_on.from_neighbour(i))
+      partition[g - block_lower] = ended_on.ranks[i];
   return partition;
 }
 
