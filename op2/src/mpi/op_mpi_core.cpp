@@ -1612,233 +1612,49 @@ void op_mpi_reduce_combined(op_arg *args, int nargs) {
   op_free(result);
 }
 
-void op_mpi_reduce_float(op_arg *arg, float *data) {
-  if (OP_disable_mpi_reductions)
-    return;
+extern "C++" {
 
-  if (arg->data == NULL)
+/* One body for every element type of a global reduction; op_mpi_reduce_<type>
+   below only names the MPI datatype. */
+template <typename T>
+static void reduce_gbl(op_arg *arg, MPI_Datatype type) {
+  if (OP_disable_mpi_reductions || arg->data == NULL)
     return;
-  (void)data;
   op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
-    float result_static;
-    float *result;
-    if (arg->dim > 1 && arg->acc != OP_WRITE)
-      result = (float *)calloc(arg->dim, sizeof(float));
-    else
-      result = &result_static;
-
-    if (arg->acc == OP_INC) // global reduction
-    {
-      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT, MPI_SUM,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(float) * arg->dim);
-    } else if (arg->acc == OP_MAX) // global maximum
-    {
-      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT, MPI_MAX,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(float) * arg->dim);
-      ;
-    } else if (arg->acc == OP_MIN) // global minimum
-    {
-      MPI_Allreduce((float *)arg->data, result, arg->dim, MPI_FLOAT, MPI_MIN,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(float) * arg->dim);
-    } else if (arg->acc == OP_WRITE) // any
-    {
+  if (arg->argtype == OP_ARG_GBL) {
+    T *data = (T *)arg->data;
+    if (arg->acc == OP_INC || arg->acc == OP_MAX || arg->acc == OP_MIN) {
+      MPI_Op op = arg->acc == OP_INC ? MPI_SUM : arg->acc == OP_MAX ? MPI_MAX : MPI_MIN;
+      MPI_Allreduce(MPI_IN_PLACE, data, arg->dim, type, op, OP_MPI_WORLD);
+    } else if (arg->acc == OP_WRITE) {
+      // Any rank's value: the last rank's that is not zero, else rank 0's.
       int size;
       MPI_Comm_size(OP_MPI_WORLD, &size);
-      result = (float *)calloc(arg->dim * size, sizeof(float));
-      MPI_Allgather((float *)arg->data, arg->dim, MPI_FLOAT, result, arg->dim,
-                    MPI_FLOAT, OP_MPI_WORLD);
-      for (int i = 1; i < size; i++) {
-        for (int j = 0; j < arg->dim; j++) {
-          if (result[i * arg->dim + j] != 0.0f)
-            result[j] = result[i * arg->dim + j];
-        }
-      }
-      memcpy(arg->data, result, sizeof(float) * arg->dim);
-      if (arg->dim == 1)
-        op_free(result);
+      std::unique_ptr<T[]> all(new T[(std::size_t)arg->dim * size]());
+      MPI_Allgather(data, arg->dim, type, all.get(), arg->dim, type, OP_MPI_WORLD);
+      for (int i = 1; i < size; i++)
+        for (int j = 0; j < arg->dim; j++)
+          if (all[i * arg->dim + j] != T(0))
+            all[j] = all[i * arg->dim + j];
+      std::copy_n(all.get(), arg->dim, data);
     }
-    if (arg->dim > 1)
-      op_free(result);
   }
   op_timers_core(&c2, &t2);
   if (OP_kern_max > 0)
     OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
 }
 
-void op_mpi_reduce_double(op_arg *arg, double *data) {
-  if (OP_disable_mpi_reductions)
-    return;
+}  // extern "C++"
 
-  (void)data;
-  if (arg->data == NULL)
-    return;
-  op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
-    double result_static;
-    double *result;
-    if (arg->dim > 1 && arg->acc != OP_WRITE)
-      result = (double *)calloc(arg->dim, sizeof(double));
-    else
-      result = &result_static;
+void op_mpi_reduce_float(op_arg *arg, float *) { reduce_gbl<float>(arg, MPI_FLOAT); }
 
-    if (arg->acc == OP_INC) // global reduction
-    {
-      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE, MPI_SUM,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(double) * arg->dim);
-    } else if (arg->acc == OP_MAX) // global maximum
-    {
-      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE, MPI_MAX,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(double) * arg->dim);
-      ;
-    } else if (arg->acc == OP_MIN) // global minimum
-    {
-      MPI_Allreduce((double *)arg->data, result, arg->dim, MPI_DOUBLE, MPI_MIN,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(double) * arg->dim);
-    } else if (arg->acc == OP_WRITE) // any
-    {
-      int size;
-      MPI_Comm_size(OP_MPI_WORLD, &size);
-      result = (double *)calloc(arg->dim * size, sizeof(double));
-      MPI_Allgather((double *)arg->data, arg->dim, MPI_DOUBLE, result, arg->dim,
-                    MPI_DOUBLE, OP_MPI_WORLD);
-      for (int i = 1; i < size; i++) {
-        for (int j = 0; j < arg->dim; j++) {
-          if (result[i * arg->dim + j] != 0.0)
-            result[j] = result[i * arg->dim + j];
-        }
-      }
-      memcpy(arg->data, result, sizeof(double) * arg->dim);
-      if (arg->dim == 1)
-        op_free(result);
-    }
-    if (arg->dim > 1)
-      op_free(result);
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-}
+void op_mpi_reduce_double(op_arg *arg, double *) { reduce_gbl<double>(arg, MPI_DOUBLE); }
 
-void op_mpi_reduce_int(op_arg *arg, int *data) {
-  if (OP_disable_mpi_reductions)
-    return;
+void op_mpi_reduce_int(op_arg *arg, int *) { reduce_gbl<int>(arg, MPI_INT); }
 
-  (void)data;
-  if (arg->data == NULL)
-    return;
-  op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
-    int result_static;
-    int *result;
-    if (arg->dim > 1 && arg->acc != OP_WRITE)
-      result = (int *)calloc(arg->dim, sizeof(int));
-    else
-      result = &result_static;
-
-    if (arg->acc == OP_INC) // global reduction
-    {
-      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT, MPI_SUM,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(int) * arg->dim);
-    } else if (arg->acc == OP_MAX) // global maximum
-    {
-      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT, MPI_MAX,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(int) * arg->dim);
-      ;
-    } else if (arg->acc == OP_MIN) // global minimum
-    {
-      MPI_Allreduce((int *)arg->data, result, arg->dim, MPI_INT, MPI_MIN,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(int) * arg->dim);
-    } else if (arg->acc == OP_WRITE) // any
-    {
-      int size;
-      MPI_Comm_size(OP_MPI_WORLD, &size);
-      result = (int *)calloc(arg->dim * size, sizeof(int));
-      MPI_Allgather((int *)arg->data, arg->dim, MPI_INT, result, arg->dim,
-                    MPI_INT, OP_MPI_WORLD);
-      for (int i = 1; i < size; i++) {
-        for (int j = 0; j < arg->dim; j++) {
-          if (result[i * arg->dim + j] != 0)
-            result[j] = result[i * arg->dim + j];
-        }
-      }
-      memcpy(arg->data, result, sizeof(int) * arg->dim);
-      if (arg->dim == 1)
-        op_free(result);
-    }
-    if (arg->dim > 1)
-      op_free(result);
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-}
-
-void op_mpi_reduce_bool(op_arg *arg, bool *data) {
-  if (OP_disable_mpi_reductions)
-    return;
-
-  (void)data;
-  if (arg->data == NULL)
-    return;
-  op_timers_core(&c1, &t1);
-  if (arg->argtype == OP_ARG_GBL && arg->acc != OP_READ && arg->acc != OP_WORK) {
-    bool result_static;
-    bool *result;
-    if (arg->dim > 1)
-      result = (bool *)calloc(arg->dim, sizeof(bool));
-    else
-      result = &result_static;
-
-    if (arg->acc == OP_INC) // global reduction
-    {
-      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR, MPI_SUM,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(bool) * arg->dim);
-    } else if (arg->acc == OP_MAX) // global maximum
-    {
-      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR, MPI_MAX,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(bool) * arg->dim);
-      ;
-    } else if (arg->acc == OP_MIN) // global minimum
-    {
-      MPI_Allreduce((bool *)arg->data, result, arg->dim, MPI_CHAR, MPI_MIN,
-                    OP_MPI_WORLD);
-      memcpy(arg->data, result, sizeof(bool) * arg->dim);
-    } else if (arg->acc == OP_WRITE) // any
-    {
-      int size;
-      MPI_Comm_size(OP_MPI_WORLD, &size);
-      result = (bool *)calloc(arg->dim * size, sizeof(bool));
-      MPI_Allgather((int *)arg->data, arg->dim, MPI_CHAR, result, arg->dim,
-                    MPI_CHAR, OP_MPI_WORLD);
-      for (int i = 1; i < size; i++) {
-        for (int j = 0; j < arg->dim; j++) {
-          if (result[i * arg->dim + j] != false)
-            result[j] = result[i * arg->dim + j];
-        }
-      }
-      memcpy(arg->data, result, sizeof(bool) * arg->dim);
-      if (arg->dim == 1)
-        op_free(result);
-    }
-    if (arg->dim > 1)
-      op_free(result);
-  }
-  op_timers_core(&c2, &t2);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += t2 - t1;
-}
+/* MPI_CHAR as it always has been: one byte, like bool, though the MPI standard
+   does not list MPI_CHAR among the reduction types. */
+void op_mpi_reduce_bool(op_arg *arg, bool *) { reduce_gbl<bool>(arg, MPI_CHAR); }
 
 /*******************************************************************************
  * Routine to get a copy of the data held in a distributed op_dat
