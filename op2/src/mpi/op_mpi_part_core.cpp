@@ -928,8 +928,13 @@ void op_partition_geom(op_dat coords) {
     }
   }
 
-  // initialise primary set as partitioned
-  OP_part_list[coords->set->index]->elem_part = (int *)partition;
+  // initialise primary set as partitioned: copied, not cast, since ParMETIS'
+  // idx_t can be 64 bits wide
+  int *elem_part = (int *)xmalloc(sizeof(int) * coords->set->size);
+  for (int i = 0; i < coords->set->size; i++)
+    elem_part[i] = (int)partition[i];
+  op_free(partition);
+  OP_part_list[coords->set->index]->elem_part = elem_part;
   OP_part_list[coords->set->index]->is_partitioned = 1;
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
