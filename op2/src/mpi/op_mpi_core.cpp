@@ -67,6 +67,7 @@ using op::mpi::exchange_rows;
 using op::mpi::fail;
 using op::mpi::HaloList;
 using op::mpi::MapHalo;
+using op::mpi::PartRange;
 using op::mpi::migrate_rows;
 using op::mpi::SetHalo;
 
@@ -101,7 +102,7 @@ part *OP_part_list;
 // Save original partition ranges
 //
 
-idx_g_t **orig_part_range = NULL;
+std::vector<PartRange> orig_part_range;
 
 // Timing
 double t1, t2, c1, c2;
@@ -192,87 +193,6 @@ void decl_partition(op_set set, idx_g_t *g_index, int *partition) {
 }
 
 /*******************************************************************************
- * Routine to get partition range on all mpi ranks for all sets
- *******************************************************************************/
-
-void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
-                    MPI_Comm Comm) {
-  (void)my_rank;
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-
-    idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
-    idx_g_t set_size = set->size;
-    MPI_Allgather(&set_size, 1, get_mpi_type(&set_size),  sizes, 1, get_mpi_type(sizes), Comm);
-
-    part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
-
-    idx_g_t disp = 0;
-    for (int i = 0; i < comm_size; i++) {
-      part_range[set->index][2 * i] = disp;
-      disp = disp + sizes[i] - 1;
-      part_range[set->index][2 * i + 1] = disp;
-      disp++;
-#ifdef DEBUG
-      if (my_rank == MPI_ROOT && OP_diags > 5)
-        printf("range of %10s in rank %d: %lld-%lld\n", set->name, i,
-               part_range[set->index][2 * i],
-               part_range[set->index][2 * i + 1]);
-#endif
-    }
-    op_free(sizes);
-  }
-}
-
-/*******************************************************************************
- * Routine to get partition (i.e. mpi rank) where global_index is located and
- * its local index
- *******************************************************************************/
-
-int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
-                  int comm_size, op_set set) {
-  int low = 0;
-  int high = comm_size - 1;
-  
-  while (low <= high) {
-    int mid = low + (high - low) / 2;
-    
-    // Check if global_index is within the range of this partition
-    if (global_index >= part_range[2 * mid] && global_index <= part_range[2 * mid + 1]) {
-      *local_index = global_index - part_range[2 * mid];
-      return mid;
-    }
-    
-    // If global_index is smaller than the start of this partition's range
-    if (global_index < part_range[2 * mid]) {
-      high = mid - 1;
-    } 
-    // If global_index is larger than the end of this partition's range
-    else {
-      low = mid + 1;
-    }
-  }
-  
-  fail("Error: orphan global index %lld in set %s\n", global_index, set->name);
-  return -1;
-}
-
-/*******************************************************************************
- * Routine to convert a local index in to a global index
- *******************************************************************************/
-
-idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
-                     int comm_size) {
-  (void)comm_size;
-  idx_g_t g_index = part_range[2 * partition] + local_index;
-#ifdef DEBUG
-  if (g_index > part_range[2 * (comm_size - 1) + 1] && OP_diags > 2)
-    printf("Global index larger than set size\n");
-#endif
-  return g_index;
-}
-
-/*******************************************************************************
  * Halo list constructors (op_mpi_halo.h)
  *
  * C++ linkage, unlike the rest of this file: they take and return C++ types.
@@ -349,6 +269,24 @@ HaloList transpose(const HaloList &list, MPI_Comm comm) {
   return from_received(list.set, sparse::exchange(comm, messages));
 }
 
+std::vector<PartRange> part_ranges(MPI_Comm comm) {
+  int comm_size;
+  MPI_Comm_size(comm, &comm_size);
+  std::vector<idx_g_t> mine(OP_set_index), all((std::size_t)comm_size * OP_set_index);
+  for (int s = 0; s < OP_set_index; s++)
+    mine[s] = OP_set_list[s]->size;
+  MPI_Allgather(mine.data(), OP_set_index, get_mpi_type(mine.data()), all.data(), OP_set_index,
+                get_mpi_type(all.data()), comm);
+  std::vector<PartRange> ranges(OP_set_index);
+  for (int s = 0; s < OP_set_index; s++) {
+    ranges[s].set = OP_set_list[s];
+    ranges[s].start.resize(comm_size + 1);
+    for (int r = 0; r < comm_size; r++)
+      ranges[s].start[r + 1] = ranges[s].start[r] + all[(std::size_t)r * OP_set_index + s];
+  }
+  return ranges;
+}
+
 void fail(const char *format, ...) {
   va_list args;
   va_start(args, format);
@@ -413,31 +351,23 @@ char *migrate_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, int n
  *******************************************************************************/
 
 int is_onto_map(op_map map) {
-  int my_rank, comm_size;
+  int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
-  idx_g_t *range = part_range[map->to->index];
+  const PartRange range = op::mpi::part_ranges(OP_MPI_WORLD)[map->to->index];
 
   std::vector<idx_g_t> reached(map->map_gbl, map->map_gbl + static_cast<std::size_t>(map->from->size) * map->dim);
   std::sort(reached.begin(), reached.end());
   reached.erase(std::unique(reached.begin(), reached.end()), reached.end());
   auto told = op::mpi::sparse::exchange_by(OP_MPI_WORLD, reached, [&](idx_g_t g) {
     int local;
-    return get_partition(g, range, &local, comm_size, map->to);
+    return range.owner(g, &local);
   });
 
   std::vector<char> hit(map->to->size, 0);
   for (idx_g_t g : told)
-    hit[g - range[2 * my_rank]] = 1;
+    hit[g - range.start[my_rank]] = 1;
   long long missed = std::count(hit.begin(), hit.end(), 0), missed_anywhere = 0;
   MPI_Allreduce(&missed, &missed_anywhere, 1, MPI_LONG_LONG, MPI_SUM, OP_MPI_WORLD);
-
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
   return missed_anywhere == 0;
 }
 
@@ -488,23 +418,12 @@ void op_halo_create() {
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
   /* Compute global partition range information for each set*/
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
+  const std::vector<PartRange> part_range = op::mpi::part_ranges(OP_MPI_WORLD);
 
   // save this partition range information if it is not already saved during
   // a call to some partitioning routine
-  if (orig_part_range == NULL) {
-    orig_part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-    for (int s = 0; s < OP_set_index; s++) {
-      op_set set = OP_set_list[s];
-      orig_part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
-      for (int j = 0; j < comm_size; j++) {
-        orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-        orig_part_range[set->index][2 * j + 1] =
-            part_range[set->index][2 * j + 1];
-      }
-    }
-  }
+  if (orig_part_range.empty())
+    orig_part_range = part_range;
 
   OP_set_halos = std::vector<SetHalo>(OP_set_index);
 
@@ -520,8 +439,7 @@ void op_halo_create() {
       for (int e = 0; e < set->size; e++)
         for (int j = 0; j < map->dim; j++) {
           int local_index;
-          const int part = get_partition(map->map_gbl[(size_t)e * map->dim + j], part_range[map->to->index],
-                                         &local_index, comm_size, map->to);
+          const int part = part_range[map->to->index].owner(map->map_gbl[(size_t)e * map->dim + j], &local_index);
           if (part != my_rank)
             pairs.insert(pairs.end(), {part, e});
         }
@@ -565,7 +483,7 @@ void op_halo_create() {
       const size_t n = (size_t)(map->from->size + OP_set_halos[map->from->index].import_exec.size()) * map->dim;
       for (size_t k = 0; k < n; k++) {
         int local_index;
-        const int part = get_partition(map->map_gbl[k], part_range[set->index], &local_index, comm_size, set);
+        const int part = part_range[set->index].owner(map->map_gbl[k], &local_index);
         if (part != my_rank && position_of(exec, part, local_index) < 0)
           pairs.insert(pairs.end(), {part, local_index});
       }
@@ -613,7 +531,7 @@ void op_halo_create() {
     map->map = (int *)xmalloc(n * sizeof(int));
     for (size_t k = 0; k < n; k++) {
       int local_index, at;
-      const int part = get_partition(map->map_gbl[k], part_range[set->index], &local_index, comm_size, set);
+      const int part = part_range[set->index].owner(map->map_gbl[k], &local_index);
       if (part == my_rank)
         map->map[k] = local_index;
       else if ((at = position_of(halo.import_exec, part, local_index)) >= 0)
@@ -694,7 +612,7 @@ void op_halo_create() {
       idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
       int *partition = (int *)xmalloc(sizeof(int) * set->size);
       for (int i = 0; i < set->size; i++) {
-        g_index[i] = get_global_index(i, my_rank, part_range[set->index], comm_size);
+        g_index[i] = part_range[set->index].global(my_rank, i);
         partition[i] = my_rank;
       }
       decl_partition(set, g_index, partition);
@@ -716,10 +634,6 @@ void op_halo_create() {
 
   /*-STEP 12 ---------- Clean up and Compute rough halo size
    * numbers------------*/
-
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for list create
   // compute import/export lists creation time
@@ -1211,9 +1125,8 @@ void op_mpi_reduce_bool(op_arg *arg, bool *) { reduce_gbl<bool>(arg, MPI_CHAR); 
  *******************************************************************************/
 
 op_dat op_mpi_get_data(op_dat dat) {
-  int my_rank, comm_size;
+  int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
   // Send every element back to the rank that declared it, then sort each rank's
   // elements into declaration order.
@@ -1222,7 +1135,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   std::vector<int> pairs;
   for (int i = 0; i < dat->set->size; i++) {
     int local_index;
-    home[i] = get_partition(p->g_index[i], orig_part_range[dat->set->index], &local_index, comm_size, dat->set);
+    home[i] = orig_part_range[dat->set->index].owner(p->g_index[i], &local_index);
     if (home[i] != my_rank)
       pairs.insert(pairs.end(), {home[i], i});
   }
@@ -1262,14 +1175,13 @@ op_dat op_mpi_get_data(op_dat dat) {
  *******************************************************************************/
 
 void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
-  int my_rank, comm_size;
+  int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
   char *src = (char *)ptr;
 
   // No partitioning information: data is already in declaration order
-  if (orig_part_range == NULL || OP_part_list == NULL) {
+  if (orig_part_range.empty() || OP_part_list == NULL) {
     if (local_size != (size_t)dat->set->size) {
       fail("Error: op_mpi_put_data local_size %zu does not match set size %d "
            "for dat %s\n",
@@ -1282,10 +1194,8 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     return;
   }
 
-  idx_g_t orig_start = orig_part_range[dat->set->index][2 * my_rank];
-  idx_g_t orig_end = orig_part_range[dat->set->index][2 * my_rank + 1];
-  size_t orig_size =
-      (orig_end >= orig_start) ? (size_t)(orig_end - orig_start + 1) : 0;
+  const PartRange &orig = orig_part_range[dat->set->index];
+  const size_t orig_size = orig.start[my_rank + 1] - orig.start[my_rank];
 
   if (local_size != orig_size) {
     fail("Error: op_mpi_put_data local_size %zu does not match original "
@@ -1299,7 +1209,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   std::vector<int> orig_local(dat->set->size), pairs;
   for (int i = 0; i < dat->set->size; i++) {
     const int orig_rank =
-        get_partition(p->g_index[i], orig_part_range[dat->set->index], &orig_local[i], comm_size, dat->set);
+        orig.owner(p->g_index[i], &orig_local[i]);
     if (orig_rank == my_rank)
       memcpy(&dat->data[(size_t)dat->size * i], &src[(size_t)dat->size * orig_local[i]], dat->size);
     else

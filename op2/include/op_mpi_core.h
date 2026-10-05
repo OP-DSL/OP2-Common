@@ -116,9 +116,6 @@ typedef struct {
 
 /** external variables **/
 
-extern int OP_part_index;
-extern part *OP_part_list;
-extern idx_g_t **orig_part_range;
 
 // Structs and functions that use MPI definitions
 #ifndef OP_MPI_CORE_NOMPI
@@ -151,15 +148,6 @@ extern "C" {
 *******************************************************************************/
 
 void decl_partition(op_set set, idx_g_t *g_index, int *partition);
-
-void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
-                    MPI_Comm Comm);
-
-int get_partition(idx_g_t global_index, idx_g_t *part_range, idx_l_t *local_index,
-                  int comm_size, op_set set);
-
-idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
-                     int comm_size);
 
 int is_onto_map(op_map map);
 

@@ -48,6 +48,7 @@
 #include <op_lib_core.h>
 #include <op_mpi_core.h>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -151,6 +152,31 @@ inline idx_g_t sum_below_rank(idx_g_t n, MPI_Comm comm) {
    MPI layer cannot recover from; aborts OP_MPI_WORLD, which is valid throughout. */
 [[noreturn, gnu::format(printf, 1, 2)]] void fail(const char *format, ...);
 
+/* Where each rank's elements of a set sit in one global numbering: rank r holds
+   [start[r], start[r + 1]). Ranks declare whatever local sizes they like, so
+   finding an index's owner takes every rank's start - one number per rank, and
+   exactly ParMETIS' vtxdist. */
+struct PartRange {
+  op_set set;
+  std::vector<idx_g_t> start; // one per rank, then the set's size
+
+  idx_g_t size() const { return start.back(); }
+  idx_g_t global(int rank, int local) const { return start[rank] + local; }
+  /* The rank holding element g, and g's index there in *local. */
+  int owner(idx_g_t g, int *local) const {
+    if (g < 0 || g >= size())
+      fail("Error: orphan global index %lld in set %s\n", (long long)g, set->name);
+    // the last rank starting at or before g: an empty rank shares its start with the next
+    const int rank = int(std::upper_bound(start.begin(), start.end() - 1, g) - start.begin()) - 1;
+    *local = int(g - start[rank]);
+    return rank;
+  }
+};
+
+/* Every set's PartRange, by set index, from the sizes the ranks hold now. One
+   collective over comm. */
+std::vector<PartRange> part_ranges(MPI_Comm comm);
+
 /* Send each neighbour the rows - row_bytes each, of `rows` - that exp lists for
    it, and receive the rows imp lists into `into`, grouped as imp lists them. exp
    and imp must be each other's transpose over comm. Rows are counted in a datatype
@@ -173,5 +199,11 @@ extern std::vector<op::mpi::SetHalo> OP_set_halos;        // by set index; empty
 extern std::vector<op::mpi::MapHalo> OP_map_halos;        // by map index; empty until halo creation
 extern std::vector<op::mpi::DeviceSetHalo> OP_set_halos_d;  // by set index
 extern std::vector<op::mpi::DeviceMapHalo> OP_map_halos_d;  // by map index
+
+extern int OP_part_index;  // how many sets have partition information
+extern part *OP_part_list; // by set index
+#ifndef OP_MPI_CORE_NOMPI
+extern std::vector<op::mpi::PartRange> orig_part_range; // by set index; the layout as declared, empty until saved
+#endif
 
 #endif /* __OP_MPI_HALO_H */

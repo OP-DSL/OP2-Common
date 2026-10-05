@@ -91,6 +91,7 @@ using op::mpi::exchange_rows;
 using op::mpi::fail;
 using op::mpi::HaloList;
 using op::mpi::migrate_rows;
+using op::mpi::PartRange;
 
 // double min/max
 #include <float.h>
@@ -156,7 +157,7 @@ struct Renumbered {
  * Initialise partitioning data structures with the current (block)
 *  partitioning information
  *******************************************************************************/
-static idx_g_t **initialise(int my_rank, int comm_size);
+static std::vector<PartRange> initialise(int my_rank);
 
 //
 // MPI Communicator for partitioning
@@ -210,8 +211,7 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size) {
 /*******************************************************************************
  * Routine to force adjacent elements to the same partition
  *******************************************************************************/
-static void partition_force(op_set primary_set, op_map map, int comm_size,
-                            idx_g_t **part_range) {
+static void partition_force(op_set primary_set, op_map map, const std::vector<PartRange> &part_range) {
   if (map->to->index != primary_set->index) {
     printf("Error in partition_force: map target set (%d) does not match primary set (%d)\n",
         map->to->index, primary_set->index);
@@ -226,8 +226,7 @@ static void partition_force(op_set primary_set, op_map map, int comm_size,
   std::vector<op::mpi::msg::Item<Adjacency>> adjacencies_out;
   for (int i = 0; i < map->from->size; ++i) {
     int local_index;
-    int target_part = get_partition(map->map_gbl[i * map->dim], part_range[primary_set->index],
-                                    &local_index, comm_size, primary_set);
+    int target_part = part_range[primary_set->index].owner(map->map_gbl[i * map->dim], &local_index);
 
     for (int j = 1; j < map->dim; j++)
       adjacencies_out.emplace_back(
@@ -242,11 +241,10 @@ static void partition_force(op_set primary_set, op_map map, int comm_size,
     std::vector<op::mpi::msg::Item<Fpart>> fparts_out;
     for (auto& adjacency : adjacencies) {
       int local_idx2;
-      int target_part = get_partition(adjacency.idx2, part_range[primary_set->index],
-                                      &local_idx2, comm_size, primary_set);
+      int target_part = part_range[primary_set->index].owner(adjacency.idx2, &local_idx2);
 
       int local_idx1;
-      get_partition(adjacency.idx1, part_range[primary_set->index], &local_idx1, comm_size, primary_set);
+      part_range[primary_set->index].owner(adjacency.idx1, &local_idx1);
 
       fparts_out.emplace_back(target_part,
                               Fpart{adjacency.idx2, primary_set_part->elem_part[local_idx1]});
@@ -257,7 +255,7 @@ static void partition_force(op_set primary_set, op_map map, int comm_size,
     int num_changed = 0;
     for (auto& fpart : fparts) {
       int local_idx;
-      get_partition(fpart.idx, part_range[primary_set->index], &local_idx, comm_size, primary_set);
+      part_range[primary_set->index].owner(fpart.idx, &local_idx);
       if (primary_set_part->elem_part[local_idx] == fpart.target_part) continue;
 
       primary_set_part->elem_part[local_idx] = fpart.target_part;
@@ -273,8 +271,7 @@ static void partition_force(op_set primary_set, op_map map, int comm_size,
  * Routine to use a partitioned map->to set to partition the map->from set
  *******************************************************************************/
 
-static int partition_from_set(op_map map, int my_rank, int comm_size,
-                              idx_g_t **part_range) {
+static int partition_from_set(op_map map, int my_rank, const std::vector<PartRange> &part_range) {
   part p_set = OP_part_list[map->to->index];
 
   // go through the map and build an import list of the non-local "to" elements
@@ -282,8 +279,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   for (int i = 0; i < map->from->size; i++) {
     for (int j = 0; j < map->dim; j++) {
       int local_index;
-      int part = get_partition(map->map_gbl[i * map->dim + j], part_range[map->to->index], &local_index,
-                               comm_size, map->to);
+      int part = part_range[map->to->index].owner(map->map_gbl[i * map->dim + j], &local_index);
       if (part != my_rank) {
         pairs.push_back(part);
         pairs.push_back(local_index);
@@ -307,8 +303,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
   for (int i = 0; i < map->from->size; i++) {
     for (int j = 0; j < map->dim; j++) {
       int local_index;
-      int part = get_partition(map->map_gbl[i * map->dim + j], part_range[map->to->index], &local_index,
-                               comm_size, map->to);
+      int part = part_range[map->to->index].owner(map->map_gbl[i * map->dim + j], &local_index);
 
       if (part == my_rank)
         found_parts[j] = p_set->elem_part[local_index];
@@ -341,13 +336,12 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
  * Routine to use the partitioned map->from set to partition the map->to set
  *******************************************************************************/
 
-static int partition_to_set(op_map map, int my_rank, int comm_size,
-                            idx_g_t **part_range) {
+static int partition_to_set(op_map map, int my_rank, const std::vector<PartRange> &part_range) {
   const int *from_part = OP_part_list[map->from->index]->elem_part;
-  idx_g_t *range = part_range[map->to->index];
+  const PartRange &range = part_range[map->to->index];
   auto owner = [&](const Vote &v) {
     int local_index;
-    return get_partition(v.to, range, &local_index, comm_size, map->to);
+    return range.owner(v.to, &local_index);
   };
 
   // One vote per mapping table entry, sent to the owner of the element it names.
@@ -364,7 +358,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   // Each element joins the partition most of its votes name, the lowest on a tie.
   int *partition = (int *)xmalloc(sizeof(int) * map->to->size);
   std::fill(partition, partition + map->to->size, -1);
-  const idx_g_t first = range[2 * my_rank];
+  const idx_g_t first = range.start[my_rank];
   for (auto v = got.begin(); v != got.end();) {
     const auto element_end = std::find_if(v, got.end(), [&](const Vote &w) { return w.to != v->to; });
     int best = -1;
@@ -403,10 +397,9 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
  * Routine to partition all secondary sets using primary set partition
  *******************************************************************************/
 
-static void partition_all(op_set primary_set, int my_rank, int comm_size) {
+static void partition_all(op_set primary_set, int my_rank) {
   // Compute global partition range information for each set
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
+  const std::vector<PartRange> part_range = op::mpi::part_ranges(OP_PART_WORLD);
 
   bool force_part_done = false;
   for (int i = 0; i < OP_map_index; i++) {
@@ -415,7 +408,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
     }
 
     if (OP_map_list[i]->force_part) {
-      partition_force(primary_set, OP_map_list[i], comm_size, part_range);
+      partition_force(primary_set, OP_map_list[i], part_range);
       force_part_done = true;
     }
   }
@@ -473,7 +466,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
         part from_set = OP_part_list[map->from->index];
 
         if (to_set->is_partitioned == 1 && from_set->is_partitioned == 0) {
-          if (partition_from_set(map, my_rank, comm_size, part_range) > 0) {
+          if (partition_from_set(map, my_rank, part_range) > 0) {
             all_partitioned_sets[sets_partitioned++] = map->from;
             all_used_maps[maps_used++] = map->index;
             break;
@@ -481,7 +474,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
             cost[selected] = 99;
         } else if (from_set->is_partitioned == 1 &&
                    to_set->is_partitioned == 0) {
-          if (partition_to_set(map, my_rank, comm_size, part_range) > 0) {
+          if (partition_to_set(map, my_rank, part_range) > 0) {
             all_partitioned_sets[sets_partitioned++] = map->to;
             all_used_maps[maps_used++] = map->index;
             break;
@@ -517,15 +510,11 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
         fail("Partitioning aborted !\n");
     }
   }
-
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
 }
 
 /*******************************************************************************
  * Renumber every map's entries from original global indices into the current
- * numbering, where rank r's elements of a set are part_range[2r] onwards in
+ * numbering, where rank r's elements of a set are part_range[s].start[r] onwards in
  * g_index order.
  *
  * Request/reply through a Directory, one set at a time: every rank registers
@@ -536,8 +525,7 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
  *******************************************************************************/
 
 static void renumber_maps(int my_rank, int comm_size) {
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
+  const std::vector<PartRange> part_range = op::mpi::part_ranges(OP_PART_WORLD);
 
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
@@ -550,8 +538,8 @@ static void renumber_maps(int my_rank, int comm_size) {
     if (!reached)
       continue;
 
-    const idx_g_t n = part_range[s][2 * comm_size - 1] + 1;
-    const idx_g_t first = part_range[s][2 * my_rank];
+    const idx_g_t n = part_range[s].size();
+    const idx_g_t first = part_range[s].start[my_rank];
     const Directory dir(n, comm_size);
     const idx_g_t block = dir.begin(my_rank);
 
@@ -619,10 +607,6 @@ static void renumber_maps(int my_rank, int comm_size) {
       }
     }
   }
-
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
 }
 
 
@@ -691,7 +675,7 @@ static void migrate_all(int my_rank) {
 template <class T> static int *checked_partition(const T *part, op_set set, int my_rank, int comm_size) {
   int *partition = (int *)xmalloc(sizeof(int) * set->size);
   for (int i = 0; i < set->size; i++) {
-    if (part[i] < 0 || part[i] >= comm_size) {
+    if ((long long)part[i] < 0 || (long long)part[i] >= comm_size) { // T may be unsigned
       fail("Partitioning problem: on rank %d, set %s element %d not assigned a partition\n", my_rank, set->name, i);
     }
     partition[i] = (int)part[i];
@@ -713,14 +697,10 @@ template <class Primary> static void partition_with(const char *name, op_set pri
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
-  idx_g_t **part_range = initialise(my_rank, comm_size);
+  const std::vector<PartRange> part_range = initialise(my_rank);
   OP_part_list[primary_set->index]->elem_part = primary(my_rank, comm_size, part_range);
   OP_part_list[primary_set->index]->is_partitioned = 1;
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-
-  partition_all(primary_set, my_rank, comm_size);
+  partition_all(primary_set, my_rank);
   migrate_all(my_rank);
   renumber_maps(my_rank, comm_size);
 
@@ -738,7 +718,7 @@ template <class Primary> static void partition_with(const char *name, op_set pri
  *******************************************************************************/
 
 void op_partition_external(op_set primary_set, op_dat partvec) {
-  partition_with("external", primary_set, [&](int, int, idx_g_t **) {
+  partition_with("external", primary_set, [&](int, int, const std::vector<PartRange> &) {
     int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
     memcpy(partition, partvec->data, sizeof(int) * primary_set->size);
     return partition;
@@ -750,7 +730,7 @@ void op_partition_external(op_set primary_set, op_dat partvec) {
  *******************************************************************************/
 
 void op_partition_random(op_set primary_set) {
-  partition_with("random", primary_set, [&](int, int comm_size, idx_g_t **) {
+  partition_with("random", primary_set, [&](int, int comm_size, const std::vector<PartRange> &) {
     int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
     for (int i = 0; i < primary_set->size; i++)
       partition[i] = (int)((double)rand() / ((double)RAND_MAX + 1) * comm_size);
@@ -763,7 +743,8 @@ void op_partition_random(op_set primary_set) {
  *******************************************************************************/
 
 void op_partition_destroy() {
-  // destroy OP_part_list[]
+  if (OP_part_list == NULL) // nothing was partitioned, nor were halos created
+    return;
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     op_free(OP_part_list[set->index]->g_index);
@@ -771,9 +752,8 @@ void op_partition_destroy() {
     op_free(OP_part_list[set->index]);
   }
   op_free(OP_part_list);
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(orig_part_range[i]);
-  op_free(orig_part_range);
+  OP_part_list = NULL;
+  orig_part_range.clear();
 }
 
 #ifdef HAVE_PARMETIS
@@ -810,12 +790,9 @@ static std::vector<real_t> parmetis_coordinates(op_dat coords) {
  *******************************************************************************/
 
 void op_partition_geom(op_dat coords) {
-  partition_with("geometric", coords->set, [&](int my_rank, int comm_size, idx_g_t **part_range) {
-    const idx_g_t *range = part_range[coords->set->index];
-    std::vector<idx_t> vtxdist(comm_size + 1), partition(coords->set->size);
-    for (int i = 0; i < comm_size; i++)
-      vtxdist[i] = range[2 * i];
-    vtxdist[comm_size] = range[2 * comm_size - 1] + 1;
+  partition_with("geometric", coords->set, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
+    const std::vector<idx_g_t> &start = part_range[coords->set->index].start;
+    std::vector<idx_t> vtxdist(start.begin(), start.end()), partition(coords->set->size);
     idx_t ndims = coords->dim;
     std::vector<real_t> xyz = parmetis_coordinates(coords);
     ParMETIS_V3_PartGeom(vtxdist.data(), &ndims, xyz.data(), partition.data(), &OP_PART_WORLD);
@@ -831,7 +808,7 @@ void op_partition_geom(op_dat coords) {
 
 /* The primary set's ranks by recursive bisection along the inertial axes, for
    partition_with. */
-static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t **part_range) {
+static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
   if (x_dat->size != 3 * (int)sizeof(double)) {
     fail("Inertial partitioning needs coordinates of three doubles: %s holds %d bytes per element\n",
          x_dat->name, x_dat->size);
@@ -842,10 +819,10 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
   MPI_Comm mpi_comm = OP_PART_WORLD; // halved at each level
 
   /* - STEP 1 figure out partitioning - */
-  idx_g_t *range = part_range[x_dat->set->index];
-  idx_g_t global_size = range[2 * (comm_size - 1) + 1] + 1; // losg
-  idx_g_t block_lower = range[2 * my_rank];                 // losg1
-  int block_size = x_dat->set->size;                        // losgd
+  const PartRange &range = part_range[x_dat->set->index];
+  idx_g_t global_size = range.size();          // losg
+  idx_g_t block_lower = range.start[my_rank];  // losg1
+  int block_size = x_dat->set->size;           // losgd
 
   idx_g_t *global_indices = (idx_g_t *)xmalloc((block_size > 0 ? block_size : 1) * sizeof(idx_g_t));
   for (int i = 0; i < block_size; i++)
@@ -1115,7 +1092,7 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
   auto ended_on = op::mpi::sparse::exchange_by(
       OP_PART_WORLD, std::span<const idx_g_t>(global_indices, current_part_size), [&](idx_g_t g) {
         int local_index;
-        return get_partition(g, range, &local_index, comm_size, x_dat->set);
+        return range.owner(g, &local_index);
       });
   op_free(global_indices);
   if (ended_on.size() != (std::size_t)block_size) {
@@ -1130,7 +1107,7 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
 }
 
 void op_partition_inertial(op_dat x_dat) {
-  partition_with("inertial", x_dat->set, [&](int my_rank, int comm_size, idx_g_t **part_range) {
+  partition_with("inertial", x_dat->set, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
     return inertial_partition(x_dat, my_rank, comm_size, part_range);
   });
 }
@@ -1270,33 +1247,18 @@ extern "C" void op_partition_ptr(const char *lib_name, const char *lib_routine, 
  * Initialise partitioning data structures with the current (block)
 *  partitioning information
  *******************************************************************************/
-static idx_g_t **initialise(int my_rank, int comm_size) {
-  // Compute global partition range information for each set
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
+static std::vector<PartRange> initialise(int my_rank) {
+  // Compute global partition range information for each set, and keep it for
+  // reversing the partitioning
+  std::vector<PartRange> part_range = op::mpi::part_ranges(OP_PART_WORLD);
+  orig_part_range = part_range;
 
-  // save the original part_range for future partition reversing
-  orig_part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-    orig_part_range[set->index] = (idx_g_t *)xmalloc(2 * comm_size * sizeof(idx_g_t));
-    for (int j = 0; j < comm_size; j++) {
-      orig_part_range[set->index][2 * j] = part_range[set->index][2 * j];
-      orig_part_range[set->index][2 * j + 1] =
-          part_range[set->index][2 * j + 1];
-    }
-  }
-
-  // allocate memory for list
   OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    // printf("set %s size = %d\n", set.name, set.size);
     idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
     for (int i = 0; i < set->size; i++)
-      g_index[i] =
-          get_global_index(i, my_rank, part_range[set->index], comm_size);
+      g_index[i] = part_range[set->index].global(my_rank, i);
     decl_partition(set, g_index, NULL);
   }
 
@@ -1309,18 +1271,17 @@ static idx_g_t **initialise(int my_rank, int comm_size) {
  * it, itself included, by global index, without repeats, in first-seen order.
  * A from-element whose row reaches another rank's to-element is sent there.
  *******************************************************************************/
-static std::vector<std::vector<idx_g_t>> construct_adj_list(op_map primary_map, int my_rank, int comm_size,
-                                                     idx_g_t **part_range) {
+static std::vector<std::vector<idx_g_t>> construct_adj_list(op_map primary_map, int my_rank,
+                                                            const std::vector<PartRange> &part_range) {
   const int dim = primary_map->dim;
-  idx_g_t *range = part_range[primary_map->to->index];
+  const PartRange &range = part_range[primary_map->to->index];
 
   // each from-element goes to every other rank its row reaches (from_pairs drops repeats)
   std::vector<int> pairs;
   for (int e = 0; e < primary_map->from->size; e++) {
     for (int j = 0; j < dim; j++) {
       int local_index;
-      int part = get_partition(primary_map->map_gbl[(std::size_t)e * dim + j], range, &local_index, comm_size,
-                               primary_map->to);
+      int part = range.owner(primary_map->map_gbl[(std::size_t)e * dim + j], &local_index);
       if (part != my_rank) {
         pairs.push_back(part);
         pairs.push_back(e);
@@ -1340,7 +1301,7 @@ static std::vector<std::vector<idx_g_t>> construct_adj_list(op_map primary_map, 
       const idx_g_t *row = rows + (std::size_t)i * dim;
       for (int j = 0; j < dim; j++) {
         int local_index;
-        if (get_partition(row[j], range, &local_index, comm_size, primary_map->to) != my_rank)
+        if (range.owner(row[j], &local_index) != my_rank)
           continue;
         std::vector<idx_g_t> &neighbours = adj[local_index];
         for (int k = 0; k < dim; k++)
@@ -1371,15 +1332,11 @@ static inline void check_global_index_int32_range(idx_g_t g_index,
 template <class T>
 static std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
 setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std::vector<idx_g_t>> adj,
-                idx_g_t **part_range) {
+                const std::vector<PartRange> &part_range) {
   T comm_size_pm = comm_size;
 
   T *vtxdist = (T *)xmalloc(sizeof(T) * (comm_size + 1));
-  for (int i = 0; i < comm_size; i++) {
-    vtxdist[i] = part_range[primary_map->to->index][2 * i];
-  }
-  vtxdist[comm_size] =
-      part_range[primary_map->to->index][2 * (comm_size - 1) + 1] + 1;
+  std::copy(part_range[primary_map->to->index].start.begin(), part_range[primary_map->to->index].start.end(), vtxdist);
 
   // neighbours sorted, self excluded
   std::size_t n_edges = 0;
@@ -1389,8 +1346,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std:
   T *adjncy = (T *)xmalloc(sizeof(T) * n_edges);
   T count = 0;
   for (int i = 0; i < primary_map->to->size; i++) {
-    idx_g_t g_index = get_global_index(
-        i, my_rank, part_range[primary_map->to->index], comm_size);
+    idx_g_t g_index = part_range[primary_map->to->index].global(my_rank, i);
 #ifdef DEBUG
     if constexpr (sizeof(T) == sizeof(int)) {
       check_global_index_int32_range(g_index, primary_map, my_rank);
@@ -1424,7 +1380,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std:
 
   T ncon = 1;
   real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
-  for (int i = 0; i < comm_size * ncon; i++)
+  for (int i = 0; i < comm_size * (int)ncon; i++)
     tpwgts[i] = hybrid_flags[i] == 1 ? OP_hybrid_balance / total : 1.0 / total;
 
   real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
@@ -1466,8 +1422,8 @@ static void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adj
 #ifdef HAVE_PTSCOTCH
 // Helper function to set up PTScotch data structures
 static std::tuple<SCOTCH_Dgraph*, SCOTCH_Num*, SCOTCH_Num*, SCOTCH_Num*>
-setup_ptscotch_data(op_map primary_map, int my_rank, int comm_size, std::vector<std::vector<idx_g_t>> adj,
-                idx_g_t **part_range) {
+setup_ptscotch_data(op_map primary_map, int my_rank, std::vector<std::vector<idx_g_t>> adj,
+                    const std::vector<PartRange> &part_range) {
 
     SCOTCH_Dgraph *grafptr = SCOTCH_dgraphAlloc();
     SCOTCH_dgraphInit(grafptr, OP_PART_WORLD);
@@ -1495,8 +1451,7 @@ setup_ptscotch_data(op_map primary_map, int my_rank, int comm_size, std::vector<
     SCOTCH_Num *edgeloctab = (SCOTCH_Num *)xmalloc(sizeof(SCOTCH_Num) * std::max<std::size_t>(n_edges, 1));
     SCOTCH_Num count = 0;
     for (int i = 0; i < primary_map->to->size; i++) {
-        idx_g_t g_index = get_global_index(
-            i, my_rank, part_range[primary_map->to->index], comm_size);
+        idx_g_t g_index = part_range[primary_map->to->index].global(my_rank, i);
         vertloctab[i] = count;
         for (idx_g_t neighbour : adj[i])
             if (neighbour != g_index)
@@ -1562,7 +1517,7 @@ static void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SC
    from-element maps to both. T is the partitioner's index type. */
 template <class T>
 static int *graph_partition(op_map primary_map, const char *partitioner_name, op_dat coords, int my_rank,
-                            int comm_size, idx_g_t **part_range) {
+                            int comm_size, const std::vector<PartRange> &part_range) {
 #ifdef HAVE_PARMETIS
   // Coordinates make the ParMETIS k-way partitioning geometric: PartGeomKway.
   std::vector<real_t> xyz;
@@ -1576,7 +1531,7 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
 #endif
 
   /*--STEP 1 - Construct adjacency list */
-  std::vector<std::vector<idx_g_t>> adj = construct_adj_list(primary_map, my_rank, comm_size, part_range);
+  std::vector<std::vector<idx_g_t>> adj = construct_adj_list(primary_map, my_rank, part_range);
 
   /*-- STEP 1.5 - Call Partitioner-Specific Setup & Partition */
   if (strcmp(partitioner_name, "PARMETIS") == 0 || strcmp(partitioner_name, "KAHIP") == 0) {
@@ -1645,7 +1600,7 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
       SCOTCH_Num *edgeloctab;
       // moved in, so it is freed before the partitioner runs
       std::tie(grafptr, partloctab, vertloctab, edgeloctab) =
-          setup_ptscotch_data(primary_map, my_rank, comm_size, std::move(adj), part_range);
+          setup_ptscotch_data(primary_map, my_rank, std::move(adj), part_range);
 
       if (my_rank == MPI_ROOT) {
           printf("-----------------------------------------------------------\n");
@@ -1680,7 +1635,7 @@ static void op_partition_graph_generic(op_map primary_map, const char *partition
          primary_map->to->name);
   }
 #endif
-  partition_with(partitioner_name, primary_map->to, [&](int my_rank, int comm_size, idx_g_t **part_range) {
+  partition_with(partitioner_name, primary_map->to, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
     return graph_partition<T>(primary_map, partitioner_name, coords, my_rank, comm_size, part_range);
   });
 }

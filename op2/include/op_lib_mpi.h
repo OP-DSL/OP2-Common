@@ -40,10 +40,6 @@
 #include <op_lib_core.h>
 #include <op_mpi_core.h>
 
-extern int OP_part_index;
-extern part *OP_part_list;
-extern idx_g_t **orig_part_range;
-
 /** variables for partial halo exchanges **/
 extern int *OP_map_partial_exchange;
 
