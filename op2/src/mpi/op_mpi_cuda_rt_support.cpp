@@ -52,18 +52,19 @@
 #include <op_rt_support.h>
 
 #include <op_lib_mpi.h>
+#include <op_mpi_halo.h>
 #include <op_util.h>
 
 //
 // halo lists on the device
 //
 
-std::vector<DeviceSetHalo> OP_set_halos_d;
-std::vector<DeviceMapHalo> OP_map_halos_d;
+std::vector<op::mpi::DeviceSetHalo> OP_set_halos_d;
+std::vector<op::mpi::DeviceMapHalo> OP_map_halos_d;
 
 /* The return code is not checked: a list still alive at static destruction, if
    op_exit was never called, is freed after the runtime has begun unloading. */
-void DeviceFree::operator()(idx_l_t *p) const { (void)gpuFree(p); }
+void op::mpi::DeviceFree::operator()(idx_l_t *p) const { (void)gpuFree(p); }
 
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;

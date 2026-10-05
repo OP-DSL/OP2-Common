@@ -43,6 +43,12 @@
 
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
+#include <op_mpi_halo.h>
+
+using op::mpi::DeviceList;
+using op::mpi::DeviceMapHalo;
+using op::mpi::DeviceSetHalo;
+using op::mpi::HaloList;
 #include <op_util.h>
 #include <vector>
 

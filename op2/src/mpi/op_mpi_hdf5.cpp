@@ -59,6 +59,7 @@
 #include <H5FDmpio.h>
 #include <op_hdf5.h>
 #include <op_lib_mpi.h>
+#include <op_mpi_halo.h>
 
 #include "../externlib/op_hdf5_common.cpp"
 
@@ -324,7 +325,7 @@ op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,
 
   // Each process defines dataset in memory and reads from a hyperslab in the
   // file.
-  idx_g_t disp = op_mpi_offset(l_size, OP_MPI_HDF5_WORLD);
+  idx_g_t disp = op::mpi::sum_below_rank(l_size, OP_MPI_HDF5_WORLD);
 
   count[0] = l_size;
   count[1] = dim;
@@ -481,7 +482,7 @@ op_dat op_decl_dat_hdf5(op_set set, int dim, char const *type, char const *file,
   // Create the dataset with default properties and close dataspace.
   // Each process defines dataset in memory and reads from a hyperslab in the
   // file.
-  idx_g_t disp = op_mpi_offset(set->size, OP_MPI_HDF5_WORLD);
+  idx_g_t disp = op::mpi::sum_below_rank(set->size, OP_MPI_HDF5_WORLD);
 
   count[0] = set->size;
   count[1] = dim;
@@ -705,7 +706,7 @@ void op_dump_to_hdf5(char const *file_name) {
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
-    idx_g_t size = op_mpi_total(set->size, OP_MPI_HDF5_WORLD);
+    idx_g_t size = op::mpi::sum_over_ranks(set->size, OP_MPI_HDF5_WORLD);
 
     // write data
     if (size > INT_MAX) {
@@ -727,7 +728,7 @@ void op_dump_to_hdf5(char const *file_name) {
       continue;
     // find total size of map
     idx_g_t from_set_size = map->from->size;
-    idx_g_t g_size = op_mpi_total(from_set_size, OP_MPI_HDF5_WORLD);
+    idx_g_t g_size = op::mpi::sum_over_ranks(from_set_size, OP_MPI_HDF5_WORLD);
     if (g_size == 0)
       continue;
     // Create the dataspace for the dataset.
@@ -737,7 +738,7 @@ void op_dump_to_hdf5(char const *file_name) {
 
     // Each process defines dataset in memory and writes it to a hyperslab
     // in the file.
-    idx_g_t disp = op_mpi_offset(from_set_size, OP_MPI_HDF5_WORLD);
+    idx_g_t disp = op::mpi::sum_below_rank(from_set_size, OP_MPI_HDF5_WORLD);
     count[0] = map->from->size;
     count[1] = dimsf[1];
     offset[0] = disp;
@@ -831,7 +832,7 @@ void op_dump_to_hdf5(char const *file_name) {
       continue;
     // find total size of dat
     idx_g_t dat_set_size = dat->set->size;
-    idx_g_t g_size = op_mpi_total(dat_set_size, OP_MPI_HDF5_WORLD);
+    idx_g_t g_size = op::mpi::sum_over_ranks(dat_set_size, OP_MPI_HDF5_WORLD);
     if (g_size == 0)
       continue;
     // Create the dataspace for the dataset.
@@ -841,7 +842,7 @@ void op_dump_to_hdf5(char const *file_name) {
 
     // Each process defines dataset in memory and writes it to a hyperslab
     // in the file.
-    idx_g_t disp = op_mpi_offset(dat_set_size, OP_MPI_HDF5_WORLD);
+    idx_g_t disp = op::mpi::sum_below_rank(dat_set_size, OP_MPI_HDF5_WORLD);
     count[0] = dat->set->size;
     count[1] = dimsf[1];
     offset[0] = disp;
@@ -1223,7 +1224,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
       // find total size of dat
       idx_g_t dat_set_size = dat->set->size;
-      idx_g_t g_size = op_mpi_total(dat_set_size, OP_MPI_HDF5_WORLD);
+      idx_g_t g_size = op::mpi::sum_over_ranks(dat_set_size, OP_MPI_HDF5_WORLD);
 
       // Create the dataspace for the dataset.
       dimsf[0] = g_size;
@@ -1231,7 +1232,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
       // Each process defines dataset in memory and writes it to a hyperslab
       // in the file.
-      idx_g_t disp = op_mpi_offset(dat_set_size, OP_MPI_HDF5_WORLD);
+      idx_g_t disp = op::mpi::sum_below_rank(dat_set_size, OP_MPI_HDF5_WORLD);
       count[0] = dat->set->size;
       count[1] = dimsf[1];
       offset[0] = disp;
@@ -1309,7 +1310,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
   // find total size of dat
   idx_g_t dat_set_size = dat->set->size;
-  idx_g_t g_size = op_mpi_total(dat_set_size, OP_MPI_HDF5_WORLD);
+  idx_g_t g_size = op::mpi::sum_over_ranks(dat_set_size, OP_MPI_HDF5_WORLD);
 
   // Create the dataspace for the dataset.
   dimsf[0] = g_size;
@@ -1318,7 +1319,7 @@ void op_fetch_data_hdf5(op_dat data, char const *file_name,
 
   // Each process defines dataset in memory and writes it to a hyperslab in the
   // file.
-  idx_g_t disp = op_mpi_offset(dat_set_size, OP_MPI_HDF5_WORLD);
+  idx_g_t disp = op::mpi::sum_below_rank(dat_set_size, OP_MPI_HDF5_WORLD);
   count[0] = dat->set->size;
   count[1] = dimsf[1];
   offset[0] = disp;

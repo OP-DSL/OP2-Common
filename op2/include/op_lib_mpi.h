@@ -40,15 +40,12 @@
 #include <op_lib_core.h>
 #include <op_mpi_core.h>
 
-extern std::vector<SetHalo> OP_set_halos; // by set index; empty until halo creation
-
 extern int OP_part_index;
 extern part *OP_part_list;
 extern idx_g_t **orig_part_range;
 
 /** variables for partial halo exchanges **/
 extern int *OP_map_partial_exchange;
-extern std::vector<MapHalo> OP_map_halos; // by map index; empty until halo creation
 
 #ifdef __cplusplus
 extern "C" {

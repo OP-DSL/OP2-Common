@@ -3,6 +3,7 @@
 #include <op_mpi_unified_backend.h>
 
 #include <op_lib_mpi.h>
+#include <op_mpi_halo.h>
 #include <op_cuda_rt_support.h>
 #include <op_gpu_shims.h>
 

@@ -58,6 +58,12 @@
 #include <numeric>
 
 #include <op_mpi_core.h>
+#include <op_mpi_halo.h>
+
+using op::mpi::DatElementType;
+using op::mpi::HaloList;
+using op::mpi::MapHalo;
+using op::mpi::SetHalo;
 
 //
 // MPI Halo related global variables
@@ -263,15 +269,15 @@ idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range
 }
 
 /*******************************************************************************
- * Halo list constructors
+ * Halo list constructors (op_mpi_halo.h)
  *
- * C++ linkage, unlike the rest of this file: they take and return C++ types, and
- * the header declares them outside its extern "C" block.
+ * C++ linkage, unlike the rest of this file: they take and return C++ types.
  *******************************************************************************/
 
 extern "C++" {
+namespace op::mpi {
 
-HaloList halo_list_from_groups(op_set set, std::vector<int> ranks,
+HaloList HaloList::from_groups(op_set set, std::vector<int> ranks,
                                std::vector<idx_l_t> sizes,
                                std::unique_ptr<idx_l_t[]> list) {
   assert(ranks.size() == sizes.size());
@@ -291,7 +297,7 @@ HaloList halo_list_from_groups(op_set set, std::vector<int> ranks,
   return h;
 }
 
-HaloList halo_list_from_pairs(op_set set, const int *pairs, int n_ints) {
+HaloList HaloList::from_pairs(op_set set, const int *pairs, int n_ints) {
   /* Each pair packed as rank:index, so one sort groups by rank and orders every
      rank's indices, and unique drops the repeats. No comm_size-long array: the
      cost is the pairs', whatever the number of ranks. */
@@ -318,29 +324,28 @@ HaloList halo_list_from_pairs(op_set set, const int *pairs, int n_ints) {
     sizes.back()++;
     list[k] = (idx_l_t)(std::uint32_t)keys[k];
   }
-  return halo_list_from_groups(set, std::move(ranks), std::move(sizes),
-                               std::move(list));
+  return from_groups(set, std::move(ranks), std::move(sizes), std::move(list));
 }
 
 /* A halo list from what an exchange delivered: one entry per sending rank,
    ranks ascending, each holding what that rank sent. Takes the exchange's
    buffers over rather than copying them. */
-static HaloList halo_list_from_received(op_set set, op::mpi::Received<int> &&got) {
-  return halo_list_from_groups(set, std::move(got.ranks), std::move(got.counts),
-                               std::move(got.data));
+static HaloList from_received(op_set set, Received<int> &&got) {
+  return HaloList::from_groups(set, std::move(got.ranks), std::move(got.counts), std::move(got.data));
 }
 
-HaloList halo_list_transpose(op_set set, const HaloList &list, MPI_Comm comm) {
+HaloList transpose(const HaloList &list, MPI_Comm comm) {
   /* One message per neighbour, each viewing its block of the list in place. */
-  std::vector<op::mpi::msg::BlockView<int>> messages;
+  std::vector<msg::BlockView<int>> messages;
   messages.reserve(list.ranks_size());
   for (int i = 0; i < list.ranks_size(); i++)
     messages.emplace_back(list.ranks[i], list.list.get() + list.disps[i],
                           (std::size_t)list.sizes[i]);
 
-  return halo_list_from_received(set, op::mpi::sparse::exchange(comm, messages));
+  return from_received(list.set, sparse::exchange(comm, messages));
 }
 
+}  // namespace op::mpi
 }  // extern "C++"
 
 
@@ -467,7 +472,7 @@ void op_halo_create() {
     // create set export list
     // printf("creating set export list for set %10s of size %d\n",
     // set->name,s_i);
-    OP_set_halos[set->index].export_exec = halo_list_from_pairs(set, set_list, s_i);
+    OP_set_halos[set->index].export_exec = HaloList::from_pairs(set, set_list, s_i);
     op_free(set_list); // free temp list
   }
 
@@ -479,7 +484,7 @@ void op_halo_create() {
     op_set set = OP_set_list[s];
 
     OP_set_halos[set->index].import_exec =
-        halo_list_transpose(set, OP_set_halos[set->index].export_exec, OP_MPI_WORLD);
+        op::mpi::transpose(OP_set_halos[set->index].export_exec, OP_MPI_WORLD);
   }
 
   /*--STEP 3 -Exchange mapping table entries using the import/export lists--*/
@@ -602,7 +607,7 @@ void op_halo_create() {
 
     // Create the non-exec set import list. It is built from (rank, index) pairs
     // like an export list: these are the elements this rank needs, by owner.
-    OP_set_halos[set->index].import_nonexec = halo_list_from_pairs(set, set_list, s_i);
+    OP_set_halos[set->index].import_nonexec = HaloList::from_pairs(set, set_list, s_i);
     op_free(set_list); // free temp list
   }
 
@@ -615,7 +620,7 @@ void op_halo_create() {
        entries, so its owners do not know about it; sending it back is what
        gives them their export list. */
     OP_set_halos[set->index].export_nonexec =
-        halo_list_transpose(set, OP_set_halos[set->index].import_nonexec, OP_MPI_WORLD);
+        op::mpi::transpose(OP_set_halos[set->index].import_nonexec, OP_MPI_WORLD);
   }
 
   /*-STEP 6 - Exchange execute set elements/data using the import/export
@@ -1228,7 +1233,7 @@ void op_halo_refresh_imports() {
     SetHalo &halo = OP_set_halos[set->index];
     for (auto [exp, imp] : {std::pair{&halo.export_exec, &halo.import_exec},
                             std::pair{&halo.export_nonexec, &halo.import_nonexec}}) {
-      HaloList current = halo_list_transpose(set, *exp, OP_MPI_WORLD);
+      HaloList current = op::mpi::transpose(*exp, OP_MPI_WORLD);
       assert(current.ranks == imp->ranks && current.sizes == imp->sizes);
       *imp = std::move(current);
     }
@@ -1364,7 +1369,7 @@ void op_halo_permap_create() {
       messages.emplace_back(owners[o], positions.data() + start[o], (std::size_t)count[o]);
     }
     OP_map_halos[m].import_nonexec =
-        halo_list_from_groups(to, std::move(ranks), std::move(sizes), std::move(indices));
+        HaloList::from_groups(to, std::move(ranks), std::move(sizes), std::move(indices));
 
     /* As an owner: turn each requested position into the element's local index. */
     op::mpi::Received<int> wanted = op::mpi::sparse::exchange(OP_MPI_WORLD, messages);
@@ -1379,7 +1384,7 @@ void op_halo_permap_create() {
                         : exp[1]->list[exp[1]->disps[bn] + p - exec_to];
       }
     }
-    OP_map_halos[m].export_nonexec = halo_list_from_received(to, std::move(wanted));
+    OP_map_halos[m].export_nonexec = op::mpi::from_received(to, std::move(wanted));
   }
 }
 
@@ -1698,13 +1703,13 @@ op_dat op_mpi_get_data(op_dat dat) {
     }
   }
 
-  HaloList pe_list = halo_list_from_pairs(dat->set, temp_list, count);
+  HaloList pe_list = HaloList::from_pairs(dat->set, temp_list, count);
   op_free(temp_list);
 
   //
   // create import list
   //
-  HaloList pi_list = halo_list_transpose(dat->set, pe_list, OP_MPI_WORLD);
+  HaloList pi_list = op::mpi::transpose(pe_list, OP_MPI_WORLD);
 
   /* Reused by both data migrations below. */
   MPI_Request *request_send =
@@ -1918,7 +1923,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     }
   }
 
-  HaloList pe_list = halo_list_from_pairs(dat->set, temp_list, count);
+  HaloList pe_list = HaloList::from_pairs(dat->set, temp_list, count);
   op_free(temp_list);
 
   //
@@ -1940,7 +1945,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
     messages.emplace_back(pe_list.ranks[i], want.data() + pe_list.disps[i],
                           (std::size_t)pe_list.sizes[i]);
 
-  HaloList pi_list = halo_list_from_received(dat->set, op::mpi::sparse::exchange(OP_MPI_WORLD, messages));
+  HaloList pi_list = op::mpi::from_received(dat->set, op::mpi::sparse::exchange(OP_MPI_WORLD, messages));
 
   //
   // original ranks pack user data and send it to the current owners
@@ -2336,9 +2341,9 @@ int op_is_root() {
  * Get the global size of a set
  *******************************************************************************/
 
-idx_g_t op_get_size(op_set set) { return op_mpi_total(set->size, OP_MPI_WORLD); }
+idx_g_t op_get_size(op_set set) { return op::mpi::sum_over_ranks(set->size, OP_MPI_WORLD); }
 
-idx_g_t op_get_global_set_offset(op_set set) { return op_mpi_offset(set->size, OP_MPI_WORLD); }
+idx_g_t op_get_global_set_offset(op_set set) { return op::mpi::sum_below_rank(set->size, OP_MPI_WORLD); }
 
 #ifdef __cplusplus
 }

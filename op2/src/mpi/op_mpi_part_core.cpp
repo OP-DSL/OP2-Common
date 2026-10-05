@@ -85,6 +85,10 @@ typedef float real_t;
 #endif
 
 #include <op_lib_mpi.h>
+#include <op_mpi_halo.h>
+
+using op::mpi::DatElementType;
+using op::mpi::HaloList;
 
 // double min/max
 #include <float.h>
@@ -238,7 +242,7 @@ static HaloList export_list_from_triples(op_set set, const int *triples,
     list[k] = triples[3 * i + 1];
     part_list[k] = triples[3 * i + 2];
   }
-  return halo_list_from_groups(set, std::move(ranks), std::move(sizes),
+  return HaloList::from_groups(set, std::move(ranks), std::move(sizes),
                                std::move(list));
 }
 
@@ -335,12 +339,12 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
       }
     }
   }
-  HaloList pi_list = halo_list_from_pairs(map->to, temp_list, count);
+  HaloList pi_list = HaloList::from_pairs(map->to, temp_list, count);
   op_free(temp_list);
 
   // now, discover neighbors and create export list of "to" elements
   HaloList pe_list =
-      halo_list_transpose(map->to, pi_list, OP_PART_WORLD);
+      op::mpi::transpose(pi_list, OP_PART_WORLD);
 
   // use the import and export lists to exchange partition information of
   // this "to" set
@@ -504,7 +508,7 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
   }
 
   HaloList pi_list =
-      halo_list_from_groups(map->to, std::move(to_parts.ranks),
+      HaloList::from_groups(map->to, std::move(to_parts.ranks),
                             std::move(to_parts.counts), std::move(imported));
 
   //-----go through local mapping table as well as the imported information
@@ -899,7 +903,7 @@ static void migrate_all(int my_rank, int comm_size) {
       }
     }
     // create partition export list
-    pe_list[set->index] = halo_list_from_pairs(set, temp_list, count);
+    pe_list[set->index] = HaloList::from_pairs(set, temp_list, count);
     op_free(temp_list);
   }
 
@@ -907,7 +911,7 @@ static void migrate_all(int my_rank, int comm_size) {
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     pi_list[set->index] =
-        halo_list_transpose(set, pe_list[set->index], OP_PART_WORLD);
+        op::mpi::transpose(pe_list[set->index], OP_PART_WORLD);
   }
 
   /*--STEP 2 - Perform Partitioning Data migration
@@ -2246,7 +2250,7 @@ HaloList create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
       }
     }
   }
-  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c);
+  HaloList exp_list = HaloList::from_pairs(primary_map->from, list, c);
   op_free(list); // free temp list
 
   return exp_list;
@@ -2258,7 +2262,7 @@ HaloList create_exp_list(op_map primary_map, idx_g_t **part_range, int my_rank,
 std::tuple<HaloList, MPI_Request *> create_imp_list(op_map primary_map,
                                                      const HaloList &exp_list) {
   HaloList imp_list =
-      halo_list_transpose(primary_map->from, exp_list, OP_PART_WORLD);
+      op::mpi::transpose(exp_list, OP_PART_WORLD);
 
   /* construct_adj_list sends the mapping table entries on these. */
   MPI_Request *request_send =

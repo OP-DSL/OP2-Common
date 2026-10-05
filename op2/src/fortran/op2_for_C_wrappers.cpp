@@ -77,6 +77,9 @@
 #include <mpi.h>
 #include <op_mpi_core.h>
 #include <op_lib_mpi.h>
+#include <op_mpi_halo.h>
+
+using op::mpi::HaloList;
 #endif
 
 #include <fortran/op2_for_C_wrappers.h>

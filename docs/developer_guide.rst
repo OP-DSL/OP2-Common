@@ -268,7 +268,7 @@ After partitioning, OP2 calls ``op_halo_create()`` (defined in ``op2/src/mpi/op_
 ``export non-execute halo (enh)``
     Elements in ``core`` that are referenced by elements on foreign processes must be exported (if not already in ``eeh``).  ``enh`` is a subset of ``core``.
 
-A halo list (``HaloList``, ``op2/include/op_mpi_core.h``) holds one contiguous block of ``list`` per neighbouring rank:
+A halo list (``op::mpi::HaloList``, ``op2/include/op_mpi_halo.h``) holds one contiguous block of ``list`` per neighbouring rank.  That header is internal to the MPI library: ``op_lib_mpi.h``, which applications include, does not include it, so none of the halo types or tables reach application code.
 
 .. code-block:: c++
 
@@ -283,7 +283,7 @@ A halo list (``HaloList``, ``op2/include/op_mpi_core.h``) holds one contiguous b
        idx_l_t size() const;             // total entries in list
    };
 
-It is a value that owns its arrays.  Lists are built with ``halo_list_from_pairs()`` or ``halo_list_from_groups()``, and ``halo_list_transpose()`` turns an export list into the matching import list or the reverse.  A set's four lists live in ``OP_set_halos[set->index]`` (``SetHalo``: ``export_exec``, ``import_exec``, ``export_nonexec``, ``import_nonexec``), and a map's partial-exchange lists in ``OP_map_halos[map->index]`` (``MapHalo``).
+It is a value that owns its arrays.  Lists are built with ``HaloList::from_pairs()`` or ``HaloList::from_groups()``, and ``op::mpi::transpose()`` turns an export list into the matching import list or the reverse.  A set's four lists live in ``OP_set_halos[set->index]`` (``op::mpi::SetHalo``: ``export_exec``, ``import_exec``, ``export_nonexec``, ``import_nonexec``), and a map's partial-exchange lists in ``OP_map_halos[map->index]`` (``op::mpi::MapHalo``).
 
 An export list holds local indices of owned elements.  An import list holds, for each halo element, its current local index on its owner; ``op_mpi_probe_halo_index()`` returns that index with the owner's rank.  An owner that reorders its elements rewrites only its own export lists, so the import lists everywhere are then refilled from them with ``op_halo_refresh_imports()`` - at the end of halo creation, and at the end of ``op_renumber()``, which also remaps the partial-exchange export lists.
 

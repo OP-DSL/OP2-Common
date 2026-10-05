@@ -38,6 +38,9 @@
 #include <iterator>
 #include <op_lib_mpi.h>
 #include <op_mpi_core.h>
+#include <op_mpi_halo.h>
+
+using op::mpi::HaloList;
 
 #ifdef HAVE_PTSCOTCH
 #include <scotch.h>
