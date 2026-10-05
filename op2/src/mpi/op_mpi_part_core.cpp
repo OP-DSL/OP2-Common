@@ -776,6 +776,15 @@ static void renumber_maps(int my_rank, int comm_size) {
 
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
+
+    // Only a set that some map reaches needs its directory. Every rank declares
+    // the same maps, so every rank skips the same sets and the exchanges pair up.
+    bool reached = false;
+    for (int m = 0; m < OP_map_index && !reached; m++)
+      reached = OP_map_list[m]->to == set;
+    if (!reached)
+      continue;
+
     const idx_g_t n = part_range[s][2 * comm_size - 1] + 1;
     const idx_g_t first = part_range[s][2 * my_rank];
     const Directory dir(n, comm_size);
