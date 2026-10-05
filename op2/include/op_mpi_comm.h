@@ -667,6 +667,28 @@ Received<T> exchange_csr(MPI_Comm comm, std::span<const int> dests,
   return exchange(comm, std::span<const msg::BlockView<T>>{messages}, coalesce);
 }
 
+/* Send each value to dest_of(value), one message per run of values with the same
+ * destination, borrowed in place. Values sorted by a key that the destination is
+ * monotone in therefore go as one message per destination; unsorted values are
+ * still delivered, in order, only as more messages. The values need only outlive
+ * the call. */
+template <std::ranges::contiguous_range R, typename DestOf>
+  requires Exchangeable<std::ranges::range_value_t<R>> &&
+           std::is_invocable_r_v<int, DestOf &, const std::ranges::range_value_t<R> &>
+Received<std::ranges::range_value_t<R>> exchange_by(MPI_Comm comm, const R &values, DestOf dest_of) {
+  using T = std::ranges::range_value_t<R>;
+  const std::span<const T> all{std::ranges::data(values), std::ranges::size(values)};
+
+  std::vector<msg::BlockView<T>> messages;
+  for (std::size_t begin = 0, end; begin < all.size(); begin = end) {
+    const int dest = dest_of(all[begin]);
+    for (end = begin + 1; end < all.size() && dest_of(all[end]) == dest; ++end) {}
+    messages.emplace_back(dest, all.data() + begin, end - begin);
+  }
+
+  return exchange(comm, std::span<const msg::BlockView<T>>{messages});
+}
+
 }  // namespace sparse
 
 }  // namespace op::mpi

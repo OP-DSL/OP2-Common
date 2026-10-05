@@ -123,6 +123,25 @@ struct ToPart {
   int part;
 };
 
+/* Where renumber_maps looks an element up by its original global index. A set's
+   original indices are 0..n-1, so they are dealt out in equal blocks, one per
+   rank: rank r keeps the entries for its block, wherever the elements have
+   migrated to. Any rank can work out where to ask, with no table and nothing
+   sized by the number of ranks. */
+struct Directory {
+  idx_g_t q, r;  // the first r blocks hold q + 1 indices, the rest q
+
+  Directory(idx_g_t n, int ranks) : q{n / ranks}, r{n % ranks} {}
+  int rank_of(idx_g_t g) const { return g < r * (q + 1) ? g / (q + 1) : r + (g - r * (q + 1)) / q; }
+  idx_g_t begin(int rank) const { return rank * q + std::min<idx_g_t>(rank, r); }
+};
+
+/* An element's original global index and its index in the current numbering. */
+struct Renumbered {
+  idx_g_t original;
+  idx_g_t current;
+};
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -750,400 +769,98 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
 }
 
 /*******************************************************************************
- * Routine to renumber mapping table entries with new partition's indexes
+ * Renumber every map's entries from original global indices into the current
+ * numbering, where rank r's elements of a set are part_range[2r] onwards in
+ * g_index order.
+ *
+ * Request/reply through a Directory, one set at a time: every rank registers
+ * the elements it holds with their directory, asks the directories for the
+ * elements its maps reach but it does not hold, and each directory answers from
+ * its block. Memory and traffic follow what a rank holds and references, never
+ * the number of ranks.
  *******************************************************************************/
 
-static void renumber_maps_original(int my_rank, int comm_size) {
-  // get partition rage information
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  // find elements of the "to" set thats not in this local process
-  for (int m = 0; m < OP_map_index; m++) { // for each maping table
-    op_map map = OP_map_list[m];
-
-    std::vector<idx_g_t> req_list;
-
-    for (int i = 0; i < map->from->size; i++) {
-      for (int j = 0; j < map->dim; j++) {
-        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
-                                      map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
-        
-        if (local_index < 0) // not in this partition
-        {
-          // store the global index of the element
-          req_list.push_back(map->map_gbl[i * map->dim + j]);
-        }
-      }
-    }
-    // sort and remove duplicates
-    if (req_list.size() > 0) {
-      std::sort(req_list.begin(), req_list.end());
-      req_list.erase(std::unique(req_list.begin(), req_list.end()), req_list.end());
-    }
-
-    // do an allgather to findout how many elements that each process will
-    // be requesting partition information about
-    std::vector<int> recv_count(comm_size);
-    int count = req_list.size();
-    MPI_Allgather(&count, 1, get_mpi_type(&count), recv_count.data(), 1, get_mpi_type(recv_count.data()), OP_PART_WORLD);
-
-    // discover global size of these required elements
-    int g_count = std::accumulate(recv_count.begin(), recv_count.end(), 0);
-
-    // prepare for an allgatherv
-    std::vector<int> displs(comm_size+1);
-    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin()+1);
-    displs[0] = 0;
-
-    // allocate memory to hold the global indexes of elements requiring
-    // partition details
-    std::vector<idx_g_t> g_index(g_count);
-
-    MPI_Allgatherv(req_list.data(), count, get_mpi_type(req_list.data()), g_index.data(), recv_count.data(), displs.data(),
-                   get_mpi_type(g_index.data()), OP_PART_WORLD);
-
-    if (g_count > 0) {
-      std::sort(g_index.begin(), g_index.end());
-      g_index.erase(std::unique(g_index.begin(), g_index.end()), g_index.end());
-    }
-
-    // printf("on rank %d map %s needs set %s : before g_count = %d\n",
-    //    my_rank, map->name, map->to->name, g_count);
-
-    // go through the recieved global g_index array and see if any local
-    // element's
-    // partition details are requested by some foreign process
-    std::vector<idx_g_t> exp_index;
-    std::vector<idx_g_t> exp_g_index;
-
-    for (int i = 0; i < g_count; i++) {
-      idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
-                                      g_index[i], 0, map->to->size - 1);
-      if (local_index >= 0) {
-        exp_g_index.push_back(g_index[i]);
-
-        idx_g_t global_index = get_global_index(local_index, my_rank,
-                                        part_range[map->to->index], comm_size);
-        exp_index.push_back(global_index);
-      }
-    }
-    
-    int exp_count = exp_index.size();
-
-    // now export to every MPI rank, these partition info with an all-to-all
-    MPI_Allgather(&exp_count, 1, get_mpi_type(&exp_count), recv_count.data(), 1, get_mpi_type(recv_count.data()),
-                  OP_PART_WORLD);
-
-    // compute displacements
-    std::partial_sum(recv_count.begin(), recv_count.end(), displs.begin()+1);
-    displs[0] = 0;
-
-    // allocate memory to hold the incomming partition details and allgatherv
-    g_count = std::accumulate(recv_count.begin(), recv_count.end(), 0);
-    std::vector<idx_g_t> all_imp_index(g_count);
-    std::vector<idx_g_t> all_imp_g_index(g_count);
-
-    // printf("on rank %d map %s need set %s: After g_count = %d\n",
-    //    my_rank, map.name,map.to.name,g_count);
-
-    MPI_Allgatherv(exp_g_index.data(), exp_count, get_mpi_type(exp_g_index.data()), g_index.data(), recv_count.data(), displs.data(),
-                   get_mpi_type(g_index.data()), OP_PART_WORLD);
-
-    MPI_Allgatherv(exp_index.data(), exp_count, get_mpi_type(exp_index.data()), all_imp_index.data(), recv_count.data(),
-                   displs.data(), get_mpi_type(all_imp_index.data()), OP_PART_WORLD);
-
-    exp_index.clear();
-    exp_g_index.clear();
-
-    // sort all_imp_index according to g_index array
-    if (g_count > 0)
-      std::sort(ZipIter(g_index.data(), all_imp_index.data()), ZipIter(g_index.data() + g_count, all_imp_index.data() + g_count));
-
-    // now we hopefully have all the information required to renumber this map
-    // so now, again go through each entry of this mapping table and renumber
-    for (int i = 0; i < map->from->size; i++) {
-      idx_l_t local_index;
-      idx_g_t global_index;
-      for (int j = 0; j < map->dim; j++) {
-        local_index =
-            binary_search(OP_part_list[map->to->index]->g_index,
-                          map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
-
-        if (local_index < 0) // not in this partition
-        {
-          // need to search through g_index array
-          int found = binary_search(g_index.data(), map->map_gbl[i * map->dim + j], 0,
-                                    g_count - 1);
-          if (found < 0)
-            printf("Problem in renumbering\n");
-          else {
-            OP_map_list[map->index]->map_gbl[i * map->dim + j] =
-                all_imp_index[found];
-          }
-        } else // in this partition
-        {
-          global_index = get_global_index(
-              local_index, my_rank, part_range[map->to->index], comm_size);
-          OP_map_list[map->index]->map_gbl[i * map->dim + j] = global_index;
-        }
-      }
-    }
-
-    g_index.clear();
-    all_imp_index.clear();
-  }
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-}
-
-// Memory-efficient version using adaptive batched AllGather
-static void renumber_maps_efficient(int my_rank, int comm_size) {
-  // get partition range information
-  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
-
-  const size_t INITIAL_BATCH_SIZE = 300000; // Start with 300K elements per batch
-  const size_t MAX_GLOBAL_BATCH_SIZE = 30000000; // 30M elements max globally
-  
-  if (OP_diags > 3) {
-    op_printf("=== USING ADAPTIVE BATCHED RENUMBER_MAPS ===\n");
-    op_printf("Initial batch size: %zu elements\n", INITIAL_BATCH_SIZE);
-    op_printf("Max global batch size: %zu elements\n", MAX_GLOBAL_BATCH_SIZE);
-  }
-
-  // Process each mapping table
-  for (int m = 0; m < OP_map_index; m++) {
-    op_map map = OP_map_list[m];
-    
-    // Step 1: Collect all required indices locally
-    std::vector<idx_g_t> req_list;
-    for (int i = 0; i < map->from->size; i++) {
-      for (int j = 0; j < map->dim; j++) {
-        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
-                                      map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
-        if (local_index < 0) {
-          req_list.push_back(map->map_gbl[i * map->dim + j]);
-        }
-      }
-    }
-    
-    // Remove duplicates
-    if (req_list.size() > 0) {
-      std::sort(req_list.begin(), req_list.end());
-      req_list.erase(std::unique(req_list.begin(), req_list.end()), req_list.end());
-    }
-
-    if (OP_diags > 3) {
-      op_printf("Local req_list size: %zu\n", req_list.size());
-    }
-
-    // Step 2: Process requests in adaptive batches
-    std::vector<idx_g_t> resolved_global_indices_l(req_list.size(), static_cast<idx_g_t>(-1));
-    std::vector<idx_g_t> resolved_global_indices_g(req_list.size(), static_cast<idx_g_t>(-1));
-    
-    // Synchronize the maximum number of requests across all processes to avoid deadlock
-    size_t local_req_count = req_list.size();
-    size_t max_req_count = 0;
-    MPI_Allreduce(&local_req_count, &max_req_count, 1, MPI_UNSIGNED_LONG, MPI_MAX, OP_PART_WORLD);
-    
-    if (OP_diags > 3) {
-      op_printf("Max req_list size across all processes: %zu\n", max_req_count);
-    }
-    
-    size_t current_batch_size = INITIAL_BATCH_SIZE;
-    
-    // Use the maximum request count to ensure all processes do the same number of iterations
-    size_t batch_start = 0;
-    while (batch_start < max_req_count) {
-      // Calculate batch boundaries, but handle cases where this process has no more work
-      size_t batch_end = std::min(batch_start + current_batch_size, std::max(batch_start, req_list.size()));
-      size_t batch_size = (batch_start < req_list.size()) ? batch_end - batch_start : 0;
-      
-      if (OP_diags > 3) {
-        op_printf("Processing batch %zu-%zu (size %zu) of %zu\n", 
-               batch_start, batch_end > batch_start ? batch_end - 1 : batch_start, batch_size, req_list.size());
-      }
-      
-      // Create batch of requests (empty if this process has no more work)
-      std::vector<idx_g_t> batch_req;
-      if (batch_size > 0) {
-        batch_req.assign(req_list.begin() + batch_start, req_list.begin() + batch_end);
-      }
-      
-      // Check global batch size
-      std::vector<int> batch_recv_count(comm_size);
-      int batch_count = batch_size;
-      MPI_Allgather(&batch_count, 1, get_mpi_type(&batch_count), batch_recv_count.data(), 1, get_mpi_type(batch_recv_count.data()), OP_PART_WORLD);
-
-      int total_batch_g_count = std::accumulate(batch_recv_count.begin(), batch_recv_count.end(), 0);
-      
-      if (OP_diags > 3) {
-        op_printf("Global batch size: %d (%.2f MB)\n", 
-               total_batch_g_count, (total_batch_g_count * sizeof(idx_g_t)) / (1024.0 * 1024.0));
-      }
-      
-      // If batch is too large, subdivide it further
-      if (total_batch_g_count > MAX_GLOBAL_BATCH_SIZE && current_batch_size > 1000) {
-        if (OP_diags > 3) {
-          op_printf("Batch too large (%d elements), subdividing to %zu...\n", 
-                 total_batch_g_count, current_batch_size / 2);
-        }
-        current_batch_size = current_batch_size / 2;
-        // Restart this batch with smaller size - don't increment batch_start
-        continue;
-      }
-
-      // Proceed with AllGather for this manageable batch
-      std::vector<int> batch_displs(comm_size + 1);
-      std::partial_sum(batch_recv_count.begin(), batch_recv_count.end(), batch_displs.begin() + 1);
-      batch_displs[0] = 0;
-
-      std::vector<idx_g_t> batch_g_index(total_batch_g_count);
-      // Use null pointer for empty batches, but still participate in collective operation
-      idx_g_t* send_ptr = (batch_count > 0) ? batch_req.data() : nullptr;
-      MPI_Allgatherv(send_ptr, batch_count, get_mpi_type(send_ptr), 
-                     batch_g_index.data(), batch_recv_count.data(), batch_displs.data(),
-                     get_mpi_type(batch_g_index.data()), OP_PART_WORLD);
-
-      // Remove duplicates from global batch
-      if (total_batch_g_count > 0) {
-        std::sort(batch_g_index.begin(), batch_g_index.end());
-        batch_g_index.erase(std::unique(batch_g_index.begin(), batch_g_index.end()), batch_g_index.end());
-      }
-
-      // Find local elements and export their global indices
-      std::vector<idx_g_t> batch_exp_g_index;
-      std::vector<idx_g_t> batch_exp_index;
-
-      for (size_t i = 0; i < batch_g_index.size(); i++) {
-        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
-                                      batch_g_index[i], 0, map->to->size - 1);
-        if (local_index >= 0) {
-          batch_exp_g_index.push_back(batch_g_index[i]);
-          idx_g_t global_index = get_global_index(local_index, my_rank,
-                                          part_range[map->to->index], comm_size);
-          batch_exp_index.push_back(global_index);
-        }
-      }
-
-      // Exchange resolved indices
-      int batch_exp_count = batch_exp_index.size();
-      MPI_Allgather(&batch_exp_count, 1, get_mpi_type(&batch_exp_count), batch_recv_count.data(), 1, get_mpi_type(batch_recv_count.data()), OP_PART_WORLD);
-
-      std::partial_sum(batch_recv_count.begin(), batch_recv_count.end(), batch_displs.begin() + 1);
-      batch_displs[0] = 0;
-
-      int final_batch_g_count = std::accumulate(batch_recv_count.begin(), batch_recv_count.end(), 0);
-      std::vector<idx_g_t> batch_all_imp_g_index(final_batch_g_count);
-      std::vector<idx_g_t> batch_all_imp_index(final_batch_g_count);
-
-      idx_g_t* exp_g_ptr = (batch_exp_count > 0) ? batch_exp_g_index.data() : nullptr;
-      idx_g_t* exp_ptr = (batch_exp_count > 0) ? batch_exp_index.data() : nullptr;
-      
-      MPI_Allgatherv(exp_g_ptr, batch_exp_count, get_mpi_type(exp_g_ptr),
-                     batch_all_imp_g_index.data(), batch_recv_count.data(), batch_displs.data(),
-                     get_mpi_type(batch_all_imp_g_index.data()), OP_PART_WORLD);
-
-      MPI_Allgatherv(exp_ptr, batch_exp_count, get_mpi_type(exp_ptr),
-                     batch_all_imp_index.data(), batch_recv_count.data(), batch_displs.data(),
-                     get_mpi_type(batch_all_imp_index.data()), OP_PART_WORLD);
-
-      // Sort by original global index for lookup
-      if (final_batch_g_count > 0) {
-        std::sort(ZipIter(batch_all_imp_g_index.data(), batch_all_imp_index.data()),
-                  ZipIter(batch_all_imp_g_index.data() + final_batch_g_count, 
-                         batch_all_imp_index.data() + final_batch_g_count));
-      }
-
-      // Resolve our batch requests (only if we have work in this batch)
-      if (batch_size > 0) {
-        for (size_t i = 0; i < batch_size; i++) {
-          int found = binary_search(batch_all_imp_g_index.data(), batch_req[i], 0, final_batch_g_count - 1);
-          if (found >= 0) {
-            resolved_global_indices_l[batch_start + i] = batch_all_imp_index[found];
-            resolved_global_indices_g[batch_start + i] = batch_all_imp_g_index[found];
-          }
-        }
-      }
-      // Move to the next batch - all processes must advance by the same amount for synchronization
-      batch_start += current_batch_size;
-    }
-
-    // Step 3: Update the mapping table with resolved indices
-    for (int i = 0; i < map->from->size; i++) {
-      for (int j = 0; j < map->dim; j++) {
-        idx_l_t local_index = binary_search(OP_part_list[map->to->index]->g_index,
-                                      map->map_gbl[i * map->dim + j], 0, map->to->size - 1);
-        
-        if (local_index < 0) {
-          // Find in our resolved list
-          auto it = std::lower_bound(resolved_global_indices_g.begin(), resolved_global_indices_g.end(), map->map_gbl[i * map->dim + j]);
-          if (it != resolved_global_indices_g.end() && *it == map->map_gbl[i * map->dim + j]) {
-            int req_index = it - resolved_global_indices_g.begin();
-            if (resolved_global_indices_l[req_index] != static_cast<idx_g_t>(-1)) {
-              OP_map_list[map->index]->map_gbl[i * map->dim + j] = resolved_global_indices_l[req_index];
-            } else {
-              printf("ERROR: Could not resolve global index for element %ld on rank %d\n", 
-                     (long long)map->map_gbl[i * map->dim + j], my_rank);
-              // Set recognizable error value
-              OP_map_list[map->index]->map_gbl[i * map->dim + j] = static_cast<idx_g_t>(-999999);
-              MPI_Abort(OP_PART_WORLD, 1);
-            }
-          }
-        } else {
-          // Local element - compute global index
-          idx_g_t global_index = get_global_index(local_index, my_rank, part_range[map->to->index], comm_size);
-          OP_map_list[map->index]->map_gbl[i * map->dim + j] = global_index;
-        }
-      }
-    }
-  }
-  
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-  
-  if (OP_diags > 3) {
-    op_printf("=== ADAPTIVE BATCHED RENUMBER_MAPS COMPLETE ===\n");
-  }
-}
-
-
-
-// Main renumber_maps function that chooses implementation based on problem size
 static void renumber_maps(int my_rank, int comm_size) {
-  // Check if we should use the memory-efficient version
-  // Get an estimate of the problem size
-  size_t total_map_entries = 0;
-  for (int m = 0; m < OP_map_index; m++) {
-    op_map map = OP_map_list[m];
-    total_map_entries += map->from->size * map->dim;
-  }
-  
-  size_t total_global_map_entries = 0;
-  MPI_Allreduce(&total_map_entries, &total_global_map_entries, 1, MPI_UNSIGNED_LONG_LONG, 
-                MPI_SUM, OP_PART_WORLD);
+  idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
+  get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
 
-  // Use efficient version for large problems or high process counts  
-  // Based on the 92M global aggregation seen in testing, use efficient version more aggressively
-  bool use_efficient = (comm_size >= 256) || (total_global_map_entries > 500000);
-  
-  if (OP_diags > 3) {
-    op_printf("Total map entries: %zu, Total global map entries: %zu, comm_size: %d, rank: %d\n", 
-          total_map_entries, total_global_map_entries, comm_size, my_rank);
-    
-    if (my_rank == 0)
-      op_printf("Using %s renumber_maps implementation\n", 
-                use_efficient ? "memory-efficient" : "original");
+  for (int s = 0; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
+    const idx_g_t n = part_range[s][2 * comm_size - 1] + 1;
+    const idx_g_t first = part_range[s][2 * my_rank];
+    const Directory dir(n, comm_size);
+    const idx_g_t block = dir.begin(my_rank);
+
+    // The original indices of the elements held here, ascending since migration.
+    const std::span<const idx_g_t> held{OP_part_list[s]->g_index, static_cast<std::size_t>(set->size)};
+    auto held_at = [&](idx_g_t g) -> idx_g_t {
+      auto it = std::lower_bound(held.begin(), held.end(), g);
+      return it != held.end() && *it == g ? it - held.begin() : -1;
+    };
+
+    // Register every element held here, with its current index.
+    std::vector<Renumbered> mine(held.size());
+    for (std::size_t i = 0; i < held.size(); i++)
+      mine[i] = {held[i], first + static_cast<idx_g_t>(i)};
+    auto registered = op::mpi::sparse::exchange_by(OP_PART_WORLD, mine,
+                                                   [&](const Renumbered &e) { return dir.rank_of(e.original); });
+    std::vector<idx_g_t> table(dir.begin(my_rank + 1) - block, -1);
+    for (const Renumbered &e : registered)
+      table[e.original - block] = e.current;
+
+    // Ask for the elements of this set that a map reaches and this rank does not hold.
+    std::vector<idx_g_t> wanted;
+    for (int m = 0; m < OP_map_index; m++) {
+      op_map map = OP_map_list[m];
+      if (map->to != set) continue;
+      for (std::size_t k = 0; k < static_cast<std::size_t>(map->from->size) * map->dim; k++) {
+        const idx_g_t g = map->map_gbl[k];
+        if (g < 0 || g >= n) {
+          printf("renumber_maps: map %s has entry %lld, outside set %s of %lld elements\n", map->name,
+                 (long long)g, set->name, (long long)n);
+          MPI_Abort(OP_PART_WORLD, 2);
+        }
+        if (held_at(g) < 0) wanted.push_back(g);
+      }
+    }
+    std::sort(wanted.begin(), wanted.end());
+    wanted.erase(std::unique(wanted.begin(), wanted.end()), wanted.end());
+    auto asked = op::mpi::sparse::exchange_by(OP_PART_WORLD, wanted, [&](idx_g_t g) { return dir.rank_of(g); });
+
+    // Answer each rank in the order it asked.
+    std::vector<idx_g_t> answers(asked.size());
+    for (std::size_t k = 0; k < answers.size(); k++) {
+      answers[k] = table[asked.data[k] - block];
+      if (answers[k] < 0) {
+        printf("renumber_maps: element %lld of set %s is held by no rank\n", (long long)asked.data[k], set->name);
+        MPI_Abort(OP_PART_WORLD, 2);
+      }
+    }
+    std::vector<op::mpi::msg::BlockView<idx_g_t>> back;
+    back.reserve(asked.num_neighbours());
+    for (int i = 0; i < asked.num_neighbours(); i++)
+      back.emplace_back(asked.ranks[i], answers.data() + asked.disps[i], asked.counts[i]);
+    // Grouped by directory rank, ascending, each in the order asked: since the
+    // directory rank is monotone in the index, that is the order of wanted.
+    auto current = op::mpi::sparse::exchange(OP_PART_WORLD, back);
+    assert(current.size() == wanted.size());
+
+    // Rewrite every map onto this set.
+    for (int m = 0; m < OP_map_index; m++) {
+      op_map map = OP_map_list[m];
+      if (map->to != set) continue;
+      for (std::size_t k = 0; k < static_cast<std::size_t>(map->from->size) * map->dim; k++) {
+        const idx_g_t g = map->map_gbl[k];
+        const idx_g_t i = held_at(g);
+        map->map_gbl[k] = i >= 0 ? first + i
+                                 : current.data[std::lower_bound(wanted.begin(), wanted.end(), g) - wanted.begin()];
+      }
+    }
   }
-  
-  if (use_efficient) {
-    renumber_maps_efficient(my_rank, comm_size);
-  } else {
-    renumber_maps_original(my_rank, comm_size);
-  }
+
+  for (int i = 0; i < OP_set_index; i++)
+    op_free(part_range[i]);
+  op_free(part_range);
 }
 
 /*******************************************************************************

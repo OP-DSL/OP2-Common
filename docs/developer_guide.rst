@@ -394,7 +394,7 @@ Supported partitioners:
 - **User-defined:** ``op_partition_external()`` — partitioning array supplied externally via an ``op_dat``.
 - **Random:** ``op_partition("RANDOM", ...)`` — for debugging only.
 
-The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.
+The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.  A map entry may name an element that now lives on any rank, so ``renumber_maps()`` looks such elements up in a directory: each set's original indices are split into equal blocks, one per rank, every rank registers the elements it holds with the block that covers them, and asks those blocks for the elements its maps reach.  No step holds data proportional to the number of ranks.
 
 Mesh Renumbering
 ~~~~~~~~~~~~~~~~
