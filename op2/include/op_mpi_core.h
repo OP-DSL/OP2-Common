@@ -235,23 +235,6 @@ void op_partition_geomkway(op_dat coords, op_map primary_map);
 
 #endif
 
-#if defined(HAVE_KAHIP) || defined(HAVE_PARMETIS)
-/*******************************************************************************
-* K-way partitioning prototype
-*******************************************************************************/
-
-void op_partition_kway(op_map primary_map, bool use_kahip);
-
-#endif
-
-#ifdef HAVE_PTSCOTCH
-/*******************************************************************************
-* PT-SCOTCH wrapper prototypes
-*******************************************************************************/
-
-void op_partition_ptscotch(op_map primary_map);
-#endif
-
 void op_move_to_device();
 
 #ifdef __cplusplus

@@ -147,6 +147,10 @@ inline idx_g_t sum_below_rank(idx_g_t n, MPI_Comm comm) {
   return rank == 0 ? 0 : below;  // MPI_Exscan leaves rank 0's result undefined
 }
 
+/* Print the message, printf-style, to stderr and stop the job. For the errors the
+   MPI layer cannot recover from; aborts OP_MPI_WORLD, which is valid throughout. */
+[[noreturn, gnu::format(printf, 1, 2)]] void fail(const char *format, ...);
+
 /* Send each neighbour the rows - row_bytes each, of `rows` - that exp lists for
    it, and receive the rows imp lists into `into`, grouped as imp lists them. exp
    and imp must be each other's transpose over comm. Rows are counted in a datatype

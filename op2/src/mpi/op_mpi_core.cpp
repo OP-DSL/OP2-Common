@@ -54,13 +54,17 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <numeric>
 
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
 
 using op::mpi::exchange_rows;
+using op::mpi::fail;
 using op::mpi::HaloList;
 using op::mpi::MapHalo;
 using op::mpi::migrate_rows;
@@ -249,8 +253,7 @@ int get_partition(idx_g_t global_index, idx_g_t *part_range, int *local_index,
     }
   }
   
-  printf("Error: orphan global index %lld in set %s\n", global_index, set->name);
-  MPI_Abort(OP_MPI_WORLD, 2);
+  fail("Error: orphan global index %lld in set %s\n", global_index, set->name);
   return -1;
 }
 
@@ -344,6 +347,16 @@ HaloList transpose(const HaloList &list, MPI_Comm comm) {
                           (std::size_t)list.sizes[i]);
 
   return from_received(list.set, sparse::exchange(comm, messages));
+}
+
+void fail(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  std::vfprintf(stderr, format, args);
+  va_end(args);
+  std::fflush(stderr);
+  MPI_Abort(OP_MPI_WORLD, 2);
+  std::abort(); // MPI_Abort does not return
 }
 
 void exchange_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, const HaloList &exp,
@@ -1258,10 +1271,9 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   // No partitioning information: data is already in declaration order
   if (orig_part_range == NULL || OP_part_list == NULL) {
     if (local_size != (size_t)dat->set->size) {
-      printf("Error: op_mpi_put_data local_size %zu does not match set size %d "
-             "for dat %s\n",
-             local_size, dat->set->size, dat->name);
-      MPI_Abort(OP_MPI_WORLD, 2);
+      fail("Error: op_mpi_put_data local_size %zu does not match set size %d "
+           "for dat %s\n",
+           local_size, dat->set->size, dat->name);
     }
     if (local_size > 0)
       memcpy(dat->data, src, local_size * (size_t)dat->size);
@@ -1276,10 +1288,9 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
       (orig_end >= orig_start) ? (size_t)(orig_end - orig_start + 1) : 0;
 
   if (local_size != orig_size) {
-    printf("Error: op_mpi_put_data local_size %zu does not match original "
-           "partition size %zu for dat %s on rank %d\n",
-           local_size, orig_size, dat->name, my_rank);
-    MPI_Abort(OP_MPI_WORLD, 2);
+    fail("Error: op_mpi_put_data local_size %zu does not match original "
+         "partition size %zu for dat %s on rank %d\n",
+         local_size, orig_size, dat->name, my_rank);
   }
 
   // For each element held here, the rank that declared it and its index there:
@@ -1311,10 +1322,9 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   const HaloList exp = op::mpi::from_received(dat->set, op::mpi::sparse::exchange(OP_MPI_WORLD, messages));
   for (int i = 0; i < exp.size(); i++)
     if (exp.list[i] < 0 || (size_t)exp.list[i] >= orig_size) {
-      printf("Error: op_mpi_put_data original local index %d out of range "
-             "(orig_size %zu) for dat %s on rank %d\n",
-             exp.list[i], orig_size, dat->name, my_rank);
-      MPI_Abort(OP_MPI_WORLD, 2);
+      fail("Error: op_mpi_put_data original local index %d out of range "
+           "(orig_size %zu) for dat %s on rank %d\n",
+           exp.list[i], orig_size, dat->name, my_rank);
     }
 
   // Send them, and scatter what arrives into place.

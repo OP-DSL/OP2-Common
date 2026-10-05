@@ -88,6 +88,7 @@ typedef float real_t;
 #include <op_mpi_halo.h>
 
 using op::mpi::exchange_rows;
+using op::mpi::fail;
 using op::mpi::HaloList;
 using op::mpi::migrate_rows;
 
@@ -98,10 +99,14 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 // used for checking if partial halo exchanges
 // are to be performed
 
-void op_partition_graph_parmetis(op_map primary_map);
-void op_partition_graph_kahip(op_map primary_map);
+#ifdef HAVE_PARMETIS
+static void op_partition_graph_parmetis(op_map primary_map);
+#endif
+#ifdef HAVE_KAHIP
+static void op_partition_graph_kahip(op_map primary_map);
+#endif
 #ifdef HAVE_PTSCOTCH
-void op_partition_graph_ptscotch(op_map primary_map);
+static void op_partition_graph_ptscotch(op_map primary_map);
 #endif
 
 
@@ -145,22 +150,19 @@ struct Renumbered {
 };
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 
 /*******************************************************************************
  * Initialise partitioning data structures with the current (block)
 *  partitioning information
  *******************************************************************************/
-idx_g_t **initialise(int my_rank, int comm_size);
+static idx_g_t **initialise(int my_rank, int comm_size);
 
 //
 // MPI Communicator for partitioning
 //
 
-MPI_Comm OP_PART_WORLD;
+static MPI_Comm OP_PART_WORLD;
 
 /*******************************************************************************
  * Utility function to find the number of times a value appears in an array
@@ -319,13 +321,11 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
           if (elem >= 0)
             found_parts[j] = imp_part[pi_list.disps[r] + elem];
           else {
-            printf("Element %d not found in partition import list\n",
-                   local_index);
-            MPI_Abort(OP_PART_WORLD, 2);
+            fail("Element %d not found in partition import list\n",
+                 local_index);
           }
         } else {
-          printf("Rank %d not found in partition import list\n", part);
-          MPI_Abort(OP_PART_WORLD, 2);
+          fail("Rank %d not found in partition import list\n", part);
         }
       }
     }
@@ -513,10 +513,8 @@ static void partition_all(op_set primary_set, int my_rank, int comm_size) {
             die = 1;
         }
       }
-      if (die) {
-        printf("Partitioning aborted !\n");
-        MPI_Abort(OP_PART_WORLD, 1);
-      }
+      if (die)
+        fail("Partitioning aborted !\n");
     }
   }
 
@@ -582,9 +580,8 @@ static void renumber_maps(int my_rank, int comm_size) {
       for (std::size_t k = 0; k < static_cast<std::size_t>(map->from->size) * map->dim; k++) {
         const idx_g_t g = map->map_gbl[k];
         if (g < 0 || g >= n) {
-          printf("renumber_maps: map %s has entry %lld, outside set %s of %lld elements\n", map->name,
-                 (long long)g, set->name, (long long)n);
-          MPI_Abort(OP_PART_WORLD, 2);
+          fail("renumber_maps: map %s has entry %lld, outside set %s of %lld elements\n", map->name,
+               (long long)g, set->name, (long long)n);
         }
         if (held_at(g) < 0) wanted.push_back(g);
       }
@@ -598,8 +595,7 @@ static void renumber_maps(int my_rank, int comm_size) {
     for (std::size_t k = 0; k < answers.size(); k++) {
       answers[k] = table[asked.data[k] - block];
       if (answers[k] < 0) {
-        printf("renumber_maps: element %lld of set %s is held by no rank\n", (long long)asked.data[k], set->name);
-        MPI_Abort(OP_PART_WORLD, 2);
+        fail("renumber_maps: element %lld of set %s is held by no rank\n", (long long)asked.data[k], set->name);
       }
     }
     std::vector<op::mpi::msg::BlockView<idx_g_t>> back;
@@ -690,16 +686,13 @@ static void migrate_all(int my_rank) {
   }
 }
 
-extern "C++" {
-
 /* A partitioner's output as OP2 keeps it - int, xmalloc'd - checked to name a
    rank for every element of the set. */
 template <class T> static int *checked_partition(const T *part, op_set set, int my_rank, int comm_size) {
   int *partition = (int *)xmalloc(sizeof(int) * set->size);
   for (int i = 0; i < set->size; i++) {
     if (part[i] < 0 || part[i] >= comm_size) {
-      printf("Partitioning problem: on rank %d, set %s element %d not assigned a partition\n", my_rank, set->name, i);
-      MPI_Abort(OP_PART_WORLD, 2);
+      fail("Partitioning problem: on rank %d, set %s element %d not assigned a partition\n", my_rank, set->name, i);
     }
     partition[i] = (int)part[i];
   }
@@ -738,8 +731,6 @@ template <class Primary> static void partition_with(const char *name, op_set pri
   if (my_rank == MPI_ROOT)
     printf("Max total %s partitioning time = %lf\n", name, max_time);
 }
-
-}  // extern "C++"
 
 /*******************************************************************************
  * Partition with a partition vector from the application: partvec holds the
@@ -787,20 +778,15 @@ void op_partition_destroy() {
 
 #ifdef HAVE_PARMETIS
 
-extern "C++" {
-
 /* A coordinates dat as ParMETIS takes it: real_t, one row of 1 to 3 values per
    element, from a dat of doubles or floats. */
 static std::vector<real_t> parmetis_coordinates(op_dat coords) {
   if (coords->dim < 1 || coords->dim > 3) {
-    printf("Dimensions of Coordinate array not one of 3D,2D or 1D\n");
-    printf("Not supported by ParMetis - Indicate correct coordinates array\n");
-    MPI_Abort(OP_PART_WORLD, 1);
+    fail("Coordinates %s have %d dimensions; ParMETIS takes 1, 2 or 3\n", coords->name, coords->dim);
   }
   const std::size_t width = coords->size / coords->dim;
   if (width != sizeof(double) && width != sizeof(float)) {
-    printf("Coordinates %s hold neither doubles nor floats\n", coords->name);
-    MPI_Abort(OP_PART_WORLD, 1);
+    fail("Coordinates %s hold neither doubles nor floats\n", coords->name);
   }
   std::vector<real_t> xyz((std::size_t)coords->set->size * coords->dim);
   for (std::size_t i = 0; i < xyz.size(); i++) {
@@ -817,8 +803,6 @@ static std::vector<real_t> parmetis_coordinates(op_dat coords) {
   }
   return xyz;
 }
-
-}  // extern "C++"
 
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
@@ -849,9 +833,8 @@ void op_partition_geom(op_dat coords) {
    partition_with. */
 static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t **part_range) {
   if (x_dat->size != 3 * (int)sizeof(double)) {
-    printf("Inertial partitioning needs coordinates of three doubles: %s holds %d bytes per element\n",
-           x_dat->name, x_dat->size);
-    MPI_Abort(OP_PART_WORLD, 1);
+    fail("Inertial partitioning needs coordinates of three doubles: %s holds %d bytes per element\n",
+         x_dat->name, x_dat->size);
   }
   double *x = (double *)xmalloc(x_dat->set->size * x_dat->dim * sizeof(double));
   memcpy(x, x_dat->data, x_dat->set->size * x_dat->dim * sizeof(double));
@@ -1136,9 +1119,8 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t
       });
   op_free(global_indices);
   if (ended_on.size() != (std::size_t)block_size) {
-    printf("Error at rank %d: original(%d) vs. collected(%zu) size mismatch! Aborting...\n", my_rank, block_size,
-           ended_on.size());
-    MPI_Abort(OP_PART_WORLD, 2);
+    fail("Error at rank %d: original(%d) vs. collected(%zu) size mismatch! Aborting...\n", my_rank, block_size,
+         ended_on.size());
   }
   int *partition = (int *)xmalloc(sizeof(int) * x_dat->set->size);
   for (int i = 0; i < ended_on.num_neighbours(); i++)
@@ -1152,8 +1134,6 @@ void op_partition_inertial(op_dat x_dat) {
     return inertial_partition(x_dat, my_rank, comm_size, part_range);
   });
 }
-
-extern "C++" {
 
 /* The partitioners op_partition can run, by library and routine, and the inputs
    each needs. A library that was not built has no entries. */
@@ -1220,8 +1200,6 @@ static const Partitioner *select_partitioner(const char *lib, const char *routin
   return nullptr;
 }
 
-}  // extern "C++"
-
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
@@ -1261,8 +1239,9 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
 }
 
 extern int **OP_map_ptr_list;
-void op_partition_ptr(const char *lib_name, const char *lib_routine,
-                      op_set prime_set, int *prime_map, double *coords) {
+/* Called from Fortran by its C name; declared in no header. */
+extern "C" void op_partition_ptr(const char *lib_name, const char *lib_routine, op_set prime_set, int *prime_map,
+                                 double *coords) {
   // the dat declared from coords, if any; a NULL coords would match any dat declared without data
   op_dat item_dat = NULL;
   if (coords != NULL) {
@@ -1286,15 +1265,12 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
 }
 
-#ifdef __cplusplus
-}
-#endif
 
 /*******************************************************************************
  * Initialise partitioning data structures with the current (block)
 *  partitioning information
  *******************************************************************************/
-idx_g_t **initialise(int my_rank, int comm_size) {
+static idx_g_t **initialise(int my_rank, int comm_size) {
   // Compute global partition range information for each set
   idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
   get_part_range(part_range, my_rank, comm_size, OP_PART_WORLD);
@@ -1333,7 +1309,7 @@ idx_g_t **initialise(int my_rank, int comm_size) {
  * it, itself included, by global index, without repeats, in first-seen order.
  * A from-element whose row reaches another rank's to-element is sent there.
  *******************************************************************************/
-std::vector<std::vector<idx_g_t>> construct_adj_list(op_map primary_map, int my_rank, int comm_size,
+static std::vector<std::vector<idx_g_t>> construct_adj_list(op_map primary_map, int my_rank, int comm_size,
                                                      idx_g_t **part_range) {
   const int dim = primary_map->dim;
   idx_g_t *range = part_range[primary_map->to->index];
@@ -1383,9 +1359,8 @@ static inline void check_global_index_int32_range(idx_g_t g_index,
                                                   const op_map primary_map,
                                                   int my_rank) {
   if (g_index < (idx_g_t)INT32_MIN || g_index > (idx_g_t)INT32_MAX) {
-    op_printf("Error: global index out of 32-bit integer range for map %s on rank %d (index=%lld)\n",
-              primary_map->name, my_rank, (long long)g_index);
-    MPI_Abort(OP_PART_WORLD, 2);
+    fail("Error: global index out of 32-bit integer range for map %s on rank %d (index=%lld)\n",
+         primary_map->name, my_rank, (long long)g_index);
   }
 }
 #endif
@@ -1394,7 +1369,7 @@ static inline void check_global_index_int32_range(idx_g_t g_index,
  * Setup variables for k-way partitioning
  *******************************************************************************/
 template <class T>
-std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
+static std::tuple<T *, T *, T *, T *, T, T, real_t *, real_t *>
 setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std::vector<idx_g_t>> adj,
                 idx_g_t **part_range) {
   T comm_size_pm = comm_size;
@@ -1422,11 +1397,9 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std:
     }
 #endif
     if (adj[i].size() < 2) {
-      printf("The from set: %s of primary map: %s is not an on to set of "
-             "to-set: %s\n",
-             primary_map->from->name, primary_map->name, primary_map->to->name);
-      printf("Need to select a different primary map\n");
-      MPI_Abort(OP_PART_WORLD, 2);
+      fail("The from set: %s of primary map: %s is not an on to set of to-set: %s\n"
+           "Need to select a different primary map\n",
+           primary_map->from->name, primary_map->name, primary_map->to->name);
     }
 
     std::sort(adj[i].begin(), adj[i].end());
@@ -1467,7 +1440,7 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std:
  *******************************************************************************/
 
 #ifdef HAVE_PARMETIS
-void perform_kway_partition(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
+static void perform_kway_partition(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
                             idx_t *wgtflag, idx_t *numflag, idx_t *ncon,
                             idx_t *nparts, real_t *tpwgts, real_t *ubvec,
                             idx_t *options, idx_t *edgecut, idx_t *part,
@@ -1479,7 +1452,7 @@ void perform_kway_partition(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
 #endif
 
 #ifdef HAVE_KAHIP
-void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
+static void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
                             idxtype *, idxtype *, idxtype *, idxtype *nparts,
                             real_t *, real_t *, idxtype *, idxtype *edgecut,
                             idxtype *part, MPI_Comm *comm) {
@@ -1492,7 +1465,7 @@ void perform_kway_partition(idxtype *vtxdist, idxtype *xadj, idxtype *adjncy,
 
 #ifdef HAVE_PTSCOTCH
 // Helper function to set up PTScotch data structures
-std::tuple<SCOTCH_Dgraph*, SCOTCH_Num*, SCOTCH_Num*, SCOTCH_Num*>
+static std::tuple<SCOTCH_Dgraph*, SCOTCH_Num*, SCOTCH_Num*, SCOTCH_Num*>
 setup_ptscotch_data(op_map primary_map, int my_rank, int comm_size, std::vector<std::vector<idx_g_t>> adj,
                 idx_g_t **part_range) {
 
@@ -1551,8 +1524,7 @@ setup_ptscotch_data(op_map primary_map, int my_rank, int comm_size, std::vector<
 
     int test = SCOTCH_dgraphCheck(grafptr);
     if (test == 1) {
-        printf("PT-Scotch Graph Inconsistent - Aborting\n");
-        MPI_Abort(OP_PART_WORLD, 2);
+        fail("PT-Scotch Graph Inconsistent - Aborting\n");
     }
 
     SCOTCH_Num *partloctab =
@@ -1565,7 +1537,7 @@ setup_ptscotch_data(op_map primary_map, int my_rank, int comm_size, std::vector<
 }
 
 // Helper function to call PTScotch partitioner
-void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SCOTCH_Num *partloctab, SCOTCH_Num *vertloctab, SCOTCH_Num *edgeloctab) {
+static void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SCOTCH_Num *partloctab, SCOTCH_Num *vertloctab, SCOTCH_Num *edgeloctab) {
     SCOTCH_Strat straptr;
     SCOTCH_stratInit(&straptr);
     // Optional: Set specific PTScotch strategy here if needed
@@ -1596,9 +1568,8 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
   std::vector<real_t> xyz;
   if (coords != nullptr) {
     if (compare_sets(coords->set, primary_map->to) == 0) {
-      printf("primary map's to set %s mismatches the op_dat's set %s: on rank %d\n", primary_map->to->name,
-             coords->set->name, my_rank);
-      MPI_Abort(OP_PART_WORLD, 2);
+      fail("primary map's to set %s mismatches the op_dat's set %s: on rank %d\n", primary_map->to->name,
+           coords->set->name, my_rank);
     }
     xyz = parmetis_coordinates(coords);
   }
@@ -1664,8 +1635,7 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
       return partition;
 #else
       // Error: Library not available
-      if (my_rank == MPI_ROOT) printf("ERROR: %s requested but not compiled.\n", partitioner_name);
-      MPI_Abort(OP_PART_WORLD, 1);
+      fail("ERROR: %s requested but not compiled.\n", partitioner_name);
 #endif
   } else if (strcmp(partitioner_name, "PTSCOTCH") == 0) {
 #ifdef HAVE_PTSCOTCH
@@ -1692,13 +1662,11 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
       return partition;
 #else
       // Error: Library not available
-       if (my_rank == MPI_ROOT) printf("ERROR: PTScotch requested but not compiled.\n");
-      MPI_Abort(OP_PART_WORLD, 1);
+      fail("ERROR: PTScotch requested but not compiled.\n");
 #endif
   } else {
        // Error: Unknown partitioner
-       if (my_rank == MPI_ROOT) printf("ERROR: Unknown partitioner '%s'\n", partitioner_name);
-       MPI_Abort(OP_PART_WORLD, 1);
+      fail("ERROR: Unknown partitioner '%s'\n", partitioner_name);
   }
   return nullptr;
 }
@@ -1708,9 +1676,8 @@ static void op_partition_graph_generic(op_map primary_map, const char *partition
 #ifdef DEBUG
   // check if the  primary_map is an on to map from the from-set to the to-set
   if (is_onto_map(primary_map) != 1) {
-    printf("Map %s is an not an onto map from set %s to set %s \n", primary_map->name, primary_map->from->name,
-           primary_map->to->name);
-    MPI_Abort(OP_MPI_WORLD, 2);
+    fail("Map %s is an not an onto map from set %s to set %s \n", primary_map->name, primary_map->from->name,
+         primary_map->to->name);
   }
 #endif
   partition_with(partitioner_name, primary_map->to, [&](int my_rank, int comm_size, idx_g_t **part_range) {
@@ -1720,7 +1687,7 @@ static void op_partition_graph_generic(op_map primary_map, const char *partition
 
 // Specializations/Wrappers to call the generic function
 #ifdef HAVE_PARMETIS
-void op_partition_graph_parmetis(op_map primary_map) {
+static void op_partition_graph_parmetis(op_map primary_map) {
     op_partition_graph_generic<idx_t>(primary_map, "PARMETIS");
 }
 
@@ -1729,12 +1696,12 @@ void op_partition_geomkway(op_dat coords, op_map primary_map) {
 }
 #endif
 #ifdef HAVE_KAHIP
-void op_partition_graph_kahip(op_map primary_map) {
+static void op_partition_graph_kahip(op_map primary_map) {
     op_partition_graph_generic<idxtype>(primary_map, "KAHIP");
 }
 #endif
 #ifdef HAVE_PTSCOTCH
-void op_partition_graph_ptscotch(op_map primary_map) {
+static void op_partition_graph_ptscotch(op_map primary_map) {
     // Pass dummy template type idx_t, it's ignored by the PTScotch path
     op_partition_graph_generic<idx_t>(primary_map, "PTSCOTCH");
 }
