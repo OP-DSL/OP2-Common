@@ -870,350 +870,109 @@ static void renumber_maps(int my_rank, int comm_size) {
  * Routine to perform data migration to new partitions
  *******************************************************************************/
 
-static void migrate_all(int my_rank, int comm_size) {
-  /*--STEP 1 - Create Imp/Export Lists for reverse migrating elements
-   * ----------*/
+extern "C++" {
 
-  // create imp/exp lists for reverse migration
-  std::vector<HaloList> pe_list(OP_set_index); // export list for each set
-  std::vector<HaloList> pi_list(OP_set_index); // import list for each set
+/* Move a set's rows - its part of a dat, a mapping table or g_index, row_bytes
+   each - to the ranks they now belong to. exp lists the rows leaving, by
+   destination, and imp what arrives, by source. The result holds the rows this
+   rank keeps, in order, then those received, grouped as imp lists them and
+   received straight into place. Rows are counted in a datatype of one row, so a
+   block is not capped at 2 GB. Allocated with xmalloc; null when empty. */
+static char *migrate_rows(const char *rows, std::size_t row_bytes, int n_rows, const int *elem_part,
+                          int my_rank, const HaloList &exp, const HaloList &imp) {
+  const std::size_t kept = std::count(elem_part, elem_part + n_rows, my_rank);
+  char *out = (char *)xmalloc(row_bytes * (kept + imp.size()));
 
-  // create partition export lists
-  int *temp_list;
-  idx_g_t count, cap;
+  MPI_Datatype row;
+  MPI_Type_contiguous((int)row_bytes, MPI_BYTE, &row);
+  MPI_Type_commit(&row);
 
-  for (int s = 0; s < OP_set_index; s++) { // for each set
+  /* At most one message between two ranks per call, received from a named
+     source, so one tag serves every call: MPI keeps their order. */
+  const int tag = 0;
+  std::vector<MPI_Request> requests(imp.ranks_size() + exp.ranks_size());
+  for (int i = 0; i < imp.ranks_size(); i++)
+    MPI_Irecv(out + (kept + imp.disps[i]) * row_bytes, imp.sizes[i], row, imp.ranks[i], tag, OP_PART_WORLD,
+              &requests[i]);
+
+  std::vector<char> packed(row_bytes * exp.size());
+  for (int i = 0; i < exp.ranks_size(); i++) {
+    for (idx_l_t j = exp.disps[i]; j < exp.disps[i] + exp.sizes[i]; j++)
+      memcpy(packed.data() + j * row_bytes, rows + (std::size_t)exp.list[j] * row_bytes, row_bytes);
+    MPI_Isend(packed.data() + exp.disps[i] * row_bytes, exp.sizes[i], row, exp.ranks[i], tag, OP_PART_WORLD,
+              &requests[imp.ranks_size() + i]);
+  }
+
+  std::size_t k = 0;
+  for (int i = 0; i < n_rows; i++)
+    if (elem_part[i] == my_rank)
+      memcpy(out + (k++) * row_bytes, rows + (std::size_t)i * row_bytes, row_bytes);
+
+  MPI_Waitall((int)requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+  MPI_Type_free(&row);
+  return out;
+}
+
+}  // extern "C++"
+
+/* Move every set's elements to the ranks partitioning gave them - each dat on
+   the set, each mapping table from it, and g_index - then sort them all by
+   original global index. Sets are independent, so each is done in one pass. */
+static void migrate_all(int my_rank) {
+  for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-    part p = OP_part_list[set->index];
+    part p = OP_part_list[s];
 
-    // create a temporaty scratch space to hold export list for this set's
-    // partition information
-    count = 0;
-    cap = 1000;
-    temp_list = (int *)xmalloc(cap * sizeof(int));
+    // The elements leaving, by destination, and arriving, by source.
+    std::vector<int> pairs;
+    for (int i = 0; i < set->size; i++)
+      if (p->elem_part[i] != my_rank)
+        pairs.insert(pairs.end(), {p->elem_part[i], i});
+    const HaloList exp = HaloList::from_pairs(set, pairs.data(), (int)pairs.size());
+    const HaloList imp = op::mpi::transpose(exp, OP_PART_WORLD);
 
-    for (int i = 0; i < set->size; i++) {
-      if (p->elem_part[i] != my_rank) {
-        if (count >= cap) {
-          cap = cap * 2;
-          temp_list = (int *)xrealloc(temp_list, cap * sizeof(int));
-        }
-        temp_list[count++] = p->elem_part[i];
-        temp_list[count++] = i; // part.g_index[i];
-      }
-    }
-    // create partition export list
-    pe_list[set->index] = HaloList::from_pairs(set, temp_list, count);
-    op_free(temp_list);
-  }
-
-  // create partition import lists
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    pi_list[set->index] =
-        op::mpi::transpose(pe_list[set->index], OP_PART_WORLD);
-  }
-
-  /*--STEP 2 - Perform Partitioning Data migration
-   * -----------------------------*/
-
-  // data migration first ......
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-
-    const HaloList &imp = pi_list[set->index];
-    const HaloList &exp = pe_list[set->index];
-
-    MPI_Request *request_send =
-        (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
-
-    // migrate data defined on this set
-    op_dat_entry *item;
-    int d = -1; // d is just simply the tag for mpi comms
-    TAILQ_FOREACH(item, &OP_dat_list, entries) {
-      d++; // increase tag to do mpi comm for the next op_dat
-      op_dat dat = item->dat;
-
-      if (compare_sets(dat->set, set) == 1) { // this data array
-                                              // is defined on this set
-
-        DatElementType elem(dat);
-        // prepare bits of the data array to be exported
-        char **sbuf = (char **)xmalloc(exp.ranks_size() * sizeof(char *));
-
-        for (int i = 0; i < exp.ranks_size(); i++) {
-          sbuf[i] = (char *)xmalloc(exp.sizes[i] * (size_t)dat->size);
-          for (int j = 0; j < exp.sizes[i]; j++) {
-            int index = exp.list[exp.disps[i] + j];
-            memcpy(&sbuf[i][j * (size_t)dat->size],
-                   (void *)&dat->data[(size_t)dat->size * (index)], dat->size);
-          }
-          MPI_Isend(sbuf[i], exp.sizes[i], elem, exp.ranks[i],
-                    d, OP_PART_WORLD, &request_send[i]);
-        }
-
-        char *rbuf = (char *)xmalloc((size_t)dat->size * imp.size());
-        for (int i = 0; i < imp.ranks_size(); i++) {
-          MPI_Recv(&rbuf[(size_t)imp.disps[i] * (size_t)dat->size], imp.sizes[i],
-                   elem, imp.ranks[i], d, OP_PART_WORLD,
-                   MPI_STATUS_IGNORE);
-        }
-
-        MPI_Waitall(exp.ranks_size(), request_send, MPI_STATUSES_IGNORE);
-        for (int i = 0; i < exp.ranks_size(); i++)
-          op_free(sbuf[i]);
-        op_free(sbuf);
-
-        // delete the data entirs that has been sent and create a
-        // modified data array
-        char *new_dat = (char *)xmalloc((size_t)dat->size * (set->size + imp.size()));
-
-        count = 0;
-        for (int i = 0; i < dat->set->size; i++) // iterate over old set size
-        {
-          if (OP_part_list[set->index]->elem_part[i] == my_rank) {
-            memcpy(&new_dat[count * (size_t)dat->size],
-                   (void *)&dat->data[(size_t)dat->size * i], dat->size);
-            count++;
-          }
-        }
-
-        if ((size_t)dat->size * (size_t)imp.size() > 0) {
-          memcpy(&new_dat[count * (size_t)dat->size], (void *)rbuf,
-                 (size_t)dat->size * (size_t)imp.size());
-        }
-
-        count = count + imp.size();
-        new_dat = (char *)xrealloc(new_dat, (size_t)dat->size * count);
-        op_free(rbuf);
-
-        op_free(dat->data);
-        dat->data = new_dat;
-      }
-    }
-
-    free(request_send);
-  }
-
-  // mapping tables second ......
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-
-    const HaloList &imp = pi_list[set->index];
-    const HaloList &exp = pe_list[set->index];
-
-    MPI_Request *request_send =
-        (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
-
-    // migrate mapping tables from this set
-    for (int m = 0; m < OP_map_index; m++) { // for each maping table
-      op_map map = OP_map_list[m];
-
-      if (compare_sets(map->from, set) == 1) { // need to select
-                                               // mappings FROM this set
-
-        // prepare bits of the mapping tables to be exported
-        idx_g_t **sbuf = (idx_g_t **)xmalloc(exp.ranks_size() * sizeof(idx_g_t *));
-
-        // send mapping table entirs to relevant mpi processes
-        for (int i = 0; i < exp.ranks_size(); i++) {
-          sbuf[i] = (idx_g_t *)xmalloc(exp.sizes[i] * map->dim * sizeof(idx_g_t));
-          for (int j = 0; j < exp.sizes[i]; j++) {
-            for (int p = 0; p < map->dim; p++) {
-              sbuf[i][j * map->dim + p] =
-                  map->map_gbl[map->dim * (exp.list[exp.disps[i] + j]) + p];
-            }
-          }
-          // printf("\n export from %d to %d map %10s, number of elements of
-          // size %d | sending:\n ",
-          //    my_rank,exp.ranks[i],map->name,exp.sizes[i]);
-          MPI_Isend(sbuf[i], map->dim * exp.sizes[i], get_mpi_type(sbuf[i]), exp.ranks[i],
-                    m, OP_PART_WORLD, &request_send[i]);
-        }
-
-        idx_g_t *rbuf = (idx_g_t *)xmalloc(map->dim * sizeof(idx_g_t) * imp.size());
-
-        // receive mapping table entirs from relevant mpi processes
-        for (int i = 0; i < imp.ranks_size(); i++) {
-          // printf("\n imported on to %d map %10s, number of elements of size
-          // %d | recieving: ",
-          //    my_rank, map->name, imp.size());
-          MPI_Recv(&rbuf[(size_t)imp.disps[i] * map->dim], map->dim * imp.sizes[i],
-                   get_mpi_type(rbuf), imp.ranks[i], m, OP_PART_WORLD, MPI_STATUS_IGNORE);
-        }
-
-        MPI_Waitall(exp.ranks_size(), request_send, MPI_STATUSES_IGNORE);
-        for (int i = 0; i < exp.ranks_size(); i++)
-          op_free(sbuf[i]);
-        op_free(sbuf);
-
-        // delete the mapping table entirs that has been sent and create a
-        // modified mapping table
-        idx_g_t *new_map =
-            (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp.size()) * map->dim);
-
-        count = 0;
-        for (int i = 0; i < map->from->size; i++) { // iterate over old size
-                                                    // of the maping table
-          if (OP_part_list[map->from->index]->elem_part[i] == my_rank) {
-            memcpy(&new_map[count * map->dim],
-                   (void *)&OP_map_list[map->index]->map_gbl[map->dim * i],
-                   map->dim * sizeof(idx_g_t));
-            count++;
-          }
-        }
-
-        if (map->dim * sizeof(idx_g_t) * imp.size() > 0) {
-          memcpy(&new_map[count * map->dim], (void *)rbuf,
-                 map->dim * sizeof(idx_g_t) * imp.size());
-        }
-
-        count = count + imp.size();
-        new_map = (idx_g_t *)xrealloc(new_map, sizeof(idx_g_t) * count * map->dim);
-
-        op_free(rbuf);
-        op_free(OP_map_list[map->index]->map_gbl);
-        OP_map_list[map->index]->map_gbl = new_map;
-      }
-    }
-
-    free(request_send);
-  }
-
-  /*--STEP 3 - Update Partitioning Information and Sort Set
-   * Elements------------*/
-
-  // need to exchange the original g_index
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-
-    const HaloList &imp = pi_list[set->index];
-    const HaloList &exp = pe_list[set->index];
-
-    MPI_Request *request_send =
-        (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
-
-    // prepare bits of the original g_index array to be exported
-    idx_g_t **sbuf = (idx_g_t **)xmalloc(exp.ranks_size() * sizeof(idx_g_t *));
-
-    // send original g_index values to relevant mpi processes
-    for (int i = 0; i < exp.ranks_size(); i++) {
-      sbuf[i] = (idx_g_t *)xmalloc(exp.sizes[i] * sizeof(idx_g_t));
-      for (int j = 0; j < exp.sizes[i]; j++) {
-        sbuf[i][j] =
-            OP_part_list[set->index]->g_index[exp.list[exp.disps[i] + j]];
-      }
-      MPI_Isend(sbuf[i], exp.sizes[i], get_mpi_type(sbuf[i]), exp.ranks[i], s,
-                OP_PART_WORLD, &request_send[i]);
-    }
-
-    idx_g_t *rbuf = (idx_g_t *)xmalloc(sizeof(idx_g_t) * imp.size());
-
-    // receive original g_index values from relevant mpi processes
-    for (int i = 0; i < imp.ranks_size(); i++) {
-
-      MPI_Recv(&rbuf[imp.disps[i]], imp.sizes[i], get_mpi_type(rbuf), imp.ranks[i], s,
-               OP_PART_WORLD, MPI_STATUS_IGNORE);
-    }
-    MPI_Waitall(exp.ranks_size(), request_send, MPI_STATUSES_IGNORE);
-    for (int i = 0; i < exp.ranks_size(); i++)
-      op_free(sbuf[i]);
-    op_free(sbuf);
-
-    // delete the g_index entirs that has been sent and create a
-    // modified g_index
-    idx_g_t *new_g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * (set->size + imp.size()));
-
-    count = 0;
-    for (int i = 0; i < set->size; i++) { // iterate over old
-                                          // size of the g_index array
-      if (OP_part_list[set->index]->elem_part[i] == my_rank) {
-        new_g_index[count] = OP_part_list[set->index]->g_index[i];
-        count++;
-      }
-    }
-
-    if (imp.size() > 0) {
-      std::copy(rbuf, rbuf + imp.size(), new_g_index + count);
-    }
-
-    count = count + imp.size();
-    new_g_index = (idx_g_t *)xrealloc(new_g_index, sizeof(idx_g_t) * count);
-    int *new_part = (int *)xmalloc(sizeof(int) * count);
-    for (int i = 0; i < count; i++)
-      new_part[i] = my_rank;
-
-    op_free(rbuf);
-    op_free(OP_part_list[set->index]->g_index);
-    op_free(OP_part_list[set->index]->elem_part);
-
-    OP_part_list[set->index]->elem_part = new_part;
-    OP_part_list[set->index]->g_index = new_g_index;
-
-    OP_set_list[set->index]->size = count;
-    OP_part_list[set->index]->set = OP_set_list[set->index];
-
-    free(request_send);
-  }
-
-  // re-set values in mapping tables
-  for (int m = 0; m < OP_map_index; m++) { // for each maping table
-    op_map map = OP_map_list[m];
-
-    OP_map_list[map->index]->from = OP_set_list[map->from->index];
-    OP_map_list[map->index]->to = OP_set_list[map->to->index];
-  }
-
-  // re-set values in data arrays
-  op_dat_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    dat->set = OP_set_list[dat->set->index];
-  }
-
-  // finally .... need to sort for each set, data on the set and mapping tables
-  // from this set accordiing to the OP_part_list[set.index]->g_index array
-  // values.
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    if (set->size == 0) continue;
-    idx_g_t *permutation = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
-    memcpy(permutation, (void *)OP_part_list[set->index]->g_index,
-           sizeof(idx_g_t) * set->size);
-    op_sort_get_permutation(permutation, set->size);
-
-    // first ... data on this set
     op_dat_entry *item;
     TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
-
-      if (compare_sets(dat->set, set) == 1) {
-        if (set->size > 0) {
-          idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
-          memcpy(temp, (void *)OP_part_list[set->index]->g_index,
-                 sizeof(idx_g_t) * set->size);
-          op_sort_dat(temp, dat->data, set->size, dat->size);
-          op_free(temp);
-        }
-      }
+      if (compare_sets(dat->set, set) != 1) continue;
+      char *moved = migrate_rows(dat->data, dat->size, set->size, p->elem_part, my_rank, exp, imp);
+      op_free(dat->data);
+      dat->data = moved;
     }
-
-    // second ... mapping tables
-    for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    for (int m = 0; m < OP_map_index; m++) {
       op_map map = OP_map_list[m];
-
-      if (compare_sets(map->from, set) == 1) {
-        if (set->size > 0) {
-          op_reorder_data(permutation, (char *)OP_map_list[map->index]->map_gbl, set->size, map->dim * sizeof(idx_g_t));
-        }
-      }
+      if (compare_sets(map->from, set) != 1) continue;
+      char *moved = migrate_rows((const char *)map->map_gbl, sizeof(idx_g_t) * map->dim, set->size,
+                                 p->elem_part, my_rank, exp, imp);
+      op_free(map->map_gbl);
+      map->map_gbl = (idx_g_t *)moved;
     }
-    if (set->size > 0)
-      op_reorder_data(permutation, (char *)OP_part_list[set->index]->g_index, set->size, sizeof(idx_g_t));
+    char *moved = migrate_rows((const char *)p->g_index, sizeof(idx_g_t), set->size, p->elem_part, my_rank, exp,
+                               imp);
+    op_free(p->g_index);
+    p->g_index = (idx_g_t *)moved;
 
+    // Every element here is now this rank's.
+    const int size = (int)std::count(p->elem_part, p->elem_part + set->size, my_rank) + imp.size();
+    op_free(p->elem_part);
+    p->elem_part = (int *)xmalloc(sizeof(int) * size);
+    std::fill(p->elem_part, p->elem_part + size, my_rank);
+    set->size = size;
+
+    // Sort the set's arrays by original global index.
+    if (size == 0) continue;
+    idx_g_t *permutation = (idx_g_t *)xmalloc(sizeof(idx_g_t) * size);
+    std::copy(p->g_index, p->g_index + size, permutation);
+    op_sort_get_permutation(permutation, size);
+    TAILQ_FOREACH(item, &OP_dat_list, entries)
+      if (compare_sets(item->dat->set, set) == 1)
+        op_reorder_data(permutation, item->dat->data, size, item->dat->size);
+    for (int m = 0; m < OP_map_index; m++)
+      if (compare_sets(OP_map_list[m]->from, set) == 1)
+        op_reorder_data(permutation, (char *)OP_map_list[m]->map_gbl, size, OP_map_list[m]->dim * sizeof(idx_g_t));
+    op_reorder_data(permutation, (char *)p->g_index, size, sizeof(idx_g_t));
     op_free(permutation);
   }
-
 }
 
 /*****************************************************************************************************************************************
@@ -1259,7 +1018,7 @@ void op_partition_external(op_set primary_set, op_dat partvec) {
   partition_all(primary_set, my_rank, comm_size);
 
   // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
+  migrate_all(my_rank);
 
   // renumber mapping tables
   renumber_maps(my_rank, comm_size);
@@ -1324,7 +1083,7 @@ void op_partition_random(op_set primary_set) {
   partition_all(primary_set, my_rank, comm_size);
 
   // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
+  migrate_all(my_rank);
 
   // renumber mapping tables
   renumber_maps(my_rank, comm_size);
@@ -1462,7 +1221,7 @@ void op_partition_geom(op_dat coords) {
   partition_all(coords->set, my_rank, comm_size);
 
   // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
+  migrate_all(my_rank);
 
   // renumber mapping tables
   renumber_maps(my_rank, comm_size);
@@ -1901,7 +1660,7 @@ void op_partition_inertial(op_dat x_dat) {
   partition_all(x_dat->set, my_rank, comm_size);
 
   // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
+  migrate_all(my_rank);
 
   // renumber mapping tables
   renumber_maps(my_rank, comm_size);
@@ -2862,7 +2621,7 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
   partition_all(primary_map->to, my_rank, comm_size);
-  migrate_all(my_rank, comm_size);
+  migrate_all(my_rank);
   renumber_maps(my_rank, comm_size);
   /* Final timing and cleanup */
   op_timers(&cpu_t2, &wall_t2);
