@@ -61,12 +61,6 @@ void op_partition(const char *lib_name, const char *lib_routine,
 
 void op_move_to_device() {}
 
-int op_is_root() {
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  return (my_rank == MPI_ROOT);
-}
-
 void deviceSync() {}
 
 // This library variant has no accelerator backend, so unified exchanges only

@@ -297,9 +297,3 @@ void op_move_to_device() {
   op_printf("Total device memory usage: %.1f MiB (dats: %.1f MiB, maps: %.1f MiB, halo lists: %.1f Mib)\n",
           as_mib(dat_size + map_size + halo_size), as_mib(dat_size), as_mib(map_size), as_mib(halo_size));
 }
-
-int op_is_root() {
-  int my_rank;
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  return (my_rank == MPI_ROOT);
-}

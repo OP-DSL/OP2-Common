@@ -36,6 +36,9 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
+#include <cstdio>
+#include <vector>
+
 MPI_Comm OP_MPI_IO_WORLD;
 
 void _mpi_allgather(int *l, int *g, int size, int *recevcnts, int *displs,
@@ -264,3 +267,61 @@ void print_dat_to_binfile_mpi(op_dat dat, const char *file_name) {
     printf("Unknown type %s, cannot be written to file %s\n", dat->type,
            file_name);
 }
+
+/*******************************************************************************
+ * Per-kernel timings of every rank, written as CSV by the root. Shared by the
+ * CPU and GPU MPI libraries.
+ *******************************************************************************/
+
+void op_timings_to_csv(const char *outputFileName) {
+  int comm_size;
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  const bool root = op_is_root();
+
+  FILE *outputFile = NULL;
+  if (root) {
+    outputFile = fopen(outputFileName, "w");
+    if (outputFile == NULL)
+      printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
+    else
+      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
+  }
+  int can_write = (outputFile != NULL);
+  MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
+  if (!can_write)
+    return;
+
+  for (int n = 0; n < OP_kern_max; n++) {
+    op_mpi_barrier();
+    op_kernel &k = OP_kernels[n];
+    if (k.count <= 0)
+      continue;
+    // A translation made with the older translator keeps only the total time.
+    if (k.ntimes == 1 && k.times[0] == 0.0f && k.time != 0.0f)
+      k.times[0] = k.time;
+
+    // Only the root's receive buffers are read.
+    const int ranks = root ? comm_size : 0;
+    std::vector<double> times((std::size_t)ranks * k.ntimes), mpi_times(ranks);
+    std::vector<float> plan_times(ranks), transfers(ranks), transfers2(ranks);
+    MPI_Gather(k.times, k.ntimes, MPI_DOUBLE, times.data(), k.ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Gather(&k.plan_time, 1, MPI_FLOAT, plan_times.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Gather(&k.mpi_time, 1, MPI_DOUBLE, mpi_times.data(), 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Gather(&k.transfer, 1, MPI_FLOAT, transfers.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+    MPI_Gather(&k.transfer2, 1, MPI_FLOAT, transfers2.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
+
+    // The per-rank columns go on each rank's first thread row only.
+    for (int p = 0; p < ranks; p++)
+      for (int thr = 0; thr < k.ntimes; thr++) {
+        const bool first = thr == 0;
+        fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", p, thr, comm_size, k.ntimes, k.count,
+                times[(std::size_t)p * k.ntimes + thr], first ? plan_times[p] : 0.0f, first ? mpi_times[p] : 0.0,
+                first ? transfers[p] / 1e9f : 0.0f, first ? transfers2[p] / 1e9f : 0.0f, k.name);
+      }
+    op_mpi_barrier();
+  }
+
+  if (root)
+    fclose(outputFile);
+}
+
