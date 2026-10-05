@@ -1355,6 +1355,39 @@ void op_partition_destroy() {
 
 #ifdef HAVE_PARMETIS
 
+extern "C++" {
+
+/* A coordinates dat as ParMETIS takes it: real_t, one row of 1 to 3 values per
+   element, from a dat of doubles or floats. */
+static std::vector<real_t> parmetis_coordinates(op_dat coords) {
+  if (coords->dim < 1 || coords->dim > 3) {
+    printf("Dimensions of Coordinate array not one of 3D,2D or 1D\n");
+    printf("Not supported by ParMetis - Indicate correct coordinates array\n");
+    MPI_Abort(OP_PART_WORLD, 1);
+  }
+  const std::size_t width = coords->size / coords->dim;
+  if (width != sizeof(double) && width != sizeof(float)) {
+    printf("Coordinates %s hold neither doubles nor floats\n", coords->name);
+    MPI_Abort(OP_PART_WORLD, 1);
+  }
+  std::vector<real_t> xyz((std::size_t)coords->set->size * coords->dim);
+  for (std::size_t i = 0; i < xyz.size(); i++) {
+    const char *at = coords->data + i * width;
+    if (width == sizeof(double)) {
+      double v;
+      memcpy(&v, at, sizeof v);
+      xyz[i] = (real_t)v;
+    } else {
+      float v;
+      memcpy(&v, at, sizeof v);
+      xyz[i] = (real_t)v;
+    }
+  }
+  return xyz;
+}
+
+}  // extern "C++"
+
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
  * Using its XYZ Geometry Data
@@ -1387,26 +1420,7 @@ void op_partition_geom(op_dat coords) {
   idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t) * coords->set->size);
 
   idx_t ndims = coords->dim;
-  real_t *xyz = 0;
-
-  // Create ParMetis compatible coordinates array
-  //- i.e. coordinates should be floats
-  if (ndims == 3 || ndims == 2 || ndims == 1) {
-    xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
-    size_t mult = coords->size / coords->dim;
-    for (idx_g_t i = 0; i < coords->set->size; i++) {
-      double temp;
-      for (int e = 0; e < coords->dim; e++) {
-        memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
-               mult);
-        xyz[i * coords->dim + e] = (real_t)temp;
-      }
-    }
-  } else {
-    printf("Dimensions of Coordinate array not one of 3D,2D or 1D\n");
-    printf("Not supported by ParMetis - Indicate correct coordinates array\n");
-    MPI_Abort(OP_PART_WORLD, 1);
-  }
+  std::vector<real_t> xyz = parmetis_coordinates(coords);
 
   for (int i = 0; i < comm_size; i++) {
     vtxdist[i] = part_range[coords->set->index][2 * i];
@@ -1415,8 +1429,7 @@ void op_partition_geom(op_dat coords) {
       part_range[coords->set->index][2 * (comm_size - 1) + 1] + 1;
 
   // use xyz coordinates to feed into ParMETIS_V3_PartGeom
-  ParMETIS_V3_PartGeom(vtxdist, &ndims, xyz, partition, &OP_PART_WORLD);
-  op_free(xyz);
+  ParMETIS_V3_PartGeom(vtxdist, &ndims, xyz.data(), partition, &OP_PART_WORLD);
   op_free(vtxdist);
 
   // free part range
@@ -1458,346 +1471,6 @@ void op_partition_geom(op_dat coords) {
   MPI_Comm_free(&OP_PART_WORLD);
   if (my_rank == MPI_ROOT)
     printf("Max total geometric partitioning time = %lf\n", max_time);
-}
-
-#endif
-
-#ifdef HAVE_PARMETIS
-
-/*******************************************************************************
- * Wrapper routine to use ParMETIS PartGeomKway() which partitions the to-set
- * of an op_map using its XYZ Geometry Data
- *******************************************************************************/
-
-void op_partition_geomkway(op_dat coords, op_map primary_map) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-  // check if coords->set and primary_map's to set is the same
-  if (compare_sets(coords->set, primary_map->to) == 0) {
-    printf(
-        "primary map's to set %s mismatches the op_dat's set %s: on rank %d\n",
-        primary_map->to->name, coords->set->name, my_rank);
-    MPI_Abort(OP_PART_WORLD, 2);
-  }
-
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
-  // Compute global partition range information for each set
-  idx_g_t **part_range = initialise(my_rank, comm_size);
-
-  /*--- STEP 1 - Set up coordinates (1D,2D or 3D) data structures ------------*/
-
-  idx_t ndims = coords->dim;
-  real_t *xyz = 0;
-
-  // Create ParMetis compatible coordinates array
-  //- i.e. coordinates should be floats
-  if (ndims == 3 || ndims == 2 || ndims == 1) {
-    xyz = (real_t *)xmalloc(coords->set->size * coords->dim * sizeof(real_t));
-    size_t mult = coords->size / coords->dim;
-    for (idx_g_t i = 0; i < coords->set->size; i++) {
-      double temp;
-      for (int e = 0; e < coords->dim; e++) {
-        memcpy(&temp, (void *)&(coords->data[(i * coords->dim + e) * mult]),
-               mult);
-        xyz[i * coords->dim + e] = (real_t)temp;
-      }
-    }
-  } else {
-    printf("Dimensions of Coordinate array not one of 3D,2D or 1D\n");
-    printf("Not supported by ParMetis - Indicate correct coordinates array\n");
-    MPI_Abort(OP_PART_WORLD, 1);
-  }
-
-  /*--STEP 1 - Construct adjacency list of the to-set of the primary_map
-   * -------*/
-
-  //
-  // create export list
-  //
-  int c = 0;
-  int cap = 1000;
-  int *list = (int *)xmalloc(cap * sizeof(int)); // temp list
-
-  for (int e = 0; e < primary_map->from->size; e++) { // for each
-                                                      // maping table entry
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(primary_map->map[e * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size, primary_map->to);
-      if (c >= cap) {
-        cap = cap * 2;
-        list = (int *)xrealloc(list, cap * sizeof(int));
-      }
-
-      if (part != my_rank) {
-        list[c++] = part; // add to export list
-        list[c++] = e;
-      }
-    }
-  }
-  HaloList exp_list = halo_list_from_pairs(primary_map->from, list, c);
-  op_free(list); // free temp list
-
-  //
-  // create import list
-  //
-  HaloList imp_list =
-      halo_list_transpose(primary_map->from, exp_list, OP_PART_WORLD);
-
-  /* Reused by the mapping table exchange below. */
-  MPI_Request *request_send =
-      (MPI_Request *)xmalloc(exp_list.ranks_size() * sizeof(MPI_Request));
-
-  //
-  // Exchange mapping table entries using the import/export lists
-  //
-
-  // prepare bits of the mapping tables to be exported
-  int **sbuf = (int **)xmalloc(exp_list.ranks_size() * sizeof(int *));
-
-  for (int i = 0; i < exp_list.ranks_size(); i++) {
-    sbuf[i] =
-        (int *)xmalloc(exp_list.sizes[i] * primary_map->dim * sizeof(int));
-    for (int j = 0; j < exp_list.sizes[i]; j++) {
-      for (int p = 0; p < primary_map->dim; p++) {
-        sbuf[i][j * primary_map->dim + p] =
-            primary_map->map[primary_map->dim *
-                                 (exp_list.list[exp_list.disps[i] + j]) +
-                             p];
-      }
-    }
-    MPI_Isend(sbuf[i], primary_map->dim * exp_list.sizes[i], get_mpi_type(sbuf[i]),
-              exp_list.ranks[i], primary_map->index, OP_PART_WORLD,
-              &request_send[i]);
-  }
-
-  // prepare space for the incomming mapping tables
-  int *foreign_maps =
-      (int *)xmalloc(primary_map->dim * (imp_list.size()) * sizeof(int));
-
-  for (int i = 0; i < imp_list.ranks_size(); i++) {
-    MPI_Recv(&foreign_maps[(size_t)imp_list.disps[i] * primary_map->dim],
-             primary_map->dim * imp_list.sizes[i], get_mpi_type(foreign_maps), imp_list.ranks[i],
-             primary_map->index, OP_PART_WORLD, MPI_STATUS_IGNORE);
-  }
-
-  MPI_Waitall(exp_list.ranks_size(), request_send, MPI_STATUSES_IGNORE);
-  for (int i = 0; i < exp_list.ranks_size(); i++)
-    op_free(sbuf[i]);
-  op_free(sbuf);
-
-  int **adj = (int **)xmalloc(primary_map->to->size * sizeof(int *));
-  int *adj_i = (int *)xmalloc(primary_map->to->size * sizeof(int));
-  int *adj_cap = (int *)xmalloc(primary_map->to->size * sizeof(int));
-
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj_i[i] = 0;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj_cap[i] = primary_map->dim;
-  for (int i = 0; i < primary_map->to->size; i++)
-    adj[i] = (int *)xmalloc(adj_cap[i] * sizeof(int));
-
-  // go through each from-element of local primary_map and construct adjacency
-  // list
-  for (int i = 0; i < primary_map->from->size; i++) {
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(primary_map->map[i * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size, primary_map->to);
-
-      if (part == my_rank) {
-        for (int k = 0; k < primary_map->dim; k++) {
-          if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
-          }
-          adj[local_index][adj_i[local_index]++] =
-              primary_map->map[i * primary_map->dim + k];
-        }
-      }
-    }
-  }
-  // go through each from-element of foreign primary_map and add to adjacency
-  // list
-  for (int i = 0; i < imp_list.size(); i++) {
-    int part, local_index;
-    for (int j = 0; j < primary_map->dim; j++) { // for each element
-                                                 // pointed at by this entry
-      part = get_partition(foreign_maps[i * primary_map->dim + j],
-                           part_range[primary_map->to->index], &local_index,
-                           comm_size, primary_map->to);
-
-      if (part == my_rank) {
-        for (int k = 0; k < primary_map->dim; k++) {
-          if (adj_i[local_index] >= adj_cap[local_index]) {
-            adj_cap[local_index] = adj_cap[local_index] * 2;
-            adj[local_index] = (int *)xrealloc(
-                adj[local_index], adj_cap[local_index] * sizeof(int));
-          }
-          adj[local_index][adj_i[local_index]++] =
-              foreign_maps[i * primary_map->dim + k];
-        }
-      }
-    }
-  }
-  op_free(foreign_maps);
-
-  //
-  // Setup data structures for ParMetis PartGeomKway
-  //
-  idx_t comm_size_pm = comm_size;
-
-  idx_t *vtxdist = (idx_t *)xmalloc(sizeof(idx_t) * (comm_size + 1));
-  for (int i = 0; i < comm_size; i++) {
-    vtxdist[i] = part_range[primary_map->to->index][2 * i];
-  }
-  vtxdist[comm_size] =
-      part_range[primary_map->to->index][2 * (comm_size - 1) + 1] + 1;
-
-  idx_t *xadj = (idx_t *)xmalloc(sizeof(idx_t) * (primary_map->to->size + 1));
-  cap = (primary_map->to->size) * primary_map->dim;
-
-  idx_t *adjncy = (idx_t *)xmalloc(sizeof(idx_t) * cap);
-  int count = 0;
-  int prev_count = 0;
-  for (int i = 0; i < primary_map->to->size; i++) {
-    int g_index = get_global_index(
-        i, my_rank, part_range[primary_map->to->index], comm_size);
-    op_sort(adj[i], adj_i[i]);
-    adj_i[i] = removeDups(adj[i], adj_i[i]);
-
-    if (adj_i[i] < 2) {
-      printf("The from set: %s of primary map: %s is not an on to set of "
-             "to-set: %s\n",
-             primary_map->from->name, primary_map->name, primary_map->to->name);
-      printf("Need to select a different primary map\n");
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-
-    adj[i] = (int *)xrealloc(adj[i], adj_i[i] * sizeof(int));
-    for (int j = 0; j < adj_i[i]; j++) {
-      if (adj[i][j] != g_index) {
-        if (count >= cap) {
-          cap = cap * 2;
-          adjncy = (idx_t *)xrealloc(adjncy, sizeof(idx_t) * cap);
-        }
-        adjncy[count++] = (idx_t)adj[i][j];
-      }
-    }
-    if (i != 0) {
-      xadj[i] = prev_count;
-      prev_count = count;
-    } else {
-      xadj[i] = 0;
-      prev_count = count;
-    }
-  }
-  xadj[primary_map->to->size] = count;
-
-  for (int i = 0; i < primary_map->to->size; i++)
-    op_free(adj[i]);
-  op_free(adj_i);
-  op_free(adj_cap);
-  op_free(adj);
-
-  idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t) * primary_map->to->size);
-  for (int i = 0; i < primary_map->to->size; i++) {
-    partition[i] = -99;
-  }
-
-  idx_t edge_cut = 0;
-  idx_t numflag = 0;
-  idx_t wgtflag = 0;
-  idx_t options[3] = {1, 3, 15};
-
-  idx_t ncon = 1;
-  real_t *tpwgts = (real_t *)xmalloc(comm_size * sizeof(real_t) * ncon);
-  for (int i = 0; i < comm_size * ncon; i++)
-    tpwgts[i] = (real_t)1.0 / (real_t)comm_size;
-
-  real_t *ubvec = (real_t *)xmalloc(sizeof(real_t) * ncon);
-  *ubvec = 1.05;
-
-  // clean up before calling ParMetis
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-  imp_list = HaloList();
-  exp_list = HaloList();
-
-  if (my_rank == MPI_ROOT) {
-    printf("-----------------------------------------------------------\n");
-    printf("ParMETIS_V3_PartGeomKway Output\n");
-    printf("-----------------------------------------------------------\n");
-  }
-  ParMETIS_V3_PartGeomKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag,
-                           &numflag, &ndims, xyz, &ncon, &comm_size_pm, tpwgts,
-                           ubvec, options, &edge_cut, partition,
-                           &OP_PART_WORLD);
-
-  if (my_rank == MPI_ROOT)
-    printf("-----------------------------------------------------------\n");
-
-  op_free(vtxdist);
-  op_free(xadj);
-  op_free(adjncy);
-  op_free(ubvec);
-  op_free(tpwgts);
-  op_free(xyz);
-
-  // saniti check to see if all elements were partitioned
-  for (int i = 0; i < primary_map->to->size; i++) {
-    if (partition[i] < 0) {
-      printf("Partitioning problem: on rank %d, set %s element %d not assigned "
-             "a partition\n",
-             my_rank, primary_map->to->name, i);
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-  }
-
-  // initialise primary set as partitioned
-  OP_part_list[coords->set->index]->elem_part = (int *)partition;
-  OP_part_list[coords->set->index]->is_partitioned = 1;
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(primary_map->to, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank, comm_size);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total geometric k-way partitioning time = %lf\n", max_time);
-
-  free(request_send);
 }
 
 #endif
@@ -2339,7 +2012,7 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
       }
     } else if (strcmp(lib_routine, "GEOMKWAY") == 0) {
       op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-      if (prime_map != NULL)
+      if (prime_map != NULL && data != NULL)
         op_partition_geomkway(data,
                               prime_map); // use parmetis kawaygeom partitioning
       else {
@@ -3025,7 +2698,8 @@ void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SCOTCH_Nu
  * Generalized Graph Partitioner (handles ParMETIS, KaHIP, PTScotch)
  *******************************************************************************/
 template <class T> // Keep template for ParMETIS/KaHIP type compatibility
-void op_partition_graph_generic(op_map primary_map, const char* partitioner_name) {
+void op_partition_graph_generic(op_map primary_map, const char* partitioner_name,
+                                op_dat coords = nullptr) {
   // declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
   double time;
@@ -3045,6 +2719,19 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
     printf("Map %s is an not an onto map from set %s to set %s \n",
            primary_map->name, primary_map->from->name, primary_map->to->name);
     MPI_Abort(OP_PART_WORLD, 2);
+  }
+#endif
+
+#ifdef HAVE_PARMETIS
+  // Coordinates make the ParMETIS k-way partitioning geometric: PartGeomKway.
+  std::vector<real_t> xyz;
+  if (coords != nullptr) {
+    if (compare_sets(coords->set, primary_map->to) == 0) {
+      printf("primary map's to set %s mismatches the op_dat's set %s: on rank %d\n", primary_map->to->name,
+             coords->set->name, my_rank);
+      MPI_Abort(OP_PART_WORLD, 2);
+    }
+    xyz = parmetis_coordinates(coords);
   }
 #endif
 
@@ -3093,12 +2780,20 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
       if (my_rank == MPI_ROOT) {
           printf("-----------------------------------------------------------\n");
           if (use_kahip) printf("ParHIPPartitionKWay Output\n");
+          else if (coords != nullptr) printf("ParMETIS_V3_PartGeomKway Output\n");
           else printf("ParMETIS_V3_PartKway Output\n");
           printf("-----------------------------------------------------------\n");
       }
 
 #ifdef HAVE_PARMETIS
-      if (!use_kahip) {
+      if constexpr (std::is_same_v<T, idx_t>) {
+        if (coords != nullptr) {
+          T ndims = coords->dim;
+          ParMETIS_V3_PartGeomKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag, &ndims, xyz.data(), &ncon,
+                                   &comm_size_pm, tpwgts, ubvec, options, &edge_cut, partition_pm, &OP_PART_WORLD);
+        }
+      }
+      if (!use_kahip && coords == nullptr) {
         perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
                               &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
                               partition_pm, &OP_PART_WORLD);
@@ -3181,6 +2876,10 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
 #ifdef HAVE_PARMETIS
 void op_partition_graph_parmetis(op_map primary_map) {
     op_partition_graph_generic<idx_t>(primary_map, "PARMETIS");
+}
+
+void op_partition_geomkway(op_dat coords, op_map primary_map) {
+    op_partition_graph_generic<idx_t>(primary_map, "PARMETIS", coords);
 }
 #endif
 #ifdef HAVE_KAHIP
