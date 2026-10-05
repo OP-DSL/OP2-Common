@@ -911,7 +911,6 @@ static void migrate_all(int my_rank, int comm_size) {
     const HaloList &imp = pi_list[set->index];
     const HaloList &exp = pe_list[set->index];
 
-    //    MPI_Request request_send[exp.ranks_size()];
     MPI_Request *request_send =
         (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
 
@@ -936,17 +935,12 @@ static void migrate_all(int my_rank, int comm_size) {
             memcpy(&sbuf[i][j * (size_t)dat->size],
                    (void *)&dat->data[(size_t)dat->size * (index)], dat->size);
           }
-          //MPI_Isend(sbuf[i], (size_t)dat->size/sizeof(double) * exp.sizes[i], MPI_DOUBLE, exp.ranks[i],
-          //          d, OP_PART_WORLD, &request_send[i]);
           MPI_Isend(sbuf[i], exp.sizes[i], elem, exp.ranks[i],
                     d, OP_PART_WORLD, &request_send[i]);
         }
 
         char *rbuf = (char *)xmalloc((size_t)dat->size * imp.size());
         for (int i = 0; i < imp.ranks_size(); i++) {
-          //MPI_Recv(&rbuf[(size_t)imp.disps[i] * (size_t)dat->size], (size_t)dat->size/sizeof(double) * imp.sizes[i],
-          //         MPI_DOUBLE, imp.ranks[i], d, OP_PART_WORLD,
-          //         MPI_STATUS_IGNORE);
           MPI_Recv(&rbuf[(size_t)imp.disps[i] * (size_t)dat->size], imp.sizes[i],
                    elem, imp.ranks[i], d, OP_PART_WORLD,
                    MPI_STATUS_IGNORE);
@@ -995,7 +989,6 @@ static void migrate_all(int my_rank, int comm_size) {
     const HaloList &imp = pi_list[set->index];
     const HaloList &exp = pe_list[set->index];
 
-    //    MPI_Request request_send[exp.ranks_size()];
     MPI_Request *request_send =
         (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
 
@@ -1084,7 +1077,6 @@ static void migrate_all(int my_rank, int comm_size) {
     const HaloList &imp = pi_list[set->index];
     const HaloList &exp = pe_list[set->index];
 
-    //    MPI_Request request_send[exp.ranks_size()];
     MPI_Request *request_send =
         (MPI_Request *)xmalloc(exp.ranks_size() * sizeof(MPI_Request));
 

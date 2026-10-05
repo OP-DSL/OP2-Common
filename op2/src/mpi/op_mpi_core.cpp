@@ -394,7 +394,6 @@ void op_halo_create() {
 
   // create new communicator for OP mpi operation
   int my_rank, comm_size;
-  // MPI_Comm_dup(OP_MPI_WORLD, &OP_MPI_WORLD);
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
@@ -994,9 +993,6 @@ void op_halo_create() {
 
       // combine core_elems and exp_elems to one memory block
       idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
-      // memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(idx_g_t));
-      // memcpy(&temp[set->core_size], exp_elems[set->index],
-      //  (set->size - set->core_size) * sizeof(idx_g_t));
       for (int i = 0; i < set->core_size; i++) {
         temp[i] = core_elems[set->index][i];
       }
@@ -1021,15 +1017,12 @@ void op_halo_create() {
       idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
 
       if (set->core_size * sizeof(int) > 0) {
-        //  memcpy(&temp[0], core_elems[set->index], set->core_size * sizeof(int));
         for (int i = 0; i < set->core_size; i++) {
           temp[i] = core_elems[set->index][i];
         }
       }
 
       if ((set->size - set->core_size) * sizeof(idx_g_t) > 0) {
-        // memcpy(&temp[set->core_size], exp_elems[set->index],
-        //        (set->size - set->core_size) * sizeof(idx_g_t));
         for (int i = 0; i < set->size - set->core_size; i++) {
           temp[set->core_size + i] = exp_elems[set->index][i];
         }
@@ -1405,7 +1398,6 @@ void op_halo_destroy() {
 
   OP_set_halos = std::vector<SetHalo>();
 
-  // MPI_Comm_free(&OP_MPI_WORLD);
 }
 
 /*******************************************************************************
