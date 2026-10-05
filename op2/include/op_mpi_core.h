@@ -224,6 +224,23 @@ inline idx_g_t op_mpi_offset(idx_g_t n, MPI_Comm comm) {
   MPI_Comm_rank(comm, &rank);
   return rank == 0 ? 0 : below;  // MPI_Exscan leaves rank 0's result undefined
 }
+
+/* An MPI datatype for one element of a dat, so a transfer's count is elements,
+   not bytes: an int byte count stops at 2 GB, which one neighbour's block of a
+   large dat can pass. Freed with the scope; MPI lets a pending transfer finish
+   with a datatype that has been freed. */
+struct DatElementType {
+  MPI_Datatype type;
+  explicit DatElementType(op_dat dat) {
+    MPI_Type_contiguous(dat->size, MPI_BYTE, &type);
+    MPI_Type_commit(&type);
+  }
+  ~DatElementType() { MPI_Type_free(&type); }
+  DatElementType(const DatElementType &) = delete;
+  DatElementType &operator=(const DatElementType &) = delete;
+  operator MPI_Datatype() const { return type; }
+};
+
 /* Build a HaloList. Named for how a list is built rather than for which list it
    becomes: an export list and the nonexec import list are both built from pairs,
    and halo_list_transpose turns either kind into the other. */

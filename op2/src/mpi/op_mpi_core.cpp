@@ -639,6 +639,7 @@ void op_halo_create() {
 
         // printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
         request_send = (MPI_Request *)xmalloc(e_list.ranks_size() * sizeof(MPI_Request));
+        DatElementType elem(dat);
 
         // prepare execute set element data to be exported
         char **sbuf = (char **)xmalloc(e_list.ranks_size() * sizeof(char *));
@@ -653,7 +654,7 @@ void op_halo_create() {
           // printf("export from %d to %d data %10s, number of elements of size
           // %d | sending:\n ",
           //    my_rank,e_list.ranks[i],dat->name,e_list.sizes[i]);
-          MPI_Isend(sbuf[i], (size_t)dat->size * e_list.sizes[i], MPI_CHAR,
+          MPI_Isend(sbuf[i], e_list.sizes[i], elem,
                     e_list.ranks[i], d, OP_MPI_WORLD, &request_send[i]);
         }
 
@@ -665,7 +666,7 @@ void op_halo_create() {
         size_t init = set->size * (size_t)dat->size;
         for (int i = 0; i < i_list.ranks_size(); i++) {
           MPI_Recv(&(dat->data[init + i_list.disps[i] * (size_t)dat->size]),
-                   (size_t)dat->size * i_list.sizes[i], MPI_CHAR,
+                   i_list.sizes[i], elem,
                    i_list.ranks[i], d, OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -702,6 +703,7 @@ void op_halo_create() {
 
         // printf("on rank %d, The data array is %10s\n",my_rank,dat->name);
         request_send = (MPI_Request *)xmalloc(e_list.ranks_size() * sizeof(MPI_Request));
+        DatElementType elem(dat);
 
         // prepare non-execute set element data to be exported
         char **sbuf = (char **)xmalloc(e_list.ranks_size() * sizeof(char *));
@@ -713,7 +715,7 @@ void op_halo_create() {
             memcpy(&sbuf[i][j * (size_t)dat->size],
                    (void *)&dat->data[(size_t)dat->size * (set_elem_index)], dat->size);
           }
-          MPI_Isend(sbuf[i], (size_t)dat->size * e_list.sizes[i], MPI_CHAR,
+          MPI_Isend(sbuf[i], e_list.sizes[i], elem,
                     e_list.ranks[i], d, OP_MPI_WORLD, &request_send[i]);
         }
 
@@ -728,7 +730,7 @@ void op_halo_create() {
         size_t init = (size_t)(set->size + exec_i_list.size()) * (size_t)dat->size;
         for (int i = 0; i < i_list.ranks_size(); i++) {
           MPI_Recv(&(dat->data[init + i_list.disps[i] * (size_t)dat->size]),
-                   (size_t)dat->size * i_list.sizes[i], MPI_CHAR, i_list.ranks[i], d,
+                   i_list.sizes[i], elem, i_list.ranks[i], d,
                    OP_MPI_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -1720,6 +1722,7 @@ op_dat op_mpi_get_data(op_dat dat) {
   // migrate the temp "data" array to the original MPI ranks
   //
 
+  DatElementType elem(dat);
   // prepare bits of the data array to be exported
   char **sbuf_char = (char **)xmalloc(pe_list.ranks_size() * sizeof(char *));
 
@@ -1730,14 +1733,14 @@ op_dat op_mpi_get_data(op_dat dat) {
       memcpy(&sbuf_char[i][j * (size_t)dat->size], (void *)&data[(size_t)dat->size * (index)],
              dat->size);
     }
-    MPI_Isend(sbuf_char[i], (size_t)dat->size * pe_list.sizes[i], MPI_CHAR,
+    MPI_Isend(sbuf_char[i], pe_list.sizes[i], elem,
               pe_list.ranks[i], dat->index, OP_MPI_WORLD, &request_send[i]);
   }
 
   char *rbuf_char = (char *)xmalloc((size_t)dat->size * pi_list.size());
   for (int i = 0; i < pi_list.ranks_size(); i++) {
     MPI_Recv(&rbuf_char[pi_list.disps[i] * (size_t)dat->size],
-             (size_t)dat->size * pi_list.sizes[i], MPI_CHAR, pi_list.ranks[i],
+             pi_list.sizes[i], elem, pi_list.ranks[i],
              dat->index, OP_MPI_WORLD, MPI_STATUS_IGNORE);
   }
 
@@ -1950,6 +1953,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   //
   // original ranks pack user data and send it to the current owners
   //
+  DatElementType elem(dat);
   char **sbuf_char = (char **)xmalloc(pi_list.ranks_size() * sizeof(char *));
   MPI_Request *request_send_data =
       (MPI_Request *)xmalloc(pi_list.ranks_size() * sizeof(MPI_Request));
@@ -1968,7 +1972,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
       memcpy(&sbuf_char[i][j * (size_t)dat->size],
              &src[(size_t)dat->size * ol], dat->size);
     }
-    MPI_Isend(sbuf_char[i], (size_t)dat->size * pi_list.sizes[i], MPI_CHAR,
+    MPI_Isend(sbuf_char[i], pi_list.sizes[i], elem,
               pi_list.ranks[i], dat->index, OP_MPI_WORLD,
               &request_send_data[i]);
   }
@@ -1976,7 +1980,7 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   char *rbuf_char = (char *)xmalloc((size_t)dat->size * pe_list.size());
   for (int i = 0; i < pe_list.ranks_size(); i++) {
     MPI_Recv(&rbuf_char[pe_list.disps[i] * (size_t)dat->size],
-             (size_t)dat->size * pe_list.sizes[i], MPI_CHAR, pe_list.ranks[i],
+             pe_list.sizes[i], elem, pe_list.ranks[i],
              dat->index, OP_MPI_WORLD, MPI_STATUS_IGNORE);
   }
 
