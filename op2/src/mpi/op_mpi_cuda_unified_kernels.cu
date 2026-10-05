@@ -267,7 +267,7 @@ static void launch_copies(const SpecsByNeighbour<SpecT> &specs_for_neighbour,
     else if (num_specs <= 8)  launch_inline<8>(specs_for_neighbour);
     else if (num_specs <= 16) launch_inline<16>(specs_for_neighbour);
     else if (num_specs <= 32) launch_inline<32>(specs_for_neighbour);
-    else if (num_specs <= max_inline_specs) launch_inline<64>(specs_for_neighbour);
+    else if (num_specs <= max_inline_specs) launch_inline<max_inline_specs>(specs_for_neighbour);
     else launch_staged(specs_for_neighbour, specs_d, specs_capacity, disps_d, disps_capacity);
 }
 
