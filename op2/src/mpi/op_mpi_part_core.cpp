@@ -611,8 +611,10 @@ static void renumber_maps(int my_rank, int comm_size) {
 
 
 /* Move every set's elements to the ranks partitioning gave them - each dat on
-   the set, each mapping table from it, and g_index - then sort them all by
-   original global index. Sets are independent, so each is done in one pass. */
+   the set, each mapping table from it, and g_index. Every rank starts from its
+   block of the original global numbering, in order, so migrate_rows' rank order
+   leaves every set in original global index order with no sort. Sets are
+   independent, so each is done in one pass. */
 static void migrate_all(int my_rank) {
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
@@ -654,19 +656,8 @@ static void migrate_all(int my_rank) {
     std::fill(p->elem_part, p->elem_part + size, my_rank);
     set->size = size;
 
-    // Sort the set's arrays by original global index.
-    if (size == 0) continue;
-    idx_g_t *permutation = (idx_g_t *)xmalloc(sizeof(idx_g_t) * size);
-    std::copy(p->g_index, p->g_index + size, permutation);
-    op_sort_get_permutation(permutation, size);
-    TAILQ_FOREACH(item, &OP_dat_list, entries)
-      if (compare_sets(item->dat->set, set) == 1)
-        op_reorder_data(permutation, item->dat->data, size, item->dat->size);
-    for (int m = 0; m < OP_map_index; m++)
-      if (compare_sets(OP_map_list[m]->from, set) == 1)
-        op_reorder_data(permutation, (char *)OP_map_list[m]->map_gbl, size, OP_map_list[m]->dim * sizeof(idx_g_t));
-    op_reorder_data(permutation, (char *)p->g_index, size, sizeof(idx_g_t));
-    op_free(permutation);
+    // In original global index order already: see migrate_rows.
+    assert(std::is_sorted(p->g_index, p->g_index + size));
   }
 }
 

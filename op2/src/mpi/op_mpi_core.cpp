@@ -298,7 +298,7 @@ void fail(const char *format, ...) {
 }
 
 void exchange_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, const HaloList &exp,
-                   const HaloList &imp, char *into) {
+                   const HaloList &imp, char *into, std::size_t gap) {
   /* On the sparse exchange's private communicator, so nothing the caller sends can
      be matched instead, and on a tag its protocol never uses: it probes tags 0 and
      1 from any source and receives tag 2 from named ones. At most one message
@@ -306,13 +306,16 @@ void exchange_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, const
      keeps consecutive calls apart. */
   comm = detail::comm_state(comm).comm;
   constexpr int tag = 3;
+  int my_rank;
+  MPI_Comm_rank(comm, &my_rank);
   MPI_Datatype row;
   MPI_Type_contiguous((int)row_bytes, MPI_BYTE, &row);
   MPI_Type_commit(&row);
 
   std::vector<MPI_Request> requests(imp.ranks_size() + exp.ranks_size());
   for (int i = 0; i < imp.ranks_size(); i++)
-    MPI_Irecv(into + imp.disps[i] * row_bytes, imp.sizes[i], row, imp.ranks[i], tag, comm, &requests[i]);
+    MPI_Irecv(into + (imp.disps[i] + (imp.ranks[i] > my_rank ? gap : 0)) * row_bytes, imp.sizes[i], row, imp.ranks[i],
+              tag, comm, &requests[i]);
 
   std::vector<char> packed(row_bytes * exp.size());
   for (int i = 0; i < exp.ranks_size(); i++) {
@@ -329,12 +332,16 @@ void exchange_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, const
 char *migrate_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, int n_rows, const int *elem_part,
                    int my_rank, const HaloList &exp, const HaloList &imp) {
   const std::size_t kept = std::count(elem_part, elem_part + n_rows, my_rank);
+  const auto above = std::upper_bound(imp.ranks.begin(), imp.ranks.end(), my_rank) - imp.ranks.begin();
+  const std::size_t below = above < imp.ranks_size() ? imp.disps[above] : imp.size();
   char *out = (char *)xmalloc(row_bytes * (kept + imp.size()));
-  std::size_t k = 0;
+  char *at = out + below * row_bytes;
   for (int i = 0; i < n_rows; i++)
-    if (elem_part[i] == my_rank)
-      memcpy(out + (k++) * row_bytes, rows + (std::size_t)i * row_bytes, row_bytes);
-  exchange_rows(comm, rows, row_bytes, exp, imp, out + kept * row_bytes);
+    if (elem_part[i] == my_rank) {
+      memcpy(at, rows + (std::size_t)i * row_bytes, row_bytes);
+      at += row_bytes;
+    }
+  exchange_rows(comm, rows, row_bytes, exp, imp, out, kept);
   return out;
 }
 
@@ -1142,11 +1149,19 @@ op_dat op_mpi_get_data(op_dat dat) {
   const HaloList exp = HaloList::from_pairs(dat->set, pairs.data(), (int)pairs.size());
   const HaloList imp = op::mpi::transpose(exp, OP_MPI_WORLD);
 
-  char *data = migrate_rows(OP_MPI_WORLD, dat->data, dat->size, dat->set->size, home.data(), my_rank, exp, imp);
+  char *moved = migrate_rows(OP_MPI_WORLD, dat->data, dat->size, dat->set->size, home.data(), my_rank, exp, imp);
   idx_g_t *g_index = (idx_g_t *)migrate_rows(OP_MPI_WORLD, (const char *)p->g_index, sizeof(idx_g_t),
                                              dat->set->size, home.data(), my_rank, exp, imp);
-  const int count = (int)std::count(home.begin(), home.end(), my_rank) + imp.size();
-  op_sort_dat(g_index, data, count, dat->size);
+  // Every element here now is one this rank declared, so each goes to its index
+  // in this rank's block: no sort.
+  const PartRange &orig = orig_part_range[dat->set->index];
+  const idx_g_t first = orig.start[my_rank];
+  const int count = (int)(orig.start[my_rank + 1] - first);
+  assert(count == (int)std::count(home.begin(), home.end(), my_rank) + imp.size());
+  char *data = (char *)xmalloc((size_t)count * dat->size);
+  for (int k = 0; k < count; k++)
+    memcpy(data + (size_t)(g_index[k] - first) * dat->size, moved + (size_t)k * dat->size, dat->size);
+  op_free(moved);
   op_free(g_index);
 
   op_dat temp_dat = (op_dat)xmalloc(sizeof(op_dat_core));

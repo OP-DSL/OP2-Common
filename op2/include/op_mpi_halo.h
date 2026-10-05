@@ -178,16 +178,20 @@ struct PartRange {
 std::vector<PartRange> part_ranges(MPI_Comm comm);
 
 /* Send each neighbour the rows - row_bytes each, of `rows` - that exp lists for
-   it, and receive the rows imp lists into `into`, grouped as imp lists them. exp
-   and imp must be each other's transpose over comm. Rows are counted in a datatype
-   of one row, so a block is not capped at 2 GB. Collective over comm. */
+   it, and receive the rows imp lists into `into`, grouped as imp lists them, which
+   is in rank order. `gap` rows are left free between the rows from ranks below
+   this one and those from ranks above (migrate_rows puts the rows it keeps there).
+   exp and imp must be each other's transpose over comm. Rows are counted in a
+   datatype of one row, so a block is not capped at 2 GB. Collective over comm. */
 void exchange_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, const HaloList &exp,
-                   const HaloList &imp, char *into);
+                   const HaloList &imp, char *into, std::size_t gap = 0);
 
 /* Move a set's rows - its part of a dat, a mapping table or g_index - to the ranks
    elem_part gives them. exp lists the rows leaving, by destination, and imp what
-   arrives, by source. The result holds the rows this rank keeps, in order, then
-   those received. Allocated with xmalloc; null when empty. Collective over comm. */
+   arrives, by source. The result is in rank order: the rows from ranks below this
+   one, then the rows it keeps, in their order, then those from ranks above. Rows
+   that were in global order on every rank, as a block layout's are, are still in
+   global order. Allocated with xmalloc; null when empty. Collective over comm. */
 char *migrate_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, int n_rows, const int *elem_part,
                    int my_rank, const HaloList &exp, const HaloList &imp);
 
