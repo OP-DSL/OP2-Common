@@ -346,135 +346,39 @@ HaloList halo_list_transpose(op_set set, const HaloList &list, MPI_Comm comm) {
 
 
 /*******************************************************************************
- * Check if a given op_map is an on-to map from the from-set to the to-set
- * note: on large meshes this routine takes up a lot of memory due to memory
- * allocated for MPI_Allgathers, thus use only when debugging code
+ * Check whether a map reaches every element of its to-set: each rank tells the
+ * owner of every to-set element its entries reach, and the owners count what
+ * nobody reached. Expects map entries and set elements in the same global
+ * numbering, as before partitioning. Collective over OP_MPI_WORLD.
  *******************************************************************************/
 
 int is_onto_map(op_map map) {
-  // create new communicator
   int my_rank, comm_size;
-  MPI_Comm OP_CHECK_WORLD;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_CHECK_WORLD);
-  MPI_Comm_rank(OP_CHECK_WORLD, &my_rank);
-  MPI_Comm_size(OP_CHECK_WORLD, &comm_size);
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
 
-  // Compute global partition range information for each set
   idx_g_t **part_range = (idx_g_t **)xmalloc(OP_set_index * sizeof(idx_g_t *));
-  get_part_range(part_range, my_rank, comm_size, OP_CHECK_WORLD);
+  get_part_range(part_range, my_rank, comm_size, OP_MPI_WORLD);
+  idx_g_t *range = part_range[map->to->index];
 
-  // make a copy of the to-set elements of the map
-  std::vector<idx_g_t> to_elem_copy(map->from->size * map->dim);
-  for (idx_g_t i = 0; i < map->from->size * map->dim; i++) {
-    to_elem_copy[i] = map->map_gbl[i];
-  }
+  std::vector<idx_g_t> reached(map->map_gbl, map->map_gbl + static_cast<std::size_t>(map->from->size) * map->dim);
+  std::sort(reached.begin(), reached.end());
+  reached.erase(std::unique(reached.begin(), reached.end()), reached.end());
+  auto told = op::mpi::sparse::exchange_by(OP_MPI_WORLD, reached, [&](idx_g_t g) {
+    int local;
+    return get_partition(g, range, &local, comm_size, map->to);
+  });
 
-  // sort and remove duplicates from to_elem_copy
-  std::sort(to_elem_copy.begin(), to_elem_copy.end());
-  auto it = std::unique(to_elem_copy.begin(), to_elem_copy.end());
-  idx_g_t to_elem_copy_size = std::distance(to_elem_copy.begin(), it);
-  to_elem_copy.resize(to_elem_copy_size);
-
-  // go through the to-set element range that this local MPI process holds
-  // and collect the to-set elements not found in to_elem_copy
-  std::vector<idx_g_t> not_found;
-  for (idx_g_t i = 0; i < map->to->size; i++) {
-    idx_g_t g_index = 
-        get_global_index(i, my_rank, part_range[map->to->index], comm_size);
-    if (!std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), (idx_g_t)i)) {
-      not_found.push_back(g_index);
-    }
-  }
-
-  //
-  // allreduce this not_found to form a global_not_found list
-  //
-  std::vector<int> recv_count(comm_size);
-  int count = not_found.size();
-  MPI_Allgather(&count, 1, MPI_INT, recv_count.data(), 1, MPI_INT, OP_CHECK_WORLD);
-
-  // discover global size of the not_found_list
-  idx_g_t g_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
-
-  // prepare for an allgatherv
-  int disp = 0;
-  std::vector<int> displs(comm_size);
-  for (int i = 0; i < comm_size; i++) {
-    displs[i] = disp;
-    disp = disp + recv_count[i];
-  }
-
-  // allocate memory to hold the global_not_found list
-  std::vector<idx_g_t> global_not_found(g_count);
-
-  MPI_Allgatherv(not_found.data(), count, get_mpi_type(not_found.data()), global_not_found.data(), recv_count.data(),
-                 displs.data(), get_mpi_type(global_not_found.data()), OP_CHECK_WORLD);
-  
-  // sort and remove duplicates of the global_not_found list
-  if (g_count > 0) {
-    std::sort(global_not_found.begin(), global_not_found.end());
-    g_count = std::unique(global_not_found.begin(), global_not_found.end()) - global_not_found.begin();
-    global_not_found.resize(g_count);
-  } else {
-    // nothing in the global_not_found list .. i.e. this is an on to map
-    for (int i = 0; i < OP_set_index; i++)
-      op_free(part_range[i]);
-    op_free(part_range);
-    return 1;
-  }
-
-  // see if any element in the global_not_found is found in the local map-copy
-  // and add it to a "found" list
-  std::vector<idx_g_t> found;
-  for (idx_g_t i = 0; i < g_count; i++) {
-    if (std::binary_search(to_elem_copy.begin(), to_elem_copy.end(), global_not_found[i])) {
-      found.push_back(global_not_found[i]);
-    }
-  }
-  global_not_found.clear();
-  count = found.size();
-
-  //
-  // allreduce the "found" elements to form a global_found list
-  //
-  // recv_count[comm_size];
-  MPI_Allgather(&count, 1, get_mpi_type(&count), recv_count.data(), 1, get_mpi_type(recv_count.data()), OP_CHECK_WORLD);
-
-  // discover global size of the found_list
-  idx_g_t g_found_count = std::accumulate(recv_count.begin(), recv_count.end(), (idx_g_t)0);
-
-  // prepare for an allgatherv
-  disp = 0;
-  for (int i = 0; i < comm_size; i++) {
-    displs[i] = disp;
-    disp = disp + recv_count[i];
-  }
-
-  // allocate memory to hold the global_found list
-  std::vector<idx_g_t> global_found(g_found_count);
-  MPI_Allgatherv(found.data(), count, get_mpi_type(found.data()), global_found.data(), recv_count.data(),
-                 displs.data(), get_mpi_type(global_found.data()), OP_CHECK_WORLD);
-
-  // sort global_found list and remove duplicates
-  if (g_found_count > 0) {
-    std::sort(global_found.begin(), global_found.end());
-    g_found_count = std::unique(global_found.begin(), global_found.end()) - global_found.begin();
-    global_found.resize(g_found_count);
-  }
-
-  // if the global_found list size is smaller than the globla_not_found list
-  // size
-  // then map is not an on_to map
-  int result = 0;
-  if (g_found_count == g_count)
-    result = 1;
+  std::vector<char> hit(map->to->size, 0);
+  for (idx_g_t g : told)
+    hit[g - range[2 * my_rank]] = 1;
+  long long missed = std::count(hit.begin(), hit.end(), 0), missed_anywhere = 0;
+  MPI_Allreduce(&missed, &missed_anywhere, 1, MPI_LONG_LONG, MPI_SUM, OP_MPI_WORLD);
 
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
-  MPI_Comm_free(&OP_CHECK_WORLD);
-
-  return result;
+  return missed_anywhere == 0;
 }
 
 /*******************************************************************************
