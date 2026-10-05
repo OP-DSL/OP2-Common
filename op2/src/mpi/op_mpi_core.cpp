@@ -432,6 +432,37 @@ int is_onto_map(op_map map) {
  * Main MPI halo creation routine
  *******************************************************************************/
 
+/* Where rank sits in a list's ranks, or -1. */
+static int rank_slot(const HaloList &h, int rank) {
+  auto it = std::lower_bound(h.ranks.begin(), h.ranks.end(), rank);
+  return it != h.ranks.end() && *it == rank ? (int)(it - h.ranks.begin()) : -1;
+}
+
+/* Where a halo list names element `index` of rank `rank`, as a position in its
+   list, or -1. Needs each rank's block sorted, as halo creation builds them. */
+static int position_of(const HaloList &h, int rank, int index) {
+  const int r = rank_slot(h, rank);
+  if (r < 0)
+    return -1;
+  const idx_l_t *begin = h.list.get() + h.disps[r], *end = begin + h.sizes[r];
+  const idx_l_t *at = std::lower_bound(begin, end, index);
+  return at != end && *at == index ? (int)(at - h.list.get()) : -1;
+}
+
+/* Print, on the root, the average, minimum and maximum over the ranks of a
+   per-rank count. */
+static void print_spread(const char *label, idx_g_t n, int width) {
+  int my_rank, comm_size;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
+  idx_g_t sum = 0, most[2] = {n, -n}, max[2] = {0, 0};
+  MPI_Reduce(&n, &sum, 1, get_mpi_type(&n), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
+  MPI_Reduce(most, max, 2, get_mpi_type(&n), MPI_MAX, MPI_ROOT, OP_MPI_WORLD); // -max(-n) is min(n)
+  if (my_rank == MPI_ROOT)
+    printf("%-19s %*lld %*lld %*lld\n", label, width, (long long)(sum / comm_size), width, (long long)-max[1], width,
+           (long long)max[0]);
+}
+
 void op_halo_create() {
   // declare timers
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
@@ -439,7 +470,6 @@ void op_halo_create() {
   double max_time;
   op_timers(&cpu_t1, &wall_t1); // timer start for list create
 
-  // create new communicator for OP mpi operation
   int my_rank, comm_size;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
   MPI_Comm_size(OP_MPI_WORLD, &comm_size);
@@ -465,57 +495,25 @@ void op_halo_create() {
 
   OP_set_halos = std::vector<SetHalo>(OP_set_index);
 
-  /*----- STEP 1 - Construct export lists for execute set elements and related
-    mapping table entries -----*/
+  /*----- STEP 1 - Construct export lists for execute set elements: each element
+    whose mapping table entries reach another rank goes to that rank -----*/
 
-  // declare temporaty scratch variables to hold set export lists and mapping
-  // table export lists
-  idx_g_t s_i;
-  int *set_list;
-
-  idx_g_t cap_s = 1000; // keep track of the temp array capacities
-
-  // Find all elements of other sets that are pointed to from this set
-  // and are owned by other partitions, and construct export lists
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-
-    // create a temporaty scratch space to hold export list for this set
-    s_i = 0;
-    cap_s = 1000;
-    set_list = (int *)xmalloc(cap_s * sizeof(int));
-
-    for (int e = 0; e < set->size; e++) {      // for each elment of this set
-      for (int m = 0; m < OP_map_index; m++) { // for each maping table
-        op_map map = OP_map_list[m];
-
-        if (compare_sets(map->from, set) == 1) { // need to select mappings
-                                                 // FROM this set
-          int part, local_index;
-          for (int j = 0; j < map->dim; j++) { // for each element
-                                               // pointed at by this entry
-            part = get_partition(map->map_gbl[e * map->dim + j],
-                                 part_range[map->to->index], &local_index,
-                                 comm_size, map->to);
-            if (s_i >= cap_s) {
-              cap_s = cap_s * 2;
-              set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
-            }
-
-            if (part != my_rank) {
-              set_list[s_i++] = part; // add to set export list
-              set_list[s_i++] = e;
-            }
-          }
+    std::vector<int> pairs;
+    for (int m = 0; m < OP_map_index; m++) { // for each mapping table from this set
+      op_map map = OP_map_list[m];
+      if (map->from != set) continue;
+      for (int e = 0; e < set->size; e++)
+        for (int j = 0; j < map->dim; j++) {
+          int local_index;
+          const int part = get_partition(map->map_gbl[(size_t)e * map->dim + j], part_range[map->to->index],
+                                         &local_index, comm_size, map->to);
+          if (part != my_rank)
+            pairs.insert(pairs.end(), {part, e});
         }
-      }
     }
-
-    // create set export list
-    // printf("creating set export list for set %10s of size %d\n",
-    // set->name,s_i);
-    OP_set_halos[set->index].export_exec = HaloList::from_pairs(set, set_list, s_i);
-    op_free(set_list); // free temp list
+    OP_set_halos[set->index].export_exec = HaloList::from_pairs(set, pairs.data(), (int)pairs.size());
   }
 
   /*---- STEP 2 - construct import lists for mappings and execute sets------*/
@@ -540,75 +538,26 @@ void op_halo_create() {
                   halo.import_exec, (char *)(map->map_gbl + (size_t)map->dim * map->from->size));
   }
 
-  /*-- STEP 4 - Create import lists for non-execute set elements using mapping
-  table entries including the additional mapping table entries --*/
-
-  // declare temporaty scratch variables to hold non-exec set export lists
-  s_i = 0;
-  set_list = NULL;
-  cap_s = 1000; // keep track of the temp array capacity
+  /*-- STEP 4 - Create import lists for non-execute set elements: those the
+  mapping table entries, the exec halo's included, reach on another rank but the
+  exec halo does not hold --*/
 
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
-    const HaloList &exec_set_list = OP_set_halos[set->index].import_exec;
-
-    // create a temporaty scratch space to hold nonexec export list for this set
-    s_i = 0;
-    set_list = (int *)xmalloc(cap_s * sizeof(int));
-
-    for (int m = 0; m < OP_map_index; m++) { // for each maping table
+    const HaloList &exec = OP_set_halos[set->index].import_exec;
+    std::vector<int> pairs;
+    for (int m = 0; m < OP_map_index; m++) { // for each mapping table to this set
       op_map map = OP_map_list[m];
-      const HaloList &exec_map_list = OP_set_halos[map->from->index].import_exec;
-
-      if (compare_sets(map->to, set) == 1) { // need to select
-                                             // mappings TO this set
-
-        // for each entry in this mapping table: original+execlist
-        int len = map->from->size + exec_map_list.size();
-        for (int e = 0; e < len; e++) {
-          int part;
-          int local_index = 0;
-          for (int j = 0; j < map->dim; j++) { // for each element pointed
-                                               // at by this entry
-            part = get_partition(map->map_gbl[e * map->dim + j],
-                                 part_range[map->to->index], &local_index,
-                                 comm_size, map->to);
-
-            if (s_i >= cap_s) {
-              cap_s = cap_s * 2;
-              set_list = (int *)xrealloc(set_list, cap_s * sizeof(int));
-            }
-
-            if (part != my_rank) {
-              int found = -1;
-              // check in exec list
-              int rank = binary_search(exec_set_list.ranks.data(), part, 0,
-                                       exec_set_list.ranks_size() - 1);
-
-              if (rank >= 0) {
-                found = binary_search(exec_set_list.list.get(), local_index,
-                                      exec_set_list.disps[rank],
-                                      exec_set_list.disps[rank] +
-                                          exec_set_list.sizes[rank] - 1);
-              }
-
-              if (found < 0) {
-                // not in this partition and not found in
-                // exec list
-                // add to non-execute set_list
-                set_list[s_i++] = part;
-                set_list[s_i++] = local_index;
-              }
-            }
-          }
-        }
+      if (map->to != set) continue;
+      const size_t n = (size_t)(map->from->size + OP_set_halos[map->from->index].import_exec.size()) * map->dim;
+      for (size_t k = 0; k < n; k++) {
+        int local_index;
+        const int part = get_partition(map->map_gbl[k], part_range[set->index], &local_index, comm_size, set);
+        if (part != my_rank && position_of(exec, part, local_index) < 0)
+          pairs.insert(pairs.end(), {part, local_index});
       }
     }
-
-    // Create the non-exec set import list. It is built from (rank, index) pairs
-    // like an export list: these are the elements this rank needs, by owner.
-    OP_set_halos[set->index].import_nonexec = HaloList::from_pairs(set, set_list, s_i);
-    op_free(set_list); // free temp list
+    OP_set_halos[set->index].import_nonexec = HaloList::from_pairs(set, pairs.data(), (int)pairs.size());
   }
 
   /*----------- STEP 5 - construct non-execute set export lists -------------*/
@@ -640,78 +589,30 @@ void op_halo_create() {
                   dat->data + exec_end * dat->size);
   }
 
-  /*-STEP 8 ----------------- Renumber Mapping tables-----------------------*/
+  /*-STEP 8 - Renumber mapping tables into local indices: owned elements first,
+   * then the exec halo, then the nonexec halo -*/
 
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-
-    for (int m = 0; m < OP_map_index; m++) { // for each maping table
-      op_map map = OP_map_list[m];
-
-      if (compare_sets(map->to, set) == 1) { // need to select
-                                             // mappings TO this set
-
-        const HaloList &exec_set_list = OP_set_halos[set->index].import_exec;
-        const HaloList &nonexec_set_list = OP_set_halos[set->index].import_nonexec;
-
-        const HaloList &exec_map_list = OP_set_halos[map->from->index].import_exec;
-
-        // for each entry in this mapping table: original+execlist
-        int len = map->from->size + exec_map_list.size();
-        map->map = (int *)xmalloc(len * map->dim * sizeof(int));
-        for (int e = 0; e < len; e++) {
-          for (int j = 0; j < map->dim; j++) { // for each element
-                                               // pointed at by this entry
-            int part;
-            int local_index = 0;
-            part = get_partition(map->map_gbl[e * map->dim + j],
-                                 part_range[map->to->index], &local_index,
-                                 comm_size, map->to);
-
-            if (part == my_rank) {
-              OP_map_list[map->index]->map[e * map->dim + j] = local_index;
-            } else {
-              int found = -1;
-              // check in exec list
-              int rank1 = binary_search(exec_set_list.ranks.data(), part, 0,
-                                        exec_set_list.ranks_size() - 1);
-              // check in nonexec list
-              int rank2 = binary_search(nonexec_set_list.ranks.data(), part, 0,
-                                        nonexec_set_list.ranks_size() - 1);
-
-              if (rank1 >= 0) {
-                found = binary_search(exec_set_list.list.get(), local_index,
-                                      exec_set_list.disps[rank1],
-                                      exec_set_list.disps[rank1] +
-                                          exec_set_list.sizes[rank1] - 1);
-                if (found >= 0) {
-                  OP_map_list[map->index]->map[e * map->dim + j] =
-                      found + map->to->size;
-                }
-              }
-
-              if (rank2 >= 0 && found < 0) {
-                found = binary_search(nonexec_set_list.list.get(), local_index,
-                                      nonexec_set_list.disps[rank2],
-                                      nonexec_set_list.disps[rank2] +
-                                          nonexec_set_list.sizes[rank2] - 1);
-                if (found >= 0) {
-                  OP_map_list[map->index]->map[e * map->dim + j] =
-                      found + set->size + exec_set_list.size();
-                }
-              }
-
-              if (found < 0)
-                printf("ERROR: Set %10s Element %d needed on rank %d \
-                from partition %d\n",
-                       set->name, local_index, my_rank, part);
-            }
-          }
-        }
-        free(map->map_gbl);
-        map->map_gbl = NULL;
-      }
+  for (int m = 0; m < OP_map_index; m++) { // for each mapping table
+    op_map map = OP_map_list[m];
+    op_set set = map->to;
+    const SetHalo &halo = OP_set_halos[set->index];
+    const size_t n = (size_t)(map->from->size + OP_set_halos[map->from->index].import_exec.size()) * map->dim;
+    map->map = (int *)xmalloc(n * sizeof(int));
+    for (size_t k = 0; k < n; k++) {
+      int local_index, at;
+      const int part = get_partition(map->map_gbl[k], part_range[set->index], &local_index, comm_size, set);
+      if (part == my_rank)
+        map->map[k] = local_index;
+      else if ((at = position_of(halo.import_exec, part, local_index)) >= 0)
+        map->map[k] = set->size + at;
+      else if ((at = position_of(halo.import_nonexec, part, local_index)) >= 0)
+        map->map[k] = set->size + halo.import_exec.size() + at;
+      else
+        printf("ERROR: Set %10s Element %d needed on rank %d from partition %d\n", set->name, local_index, my_rank,
+               part);
     }
+    free(map->map_gbl);
+    map->map_gbl = NULL;
   }
 
   // set dirty bits of all data arrays to 0
@@ -720,224 +621,78 @@ void op_halo_create() {
     dat->dirtybit = 0;
   }
 
-  /*-STEP 10 -------------------- Separate core
-   * elements------------------------*/
+  /*-STEP 10 - Separate core elements: each set's elements that no exec export
+   * list names go first, then the exported ones, both in their current order.
+   * The set's dat rows and mapping table rows move with them, and so do the
+   * export lists and every mapping table entry naming an owned element -*/
 
-  int **core_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
-  int **exp_elems = (int **)xmalloc(OP_set_index * sizeof(int *));
-
+  std::vector<std::vector<idx_g_t>> order(OP_set_index); // new position -> old index
+  std::vector<std::vector<int>> moved_to(OP_set_index);  // old index -> new position
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
+    SetHalo &halo = OP_set_halos[set->index];
+    std::vector<char> exported(set->size, 0);
+    for (int i = 0; i < halo.export_exec.size(); i++)
+      exported[halo.export_exec.list[i]] = 1;
+    std::vector<idx_g_t> &o = order[set->index];
+    o.reserve(set->size);
+    for (int e = 0; e < set->size; e++)
+      if (!exported[e])
+        o.push_back(e);
+    set->core_size = (int)o.size();
+    for (int e = 0; e < set->size; e++)
+      if (exported[e])
+        o.push_back(e);
+    moved_to[set->index].resize(set->size);
+    for (int i = 0; i < set->size; i++)
+      moved_to[set->index][o[i]] = i;
+    if (set->core_size == set->size)
+      continue; // nothing moves
 
-    HaloList &exec = OP_set_halos[set->index].export_exec;
-    HaloList &nonexec = OP_set_halos[set->index].export_nonexec;
-
-    if (exec.size() > 0) {
-      exp_elems[set->index] = (int *)xmalloc(exec.size() * sizeof(int));
-      memcpy(exp_elems[set->index], exec.list.get(), exec.size() * sizeof(int));
-      op_sort(exp_elems[set->index], exec.size());
-
-      int num_exp = removeDups(exp_elems[set->index], exec.size());
-      core_elems[set->index] = (int *)xmalloc(set->size * sizeof(int));
-      int count = 0;
-      for (int e = 0; e < set->size; e++) { // for each elment of this set
-
-        if ((binary_search(exp_elems[set->index], e, 0, num_exp - 1) < 0)) {
-          core_elems[set->index][count++] = e;
-        }
-      }
-      op_sort(core_elems[set->index], count);
-
-      if (count + num_exp != set->size)
-        printf("sizes not equal\n");
-      set->core_size = count;
-
-      // for each data array defined on this set seperate its elements
-      op_dat_entry *item;
-      TAILQ_FOREACH(item, &OP_dat_list, entries) {
-        op_dat dat = item->dat;
-
-        if (compare_sets(set, dat->set) == 1) // if this data array is
-        // defined on this set
-        {
-          char *new_dat = (char *)xmalloc((size_t)set->size * (size_t)dat->size);
-          for (int i = 0; i < count; i++) {
-            memcpy(&new_dat[i * (size_t)dat->size],
-                   &dat->data[core_elems[set->index][i] * (size_t)dat->size],
-                   dat->size);
-          }
-          for (int i = 0; i < num_exp; i++) {
-            memcpy(&new_dat[(count + i) * (size_t)dat->size],
-                   &dat->data[exp_elems[set->index][i] * (size_t)dat->size], dat->size);
-          }
-          memcpy(&dat->data[0], &new_dat[0], set->size * (size_t)dat->size);
-          op_free(new_dat);
-        }
-      }
-
-      // for each mapping defined from this set seperate its elements
-      for (int m = 0; m < OP_map_index; m++) { // for each set
-        op_map map = OP_map_list[m];
-
-        if (compare_sets(map->from, set) == 1) { // if this mapping is
-                                                 // defined from this set
-          int *new_map = (int *)xmalloc((size_t)set->size * map->dim * sizeof(int));
-          for (int i = 0; i < count; i++) {
-            memcpy(&new_map[i * (size_t)map->dim],
-                   &map->map[core_elems[set->index][i] * (size_t)map->dim],
-                   map->dim * sizeof(int));
-          }
-          for (int i = 0; i < num_exp; i++) {
-            memcpy(&new_map[(count + i) * (size_t)map->dim],
-                   &map->map[exp_elems[set->index][i] * (size_t)map->dim],
-                   map->dim * sizeof(int));
-          }
-          memcpy(&map->map[0], &new_map[0], set->size * (size_t)map->dim * sizeof(int));
-          op_free(new_map);
-        }
-      }
-
-      for (int i = 0; i < exec.size(); i++) {
-        int index =
-            binary_search(exp_elems[set->index], exec.list[i], 0, num_exp - 1);
-        if (index < 0)
-          printf("Problem in seperating core elements - exec list\n");
-        else
-          exec.list[i] = count + index;
-      }
-
-      for (int i = 0; i < nonexec.size(); i++) {
-        int index = binary_search(core_elems[set->index], nonexec.list[i], 0,
-                                  count - 1);
-        if (index < 0) {
-          index = binary_search(exp_elems[set->index], nonexec.list[i], 0,
-                                num_exp - 1);
-          if (index < 0)
-            printf("Problem in seperating core elements - nonexec list\n");
-          else
-            nonexec.list[i] = count + index;
-        } else
-          nonexec.list[i] = index;
-      }
-    } else {
-      core_elems[set->index] = (int *)xmalloc(set->size * sizeof(int));
-      exp_elems[set->index] = (int *)xmalloc(0 * sizeof(int));
-      for (int e = 0; e < set->size; e++) { // for each elment of this set
-        core_elems[set->index][e] = e;
-      }
-      set->core_size = set->size;
-    }
+    TAILQ_FOREACH(item, &OP_dat_list, entries)
+      if (item->dat->set == set)
+        op_reorder_data(o.data(), item->dat->data, set->size, item->dat->size);
+    for (int m = 0; m < OP_map_index; m++)
+      if (OP_map_list[m]->from == set)
+        op_reorder_data(o.data(), (char *)OP_map_list[m]->map, set->size, OP_map_list[m]->dim * sizeof(int));
+    for (HaloList *list : {&halo.export_exec, &halo.export_nonexec})
+      for (int i = 0; i < list->size(); i++)
+        list->list[i] = moved_to[set->index][list->list[i]];
   }
-
-  // now need to renumber mapping tables as the elements are seperated
-  for (int m = 0; m < OP_map_index; m++) { // for each set
+  for (int m = 0; m < OP_map_index; m++) { // for each mapping table
     op_map map = OP_map_list[m];
-
-    const HaloList &exec_map_list = OP_set_halos[map->from->index].import_exec;
-    // for each entry in this mapping table: original+execlist
-    int len = map->from->size + exec_map_list.size();
-    for (int e = 0; e < len; e++) {
-      for (int j = 0; j < map->dim; j++) { // for each element pointed
-                                           // at by this entry
-        if (map->map[e * map->dim + j] < map->to->size) {
-          int index = binary_search(core_elems[map->to->index],
-                                    map->map[e * map->dim + j], 0,
-                                    map->to->core_size - 1);
-          if (index < 0) {
-            index = binary_search(exp_elems[map->to->index],
-                                  map->map[e * map->dim + j], 0,
-                                  (map->to->size) - (map->to->core_size) - 1);
-            if (index < 0)
-              printf("Problem in seperating core elements - \
-              renumbering map\n");
-            else
-              OP_map_list[map->index]->map[e * (size_t)map->dim + j] =
-                  map->to->core_size + index;
-          } else
-            OP_map_list[map->index]->map[e * (size_t)map->dim + j] = index;
-        }
-      }
-    }
+    const size_t n = (size_t)(map->from->size + OP_set_halos[map->from->index].import_exec.size()) * map->dim;
+    for (size_t k = 0; k < n; k++)
+      if (map->map[k] < map->to->size)
+        map->map[k] = moved_to[map->to->index][map->map[k]];
   }
 
   /* Step 10 moved owned elements and rewrote the export lists; the import lists
      other ranks hold still name the old positions. */
   op_halo_refresh_imports();
 
-  /*-STEP 11 ----------- Save the original set element
-   * indexes------------------*/
+  /*-STEP 11 - Save the original set element indexes: g_index follows step 10.
+   * With no partitioning done, the elements are those declared here -*/
 
-  // if OP_part_list is empty, (i.e. no previous partitioning done) then
-  // create it and store the seperation of elements using core_elems
-  // and exp_elems
   if (OP_part_index != OP_set_index) {
-    // allocate memory for list
     OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
-
     for (int s = 0; s < OP_set_index; s++) { // for each set
       op_set set = OP_set_list[s];
-      // printf("set %s size = %d\n", set.name, set.size);
       idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
       int *partition = (int *)xmalloc(sizeof(int) * set->size);
       for (int i = 0; i < set->size; i++) {
-        g_index[i] =
-            get_global_index(i, my_rank, part_range[set->index], comm_size);
+        g_index[i] = get_global_index(i, my_rank, part_range[set->index], comm_size);
         partition[i] = my_rank;
       }
       decl_partition(set, g_index, partition);
-
-      // combine core_elems and exp_elems to one memory block
-      idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
-      for (int i = 0; i < set->core_size; i++) {
-        temp[i] = core_elems[set->index][i];
-      }
-      for (int i = 0; i < set->size - set->core_size; i++) {
-        temp[set->core_size + i] = exp_elems[set->index][i];
-      }
-
-      // update OP_part_list[set->index]->g_index
-      for (int i = 0; i < set->size; i++) {
-        temp[i] = OP_part_list[set->index]->g_index[temp[i]];
-      }
-      op_free(OP_part_list[set->index]->g_index);
-      OP_part_list[set->index]->g_index = temp;
-    }
-  } else { // OP_part_list exists (i.e. a partitioning has been done)
-    // update the seperation of elements
-
-    for (int s = 0; s < OP_set_index; s++) { // for each set
-      op_set set = OP_set_list[s];
-
-      // combine core_elems and exp_elems to one memory block
-      idx_g_t *temp = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
-
-      if (set->core_size * sizeof(int) > 0) {
-        for (int i = 0; i < set->core_size; i++) {
-          temp[i] = core_elems[set->index][i];
-        }
-      }
-
-      if ((set->size - set->core_size) * sizeof(idx_g_t) > 0) {
-        for (int i = 0; i < set->size - set->core_size; i++) {
-          temp[set->core_size + i] = exp_elems[set->index][i];
-        }
-      }
-
-      // update OP_part_list[set->index]->g_index
-      for (int i = 0; i < set->size; i++) {
-        temp[i] = OP_part_list[set->index]->g_index[temp[i]];
-      }
-      op_free(OP_part_list[set->index]->g_index);
-      OP_part_list[set->index]->g_index = temp;
     }
   }
-
-  /*for(int s=0; s<OP_set_index; s++) { //for each set
-    op_set set=OP_set_list[s];
-    printf("Original Index for set %s\n", set->name);
-    for(int i=0; i<set->size; i++ )
-    printf(" %d",OP_part_list[set->index]->g_index[i]);
-    }*/
+  for (int s = 0; s < OP_set_index; s++) { // for each set
+    op_set set = OP_set_list[s];
+    if (set->core_size != set->size)
+      op_reorder_data(order[set->index].data(), (char *)OP_part_list[set->index]->g_index, set->size,
+                      sizeof(idx_g_t));
+  }
 
   // set up exec and nonexec sizes
   for (int s = 0; s < OP_set_index; s++) { // for each set
@@ -949,161 +704,60 @@ void op_halo_create() {
   /*-STEP 12 ---------- Clean up and Compute rough halo size
    * numbers------------*/
 
-  for (int i = 0; i < OP_set_index; i++) {
+  for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
-    op_free(core_elems[i]);
-    op_free(exp_elems[i]);
-  }
   op_free(part_range);
-  op_free(exp_elems);
-  op_free(core_elems);
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for list create
   // compute import/export lists creation time
   time = wall_t2 - wall_t1;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
 
-  // compute avg/min/max set sizes and exec sizes accross the MPI universe
+  // avg/min/max set sizes and exec sizes accross the MPI universe
+  const bool root = my_rank == MPI_ROOT;
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-    
-    {
-      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
-      idx_g_t size = set->size;
-      // number of set elements first
-      MPI_Reduce(&size, &avg_size, 1, get_mpi_type(&size), MPI_SUM, MPI_ROOT,
-                OP_MPI_WORLD);
-      MPI_Reduce(&size, &min_size, 1, get_mpi_type(&size), MPI_MIN, MPI_ROOT,
-                OP_MPI_WORLD);
-      MPI_Reduce(&size, &max_size, 1, get_mpi_type(&size), MPI_MAX, MPI_ROOT,
-                OP_MPI_WORLD);
-
-      if (my_rank == MPI_ROOT) {
-        printf("Num of %8s (avg | min | max)\n", set->name);
-        printf("total elems         %10d %10d %10d\n", (int)(avg_size / comm_size),
-              (int)min_size, (int)max_size);
-      }
-    }
-
-    {
-      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
-      idx_g_t core_size = set->core_size;
-      // number of OWNED elements second
-      MPI_Reduce(&core_size, &avg_size, 1, get_mpi_type(&core_size), MPI_SUM, MPI_ROOT,
-                OP_MPI_WORLD);
-      MPI_Reduce(&core_size, &min_size, 1, get_mpi_type(&core_size), MPI_MIN, MPI_ROOT,
-                OP_MPI_WORLD);
-      MPI_Reduce(&core_size, &max_size, 1, get_mpi_type(&core_size), MPI_MAX, MPI_ROOT,
-                OP_MPI_WORLD);
-    
-      if (my_rank == MPI_ROOT) {
-        printf("core elems         %10d %10d %10d \n", (int)(avg_size / comm_size),
-              (int)min_size, (int)max_size);
-      }
-    }
-
-    {
-      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
-      idx_g_t exec_size = OP_set_halos[set->index].import_exec.size();
-      // number of exec halo elements third
-      MPI_Reduce(&exec_size, &avg_size, 1, get_mpi_type(&exec_size), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&exec_size, &min_size, 1, get_mpi_type(&exec_size), MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&exec_size, &max_size, 1, get_mpi_type(&exec_size), MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-      if (my_rank == MPI_ROOT) {
-        printf("exec halo elems     %10d %10d %10d \n", (int)(avg_size / comm_size),
-              (int)min_size, (int)max_size);
-      }
-    }
-
-    {
-      idx_g_t avg_size = 0, min_size = 0, max_size = 0;
-      idx_g_t nonexec_size = OP_set_halos[set->index].import_nonexec.size();
-      // number of non-exec halo elements fourth
-      MPI_Reduce(&nonexec_size, &avg_size, 1, get_mpi_type(&nonexec_size), MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&nonexec_size, &min_size, 1, get_mpi_type(&nonexec_size), MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&nonexec_size, &max_size, 1, get_mpi_type(&nonexec_size), MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-      if (my_rank == MPI_ROOT) {
-        printf("non-exec halo elems %10d %10d %10d \n", (int)(avg_size / comm_size),
-              (int)min_size, (int)max_size);
-      }
-    }
-    if (my_rank == MPI_ROOT) {
+    const SetHalo &halo = OP_set_halos[set->index];
+    if (root)
+      printf("Num of %8s (avg | min | max)\n", set->name);
+    print_spread("total elems", set->size, 10);
+    print_spread("core elems", set->core_size, 10);
+    print_spread("exec halo elems", halo.import_exec.size(), 10);
+    print_spread("non-exec halo elems", halo.import_nonexec.size(), 10);
+    if (root)
       printf("-----------------------------------------------------\n");
-    }
   }
-
-  if (my_rank == MPI_ROOT) {
+  if (root)
     printf("\n\n");
-  }
 
-  // compute avg/min/max number of MPI neighbors per process accross the MPI
-  // universe
+  // avg/min/max number of MPI neighbors per process accross the MPI universe
   for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-    {
-      int neighbours = OP_set_halos[set->index].import_exec.ranks_size();
-      int avg_size = 0, min_size = 0, max_size = 0;
-      // number of exec halo neighbors first
-      MPI_Reduce(&neighbours, &avg_size, 1,
-               MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&neighbours, &min_size, 1,
-                MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&neighbours, &max_size, 1,
-                MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-      if (my_rank == MPI_ROOT) {
-        printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
-        printf("exec halo elems     %4d %4d %4d\n", avg_size / comm_size,
-              (int)min_size, (int)max_size);
-      }
-    }
-
-    {
-      int neighbours = OP_set_halos[set->index].import_nonexec.ranks_size();
-      int avg_size = 0, min_size = 0, max_size = 0;
-      // number of non-exec halo neighbors second
-      MPI_Reduce(&neighbours, &avg_size, 1,
-               MPI_INT, MPI_SUM, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&neighbours, &min_size, 1,
-               MPI_INT, MPI_MIN, MPI_ROOT, OP_MPI_WORLD);
-      MPI_Reduce(&neighbours, &max_size, 1,
-               MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_WORLD);
-      if (my_rank == MPI_ROOT) {
-        printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
-        printf("non-exec halo elems %4d %4d %4d\n", avg_size / comm_size,
-              (int)min_size, (int)max_size);
-      }
-    }
-    if (my_rank == MPI_ROOT) {
+    const SetHalo &halo = OP_set_halos[set->index];
+    if (root)
+      printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
+    print_spread("exec halo elems", halo.import_exec.ranks_size(), 4);
+    if (root)
+      printf("MPI neighbors for exchanging %8s (avg | min | max)\n", set->name);
+    print_spread("non-exec halo elems", halo.import_nonexec.ranks_size(), 4);
+    if (root)
       printf("-----------------------------------------------------\n");
-    }
   }
 
-  // compute average worst case halo size in Bytes
+  // average worst case halo size in Bytes
   idx_g_t tot_halo_size = 0;
-  for (int s = 0; s < OP_set_index; s++) {
-    op_set set = OP_set_list[s];
-
-    op_dat_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list, entries) {
-      op_dat dat = item->dat;
-
-      if (compare_sets(dat->set, set) == 1) {
-        const HaloList &exec_imp = OP_set_halos[set->index].import_exec;
-        const HaloList &nonexec_imp = OP_set_halos[set->index].import_nonexec;
-        tot_halo_size = tot_halo_size + exec_imp.size() * (size_t)dat->size +
-                        nonexec_imp.size() * (size_t)dat->size;
-      }
-    }
+  TAILQ_FOREACH(item, &OP_dat_list, entries) {
+    const SetHalo &halo = OP_set_halos[item->dat->set->index];
+    tot_halo_size += (halo.import_exec.size() + halo.import_nonexec.size()) * (size_t)item->dat->size;
   }
   idx_g_t avg_halo_size;
   MPI_Reduce(&tot_halo_size, &avg_halo_size, 1, get_mpi_type(&tot_halo_size), MPI_SUM, MPI_ROOT,
              OP_MPI_WORLD);
 
   // print performance results
-  if (my_rank == MPI_ROOT) {
+  if (root) {
     printf("Max total halo creation time = %lf\n", max_time);
-    printf("Average (worst case) Halo size = %d Bytes\n",
-           (int)(avg_halo_size / comm_size));
+    printf("Average (worst case) Halo size = %lld Bytes\n", (long long)(avg_halo_size / comm_size));
   }
 }
 
@@ -1147,12 +801,6 @@ void op_halo_refresh_imports() {
  * owner translates positions through its own export lists, so the result does
  * not depend on the values the import lists hold.
  *******************************************************************************/
-
-/* Where rank sits in a list's ranks, or -1. */
-static int rank_slot(const HaloList &h, int rank) {
-  auto it = std::lower_bound(h.ranks.begin(), h.ranks.end(), rank);
-  return it != h.ranks.end() && *it == rank ? (int)(it - h.ranks.begin()) : -1;
-}
 
 void op_halo_permap_create() {
   /* Which maps are partially exchanged: halo references against halo size. */
