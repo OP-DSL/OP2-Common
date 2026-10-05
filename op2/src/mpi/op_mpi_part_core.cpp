@@ -98,9 +98,6 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 // used for checking if partial halo exchanges
 // are to be performed
 
-template <class T>
-void op_partition_kway_generic(op_map primary_map, bool use_kahip);
-
 void op_partition_graph_parmetis(op_map primary_map);
 void op_partition_graph_kahip(op_map primary_map);
 #ifdef HAVE_PTSCOTCH
@@ -693,62 +690,68 @@ static void migrate_all(int my_rank) {
   }
 }
 
-/*****************************************************************************************************************************************
- * This routine partitions based on information contained in an op_dat called
- *partvecXXXX (number of total partitions, padded with 0s)
- *****************************************************************************************************************************************/
+extern "C++" {
 
-void op_partition_external(op_set primary_set, op_dat partvec) {
-  // declare timers
+/* A partitioner's output as OP2 keeps it - int, xmalloc'd - checked to name a
+   rank for every element of the set. */
+template <class T> static int *checked_partition(const T *part, op_set set, int my_rank, int comm_size) {
+  int *partition = (int *)xmalloc(sizeof(int) * set->size);
+  for (int i = 0; i < set->size; i++) {
+    if (part[i] < 0 || part[i] >= comm_size) {
+      printf("Partitioning problem: on rank %d, set %s element %d not assigned a partition\n", my_rank, set->name, i);
+      MPI_Abort(OP_PART_WORLD, 2);
+    }
+    partition[i] = (int)part[i];
+  }
+  return partition;
+}
+
+/* Partition with one partitioner: primary(my_rank, comm_size, part_range) gives
+   each element of primary_set a rank, from the block layout, as an xmalloc'd
+   array; every other set follows it through the maps, then every element moves
+   to its rank and the maps are renumbered. Collective; primary runs on a fresh
+   OP_PART_WORLD. */
+template <class Primary> static void partition_with(const char *name, op_set primary_set, Primary primary) {
   double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
+  op_timers(&cpu_t1, &wall_t1);
 
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
   int my_rank, comm_size;
   MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
   idx_g_t **part_range = initialise(my_rank, comm_size);
-
-  int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
-  memcpy(partition, partvec->data, sizeof(int) * primary_set->size);
-
-  // initialise primary set as partitioned
-  OP_part_list[primary_set->index]->elem_part = partition;
+  OP_part_list[primary_set->index]->elem_part = primary(my_rank, comm_size, part_range);
   OP_part_list[primary_set->index]->is_partitioned = 1;
-
-  // free part range
   for (int i = 0; i < OP_set_index; i++)
     op_free(part_range[i]);
   op_free(part_range);
 
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
   partition_all(primary_set, my_rank, comm_size);
-
-  // migrate data, sort elements
   migrate_all(my_rank);
-
-  // renumber mapping tables
   renumber_maps(my_rank, comm_size);
 
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-
-  // print time for partitioning
-  time = wall_t2 - wall_t1;
+  op_timers(&cpu_t2, &wall_t2);
+  double time = wall_t2 - wall_t1, max_time;
   MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
   MPI_Comm_free(&OP_PART_WORLD);
   if (my_rank == MPI_ROOT)
-    printf("Max total random partitioning time = %lf\n", max_time);
+    printf("Max total %s partitioning time = %lf\n", name, max_time);
+}
+
+}  // extern "C++"
+
+/*******************************************************************************
+ * Partition with a partition vector from the application: partvec holds the
+ * rank of each element of the primary set
+ *******************************************************************************/
+
+void op_partition_external(op_set primary_set, op_dat partvec) {
+  partition_with("external", primary_set, [&](int, int, idx_g_t **) {
+    int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
+    memcpy(partition, partvec->data, sizeof(int) * primary_set->size);
+    return partition;
+  });
 }
 
 /*******************************************************************************
@@ -756,64 +759,12 @@ void op_partition_external(op_set primary_set, op_dat partvec) {
  *******************************************************************************/
 
 void op_partition_random(op_set primary_set) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
-  idx_g_t **part_range = initialise(my_rank, comm_size);
-
-  /*-----STEP 1 - Partition Primary set using a random number generator
-   * --------*/
-
-  int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
-  // printf("RAND_MAX = %d",RAND_MAX);
-  for (int i = 0; i < primary_set->size; i++) {
-    // not sure if this is the best way to generate the required random number
-    partition[i] = // rand()%comm_size;
-        (int)((double)rand() / ((double)RAND_MAX + 1) * comm_size);
-  }
-
-  // initialise primary set as partitioned
-  OP_part_list[primary_set->index]->elem_part = partition;
-  OP_part_list[primary_set->index]->is_partitioned = 1;
-
-  // free part range
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(primary_set, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total random partitioning time = %lf\n", max_time);
+  partition_with("random", primary_set, [&](int, int comm_size, idx_g_t **) {
+    int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
+    for (int i = 0; i < primary_set->size; i++)
+      partition[i] = (int)((double)rand() / ((double)RAND_MAX + 1) * comm_size);
+    return partition;
+  });
 }
 
 /*******************************************************************************
@@ -875,88 +826,17 @@ static std::vector<real_t> parmetis_coordinates(op_dat coords) {
  *******************************************************************************/
 
 void op_partition_geom(op_dat coords) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
-  idx_g_t **part_range = initialise(my_rank, comm_size);
-
-  /*--- STEP 1 - Partition primary set using its coordinates (1D,2D or 3D)
-   * -----*/
-
-  // Setup data structures for ParMetis PartGeom
-  idx_t *vtxdist = (idx_t *)xmalloc(sizeof(idx_t) * (comm_size + 1));
-  idx_t *partition = (idx_t *)xmalloc(sizeof(idx_t) * coords->set->size);
-
-  idx_t ndims = coords->dim;
-  std::vector<real_t> xyz = parmetis_coordinates(coords);
-
-  for (int i = 0; i < comm_size; i++) {
-    vtxdist[i] = part_range[coords->set->index][2 * i];
-  }
-  vtxdist[comm_size] =
-      part_range[coords->set->index][2 * (comm_size - 1) + 1] + 1;
-
-  // use xyz coordinates to feed into ParMETIS_V3_PartGeom
-  ParMETIS_V3_PartGeom(vtxdist, &ndims, xyz.data(), partition, &OP_PART_WORLD);
-  op_free(vtxdist);
-
-  // free part range
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-
-  // sanity check to see if all elements were partitioned
-  for (idx_g_t i = 0; i < coords->set->size; i++) {
-    if (partition[i] < 0) {
-      printf("Partitioning problem: on rank %d, set %s element %lld not assigned "
-             "a partition\n",
-             my_rank, coords->name, i);
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-  }
-
-  // initialise primary set as partitioned: copied, not cast, since ParMETIS'
-  // idx_t can be 64 bits wide
-  int *elem_part = (int *)xmalloc(sizeof(int) * coords->set->size);
-  for (int i = 0; i < coords->set->size; i++)
-    elem_part[i] = (int)partition[i];
-  op_free(partition);
-  OP_part_list[coords->set->index]->elem_part = elem_part;
-  OP_part_list[coords->set->index]->is_partitioned = 1;
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(coords->set, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total geometric partitioning time = %lf\n", max_time);
+  partition_with("geometric", coords->set, [&](int my_rank, int comm_size, idx_g_t **part_range) {
+    const idx_g_t *range = part_range[coords->set->index];
+    std::vector<idx_t> vtxdist(comm_size + 1), partition(coords->set->size);
+    for (int i = 0; i < comm_size; i++)
+      vtxdist[i] = range[2 * i];
+    vtxdist[comm_size] = range[2 * comm_size - 1] + 1;
+    idx_t ndims = coords->dim;
+    std::vector<real_t> xyz = parmetis_coordinates(coords);
+    ParMETIS_V3_PartGeom(vtxdist.data(), &ndims, xyz.data(), partition.data(), &OP_PART_WORLD);
+    return checked_partition(partition.data(), coords->set, my_rank, comm_size);
+  });
 }
 
 #endif
@@ -965,30 +845,15 @@ void op_partition_geom(op_dat coords) {
  * Use OPlus style recursive bisection in the inertial directions
  *******************************************************************************/
 
-void op_partition_inertial(op_dat x_dat) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
+/* The primary set's ranks by recursive bisection along the inertial axes, for
+   partition_with. */
+static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, idx_g_t **part_range) {
   double *x = (double *)xmalloc(x_dat->set->size * x_dat->dim * sizeof(double));
   memcpy(x, x_dat->data, x_dat->set->size * x_dat->dim * sizeof(double));
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
   MPI_Comm mpi_comm = OP_PART_WORLD;
   MPI_Group current_group;
   MPI_Comm_group(mpi_comm, &current_group);
-  /*--STEP 0 - initialise partitioning data stauctures with the current (block)
-    partitioning information */
-
-  // Compute global partition range information for each set
-  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /* - STEP 1 figure out partitioning - */
   int global_size =
@@ -1277,7 +1142,7 @@ void op_partition_inertial(op_dat x_dat) {
   }
   op_free(x);
   op_sort(global_indices, current_part_size);
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
+  // back to the whole communicator
   MPI_Comm_rank(OP_PART_WORLD, &my_rank);
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
   // start binning (global indices -> processes)
@@ -1358,272 +1223,118 @@ void op_partition_inertial(op_dat x_dat) {
   MPI_Waitall(send_count, send_requests, send_statuses);
   op_free(global_indices_recv);
   op_free(global_indices);
-  // Debugging: print partvecs to file
-  /*FILE *file;
-  char fname[64];
-  sprintf(fname,"partvec_op2_%04d",my_rank);
-  file = fopen(fname,"w");
-  for (int i = 0; i < x_dat->set->size; i++)
-    fprintf(file,"%06d\n",partition[i]+1);
-  fclose(file);*/
-
-  // initialise primary set as partitioned
-  OP_part_list[x_dat->set->index]->elem_part = (int *)partition;
-  OP_part_list[x_dat->set->index]->is_partitioned = 1;
-
-  // free part range
-  for (int i = 0; i < OP_set_index; i++)
-    op_free(part_range[i]);
-  op_free(part_range);
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
-   * tables-*/
-
-  // partition all other sets
-  partition_all(x_dat->set, my_rank, comm_size);
-
-  // migrate data, sort elements
-  migrate_all(my_rank);
-
-  // renumber mapping tables
-  renumber_maps(my_rank, comm_size);
-
-  op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
-  // printf time for partitioning
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total inertial partitioning time = %lf\n", max_time);
+  return partition;
 }
+
+void op_partition_inertial(op_dat x_dat) {
+  partition_with("inertial", x_dat->set, [&](int my_rank, int comm_size, idx_g_t **part_range) {
+    return inertial_partition(x_dat, my_rank, comm_size, part_range);
+  });
+}
+
+extern "C++" {
+
+/* The partitioners op_partition can run, by library and routine, and the inputs
+   each needs. A library that was not built has no entries. */
+struct Partitioner {
+  const char *lib, *routine; // routine null: the library has one, and ignores the name
+  bool set, map, dat;        // which of op_partition's inputs it needs
+  int dat_dim;               // the dimension the dat must have, or 0
+  bool partial_halos;        // whether partial halo exchanges may follow it
+  void (*run)(op_set, op_map, op_dat);
+};
+
+static const Partitioner partitioners[] = {
+#ifdef HAVE_KAHIP
+    {"KAHIP", "KWAY", false, true, false, 0, true, [](op_set, op_map m, op_dat) { op_partition_graph_kahip(m); }},
+#endif
+#ifdef HAVE_PTSCOTCH
+    {"PTSCOTCH", "KWAY", false, true, false, 0, true, [](op_set, op_map m, op_dat) { op_partition_graph_ptscotch(m); }},
+#endif
+#ifdef HAVE_PARMETIS
+    {"PARMETIS", "KWAY", false, true, false, 0, true, [](op_set, op_map m, op_dat) { op_partition_graph_parmetis(m); }},
+    {"PARMETIS", "GEOMKWAY", false, true, true, 0, true, [](op_set, op_map m, op_dat d) { op_partition_geomkway(d, m); }},
+    {"PARMETIS", "GEOM", false, false, true, 0, true, [](op_set, op_map, op_dat d) { op_partition_geom(d); }},
+#endif
+    {"RANDOM", nullptr, true, false, false, 0, true, [](op_set s, op_map, op_dat) { op_partition_random(s); }},
+    // no partial halos after an external partition, which may leave orphaned elements
+    {"EXTERNAL", nullptr, true, false, true, 1, false, [](op_set s, op_map, op_dat d) { op_partition_external(s, d); }},
+    {"INERTIAL", nullptr, false, false, true, 3, true, [](op_set, op_map, op_dat d) { op_partition_inertial(d); }},
+};
+
+/* The partitioner op_partition's arguments name, if it is built and given what it
+   needs; else null, having said why. */
+static const Partitioner *select_partitioner(const char *lib, const char *routine, op_set set, op_map map,
+                                             op_dat dat) {
+  bool lib_built = false;
+  for (const Partitioner &p : partitioners) {
+    if (strcmp(p.lib, lib) != 0)
+      continue;
+    lib_built = true;
+    if (p.routine != nullptr && strcmp(p.routine, routine) != 0)
+      continue;
+    op_printf("Selected Partitioning Library : %s\n", lib);
+    if (p.routine != nullptr)
+      op_printf("Selected Partitioning Routine : %s\n", routine);
+    const char *missing = p.set && set == nullptr                          ? "set"
+                          : p.map && map == nullptr                        ? "map"
+                          : p.dat && (dat == nullptr || dat->data == nullptr) ? "dat"
+                                                                           : nullptr;
+    if (missing != nullptr) {
+      op_printf("Partitioning %s needs a %s, given NULL - UNSUPPORTED Partitioner Specification\n", lib, missing);
+      return nullptr;
+    }
+    if (p.dat_dim != 0 && dat->dim != p.dat_dim) {
+      op_printf("Partitioning %s needs a dat of dimension %d, given %d\n", lib, p.dat_dim, dat->dim);
+      return nullptr;
+    }
+    return &p;
+  }
+  if (lib_built)
+    op_printf("Partitioning Routine : %s UNSUPPORTED\n", routine);
+  else if (strcmp(lib, "KAHIP") == 0 || strcmp(lib, "PTSCOTCH") == 0 || strcmp(lib, "PARMETIS") == 0)
+    op_printf("OP2 Library Not built with Partitioning Library : %s\n", lib);
+  else
+    op_printf("Partitioning Library : %s UNSUPPORTED\n", lib);
+  return nullptr;
+}
+
+}  // extern "C++"
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
 void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
                op_map prime_map, op_dat data) {
-#if !defined(HAVE_PTSCOTCH) && !defined(HAVE_PARMETIS)
-  /* Suppress warning */
-  (void)lib_routine;
-  (void)prime_map;
-#endif
-
-  int partial_halo_flag =
-      1; // flag to indicate that partial halos should be created
-  // default is 1, but if a proper partitioning is not done
-  // i.e. with ParMetis or PTScotch then we will have orphen
-  // set elements which will result in a runtime error
-  // when using partial halos
-
-  /*initial error checks for NULL variables*/
-  if (lib_name == NULL)
-    lib_name = "NULL";
-  if (lib_routine == NULL)
-    lib_routine = "NULL";
-
-  if (strcmp(lib_name, "KAHIP") == 0) {
-#ifdef HAVE_KAHIP
-    op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-    if (strcmp(lib_routine, "KWAY") == 0) {
-      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-      if (prime_map != NULL)
-        op_partition_graph_kahip(prime_map); // use kahip k-way partitioning
-      else {
-        op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
-        op_printf("Reverting to trivial block partitioning\n");
-        partial_halo_flag = 0;
-      }
-    } else {
-      op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
-      op_printf("Reverting to trivial block partitioning\n");
-      partial_halo_flag = 0;
-    }
-#else
-    /*  Suppress warning */
-    (void)data;
-    op_printf("OP2 Library Not built with Partitioning Library : %s\n",
-              lib_name);
-    op_printf("Ignoring input routine : %s\n", lib_routine);
-    if (prime_set != NULL)
-      op_printf("Ignoring input set : %s\n", prime_set->name);
-    if (prime_map != NULL)
-      op_printf("Ignoring input mapping : %s\n", prime_map->name);
-    if (data != NULL)
-      op_printf("Ignoring input coordinates : %s\n", data->name);
+  const Partitioner *p = select_partitioner(lib_name ? lib_name : "NULL", lib_routine ? lib_routine : "NULL",
+                                            prime_set, prime_map, data);
+  if (p != nullptr)
+    p->run(prime_set, prime_map, data);
+  else
     op_printf("Reverting to trivial block partitioning\n");
-    partial_halo_flag = 0;
-#endif
-  } else if (strcmp(lib_name, "PTSCOTCH") == 0) {
-#ifdef HAVE_PTSCOTCH
-    op_printf("Selected Partitioning Library : %s\n", lib_name);
-    if (strcmp(lib_routine, "KWAY") == 0) {
-      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-      if (prime_map != NULL)
-        op_partition_graph_ptscotch(prime_map); // use ptscotch kaway partitioning
-      else {
-        op_printf("Partitioning prime_map : NULL UNSUPPORTED\n");
-        op_printf("Reverting to trivial block partitioning\n");
-        partial_halo_flag = 0;
-      }
-    } else {
-      op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
-      op_printf("Reverting to trivial block partitioning\n");
-      partial_halo_flag = 0;
-    }
-#else
-    op_printf("OP2 Library Not built with Partitioning Library : %s\n",
-              lib_name);
-    op_printf("Ignoring input routine : %s\n", lib_routine);
-    if (prime_set != NULL)
-      op_printf("Ignoring input mapping : %s\n", prime_set->name);
-    if (prime_map != NULL)
-      op_printf("Ignoring input mapping : %s\n", prime_map->name);
-    if (data != NULL)
-      op_printf("Ignoring input data : %s\n", data->name);
-    op_printf("Reverting to trivial block partitioning\n");
-    partial_halo_flag = 0;
-#endif
-  } else if (strcmp(lib_name, "PARMETIS") == 0) {
-#ifdef HAVE_PARMETIS
-    op_printf("Selected Partitioning Library : %s\n", lib_name);
-    if (strcmp(lib_routine, "KWAY") == 0) {
-      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-      if (prime_map != NULL)
-        op_partition_graph_parmetis(prime_map); // use parmetis kaway partitioning
-      else {
-        op_printf("Partitioning prime_map : NULL - UNSUPPORTED Partitioner "
-                  "Specification\n");
-        op_printf("Reverting to trivial block partitioning\n");
-        partial_halo_flag = 0;
-      }
-    } else if (strcmp(lib_routine, "GEOMKWAY") == 0) {
-      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-      if (prime_map != NULL && data != NULL)
-        op_partition_geomkway(data,
-                              prime_map); // use parmetis kawaygeom partitioning
-      else {
-        op_printf("Partitioning prime_map or coordinates : NULL - UNSUPPORTED "
-                  "Partitioner Specification\n");
-        op_printf("Reverting to trivial block partitioning\n");
-        partial_halo_flag = 0;
-      }
-    } else if (strcmp(lib_routine, "GEOM") == 0) {
-      op_printf("Selected Partitioning Routine : %s\n", lib_routine);
-      if (data != NULL)
-        op_partition_geom(data); // use parmetis geometric partitioning
-      else {
-        op_printf("Partitioning coordinates: NULL - UNSUPPORTED Partitioner "
-                  "Specification\n");
-        op_printf("Reverting to trivial block partitioning\n");
-        partial_halo_flag = 0;
-      }
-    } else {
-      op_printf("Partitioning Routine : %s UNSUPPORTED\n", lib_routine);
-      op_printf("Reverting to trivial block partitioning\n");
-      partial_halo_flag = 0;
-    }
-#else
-    /*  Suppress warning */
-    (void)data;
-    op_printf("OP2 Library Not built with Partitioning Library : %s\n",
-              lib_name);
-    op_printf("Ignoring input routine : %s\n", lib_routine);
-    if (prime_set != NULL)
-      op_printf("Ignoring input set : %s\n", prime_set->name);
-    if (prime_map != NULL)
-      op_printf("Ignoring input mapping : %s\n", prime_map->name);
-    if (data != NULL)
-      op_printf("Ignoring input coordinates : %s\n", data->name);
-    op_printf("Reverting to trivial block partitioning\n");
-    partial_halo_flag = 0;
-#endif
-  } else if (strcmp(lib_name, "RANDOM") == 0) {
-    op_printf("Selected Partitioning Routine : %s\n", lib_name);
-    if (prime_set != NULL)
-      op_partition_random(
-          prime_set); // use a random partitioning - used for debugging
-    else {
-      op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner "
-                "Specification\n");
-      op_printf("Reverting to trivial block partitioning\n");
-      partial_halo_flag = 0;
-    }
-  } else if (strcmp(lib_name, "EXTERNAL") == 0) {
-    op_printf("Selected Partitioning Routine : %s\n", lib_name);
-    if (prime_set != NULL) {
-      if (data->data != NULL) {
-        if (data->dim == 1) {
-          op_partition_external(
-              prime_set,
-              data); // use an external partitioning read in from hdf5 file
-          partial_halo_flag = 0;
-        } else {
-          op_printf("External Partition vector should be an integer array with "
-                    "dimension 1\n");
-          op_printf("Reverting to trivial block partitioning\n");
-          partial_halo_flag = 0;
-        }
-      } else {
-        op_printf("External Partition vector : NULL - UNSUPPORTED Partitioner "
-                  "Specification\n");
-        partial_halo_flag = 0;
-      }
-    } else {
-      op_printf("Partitioning prime_set : NULL - UNSUPPORTED Partitioner "
-                "Specification\n");
-      op_printf("Reverting to trivial block partitioning\n");
-      partial_halo_flag = 0;
-    }
-  } else if (strcmp(lib_name, "INERTIAL") == 0) {
-    op_printf("Selected Partitioning Routine : %s\n", lib_name);
-    if (data->data != NULL) {
-      if (data->dim == 3)
-        op_partition_inertial(data); // use Oplus style Inertial partitioning
-      else {
-        op_printf("Onlt supports 3D Inertial Bisection Partitioning - Need 3D "
-                  "coordinates - dim should be 3\n");
-        op_printf("Reverting to trivial block partitioning\n");
-        partial_halo_flag = 0;
-      }
-    } else {
-      op_printf("Partitioning based on dataset : NULL - UNSUPPORTED "
-                "Partitioner Specification\n");
-      op_printf("Reverting to trivial block partitioning\n");
-      partial_halo_flag = 0;
-    }
-  } else {
-    op_printf("Partitioning Library : %s UNSUPPORTED\n", lib_name);
-    op_printf("Ignoring input routine : %s\n", lib_routine);
-    if (prime_set != NULL)
-      op_printf("Ignoring input set : %s\n", prime_set->name);
-    if (prime_map != NULL)
-      op_printf("Ignoring input mapping : %s\n", prime_map->name);
-    if (data != NULL)
-      op_printf("Ignoring input coordinates : %s\n", data->name);
-    op_printf("Reverting to trivial block partitioning\n");
-    partial_halo_flag = 0;
-  }
 
   // trigger halo creation routines
   op_halo_create();
 
-  if (partial_halo_flag == 1) // only do partial halo
-    op_halo_permap_create();  // creation if a valid partitioning is done
-  else {
-    OP_map_partial_exchange = (int *)xmalloc(OP_map_index * sizeof(int));
-    for (int i = 0; i < OP_map_index; i++)
-      OP_map_partial_exchange[i] = 0;
-  }
+  /* Partial halos only after a partitioner that allows them: block, or an external
+     partition, may leave orphaned set elements, which make partial halos fail at
+     run time. */
+  if (p != nullptr && p->partial_halos)
+    op_halo_permap_create();
+  else
+    OP_map_partial_exchange = (int *)xcalloc(OP_map_index, sizeof(int));
 
-#ifdef DEBUG // sanity check to identify if the partitioning results in ophan
-             // elements
-  int ctr = 0;
-  for (int i = 0; i < prime_map->from->size; i++) {
-    if (prime_map->map[2 * i] >= prime_map->to->size &&
-        prime_map->map[2 * i + 1] >= prime_map->to->size)
-      ctr++;
+#ifdef DEBUG // sanity check: primary map elements whose every entry is in the halo
+  if (prime_map != NULL) {
+    int ctr = 0;
+    for (int i = 0; i < prime_map->from->size; i++) {
+      bool orphan = true;
+      for (int j = 0; j < prime_map->dim; j++)
+        orphan = orphan && prime_map->map[i * prime_map->dim + j] >= prime_map->to->size;
+      ctr += orphan;
+    }
+    printf("Orphan edges: %d\n", ctr);
   }
-  printf("Orphan edges: %d\n", ctr);
 #endif
   OP_is_partitioned = 1;
 }
@@ -1631,23 +1342,17 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
 extern int **OP_map_ptr_list;
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
                       op_set prime_set, int *prime_map, double *coords) {
-  op_dat_entry *item;
-  op_dat_entry *tmp_item;
+  // the dat declared from coords, if any; a NULL coords would match any dat declared without data
   op_dat item_dat = NULL;
-  for (item = TAILQ_FIRST(&OP_dat_list); item != NULL; item = tmp_item) {
-    tmp_item = TAILQ_NEXT(item, entries);
-    // printf("Available op_dat %s with pointer %p\n", item->dat->name,
-    // item->dat->data);
-    if (item->orig_ptr == coords) {
-      // printf("%s(%p), ", item->dat->name, item->dat->data);
-      item_dat = item->dat;
-      break;
-    }
-  }
-  // printf("\n");
-  if (item_dat == NULL) {
-    printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n",
-           (void*)coords);
+  if (coords != NULL) {
+    op_dat_entry *item;
+    TAILQ_FOREACH(item, &OP_dat_list, entries)
+      if (item->orig_ptr == coords) {
+        item_dat = item->dat;
+        break;
+      }
+    if (item_dat == NULL)
+      printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n", (void *)coords);
   }
 
   op_map item_map = op_search_map_ptr(prime_map);
@@ -1837,30 +1542,6 @@ setup_part_data(op_map primary_map, int my_rank, int comm_size, std::vector<std:
 }
 
 /*******************************************************************************
- * Check partitioning was performed as expected
- *******************************************************************************/
-template <class T>
-void check_partition(op_map primary_map, T *partition_pm, int my_rank,
-                     int comm_size) {
-  int *partition = (int *)xmalloc(sizeof(int) * primary_map->to->size);
-  for (int i = 0; i < primary_map->to->size; i++) {
-    // sanity check to see if all elements were partitioned
-    if (partition_pm[i] < 0 || partition_pm[i] >= comm_size) {
-      printf("Partitioning problem: on rank %d, set %s element %d not assigned "
-             "a partition\n",
-             my_rank, primary_map->to->name, i);
-      MPI_Abort(OP_PART_WORLD, 2);
-    }
-    partition[i] = partition_pm[i];
-  }
-  free(partition_pm);
-
-  // initialise primary set as partitioned
-  OP_part_list[primary_map->to->index]->elem_part = partition;
-  OP_part_list[primary_map->to->index]->is_partitioned = 1;
-}
-
-/*******************************************************************************
  * Generic wrapper for kway-partition functions
  *******************************************************************************/
 
@@ -1983,31 +1664,12 @@ void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SCOTCH_Nu
 /*******************************************************************************
  * Generalized Graph Partitioner (handles ParMETIS, KaHIP, PTScotch)
  *******************************************************************************/
-template <class T> // Keep template for ParMETIS/KaHIP type compatibility
-void op_partition_graph_generic(op_map primary_map, const char* partitioner_name,
-                                op_dat coords = nullptr) {
-  // declare timers
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  double time;
-  double max_time;
-
-  op_timers(&cpu_t1, &wall_t1); // timer start for partitioning
-
-  // create new communicator for partitioning
-  int my_rank, comm_size;
-  MPI_Comm_dup(OP_MPI_WORLD, &OP_PART_WORLD);
-  MPI_Comm_rank(OP_PART_WORLD, &my_rank);
-  MPI_Comm_size(OP_PART_WORLD, &comm_size);
-
-#ifdef DEBUG
-    // check if the  primary_map is an on to map from the from-set to the to-set
-  if (is_onto_map(primary_map) != 1) {
-    printf("Map %s is an not an onto map from set %s to set %s \n",
-           primary_map->name, primary_map->from->name, primary_map->to->name);
-    MPI_Abort(OP_PART_WORLD, 2);
-  }
-#endif
-
+/* The primary set's ranks from a graph partitioner, for partition_with: the
+   to-set of primary_map, with an edge between two of its elements when a
+   from-element maps to both. T is the partitioner's index type. */
+template <class T>
+static int *graph_partition(op_map primary_map, const char *partitioner_name, op_dat coords, int my_rank,
+                            int comm_size, idx_g_t **part_range) {
 #ifdef HAVE_PARMETIS
   // Coordinates make the ParMETIS k-way partitioning geometric: PartGeomKway.
   std::vector<real_t> xyz;
@@ -2020,9 +1682,6 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
     xyz = parmetis_coordinates(coords);
   }
 #endif
-
-  /*--STEP 0 - initialise partitioning data structures */
-  idx_g_t **part_range = initialise(my_rank, comm_size);
 
   /*--STEP 1 - Construct adjacency list */
   std::vector<std::vector<idx_g_t>> adj = construct_adj_list(primary_map, my_rank, comm_size, part_range);
@@ -2042,10 +1701,6 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
       T numflag = 0;
       T wgtflag = 0;
       T options[3] = {1, 3, 15};
-
-      // clean up part_range before calling Partitioner
-      for (int i = 0; i < OP_set_index; i++) op_free(part_range[i]);
-      op_free(part_range);
 
       if (my_rank == MPI_ROOT) {
           printf("-----------------------------------------------------------\n");
@@ -2083,7 +1738,9 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
 
       op_free(vtxdist); op_free(xadj); op_free(adjncy); op_free(ubvec); op_free(tpwgts);
 
-      check_partition<T>(primary_map, partition_pm, my_rank, comm_size);
+      int *partition = checked_partition(partition_pm, primary_map->to, my_rank, comm_size);
+      op_free(partition_pm);
+      return partition;
 #else
       // Error: Library not available
       if (my_rank == MPI_ROOT) printf("ERROR: %s requested but not compiled.\n", partitioner_name);
@@ -2099,10 +1756,6 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
       std::tie(grafptr, partloctab, vertloctab, edgeloctab) =
           setup_ptscotch_data(primary_map, my_rank, comm_size, std::move(adj), part_range);
 
-      // clean up part_range before calling Partitioner
-      for (int i = 0; i < OP_set_index; i++) op_free(part_range[i]);
-      op_free(part_range);
-
       if (my_rank == MPI_ROOT) {
           printf("-----------------------------------------------------------\n");
           printf("PT-Scotch Output\n");
@@ -2113,7 +1766,9 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
           printf("-----------------------------------------------------------\n");
       }
 
-      check_partition(primary_map, partloctab, my_rank, comm_size);
+      int *partition = checked_partition(partloctab, primary_map->to, my_rank, comm_size);
+      op_free(partloctab);
+      return partition;
 #else
       // Error: Library not available
        if (my_rank == MPI_ROOT) printf("ERROR: PTScotch requested but not compiled.\n");
@@ -2124,21 +1779,23 @@ void op_partition_graph_generic(op_map primary_map, const char* partitioner_name
        if (my_rank == MPI_ROOT) printf("ERROR: Unknown partitioner '%s'\n", partitioner_name);
        MPI_Abort(OP_PART_WORLD, 1);
   }
-
-
-  /*-STEP 2 - Partition all other sets,migrate data and renumber mapping tables-*/
-  partition_all(primary_map->to, my_rank, comm_size);
-  migrate_all(my_rank);
-  renumber_maps(my_rank, comm_size);
-  /* Final timing and cleanup */
-  op_timers(&cpu_t2, &wall_t2);
-  time = wall_t2 - wall_t1;
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  MPI_Comm_free(&OP_PART_WORLD);
-  if (my_rank == MPI_ROOT)
-    printf("Max total %s partitioning time = %lf\n", partitioner_name, max_time);
+  return nullptr;
 }
 
+template <class T>
+static void op_partition_graph_generic(op_map primary_map, const char *partitioner_name, op_dat coords = nullptr) {
+#ifdef DEBUG
+  // check if the  primary_map is an on to map from the from-set to the to-set
+  if (is_onto_map(primary_map) != 1) {
+    printf("Map %s is an not an onto map from set %s to set %s \n", primary_map->name, primary_map->from->name,
+           primary_map->to->name);
+    MPI_Abort(OP_MPI_WORLD, 2);
+  }
+#endif
+  partition_with(partitioner_name, primary_map->to, [&](int my_rank, int comm_size, idx_g_t **part_range) {
+    return graph_partition<T>(primary_map, partitioner_name, coords, my_rank, comm_size, part_range);
+  });
+}
 
 // Specializations/Wrappers to call the generic function
 #ifdef HAVE_PARMETIS
