@@ -120,10 +120,10 @@ struct Fpart {
   int target_part;
 };
 
-/* A "to" set element and the partition its "from" element landed in. The two
-   travel together, so they go in one message rather than on two tags. */
-struct ToPart {
-  int elem;
+/* A vote for the partition of a "to" set element, by its global index: the
+   partition of a "from" element that maps to it. */
+struct Vote {
+  idx_g_t to;
   int part;
 };
 
@@ -238,45 +238,6 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size) {
       return i;
   }
   return -1;
-}
-
-/*******************************************************************************
- * Export list for partition_to_set(), from (rank, local index, new partition)
- * triples: grouped by rank, but neither sorted nor deduplicated, since each entry
- * carries its own partition. part_list receives those partitions in list order.
- *******************************************************************************/
-
-static HaloList export_list_from_triples(op_set set, const int *triples,
-                                         int n_ints, std::vector<int> &part_list) {
-  /* Each triple's rank and position packed as rank:position, so one sort groups
-     by rank and keeps each rank's triples in the order given. */
-  const int n = n_ints / 3;
-  std::vector<std::uint64_t> order(n);
-  for (int i = 0; i < n; i++) {
-    assert(triples[3 * i] >= 0);
-    order[i] = (std::uint64_t)triples[3 * i] << 32 | (std::uint32_t)i;
-  }
-  std::sort(order.begin(), order.end());
-
-  std::vector<int> ranks;
-  std::vector<idx_l_t> sizes;
-  std::unique_ptr<idx_l_t[]> list;
-  if (n > 0)
-    list = std::make_unique_for_overwrite<idx_l_t[]>(n);
-  part_list.resize(n);
-  for (int k = 0; k < n; k++) {
-    const int rank = (int)(order[k] >> 32);
-    const int i = (int)(std::uint32_t)order[k];
-    if (ranks.empty() || ranks.back() != rank) {
-      ranks.push_back(rank);
-      sizes.push_back(0);
-    }
-    sizes.back()++;
-    list[k] = triples[3 * i + 1];
-    part_list[k] = triples[3 * i + 2];
-  }
-  return HaloList::from_groups(set, std::move(ranks), std::move(sizes),
-                               std::move(list));
 }
 
 /*******************************************************************************
@@ -417,192 +378,49 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
 
 static int partition_to_set(op_map map, int my_rank, int comm_size,
                             idx_g_t **part_range) {
-  part p_set = OP_part_list[map->from->index];
-
-  int cap = 300;
-  int count = 0;
-  int *temp_list = (int *)xmalloc(cap * sizeof(int));
-
-
-  // go through the map and if any element pointed to by a mapping table entry
-  //(i.e. a "from" set element) is in a foreign partition, add the partition
-  // of the from element to be exported to that mpi foreign process
-  // also collect information about the local "to" elements
-  for (int i = 0; i < map->from->size; i++) {
-    int part;
+  const int *from_part = OP_part_list[map->from->index]->elem_part;
+  idx_g_t *range = part_range[map->to->index];
+  auto owner = [&](const Vote &v) {
     int local_index;
+    return get_partition(v.to, range, &local_index, comm_size, map->to);
+  };
 
-    for (int j = 0; j < map->dim; j++) {
-      part = get_partition(map->map_gbl[i * map->dim + j],
-                           part_range[map->to->index], &local_index, comm_size, map->to);
+  // One vote per mapping table entry, sent to the owner of the element it names.
+  // Sorted, each owner's votes are one run, so one message.
+  std::vector<Vote> votes((std::size_t)map->from->size * map->dim);
+  for (std::size_t k = 0; k < votes.size(); k++)
+    votes[k] = {map->map_gbl[k], from_part[k / map->dim]};
+  auto by_element = [](const Vote &a, const Vote &b) { return a.to != b.to ? a.to < b.to : a.part < b.part; };
+  std::sort(votes.begin(), votes.end(), by_element);
+  auto received = op::mpi::sparse::exchange_by(OP_PART_WORLD, votes, owner);
+  const std::span<Vote> got{received.data.get(), received.size()};
+  std::sort(got.begin(), got.end(), by_element);
 
-      if (part != my_rank) {
-        if (count >= cap) {
-          cap = cap * 3;
-          temp_list = (int *)xrealloc(temp_list, cap * sizeof(int));
-        }
-
-        temp_list[count++] = part; // curent partition (i.e. mpi rank)
-        temp_list[count++] =
-            local_index; // map->map[i*map->dim+j];//global index
-        temp_list[count++] = p_set->elem_part[i]; // new partition
-      }
-    }
-  }
-
-  // the "to" elements' new partitions, exported to each mpi rank, in pe_list order
-  std::vector<int> part_list_e;
-  HaloList pe_list =
-      export_list_from_triples(map->to, temp_list, count, part_list_e);
-  op_free(temp_list);
-
-  /* Built in pe_list order so it matches pe_list's own disps. The spans are
-     taken only once it is fully built; keep it that way, or the reserve stops
-     being an optimisation and becomes the only thing keeping them valid. */
-  std::vector<ToPart> to_parts_payload;
-  to_parts_payload.reserve(pe_list.size());
-  for (int i = 0; i < pe_list.ranks_size(); i++)
-    for (int j = 0; j < pe_list.sizes[i]; j++)
-      to_parts_payload.push_back(ToPart{pe_list.list[pe_list.disps[i] + j],
-                                        part_list_e[pe_list.disps[i] + j]});
-
-  std::vector<op::mpi::msg::BlockView<ToPart>> to_part_messages;
-  to_part_messages.reserve(pe_list.ranks_size());
-  for (int i = 0; i < pe_list.ranks_size(); i++)
-    to_part_messages.emplace_back(pe_list.ranks[i],
-                                  to_parts_payload.data() + pe_list.disps[i],
-                                  (std::size_t)pe_list.sizes[i]);
-
-  auto to_parts = op::mpi::sparse::exchange(OP_PART_WORLD, to_part_messages);
-
-  /* Split each arrival into the element (the import list) and its partition.
-     Filled before the grouping is moved out: to_parts.size() is derived from it. */
-  count = (int)to_parts.size();
-  std::unique_ptr<idx_l_t[]> imported;
-  if (count > 0)
-    imported = std::make_unique_for_overwrite<idx_l_t[]>(count);
-  std::vector<int> part_list_i(count);
-  for (int i = 0; i < count; i++) {
-    imported[i] = to_parts.data[i].elem;
-    part_list_i[i] = to_parts.data[i].part;
-  }
-
-  HaloList pi_list =
-      HaloList::from_groups(map->to, std::move(to_parts.ranks),
-                            std::move(to_parts.counts), std::move(imported));
-
-  //-----go through local mapping table as well as the imported information
-  // and partition the "to" set
-  cap = map->to->size;
-  count = 0;
-  int *to_elems = (int *)xmalloc(sizeof(int) * cap);
-  int *parts = (int *)xmalloc(sizeof(int) * cap);
-
-  //--first the local mapping table
-  int local_index;
-  int part;
-  for (int i = 0; i < map->from->size; i++) {
-    for (int j = 0; j < map->dim; j++) {
-      part = get_partition(map->map_gbl[i * map->dim + j],
-                           part_range[map->to->index], &local_index, comm_size, map->to);
-      if (part == my_rank) {
-        if (count >= cap) {
-          cap = cap * 2;
-          parts = (int *)xrealloc(parts, sizeof(int) * cap);
-          to_elems = (int *)xrealloc(to_elems, sizeof(int) * cap);
-        }
-        to_elems[count] = local_index;
-        parts[count++] = p_set->elem_part[i];
-      }
-    }
-  }
-
-  // copy pi_list.list and part_list_i to to_elems and parts
-  if (count + pi_list.size() > 0) {
-    to_elems = (int *)xrealloc(to_elems, sizeof(int) * (count + pi_list.size()));
-    parts = (int *)xrealloc(parts, sizeof(int) * (count + pi_list.size()));
-  }
-
-  if (pi_list.size() > 0) {
-    memcpy(&to_elems[count], (void *)&pi_list.list[0], pi_list.size() * sizeof(int));
-    memcpy(&parts[count], (void *)part_list_i.data(), pi_list.size() * sizeof(int));
-  }
-
+  // Each element joins the partition most of its votes name, the lowest on a tie.
   int *partition = (int *)xmalloc(sizeof(int) * map->to->size);
-  for (int i = 0; i < map->to->size; i++) {
-    partition[i] = -99;
-  }
-
-  count = count + pi_list.size();
-
-  // sort both to_elems[] and correspondingly parts[] arrays
-  if (count > 0)
-    op_sort_2(to_elems, parts, count);
-
-  if (count > comm_size * 10) {
-    int *part_counter = (int *)xmalloc(comm_size * sizeof(int));
-    for (int i = 0; i < count;) {
-      memset(part_counter, 0, comm_size * sizeof(int));
-      int curr = to_elems[i];
-      do {
-        part_counter[parts[i]]++;
-        i++;
-        if (i >= count)
-          break;
-      } while (curr == to_elems[i]);
-      int maxpos = 0;
-      for (int j = 0; j < comm_size; j++)
-        if (part_counter[maxpos] < part_counter[j])
-          maxpos = j;
-      partition[curr] = maxpos;
-    }
-    free(part_counter);
-  } else {
-    int *found_parts;
-    for (int i = 0; i < count;) {
-      int curr = to_elems[i];
-      int c = 0;
-      cap = map->dim;
-      found_parts = (int *)xmalloc(sizeof(int) * cap);
-
-      do {
-        if (c >= cap) {
-          cap = cap * 2;
-          found_parts = (int *)xrealloc(found_parts, sizeof(int) * cap);
-        }
-        found_parts[c++] = parts[i];
-        i++;
-        if (i >= count)
-          break;
-      } while (curr == to_elems[i]);
-
-      partition[curr] = find_mode(found_parts, c);
-      op_free(found_parts);
-    }
-  }
-
-  if (count + pi_list.size() > 0) {
-    op_free(to_elems);
-    op_free(parts);
-  }
-
-  // check if this "from" set is an "on to" set
-  // need to check this globally on all processors
-  int ok = 1;
-  for (int i = 0; i < map->to->size; i++) {
-    if (partition[i] < 0) {
-      if (OP_diags > 2) {
-        printf("on rank %d: Map %s is not an an on-to mapping \
-            from set %s to set %s\n",
-               my_rank, map->name, map->from->name, map->to->name);
+  std::fill(partition, partition + map->to->size, -1);
+  const idx_g_t first = range[2 * my_rank];
+  for (auto v = got.begin(); v != got.end();) {
+    const auto element_end = std::find_if(v, got.end(), [&](const Vote &w) { return w.to != v->to; });
+    int best = -1;
+    std::ptrdiff_t most = 0;
+    for (auto p = v; p != element_end;) {
+      const auto part_end = std::find_if(p, element_end, [&](const Vote &w) { return w.part != p->part; });
+      if (part_end - p > most) {
+        most = part_end - p;
+        best = p->part;
       }
-      // return -1;
-      ok = -1;
-      break;
+      p = part_end;
     }
+    partition[v->to - first] = best;
+    v = element_end;
   }
 
-  // check if globally this map was giving us an on-to set mapping: -1 if any rank failed
+  // An element nothing voted for means the map is not onto; -1 if so on any rank.
+  int ok = std::find(partition, partition + map->to->size, -1) == partition + map->to->size ? 1 : -1;
+  if (ok < 0 && OP_diags > 2)
+    printf("on rank %d: Map %s is not an on-to mapping from set %s to set %s\n", my_rank, map->name,
+           map->from->name, map->to->name);
   int result = 1;
   MPI_Allreduce(&ok, &result, 1, MPI_INT, MPI_MIN, OP_PART_WORLD);
 
