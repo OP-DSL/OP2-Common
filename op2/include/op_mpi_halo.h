@@ -147,21 +147,19 @@ inline idx_g_t sum_below_rank(idx_g_t n, MPI_Comm comm) {
   return rank == 0 ? 0 : below;  // MPI_Exscan leaves rank 0's result undefined
 }
 
-/* An MPI datatype for one element of a dat, so a transfer's count is elements,
-   not bytes: an int byte count stops at 2 GB, which one neighbour's block of a
-   large dat can pass. Freed with the scope; MPI lets a pending transfer finish
-   with a datatype that has been freed. */
-struct DatElementType {
-  MPI_Datatype type;
-  explicit DatElementType(op_dat dat) {
-    MPI_Type_contiguous(dat->size, MPI_BYTE, &type);
-    MPI_Type_commit(&type);
-  }
-  ~DatElementType() { MPI_Type_free(&type); }
-  DatElementType(const DatElementType &) = delete;
-  DatElementType &operator=(const DatElementType &) = delete;
-  operator MPI_Datatype() const { return type; }
-};
+/* Send each neighbour the rows - row_bytes each, of `rows` - that exp lists for
+   it, and receive the rows imp lists into `into`, grouped as imp lists them. exp
+   and imp must be each other's transpose over comm. Rows are counted in a datatype
+   of one row, so a block is not capped at 2 GB. Collective over comm. */
+void exchange_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, const HaloList &exp,
+                   const HaloList &imp, char *into);
+
+/* Move a set's rows - its part of a dat, a mapping table or g_index - to the ranks
+   elem_part gives them. exp lists the rows leaving, by destination, and imp what
+   arrives, by source. The result holds the rows this rank keeps, in order, then
+   those received. Allocated with xmalloc; null when empty. Collective over comm. */
+char *migrate_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, int n_rows, const int *elem_part,
+                   int my_rank, const HaloList &exp, const HaloList &imp);
 
 #endif /* OP_MPI_CORE_NOMPI */
 

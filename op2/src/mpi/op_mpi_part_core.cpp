@@ -87,8 +87,9 @@ typedef float real_t;
 #include <op_lib_mpi.h>
 #include <op_mpi_halo.h>
 
-using op::mpi::DatElementType;
+using op::mpi::exchange_rows;
 using op::mpi::HaloList;
+using op::mpi::migrate_rows;
 
 // double min/max
 #include <float.h>
@@ -163,39 +164,6 @@ idx_g_t **initialise(int my_rank, int comm_size);
 //
 
 MPI_Comm OP_PART_WORLD;
-
-extern "C++" {
-
-/* Send each neighbour the rows - row_bytes each - that exp lists for it, and
-   receive into `into` the imp.size() rows imp lists, grouped as imp lists them.
-   exp and imp must be each other's transpose. Rows are counted in a datatype of
-   one row, so a block is not capped at 2 GB. */
-static void exchange_rows(const char *rows, std::size_t row_bytes, const HaloList &exp, const HaloList &imp,
-                          char *into) {
-  MPI_Datatype row;
-  MPI_Type_contiguous((int)row_bytes, MPI_BYTE, &row);
-  MPI_Type_commit(&row);
-
-  /* At most one message between two ranks per call, received from a named
-     source, so one tag serves every call: MPI keeps their order. */
-  const int tag = 0;
-  std::vector<MPI_Request> requests(imp.ranks_size() + exp.ranks_size());
-  for (int i = 0; i < imp.ranks_size(); i++)
-    MPI_Irecv(into + imp.disps[i] * row_bytes, imp.sizes[i], row, imp.ranks[i], tag, OP_PART_WORLD, &requests[i]);
-
-  std::vector<char> packed(row_bytes * exp.size());
-  for (int i = 0; i < exp.ranks_size(); i++) {
-    for (idx_l_t j = exp.disps[i]; j < exp.disps[i] + exp.sizes[i]; j++)
-      memcpy(packed.data() + j * row_bytes, rows + (std::size_t)exp.list[j] * row_bytes, row_bytes);
-    MPI_Isend(packed.data() + exp.disps[i] * row_bytes, exp.sizes[i], row, exp.ranks[i], tag, OP_PART_WORLD,
-              &requests[imp.ranks_size() + i]);
-  }
-
-  MPI_Waitall((int)requests.size(), requests.data(), MPI_STATUSES_IGNORE);
-  MPI_Type_free(&row);
-}
-
-}  // extern "C++"
 
 /*******************************************************************************
  * Utility function to find the number of times a value appears in an array
@@ -328,7 +296,7 @@ static int partition_from_set(op_map map, int my_rank, int comm_size,
 
   // fetch the partition of every imported "to" element from its owner
   std::vector<int> imp_part(pi_list.size());
-  exchange_rows((const char *)p_set->elem_part, sizeof(int), pe_list, pi_list, (char *)imp_part.data());
+  exchange_rows(OP_PART_WORLD, (const char *)p_set->elem_part, sizeof(int), pe_list, pi_list, (char *)imp_part.data());
 
   // allocate memory to hold the partition details for the set thats going to be
   // partitioned
@@ -664,30 +632,6 @@ static void renumber_maps(int my_rank, int comm_size) {
   op_free(part_range);
 }
 
-/*******************************************************************************
- * Routine to perform data migration to new partitions
- *******************************************************************************/
-
-extern "C++" {
-
-/* Move a set's rows - its part of a dat, a mapping table or g_index - to the
-   ranks they now belong to. exp lists the rows leaving, by destination, and imp
-   what arrives, by source. The result holds the rows this rank keeps, in order,
-   then those received, straight into place. Allocated with xmalloc; null when
-   empty. */
-static char *migrate_rows(const char *rows, std::size_t row_bytes, int n_rows, const int *elem_part,
-                          int my_rank, const HaloList &exp, const HaloList &imp) {
-  const std::size_t kept = std::count(elem_part, elem_part + n_rows, my_rank);
-  char *out = (char *)xmalloc(row_bytes * (kept + imp.size()));
-  exchange_rows(rows, row_bytes, exp, imp, out + kept * row_bytes);
-  std::size_t k = 0;
-  for (int i = 0; i < n_rows; i++)
-    if (elem_part[i] == my_rank)
-      memcpy(out + (k++) * row_bytes, rows + (std::size_t)i * row_bytes, row_bytes);
-  return out;
-}
-
-}  // extern "C++"
 
 /* Move every set's elements to the ranks partitioning gave them - each dat on
    the set, each mapping table from it, and g_index - then sort them all by
@@ -709,20 +653,20 @@ static void migrate_all(int my_rank) {
     TAILQ_FOREACH(item, &OP_dat_list, entries) {
       op_dat dat = item->dat;
       if (compare_sets(dat->set, set) != 1) continue;
-      char *moved = migrate_rows(dat->data, dat->size, set->size, p->elem_part, my_rank, exp, imp);
+      char *moved = migrate_rows(OP_PART_WORLD, dat->data, dat->size, set->size, p->elem_part, my_rank, exp, imp);
       op_free(dat->data);
       dat->data = moved;
     }
     for (int m = 0; m < OP_map_index; m++) {
       op_map map = OP_map_list[m];
       if (compare_sets(map->from, set) != 1) continue;
-      char *moved = migrate_rows((const char *)map->map_gbl, sizeof(idx_g_t) * map->dim, set->size,
+      char *moved = migrate_rows(OP_PART_WORLD, (const char *)map->map_gbl, sizeof(idx_g_t) * map->dim, set->size,
                                  p->elem_part, my_rank, exp, imp);
       op_free(map->map_gbl);
       map->map_gbl = (idx_g_t *)moved;
     }
-    char *moved = migrate_rows((const char *)p->g_index, sizeof(idx_g_t), set->size, p->elem_part, my_rank, exp,
-                               imp);
+    char *moved = migrate_rows(OP_PART_WORLD, (const char *)p->g_index, sizeof(idx_g_t), set->size, p->elem_part,
+                               my_rank, exp, imp);
     op_free(p->g_index);
     p->g_index = (idx_g_t *)moved;
 
@@ -1780,7 +1724,7 @@ std::vector<std::vector<idx_g_t>> construct_adj_list(op_map primary_map, int my_
   HaloList imp_list = op::mpi::transpose(exp_list, OP_PART_WORLD);
 
   std::vector<idx_g_t> foreign_maps((std::size_t)dim * imp_list.size());
-  exchange_rows((const char *)primary_map->map_gbl, sizeof(idx_g_t) * dim, exp_list, imp_list,
+  exchange_rows(OP_PART_WORLD, (const char *)primary_map->map_gbl, sizeof(idx_g_t) * dim, exp_list, imp_list,
                 (char *)foreign_maps.data());
 
   std::vector<std::vector<idx_g_t>> adj(primary_map->to->size);
