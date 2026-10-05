@@ -618,19 +618,9 @@ static int partition_to_set(op_map map, int my_rank, int comm_size,
     }
   }
 
-  // check if globally this map was giving us an on-to set mapping
-  int *global_ok_array = (int *)xmalloc(comm_size * sizeof(int));
-  for (int r = 0; r < comm_size; r++)
-    global_ok_array[r] = 1;
-  MPI_Allgather(&ok, 1, get_mpi_type(&ok), global_ok_array, 1, get_mpi_type(global_ok_array), OP_PART_WORLD);
+  // check if globally this map was giving us an on-to set mapping: -1 if any rank failed
   int result = 1;
-  for (int r = 0; r < comm_size; r++) {
-    if (global_ok_array[r] < 0) {
-      // printf("Rank %d reported problem partitioning\n",r);
-      result = -1;
-    }
-  }
-  op_free(global_ok_array);
+  MPI_Allreduce(&ok, &result, 1, MPI_INT, MPI_MIN, OP_PART_WORLD);
 
   if (result == 1) {
     OP_part_list[map->to->index]->elem_part = partition;

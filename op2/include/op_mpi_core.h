@@ -204,10 +204,26 @@ MPI_Datatype get_mpi_type() {
 }
 
 template <typename T>
-MPI_Datatype get_mpi_type(T* t) {
+MPI_Datatype get_mpi_type(T*) {
   return get_mpi_type<T>();
 }
 
+/* For a count each rank holds part of, in rank order: the total over all ranks,
+   and this rank's offset - the sum over the ranks below it. One collective each,
+   nothing sized by the number of ranks. */
+inline idx_g_t op_mpi_total(idx_g_t n, MPI_Comm comm) {
+  idx_g_t total = 0;
+  MPI_Allreduce(&n, &total, 1, get_mpi_type(&n), MPI_SUM, comm);
+  return total;
+}
+
+inline idx_g_t op_mpi_offset(idx_g_t n, MPI_Comm comm) {
+  idx_g_t below = 0;
+  MPI_Exscan(&n, &below, 1, get_mpi_type(&n), MPI_SUM, comm);
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  return rank == 0 ? 0 : below;  // MPI_Exscan leaves rank 0's result undefined
+}
 /* Build a HaloList. Named for how a list is built rather than for which list it
    becomes: an export list and the nonexec import list are both built from pairs,
    and halo_list_transpose turns either kind into the other. */

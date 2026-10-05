@@ -2399,44 +2399,9 @@ int op_is_root() {
  * Get the global size of a set
  *******************************************************************************/
 
-idx_g_t op_get_size(op_set set) {
-  int my_rank, comm_size;
+idx_g_t op_get_size(op_set set) { return op_mpi_total(set->size, OP_MPI_WORLD); }
 
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
-  idx_g_t size = set->size;
-  MPI_Allgather(&size, 1, get_mpi_type(&size), 
-                sizes, 1, get_mpi_type(sizes), OP_MPI_WORLD);
-
-  idx_g_t g_size = 0;
-  for (int i = 0; i < comm_size; i++)
-    g_size = g_size + sizes[i];
-
-  op_free(sizes);
-  return g_size;
-}
-
-idx_g_t op_get_global_set_offset(op_set set) {
-  int my_rank, comm_size;
-
-  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-
-  idx_g_t *sizes = (idx_g_t *)xmalloc(sizeof(idx_g_t) * comm_size);
-  idx_g_t size = set->size;
-  MPI_Allgather(&size, 1, get_mpi_type(&size), 
-                sizes, 1, get_mpi_type(sizes), OP_MPI_WORLD);
-
-
-  idx_g_t g_offset = 0;
-  for (int i = 0; i < my_rank; i++)
-    g_offset = g_offset + sizes[i];
-
-  op_free(sizes);
-  return g_offset;
-}
+idx_g_t op_get_global_set_offset(op_set set) { return op_mpi_offset(set->size, OP_MPI_WORLD); }
 
 #ifdef __cplusplus
 }
