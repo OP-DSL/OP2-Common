@@ -1622,8 +1622,8 @@ void op_trigger_halo_exchanges(int device, const char *name, op_set set, int nar
                                op_arg *args) {
   (void)name;
 
-  op_mpi_halo_exchanges_unified(set, nargs, args, device);
-  op_mpi_wait_all_unified(nargs, args);
+  op_mpi_halo_exchanges(set, nargs, args, device);
+  op_mpi_wait_all(nargs, args);
 
   if (device == 1)
     op_mpi_set_dirtybit(nargs, args);

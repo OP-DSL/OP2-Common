@@ -390,10 +390,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_enter("Init")
 
     call op_profile_enter("MPI Exchanges")
-    n_exec = op_mpi_halo_exchanges_unified(set%setcptr, size(args), args, {{config.device}})
+    n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args, {{config.device}})
 {% if lh is direct %}
     {# A direct loop reads no halo: its exchange only brings the dats to this device. #}
-    call op_mpi_wait_all_unified(size(args), args)
+    call op_mpi_wait_all(size(args), args)
 {% endif %}
 
     if (n_exec == 0) then
@@ -401,7 +401,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         call op_profile_exit()
 
 {% if lh is indirect %}
-        call op_mpi_wait_all_unified(size(args), args)
+        call op_mpi_wait_all(size(args), args)
 {% endif %}
 {% for arg in lh.args|gbl|reduction %}
         call op_mpi_reduce_{{type_c(arg)}}(arg{{arg.id}}, arg{{arg.id}}%data)
@@ -558,7 +558,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     do round = 1, {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}
         if (round == 2) then
             call op_profile_next("MPI Wait")
-            call op_mpi_wait_all_unified(size(args), args)
+            call op_mpi_wait_all(size(args), args)
             call op_profile_next("Kernel")
         end if
 
@@ -587,7 +587,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     do col = 1, plan%ncolors
         if (col == plan%ncolors_core + 1) then
             call op_profile_next("MPI Wait")
-            call op_mpi_wait_all_unified(size(args), args)
+            call op_mpi_wait_all(size(args), args)
             call op_profile_next("Kernel")
         end if
 
@@ -610,7 +610,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     if (plan%ncolors_core == plan%ncolors) then
         call op_profile_next("MPI Wait")
-        call op_mpi_wait_all_unified(size(args), args)
+        call op_mpi_wait_all(size(args), args)
         call op_profile_next("Kernel")
     end if
 

@@ -40,13 +40,7 @@
 extern "C" {
 #endif
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-  return set->size;
-}
-
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
   (void)nargs;
   (void)args;
   (void)device;
@@ -63,51 +57,12 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)args;
 }
 
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
-  (void)nargs;
-  (void)args;
-  (void)device;
-}
-
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device){
-  (void)nargs;
-  (void)args;
-  (void)device;
-  return set->size;
-}
-
-void op_mpi_wait_all_unified(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_test_all_unified(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
 void op_mpi_test_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-void op_mpi_test_all_grouped(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-  return set->size;
-}
-
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }

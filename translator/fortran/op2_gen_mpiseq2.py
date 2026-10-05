@@ -321,7 +321,7 @@ def op2_gen_mpiseq2(master, date, consts, kernels, hydra):
     code('call op_timers_core(startTime)')
     code('')
     #mpi halo exchange call
-    code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
+    code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,1)')
 
     code('')
     code('opSetCore => set%setPtr')

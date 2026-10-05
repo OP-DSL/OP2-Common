@@ -325,7 +325,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       code('  int part_size = OP_part_size;')
       code('#endif')
       code('')
-      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 2);')
 
 #
 # direct bit
@@ -336,10 +336,10 @@ def op2_gen_openacc(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('int set_size = op_mpi_halo_exchanges_cuda(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 2);')
       # A direct loop reads no halo: its exchange only brings the dats to this
       # device. Every exchange needs its wait, so it waits at once.
-      code('op_mpi_wait_all_cuda(nargs, args);')
+      code('op_mpi_wait_all(nargs, args);')
 
     code('')
     for g_m in range(0,nargs):
@@ -402,7 +402,7 @@ def op2_gen_openacc(master, date, consts, kernels):
       comm(' execute plan')
       FOR('col','0','Plan->ncolors')
       IF('col==1')
-      code('op_mpi_wait_all_cuda(nargs, args);')
+      code('op_mpi_wait_all(nargs, args);')
       ENDIF()
       code('int start = Plan->col_offsets[0][col];')
       code('int end = Plan->col_offsets[0][col+1];')
@@ -581,7 +581,7 @@ def op2_gen_openacc(master, date, consts, kernels):
     # colour 1 (ncolors stays 0 for an empty set).
     if ninds>0:
       IF('ncolors <= 1')
-      code('op_mpi_wait_all_cuda(nargs, args);')
+      code('op_mpi_wait_all(nargs, args);')
       ENDIF()
 
 #

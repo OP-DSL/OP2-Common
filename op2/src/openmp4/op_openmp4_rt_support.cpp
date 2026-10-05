@@ -260,13 +260,21 @@ void op_download_dat(op_dat dat) {
   }
 }
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) { //TODO itt a download + dirty allitas ekv egy getdata hivassal
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-        args[n].dat->dirty_hd == 2) {
+/* Without MPI there are no halos, so an exchange is only the host/device sync:
+   bring each dat into the space the loop runs in. */
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
+  for (int n = 0; n < nargs; n++) {
+    if (!args[n].opt || args[n].argtype != OP_ARG_DAT)
+      continue;
+    if (device == 1 && args[n].dat->dirty_hd == 2) {
       op_download_dat(args[n].dat);
       args[n].dat->dirty_hd = 0;
     }
+    if (device == 2 && args[n].dat->dirty_hd == 1) {
+      op_upload_dat(args[n].dat);
+      args[n].dat->dirty_hd = 0;
+    }
+  }
   return set->size;
 }
 
@@ -280,16 +288,6 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args) {
   }
 }
 
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  for (int n = 0; n < nargs; n++)
-    if (args[n].opt && args[n].argtype == OP_ARG_DAT &&
-        args[n].dat->dirty_hd == 1) {
-      op_upload_dat(args[n].dat);
-      args[n].dat->dirty_hd = 0;
-    }
-  return set->size;
-}
-
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     if ((args[n].opt == 1) && (args[n].argtype == OP_ARG_DAT) &&
@@ -301,11 +299,6 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 }
 
 void op_mpi_wait_all(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }

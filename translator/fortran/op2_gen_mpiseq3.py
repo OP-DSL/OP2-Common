@@ -383,7 +383,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     DO('i1','bottom','top')
     IF('mod(i1,testfreq).eq.0')
     if grouped:
-      code('call op_mpi_test_all_grouped(argc,args)')
+      code('call op_mpi_test_all(argc,args)')
     else:
       code('call op_mpi_test_all(argc,args)')
     ENDIF()
@@ -483,9 +483,9 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('')
     #mpi halo exchange call
     if grouped:
-      code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)')
+      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,1)')
     else:
-      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
+      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,1)')
 
     code('')
     code('opSetCore => set%setPtr')
@@ -529,7 +529,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
       code('& 0, opSetCore%core_size,numberOfOpDats,opArgArray,testfreq)')
     if grouped:
-      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     else:
       code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     code('CALL op_wrap_'+name+'( &')

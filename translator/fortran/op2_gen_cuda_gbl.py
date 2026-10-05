@@ -1229,7 +1229,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
 
     code('call op_timers_core(startTime)')
     code('')
-    code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
+    code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,2)')
     code('')
 
     if ninds > 0:
@@ -1357,7 +1357,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
 
       DO('i2','0','actualPlan_'+name+'%ncolors')
       IF('i2 .EQ. 1') #actualPlan_'+name+'%ncolors_core')
-      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
       ENDIF()
       code('')
       code('blocksPerGrid = (offset_'+name+'(i2+2) - offset_'+name+'(i2+1)-1)/threadsPerBlock+1')
@@ -1419,7 +1419,7 @@ def op2_gen_cuda_gbl(master, date, consts, kernels, hydra, bookleaf):
 
     code('')
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. set%setPtr%core_size)')
-    code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+    code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     ENDIF()
     code('')
 

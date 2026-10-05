@@ -522,7 +522,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('  int part_size = OP_part_size;')
       code('#endif')
       code('')
-      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 1);')
 
 #
 # direct bit
@@ -533,7 +533,7 @@ def op2_gen_openmp(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 1);')
 
 #
 # start timing

@@ -60,10 +60,10 @@ void op_par_loop_{{lh.name}}(
     if (OP_diags > 2)
         printf(" kernel routine ({{"direct" if lh is direct else "indirect"}}): {{lh.name}}\n");
 
-    int set_size = op_mpi_halo_exchanges_unified(set, num_args_expanded, args_expanded, {{config.device}});
+    int set_size = op_mpi_halo_exchanges(set, num_args_expanded, args_expanded, {{config.device}});
 {% if lh is direct %}
     {# A direct loop reads no halo: its exchange only brings the dats to this device. #}
-    op_mpi_wait_all_unified(num_args_expanded, args_expanded);
+    op_mpi_wait_all(num_args_expanded, args_expanded);
 {% endif %}
 
     op_profile_next("Computation");

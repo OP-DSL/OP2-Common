@@ -839,9 +839,9 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
     code('')
     #mpi halo exchange call
     if host_exec:
-      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
+      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,1)')
     else:
-      code('n_upper = op_mpi_halo_exchanges_cuda(set%setCPtr,numberOfOpDats,opArgArray)')
+      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,2)')
     code('')
 
     code('opSetCore => set%setPtr')
@@ -903,7 +903,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
       DO('i1','0','actualPlan_'+name+'%ncolors')
 
       IF('i1 .EQ. 1') #actualPlan_'+name+'%ncolors_core')
-      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
       ENDIF()
       code('')
 
@@ -972,7 +972,7 @@ def op2_gen_openacc(master, date, consts, kernels, hydra,bookleaf):
     if host_exec:
       code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     else:
-      code('CALL op_mpi_wait_all_cuda(numberOfOpDats,opArgArray)')
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     ENDIF()
 
     if ninds==0:

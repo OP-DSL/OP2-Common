@@ -334,7 +334,7 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
     for (int round = 0; round < {{"3" if lh.args|gbl|reduction|length > 0 else "2"}}; ++round ) {
         if (round == 1) {
             op_profile_next("MPI Wait");
-            op_mpi_wait_all_unified(num_args_expanded, args_expanded);
+            op_mpi_wait_all(num_args_expanded, args_expanded);
             op_profile_next("Computation");
         }
 
@@ -363,7 +363,7 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
     for (int col = 0; col < plan->ncolors; ++col) {
         if (col == plan->ncolors_core) {
             op_profile_next("MPI Wait");
-            op_mpi_wait_all_unified(num_args_expanded, args_expanded);
+            op_mpi_wait_all(num_args_expanded, args_expanded);
             op_profile_next("Computation");
         }
 
@@ -382,7 +382,7 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
 
     if (plan->ncolors_core == plan->ncolors) {
         op_profile_next("MPI Wait");
-        op_mpi_wait_all_unified(num_args_expanded, args_expanded);
+        op_mpi_wait_all(num_args_expanded, args_expanded);
         op_profile_next("Computation");
     }
     {% endif %}

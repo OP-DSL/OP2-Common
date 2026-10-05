@@ -248,7 +248,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('  int part_size = OP_part_size;')
       code('#endif')
       code('')
-      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 1);')
 
 #
 # direct bit
@@ -259,7 +259,7 @@ def op2_gen_openmp_simple(master, date, consts, kernels):
       code('printf(" kernel routine w/o indirection:  '+ name + '");')
       ENDIF()
       code('')
-      code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+      code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 1);')
       # A direct loop reads no halo: its exchange only brings the dats to this
       # device. Every exchange needs its wait, so it waits at once.
       code('op_mpi_wait_all(nargs, args);')

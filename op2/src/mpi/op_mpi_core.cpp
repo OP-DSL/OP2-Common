@@ -2318,65 +2318,6 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   }
 }
 
-/*******************************************************************************
- * The per-dat and grouped exchange entry points
- *
- * translator-v1 code, and anything else written against the older API, calls
- * these. The per-dat and grouped exchanges that implemented them are gone; they
- * now run the unified exchange, which writes the same halo bytes, and keep the
- * two things the old drivers did around it: argument checks under OP_diags, and
- * MPI time charged to the current kernel.
- *******************************************************************************/
-
-static int exchange_via_unified(op_set set, int nargs, op_arg *args, int device) {
-  if (OP_diags > 0) {
-    int dummy;
-    for (int n = 0; n < nargs; n++)
-      op_arg_check(set, n, args[n], &dummy, "halo_exchange mpi");
-  }
-  double cpu_start, wall_start, cpu_end, wall_end;
-  op_timers_core(&cpu_start, &wall_start);
-  const int size = op_mpi_halo_exchanges_unified(set, nargs, args, device);
-  op_timers_core(&cpu_end, &wall_end);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
-  return size;
-}
-
-static void wait_via_unified(int nargs, op_arg *args) {
-  double cpu_start, wall_start, cpu_end, wall_end;
-  op_timers_core(&cpu_start, &wall_start);
-  op_mpi_wait_all_unified(nargs, args);
-  op_timers_core(&cpu_end, &wall_end);
-  if (OP_kern_max > 0)
-    OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
-}
-
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
-  return exchange_via_unified(set, nargs, args, 1);
-}
-
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  return exchange_via_unified(set, nargs, args, 2);
-}
-
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device) {
-  return exchange_via_unified(set, nargs, args, device);
-}
-
-void op_mpi_wait_all(int nargs, op_arg *args) { wait_via_unified(nargs, args); }
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) { wait_via_unified(nargs, args); }
-
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
-  (void)device;
-  wait_via_unified(nargs, args);
-}
-
-void op_mpi_test_all(int nargs, op_arg *args) { op_mpi_test_all_unified(nargs, args); }
-
-void op_mpi_test_all_grouped(int nargs, op_arg *args) { op_mpi_test_all_unified(nargs, args); }
-
 void op_mpi_reset_halos(int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     op_reset_halo(&args[n]);

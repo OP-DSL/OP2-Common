@@ -16,7 +16,7 @@ Backend &backend_for(int device) {
     Backend *backend = (device == 2) ? device_backend() : host_backend();
 
     if (backend == nullptr) {
-        std::printf("op_mpi_halo_exchanges_unified: no unified exchange backend "
+        std::printf("op_mpi_halo_exchanges: no exchange backend "
                     "for device %d in this library\n", device);
         std::exit(-1);
     }
@@ -365,8 +365,8 @@ ExchangeContext ctx;
 // stale halo, and nothing later can tell, so an unpaired call stops the job
 // rather than being tidied up.
 [[noreturn]] void unpaired(const std::string &problem) {
-    std::fprintf(stderr, "OP2: %s. Every halo exchange (op_mpi_halo_exchanges*) must be followed by "
-                         "exactly one wait (op_mpi_wait_all*) before the next exchange.\n", problem.c_str());
+    std::fprintf(stderr, "OP2: %s. Every halo exchange (op_mpi_halo_exchanges) must be followed by "
+                         "exactly one wait (op_mpi_wait_all) before the next exchange.\n", problem.c_str());
     MPI_Abort(OP_MPI_WORLD, 1);
     std::abort();
 }
@@ -375,7 +375,17 @@ ExchangeContext ctx;
 
 using namespace op::unified_exchanges;
 
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device) {
+// MPI time is charged to the kernel being run, and the args are checked under
+// OP_diags, as the older per-dat and grouped exchanges did.
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
+    if (OP_diags > 0) {
+        int dummy;
+        for (int n = 0; n < nargs; ++n)
+            op_arg_check(set, n, args[n], &dummy, "halo exchange");
+    }
+    double cpu_start, wall_start, cpu_end, wall_end;
+    op_timers_core(&cpu_start, &wall_start);
+
     if (ctx.unwaited != nullptr)
         unpaired(std::string("the halo exchange on set '") + ctx.unwaited->name + "' was never waited for");
     ctx.unwaited = set;
@@ -417,18 +427,29 @@ int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int devic
     }
 
     ctx.prepare_and_gather();
+
+    op_timers_core(&cpu_end, &wall_end);
+    if (OP_kern_max > 0)
+        OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
     return size;
 }
 
-void op_mpi_wait_all_unified(int, op_arg *) {
+void op_mpi_wait_all(int, op_arg *) {
+    double cpu_start, wall_start, cpu_end, wall_end;
+    op_timers_core(&cpu_start, &wall_start);
+
     if (ctx.unwaited == nullptr)
         unpaired("a wait with no halo exchange to wait for");
 
     ctx.exchange_and_scatter();
     ctx.unwaited = nullptr;
+
+    op_timers_core(&cpu_end, &wall_end);
+    if (OP_kern_max > 0)
+        OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
 }
 
-void op_mpi_test_all_unified(int, op_arg *) {
+void op_mpi_test_all(int, op_arg *) {
     ctx.test();
 }
 

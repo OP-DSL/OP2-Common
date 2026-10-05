@@ -98,7 +98,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, N, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, N, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -107,7 +107,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
     //for op_arg_idx, set loop counter
     *(int*)(&blank_args[blank_args_size-sizeof(int)]) = n;
     if (n == set->core_size)
-      op_mpi_wait_all_unified(20, args);
+      op_mpi_wait_all(20, args);
     if (n == set->size)
       halo = 1;
     (void)std::initializer_list<int>{
@@ -116,7 +116,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
     kernel(((T *)p_a[I])...);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(N, args);
+    op_mpi_wait_all(N, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(N, args);
@@ -185,14 +185,14 @@ void op_par_loop(void (*kernel)(T0 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 1, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 1, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(1, args);
+      op_mpi_wait_all(1, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -203,7 +203,7 @@ void op_par_loop(void (*kernel)(T0 *), char const *name, op_set set,
     kernel((T0 *)p_a[0]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(1, args);
+    op_mpi_wait_all(1, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(1, args);
@@ -263,14 +263,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 2, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 2, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(2, args);
+      op_mpi_wait_all(2, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -285,7 +285,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
     kernel((T0 *)p_a[0], (T1 *)p_a[1]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(2, args);
+    op_mpi_wait_all(2, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(2, args);
@@ -352,14 +352,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 3, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 3, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(3, args);
+      op_mpi_wait_all(3, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -378,7 +378,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *), char const *name, op_set set,
     kernel((T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(3, args);
+    op_mpi_wait_all(3, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(3, args);
@@ -453,14 +453,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 4, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 4, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(4, args);
+      op_mpi_wait_all(4, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -483,7 +483,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *), char const *name,
     kernel((T0 *)p_a[0], (T1 *)p_a[1], (T2 *)p_a[2], (T3 *)p_a[3]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(4, args);
+    op_mpi_wait_all(4, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(4, args);
@@ -565,14 +565,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 5, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 5, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(5, args);
+      op_mpi_wait_all(5, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -600,7 +600,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *), char const *name,
            (T4 *)p_a[4]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(5, args);
+    op_mpi_wait_all(5, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(5, args);
@@ -689,14 +689,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *),
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 6, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 6, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(6, args);
+      op_mpi_wait_all(6, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -728,7 +728,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *),
            (T5 *)p_a[5]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(6, args);
+    op_mpi_wait_all(6, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(6, args);
@@ -825,14 +825,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *),
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 7, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 7, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(7, args);
+      op_mpi_wait_all(7, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -868,7 +868,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *),
            (T5 *)p_a[5], (T6 *)p_a[6]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(7, args);
+    op_mpi_wait_all(7, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(7, args);
@@ -973,14 +973,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *),
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 8, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 8, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(8, args);
+      op_mpi_wait_all(8, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -1020,7 +1020,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *),
            (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(8, args);
+    op_mpi_wait_all(8, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(8, args);
@@ -1133,14 +1133,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 9, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 9, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(9, args);
+      op_mpi_wait_all(9, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -1184,7 +1184,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T5 *)p_a[5], (T6 *)p_a[6], (T7 *)p_a[7], (T8 *)p_a[8]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(9, args);
+    op_mpi_wait_all(9, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(9, args);
@@ -1305,14 +1305,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 10, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 10, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(10, args);
+      op_mpi_wait_all(10, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -1361,7 +1361,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T9 *)p_a[9]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(10, args);
+    op_mpi_wait_all(10, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(10, args);
@@ -1490,14 +1490,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 11, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 11, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(11, args);
+      op_mpi_wait_all(11, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -1550,7 +1550,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T10 *)p_a[10]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(11, args);
+    op_mpi_wait_all(11, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(11, args);
@@ -1686,14 +1686,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 12, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 12, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(12, args);
+      op_mpi_wait_all(12, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -1750,7 +1750,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T10 *)p_a[10], (T11 *)p_a[11]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(12, args);
+    op_mpi_wait_all(12, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(12, args);
@@ -1893,14 +1893,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 13, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 13, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(13, args);
+      op_mpi_wait_all(13, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -1961,7 +1961,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T10 *)p_a[10], (T11 *)p_a[11], (T12 *)p_a[12]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(13, args);
+    op_mpi_wait_all(13, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(13, args);
@@ -2112,14 +2112,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 14, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 14, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(14, args);
+      op_mpi_wait_all(14, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -2184,7 +2184,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T10 *)p_a[10], (T11 *)p_a[11], (T12 *)p_a[12], (T13 *)p_a[13]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(14, args);
+    op_mpi_wait_all(14, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(14, args);
@@ -2343,14 +2343,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 15, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 15, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(15, args);
+      op_mpi_wait_all(15, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -2420,7 +2420,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T14 *)p_a[14]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(15, args);
+    op_mpi_wait_all(15, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(15, args);
@@ -2587,14 +2587,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 16, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 16, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(16, args);
+      op_mpi_wait_all(16, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -2668,7 +2668,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T14 *)p_a[14], (T15 *)p_a[15]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(16, args);
+    op_mpi_wait_all(16, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(16, args);
@@ -2842,14 +2842,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 17, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 17, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(17, args);
+      op_mpi_wait_all(17, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -2927,7 +2927,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T14 *)p_a[14], (T15 *)p_a[15], (T16 *)p_a[16]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(17, args);
+    op_mpi_wait_all(17, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(17, args);
@@ -3109,14 +3109,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 18, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 18, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(18, args);
+      op_mpi_wait_all(18, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -3198,7 +3198,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T14 *)p_a[14], (T15 *)p_a[15], (T16 *)p_a[16], (T17 *)p_a[17]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(18, args);
+    op_mpi_wait_all(18, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(18, args);
@@ -3388,14 +3388,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 19, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 19, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(19, args);
+      op_mpi_wait_all(19, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -3482,7 +3482,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T18 *)p_a[18]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(19, args);
+    op_mpi_wait_all(19, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(19, args);
@@ -3680,14 +3680,14 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges_unified(set, 20, args, 1);
+  int n_upper = op_mpi_halo_exchanges(set, 20, args, 1);
 
   // loop over set elements
   int halo = 0;
 
   for (int n = 0; n < n_upper; n++) {
     if (n == set->core_size)
-      op_mpi_wait_all_unified(20, args);
+      op_mpi_wait_all(20, args);
     if (n == set->size)
       halo = 1;
     if (args[0].idx < -1)
@@ -3778,7 +3778,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
            (T18 *)p_a[18], (T19 *)p_a[19]);
   }
   if (n_upper == set->core_size || n_upper == 0)
-    op_mpi_wait_all_unified(20, args);
+    op_mpi_wait_all(20, args);
 
   // set dirty bit on datasets touched
   op_mpi_set_dirtybit(20, args);

@@ -351,18 +351,19 @@ void op_download_dat(op_dat dat);
 * Core MPI lib function prototypes
 *******************************************************************************/
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
-
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
+/* The halo exchange around a loop over set. Every exchange must be followed by
+   exactly one op_mpi_wait_all before the next. device is 1 when the loop runs on
+   the host and 2 on a device: it says where each dat's current copy has to be.
+   Returns how many elements of set the loop executes - set->size, plus the exec
+   halo when an indirect arg is written. op_mpi_test_all progresses an exchange
+   that is still outstanding, without waiting for it. */
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device);
+void op_mpi_wait_all(int nargs, op_arg *args);
+void op_mpi_test_all(int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
-
-void op_mpi_wait_all(int nargs, op_arg *args);
-void op_mpi_test_all(int nargs, op_arg *args);
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args);
 
 void op_mpi_reset_halos(int nargs, op_arg *args);
 
@@ -377,16 +378,6 @@ void op_mpi_reduce_int(op_arg *args, int *data);
 void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
-
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device);
-void op_mpi_test_all_grouped(int nargs, op_arg *args);
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
-
-int op_mpi_halo_exchanges_unified(op_set set, int nargs, op_arg *args, int device);
-
-void op_mpi_wait_all_unified(int nargs, op_arg *args);
-
-void op_mpi_test_all_unified(int nargs, op_arg *args);
 
 /* Exchange the halos of args and wait for them, outside of an op_par_loop.
    device is 1 for host, 2 for device, and says where the data is wanted. */

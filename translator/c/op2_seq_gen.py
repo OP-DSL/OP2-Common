@@ -149,7 +149,7 @@ for nargs in range (1,maxargs+1):
     f.write('  op_timers_core(&cpu_t1, &wall_t1);\n\n')
 
     f.write('  // MPI halo exchange and dirty bit setting, if needed\n')
-    f.write('  int n_upper = op_mpi_halo_exchanges(set, '+str(nargs)+', args);\n\n')
+    f.write('  int n_upper = op_mpi_halo_exchanges(set, '+str(nargs)+', args, 1);\n\n')
     f.write('  // loop over set elements\n')
     f.write('  int halo = 0; \n\n')
 
