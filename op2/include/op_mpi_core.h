@@ -319,7 +319,6 @@ void op_partition_geom(op_dat coords);
 
 void op_partition_geomkway(op_dat coords, op_map primary_map);
 
-void op_partition_meshkway(op_map primary_map); // does not work
 #endif
 
 #if defined(HAVE_KAHIP) || defined(HAVE_PARMETIS)
