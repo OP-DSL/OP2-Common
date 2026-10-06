@@ -11,7 +11,7 @@ from multiprocessing import Pool
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import List, Set
 
 import cpp
 import fortran
@@ -339,13 +339,11 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     # unambiguous - `.CUF` semantics (CUDA Fortran) are covered by the
     # `-cuda` compile flag we pass to nvfortran on the app target.
     #
-    # C++ helper compile units (currently only c_seq's per-loop `.cpp`) are
-    # still amalgamated - c_seq isn't wired up in the CMake build so this
-    # code path is exercised only by direct translator use.
+    # Any other per-loop output must be a header: a build compiles only the
+    # master files, whose names are fixed, so nothing would compile a
+    # per-loop source of its own.
     FORTRAN_COMPILE_EXTENSIONS = {".F90", ".CUF", ".inc"}
     PER_LOOP_HEADER_EXTENSIONS = {".hpp", ".h", ".cuh", ".hip.h", ".mod"}
-
-    per_loop_buffers: Dict[Tuple[int, str], List[str]] = {}
 
     for i, (loop, program) in enumerate(app.loops(), 1):
         force_generate = scheme.target == Target.find("seq")
@@ -363,20 +361,14 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         for index, (source, extension) in enumerate(files):
             if extension in FORTRAN_COMPILE_EXTENSIONS:
                 extension = ".F90"  # normalize Fortran per-loop to a uniform extension
-                per_loop = True
-            elif extension in PER_LOOP_HEADER_EXTENSIONS:
-                per_loop = True
             else:
-                per_loop = False
+                assert extension in PER_LOOP_HEADER_EXTENSIONS, f"{scheme}: per-loop {extension} output is not a header"
 
-            if per_loop:
-                name = f"{loop.name}_kernel"
-                if index > 0:
-                    name += f"_aux{index}"
-                path = Path(args.out, scheme.target.name, f"{name}{extension}")
-                write_file(path, source, args)
-            else:
-                per_loop_buffers.setdefault((index, extension), []).append(source)
+            name = f"{loop.name}_kernel"
+            if index > 0:
+                name += f"_aux{index}"
+            path = Path(args.out, scheme.target.name, f"{name}{extension}")
+            write_file(path, source, args)
 
         if not fallback:
             fallback_loops[loop.name] = False
@@ -385,15 +377,6 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         if fallback:
             fallback_loops[loop.name] = True
             logger.warning(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
-
-    # Write the amalgamated per-loop compile-unit files (only c_seq's C++
-    # helpers reach this path today).
-    for (index, extension), sources in per_loop_buffers.items():
-        name = "op2_loop_kernel"
-        if index > 0:
-            name += f"_aux{index}"
-        path = Path(args.out, scheme.target.name, f"{name}{extension}")
-        write_file(path, "\n".join(sources), args)
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:

@@ -252,8 +252,8 @@ class FortranCSeq(Scheme):
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
     consts_template = None
-    loop_host_templates = [Path("fortran/c_seq/loop_host.F90.jinja"), Path("fortran/c_seq/loop_host.cpp.jinja")]
-    master_kernel_templates = [Path("fortran/c_seq/master_kernel.F90.jinja")]
+    loop_host_templates = [Path("fortran/c_seq/loop_host.F90.jinja"), Path("fortran/c_seq/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("fortran/c_seq/master_kernel.F90.jinja"), Path("fortran/c_seq/master_kernel.cpp.jinja")]
 
     def translateKernel(
         self,

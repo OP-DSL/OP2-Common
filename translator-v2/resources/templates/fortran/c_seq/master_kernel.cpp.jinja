@@ -1,0 +1,15 @@
+#include "hydra_const_list_c_seq.h"
+
+#include <op_f2c_prelude.h>
+#include <op_lib_cpp.h>
+#include <op_profile.h>
+
+#include <cstdint>
+#include <cmath>
+#include <cstdio>
+
+namespace f2c = op::f2c;
+
+{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
+#include "{{loop_.name}}_kernel_aux1.hpp"
+{% endfor %}

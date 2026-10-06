@@ -79,18 +79,6 @@ info{{arg.id}}_temp
     {%- endif -%}
 {%- endmacro -%}
 
-#include "hydra_const_list_c_seq.h"
-
-#include <op_f2c_prelude.h>
-#include <op_lib_cpp.h>
-#include <op_profile.h>
-
-#include <cstdint>
-#include <cmath>
-#include <cstdio>
-
-namespace f2c = op::f2c;
-
 namespace op2_m_{{lh.name}}{{variant}} {
 
 {{kernel_func}}}
