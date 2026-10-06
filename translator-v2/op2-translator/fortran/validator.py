@@ -153,8 +153,11 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     # an assumed-shape array (e.g. dat0(1, n) or gbl3(1)).  Fortran only
     # accepts that when the dummy is a scalar - a `dimension(1)` dummy triggers
     # "Element of assumed-shape or pointer array passed to array dummy" at
-    # compile time.  For a dim=N op_arg the dispatch passes dat0(:, n), which
-    # requires the dummy to be a rank-1 array.
+    # compile time.  For a dim=N op_arg the dispatch passes N elements (e.g.
+    # dat0(:, n)), which sequence association lets an explicit-shape dummy of
+    # any rank take - dimension(5, 5) for dim=25 - so long as it has N
+    # elements.  insertStrides and the C translation both index by the dummy's
+    # own shape.
     for idx, arg in enumerate(loop.args):
         if not isinstance(arg, (OP.ArgDat, OP.ArgGbl)):
             continue
@@ -172,7 +175,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
         if len(violations) > 0:
             param_name = kernel_entities[0].parameters[idx]
-            expected = "scalar" if arg_dim == 1 else f"rank-1 array of dimension({arg_dim})"
+            expected = "scalar" if arg_dim == 1 else f"array of {arg_dim} elements"
             printViolations(loop, f"kernel parameter shape mismatch (op_arg dim={arg_dim}, expected {expected})",
                             violations, (idx, param_name))
             loop.fallback = True
@@ -296,11 +299,13 @@ def checkParamShape(func: Function, param_idx: int, arg_dim: int, violations: Li
     """Verify a kernel parameter's declared shape matches the op_arg dimension.
 
     dim=1 op_args require the kernel parameter to be a scalar (no dimension
-    spec).  dim>1 op_args require a rank-1 explicit-shape array of the exact
-    dimension.  Assumed-shape parameters (dimension(:)) are accepted for
-    dim>1 args since parseDimensions returns None for both cases and we
-    can't tell them apart here - those pass silently, matching how the
-    slice check already ignores them.
+    spec).  dim>1 op_args require an explicit-shape array of any rank with
+    exactly dim elements - dimension(25) or dimension(5, 5) for dim=25.  A
+    shape whose size isn't known here (a bound that is not an integer
+    literal, e.g. dimension(nvar)) passes, as do assumed-shape and
+    assumed-size parameters, since parseDimensions returns None for those
+    and for scalars alike - matching how the slice check already ignores
+    them.
     """
     dims = fu.parseDimensions(func, func.parameters[param_idx])
 
@@ -313,12 +318,16 @@ def checkParamShape(func: Function, param_idx: int, arg_dim: int, violations: Li
     else:
         if dims is None:
             return  # scalar or assumed-shape - leave to other checks
-        if len(dims) != 1:
-            violations.append(msg(f"declared with multi-dimensional shape {dims}, must be rank-1 dimension({arg_dim})"))
-        else:
-            lb, ub = dims[0]
-            if lb != "1" or ub != str(arg_dim):
-                violations.append(msg(f"declared dimension {dims}, must be dimension({arg_dim})"))
+
+        size = 1
+        for lb, ub in dims:
+            try:
+                size *= int(ub) - int(lb) + 1
+            except ValueError:
+                return  # not an integer literal - size unknown, nothing to compare
+
+        if size != arg_dim:
+            violations.append(msg(f"declared with shape {dims} of {size} elements, must have {arg_dim}"))
 
 
 def checkConstRead(func: Function, const_ptrs: List[str], violations: List[str]) -> None:
