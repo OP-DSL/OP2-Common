@@ -87,9 +87,12 @@ std::vector<MapHalo> OP_map_halos;
 // global array to hold dirty_bits for op_dats
 //
 
-/*table holding MPI performance of each loop
-  (accessed via a hash of loop name) */
-std::unordered_map<std::string, op_mpi_kernel *> op_mpi_kernel_map;
+/* Time spent in each loop, by loop name */
+struct op_mpi_kernel {
+  double time = 0.0; // total time spent in this kernel (compute + comm - overlap)
+  int count = 0;     // number of times this kernel is called
+};
+static std::unordered_map<std::string, op_mpi_kernel> op_mpi_kernel_map;
 
 //
 // global variables to hold partition information on an MPI rank
@@ -1350,38 +1353,9 @@ void mpi_timing_output() {
     printf("Performance information on rank %d\n", my_rank);
     printf("Kernel        Count  total time(sec)  Avg time(sec)  \n");
 
-    op_mpi_kernel *k;
-    for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end(); it++) {
-      k = it->second;
-      if (k->count > 0) {
-        printf("%-10s  %6d       %10.4f      %10.4f    \n", k->name, k->count,
-               k->time, k->time / k->count);
-
-#ifdef COMM_PERF
-        if (k->num_indices > 0) {
-          printf("halo exchanges:  ");
-          for (int i = 0; i < k->num_indices; i++)
-            printf("%10s ", k->comm_info[i]->name);
-          printf("\n");
-          printf("       count  :  ");
-          for (int i = 0; i < k->num_indices; i++)
-            printf("%10d ", k->comm_info[i]->count);
-          printf("\n");
-          printf("total(Kbytes) :  ");
-          for (int i = 0; i < k->num_indices; i++)
-            printf("%10d ", k->comm_info[i]->bytes / 1024);
-          printf("\n");
-          printf("average(bytes):  ");
-          for (int i = 0; i < k->num_indices; i++)
-            printf("%10d ", k->comm_info[i]->bytes / k->comm_info[i]->count);
-          printf("\n");
-        } else {
-          printf("halo exchanges:  %10s\n", "NONE");
-        }
-        printf("---------------------------------------------------\n");
-#endif
-      }
-    }
+    for (const auto &[name, k] : op_mpi_kernel_map)
+      if (k.count > 0)
+        printf("%-10s  %6d       %10.4f      %10.4f    \n", name.c_str(), k.count, k.time, k.time / k.count);
     printf("___________________________________________________\n");
 
     if (my_rank == MPI_ROOT) {
@@ -1389,18 +1363,13 @@ void mpi_timing_output() {
       printf("\nKernel        Count   Max time(sec)   Avg time(sec)  \n");
     }
 
-    for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end(); it++) {
-      k = it->second;
-      MPI_Reduce(&(k->count), &count, 1, MPI_INT, MPI_MAX, MPI_ROOT,
-                 OP_MPI_IO_WORLD);
-      MPI_Reduce(&(k->time), &avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT,
-                 OP_MPI_IO_WORLD);
-      MPI_Reduce(&(k->time), &tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT,
-                 OP_MPI_IO_WORLD);
+    for (auto &[name, k] : op_mpi_kernel_map) {
+      MPI_Reduce(&k.count, &count, 1, MPI_INT, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
+      MPI_Reduce(&k.time, &avg_time, 1, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_MPI_IO_WORLD);
+      MPI_Reduce(&k.time, &tot_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_MPI_IO_WORLD);
 
       if (my_rank == MPI_ROOT && count > 0) {
-        printf("%-10s  %6d       %10.4f      %10.4f    \n", k->name, count,
-               tot_time, (avg_time) / comm_size);
+        printf("%-10s  %6d       %10.4f      %10.4f    \n", name.c_str(), count, tot_time, avg_time / comm_size);
       }
       tot_time = avg_time = 0.0;
     }
@@ -1412,116 +1381,11 @@ void mpi_timing_output() {
  * Routine to measure timing for an op_par_loop / kernel
  *******************************************************************************/
 void *op_mpi_perf_time(const char *name, double time) {
-  op_mpi_kernel *kernel_entry;
-
-  auto it = op_mpi_kernel_map.find(name);
-  if (it == op_mpi_kernel_map.end()) {
-    kernel_entry = (op_mpi_kernel *)xmalloc(sizeof(op_mpi_kernel));
-    kernel_entry->num_indices = 0;
-    kernel_entry->time = 0.0;
-    kernel_entry->count = 0;
-    strncpy((char *)kernel_entry->name, name, NAMESIZE);
-    op_mpi_kernel_map[name] = kernel_entry;
-  } else {
-    kernel_entry = it->second;
-  }
-
-  kernel_entry->count += 1;
-  kernel_entry->time += time;
-
-  return (void *)kernel_entry;
+  op_mpi_kernel &kernel = op_mpi_kernel_map[name];
+  kernel.count += 1;
+  kernel.time += time;
+  return &kernel;
 }
-#ifdef COMM_PERF
-
-/*******************************************************************************
- * Routine to linear search comm_info array in an op_mpi_kernel for an op_dat
- *******************************************************************************/
-int search_op_mpi_kernel(op_dat dat, op_mpi_kernel *kernal, int num_indices) {
-  for (int i = 0; i < num_indices; i++) {
-    if (strcmp((kernal->comm_info[i])->name, dat->name) == 0 &&
-        (kernal->comm_info[i])->size == dat->size) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-/*******************************************************************************
- * Routine to measure MPI message sizes exchanged in an op_par_loop / kernel
- *******************************************************************************/
-void op_mpi_perf_comm(void *k_i, op_dat dat) {
-  const HaloList &exp_exec_list = OP_set_halos[dat->set->index].export_exec;
-  const HaloList &exp_nonexec_list = OP_set_halos[dat->set->index].export_nonexec;
-  int tot_halo_size =
-      (exp_exec_list.size() + exp_nonexec_list.size()) * (size_t)dat->size;
-
-  op_mpi_kernel *kernel_entry = (op_mpi_kernel *)k_i;
-  int num_indices = kernel_entry->num_indices;
-
-  if (num_indices == 0) {
-    // set capcity of comm_info array
-    kernel_entry->cap = 20;
-    op_dat_mpi_comm_info dat_comm =
-        (op_dat_mpi_comm_info)xmalloc(sizeof(op_dat_mpi_comm_info_core));
-    kernel_entry->comm_info = (op_dat_mpi_comm_info *)xmalloc(
-        sizeof(op_dat_mpi_comm_info *) * (kernel_entry->cap));
-    strncpy((char *)dat_comm->name, dat->name, 20);
-    dat_comm->size = dat->size;
-    dat_comm->index = dat->index;
-    dat_comm->count = 0;
-    dat_comm->bytes = 0;
-
-    // add first values
-    dat_comm->count += 1;
-    dat_comm->bytes += tot_halo_size;
-
-    kernel_entry->comm_info[num_indices] = dat_comm;
-    kernel_entry->num_indices++;
-  } else {
-    int index = search_op_mpi_kernel(dat, kernel_entry, num_indices);
-    if (index < 0) {
-      // increase capacity of comm_info array
-      if (num_indices >= kernel_entry->cap) {
-        kernel_entry->cap = kernel_entry->cap * 2;
-        kernel_entry->comm_info = (op_dat_mpi_comm_info *)xrealloc(
-            kernel_entry->comm_info,
-            sizeof(op_dat_mpi_comm_info *) * (kernel_entry->cap));
-      }
-
-      op_dat_mpi_comm_info dat_comm =
-          (op_dat_mpi_comm_info)xmalloc(sizeof(op_dat_mpi_comm_info_core));
-
-      strncpy((char *)dat_comm->name, dat->name, 20);
-      dat_comm->size = dat->size;
-      dat_comm->index = dat->index;
-      dat_comm->count = 0;
-      dat_comm->bytes = 0;
-
-      // add first values
-      dat_comm->count += 1;
-      dat_comm->bytes += tot_halo_size;
-
-      kernel_entry->comm_info[num_indices] = dat_comm;
-      kernel_entry->num_indices++;
-    } else {
-      kernel_entry->comm_info[index]->count += 1;
-      kernel_entry->comm_info[index]->bytes += tot_halo_size;
-    }
-  }
-}
-#endif
-
-#ifdef COMM_PERF
-void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
-
-  for (int n = 0; n < nargs; n++) {
-    if (args[n].argtype == OP_ARG_DAT && args[n].sent == 2) {
-      op_mpi_perf_comm(k_i, (&args[n])->dat);
-    }
-  }
-}
-#endif
 
 /*******************************************************************************
  * Routine to exit an op2 mpi application -
@@ -1530,17 +1394,7 @@ void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
 void op_mpi_exit() {
   op_mpi_unified_exit();
 
-  // cleanup performance data - need to do this in some op_mpi_exit() routine
-  op_mpi_kernel *kernel_entry;
-  for (auto it = op_mpi_kernel_map.begin(); it != op_mpi_kernel_map.end();) {
-    kernel_entry = it->second;
-#ifdef COMM_PERF
-    for (int i = 0; i < kernel_entry->num_indices; i++)
-      op_free(kernel_entry->comm_info[i]); 
-#endif
-    it = op_mpi_kernel_map.erase(it);
-    op_free(kernel_entry);
-  }
+  op_mpi_kernel_map.clear();
 
   // free memory allocated to halos
   op_halo_destroy();

@@ -353,21 +353,7 @@ OP2 provides two timer routines:
 - ``op_timers_core()`` (``op2/src/core/op_lib_core.cpp``) — elapsed time on a single MPI process.
 - ``op_timers()`` (``op2/src/mpi/op_mpi_decl.cpp``) — includes an implicit ``MPI_Barrier`` to measure wall time across the whole MPI universe.
 
-Per-loop statistics are accumulated in an ``op_mpi_kernel`` struct:
-
-.. code-block:: c
-
-   typedef struct {
-       UT_hash_handle hh;              // uthash intrusive handle
-       char name[NAMESIZE];            // kernel name
-       double time;                    // total compute + comm-overlap time
-       int count;                      // number of kernel invocations
-       int num_indices;                // number of op_dat communication entries
-       op_dat_mpi_comm_info *comm_info;// per-dat MPI communication info
-       int cap;                        // capacity of comm_info array
-   } op_mpi_kernel;
-
-MPI message monitoring can be enabled at compile time with ``-DCOMM_PERF``.  On ``op_exit()``, all halo lists and performance-measurement tables are freed.
+``op_mpi_perf_time()`` accumulates each loop's call count and time in a table keyed by loop name (``op2/src/mpi/op_mpi_core.cpp``), printed by ``op_timing_output()``.  On ``op_exit()``, all halo lists and performance-measurement tables are freed.
 
 
 HDF5 File I/O

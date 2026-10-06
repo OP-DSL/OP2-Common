@@ -459,14 +459,6 @@ void *op_mpi_perf_time(const char *name, double time) {
   return (void *)name;
 }
 
-#ifdef COMM_PERF
-void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
-  (void)k_i;
-  (void)nargs;
-  (void)args;
-}
-#endif
-
 void op_mpi_reduce_float(op_arg *args, float *data) {
   (void)args;
   (void)data;

@@ -190,8 +190,7 @@ typedef struct {
   char const *type; /* datatype */
   op_access acc;
   op_arg_type argtype;
-  int sent; /* flag to indicate if this argument has
-               data in flight under non-blocking MPI comms*/
+  int sent; /* unused, always 0; kept so the layout matches the Fortran op_arg */
   int opt;  /* flag to indicate if this argument is in use */
 } op_arg;
 
@@ -398,9 +397,6 @@ void op_partition(const char *lib_name, const char *lib_routine,
 void op_partition_destroy();
 
 void *op_mpi_perf_time(const char *name, double time);
-#ifdef COMM_PERF
-void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args);
-#endif
 
 void op_renumber(op_map base);
 

@@ -128,12 +128,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 20, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
   (void)std::initializer_list<int>{
       (arguments.idx < -1 ? free(p_a[I]), 0 : 0)...};
 }
@@ -214,12 +209,7 @@ void op_par_loop(void (*kernel)(T0 *), char const *name, op_set set,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 1, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -297,12 +287,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 2, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -391,12 +376,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *), char const *name, op_set set,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 3, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -497,12 +477,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *), char const *name,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 4, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -615,12 +590,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *), char const *name,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 5, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -744,12 +714,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *),
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 6, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -885,12 +850,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *),
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 7, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1038,12 +998,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *),
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 8, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1203,12 +1158,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 9, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1381,12 +1331,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 10, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1571,12 +1516,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 11, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1772,12 +1712,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 12, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1984,12 +1919,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 13, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2208,12 +2138,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 14, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2445,12 +2370,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 15, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2694,12 +2614,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 16, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2954,12 +2869,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 17, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -3226,12 +3136,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 18, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -3511,12 +3416,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 19, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -3808,12 +3708,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 20, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
