@@ -380,7 +380,7 @@ Supported partitioners:
 - **User-defined:** ``op_partition_external()`` — partitioning array supplied externally via an ``op_dat``.
 - **Random:** ``op_partition("RANDOM", ...)`` — for debugging only.
 
-The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.  A map entry may name an element that now lives on any rank, so ``renumber_maps()`` looks such elements up in a directory: each set's original indices are split into equal blocks, one per rank, every rank registers the elements it holds with the block that covers them, and asks those blocks for the elements its maps reach.  No step holds data proportional to the number of ranks.
+The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.  A map entry may name an element that now lives on any rank, so ``renumber_maps()`` looks such elements up in a directory: each set's original indices are split into equal blocks, one per rank, every rank registers the elements it holds with the block that covers them, and asks those blocks for the elements its maps reach.  Beyond each set's ``PartRange`` - one starting index per rank, which ParMETIS takes as well - no step holds data proportional to the number of ranks.
 
 Mesh Renumbering
 ~~~~~~~~~~~~~~~~
@@ -388,7 +388,7 @@ Mesh Renumbering
 OP2 implements a mesh renumbering routine using the Gibbs–Poole–Stockmeyer algorithm from PT-Scotch (``op2/src/externlib/op_renumber.cpp``) to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.
 
 .. note::
-   This renumbering currently runs only on a single node (no MPI support).  The recommended workflow is: read an unoptimised mesh into an HDF5 file, apply renumbering to produce an optimised mesh HDF5 file, and use that optimised file for both single-node and distributed-memory runs.
+   ``op_renumber()`` reorders only in the MPI libraries, after ``op_partition()``: each rank reorders its own core elements and every rank then refreshes its import lists.  In the single-node libraries it does nothing.
 
 
 Heterogeneous and Hybrid Backends
@@ -403,34 +403,33 @@ To overlap computation with communication on the GPU, the execution is split int
 
 .. code-block:: text
 
-   trigger non-blocking MPI halo exchanges for all dirty op_dats
+   op_mpi_halo_exchanges: launch one gather kernel that packs the export halo of
+                          every dirty op_dat, one block per neighbour rank
+                          post the non-blocking receives
 
    round 0: execute GPU kernel over core elements [0, core_size)
-            (no halo data needed — overlaps with MPI communication)
-   round 1: wait for all MPI communications to complete
-            copy import halo data from host to GPU
+            (no halo data needed - overlaps with the gather and the messages)
+   round 1: op_mpi_wait_all: once the gather has finished, send the blocks
+                             wait for the receives
+                             launch one scatter kernel that unpacks every
+                             received block into the op_dats' halos
             execute GPU kernel over exec-halo elements [core_size, size + exec_size)
 
 With the legacy **color2** strategy, the execution uses block colours to achieve the same overlap:
 
 .. code-block:: text
 
-   for each op_dat requiring a halo exchange:
-       execute CUDA kernel to gather export halo data
-       copy export halo data from GPU to host
-       start non-blocking MPI communication
+   op_mpi_halo_exchanges (as above)
 
    for each colour i:
        if colour == ncolors_core:
-           wait for all MPI communications to complete
-           for each op_dat requiring a halo exchange:
-               copy import halo data from host to GPU
+           op_mpi_wait_all (as above)
        execute CUDA kernel for colour-i mini-partitions
 
 In both variants, the key property is that ``ncolors_core`` (atomics) or the core-element range marks the boundary between locally-computable work and halo-dependent work.
 
 .. note::
-   The above uses PCIe-bridged GPU ↔ host copies for halo data.  When built with GPUDirect support, the intermediate host copy is eliminated and MPI send/receive operations transfer data directly between GPUs over the network fabric.
+   When the MPI library can send from device memory - detected at start-up, or set with ``OP2_GPU_DIRECT`` (see :doc:`perf`) - the blocks go to MPI straight from the GPU.  Otherwise they are staged through pinned host buffers: one copy to the host after the gather, one back before the scatter.
 
 CPU Cluster (MPI + OpenMP)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

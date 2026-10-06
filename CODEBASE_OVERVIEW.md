@@ -107,8 +107,11 @@ OP2-Common/
 | `op_cuda_rt_support.h` | CUDA runtime functions (device init, memory allocation/transfer) |
 | `op_cuda_reduction.h` | GPU reduction templates using shared memory (INC, MAX, MIN, WRITE) |
 | `op_gpu_shims.h` | Unified GPU shim layer mapping `gpu*` macros to CUDA or HIP |
-| `op_mpi_core.h` | MPI halo data structures: `halo_list`, import/export lists, MPI comms |
-| `op_lib_mpi.h` | MPI runtime state: exec/non-exec halo lists, partition tables |
+| `op_lib_mpi.h` | MPI-only application API (HDF5 declarations); includes `op_mpi_core.h` |
+| `op_mpi_core.h` | MPI library entry points: halo creation, partitioning, `op_mpi_get_data`/`put_data`, timing |
+| `op_mpi_halo.h` | Internal to the MPI libraries: halo lists (`op::mpi::HaloList`, `SetHalo`, `MapHalo`), partition tables, `exchange_rows`/`migrate_rows` |
+| `op_mpi_comm.h` | Internal: the sparse data exchange (`op::mpi::sparse::exchange`, NBX) the MPI layer builds its lists with |
+| `op_mpi_unified_exchanges.h` | Internal: the halo exchange's gather/scatter specs, shared by the host and device backends |
 | `op_hdf5.h` | Parallel HDF5 I/O API |
 | `op_profile.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
 | `op_util.h` | Utility functions |
@@ -127,12 +130,14 @@ OP2-Common/
 | `openmp4/op_openmp4_decl.cpp` | OpenMP 4.0 device-offload backend |
 | `cuda/op_cuda_decl.cpp` | CUDA backend declarations |
 | `cuda/op_cuda_rt_support.cpp` | CUDA runtime support (memory, device initialization) |
-| `mpi/op_mpi_core.cpp` | MPI halo creation and exchange |
+| `mpi/op_mpi_core.cpp` | MPI halo creation, `op_mpi_get_data`/`put_data`, global reductions |
+| `mpi/op_mpi_unified_exchanges.cpp` | The runtime halo exchange (`op_mpi_halo_exchanges`, `op_mpi_wait_all`) |
+| `mpi/op_mpi_unified_host.cpp` | Host gather/scatter for the halo exchange |
 | `mpi/op_mpi_decl.cpp` | MPI backend declarations (wraps sequential backend) |
 | `mpi/op_mpi_hdf5.cpp` | Parallel HDF5 I/O |
 | `mpi/op_mpi_part_core.cpp` | Mesh partitioning (PTScotch, ParMETIS, KaHIP, Inertial) |
 | `mpi/op_mpi_cuda_decl.cpp` | MPI+CUDA combined backend |
-| `mpi/op_mpi_cuda_kernels.cu` | CUDA kernels for GPU-side halo packing/unpacking |
+| `mpi/op_mpi_cuda_unified_kernels.cu` | Device gather/scatter for the halo exchange: one kernel each per exchange |
 | `externlib/` | Bundled external libraries |
 | `fortran/` | Fortran interop wrapper layers |
 
@@ -351,7 +356,7 @@ All backends have an MPI variant (e.g. `mpi_seq`, `mpi_openmp`, `mpi_cuda`).
 **Halo exchange model:**
 - Exec-halo elements (EEH/IEH): mesh elements on the boundary between MPI ranks that are accessed but owned by a remote rank.
 - Non-exec-halo elements (INH/ENH): ghost-cell data required for correctness of indirect accesses.
-- Full exchange implemented in `op2/src/mpi/op_mpi_core.cpp`.
+- Halo lists built in `op2/src/mpi/op_mpi_core.cpp`; the exchange itself is `op2/src/mpi/op_mpi_unified_exchanges.cpp`.
 
 **Mesh partitioning methods:**
 - `PTScotch`: graph-based (K-way) — recommended
@@ -505,7 +510,7 @@ MATLAB scripts in `apps/mesh_generators/`:
 | Dependency | Minimum Version | Notes |
 |---|---|---|
 | GNU Make | ≥ 4.2 | The build system |
-| C/C++ compiler | C++17 support | GCC, Clang, Intel oneAPI, Cray, IBM XL, NVHPC |
+| C/C++ compiler | C++20 support | GCC, Clang, Intel oneAPI, Cray, IBM XL, NVHPC |
 
 ### Optional
 
