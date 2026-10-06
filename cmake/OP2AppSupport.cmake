@@ -34,7 +34,7 @@ include(GNUInstallDirs)
 # ---------------------------------------------------------------------------
 
 set(_op2_variants_cpp seq genseq openmp cuda hip c_cuda c_hip CACHE INTERNAL "")
-set(_op2_variants_fortran seq genseq openmp cuda c_cuda c_hip CACHE INTERNAL "")
+set(_op2_variants_fortran seq genseq openmp cuda c_seq c_cuda c_hip CACHE INTERNAL "")
 
 macro(_op2_defvariant lang var needs xt lib mpilib msrc mlang extra)
     set(_op2_variant_${lang}_${var}_needs         "${needs}"  CACHE INTERNAL "")
@@ -57,6 +57,7 @@ _op2_defvariant(fortran seq     ""               ""       "op2::op2_for_seq"    
 _op2_defvariant(fortran genseq  ""               "seq"    "op2::op2_for_seq"     "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90")
 _op2_defvariant(fortran openmp  "openmp_fortran" "openmp" "op2::op2_for_openmp"  "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90")
 _op2_defvariant(fortran cuda    "cuda_fortran"   "cuda"   "op2::op2_for_cuda"    "op2::op2_for_mpi_cuda" "op2_kernels.F90" "Fortran"   "op2_consts.F90")
+_op2_defvariant(fortran c_seq   ""               "c_seq"  "op2::op2_for_seq"     "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cpp")
 _op2_defvariant(fortran c_cuda  "cuda"           "c_cuda" "op2::op2_for_cuda"    "op2::op2_for_mpi_cuda" "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cu")
 _op2_defvariant(fortran c_hip   "hip"            "c_hip"  "op2::op2_for_hip"     "op2::op2_for_mpi_hip"  "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.hip.cpp")
 

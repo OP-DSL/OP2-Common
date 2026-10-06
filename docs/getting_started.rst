@@ -154,6 +154,8 @@ Fortran application variants are prefixed with ``f_``:
      - OpenMP multi-threaded Fortran build.
    * - ``f_cuda``
      - Native CUDA Fortran build. Requires a CUDA Fortran-capable compiler (NVHPC).
+   * - ``f_c_seq``
+     - Fortran interop with sequential C++ kernels.
    * - ``f_c_cuda``
      - Fortran interop with JIT CUDA kernels (recommended GPU target for Fortran).
    * - ``f_c_hip``

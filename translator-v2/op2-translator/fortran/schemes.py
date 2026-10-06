@@ -251,7 +251,7 @@ class FortranCSeq(Scheme):
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = None
+    consts_template = Path("fortran/c_seq/consts.F90.jinja")
     loop_host_templates = [Path("fortran/c_seq/loop_host.F90.jinja"), Path("fortran/c_seq/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("fortran/c_seq/master_kernel.F90.jinja"), Path("fortran/c_seq/master_kernel.cpp.jinja")]
 
@@ -279,7 +279,12 @@ class FortranCSeq(Scheme):
         for entity in [kernel_entity] + dependencies:
             ftk.removeExternals(entity)
 
-        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config)
+        const_rename = None
+        if self.lang.user_consts_module is None:
+            const_rename = lambda const: f"op2_const_{const}"
+            ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, const_rename)
+
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
         return ftk_c.translate(info)
 
 

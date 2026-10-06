@@ -685,6 +685,8 @@ Fortran application variants are prefixed with ``f_`` in the Make build system:
      - OpenMP multi-threaded Fortran build.
    * - ``f_cuda``
      - Native CUDA Fortran build (requires NVHPC).
+   * - ``f_c_seq``
+     - Fortran + C++ sequential build.
    * - ``f_c_cuda``
      - Fortran + C CUDA JIT build (recommended GPU target).
    * - ``f_c_hip``
