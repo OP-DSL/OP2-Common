@@ -283,7 +283,11 @@ namespace detail {
  *   have cleared exchange k+1's barrier, which cannot happen until the straggler
  *   has entered exchange k+1 and therefore left exchange k's loop.
  *
- * The counter is consistent across ranks because exchange is collective. */
+ * The counter is consistent across ranks because exchange is collective.
+ *
+ * Other OP2 traffic may share the private communicator if it receives from named
+ * sources on tags the exchange never uses (0 and 1 are probed from any source, 2
+ * carries payloads): exchange_rows uses 3, the halo exchange 0x7000 and up. */
 struct CommState {
   MPI_Comm comm;
   unsigned generation;

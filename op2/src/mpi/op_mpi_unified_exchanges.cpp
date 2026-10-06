@@ -2,6 +2,7 @@
 #include <op_mpi_unified_backend.h>
 
 #include <op_lib_mpi.h>
+#include <op_mpi_comm.h>
 #include <op_mpi_halo.h>
 
 #include <vector>
@@ -100,13 +101,13 @@ struct Block {
     void *data;
     size_t size;
 
-    void send(int neighbour, MPI_Request *request, int tag) {
-        int err = MPI_Isend(data, size, MPI_CHAR, neighbour, tag, OP_MPI_WORLD, request);
+    void send(int neighbour, MPI_Request *request, int tag, MPI_Comm comm) {
+        int err = MPI_Isend(data, size, MPI_CHAR, neighbour, tag, comm, request);
         assert(err == MPI_SUCCESS);
     }
 
-    void recv(int neighbour, MPI_Request *request, int tag) {
-        int err = MPI_Irecv(data, size, MPI_CHAR, neighbour, tag, OP_MPI_WORLD, request);
+    void recv(int neighbour, MPI_Request *request, int tag, MPI_Comm comm) {
+        int err = MPI_Irecv(data, size, MPI_CHAR, neighbour, tag, comm, request);
         assert(err == MPI_SUCCESS);
     }
 };
@@ -118,6 +119,10 @@ struct ExchangeContext {
     // receives the halo is the one that becomes current (see exchange_and_scatter).
     int device = 1;
 
+    // OP2's private communicator, the sparse exchange's, so a receive the
+    // application posts on its own communicator cannot take a halo message. The
+    // tags are clear of the ones the sparse exchange and exchange_rows use.
+    MPI_Comm comm = MPI_COMM_NULL;
     static constexpr int tag_ini = 0x7000;
     static constexpr int tag_max = 0x8000;
     int tag = tag_ini;
@@ -154,6 +159,9 @@ struct ExchangeContext {
         this->device = device;
         this->exec = exec;
 
+        // Every rank resets for every exchange, so the communicator is created
+        // collectively if halo creation has not already made it.
+        comm = op::mpi::detail::comm_state(OP_MPI_WORLD).comm;
         tag++;
         if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
 
@@ -289,7 +297,7 @@ struct ExchangeContext {
 
         auto send_index = 0;
         for (auto [neighbour, block] : send_blocks) {
-            block.send(neighbour, &send_reqs[send_index], tag);
+            block.send(neighbour, &send_reqs[send_index], tag, comm);
             ++send_index;
         }
     }
@@ -299,7 +307,7 @@ struct ExchangeContext {
 
         auto recv_index = 0;
         for (auto [neighbour, block] : recv_blocks) {
-            block.recv(neighbour, &recv_reqs[recv_index], tag);
+            block.recv(neighbour, &recv_reqs[recv_index], tag, comm);
             ++recv_index;
         }
     }
