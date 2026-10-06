@@ -230,7 +230,7 @@ class Fortran(Lang):
             self.fpp = fpp
             logger.debug(f"Using packaged fpp for Fortran parsing: {fpp}")
         else:
-            logger.debug(f"Packaged fpp not found at {fpp} - falling back to pcpp for Fortran preprocessing")
+            logger.warning(f"Packaged fpp not found at {fpp} - falling back to pcpp for Fortran preprocessing")
 
     def validate(self, app: Application) -> None:
         # TODO: see fortran.parser
