@@ -212,11 +212,9 @@ static int compare_all_sets(op_set target_set, op_set other_sets[], int size) {
  * Routine to force adjacent elements to the same partition
  *******************************************************************************/
 static void partition_force(op_set primary_set, op_map map, const std::vector<PartRange> &part_range) {
-  if (map->to->index != primary_set->index) {
-    printf("Error in partition_force: map target set (%d) does not match primary set (%d)\n",
-        map->to->index, primary_set->index);
-    exit(-1);
-  }
+  if (map->to->index != primary_set->index)
+    fail("Error in partition_force: map %s goes to set %s, not to the primary set %s\n", map->name, map->to->name,
+         primary_set->name);
 
   part primary_set_part = OP_part_list[primary_set->index];
 
@@ -1220,15 +1218,13 @@ extern "C" void op_partition_ptr(const char *lib_name, const char *lib_routine, 
         break;
       }
     if (item_dat == NULL)
-      printf("ERROR in op_partition: op_dat not found for dat with %p pointer\n", (void *)coords);
+      fail("Error in op_partition: no op_dat was declared from the coordinates at %p\n", (void *)coords);
   }
 
   op_map item_map = op_search_map_ptr(prime_map);
 
-  if (item_map == NULL) {
-    printf("ERROR in op_partition: op_map not found for %p pointer\n", (void*)prime_map);
-    exit(-1);
-  }
+  if (item_map == NULL)
+    fail("Error in op_partition: no op_map was declared from the map at %p\n", (void *)prime_map);
 
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
 }

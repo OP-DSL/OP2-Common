@@ -549,8 +549,8 @@ void op_halo_create() {
       else if ((at = position_of(halo.import_nonexec, part, local_index)) >= 0)
         map->map[k] = set->size + halo.import_exec.size() + at;
       else
-        printf("ERROR: Set %10s Element %d needed on rank %d from partition %d\n", set->name, local_index, my_rank,
-               part);
+        fail("Error: element %d of set %s, held by rank %d, is not in rank %d's halo (map %s)\n", local_index,
+             set->name, part, my_rank, map->name);
     }
     free(map->map_gbl);
     map->map_gbl = NULL;

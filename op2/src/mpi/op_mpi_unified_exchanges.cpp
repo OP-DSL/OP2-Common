@@ -17,11 +17,8 @@ namespace op::unified_exchanges {
 Backend &backend_for(int device) {
     Backend *backend = (device == 2) ? device_backend() : host_backend();
 
-    if (backend == nullptr) {
-        std::printf("op_mpi_halo_exchanges: no exchange backend "
-                    "for device %d in this library\n", device);
-        std::exit(-1);
-    }
+    if (backend == nullptr)
+        op::mpi::fail("op_mpi_halo_exchanges: no exchange backend for device %d in this library\n", device);
 
     return *backend;
 }
@@ -374,10 +371,8 @@ ExchangeContext ctx;
 // stale halo, and nothing later can tell, so an unpaired call stops the job
 // rather than being tidied up.
 [[noreturn]] void unpaired(const std::string &problem) {
-    std::fprintf(stderr, "OP2: %s. Every halo exchange (op_mpi_halo_exchanges) must be followed by "
-                         "exactly one wait (op_mpi_wait_all) before the next exchange.\n", problem.c_str());
-    MPI_Abort(OP_MPI_WORLD, 1);
-    std::abort();
+    op::mpi::fail("OP2: %s. Every halo exchange (op_mpi_halo_exchanges) must be followed by "
+                  "exactly one wait (op_mpi_wait_all) before the next exchange.\n", problem.c_str());
 }
 
 }  // namespace op::unified_exchanges
