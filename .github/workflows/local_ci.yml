@@ -49,7 +49,7 @@ jobs:
       # runner image having them installed.
       - name: Provide a Python for the translator
         run: |
-          if python3 -c "import jinja2, fparser, pcpp, sympy, clang.cindex" 2>/dev/null; then
+          if python3 -c "import jinja2, fparser, pcpp, clang.cindex" 2>/dev/null; then
             echo "Using runner python3: $(command -v python3)"
             echo "OP2_PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
           else
@@ -64,7 +64,7 @@ jobs:
         run: |
           echo "OP2_PYTHON=$OP2_PYTHON"
           "$OP2_PYTHON" --version
-          "$OP2_PYTHON" -c "import jinja2, fparser, pcpp, sympy, clang.cindex; print('translator deps OK')"
+          "$OP2_PYTHON" -c "import jinja2, fparser, pcpp, clang.cindex; print('translator deps OK')"
 
       # 4. Configure OP2 ---------------------------------------
       - name: Configure OP2

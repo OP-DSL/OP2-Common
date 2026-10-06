@@ -21,7 +21,7 @@ endif()
 
 # Hand-maintained against translator-v2/requirements.txt.  Import names match
 # the PyPI names lowercased, except libclang -> clang.cindex.
-set(_op2_translator_imports jinja2 fparser pcpp sympy clang.cindex)
+set(_op2_translator_imports jinja2 fparser pcpp clang.cindex)
 list(JOIN _op2_translator_imports "; import " _op2_translator_import_stmt)
 set(_op2_translator_import_stmt "import ${_op2_translator_import_stmt}")
 
