@@ -11,9 +11,10 @@
 #   1. $OP2_PYTHON            - explicit env override
 #   2. $(command -v python3)  - system Python on PATH
 #
-# In all cases the chosen Python must already have jinja2, fparser, pcpp,
-# sympy, and libclang importable, otherwise this script prints how to fix it
-# and exits 1.
+# In all cases the chosen Python must already have jinja2, fparser, pcpp and
+# sympy importable, otherwise this script prints how to fix it and exits 1.
+# libclang is left to the translator, which imports it only for C++ input, so
+# a Python without it can still translate Fortran.
 
 set -e
 
@@ -30,7 +31,7 @@ if [ -z "$PY" ]; then
     exit 1
 fi
 
-if ! "$PY" -c "import jinja2, fparser, pcpp, sympy; import clang.cindex" &> /dev/null; then
+if ! "$PY" -c "import jinja2, fparser, pcpp, sympy" &> /dev/null; then
     cat >&2 <<EOF
 op2-translator: $PY is missing required Python dependencies.
 

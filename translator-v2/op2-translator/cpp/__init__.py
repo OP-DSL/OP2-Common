@@ -14,25 +14,9 @@ import op as OP
 from language import Lang
 from store import Application, Location, ParseError, Program
 
-import clang.cindex
-
 logger = logging.getLogger(__name__)
 
-# libclang diagnostic severities (clang.cindex.Diagnostic.{Ignored,Note,Warning,Error,Fatal})
-# mapped to logging levels.
-_DIAGNOSTIC_LEVELS = {
-    clang.cindex.Diagnostic.Ignored: logging.DEBUG,
-    clang.cindex.Diagnostic.Note: logging.DEBUG,
-    clang.cindex.Diagnostic.Warning: logging.WARNING,
-    clang.cindex.Diagnostic.Error: logging.ERROR,
-    clang.cindex.Diagnostic.Fatal: logging.ERROR,
-}
-
 SYSTEM_INCLUDES = None
-
-libclang_path = os.getenv("LIBCLANG_PATH")
-if libclang_path is not None:
-    clang.cindex.Config.set_library_file(libclang_path)
 
 
 class Preprocessor(pcpp.Preprocessor):
@@ -75,6 +59,8 @@ class Cpp(Lang):
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
     ) -> Tuple[Any, str]:
+        import cpp.parser
+
         global SYSTEM_INCLUDES
 
         # Query system compiler for include dirs - should work as long as GCC/Clang turns up as "c++"
@@ -110,18 +96,7 @@ class Cpp(Lang):
             source_io.seek(0)
             source = source_io.read()
 
-        translation_unit = clang.cindex.Index.create().parse(
-            path,  # type: ignore
-            unsaved_files=[(path, source)],  # type: ignore
-            args=args,
-            options=clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
-        )
-
-        for diagnostic in iter(translation_unit.diagnostics):
-            # if diagnostic.severity >= clang.cindex.Diagnostic.Error:
-            #     raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
-
-            logger.log(_DIAGNOSTIC_LEVELS.get(diagnostic.severity, logging.WARNING), str(diagnostic))
+        translation_unit = cpp.parser.parseTranslationUnit(path, source, args)
 
         return translation_unit, source
 

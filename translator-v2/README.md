@@ -9,6 +9,8 @@ kernel dispatch code. It's invoked automatically by the CMake app-build helper
 - Python >= 3.8
 - Python packages: `jinja2`, `fparser`, `pcpp`, `sympy`, `libclang` (imports
   as `clang.cindex`). Install with `pip install -r requirements.txt`.
+  `libclang` is imported only for C++ input, so translating Fortran does not
+  need it.
 
 Python is a dependency you provide, the same way as MPI or HDF5 - CMake
 finds a suitable interpreter (via `Python3_EXECUTABLE`), it doesn't create a
