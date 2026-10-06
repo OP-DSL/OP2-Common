@@ -50,7 +50,6 @@ using op::mpi::HaloList;
 #include <metis.h>
 typedef idx_t idxtype;
 #endif
-extern part *OP_part_list;
 
 typedef struct {
   int a;

@@ -40,16 +40,9 @@
 #include <op_lib_core.h>
 #include <op_mpi_core.h>
 
-/** variables for partial halo exchanges **/
-extern int *OP_map_partial_exchange;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/** Resolve OP_gpu_direct, once, from op_init. Only meaningful in a build with a
-    device backend; the CPU-only variants leave OP_gpu_direct at 0. **/
-void op_gpu_direct_init();
 
 op_set op_decl_set_hdf5(char const *file, char const *name);
 op_map op_decl_map_hdf5(op_set from, op_set to, int dim, char const *file,

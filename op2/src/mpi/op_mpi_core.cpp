@@ -1392,7 +1392,7 @@ void *op_mpi_perf_time(const char *name, double time) {
  *******************************************************************************/
 
 void op_mpi_exit() {
-  op_mpi_unified_exit();
+  op_mpi_halo_exchanges_exit();
 
   op_mpi_kernel_map.clear();
 

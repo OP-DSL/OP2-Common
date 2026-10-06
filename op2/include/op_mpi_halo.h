@@ -98,7 +98,7 @@ struct SetHalo {
   HaloList import_nonexec;  // as import_exec, for elements only read
 };
 
-/* The partial-exchange lists of a map, empty unless OP_map_partial_exchange. */
+/* The partial-exchange lists of a map, empty unless OP_map_partial_exchange[map]. */
 struct MapHalo {
   HaloList export_nonexec;  // local indices of the owned elements each neighbour needs
                             // through this map
@@ -199,15 +199,46 @@ char *migrate_rows(MPI_Comm comm, const char *rows, std::size_t row_bytes, int n
 
 }  // namespace op::mpi
 
+/* A set's partitioning: where its elements came from and where they go. */
+typedef struct {
+  op_set set;
+  idx_g_t *g_index;   // the original global index of each element this rank holds
+  int *elem_part;     // the rank each element goes to
+  int is_partitioned; // 1 once elem_part is known
+} part_core;
+typedef part_core *part;
+
 extern std::vector<op::mpi::SetHalo> OP_set_halos;        // by set index; empty until halo creation
 extern std::vector<op::mpi::MapHalo> OP_map_halos;        // by map index; empty until halo creation
 extern std::vector<op::mpi::DeviceSetHalo> OP_set_halos_d;  // by set index
 extern std::vector<op::mpi::DeviceMapHalo> OP_map_halos_d;  // by map index
+
+extern int *OP_map_partial_exchange; // by map index: 1 if the map's halo is exchanged partially
 
 extern int OP_part_index;  // how many sets have partition information
 extern part *OP_part_list; // by set index
 #ifndef OP_MPI_CORE_NOMPI
 extern std::vector<op::mpi::PartRange> orig_part_range; // by set index; the layout as declared, empty until saved
 #endif
+
+/* Entry points between the library's own sources. C linkage, as their
+   definitions have. */
+extern "C" {
+
+/* Refill every set's import lists from their owners' export lists, so each entry
+   is again the element's current local index on its owner. An owner that
+   reorders its elements rewrites only its own export lists; call this after it
+   does. The layout is unchanged. Collective over OP_MPI_WORLD. */
+void op_halo_refresh_imports();
+
+/* Stops the job if a halo exchange is still waiting for its wait, and completes
+   the last exchange's sends. */
+void op_mpi_halo_exchanges_exit();
+
+/* Resolve OP_gpu_direct, once, from op_init. Defined only in a library with a
+   device backend; the CPU-only variants leave OP_gpu_direct at 0. */
+void op_gpu_direct_init();
+
+}
 
 #endif /* __OP_MPI_HALO_H */

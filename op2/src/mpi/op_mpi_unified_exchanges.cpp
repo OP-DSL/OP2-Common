@@ -457,7 +457,7 @@ void op_mpi_test_all(int, op_arg *) {
     ctx.test();
 }
 
-void op_mpi_unified_exit() {
+void op_mpi_halo_exchanges_exit() {
     if (ctx.unwaited != nullptr)
         unpaired(std::string("op_exit with the halo exchange on set '") + ctx.unwaited->name + "' never waited for");
     // Each exchange completes the previous one's sends; nothing follows the last.

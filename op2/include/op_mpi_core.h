@@ -57,24 +57,6 @@ extern MPI_Comm OP_MPI_GLOBAL;
 #endif /* OP_MPI_CORE_NOMPI */
 // Structs that don't need the MPI include
 
-/*******************************************************************************
-* Data structures related to MPI level partitioning
-*******************************************************************************/
-
-// struct to hold the partition information for each set
-typedef struct {
-  // set to which this partition info blongs to
-  op_set set;
-  // global index of each element held in this MPI process
-  idx_g_t *g_index;
-  // partition to which each element belongs
-  int *elem_part;
-  // indicates if this set is partitioned 1 if partitioned 0 if not
-  int is_partitioned;
-} part_core;
-
-typedef part_core *part;
-
 /** external variables **/
 
 
@@ -120,12 +102,6 @@ void op_halo_create();
 
 void op_halo_permap_create();
 
-/* Refill every set's import lists from their owners' export lists, so each entry
-   is again the element's current local index on its owner. An owner that
-   reorders its elements rewrites only its own export lists; call this after it
-   does. The layout is unchanged. Collective over OP_MPI_WORLD. */
-void op_halo_refresh_imports();
-
 void op_halo_destroy();
 
 op_dat op_mpi_get_data(op_dat dat);
@@ -135,9 +111,6 @@ void fetch_data_hdf5(op_dat dat, char *usr_ptr, int low, int high);
 void mpi_timing_output();
 
 void op_mpi_exit();
-
-/* Stops the job if a halo exchange is still waiting for its wait. */
-void op_mpi_unified_exit();
 
 void print_dat_to_txtfile_mpi(op_dat dat, const char *file_name);
 
