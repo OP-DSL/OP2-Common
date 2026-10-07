@@ -142,11 +142,16 @@ typedef struct {
                        executed */
 
   int stride;       /* device SoA stride */
+
+  /* geometry, from op_set_coords{,_derived}: coords on this set, or coords
+     averaged over coords_map; NULL if none was registered */
+  struct op_dat_core *coords;
+  struct op_map_core *coords_map;
 } op_set_core;
 
 typedef op_set_core *op_set;
 
-typedef struct {
+typedef struct op_map_core {
   int index;        /* index */
   op_set from,      /* set pointed from */
       to;           /* set pointed to */
@@ -161,7 +166,7 @@ typedef struct {
 
 typedef op_map_core *op_map;
 
-typedef struct {
+typedef struct op_dat_core {
   int index;        /* index */
   op_set set;       /* set on which data is defined */
   int dim,          /* dimension of data */
@@ -397,6 +402,13 @@ void op_partition(const char *lib_name, const char *lib_routine,
 void op_partition_destroy();
 
 void *op_mpi_perf_time(const char *name, double time);
+
+/* Register a set's geometry, for geometric partitioning and for renumbering:
+   coords (2D or 3D doubles) on the set itself, or, for a set with none of its
+   own such as the cells of a cell-centred mesh, coords on to_coords->to averaged
+   over to_coords, a map from the set. */
+void op_set_coords(op_set set, op_dat coords);
+void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords);
 
 void op_renumber(op_map base);
 

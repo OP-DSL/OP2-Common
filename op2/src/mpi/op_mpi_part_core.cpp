@@ -672,6 +672,86 @@ template <class T> static int *checked_partition(const T *part, op_set set, int 
   return partition;
 }
 
+/* A set's geometry at the block layout, set->size * dim doubles in local order,
+   from op_set_coords{,_derived}; empty if none was registered. Derived geometry
+   averages coordinates any rank may hold, so the ones held elsewhere are asked of
+   their owners, each rank talking only to the ranks it needs. */
+static std::vector<double> block_coords(op_set set, const std::vector<PartRange> &part_range, int my_rank, int *dim) {
+  const op_dat coords = set->coords;
+  if (coords == NULL)
+    return {};
+  const int d = coords->dim;
+  const double *xyz = reinterpret_cast<const double *>(coords->data);
+  *dim = d;
+  const op_map map = set->coords_map;
+  if (map == NULL)
+    return std::vector<double>(xyz, xyz + (std::size_t)set->size * d);
+
+  const PartRange &range = part_range[coords->set->index];
+  auto owner = [&](idx_g_t g) {
+    int local;
+    return range.owner(g, &local);
+  };
+  const std::span<const idx_g_t> entries{map->map_gbl, (std::size_t)set->size * map->dim};
+  std::vector<idx_g_t> wanted;
+  for (idx_g_t g : entries)
+    if (owner(g) != my_rank)
+      wanted.push_back(g);
+  std::sort(wanted.begin(), wanted.end());
+  wanted.erase(std::unique(wanted.begin(), wanted.end()), wanted.end());
+  auto asked = op::mpi::sparse::exchange_by(OP_PART_WORLD, wanted, owner);
+
+  // Answer each rank in the order it asked. The owner is monotone in the index,
+  // so the answers arrive grouped by owner in the order of wanted.
+  std::vector<double> answers(asked.size() * d);
+  for (std::size_t k = 0; k < asked.size(); k++)
+    std::copy_n(xyz + (asked.data[k] - range.start[my_rank]) * d, d, answers.data() + k * d);
+  std::vector<op::mpi::msg::BlockView<double>> back;
+  back.reserve(asked.num_neighbours());
+  for (int i = 0; i < asked.num_neighbours(); i++)
+    back.emplace_back(asked.ranks[i], answers.data() + (std::size_t)asked.disps[i] * d,
+                      (std::size_t)asked.counts[i] * d);
+  auto got = op::mpi::sparse::exchange(OP_PART_WORLD, back);
+
+  std::vector<double> out((std::size_t)set->size * d, 0.0);
+  for (int e = 0; e < set->size; e++) {
+    for (int j = 0; j < map->dim; j++) {
+      const idx_g_t g = entries[(std::size_t)e * map->dim + j];
+      int local;
+      const double *x = range.owner(g, &local) == my_rank
+                            ? xyz + (std::size_t)local * d
+                            : got.data.get() + (std::lower_bound(wanted.begin(), wanted.end(), g) - wanted.begin()) * d;
+      for (int c = 0; c < d; c++)
+        out[(std::size_t)e * d + c] += x[c];
+    }
+    for (int c = 0; c < d; c++)
+      out[(std::size_t)e * d + c] /= map->dim;
+  }
+  return out;
+}
+
+/* Under OP_diags > 3: what the primary set's geometry costs at the block layout,
+   and a checksum that is the same at any rank count. No partitioner takes the
+   geometry yet. Collective over OP_PART_WORLD; every rank registers the same
+   geometry, so every rank takes the same branch. */
+static void report_block_coords(op_set set, const std::vector<PartRange> &part_range, int my_rank) {
+  if (set->coords == NULL)
+    return;
+  double cpu_t1, cpu_t2, wall_t1, wall_t2;
+  op_timers_core(&cpu_t1, &wall_t1);
+  int dim = 0;
+  const std::vector<double> xyz = block_coords(set, part_range, my_rank, &dim);
+  op_timers_core(&cpu_t2, &wall_t2);
+
+  double sum[3] = {0.0, 0.0, 0.0}, total[3], time = wall_t2 - wall_t1, max_time;
+  for (std::size_t i = 0; i < xyz.size(); i++)
+    sum[i % dim] += xyz[i];
+  MPI_Reduce(sum, total, 3, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_PART_WORLD);
+  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
+  op_printf("Geometry of set %s at the block layout: dim %d in %g s, checksum %.10e %.10e %.10e\n", set->name, dim,
+            max_time, total[0], total[1], total[2]);
+}
+
 /* Partition with one partitioner: primary(my_rank, comm_size, part_range) gives
    each element of primary_set a rank, from the block layout, as an xmalloc'd
    array; every other set follows it through the maps, then every element moves
@@ -687,6 +767,8 @@ template <class Primary> static void partition_with(const char *name, op_set pri
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
   const std::vector<PartRange> part_range = initialise(my_rank);
+  if (OP_diags > 3)
+    report_block_coords(primary_set, part_range, my_rank);
   OP_part_list[primary_set->index]->elem_part = primary(my_rank, comm_size, part_range);
   OP_part_list[primary_set->index]->is_partitioned = 1;
   partition_all(primary_set, my_rank);

@@ -33,14 +33,15 @@
 /*
  * op_renumber.cpp
  *
- * Alternative renumbering entry point. Dispatches to one of several node
- * ordering algorithms based on the OP_REORDER environment variable:
+ * op_renumber(base) reorders each rank's core elements of base->to, the primary
+ * set, with the ordering the OP_REORDER environment variable names:
  *
  *     OP_REORDER=none      - no reordering (default)
  *     OP_REORDER=random    - random permutation (benchmark baseline)
  *     OP_REORDER=rcm       - Reverse Cuthill-McKee
  *     OP_REORDER=sloan     - Sloan profile-minimising ordering
- *     OP_REORDER=hilbert   - Hilbert space-filling curve (needs coords)
+ *     OP_REORDER=hilbert   - Hilbert space-filling curve, on the primary set's
+ *                            geometry (op_set_coords{,_derived})
  *
  * Once the primary set's permutation is computed, OP_REORDER_PROPAGATE
  * controls how that permutation is extended to other sets reachable via
@@ -52,19 +53,17 @@
  *     OP_REORDER_PROPAGATE=centroid  - Hilbert SFC of stencil centroid;
  *                                      centroids are averaged from the
  *                                      already-ordered parent set, so
- *                                      this requires a coordinates dat
- *                                      on the primary set
+ *                                      this needs the primary set's
+ *                                      geometry
  *     OP_REORDER_PROPAGATE=single    - legacy single-dim sort by first
  *                                      map endpoint only (kept for
  *                                      benchmarking and regression)
  *
- * The adjacency-graph construction, permutation propagation and physical
- * re-application logic are kept identical in spirit to op_renumber.cpp.
  * The ordering algorithms themselves live in header-only modules:
  *
- *     op_renumber_rcm.hpp          - RCM + shared graph utilities
- *     op_renumber_sloan.hpp        - Sloan (depends on rcm.hpp)
- *     op_renumber_hilbert_sfc.hpp  - Hilbert SFC (standalone, geometric)
+ *     renumber/rcm.hpp          - RCM + shared graph utilities
+ *     renumber/sloan.hpp        - Sloan (depends on rcm.hpp)
+ *     renumber/hilbert_sfc.hpp  - Hilbert SFC (standalone, geometric)
  *
  * No external library dependency is required; this translation unit does
  * not need HAVE_PTSCOTCH.
@@ -135,8 +134,8 @@ static void check_permutation(int *perm, int size) {
 //  Centroid - compute a geometric centroid for each `to`-set element by
 //             averaging the parent set's centroids (or coords, for the
 //             primary set), then reorder via Hilbert SFC on those
-//             centroids. Symmetric across all map dimensions; requires
-//             a coordinates dat on the primary set.
+//             centroids. Symmetric across all map dimensions; needs the
+//             primary set's geometry.
 enum class PropagateMethod {
   Single,
   Lex,
@@ -532,41 +531,41 @@ static void random_order(int num_verts, std::vector<int> &permutation) {
   }
 }
 
-// Heuristic search for a coordinates dat on the given node set. Preference:
-//   1. an op_dat on `node_set` whose name contains "coord", "pos", matches
-//      "x"/"X", or starts with "p_x"/"p_X", with dim in {2,3} and type double.
-//   2. any op_dat on `node_set` with dim in {2,3} and type double.
-// Returns NULL if nothing plausible is found.
-static op_dat find_coords_dat(op_set node_set) {
-  op_dat_entry *item;
+/* The geometry of a set's core elements, core_size * dim doubles in local order,
+   from op_set_coords{,_derived}; empty if none was registered. Derived geometry
+   averages over the elements the map reaches that this rank owns: halo creation
+   has run, but nothing has exchanged the coordinates' halo yet. */
+static std::vector<double> core_coords(op_set set, int *dim) {
+  const op_dat coords = set->coords;
+  if (coords == NULL)
+    return {};
+  const int d = coords->dim, n = set->core_size;
+  const double *xyz = reinterpret_cast<const double *>(coords->data);
+  *dim = d;
+  const op_map map = set->coords_map;
+  if (map == NULL)
+    return std::vector<double>(xyz, xyz + (size_t)n * d);
 
-  // Pass 1: name-based match.
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    if (dat->set != node_set) continue;
-    if (dat->dim != 2 && dat->dim != 3) continue;
-    if (dat->data == NULL) continue;
-    if (dat->type == NULL || strcmp(dat->type, "double") != 0) continue;
-    const char *name = dat->name ? dat->name : "";
-    if (strstr(name, "coord") || strstr(name, "Coord") ||
-        strstr(name, "pos")   || strstr(name, "Pos")   ||
-        strcmp(name, "x") == 0 || strcmp(name, "X") == 0 ||
-        strncmp(name, "p_x", 3) == 0 || strncmp(name, "p_X", 3) == 0) {
-      return dat;
+  std::vector<double> out((size_t)n * d, 0.0);
+  int starved = 0;
+  for (int e = 0; e < n; e++) {
+    int owned = 0;
+    for (int j = 0; j < map->dim; j++) {
+      const int p = map->map[(size_t)e * map->dim + j];
+      if (p >= coords->set->size)
+        continue;
+      for (int c = 0; c < d; c++)
+        out[(size_t)e * d + c] += xyz[(size_t)p * d + c];
+      owned++;
     }
+    starved += owned == 0;
+    for (int c = 0; c < d && owned > 0; c++)
+      out[(size_t)e * d + c] /= owned;
   }
-
-  // Pass 2: any 2D/3D double dat on this set.
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    if (dat->set != node_set) continue;
-    if (dat->dim != 2 && dat->dim != 3) continue;
-    if (dat->data == NULL) continue;
-    if (dat->type == NULL || strcmp(dat->type, "double") != 0) continue;
-    return dat;
-  }
-
-  return NULL;
+  if (starved > 0)
+    op_printf("WARNING in op_renumber: %d of %d core elements of set %s reach no owned element of %s through %s, "
+              "so they sit at the origin\n", starved, n, set->name, coords->set->name, map->name);
+  return out;
 }
 
 //-----------------------------------------------------------------------------
@@ -710,10 +709,14 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
     return;
   }
 
-  // Locate a coordinates dat on the primary set - needed by Hilbert SFC for
-  // the primary ordering, and by centroid propagation regardless of which
-  // primary method was selected.
-  op_dat coords_dat = find_coords_dat(base->to);
+  // The primary set's geometry: Hilbert orders by it, and centroid propagation
+  // starts from it.
+  int coord_dim = 0;
+  const bool need_coords = method == ReorderMethod::Hilbert || propagate == PropagateMethod::Centroid;
+  const std::vector<double> coords = need_coords ? core_coords(base->to, &coord_dim) : std::vector<double>();
+  if (need_coords && coords.empty())
+    op_printf("op_renumber: set %s has no geometry; register it with op_set_coords or op_set_coords_derived\n",
+              base->to->name);
 
   //---------------------------------------------------------------------------
   // Compute the core-size permutation via the selected algorithm.
@@ -724,19 +727,13 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
     random_order(num_verts, permutation);
 
   } else if (method == ReorderMethod::Hilbert) {
-    if (coords_dat == NULL) {
-      op_printf("ERROR: Hilbert SFC requires a double-precision 2D/3D "
-                "coordinates dat on set %s, but none was found. "
-                "Aborting renumbering.\n", base->to->name);
+    if (coords.empty()) {
+      op_printf("ERROR: Hilbert SFC needs geometry for set %s. Aborting renumbering.\n", base->to->name);
       return;
     }
-    op_printf("op_renumber: using dat '%s' (dim %d) as Hilbert SFC coordinates\n",
-              coords_dat->name ? coords_dat->name : "<unnamed>", coords_dat->dim);
 
     op_renumber_impl::hilbert_sfc_stats hstats;
-    op_renumber_impl::hilbert_sfc_order(
-        reinterpret_cast<const double *>(coords_dat->data),
-        num_verts, coords_dat->dim, permutation, &hstats);
+    op_renumber_impl::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
 
     // Diagnostic log: grid resolution, quantisation collisions, per-axis
     // effective bits. A large gap between num_verts and distinct_indices
@@ -828,20 +825,13 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
   pctx.set_centroids.resize(OP_set_index);
 
   if (propagate == PropagateMethod::Centroid) {
-    if (coords_dat == NULL) {
-      op_printf("WARNING: OP_REORDER_PROPAGATE=centroid requires a "
-                "coordinates dat on set %s, but none was found. "
+    if (coords.empty()) {
+      op_printf("WARNING: OP_REORDER_PROPAGATE=centroid needs geometry for set %s. "
                 "Falling back to lex multi-key sort.\n", base->to->name);
       pctx.method = PropagateMethod::Lex;
     } else {
-      pctx.coord_dim = coords_dat->dim;
-      const double *cd = reinterpret_cast<const double *>(coords_dat->data);
-      pctx.set_centroids[base->to->index].assign(
-          cd, cd + (size_t)num_verts * coords_dat->dim);
-      op_printf("op_renumber: centroid propagation seeded from dat '%s' "
-                "(dim %d) on set %s\n",
-                coords_dat->name ? coords_dat->name : "<unnamed>",
-                coords_dat->dim, base->to->name);
+      pctx.coord_dim = coord_dim;
+      pctx.set_centroids[base->to->index] = coords;
     }
   }
 

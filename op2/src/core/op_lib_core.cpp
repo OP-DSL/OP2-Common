@@ -403,10 +403,33 @@ op_set op_decl_set_core(idx_l_t size, char const *name) {
   set->name = copy_str(name);
   set->exec_size = 0;
   set->nonexec_size = 0;
+  set->coords = NULL;
+  set->coords_map = NULL;
   OP_set_list[OP_set_index++] = set;
 
   return set;
 }
+
+void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords) {
+  const char *type = coords->type;
+  if (coords->dim != 2 && coords->dim != 3) {
+    printf("op_set_coords error -- coordinates %s have dimension %d, not 2 or 3\n", coords->name, coords->dim);
+    exit(-1);
+  }
+  if (strcmp(type, "double") != 0 && strcmp(type, "double:soa") != 0) {
+    printf("op_set_coords error -- coordinates %s are %s, not double\n", coords->name, type);
+    exit(-1);
+  }
+  if (to_coords == NULL ? coords->set != set : to_coords->from != set || to_coords->to != coords->set) {
+    printf("op_set_coords error -- coordinates %s on set %s cannot give set %s its geometry%s%s\n", coords->name,
+           coords->set->name, set->name, to_coords == NULL ? "" : " through map ", to_coords == NULL ? "" : to_coords->name);
+    exit(-1);
+  }
+  set->coords = coords;
+  set->coords_map = to_coords;
+}
+
+void op_set_coords(op_set set, op_dat coords) { op_set_coords_derived(set, NULL, coords); }
 
 op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
                         char const *name) {

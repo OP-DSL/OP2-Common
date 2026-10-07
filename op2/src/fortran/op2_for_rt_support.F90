@@ -246,6 +246,27 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_set_coords_c (set, coords) BIND(C,name='op_set_coords')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(op_dat_core) :: coords
+
+    end subroutine
+
+    subroutine op_set_coords_derived_c (set, to_coords, coords) BIND(C,name='op_set_coords_derived')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(op_map_core) :: to_coords
+      type(op_dat_core) :: coords
+
+    end subroutine
+
     integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges')
 
       use, intrinsic :: ISO_C_BINDING
@@ -553,6 +574,38 @@ module OP2_Fortran_RT_Support
     type(op_map) :: base_map
 
     call op_renumber_c (base_map%mapPtr)
+
+  end subroutine
+
+  ! A set's geometry, for geometric partitioning and renumbering: coords on the set
+  ! itself, or coords on to_coords' target averaged over to_coords (cell centroids
+  ! from node coordinates, say).
+  subroutine op_set_coords (set, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    type(op_dat) :: coords
+
+    call op_set_coords_c (set%setPtr, coords%dataPtr)
+
+  end subroutine
+
+  subroutine op_set_coords_derived (set, to_coords, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    type(op_map) :: to_coords
+    type(op_dat) :: coords
+
+    call op_set_coords_derived_c (set%setPtr, to_coords%mapPtr, coords%dataPtr)
 
   end subroutine
 
