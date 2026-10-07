@@ -45,8 +45,8 @@ extern op_plan * OP_plans;
 extern "C" {
 
 void op_partition_wrapper (const char* lib_name, const char* lib_routine,
-  op_set prime_set, op_map prime_map, op_dat coords) {
-  op_partition (lib_name, lib_routine, prime_set, prime_map, coords);
+  op_set prime_set, op_map prime_map, op_dat data) {
+  op_partition (lib_name, lib_routine, prime_set, prime_map, data);
 }
 
 void FortranToCMapping (op_arg * arg) {

@@ -55,8 +55,8 @@ void op_upload_dat(op_dat dat) { (void)dat; }
 void op_download_dat(op_dat dat) {(void)dat;}
 
 void op_partition(const char *lib_name, const char *lib_routine,
-                  op_set prime_set, op_map prime_map, op_dat coords) {
-  partition(lib_name, lib_routine, prime_set, prime_map, coords);
+                  op_set prime_set, op_map prime_map, op_dat data) {
+  partition(lib_name, lib_routine, prime_set, prime_map, data);
 }
 
 void op_move_to_device() {}

@@ -131,22 +131,22 @@ Initialisation and Termination
    :param imap: Mapping table, using global indices of type :c:type:`idx_g_t`.
    :param name: A name to be used for output diagnostics.
 
-.. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat coords)
+.. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat data)
 
    This routine controls the partitioning of the sets used for distributed memory parallel execution.
 
    :param lib_name: The partitioning library to use, see below.
    :param lib_routine: The partitioning algorithm to use.
-   :param prime_set: Specifies the primary set to be partitioned.
-   :param prime_map: Specifies the map to be used to create adjacency lists for the **prime_set**. Required if using :c:expr:`"KWAY"` or :c:expr:`"GEOMKWAY"`.
-   :param coords: Specifies the geometric coordinates of the **prime_set**. Required if using :c:expr:`"GEOM"` or :c:expr:`"GEOMKWAY"`.
+   :param prime_set: Specifies the primary set to be partitioned. Required for :c:expr:`"RANDOM"` and :c:expr:`"EXTERNAL"`, and for :c:expr:`"GEOM"` and :c:expr:`"INERTIAL"` when **data** is NULL.
+   :param prime_map: Specifies the map to be used to create adjacency lists; its target set is the one partitioned. Required for :c:expr:`"KWAY"` and :c:expr:`"GEOMKWAY"`.
+   :param data: For :c:expr:`"GEOM"`, :c:expr:`"GEOMKWAY"` and :c:expr:`"INERTIAL"`, coordinates of the set being partitioned, a :c:expr:`double` or :c:expr:`float` dat; if NULL, the geometry registered for that set with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived` is used. For :c:expr:`"EXTERNAL"`, the partition: an :c:expr:`int` dat on **prime_set** holding each element's rank. Ignored otherwise.
 
    The current options for **lib_name** are:
 
    - :c:expr:`"PTSCOTCH"`: The `PT-Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_ library.
    - :c:expr:`"PARMETIS"`: The `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_ library.
    - :c:expr:`"KAHIP"`: The `KaHIP <https://kahip.github.io/>`_ library.
-   - :c:expr:`"INERTIAL"`: Internal 3D recursive inertial bisection partitioning.
+   - :c:expr:`"INERTIAL"`: Internal recursive inertial bisection partitioning, in 2D or 3D.
    - :c:expr:`"EXTERNAL"`: External partitioning optionally read in when using HDF5 I/O.
    - :c:expr:`"RANDOM"`: Random partitioning, intended for debugging purposes.
 
@@ -160,9 +160,11 @@ Initialisation and Termination
    - :c:expr:`"GEOM"`: Geometric graph partitioning.
    - :c:expr:`"GEOMKWAY"`: Geometric followed by k-way graph partitioning.
 
+   A geometric partitioner can take its coordinates from the registered geometry even when the set has none of its own: with cell centroids registered, :c:expr:`op_partition("INERTIAL", NULL, cells, NULL, NULL)` partitions the cells by them. A derived geometry is evaluated on the block layout before partitioning, fetching coordinates held on other ranks.
+
 .. c:function:: void op_set_coords(op_set set, op_dat coords)
 
-   Registers the geometry of **set**, for :c:func:`op_renumber`. Call it before :c:func:`op_partition`.
+   Registers the geometry of **set**, for :c:func:`op_renumber` and the geometric partitioners of :c:func:`op_partition`. Call it before :c:func:`op_partition`.
 
    :param set: The set the geometry describes.
    :param coords: Its coordinates, a 2D or 3D :c:expr:`double` dat on **set**.
@@ -692,9 +694,9 @@ Mesh Partitioning
 
 .. code-block:: fortran
 
-   call op_partition("PARMETIS", "KWAY", prime_set, prime_map, coords_dat)
+   call op_partition("PARMETIS", "KWAY", prime_set, prime_map, data)
 
-The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`.
+The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`. An ``op_dat`` that was never declared passes NULL.
 
 Mesh Geometry and Renumbering
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

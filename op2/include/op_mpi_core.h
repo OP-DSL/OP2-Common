@@ -133,29 +133,7 @@ size_t op_mv_halo_device(op_set set, op_dat dat);
 size_t op_mv_halo_list_device();
 
 void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
-               op_map prime_map, op_dat coords);
-
-/******************************************************************************
-* Custom partitioning wrapper prototypes
-*******************************************************************************/
-
-void op_partition_random(op_set primary_set);
-
-void op_partition_external(op_set primary_set, op_dat partvec);
-
-void op_partition_inertial(op_dat x);
-
-
-#ifdef HAVE_PARMETIS
-/*******************************************************************************
-* ParMetis wrapper prototypes
-*******************************************************************************/
-
-void op_partition_geom(op_dat coords);
-
-void op_partition_geomkway(op_dat coords, op_map primary_map);
-
-#endif
+               op_map prime_map, op_dat data);
 
 void op_move_to_device();
 

@@ -371,14 +371,16 @@ Distributing an unstructured mesh across the MPI universe requires a mesh partit
 
 Supported partitioners:
 
-- **KaHIP k-way:** ``op_partition("KAHIP", "KWAY", ...)`` — k-way graph partitioning using KaHIP.
-- **ParMetis geometric:** ``op_partition("PARMETIS", "GEOM", ...)`` — uses node coordinates, suitable for geometrically regular meshes.
-- **ParMetis k-way:** ``op_partition("PARMETIS", "KWAY", ...)`` — graph-based k-way partitioning.
-- **ParMetis geometric k-way:** ``op_partition("PARMETIS", "GEOMKWAY", ...)`` — combined geometric and k-way.
-- **PT-Scotch k-way:** ``op_partition("PTSCOTCH", "KWAY", ...)`` — alternative graph-based partitioner.
-- **Inertial coordinate bisection:** ``op_partition("INERTIAL", ...)`` — built-in, for 3D meshes.
-- **User-defined:** ``op_partition_external()`` — partitioning array supplied externally via an ``op_dat``.
-- **Random:** ``op_partition("RANDOM", ...)`` — for debugging only.
+- **KaHIP k-way:** ``op_partition("KAHIP", "KWAY", ...)`` - k-way graph partitioning using KaHIP.
+- **ParMetis geometric:** ``op_partition("PARMETIS", "GEOM", ...)`` - uses the primary set's coordinates, suitable for geometrically regular meshes.
+- **ParMetis k-way:** ``op_partition("PARMETIS", "KWAY", ...)`` - graph-based k-way partitioning.
+- **ParMetis geometric k-way:** ``op_partition("PARMETIS", "GEOMKWAY", ...)`` - combined geometric and k-way.
+- **PT-Scotch k-way:** ``op_partition("PTSCOTCH", "KWAY", ...)`` - alternative graph-based partitioner.
+- **Inertial coordinate bisection:** ``op_partition("INERTIAL", ...)`` - built-in, for 2D and 3D meshes.
+- **User-defined:** ``op_partition("EXTERNAL", ...)`` - partitioning array supplied externally via an ``op_dat``.
+- **Random:** ``op_partition("RANDOM", ...)`` - for debugging only.
+
+The geometric partitioners (``GEOM``, ``GEOMKWAY``, ``INERTIAL``) take coordinates from ``op_partition()``'s dat or, without one, from the geometry registered for the set they partition with ``op_set_coords()`` or ``op_set_coords_derived()``.  ``op_partition()`` looks up what each partitioner needs in one table in ``op2/src/mpi/op_mpi_part_core.cpp`` and falls back to block partitioning, saying why, when an input is missing.
 
 The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.  A map entry may name an element that now lives on any rank, so ``renumber_maps()`` looks such elements up in a directory: each set's original indices are split into equal blocks, one per rank, every rank registers the elements it holds with the block that covers them, and asks those blocks for the elements its maps reach.  Beyond each set's ``PartRange`` - one starting index per rank, which ParMETIS takes as well - no step holds data proportional to the number of ranks.
 

@@ -194,7 +194,7 @@ module OP2_Fortran_RT_Support
 
     end function
 
-    subroutine op_partition_c (lib_name, lib_routine, prime_set, prime_map, coords) BIND(C,name='op_partition')
+    subroutine op_partition_c (lib_name, lib_routine, prime_set, prime_map, data) BIND(C,name='op_partition')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
@@ -204,7 +204,7 @@ module OP2_Fortran_RT_Support
 
       type(op_set_core) :: prime_set
       type(op_map_core) :: prime_map
-      type(op_dat_core) :: coords
+      type(op_dat_core) :: data
 
     end subroutine
 
@@ -528,7 +528,7 @@ module OP2_Fortran_RT_Support
 
   end function FortranPlanCaller
 
-  subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, coords)
+  subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, data)
 
     use, intrinsic :: ISO_C_BINDING
     use OP2_Fortran_Declarations
@@ -540,9 +540,9 @@ module OP2_Fortran_RT_Support
 
     type(op_set) :: prime_set
     type(op_map) :: prime_map
-    type(op_dat) :: coords
+    type(op_dat) :: data
 
-    call op_partition_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
+    call op_partition_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, prime_map%mapPtr, data%dataPtr)
 
   end subroutine
 

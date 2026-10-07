@@ -102,6 +102,7 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 
 #ifdef HAVE_PARMETIS
 static void op_partition_graph_parmetis(op_map primary_map);
+static void partition_geomkway(op_map primary_map, op_dat coords);
 #endif
 #ifdef HAVE_KAHIP
 static void op_partition_graph_kahip(op_map primary_map);
@@ -730,10 +731,36 @@ static std::vector<double> block_coords(op_set set, const std::vector<PartRange>
   return out;
 }
 
-/* Under OP_diags > 3: what the primary set's geometry costs at the block layout,
-   and a checksum that is the same at any rank count. No partitioner takes the
-   geometry yet. Collective over OP_PART_WORLD; every rank registers the same
-   geometry, so every rank takes the same branch. */
+/* The coordinates a geometric partitioner works from, set->size * dim doubles at
+   the block layout: the dat op_partition was given, else the geometry registered
+   for the set. Collective over OP_PART_WORLD. */
+static std::vector<double> partition_coords(op_set set, op_dat dat, const std::vector<PartRange> &part_range,
+                                            int my_rank, int *dim) {
+  if (dat == nullptr)
+    return block_coords(set, part_range, my_rank, dim);
+  if (dat->set != set)
+    fail("Coordinates %s are on set %s, not on %s, the set being partitioned\n", dat->name, dat->set->name, set->name);
+  const std::size_t width = dat->size / dat->dim;
+  if (width != sizeof(double) && width != sizeof(float))
+    fail("Coordinates %s hold neither doubles nor floats\n", dat->name);
+  *dim = dat->dim;
+  std::vector<double> xyz((std::size_t)set->size * dat->dim);
+  for (std::size_t i = 0; i < xyz.size(); i++) {
+    if (width == sizeof(double)) {
+      memcpy(&xyz[i], dat->data + i * width, sizeof(double));
+    } else {
+      float v;
+      memcpy(&v, dat->data + i * width, sizeof v);
+      xyz[i] = v;
+    }
+  }
+  return xyz;
+}
+
+/* Under OP_diags > 3: what evaluating the primary set's registered geometry costs
+   at the block layout, and a checksum that is the same at any rank count.
+   Collective over OP_PART_WORLD; every rank registers the same geometry, so every
+   rank takes the same branch. */
 static void report_block_coords(op_set set, const std::vector<PartRange> &part_range, int my_rank) {
   if (set->coords == NULL)
     return;
@@ -788,7 +815,7 @@ template <class Primary> static void partition_with(const char *name, op_set pri
  * rank of each element of the primary set
  *******************************************************************************/
 
-void op_partition_external(op_set primary_set, op_dat partvec) {
+static void op_partition_external(op_set primary_set, op_dat partvec) {
   partition_with("external", primary_set, [&](int, int, const std::vector<PartRange> &) {
     int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
     memcpy(partition, partvec->data, sizeof(int) * primary_set->size);
@@ -800,7 +827,7 @@ void op_partition_external(op_set primary_set, op_dat partvec) {
  * This routine partitions a given set randomly
  *******************************************************************************/
 
-void op_partition_random(op_set primary_set) {
+static void op_partition_random(op_set primary_set) {
   partition_with("random", primary_set, [&](int, int comm_size, const std::vector<PartRange> &) {
     int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
     for (int i = 0; i < primary_set->size; i++)
@@ -829,45 +856,21 @@ void op_partition_destroy() {
 
 #ifdef HAVE_PARMETIS
 
-/* A coordinates dat as ParMETIS takes it: real_t, one row of 1 to 3 values per
-   element, from a dat of doubles or floats. */
-static std::vector<real_t> parmetis_coordinates(op_dat coords) {
-  if (coords->dim < 1 || coords->dim > 3) {
-    fail("Coordinates %s have %d dimensions; ParMETIS takes 1, 2 or 3\n", coords->name, coords->dim);
-  }
-  const std::size_t width = coords->size / coords->dim;
-  if (width != sizeof(double) && width != sizeof(float)) {
-    fail("Coordinates %s hold neither doubles nor floats\n", coords->name);
-  }
-  std::vector<real_t> xyz((std::size_t)coords->set->size * coords->dim);
-  for (std::size_t i = 0; i < xyz.size(); i++) {
-    const char *at = coords->data + i * width;
-    if (width == sizeof(double)) {
-      double v;
-      memcpy(&v, at, sizeof v);
-      xyz[i] = (real_t)v;
-    } else {
-      float v;
-      memcpy(&v, at, sizeof v);
-      xyz[i] = (real_t)v;
-    }
-  }
-  return xyz;
-}
-
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
  * Using its XYZ Geometry Data
  *******************************************************************************/
 
-void op_partition_geom(op_dat coords) {
-  partition_with("geometric", coords->set, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
-    const std::vector<idx_g_t> &start = part_range[coords->set->index].start;
-    std::vector<idx_t> vtxdist(start.begin(), start.end()), partition(coords->set->size);
-    idx_t ndims = coords->dim;
-    std::vector<real_t> xyz = parmetis_coordinates(coords);
-    ParMETIS_V3_PartGeom(vtxdist.data(), &ndims, xyz.data(), partition.data(), &OP_PART_WORLD);
-    return checked_partition(partition.data(), coords->set, my_rank, comm_size);
+static void partition_geom(op_set set, op_dat coords) {
+  partition_with("geometric", set, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
+    const std::vector<idx_g_t> &start = part_range[set->index].start;
+    std::vector<idx_t> vtxdist(start.begin(), start.end()), partition(set->size);
+    int dim = 0;
+    const std::vector<double> xyz = partition_coords(set, coords, part_range, my_rank, &dim);
+    std::vector<real_t> pm_xyz(xyz.begin(), xyz.end());
+    idx_t ndims = dim;
+    ParMETIS_V3_PartGeom(vtxdist.data(), &ndims, pm_xyz.data(), partition.data(), &OP_PART_WORLD);
+    return checked_partition(partition.data(), set, my_rank, comm_size);
   });
 }
 
@@ -879,21 +882,22 @@ void op_partition_geom(op_dat coords) {
 
 /* The primary set's ranks by recursive bisection along the inertial axes, for
    partition_with. */
-static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
-  if (x_dat->size != 3 * (int)sizeof(double)) {
-    fail("Inertial partitioning needs coordinates of three doubles: %s holds %d bytes per element\n",
-         x_dat->name, x_dat->size);
-  }
-  double *x = (double *)xmalloc(x_dat->set->size * x_dat->dim * sizeof(double));
-  memcpy(x, x_dat->data, x_dat->set->size * x_dat->dim * sizeof(double));
+static int *inertial_partition(op_set set, op_dat coords, int my_rank, int comm_size,
+                               const std::vector<PartRange> &part_range) {
+  // three doubles per element, z = 0 for 2D coordinates
+  int dim = 0;
+  const std::vector<double> xyz = partition_coords(set, coords, part_range, my_rank, &dim);
+  double *x = (double *)xcalloc((std::size_t)set->size * 3 + 1, sizeof(double));
+  for (int i = 0; i < set->size; i++)
+    std::copy_n(&xyz[(std::size_t)i * dim], dim, &x[(std::size_t)i * 3]);
 
   MPI_Comm mpi_comm = OP_PART_WORLD; // halved at each level
 
   /* - STEP 1 figure out partitioning - */
-  const PartRange &range = part_range[x_dat->set->index];
+  const PartRange &range = part_range[set->index];
   idx_g_t global_size = range.size();          // losg
   idx_g_t block_lower = range.start[my_rank];  // losg1
-  int block_size = x_dat->set->size;           // losgd
+  int block_size = set->size;                  // losgd
 
   idx_g_t *global_indices = (idx_g_t *)xmalloc((block_size > 0 ? block_size : 1) * sizeof(idx_g_t));
   for (int i = 0; i < block_size; i++)
@@ -1170,45 +1174,61 @@ static int *inertial_partition(op_dat x_dat, int my_rank, int comm_size, const s
     fail("Error at rank %d: original(%d) vs. collected(%zu) size mismatch! Aborting...\n", my_rank, block_size,
          ended_on.size());
   }
-  int *partition = (int *)xmalloc(sizeof(int) * x_dat->set->size);
+  int *partition = (int *)xmalloc(sizeof(int) * set->size);
   for (int i = 0; i < ended_on.num_neighbours(); i++)
     for (idx_g_t g : ended_on.from_neighbour(i))
       partition[g - block_lower] = ended_on.ranks[i];
   return partition;
 }
 
-void op_partition_inertial(op_dat x_dat) {
-  partition_with("inertial", x_dat->set, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
-    return inertial_partition(x_dat, my_rank, comm_size, part_range);
+static void partition_inertial(op_set set, op_dat coords) {
+  partition_with("inertial", set, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
+    return inertial_partition(set, coords, my_rank, comm_size, part_range);
   });
 }
+
+/* What a partitioner takes op_partition's dat for. */
+enum class DatUse : char {
+  none,
+  partition, // the partition itself: the rank of each element of the set
+  coords,    // coordinates; without a dat, the geometry registered for the set
+};
 
 /* The partitioners op_partition can run, by library and routine, and the inputs
    each needs. A library that was not built has no entries. */
 struct Partitioner {
   const char *lib, *routine; // routine null: the library has one, and ignores the name
-  bool set, map, dat;        // which of op_partition's inputs it needs
-  int dat_dim;               // the dimension the dat must have, or 0
+  bool set, map;             // whether it needs op_partition's set and map
+  DatUse dat;                // what it takes op_partition's dat for
+  int min_dim, max_dim;      // the dimensions that dat may have
   bool partial_halos;        // whether partial halo exchanges may follow it
   void (*run)(op_set, op_map, op_dat);
 };
 
 static const Partitioner partitioners[] = {
 #ifdef HAVE_KAHIP
-    {"KAHIP", "KWAY", false, true, false, 0, true, [](op_set, op_map m, op_dat) { op_partition_graph_kahip(m); }},
+    {"KAHIP", "KWAY", false, true, DatUse::none, 0, 0, true,
+     [](op_set, op_map m, op_dat) { op_partition_graph_kahip(m); }},
 #endif
 #ifdef HAVE_PTSCOTCH
-    {"PTSCOTCH", "KWAY", false, true, false, 0, true, [](op_set, op_map m, op_dat) { op_partition_graph_ptscotch(m); }},
+    {"PTSCOTCH", "KWAY", false, true, DatUse::none, 0, 0, true,
+     [](op_set, op_map m, op_dat) { op_partition_graph_ptscotch(m); }},
 #endif
 #ifdef HAVE_PARMETIS
-    {"PARMETIS", "KWAY", false, true, false, 0, true, [](op_set, op_map m, op_dat) { op_partition_graph_parmetis(m); }},
-    {"PARMETIS", "GEOMKWAY", false, true, true, 0, true, [](op_set, op_map m, op_dat d) { op_partition_geomkway(d, m); }},
-    {"PARMETIS", "GEOM", false, false, true, 0, true, [](op_set, op_map, op_dat d) { op_partition_geom(d); }},
+    {"PARMETIS", "KWAY", false, true, DatUse::none, 0, 0, true,
+     [](op_set, op_map m, op_dat) { op_partition_graph_parmetis(m); }},
+    {"PARMETIS", "GEOMKWAY", false, true, DatUse::coords, 1, 3, true,
+     [](op_set, op_map m, op_dat d) { partition_geomkway(m, d); }},
+    {"PARMETIS", "GEOM", false, false, DatUse::coords, 1, 3, true,
+     [](op_set s, op_map, op_dat d) { partition_geom(d != nullptr ? d->set : s, d); }},
 #endif
-    {"RANDOM", nullptr, true, false, false, 0, true, [](op_set s, op_map, op_dat) { op_partition_random(s); }},
+    {"RANDOM", nullptr, true, false, DatUse::none, 0, 0, true,
+     [](op_set s, op_map, op_dat) { op_partition_random(s); }},
     // no partial halos after an external partition, which may leave orphaned elements
-    {"EXTERNAL", nullptr, true, false, true, 1, false, [](op_set s, op_map, op_dat d) { op_partition_external(s, d); }},
-    {"INERTIAL", nullptr, false, false, true, 3, true, [](op_set, op_map, op_dat d) { op_partition_inertial(d); }},
+    {"EXTERNAL", nullptr, true, false, DatUse::partition, 1, 1, false,
+     [](op_set s, op_map, op_dat d) { op_partition_external(s, d); }},
+    {"INERTIAL", nullptr, false, false, DatUse::coords, 2, 3, true,
+     [](op_set s, op_map, op_dat d) { partition_inertial(d != nullptr ? d->set : s, d); }},
 };
 
 /* The partitioner op_partition's arguments name, if it is built and given what it
@@ -1225,16 +1245,33 @@ static const Partitioner *select_partitioner(const char *lib, const char *routin
     op_printf("Selected Partitioning Library : %s\n", lib);
     if (p.routine != nullptr)
       op_printf("Selected Partitioning Routine : %s\n", routine);
-    const char *missing = p.set && set == nullptr                          ? "set"
-                          : p.map && map == nullptr                        ? "map"
-                          : p.dat && (dat == nullptr || dat->data == nullptr) ? "dat"
-                                                                           : nullptr;
+    // the set a geometric partitioner partitions, and whose coordinates it needs
+    const op_set geo = p.dat != DatUse::coords ? nullptr
+                       : p.map                 ? (map != nullptr ? map->to : nullptr)
+                       : dat != nullptr        ? dat->set
+                                               : set;
+    const char *missing = p.set && set == nullptr                                         ? "set"
+                          : p.map && map == nullptr                                       ? "map"
+                          : p.dat == DatUse::partition && dat == nullptr                  ? "dat"
+                          : p.dat != DatUse::none && dat != nullptr && dat->data == nullptr ? "dat"
+                          : p.dat == DatUse::coords && geo == nullptr                     ? "set or a dat"
+                                                                                          : nullptr;
     if (missing != nullptr) {
       op_printf("Partitioning %s needs a %s, given NULL - UNSUPPORTED Partitioner Specification\n", lib, missing);
       return nullptr;
     }
-    if (p.dat_dim != 0 && dat->dim != p.dat_dim) {
-      op_printf("Partitioning %s needs a dat of dimension %d, given %d\n", lib, p.dat_dim, dat->dim);
+    if (p.dat == DatUse::coords && dat == nullptr && geo->coords == nullptr) {
+      op_printf("Partitioning %s needs coordinates: a dat, or geometry for set %s registered with op_set_coords\n",
+                lib, geo->name);
+      return nullptr;
+    }
+    const int dim = dat != nullptr ? dat->dim : p.dat == DatUse::coords ? geo->coords->dim : 0;
+    if (p.dat != DatUse::none && (dim < p.min_dim || dim > p.max_dim)) {
+      if (p.min_dim == p.max_dim)
+        op_printf("Partitioning %s needs a dat of dimension %d, given %d\n", lib, p.min_dim, dim);
+      else
+        op_printf("Partitioning %s needs coordinates of dimension %d to %d, given %d\n", lib, p.min_dim, p.max_dim,
+                  dim);
       return nullptr;
     }
     return &p;
@@ -1585,17 +1622,15 @@ static void perform_ptscotch_partition(SCOTCH_Dgraph *grafptr, int comm_size, SC
    to-set of primary_map, with an edge between two of its elements when a
    from-element maps to both. T is the partitioner's index type. */
 template <class T>
-static int *graph_partition(op_map primary_map, const char *partitioner_name, op_dat coords, int my_rank,
-                            int comm_size, const std::vector<PartRange> &part_range) {
+static int *graph_partition(op_map primary_map, const char *partitioner_name, bool geometric, op_dat coords,
+                            int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
 #ifdef HAVE_PARMETIS
   // Coordinates make the ParMETIS k-way partitioning geometric: PartGeomKway.
   std::vector<real_t> xyz;
-  if (coords != nullptr) {
-    if (compare_sets(coords->set, primary_map->to) == 0) {
-      fail("primary map's to set %s mismatches the op_dat's set %s: on rank %d\n", primary_map->to->name,
-           coords->set->name, my_rank);
-    }
-    xyz = parmetis_coordinates(coords);
+  int dim = 0;
+  if (geometric) {
+    const std::vector<double> c = partition_coords(primary_map->to, coords, part_range, my_rank, &dim);
+    xyz.assign(c.begin(), c.end());
   }
 #endif
 
@@ -1621,20 +1656,20 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
       if (my_rank == MPI_ROOT) {
           printf("-----------------------------------------------------------\n");
           if (use_kahip) printf("ParHIPPartitionKWay Output\n");
-          else if (coords != nullptr) printf("ParMETIS_V3_PartGeomKway Output\n");
+          else if (geometric) printf("ParMETIS_V3_PartGeomKway Output\n");
           else printf("ParMETIS_V3_PartKway Output\n");
           printf("-----------------------------------------------------------\n");
       }
 
 #ifdef HAVE_PARMETIS
       if constexpr (std::is_same_v<T, idx_t>) {
-        if (coords != nullptr) {
-          T ndims = coords->dim;
+        if (geometric) {
+          T ndims = dim;
           ParMETIS_V3_PartGeomKway(vtxdist, xadj, adjncy, NULL, NULL, &wgtflag, &numflag, &ndims, xyz.data(), &ncon,
                                    &comm_size_pm, tpwgts, ubvec, options, &edge_cut, partition_pm, &OP_PART_WORLD);
         }
       }
-      if (!use_kahip && coords == nullptr) {
+      if (!use_kahip && !geometric) {
         perform_kway_partition(vtxdist, xadj, adjncy, &wgtflag, &numflag, &ncon,
                               &comm_size_pm, tpwgts, ubvec, options, &edge_cut,
                               partition_pm, &OP_PART_WORLD);
@@ -1696,7 +1731,8 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, op
 }
 
 template <class T>
-static void op_partition_graph_generic(op_map primary_map, const char *partitioner_name, op_dat coords = nullptr) {
+static void op_partition_graph_generic(op_map primary_map, const char *partitioner_name, bool geometric = false,
+                                       op_dat coords = nullptr) {
 #ifdef DEBUG
   // check if the  primary_map is an on to map from the from-set to the to-set
   if (is_onto_map(primary_map) != 1) {
@@ -1705,7 +1741,7 @@ static void op_partition_graph_generic(op_map primary_map, const char *partition
   }
 #endif
   partition_with(partitioner_name, primary_map->to, [&](int my_rank, int comm_size, const std::vector<PartRange> &part_range) {
-    return graph_partition<T>(primary_map, partitioner_name, coords, my_rank, comm_size, part_range);
+    return graph_partition<T>(primary_map, partitioner_name, geometric, coords, my_rank, comm_size, part_range);
   });
 }
 
@@ -1715,8 +1751,8 @@ static void op_partition_graph_parmetis(op_map primary_map) {
     op_partition_graph_generic<idx_t>(primary_map, "PARMETIS");
 }
 
-void op_partition_geomkway(op_dat coords, op_map primary_map) {
-    op_partition_graph_generic<idx_t>(primary_map, "PARMETIS", coords);
+static void partition_geomkway(op_map primary_map, op_dat coords) {
+    op_partition_graph_generic<idx_t>(primary_map, "PARMETIS", true, coords);
 }
 #endif
 #ifdef HAVE_KAHIP

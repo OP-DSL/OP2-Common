@@ -480,12 +480,12 @@ void op_mpi_reduce_bool(op_arg *args, bool *data) {
 }
 
 void op_partition(const char *lib_name, const char *lib_routine,
-                  op_set prime_set, op_map prime_map, op_dat coords) {
+                  op_set prime_set, op_map prime_map, op_dat data) {
   (void)lib_name;
   (void)lib_routine;
   (void)prime_set;
   (void)prime_map;
-  (void)coords;
+  (void)data;
 }
 
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
