@@ -50,6 +50,7 @@
 #include <span>
 #include <vector>
 #include <algorithm>
+#include <limits>
 #include <cstdint>
 #include <numeric>
 #include <unistd.h>
@@ -856,6 +857,25 @@ void op_partition_destroy() {
 
 #ifdef HAVE_PARMETIS
 
+/* Coordinates as ParMETIS takes them, as real_t. Its coordinate binning
+   (IRBinCoordinates) closes the last bin at max * (1 + 2 eps), which is not above
+   the maximum when that is zero or negative: the largest coordinate then fits no
+   bin, and the search for one runs past ParMETIS' work arrays - heap corruption or
+   a hang. A 2D mesh given as 3D with z = 0 is enough. So a dimension whose maximum
+   is not positive is shifted to make it 1; the others are passed as they are.
+   Collective over OP_PART_WORLD. */
+static std::vector<real_t> parmetis_coords(const std::vector<double> &xyz, int dim) {
+  std::vector<real_t> out(xyz.begin(), xyz.end());
+  std::vector<double> local_max(dim, -std::numeric_limits<double>::infinity()), global_max(dim);
+  for (std::size_t i = 0; i < out.size(); i++)
+    local_max[i % dim] = std::max(local_max[i % dim], (double)out[i]);
+  MPI_Allreduce(local_max.data(), global_max.data(), dim, MPI_DOUBLE, MPI_MAX, OP_PART_WORLD);
+  for (std::size_t i = 0; i < out.size(); i++)
+    if (global_max[i % dim] <= 0)
+      out[i] += (real_t)(1 - global_max[i % dim]);
+  return out;
+}
+
 /*******************************************************************************
  * Wrapper routine to use ParMETIS_V3_PartGeom() which partitions a set
  * Using its XYZ Geometry Data
@@ -867,7 +887,7 @@ static void partition_geom(op_set set, op_dat coords) {
     std::vector<idx_t> vtxdist(start.begin(), start.end()), partition(set->size);
     int dim = 0;
     const std::vector<double> xyz = partition_coords(set, coords, part_range, my_rank, &dim);
-    std::vector<real_t> pm_xyz(xyz.begin(), xyz.end());
+    std::vector<real_t> pm_xyz = parmetis_coords(xyz, dim);
     idx_t ndims = dim;
     ParMETIS_V3_PartGeom(vtxdist.data(), &ndims, pm_xyz.data(), partition.data(), &OP_PART_WORLD);
     return checked_partition(partition.data(), set, my_rank, comm_size);
@@ -1630,7 +1650,7 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, bo
   int dim = 0;
   if (geometric) {
     const std::vector<double> c = partition_coords(primary_map->to, coords, part_range, my_rank, &dim);
-    xyz.assign(c.begin(), c.end());
+    xyz = parmetis_coords(c, dim);
   }
 #endif
 
