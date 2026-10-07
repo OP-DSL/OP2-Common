@@ -385,7 +385,7 @@ The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.
 Mesh Renumbering
 ~~~~~~~~~~~~~~~~
 
-OP2 implements a mesh renumbering routine using the Gibbs–Poole–Stockmeyer algorithm from PT-Scotch (``op2/src/externlib/op_renumber.cpp``) to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.
+``op_renumber()`` (``op2/src/externlib/op_renumber.cpp``) reorders mesh elements to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.  The orderings need no external library - reverse Cuthill-McKee, Sloan, and a Hilbert space-filling curve, in ``op2/src/externlib/renumber/`` - and ``OP_REORDER`` chooses one.  The Hilbert curve orders by the geometry registered with ``op_set_coords()`` or ``op_set_coords_derived()``.  A derived geometry - cell centroids from node coordinates, say - is only a recipe, evaluated where it is needed: ``op_renumber()`` averages the coordinates each core element reaches on its own rank, with no communication, and before partitioning ``op_partition()`` can evaluate it on the block layout, asking the owners of coordinates held elsewhere for them (``OP_diags > 3`` reports its cost and a checksum that is the same at any rank count).
 
 .. note::
    ``op_renumber()`` reorders only in the MPI libraries, after ``op_partition()``: each rank reorders its own core elements and every rank then refreshes its import lists.  In the single-node libraries it does nothing.

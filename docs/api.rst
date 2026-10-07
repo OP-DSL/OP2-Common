@@ -160,6 +160,46 @@ Initialisation and Termination
    - :c:expr:`"GEOM"`: Geometric graph partitioning.
    - :c:expr:`"GEOMKWAY"`: Geometric followed by k-way graph partitioning.
 
+.. c:function:: void op_set_coords(op_set set, op_dat coords)
+
+   Registers the geometry of **set**, for :c:func:`op_renumber`. Call it before :c:func:`op_partition`.
+
+   :param set: The set the geometry describes.
+   :param coords: Its coordinates, a 2D or 3D :c:expr:`double` dat on **set**.
+
+.. c:function:: void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords)
+
+   Registers the geometry of a set with no coordinates of its own, such as the cells of a cell-centred mesh: each element's position is the mean of **coords** over the elements **to_coords** maps it to. Only this recipe is kept; no dat of positions is created. Call it before :c:func:`op_partition`.
+
+   :param set: The set the geometry describes.
+   :param to_coords: A map from **set** to the set **coords** is defined on.
+   :param coords: Coordinates, a 2D or 3D :c:expr:`double` dat on the target set of **to_coords**.
+
+   .. code-block:: c
+
+      op_set_coords_derived(cells, pcell, p_x);  /* cell centroids from node coordinates */
+      op_set_coords(nodes, p_x);
+
+.. c:function:: void op_renumber(op_map base)
+
+   Reorders each rank's core elements for locality, after :c:func:`op_partition`: first the target set of **base**, with the ordering the ``OP_REORDER`` environment variable names, then every set the maps reach from it, as ``OP_REORDER_PROPAGATE`` says. It does nothing with ``OP_REORDER`` unset, or in a single-node library.
+
+   :param base: A map onto the set to reorder first. For :c:expr:`"rcm"` and :c:expr:`"sloan"`, two elements of that set are adjacent when one element of the map's source set maps to both (or, for a map from the set to itself, when it maps one to the other).
+
+   ``OP_REORDER`` takes:
+
+   - :c:expr:`"none"` (the default): no reordering.
+   - :c:expr:`"rcm"`: reverse Cuthill-McKee.
+   - :c:expr:`"sloan"`: Sloan's profile-reducing ordering.
+   - :c:expr:`"hilbert"`: a Hilbert space-filling curve through the set's geometry, which must be registered with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived`.
+   - :c:expr:`"random"`: a random permutation, as a baseline.
+
+   ``OP_REORDER_PROPAGATE`` takes:
+
+   - :c:expr:`"lex"` (the default): each set sorted by the new indices of all its map entries.
+   - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered; needs the first set's geometry.
+   - :c:expr:`"single"`: each set sorted by the new index of its first map entry.
+
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)
 
    This routine defines constant data with global scope that can be used in kernel functions.
@@ -655,6 +695,18 @@ Mesh Partitioning
    call op_partition("PARMETIS", "KWAY", prime_set, prime_map, coords_dat)
 
 The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`.
+
+Mesh Geometry and Renumbering
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   call op_set_coords_derived(cells, pcell, p_x)   ! cell centroids from node coordinates
+   call op_set_coords(nodes, p_x)
+   call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x)
+   call op_renumber(pecell)
+
+As :c:func:`op_set_coords`, :c:func:`op_set_coords_derived` and :c:func:`op_renumber` in C/C++.
 
 Utility Functions
 ^^^^^^^^^^^^^^^^^
