@@ -1405,15 +1405,10 @@ void op_mpi_exit() {
 }
 
 int getSetSizeFromOpArg(op_arg *arg) {
-  if (arg->dat->set->size + OP_set_halos[arg->dat->set->index].import_exec.size() +
-      OP_set_halos[arg->dat->set->index].import_nonexec.size() >
-      std::numeric_limits<int>::max()) {
-    throw std::overflow_error("Set size is too large to be represented as an int");
-  }
-  return arg->opt ? (int)(arg->dat->set->size +
-                     OP_set_halos[arg->dat->set->index].import_exec.size() +
-                     OP_set_halos[arg->dat->set->index].import_nonexec.size())
-                  : 0;
+  if (!arg->opt)
+    return 0;
+  const op_set set = arg->dat->set;
+  return set->size + set->exec_size + set->nonexec_size;
 }
 
 int getHybridGPU() { return OP_hybrid_gpu; }
