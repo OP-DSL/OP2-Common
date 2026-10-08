@@ -163,25 +163,6 @@ void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
 }
 
 /*******************************************************************************
-* Reorder the data according to the permutation
-*******************************************************************************/
-
-void op_reorder_data(idx_g_t *__restrict permutation, char *__restrict dat, int n, int elem_size2) {
-  /* size_t throughout: n * elem_size in int overflows past 2 GB of rows. */
-  const size_t elem_size = elem_size2, bytes = (size_t)n * elem_size;
-  char *tmp_dat = (char *) xmalloc(bytes);
-
-  for (idx_g_t i = 0; i < n; ++i)
-    std::copy(dat + permutation[i] * elem_size, dat + (permutation[i] + 1) * elem_size, tmp_dat + i * elem_size);
-
-  std::copy(tmp_dat, tmp_dat + bytes, dat);
-
-  op_free(tmp_dat);
-
-  return;
-}
-
-/*******************************************************************************
 * Check if a file exists
 *******************************************************************************/
 int file_exist(char const *filename) {

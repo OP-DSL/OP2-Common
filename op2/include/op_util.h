@@ -157,8 +157,6 @@ int linear_search(int a[], int value, int low, int high);
 
 void op_sort_2(int *__restrict arr1, int *__restrict arr2, int n);
 
-void op_reorder_data(idx_g_t *__restrict permutation, char *__restrict dat, int n, int elem_size);
-
 int file_exist(char const *filename);
 
 bool op_type_equivalence(const char *a, const char *b);

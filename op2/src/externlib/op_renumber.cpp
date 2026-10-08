@@ -90,8 +90,6 @@
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
 
-using op::mpi::HaloList;
-
 #include "renumber/rcm.hpp"
 #include "renumber/sloan.hpp"
 #include "renumber/hilbert_sfc.hpp"
@@ -398,75 +396,6 @@ static void propagate_reordering(op_set from, op_set to,
       propagate_reordering(to, map->to, pctx, set_permutations, set_ipermutations);
     }
   }
-}
-
-static void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations) {
-
-  if (set_permutations[set->index].size() == 0 && set->core_size > 0) {
-    if (OP_diags > 2)
-      printf("No reordering for set %s, skipping...\n", set->name);
-    return;
-  }
-
-  if (set->size == 0)
-    return;
-
-  // Reorder maps: move the rows of a map from the set, and renumber the entries
-  // of a map onto it - both, for a map from the set to itself
-  for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
-    op_map map = OP_map_list[mapidx];
-    if (map->from == set) {
-      int *tempmap = (int *)malloc((set->size + set->exec_size) * sizeof(int) * map->dim);
-
-      for (int i = 0; i < set->size + set->exec_size; i++)
-        std::copy(map->map + map->dim * i, map->map + map->dim * (i + 1),
-                  tempmap + map->dim * set_permutations[set->index][i]);
-      free(map->map);
-      map->map = tempmap;
-    }
-    if (map->to == set) {
-      for (int i = 0; i < (map->from->size + map->from->exec_size) * map->dim; i++)
-        map->map[i] = set_permutations[set->index][map->map[i]];
-    }
-  }
-
-  // Reorder datasets
-  op_dat_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    if (dat->set == set && dat->data != NULL) {
-      char *tempdata = (char *)malloc((size_t)(set->size + set->exec_size + set->nonexec_size) *
-                                      (size_t)dat->size);
-      for (unsigned long int i = 0;
-           i < (unsigned long int)(set->size + set->exec_size + set->nonexec_size); i++)
-        std::copy(dat->data + (unsigned long int)dat->size * i,
-                  dat->data + (unsigned long int)dat->size * (i + 1),
-                  tempdata +
-                      (unsigned long int)dat->size *
-                          (unsigned long int)set_permutations[set->index][i]);
-      free(dat->data);
-      dat->data = tempdata;
-    }
-  }
-
-  // Renumber halos: this set's export lists, and the partial-exchange export
-  // lists of every map onto it. The import lists on other ranks are refreshed
-  // once every set is done (op_halo_refresh_imports).
-  std::vector<HaloList *> exports = {&OP_set_halos[set->index].export_exec,
-                                     &OP_set_halos[set->index].export_nonexec};
-  for (int m = 0; m < (int)OP_map_halos.size(); m++)
-    if (OP_map_list[m]->to == set)
-      exports.push_back(&OP_map_halos[m].export_nonexec);
-  for (HaloList *exp : exports)
-    for (idx_l_t i = 0; i < exp->size(); i++)
-      exp->list[i] = set_permutations[set->index][exp->list[i]];
-
-  // Reorder mapping back to original (unpartitioned indexing)
-  idx_g_t *new_g_index = (idx_g_t *)malloc(set->size * sizeof(idx_g_t));
-  for (int i = 0; i < set->size; i++)
-    new_g_index[set_permutations[set->index][i]] = OP_part_list[set->index]->g_index[i];
-  free(OP_part_list[set->index]->g_index);
-  OP_part_list[set->index]->g_index = new_g_index;
 }
 
 //-----------------------------------------------------------------------------
@@ -797,9 +726,10 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
   // Propagate to connected sets and apply physically.
   //---------------------------------------------------------------------------
   propagate_reordering(base->to, base->to, pctx, set_permutations, set_ipermutations);
-  for (int i = 0; i < OP_set_index; i++) {
-    reorder_set(OP_set_list[i], set_permutations);
-  }
+  // a set the propagation did not reach keeps its order
+  for (int s = 0; s < OP_set_index; s++)
+    if (!set_permutations[s].empty())
+      op::mpi::move_owned(OP_set_list[s], {set_permutations[s].data(), (std::size_t)OP_set_list[s]->size});
 
   op_move_to_device();
 

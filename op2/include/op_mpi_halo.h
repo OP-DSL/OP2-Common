@@ -50,6 +50,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace op::mpi {
@@ -122,6 +123,12 @@ struct DeviceSetHalo {
 struct DeviceMapHalo {
   DeviceList export_nonexec, import_nonexec;
 };
+
+/* Move this rank's owned elements of set: element i goes to moved_to[i], a
+   permutation of 0..set->size-1. Their dat rows, map rows and map entries, the
+   export lists and g_index follow them (see the definition). Rank-local: every
+   rank calls op_halo_refresh_imports() once it has moved all it will. */
+void move_owned(op_set set, std::span<const int> moved_to);
 
 #ifndef OP_MPI_CORE_NOMPI
 

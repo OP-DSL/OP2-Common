@@ -564,56 +564,9 @@ void op_halo_create() {
 
   /*-STEP 10 - Separate core elements: each set's elements that no exec export
    * list names go first, then the exported ones, both in their current order.
-   * The set's dat rows and mapping table rows move with them, and so do the
-   * export lists and every mapping table entry naming an owned element -*/
-
-  std::vector<std::vector<idx_g_t>> order(OP_set_index); // new position -> old index
-  std::vector<std::vector<int>> moved_to(OP_set_index);  // old index -> new position
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    SetHalo &halo = OP_set_halos[set->index];
-    std::vector<char> exported(set->size, 0);
-    for (int i = 0; i < halo.export_exec.size(); i++)
-      exported[halo.export_exec.list[i]] = 1;
-    std::vector<idx_g_t> &o = order[set->index];
-    o.reserve(set->size);
-    for (int e = 0; e < set->size; e++)
-      if (!exported[e])
-        o.push_back(e);
-    set->core_size = (int)o.size();
-    for (int e = 0; e < set->size; e++)
-      if (exported[e])
-        o.push_back(e);
-    moved_to[set->index].resize(set->size);
-    for (int i = 0; i < set->size; i++)
-      moved_to[set->index][o[i]] = i;
-    if (set->core_size == set->size)
-      continue; // nothing moves
-
-    TAILQ_FOREACH(item, &OP_dat_list, entries)
-      if (item->dat->set == set)
-        op_reorder_data(o.data(), item->dat->data, set->size, item->dat->size);
-    for (int m = 0; m < OP_map_index; m++)
-      if (OP_map_list[m]->from == set)
-        op_reorder_data(o.data(), (char *)OP_map_list[m]->map, set->size, OP_map_list[m]->dim * sizeof(int));
-    for (HaloList *list : {&halo.export_exec, &halo.export_nonexec})
-      for (int i = 0; i < list->size(); i++)
-        list->list[i] = moved_to[set->index][list->list[i]];
-  }
-  for (int m = 0; m < OP_map_index; m++) { // for each mapping table
-    op_map map = OP_map_list[m];
-    const size_t n = (size_t)(map->from->size + OP_set_halos[map->from->index].import_exec.size()) * map->dim;
-    for (size_t k = 0; k < n; k++)
-      if (map->map[k] < map->to->size)
-        map->map[k] = moved_to[map->to->index][map->map[k]];
-  }
-
-  /* Step 10 moved owned elements and rewrote the export lists; the import lists
-     other ranks hold still name the old positions. */
-  op_halo_refresh_imports();
-
-  /*-STEP 11 - Save the original set element indexes: g_index follows step 10.
-   * With no partitioning done, the elements are those declared here -*/
+   * Their original global indices (g_index) move with them like their data, so
+   * they are saved first: by partitioning, or here, where without it the
+   * elements are those declared -*/
 
   if (OP_part_index != OP_set_index) {
     OP_part_list = (part *)xmalloc(OP_set_index * sizeof(part));
@@ -630,12 +583,28 @@ void op_halo_create() {
   }
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
+    const HaloList &exec = OP_set_halos[set->index].export_exec;
+    std::vector<char> exported(set->size, 0);
+    for (int i = 0; i < exec.size(); i++)
+      exported[exec.list[i]] = 1;
+    std::vector<int> moved_to(set->size);
+    int next = 0;
+    for (int e = 0; e < set->size; e++)
+      if (!exported[e])
+        moved_to[e] = next++;
+    set->core_size = next;
+    for (int e = 0; e < set->size; e++)
+      if (exported[e])
+        moved_to[e] = next++;
     if (set->core_size != set->size)
-      op_reorder_data(order[set->index].data(), (char *)OP_part_list[set->index]->g_index, set->size,
-                      sizeof(idx_g_t));
+      op::mpi::move_owned(set, moved_to);
   }
 
-  // set up exec and nonexec sizes
+  /* Step 10 moved owned elements and rewrote the export lists; the import lists
+     other ranks hold still name the old positions. */
+  op_halo_refresh_imports();
+
+  /*-STEP 11 - exec and nonexec sizes -*/
   for (int s = 0; s < OP_set_index; s++) { // for each set
     op_set set = OP_set_list[s];
     set->exec_size = OP_set_halos[set->index].import_exec.size();
@@ -697,6 +666,60 @@ void op_halo_create() {
     printf("Average (worst case) Halo size = %lld Bytes\n", (long long)(avg_halo_size / comm_size));
   }
 }
+
+/*******************************************************************************
+ * Move a set's owned elements to new positions on this rank
+ *
+ * Element i goes to moved_to[i], a permutation of 0..set->size-1. The rows of
+ * the set's dats and of every map from it move with their elements, in place;
+ * every map entry naming an owned element is renumbered (a map from the set to
+ * itself gets both); and so are the set's export lists, the partial-exchange
+ * export lists of the maps onto it, and its g_index. Halo rows and entries
+ * naming halo elements stay as they are. Halo creation separates each set's
+ * core this way, and op_renumber applies its orderings this way. C++ linkage,
+ * as it takes a std::span.
+ *******************************************************************************/
+
+extern "C++" {
+void op::mpi::move_owned(op_set set, std::span<const int> moved_to) {
+  const int n = set->size;
+  std::vector<char> moved;
+  auto move_rows = [&](char *rows, std::size_t row_bytes) {
+    moved.resize((std::size_t)n * row_bytes);
+    for (int i = 0; i < n; i++)
+      std::copy_n(rows + (std::size_t)i * row_bytes, row_bytes, moved.data() + (std::size_t)moved_to[i] * row_bytes);
+    std::copy(moved.begin(), moved.end(), rows);
+  };
+
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries)
+    if (item->dat->set == set && item->dat->data != NULL)
+      move_rows(item->dat->data, item->dat->size);
+  for (int m = 0; m < OP_map_index; m++) {
+    op_map map = OP_map_list[m];
+    if (map->from == set)
+      move_rows((char *)map->map, map->dim * sizeof(int));
+    if (map->to == set) {
+      const std::size_t entries =
+          (std::size_t)(map->from->size + OP_set_halos[map->from->index].import_exec.size()) * map->dim;
+      for (std::size_t k = 0; k < entries; k++)
+        if (map->map[k] < n)
+          map->map[k] = moved_to[map->map[k]];
+    }
+  }
+
+  SetHalo &halo = OP_set_halos[set->index];
+  std::vector<HaloList *> exports = {&halo.export_exec, &halo.export_nonexec};
+  for (int m = 0; m < (int)OP_map_halos.size(); m++)
+    if (OP_map_list[m]->to == set)
+      exports.push_back(&OP_map_halos[m].export_nonexec);
+  for (HaloList *list : exports)
+    for (idx_l_t k = 0; k < list->size(); k++)
+      list->list[k] = moved_to[list->list[k]];
+
+  move_rows((char *)OP_part_list[set->index]->g_index, sizeof(idx_g_t));
+}
+}  // extern "C++"
 
 /*******************************************************************************
  * Bring the import lists up to date with their owners' numbering
