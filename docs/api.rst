@@ -184,22 +184,22 @@ Initialisation and Termination
 
 .. c:function:: void op_renumber(op_map base)
 
-   Reorders each rank's core elements for locality, after :c:func:`op_partition`: first the target set of **base**, with the ordering the ``OP_REORDER`` environment variable names, then every set the maps reach from it, as ``OP_REORDER_PROPAGATE`` says. It does nothing with ``OP_REORDER`` unset, or in a single-node library.
+   Reorders each rank's core elements for locality, after :c:func:`op_partition`: first the target set of **base**, with the ordering the ``OP_REORDER`` environment variable names, then every set the maps reach from it, as ``OP_REORDER_PROPAGATE`` says. Unset, they default to a Hilbert curve propagated by centroids if the target set's geometry is registered with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived`, and to reverse Cuthill-McKee propagated lexicographically if not. Call it before any loop. It does nothing in a single-node library.
 
    :param base: A map onto the set to reorder first. For :c:expr:`"rcm"` and :c:expr:`"sloan"`, two elements of that set are adjacent when one element of the map's source set maps to both (or, for a map from the set to itself, when it maps one to the other).
 
    ``OP_REORDER`` takes:
 
-   - :c:expr:`"none"` (the default): no reordering.
-   - :c:expr:`"rcm"`: reverse Cuthill-McKee.
+   - :c:expr:`"none"`: no reordering.
+   - :c:expr:`"rcm"`: reverse Cuthill-McKee (the default without geometry).
    - :c:expr:`"sloan"`: Sloan's profile-reducing ordering.
-   - :c:expr:`"hilbert"`: a Hilbert space-filling curve through the set's geometry, which must be registered with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived`.
+   - :c:expr:`"hilbert"`: a Hilbert space-filling curve through the set's geometry, which must be registered (the default with it). If on any rank the curve gives more than 1% of a set's elements the key of an element at another position - the mesh is finer there than the curve resolves - a warning names the set and the rank.
    - :c:expr:`"random"`: a random permutation, as a baseline.
 
    ``OP_REORDER_PROPAGATE`` takes:
 
-   - :c:expr:`"lex"` (the default): each set sorted by the new indices of all its map entries.
-   - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered; needs the first set's geometry.
+   - :c:expr:`"lex"`: each set sorted by the new indices of all its map entries (the default without geometry).
+   - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered; needs the first set's geometry (the default with it).
    - :c:expr:`"single"`: each set sorted by the new index of its first map entry.
 
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)

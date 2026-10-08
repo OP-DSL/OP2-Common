@@ -44,6 +44,10 @@ namespace op_renumber_impl {
 struct hilbert_sfc_stats {
   int num_verts;             // total number of input vertices
   int distinct_indices;      // distinct Hilbert indices after quantisation
+  int distinct_points;       // distinct positions, counted within each run of
+                             // equal indices: vertices at one position no curve
+                             // can separate, so distinct_points minus
+                             // distinct_indices is what quantisation merged
   int dim;                   // spatial dimension (2 or 3)
   int nominal_bits;          // bits per axis used in Skilling (== max across axes)
   double axis_range[3];      // per-axis physical range (max - min)
@@ -178,6 +182,25 @@ inline void hilbert_sfc_order(const double *coords,
       if (indexed[i].first != indexed[i - 1].first) distinct++;
     }
     stats->distinct_indices = distinct;
+
+    // Distinct positions within each run of equal indices (runs are short).
+    int points = 0;
+    std::vector<int> run;
+    auto before = [&](int a, int b) {
+      return std::lexicographical_compare(coords + (size_t)a * dim, coords + (size_t)(a + 1) * dim,
+                                          coords + (size_t)b * dim, coords + (size_t)(b + 1) * dim);
+    };
+    for (int i = 0; i < num_verts;) {
+      int j = i + 1;
+      while (j < num_verts && indexed[j].first == indexed[i].first) j++;
+      run.clear();
+      for (int k = i; k < j; k++) run.push_back(indexed[k].second);
+      std::sort(run.begin(), run.end(), before);
+      for (size_t k = 0; k < run.size(); k++)
+        points += k == 0 || before(run[k - 1], run[k]);
+      i = j;
+    }
+    stats->distinct_points = points;
 
     // Per-axis effective bits. An axis whose range equals max_range
     // consumes `bits` of resolution; a shorter axis consumes

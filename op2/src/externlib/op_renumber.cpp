@@ -36,25 +36,25 @@
  * op_renumber(base) reorders each rank's core elements of base->to, the primary
  * set, with the ordering the OP_REORDER environment variable names:
  *
- *     OP_REORDER=none      - no reordering (default)
+ *     OP_REORDER=none      - no reordering
  *     OP_REORDER=random    - random permutation (benchmark baseline)
- *     OP_REORDER=rcm       - Reverse Cuthill-McKee
+ *     OP_REORDER=rcm       - Reverse Cuthill-McKee (default without geometry)
  *     OP_REORDER=sloan     - Sloan profile-minimising ordering
  *     OP_REORDER=hilbert   - Hilbert space-filling curve, on the primary set's
- *                            geometry (op_set_coords{,_derived})
+ *                            geometry (op_set_coords{,_derived}; default with it)
  *
  * Once the primary set's permutation is computed, OP_REORDER_PROPAGATE
  * controls how that permutation is extended to other sets reachable via
  * maps (e.g., reordering edges after nodes have been reordered):
  *
  *     OP_REORDER_PROPAGATE=lex       - multi-key lex sort over all map
- *                                      dimensions (default; strict win
- *                                      over single-key for any dim>1 map)
+ *                                      dimensions (default without
+ *                                      geometry)
  *     OP_REORDER_PROPAGATE=centroid  - Hilbert SFC of stencil centroid;
  *                                      centroids are averaged from the
  *                                      already-ordered parent set, so
  *                                      this needs the primary set's
- *                                      geometry
+ *                                      geometry (default with it)
  *     OP_REORDER_PROPAGATE=single    - legacy single-dim sort by first
  *                                      map endpoint only (kept for
  *                                      benchmarking and regression)
@@ -80,6 +80,7 @@
 #include <iterator>
 #include <climits>
 #include <utility>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
@@ -88,11 +89,11 @@
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
 
+using op::mpi::HaloList;
+
 #include "renumber/rcm.hpp"
 #include "renumber/sloan.hpp"
 #include "renumber/hilbert_sfc.hpp"
-
-using op::mpi::HaloList;
 
 typedef struct {
   int a;
@@ -142,15 +143,25 @@ enum class PropagateMethod {
   Centroid,
 };
 
+/* How many of a set's core elements a Hilbert curve ordered, at how many
+   distinct positions, and with how many distinct keys: elements that share a key
+   keep their previous relative order, so positions merged into one key mean the
+   curve resolves the mesh too coarsely. */
+struct HilbertKeys {
+  int elements = 0, points = 0, keys = 0;
+};
+
 // Per-call state carried through propagate_reordering recursion.
 struct PropagationContext {
   PropagateMethod method;
   int coord_dim;  // 2 or 3 if centroids are available, 0 otherwise.
-  // set_centroids[s] is a flat AoS array of length core_size * coord_dim
-  // for set s, in original (pre-permutation) element order. Empty for
+  // set_centroids[s] is a flat AoS array of length size * coord_dim for
+  // set s (every owned element, so that a core element's parents are all
+  // there), in original (pre-permutation) element order. Empty for
   // sets that have no centroid available (either coord_dim is 0, or the
   // set was reordered through a path that didn't propagate centroids).
   std::vector<std::vector<double> > set_centroids;
+  std::vector<HilbertKeys> keys; // by set, for every set a Hilbert curve ordered
 };
 
 // Lex multi-key order: returns indices [0, n) sorted such that for k < k',
@@ -182,9 +193,9 @@ static std::vector<int> compute_lex_order(op_map map,
 // where the to-set ('parent') is already ordered and has centroids.
 //
 // Returns true on success, false if parent centroids aren't available.
-// Halo entries in the map (parent index >= parent core_size) are skipped:
-// boundary elements average over fewer parents, which biases their centroid
-// slightly inward. That's harmless for SFC ordering.
+// Halo entries in the map (parent index >= parent size) are skipped: only
+// owned elements that are not core can reach them, and they average over
+// fewer parents. Core elements reach owned parents only.
 static bool compute_centroids_to_from(op_map map, PropagationContext &pctx) {
   if (pctx.coord_dim == 0) return false;
   op_set child = map->from;
@@ -193,7 +204,7 @@ static bool compute_centroids_to_from(op_map map, PropagationContext &pctx) {
   if (pc.empty()) return false;
 
   const int cd = pctx.coord_dim;
-  const int n = child->core_size;
+  const int n = child->size;
   const int parent_n = (int)(pc.size() / cd);
 
   std::vector<double> &out = pctx.set_centroids[child->index];
@@ -230,7 +241,7 @@ static bool compute_centroids_from_to(op_map map, PropagationContext &pctx) {
   if (pc.empty()) return false;
 
   const int cd = pctx.coord_dim;
-  const int n = child->core_size;
+  const int n = child->size;
   const int parent_n = (int)(pc.size() / cd);
 
   std::vector<double> &out = pctx.set_centroids[child->index];
@@ -279,8 +290,10 @@ static void propagate_reordering(op_set from, op_set to,
         if (pctx.method == PropagateMethod::Centroid) {
           if (compute_centroids_to_from(map, pctx)) {
             std::vector<int> perm;
+            op_renumber_impl::hilbert_sfc_stats stats{};
             op_renumber_impl::hilbert_sfc_order(
-                pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm);
+                pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm, &stats);
+            pctx.keys[to->index] = {stats.num_verts, stats.distinct_points, stats.distinct_indices};
             for (int i = 0; i < n; i++)
               set_permutations[to->index][i] = perm[i];
             ordered_via_centroid = true;
@@ -389,7 +402,8 @@ static void propagate_reordering(op_set from, op_set to,
 static void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations) {
 
   if (set_permutations[set->index].size() == 0 && set->core_size > 0) {
-    printf("No reordering for set %s, skipping...\n", set->name);
+    if (OP_diags > 2)
+      printf("No reordering for set %s, skipping...\n", set->name);
     return;
   }
 
@@ -485,16 +499,18 @@ static const char *method_name(ReorderMethod m) {
   return "unknown";
 }
 
-static ReorderMethod get_reorder_method() {
+/* OP_REORDER; unset, a Hilbert curve if the primary set has geometry, else RCM. */
+static ReorderMethod get_reorder_method(bool geometry) {
+  const ReorderMethod fallback = geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM;
   const char *env = getenv("OP_REORDER");
-  if (env == NULL || env[0] == '\0') return ReorderMethod::None;
+  if (env == NULL || env[0] == '\0') return fallback;
   if (str_iequals(env, "none"))    return ReorderMethod::None;
   if (str_iequals(env, "random"))  return ReorderMethod::Random;
   if (str_iequals(env, "rcm"))     return ReorderMethod::RCM;
   if (str_iequals(env, "sloan"))   return ReorderMethod::Sloan;
   if (str_iequals(env, "hilbert")) return ReorderMethod::Hilbert;
-  op_printf("Warning: unknown OP_REORDER value '%s', defaulting to none\n", env);
-  return ReorderMethod::None;
+  op_printf("Warning: unknown OP_REORDER value '%s', using %s\n", env, method_name(fallback));
+  return fallback;
 }
 
 static const char *propagate_method_name(PropagateMethod m) {
@@ -506,17 +522,19 @@ static const char *propagate_method_name(PropagateMethod m) {
   return "unknown";
 }
 
-static PropagateMethod get_propagate_method() {
+/* OP_REORDER_PROPAGATE; unset, centroids if the primary set has geometry, else lex. */
+static PropagateMethod get_propagate_method(bool geometry) {
+  const PropagateMethod fallback = geometry ? PropagateMethod::Centroid : PropagateMethod::Lex;
   const char *env = getenv("OP_REORDER_PROPAGATE");
-  if (env == NULL || env[0] == '\0') return PropagateMethod::Lex;
+  if (env == NULL || env[0] == '\0') return fallback;
   if (str_iequals(env, "single") ||
       str_iequals(env, "legacy"))      return PropagateMethod::Single;
   if (str_iequals(env, "lex") ||
       str_iequals(env, "multikey"))    return PropagateMethod::Lex;
   if (str_iequals(env, "centroid") ||
       str_iequals(env, "hilbert"))     return PropagateMethod::Centroid;
-  op_printf("Warning: unknown OP_REORDER_PROPAGATE value '%s', defaulting to lex\n", env);
-  return PropagateMethod::Lex;
+  op_printf("Warning: unknown OP_REORDER_PROPAGATE value '%s', using %s\n", env, propagate_method_name(fallback));
+  return fallback;
 }
 
 // Fisher-Yates shuffle of the identity permutation. Fixed seed so that
@@ -532,15 +550,16 @@ static void random_order(int num_verts, std::vector<int> &permutation) {
   }
 }
 
-/* The geometry of a set's core elements, core_size * dim doubles in local order,
-   from op_set_coords{,_derived}; empty if none was registered. Derived geometry
-   averages over the elements the map reaches that this rank owns: halo creation
-   has run, but nothing has exchanged the coordinates' halo yet. */
-static std::vector<double> core_coords(op_set set, int *dim) {
+/* The geometry of a set's owned elements, size * dim doubles in local order (the
+   core elements first), from op_set_coords{,_derived}; empty if none was
+   registered. Derived geometry averages over the elements the map reaches that
+   this rank owns: halo creation has run, but nothing has exchanged the
+   coordinates' halo yet. */
+static std::vector<double> owned_coords(op_set set, int *dim) {
   const op_dat coords = set->coords;
   if (coords == NULL)
     return {};
-  const int d = coords->dim, n = set->core_size;
+  const int d = coords->dim, n = set->size;
   const double *xyz = reinterpret_cast<const double *>(coords->data);
   *dim = d;
   const op_map map = set->coords_map;
@@ -564,7 +583,7 @@ static std::vector<double> core_coords(op_set set, int *dim) {
       out[(size_t)e * d + c] /= owned;
   }
   if (starved > 0)
-    op_printf("WARNING in op_renumber: %d of %d core elements of set %s reach no owned element of %s through %s, "
+    op_printf("WARNING in op_renumber: %d of %d owned elements of set %s reach no owned element of %s through %s, "
               "so they sit at the origin\n", starved, n, set->name, coords->set->name, map->name);
   return out;
 }
@@ -646,23 +665,23 @@ static void build_core_adjacency(op_map base, std::vector<int> &row_offsets, std
 //-----------------------------------------------------------------------------
 
 /* Reorder this rank's core elements of base's target set, and of every set the
-   ordering propagates to. It can give up on one rank alone (a core with no
-   edges of its own), so nothing collective may happen in here. */
-static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod propagate) {
-  op_printf("Renumbering (%s) using base map %s\n", method_name(method), base->name);
-
+   ordering propagates to; returns, by set, what the Hilbert curves among them
+   made of their keys. It can give up on one rank alone (a core with no edges of
+   its own), so nothing collective may happen in here. */
+static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method, PropagateMethod propagate) {
+  std::vector<HilbertKeys> keys(OP_set_index);
   int num_verts = base->to->core_size;
   if (num_verts == 0) {
-    op_printf("op_renumber: core_size is zero on set %s, nothing to do\n",
-              base->to->name);
-    return;
+    if (OP_diags > 2)
+      printf("op_renumber: core_size is zero on set %s, nothing to do\n", base->to->name);
+    return keys;
   }
 
   // The primary set's geometry: Hilbert orders by it, and centroid propagation
   // starts from it.
   int coord_dim = 0;
   const bool need_coords = method == ReorderMethod::Hilbert || propagate == PropagateMethod::Centroid;
-  const std::vector<double> coords = need_coords ? core_coords(base->to, &coord_dim) : std::vector<double>();
+  const std::vector<double> coords = need_coords ? owned_coords(base->to, &coord_dim) : std::vector<double>();
   if (need_coords && coords.empty())
     op_printf("op_renumber: set %s has no geometry; register it with op_set_coords or op_set_coords_derived\n",
               base->to->name);
@@ -678,48 +697,31 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
   } else if (method == ReorderMethod::Hilbert) {
     if (coords.empty()) {
       op_printf("ERROR: Hilbert SFC needs geometry for set %s. Aborting renumbering.\n", base->to->name);
-      return;
+      return keys;
     }
 
-    op_renumber_impl::hilbert_sfc_stats hstats;
+    op_renumber_impl::hilbert_sfc_stats hstats{};
     op_renumber_impl::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
+    keys[base->to->index] = {hstats.num_verts, hstats.distinct_points, hstats.distinct_indices};
 
-    // Diagnostic log: grid resolution, quantisation collisions, per-axis
-    // effective bits. A large gap between num_verts and distinct_indices
-    // means many vertices collapsed into the same Hilbert bin and the
-    // relative ordering within each bin was decided only by vertex id -
-    // locality quality degrades correspondingly.
-    double ratio = (hstats.num_verts > 0)
-                       ? (double)hstats.distinct_indices /
-                             (double)hstats.num_verts
-                       : 1.0;
-    op_printf("op_renumber: Hilbert SFC quantisation at %d bits/axis\n",
-              hstats.nominal_bits);
-    op_printf("  num_verts         = %d\n", hstats.num_verts);
-    op_printf("  distinct_indices  = %d (%.4f of num_verts)\n",
-              hstats.distinct_indices, ratio);
-    if (hstats.dim == 2) {
-      op_printf("  axis ranges       = [%.3g, %.3g]\n",
-                hstats.axis_range[0], hstats.axis_range[1]);
-      op_printf("  effective bits    = [%.2f, %.2f]\n",
-                hstats.effective_bits[0], hstats.effective_bits[1]);
-    } else {
-      op_printf("  axis ranges       = [%.3g, %.3g, %.3g]\n",
-                hstats.axis_range[0], hstats.axis_range[1],
-                hstats.axis_range[2]);
-      op_printf("  effective bits    = [%.2f, %.2f, %.2f]\n",
-                hstats.effective_bits[0], hstats.effective_bits[1],
-                hstats.effective_bits[2]);
-    }
-    if (ratio < 0.99) {
-      op_printf("WARNING: Hilbert SFC has %.2f%% collision rate - %d of %d "
-                "vertices share a bin with another. Grid resolution may be "
-                "insufficient for this mesh's anisotropy or point density; "
-                "consider increasing bits-per-axis in "
-                "op_renumber_hilbert_sfc.hpp.\n",
-                100.0 * (1.0 - ratio),
-                hstats.num_verts - hstats.distinct_indices,
-                hstats.num_verts);
+    // Grid resolution and per-axis effective bits, on rank 0; report_hilbert_keys
+    // warns about repeated keys on any rank.
+    if (OP_diags > 2) {
+      op_printf("op_renumber: Hilbert SFC on set %s at %d bits/axis: %d elements, %d positions, %d keys\n",
+                base->to->name, hstats.nominal_bits, hstats.num_verts, hstats.distinct_points, hstats.distinct_indices);
+      if (hstats.dim == 2) {
+        op_printf("  axis ranges       = [%.3g, %.3g]\n",
+                  hstats.axis_range[0], hstats.axis_range[1]);
+        op_printf("  effective bits    = [%.2f, %.2f]\n",
+                  hstats.effective_bits[0], hstats.effective_bits[1]);
+      } else {
+        op_printf("  axis ranges       = [%.3g, %.3g, %.3g]\n",
+                  hstats.axis_range[0], hstats.axis_range[1],
+                  hstats.axis_range[2]);
+        op_printf("  effective bits    = [%.2f, %.2f, %.2f]\n",
+                  hstats.effective_bits[0], hstats.effective_bits[1],
+                  hstats.effective_bits[2]);
+      }
     }
 
   } else {
@@ -730,7 +732,7 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
       if (OP_diags > 2)
         printf("op_renumber: no two core elements of set %s share an element of %s, nothing to order\n",
                base->to->name, base->from->name);
-      return;
+      return keys;
     }
 
     if (method == ReorderMethod::RCM) {
@@ -744,9 +746,10 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
   // Pre-reordering statistics (computed on the original map so the "before"
   // numbers correspond to the ordering coming in from the partitioner).
   //---------------------------------------------------------------------------
-  int max_dist_before;
-  long avg_dist_before;
-  compute_edge_stats(base, max_dist_before, avg_dist_before);
+  int max_dist_before = 0;
+  long avg_dist_before = 0;
+  if (OP_diags > 2)
+    compute_edge_stats(base, max_dist_before, avg_dist_before);
 
   //---------------------------------------------------------------------------
   // Assemble the full per-set permutation with identity on the halo range.
@@ -776,6 +779,7 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
   pctx.method = propagate;
   pctx.coord_dim = 0;
   pctx.set_centroids.resize(OP_set_index);
+  pctx.keys = std::move(keys);
 
   if (propagate == PropagateMethod::Centroid) {
     if (coords.empty()) {
@@ -801,28 +805,58 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
   //---------------------------------------------------------------------------
   // Post-reordering statistics.
   //---------------------------------------------------------------------------
-  int max_dist_after;
-  long avg_dist_after;
-  compute_edge_stats(base, max_dist_after, avg_dist_after);
+  if (OP_diags > 2) {
+    int max_dist_after;
+    long avg_dist_after;
+    compute_edge_stats(base, max_dist_after, avg_dist_after);
+    op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
+              max_dist_before, avg_dist_before);
+    op_printf("After  renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
+              max_dist_after, avg_dist_after);
+  }
+  return pctx.keys;
+}
 
-  op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
-            max_dist_before, avg_dist_before);
-  op_printf("After  renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
-            max_dist_after, avg_dist_after);
+/* Warn if, in some set, the Hilbert curve merged into one key the positions of
+   more than 1% of the core elements it ordered - on any rank, naming the worst:
+   those elements keep their previous relative order, so the curve resolves the
+   mesh too coarsely there. Elements at one position (two boundary faces of a
+   corner cell, given its centroid) cannot be separated and do not count.
+   Collective over OP_MPI_WORLD. */
+static void report_hilbert_keys(const std::vector<HilbertKeys> &keys) {
+  struct Shared {
+    double fraction;
+    int rank; // MPI_DOUBLE_INT
+  };
+  std::vector<Shared> mine(OP_set_index), worst(OP_set_index);
+  int rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &rank);
+  for (int s = 0; s < OP_set_index; s++)
+    mine[s] = {keys[s].elements > 0 ? (double)(keys[s].points - keys[s].keys) / keys[s].elements : 0.0, rank};
+  MPI_Allreduce(mine.data(), worst.data(), OP_set_index, MPI_DOUBLE_INT, MPI_MAXLOC, OP_MPI_WORLD);
+  for (int s = 0; s < OP_set_index; s++)
+    if (worst[s].fraction > 0.01)
+      op_printf("WARNING: op_renumber: on rank %d the Hilbert curve gives %.1f%% of the core elements of set %s the "
+                "key of an element elsewhere, so they keep their previous order: the mesh is finer there than the "
+                "curve resolves\n", worst[s].rank, 100 * worst[s].fraction, OP_set_list[s]->name);
 }
 
 void op_renumber(op_map base) {
-  const ReorderMethod method = get_reorder_method();
-  const PropagateMethod propagate = get_propagate_method();
-  op_printf("op_renumber: OP_REORDER = %s, OP_REORDER_PROPAGATE = %s\n", method_name(method),
-            propagate_method_name(propagate));
-  if (method == ReorderMethod::None)
+  const bool geometry = base->to->coords != NULL;
+  const ReorderMethod method = get_reorder_method(geometry);
+  const PropagateMethod propagate = get_propagate_method(geometry);
+  if (method == ReorderMethod::None) {
+    op_printf("op_renumber: OP_REORDER=none, nothing is reordered\n");
     return;
+  }
+  op_printf("op_renumber: %s ordering of set %s through map %s, propagated by %s\n", method_name(method),
+            base->to->name, base->name, propagate_method_name(propagate));
 
-  renumber_owned(base, method, propagate);
+  const std::vector<HilbertKeys> keys = renumber_owned(base, method, propagate);
   /* Every rank, reordered or not: other ranks' import lists name elements by
      their owners' numbering, which has just changed. */
   op_halo_refresh_imports();
+  report_hilbert_keys(keys);
 }
 
 extern "C" void op_renumber_ptr(int *ptr) {
