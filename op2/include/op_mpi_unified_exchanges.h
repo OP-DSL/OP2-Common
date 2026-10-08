@@ -7,6 +7,11 @@
 #include <cstdio>
 #include <cstdint>
 
+// Declares the device printf used below under offline HIP.
+#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
+#include <hip/hip_runtime.h>
+#endif
+
 // The element copies below run in the gather/scatter kernels on a GPU backend
 // and in a plain loop on a CPU one, so they are compiled for both.
 #if defined(__CUDACC__) || defined(__HIPCC__)
@@ -83,7 +88,7 @@ struct ScatterSpec {
 };
 
 OP2_UNIFIED_HD inline void unsupported_elem_size(int elem_size) {
-    std::printf("op_mpi_unified_exchanges: unsupported element size %d\n", elem_size);
+    printf("op_mpi_unified_exchanges: unsupported element size %d\n", elem_size);
 #if defined(__CUDA_ARCH__)
     __trap();
 #else
