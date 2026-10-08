@@ -88,6 +88,7 @@ These pages provide detailed documentation on using OP2, including an installati
    :hidden:
 
    getting_started
+   cmake
    devapp
    api
    translator

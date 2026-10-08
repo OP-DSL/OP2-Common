@@ -1,5 +1,4 @@
 jinja2
 fparser
 pcpp
-sympy
 libclang==18.1.1

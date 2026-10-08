@@ -1273,7 +1273,6 @@ TRANSLATE_TABLE = {
     # f2003.Forall_Stmt
     # f2003.Goto_Stmt
     f2003.If_Stmt: translateIfStmt,
-    f2008.If_Stmt: translateIfStmt,
     # f2003.Inquire_Stmt
     # f2003.Nullify_Stmt
     # f2003.Open_Stmt
@@ -1296,7 +1295,6 @@ TRANSLATE_TABLE = {
     # f2003.Case_Construct
     # f2003.Block_Do_Construct
     f2003.Block_Nonlabel_Do_Construct: translateBlockNonlabelDoConstruct,
-    f2008.Block_Nonlabel_Do_Construct: translateBlockNonlabelDoConstruct,
     # f2003.Forall_Construct
     f2003.If_Construct: translateIfConstruct,
     # f2003.Select_Type_Construct
@@ -1343,9 +1341,13 @@ TRANSLATE_TABLE = {
 
 
 def translateGeneric(node: f2003.Base, ctx: Context) -> str:
-    for type_ in TRANSLATE_TABLE.keys():
-        if type(node) == type_:
-            return TRANSLATE_TABLE[type_](node, ctx)
+    # Walk the MRO rather than requiring an exact type match: fparser gives F2008-specific
+    # syntax (e.g. intrinsic function references, IF statements, DO constructs) its own
+    # subclasses of the equivalent F2003 node, so registering only the F2003 base still
+    # covers both - the most-derived *registered* ancestor is used.
+    for cls in type(node).__mro__:
+        if cls in TRANSLATE_TABLE:
+            return TRANSLATE_TABLE[cls](node, ctx)
 
     ctx.error(f"Type {type(node)} not registered for translateGeneric ({node})", node)
 

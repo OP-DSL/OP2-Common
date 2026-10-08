@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import traceback
 import re
@@ -14,6 +15,8 @@ from language import Lang
 from store import Application, Program
 from target import Target
 from util import Findable
+
+logger = logging.getLogger(__name__)
 
 
 class Scheme(Findable["Scheme"]):
@@ -75,14 +78,14 @@ class Scheme(Findable["Scheme"]):
             if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
                 main_args["kernel_func"] = self.translateKernel(loop, program, app, main_args["config"], kernel_idx)
         except Exception as e:
-            print()
-            print(f"Error: kernel translation for kernel {kernel_idx} ({loop.name}) failed ({self}):")
-            print(f"  fallback: {loop.fallback}, can generate: {self.canGenLoopHost(loop)}, force_generate: {force_generate}")
-            print(f"  {e}\n")
+            logger.warning(
+                f"kernel translation for kernel {kernel_idx} ({loop.name}) failed ({self}):\n"
+                f"  fallback: {loop.fallback}, can generate: {self.canGenLoopHost(loop)}, force_generate: {force_generate}\n"
+                f"  {e}"
+            )
 
             if not isinstance(e, OP.OpError):
-                traceback.print_exc(file=sys.stdout)
-                print()
+                logger.debug("Traceback:\n%s", traceback.format_exc())
 
         if main_args["kernel_func"] is None and self.fallback is None:
             return None
@@ -116,7 +119,8 @@ class Scheme(Findable["Scheme"]):
 
     def genConsts(self, env: Environment, app: Application) -> Tuple[str, str]:
         if self.consts_template is None:
-            exit(f"No consts template registered for {self}")
+            logger.error(f"No consts template registered for {self}")
+            sys.exit(1)
 
         # Load the loop host template
         template = env.get_template(str(self.consts_template))

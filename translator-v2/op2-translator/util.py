@@ -16,8 +16,18 @@ def getRootPath() -> Path:
 
 
 def getVersion() -> str:
+    # First choice: an installed layout ships a VERSION file next to this
+    # module (written by CMake at install time).  Second choice: derive from
+    # `git describe` at the source-tree parent.  Third choice: sentinel.
+    version_file = Path(__file__).parent / "VERSION"
+    if version_file.is_file():
+        return version_file.read_text().strip()
+
     args = ["git", "-C", str(getRootPath()), "describe", "--always"]
-    return subprocess.check_output(args).strip().decode()
+    try:
+        return subprocess.check_output(args, stderr=subprocess.DEVNULL).strip().decode()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return "unknown"
 
 
 def enumRegex(values: List[str]) -> str:

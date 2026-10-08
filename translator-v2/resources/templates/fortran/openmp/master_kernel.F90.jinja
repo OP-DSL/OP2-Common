@@ -1,5 +1,9 @@
 #define UNUSED(x) if (.false.) print *, SHAPE(x)
 
+{% for loop_, _ in app.loops() %}
+#include "{{loop_.name}}_kernel.F90"
+{% endfor %}
+
 module op2_kernels
 
     use iso_c_binding

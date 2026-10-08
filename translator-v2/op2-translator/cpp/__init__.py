@@ -1,3 +1,4 @@
+import logging
 import os
 import importlib
 import subprocess
@@ -13,23 +14,15 @@ import op as OP
 from language import Lang
 from store import Application, Location, ParseError, Program
 
-import clang.cindex
-
+logger = logging.getLogger(__name__)
 
 SYSTEM_INCLUDES = None
-
-libclang_path = os.getenv("LIBCLANG_PATH")
-if libclang_path is not None:
-    clang.cindex.Config.set_library_file(libclang_path)
 
 
 class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
         self.line_directive = None
-
-    def on_comment(self, tok: str) -> bool:
-        return True
 
     def on_error(self, file: str, line: int, msg: str) -> None:
         loc = Location(file, line, 0)
@@ -66,6 +59,8 @@ class Cpp(Lang):
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
     ) -> Tuple[Any, str]:
+        import cpp.parser
+
         global SYSTEM_INCLUDES
 
         # Query system compiler for include dirs - should work as long as GCC/Clang turns up as "c++"
@@ -101,20 +96,30 @@ class Cpp(Lang):
             source_io.seek(0)
             source = source_io.read()
 
-        translation_unit = clang.cindex.Index.create().parse(
-            path,  # type: ignore
-            unsaved_files=[(path, source)],  # type: ignore
-            args=args,
-            options=clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
-        )
-
-        for diagnostic in iter(translation_unit.diagnostics):
-            # if diagnostic.severity >= clang.cindex.Diagnostic.Error:
-            #     raise ParseError(diagnostic.spelling, cpp.parser.parseLocation(diagnostic))
-
-            print(diagnostic)
+        translation_unit = cpp.parser.parseTranslationUnit(path, source, args)
 
         return translation_unit, source
+
+    def resolvedIncludes(self, translation_unit: Any) -> Set[Path]:
+        # Headers reached from this translation unit, for depfile emission.
+        # Toolchain headers are dropped the way `gcc -MM` drops them: they are
+        # the dirs we passed as -isystem above, and tying retranslation to a
+        # compiler update buys nothing. Only includes clang actually resolved
+        # appear here - an unresolvable one is a build failure regardless.
+        system_dirs = [str(Path(dir).resolve()) + os.sep for dir in (SYSTEM_INCLUDES or [])]
+
+        includes: Set[Path] = set()
+        for inclusion in translation_unit.get_includes():
+            if inclusion.include is None:
+                continue
+
+            resolved = Path(inclusion.include.name).resolve()
+            if any(str(resolved).startswith(dir) for dir in system_dirs):
+                continue
+
+            includes.add(resolved)
+
+        return includes
 
     def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
         import cpp.parser
@@ -123,6 +128,10 @@ class Cpp(Lang):
         ast_pp, source_pp = self.parseFile(path, frozenset(include_dirs), frozenset(defines), preprocess=True)
 
         program = Program(path, ast_pp, source_pp)
+
+        # From the unpreprocessed parse: pcpp has already expanded the includes
+        # out of the preprocessed one.
+        program.includes = self.resolvedIncludes(ast)
 
         cpp.parser.parseLoops(ast, program)
         cpp.parser.parseMeta(ast_pp.cursor, program)

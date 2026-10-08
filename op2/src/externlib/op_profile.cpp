@@ -51,7 +51,7 @@ op_profile_clock& op_profile_clock::operator+=(const op_profile_clock& other) {
   total += other.total;
 
   if (other.min < min) min = other.min;
-  if (other.max < max) max = other.max;
+  if (other.max > max) max = other.max;
 
   return *this;
 }

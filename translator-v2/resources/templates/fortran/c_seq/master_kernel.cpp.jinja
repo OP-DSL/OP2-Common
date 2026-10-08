@@ -1,0 +1,33 @@
+{%- macro type_c(arg) -%}
+    {%- if arg.typ is instance(OP.Int) -%}
+        int
+    {%- elif arg.typ is instance(OP.Bool) -%}
+        bool
+    {%- elif arg.typ is instance(OP.Float) and arg.typ.size == 32 -%}
+        float
+    {%- else -%}
+        double
+    {%- endif -%}
+{%- endmacro -%}
+
+{% if lang.user_consts_module is not none %}
+#include "hydra_const_list_c_seq.h"
+{% else %}
+    {% for const in app.consts() %}
+extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+{% endif %}
+
+#include <op_f2c_prelude.h>
+#include <op_lib_cpp.h>
+#include <op_profile.h>
+
+#include <cstdint>
+#include <cmath>
+#include <cstdio>
+
+namespace f2c = op::f2c;
+
+{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
+#include "{{loop_.name}}_kernel_aux1.hpp"
+{% endfor %}

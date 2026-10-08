@@ -271,8 +271,8 @@ void op_renumber(op_map base) {
   // Build adjacency list
   //-----------------------------------------------------------------------------------------
   //base->to->size does not include exec halo
-  std::vector<int> row_offsets(base->to->core_size + 1);
-  std::vector<int> col_indices;
+  std::vector<SCOTCH_Num> row_offsets(base->to->core_size + 1);
+  std::vector<SCOTCH_Num> col_indices;
   if (base->to == base->from) {
     col_indices.resize(base->dim * base->from->size);
     // if map is self-referencing, mapping is the same, except we have to remove references 

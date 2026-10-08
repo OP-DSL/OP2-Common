@@ -9,7 +9,7 @@ FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
 APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%.F90)
 
-BASE_VARIANTS := seq genseq openmp cuda c_cuda c_hip
+BASE_VARIANTS := seq genseq openmp cuda c_seq c_cuda c_hip
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -25,6 +25,10 @@ ifeq ($(HAVE_F),true)
 
   ifeq ($(F_HAS_CUDA),true)
     BUILDABLE_VARIANTS += cuda
+  endif
+
+  ifeq ($(HAVE_C),true)
+    BUILDABLE_VARIANTS += c_seq
   endif
 
   ifeq ($(HAVE_CUDA),true)
@@ -94,19 +98,25 @@ mod/%:
 # $(1) = variant name
 define SRC_template =
 $(call UPPERCASE,$(1))_SRC := generated/$(APP_NAME)/$(2)/op2_consts.F90 \
-                              generated/$(APP_NAME)/$(2)/*_kernel.$(3) \
                               generated/$(APP_NAME)/$(2)/op2_kernels.F90 \
                               $(APP_SRC_OP)
 endef
+# Note: per-loop `<loop>_kernel.F90` files are #include'd by op2_kernels.F90 at
+# preprocessing time; they must NOT be listed here or the module definitions
+# get compiled twice (once standalone, once inside op2_kernels) which produces
+# duplicate-symbol link errors.  The $(3) argument is retained on the callers
+# below for backwards signature compatibility but is unused.
 
 SEQ_SRC := $(APP_SRC)
 
 $(eval $(call SRC_template,genseq,seq,F90))
 $(eval $(call SRC_template,openmp,openmp,F90))
 $(eval $(call SRC_template,cuda,cuda,F90))
+$(eval $(call SRC_template,c_seq,c_seq,F90))
 $(eval $(call SRC_template,c_cuda,c_cuda,F90))
 $(eval $(call SRC_template,c_hip,c_hip,F90))
 
+C_SEQ_SRC += generated/$(APP_NAME)/c_seq/op2_kernels.o
 C_CUDA_SRC += generated/$(APP_NAME)/c_cuda/op2_kernels.o
 C_HIP_SRC += generated/$(APP_NAME)/c_hip/op2_kernels.o
 
@@ -166,8 +176,21 @@ $(eval $(call RULE_template,        seq,,                   SEQ,     MPI,))
 $(eval $(call RULE_template,        genseq,,                SEQ,     MPI,))
 $(eval $(call RULE_template,        openmp, $(OMP_FFLAGS),  OPENMP,  MPI,))
 $(eval $(call RULE_template,        cuda,   $(CUDA_FFLAGS), CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))
+$(eval $(call RULE_template,        c_seq,,                 SEQ,     MPI,))
 $(eval $(call RULE_template_c_cuda, c_cuda, $(CUDA_FFLAGS), CUDA,    MPI_CUDA,))
 $(eval $(call RULE_template_c_hip,  c_hip,  $(HIP_FFLAGS),  HIP,     MPI_HIP,))
+
+# C++ build for c_seq
+define C_SEQ_EXTRA_RULES_template =
+$(APP_NAME)_c_seq: generated/$(APP_NAME)/c_seq/op2_kernels.o
+$(APP_NAME)_mpi_c_seq: generated/$(APP_NAME)/c_seq/op2_kernels.o
+
+generated/$(APP_NAME)/c_seq/op2_kernels.o: generated/$(APP_NAME)
+	$$(CXX) $$(CXXFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) \
+	    -c generated/$(APP_NAME)/c_seq/op2_kernels_aux1.cpp -o $$@
+endef
+
+$(eval $(call C_SEQ_EXTRA_RULES_template))
 
 # NVCC build for c_cuda
 define C_CUDA_EXTRA_RULES_template =
@@ -188,7 +211,7 @@ $(APP_NAME)_mpi_c_hip: generated/$(APP_NAME)/c_hip/op2_kernels.o
 
 generated/$(APP_NAME)/c_hip/op2_kernels.o: generated/$(APP_NAME)
 	$$(HIPCC) $$(HIPCCFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) -DOP2_HIP \
-	    -c generated/$(APP_NAME)/c_hip/op2_kernels_aux1.cu -o $$@
+	    -c generated/$(APP_NAME)/c_hip/op2_kernels_aux1.hip.cpp -o $$@
 endef
 
 $(eval $(call C_HIP_EXTRA_RULES_template))

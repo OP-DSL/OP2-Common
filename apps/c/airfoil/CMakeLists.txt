@@ -1,0 +1,8 @@
+add_subdirectory(airfoil_plain/dp)
+add_subdirectory(airfoil_plain/sp)
+add_subdirectory(airfoil_tempdats/dp)
+if(HDF5_FOUND)
+    add_subdirectory(airfoil_hdf5/dp)
+    add_subdirectory(airfoil_hdf5/sp)
+    add_subdirectory(airfoil_tutorial)
+endif()

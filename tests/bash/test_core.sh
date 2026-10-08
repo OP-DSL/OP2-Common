@@ -34,17 +34,24 @@ function validate {
     file_tail="${file_tail//./}"     # remove all dots
     file_tail="${file_tail//\//_}"   # replace / with _
 
+    # A test is expected to exit non-zero on failure, which is also the only
+    # thing ctest looks at. set +e so that a failing test is reported here
+    # rather than aborting the whole run through set -e.
+    set +e
     eval "$cmd" > perf_out_$file_tail 2>&1
+    local run_rc=$?
+    set -e
 
     grep "Max total runtime" perf_out_$file_tail | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
+    # the grep additionally catches a test that exits 0 without running
     set +e
-    grep -q $grep_word perf_out_$file_tail
-    local rc=$?
+    grep -q "$grep_word" perf_out_$file_tail
+    local grep_rc=$?
     set -e
 
-    if [[ $rc != 0 ]]; then
-        echo $bin "xxxxxxxxxxxxxxxxxxx TEST FAILED" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+    if [[ $run_rc != 0 || $grep_rc != 0 ]]; then
+        echo $bin "xxxxxxxxxxxxxxxxxxx TEST FAILED (exit $run_rc)" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
     else
         echo $bin "+++++++++++++++++++ TEST PASSED"  | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
     fi

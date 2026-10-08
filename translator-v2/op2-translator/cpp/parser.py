@@ -1,13 +1,64 @@
+import logging
+import os
 import re
+from ctypes import c_int, c_void_p
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from clang.cindex import Cursor, CursorKind, TranslationUnit, TypeKind
+from clang.cindex import Config, Cursor, CursorKind, Diagnostic, Index, TranslationUnit, TypeKind
 from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
 from store import Function, Location, ParseError, Program, Type
 from util import safeFind, findIdx
+
+logger = logging.getLogger(__name__)
+
+# libclang diagnostic severities mapped to logging levels.
+_DIAGNOSTIC_LEVELS = {
+    Diagnostic.Ignored: logging.DEBUG,
+    Diagnostic.Note: logging.DEBUG,
+    Diagnostic.Warning: logging.WARNING,
+    Diagnostic.Error: logging.ERROR,
+    Diagnostic.Fatal: logging.ERROR,
+}
+
+# Before the first use of the library just below: once it is loaded, libclang
+# refuses to switch to another.
+libclang_path = os.getenv("LIBCLANG_PATH")
+if libclang_path is not None:
+    Config.set_library_file(libclang_path)
+
+# libclang's Python bindings (cindex.py) don't declare argtypes/restype for the
+# CXEvalResult API - the functions get ctypes' default c_int restype, which on
+# 64-bit systems truncates the opaque CXEvalResult pointer returned by
+# clang_Cursor_Evaluate and segfaults on the subsequent getAsInt call.  Fix by
+# stamping the correct signatures on first import.  Idempotent.
+_clang_lib = clang_internal.lib
+if _clang_lib.clang_Cursor_Evaluate.restype is not c_void_p:
+    _clang_lib.clang_Cursor_Evaluate.argtypes = [Cursor]
+    _clang_lib.clang_Cursor_Evaluate.restype = c_void_p
+    _clang_lib.clang_EvalResult_getAsInt.argtypes = [c_void_p]
+    _clang_lib.clang_EvalResult_getAsInt.restype = c_int
+    _clang_lib.clang_EvalResult_dispose.argtypes = [c_void_p]
+    _clang_lib.clang_EvalResult_dispose.restype = None
+
+
+def parseTranslationUnit(path: Path, source: str, args: List[str]) -> TranslationUnit:
+    translation_unit = Index.create().parse(
+        path,  # type: ignore
+        unsaved_files=[(path, source)],  # type: ignore
+        args=args,
+        options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
+    )
+
+    for diagnostic in iter(translation_unit.diagnostics):
+        # if diagnostic.severity >= Diagnostic.Error:
+        #     raise ParseError(diagnostic.spelling, parseLocation(diagnostic))
+
+        logger.log(_DIAGNOSTIC_LEVELS.get(diagnostic.severity, logging.WARNING), str(diagnostic))
+
+    return translation_unit
 
 
 def parseMeta(node: Cursor, program: Program) -> None:

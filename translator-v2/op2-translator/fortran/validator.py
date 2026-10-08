@@ -1,9 +1,10 @@
-from typing import Any, Callable, List, Optional, Tuple, Union, Set
+import logging
+from collections import Counter
+from fractions import Fraction
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Set
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
-from sympy import simplify
-from sympy.parsing.sympy_parser import parse_expr
 
 import fortran.translator.kernels as ftk
 import fortran.util as fu
@@ -11,6 +12,8 @@ import op as OP
 from op import OpError
 from store import Application, Entity, Function, Program
 from util import find, safeFind
+
+logger = logging.getLogger(__name__)
 
 
 def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
@@ -144,6 +147,39 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
             loop.fallback = True
 
+    # Check that kernel parameter shapes match op_arg dimensions.
+    #
+    # For a dim=1 op_arg the dispatch loop passes a single-element indexing of
+    # an assumed-shape array (e.g. dat0(1, n) or gbl3(1)).  Fortran only
+    # accepts that when the dummy is a scalar - a `dimension(1)` dummy triggers
+    # "Element of assumed-shape or pointer array passed to array dummy" at
+    # compile time.  For a dim=N op_arg the dispatch passes N elements (e.g.
+    # dat0(:, n)), which sequence association lets an explicit-shape dummy of
+    # any rank take - dimension(5, 5) for dim=25 - so long as it has N
+    # elements.  insertStrides and the C translation both index by the dummy's
+    # own shape.
+    for idx, arg in enumerate(loop.args):
+        if not isinstance(arg, (OP.ArgDat, OP.ArgGbl)):
+            continue
+
+        if isinstance(arg, OP.ArgGbl):
+            arg_dim = arg.dim
+        else:
+            arg_dim = loop.dat(arg).dim
+
+        if arg_dim is None:
+            continue  # runtime dim - can't check statically
+
+        violations = []
+        fu.mapParam(kernel_entities[0], idx, entities, checkParamShape, arg_dim, violations)
+
+        if len(violations) > 0:
+            param_name = kernel_entities[0].parameters[idx]
+            expected = "scalar" if arg_dim == 1 else f"array of {arg_dim} elements"
+            printViolations(loop, f"kernel parameter shape mismatch (op_arg dim={arg_dim}, expected {expected})",
+                            violations, (idx, param_name))
+            loop.fallback = True
+
     # Check for runtime-dimension stack arrays (very slow for GPU)
     violations = []
     for entity in entities:
@@ -155,17 +191,15 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
 
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:
     if arg is not None:
-        print(f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:")
+        header = f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:"
     else:
-        print(f"{loop.loc}: Warning: {loop.kernel} {warning}:")
+        header = f"{loop.loc}: Warning: {loop.kernel} {warning}:"
 
-    for violation in violations[:5]:
-        print(f"    {violation}")
-
+    lines = [header] + [f"    {v}" for v in violations[:5]]
     if len(violations) > 5:
-        print(f"    ({len(violations) - 5} more)")
+        lines.append(f"    ({len(violations) - 5} more)")
 
-    print()
+    logger.warning("\n".join(lines))
 
 
 def checkStatements(func: Function, violations: List[str]) -> None:
@@ -261,6 +295,41 @@ def checkSlice(func: Function, param_idx: int, funcs: List[Function], violations
         violations.append(msg(f"{fu.getItem(node).line}"))
 
 
+def checkParamShape(func: Function, param_idx: int, arg_dim: int, violations: List[str]) -> None:
+    """Verify a kernel parameter's declared shape matches the op_arg dimension.
+
+    dim=1 op_args require the kernel parameter to be a scalar (no dimension
+    spec).  dim>1 op_args require an explicit-shape array of any rank with
+    exactly dim elements - dimension(25) or dimension(5, 5) for dim=25.  A
+    shape whose size isn't known here (a bound that is not an integer
+    literal, e.g. dimension(nvar)) passes, as do assumed-shape and
+    assumed-size parameters, since parseDimensions returns None for those
+    and for scalars alike - matching how the slice check already ignores
+    them.
+    """
+    dims = fu.parseDimensions(func, func.parameters[param_idx])
+
+    def msg(reason: str) -> str:
+        return f"In {func.name} (arg {param_idx + 1}, {func.parameters[param_idx]}): {reason}"
+
+    if arg_dim == 1:
+        if dims is not None:
+            violations.append(msg(f"declared with dimension {dims}, must be a scalar"))
+    else:
+        if dims is None:
+            return  # scalar or assumed-shape - leave to other checks
+
+        size = 1
+        for lb, ub in dims:
+            try:
+                size *= int(ub) - int(lb) + 1
+            except ValueError:
+                return  # not an integer literal - size unknown, nothing to compare
+
+        if size != arg_dim:
+            violations.append(msg(f"declared with shape {dims} of {size} elements, must have {arg_dim}"))
+
+
 def checkConstRead(func: Function, const_ptrs: List[str], violations: List[str]) -> None:
     execution_part = fpu.get_child(func.ast, f2003.Execution_Part)
     assert execution_part != None
@@ -343,70 +412,97 @@ def checkInc(func: Function, param_idx: int, funcs: List[Function], violations: 
 
         rhs_refs = fu.walkRefs(assignment_node.items[2], node.string)
 
-        if len(rhs_refs) > 1:
-            violations.append(msg(f"multi-ref: {fu.getItem(node).line}"))
-            continue
-
         if len(rhs_refs) == 0:
             violations.append(msg(f"no-ref: {fu.getItem(node).line}"))
             continue
 
-        rhs_ref = rhs_refs[0]
+        # The RHS may use the ref any number of times, but only ever as the
+        # LHS itself - the same element, if it is indexed
+        lhs = refKey(assignment_node.items[0])
 
-        if isinstance(assignment_node.items[0], f2003.Part_Ref):
-            rhs_ref = rhs_ref.parent
-
-        if repr(rhs_ref) != repr(assignment_node.items[0]):
+        if any(refKey(refExpr(rhs_ref)) != lhs for rhs_ref in rhs_refs):
             violations.append(msg(f"index mismatch: {fu.getItem(node).line}"))
             continue
 
         try:
-            count = [0]
-            expr = simplifyLevel2(assignment_node.items[2], assignment_node.items[0], node.string, count)
+            rhs = incrementPoly(assignment_node.items[2], lhs, node.string)
         except OpError as e:
             violations.append(msg(f"invalid usage: {fu.getItem(node).line}"))
             continue
 
-        if expr == "x":
-            violations.append(msg(f"no-op: {fu.getItem(node).line}"))
-        elif expr.count('x') == 1 and expr.startswith("x +") or expr.startswith ("x -"):
-            continue
-        elif simplify(parse_expr(f"{expr.replace('x', '0')}", evaluate=False)) == 0:
-            violations.append(msg(f"no-op: {fu.getItem(node).line}"))
-        elif simplify(parse_expr(f"({expr}) - (x + {expr.replace('x', '0')})", evaluate=False)) != 0:
+        # An increment is the ref plus terms without it, and those don't cancel
+        delta = polyAdd(rhs, {((lhs, 1),): Fraction(1)}, -1)
+
+        if any(var == lhs for monomial in delta for var, _ in monomial):
             violations.append(msg(f"non increment: {fu.getItem(node).line}"))
+        elif len(delta) == 0:
+            violations.append(msg(f"no-op: {fu.getItem(node).line}"))
 
 
-def simplifyLevel2(node: f2003.Base, ref: Union[f2003.Name, f2003.Part_Ref], ref_name: str, count: List[int]) -> str:
-    def incSym() -> str:
-        count[0] += 1
-        return f"y{count[0]}"
+def refKey(node: f2003.Base) -> str:
+    return str(node).lower()
 
+
+# The expression a ref is: the indexed array element when it is one
+def refExpr(ref: f2003.Name) -> f2003.Base:
+    if isinstance(ref.parent, f2003.Part_Ref) and ref.parent.items[0] is ref:
+        return ref.parent
+
+    return ref
+
+
+# A polynomial in an increment's variables, as {monomial: coefficient}, with
+# a monomial the sorted (variable, power) pairs of its variables.
+Poly = Dict[Tuple[Tuple[str, int], ...], Fraction]
+
+
+def polyAdd(p: Poly, q: Poly, scale: int = 1) -> Poly:
+    total = dict(p)
+    for monomial, coefficient in q.items():
+        total[monomial] = total.get(monomial, 0) + scale * coefficient
+
+    return {monomial: coefficient for monomial, coefficient in total.items() if coefficient != 0}
+
+
+def polyMul(p: Poly, q: Poly) -> Poly:
+    product: Poly = {}
+    for monomial1, coefficient1 in p.items():
+        for monomial2, coefficient2 in q.items():
+            powers = Counter(dict(monomial1)) + Counter(dict(monomial2))
+            monomial = tuple(sorted(powers.items()))
+            product[monomial] = product.get(monomial, 0) + coefficient1 * coefficient2
+
+    return {monomial: coefficient for monomial, coefficient in product.items() if coefficient != 0}
+
+
+# Reads an increment's RHS as a polynomial in the ref (keyed lhs) and whatever
+# else it adds, subtracts and multiplies. Anything other than those operations
+# and numeric literals is a variable of its own - named by its source text, so
+# only an identical term can cancel it - as long as it does not use the ref.
+# If it does - a function or power of the ref, or division by or of it, which
+# with integer operands truncates - this raises OpError.
+def incrementPoly(node: f2003.Base, lhs: str, ref_name: str) -> Poly:
     if isinstance(node, f2003.Parenthesis):
-        return f"({simplifyLevel2(node.children[0], ref, ref_name, count)})"
+        return incrementPoly(node.items[1], lhs, ref_name)
+
+    if isinstance(node, f2003.Level_2_Unary_Expr):
+        op, operand = node.items
+        return polyAdd({}, incrementPoly(operand, lhs, ref_name), -1 if op == "-" else 1)
 
     if isinstance(node, f2003.Level_2_Expr):
-        if len(fu.walkRefs(node.items[0], ref_name)) > 0:
-            return f"{simplifyLevel2(node.items[0], ref, ref_name, count)} {node.items[1]} {incSym()}"
+        left, op, right = node.items
+        return polyAdd(incrementPoly(left, lhs, ref_name), incrementPoly(right, lhs, ref_name), -1 if op == "-" else 1)
 
-        if len(fu.walkRefs(node.items[2], ref_name)) > 0:
-            return f"{incSym()} {node.items[1]} {simplifyLevel2(node.items[2], ref, ref_name, count)}"
+    if isinstance(node, f2003.Add_Operand) and node.items[1] == "*":
+        return polyMul(incrementPoly(node.items[0], lhs, ref_name), incrementPoly(node.items[2], lhs, ref_name))
 
-        assert False
+    if isinstance(node, (f2003.Int_Literal_Constant, f2003.Real_Literal_Constant)):
+        value = Fraction(node.items[0].lower().replace("d", "e"))
+        return {(): value} if value != 0 else {}
 
-    if isinstance(node, f2003.Name):
-        if node.string.lower() == ref.string.lower():
-            return "x"
+    key = refKey(node)
 
-        return incSym()
+    if key != lhs and len(fu.walkRefs(node, ref_name)) > 0:
+        raise OpError(f"unsupported use of {ref_name}: {node}")
 
-    if isinstance(node, f2003.Part_Ref):
-        if node.items[0].string.lower() == ref.items[0].string.lower():
-            return "x"
-
-        return incSym()
-
-    if len(fu.walkRefs(node, ref_name)) > 0:
-        raise OpError(str())
-
-    return incSym()
+    return {((key, 1),): Fraction(1)}
