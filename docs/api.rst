@@ -182,6 +182,11 @@ Initialisation and Termination
       op_set_coords_derived(cells, pcell, p_x);  /* cell centroids from node coordinates */
       op_set_coords(nodes, p_x);
 
+.. c:function:: void op_set_coords_ptr(op_set set, double *coords)
+.. c:function:: void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords)
+
+   :c:func:`op_set_coords` and :c:func:`op_set_coords_derived` for the pointer API: the map and the coordinates are named by the arrays they were declared from (with ``op_decl_map`` or ``op_decl_map_long``, and ``op_decl_dat``). An array no map or dat was declared from stops the job.
+
 .. c:function:: void op_renumber(op_map base)
 
    Reorders each rank's core elements for locality, after :c:func:`op_partition`: first the target set of **base**, with the ordering the ``OP_REORDER`` environment variable names, then every set the maps reach from it, as ``OP_REORDER_PROPAGATE`` says. Unset, they default to a Hilbert curve propagated by centroids if the target set's geometry is registered with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived`, and to reverse Cuthill-McKee propagated lexicographically if not. Call it before any loop. In a single-node library it warns and reorders nothing.
@@ -708,6 +713,14 @@ Mesh Geometry and Renumbering
    call op_renumber(pecell)
 
 As :c:func:`op_set_coords`, :c:func:`op_set_coords_derived` and :c:func:`op_renumber` in C/C++.
+
+For the pointer API, the map and the coordinates are the arrays they were declared from. The coordinates are ``real(8)`` with 2 or 3 components per element, as their ``op_dat`` was declared - ``x(2, n)`` or ``x(3, n)``. A map declared with ``op_decl_map`` from ``integer(4)`` goes to ``op_set_coords_derived_ptr``, one declared with ``op_decl_map_long`` from ``integer(8)`` to ``op_set_coords_derived_ptr_long``:
+
+.. code-block:: fortran
+
+   call op_set_coords_ptr(nodes, x)
+   call op_set_coords_derived_ptr(cells, cell2node, x)        ! integer(4) cell2node
+   call op_set_coords_derived_ptr_long(cells, cell2node, x)   ! integer(8) cell2node
 
 Utility Functions
 ^^^^^^^^^^^^^^^^^

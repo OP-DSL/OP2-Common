@@ -1323,18 +1323,10 @@ extern int **OP_map_ptr_list;
 /* Called from Fortran by its C name; declared in no header. */
 extern "C" void op_partition_ptr(const char *lib_name, const char *lib_routine, op_set prime_set, int *prime_map,
                                  double *coords) {
-  // the dat declared from coords, if any; a NULL coords would match any dat declared without data
-  op_dat item_dat = NULL;
-  if (coords != NULL) {
-    op_dat_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list, entries)
-      if (item->orig_ptr == coords) {
-        item_dat = item->dat;
-        break;
-      }
-    if (item_dat == NULL)
-      fail("Error in op_partition: no op_dat was declared from the coordinates at %p\n", (void *)coords);
-  }
+  // the dat declared from coords, if any
+  op_dat item_dat = op_search_dat_ptr(coords);
+  if (coords != NULL && item_dat == NULL)
+    fail("Error in op_partition: no op_dat was declared from the coordinates at %p\n", (void *)coords);
 
   op_map item_map = op_search_map_ptr(prime_map);
 

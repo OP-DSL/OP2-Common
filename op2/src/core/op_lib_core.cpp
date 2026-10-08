@@ -142,6 +142,16 @@ op_map op_search_map_ptr(int *map_ptr) {
   return NULL;
 }
 
+op_dat op_search_dat_ptr(const void *data) {
+  if (data == NULL) // a dat declared without data has no array to be found by
+    return NULL;
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries)
+    if (item->orig_ptr == data)
+      return item->dat;
+  return NULL;
+}
+
 /*check if map points to elements within set range*/
 void check_map(char const *name, op_set from, op_set to, int dim, int *map) {
 
@@ -430,6 +440,22 @@ void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords) {
 }
 
 void op_set_coords(op_set set, op_dat coords) { op_set_coords_derived(set, NULL, coords); }
+
+void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords) {
+  op_map map = to_coords != NULL ? op_search_map_ptr(to_coords) : NULL;
+  if (to_coords != NULL && map == NULL) {
+    printf("op_set_coords error -- no op_map was declared from the map at %p\n", (void *)to_coords);
+    exit(-1);
+  }
+  op_dat dat = op_search_dat_ptr(coords);
+  if (dat == NULL) {
+    printf("op_set_coords error -- no op_dat was declared from the coordinates at %p\n", (void *)coords);
+    exit(-1);
+  }
+  op_set_coords_derived(set, map, dat);
+}
+
+void op_set_coords_ptr(op_set set, double *coords) { op_set_coords_derived_ptr(set, NULL, coords); }
 
 op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
                         char const *name) {

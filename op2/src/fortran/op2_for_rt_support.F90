@@ -267,6 +267,27 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
+    subroutine op_set_coords_ptr_c (set, coords) BIND(C,name='op_set_coords_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(c_ptr), value, intent(in) :: coords
+
+    end subroutine
+
+    subroutine op_set_coords_derived_ptr_c (set, to_coords, coords) BIND(C,name='op_set_coords_derived_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(c_ptr), value, intent(in) :: to_coords
+      type(c_ptr), value, intent(in) :: coords
+
+    end subroutine
+
     integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges')
 
       use, intrinsic :: ISO_C_BINDING
@@ -606,6 +627,55 @@ module OP2_Fortran_RT_Support
     type(op_dat) :: coords
 
     call op_set_coords_derived_c (set%setPtr, to_coords%mapPtr, coords%dataPtr)
+
+  end subroutine
+
+  ! The same for the pointer API: the map and the coordinates are the arrays they
+  ! were declared from. The coordinates have 2 or 3 components per element, as
+  ! their op_dat was declared - x(2, n) or x(3, n).
+  subroutine op_set_coords_ptr (set, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    real(8), dimension(*), target :: coords
+
+    call op_set_coords_ptr_c (set%setPtr, c_loc(coords))
+
+  end subroutine
+
+  ! The map is the array op_decl_map declared it from ...
+  subroutine op_set_coords_derived_ptr (set, to_coords, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    integer(4), dimension(*), target :: to_coords
+    real(8), dimension(*), target :: coords
+
+    call op_set_coords_derived_ptr_c (set%setPtr, c_loc(to_coords), c_loc(coords))
+
+  end subroutine
+
+  ! ... or op_decl_map_long, here
+  subroutine op_set_coords_derived_ptr_long (set, to_coords, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    integer(c_long_long), dimension(*), target :: to_coords
+    real(8), dimension(*), target :: coords
+
+    call op_set_coords_derived_ptr_c (set%setPtr, c_loc(to_coords), c_loc(coords))
 
   end subroutine
 

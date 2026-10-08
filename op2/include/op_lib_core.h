@@ -338,6 +338,7 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 void op_register_map_ptr(int *map_ptr, op_map map);
 
 op_map op_search_map_ptr(int *map_ptr);
+op_dat op_search_dat_ptr(const void *data); /* the op_dat declared from data, or NULL */
 
 void op_disable_device_execution(bool disable);
 
@@ -409,6 +410,10 @@ void *op_mpi_perf_time(const char *name, double time);
    over to_coords, a map from the set. */
 void op_set_coords(op_set set, op_dat coords);
 void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords);
+/* The same, with the map and the coordinates named by the arrays they were
+   declared from, for the pointer API. */
+void op_set_coords_ptr(op_set set, double *coords);
+void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords);
 
 void op_renumber(op_map base);
 
