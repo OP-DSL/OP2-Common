@@ -34,7 +34,8 @@
  * op_renumber.cpp
  *
  * op_renumber(base) reorders each rank's core elements of base->to, the primary
- * set, with the ordering the OP_REORDER environment variable names:
+ * set, with the ordering the OP_REORDER environment variable names (the
+ * single-node libraries have a stub that warns and reorders nothing):
  *
  *     OP_REORDER=none      - no reordering
  *     OP_REORDER=random    - random permutation (benchmark baseline)

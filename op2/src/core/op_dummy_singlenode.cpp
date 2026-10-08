@@ -124,9 +124,16 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
   (void)coords;
   OP_is_partitioned = 1;
 }
-void op_renumber(op_map base) { (void)base; }
+/* Reordering is implemented in the MPI libraries only. */
+void op_renumber(op_map base) {
+  (void)base;
+  op_printf("WARNING: op_renumber reorders only in the MPI libraries; nothing is reordered\n");
+}
 
-void op_renumber_ptr(int *ptr){ (void)ptr;}
+void op_renumber_ptr(int *ptr) {
+  (void)ptr;
+  op_renumber(NULL);
+}
 
 void op_compute_moment(double t, double *first, double *second) {
   *first = t;

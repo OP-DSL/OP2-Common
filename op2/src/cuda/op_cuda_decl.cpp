@@ -237,9 +237,16 @@ int getSetSizeFromOpArg(op_arg *arg) {
   return arg->opt ? (int)arg->dat->set->size : 0;
 }
 
-void op_renumber(op_map base) { (void)base; }
+/* Reordering is implemented in the MPI libraries only. */
+void op_renumber(op_map base) {
+  (void)base;
+  op_printf("WARNING: op_renumber reorders only in the MPI libraries; nothing is reordered\n");
+}
 
-void op_renumber_ptr(int *ptr){};
+void op_renumber_ptr(int *ptr) {
+  (void)ptr;
+  op_renumber(NULL);
+}
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
