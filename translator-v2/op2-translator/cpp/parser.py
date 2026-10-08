@@ -9,7 +9,7 @@ from clang.cindex import Config, Cursor, CursorKind, Diagnostic, Index, Translat
 from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
-from store import Function, Location, ParseError, Program, Type
+from store import Application, Function, Location, ParseError, Program, Type
 from util import safeFind, findIdx
 
 logger = logging.getLogger(__name__)
@@ -384,8 +384,10 @@ def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
 
     return next(node.get_children(), None)
 
-def findLoopConsts(program: Program) -> None:
-    for loop in program.loops:
+def findLoopConsts(app: Application) -> None:
+    consts = {const.ptr: const for const in app.consts()}
+
+    for loop, program in app.loops():
         visited = set()
 
         def visit_function(func_cursor):
@@ -397,9 +399,9 @@ def findLoopConsts(program: Program) -> None:
 
             for node in func_cursor.walk_preorder():
                 if node.kind == CursorKind.DECL_REF_EXPR:
-                    const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
-                    if const_id is not None:
-                        loop.addConst(program.consts[const_id])
+                    const = consts.get(node.spelling)
+                    if const is not None:
+                        loop.addConst(const)
                 elif node.kind == CursorKind.CALL_EXPR:
                     callee = node.referenced
                     if callee is not None and callee.kind == CursorKind.FUNCTION_DECL:
