@@ -294,8 +294,6 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
     {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
     {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
-    for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
-        arg{{arg.id}}_{{arg.map_idx}}_local[d] = zero_{{lh.dat(arg).typ}};
 
     {% endfor %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
@@ -304,6 +302,12 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% else %}
         int n = i;
     {% endif %}
+
+    {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
+        for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
+            arg{{arg.id}}_{{arg.map_idx}}_local[d] = zero_{{lh.dat(arg).typ}};
+
+    {% endfor %}
 
     {% if lh.args|idx|direct|length > 0 %}
         int idx = n;

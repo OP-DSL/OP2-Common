@@ -3,7 +3,7 @@ APP_EXTRA_TRANSLATOR_FLAGS ?= -I $(OP2_INSTALL_PATH)/include
 include ../../../makefiles/common.mk
 
 APP_NAME := const_tests
-APP_SRC := const_tests.cpp
+APP_SRC := const_tests.cpp const_cross_file.cpp
 
 VARIANT_FILTER_OUT := mpi_%
 
@@ -18,7 +18,7 @@ include ../../../makefiles/c_app.mk
 
 
 APP_NAME := const_tests_soa
-APP_SRC := const_tests.cpp
+APP_SRC := const_tests.cpp const_cross_file.cpp
 
 VARIANT_FILTER_OUT := mpi_%
 APP_EXTRA_TRANSLATOR_FLAGS += --force_soa

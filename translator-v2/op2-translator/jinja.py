@@ -23,11 +23,10 @@ def direct(x, loop: Optional[OP.Loop] = None) -> bool:
 
     if isinstance(x, OP.Dat):
         assert loop is not None
-
-        arg = loop.args[x.arg_id]
-        assert isinstance(arg, OP.ArgDat)
-
-        return arg.map_id is None
+        return any(
+            isinstance(arg, OP.ArgDat) and arg.dat_id == x.id and arg.map_id is None
+            for arg in loop.args
+        )
 
     if isinstance(x, OP.Loop) and len(x.maps) == 0:
         return True
@@ -41,11 +40,10 @@ def indirect(x, loop: Optional[OP.Loop] = None) -> bool:
 
     if isinstance(x, OP.Dat):
         assert loop is not None
-
-        arg = loop.args[x.arg_id]
-        assert isinstance(arg, OP.ArgDat)
-
-        return arg.map_id is not None
+        return any(
+            isinstance(arg, OP.ArgDat) and arg.dat_id == x.id and arg.map_id is not None
+            for arg in loop.args
+        )
 
     if isinstance(x, OP.Loop) and len(x.maps) != 0:
         return True
