@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <cfloat>
 #include <cmath>
+#include <memory>
 #include <utility>
 
 namespace op_renumber_impl {
@@ -57,50 +58,73 @@ struct hilbert_sfc_stats {
                              // short axes (quantised below grid resolution).
 };
 
-// Skilling's AxestoTranspose. Converts n coordinates, each up to b bits, into
-// the Hilbert transpose form in place. Identical to the published reference
-// implementation (Skilling, 2004).
-inline void hilbert_axes_to_transpose(std::uint32_t *X, int b, int n) {
-  std::uint32_t M = 1U << (b - 1);
-  std::uint32_t P, Q, t;
-
-  // Inverse undo
-  for (Q = M; Q > 1; Q >>= 1) {
-    P = Q - 1;
-    for (int i = 0; i < n; i++) {
-      if (X[i] & Q) {
-        X[0] ^= P;
-      } else {
-        t = (X[0] ^ X[i]) & P;
-        X[0] ^= t;
-        X[i] ^= t;
+// The Hilbert indices of L points given as N coordinates of B bits each (B * N <= 64),
+// lane l of X holding point l: Skilling's AxestoTranspose (Skilling, 2004,
+// "Programming the Hilbert Curve"), then the transpose's bits interleaved, most
+// significant first, X[0]'s bit leading each group of N. Branch-free and lane by
+// lane, so the compiler can compute the L points side by side: one point's steps
+// form a long dependent chain, L points' do not.
+template <int N, int B, int L> inline void hilbert_index(std::uint32_t (&X)[N][L], std::uint64_t (&h)[L]) {
+  // Inverse undo: at each level q, a set bit flips X[0]'s lower bits, a clear one
+  // swaps them between X[0] and X[i]
+  for (int q = B - 1; q > 0; q--) {
+    const std::uint32_t P = (1u << q) - 1;
+    for (int i = 0; i < N; i++)
+      for (int l = 0; l < L; l++) {
+        const std::uint32_t set = 0u - ((X[i][l] >> q) & 1u);
+        const std::uint32_t t = (X[0][l] ^ X[i][l]) & P & ~set;
+        X[0][l] ^= (P & set) | t;
+        X[i][l] ^= t;
       }
-    }
+  }
+  // Gray encode. Bit j of t is the parity of X[N-1]'s bits above j, a suffix XOR
+  // (Skilling's loop over the levels, done in five shifts).
+  for (int i = 1; i < N; i++)
+    for (int l = 0; l < L; l++)
+      X[i][l] ^= X[i - 1][l];
+  for (int l = 0; l < L; l++) {
+    std::uint32_t y = X[N - 1][l];
+    y ^= y >> 1;
+    y ^= y >> 2;
+    y ^= y >> 4;
+    y ^= y >> 8;
+    y ^= y >> 16;
+    const std::uint32_t t = y >> 1;
+    for (int i = 0; i < N; i++)
+      X[i][l] ^= t;
   }
 
-  // Gray encode
-  for (int i = 1; i < n; i++)
-    X[i] ^= X[i - 1];
-  t = 0;
-  for (Q = M; Q > 1; Q >>= 1) {
-    if (X[n - 1] & Q) t ^= Q - 1;
+  // Interleave: spread each coordinate's bits N apart
+  for (int l = 0; l < L; l++) {
+    std::uint64_t key = 0;
+    for (int i = 0; i < N; i++) {
+      std::uint64_t x = X[i][l];
+      if constexpr (N == 2) {
+        x = (x | x << 16) & 0x0000ffff0000ffffULL;
+        x = (x | x << 8) & 0x00ff00ff00ff00ffULL;
+        x = (x | x << 4) & 0x0f0f0f0f0f0f0f0fULL;
+        x = (x | x << 2) & 0x3333333333333333ULL;
+        x = (x | x << 1) & 0x5555555555555555ULL;
+      } else {
+        static_assert(N == 3 && B <= 21, "2 or 3 dimensions, at most 64 bits");
+        x &= 0x1fffffULL;
+        x = (x | x << 32) & 0x1f00000000ffffULL;
+        x = (x | x << 16) & 0x1f0000ff0000ffULL;
+        x = (x | x << 8) & 0x100f00f00f00f00fULL;
+        x = (x | x << 4) & 0x10c30c30c30c30c3ULL;
+        x = (x | x << 2) & 0x1249249249249249ULL;
+      }
+      key |= x << (N - 1 - i);
+    }
+    h[l] = key;
   }
-  for (int i = 0; i < n; i++)
-    X[i] ^= t;
 }
 
-// Interleave transposed bits (most-significant bit first) into a single
-// scalar Hilbert index. Output is b*n bits wide.
-inline std::uint64_t hilbert_transpose_to_index(const std::uint32_t *X, int b, int n) {
-  std::uint64_t h = 0;
-  for (int i = 0; i < b; i++) {
-    for (int j = 0; j < n; j++) {
-      std::uint64_t bit = (X[j] >> (b - 1 - i)) & 1u;
-      h = (h << 1) | bit;
-    }
-  }
-  return h;
-}
+// A point's key and its index among the points.
+struct hilbert_keyed {
+  std::uint64_t key;
+  int index;
+};
 
 // Compute a Hilbert-SFC permutation from geometric coordinates.
 //  - coords:     flat AoS array of length num_verts * dim (coords[v*dim + d])
@@ -119,7 +143,7 @@ inline void hilbert_sfc_order(const double *coords,
 
   // 21 bits per axis. 2D index <= 42 bits, 3D index <= 63 bits. Both fit
   // comfortably in a uint64_t with room to spare.
-  const int bits = 21;
+  constexpr int bits = 21;
   const std::uint32_t scale = (1U << bits) - 1;
 
   // Bounding box per axis.
@@ -149,24 +173,36 @@ inline void hilbert_sfc_order(const double *coords,
   // for each vertex. We pair each index with its original vertex id so the
   // final sort yields the ordering directly. Ties in Hilbert index are
   // resolved by vertex id for reproducibility.
-  std::vector<std::pair<std::uint64_t, int> > indexed(num_verts);
-  for (int v = 0; v < num_verts; v++) {
-    std::uint32_t X[3] = { 0, 0, 0 };
-    for (int d = 0; d < dim; d++) {
-      double norm = (coords[v * dim + d] - mn[d]) / max_range;
-      if (norm < 0.0) norm = 0.0;
-      if (norm > 1.0) norm = 1.0;
-      X[d] = (std::uint32_t)(norm * (double)scale);
+  auto indexed = std::make_unique_for_overwrite<hilbert_keyed[]>(num_verts);
+  auto keys = [&]<int N>() {
+    constexpr int L = 16;
+    for (int v0 = 0; v0 < num_verts; v0 += L) {
+      std::uint32_t X[N][L] = {};
+      std::uint64_t h[L];
+      const int lanes = std::min(L, num_verts - v0);
+      for (int l = 0; l < lanes; l++)
+        for (int d = 0; d < N; d++) {
+          double norm = (coords[(size_t)(v0 + l) * N + d] - mn[d]) / max_range;
+          if (norm < 0.0) norm = 0.0;
+          if (norm > 1.0) norm = 1.0;
+          X[d][l] = (std::uint32_t)(norm * (double)scale);
+        }
+      hilbert_index<N, bits, L>(X, h);
+      for (int l = 0; l < lanes; l++)
+        indexed[v0 + l] = {h[l], v0 + l};
     }
-    hilbert_axes_to_transpose(X, bits, dim);
-    std::uint64_t h = hilbert_transpose_to_index(X, bits, dim);
-    indexed[v] = std::make_pair(h, v);
-  }
+  };
+  if (dim == 2)
+    keys.template operator()<2>();
+  else
+    keys.template operator()<3>();
 
-  std::sort(indexed.begin(), indexed.end());
+  std::sort(indexed.get(), indexed.get() + num_verts, [](const hilbert_keyed &a, const hilbert_keyed &b) {
+    return a.key != b.key ? a.key < b.key : a.index < b.index;
+  });
 
   for (int i = 0; i < num_verts; i++) {
-    permutation[indexed[i].second] = i;
+    permutation[indexed[i].index] = i;
   }
 
   // Fill in diagnostic stats if requested.
@@ -179,7 +215,7 @@ inline void hilbert_sfc_order(const double *coords,
     // already-sorted array and counting transitions.
     int distinct = 1;
     for (int i = 1; i < num_verts; i++) {
-      if (indexed[i].first != indexed[i - 1].first) distinct++;
+      if (indexed[i].key != indexed[i - 1].key) distinct++;
     }
     stats->distinct_indices = distinct;
 
@@ -192,9 +228,9 @@ inline void hilbert_sfc_order(const double *coords,
     };
     for (int i = 0; i < num_verts;) {
       int j = i + 1;
-      while (j < num_verts && indexed[j].first == indexed[i].first) j++;
+      while (j < num_verts && indexed[j].key == indexed[i].key) j++;
       run.clear();
-      for (int k = i; k < j; k++) run.push_back(indexed[k].second);
+      for (int k = i; k < j; k++) run.push_back(indexed[k].index);
       std::sort(run.begin(), run.end(), before);
       for (size_t k = 0; k < run.size(); k++)
         points += k == 0 || before(run[k - 1], run[k]);
