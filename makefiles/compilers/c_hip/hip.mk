@@ -14,4 +14,4 @@ ifdef HIP_ARCH
   HIP_OPT += --offload-arch=$(HIP_ARCH)
 endif
 
-CONFIG_HIPCCFLAGS ?= -x hip -std=c++20 $(HIP_OPT)
+CONFIG_HIPCCFLAGS ?= -x hip -std=c++20 $(HIP_OPT) $(EXTRA_HIPCCFLAGS)
