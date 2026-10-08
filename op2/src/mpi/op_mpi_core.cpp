@@ -123,21 +123,9 @@ op_set op_decl_set(idx_l_t size, char const *name) {
   return op_decl_set_core(size, name);
 }
 
-op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
-                   char const *name) {
-
-  idx_g_t *imap_g = (idx_g_t *)malloc((idx_g_t)from->size * dim * sizeof(idx_g_t));
-  for (idx_g_t i = 0; i < (idx_g_t)from->size * dim; i++) {
-    imap_g[i] = (idx_g_t)imap[i];
-  }
-
-  op_map map = op_decl_map_long(from, to, dim, imap_g, name);
-  free(imap_g);
-  return map;
-}
-
-op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
-                   char const *name) {
+/* A map from global indices, kept as map_gbl until halo creation. The caller
+   registers the array the pointer API names the map by. */
+static op_map decl_map_global(op_set from, op_set to, int dim, const idx_g_t *imap_g, char const *name) {
 
   op_map map = op_decl_map_core(from, to, dim, NULL, name);
 
@@ -156,8 +144,29 @@ op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
   //per process has to be less than INT_MAX
   map->map_gbl = imap_g2;
   map->user_managed = 0;
+  return map;
+}
 
-  op_register_map_ptr((int *)imap_g, map);
+op_map op_decl_map(op_set from, op_set to, int dim, int *imap,
+                   char const *name) {
+
+  idx_g_t *imap_g = (idx_g_t *)malloc((idx_g_t)from->size * dim * sizeof(idx_g_t));
+  for (idx_g_t i = 0; i < (idx_g_t)from->size * dim; i++) {
+    imap_g[i] = (idx_g_t)imap[i];
+  }
+
+  op_map map = decl_map_global(from, to, dim, imap_g, name);
+  free(imap_g);
+  if (imap != NULL)
+    op_register_map_ptr(imap, map);
+  return map;
+}
+
+op_map op_decl_map_long(op_set from, op_set to, int dim, idx_g_t *imap_g,
+                   char const *name) {
+  op_map map = decl_map_global(from, to, dim, imap_g, name);
+  if (imap_g != NULL)
+    op_register_map_ptr((int *)imap_g, map);
   return map;
 }
 
