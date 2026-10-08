@@ -4,6 +4,11 @@
 #include <cassert>
 #endif
 
+// Declares atomicAdd for the staging helpers under offline HIP.
+#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
+#include <hip/hip_runtime.h>
+#endif
+
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define DEVICE __device__
 
