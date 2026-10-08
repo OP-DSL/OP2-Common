@@ -110,12 +110,17 @@ struct Ptr {
 
 // Carve the next region out of the shared buffer, advancing the cursor.
 // Every supported scalar type has alignof == sizeof, so one value does both.
+//
+// The padding is added to the pointer rather than rebuilding the pointer from
+// an aligned integer: an integer round trip hides that it points into shared
+// memory, and every increment through it then compiles to a run-time choice
+// between shared, cluster-shared and global atomics on a 64-bit generic address.
 template<typename T>
 DEVICE inline T *hier_smem_region(char *&cursor, IndexType count,
                                   IndexType dim) {
     constexpr size_t alignment = sizeof(T);
-    cursor = (char *)(((size_t)cursor + (alignment - 1)) &
-                      ~(size_t)(alignment - 1));
+    cursor += (alignment - ((size_t)cursor & (alignment - 1))) &
+              (alignment - 1);
 
     T *base = (T *)cursor;
     cursor += (size_t)count * (size_t)dim * sizeof(T);
