@@ -396,7 +396,8 @@ static void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutat
   if (set->size == 0)
     return;
 
-  // Reorder maps
+  // Reorder maps: move the rows of a map from the set, and renumber the entries
+  // of a map onto it - both, for a map from the set to itself
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == set) {
@@ -407,8 +408,8 @@ static void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutat
                   tempmap + map->dim * set_permutations[set->index][i]);
       free(map->map);
       map->map = tempmap;
-
-    } else if (map->to == set) {
+    }
+    if (map->to == set) {
       for (int i = 0; i < (map->from->size + map->from->exec_size) * map->dim; i++)
         map->map[i] = set_permutations[set->index][map->map[i]];
     }
