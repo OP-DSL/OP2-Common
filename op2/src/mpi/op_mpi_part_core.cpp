@@ -102,14 +102,14 @@ extern int *OP_map_partial_exchange; // flag for each map ..
 // are to be performed
 
 #ifdef HAVE_PARMETIS
-static void op_partition_graph_parmetis(op_map primary_map);
+static void partition_graph_parmetis(op_map primary_map);
 static void partition_geomkway(op_map primary_map, op_dat coords);
 #endif
 #ifdef HAVE_KAHIP
-static void op_partition_graph_kahip(op_map primary_map);
+static void partition_graph_kahip(op_map primary_map);
 #endif
 #ifdef HAVE_PTSCOTCH
-static void op_partition_graph_ptscotch(op_map primary_map);
+static void partition_graph_ptscotch(op_map primary_map);
 #endif
 
 
@@ -758,28 +758,6 @@ static std::vector<double> partition_coords(op_set set, op_dat dat, const std::v
   return xyz;
 }
 
-/* Under OP_diags > 3: what evaluating the primary set's registered geometry costs
-   at the block layout, and a checksum that is the same at any rank count.
-   Collective over OP_PART_WORLD; every rank registers the same geometry, so every
-   rank takes the same branch. */
-static void report_block_coords(op_set set, const std::vector<PartRange> &part_range, int my_rank) {
-  if (set->coords == NULL)
-    return;
-  double cpu_t1, cpu_t2, wall_t1, wall_t2;
-  op_timers_core(&cpu_t1, &wall_t1);
-  int dim = 0;
-  const std::vector<double> xyz = block_coords(set, part_range, my_rank, &dim);
-  op_timers_core(&cpu_t2, &wall_t2);
-
-  double sum[3] = {0.0, 0.0, 0.0}, total[3], time = wall_t2 - wall_t1, max_time;
-  for (std::size_t i = 0; i < xyz.size(); i++)
-    sum[i % dim] += xyz[i];
-  MPI_Reduce(sum, total, 3, MPI_DOUBLE, MPI_SUM, MPI_ROOT, OP_PART_WORLD);
-  MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_ROOT, OP_PART_WORLD);
-  op_printf("Geometry of set %s at the block layout: dim %d in %g s, checksum %.10e %.10e %.10e\n", set->name, dim,
-            max_time, total[0], total[1], total[2]);
-}
-
 /* Partition with one partitioner: primary(my_rank, comm_size, part_range) gives
    each element of primary_set a rank, from the block layout, as an xmalloc'd
    array; every other set follows it through the maps, then every element moves
@@ -795,8 +773,6 @@ template <class Primary> static void partition_with(const char *name, op_set pri
   MPI_Comm_size(OP_PART_WORLD, &comm_size);
 
   const std::vector<PartRange> part_range = initialise(my_rank);
-  if (OP_diags > 3)
-    report_block_coords(primary_set, part_range, my_rank);
   OP_part_list[primary_set->index]->elem_part = primary(my_rank, comm_size, part_range);
   OP_part_list[primary_set->index]->is_partitioned = 1;
   partition_all(primary_set, my_rank);
@@ -816,7 +792,7 @@ template <class Primary> static void partition_with(const char *name, op_set pri
  * rank of each element of the primary set
  *******************************************************************************/
 
-static void op_partition_external(op_set primary_set, op_dat partvec) {
+static void partition_external(op_set primary_set, op_dat partvec) {
   partition_with("external", primary_set, [&](int, int, const std::vector<PartRange> &) {
     int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
     memcpy(partition, partvec->data, sizeof(int) * primary_set->size);
@@ -828,7 +804,7 @@ static void op_partition_external(op_set primary_set, op_dat partvec) {
  * This routine partitions a given set randomly
  *******************************************************************************/
 
-static void op_partition_random(op_set primary_set) {
+static void partition_random(op_set primary_set) {
   partition_with("random", primary_set, [&](int, int comm_size, const std::vector<PartRange> &) {
     int *partition = (int *)xmalloc(sizeof(int) * primary_set->size);
     for (int i = 0; i < primary_set->size; i++)
@@ -1228,25 +1204,25 @@ struct Partitioner {
 static const Partitioner partitioners[] = {
 #ifdef HAVE_KAHIP
     {"KAHIP", "KWAY", false, true, DatUse::none, 0, 0, true,
-     [](op_set, op_map m, op_dat) { op_partition_graph_kahip(m); }},
+     [](op_set, op_map m, op_dat) { partition_graph_kahip(m); }},
 #endif
 #ifdef HAVE_PTSCOTCH
     {"PTSCOTCH", "KWAY", false, true, DatUse::none, 0, 0, true,
-     [](op_set, op_map m, op_dat) { op_partition_graph_ptscotch(m); }},
+     [](op_set, op_map m, op_dat) { partition_graph_ptscotch(m); }},
 #endif
 #ifdef HAVE_PARMETIS
     {"PARMETIS", "KWAY", false, true, DatUse::none, 0, 0, true,
-     [](op_set, op_map m, op_dat) { op_partition_graph_parmetis(m); }},
+     [](op_set, op_map m, op_dat) { partition_graph_parmetis(m); }},
     {"PARMETIS", "GEOMKWAY", false, true, DatUse::coords, 1, 3, true,
      [](op_set, op_map m, op_dat d) { partition_geomkway(m, d); }},
     {"PARMETIS", "GEOM", false, false, DatUse::coords, 1, 3, true,
      [](op_set s, op_map, op_dat d) { partition_geom(d != nullptr ? d->set : s, d); }},
 #endif
     {"RANDOM", nullptr, true, false, DatUse::none, 0, 0, true,
-     [](op_set s, op_map, op_dat) { op_partition_random(s); }},
+     [](op_set s, op_map, op_dat) { partition_random(s); }},
     // no partial halos after an external partition, which may leave orphaned elements
     {"EXTERNAL", nullptr, true, false, DatUse::partition, 1, 1, false,
-     [](op_set s, op_map, op_dat d) { op_partition_external(s, d); }},
+     [](op_set s, op_map, op_dat d) { partition_external(s, d); }},
     {"INERTIAL", nullptr, false, false, DatUse::coords, 2, 3, true,
      [](op_set s, op_map, op_dat d) { partition_inertial(d != nullptr ? d->set : s, d); }},
 };
@@ -1751,8 +1727,8 @@ static int *graph_partition(op_map primary_map, const char *partitioner_name, bo
 }
 
 template <class T>
-static void op_partition_graph_generic(op_map primary_map, const char *partitioner_name, bool geometric = false,
-                                       op_dat coords = nullptr) {
+static void partition_graph_generic(op_map primary_map, const char *partitioner_name, bool geometric = false,
+                                    op_dat coords = nullptr) {
 #ifdef DEBUG
   // check if the  primary_map is an on to map from the from-set to the to-set
   if (is_onto_map(primary_map) != 1) {
@@ -1767,23 +1743,23 @@ static void op_partition_graph_generic(op_map primary_map, const char *partition
 
 // Specializations/Wrappers to call the generic function
 #ifdef HAVE_PARMETIS
-static void op_partition_graph_parmetis(op_map primary_map) {
-    op_partition_graph_generic<idx_t>(primary_map, "PARMETIS");
+static void partition_graph_parmetis(op_map primary_map) {
+    partition_graph_generic<idx_t>(primary_map, "PARMETIS");
 }
 
 static void partition_geomkway(op_map primary_map, op_dat coords) {
-    op_partition_graph_generic<idx_t>(primary_map, "PARMETIS", true, coords);
+    partition_graph_generic<idx_t>(primary_map, "PARMETIS", true, coords);
 }
 #endif
 #ifdef HAVE_KAHIP
-static void op_partition_graph_kahip(op_map primary_map) {
-    op_partition_graph_generic<idxtype>(primary_map, "KAHIP");
+static void partition_graph_kahip(op_map primary_map) {
+    partition_graph_generic<idxtype>(primary_map, "KAHIP");
 }
 #endif
 #ifdef HAVE_PTSCOTCH
-static void op_partition_graph_ptscotch(op_map primary_map) {
+static void partition_graph_ptscotch(op_map primary_map) {
     // Pass dummy template type idx_t, it's ignored by the PTScotch path
-    op_partition_graph_generic<idx_t>(primary_map, "PTSCOTCH");
+    partition_graph_generic<idx_t>(primary_map, "PTSCOTCH");
 }
 #endif
 

@@ -62,49 +62,38 @@
  *     renumber/rcm.hpp          - RCM + shared graph utilities
  *     renumber/sloan.hpp        - Sloan (depends on rcm.hpp)
  *     renumber/hilbert_sfc.hpp  - Hilbert SFC (standalone, geometric)
- *
- * No external library dependency is required; this translation unit does
- * not need HAVE_PTSCOTCH.
  */
 
-
-
-
-#include <op_lib_core.h>
-#include <op_lib_cpp.h>
-#include <op_util.h>
-#include <vector>
-#include <algorithm>
-#include <iterator>
-#include <climits>
-#include <utility>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cctype>
-#include <random>
-#include <op_lib_mpi.h>
+#include <op_lib_c.h>
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <numeric>
+#include <random>
+#include <strings.h>
+#include <utility>
+#include <vector>
 
 #include "renumber/rcm.hpp"
 #include "renumber/sloan.hpp"
 #include "renumber/hilbert_sfc.hpp"
 
-static void check_permutation(int *perm, int size) {
-  std::vector<int> flags(size, 0);
-  for (int i = 0; i < size; i++)
-    flags[perm[i]] = 1;
-  int acc = 0;
-  for (int i = 0; i < size; i++)
-    acc += flags[i];
-  if (acc != size) printf("Permutation map error\n");
+/* Stops the job unless perm is a permutation of 0..perm.size()-1: every ordering
+   is built as one, so anything else is a bug that would scramble the set. */
+static void check_permutation(const std::vector<int> &perm, op_set set) {
+  std::vector<char> seen(perm.size(), 0);
+  for (int p : perm) {
+    if (p < 0 || p >= (int)perm.size() || seen[p])
+      op::mpi::fail("op_renumber: the new order of set %s is not a permutation\n", set->name);
+    seen[p] = 1;
+  }
 }
 
 //-----------------------------------------------------------------------------
-// Permutation propagation and physical application (unchanged from the
-// RCM-only version of this file; kept here to avoid spreading OP2 internals
-// across multiple translation units).
+// Propagating the primary set's order to the sets the maps reach
 //-----------------------------------------------------------------------------
 
 // Propagation strategy for non-primary sets reached via a map from a set
@@ -114,12 +103,12 @@ static void check_permutation(int *perm, int size) {
 //             new-indices. Within each first-endpoint bucket the second
 //             endpoint is sorted, the third within that, etc. Improves
 //             cache reuse and GPU coalescing on the second+ endpoint of
-//             every dim>1 map. Default.
+//             every dim>1 map. The default without geometry.
 //  Centroid - compute a geometric centroid for each `to`-set element by
 //             averaging the parent set's centroids (or coords, for the
 //             primary set), then reorder via Hilbert SFC on those
 //             centroids. Symmetric across all map dimensions; needs the
-//             primary set's geometry.
+//             primary set's geometry, and is the default with it.
 enum class PropagateMethod {
   Lex,
   Centroid,
@@ -228,7 +217,7 @@ static bool compute_centroids_from_to(op_map map, PropagationContext &pctx) {
   out.assign((size_t)n * cd, 0.0);
   std::vector<int> touch(n, 0);
 
-  for (int i = 0; i < parent->size && i < parent_n; i++) {
+  for (int i = 0; i < parent_n; i++) {
     for (int d = 0; d < map->dim; d++) {
       int t = map->map[i * map->dim + d];
       if (t >= 0 && t < n) {
@@ -287,7 +276,7 @@ static void propagate_reordering(op_set from, op_set to,
 
         for (int i = n; i < total; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0], total);
+        check_permutation(set_permutations[to->index], to);
         break;
       }
     }
@@ -315,14 +304,12 @@ static void propagate_reordering(op_set from, op_set to,
         }
         for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0],
-                          to->size + to->exec_size + to->nonexec_size);
+        check_permutation(set_permutations[to->index], to);
 
-        // Propagate centroids alongside the first-touch ordering so that
-        // descendants of this set can still use centroid mode. The
-        // ordering itself is unchanged from the legacy first-touch logic
-        // - case 2's traversal already inherits locality from the
-        // already-reordered `from` set.
+        // Centroids alongside the first-touch order, so the sets reached
+        // from this one can be ordered by them. The order itself is the
+        // first touch in either mode: walking the already reordered `from`
+        // set gives it that set's locality.
         if (pctx.method == PropagateMethod::Centroid)
           compute_centroids_from_to(map, pctx);
         break;
@@ -356,7 +343,7 @@ static void propagate_reordering(op_set from, op_set to,
 }
 
 //-----------------------------------------------------------------------------
-// OP_REORDER dispatch
+// OP_REORDER and OP_REORDER_PROPAGATE
 //-----------------------------------------------------------------------------
 
 enum class ReorderMethod {
@@ -367,23 +354,42 @@ enum class ReorderMethod {
   Hilbert
 };
 
-static int str_iequals(const char *a, const char *b) {
-  while (*a && *b) {
-    if (std::tolower((unsigned char)*a) != std::tolower((unsigned char)*b)) return 0;
-    a++; b++;
-  }
-  return *a == 0 && *b == 0;
+/* A method, the value of its environment variable that chooses it, and the name
+   op_renumber reports it by. */
+template <class Method> struct Named {
+  const char *value, *name;
+  Method method;
+};
+
+constexpr Named<ReorderMethod> reorder_methods[] = {
+    {"none", "none", ReorderMethod::None},   {"random", "random", ReorderMethod::Random},
+    {"rcm", "RCM", ReorderMethod::RCM},      {"sloan", "Sloan", ReorderMethod::Sloan},
+    {"hilbert", "Hilbert SFC", ReorderMethod::Hilbert},
+};
+constexpr Named<PropagateMethod> propagate_methods[] = {
+    {"lex", "lex", PropagateMethod::Lex},
+    {"centroid", "centroid", PropagateMethod::Centroid},
+};
+
+template <class Method, std::size_t N> static const char *name_of(const Named<Method> (&methods)[N], Method m) {
+  for (const Named<Method> &named : methods)
+    if (named.method == m)
+      return named.name;
+  return "unknown";
 }
 
-static const char *method_name(ReorderMethod m) {
-  switch (m) {
-    case ReorderMethod::None:    return "none";
-    case ReorderMethod::Random:  return "random";
-    case ReorderMethod::RCM:     return "RCM";
-    case ReorderMethod::Sloan:   return "Sloan";
-    case ReorderMethod::Hilbert: return "Hilbert SFC";
-  }
-  return "unknown";
+/* The method the environment variable var chooses, ignoring case; fallback when
+   it is unset, or, with a warning, set to something else. */
+template <class Method, std::size_t N>
+static Method from_env(const char *var, const Named<Method> (&methods)[N], Method fallback) {
+  const char *env = getenv(var);
+  if (env == NULL || env[0] == '\0')
+    return fallback;
+  for (const Named<Method> &named : methods)
+    if (strcasecmp(env, named.value) == 0)
+      return named.method;
+  op_printf("Warning: unknown %s value '%s', using %s\n", var, env, name_of(methods, fallback));
+  return fallback;
 }
 
 /* OP_REORDER; unset, a Hilbert curve if the primary set has geometry, else RCM.
@@ -391,18 +397,7 @@ static const char *method_name(ReorderMethod m) {
    registered on every rank alike, so every rank chooses the same. */
 static ReorderMethod get_reorder_method(op_set set) {
   const bool geometry = set->coords != NULL;
-  const ReorderMethod fallback = geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM;
-  const char *env = getenv("OP_REORDER");
-  ReorderMethod m = fallback;
-  if (env != NULL && env[0] != '\0') {
-    if (str_iequals(env, "none"))         m = ReorderMethod::None;
-    else if (str_iequals(env, "random"))  m = ReorderMethod::Random;
-    else if (str_iequals(env, "rcm"))     m = ReorderMethod::RCM;
-    else if (str_iequals(env, "sloan"))   m = ReorderMethod::Sloan;
-    else if (str_iequals(env, "hilbert")) m = ReorderMethod::Hilbert;
-    else
-      op_printf("Warning: unknown OP_REORDER value '%s', using %s\n", env, method_name(fallback));
-  }
+  ReorderMethod m = from_env("OP_REORDER", reorder_methods, geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM);
   if (m == ReorderMethod::Hilbert && !geometry) {
     op_printf("Warning: OP_REORDER=hilbert needs the geometry of set %s, registered with op_set_coords or "
               "op_set_coords_derived; using RCM\n", set->name);
@@ -411,30 +406,12 @@ static ReorderMethod get_reorder_method(op_set set) {
   return m;
 }
 
-static const char *propagate_method_name(PropagateMethod m) {
-  switch (m) {
-    case PropagateMethod::Lex:      return "lex";
-    case PropagateMethod::Centroid: return "centroid";
-  }
-  return "unknown";
-}
-
 /* OP_REORDER_PROPAGATE; unset, centroids if the primary set has geometry, else lex.
    Centroids asked for without geometry are lex, with a warning. */
 static PropagateMethod get_propagate_method(op_set set) {
   const bool geometry = set->coords != NULL;
-  const PropagateMethod fallback = geometry ? PropagateMethod::Centroid : PropagateMethod::Lex;
-  const char *env = getenv("OP_REORDER_PROPAGATE");
-  PropagateMethod m = fallback;
-  if (env != NULL && env[0] != '\0') {
-    if (str_iequals(env, "lex") || str_iequals(env, "multikey"))
-      m = PropagateMethod::Lex;
-    else if (str_iequals(env, "centroid") || str_iequals(env, "hilbert"))
-      m = PropagateMethod::Centroid;
-    else
-      op_printf("Warning: unknown OP_REORDER_PROPAGATE value '%s', using %s\n", env,
-                propagate_method_name(fallback));
-  }
+  PropagateMethod m =
+      from_env("OP_REORDER_PROPAGATE", propagate_methods, geometry ? PropagateMethod::Centroid : PropagateMethod::Lex);
   if (m == PropagateMethod::Centroid && !geometry) {
     op_printf("Warning: OP_REORDER_PROPAGATE=centroid needs the geometry of set %s, registered with op_set_coords "
               "or op_set_coords_derived; using lex\n", set->name);
@@ -443,17 +420,12 @@ static PropagateMethod get_propagate_method(op_set set) {
   return m;
 }
 
-// Fisher-Yates shuffle of the identity permutation. Fixed seed so that
-// benchmark runs are reproducible across invocations.
+// A random permutation, as a baseline. The seed is fixed, so a run can be
+// repeated (with the same standard library).
 static void random_order(int num_verts, std::vector<int> &permutation) {
   permutation.resize(num_verts);
-  for (int i = 0; i < num_verts; i++) permutation[i] = i;
-  std::mt19937 rng(42u);
-  for (int i = num_verts - 1; i > 0; i--) {
-    std::uniform_int_distribution<int> dist(0, i);
-    int j = dist(rng);
-    std::swap(permutation[i], permutation[j]);
-  }
+  std::iota(permutation.begin(), permutation.end(), 0);
+  std::shuffle(permutation.begin(), permutation.end(), std::mt19937(42u));
 }
 
 /* The geometry of a set's owned elements, size * dim doubles in local order (the
@@ -602,25 +574,13 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
     op_renumber_impl::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
     keys[base->to->index] = {hstats.num_verts, hstats.distinct_points, hstats.distinct_indices};
 
-    // Grid resolution and per-axis effective bits, on rank 0; report_hilbert_keys
-    // warns about repeated keys on any rank.
-    if (OP_diags > 2) {
-      op_printf("op_renumber: Hilbert SFC on set %s at %d bits/axis: %d elements, %d positions, %d keys\n",
-                base->to->name, hstats.nominal_bits, hstats.num_verts, hstats.distinct_points, hstats.distinct_indices);
-      if (hstats.dim == 2) {
-        op_printf("  axis ranges       = [%.3g, %.3g]\n",
-                  hstats.axis_range[0], hstats.axis_range[1]);
-        op_printf("  effective bits    = [%.2f, %.2f]\n",
-                  hstats.effective_bits[0], hstats.effective_bits[1]);
-      } else {
-        op_printf("  axis ranges       = [%.3g, %.3g, %.3g]\n",
-                  hstats.axis_range[0], hstats.axis_range[1],
-                  hstats.axis_range[2]);
-        op_printf("  effective bits    = [%.2f, %.2f, %.2f]\n",
-                  hstats.effective_bits[0], hstats.effective_bits[1],
-                  hstats.effective_bits[2]);
-      }
-    }
+    // On rank 0; report_hilbert_keys warns about merged keys on any rank.
+    if (OP_diags > 2)
+      op_printf("op_renumber: Hilbert SFC on set %s at %d bits/axis: %d elements, %d positions, %d keys; "
+                "axis ranges %.3g %.3g %.3g, effective bits %.2f %.2f %.2f\n",
+                base->to->name, hstats.nominal_bits, hstats.num_verts, hstats.distinct_points, hstats.distinct_indices,
+                hstats.axis_range[0], hstats.axis_range[1], hstats.axis_range[2], hstats.effective_bits[0],
+                hstats.effective_bits[1], hstats.effective_bits[2]);
 
   } else {
     // RCM and Sloan both need the CSR adjacency.
@@ -661,7 +621,7 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
     set_permutations[base->to->index][i] = permutation[i];
   for (int i = num_verts; i < to_total; i++)
     set_permutations[base->to->index][i] = i;
-  check_permutation(&set_permutations[base->to->index][0], to_total);
+  check_permutation(set_permutations[base->to->index], base->to);
 
   set_ipermutations[base->to->index].resize(to_total);
   for (int i = 0; i < to_total; i++) {
@@ -738,8 +698,8 @@ void op_renumber(op_map base) {
     op_printf("op_renumber: OP_REORDER=none, nothing is reordered\n");
     return;
   }
-  op_printf("op_renumber: %s ordering of set %s through map %s, propagated by %s\n", method_name(method),
-            base->to->name, base->name, propagate_method_name(propagate));
+  op_printf("op_renumber: %s ordering of set %s through map %s, propagated by %s\n",
+            name_of(reorder_methods, method), base->to->name, base->name, name_of(propagate_methods, propagate));
 
   const std::vector<HilbertKeys> keys = renumber_owned(base, method, propagate);
   /* Every rank, reordered or not: other ranks' import lists name elements by
@@ -749,12 +709,8 @@ void op_renumber(op_map base) {
 }
 
 extern "C" void op_renumber_ptr(int *ptr) {
-  op_map item_map = op_search_map_ptr(ptr);
-
-  if (item_map == NULL) {
-    printf("ERROR in op_renumber: op_map not found for %p pointer\n", (void*)ptr);
-    exit(-1);
-  }
-
-  op_renumber(item_map);
+  op_map map = op_search_map_ptr(ptr);
+  if (map == NULL)
+    op::mpi::fail("op_renumber: no op_map was declared from the map at %p\n", (void *)ptr);
+  op_renumber(map);
 }
