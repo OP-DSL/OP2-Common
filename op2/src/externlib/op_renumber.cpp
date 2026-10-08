@@ -56,9 +56,6 @@
  *                                      already-ordered parent set, so
  *                                      this needs the primary set's
  *                                      geometry (default with it)
- *     OP_REORDER_PROPAGATE=single    - legacy single-dim sort by first
- *                                      map endpoint only (kept for
- *                                      benchmarking and regression)
  *
  * The ordering algorithms themselves live in header-only modules:
  *
@@ -94,15 +91,6 @@
 #include "renumber/sloan.hpp"
 #include "renumber/hilbert_sfc.hpp"
 
-typedef struct {
-  int a;
-  int b;
-} map2;
-
-static int compare(const void *a, const void *b) {
-  return ((*(map2 *)a).a - (*(map2 *)b).a);
-}
-
 static void check_permutation(int *perm, int size) {
   std::vector<int> flags(size, 0);
   for (int i = 0; i < size; i++)
@@ -122,10 +110,6 @@ static void check_permutation(int *perm, int size) {
 // Propagation strategy for non-primary sets reached via a map from a set
 // that has already been reordered. Selectable via OP_REORDER_PROPAGATE.
 //
-//  Single   - sort `to`-set elements by the new index of their first map
-//             endpoint only (qsort, not stable). Original behaviour; kept
-//             for benchmarking. Within each first-endpoint bucket the
-//             remaining endpoints are in arbitrary order.
 //  Lex      - sort `to`-set elements lexicographically by all map endpoint
 //             new-indices. Within each first-endpoint bucket the second
 //             endpoint is sorted, the third within that, etc. Improves
@@ -137,7 +121,6 @@ static void check_permutation(int *perm, int size) {
 //             centroids. Symmetric across all map dimensions; needs the
 //             primary set's geometry.
 enum class PropagateMethod {
-  Single,
   Lex,
   Centroid,
 };
@@ -296,23 +279,10 @@ static void propagate_reordering(op_set from, op_set to,
           ordered_via_centroid = true;
         }
 
-        if (!ordered_via_centroid) {
-          if (pctx.method == PropagateMethod::Single) {
-            std::vector<map2> renum(n);
-            for (int i = 0; i < n; i++) {
-              renum[i].a = set_permutations[from->index][map->map[map->dim * i]];
-              renum[i].b = i;
-            }
-            qsort(&renum[0], renum.size(), sizeof(map2), compare);
-            for (int i = 0; i < n; i++)
-              set_permutations[to->index][renum[i].b] = i;
-          } else {
-            // Lex, also when the parent has no centroids.
-            std::vector<int> order = compute_lex_order(
-                map, set_permutations[from->index], n);
-            for (int i = 0; i < n; i++)
-              set_permutations[to->index][order[i]] = i;
-          }
+        if (!ordered_via_centroid) { // lex, also when the parent has no centroids
+          std::vector<int> order = compute_lex_order(map, set_permutations[from->index], n);
+          for (int i = 0; i < n; i++)
+            set_permutations[to->index][order[i]] = i;
         }
 
         for (int i = n; i < total; i++)
@@ -443,7 +413,6 @@ static ReorderMethod get_reorder_method(op_set set) {
 
 static const char *propagate_method_name(PropagateMethod m) {
   switch (m) {
-    case PropagateMethod::Single:   return "single";
     case PropagateMethod::Lex:      return "lex";
     case PropagateMethod::Centroid: return "centroid";
   }
@@ -458,9 +427,7 @@ static PropagateMethod get_propagate_method(op_set set) {
   const char *env = getenv("OP_REORDER_PROPAGATE");
   PropagateMethod m = fallback;
   if (env != NULL && env[0] != '\0') {
-    if (str_iequals(env, "single") || str_iequals(env, "legacy"))
-      m = PropagateMethod::Single;
-    else if (str_iequals(env, "lex") || str_iequals(env, "multikey"))
+    if (str_iequals(env, "lex") || str_iequals(env, "multikey"))
       m = PropagateMethod::Lex;
     else if (str_iequals(env, "centroid") || str_iequals(env, "hilbert"))
       m = PropagateMethod::Centroid;

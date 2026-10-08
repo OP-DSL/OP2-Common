@@ -200,7 +200,6 @@ Initialisation and Termination
 
    - :c:expr:`"lex"`: each set sorted by the new indices of all its map entries (the default without geometry).
    - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered (the default when the first set has geometry). Without that geometry it warns and uses lex.
-   - :c:expr:`"single"`: each set sorted by the new index of its first map entry.
 
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)
 
