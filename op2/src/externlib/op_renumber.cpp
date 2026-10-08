@@ -589,108 +589,56 @@ static void compute_edge_stats(op_map base, int &max_dist, long &avg_dist) {
   avg_dist /= base->from->size;
 }
 
-//-----------------------------------------------------------------------------
-// CSR adjacency build (same structure as op_renumber.cpp's local build,
-// extracted into a helper since RCM and Sloan both need it).
-//-----------------------------------------------------------------------------
-static bool build_node_adjacency(op_map base,
-                                 std::vector<int> &row_offsets,
-                                 std::vector<int> &col_indices) {
-  row_offsets.assign(base->to->core_size + 1, 0);
-  col_indices.clear();
-
-  if (base->to == base->from) {
-    // Self-referencing map: adjacency is already in `base` directly; just
-    // drop references that fall outside the core-size range.
-    col_indices.resize(base->dim * base->from->size);
-    row_offsets[0] = 0;
-    for (int i = 0; i < base->from->size; i++) {
-      int rowlen = 0;
-      for (int j = 0; j < base->dim; j++)
-        if (base->map[i * base->dim + j] < base->to->core_size)
-          col_indices[row_offsets[i] + rowlen++] = base->map[i * base->dim + j];
-      row_offsets[i + 1] = row_offsets[i] + rowlen;
-    }
-    col_indices.resize(row_offsets[base->to->core_size]);
-    return true;
-  }
-
-  // Build self-referencing node->node map from an edge->node base map.
-  col_indices.resize(base->from->size * (base->dim - 1) * (base->dim));
-
-  std::vector<map2> loopback(base->from->size * base->dim);
-  int sizectr = 0;
-  for (int i = 0; i < base->from->size; i++) {
-    for (int j = 0; j < base->dim; j++) {
-      if (base->map[i * base->dim + j] < base->to->core_size) {
-        loopback[sizectr].a = base->map[i * base->dim + j];
-        loopback[sizectr].b = i;
-        sizectr++;
-      }
-    }
-  }
-
-  loopback.resize(sizectr);
-  qsort(&loopback[0], loopback.size(), sizeof(map2), compare);
-
-  row_offsets[0] = 0;
-  row_offsets[1] = 0;
-  row_offsets[base->to->core_size] = 0;
-  for (int i = 0; i < base->dim; i++) {
-    if (base->map[base->dim * loopback[0].b + i] != 0 &&
-        base->map[base->dim * loopback[0].b + i] < base->to->core_size)
-      col_indices[row_offsets[1]++] =
-          base->map[base->dim * loopback[0].b + i];
-  }
-  int nodectr = 0;
-  for (int i = 1; i < (int)loopback.size(); i++) {
-    if (loopback[i].a != loopback[i - 1].a) {
-      nodectr++;
-      row_offsets[nodectr + 1] = row_offsets[nodectr];
-    }
-
-    for (int d1 = 0; d1 < base->dim; d1++) {
-      int id = base->map[base->dim * loopback[i].b + d1];
-      int add = (id != nodectr && id < base->to->core_size);
-      for (int d2 = row_offsets[nodectr];
-           (d2 < row_offsets[nodectr + 1]) && add; d2++) {
-        if (col_indices[d2] == id)
-          add = 0;
-      }
-      if (add)
-        col_indices[row_offsets[nodectr + 1]++] = id;
-    }
-  }
-  if (row_offsets[base->to->core_size] == 0) {
-    printf(
-        "Map %s is not an onto map from %s to %s, or bad partitioning, aborting renumbering...\n",
-        base->name, base->from->name, base->to->name);
-    return false;
-  }
-  col_indices.resize(row_offsets[base->to->core_size]);
-  if (OP_diags > 2)
-    op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
-              base->to->name, base->to->name, (int)col_indices.size(),
-              base->from->name, base->from->size);
-
-  // Sanity check: graph rows and symmetry.
-  for (int row = 0; row < (int)row_offsets.size() - 1; row++) {
-    if (row_offsets[row] == row_offsets[row + 1]) printf("Zero length row\n");
-    for (int col = row_offsets[row]; col < row_offsets[row + 1]; col++) {
-      if (col_indices[col] < 0 || col_indices[col] >= (int)row_offsets.size() - 1)
-        printf("Error col idx %d, but num rows is %lu\n", col_indices[col],
-               row_offsets.size() - 1);
-      else {
-        int found = 0;
-        for (int c2 = row_offsets[col_indices[col]];
-             c2 < row_offsets[col_indices[col] + 1]; c2++) {
-          if (col_indices[c2] == row) found = 1;
+/* The graph RCM and Sloan order: the core elements of base->to, two of them
+   adjacent when one element of base->from maps to both - or, for a map from a
+   set to itself, when one maps to the other. Symmetric, with no self-loops or
+   repeats; entries outside the core (halo elements, or negative) are left out.
+   The neighbours of u are col_indices[row_offsets[u]] up to row_offsets[u + 1]. */
+static void build_core_adjacency(op_map base, std::vector<int> &row_offsets, std::vector<int> &col_indices) {
+  const int n = base->to->core_size, dim = base->dim;
+  const bool self = base->from == base->to;
+  auto in_core = [n](int v) { return v >= 0 && v < n; };
+  // calls f(u, v) for every edge, once each way round
+  auto each_edge = [&](auto &&f) {
+    for (int e = 0; e < (self ? n : base->from->size); e++) {
+      const int *row = base->map + (size_t)e * dim;
+      for (int a = 0; a < dim; a++) {
+        if (!in_core(row[a]))
+          continue;
+        if (self) {
+          if (row[a] != e) {
+            f(e, row[a]);
+            f(row[a], e);
+          }
+        } else {
+          for (int b = 0; b < dim; b++)
+            if (b != a && in_core(row[b]) && row[b] != row[a])
+              f(row[a], row[b]);
         }
-        if (!found) printf("Error, symmetry broken at row %d col %d\n", row, col_indices[col]);
       }
     }
+  };
+
+  row_offsets.assign(n + 1, 0);
+  each_edge([&](int u, int) { row_offsets[u + 1]++; });
+  for (int u = 0; u < n; u++)
+    row_offsets[u + 1] += row_offsets[u];
+  col_indices.resize(row_offsets[n]);
+  std::vector<int> next(row_offsets.begin(), row_offsets.end() - 1);
+  each_edge([&](int u, int v) { col_indices[next[u]++] = v; });
+
+  // sort each row and drop its repeats, compacting in place
+  int out = 0;
+  for (int u = 0; u < n; u++) {
+    const int begin = row_offsets[u], end = row_offsets[u + 1], start = out;
+    std::sort(col_indices.begin() + begin, col_indices.begin() + end);
+    for (int k = begin; k < end; k++)
+      if (out == start || col_indices[out - 1] != col_indices[k])
+        col_indices[out++] = col_indices[k];
+    row_offsets[u] = start;
   }
-  return true;
+  row_offsets[n] = out;
+  col_indices.resize(out);
 }
 
 //-----------------------------------------------------------------------------
@@ -777,8 +725,12 @@ static void renumber_owned(op_map base, ReorderMethod method, PropagateMethod pr
   } else {
     // RCM and Sloan both need the CSR adjacency.
     std::vector<int> row_offsets, col_indices;
-    if (!build_node_adjacency(base, row_offsets, col_indices)) {
-      return; // error already printed
+    build_core_adjacency(base, row_offsets, col_indices);
+    if (col_indices.empty()) {
+      if (OP_diags > 2)
+        printf("op_renumber: no two core elements of set %s share an element of %s, nothing to order\n",
+               base->to->name, base->from->name);
+      return;
     }
 
     if (method == ReorderMethod::RCM) {
