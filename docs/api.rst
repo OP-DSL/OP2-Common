@@ -193,13 +193,13 @@ Initialisation and Termination
    - :c:expr:`"none"`: no reordering.
    - :c:expr:`"rcm"`: reverse Cuthill-McKee (the default without geometry).
    - :c:expr:`"sloan"`: Sloan's profile-reducing ordering.
-   - :c:expr:`"hilbert"`: a Hilbert space-filling curve through the set's geometry, which must be registered (the default with it). If on any rank the curve gives more than 1% of a set's elements the key of an element at another position - the mesh is finer there than the curve resolves - a warning names the set and the rank.
+   - :c:expr:`"hilbert"`: a Hilbert space-filling curve through the set's geometry (the default with it). Without geometry it warns and uses reverse Cuthill-McKee. If on any rank the curve gives more than 1% of a set's elements the key of an element at another position - the mesh is finer there than the curve resolves - a warning names the set and the rank.
    - :c:expr:`"random"`: a random permutation, as a baseline.
 
    ``OP_REORDER_PROPAGATE`` takes:
 
    - :c:expr:`"lex"`: each set sorted by the new indices of all its map entries (the default without geometry).
-   - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered; needs the first set's geometry (the default with it).
+   - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered (the default when the first set has geometry). Without that geometry it warns and uses lex.
    - :c:expr:`"single"`: each set sorted by the new index of its first map entry.
 
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)

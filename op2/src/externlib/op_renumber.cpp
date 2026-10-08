@@ -153,7 +153,7 @@ struct HilbertKeys {
 // Per-call state carried through propagate_reordering recursion.
 struct PropagationContext {
   PropagateMethod method;
-  int coord_dim;  // 2 or 3 if centroids are available, 0 otherwise.
+  int coord_dim;  // the primary set's geometry's dimension, 2 or 3 in centroid mode
   // set_centroids[s] is a flat AoS array of length size * coord_dim for
   // set s (every owned element, so that a core element's parents are all
   // there), in original (pre-permutation) element order. Empty for
@@ -196,7 +196,6 @@ static std::vector<int> compute_lex_order(op_map map,
 // owned elements that are not core can reach them, and they average over
 // fewer parents. Core elements reach owned parents only.
 static bool compute_centroids_to_from(op_map map, PropagationContext &pctx) {
-  if (pctx.coord_dim == 0) return false;
   op_set child = map->from;
   op_set parent = map->to;
   const std::vector<double> &pc = pctx.set_centroids[parent->index];
@@ -233,7 +232,6 @@ static bool compute_centroids_to_from(op_map map, PropagationContext &pctx) {
 // existing first-touch counter logic; centroids are computed alongside
 // purely so that descendants of this to-set can use centroid mode.
 static bool compute_centroids_from_to(op_map map, PropagationContext &pctx) {
-  if (pctx.coord_dim == 0) return false;
   op_set parent = map->from;
   op_set child = map->to;
   const std::vector<double> &pc = pctx.set_centroids[parent->index];
@@ -284,24 +282,20 @@ static void propagate_reordering(op_set from, op_set to,
         const int total = to->size + to->exec_size + to->nonexec_size;
         set_permutations[to->index].resize(total);
 
-        // --- Centroid mode (preferred when available). -----------------
+        // Centroids, unless the parent has none (it has no owned elements);
+        // then lex.
         bool ordered_via_centroid = false;
-        if (pctx.method == PropagateMethod::Centroid) {
-          if (compute_centroids_to_from(map, pctx)) {
-            std::vector<int> perm;
-            op_renumber_impl::hilbert_sfc_stats stats{};
-            op_renumber_impl::hilbert_sfc_order(
-                pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm, &stats);
-            pctx.keys[to->index] = {stats.num_verts, stats.distinct_points, stats.distinct_indices};
-            for (int i = 0; i < n; i++)
-              set_permutations[to->index][i] = perm[i];
-            ordered_via_centroid = true;
-          } else {
-            // Centroid requested but parent has none; fall through to lex.
-          }
+        if (pctx.method == PropagateMethod::Centroid && compute_centroids_to_from(map, pctx)) {
+          std::vector<int> perm;
+          op_renumber_impl::hilbert_sfc_stats stats{};
+          op_renumber_impl::hilbert_sfc_order(
+              pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm, &stats);
+          pctx.keys[to->index] = {stats.num_verts, stats.distinct_points, stats.distinct_indices};
+          for (int i = 0; i < n; i++)
+            set_permutations[to->index][i] = perm[i];
+          ordered_via_centroid = true;
         }
 
-        // --- Lex mode (default) and Single mode (legacy benchmarking). -
         if (!ordered_via_centroid) {
           if (pctx.method == PropagateMethod::Single) {
             std::vector<map2> renum(n);
@@ -313,17 +307,11 @@ static void propagate_reordering(op_set from, op_set to,
             for (int i = 0; i < n; i++)
               set_permutations[to->index][renum[i].b] = i;
           } else {
-            // Lex (default), also fallback path for centroid-without-coords.
+            // Lex, also when the parent has no centroids.
             std::vector<int> order = compute_lex_order(
                 map, set_permutations[from->index], n);
             for (int i = 0; i < n; i++)
               set_permutations[to->index][order[i]] = i;
-          }
-          // Best-effort: still try to compute centroids for descendants
-          // even if we used a non-centroid order at this level. Cheap and
-          // makes deeper sets in the tree usable in centroid mode.
-          if (pctx.method == PropagateMethod::Centroid && pctx.coord_dim > 0) {
-            compute_centroids_to_from(map, pctx);
           }
         }
 
@@ -365,9 +353,8 @@ static void propagate_reordering(op_set from, op_set to,
         // ordering itself is unchanged from the legacy first-touch logic
         // - case 2's traversal already inherits locality from the
         // already-reordered `from` set.
-        if (pctx.method == PropagateMethod::Centroid && pctx.coord_dim > 0) {
+        if (pctx.method == PropagateMethod::Centroid)
           compute_centroids_from_to(map, pctx);
-        }
         break;
       }
     }
@@ -429,18 +416,29 @@ static const char *method_name(ReorderMethod m) {
   return "unknown";
 }
 
-/* OP_REORDER; unset, a Hilbert curve if the primary set has geometry, else RCM. */
-static ReorderMethod get_reorder_method(bool geometry) {
+/* OP_REORDER; unset, a Hilbert curve if the primary set has geometry, else RCM.
+   A Hilbert curve asked for without geometry is RCM, with a warning. Geometry is
+   registered on every rank alike, so every rank chooses the same. */
+static ReorderMethod get_reorder_method(op_set set) {
+  const bool geometry = set->coords != NULL;
   const ReorderMethod fallback = geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM;
   const char *env = getenv("OP_REORDER");
-  if (env == NULL || env[0] == '\0') return fallback;
-  if (str_iequals(env, "none"))    return ReorderMethod::None;
-  if (str_iequals(env, "random"))  return ReorderMethod::Random;
-  if (str_iequals(env, "rcm"))     return ReorderMethod::RCM;
-  if (str_iequals(env, "sloan"))   return ReorderMethod::Sloan;
-  if (str_iequals(env, "hilbert")) return ReorderMethod::Hilbert;
-  op_printf("Warning: unknown OP_REORDER value '%s', using %s\n", env, method_name(fallback));
-  return fallback;
+  ReorderMethod m = fallback;
+  if (env != NULL && env[0] != '\0') {
+    if (str_iequals(env, "none"))         m = ReorderMethod::None;
+    else if (str_iequals(env, "random"))  m = ReorderMethod::Random;
+    else if (str_iequals(env, "rcm"))     m = ReorderMethod::RCM;
+    else if (str_iequals(env, "sloan"))   m = ReorderMethod::Sloan;
+    else if (str_iequals(env, "hilbert")) m = ReorderMethod::Hilbert;
+    else
+      op_printf("Warning: unknown OP_REORDER value '%s', using %s\n", env, method_name(fallback));
+  }
+  if (m == ReorderMethod::Hilbert && !geometry) {
+    op_printf("Warning: OP_REORDER=hilbert needs the geometry of set %s, registered with op_set_coords or "
+              "op_set_coords_derived; using RCM\n", set->name);
+    m = ReorderMethod::RCM;
+  }
+  return m;
 }
 
 static const char *propagate_method_name(PropagateMethod m) {
@@ -452,19 +450,30 @@ static const char *propagate_method_name(PropagateMethod m) {
   return "unknown";
 }
 
-/* OP_REORDER_PROPAGATE; unset, centroids if the primary set has geometry, else lex. */
-static PropagateMethod get_propagate_method(bool geometry) {
+/* OP_REORDER_PROPAGATE; unset, centroids if the primary set has geometry, else lex.
+   Centroids asked for without geometry are lex, with a warning. */
+static PropagateMethod get_propagate_method(op_set set) {
+  const bool geometry = set->coords != NULL;
   const PropagateMethod fallback = geometry ? PropagateMethod::Centroid : PropagateMethod::Lex;
   const char *env = getenv("OP_REORDER_PROPAGATE");
-  if (env == NULL || env[0] == '\0') return fallback;
-  if (str_iequals(env, "single") ||
-      str_iequals(env, "legacy"))      return PropagateMethod::Single;
-  if (str_iequals(env, "lex") ||
-      str_iequals(env, "multikey"))    return PropagateMethod::Lex;
-  if (str_iequals(env, "centroid") ||
-      str_iequals(env, "hilbert"))     return PropagateMethod::Centroid;
-  op_printf("Warning: unknown OP_REORDER_PROPAGATE value '%s', using %s\n", env, propagate_method_name(fallback));
-  return fallback;
+  PropagateMethod m = fallback;
+  if (env != NULL && env[0] != '\0') {
+    if (str_iequals(env, "single") || str_iequals(env, "legacy"))
+      m = PropagateMethod::Single;
+    else if (str_iequals(env, "lex") || str_iequals(env, "multikey"))
+      m = PropagateMethod::Lex;
+    else if (str_iequals(env, "centroid") || str_iequals(env, "hilbert"))
+      m = PropagateMethod::Centroid;
+    else
+      op_printf("Warning: unknown OP_REORDER_PROPAGATE value '%s', using %s\n", env,
+                propagate_method_name(fallback));
+  }
+  if (m == PropagateMethod::Centroid && !geometry) {
+    op_printf("Warning: OP_REORDER_PROPAGATE=centroid needs the geometry of set %s, registered with op_set_coords "
+              "or op_set_coords_derived; using lex\n", set->name);
+    m = PropagateMethod::Lex;
+  }
+  return m;
 }
 
 // Fisher-Yates shuffle of the identity permutation. Fixed seed so that
@@ -608,13 +617,10 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
   }
 
   // The primary set's geometry: Hilbert orders by it, and centroid propagation
-  // starts from it.
+  // starts from it. op_renumber chose neither without it.
   int coord_dim = 0;
   const bool need_coords = method == ReorderMethod::Hilbert || propagate == PropagateMethod::Centroid;
   const std::vector<double> coords = need_coords ? owned_coords(base->to, &coord_dim) : std::vector<double>();
-  if (need_coords && coords.empty())
-    op_printf("op_renumber: set %s has no geometry; register it with op_set_coords or op_set_coords_derived\n",
-              base->to->name);
 
   //---------------------------------------------------------------------------
   // Compute the core-size permutation via the selected algorithm.
@@ -625,11 +631,6 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
     random_order(num_verts, permutation);
 
   } else if (method == ReorderMethod::Hilbert) {
-    if (coords.empty()) {
-      op_printf("ERROR: Hilbert SFC needs geometry for set %s. Aborting renumbering.\n", base->to->name);
-      return keys;
-    }
-
     op_renumber_impl::hilbert_sfc_stats hstats{};
     op_renumber_impl::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
     keys[base->to->index] = {hstats.num_verts, hstats.distinct_points, hstats.distinct_indices};
@@ -702,25 +703,16 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
 
   //---------------------------------------------------------------------------
   // Set up the propagation context. In centroid mode, seed the primary set's
-  // centroids from the coords dat (in original/pre-permutation order - the
+  // centroids from its geometry (in original/pre-permutation order - the
   // helpers in propagate_reordering index map entries against this layout).
   //---------------------------------------------------------------------------
   PropagationContext pctx;
   pctx.method = propagate;
-  pctx.coord_dim = 0;
+  pctx.coord_dim = coord_dim;
   pctx.set_centroids.resize(OP_set_index);
   pctx.keys = std::move(keys);
-
-  if (propagate == PropagateMethod::Centroid) {
-    if (coords.empty()) {
-      op_printf("WARNING: OP_REORDER_PROPAGATE=centroid needs geometry for set %s. "
-                "Falling back to lex multi-key sort.\n", base->to->name);
-      pctx.method = PropagateMethod::Lex;
-    } else {
-      pctx.coord_dim = coord_dim;
-      pctx.set_centroids[base->to->index] = coords;
-    }
-  }
+  if (propagate == PropagateMethod::Centroid)
+    pctx.set_centroids[base->to->index] = coords;
 
   //---------------------------------------------------------------------------
   // Propagate to connected sets and apply physically.
@@ -773,9 +765,8 @@ static void report_hilbert_keys(const std::vector<HilbertKeys> &keys) {
 }
 
 void op_renumber(op_map base) {
-  const bool geometry = base->to->coords != NULL;
-  const ReorderMethod method = get_reorder_method(geometry);
-  const PropagateMethod propagate = get_propagate_method(geometry);
+  const ReorderMethod method = get_reorder_method(base->to);
+  const PropagateMethod propagate = get_propagate_method(base->to);
   if (method == ReorderMethod::None) {
     op_printf("op_renumber: OP_REORDER=none, nothing is reordered\n");
     return;
