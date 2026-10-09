@@ -92,10 +92,28 @@ enum class StrategySetting {
     automatic,
 };
 
-// The automatic defaults keep each loop on the strategy it ran before the
-// ladder existed, until measurements justify per-device defaults.
+// The automatic defaults are per vendor: global atomics on NVIDIA, staged
+// atomics on AMD, and hierarchical colouring before op_plan colouring on
+// both.
 constexpr bool strategy_default(Strategy strategy) {
-    return !hierarchical(strategy);
+#if defined(OP2_HIP)
+    constexpr bool amd = true;
+#else
+    constexpr bool amd = false;
+#endif
+
+    switch (strategy) {
+    case Strategy::hier_atomics:
+        return amd;
+    case Strategy::atomics:
+        return !amd;
+    case Strategy::plain:
+    case Strategy::hier_colouring:
+    case Strategy::colouring:
+        return true;
+    }
+
+    return false;
 }
 
 struct StrategyConfig {
@@ -218,6 +236,14 @@ static void init_strategy_config() {
                          strategy_config.hier_atomics_chunk_size);
     detail::parse_number("OP_HIER_COLOURING_CHUNK_SIZE",
                          strategy_config.hier_colouring_chunk_size);
+
+    if (OP_diags > 3) {
+        std::string ladder;
+        for (Strategy strategy : strategies)
+            if (strategy_config.enabled(strategy))
+                ladder += " " + std::string{strategy_name(strategy)};
+        std::printf("strategy: enabled ladder%s\n", ladder.c_str());
+    }
 }
 
 // Facts about a loop that every strategy reads.
