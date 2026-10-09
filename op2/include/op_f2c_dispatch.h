@@ -156,9 +156,24 @@ struct StrategyConfig {
     }
 };
 
+// OP_AUTOTUNE=report times every candidate strategy for each loop
+// configuration and reports how they compare with the ladder's choice, which
+// still runs once a configuration has been explored.
+struct AutotuneConfig {
+    bool report = false;
+    // OP_AUTOTUNE_WARMUP untimed, then OP_AUTOTUNE_SAMPLES timed, runs of
+    // each candidate.
+    int warmup = 1;
+    int samples = 3;
+    // OP_AUTOTUNE_MIN_CALLS: calls a configuration must see before it is
+    // explored, so configurations seen once are never explored.
+    int min_calls = 2;
+};
+
 // Like the JIT settings, parsed once per translation unit from the
 // environment.
 static StrategyConfig strategy_config;
+static AutotuneConfig autotune_config;
 
 namespace detail {
 
@@ -236,6 +251,22 @@ static void init_strategy_config() {
                          strategy_config.hier_atomics_chunk_size);
     detail::parse_number("OP_HIER_COLOURING_CHUNK_SIZE",
                          strategy_config.hier_colouring_chunk_size);
+
+    if (const char *text = std::getenv("OP_AUTOTUNE")) {
+        auto value = detail::lower(text);
+        if (value == "report")
+            autotune_config.report = true;
+        else if (value != "0" && value != "off" && value != "no" &&
+                 value != "false")
+            std::fprintf(stderr,
+                         "warning: ignoring OP_AUTOTUNE='%s', expected 0 or "
+                         "report\n",
+                         text);
+    }
+    detail::parse_number("OP_AUTOTUNE_WARMUP", autotune_config.warmup);
+    detail::parse_number("OP_AUTOTUNE_SAMPLES", autotune_config.samples);
+    detail::parse_number("OP_AUTOTUNE_MIN_CALLS", autotune_config.min_calls);
+    autotune_config.samples = std::max(autotune_config.samples, 1);
 
     if (OP_diags > 3) {
         std::string ladder;

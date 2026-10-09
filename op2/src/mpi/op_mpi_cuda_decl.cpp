@@ -38,6 +38,7 @@
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op_autotune.h>
 #include <op_hier_plan.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -281,6 +282,12 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 
 void op_exit() {
   op::f2c::release_hier_plan_device_storage();
+  {
+    int rank = 0, ranks = 1;
+    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    MPI_Comm_size(OP_MPI_WORLD, &ranks);
+    op::f2c::autotune_write_report(rank, ranks);
+  }
 
   // free the device halo lists, while the device is still up
   OP_set_halos_d = std::vector<DeviceSetHalo>();

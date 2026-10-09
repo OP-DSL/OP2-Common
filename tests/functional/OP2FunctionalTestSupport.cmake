@@ -24,7 +24,9 @@
 #                                  # (OP2 links only what OP2 needs)
 #     [STRATEGIES <s...>]          # also run each c_cuda/c_hip variant once per
 #                                  # execution strategy, forced through its
-#                                  # environment, as <target>_<strategy>
+#                                  # environment, as <target>_<strategy>, and
+#                                  # once exploring them all, as
+#                                  # <target>_autotune
 # )
 #
 # NAME is not a parameter - it's always derived from the calling directory's
@@ -204,6 +206,13 @@ function(op2_add_functional_tests)
                         PROCESSORS  "${_nproc}"
                         ENVIRONMENT "${_env}")
                 endforeach()
+                if(_A_STRATEGIES)
+                    add_test(NAME ${_tgt}_autotune COMMAND ${_cmd})
+                    set_tests_properties(${_tgt}_autotune PROPERTIES
+                        LABELS      "${_labels};strategy"
+                        PROCESSORS  "${_nproc}"
+                        ENVIRONMENT "OP_AUTOTUNE=report")
+                endif()
             endif()
         endforeach()
     endif()
