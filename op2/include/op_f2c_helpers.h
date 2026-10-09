@@ -271,6 +271,8 @@ enum class ParamSource {
     scalar_arg,
     dat_stride,
     global_stride,
+    // Fixed for the whole run, so no part of a loop configuration.
+    setting,
 };
 
 template<typename T> struct JitTypes {};
@@ -327,6 +329,7 @@ public:
         switch (m_source) {
         case ParamSource::external:
         case ParamSource::global_stride:
+        case ParamSource::setting:
             return;
         case ParamSource::scalar_arg:
             assert(m_arg_index >= 0 && m_arg_index < nargs);
@@ -748,6 +751,13 @@ public:
                               ParamSource::global_stride, -1);
     }
 
+    void add_setting_param(std::string_view name, int *data,
+                           const int *symbol = nullptr,
+                           uint64_t *hash_device_ptr = nullptr) {
+        m_params.emplace_back(name, data, lookup_symbol(symbol), hash_device_ptr,
+                              ParamSource::setting, -1);
+    }
+
 private:
     // Return the JIT kernel for the current parameters, starting its
     // compilation once it has been asked for often enough, or at once when
@@ -994,12 +1004,14 @@ private:
 
     // Digest the configuration a timing belongs to: the set, every
     // argument's active state and identity, the schedule shape, and the JIT
-    // parameters except the global stride, which depends on the strategy.
+    // parameters except the global stride, which depends on the strategy, and
+    // the run's settings, so reports from runs with different settings join.
     std::uint64_t autotune_key(op_set set, op_arg *args, int nargs,
                                bool global_reduction, std::uint64_t& params) {
         params = hash_seed_default;
         for (auto& param : m_params)
-            if (param.source() != ParamSource::global_stride)
+            if (param.source() != ParamSource::global_stride &&
+                param.source() != ParamSource::setting)
                 params = op::f2c::hash(param.hash(), params);
 
         auto& words = m_autotune_words;
@@ -1136,10 +1148,12 @@ private:
 
     // Report one configuration: each strategy's median time, or why it was
     // not a candidate, against the ladder's choice.  The root rank prints a
-    // line; every rank adds a row to the OP_AUTOTUNE_REPORT file.
-    void autotune_report(AutotuneState& state) {
-        if (state.reported)
+    // line once exploration ends; at exit every rank adds a row, with the
+    // configuration's total calls, to the OP_AUTOTUNE_REPORT file.
+    void autotune_report(AutotuneState& state, bool at_exit = false) {
+        if (state.reported && !at_exit)
             return;
+        bool print = !state.reported;
         state.reported = true;
 
         std::array<float, strategy_count> medians{};
@@ -1189,10 +1203,11 @@ private:
         std::snprintf(params, sizeof(params), "%016llx",
                       static_cast<unsigned long long>(state.params));
 
-        std::string header = "loop,set,set_size,inactive_args,params";
+        std::string header = "loop,set,set_size,inactive_args,params,calls";
         std::string row = m_profile_name + "," + state.set_name + "," +
                           std::to_string(state.set_size) + "," +
-                          state.inactive + "," + params;
+                          state.inactive + "," + params + "," +
+                          std::to_string(state.calls);
         for (Strategy strategy : strategies) {
             header += ",";
             header += strategy_name(strategy);
@@ -1205,9 +1220,10 @@ private:
                       speedup, kernels, complete ? "complete" : "partial");
         header += ",ladder,fastest,speedup,kernels,state";
         row += tail;
-        autotune_record(header, row);
+        if (at_exit)
+            autotune_record(header, row);
 
-        if (!op_is_root())
+        if (!print || !op_is_root())
             return;
 
         std::string times;
@@ -1233,18 +1249,18 @@ private:
                     speedup, complete ? "" : ", partial");
     }
 
-    // At shutdown, report configurations still being explored, and count
-    // those never explored.
+    // At shutdown, record every explored configuration, printing those
+    // still being explored, and count those never explored.
     void autotune_flush() {
         std::size_t unexplored = m_autotune_dropped;
         for (auto& [key, state] : m_autotune) {
-            bool explored = false;
+            bool explored = state.reported;
             for (const auto& samples : state.samples)
                 explored |= !samples.empty();
 
-            if (!state.reported && explored)
-                autotune_report(state);
-            else if (!state.reported)
+            if (explored)
+                autotune_report(state, true);
+            else
                 ++unexplored;
         }
 
