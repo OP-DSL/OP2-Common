@@ -2,6 +2,7 @@
 
 #include <array>
 #include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
@@ -495,6 +496,314 @@ void test_exclusive_can_be_disabled() {
               disabled.plan->stage_words[i]);
 }
 
+// Check every colouring invariant the wrapper relies on: launches partition
+// each section's chunks, elements of one chunk and thread colour reach
+// distinct targets, and chunks of one launch reach distinct targets.
+void check_colouring(const f2c::HierSmemPlan& plan,
+                     std::span<const op_arg> args,
+                     const f2c::HierSmemStagingDescriptor& descriptor,
+                     std::span<const f2c::ExecutionSection> sections) {
+    CHECK(plan.coloured());
+    check_chunks_within_sections(plan, sections);
+    CHECK(plan.section_launch_offsets.size() == sections.size() + 1);
+    CHECK(plan.section_launch_offsets.front() == 0);
+    CHECK(plan.section_launch_offsets.back() + 1 ==
+          static_cast<int>(plan.launch_chunk_offsets.size()));
+    CHECK(plan.launch_chunk_offsets.front() == 0);
+    CHECK(plan.launch_chunk_offsets.back() ==
+          static_cast<int>(plan.num_chunks()));
+    CHECK(plan.chunk_order.size() == plan.num_chunks());
+    CHECK(plan.chunk_thread_colours.size() == plan.num_chunks());
+    CHECK(plan.statistics.launches + 1 == plan.launch_chunk_offsets.size());
+    CHECK(plan.section_shared_bytes ==
+          std::vector<std::size_t>(sections.size(), 0));
+
+    auto targets = [&](int source) {
+        std::vector<std::pair<int, int>> out;
+        for (const auto& arg_desc : descriptor.args) {
+            const op_arg& arg = args[static_cast<std::size_t>(arg_desc.arg_index)];
+            if (arg.opt != 0)
+                out.push_back({arg_desc.dat_index,
+                               arg.map_data[source * arg.map->dim + arg.idx]});
+        }
+        return out;
+    };
+    auto disjoint = [](const std::vector<std::pair<int, int>>& a,
+                       const std::vector<std::pair<int, int>>& b) {
+        for (const auto& x : a)
+            for (const auto& y : b)
+                if (x == y)
+                    return false;
+        return true;
+    };
+
+    std::vector<int> launched(plan.num_chunks(), 0);
+    for (std::size_t section = 0; section < sections.size(); ++section) {
+        for (int launch = plan.section_launch_offsets[section];
+             launch < plan.section_launch_offsets[section + 1]; ++launch) {
+            int begin = plan.launch_chunk_offsets[static_cast<std::size_t>(launch)];
+            int end = plan.launch_chunk_offsets[static_cast<std::size_t>(launch) + 1];
+            CHECK(begin < end);
+
+            std::vector<std::vector<std::pair<int, int>>> chunk_targets;
+            for (int i = begin; i < end; ++i) {
+                int chunk = plan.chunk_order[static_cast<std::size_t>(i)];
+                CHECK(chunk >= plan.section_chunk_offsets[section] &&
+                      chunk < plan.section_chunk_offsets[section + 1]);
+                ++launched[static_cast<std::size_t>(chunk)];
+
+                int first = plan.source_offsets[static_cast<std::size_t>(chunk)];
+                int last = plan.source_offsets[static_cast<std::size_t>(chunk) + 1];
+                int ncolours =
+                    plan.chunk_thread_colours[static_cast<std::size_t>(chunk)];
+                CHECK(ncolours >= 1 && ncolours <= 255);
+                CHECK(ncolours <= plan.statistics.max_thread_colours);
+
+                std::vector<std::pair<int, int>> reached;
+                for (int a = first; a < last; ++a) {
+                    int colour = plan.thread_colours[static_cast<std::size_t>(a)];
+                    CHECK(colour < ncolours);
+                    auto a_targets = targets(a);
+                    reached.insert(reached.end(), a_targets.begin(),
+                                   a_targets.end());
+                    for (int b = first; b < a; ++b)
+                        if (plan.thread_colours[static_cast<std::size_t>(b)] ==
+                            colour)
+                            CHECK(disjoint(a_targets, targets(b)));
+                }
+
+                for (const auto& other : chunk_targets)
+                    CHECK(disjoint(reached, other));
+                chunk_targets.push_back(std::move(reached));
+            }
+        }
+    }
+
+    CHECK(launched == std::vector<int>(plan.num_chunks(), 1));
+}
+
+f2c::HierSmemPlanBuildResult build_colour(MixedFixture& fixture) {
+    return f2c::build_hier_colour_plan(&fixture.source, fixture.args,
+                                       fixture.sections, fixture.descriptor(),
+                                       fixture.options());
+}
+
+void test_colour_mixed_plan() {
+    MixedFixture fixture;
+    fixture.args[0].acc = OP_RW;
+    fixture.args[1].acc = OP_READ;
+
+    auto result = build_colour(fixture);
+    CHECK(result);
+    const auto& plan = *result.plan;
+    CHECK(plan.selected_chunk_size == 4);
+    CHECK((plan.source_offsets == std::vector<int>{0, 2, 6}));
+    CHECK((plan.chunk_order == std::vector<int>{0, 1}));
+    CHECK((plan.launch_chunk_offsets == std::vector<int>{0, 1, 2}));
+    CHECK((plan.section_launch_offsets == std::vector<int>{0, 1, 2}));
+    CHECK((plan.chunk_thread_colours == std::vector<int>{2, 3}));
+    CHECK((std::vector<int>(plan.thread_colours.begin(),
+                            plan.thread_colours.begin() + 6) ==
+           std::vector<int>{0, 1, 0, 1, 0, 2}));
+    CHECK(plan.statistics.launches == 2);
+    CHECK(plan.statistics.max_thread_colours == 3);
+    CHECK(plan.stage_words.empty() && plan.stage_counts.empty());
+    check_colouring(plan, fixture.args, fixture.descriptor(),
+                    fixture.sections);
+
+    fixture.args[3].opt = 1;
+    auto active = build_colour(fixture);
+    CHECK(active);
+    check_colouring(*active.plan, fixture.args, fixture.descriptor(),
+                    fixture.sections);
+}
+
+// Edge i of a chain reaches nodes i and i+1, so neighbouring edges and
+// neighbouring chunks share a node.
+struct ChainFixture {
+    op_set_core edges{};
+    op_set_core nodes{};
+    op_dat_core dat{};
+    std::vector<int> map_values;
+    op_map_core map{};
+    std::vector<op_arg> args;
+    std::array<f2c::HierSmemArgDescriptor, 2> arg_desc{{{0, 0}, {1, 0}}};
+    std::array<f2c::HierSmemScalarType, 1> dat_desc{{
+        f2c::HierSmemScalarType::i32,
+    }};
+
+    explicit ChainFixture(int size) {
+        initialize_set(edges, size);
+        initialize_set(nodes, size + 1);
+        initialize_dat(dat, &nodes, 1, sizeof(int), "integer(4)");
+        for (int i = 0; i < size; ++i) {
+            map_values.push_back(i);
+            map_values.push_back(i + 1);
+        }
+        initialize_map(map, &edges, &nodes, map_values);
+        map.dim = 2;
+        for (int idx = 0; idx < 2; ++idx) {
+            args.push_back(make_dat_arg(&dat, &map, 1, "integer(4)",
+                                        sizeof(int), 1, OP_RW));
+            args.back().idx = idx;
+        }
+    }
+
+    f2c::HierSmemStagingDescriptor descriptor() const {
+        return {arg_desc, dat_desc, -1};
+    }
+
+    f2c::HierSmemPlanBuildResult build(
+        std::span<const f2c::ExecutionSection> sections, int block_size) {
+        f2c::HierSmemPlanOptions options{block_size, block_size, 0};
+        return f2c::build_hier_colour_plan(&edges, args, sections,
+                                           descriptor(), options);
+    }
+};
+
+void test_colour_chain_blocks() {
+    ChainFixture fixture(16);
+    std::array<f2c::ExecutionSection, 1> sections{{{0, 16}}};
+
+    auto result = fixture.build(sections, 4);
+    CHECK(result);
+    const auto& plan = *result.plan;
+    CHECK(plan.num_chunks() == 4);
+    CHECK((plan.chunk_order == std::vector<int>{0, 2, 1, 3}));
+    CHECK((plan.launch_chunk_offsets == std::vector<int>{0, 2, 4}));
+    CHECK((plan.section_launch_offsets == std::vector<int>{0, 2}));
+    CHECK((plan.chunk_thread_colours == std::vector<int>{2, 2, 2, 2}));
+    for (int edge = 0; edge < 16; ++edge)
+        CHECK(plan.thread_colours[static_cast<std::size_t>(edge)] == edge % 2);
+    check_colouring(plan, fixture.args, fixture.descriptor(), sections);
+
+    // Colours never cross a section, and an empty section has no launches.
+    std::array<f2c::ExecutionSection, 3> split{{{0, 8}, {8, 8}, {8, 16}}};
+    auto sectioned = fixture.build(split, 4);
+    CHECK(sectioned);
+    CHECK((sectioned.plan->section_launch_offsets ==
+           std::vector<int>{0, 2, 2, 4}));
+    check_colouring(*sectioned.plan, fixture.args, fixture.descriptor(),
+                    split);
+}
+
+// Every element reaches one target, so a chunk needs one colour per element.
+void test_colour_rounds_and_limit() {
+    for (int size : {100, 255, 256}) {
+        op_set_core source{};
+        op_set_core target{};
+        op_dat_core dat{};
+        op_map_core map{};
+        std::vector<int> map_values(static_cast<std::size_t>(size), 0);
+        initialize_set(source, size);
+        initialize_set(target, 1);
+        initialize_dat(dat, &target, 1, sizeof(double), "real(8)");
+        initialize_map(map, &source, &target, map_values);
+        std::array<op_arg, 1> args{
+            make_dat_arg(&dat, &map, 1, "real(8)", sizeof(double))};
+        std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
+        std::array<f2c::HierSmemScalarType, 1> dat_desc{{
+            f2c::HierSmemScalarType::f64,
+        }};
+        std::array<f2c::ExecutionSection, 1> sections{{{0, size}}};
+        f2c::HierSmemStagingDescriptor descriptor{arg_desc, dat_desc, -1};
+
+        auto result = f2c::build_hier_colour_plan(
+            &source, args, sections, descriptor, {size, size, 0});
+        if (size > 255) {
+            expect_reason(result,
+                          f2c::HierSmemFallbackReason::too_many_colours);
+            continue;
+        }
+
+        CHECK(result);
+        CHECK(result.plan->statistics.max_thread_colours == size);
+        for (int i = 0; i < size; ++i)
+            CHECK(result.plan->thread_colours[static_cast<std::size_t>(i)] == i);
+        check_colouring(*result.plan, args, descriptor, sections);
+    }
+}
+
+// Random maps over a small target set, with several sections and arguments.
+void test_colour_random() {
+    constexpr int size = 1000;
+    constexpr int targets = 97;
+    op_set_core source{};
+    op_set_core target_set{};
+    op_dat_core dat_a{};
+    op_dat_core dat_b{};
+    initialize_set(source, 900, 300, 100);
+    initialize_set(target_set, targets);
+    initialize_dat(dat_a, &target_set, 2, sizeof(double), "real(8)");
+    initialize_dat(dat_b, &target_set, 1, sizeof(int), "integer(4)");
+
+    std::uint32_t state = 12345;
+    std::array<std::vector<int>, 3> values;
+    std::array<op_map_core, 3> maps{};
+    for (std::size_t m = 0; m < maps.size(); ++m) {
+        for (int i = 0; i < size; ++i) {
+            state = state * 1664525u + 1013904223u;
+            values[m].push_back(static_cast<int>((state >> 8) % targets));
+        }
+        initialize_map(maps[m], &source, &target_set, values[m]);
+    }
+
+    std::vector<op_arg> args{
+        make_dat_arg(&dat_a, &maps[0], 2, "real(8)", sizeof(double), 1, OP_RW),
+        make_dat_arg(&dat_a, &maps[1], 2, "real(8)", sizeof(double), 1,
+                     OP_READ),
+        make_dat_arg(&dat_b, &maps[2], 1, "integer(4)", sizeof(int), 1,
+                     OP_INC),
+    };
+    std::array<f2c::HierSmemArgDescriptor, 3> arg_desc{{{0, 0}, {1, 0}, {2, 1}}};
+    std::array<f2c::HierSmemScalarType, 2> dat_desc{{
+        f2c::HierSmemScalarType::f64,
+        f2c::HierSmemScalarType::i32,
+    }};
+    std::array<f2c::ExecutionSection, 3> sections{{
+        {0, 300}, {300, 900}, {900, 1000}}};
+    f2c::HierSmemStagingDescriptor descriptor{arg_desc, dat_desc, -1};
+
+    auto result = f2c::build_hier_colour_plan(
+        &source, args, sections, descriptor, {32, 64, 0});
+    CHECK(result);
+    CHECK(result.plan->statistics.launches > sections.size());
+    check_colouring(*result.plan, args, descriptor, sections);
+}
+
+void test_colour_fallbacks() {
+    {
+        MixedFixture fixture;
+        fixture.args.push_back(make_dat_arg(&fixture.dat_b, &fixture.map_b,
+                                             3, "integer(4)", sizeof(int), 1,
+                                             OP_READ));
+        expect_reason(build_colour(fixture),
+                      f2c::HierSmemFallbackReason::incompatible_argument);
+    }
+    {
+        MixedFixture fixture;
+        for (auto& arg : fixture.args)
+            arg.opt = 0;
+        expect_reason(build_colour(fixture),
+                      f2c::HierSmemFallbackReason::no_active_increment);
+    }
+    {
+        // Two groups resolving to one dat would be coloured independently.
+        ChainFixture fixture(8);
+        std::array<f2c::HierSmemArgDescriptor, 2> arg_desc{{{0, 0}, {1, 1}}};
+        std::array<f2c::HierSmemScalarType, 2> dat_desc{{
+            f2c::HierSmemScalarType::i32,
+            f2c::HierSmemScalarType::i32,
+        }};
+        std::array<f2c::ExecutionSection, 1> sections{{{0, 8}}};
+        auto result = f2c::build_hier_colour_plan(
+            &fixture.edges, fixture.args, sections,
+            {arg_desc, dat_desc, -1}, {4, 4, 0});
+        expect_reason(result,
+                      f2c::HierSmemFallbackReason::incompatible_argument);
+    }
+}
+
 void test_packed_word_boundaries() {
     constexpr auto word = f2c::hier_smem_pack_stage_word(
         f2c::hier_smem_slot_mask, true, true);
@@ -508,6 +817,7 @@ void test_packed_word_boundaries() {
         f2c::HierSmemFallbackReason::incompatible_argument,
         f2c::HierSmemFallbackReason::insufficient_shared_memory,
         f2c::HierSmemFallbackReason::low_compression,
+        f2c::HierSmemFallbackReason::too_many_colours,
     };
     for (auto reason : fallback_reasons)
         CHECK(f2c::hier_smem_fallback_reason_name(reason) != "unknown");
@@ -539,6 +849,11 @@ int main() {
         test_exclusive_is_per_section();
         test_exclusive_can_be_disabled();
         test_runtime_fallbacks();
+        test_colour_mixed_plan();
+        test_colour_chain_blocks();
+        test_colour_rounds_and_limit();
+        test_colour_random();
+        test_colour_fallbacks();
         test_packed_word_boundaries();
         test_plan_owner_lifecycle();
     } catch (const std::exception& error) {

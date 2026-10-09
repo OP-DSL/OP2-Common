@@ -51,6 +51,7 @@ enum class HierSmemFallbackReason {
     incompatible_argument,
     insufficient_shared_memory,
     low_compression,      // below OP_HIER_SMEM_MIN_COMPRESSION
+    too_many_colours,     // a chunk needs more thread colours than fit a byte
 };
 
 // Convert a fallback reason to its stable diagnostic name.
@@ -73,6 +74,10 @@ struct HierSmemPlanStatistics {
     // flush needs no global atomic.  The rest of distinct_targets flush with
     // atomicAdd.
     std::size_t exclusive_owners = 0;
+    // Hierarchical colouring: launches over all sections, and the most thread
+    // colours any chunk needs.
+    std::size_t launches = 0;
+    int max_thread_colours = 0;
 
     // Return the staged references per global flush.
     double compression() const {
@@ -96,12 +101,23 @@ struct HierSmemPlan {
     std::vector<int> stage_counts;
     std::vector<std::size_t> section_shared_bytes;
 
+    // Hierarchical colouring only.  Each section runs one launch per block
+    // colour; chunk_order lists the chunks launch by launch.
+    std::vector<int> chunk_order;
+    std::vector<int> launch_chunk_offsets;
+    std::vector<int> section_launch_offsets;
+    std::vector<std::uint8_t> thread_colours;
+    std::vector<int> chunk_thread_colours;
+
     HierSmemPlanStatistics statistics;
 
     // Return the number of consecutive source chunks in the plan.
     std::size_t num_chunks() const {
         return source_offsets.empty() ? 0 : source_offsets.size() - 1;
     }
+
+    // Report whether this is a hierarchical colouring plan.
+    bool coloured() const { return !launch_chunk_offsets.empty(); }
 };
 
 struct HierSmemPlanBuildResult {
@@ -116,6 +132,16 @@ struct HierSmemPlanBuildResult {
 
 // Build the largest block-aligned plan that fits the supplied byte limit.
 HierSmemPlanBuildResult build_hier_smem_plan(
+    op_set set, std::span<const op_arg> args,
+    std::span<const ExecutionSection> sections,
+    const HierSmemStagingDescriptor& descriptor,
+    const HierSmemPlanOptions& options);
+
+// Build a hierarchical colouring plan: chunks of each section coloured so that
+// no two chunks of a colour, and no two elements of a chunk and thread colour,
+// reach the same target of a coloured argument.  The descriptor lists every
+// indirect argument on a dat the loop increments or read-writes.
+HierSmemPlanBuildResult build_hier_colour_plan(
     op_set set, std::span<const op_arg> args,
     std::span<const ExecutionSection> sections,
     const HierSmemStagingDescriptor& descriptor,
