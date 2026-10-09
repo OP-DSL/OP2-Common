@@ -150,6 +150,14 @@ DEVICE inline void hier_smem_seed(HierSmemStageWord word, Ptr<T> target,
         region[slot + c * count] = target.data[c * target.stride];
 }
 
+// Add one element's per-thread increments into its staged slot.
+template<typename T>
+DEVICE inline void hier_smem_add(Ptr<T> slot, const T *increment,
+                                 IndexType dim) {
+    for (IndexType c = 0; c < dim; ++c)
+        slot.data[c * slot.stride] += increment[c];
+}
+
 // A translated kernel applies each indirect increment through op2_inc, which
 // every strategy's generated code defines as one of these.  The plain form
 // keeps Fortran's x = x + e conversion; the atomic one converts e first, as

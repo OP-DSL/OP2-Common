@@ -102,14 +102,20 @@ HierPlanBuildResult build_hier_colouring_plan(
         seen[dat].assign(extent, 0);
     }
 
-    const int chunk_size = resolved.requested_chunk_size;
+    int chunk_size = detail::staged_chunk_size(resolved, options);
+    if (chunk_size == 0)
+        return {FallbackReason::insufficient_shared_memory, std::nullopt};
+
+    // Each chunk applies its updates to its targets staged in shared memory.
+    // Block colouring keeps a launch's chunks off each other's targets, so
+    // every owner can seed its slot and flush it back with a plain store.
     HierPlan plan;
-    plan.selected_chunk_size = chunk_size;
-    plan.set_stride = resolved.set_stride;
+    detail::build_staging(resolved, sections, chunk_size,
+                          detail::ExclusiveOwners::all, plan);
+    plan.staging->has_exclusive = 1;
+
     auto& colouring = plan.colouring.emplace();
     colouring.thread_colours.assign(static_cast<std::size_t>(plan.set_stride), 0);
-    plan.source_offsets.push_back(0);
-    plan.section_chunk_offsets.push_back(0);
     colouring.section_launch_offsets.push_back(0);
     colouring.launch_chunk_offsets.push_back(0);
 
@@ -118,15 +124,15 @@ HierPlanBuildResult build_hier_colouring_plan(
     std::vector<std::size_t> chunk_target_offsets;
     std::vector<int> colours;
 
-    for (const ExecutionSection& section : sections) {
-        const int first_chunk = static_cast<int>(plan.num_chunks());
+    for (std::size_t section = 0; section < sections.size(); ++section) {
+        const int first_chunk = plan.section_chunk_offsets[section];
+        const int last_chunk = plan.section_chunk_offsets[section + 1];
         chunk_targets.clear();
         chunk_target_offsets.assign(1, 0);
 
-        for (int start = section.start; start < section.end;) {
-            int end = static_cast<int>(std::min(
-                static_cast<long long>(section.end),
-                static_cast<long long>(start) + chunk_size));
+        for (int chunk = first_chunk; chunk < last_chunk; ++chunk) {
+            int start = plan.source_offsets[static_cast<std::size_t>(chunk)];
+            int end = plan.source_offsets[static_cast<std::size_t>(chunk) + 1];
 
             // Every element's targets, and the chunk's distinct ones.
             element_targets.clear();
@@ -149,9 +155,6 @@ HierPlanBuildResult build_hier_colouring_plan(
                 seen[chunk_targets[i].dat][
                     static_cast<std::size_t>(chunk_targets[i].target)] = 0;
 
-            plan.statistics.raw_references += element_targets.size();
-            plan.statistics.distinct_targets +=
-                chunk_targets.size() - chunk_target_offsets.back();
             chunk_target_offsets.push_back(chunk_targets.size());
 
             int thread_colours = greedy_colour(
@@ -174,13 +177,10 @@ HierPlanBuildResult build_hier_colouring_plan(
             colouring.chunk_thread_colours.push_back(thread_colours);
             plan.statistics.max_thread_colours =
                 std::max(plan.statistics.max_thread_colours, thread_colours);
-
-            plan.source_offsets.push_back(end);
-            start = end;
         }
 
         // Colour the section's chunks, then list them launch by launch.
-        const int nchunks = static_cast<int>(plan.num_chunks()) - first_chunk;
+        const int nchunks = last_chunk - first_chunk;
         int block_colours = greedy_colour(
             nchunks,
             [&](int chunk) {
@@ -212,8 +212,6 @@ HierPlanBuildResult build_hier_colouring_plan(
                 first_chunk + chunk;
         }
 
-        plan.section_chunk_offsets.push_back(
-            static_cast<int>(plan.num_chunks()));
         colouring.section_launch_offsets.push_back(
             static_cast<int>(colouring.launch_chunk_offsets.size()) - 1);
     }

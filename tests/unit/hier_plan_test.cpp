@@ -506,7 +506,13 @@ void check_colouring(const f2c::HierPlan& plan,
                      std::span<const op_arg> args,
                      const f2c::HierArgGroups& descriptor,
                      std::span<const f2c::ExecutionSection> sections) {
-    CHECK(plan.colouring.has_value() && !plan.staging.has_value());
+    CHECK(plan.colouring.has_value() && plan.staging.has_value());
+    // A launch's chunks share no target, so every owner flushes by storing.
+    CHECK(plan.staging->has_exclusive == 1);
+    CHECK(plan.statistics.exclusive_owners == plan.statistics.distinct_targets);
+    for (auto word : plan.staging->stage_words)
+        CHECK(f2c::hier_smem_stage_owner(word) ==
+              f2c::hier_smem_stage_exclusive(word));
     const auto& colouring = *plan.colouring;
     check_chunks_within_sections(plan, sections);
     CHECK(colouring.section_launch_offsets.size() == sections.size() + 1);
@@ -658,7 +664,7 @@ struct ChainFixture {
 
     f2c::HierPlanBuildResult build(
         std::span<const f2c::ExecutionSection> sections, int block_size) {
-        f2c::HierPlanOptions options{block_size, block_size, 0};
+        f2c::HierPlanOptions options{block_size, block_size, 1 << 16};
         return f2c::build_hier_colouring_plan(&edges, args, sections,
                                               descriptor(), options);
     }
@@ -713,7 +719,7 @@ void test_colour_rounds_and_limit() {
         f2c::HierArgGroups descriptor{arg_desc, dat_desc, -1};
 
         auto result = f2c::build_hier_colouring_plan(
-            &source, args, sections, descriptor, {size, size, 0});
+            &source, args, sections, descriptor, {size, size, 1 << 20});
         if (size > 255) {
             expect_reason(result,
                           f2c::FallbackReason::too_many_colours);
@@ -770,13 +776,22 @@ void test_colour_random() {
     f2c::HierArgGroups descriptor{arg_desc, dat_desc, -1};
 
     auto result = f2c::build_hier_colouring_plan(
-        &source, args, sections, descriptor, {32, 64, 0});
+        &source, args, sections, descriptor, {32, 64, 1 << 20});
     CHECK(result);
     CHECK(result.plan->statistics.launches > sections.size());
     check_colouring(*result.plan, args, descriptor, sections);
 }
 
 void test_colour_fallbacks() {
+    {
+        ChainFixture fixture(8);
+        std::array<f2c::ExecutionSection, 1> sections{{{0, 8}}};
+        auto result = f2c::build_hier_colouring_plan(
+            &fixture.edges, fixture.args, sections, fixture.descriptor(),
+            {4, 4, 16});
+        expect_reason(result,
+                      f2c::FallbackReason::insufficient_shared_memory);
+    }
     {
         MixedFixture fixture;
         fixture.args.push_back(make_dat_arg(&fixture.dat_b, &fixture.map_b,
@@ -803,7 +818,7 @@ void test_colour_fallbacks() {
         std::array<f2c::ExecutionSection, 1> sections{{{0, 8}}};
         auto result = f2c::build_hier_colouring_plan(
             &fixture.edges, fixture.args, sections,
-            {arg_desc, dat_desc, -1}, {4, 4, 0});
+            {arg_desc, dat_desc, -1}, {4, 4, 1 << 16});
         expect_reason(result,
                       f2c::FallbackReason::incompatible_argument);
     }

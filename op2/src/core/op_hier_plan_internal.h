@@ -34,6 +34,25 @@ FallbackReason resolve_input(
     const HierPlanOptions& options, bool increments_only,
     ResolvedInput& resolved);
 
+// Which staged owners a plan marks exclusive, so their flush stores rather
+// than adds atomically.
+enum class ExclusiveOwners {
+    none,     // every flush is atomic
+    section,  // owners whose target only one chunk of their section reaches
+    all,      // every owner: no two concurrently running chunks share a target
+};
+
+// Return the largest block multiple, up to the requested chunk size, whose
+// worst-case staging fits the shared-memory limit, or 0 if none does.
+int staged_chunk_size(const ResolvedInput& resolved,
+                      const HierPlanOptions& options);
+
+// Chunk each section and stage every grouped reference of each chunk: a slot
+// per distinct target, owned by its first reference.
+void build_staging(const ResolvedInput& resolved,
+                   std::span<const ExecutionSection> sections,
+                   int chunk_size, ExclusiveOwners exclusive, HierPlan& plan);
+
 // Resolve the global target an argument reaches from one source element.
 inline int arg_target(const op_arg& arg, int source) {
     return arg.map_data[static_cast<std::size_t>(source) *

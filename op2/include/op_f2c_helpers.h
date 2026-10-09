@@ -445,7 +445,7 @@ private:
     std::array<detail::HierPlanCache, strategy_count> m_plan_caches;
     std::set<std::pair<Strategy, std::array<FallbackReason, strategy_count>>>
         m_reported;
-    std::optional<std::size_t> m_hier_atomics_capacity;
+    std::array<std::optional<std::size_t>, strategy_count> m_hier_capacity;
     bool m_plan_owner_registered = false;
     std::vector<JitParam> m_params;
     std::mutex m_jit_kernels_mutex;
@@ -733,14 +733,14 @@ private:
         return {INT32_MAX, 128};
     }
 
-    // Return the hierarchical atomics wrapper's usable dynamic shared-memory
-    // capacity.  OP2 fixes the device at initialization, so this is resolved
-    // once.
-    std::size_t hier_atomics_capacity() {
-        const auto *impl = variant(Strategy::hier_atomics);
+    // Return a hierarchical wrapper's usable dynamic shared-memory capacity.
+    // OP2 fixes the device at initialization, so this is resolved once.
+    std::size_t hier_capacity(Strategy strategy) {
+        const auto *impl = variant(strategy);
         assert(impl != nullptr);
-        if (m_hier_atomics_capacity.has_value())
-            return *m_hier_atomics_capacity;
+        auto& capacity = m_hier_capacity[strategy_index(strategy)];
+        if (capacity.has_value())
+            return *capacity;
 
         int device = -1;
         CUDA_SAFE_CALL(gpuGetDevice(&device));
@@ -756,8 +756,8 @@ private:
 #endif
         auto static_bytes = static_cast<std::size_t>(
             impl->offline_attrs.sharedSizeBytes);
-        m_hier_atomics_capacity = total > static_bytes ? total - static_bytes : 0;
-        return *m_hier_atomics_capacity;
+        capacity = total > static_bytes ? total - static_bytes : 0;
+        return *capacity;
     }
 
     // Reject groups that omit an active indirect update the strategy must
@@ -807,10 +807,11 @@ private:
             const auto& stats = plan.statistics;
             if (plan.colouring) {
                 std::printf("hier_colouring: %s chunk %d, %zu chunks, "
-                            "%zu launches, up to %d thread colours\n",
+                            "%zu launches, up to %d thread colours, "
+                            "compression %.2fx\n",
                             m_profile_name.c_str(), plan.selected_chunk_size,
                             plan.num_chunks(), stats.launches,
-                            stats.max_thread_colours);
+                            stats.max_thread_colours, stats.compression());
                 return;
             }
 
