@@ -23,6 +23,7 @@ struct HierPlanDeviceView {
     const int *chunk_order = nullptr;
     const std::uint8_t *thread_colours = nullptr;
     const int *chunk_thread_colours = nullptr;
+    const int *element_order = nullptr;
 };
 
 struct HierPlanCacheStatistics {
@@ -109,6 +110,7 @@ private:
     int *m_chunk_order_d = nullptr;
     std::uint8_t *m_thread_colours_d = nullptr;
     int *m_chunk_thread_colours_d = nullptr;
+    int *m_element_order_d = nullptr;
 
     template<typename T>
     // Upload only the compact arrays read by a staged wrapper.
@@ -150,6 +152,7 @@ public:
             upload(colouring->chunk_order, m_chunk_order_d);
             upload(colouring->thread_colours, m_thread_colours_d);
             upload(colouring->chunk_thread_colours, m_chunk_thread_colours_d);
+            upload(colouring->element_order, m_element_order_d);
         }
     }
 
@@ -162,7 +165,8 @@ public:
     }
     HierPlanDeviceView device_view() const {
         return {m_source_offsets_d, m_stage_words_d, m_stage_counts_d,
-                m_chunk_order_d, m_thread_colours_d, m_chunk_thread_colours_d};
+                m_chunk_order_d, m_thread_colours_d, m_chunk_thread_colours_d,
+                m_element_order_d};
     }
 
     // OP2 selects one device at initialization and never switches, so these
@@ -174,6 +178,7 @@ public:
         release(m_chunk_order_d);
         release(m_thread_colours_d);
         release(m_chunk_thread_colours_d);
+        release(m_element_order_d);
     }
 };
 

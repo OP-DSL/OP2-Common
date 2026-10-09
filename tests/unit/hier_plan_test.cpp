@@ -1,5 +1,6 @@
 #include <op_hier_plan.h>
 
+#include <algorithm>
 #include <array>
 #include <climits>
 #include <cstdint>
@@ -563,6 +564,21 @@ void check_colouring(const f2c::HierPlan& plan,
 
                 int first = plan.source_offsets[static_cast<std::size_t>(chunk)];
                 int last = plan.source_offsets[static_cast<std::size_t>(chunk) + 1];
+
+                // element_order permutes the chunk's own elements into
+                // non-decreasing thread colour.
+                std::vector<int> ordered(
+                    colouring.element_order.begin() + first,
+                    colouring.element_order.begin() + last);
+                for (int i = first + 1; i < last; ++i)
+                    CHECK(colouring.thread_colours[static_cast<std::size_t>(
+                              colouring.element_order[static_cast<std::size_t>(i - 1)])] <=
+                          colouring.thread_colours[static_cast<std::size_t>(
+                              colouring.element_order[static_cast<std::size_t>(i)])]);
+                std::sort(ordered.begin(), ordered.end());
+                for (int i = first; i < last; ++i)
+                    CHECK(ordered[static_cast<std::size_t>(i - first)] == i);
+
                 int ncolours =
                     colouring.chunk_thread_colours[static_cast<std::size_t>(chunk)];
                 CHECK(ncolours >= 1 && ncolours <= 255);

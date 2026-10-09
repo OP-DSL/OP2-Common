@@ -109,13 +109,16 @@ struct HierStaging {
 };
 
 // Block and thread colours.  Each section runs one launch per block colour;
-// chunk_order lists the chunks launch by launch.
+// chunk_order lists the chunks launch by launch.  element_order lists each
+// chunk's elements in thread-colour order, so the threads running one colour
+// can be one contiguous run of lanes.
 struct HierColouring {
     std::vector<int> chunk_order;
     std::vector<int> launch_chunk_offsets;
     std::vector<int> section_launch_offsets;
     std::vector<std::uint8_t> thread_colours;
     std::vector<int> chunk_thread_colours;
+    std::vector<int> element_order;
 };
 
 // Consecutive source chunks inside each schedule section, plus whatever the

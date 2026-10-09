@@ -117,6 +117,7 @@ HierPlanBuildResult build_hier_colouring_plan(
 
     auto& colouring = plan.colouring.emplace();
     colouring.thread_colours.assign(static_cast<std::size_t>(plan.set_stride), 0);
+    colouring.element_order.assign(static_cast<std::size_t>(plan.set_stride), 0);
     colouring.section_launch_offsets.push_back(0);
     colouring.launch_chunk_offsets.push_back(0);
 
@@ -124,6 +125,7 @@ HierPlanBuildResult build_hier_colouring_plan(
     std::vector<ColourTarget> chunk_targets;
     std::vector<std::size_t> chunk_target_offsets;
     std::vector<int> colours;
+    std::vector<int> colour_starts;
 
     for (std::size_t section = 0; section < sections.size(); ++section) {
         const int first_chunk = plan.section_chunk_offsets[section];
@@ -176,6 +178,21 @@ HierPlanBuildResult build_hier_colouring_plan(
                     static_cast<std::uint8_t>(
                         colours[static_cast<std::size_t>(source - start)]);
             colouring.chunk_thread_colours.push_back(thread_colours);
+
+            // Order the chunk's elements by thread colour, stably.
+            colour_starts.assign(static_cast<std::size_t>(thread_colours) + 1, 0);
+            for (int source = start; source < end; ++source)
+                ++colour_starts[static_cast<std::size_t>(
+                    colours[static_cast<std::size_t>(source - start)]) + 1];
+            for (int colour = 0; colour < thread_colours; ++colour)
+                colour_starts[static_cast<std::size_t>(colour) + 1] +=
+                    colour_starts[static_cast<std::size_t>(colour)];
+            for (int source = start; source < end; ++source) {
+                auto& next = colour_starts[static_cast<std::size_t>(
+                    colours[static_cast<std::size_t>(source - start)])];
+                colouring.element_order[static_cast<std::size_t>(start + next++)] =
+                    source;
+            }
             plan.statistics.max_thread_colours =
                 std::max(plan.statistics.max_thread_colours, thread_colours);
         }

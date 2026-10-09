@@ -331,9 +331,9 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         const int op2_colours = chunk_thread_colours[chunk];
         for (int op2_base = op2_source_begin; op2_base < op2_source_end;
              op2_base += blockDim.x) {
+    {% if hier_colouring_parallel %}
             const int n = op2_base + threadIdx.x;
             const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
-    {% if hier_colouring_parallel %}
         {% for arg in args_hier_atomics %}
             {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{lh.dat(arg).dim}}] = {};
         {% endfor %}
@@ -360,7 +360,14 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
                 __syncthreads();
             }
     {% else %}
-            const int op2_n = n;
+            // Threads take the chunk's elements in thread-colour order, so
+            // each pass runs on one contiguous run of lanes and warps without
+            // an element of its colour skip it.
+            const int op2_position = op2_base + threadIdx.x;
+            const int op2_n = op2_position < op2_source_end
+                                  ? element_order[op2_position]
+                                  : -1;
+            const int op2_colour = op2_n >= 0 ? thread_colours[op2_n] : -1;
             for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
                 if (op2_colour == op2_pass) {
                     // Opaque, so this element's address arithmetic is not
@@ -502,6 +509,9 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     const int *__restrict chunk_order,
     const unsigned char *__restrict thread_colours,
     const int *__restrict chunk_thread_colours,
+        {% if not hier_colouring_parallel %}
+    const int *__restrict element_order,
+        {% endif %}
     const int chunk_begin,
     const int chunk_end
     {% elif strategy == "hier_atomics" %}
@@ -648,6 +658,9 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
             (void *)&launch.hier.plan.chunk_order,
             (void *)&launch.hier.plan.thread_colours,
             (void *)&launch.hier.plan.chunk_thread_colours,
+        {% if not hier_colouring_parallel %}
+            (void *)&launch.hier.plan.element_order,
+        {% endif %}
             (void *)&launch.hier.chunk_begin,
             (void *)&launch.hier.chunk_end
     {% elif strategy == "hier_atomics" %}
