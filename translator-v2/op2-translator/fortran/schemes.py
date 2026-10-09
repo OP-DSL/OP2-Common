@@ -2,7 +2,7 @@ import copy
 import traceback
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import fortran.translator.kernels as ftk
 import fortran.translator.kernels_c as ftk_c
@@ -12,6 +12,50 @@ from scheme import Scheme
 from store import Application, ParseError, Program
 from target import Target
 from util import find
+
+
+# Execution strategies for the C API GPU targets, in ladder order; the runtime
+# runs the first enabled one whose plan accepts the loop.
+strategy_ladder = ["plain", "hier_atomics", "atomics", "hier_colouring", "colouring"]
+
+
+def hierStrategy(strategy: str) -> bool:
+    return strategy in ["hier_atomics", "hier_colouring"]
+
+
+# Whether a hierarchical plan can group an argument: one map component, and a
+# scalar type the planner knows.
+def hierGroupable(loop: OP.Loop, arg: OP.ArgDat) -> bool:
+    if arg.map_idx is not None and arg.map_idx < -1:
+        return False
+
+    typ = loop.dat(arg).typ
+    return (isinstance(typ, OP.Float) and typ.size in [32, 64]) or (
+        isinstance(typ, OP.Int) and typ.signed and typ.size == 32
+    )
+
+
+# Return the strategies that are statically valid for a loop, in ladder order.
+def validStrategies(loop: OP.Loop) -> List[str]:
+    indirect = [arg for arg in loop.args if isinstance(arg, OP.ArgDat) and arg.map_id is not None]
+    incs = [arg for arg in indirect if arg.access_type == OP.AccessType.INC]
+    rws = [arg for arg in indirect if arg.access_type == OP.AccessType.RW]
+
+    if len(incs) == 0 and len(rws) == 0:
+        return ["plain"]
+
+    strategies = []
+    if len(rws) == 0:
+        if all(hierGroupable(loop, arg) for arg in incs):
+            strategies.append("hier_atomics")
+        strategies.append("atomics")
+
+    coloured_dats = {arg.dat_id for arg in incs + rws}
+    if all(hierGroupable(loop, arg) for arg in indirect if arg.dat_id in coloured_dats):
+        strategies.append("hier_colouring")
+    strategies.append("colouring")
+
+    return strategies
 
 
 class FortranSeq(Scheme):
@@ -311,17 +355,24 @@ class FortranCCuda(Scheme):
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
 
-        use_coloring = False
+        # The C++ schemes share this target and still read these.
+        del config["atomics"]
+        del config["color2"]
 
-        for arg in loop.args:
-            if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW:
-                use_coloring = True
-                break
+        config["strategies"] = validStrategies(loop)
+        return config
 
-        if use_coloring:
-            config["atomics"] = False
-            config["color2"] = True
+    # A strategies override restricts the valid set; the lowest valid
+    # non-hierarchical strategy always stays, so the runtime has a floor.
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        valid = validStrategies(loop)
+        config = super().getConfig(loop, config_overrides)
 
+        strategies = [strategy for strategy in valid if strategy in config["strategies"]]
+        if all(hierStrategy(strategy) for strategy in strategies):
+            strategies.append(valid[-1])
+
+        config["strategies"] = strategies
         return config
 
     def translateKernel(
@@ -356,19 +407,18 @@ class FortranCCuda(Scheme):
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
 
-        def match_atomic_inc(arg):
-            return arg.access_type == OP.AccessType.INC and config["atomics"]
-
         def match_gbl(arg):
             return isinstance(arg, OP.ArgGbl)
 
+        # Each strategy's generated code defines op2_inc: atomic or plain.
         ftk.insertAtomicIncs(
             kernel_entity,
             [kernel_entity] + dependencies,
             loop,
             app,
-            lambda arg: match_indirect(arg) and match_atomic_inc(arg),
+            lambda arg: match_indirect(arg) and arg.access_type == OP.AccessType.INC,
             c_api=True,
+            call="op2_inc",
         )
 
         if config["gbl_inc_atomic"]:

@@ -185,13 +185,17 @@ def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], 
         fu.eraseDimensions(func, param)
 
 
+# Rewrite x = x + e for every matched argument into an increment call: an
+# atomicAdd, or for the C API the named call (op2_inc lets each strategy's
+# generated code choose how the increment is applied).
 def insertAtomicIncs(
     func: Function,
     funcs: List[Function],
     loop: OP.Loop,
     app: Application,
     match: Callable[[OP.Arg], bool],
-    c_api: bool = False
+    c_api: bool = False,
+    call: str = "atomicAdd",
 ) -> Dict[str, Set[int]]:
     modified = {}
 
@@ -209,7 +213,7 @@ def insertAtomicIncs(
         else:
             raise OpError(f"Error: could not find type of arg while inserting atomics: {loop.args[arg_idx]}")
 
-        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ, c_api)
+        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ, c_api, call)
 
     if c_api:
         return
@@ -224,11 +228,13 @@ def insertAtomicIncs(
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
 
-def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type, c_api: bool) -> None:
+def insertAtomicInc(
+    func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type, c_api: bool, call: str
+) -> None:
     if param_idx in modified.get(func.name, set()):
         return
 
-    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx], typ, c_api)
+    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx], typ, c_api, call)
 
     if not replaced:
         return
@@ -239,7 +245,7 @@ def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]
         modified[func.name].add(param_idx)
 
 
-def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) -> Tuple[Optional[Any], bool]:
+def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool, call: str) -> Tuple[Optional[Any], bool]:
     if isinstance(node, f2003.Assignment_Stmt):
         if not fu.isRef(node.items[0], param):
             return None, False
@@ -261,7 +267,7 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) ->
         if not c_api:
             return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
         else:
-            return f2003.Call_Stmt(f"call atomicAdd({node.items[0]}, {node.items[2]})"), False
+            return f2003.Call_Stmt(f"call {call}({node.items[0]}, {node.items[2]})"), False
 
     if not isinstance(node, f2003.Base):
         return None, False
@@ -271,7 +277,7 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) ->
         if node.children[i] is None:
             continue
 
-        replacement, modified2 = insertAtomicInc2(node.children[i], param, typ, c_api)
+        replacement, modified2 = insertAtomicInc2(node.children[i], param, typ, c_api, call)
 
         if replacement is not None:
             replaceChild(node, i, replacement)

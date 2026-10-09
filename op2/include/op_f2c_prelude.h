@@ -150,7 +150,21 @@ DEVICE inline void hier_smem_seed(HierSmemStageWord word, Ptr<T> target,
         region[slot + c * count] = target.data[c * target.stride];
 }
 
+// A translated kernel applies each indirect increment through op2_inc, which
+// every strategy's generated code defines as one of these.  The plain form
+// keeps Fortran's x = x + e conversion; the atomic one converts e first, as
+// atomicAdd's operand type requires.
+template<typename T, typename U>
+DEVICE inline void plain_inc(T& target, U value) {
+    target = static_cast<T>(target + value);
+}
+
 #if defined(__CUDACC__) || defined(__HIPCC__)
+template<typename T, typename U>
+DEVICE inline void atomic_inc(T& target, U value) {
+    atomicAdd(&target, static_cast<T>(value));
+}
+
 // Flush one owner's slot back to its target.  An exclusive owner is the only
 // reference to that target in its schedule section, and its slot was seeded
 // with the target's previous value, so it already holds the total and can be

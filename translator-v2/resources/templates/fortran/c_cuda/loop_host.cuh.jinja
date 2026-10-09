@@ -5,64 +5,65 @@
 {%- endif -%}
 
 {%- macro variant_str() -%}
-    {%- if lh is direct -%}
-Direct
-    {%- elif config.atomics -%}
-Indirect (atomics)
-    {%- elif config.color2 -%}
-Indirect (colouring)
-    {%- endif -%}
+{{"Direct" if lh is direct else "Indirect"}}
 {%- endmacro -%}
+
+{%- set strategies = config.strategies -%}
 
 {%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
 {%- if config.gbl_inc_atomic -%}
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
 
-{# The staged wrapper accumulates every indirect increment in shared memory, so
-   a loop qualifies only when all of them can be staged together: a supported
-   scalar type, and a single map component per argument.  Vec arguments carry a
-   negative map_idx that this template does not expand, so they disqualify the
-   loop rather than reaching the planner, which indexes by map component.  Dat
-   ids are collected in first-use order and become the staged-dat groups the
-   descriptor and the shared-region layout are ordered by.
-
-   A color2 loop's staged variant is hierarchical colouring instead.  It lists
-   every indirect argument on a dat the loop increments or read-writes, under
-   the same rules, and calls the kernel with the baseline pointers. #}
-{%- set hier_colouring = config.color2 and lh is indirect -%}
-{%- if hier_colouring -%}
-    {%- set colour_dats = namespace(ids=[]) -%}
-    {%- for arg in lh.args|dat|indirect(lh) if arg is inc or arg is read_write -%}
-        {%- set colour_dats.ids = colour_dats.ids + [arg.dat_id] -%}
-    {%- endfor -%}
-    {%- set args_hier_smem = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", colour_dats.ids)|list -%}
-{%- else -%}
-    {%- set args_hier_smem = lh.args|dat|indirect(lh)|inc|list -%}
-{%- endif -%}
-{%- set hier_smem = namespace(supported=true, dat_ids=[]) -%}
-{%- for arg in args_hier_smem -%}
-    {%- set typ = lh.dat(arg).typ -%}
-    {%- if arg is vec -%}
-        {%- set hier_smem.supported = false -%}
-    {%- elif not ((typ is instance(OP.Float) and typ.size in [32, 64]) or
-                  (typ is instance(OP.Int) and typ.signed and typ.size == 32)) -%}
-        {%- set hier_smem.supported = false -%}
-    {%- elif arg.dat_id not in hier_smem.dat_ids -%}
-        {%- set hier_smem.dat_ids = hier_smem.dat_ids + [arg.dat_id] -%}
+{#- Argument groups for the hierarchical strategies, with their dat ids in
+    first-use order.  hier_atomics stages every indirect increment;
+    hier_colouring colours every indirect argument on a dat the loop
+    increments or read-writes.  The translator lists a hierarchical strategy
+    only when its group arguments have one map component and a supported
+    scalar type. -#}
+{%- set args_hier_atomics = lh.args|dat|indirect(lh)|inc|list -%}
+{%- set updated = namespace(ids=[]) -%}
+{%- for arg in lh.args|dat|indirect(lh) -%}
+    {%- if (arg is inc or arg is read_write) and arg.dat_id not in updated.ids -%}
+        {%- set updated.ids = updated.ids + [arg.dat_id] -%}
     {%- endif -%}
 {%- endfor -%}
-{%- set has_hier_smem = (config.atomics or hier_colouring) and args_hier_smem|length > 0 and hier_smem.supported -%}
-{%- if lh is direct -%}
-    {%- set baseline_strategy = "plain" -%}
-{%- elif config.atomics -%}
-    {%- set baseline_strategy = "atomics" -%}
-{%- else -%}
-    {%- set baseline_strategy = "colouring" -%}
-{%- endif -%}
-{%- set staged_strategy = "hier_colouring" if hier_colouring else "hier_atomics" -%}
-{#- Staged dats whose dimension the staged wrapper needs even under SoA. -#}
-{%- set hier_smem_dim_ids = [] if hier_colouring else hier_smem.dat_ids -%}
+{%- set args_hier_colouring = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", updated.ids)|list -%}
+{%- set group_ids = namespace(hier_atomics=[], hier_colouring=[]) -%}
+{%- for arg in args_hier_atomics -%}
+    {%- if arg.dat_id not in group_ids.hier_atomics -%}
+        {%- set group_ids.hier_atomics = group_ids.hier_atomics + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- for arg in args_hier_colouring -%}
+    {%- if arg.dat_id not in group_ids.hier_colouring -%}
+        {%- set group_ids.hier_colouring = group_ids.hier_colouring + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set hier_atomics_dats = group_ids.hier_atomics -%}
+{%- set group_args = {"hier_atomics": args_hier_atomics, "hier_colouring": args_hier_colouring} -%}
+{%- set group_dats = {"hier_atomics": group_ids.hier_atomics, "hier_colouring": group_ids.hier_colouring} -%}
+
+{#- How each strategy applies the translated kernel's op2_inc calls. -#}
+{%- macro inc_hook(strategy) -%}
+    {%- if strategy != "plain" %}
+template<typename T, typename U>
+static __device__ inline void op2_inc(T& target, U value) {
+    f2c::{{"atomic_inc" if strategy in ["atomics", "hier_atomics"] else "plain_inc"}}(target, value);
+}
+    {% endif -%}
+{%- endmacro -%}
+
+{#- The translated kernel, in a namespace of its own for each strategy, or
+    for just the one a JIT source compiles. -#}
+{%- macro kernel_namespaces(only = none) -%}
+    {%- for strategy in strategies if only is none or strategy == only %}
+namespace op2_s_{{strategy}} {
+{{inc_hook(strategy)}}
+{{kernel_func}}}
+
+    {% endfor -%}
+{%- endmacro -%}
 
 {%- macro gbl_dim_w(arg) -%}
     {%- if arg.dim is not none -%}
@@ -142,9 +143,9 @@ f2c::Ptr{gbl{{arg.id}}}
 {%- endmacro -%}
 
 {%- macro arg_to_pointer4(arg, staged = false) -%}
-    {%- if staged and arg in args_hier_smem -%}
-        {%- set group = hier_smem.dat_ids|index(arg.dat_id) -%}
-f2c::Ptr{op2_stage{{group}} + f2c::hier_smem_stage_slot(stage_words[{{args_hier_smem|index(arg)}} * stride + n]), op2_stage{{group}}_count}
+    {%- if staged and arg in args_hier_atomics -%}
+        {%- set group = hier_atomics_dats|index(arg.dat_id) -%}
+f2c::Ptr{op2_stage{{group}} + f2c::hier_smem_stage_slot(stage_words[{{args_hier_atomics|index(arg)}} * stride + n]), op2_stage{{group}}_count}
     {%- elif arg is direct and lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
@@ -191,12 +192,12 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
-
-{{kernel_func}}}
+{{kernel_namespaces()}}
+}
 
 {#- Whether any argument in a staged group is active for this launch. -#}
 {%- macro hier_smem_group_active(dat_id) -%}
-    {%- set members = args_hier_smem|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- set members = args_hier_atomics|selectattr("dat_id", "eq", dat_id)|list -%}
     {%- if members|reject("opt")|list|length > 0 -%}
 true
     {%- else -%}
@@ -219,7 +220,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 {#- Seed one staged region through the single owner of each of its slots. -#}
 {% macro hier_smem_init(arg, index) %}
 {% set dat = lh.dat(arg) %}
-{% set group = hier_smem.dat_ids|index(arg.dat_id) %}
+{% set group = hier_atomics_dats|index(arg.dat_id) %}
         for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
              n += blockDim.x) {
 {% if arg is opt %}
@@ -241,7 +242,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 {#- One staged increment flushed back to its global target. -#}
 {% macro hier_smem_flush(arg, index) %}
 {% set dat = lh.dat(arg) %}
-{% set group = hier_smem.dat_ids|index(arg.dat_id) %}
+{% set group = hier_atomics_dats|index(arg.dat_id) %}
         for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
              n += blockDim.x) {
 {% if arg is opt %}
@@ -261,7 +262,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 {%- macro hier_smem_body(jit = false) %}
     extern __shared__ char op2_stage_smem[];
 
-    {% for dat_id in hier_smem.dat_ids %}
+    {% for dat_id in hier_atomics_dats %}
     const bool op2_stage{{loop.index0}}_active = {{hier_smem_group_active(dat_id)}};
     {% endfor %}
 
@@ -272,18 +273,18 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         const int op2_source_begin = source_offsets[chunk];
         const int op2_source_end = source_offsets[chunk + 1];
         const int *op2_chunk_counts =
-            stage_counts + chunk * {{hier_smem.dat_ids|length}};
+            stage_counts + chunk * {{hier_atomics_dats|length}};
 
         // Walk the same region layout the host planner sized this chunk for.
         char *op2_stage_cursor = op2_stage_smem;
-    {% for dat_id in hier_smem.dat_ids %}
+    {% for dat_id in hier_atomics_dats %}
         {% set dat = lh.dat(dat_id) %}
         const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
         {{dat.typ.c()}} *op2_stage{{loop.index0}} = f2c::hier_smem_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
     {% endfor %}
 
         // Clear every region before accumulating into it.
-    {% for dat_id in hier_smem.dat_ids %}
+    {% for dat_id in hier_atomics_dats %}
         f2c::hier_smem_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
     {% endfor %}
         __syncthreads();
@@ -294,7 +295,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         // when the plan has no exclusive owner, since the scan would otherwise
         // re-read every packed word from global memory to find nothing.
         if (has_exclusive) {
-    {% for arg in args_hier_smem %}
+    {% for arg in args_hier_atomics %}
 {{- hier_smem_init(arg, loop.index0)}}
     {% endfor %}
             __syncthreads();
@@ -318,7 +319,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         __syncthreads();
 
         // One contribution per distinct target reaches global memory.
-    {% for arg in args_hier_smem %}
+    {% for arg in args_hier_atomics %}
 {{- hier_smem_flush(arg, loop.index0)}}
     {% endfor %}
 
@@ -363,9 +364,10 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     }
 {%- endmacro %}
 
-{% macro kernel_wrapper(jit = false, staged = false) %}
+{% macro kernel_wrapper(strategy, jit = false) %}
+{% set staged = strategy == "hier_atomics" %}
 extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
-void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
+void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ.c()}} *__restrict dat{{dat.id}},
     {% endfor %}
@@ -381,13 +383,13 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem_dim_ids)) %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_atomics_dats)) %}
     const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
     const int arg{{arg.id}}_idx,
     {% endfor %}
-    {% if lh is indirect and config.color2 and not staged %}
+    {% if strategy == "colouring" %}
     const int *__restrict col_reord,
     {% endif %}
     {% if args_gbl_per_thread|length > 0 %}
@@ -398,15 +400,15 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride{{"," if staged}}
-    {% if staged and hier_colouring %}
+    const int stride{{"," if strategy in ["hier_atomics", "hier_colouring"]}}
+    {% if strategy == "hier_colouring" %}
     const int *__restrict source_offsets,
     const int *__restrict chunk_order,
     const unsigned char *__restrict thread_colours,
     const int *__restrict chunk_thread_colours,
     const int chunk_begin,
     const int chunk_end
-    {% elif staged %}
+    {% elif strategy == "hier_atomics" %}
     const int *__restrict source_offsets,
     const unsigned int *__restrict stage_words,
     const int *__restrict stage_counts,
@@ -416,6 +418,7 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     {% endif %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
+    using namespace op2_m_{{lh.name}}{{variant}}::op2_s_{{strategy}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
     [[maybe_unused]] int zero_int = 0;
@@ -423,15 +426,15 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     [[maybe_unused]] float zero_float = 0;
     [[maybe_unused]] double zero_double = 0;
 
-    {% if staged %}
+    {% if strategy in ["hier_atomics", "hier_colouring"] %}
     (void)start;
     (void)end;
     (void)thread_id;
-{{hier_colour_body(jit) if hier_colouring else hier_smem_body(jit)}}
+{{hier_colour_body(jit) if strategy == "hier_colouring" else hier_smem_body(jit)}}
 }
     {% else %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
-    {% if lh is indirect and config.color2 %}
+    {% if strategy == "colouring" %}
         int n = col_reord[i];
     {% else %}
         int n = i;
@@ -455,32 +458,20 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     {% endif %}
 {% endmacro %}
 
-{{kernel_wrapper()}}
+{% for strategy in strategies %}
+{{kernel_wrapper(strategy)}}
 
-const char op2_k_{{lh.name}}{{variant}}_src[] = R"_op2_k(
+const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
 namespace op2_m_{{lh.name}}{{variant}} {
 
 using int64_t = long long int;
+{{kernel_namespaces(only=strategy)}}
+}
 
-{{kernel_func}}}
-
-{{kernel_wrapper(jit=true)}}
+{{kernel_wrapper(strategy, jit=true)}}
 )_op2_k";
 
-{% if has_hier_smem %}
-{{kernel_wrapper(staged=true)}}
-
-const char op2_k_{{lh.name}}{{variant}}_staged_src[] = R"_op2_k(
-namespace op2_m_{{lh.name}}{{variant}} {
-
-using int64_t = long long int;
-
-{{kernel_func}}}
-
-{{kernel_wrapper(jit=true, staged=true)}}
-)_op2_k";
-{% endif %}
-
+{% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
 __global__
 static void op2_k_{{lh.name}}{{variant}}_init_gbls(
@@ -520,7 +511,8 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 }
 {% endif %}
 
-{% macro kernel_arguments(jit = false, staged = false) %}
+{% macro kernel_arguments(strategy, jit = false) %}
+{% set staged = strategy == "hier_atomics" %}
     {% for dat in lh.dats %}
             (void *)&args[{{dat.arg_id}}].data_d,
     {% endfor %}
@@ -536,13 +528,13 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
     {% for arg in lh.args|info %}
             (void *)&args[{{arg.id}}].data_d,
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem_dim_ids)) %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_atomics_dats)) %}
             (void *)&args[{{dat.arg_id}}].dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
             (void *)&args[{{arg.id}}].idx,
     {% endfor %}
-    {% if lh is indirect and config.color2 and not staged %}
+    {% if strategy == "colouring" %}
             (void *)&launch.color_reorder,
     {% endif %}
     {% if args_gbl_per_thread|length > 0 %}
@@ -553,15 +545,15 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
     {% endif %}
             (void *)&launch.start,
             (void *)&launch.end,
-            (void *)&launch.set_stride{{"," if staged}}
-    {% if staged and hier_colouring %}
+            (void *)&launch.set_stride{{"," if strategy in ["hier_atomics", "hier_colouring"]}}
+    {% if strategy == "hier_colouring" %}
             (void *)&launch.hier.plan.source_offsets,
             (void *)&launch.hier.plan.chunk_order,
             (void *)&launch.hier.plan.thread_colours,
             (void *)&launch.hier.plan.chunk_thread_colours,
             (void *)&launch.hier.chunk_begin,
             (void *)&launch.hier.chunk_end
-    {% elif staged %}
+    {% elif strategy == "hier_atomics" %}
             (void *)&launch.hier.plan.source_offsets,
             (void *)&launch.hier.plan.stage_words,
             (void *)&launch.hier.plan.stage_counts,
@@ -572,16 +564,11 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 {%- endmacro %}
 
 struct op2_k_{{lh.name}}{{variant}}_bindings {
-{% if has_hier_smem %}
     static constexpr std::array strategies{
-        op::f2c::Strategy::{{baseline_strategy}},
-        op::f2c::Strategy::{{staged_strategy}},
+{% for strategy in strategies %}
+        op::f2c::Strategy::{{strategy}},
+{% endfor %}
     };
-{% else %}
-    static constexpr std::array strategies{
-        op::f2c::Strategy::{{baseline_strategy}},
-    };
-{% endif %}
 
     template<op::f2c::Strategy S>
     auto make_arguments(op::f2c::LaunchContext& launch, op_arg *args) const {
@@ -593,35 +580,17 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
     {% endfor %}
 {% endif %}
 
-{% if has_hier_smem %}
-        if constexpr (S == op::f2c::Strategy::{{baseline_strategy}}) {
+{% for strategy in strategies %}
+        {{"if" if loop.first else "} else if"}} constexpr (S == op::f2c::Strategy::{{strategy}}) {
             auto offline = std::array{
-{{kernel_arguments()}}
+{{kernel_arguments(strategy)}}
             };
             auto jit = std::array{
-{{kernel_arguments(jit=true)}}
+{{kernel_arguments(strategy, jit=true)}}
             };
             return op::f2c::KernelArguments{offline, jit};
-        } else {
-            auto offline = std::array{
-{{kernel_arguments(staged=true)}}
-            };
-            auto jit = std::array{
-{{kernel_arguments(jit=true, staged=true)}}
-            };
-            return op::f2c::KernelArguments{offline, jit};
+{% endfor %}
         }
-{% else %}
-        auto offline = std::array{
-{{kernel_arguments()}}
-        };
-
-        auto jit = std::array{
-{{kernel_arguments(jit=true)}}
-        };
-
-        return op::f2c::KernelArguments{offline, jit};
-{% endif %}
     }
 
     void init_globals(const op::f2c::GlobalInitContext& context,
@@ -709,36 +678,37 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
     info.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
-    info.register_variant(
-        op::f2c::Strategy::{{baseline_strategy}},
-        "op2_k_{{lh.name}}{{variant}}_wrapper",
-        (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-        op2_k_{{lh.name}}{{variant}}_src);
-{% if has_hier_smem %}
-    static constexpr std::array staged_args = {
-    {% for arg in args_hier_smem %}
-        op::f2c::HierArgDescriptor{ {{arg.id}},
-            {{hier_smem.dat_ids|index(arg.dat_id)}} },
-    {% endfor %}
-    };
-    static constexpr std::array staged_dats = {
-    {% for dat_id in hier_smem.dat_ids %}
-        {{hier_smem_scalar_type(lh.dat(dat_id))}},
-    {% endfor %}
-    };
+{% if "hier_atomics" in strategies or "hier_colouring" in strategies %}
 #ifdef OP_PART_SIZE_{{kernel_idx}}
-    constexpr int staged_part_size = OP_PART_SIZE_{{kernel_idx}};
+    constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
 #else
-    constexpr int staged_part_size = -1;
+    constexpr int chunk_size = -1;
 #endif
-    info.register_variant(
-        op::f2c::Strategy::{{staged_strategy}},
-        "op2_k_{{lh.name}}{{variant}}_staged_wrapper",
-        (void *)op2_k_{{lh.name}}{{variant}}_staged_wrapper,
-        op2_k_{{lh.name}}{{variant}}_staged_src,
-        op::f2c::HierArgGroups{
-            staged_args, staged_dats, staged_part_size});
 {% endif %}
+{% for strategy in strategies %}
+    {% if strategy in ["hier_atomics", "hier_colouring"] %}
+    static constexpr std::array {{strategy}}_args = {
+        {% for arg in group_args[strategy] %}
+        op::f2c::HierArgDescriptor{ {{arg.id}},
+            {{group_dats[strategy]|index(arg.dat_id)}} },
+        {% endfor %}
+    };
+    static constexpr std::array {{strategy}}_dats = {
+        {% for dat_id in group_dats[strategy] %}
+        {{hier_smem_scalar_type(lh.dat(dat_id))}},
+        {% endfor %}
+    };
+    {% endif %}
+    info.register_variant(
+        op::f2c::Strategy::{{strategy}},
+        "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
+        (void *)op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper,
+        op2_k_{{lh.name}}{{variant}}_{{strategy}}_src{{"," if strategy in ["hier_atomics", "hier_colouring"] else ");"}}
+    {% if strategy in ["hier_atomics", "hier_colouring"] %}
+        op::f2c::HierArgGroups{
+            {{strategy}}_args, {{strategy}}_dats, chunk_size});
+    {% endif %}
+{% endfor %}
     return true;
 }
 
