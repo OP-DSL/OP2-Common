@@ -16,6 +16,7 @@ __constant__ {{const.typ}} {{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{
 {{super()}}
 #include "op_cuda_rt_support.h"
 #include "op_cuda_reduction.h"
+#include <op_profile.h>
 {% endblock %}
 
 {% block const_decl_func %}

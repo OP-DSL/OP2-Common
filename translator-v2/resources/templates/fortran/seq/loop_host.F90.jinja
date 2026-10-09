@@ -1,3 +1,5 @@
+{% import "fortran/utils.jinja" as utils %}
+
 {%- macro variant_str() -%}
     {%- if lh is direct -%}
 Direct
@@ -185,6 +187,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     type(op_arg), dimension({{lh.args|length}}) :: args
 
     integer(4) :: n_exec
+    {% for dat in lh.dats if dat.dim is none %}
+    integer(4) :: dat{{dat.id}}_dim
+    {% endfor %}
 
 {% for dat in lh.dats %}
     {{dat.typ}}, pointer, dimension(:, :) :: dat{{dat.id}}{{"\n" if loop.last}}
@@ -199,6 +204,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {{arg.typ}}, pointer, dimension(:) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     real(4) :: transfer
+    integer(8) :: bytes_moved
 
 {% for arg in lh.args %}
     args({{arg.id + 1}}) = arg{{arg.id}}
@@ -208,6 +214,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 
     call op_profile_enter("MPI Exchanges")
     n_exec = op_mpi_halo_exchanges(set%setcptr, size(args), args)
+{% for dat in lh.dats if dat.dim is none %}
+
+    dat{{dat.id}}_dim = arg{{dat.arg_id}}%dim
+{% endfor %}
 
     call op_profile_next("Computation")
 
@@ -261,6 +271,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_exit()
 
     call op_mpi_set_dirtybit(size(args), args)
+    
+    {{ utils.calculate_bytes_moved(lh)|indent(4) }}
+    
     call op_profile_exit()
 end subroutine
 

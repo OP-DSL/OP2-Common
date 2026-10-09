@@ -120,6 +120,31 @@ std::string to_string(const op_profile_clock& clock,
   return oss.str();
 }
 
+std::string calculate_bw(int64_t total_bytes, 
+                        op_profile_clock::clock::duration total_time) {
+  
+  double seconds = std::chrono::duration<double>(total_time).count();
+
+  if (seconds < 0.0) return "NA";
+
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(3);
+  out << static_cast<double>(total_bytes) / seconds /
+                        (1024.0 * 1024.0 * 1024.0) << "gb/s";
+
+  return out.str();
+}
+
+std::string format_bytes_moved(int64_t total_bytes) {
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(3);
+  if (total_bytes > 1024LL * 1024 * 1024)
+    out << static_cast<double>(total_bytes) / (1024LL * 1024 * 1024) << "gb";
+  else
+    out << static_cast<double>(total_bytes) / (1024LL * 1024) << "mb";
+  return out.str();
+}
+
 void to_json(json& j, const op_profile_clock& clock) {
   j = json{
     {"n", clock.n},
@@ -176,6 +201,7 @@ op_profile_node& op_profile_node::get_child(std::vector<std::string> scope,
 op_profile_node& op_profile_node::operator+=(const op_profile_node& other) {
   clock += other.clock;
   num_ranks += other.num_ranks;
+  bytes_moved += other.bytes_moved;
 
   // Missing children in this tree will be created by get_child
   for (auto& child: other.children)
@@ -200,6 +226,7 @@ void to_json(json& j, const op_profile_node& node) {
     {"clock", node.clock},
     {"num_ranks", node.num_ranks},
     {"children", node.children},
+    {"bytes", node.bytes_moved},
   };
 }
 
@@ -209,6 +236,7 @@ void from_json(const json& j, op_profile_node& node) {
   j.at("clock").get_to(node.clock);
   j.at("num_ranks").get_to(node.num_ranks);
   j.at("children").get_to(node.children);
+  j.at("bytes").get_to(node.bytes_moved);
 }
 
 /* ----------------------------------------- op_profile ----------------------------------------- */
@@ -299,6 +327,16 @@ void op_profile::enter_kernel(std::string_view name, std::string_view target, st
 void op_profile::next(std::string_view name) {
   exit();
   enter(name, false);
+}
+
+void op_profile::bytes_moved(int64_t bytes) {
+  if (level == op_profile_level::disabled) return;
+
+  assert(started && !finished);
+  assert(current_scope.size() > 0);
+
+  auto& node = current_scope.back().get();
+  node.bytes_moved += bytes;
 }
 
 void op_profile::exit(bool sync) {
@@ -478,7 +516,7 @@ void op_profile::print_kernel_summary(const std::vector<std::string>& path, unsi
   }
 
   // And then the column headers for the table
-  std::printf("%*s     num    total      avg      min      max", longest_name + 4 - path_len, "");
+  std::printf("%*s     num    total      avg      min      max      bytes      bw ", longest_name + 4 - path_len, "");
   if (level >= op_profile_level::kernel_detailed) std::printf("    %%kern");
   std::printf("\n");
 
@@ -521,13 +559,15 @@ void op_profile::print_kernel_summary(const std::vector<std::string>& path, unsi
       kern_pct = std::string(buf);
     }
 
-    std::printf("    %s%*s    %8ld  %s  %s  %s  %s%s\n", child.get().name.c_str(),
+    std::printf("    %s%*s    %8ld  %s  %s  %s  %s  %s  %s%s\n", child.get().name.c_str(),
       (int) (longest_name - (child.get().name.length() + 4)), "",
       child.get().clock.n,
       format_duration(child.get().clock.total).c_str(),
       format_duration(child.get().clock.average()).c_str(),
       format_duration(child.get().clock.min).c_str(),
       format_duration(child.get().clock.max).c_str(),
+      format_bytes_moved(child.get().bytes_moved).c_str(),
+      calculate_bw(child.get().bytes_moved, child.get().clock.total).c_str(),
       kern_pct.c_str()
     );
 
@@ -562,7 +602,7 @@ void op_profile_enter_kernel(const char* name, const char* target, const char* v
 }
 
 void op_profile_next(const char* name) { op_profile::instance().next(name); }
-
+void op_profile_bytes_moved(int64_t bytes) { op_profile::instance().bytes_moved(bytes); }
 void op_profile_exit() { op_profile::instance().exit(); }
 void op_profile_end() { op_profile::instance().finish(); }
 

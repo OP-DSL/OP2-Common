@@ -509,6 +509,13 @@ module OP2_Fortran_RT_Support
 
     end subroutine setKernelTime
 
+    subroutine setBytesMoved (bytes) BIND(C,name='setBytesMoved')
+      use, intrinsic :: ISO_C_BINDING
+
+      integer(kind=c_int64_t), value :: bytes
+
+    end subroutine setBytesMoved 
+
     subroutine op_trigger_halo_exchanges_c(device, name, set, nargs, args) BIND(C,name='op_trigger_halo_exchanges_c')
     use, intrinsic :: ISO_C_BINDING
     use OP2_Fortran_Declarations
