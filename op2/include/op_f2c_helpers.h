@@ -587,8 +587,25 @@ private:
         return data_d;
     }
 
+    // Wait for every JIT compile still running.
+    void join_compilations() {
+        for (auto& impl : m_variants) {
+            if (impl == nullptr)
+                continue;
+
+            for (auto& [hash, hash_info] : impl->hash_infos) {
+                if (hash_info.jit_thread.joinable())
+                    hash_info.jit_thread.join();
+            }
+        }
+    }
+
+    // At op_exit, while NVRTC and the device are still up: a compile left
+    // running until static destruction can crash or hang the exit.
     static void release_hier_plans_callback(void *owner) {
-        for (auto& cache : static_cast<KernelInfo *>(owner)->m_plan_caches)
+        auto *info = static_cast<KernelInfo *>(owner);
+        info->join_compilations();
+        for (auto& cache : info->m_plan_caches)
             cache.clear();
     }
 
@@ -609,18 +626,11 @@ public:
           m_profile_target{profile_target}, m_profile_variant{profile_variant},
           m_loop{std::move(loop)} {
         jit_init();
+        register_plan_owner();
     }
 
     ~KernelInfo() {
-        for (auto& impl : m_variants) {
-            if (impl == nullptr)
-                continue;
-
-            for (auto& [hash, hash_info] : impl->hash_infos) {
-                if (hash_info.jit_thread.joinable())
-                    hash_info.jit_thread.join();
-            }
-        }
+        join_compilations();
 
         if (m_plan_owner_registered)
             unregister_hier_plan_owner(this);
@@ -780,13 +790,12 @@ private:
         std::span<const ExecutionSection> sections, int block_size) {
         assert(hierarchical(strategy));
         const HierArgGroups& groups = *variant(strategy)->groups;
-        register_plan_owner();
 
         bool atomics = strategy == Strategy::hier_atomics;
         int chunk_size = strategy_config.chunk_size(strategy);
         HierPlanOptions plan_options{
             block_size, chunk_size > 0 ? chunk_size : OP_part_size,
-            atomics ? hier_atomics_capacity() : 0,
+            hier_capacity(strategy),
             atomics && strategy_config.hier_atomics_exclusive};
         auto key = detail::make_hier_plan_key(
             set, args, static_cast<int>(sections.size()), groups, plan_options);

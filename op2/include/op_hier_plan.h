@@ -159,7 +159,8 @@ HierPlanBuildResult build_hier_colouring_plan(
 
 using HierPlanReleaseCallback = void (*)(void *owner);
 
-// Register device-owning plan caches for explicit backend shutdown.
+// Register owners of plan caches and JIT compiles for explicit backend
+// shutdown, which op_exit runs before tearing the device down.
 void register_hier_plan_owner(void *owner,
                               HierPlanReleaseCallback release);
 void unregister_hier_plan_owner(void *owner);
