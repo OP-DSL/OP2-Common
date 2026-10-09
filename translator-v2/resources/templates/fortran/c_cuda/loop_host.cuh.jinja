@@ -295,7 +295,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
                 continue;
 
             int target = {{map_lookup(arg)}};
-            f2c::hier_smem_flush(word, {{hier_smem_global(arg, dat)}}, op2_stage{{group}}, op2_stage{{group}}_count, {{dat_dim_w(dat)}});
+            f2c::{{"hier_smem_store" if strategy == "hier_colouring" else "hier_smem_flush"}}(word, {{hier_smem_global(arg, dat)}}, op2_stage{{group}}, op2_stage{{group}}_count, {{dat_dim_w(dat)}});
         }
 {% endmacro %}
 

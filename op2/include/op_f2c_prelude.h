@@ -167,6 +167,16 @@ DEVICE inline void plain_inc(T& target, U value) {
     target = static_cast<T>(target + value);
 }
 
+// Store an exclusive owner's slot back to its target.
+template<typename T>
+DEVICE inline void hier_smem_store(HierSmemStageWord word, Ptr<T> target,
+                                   const T *region, IndexType count,
+                                   IndexType dim) {
+    IndexType slot = (IndexType)hier_smem_stage_slot(word);
+    for (IndexType c = 0; c < dim; ++c)
+        target.data[c * target.stride] = region[slot + c * count];
+}
+
 #if defined(__CUDACC__) || defined(__HIPCC__)
 template<typename T, typename U>
 DEVICE inline void atomic_inc(T& target, U value) {
