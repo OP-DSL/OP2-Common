@@ -48,7 +48,9 @@ _op2_preprocess_fortran(
 # all of them profile.
 set(_op2_core_srcs
     "${_src}/core/op_lib_core.cpp"
-    "${_src}/core/op_hier_smem_plan.cpp"
+    "${_src}/core/op_hier_plan.cpp"
+    "${_src}/core/op_hier_atomics_plan.cpp"
+    "${_src}/core/op_hier_colouring_plan.cpp"
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"
     "${_src}/externlib/op_profile.cpp"

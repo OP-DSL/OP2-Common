@@ -15,12 +15,12 @@ INCTXT(OP_F2C_PRELUDE, "op_f2c_prelude.h");
 #include <cstdlib>
 #include <vector>
 
-extern "C" __global__ void f2c_hier_smem_cache_baseline(int *result) {
+extern "C" __global__ void f2c_hier_plan_cache_baseline(int *result) {
     if (blockIdx.x == 0 && threadIdx.x == 0)
         result[0] = -1;
 }
 
-extern "C" __global__ void f2c_hier_smem_cache_staged(
+extern "C" __global__ void f2c_hier_plan_cache_staged(
     int *result, const int *source_offsets, const unsigned int *stage_words,
     const int *stage_counts, int chunk_begin, int chunk_end, int set_stride,
     int last_shared_byte) {
@@ -57,14 +57,14 @@ namespace f2c = op::f2c;
     } while (false)
 
 constexpr char baseline_source[] = R"op2(
-extern "C" __global__ void f2c_hier_smem_cache_baseline(int *result) {
+extern "C" __global__ void f2c_hier_plan_cache_baseline(int *result) {
     if (blockIdx.x == 0 && threadIdx.x == 0)
         result[0] = -1;
 }
 )op2";
 
 constexpr char staged_source[] = R"op2(
-extern "C" __global__ void f2c_hier_smem_cache_staged(
+extern "C" __global__ void f2c_hier_plan_cache_staged(
     int *result, const int *source_offsets, const unsigned int *stage_words,
     const int *stage_counts, int chunk_begin, int chunk_end, int set_stride,
     int last_shared_byte) {
@@ -101,9 +101,9 @@ struct Fixture {
     op_map_core map{};
     std::vector<int> map_values;
     std::array<op_arg, 2> args{};
-    std::array<f2c::HierSmemArgDescriptor, 1> arg_descriptor{{{0, 0}}};
-    std::array<f2c::HierSmemScalarType, 1> dat_descriptor{{
-        f2c::HierSmemScalarType::f64,
+    std::array<f2c::HierArgDescriptor, 1> arg_descriptor{{{0, 0}}};
+    std::array<f2c::HierScalarType, 1> dat_descriptor{{
+        f2c::HierScalarType::f64,
     }};
 
     Fixture() : map_values(256) {
@@ -154,7 +154,7 @@ struct Fixture {
         args[1].opt = 0;
     }
 
-    f2c::HierSmemStagingDescriptor descriptor() const {
+    f2c::HierArgGroups descriptor() const {
         return {arg_descriptor, dat_descriptor, 256};
     }
 
@@ -204,14 +204,14 @@ int main(int argc, char **argv) {
     bool saw_jit = false;
     {
         f2c::KernelInfo info(
-            "f2c_hier_smem_cache", "c_CUDA", "Atomics",
+            "f2c_hier_plan_cache", "c_CUDA", "Atomics",
             f2c::ExecutionPolicy::atomics(false),
-            "f2c_hier_smem_cache_baseline",
-            reinterpret_cast<const void *>(f2c_hier_smem_cache_baseline),
+            "f2c_hier_plan_cache_baseline",
+            reinterpret_cast<const void *>(f2c_hier_plan_cache_baseline),
             baseline_source);
         info.register_staged_variant(
-            "f2c_hier_smem_cache_staged",
-            reinterpret_cast<const void *>(f2c_hier_smem_cache_staged),
+            "f2c_hier_plan_cache_staged",
+            reinterpret_cast<const void *>(f2c_hier_plan_cache_staged),
             staged_source, fixture.descriptor());
 
         CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
                                  gpuMemcpyDeviceToHost));
         CHECK(dormant.variant == f2c::KernelVariant::baseline);
         CHECK(output[0] == -1);
-        CHECK(info.hier_smem_plan_cache_statistics().entries == 0);
+        CHECK(info.hier_plan_cache_statistics().entries == 0);
 
         auto invoke = [&]() {
             CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
             result = invoke();
             CHECK(result.variant == f2c::KernelVariant::staged);
             CHECK(result.hier_smem_reason ==
-                  f2c::HierSmemFallbackReason::none);
+                  f2c::HierFallbackReason::none);
             CHECK(result.block_size == 128);
             CHECK(result.max_blocks == 1);
         }
@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
         CHECK(output[7] == 256);
         CHECK(output[8] == 42);
 
-        auto statistics = info.hier_smem_plan_cache_statistics();
+        auto statistics = info.hier_plan_cache_statistics();
         CHECK(statistics.entries == 1);
         CHECK(statistics.builds == 1);
         CHECK(statistics.uploads == 1);
@@ -270,10 +270,10 @@ int main(int argc, char **argv) {
         result = invoke();
         CHECK(result.variant == f2c::KernelVariant::baseline);
         CHECK(result.hier_smem_reason ==
-              f2c::HierSmemFallbackReason::no_active_increment);
+              f2c::HierFallbackReason::no_active_argument);
         CHECK(output[0] == -1);
 
-        statistics = info.hier_smem_plan_cache_statistics();
+        statistics = info.hier_plan_cache_statistics();
         CHECK(statistics.entries == 2);
         CHECK(statistics.builds == 2);
         CHECK(statistics.uploads == 1);
@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
         CHECK(result.variant == f2c::KernelVariant::staged);
         CHECK(output[8] == 42);
 
-        statistics = info.hier_smem_plan_cache_statistics();
+        statistics = info.hier_plan_cache_statistics();
         CHECK(statistics.entries == 3);
         CHECK(statistics.builds == 3);
         CHECK(statistics.uploads == 2);
@@ -295,9 +295,9 @@ int main(int argc, char **argv) {
         result = invoke();
         CHECK(result.variant == f2c::KernelVariant::baseline);
         CHECK(result.hier_smem_reason ==
-              f2c::HierSmemFallbackReason::incompatible_argument);
+              f2c::HierFallbackReason::incompatible_argument);
 
-        statistics = info.hier_smem_plan_cache_statistics();
+        statistics = info.hier_plan_cache_statistics();
         CHECK(statistics.entries == 4);
         CHECK(statistics.builds == 4);
         CHECK(statistics.uploads == 2);
@@ -314,12 +314,12 @@ int main(int argc, char **argv) {
             f2c::KernelInfo split_info(
                 "f2c_hier_smem_split", "c_CUDA", "Atomics",
                 f2c::ExecutionPolicy::atomics(false),
-                "f2c_hier_smem_cache_baseline",
-                reinterpret_cast<const void *>(f2c_hier_smem_cache_baseline),
+                "f2c_hier_plan_cache_baseline",
+                reinterpret_cast<const void *>(f2c_hier_plan_cache_baseline),
                 baseline_source);
             split_info.register_staged_variant(
-                "f2c_hier_smem_cache_staged",
-                reinterpret_cast<const void *>(f2c_hier_smem_cache_staged),
+                "f2c_hier_plan_cache_staged",
+                reinterpret_cast<const void *>(f2c_hier_plan_cache_staged),
                 staged_source, split.descriptor());
 
             CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
@@ -351,12 +351,12 @@ int main(int argc, char **argv) {
             f2c::KernelInfo spread_info(
                 "f2c_hier_smem_spread", "c_CUDA", "Atomics",
                 f2c::ExecutionPolicy::atomics(false),
-                "f2c_hier_smem_cache_baseline",
-                reinterpret_cast<const void *>(f2c_hier_smem_cache_baseline),
+                "f2c_hier_plan_cache_baseline",
+                reinterpret_cast<const void *>(f2c_hier_plan_cache_baseline),
                 baseline_source);
             spread_info.register_staged_variant(
-                "f2c_hier_smem_cache_staged",
-                reinterpret_cast<const void *>(f2c_hier_smem_cache_staged),
+                "f2c_hier_plan_cache_staged",
+                reinterpret_cast<const void *>(f2c_hier_plan_cache_staged),
                 staged_source, spread.descriptor());
 
             CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
@@ -370,10 +370,10 @@ int main(int argc, char **argv) {
 
             CHECK(spread_result.variant == f2c::KernelVariant::baseline);
             CHECK(spread_result.hier_smem_reason ==
-                  f2c::HierSmemFallbackReason::low_compression);
+                  f2c::HierFallbackReason::low_compression);
             CHECK(output[0] == -1);
 
-            auto spread_statistics = spread_info.hier_smem_plan_cache_statistics();
+            auto spread_statistics = spread_info.hier_plan_cache_statistics();
             CHECK(spread_statistics.builds == 1);
             CHECK(spread_statistics.uploads == 0);
         }
@@ -382,7 +382,7 @@ int main(int argc, char **argv) {
         output_d = nullptr;
         op_exit();
 
-        statistics = info.hier_smem_plan_cache_statistics();
+        statistics = info.hier_plan_cache_statistics();
         CHECK(statistics.entries == 0);
         CHECK(statistics.builds == 4);
         CHECK(statistics.uploads == 2);

@@ -1,4 +1,4 @@
-#include <op_hier_smem_plan.h>
+#include <op_hier_plan.h>
 
 #include <array>
 #include <climits>
@@ -87,16 +87,16 @@ struct MixedFixture {
     op_map_core map_c{};
 
     std::vector<op_arg> args;
-    std::array<f2c::HierSmemArgDescriptor, 4> arg_desc{{
+    std::array<f2c::HierArgDescriptor, 4> arg_desc{{
         {0, 0},
         {1, 0},
         {2, 1},
         {3, 2},
     }};
-    std::array<f2c::HierSmemScalarType, 3> dat_desc{{
-        f2c::HierSmemScalarType::f64,
-        f2c::HierSmemScalarType::i32,
-        f2c::HierSmemScalarType::f32,
+    std::array<f2c::HierScalarType, 3> dat_desc{{
+        f2c::HierScalarType::f64,
+        f2c::HierScalarType::i32,
+        f2c::HierScalarType::f32,
     }};
     std::array<f2c::ExecutionSection, 2> sections{{{0, 2}, {2, 6}}};
 
@@ -125,16 +125,16 @@ struct MixedFixture {
             make_dat_arg(&dat_c, &map_c, 1, "real(4)", sizeof(float), 0));
     }
 
-    f2c::HierSmemStagingDescriptor descriptor() const {
+    f2c::HierArgGroups descriptor() const {
         return {arg_desc, dat_desc, -1};
     }
 
-    f2c::HierSmemPlanOptions options() const {
+    f2c::HierPlanOptions options() const {
         return {2, 4, 1024};
     }
 
-    f2c::HierSmemPlanBuildResult build() {
-        return f2c::build_hier_smem_plan(
+    f2c::HierPlanBuildResult build() {
+        return f2c::build_hier_atomics_plan(
             &source, args, sections, descriptor(), options());
     }
 };
@@ -146,9 +146,9 @@ struct ChunkFixture {
     std::vector<int> map_values;
     op_map_core map{};
     std::array<op_arg, 1> args{};
-    std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
-    std::array<f2c::HierSmemScalarType, 1> dat_desc{{
-        f2c::HierSmemScalarType::f64,
+    std::array<f2c::HierArgDescriptor, 1> arg_desc{{{0, 0}}};
+    std::array<f2c::HierScalarType, 1> dat_desc{{
+        f2c::HierScalarType::f64,
     }};
     std::array<f2c::ExecutionSection, 1> sections{{{0, 1024}}};
 
@@ -162,38 +162,38 @@ struct ChunkFixture {
         args[0] = make_dat_arg(&dat, &map, 1, "double", sizeof(double));
     }
 
-    f2c::HierSmemStagingDescriptor descriptor() const {
+    f2c::HierArgGroups descriptor() const {
         return {arg_desc, dat_desc, -1};
     }
 
-    f2c::HierSmemPlanBuildResult build(int requested,
-                                       std::size_t shared_limit,
-                                       int block_size = 128) {
-        f2c::HierSmemPlanOptions options{
+    f2c::HierPlanBuildResult build(int requested,
+                                   std::size_t shared_limit,
+                                   int block_size = 128) {
+        f2c::HierPlanOptions options{
             block_size, requested, shared_limit};
-        return f2c::build_hier_smem_plan(
+        return f2c::build_hier_atomics_plan(
             &source, args, sections, descriptor(), options);
     }
 };
 
-void expect_reason(const f2c::HierSmemPlanBuildResult& result,
-                   f2c::HierSmemFallbackReason reason) {
+void expect_reason(const f2c::HierPlanBuildResult& result,
+                   f2c::HierFallbackReason reason) {
     CHECK(!result);
     CHECK(result.reason == reason);
-    CHECK(f2c::hier_smem_fallback_reason_name(reason) != "unknown");
+    CHECK(f2c::hier_fallback_reason_name(reason) != "unknown");
 }
 
-f2c::HierSmemStageWord stage_word(const f2c::HierSmemPlan& plan,
+f2c::HierSmemStageWord stage_word(const f2c::HierPlan& plan,
                                   std::size_t staged_arg,
                                   int source_element) {
-    return plan.stage_words[
+    return plan.staging->stage_words[
         staged_arg * static_cast<std::size_t>(plan.set_stride) +
         static_cast<std::size_t>(source_element)];
 }
 
-int stage_count(const f2c::HierSmemPlan& plan, std::size_t num_stage_dats,
+int stage_count(const f2c::HierPlan& plan, std::size_t num_stage_dats,
                 std::size_t chunk, std::size_t staged_dat) {
-    return plan.stage_counts[chunk * num_stage_dats + staged_dat];
+    return plan.staging->stage_counts[chunk * num_stage_dats + staged_dat];
 }
 
 // A chunk that spanned two schedule sections would be launched by whichever
@@ -201,7 +201,7 @@ int stage_count(const f2c::HierSmemPlan& plan, std::size_t num_stage_dats,
 // after the globals had already been processed.  The planner chunks each
 // section separately to prevent that; this checks the resulting plan.
 void check_chunks_within_sections(
-    const f2c::HierSmemPlan& plan,
+    const f2c::HierPlan& plan,
     std::span<const f2c::ExecutionSection> sections) {
     CHECK(plan.section_chunk_offsets.size() == sections.size() + 1);
     CHECK(plan.section_chunk_offsets.front() == 0);
@@ -244,10 +244,10 @@ void test_mixed_plan() {
     CHECK(plan.num_chunks() == 2);
     CHECK((plan.source_offsets == std::vector<int>{0, 2, 6}));
     CHECK((plan.section_chunk_offsets == std::vector<int>{0, 1, 2}));
-    CHECK((plan.stage_counts == std::vector<int>{2, 2, 0, 3, 3, 0}));
+    CHECK((plan.staging->stage_counts == std::vector<int>{2, 2, 0, 3, 3, 0}));
     CHECK(stage_count(plan, fixture.dat_desc.size(), 0, 0) == 2);
     CHECK(stage_count(plan, fixture.dat_desc.size(), 0, 1) == 2);
-    CHECK((plan.section_shared_bytes ==
+    CHECK((plan.staging->section_shared_bytes ==
            std::vector<std::size_t>{56, 84}));
 
     CHECK(f2c::hier_smem_stage_owner(stage_word(plan, 0, 0)));
@@ -287,27 +287,27 @@ void test_optional_and_alignment() {
     fixture.args[3].opt = 1;
     auto active = fixture.build();
     CHECK(active);
-    CHECK((active.plan->stage_counts ==
+    CHECK((active.plan->staging->stage_counts ==
            std::vector<int>{2, 2, 1, 3, 3, 2}));
-    CHECK((active.plan->section_shared_bytes ==
+    CHECK((active.plan->staging->section_shared_bytes ==
            std::vector<std::size_t>{60, 92}));
     CHECK(active.plan->statistics.raw_references == 24);
     CHECK(active.plan->statistics.distinct_targets == 13);
 
     fixture.args[1].opt = 0;
     fixture.args[2].opt = 0;
-    std::array<f2c::HierSmemArgDescriptor, 2> arg_desc{{{3, 0}, {0, 1}}};
-    std::array<f2c::HierSmemScalarType, 2> dat_desc{{
-        f2c::HierSmemScalarType::f32,
-        f2c::HierSmemScalarType::f64,
+    std::array<f2c::HierArgDescriptor, 2> arg_desc{{{3, 0}, {0, 1}}};
+    std::array<f2c::HierScalarType, 2> dat_desc{{
+        f2c::HierScalarType::f32,
+        f2c::HierScalarType::f64,
     }};
-    auto descriptor = f2c::HierSmemStagingDescriptor{
+    auto descriptor = f2c::HierArgGroups{
         arg_desc, dat_desc, -1};
     auto options = fixture.options();
-    auto aligned = f2c::build_hier_smem_plan(
+    auto aligned = f2c::build_hier_atomics_plan(
         &fixture.source, fixture.args, fixture.sections, descriptor, options);
     CHECK(aligned);
-    CHECK((aligned.plan->section_shared_bytes ==
+    CHECK((aligned.plan->staging->section_shared_bytes ==
            std::vector<std::size_t>{24, 40}));
 }
 
@@ -321,7 +321,7 @@ void test_chunk_sizes_and_clamping() {
               static_cast<std::size_t>(1024 / chunk_size));
         CHECK(result.plan->source_offsets.front() == 0);
         CHECK(result.plan->source_offsets.back() == 1024);
-        CHECK(result.plan->section_shared_bytes[0] ==
+        CHECK(result.plan->staging->section_shared_bytes[0] ==
               static_cast<std::size_t>(chunk_size) * sizeof(double));
     }
 
@@ -336,7 +336,7 @@ void test_chunk_sizes_and_clamping() {
     CHECK(saturated.plan->selected_chunk_size == 1024);
 
     expect_reason(fixture.build(512, 1023),
-                  f2c::HierSmemFallbackReason::insufficient_shared_memory);
+                  f2c::HierFallbackReason::insufficient_shared_memory);
 }
 
 void test_runtime_fallbacks() {
@@ -346,36 +346,36 @@ void test_runtime_fallbacks() {
                                              2, "double", sizeof(double), 1,
                                              OP_READ));
         expect_reason(fixture.build(),
-                      f2c::HierSmemFallbackReason::incompatible_argument);
+                      f2c::HierFallbackReason::incompatible_argument);
     }
     {
         MixedFixture fixture;
         for (auto& arg : fixture.args)
             arg.opt = 0;
         expect_reason(fixture.build(),
-                      f2c::HierSmemFallbackReason::no_active_increment);
+                      f2c::HierFallbackReason::no_active_argument);
     }
     {
         MixedFixture fixture;
-        std::array<f2c::HierSmemArgDescriptor, 4> arg_desc{{
+        std::array<f2c::HierArgDescriptor, 4> arg_desc{{
             {0, 0},
             {1, 1},
             {2, 2},
             {3, 3},
         }};
-        std::array<f2c::HierSmemScalarType, 4> dat_desc{{
-            f2c::HierSmemScalarType::f64,
-            f2c::HierSmemScalarType::f64,
-            f2c::HierSmemScalarType::i32,
-            f2c::HierSmemScalarType::f32,
+        std::array<f2c::HierScalarType, 4> dat_desc{{
+            f2c::HierScalarType::f64,
+            f2c::HierScalarType::f64,
+            f2c::HierScalarType::i32,
+            f2c::HierScalarType::f32,
         }};
-        auto descriptor = f2c::HierSmemStagingDescriptor{
+        auto descriptor = f2c::HierArgGroups{
             arg_desc, dat_desc, -1};
-        auto result = f2c::build_hier_smem_plan(
+        auto result = f2c::build_hier_atomics_plan(
             &fixture.source, fixture.args, fixture.sections, descriptor,
             fixture.options());
         expect_reason(result,
-                      f2c::HierSmemFallbackReason::incompatible_argument);
+                      f2c::HierFallbackReason::incompatible_argument);
     }
 }
 
@@ -395,9 +395,9 @@ struct ExclusiveFixture {
     std::vector<int> map_values{0, 0, 1, 1, 1, 2, 2, 3};
     op_map_core map{};
     std::vector<op_arg> args;
-    std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
-    std::array<f2c::HierSmemScalarType, 1> dat_desc{{
-        f2c::HierSmemScalarType::f64,
+    std::array<f2c::HierArgDescriptor, 1> arg_desc{{{0, 0}}};
+    std::array<f2c::HierScalarType, 1> dat_desc{{
+        f2c::HierScalarType::f64,
     }};
 
     ExclusiveFixture() {
@@ -408,21 +408,21 @@ struct ExclusiveFixture {
         args.push_back(make_dat_arg(&dat, &map, 1, "double", sizeof(double)));
     }
 
-    f2c::HierSmemPlanBuildResult build(
+    f2c::HierPlanBuildResult build(
         std::span<const f2c::ExecutionSection> sections,
         bool exclusive = true) {
-        f2c::HierSmemPlanOptions options{4, 4, 1024, exclusive};
-        return f2c::build_hier_smem_plan(
+        f2c::HierPlanOptions options{4, 4, 1024, exclusive};
+        return f2c::build_hier_atomics_plan(
             &source, args, sections, {arg_desc, dat_desc, -1}, options);
     }
 };
 
 // Collect the source elements whose word carries the given flag.
-std::vector<int> sources_with(const f2c::HierSmemPlan& plan, int stride,
+std::vector<int> sources_with(const f2c::HierPlan& plan, int stride,
                               bool (*flag)(f2c::HierSmemStageWord)) {
     std::vector<int> out;
     for (int source = 0; source < stride; ++source) {
-        auto word = plan.stage_words[static_cast<std::size_t>(source)];
+        auto word = plan.staging->stage_words[static_cast<std::size_t>(source)];
         if (flag(word))
             out.push_back(source);
     }
@@ -452,7 +452,8 @@ void test_exclusive_within_one_section() {
     // Every exclusive word is also an owner; the flush relies on that.
     for (int source : exclusive)
         CHECK(f2c::hier_smem_stage_owner(
-            result.plan->stage_words[static_cast<std::size_t>(source)]));
+            result.plan->staging->stage_words[
+                static_cast<std::size_t>(source)]));
 }
 
 void test_exclusive_is_per_section() {
@@ -488,35 +489,37 @@ void test_exclusive_can_be_disabled() {
 
     // Disabling exclusivity must change nothing but that one bit.
     CHECK(enabled.plan->source_offsets == disabled.plan->source_offsets);
-    CHECK(enabled.plan->stage_counts == disabled.plan->stage_counts);
+    const auto& on = *enabled.plan->staging;
+    const auto& off = *disabled.plan->staging;
+    CHECK(on.stage_counts == off.stage_counts);
     CHECK(enabled.plan->statistics.distinct_targets ==
           disabled.plan->statistics.distinct_targets);
-    for (std::size_t i = 0; i < disabled.plan->stage_words.size(); ++i)
-        CHECK((enabled.plan->stage_words[i] & ~f2c::hier_smem_exclusive_bit) ==
-              disabled.plan->stage_words[i]);
+    for (std::size_t i = 0; i < off.stage_words.size(); ++i)
+        CHECK((on.stage_words[i] & ~f2c::hier_smem_exclusive_bit) ==
+              off.stage_words[i]);
 }
 
 // Check every colouring invariant the wrapper relies on: launches partition
 // each section's chunks, elements of one chunk and thread colour reach
 // distinct targets, and chunks of one launch reach distinct targets.
-void check_colouring(const f2c::HierSmemPlan& plan,
+void check_colouring(const f2c::HierPlan& plan,
                      std::span<const op_arg> args,
-                     const f2c::HierSmemStagingDescriptor& descriptor,
+                     const f2c::HierArgGroups& descriptor,
                      std::span<const f2c::ExecutionSection> sections) {
-    CHECK(plan.coloured());
+    CHECK(plan.colouring.has_value() && !plan.staging.has_value());
+    const auto& colouring = *plan.colouring;
     check_chunks_within_sections(plan, sections);
-    CHECK(plan.section_launch_offsets.size() == sections.size() + 1);
-    CHECK(plan.section_launch_offsets.front() == 0);
-    CHECK(plan.section_launch_offsets.back() + 1 ==
-          static_cast<int>(plan.launch_chunk_offsets.size()));
-    CHECK(plan.launch_chunk_offsets.front() == 0);
-    CHECK(plan.launch_chunk_offsets.back() ==
+    CHECK(colouring.section_launch_offsets.size() == sections.size() + 1);
+    CHECK(colouring.section_launch_offsets.front() == 0);
+    CHECK(colouring.section_launch_offsets.back() + 1 ==
+          static_cast<int>(colouring.launch_chunk_offsets.size()));
+    CHECK(colouring.launch_chunk_offsets.front() == 0);
+    CHECK(colouring.launch_chunk_offsets.back() ==
           static_cast<int>(plan.num_chunks()));
-    CHECK(plan.chunk_order.size() == plan.num_chunks());
-    CHECK(plan.chunk_thread_colours.size() == plan.num_chunks());
-    CHECK(plan.statistics.launches + 1 == plan.launch_chunk_offsets.size());
-    CHECK(plan.section_shared_bytes ==
-          std::vector<std::size_t>(sections.size(), 0));
+    CHECK(colouring.chunk_order.size() == plan.num_chunks());
+    CHECK(colouring.chunk_thread_colours.size() == plan.num_chunks());
+    CHECK(plan.statistics.launches + 1 ==
+          colouring.launch_chunk_offsets.size());
 
     auto targets = [&](int source) {
         std::vector<std::pair<int, int>> out;
@@ -539,15 +542,15 @@ void check_colouring(const f2c::HierSmemPlan& plan,
 
     std::vector<int> launched(plan.num_chunks(), 0);
     for (std::size_t section = 0; section < sections.size(); ++section) {
-        for (int launch = plan.section_launch_offsets[section];
-             launch < plan.section_launch_offsets[section + 1]; ++launch) {
-            int begin = plan.launch_chunk_offsets[static_cast<std::size_t>(launch)];
-            int end = plan.launch_chunk_offsets[static_cast<std::size_t>(launch) + 1];
+        for (int launch = colouring.section_launch_offsets[section];
+             launch < colouring.section_launch_offsets[section + 1]; ++launch) {
+            int begin = colouring.launch_chunk_offsets[static_cast<std::size_t>(launch)];
+            int end = colouring.launch_chunk_offsets[static_cast<std::size_t>(launch) + 1];
             CHECK(begin < end);
 
             std::vector<std::vector<std::pair<int, int>>> chunk_targets;
             for (int i = begin; i < end; ++i) {
-                int chunk = plan.chunk_order[static_cast<std::size_t>(i)];
+                int chunk = colouring.chunk_order[static_cast<std::size_t>(i)];
                 CHECK(chunk >= plan.section_chunk_offsets[section] &&
                       chunk < plan.section_chunk_offsets[section + 1]);
                 ++launched[static_cast<std::size_t>(chunk)];
@@ -555,19 +558,19 @@ void check_colouring(const f2c::HierSmemPlan& plan,
                 int first = plan.source_offsets[static_cast<std::size_t>(chunk)];
                 int last = plan.source_offsets[static_cast<std::size_t>(chunk) + 1];
                 int ncolours =
-                    plan.chunk_thread_colours[static_cast<std::size_t>(chunk)];
+                    colouring.chunk_thread_colours[static_cast<std::size_t>(chunk)];
                 CHECK(ncolours >= 1 && ncolours <= 255);
                 CHECK(ncolours <= plan.statistics.max_thread_colours);
 
                 std::vector<std::pair<int, int>> reached;
                 for (int a = first; a < last; ++a) {
-                    int colour = plan.thread_colours[static_cast<std::size_t>(a)];
+                    int colour = colouring.thread_colours[static_cast<std::size_t>(a)];
                     CHECK(colour < ncolours);
                     auto a_targets = targets(a);
                     reached.insert(reached.end(), a_targets.begin(),
                                    a_targets.end());
                     for (int b = first; b < a; ++b)
-                        if (plan.thread_colours[static_cast<std::size_t>(b)] ==
+                        if (colouring.thread_colours[static_cast<std::size_t>(b)] ==
                             colour)
                             CHECK(disjoint(a_targets, targets(b)));
                 }
@@ -582,9 +585,9 @@ void check_colouring(const f2c::HierSmemPlan& plan,
     CHECK(launched == std::vector<int>(plan.num_chunks(), 1));
 }
 
-f2c::HierSmemPlanBuildResult build_colour(MixedFixture& fixture) {
-    return f2c::build_hier_colour_plan(&fixture.source, fixture.args,
-                                       fixture.sections, fixture.descriptor(),
+f2c::HierPlanBuildResult build_colour(MixedFixture& fixture) {
+    return f2c::build_hier_colouring_plan(&fixture.source, fixture.args,
+                                          fixture.sections, fixture.descriptor(),
                                        fixture.options());
 }
 
@@ -596,18 +599,18 @@ void test_colour_mixed_plan() {
     auto result = build_colour(fixture);
     CHECK(result);
     const auto& plan = *result.plan;
+    const auto& colouring = *plan.colouring;
     CHECK(plan.selected_chunk_size == 4);
     CHECK((plan.source_offsets == std::vector<int>{0, 2, 6}));
-    CHECK((plan.chunk_order == std::vector<int>{0, 1}));
-    CHECK((plan.launch_chunk_offsets == std::vector<int>{0, 1, 2}));
-    CHECK((plan.section_launch_offsets == std::vector<int>{0, 1, 2}));
-    CHECK((plan.chunk_thread_colours == std::vector<int>{2, 3}));
-    CHECK((std::vector<int>(plan.thread_colours.begin(),
-                            plan.thread_colours.begin() + 6) ==
+    CHECK((colouring.chunk_order == std::vector<int>{0, 1}));
+    CHECK((colouring.launch_chunk_offsets == std::vector<int>{0, 1, 2}));
+    CHECK((colouring.section_launch_offsets == std::vector<int>{0, 1, 2}));
+    CHECK((colouring.chunk_thread_colours == std::vector<int>{2, 3}));
+    CHECK((std::vector<int>(colouring.thread_colours.begin(),
+                            colouring.thread_colours.begin() + 6) ==
            std::vector<int>{0, 1, 0, 1, 0, 2}));
     CHECK(plan.statistics.launches == 2);
     CHECK(plan.statistics.max_thread_colours == 3);
-    CHECK(plan.stage_words.empty() && plan.stage_counts.empty());
     check_colouring(plan, fixture.args, fixture.descriptor(),
                     fixture.sections);
 
@@ -627,9 +630,9 @@ struct ChainFixture {
     std::vector<int> map_values;
     op_map_core map{};
     std::vector<op_arg> args;
-    std::array<f2c::HierSmemArgDescriptor, 2> arg_desc{{{0, 0}, {1, 0}}};
-    std::array<f2c::HierSmemScalarType, 1> dat_desc{{
-        f2c::HierSmemScalarType::i32,
+    std::array<f2c::HierArgDescriptor, 2> arg_desc{{{0, 0}, {1, 0}}};
+    std::array<f2c::HierScalarType, 1> dat_desc{{
+        f2c::HierScalarType::i32,
     }};
 
     explicit ChainFixture(int size) {
@@ -649,15 +652,15 @@ struct ChainFixture {
         }
     }
 
-    f2c::HierSmemStagingDescriptor descriptor() const {
+    f2c::HierArgGroups descriptor() const {
         return {arg_desc, dat_desc, -1};
     }
 
-    f2c::HierSmemPlanBuildResult build(
+    f2c::HierPlanBuildResult build(
         std::span<const f2c::ExecutionSection> sections, int block_size) {
-        f2c::HierSmemPlanOptions options{block_size, block_size, 0};
-        return f2c::build_hier_colour_plan(&edges, args, sections,
-                                           descriptor(), options);
+        f2c::HierPlanOptions options{block_size, block_size, 0};
+        return f2c::build_hier_colouring_plan(&edges, args, sections,
+                                              descriptor(), options);
     }
 };
 
@@ -668,20 +671,21 @@ void test_colour_chain_blocks() {
     auto result = fixture.build(sections, 4);
     CHECK(result);
     const auto& plan = *result.plan;
+    const auto& colouring = *plan.colouring;
     CHECK(plan.num_chunks() == 4);
-    CHECK((plan.chunk_order == std::vector<int>{0, 2, 1, 3}));
-    CHECK((plan.launch_chunk_offsets == std::vector<int>{0, 2, 4}));
-    CHECK((plan.section_launch_offsets == std::vector<int>{0, 2}));
-    CHECK((plan.chunk_thread_colours == std::vector<int>{2, 2, 2, 2}));
+    CHECK((colouring.chunk_order == std::vector<int>{0, 2, 1, 3}));
+    CHECK((colouring.launch_chunk_offsets == std::vector<int>{0, 2, 4}));
+    CHECK((colouring.section_launch_offsets == std::vector<int>{0, 2}));
+    CHECK((colouring.chunk_thread_colours == std::vector<int>{2, 2, 2, 2}));
     for (int edge = 0; edge < 16; ++edge)
-        CHECK(plan.thread_colours[static_cast<std::size_t>(edge)] == edge % 2);
+        CHECK(colouring.thread_colours[static_cast<std::size_t>(edge)] == edge % 2);
     check_colouring(plan, fixture.args, fixture.descriptor(), sections);
 
     // Colours never cross a section, and an empty section has no launches.
     std::array<f2c::ExecutionSection, 3> split{{{0, 8}, {8, 8}, {8, 16}}};
     auto sectioned = fixture.build(split, 4);
     CHECK(sectioned);
-    CHECK((sectioned.plan->section_launch_offsets ==
+    CHECK((sectioned.plan->colouring->section_launch_offsets ==
            std::vector<int>{0, 2, 2, 4}));
     check_colouring(*sectioned.plan, fixture.args, fixture.descriptor(),
                     split);
@@ -701,25 +705,26 @@ void test_colour_rounds_and_limit() {
         initialize_map(map, &source, &target, map_values);
         std::array<op_arg, 1> args{
             make_dat_arg(&dat, &map, 1, "real(8)", sizeof(double))};
-        std::array<f2c::HierSmemArgDescriptor, 1> arg_desc{{{0, 0}}};
-        std::array<f2c::HierSmemScalarType, 1> dat_desc{{
-            f2c::HierSmemScalarType::f64,
+        std::array<f2c::HierArgDescriptor, 1> arg_desc{{{0, 0}}};
+        std::array<f2c::HierScalarType, 1> dat_desc{{
+            f2c::HierScalarType::f64,
         }};
         std::array<f2c::ExecutionSection, 1> sections{{{0, size}}};
-        f2c::HierSmemStagingDescriptor descriptor{arg_desc, dat_desc, -1};
+        f2c::HierArgGroups descriptor{arg_desc, dat_desc, -1};
 
-        auto result = f2c::build_hier_colour_plan(
+        auto result = f2c::build_hier_colouring_plan(
             &source, args, sections, descriptor, {size, size, 0});
         if (size > 255) {
             expect_reason(result,
-                          f2c::HierSmemFallbackReason::too_many_colours);
+                          f2c::HierFallbackReason::too_many_colours);
             continue;
         }
 
         CHECK(result);
         CHECK(result.plan->statistics.max_thread_colours == size);
         for (int i = 0; i < size; ++i)
-            CHECK(result.plan->thread_colours[static_cast<std::size_t>(i)] == i);
+            CHECK(result.plan->colouring->thread_colours[
+                      static_cast<std::size_t>(i)] == i);
         check_colouring(*result.plan, args, descriptor, sections);
     }
 }
@@ -755,16 +760,16 @@ void test_colour_random() {
         make_dat_arg(&dat_b, &maps[2], 1, "integer(4)", sizeof(int), 1,
                      OP_INC),
     };
-    std::array<f2c::HierSmemArgDescriptor, 3> arg_desc{{{0, 0}, {1, 0}, {2, 1}}};
-    std::array<f2c::HierSmemScalarType, 2> dat_desc{{
-        f2c::HierSmemScalarType::f64,
-        f2c::HierSmemScalarType::i32,
+    std::array<f2c::HierArgDescriptor, 3> arg_desc{{{0, 0}, {1, 0}, {2, 1}}};
+    std::array<f2c::HierScalarType, 2> dat_desc{{
+        f2c::HierScalarType::f64,
+        f2c::HierScalarType::i32,
     }};
     std::array<f2c::ExecutionSection, 3> sections{{
         {0, 300}, {300, 900}, {900, 1000}}};
-    f2c::HierSmemStagingDescriptor descriptor{arg_desc, dat_desc, -1};
+    f2c::HierArgGroups descriptor{arg_desc, dat_desc, -1};
 
-    auto result = f2c::build_hier_colour_plan(
+    auto result = f2c::build_hier_colouring_plan(
         &source, args, sections, descriptor, {32, 64, 0});
     CHECK(result);
     CHECK(result.plan->statistics.launches > sections.size());
@@ -778,29 +783,29 @@ void test_colour_fallbacks() {
                                              3, "integer(4)", sizeof(int), 1,
                                              OP_READ));
         expect_reason(build_colour(fixture),
-                      f2c::HierSmemFallbackReason::incompatible_argument);
+                      f2c::HierFallbackReason::incompatible_argument);
     }
     {
         MixedFixture fixture;
         for (auto& arg : fixture.args)
             arg.opt = 0;
         expect_reason(build_colour(fixture),
-                      f2c::HierSmemFallbackReason::no_active_increment);
+                      f2c::HierFallbackReason::no_active_argument);
     }
     {
         // Two groups resolving to one dat would be coloured independently.
         ChainFixture fixture(8);
-        std::array<f2c::HierSmemArgDescriptor, 2> arg_desc{{{0, 0}, {1, 1}}};
-        std::array<f2c::HierSmemScalarType, 2> dat_desc{{
-            f2c::HierSmemScalarType::i32,
-            f2c::HierSmemScalarType::i32,
+        std::array<f2c::HierArgDescriptor, 2> arg_desc{{{0, 0}, {1, 1}}};
+        std::array<f2c::HierScalarType, 2> dat_desc{{
+            f2c::HierScalarType::i32,
+            f2c::HierScalarType::i32,
         }};
         std::array<f2c::ExecutionSection, 1> sections{{{0, 8}}};
-        auto result = f2c::build_hier_colour_plan(
+        auto result = f2c::build_hier_colouring_plan(
             &fixture.edges, fixture.args, sections,
             {arg_desc, dat_desc, -1}, {4, 4, 0});
         expect_reason(result,
-                      f2c::HierSmemFallbackReason::incompatible_argument);
+                      f2c::HierFallbackReason::incompatible_argument);
     }
 }
 
@@ -812,15 +817,15 @@ void test_packed_word_boundaries() {
     static_assert(f2c::hier_smem_stage_owner(word));
     static_assert(f2c::hier_smem_stage_exclusive(word));
     constexpr std::array fallback_reasons{
-        f2c::HierSmemFallbackReason::none,
-        f2c::HierSmemFallbackReason::no_active_increment,
-        f2c::HierSmemFallbackReason::incompatible_argument,
-        f2c::HierSmemFallbackReason::insufficient_shared_memory,
-        f2c::HierSmemFallbackReason::low_compression,
-        f2c::HierSmemFallbackReason::too_many_colours,
+        f2c::HierFallbackReason::none,
+        f2c::HierFallbackReason::no_active_argument,
+        f2c::HierFallbackReason::incompatible_argument,
+        f2c::HierFallbackReason::insufficient_shared_memory,
+        f2c::HierFallbackReason::low_compression,
+        f2c::HierFallbackReason::too_many_colours,
     };
     for (auto reason : fallback_reasons)
-        CHECK(f2c::hier_smem_fallback_reason_name(reason) != "unknown");
+        CHECK(f2c::hier_fallback_reason_name(reason) != "unknown");
 }
 
 void test_plan_owner_lifecycle() {
@@ -829,12 +834,12 @@ void test_plan_owner_lifecycle() {
         ++*static_cast<int *>(owner);
     };
 
-    f2c::register_hier_smem_plan_owner(&releases, release);
-    f2c::release_hier_smem_plan_device_storage();
+    f2c::register_hier_plan_owner(&releases, release);
+    f2c::release_hier_plan_device_storage();
     CHECK(releases == 1);
 
-    f2c::unregister_hier_smem_plan_owner(&releases);
-    f2c::release_hier_smem_plan_device_storage();
+    f2c::unregister_hier_plan_owner(&releases);
+    f2c::release_hier_plan_device_storage();
     CHECK(releases == 1);
 }
 
@@ -857,11 +862,11 @@ int main() {
         test_packed_word_boundaries();
         test_plan_owner_lifecycle();
     } catch (const std::exception& error) {
-        std::fprintf(stderr, "hierarchical smem plan test failed: %s\n",
+        std::fprintf(stderr, "hierarchical plan test failed: %s\n",
                      error.what());
         return EXIT_FAILURE;
     }
 
-    std::printf("hierarchical smem plan tests passed\n");
+    std::printf("hierarchical plan tests passed\n");
     return EXIT_SUCCESS;
 }

@@ -36,34 +36,34 @@ set_tests_properties(f2c_dynamic_smem_launch_jit PROPERTIES
         "OP_JIT_ENABLE=1;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1"
     LABELS "cuda;unit")
 
-add_executable(f2c_hier_smem_cache f2c_hier_smem_cache.cu)
-target_link_libraries(f2c_hier_smem_cache PRIVATE
+add_executable(f2c_hier_plan_cache f2c_hier_plan_cache.cu)
+target_link_libraries(f2c_hier_plan_cache PRIVATE
     op2_cuda
     CUDA::nvrtc
     CUDA::cuda_driver)
-target_compile_definitions(f2c_hier_smem_cache PRIVATE OP2_CUDA)
-op2_test_link_nvrtc_builtins(f2c_hier_smem_cache)
+target_compile_definitions(f2c_hier_plan_cache PRIVATE OP2_CUDA)
+op2_test_link_nvrtc_builtins(f2c_hier_plan_cache)
 
-add_test(NAME f2c_hier_smem_cache_offline COMMAND f2c_hier_smem_cache)
-set_tests_properties(f2c_hier_smem_cache_offline PROPERTIES
+add_test(NAME f2c_hier_plan_cache_offline COMMAND f2c_hier_plan_cache)
+set_tests_properties(f2c_hier_plan_cache_offline PROPERTIES
     ENVIRONMENT "OP_JIT_ENABLE=0;OP_HIER_SMEM_ATOMICS=auto"
     LABELS "cuda;unit")
 
-add_test(NAME f2c_hier_smem_cache_jit COMMAND f2c_hier_smem_cache)
-set_tests_properties(f2c_hier_smem_cache_jit PROPERTIES
+add_test(NAME f2c_hier_plan_cache_jit COMMAND f2c_hier_plan_cache)
+set_tests_properties(f2c_hier_plan_cache_jit PROPERTIES
     ENVIRONMENT
         "OP_JIT_ENABLE=1;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1;OP_HIER_SMEM_ATOMICS=auto"
     LABELS "cuda;unit")
 
 if(TARGET op2_mpi_cuda AND MPIEXEC_EXECUTABLE)
-    add_executable(hier_smem_cache_mpi_teardown
-        hier_smem_cache_mpi_teardown.cu)
-    target_link_libraries(hier_smem_cache_mpi_teardown PRIVATE op2_mpi_cuda)
-    target_compile_definitions(hier_smem_cache_mpi_teardown PRIVATE OP2_CUDA)
+    add_executable(hier_plan_cache_mpi_teardown
+        hier_plan_cache_mpi_teardown.cu)
+    target_link_libraries(hier_plan_cache_mpi_teardown PRIVATE op2_mpi_cuda)
+    target_compile_definitions(hier_plan_cache_mpi_teardown PRIVATE OP2_CUDA)
 
-    add_test(NAME hier_smem_cache_mpi_teardown
+    add_test(NAME hier_plan_cache_mpi_teardown
         COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
-                $<TARGET_FILE:hier_smem_cache_mpi_teardown>)
-    set_tests_properties(hier_smem_cache_mpi_teardown PROPERTIES
+                $<TARGET_FILE:hier_plan_cache_mpi_teardown>)
+    set_tests_properties(hier_plan_cache_mpi_teardown PROPERTIES
         LABELS "cuda;mpi;unit")
 endif()

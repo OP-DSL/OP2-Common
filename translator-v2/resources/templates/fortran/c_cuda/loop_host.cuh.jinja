@@ -74,9 +74,9 @@ dat{{dat.id}}_dim
 
 {%- macro hier_smem_scalar_type(dat) -%}
     {%- if dat.typ is instance(OP.Float) -%}
-op::f2c::HierSmemScalarType::f{{dat.typ.size}}
+op::f2c::HierScalarType::f{{dat.typ.size}}
     {%- else -%}
-op::f2c::HierSmemScalarType::i32
+op::f2c::HierScalarType::i32
     {%- endif -%}
 {%- endmacro -%}
 
@@ -696,7 +696,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
 {% if has_hier_smem %}
     static constexpr std::array staged_args = {
     {% for arg in args_hier_smem %}
-        op::f2c::HierSmemArgDescriptor{ {{arg.id}},
+        op::f2c::HierArgDescriptor{ {{arg.id}},
             {{hier_smem.dat_ids|index(arg.dat_id)}} },
     {% endfor %}
     };
@@ -714,7 +714,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
         "op2_k_{{lh.name}}{{variant}}_staged_wrapper",
         (void *)op2_k_{{lh.name}}{{variant}}_staged_wrapper,
         op2_k_{{lh.name}}{{variant}}_staged_src,
-        op::f2c::HierSmemStagingDescriptor{
+        op::f2c::HierArgGroups{
             staged_args, staged_dats, staged_part_size});
 {% endif %}
     return true;

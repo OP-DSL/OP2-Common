@@ -67,7 +67,9 @@ clean:
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_lib_core.o \
-	op_hier_smem_plan.o \
+	op_hier_plan.o \
+	op_hier_atomics_plan.o \
+	op_hier_colouring_plan.o \
 	op_rt_support.o \
 	SafeLong.o)
 

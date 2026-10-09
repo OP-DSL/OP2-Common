@@ -4,8 +4,8 @@
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <op_gpu_shims.h>
-#include <op_hier_smem_cache.h>
-#include <op_hier_smem_plan.h>
+#include <op_hier_plan_cache.h>
+#include <op_hier_plan.h>
 
 #include <array>
 #include <vector>
@@ -482,18 +482,18 @@ struct KernelExecution {
     int block_limit;
     int max_blocks;
     int shared_bytes;
-    const HierSmemPlan *hier_smem_plan;
-    HierSmemPlanDeviceView hier_smem_device;
-    HierSmemFallbackReason hier_smem_reason;
+    const HierPlan *hier_smem_plan;
+    HierPlanDeviceView hier_smem_device;
+    HierFallbackReason hier_smem_reason;
 
     // Return how many launches run a section: one per block colour under a
     // colouring plan, otherwise one.
     int launches(int section_index) const {
-        if (hier_smem_plan == nullptr || !hier_smem_plan->coloured())
+        if (hier_smem_plan == nullptr || !hier_smem_plan->colouring)
             return 1;
 
-        return hier_smem_plan->section_launch_offsets[section_index + 1] -
-               hier_smem_plan->section_launch_offsets[section_index];
+        const auto& offsets = hier_smem_plan->colouring->section_launch_offsets;
+        return offsets[section_index + 1] - offsets[section_index];
     }
 
     // Return the plan chunks one launch covers; under a colouring plan they
@@ -501,13 +501,14 @@ struct KernelExecution {
     std::pair<int, int> chunk_range(int section_index, int launch) const {
         assert(hier_smem_plan != nullptr);
         const auto& plan = *hier_smem_plan;
-        if (!plan.coloured())
+        if (!plan.colouring)
             return {plan.section_chunk_offsets[section_index],
                     plan.section_chunk_offsets[section_index + 1]};
 
-        int index = plan.section_launch_offsets[section_index] + launch;
-        return {plan.launch_chunk_offsets[index],
-                plan.launch_chunk_offsets[index + 1]};
+        const auto& colouring = *plan.colouring;
+        int index = colouring.section_launch_offsets[section_index] + launch;
+        return {colouring.launch_chunk_offsets[index],
+                colouring.launch_chunk_offsets[index + 1]};
     }
 
     int num_blocks(int section_index, int launch) const {
@@ -524,8 +525,10 @@ struct KernelExecution {
     int dynamic_shared_bytes(int section_index) const {
         if (hier_smem_plan == nullptr)
             return shared_bytes;
+        if (!hier_smem_plan->staging)
+            return 0;
 
-        auto bytes = hier_smem_plan->section_shared_bytes[section_index];
+        auto bytes = hier_smem_plan->staging->section_shared_bytes[section_index];
         assert(bytes <= static_cast<std::size_t>(INT32_MAX));
         return static_cast<int>(bytes);
     }
@@ -588,7 +591,7 @@ struct LaunchContext {
     int *color_reorder;
 
     struct {
-        HierSmemPlanDeviceView plan;
+        HierPlanDeviceView plan;
         int chunk_begin;
         int chunk_end;
         int has_exclusive;
@@ -616,7 +619,7 @@ struct KernelInvocationResult {
     KernelVariant variant;
     int block_size;
     int max_blocks;
-    HierSmemFallbackReason hier_smem_reason = HierSmemFallbackReason::none;
+    HierFallbackReason hier_smem_reason = HierFallbackReason::none;
 };
 
 enum class ParamType {
@@ -801,9 +804,9 @@ private:
     ExecutionPolicy m_policy;
     KernelImplementation m_baseline;
     std::unique_ptr<KernelImplementation> m_staged;
-    std::optional<HierSmemStagingDescriptor> m_staging_descriptor;
-    detail::HierSmemPlanCache m_hier_smem_cache;
-    std::set<HierSmemFallbackReason> m_hier_smem_reported;
+    std::optional<HierArgGroups> m_staging_descriptor;
+    detail::HierPlanCache m_hier_plan_cache;
+    std::set<HierFallbackReason> m_hier_smem_reported;
     std::optional<std::size_t> m_hier_smem_capacity;
     bool m_plan_owner_registered = false;
     std::vector<JitParam> m_params;
@@ -955,16 +958,16 @@ private:
         return data_d;
     }
 
-    static void release_hier_smem_plans_callback(void *owner) {
-        static_cast<KernelInfo *>(owner)->m_hier_smem_cache.clear();
+    static void release_hier_plans_callback(void *owner) {
+        static_cast<KernelInfo *>(owner)->m_hier_plan_cache.clear();
     }
 
     void register_plan_owner() {
         if (m_plan_owner_registered)
             return;
 
-        register_hier_smem_plan_owner(
-            this, &KernelInfo::release_hier_smem_plans_callback);
+        register_hier_plan_owner(
+            this, &KernelInfo::release_hier_plans_callback);
         m_plan_owner_registered = true;
     }
 
@@ -994,13 +997,13 @@ public:
             join_compilations(*m_staged);
 
         if (m_plan_owner_registered)
-            unregister_hier_smem_plan_owner(this);
-        m_hier_smem_cache.clear();
+            unregister_hier_plan_owner(this);
+        m_hier_plan_cache.clear();
     }
 
     void register_staged_variant(std::string_view name, const void *kernel,
                                  std::string_view src,
-                                 std::optional<HierSmemStagingDescriptor>
+                                 std::optional<HierArgGroups>
                                      descriptor = std::nullopt) {
         if (m_staged != nullptr) {
             std::fprintf(stderr,
@@ -1016,8 +1019,8 @@ public:
         m_staging_descriptor = descriptor;
     }
 
-    HierSmemPlanCacheStatistics hier_smem_plan_cache_statistics() const {
-        return m_hier_smem_cache.statistics();
+    HierPlanCacheStatistics hier_plan_cache_statistics() const {
+        return m_hier_plan_cache.statistics();
     }
 
     template<typename T>
@@ -1119,7 +1122,7 @@ private:
     // colouring an active indirect read-write.
     static bool all_indirect_updates_covered(
         std::span<const op_arg> args,
-        const HierSmemStagingDescriptor& descriptor, bool read_write) {
+        const HierArgGroups& descriptor, bool read_write) {
         std::vector<bool> covered(args.size(), false);
         for (const auto& arg : descriptor.args) {
             assert(arg.arg_index >= 0 &&
@@ -1139,25 +1142,25 @@ private:
     }
 
     // Look up or build the plan for the current loop configuration.
-    const detail::HierSmemPlanCacheEntry& get_hier_smem_plan(
+    const detail::HierPlanCacheEntry& get_hier_smem_plan(
         op_set set, std::span<const op_arg> args,
         std::span<const ExecutionSection> sections, int block_size) {
         assert(m_staging_descriptor.has_value());
         register_plan_owner();
 
-        HierSmemPlanOptions plan_options{
+        HierPlanOptions plan_options{
             block_size, OP_part_size, hier_smem_device_capacity(),
             hier_smem_exclusive};
-        auto key = detail::make_hier_smem_plan_key(
+        auto key = detail::make_hier_plan_key(
             set, args, static_cast<int>(sections.size()),
             *m_staging_descriptor, plan_options);
 
-        auto report = [this](const HierSmemPlan& plan, bool rejected) {
+        auto report = [this](const HierPlan& plan, bool rejected) {
             if (OP_diags <= 3)
                 return;
 
             const auto& stats = plan.statistics;
-            if (plan.coloured()) {
+            if (plan.colouring) {
                 std::printf("hier_colour: %s chunk %d, %zu chunks, %zu launches, "
                             "up to %d thread colours\n",
                             m_profile_name.c_str(), plan.selected_chunk_size,
@@ -1178,22 +1181,22 @@ private:
         };
 
         // The builder runs only for a new entry, so each plan reports once.
-        return m_hier_smem_cache.get_or_build(std::move(key), [&]() {
+        return m_hier_plan_cache.get_or_build(std::move(key), [&]() {
             if (!all_indirect_updates_covered(args, *m_staging_descriptor,
                                               colours()))
-                return HierSmemPlanBuildResult{
-                    HierSmemFallbackReason::incompatible_argument,
+                return HierPlanBuildResult{
+                    HierFallbackReason::incompatible_argument,
                     std::nullopt};
 
             if (colours()) {
-                auto result = build_hier_colour_plan(
+                auto result = build_hier_colouring_plan(
                     set, args, sections, *m_staging_descriptor, plan_options);
                 if (result)
                     report(*result.plan, false);
                 return result;
             }
 
-            auto result = build_hier_smem_plan(
+            auto result = build_hier_atomics_plan(
                 set, args, sections, *m_staging_descriptor, plan_options);
             if (!result)
                 return result;
@@ -1203,8 +1206,8 @@ private:
                             hier_smem_min_compression;
             report(*result.plan, rejected);
             if (rejected)
-                return HierSmemPlanBuildResult{
-                    HierSmemFallbackReason::low_compression, std::nullopt};
+                return HierPlanBuildResult{
+                    HierFallbackReason::low_compression, std::nullopt};
 
             return result;
         });
@@ -1218,45 +1221,45 @@ private:
 
     // Whether a staged wrapper exists to launch.  Checked before any policy
     // question, since it is a property of translation.
-    HierSmemFallbackReason hier_smem_registration() const {
-        return m_staged == nullptr ? HierSmemFallbackReason::not_staged
-                                   : HierSmemFallbackReason::none;
+    HierFallbackReason hier_smem_registration() const {
+        return m_staged == nullptr ? HierFallbackReason::not_staged
+                                   : HierFallbackReason::none;
     }
 
     // Whether a plan can be built for that wrapper.  Separate from the above
     // because the direct-API tests launch a staged wrapper of their own with
     // explicit shared bytes and no staging descriptor.
-    HierSmemFallbackReason hier_smem_plannable() const {
+    HierFallbackReason hier_smem_plannable() const {
         if (!m_staging_descriptor.has_value() ||
             m_policy.kind() == ExecutionPolicy::Kind::direct)
-            return HierSmemFallbackReason::not_staged;
+            return HierFallbackReason::not_staged;
 
-        return HierSmemFallbackReason::none;
+        return HierFallbackReason::none;
     }
 
     // Whether the environment policy wants staging for a generated loop.  The
     // decision lives here so that nothing about it leaks into generated code.
-    HierSmemFallbackReason hier_smem_policy_allows() const {
+    HierFallbackReason hier_smem_policy_allows() const {
         switch (colours() ? hier_colour_policy : hier_smem_policy) {
         case HierSmemPolicy::off:
-            return HierSmemFallbackReason::disabled;
+            return HierFallbackReason::disabled;
         case HierSmemPolicy::on:
-            return HierSmemFallbackReason::none;
+            return HierFallbackReason::none;
         case HierSmemPolicy::automatic:
             // Conservative until the measurement campaign establishes which
             // architectures gain: every device stays on the baseline, and
             // known-regressing parts must stay here even once it does.
-            return HierSmemFallbackReason::unvalidated_device;
+            return HierFallbackReason::unvalidated_device;
         }
 
-        return HierSmemFallbackReason::unvalidated_device;
+        return HierFallbackReason::unvalidated_device;
     }
 
     // Report a fallback once per loop, at diagnostic verbosity.  Plan-level
     // reasons are already built once per cache key; this covers the dispatch
     // decisions, which are re-evaluated on every invocation.
-    void report_hier_smem_fallback(HierSmemFallbackReason reason) {
-        if (OP_diags <= 3 || reason == HierSmemFallbackReason::none)
+    void report_hier_smem_fallback(HierFallbackReason reason) {
+        if (OP_diags <= 3 || reason == HierFallbackReason::none)
             return;
 
         if (!m_hier_smem_reported.insert(reason).second)
@@ -1265,7 +1268,7 @@ private:
         std::printf("%s: %s runs the baseline wrapper (%s)\n",
                     colours() ? "hier_colour" : "hier_smem",
                     m_profile_name.c_str(),
-                    std::string(hier_smem_fallback_reason_name(reason))
+                    std::string(hier_fallback_reason_name(reason))
                         .c_str());
     }
 
@@ -1331,15 +1334,15 @@ private:
         bool wants_plan =
             !caller_chose_staging || options.plan_hier_smem_for_testing;
 
-        HierSmemFallbackReason hier_smem_reason = hier_smem_registration();
-        if (hier_smem_reason == HierSmemFallbackReason::none && wants_plan)
+        HierFallbackReason hier_smem_reason = hier_smem_registration();
+        if (hier_smem_reason == HierFallbackReason::none && wants_plan)
             hier_smem_reason = hier_smem_plannable();
-        if (hier_smem_reason == HierSmemFallbackReason::none &&
+        if (hier_smem_reason == HierFallbackReason::none &&
             !caller_chose_staging)
             hier_smem_reason = hier_smem_policy_allows();
 
         // A color2 loop builds its op_plan only once staging is ruled out.
-        bool staged = hier_smem_reason == HierSmemFallbackReason::none;
+        bool staged = hier_smem_reason == HierFallbackReason::none;
         ExecutionSchedule schedule =
             staged ? staged_schedule(set, global_reduction)
                    : baseline_schedule(set, args, nargs, global_reduction);
@@ -1347,8 +1350,8 @@ private:
         int block_size = 0;
         std::tie(block_limit, block_size) = launch_config(schedule, args, nargs);
 
-        const HierSmemPlan *hier_smem_plan = nullptr;
-        HierSmemPlanDeviceView hier_smem_device;
+        const HierPlan *hier_smem_plan = nullptr;
+        HierPlanDeviceView hier_smem_device;
         if (staged && wants_plan) {
             std::array<ExecutionSection, 3> sections;
             assert(schedule.size() <= static_cast<int>(sections.size()));
@@ -1375,7 +1378,7 @@ private:
         }
 
         KernelVariant variant = KernelVariant::staged;
-        if (hier_smem_reason != HierSmemFallbackReason::none) {
+        if (hier_smem_reason != HierFallbackReason::none) {
             variant = KernelVariant::baseline;
             report_hier_smem_fallback(hier_smem_reason);
 
@@ -1569,8 +1572,8 @@ public:
                     std::tie(launch.staged.chunk_begin,
                              launch.staged.chunk_end) =
                         execution.chunk_range(section_index, launch_index);
-                    launch.staged.has_exclusive =
-                        execution.hier_smem_plan->has_exclusive;
+                    if (const auto& staging = execution.hier_smem_plan->staging)
+                        launch.staged.has_exclusive = staging->has_exclusive;
                 }
 
                 int num_blocks =

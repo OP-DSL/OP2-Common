@@ -1,4 +1,4 @@
-#include <op_hier_smem_cache.h>
+#include <op_hier_plan_cache.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -22,7 +22,7 @@ namespace f2c = op::f2c;
     } while (false)
 
 void clear_cache(void *owner) {
-    static_cast<f2c::detail::HierSmemPlanCache *>(owner)->clear();
+    static_cast<f2c::detail::HierPlanCache *>(owner)->clear();
 }
 
 } // namespace
@@ -72,9 +72,9 @@ int main(int argc, char **argv) {
 
     std::array args{arg};
     std::array sections{f2c::ExecutionSection{0, source.size}};
-    std::array arg_descriptors{f2c::HierSmemArgDescriptor{0, 0}};
-    std::array dat_descriptors{f2c::HierSmemScalarType::f64};
-    f2c::HierSmemStagingDescriptor descriptor{
+    std::array arg_descriptors{f2c::HierArgDescriptor{0, 0}};
+    std::array dat_descriptors{f2c::HierScalarType::f64};
+    f2c::HierArgGroups descriptor{
         arg_descriptors, dat_descriptors, 128};
 
     int device = -1;
@@ -88,15 +88,15 @@ int main(int argc, char **argv) {
         static_cast<std::size_t>(properties.sharedMemPerBlockOptin));
 #endif
 
-    f2c::HierSmemPlanOptions options{128, 128, shared_memory_limit};
-    auto key = f2c::detail::make_hier_smem_plan_key(
+    f2c::HierPlanOptions options{128, 128, shared_memory_limit};
+    auto key = f2c::detail::make_hier_plan_key(
         &source, args, static_cast<int>(sections.size()), descriptor,
         options);
 
-    f2c::detail::HierSmemPlanCache cache;
-    f2c::register_hier_smem_plan_owner(&cache, clear_cache);
+    f2c::detail::HierPlanCache cache;
+    f2c::register_hier_plan_owner(&cache, clear_cache);
     const auto& entry = cache.get_or_build(std::move(key), [&]() {
-        return f2c::build_hier_smem_plan(
+        return f2c::build_hier_atomics_plan(
             &source, args, sections, descriptor, options);
     });
 
@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
 
     op_exit();
     CHECK(cache.statistics().entries == 0);
-    f2c::unregister_hier_smem_plan_owner(&cache);
+    f2c::unregister_hier_plan_owner(&cache);
 
     std::printf("MPI hierarchical smem cache teardown test passed\n");
     return EXIT_SUCCESS;

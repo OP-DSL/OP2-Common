@@ -1,7 +1,7 @@
 #pragma once
 
 #include <op_gpu_shims.h>
-#include <op_hier_smem_plan.h>
+#include <op_hier_plan.h>
 
 #include <array>
 #include <cassert>
@@ -16,7 +16,7 @@
 
 namespace op::f2c {
 
-struct HierSmemPlanDeviceView {
+struct HierPlanDeviceView {
     const int *source_offsets = nullptr;
     const HierSmemStageWord *stage_words = nullptr;
     const int *stage_counts = nullptr;
@@ -25,7 +25,7 @@ struct HierSmemPlanDeviceView {
     const int *chunk_thread_colours = nullptr;
 };
 
-struct HierSmemPlanCacheStatistics {
+struct HierPlanCacheStatistics {
     std::size_t entries = 0;
     std::size_t builds = 0;
     std::size_t uploads = 0;
@@ -41,7 +41,7 @@ namespace detail {
 // Every dat argument contributes its active dat, not just the staged ones:
 // eligibility and the aliasing checks both read arguments outside the staging
 // descriptor, so activating one of those has to miss the cache.
-struct HierSmemPlanKey {
+struct HierPlanKey {
     int set_index = -1;
     int section_count = 0;
     int block_size = 0;
@@ -51,15 +51,15 @@ struct HierSmemPlanKey {
     std::vector<int> dats;
     std::vector<int> staged;
 
-    bool operator==(const HierSmemPlanKey&) const = default;
+    bool operator==(const HierPlanKey&) const = default;
 };
 
-inline HierSmemPlanKey make_hier_smem_plan_key(
+inline HierPlanKey make_hier_plan_key(
     op_set set, std::span<const op_arg> args, int section_count,
-    const HierSmemStagingDescriptor& descriptor,
-    const HierSmemPlanOptions& options) {
+    const HierArgGroups& descriptor,
+    const HierPlanOptions& options) {
     assert(set != nullptr && section_count > 0);
-    HierSmemPlanKey key;
+    HierPlanKey key;
     key.set_index = set->index;
     key.section_count = section_count;
     key.block_size = options.block_size;
@@ -90,7 +90,7 @@ inline HierSmemPlanKey make_hier_smem_plan_key(
     return key;
 }
 
-inline void hier_smem_check_gpu(gpuError_t result, const char *operation) {
+inline void hier_plan_check_gpu(gpuError_t result, const char *operation) {
     if (result == gpuSuccess)
         return;
 
@@ -99,10 +99,10 @@ inline void hier_smem_check_gpu(gpuError_t result, const char *operation) {
     std::exit(EXIT_FAILURE);
 }
 
-class HierSmemPlanCacheEntry {
+class HierPlanCacheEntry {
 private:
-    HierSmemFallbackReason m_reason;
-    std::optional<HierSmemPlan> m_plan;
+    HierFallbackReason m_reason;
+    std::optional<HierPlan> m_plan;
     int *m_source_offsets_d = nullptr;
     HierSmemStageWord *m_stage_words_d = nullptr;
     int *m_stage_counts_d = nullptr;
@@ -116,11 +116,11 @@ private:
         if (source.empty())
             return;
 
-        hier_smem_check_gpu(
+        hier_plan_check_gpu(
             gpuMalloc(reinterpret_cast<void **>(&destination),
                       source.size() * sizeof(T)),
             "gpuMalloc");
-        hier_smem_check_gpu(
+        hier_plan_check_gpu(
             gpuMemcpy(destination, source.data(), source.size() * sizeof(T),
                       gpuMemcpyHostToDevice),
             "gpuMemcpy");
@@ -129,34 +129,38 @@ private:
     template<typename T>
     static void release(T *&pointer) {
         if (pointer != nullptr)
-            hier_smem_check_gpu(gpuFree(pointer), "gpuFree");
+            hier_plan_check_gpu(gpuFree(pointer), "gpuFree");
         pointer = nullptr;
     }
 
 public:
-    HierSmemPlanCacheEntry(const HierSmemPlanCacheEntry&) = delete;
+    HierPlanCacheEntry(const HierPlanCacheEntry&) = delete;
 
-    explicit HierSmemPlanCacheEntry(HierSmemPlanBuildResult result)
+    explicit HierPlanCacheEntry(HierPlanBuildResult result)
         : m_reason{result.reason}, m_plan{std::move(result.plan)} {
         if (!m_plan.has_value())
             return;
 
         upload(m_plan->source_offsets, m_source_offsets_d);
-        upload(m_plan->stage_words, m_stage_words_d);
-        upload(m_plan->stage_counts, m_stage_counts_d);
-        upload(m_plan->chunk_order, m_chunk_order_d);
-        upload(m_plan->thread_colours, m_thread_colours_d);
-        upload(m_plan->chunk_thread_colours, m_chunk_thread_colours_d);
+        if (const auto& staging = m_plan->staging) {
+            upload(staging->stage_words, m_stage_words_d);
+            upload(staging->stage_counts, m_stage_counts_d);
+        }
+        if (const auto& colouring = m_plan->colouring) {
+            upload(colouring->chunk_order, m_chunk_order_d);
+            upload(colouring->thread_colours, m_thread_colours_d);
+            upload(colouring->chunk_thread_colours, m_chunk_thread_colours_d);
+        }
     }
 
-    ~HierSmemPlanCacheEntry() { release_device_storage(); }
+    ~HierPlanCacheEntry() { release_device_storage(); }
 
     explicit operator bool() const { return m_plan.has_value(); }
-    HierSmemFallbackReason reason() const { return m_reason; }
-    const HierSmemPlan *plan() const {
+    HierFallbackReason reason() const { return m_reason; }
+    const HierPlan *plan() const {
         return m_plan.has_value() ? &*m_plan : nullptr;
     }
-    HierSmemPlanDeviceView device_view() const {
+    HierPlanDeviceView device_view() const {
         return {m_source_offsets_d, m_stage_words_d, m_stage_counts_d,
                 m_chunk_order_d, m_thread_colours_d, m_chunk_thread_colours_d};
     }
@@ -177,10 +181,10 @@ public:
 // copies of the compact arrays consumed by staged wrappers.  A loop sees one
 // key in the common case and a second when optional state flips, so the
 // entries are scanned linearly rather than hashed.
-class HierSmemPlanCache {
+class HierPlanCache {
 private:
-    std::vector<std::pair<HierSmemPlanKey,
-                          std::unique_ptr<HierSmemPlanCacheEntry>>>
+    std::vector<std::pair<HierPlanKey,
+                          std::unique_ptr<HierPlanCacheEntry>>>
         m_entries;
     std::size_t m_builds = 0;
     std::size_t m_uploads = 0;
@@ -188,14 +192,14 @@ private:
 public:
     template<typename Builder>
     // Build and upload once for each exact runtime configuration.
-    const HierSmemPlanCacheEntry& get_or_build(HierSmemPlanKey key,
-                                               Builder&& builder) {
+    const HierPlanCacheEntry& get_or_build(HierPlanKey key,
+                                           Builder&& builder) {
         for (const auto& [existing, entry] : m_entries)
             if (existing == key)
                 return *entry;
 
         ++m_builds;
-        auto entry = std::make_unique<HierSmemPlanCacheEntry>(
+        auto entry = std::make_unique<HierPlanCacheEntry>(
             std::forward<Builder>(builder)());
         if (*entry)
             ++m_uploads;
@@ -204,7 +208,7 @@ public:
         return *m_entries.back().second;
     }
 
-    HierSmemPlanCacheStatistics statistics() const {
+    HierPlanCacheStatistics statistics() const {
         return {m_entries.size(), m_builds, m_uploads};
     }
 
