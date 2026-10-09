@@ -25,8 +25,21 @@ Indirect (colouring)
    negative map_idx that this template does not expand, so they disqualify the
    loop rather than reaching the planner, which indexes by map component.  Dat
    ids are collected in first-use order and become the staged-dat groups the
-   descriptor and the shared-region layout are ordered by. #}
-{%- set args_hier_smem = lh.args|dat|indirect(lh)|inc|list -%}
+   descriptor and the shared-region layout are ordered by.
+
+   A color2 loop's staged variant is hierarchical colouring instead.  It lists
+   every indirect argument on a dat the loop increments or read-writes, under
+   the same rules, and calls the kernel with the baseline pointers. #}
+{%- set hier_colouring = config.color2 and lh is indirect -%}
+{%- if hier_colouring -%}
+    {%- set colour_dats = namespace(ids=[]) -%}
+    {%- for arg in lh.args|dat|indirect(lh) if arg is inc or arg is read_write -%}
+        {%- set colour_dats.ids = colour_dats.ids + [arg.dat_id] -%}
+    {%- endfor -%}
+    {%- set args_hier_smem = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", colour_dats.ids)|list -%}
+{%- else -%}
+    {%- set args_hier_smem = lh.args|dat|indirect(lh)|inc|list -%}
+{%- endif -%}
 {%- set hier_smem = namespace(supported=true, dat_ids=[]) -%}
 {%- for arg in args_hier_smem -%}
     {%- set typ = lh.dat(arg).typ -%}
@@ -39,7 +52,9 @@ Indirect (colouring)
         {%- set hier_smem.dat_ids = hier_smem.dat_ids + [arg.dat_id] -%}
     {%- endif -%}
 {%- endfor -%}
-{%- set has_hier_smem = config.atomics and args_hier_smem|length > 0 and hier_smem.supported -%}
+{%- set has_hier_smem = (config.atomics or hier_colouring) and args_hier_smem|length > 0 and hier_smem.supported -%}
+{#- Staged dats whose dimension the staged wrapper needs even under SoA. -#}
+{%- set hier_smem_dim_ids = [] if hier_colouring else hier_smem.dat_ids -%}
 
 {%- macro gbl_dim_w(arg) -%}
     {%- if arg.dim is not none -%}
@@ -305,6 +320,41 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     }
 {%- endmacro %}
 
+{%- macro hier_colour_body(jit = false) %}
+    // Physical blocks grid-stride over this launch's chunks, which share no
+    // coloured target.  Within a chunk one thread colour runs at a time; every
+    // thread takes every pass, so the barriers stay uniform.
+    for (int i = chunk_begin + blockIdx.x; i < chunk_end; i += gridDim.x) {
+        const int chunk = chunk_order[i];
+        const int op2_source_end = source_offsets[chunk + 1];
+        const int op2_colours = chunk_thread_colours[chunk];
+
+        for (int base = source_offsets[chunk]; base < op2_source_end;
+             base += blockDim.x) {
+            const int n = base + threadIdx.x;
+            const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
+
+            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
+                if (op2_colour == op2_pass) {
+    {% if lh.args|idx|direct|length > 0 %}
+                    int idx = n + 1;
+    {% endif %}
+    {% for arg in lh.args|idx|indirect %}
+                    int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
+    {% endfor %}
+                    {{lh.kernel}}(
+    {% for arg in lh.args %}
+                        {{arg_to_pointer_cuda(arg, jit)}}{{"," if not loop.last}}
+    {% endfor %}
+                    );
+                }
+
+                __syncthreads();
+            }
+        }
+    }
+{%- endmacro %}
+
 {% macro kernel_wrapper(jit = false, staged = false) %}
 extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
 void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
@@ -323,13 +373,13 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem.dat_ids)) %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem_dim_ids)) %}
     const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
     const int arg{{arg.id}}_idx,
     {% endfor %}
-    {% if lh is indirect and config.color2 %}
+    {% if lh is indirect and config.color2 and not staged %}
     const int *__restrict col_reord,
     {% endif %}
     {% if args_gbl_per_thread|length > 0 %}
@@ -341,7 +391,14 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     const int start,
     const int end,
     const int stride{{"," if staged}}
-    {% if staged %}
+    {% if staged and hier_colouring %}
+    const int *__restrict source_offsets,
+    const int *__restrict chunk_order,
+    const unsigned char *__restrict thread_colours,
+    const int *__restrict chunk_thread_colours,
+    const int chunk_begin,
+    const int chunk_end
+    {% elif staged %}
     const int *__restrict source_offsets,
     const unsigned int *__restrict stage_words,
     const int *__restrict stage_counts,
@@ -362,7 +419,7 @@ void op2_k_{{lh.name}}{{variant}}{{"_staged" if staged}}_wrapper(
     (void)start;
     (void)end;
     (void)thread_id;
-{{hier_smem_body(jit)}}
+{{hier_colour_body(jit) if hier_colouring else hier_smem_body(jit)}}
 }
     {% else %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
@@ -471,13 +528,13 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
     {% for arg in lh.args|info %}
             (void *)&args[{{arg.id}}].data_d,
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem.dat_ids)) %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (staged and dat.id in hier_smem_dim_ids)) %}
             (void *)&args[{{dat.arg_id}}].dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
             (void *)&args[{{arg.id}}].idx,
     {% endfor %}
-    {% if lh is indirect and config.color2 %}
+    {% if lh is indirect and config.color2 and not staged %}
             (void *)&launch.color_reorder,
     {% endif %}
     {% if args_gbl_per_thread|length > 0 %}
@@ -489,7 +546,14 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
             (void *)&launch.start,
             (void *)&launch.end,
             (void *)&launch.set_stride{{"," if staged}}
-    {% if staged %}
+    {% if staged and hier_colouring %}
+            (void *)&launch.staged.plan.source_offsets,
+            (void *)&launch.staged.plan.chunk_order,
+            (void *)&launch.staged.plan.thread_colours,
+            (void *)&launch.staged.plan.chunk_thread_colours,
+            (void *)&launch.staged.chunk_begin,
+            (void *)&launch.staged.chunk_end
+    {% elif staged %}
             (void *)&launch.staged.plan.source_offsets,
             (void *)&launch.staged.plan.stage_words,
             (void *)&launch.staged.plan.stage_counts,
