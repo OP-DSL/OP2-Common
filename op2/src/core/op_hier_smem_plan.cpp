@@ -432,6 +432,8 @@ hier_smem_fallback_reason_name(HierSmemFallbackReason reason) {
         return "incompatible_argument";
     case HierSmemFallbackReason::insufficient_shared_memory:
         return "insufficient_shared_memory";
+    case HierSmemFallbackReason::low_compression:
+        return "low_compression";
     }
 
     return "unknown";

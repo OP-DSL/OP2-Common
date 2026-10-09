@@ -338,6 +338,46 @@ int main(int argc, char **argv) {
             CHECK(split_result.max_blocks == 1);
         }
 
+        // Every reference reaches a different target, so staging combines
+        // nothing: the plan falls back below the default minimum compression
+        // and is never uploaded.
+        {
+            Fixture spread;
+            spread.target.size = 256;
+            spread.target.core_size = 256;
+            for (std::size_t i = 0; i < spread.map_values.size(); ++i)
+                spread.map_values[i] = static_cast<int>(i);
+
+            f2c::KernelInfo spread_info(
+                "f2c_hier_smem_spread", "c_CUDA", "Atomics",
+                f2c::ExecutionPolicy::atomics(false),
+                "f2c_hier_smem_cache_baseline",
+                reinterpret_cast<const void *>(f2c_hier_smem_cache_baseline),
+                baseline_source);
+            spread_info.register_staged_variant(
+                "f2c_hier_smem_cache_staged",
+                reinterpret_cast<const void *>(f2c_hier_smem_cache_staged),
+                staged_source, spread.descriptor());
+
+            CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
+            auto spread_result = spread_info.invoke(
+                &spread.source, spread.args.data(), spread.args.size(),
+                Bindings{output_d, spread.shared_bytes() - 1},
+                f2c::KernelExecutionOptions::hierarchical_test());
+            CUDA_SAFE_CALL(gpuDeviceSynchronize());
+            CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
+                                     gpuMemcpyDeviceToHost));
+
+            CHECK(spread_result.variant == f2c::KernelVariant::baseline);
+            CHECK(spread_result.hier_smem_reason ==
+                  f2c::HierSmemFallbackReason::low_compression);
+            CHECK(output[0] == -1);
+
+            auto spread_statistics = spread_info.hier_smem_plan_cache_statistics();
+            CHECK(spread_statistics.builds == 1);
+            CHECK(spread_statistics.uploads == 0);
+        }
+
         CUDA_SAFE_CALL(gpuFree(output_d));
         output_d = nullptr;
         op_exit();

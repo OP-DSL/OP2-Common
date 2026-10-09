@@ -104,11 +104,12 @@ static bool jit_force = false;
 // OP_HIER_SMEM_ATOMICS selects the hierarchical shared-memory atomics policy:
 //
 //   0 / no / false     always run the baseline global-atomic wrapper
-//   1 / yes / true     stage wherever a loop is technically eligible
+//   1 / yes / true     stage wherever a loop is eligible and compresses enough
 //   unset / auto       use the validated per-architecture policy
 //
-// Forcing on bypasses the performance policy but never the eligibility checks:
-// an ineligible loop still falls back, with a reason.
+// Forcing on bypasses the architecture policy but neither the eligibility
+// checks nor the minimum compression: such a loop still falls back, with a
+// reason.
 enum class HierSmemPolicy {
     off,
     on,
@@ -120,6 +121,10 @@ static HierSmemPolicy hier_smem_policy = HierSmemPolicy::automatic;
 // Validation control: OP_HIER_SMEM_EXCLUSIVE=0 keeps every owner on a global
 // atomic, so a run can be compared against one that uses exclusive flushes.
 static bool hier_smem_exclusive = true;
+
+// OP_HIER_SMEM_MIN_COMPRESSION: plans averaging fewer staged references per
+// flushed target than this run the baseline wrapper; 0 stages every plan.
+static double hier_smem_min_compression = 1.5;
 
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
 static int jit_max_threads = 16;
@@ -168,6 +173,22 @@ static void jit_init() {
         if (excl == "0" || excl == "no" || excl == "false") {
             std::printf("Disabling hierarchical exclusive flushes\n");
             hier_smem_exclusive = false;
+        }
+    }
+
+    char *hier_smem_min_str = std::getenv("OP_HIER_SMEM_MIN_COMPRESSION");
+    if (hier_smem_min_str != nullptr) {
+        char *end = nullptr;
+        double min_compression = std::strtod(hier_smem_min_str, &end);
+        if (end != hier_smem_min_str && *end == '\0' && min_compression >= 0.0) {
+            std::printf("Hierarchical shared-memory atomics minimum compression: %.2fx\n",
+                        min_compression);
+            hier_smem_min_compression = min_compression;
+        } else {
+            std::fprintf(stderr,
+                         "warning: ignoring OP_HIER_SMEM_MIN_COMPRESSION='%s', "
+                         "expected a non-negative number\n",
+                         hier_smem_min_str);
         }
     }
 
@@ -1093,44 +1114,44 @@ private:
             set, args, static_cast<int>(sections.size()),
             *m_staging_descriptor, plan_options);
 
-        auto report = [this](const detail::HierSmemPlanCacheEntry& entry) {
+        auto report = [this](const HierSmemPlan& plan, bool rejected) {
             if (OP_diags <= 3)
                 return;
 
-            if (const HierSmemPlan *plan = entry.plan()) {
-                const auto& stats = plan->statistics;
-                std::printf(
-                    "hier_smem: %s chunk %d, %zu chunks, %zu refs, "
-                    "%zu owners (%zu exclusive, %zu atomic), "
-                    "compression %.2fx\n",
-                    m_profile_name.c_str(), plan->selected_chunk_size,
-                    plan->num_chunks(), stats.raw_references,
-                    stats.distinct_targets, stats.exclusive_owners,
-                    stats.distinct_targets - stats.exclusive_owners,
-                    stats.distinct_targets > 0
-                        ? static_cast<double>(stats.raw_references) /
-                              static_cast<double>(stats.distinct_targets)
-                        : 0.0);
-            }
+            const auto& stats = plan.statistics;
+            std::printf(
+                "hier_smem: %s chunk %d, %zu chunks, %zu refs, "
+                "%zu owners (%zu exclusive, %zu atomic), "
+                "compression %.2fx%s\n",
+                m_profile_name.c_str(), plan.selected_chunk_size,
+                plan.num_chunks(), stats.raw_references,
+                stats.distinct_targets, stats.exclusive_owners,
+                stats.distinct_targets - stats.exclusive_owners,
+                stats.compression(), rejected ? ", below the minimum" : "");
         };
 
-        auto before = m_hier_smem_cache.statistics().builds;
-        const auto& entry = m_hier_smem_cache.get_or_build(
-            std::move(key), [&]() {
+        // The builder runs only for a new entry, so each plan reports once.
+        return m_hier_smem_cache.get_or_build(std::move(key), [&]() {
             if (!all_indirect_increments_covered(args, *m_staging_descriptor))
                 return HierSmemPlanBuildResult{
                     HierSmemFallbackReason::incompatible_argument,
                     std::nullopt};
 
-            return build_hier_smem_plan(
+            auto result = build_hier_smem_plan(
                 set, args, sections, *m_staging_descriptor, plan_options);
+            if (!result)
+                return result;
+
+            // Drop a plan that barely combines references before it is uploaded.
+            bool rejected = result.plan->statistics.compression() <
+                            hier_smem_min_compression;
+            report(*result.plan, rejected);
+            if (rejected)
+                return HierSmemPlanBuildResult{
+                    HierSmemFallbackReason::low_compression, std::nullopt};
+
+            return result;
         });
-
-        // Only the build that created this entry reports it.
-        if (m_hier_smem_cache.statistics().builds != before)
-            report(entry);
-
-        return entry;
     }
 
     // Whether a staged wrapper exists to launch.  Checked before any policy

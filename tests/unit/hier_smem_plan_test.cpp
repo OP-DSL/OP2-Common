@@ -507,6 +507,7 @@ void test_packed_word_boundaries() {
         f2c::HierSmemFallbackReason::no_active_increment,
         f2c::HierSmemFallbackReason::incompatible_argument,
         f2c::HierSmemFallbackReason::insufficient_shared_memory,
+        f2c::HierSmemFallbackReason::low_compression,
     };
     for (auto reason : fallback_reasons)
         CHECK(f2c::hier_smem_fallback_reason_name(reason) != "unknown");

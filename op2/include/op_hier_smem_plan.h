@@ -50,6 +50,7 @@ enum class HierSmemFallbackReason {
     no_active_increment,
     incompatible_argument,
     insufficient_shared_memory,
+    low_compression,      // below OP_HIER_SMEM_MIN_COMPRESSION
 };
 
 // Convert a fallback reason to its stable diagnostic name.
@@ -72,6 +73,14 @@ struct HierSmemPlanStatistics {
     // flush needs no global atomic.  The rest of distinct_targets flush with
     // atomicAdd.
     std::size_t exclusive_owners = 0;
+
+    // Return the staged references per global flush.
+    double compression() const {
+        return distinct_targets > 0
+                   ? static_cast<double>(raw_references) /
+                         static_cast<double>(distinct_targets)
+                   : 0.0;
+    }
 };
 
 struct HierSmemPlan {
