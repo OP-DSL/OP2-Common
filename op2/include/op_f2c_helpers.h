@@ -4,6 +4,7 @@
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <op_gpu_shims.h>
+#include <op_autotune.h>
 #include <op_f2c_dispatch.h>
 #include <op_hier_plan_cache.h>
 #include <op_hier_plan.h>
@@ -318,9 +319,14 @@ public:
           m_source{ParamSource::external}, m_arg_index{-1},
           m_hash_device_ptr{hash_device_ptr} {}
 
-    void update(op_arg *args, int nargs, const KernelExecution& execution) {
+    ParamSource source() const { return m_source; }
+
+    // Refresh a parameter that comes from the loop's arguments; the global
+    // stride waits for the selected execution.
+    void update_inputs(op_arg *args, int nargs) {
         switch (m_source) {
         case ParamSource::external:
+        case ParamSource::global_stride:
             return;
         case ParamSource::scalar_arg:
             assert(m_arg_index >= 0 && m_arg_index < nargs);
@@ -334,14 +340,17 @@ public:
             *static_cast<int *>(m_data) = (size + 31) & ~31;
             return;
         }
-        case ParamSource::global_stride:
-            assert(m_elem_size == sizeof(int) && m_n_elems == 1);
-            *static_cast<int *>(m_data) =
-                execution.block_size * execution.max_blocks;
-            return;
         }
 
         __builtin_unreachable();
+    }
+
+    void update_global_stride(int global_stride) {
+        if (m_source != ParamSource::global_stride)
+            return;
+
+        assert(m_elem_size == sizeof(int) && m_n_elems == 1);
+        *static_cast<int *>(m_data) = global_stride;
     }
 
     uint64_t hash() {
@@ -447,6 +456,47 @@ private:
         m_reported;
     std::array<std::optional<std::size_t>, strategy_count> m_hier_capacity;
     bool m_plan_owner_registered = false;
+
+    // Autotuning: timings of each candidate strategy for one configuration of
+    // this loop, keyed by autotune_key.
+    struct AutotuneState {
+        std::string set_name;
+        int set_size = 0;
+        std::string inactive;
+        std::uint64_t params = 0;
+        Strategy ladder = Strategy::plain;
+        std::size_t calls = 0;
+        std::size_t cursor = 0;
+        bool reported = false;
+        std::array<bool, strategy_count> candidate{};
+        std::array<FallbackReason, strategy_count> rejected{};
+        std::array<int, strategy_count> warmups{};
+        std::array<int, strategy_count> attempts{};
+        std::array<bool, strategy_count> abandoned{};
+        std::array<int, strategy_count> jit_samples{};
+        std::array<std::vector<float>, strategy_count> samples;
+
+        bool done(std::size_t index) const {
+            return abandoned[index] ||
+                   (warmups[index] >= autotune_config.warmup &&
+                    static_cast<int>(samples[index].size()) >=
+                        autotune_config.samples);
+        }
+    };
+
+    // What one invocation contributes to its configuration's exploration.
+    struct AutotuneCall {
+        AutotuneState *state = nullptr;
+        bool timed = false;
+    };
+
+    // Configurations seen that often get no new state; the counts of those
+    // and of configurations never explored are reported per loop.
+    static constexpr std::size_t autotune_max_keys = 4096;
+    std::unordered_map<std::uint64_t, AutotuneState> m_autotune;
+    std::size_t m_autotune_dropped = 0;
+    std::vector<std::uint64_t> m_autotune_words;
+    std::vector<gpuEvent_t> m_events;
     std::vector<JitParam> m_params;
     std::mutex m_jit_kernels_mutex;
 
@@ -605,6 +655,7 @@ private:
     static void release_hier_plans_callback(void *owner) {
         auto *info = static_cast<KernelInfo *>(owner);
         info->join_compilations();
+        info->autotune_flush();
         for (auto& cache : info->m_plan_caches)
             cache.clear();
     }
@@ -698,7 +749,10 @@ public:
     }
 
 private:
-    JitKernel *get_kernel(KernelImplementation& impl) {
+    // Return the JIT kernel for the current parameters, starting its
+    // compilation once it has been asked for often enough, or at once when
+    // eager.
+    JitKernel *get_kernel(KernelImplementation& impl, bool eager = false) {
         auto hash = hash_params();
 
         if (!jit_enable || !is_jit_candidate(impl))
@@ -714,7 +768,8 @@ private:
                 return &kernel_elem->second;
         }
 
-        if (hash_elem->second.count > 8 && !hash_elem->second.jit_started && jit_active_threads < jit_max_threads) {
+        if ((eager || hash_elem->second.count > 8) && !hash_elem->second.jit_started &&
+            jit_active_threads < jit_max_threads) {
             if (jit_debug)
                 std::printf("compiling %s for hash %lx\n",
                             impl.name.c_str(), hash);
@@ -727,6 +782,12 @@ private:
         }
 
         return nullptr;
+    }
+
+    // Whether a JIT kernel for the current parameters is being compiled.
+    bool jit_compiling(KernelImplementation& impl) {
+        auto found = impl.hash_infos.find(hash_params());
+        return found != impl.hash_infos.end() && found->second.jit_started;
     }
 
     std::tuple<int, int> get_launch_config(JitKernel *kernel, int n_elems) {
@@ -931,13 +992,284 @@ private:
         return {block_limit, block_size};
     }
 
+    // Digest the configuration a timing belongs to: the set, every
+    // argument's active state and identity, the schedule shape, and the JIT
+    // parameters except the global stride, which depends on the strategy.
+    std::uint64_t autotune_key(op_set set, op_arg *args, int nargs,
+                               bool global_reduction, std::uint64_t& params) {
+        params = hash_seed_default;
+        for (auto& param : m_params)
+            if (param.source() != ParamSource::global_stride)
+                params = op::f2c::hash(param.hash(), params);
+
+        auto& words = m_autotune_words;
+        words.clear();
+        words.push_back(static_cast<std::uint64_t>(set->index));
+        words.push_back(global_reduction ? 1 : 0);
+        words.push_back(params);
+        for (int i = 0; i < nargs; ++i) {
+            const op_arg& arg = args[i];
+            words.push_back(static_cast<std::uint64_t>(arg.opt));
+            if (arg.opt == 0)
+                continue;
+
+            words.push_back(static_cast<std::uint64_t>(arg.argtype));
+            words.push_back(static_cast<std::uint64_t>(
+                arg.dat != nullptr ? arg.dat->index : -1));
+            words.push_back(static_cast<std::uint64_t>(
+                arg.map != nullptr ? arg.map->index : -1));
+            words.push_back(static_cast<std::uint64_t>(arg.idx));
+            words.push_back(static_cast<std::uint64_t>(arg.acc));
+            words.push_back(static_cast<std::uint64_t>(arg.dim));
+        }
+
+        return op::f2c::hash(words.data(), words.size());
+    }
+
+    // Pick the strategy this call runs.  Once a configuration has been seen
+    // often enough, each candidate runs in turn until it has its warm-up and
+    // timed runs; then the configuration is reported and the ladder's choice
+    // runs from there on.
+    Strategy autotune_choose(op_set set, op_arg *args, int nargs,
+                             bool global_reduction, Strategy ladder,
+                             const std::array<bool, strategy_count>& accepted,
+                             const std::array<FallbackReason, strategy_count>&
+                                 rejected,
+                             AutotuneCall& tune) {
+        // Nothing to compare when the ladder's choice is the only candidate.
+        int others = 0;
+        for (Strategy strategy : strategies)
+            others += accepted[strategy_index(strategy)] && strategy != ladder;
+        if (others == 0)
+            return ladder;
+
+        std::uint64_t params = 0;
+        auto key = autotune_key(set, args, nargs, global_reduction, params);
+        auto found = m_autotune.find(key);
+        if (found == m_autotune.end()) {
+            if (m_autotune.size() >= autotune_max_keys) {
+                ++m_autotune_dropped;
+                return ladder;
+            }
+
+            AutotuneState state;
+            state.set_name = set->name != nullptr ? set->name : "?";
+            state.set_size = set->size;
+            state.params = params;
+            state.ladder = ladder;
+            state.rejected = rejected;
+            for (int i = 0; i < nargs; ++i)
+                if (args[i].opt == 0)
+                    state.inactive += (state.inactive.empty() ? "" : " ") +
+                                      std::to_string(i);
+            for (Strategy strategy : strategies) {
+                auto index = strategy_index(strategy);
+                state.candidate[index] = accepted[index] || strategy == ladder;
+            }
+            found = m_autotune.emplace(key, std::move(state)).first;
+        }
+
+        auto& state = found->second;
+        ++state.calls;
+        if (state.reported ||
+            state.calls < static_cast<std::size_t>(autotune_config.min_calls))
+            return ladder;
+
+        for (std::size_t step = 0; step < strategy_count; ++step) {
+            std::size_t index = (state.cursor + step) % strategy_count;
+            if (!state.candidate[index] || state.done(index))
+                continue;
+
+            // A candidate whose JIT kernel never becomes available, say
+            // because every compile thread stays busy, is given up on.
+            state.cursor = index + 1;
+            if (++state.attempts[index] > autotune_config.warmup +
+                                              autotune_config.samples + 16) {
+                state.abandoned[index] = true;
+                continue;
+            }
+
+            tune.state = &state;
+            return strategies[index];
+        }
+
+        autotune_report(state);
+        return ladder;
+    }
+
+    // Record one timed run of the strategy an exploring call ran.
+    void autotune_sample(const AutotuneCall& tune, Strategy strategy,
+                         int pairs, bool jit) {
+        if (pairs == 0)
+            return;
+
+        CUDA_SAFE_CALL(gpuEventSynchronize(m_events[2 * pairs - 1]));
+        float total = 0.0f;
+        for (int pair = 0; pair < pairs; ++pair) {
+            float ms = 0.0f;
+            CUDA_SAFE_CALL(gpuEventElapsedTime(&ms, m_events[2 * pair],
+                                               m_events[2 * pair + 1]));
+            total += ms;
+        }
+
+        auto index = strategy_index(strategy);
+        tune.state->samples[index].push_back(total * 1000.0f);
+        if (jit)
+            ++tune.state->jit_samples[index];
+    }
+
+    void ensure_events(std::size_t count) {
+        while (m_events.size() < count) {
+            gpuEvent_t event;
+            CUDA_SAFE_CALL(gpuEventCreate(&event));
+            m_events.push_back(event);
+        }
+    }
+
+    static float median(std::vector<float> values) {
+        std::sort(values.begin(), values.end());
+        auto middle = values.size() / 2;
+        return values.size() % 2 != 0
+                   ? values[middle]
+                   : 0.5f * (values[middle - 1] + values[middle]);
+    }
+
+    // Report one configuration: each strategy's median time, or why it was
+    // not a candidate, against the ladder's choice.  The root rank prints a
+    // line; every rank adds a row to the OP_AUTOTUNE_REPORT file.
+    void autotune_report(AutotuneState& state) {
+        if (state.reported)
+            return;
+        state.reported = true;
+
+        std::array<float, strategy_count> medians{};
+        std::optional<Strategy> fastest;
+        bool complete = true;
+        int timed = 0;
+        int jit = 0;
+        for (Strategy strategy : strategies) {
+            auto index = strategy_index(strategy);
+            if (!state.candidate[index])
+                continue;
+
+            const auto& samples = state.samples[index];
+            complete &= state.done(index) && !state.abandoned[index];
+            if (samples.empty())
+                continue;
+
+            medians[index] = median(samples);
+            timed += static_cast<int>(samples.size());
+            jit += state.jit_samples[index];
+            if (!fastest || medians[index] < medians[strategy_index(*fastest)])
+                fastest = strategy;
+        }
+
+        auto cell = [&](Strategy strategy) -> std::string {
+            auto index = strategy_index(strategy);
+            if (variant(strategy) == nullptr)
+                return "";
+            if (!state.candidate[index])
+                return std::string{fallback_reason_name(state.rejected[index])};
+            if (state.samples[index].empty())
+                return state.abandoned[index] ? "jit_unavailable" : "pending";
+
+            char text[32];
+            std::snprintf(text, sizeof(text), "%.1f", medians[index]);
+            return text;
+        };
+
+        auto ladder_index = strategy_index(state.ladder);
+        float speedup = fastest && !state.samples[ladder_index].empty()
+                            ? medians[ladder_index] /
+                                  medians[strategy_index(*fastest)]
+                            : 0.0f;
+        const char *kernels = jit == 0 ? "offline"
+                              : jit == timed ? "jit" : "mixed";
+        char params[24];
+        std::snprintf(params, sizeof(params), "%016llx",
+                      static_cast<unsigned long long>(state.params));
+
+        std::string header = "loop,set,set_size,inactive_args,params";
+        std::string row = m_profile_name + "," + state.set_name + "," +
+                          std::to_string(state.set_size) + "," +
+                          state.inactive + "," + params;
+        for (Strategy strategy : strategies) {
+            header += ",";
+            header += strategy_name(strategy);
+            row += "," + cell(strategy);
+        }
+        char tail[96];
+        std::snprintf(tail, sizeof(tail), ",%s,%s,%.3f,%s,%s",
+                      strategy_name(state.ladder).data(),
+                      fastest ? strategy_name(*fastest).data() : "",
+                      speedup, kernels, complete ? "complete" : "partial");
+        header += ",ladder,fastest,speedup,kernels,state";
+        row += tail;
+        autotune_record(header, row);
+
+        if (!op_is_root())
+            return;
+
+        std::string times;
+        for (Strategy strategy : strategies) {
+            auto text = cell(strategy);
+            if (text.empty())
+                continue;
+
+            auto index = strategy_index(strategy);
+            times += times.empty() ? "" : ", ";
+            times += std::string{strategy_name(strategy)} + " " + text;
+            if (state.candidate[index] && !state.samples[index].empty())
+                times += "us";
+        }
+        std::printf("autotune: %s on %s (%d)%s%s, %s: %s; ladder %s, "
+                    "fastest %s (%.2fx)%s\n",
+                    m_profile_name.c_str(), state.set_name.c_str(),
+                    state.set_size,
+                    state.inactive.empty() ? "" : ", inactive args ",
+                    state.inactive.c_str(), kernels, times.c_str(),
+                    strategy_name(state.ladder).data(),
+                    fastest ? strategy_name(*fastest).data() : "none",
+                    speedup, complete ? "" : ", partial");
+    }
+
+    // At shutdown, report configurations still being explored, and count
+    // those never explored.
+    void autotune_flush() {
+        std::size_t unexplored = m_autotune_dropped;
+        for (auto& [key, state] : m_autotune) {
+            bool explored = false;
+            for (const auto& samples : state.samples)
+                explored |= !samples.empty();
+
+            if (!state.reported && explored)
+                autotune_report(state);
+            else if (!state.reported)
+                ++unexplored;
+        }
+
+        if (unexplored > 0 && op_is_root())
+            std::printf("autotune: %s left %zu configurations unexplored "
+                        "(seen fewer than %d times, or past %zu)\n",
+                        m_profile_name.c_str(), unexplored,
+                        autotune_config.min_calls, autotune_max_keys);
+        m_autotune.clear();
+        m_autotune_dropped = 0;
+
+        for (auto event : m_events)
+            gpuEventDestroy(event);
+        m_events.clear();
+    }
+
     // Walk the ladder: run the first registered strategy that is enabled and,
     // for a hierarchical one, whose plan accepts this configuration.  When
     // none does, the lowest non-hierarchical strategy runs anyway, keeping
-    // its own reason.
+    // its own reason.  While autotuning explores a configuration, every
+    // candidate's plan is resolved and the exploration picks which one runs.
     KernelExecution prepare(op_set set, op_arg *args, int nargs,
                             bool global_reduction,
-                            const KernelExecutionOptions& options) {
+                            const KernelExecutionOptions& options,
+                            AutotuneCall& tune) {
         ExecutionSchedule schedule = section_schedule(set, global_reduction);
         int block_limit = 0;
         int block_size = 0;
@@ -948,10 +1280,16 @@ private:
         for (int i = 0; i < schedule.size(); ++i)
             sections[static_cast<std::size_t>(i)] = schedule[i];
 
+        for (auto& param : m_params)
+            param.update_inputs(args, nargs);
+
+        bool tuning = autotune_config.report && !options.force.has_value();
         std::array<FallbackReason, strategy_count> skipped{};
+        std::array<FallbackReason, strategy_count> rejected{};
+        std::array<bool, strategy_count> accepted{};
+        std::array<const detail::HierPlanCacheEntry *, strategy_count> entries{};
         std::optional<Strategy> selected;
         std::optional<Strategy> floor;
-        const detail::HierPlanCacheEntry *entry = nullptr;
         bool started = !options.force.has_value();
 
         for (Strategy strategy : strategies) {
@@ -962,15 +1300,20 @@ private:
                 floor = strategy;
 
             started |= options.force == strategy;
-            if (!started || selected.has_value())
+            if (!started || (selected.has_value() && !tuning))
                 continue;
 
+            auto index = strategy_index(strategy);
             bool forced = options.force == strategy;
-            auto& reason = skipped[strategy_index(strategy)];
-            if (!forced && !strategy_config.enabled(strategy))
-                reason = FallbackReason::disabled;
+            bool enabled = forced || strategy_config.enabled(strategy);
+            // Autotuning also times strategies the defaults leave off, but
+            // never one its variable turns off.
+            bool candidate = tuning && strategy_config.settings[index] !=
+                                           StrategySetting::off;
 
-            if (reason == FallbackReason::none && impl->groups.has_value()) {
+            auto plan_reason = FallbackReason::none;
+            if (impl->groups.has_value() &&
+                ((enabled && !selected.has_value()) || candidate)) {
                 const auto& cached = get_hier_plan(
                     strategy, set,
                     std::span<const op_arg>{args,
@@ -979,21 +1322,33 @@ private:
                         sections.data(),
                         static_cast<std::size_t>(schedule.size())},
                     block_size);
-                reason = cached.reason();
+                plan_reason = cached.reason();
                 if (cached)
-                    entry = &cached;
+                    entries[index] = &cached;
             }
 
-            if (reason == FallbackReason::none)
-                selected = strategy;
+            accepted[index] = candidate && plan_reason == FallbackReason::none;
+            rejected[index] = candidate ? plan_reason : FallbackReason::disabled;
+
+            if (!selected.has_value()) {
+                auto reason = enabled ? plan_reason : FallbackReason::disabled;
+                if (reason == FallbackReason::none)
+                    selected = strategy;
+                else
+                    skipped[index] = reason;
+            }
         }
 
         assert(selected.has_value() || floor.has_value());
-        Strategy strategy = selected.value_or(*floor);
+        Strategy ladder = selected.value_or(*floor);
+        Strategy strategy =
+            tuning ? autotune_choose(set, args, nargs, global_reduction, ladder,
+                                     accepted, rejected, tune)
+                   : ladder;
 
         const HierPlan *plan = nullptr;
         HierPlanDeviceView plan_device;
-        if (entry != nullptr) {
+        if (const auto *entry = entries[strategy_index(strategy)]) {
             plan = entry->plan();
             plan_device = entry->device_view();
 
@@ -1020,10 +1375,29 @@ private:
                     execution.max_blocks, execution.num_blocks(i, launch));
 
         for (auto& param : m_params)
-            param.update(args, nargs, execution);
+            param.update_global_stride(execution.block_size *
+                                       execution.max_blocks);
 
-        report_selection(strategy, skipped);
-        execution.jit_kernel = get_kernel(*variant(strategy));
+        report_selection(ladder, skipped);
+        auto& impl = *variant(strategy);
+        execution.jit_kernel = get_kernel(impl, tune.state != nullptr);
+
+        // A candidate is timed with the kernel a production run would use:
+        // its JIT kernel, once compiled, when JIT applies to it.
+        if (tune.state != nullptr) {
+            auto index = strategy_index(strategy);
+            bool jit_expected = jit_enable && is_jit_candidate(impl);
+            if (jit_expected && execution.jit_kernel == nullptr) {
+                // Waiting on a compile already under way is not an attempt.
+                if (jit_compiling(impl))
+                    --tune.state->attempts[index];
+                tune.state = nullptr;
+            }
+            else if (tune.state->warmups[index] < autotune_config.warmup)
+                ++tune.state->warmups[index];
+            else
+                tune.timed = true;
+        }
 
         return execution;
     }
@@ -1161,8 +1535,12 @@ public:
         bool global_output = has_global_output(args, nargs);
 
         op_profile_next("Get Kernel");
-        auto execution = prepare(set, args, nargs, global_reduction, options);
+        AutotuneCall tune;
+        auto execution =
+            prepare(set, args, nargs, global_reduction, options, tune);
         const auto& schedule = execution.schedule;
+        if (tune.timed)
+            ensure_events(2 * static_cast<std::size_t>(schedule.size()));
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
@@ -1178,7 +1556,10 @@ public:
         op_profile_next("Computation");
         op_profile_enter("Kernel");
 
+        // A timed call brackets each section's launches with an event pair, so
+        // the halo wait and global processing between sections stay out.
         bool exit_sync = false;
+        int timed_pairs = 0;
         for (int section_index = 0; section_index < schedule.size();
              ++section_index) {
             if (schedule.wait_before(section_index)) {
@@ -1188,6 +1569,11 @@ public:
             }
 
             auto section = schedule[section_index];
+            bool timing = tune.timed && section.size() > 0 &&
+                          execution.launches(section_index) > 0;
+            if (timing)
+                CUDA_SAFE_CALL(gpuEventRecord(m_events[2 * timed_pairs], 0));
+
             for (int launch_index = 0;
                  section.size() > 0 &&
                  launch_index < execution.launches(section_index);
@@ -1219,6 +1605,10 @@ public:
                     });
             }
 
+            if (timing)
+                CUDA_SAFE_CALL(
+                    gpuEventRecord(m_events[2 * timed_pairs++ + 1], 0));
+
             if (global_output &&
                 schedule.process_globals_after(section_index)) {
                 op_profile_next("Process GBLs");
@@ -1234,6 +1624,10 @@ public:
             op_mpi_wait_all(nargs, args);
             op_profile_next("Kernel");
         }
+
+        if (tune.timed)
+            autotune_sample(tune, execution.strategy, timed_pairs,
+                            execution.jit_kernel != nullptr);
 
         op_profile_exit();
         op_profile_exit();

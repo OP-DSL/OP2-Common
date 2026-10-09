@@ -48,6 +48,7 @@ _op2_preprocess_fortran(
 # all of them profile.
 set(_op2_core_srcs
     "${_src}/core/op_lib_core.cpp"
+    "${_src}/core/op_autotune.cpp"
     "${_src}/core/op_hier_plan.cpp"
     "${_src}/core/op_hier_atomics_plan.cpp"
     "${_src}/core/op_hier_staging.cpp"

@@ -52,6 +52,9 @@
 
 #define gpuStreamCreateWithFlags cudaStreamCreateWithFlags
 #define gpuEventCreateWithFlags cudaEventCreateWithFlags
+#define gpuEventCreate cudaEventCreate
+#define gpuEventDestroy cudaEventDestroy
+#define gpuEventElapsedTime cudaEventElapsedTime
 #define gpuEventRecord cudaEventRecord
 #define gpuEventSynchronize cudaEventSynchronize
 #define gpuStreamWaitEvent cudaStreamWaitEvent
@@ -149,6 +152,9 @@
 
 #define gpuStreamCreateWithFlags hipStreamCreateWithFlags
 #define gpuEventCreateWithFlags hipEventCreateWithFlags
+#define gpuEventCreate hipEventCreate
+#define gpuEventDestroy hipEventDestroy
+#define gpuEventElapsedTime hipEventElapsedTime
 #define gpuEventRecord hipEventRecord
 #define gpuEventSynchronize hipEventSynchronize
 #define gpuStreamWaitEvent hipStreamWaitEvent
