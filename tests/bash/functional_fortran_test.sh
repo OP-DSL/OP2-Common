@@ -13,6 +13,7 @@ RUN_TESTS=${RUN_TESTS:-FALSE}
 
 TEST_CONSTS=${TEST_CONSTS:-TRUE}
 TEST_DAT_REDUC=${TEST_DAT_REDUC:-TRUE}
+TEST_DAT_RW=${TEST_DAT_RW:-TRUE}
 TEST_ARG_GBL=${TEST_ARG_GBL:-TRUE}
 TEST_STRIDES=${TEST_STRIDES:-TRUE}
 TEST_ARG_IDX=${TEST_ARG_IDX:-TRUE}
@@ -111,6 +112,43 @@ if [[ "$TEST_DAT_REDUC" = "TRUE" ]]; then
         validate "mpirun -np 4" "reduc_tests_soa_par_mpi_c_cuda" "" "passed"
         validate "" "reduc_tests_soa_seq" "" "passed"
         validate "" "reduc_tests_soa_genseq" "" "passed"
+    fi
+fi
+
+# Compile and run indirect read-write tests ---------------------------------------------
+if [[ "$TEST_DAT_RW" = "TRUE" ]]; then
+
+    cd $SCRIPT_RUN_LOC/../functional/dat_read_write_fortran
+
+    if [[ "$COMPILE_TESTS" = "TRUE" ]]; then
+        echo "Compiling App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        
+        make clean; 
+        make;
+    fi
+
+    if [[ "$RUN_TESTS" = "TRUE" ]]; then
+        echo "Running tests on App: $PWD" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+        echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
+
+        validate "" "rw_tests_c_cuda" "" "passed"
+        validate "mpirun -np 8" "rw_tests_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "rw_tests_par_mpi_genseq" "" "passed"
+        validate "mpirun -np 4" "rw_tests_par_mpi_c_cuda" "" "passed"
+        validate "" "rw_tests_seq" "" "passed"
+        validate "" "rw_tests_genseq" "" "passed"
+
+        # validate "" "rw_tests_cuda" "" "passed"
+        # validate "mpirun -np 4" "rw_tests_par_mpi_cuda" "" "passed"
+        # validate "" "rw_tests_soa_cuda" "" "passed"
+        # validate "mpirun -np 4" "rw_tests_soa_par_mpi_cuda" "" "passed"
+
+        validate "" "rw_tests_soa_c_cuda" "" "passed"
+        validate "mpirun -np 8" "rw_tests_soa_par_mpi_seq" "" "passed"
+        validate "mpirun -np 8" "rw_tests_soa_par_mpi_genseq" "" "passed"
+        validate "mpirun -np 4" "rw_tests_soa_par_mpi_c_cuda" "" "passed"
+        validate "" "rw_tests_soa_seq" "" "passed"
+        validate "" "rw_tests_soa_genseq" "" "passed"
     fi
 fi
 

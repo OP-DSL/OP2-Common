@@ -8,8 +8,8 @@ add_subdirectory(idx)
 add_subdirectory(put_data)
 
 if(CMAKE_Fortran_COMPILER)
-    # Five Fortran test sources do `use mpi` - the tests' own dependency, found
-    # here rather than by the OP2 build. Four guard it with #ifdef USE_MPI, so
+    # Six Fortran test sources do `use mpi` - the tests' own dependency, found
+    # here rather than by the OP2 build. Five guard it with #ifdef USE_MPI, so
     # without MPI Fortran those directories build their serial families only;
     # put_data_fortran does not, having no serial families to fall back on, so
     # the same exclusion drops that directory entirely.
@@ -24,6 +24,7 @@ if(CMAKE_Fortran_COMPILER)
 
     add_subdirectory(const_fortran)
     add_subdirectory(dat_reductions_fortran)
+    add_subdirectory(dat_read_write_fortran)
     add_subdirectory(gbl_fortran)
     add_subdirectory(strides_fortran)
     add_subdirectory(idx_fortran)
