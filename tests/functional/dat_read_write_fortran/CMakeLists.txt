@@ -5,4 +5,5 @@ op2_add_functional_tests(
     LANGUAGE fortran
     SOURCES  rw_kernels.F90 rw_tests.F90
     EXCLUDE_VARIANTS openmp mpi_openmp ${OP2_TEST_MPI_FORTRAN_EXCLUDE}
-    LINK_LIBRARIES   ${OP2_TEST_MPI_FORTRAN_LINK})
+    LINK_LIBRARIES   ${OP2_TEST_MPI_FORTRAN_LINK}
+    STRATEGIES       hier_atomics atomics hier_colouring colouring)

@@ -22,6 +22,9 @@
 #     [LINK_LIBRARIES <lib...>]    # linked to every executable created here,
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
+#     [STRATEGIES <s...>]          # also run each c_cuda/c_hip variant once per
+#                                  # execution strategy, forced through its
+#                                  # environment, as <target>_<strategy>
 # )
 #
 # NAME is not a parameter - it's always derived from the calling directory's
@@ -29,11 +32,27 @@
 # dat_reductions_par_mpi_seq, ...), so a directory can't drift onto some
 # other naming convention.
 # ---------------------------------------------------------------------------
+# The environment that makes a strategy the highest enabled one: everything
+# above it in the ladder off, itself on.
+function(_op2_strategy_environment _strategy _out)
+    set(_above "")
+    foreach(_s hier_atomics atomics hier_colouring colouring)
+        string(TOUPPER "OP_${_s}" _var)
+        if(_s STREQUAL _strategy)
+            list(APPEND _above "${_var}=1")
+            set(${_out} "${_above}" PARENT_SCOPE)
+            return()
+        endif()
+        list(APPEND _above "${_var}=0")
+    endforeach()
+    message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
+endfunction()
+
 function(op2_add_functional_tests)
     cmake_parse_arguments(_A
         "MPI_ONLY"
         "LANGUAGE;MPI_RANKS_LOWCOST;MPI_RANKS_GPU;OMP_NUM_THREADS"
-        "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES"
+        "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES;STRATEGIES"
         ${ARGN})
 
     if(NOT _A_MPI_RANKS_LOWCOST)
@@ -174,6 +193,17 @@ function(op2_add_functional_tests)
             if(_v MATCHES "^(mpi_)?openmp$")
                 set_tests_properties(${_tgt} PROPERTIES
                     ENVIRONMENT "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
+            endif()
+
+            if(_v MATCHES "^(mpi_)?(c_cuda|c_hip)$")
+                foreach(_strategy IN LISTS _A_STRATEGIES)
+                    _op2_strategy_environment(${_strategy} _env)
+                    add_test(NAME ${_tgt}_${_strategy} COMMAND ${_cmd})
+                    set_tests_properties(${_tgt}_${_strategy} PROPERTIES
+                        LABELS      "${_labels};strategy"
+                        PROCESSORS  "${_nproc}"
+                        ENVIRONMENT "${_env}")
+                endforeach()
             endif()
         endforeach()
     endif()
