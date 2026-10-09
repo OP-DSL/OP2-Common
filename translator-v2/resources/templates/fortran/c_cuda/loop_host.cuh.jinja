@@ -335,8 +335,12 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
                 __syncthreads();
             }
     {% else %}
+            const int op2_n = n;
             for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
                 if (op2_colour == op2_pass) {
+                    // Opaque, so this element's address arithmetic is not
+                    // hoisted out of the pass loop and kept live through it.
+                    const int n = f2c::opaque(op2_n);
                     {{kernel_call(jit, "hier_colouring")|indent(20)}}
                 }
 

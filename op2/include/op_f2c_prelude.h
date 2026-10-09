@@ -167,6 +167,16 @@ DEVICE inline void plain_inc(T& target, U value) {
     target = static_cast<T>(target + value);
 }
 
+// Return x unchanged, but opaque to the optimiser.
+DEVICE inline int opaque(int x) {
+#if defined(__CUDA_ARCH__)
+    asm volatile("" : "+r"(x));
+#elif defined(__HIP_DEVICE_COMPILE__)
+    asm volatile("" : "+v"(x));
+#endif
+    return x;
+}
+
 // Store an exclusive owner's slot back to its target.
 template<typename T>
 DEVICE inline void hier_smem_store(HierSmemStageWord word, Ptr<T> target,
