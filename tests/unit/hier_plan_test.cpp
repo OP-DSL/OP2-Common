@@ -782,6 +782,51 @@ void test_colour_random() {
     check_colouring(*result.plan, args, descriptor, sections);
 }
 
+// A read-only group is staged but never coloured: every element reads one hub
+// target, which would otherwise force one colour per element.
+void test_colour_read_only_group() {
+    ChainFixture fixture(16);
+    op_set_core hub_set{};
+    op_dat_core hub{};
+    op_map_core hub_map{};
+    std::vector<int> hub_values(16, 0);
+    initialize_set(hub_set, 1);
+    initialize_dat(hub, &hub_set, 3, sizeof(double), "real(8)");
+    initialize_map(hub_map, &fixture.edges, &hub_set, hub_values);
+    fixture.args.push_back(make_dat_arg(&hub, &hub_map, 3, "real(8)",
+                                        sizeof(double), 1, OP_READ));
+
+    std::array<f2c::HierArgDescriptor, 3> arg_desc{{{0, 0}, {1, 0}, {2, 1}}};
+    std::array<f2c::HierScalarType, 2> dat_desc{{
+        f2c::HierScalarType::i32,
+        f2c::HierScalarType::f64,
+    }};
+    std::array<bool, 2> read_only{{false, true}};
+    std::array<f2c::ExecutionSection, 1> sections{{{0, 16}}};
+    f2c::HierArgGroups groups{arg_desc, dat_desc, -1, read_only};
+
+    auto result = f2c::build_hier_colouring_plan(
+        &fixture.edges, fixture.args, sections, groups, {4, 4, 1 << 16});
+    CHECK(result);
+    const auto& plan = *result.plan;
+    const auto& colouring = *plan.colouring;
+
+    // Exactly the chain's colouring, as if the hub were not there.
+    CHECK((colouring.chunk_order == std::vector<int>{0, 2, 1, 3}));
+    CHECK((colouring.chunk_thread_colours == std::vector<int>{2, 2, 2, 2}));
+
+    // The hub is one staged slot per chunk, owned by the chunk's first element.
+    for (std::size_t chunk = 0; chunk < plan.num_chunks(); ++chunk)
+        CHECK(plan.staging->stage_counts[chunk * 2 + 1] == 1);
+    for (int edge = 0; edge < 16; ++edge) {
+        auto word = plan.staging->stage_words[
+            2 * static_cast<std::size_t>(plan.set_stride) +
+            static_cast<std::size_t>(edge)];
+        CHECK(f2c::hier_smem_stage_slot(word) == 0);
+        CHECK(f2c::hier_smem_stage_owner(word) == (edge % 4 == 0));
+    }
+}
+
 void test_colour_fallbacks() {
     {
         ChainFixture fixture(8);
@@ -873,6 +918,7 @@ int main() {
         test_colour_chain_blocks();
         test_colour_rounds_and_limit();
         test_colour_random();
+        test_colour_read_only_group();
         test_colour_fallbacks();
         test_packed_word_boundaries();
         test_plan_owner_lifecycle();

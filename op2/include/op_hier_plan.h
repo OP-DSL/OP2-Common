@@ -40,6 +40,14 @@ struct HierArgGroups {
     // Scalar type of each dat group, in shared-region order.
     std::span<const HierScalarType> dats;
     int chunk_size_override = -1;
+    // Per dat group, whether it is only read: staged so its targets are
+    // gathered once per chunk, but never coloured or flushed.  Empty when no
+    // group is.
+    std::span<const bool> read_only = {};
+
+    bool is_read_only(std::size_t dat_index) const {
+        return dat_index < read_only.size() && read_only[dat_index];
+    }
 };
 
 // Why a strategy passed a loop down the ladder.  These are stable diagnostic

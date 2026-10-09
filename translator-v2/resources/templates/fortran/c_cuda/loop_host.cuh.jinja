@@ -40,8 +40,29 @@
         {%- set group_ids.hier_colouring = group_ids.hier_colouring + [arg.dat_id] -%}
     {%- endif -%}
 {%- endfor -%}
-{%- set group_args = {"hier_atomics": args_hier_atomics, "hier_colouring": args_hier_colouring} -%}
-{%- set group_dats = {"hier_atomics": group_ids.hier_atomics, "hier_colouring": group_ids.hier_colouring} -%}
+{#- Dats the loop only reads, through indirect arguments a plan can group:
+    hier_colouring stages them as read-only groups after its coloured ones, so
+    a chunk gathers each target once.  Every argument on such a dat must be
+    groupable, since an ungrouped one on a grouped dat is rejected. -#}
+{%- set read_groups = namespace(ids=[], args=[]) -%}
+{%- for dat in lh.dats if dat is read_in(lh) -%}
+    {%- set dat_args = lh.args|dat|selectattr("dat_id", "eq", dat.id)|list -%}
+    {%- set eligible = namespace(ok=dat_args|length > 0) -%}
+    {%- for arg in dat_args -%}
+        {%- set typ = dat.typ -%}
+        {%- if arg is not indirect(lh) or arg is vec or not ((typ is instance(OP.Float) and typ.size in [32, 64]) or (typ is instance(OP.Int) and typ.signed and typ.size == 32)) -%}
+            {%- set eligible.ok = false -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {%- if eligible.ok -%}
+        {%- set read_groups.ids = read_groups.ids + [dat.id] -%}
+        {%- set read_groups.args = read_groups.args + dat_args -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set args_hier_colouring_reads = lh.args|select("in", read_groups.args)|list -%}
+
+{%- set group_args = {"hier_atomics": args_hier_atomics, "hier_colouring": args_hier_colouring + args_hier_colouring_reads} -%}
+{%- set group_dats = {"hier_atomics": group_ids.hier_atomics, "hier_colouring": group_ids.hier_colouring + read_groups.ids} -%}
 
 {#- Whether hierarchical colouring can compute every element of a chunk at
     once: its groups only increment and read, and every increment's dimension
@@ -424,9 +445,12 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 
         __syncthreads();
 
-        // One write per distinct target reaches global memory.
+        // One write per distinct target reaches global memory; read-only
+        // groups have nothing to write.
     {% for arg in grouped %}
+        {% if arg not in args_hier_colouring_reads %}
 {{- hier_smem_flush(strategy, arg, loop.index0)}}
+        {% endif %}
     {% endfor %}
 
         // Keep the next iteration from reusing memory a warp is still
@@ -766,6 +790,13 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
             {{group_dats[strategy]|index(arg.dat_id)}} },
         {% endfor %}
     };
+    {% if strategy == "hier_colouring" %}
+    static constexpr std::array<bool, {{group_dats[strategy]|length}}> {{strategy}}_read_only = {
+        {% for dat_id in group_dats[strategy] %}
+        {{"true" if dat_id in read_groups.ids else "false"}},
+        {% endfor %}
+    };
+    {% endif %}
     static constexpr std::array {{strategy}}_dats = {
         {% for dat_id in group_dats[strategy] %}
         {{hier_smem_scalar_type(lh.dat(dat_id))}},
@@ -779,7 +810,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
         op2_k_{{lh.name}}{{variant}}_{{strategy}}_src{{"," if strategy in ["hier_atomics", "hier_colouring"] else ");"}}
     {% if strategy in ["hier_atomics", "hier_colouring"] %}
         op::f2c::HierArgGroups{
-            {{strategy}}_args, {{strategy}}_dats, chunk_size});
+            {{strategy}}_args, {{strategy}}_dats, chunk_size{{", " ~ strategy ~ "_read_only" if strategy == "hier_colouring"}}});
     {% endif %}
 {% endfor %}
     return true;

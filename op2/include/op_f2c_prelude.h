@@ -142,8 +142,8 @@ DEVICE inline void hier_smem_clear(T *region, IndexType elements,
 
 // Seed an exclusive owner's slot from its target's current value, so the
 // flush below can store rather than read-modify-write.
-template<typename T>
-DEVICE inline void hier_smem_seed(HierSmemStageWord word, Ptr<T> target,
+template<typename T, typename Source>
+DEVICE inline void hier_smem_seed(HierSmemStageWord word, Ptr<Source> target,
                                   T *region, IndexType count, IndexType dim) {
     IndexType slot = (IndexType)hier_smem_stage_slot(word);
     for (IndexType c = 0; c < dim; ++c)

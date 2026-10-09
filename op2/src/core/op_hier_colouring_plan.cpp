@@ -81,13 +81,14 @@ HierPlanBuildResult build_hier_colouring_plan(
     assert(!sections.empty() && sections.front().start == 0);
     assert(sections.back().end == set->size + set->exec_size);
 
-    // The active coloured arguments, each with its dat group.
+    // The active coloured arguments, each with its dat group.  Read-only
+    // groups are staged but not coloured: reads of one target never conflict.
     std::vector<std::pair<const op_arg *, std::size_t>> coloured;
     for (const auto& arg_desc : groups.args) {
         const op_arg& arg = args[static_cast<std::size_t>(arg_desc.arg_index)];
-        if (arg.opt != 0)
-            coloured.push_back(
-                {&arg, static_cast<std::size_t>(arg_desc.dat_index)});
+        auto dat = static_cast<std::size_t>(arg_desc.dat_index);
+        if (arg.opt != 0 && !groups.is_read_only(dat))
+            coloured.push_back({&arg, dat});
     }
     const std::size_t per_element = coloured.size();
 
