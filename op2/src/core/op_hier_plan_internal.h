@@ -17,6 +17,16 @@ struct ResolvedDat {
     // Doubles as the region's alignment: every supported scalar type has
     // alignof == sizeof.
     std::size_t scalar_size = 0;
+    // A read-only group is seeded but never flushed, and is staged only when
+    // the plan's variants ask for it.
+    bool read_only = false;
+    bool staged = true;
+};
+
+// A direct argument staged as one region slot per chunk element.
+struct ResolvedDirect {
+    int dimension = 0;
+    std::size_t scalar_size = 0;
 };
 
 struct ResolvedInput {
@@ -25,6 +35,7 @@ struct ResolvedInput {
     std::span<const op_arg> args;
     std::span<const HierArgDescriptor> arg_descriptors;
     std::vector<ResolvedDat> dats;
+    std::vector<ResolvedDirect> direct;
 };
 
 // Resolve generated metadata and runtime identities into canonical plan input.

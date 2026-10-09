@@ -16,7 +16,7 @@ namespace {
 // against, so plain size_t arithmetic cannot wrap here.
 std::size_t calculate_shared_bytes(
     const ResolvedInput& resolved,
-    const std::vector<std::vector<int>>& touched) {
+    const std::vector<std::vector<int>>& touched, int chunk_length) {
     std::size_t shared_bytes = 0;
     for (std::size_t dat_index = 0; dat_index < resolved.dats.size();
          ++dat_index) {
@@ -30,6 +30,15 @@ std::size_t calculate_shared_bytes(
                         dat.scalar_size;
     }
 
+    // Staged direct data follows: a slot per chunk element.
+    for (const auto& direct : resolved.direct) {
+        std::size_t alignment = direct.scalar_size;
+        shared_bytes = (shared_bytes + alignment - 1) & ~(alignment - 1);
+        shared_bytes += static_cast<std::size_t>(chunk_length) *
+                        static_cast<std::size_t>(direct.dimension) *
+                        direct.scalar_size;
+    }
+
     return shared_bytes;
 }
 
@@ -40,6 +49,8 @@ std::size_t alignment_slack(const ResolvedInput& resolved) {
     for (std::size_t dat_index = 1; dat_index < resolved.dats.size();
          ++dat_index)
         slack += resolved.dats[dat_index].scalar_size - 1;
+    for (const auto& direct : resolved.direct)
+        slack += direct.scalar_size - 1;
 
     return slack;
 }
@@ -56,13 +67,17 @@ std::size_t bytes_per_source_element(const ResolvedInput& resolved) {
     for (std::size_t dat_index = 0; dat_index < resolved.dats.size();
          ++dat_index) {
         const auto& dat = resolved.dats[dat_index];
-        if (dat.dat == nullptr)
+        if (dat.dat == nullptr || !dat.staged)
             continue;
 
         // Each active argument can reach one distinct target per element.
         total += args_per_dat[dat_index] *
                  static_cast<std::size_t>(dat.dimension) * dat.scalar_size;
     }
+
+    for (const auto& direct : resolved.direct)
+        total += static_cast<std::size_t>(direct.dimension) *
+                 direct.scalar_size;
 
     return total;
 }
@@ -82,7 +97,8 @@ int staged_chunk_size(const ResolvedInput& resolved,
                             : 0;
 
     std::size_t per_element = bytes_per_source_element(resolved);
-    assert(per_element > 0);
+    if (per_element == 0)
+        return resolved.requested_chunk_size;
 
     auto capacity = static_cast<long long>(limit / per_element);
     long long blocks = capacity / options.block_size;
@@ -165,11 +181,12 @@ void build_staging(const ResolvedInput& resolved,
                         resolved.arg_descriptors[staged_arg];
                     const op_arg& arg = resolved.args[static_cast<std::size_t>(
                         arg_desc.arg_index)];
-                    if (arg.opt == 0)
-                        continue;
-
                     const auto dat_index = static_cast<std::size_t>(
                         arg_desc.dat_index);
+                    const auto& dat = resolved.dats[dat_index];
+                    if (arg.opt == 0 || !dat.staged)
+                        continue;
+
                     int target = arg_target(arg, source);
                     // op_decl_map validates targets, and the baseline wrapper
                     // indexes just as blindly as this does.
@@ -197,10 +214,16 @@ void build_staging(const ResolvedInput& resolved,
                         staged_arg * static_cast<std::size_t>(plan.set_stride) +
                         static_cast<std::size_t>(source);
                     // Every owner is exclusive when the caller keeps
-                    // concurrent chunks off each other's targets.
+                    // concurrent chunks off each other's targets.  A read-only
+                    // owner always is: it is seeded and never flushed.
                     bool all = exclusive == ExclusiveOwners::all;
                     staging.stage_words[word_index] = hier_smem_pack_stage_word(
-                        static_cast<std::uint32_t>(slot), owner, owner && all);
+                        static_cast<std::uint32_t>(slot), owner,
+                        owner && (all || dat.read_only));
+                    if (dat.read_only) {
+                        plan.statistics.read_targets += owner ? 1 : 0;
+                        continue;
+                    }
                     if (owner && all)
                         ++plan.statistics.exclusive_owners;
 
@@ -214,11 +237,14 @@ void build_staging(const ResolvedInput& resolved,
                 staging.stage_counts.push_back(
                     static_cast<int>(touched[dat_index].size()));
 
-                plan.statistics.distinct_targets += touched[dat_index].size();
+                if (!resolved.dats[dat_index].read_only)
+                    plan.statistics.distinct_targets +=
+                        touched[dat_index].size();
             }
 
             section_shared_bytes = std::max(
-                section_shared_bytes, calculate_shared_bytes(resolved, touched));
+                section_shared_bytes,
+                calculate_shared_bytes(resolved, touched, end - start));
 
             plan.source_offsets.push_back(end);
             start = end;
@@ -237,7 +263,9 @@ void build_staging(const ResolvedInput& resolved,
                         resolved.arg_descriptors[staged_arg];
                     const op_arg& arg = resolved.args[static_cast<std::size_t>(
                         arg_desc.arg_index)];
-                    if (arg.opt == 0)
+                    const auto& dat = resolved.dats[static_cast<std::size_t>(
+                        arg_desc.dat_index)];
+                    if (arg.opt == 0 || !dat.staged || dat.read_only)
                         continue;
 
                     std::size_t word_index =

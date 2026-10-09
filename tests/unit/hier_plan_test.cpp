@@ -821,11 +821,23 @@ void test_colour_read_only_group() {
     std::array<f2c::ExecutionSection, 1> sections{{{0, 16}}};
     f2c::HierArgGroups groups{arg_desc, dat_desc, -1, read_only};
 
-    auto result = f2c::build_hier_colouring_plan(
+    // Unless the plan's variants stage reads, the read-only group gets no
+    // slots at all.
+    auto unstaged = f2c::build_hier_colouring_plan(
         &fixture.edges, fixture.args, sections, groups, {4, 4, 1 << 16});
+    CHECK(unstaged);
+    for (std::size_t chunk = 0; chunk < unstaged.plan->num_chunks(); ++chunk)
+        CHECK(unstaged.plan->staging->stage_counts[chunk * 2 + 1] == 0);
+    CHECK(unstaged.plan->statistics.read_targets == 0);
+
+    f2c::HierPlanOptions options{4, 4, 1 << 16};
+    options.variants = f2c::hier_variant_stage_reads;
+    auto result = f2c::build_hier_colouring_plan(
+        &fixture.edges, fixture.args, sections, groups, options);
     CHECK(result);
     const auto& plan = *result.plan;
     const auto& colouring = *plan.colouring;
+    CHECK(plan.statistics.read_targets == plan.num_chunks());
 
     // Exactly the chain's colouring, as if the hub were not there.
     CHECK((colouring.chunk_order == std::vector<int>{0, 2, 1, 3}));
@@ -841,6 +853,57 @@ void test_colour_read_only_group() {
         CHECK(f2c::hier_smem_stage_slot(word) == 0);
         CHECK(f2c::hier_smem_stage_owner(word) == (edge % 4 == 0));
     }
+}
+
+// Iterated greedy never needs more thread colours than the first greedy pass,
+// and the result must still be a valid colouring.
+void test_colour_recolour() {
+    constexpr int size = 1000;
+    constexpr int targets = 97;
+    op_set_core source{};
+    op_set_core target_set{};
+    op_dat_core dat{};
+    initialize_set(source, size);
+    initialize_set(target_set, targets);
+    initialize_dat(dat, &target_set, 1, sizeof(double), "real(8)");
+
+    std::uint32_t state = 777;
+    std::array<std::vector<int>, 3> values;
+    std::array<op_map_core, 3> maps{};
+    std::vector<op_arg> args;
+    for (std::size_t m = 0; m < maps.size(); ++m) {
+        for (int i = 0; i < size; ++i) {
+            state = state * 1664525u + 1013904223u;
+            values[m].push_back(static_cast<int>((state >> 8) % targets));
+        }
+        initialize_map(maps[m], &source, &target_set, values[m]);
+        args.push_back(make_dat_arg(&dat, &maps[m], 1, "real(8)",
+                                    sizeof(double), 1, OP_RW));
+    }
+    std::array<f2c::HierArgDescriptor, 3> arg_desc{{{0, 0}, {1, 0}, {2, 0}}};
+    std::array<f2c::HierScalarType, 1> dat_desc{{f2c::HierScalarType::f64}};
+    std::array<f2c::ExecutionSection, 1> sections{{{0, size}}};
+    f2c::HierArgGroups groups{arg_desc, dat_desc, -1};
+
+    f2c::HierPlanOptions plain{64, 64, 1 << 20};
+    f2c::HierPlanOptions recolour = plain;
+    recolour.variants = f2c::hier_variant_recolour;
+    auto first = f2c::build_hier_colouring_plan(&source, args, sections, groups,
+                                                plain);
+    auto again = f2c::build_hier_colouring_plan(&source, args, sections, groups,
+                                                recolour);
+    CHECK(first && again);
+    int first_total = 0;
+    int again_total = 0;
+    for (std::size_t chunk = 0; chunk < first.plan->num_chunks(); ++chunk) {
+        int a = first.plan->colouring->chunk_thread_colours[chunk];
+        int b = again.plan->colouring->chunk_thread_colours[chunk];
+        CHECK(b <= a);
+        first_total += a;
+        again_total += b;
+    }
+    CHECK(again_total <= first_total);
+    check_colouring(*again.plan, args, groups, sections);
 }
 
 void test_colour_fallbacks() {
@@ -935,6 +998,7 @@ int main() {
         test_colour_rounds_and_limit();
         test_colour_random();
         test_colour_read_only_group();
+        test_colour_recolour();
         test_colour_fallbacks();
         test_packed_word_boundaries();
         test_plan_owner_lifecycle();

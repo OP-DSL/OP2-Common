@@ -40,10 +40,11 @@
         {%- set group_ids.hier_colouring = group_ids.hier_colouring + [arg.dat_id] -%}
     {%- endif -%}
 {%- endfor -%}
-{#- Dats the loop only reads, through indirect arguments a plan can group:
-    hier_colouring stages them as read-only groups after its coloured ones, so
-    a chunk gathers each target once.  Every argument on such a dat must be
-    groupable, since an ungrouped one on a grouped dat is rejected. -#}
+{#- Dats the loop only reads, through indirect arguments a plan can group.
+    Both hierarchical strategies list them as read-only groups after their own,
+    staged at run time when OP_HIER_<STRATEGY>_STAGE_READS asks, so a chunk
+    gathers each target once.  Every argument on such a dat must be groupable,
+    since an ungrouped one on a grouped dat is rejected. -#}
 {%- set read_groups = namespace(ids=[], args=[]) -%}
 {%- for dat in lh.dats if dat is read_in(lh) -%}
     {%- set dat_args = lh.args|dat|selectattr("dat_id", "eq", dat.id)|list -%}
@@ -59,23 +60,30 @@
         {%- set read_groups.args = read_groups.args + dat_args -%}
     {%- endif -%}
 {%- endfor -%}
-{%- set args_hier_colouring_reads = lh.args|select("in", read_groups.args)|list -%}
+{%- set args_hier_reads = lh.args|select("in", read_groups.args)|list -%}
 
-{%- set group_args = {"hier_atomics": args_hier_atomics, "hier_colouring": args_hier_colouring + args_hier_colouring_reads} -%}
-{%- set group_dats = {"hier_atomics": group_ids.hier_atomics, "hier_colouring": group_ids.hier_colouring + read_groups.ids} -%}
+{#- Direct arguments on dats the loop only reads, which hierarchical colouring
+    stages per chunk when OP_HIER_COLOURING_STAGE_DIRECT asks. -#}
+{%- set direct_reads = namespace(args=[]) -%}
+{%- for arg in lh.args|dat|direct(lh) -%}
+    {%- set typ = lh.dat(arg).typ -%}
+    {%- if lh.dat(arg) is read_in(lh) and ((typ is instance(OP.Float) and typ.size in [32, 64]) or (typ is instance(OP.Int) and typ.signed and typ.size == 32)) -%}
+        {%- set direct_reads.args = direct_reads.args + [arg] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set args_direct_reads = direct_reads.args -%}
+
+{%- set group_args = {"hier_atomics": args_hier_atomics + args_hier_reads, "hier_colouring": args_hier_colouring + args_hier_reads} -%}
+{%- set group_dats = {"hier_atomics": group_ids.hier_atomics + read_groups.ids, "hier_colouring": group_ids.hier_colouring + read_groups.ids} -%}
 
 {#- Whether hierarchical colouring can compute every element of a chunk at
-    once: its groups only increment and read, and every increment's dimension
-    is known, so each thread can keep its increments in registers until its
-    colour's turn. -#}
+    once: its groups only increment and read, so each thread can keep its
+    increments in registers until its colour's turn.  Runtime dimensions are
+    bounded by f2c::hier_max_local_dim; a larger one, or
+    OP_HIER_COLOURING_SERIAL, runs the serialised shape instead. -#}
 {%- set colour_shape = namespace(parallel=true) -%}
 {%- for arg in args_hier_colouring -%}
     {%- if not (arg is inc or arg is read) -%}
-        {%- set colour_shape.parallel = false -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- for arg in args_hier_atomics -%}
-    {%- if lh.dat(arg).dim is none -%}
         {%- set colour_shape.parallel = false -%}
     {%- endif -%}
 {%- endfor -%}
@@ -138,7 +146,7 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
-{%- macro arg_to_pointer_cuda(arg, jit = false, staged = none, local = false) %}
+{%- macro arg_to_pointer_cuda(arg, jit = false, staged = none, local = false, preloaded = false) %}
     {%- if arg is idx and arg is indirect -%}
 idx{{arg.id}}
     {%- elif arg is idx -%}
@@ -149,25 +157,25 @@ idx
         {%- else -%}
             {%- set zero_type = lh.dat(arg).typ.c() -%}
         {%- endif -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : zero_{{zero_type}}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local, preloaded)}} : zero_{{zero_type}}
     {%- else -%}
-{{arg_to_pointer2(arg, jit, staged, local)}}
+{{arg_to_pointer2(arg, jit, staged, local, preloaded)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer2(arg, jit, staged = none, local = false) -%}
+{%- macro arg_to_pointer2(arg, jit, staged = none, local = false, preloaded = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
 op2_gbl{{arg.id}}_d
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 gbl{{arg.id}}
     {%- elif arg is scalar(lh) -%}
-{{arg_to_pointer3(arg, staged, local)}}.data[0]
+{{arg_to_pointer3(arg, staged, local, preloaded)}}.data[0]
     {%- else -%}
-{{arg_to_pointer3(arg, staged, local)}}
+{{arg_to_pointer3(arg, staged, local, preloaded)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg, staged = none, local = false) -%}
+{%- macro arg_to_pointer3(arg, staged = none, local = false, preloaded = false) -%}
     {%- if arg is info -%}
 f2c::Ptr{info{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
@@ -175,25 +183,26 @@ f2c::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg is gbl -%}
 f2c::Ptr{gbl{{arg.id}}}
     {%- else -%}
-{{arg_to_pointer4(arg, staged, local)}}
+{{arg_to_pointer4(arg, staged, local, preloaded)}}
     {%- endif -%}
 {%- endmacro -%}
 
 {#- A grouped argument's staged slot for element n; the region's slot count
-    is the stride between its components. -#}
-{%- macro hier_smem_slot(arg, strategy) -%}
+    is the stride between its components.  preloaded reads the slot an
+    OP_HIER_COLOURING_PRELOAD pass resolved before the colour passes. -#}
+{%- macro hier_smem_slot(arg, strategy, preloaded = false) -%}
     {%- set group = group_dats[strategy]|index(arg.dat_id) -%}
-f2c::Ptr{op2_stage{{group}} + f2c::hier_smem_stage_slot(stage_words[{{group_args[strategy]|index(arg)}} * stride + n]), op2_stage{{group}}_count}
+    {%- set index = group_args[strategy]|index(arg) -%}
+    {%- if preloaded -%}
+f2c::Ptr{op2_stage{{group}} + ((op2_variants & f2c::hier_variant_preload) ? op2_slot{{index}} : f2c::hier_smem_stage_slot(stage_words[{{index}} * stride + n])), op2_stage{{group}}_count}
+    {%- else -%}
+f2c::Ptr{op2_stage{{group}} + f2c::hier_smem_stage_slot(stage_words[{{index}} * stride + n]), op2_stage{{group}}_count}
+    {%- endif -%}
 {%- endmacro -%}
 
-{#- staged names the strategy whose group arguments point at their staged
-    slots; local points the indirect increments at per-thread registers. -#}
-{%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
-    {%- if local and arg in args_hier_atomics -%}
-f2c::Ptr{op2_local{{arg.id}}}
-    {%- elif staged is not none and arg in group_args[staged] -%}
-{{hier_smem_slot(arg, staged)}}
-    {%- elif arg is direct and lh.dat(arg) is soa -%}
+{#- An argument's global data for element n. -#}
+{%- macro arg_global_pointer(arg) -%}
+    {%- if arg is direct and lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
 f2c::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
@@ -204,8 +213,25 @@ f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
+{#- staged names the strategy whose group arguments point at their staged
+    slots; read-only and direct arguments do only when their variant staged
+    them.  local points the indirect increments at per-thread registers. -#}
+{%- macro arg_to_pointer4(arg, staged = none, local = false, preloaded = false) -%}
+    {%- if local and arg in args_hier_atomics -%}
+f2c::Ptr{op2_local{{arg.id}}}
+    {%- elif staged is not none and arg in args_hier_reads -%}
+((op2_variants & f2c::hier_variant_stage_reads) ? {{hier_smem_slot(arg, staged, preloaded)}} : {{arg_global_pointer(arg)}})
+    {%- elif staged is not none and arg in group_args[staged] -%}
+{{hier_smem_slot(arg, staged, preloaded)}}
+    {%- elif staged == "hier_colouring" and arg in args_direct_reads -%}
+((op2_variants & f2c::hier_variant_stage_direct) ? f2c::Ptr{op2_direct{{arg.id}} + (n - op2_source_begin), op2_chunk_length} : {{arg_global_pointer(arg)}})
+    {%- else -%}
+{{arg_global_pointer(arg)}}
+    {%- endif -%}
+{%- endmacro -%}
+
 {#- One call of the translated kernel for element n. -#}
-{%- macro kernel_call(jit, staged = none, local = false) -%}
+{%- macro kernel_call(jit, staged = none, local = false, preloaded = false) -%}
 {% if lh.args|idx|direct|length > 0 %}
 int idx = n + 1;
 {% endif %}
@@ -214,7 +240,7 @@ int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
 {% endfor %}
 {{lh.kernel}}(
 {% for arg in lh.args %}
-    {{arg_to_pointer_cuda(arg, jit, staged, local)}}{{"," if not loop.last}}
+    {{arg_to_pointer_cuda(arg, jit, staged, local, preloaded)}}{{"," if not loop.last}}
 {% endfor %}
 );
 {%- endmacro -%}
@@ -254,6 +280,11 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
+
+{% if "hier_atomics" in strategies or "hier_colouring" in strategies %}
+int op2_hier_variants;
+__constant__ int op2_hier_variants_d;
+{% endif %}
 {{kernel_namespaces()}}
 }
 
@@ -281,15 +312,24 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 
 {#- Seed every staged region through the single owner of each of its slots,
     in one pass over the chunk, so every argument's loads are in flight at
-    once rather than one argument's dependent chain after another's. -#}
+    once rather than one argument's dependent chain after another's.  The
+    same pass copies staged direct data. -#}
 {% macro hier_smem_seed_all(strategy, grouped) %}
         for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
              n += blockDim.x) {
 {% for arg in grouped %}
     {% set dat = lh.dat(arg) %}
     {% set group = group_dats[strategy]|index(arg.dat_id) %}
+    {% set guards = [] %}
     {% if arg is opt %}
-            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0) {
+        {% set guards = guards + ["((1 << %d) & opt_flags) != 0" % lh.optIdx(arg)] %}
+    {% endif %}
+    {% if arg in args_hier_reads %}
+        {# Unstaged reads have no slots, so skip their stage words entirely. #}
+        {% set guards = guards + ["(op2_variants & f2c::hier_variant_stage_reads) != 0"] %}
+    {% endif %}
+    {% if guards %}
+            if ({{guards|join(" && ")}}) {
     {% else %}
             {
     {% endif %}
@@ -301,6 +341,15 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
                 }
             }
 {% endfor %}
+{% if strategy == "hier_colouring" %}
+    {% for arg in args_direct_reads %}
+            if (op2_direct{{arg.id}} != nullptr) {
+                auto op2_source = {{arg_global_pointer(arg)}};
+                for (int c = 0; c < {{dat_dim_w(lh.dat(arg))}}; ++c)
+                    op2_direct{{arg.id}}[c * op2_chunk_length + (n - op2_source_begin)] = op2_source.data[c * op2_source.stride];
+            }
+    {% endfor %}
+{% endif %}
         }
 {% endmacro %}
 
@@ -324,19 +373,34 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         }
 {% endmacro %}
 
-{#- Apply a chunk's elements to their staged slots one thread colour at a
-    time.  In the parallel shape every element computes at once into
-    per-thread increments, and only applying them is coloured. -#}
-{%- macro hier_colour_passes(jit) %}
-        const int op2_colours = chunk_thread_colours[chunk];
+{#- A block-sized slice of the chunk: this thread's element and colour, and
+    the passes the slice needs.  OP_HIER_COLOURING_SORT takes the elements in
+    colour order, so a slice holds a contiguous colour range and runs only
+    those passes, which keeps chunks larger than a block from paying for every
+    colour in every slice. -#}
+{%- macro hier_colour_slice() -%}
+const int op2_position = op2_base + threadIdx.x;
+const bool op2_sorted = (op2_variants & f2c::hier_variant_sort) != 0;
+const int op2_n = op2_position >= op2_source_end ? -1
+                  : op2_sorted ? element_order[op2_position]
+                  : op2_position;
+const int op2_colour = op2_n >= 0 ? thread_colours[op2_n] : -1;
+const int op2_last = min(op2_base + (int)blockDim.x, op2_source_end) - 1;
+const int op2_first_pass = op2_sorted ? thread_colours[element_order[op2_base]] : 0;
+const int op2_end_pass = op2_sorted ? thread_colours[element_order[op2_last]] + 1 : op2_colours;
+{%- endmacro %}
+
+{#- The parallel shape: every element of a block-sized slice computes at once
+    into per-thread increments, then they are added into the staged slots one
+    thread colour at a time. -#}
+{%- macro hier_colour_parallel_passes(jit) %}
         for (int op2_base = op2_source_begin; op2_base < op2_source_end;
              op2_base += blockDim.x) {
-    {% if hier_colouring_parallel %}
-            const int n = op2_base + threadIdx.x;
-            const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
-        {% for arg in args_hier_atomics %}
-            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{lh.dat(arg).dim}}] = {};
-        {% endfor %}
+            {{hier_colour_slice()|indent(12)}}
+            const int n = op2_n;
+    {% for arg in args_hier_atomics %}
+            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{lh.dat(arg).dim if lh.dat(arg).dim is not none else "f2c::hier_max_local_dim"}}] = {};
+    {% endfor %}
 
             if (op2_colour >= 0) {
                 {{kernel_call(jit, "hier_colouring", true)|indent(16)}}
@@ -345,48 +409,74 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
             // Every staged read completes before any slot changes.
             __syncthreads();
 
-            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
+            for (int op2_pass = op2_first_pass; op2_pass < op2_end_pass; ++op2_pass) {
                 if (op2_colour == op2_pass) {
-        {% for arg in args_hier_atomics %}
-            {% if arg is opt %}
+    {% for arg in args_hier_atomics %}
+        {% if arg is opt %}
                     if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
-                        f2c::hier_smem_add({{hier_smem_slot(arg, "hier_colouring")}}, op2_local{{arg.id}}, {{lh.dat(arg).dim}});
-            {% else %}
-                    f2c::hier_smem_add({{hier_smem_slot(arg, "hier_colouring")}}, op2_local{{arg.id}}, {{lh.dat(arg).dim}});
-            {% endif %}
-        {% endfor %}
+                        f2c::hier_smem_add({{hier_smem_slot(arg, "hier_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+        {% else %}
+                    f2c::hier_smem_add({{hier_smem_slot(arg, "hier_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+        {% endif %}
+    {% endfor %}
                 }
 
                 __syncthreads();
             }
-    {% else %}
-            // Threads take the chunk's elements in thread-colour order, so
-            // each pass runs on one contiguous run of lanes and warps without
-            // an element of its colour skip it.
-            const int op2_position = op2_base + threadIdx.x;
-            const int op2_n = op2_position < op2_source_end
-                                  ? element_order[op2_position]
-                                  : -1;
-            const int op2_colour = op2_n >= 0 ? thread_colours[op2_n] : -1;
-            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
-                if (op2_colour == op2_pass) {
-                    // Opaque, so this element's address arithmetic is not
-                    // hoisted out of the pass loop and kept live through it.
-                    const int n = f2c::opaque(op2_n);
-                    {{kernel_call(jit, "hier_colouring")|indent(20)}}
-                }
-
-                __syncthreads();
-            }
-    {% endif %}
         }
+{%- endmacro %}
+
+{#- The serialised shape: the kernel itself runs one thread colour at a time
+    against the staged slots.  OP_HIER_COLOURING_HOIST lets each element's
+    address arithmetic hoist out of the passes, and PRELOAD resolves its
+    staged slots before the passes. -#}
+{%- macro hier_colour_serial_passes(jit) %}
+        for (int op2_base = op2_source_begin; op2_base < op2_source_end;
+             op2_base += blockDim.x) {
+            {{hier_colour_slice()|indent(12)}}
+    {% for arg in group_args["hier_colouring"] %}
+            const int op2_slot{{loop.index0}} = (op2_variants & f2c::hier_variant_preload){{" && (op2_variants & f2c::hier_variant_stage_reads)" if arg in args_hier_reads}} && op2_n >= 0
+                ? (int)f2c::hier_smem_stage_slot(stage_words[{{loop.index0}} * stride + op2_n]) : 0;
+    {% endfor %}
+            for (int op2_pass = op2_first_pass; op2_pass < op2_end_pass; ++op2_pass) {
+                if (op2_colour == op2_pass) {
+                    // Opaque unless hoisting is asked for, so this element's
+                    // address arithmetic is not kept live through every pass.
+                    const int n = (op2_variants & f2c::hier_variant_hoist) ? op2_n : f2c::opaque(op2_n);
+                    {{kernel_call(jit, "hier_colouring", false, true)|indent(20)}}
+                }
+
+                __syncthreads();
+            }
+        }
+{%- endmacro %}
+
+{#- Apply a chunk's elements to their staged slots, in whichever shape this
+    loop and the run's variants allow. -#}
+{%- macro hier_colour_passes(jit) %}
+        const int op2_colours = chunk_thread_colours[chunk];
+    {% if hier_colouring_parallel %}
+        const bool op2_serial = (op2_variants & f2c::hier_variant_serial) != 0
+        {% for arg in args_hier_atomics if lh.dat(arg).dim is none %}
+            || {{dat_dim_w(lh.dat(arg))}} > f2c::hier_max_local_dim
+        {% endfor %}
+            ;
+        if (!op2_serial) {
+{{hier_colour_parallel_passes(jit)}}
+        } else {
+{{hier_colour_serial_passes(jit)}}
+        }
+    {% else %}
+{{hier_colour_serial_passes(jit)}}
+    {% endif %}
 {%- endmacro %}
 
 {#- Stage a chunk's grouped targets in shared memory, apply its elements to
     them, then flush each target once.  hier_atomics clears its slots and
     accumulates into them with shared atomics, seeding only owners its section
-    keeps exclusive.  hier_colouring seeds every slot, since a launch's chunks
-    share no target, and applies its elements by thread colour. -#}
+    keeps exclusive, and read-only slots.  hier_colouring seeds every slot,
+    since a launch's chunks share no target, and applies its elements by
+    thread colour. -#}
 {%- macro hier_smem_body(strategy, jit = false) %}
     {% set dats = group_dats[strategy] %}
     {% set grouped = group_args[strategy] %}
@@ -410,6 +500,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% endif %}
         const int op2_source_begin = source_offsets[chunk];
         const int op2_source_end = source_offsets[chunk + 1];
+        [[maybe_unused]] const int op2_chunk_length = op2_source_end - op2_source_begin;
         const int *op2_chunk_counts =
             stage_counts + chunk * {{dats|length}};
 
@@ -420,6 +511,13 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
         {{dat.typ.c()}} *op2_stage{{loop.index0}} = f2c::hier_smem_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
     {% endfor %}
+    {% if strategy == "hier_colouring" %}
+        {% for arg in args_direct_reads %}
+            {% set dat = lh.dat(arg) %}
+        {{dat.typ.c()}} *op2_direct{{arg.id}} = (op2_variants & f2c::hier_variant_stage_direct){{" && ((1 << %d) & opt_flags) != 0" % lh.optIdx(arg) if arg is opt}}
+            ? f2c::hier_smem_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_chunk_length, {{dat_dim_w(dat)}}) : nullptr;
+        {% endfor %}
+    {% endif %}
 
     {% if strategy == "hier_atomics" %}
         // Clear every region before accumulating into it.
@@ -455,7 +553,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         // One write per distinct target reaches global memory; read-only
         // groups have nothing to write.
     {% for arg in grouped %}
-        {% if arg not in args_hier_colouring_reads %}
+        {% if arg not in args_hier_reads %}
 {{- hier_smem_flush(strategy, arg, loop.index0)}}
         {% endif %}
     {% endfor %}
@@ -509,9 +607,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     const int *__restrict chunk_order,
     const unsigned char *__restrict thread_colours,
     const int *__restrict chunk_thread_colours,
-        {% if not hier_colouring_parallel %}
     const int *__restrict element_order,
-        {% endif %}
     const int chunk_begin,
     const int chunk_end
     {% elif strategy == "hier_atomics" %}
@@ -526,6 +622,11 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     using namespace op2_m_{{lh.name}}{{variant}};
     using namespace op2_m_{{lh.name}}{{variant}}::op2_s_{{strategy}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    {% if strategy == "hier_colouring" %}
+    [[maybe_unused]] const int op2_variants = op2_hier_variants_d;
+    {% elif strategy == "hier_atomics" %}
+    [[maybe_unused]] const int op2_variants = op2_hier_variants_d >> 16;
+    {% endif %}
 
     [[maybe_unused]] int zero_int = 0;
     [[maybe_unused]] bool zero_bool = 0;
@@ -658,9 +759,7 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
             (void *)&launch.hier.plan.chunk_order,
             (void *)&launch.hier.plan.thread_colours,
             (void *)&launch.hier.plan.chunk_thread_colours,
-        {% if not hier_colouring_parallel %}
             (void *)&launch.hier.plan.element_order,
-        {% endif %}
             (void *)&launch.hier.chunk_begin,
             (void *)&launch.hier.chunk_end
     {% elif strategy == "hier_atomics" %}
@@ -789,6 +888,10 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
 {% if "hier_atomics" in strategies or "hier_colouring" in strategies %}
+    // The run's hierarchical variants: a constant to a JIT compile.
+    kernel::op2_hier_variants = op::f2c::strategy_config.variant_word();
+    info.add_setting_param("op2_hier_variants_d", &kernel::op2_hier_variants,
+        &kernel::op2_hier_variants_d);
 #ifdef OP_PART_SIZE_{{kernel_idx}}
     constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
 #else
@@ -803,10 +906,15 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
             {{group_dats[strategy]|index(arg.dat_id)}} },
         {% endfor %}
     };
-    {% if strategy == "hier_colouring" %}
     static constexpr std::array<bool, {{group_dats[strategy]|length}}> {{strategy}}_read_only = {
         {% for dat_id in group_dats[strategy] %}
         {{"true" if dat_id in read_groups.ids else "false"}},
+        {% endfor %}
+    };
+    {% if strategy == "hier_colouring" and args_direct_reads|length > 0 %}
+    static constexpr std::array {{strategy}}_direct = {
+        {% for arg in args_direct_reads %}
+        op::f2c::HierDirectArg{ {{arg.id}}, {{hier_smem_scalar_type(lh.dat(arg))}} },
         {% endfor %}
     };
     {% endif %}
@@ -823,7 +931,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
         op2_k_{{lh.name}}{{variant}}_{{strategy}}_src{{"," if strategy in ["hier_atomics", "hier_colouring"] else ");"}}
     {% if strategy in ["hier_atomics", "hier_colouring"] %}
         op::f2c::HierArgGroups{
-            {{strategy}}_args, {{strategy}}_dats, chunk_size{{", " ~ strategy ~ "_read_only" if strategy == "hier_colouring"}}});
+            {{strategy}}_args, {{strategy}}_dats, chunk_size, {{strategy}}_read_only{{", " ~ strategy ~ "_direct" if strategy == "hier_colouring" and args_direct_reads|length > 0}}});
     {% endif %}
 {% endfor %}
     return true;

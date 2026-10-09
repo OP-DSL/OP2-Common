@@ -48,6 +48,7 @@ struct HierPlanKey {
     int block_size = 0;
     int requested_chunk_size = 0;
     bool exclusive_flush = true;
+    int variants = 0;
     // Active dat index per argument, then map and component per staged one.
     std::vector<int> dats;
     std::vector<int> staged;
@@ -66,6 +67,7 @@ inline HierPlanKey make_hier_plan_key(
     key.block_size = options.block_size;
     key.requested_chunk_size = options.requested_chunk_size;
     key.exclusive_flush = options.exclusive_flush;
+    key.variants = options.variants;
 
     key.dats.assign(args.size(), -1);
     for (std::size_t i = 0; i < args.size(); ++i) {

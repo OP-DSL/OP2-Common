@@ -37,6 +37,25 @@ DEVICE inline void trap() {
 #endif
 }
 
+/* Experimental variants of the hierarchical strategies, chosen at run time by
+   OP_HIER_COLOURING_* and OP_HIER_ATOMICS_* variables.  The planner reads
+   them from its options; a wrapper reads them as one per-loop constant,
+   colouring's in the low half and atomics' in the high half, which a JIT
+   compile folds away. */
+enum HierVariant : int {
+    hier_variant_sort = 1 << 0,          // take elements in colour order, slices run only their colours
+    hier_variant_hoist = 1 << 1,         // let element address arithmetic hoist out of passes
+    hier_variant_preload = 1 << 2,       // resolve an element's staged slots before the passes
+    hier_variant_stage_reads = 1 << 3,   // stage read-only indirect dats
+    hier_variant_stage_direct = 1 << 4,  // stage direct read data
+    hier_variant_serial = 1 << 5,        // serialised shape even where the parallel one applies
+    hier_variant_recolour = 1 << 6,      // iterated greedy thread colouring
+};
+
+// The largest runtime dimension the parallel colouring shape keeps per-thread
+// increments for; larger ones run the serialised shape.
+constexpr int hier_max_local_dim = 16;
+
 /* Hierarchical shared-memory atomics control word, one per staged argument
    and source element:
 

@@ -867,7 +867,8 @@ private:
         HierPlanOptions plan_options{
             block_size, chunk_size > 0 ? chunk_size : OP_part_size,
             hier_capacity(strategy),
-            atomics && strategy_config.hier_atomics_exclusive};
+            atomics && strategy_config.hier_atomics_exclusive,
+            strategy_config.variants(strategy)};
         auto key = detail::make_hier_plan_key(
             set, args, static_cast<int>(sections.size()), groups, plan_options);
 
@@ -985,6 +986,12 @@ private:
 
         op_profile_next("Get Kernel");
         return ExecutionSchedule::colouring(set, plan);
+    }
+
+    // Return a hierarchical strategy's block size: its variable's, if set.
+    static int strategy_block_size(Strategy strategy, int block_size) {
+        int override = strategy_config.block_size(strategy);
+        return override > 0 ? override : block_size;
     }
 
     // Resolve the physical launch policy for a schedule.
@@ -1337,7 +1344,7 @@ private:
                     std::span<const ExecutionSection>{
                         sections.data(),
                         static_cast<std::size_t>(schedule.size())},
-                    block_size);
+                    strategy_block_size(strategy, block_size));
                 plan_reason = cached.reason();
                 if (cached)
                     entries[index] = &cached;
@@ -1378,6 +1385,11 @@ private:
             schedule = colouring_schedule(set, args, nargs);
             std::tie(block_limit, block_size) =
                 launch_config(schedule, args, nargs);
+        } else if (strategy_block_size(strategy, block_size) != block_size) {
+            block_size = strategy_block_size(strategy, block_size);
+            block_limit = ::getBlockLimitWithPolicy(
+                args, nargs, block_size, m_name.c_str(),
+                m_loop.gbl_inc_atomic());
         }
 
         KernelExecution execution{

@@ -75,10 +75,23 @@ FallbackReason resolve_input(
 
     // Scalar layout is fixed by translation; runtime arguments supply the
     // active dat identity and dimension.
+    bool stage_reads = (options.variants & hier_variant_stage_reads) != 0;
     for (std::size_t dat_index = 0; dat_index < groups.dats.size();
-         ++dat_index)
-        resolved.dats[dat_index].scalar_size =
-            scalar_size(groups.dats[dat_index]);
+         ++dat_index) {
+        auto& dat = resolved.dats[dat_index];
+        dat.scalar_size = scalar_size(groups.dats[dat_index]);
+        dat.read_only = groups.is_read_only(dat_index);
+        dat.staged = !dat.read_only || stage_reads;
+    }
+
+    // Direct arguments are staged in arguments order after the groups.
+    if ((options.variants & hier_variant_stage_direct) != 0) {
+        for (const auto& direct : groups.direct) {
+            const op_arg& arg = args[static_cast<std::size_t>(direct.arg_index)];
+            if (arg.opt != 0)
+                resolved.direct.push_back({arg.dim, scalar_size(direct.type)});
+        }
+    }
 
     // Resolve optional state and the runtime identities behind each group.
     std::vector<bool> grouped_args(args.size(), false);
@@ -103,7 +116,8 @@ FallbackReason resolve_input(
         // translator emitted these groups from the same parse as the
         // wrapper, so only the runtime identity is worth resolving here.
         assert(arg.argtype == OP_ARG_DAT);
-        assert(!increments_only || arg.acc == OP_INC);
+        assert(!increments_only || arg.acc == OP_INC ||
+               groups.is_read_only(dat_index));
         assert(arg.dat != nullptr && arg.map != nullptr &&
                arg.map_data != nullptr);
         assert(arg.idx >= 0 && arg.idx < arg.map->dim);

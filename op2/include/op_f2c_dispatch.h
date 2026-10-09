@@ -133,6 +133,13 @@ struct StrategyConfig {
     // leaves the chunk size to OP_part_size and the block size.
     int hier_atomics_chunk_size = 0;
     int hier_colouring_chunk_size = 0;
+    // OP_HIER_ATOMICS_BLOCK_SIZE and OP_HIER_COLOURING_BLOCK_SIZE; zero keeps
+    // the default launch block size.  HIP wrappers allow at most 128.
+    int hier_atomics_block_size = 0;
+    int hier_colouring_block_size = 0;
+    // HierVariant bits per strategy, from OP_HIER_<STRATEGY>_<VARIANT>.
+    int hier_atomics_variants = 0;
+    int hier_colouring_variants = 0;
 
     bool enabled(Strategy strategy) const {
         switch (settings[strategy_index(strategy)]) {
@@ -153,6 +160,27 @@ struct StrategyConfig {
         if (strategy == Strategy::hier_colouring)
             return hier_colouring_chunk_size;
         return 0;
+    }
+
+    int block_size(Strategy strategy) const {
+        if (strategy == Strategy::hier_atomics)
+            return hier_atomics_block_size;
+        if (strategy == Strategy::hier_colouring)
+            return hier_colouring_block_size;
+        return 0;
+    }
+
+    int variants(Strategy strategy) const {
+        if (strategy == Strategy::hier_atomics)
+            return hier_atomics_variants;
+        if (strategy == Strategy::hier_colouring)
+            return hier_colouring_variants;
+        return 0;
+    }
+
+    // The per-loop wrapper constant: colouring's bits low, atomics' high.
+    int variant_word() const {
+        return hier_colouring_variants | (hier_atomics_variants << 16);
     }
 };
 
@@ -251,6 +279,54 @@ static void init_strategy_config() {
                          strategy_config.hier_atomics_chunk_size);
     detail::parse_number("OP_HIER_COLOURING_CHUNK_SIZE",
                          strategy_config.hier_colouring_chunk_size);
+    detail::parse_number("OP_HIER_ATOMICS_BLOCK_SIZE",
+                         strategy_config.hier_atomics_block_size);
+    detail::parse_number("OP_HIER_COLOURING_BLOCK_SIZE",
+                         strategy_config.hier_colouring_block_size);
+#if defined(OP2_HIP)
+    // The HIP wrappers are compiled with __launch_bounds__(128).
+    for (int *size : {&strategy_config.hier_atomics_block_size,
+                      &strategy_config.hier_colouring_block_size}) {
+        if (*size > 128) {
+            std::fprintf(stderr,
+                         "warning: clamping a hierarchical block size of %d "
+                         "to 128\n",
+                         *size);
+            *size = 128;
+        }
+    }
+#endif
+
+    struct VariantVariable {
+        const char *variable;
+        int& variants;
+        int bit;
+    };
+    const VariantVariable variant_variables[] = {
+        {"OP_HIER_COLOURING_SORT", strategy_config.hier_colouring_variants,
+         hier_variant_sort},
+        {"OP_HIER_COLOURING_HOIST", strategy_config.hier_colouring_variants,
+         hier_variant_hoist},
+        {"OP_HIER_COLOURING_PRELOAD", strategy_config.hier_colouring_variants,
+         hier_variant_preload},
+        {"OP_HIER_COLOURING_STAGE_READS",
+         strategy_config.hier_colouring_variants, hier_variant_stage_reads},
+        {"OP_HIER_COLOURING_STAGE_DIRECT",
+         strategy_config.hier_colouring_variants, hier_variant_stage_direct},
+        {"OP_HIER_COLOURING_SERIAL", strategy_config.hier_colouring_variants,
+         hier_variant_serial},
+        {"OP_HIER_COLOURING_RECOLOUR",
+         strategy_config.hier_colouring_variants, hier_variant_recolour},
+        {"OP_HIER_ATOMICS_STAGE_READS", strategy_config.hier_atomics_variants,
+         hier_variant_stage_reads},
+    };
+    for (const auto& [variable, variants, bit] : variant_variables) {
+        bool on = (variants & bit) != 0;
+        detail::parse_bool(variable, on);
+        variants = on ? (variants | bit) : (variants & ~bit);
+        if (on)
+            std::printf("Enabling %s\n", variable);
+    }
 
     if (const char *text = std::getenv("OP_AUTOTUNE")) {
         auto value = detail::lower(text);

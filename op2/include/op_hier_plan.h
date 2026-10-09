@@ -31,6 +31,12 @@ struct HierArgDescriptor {
     int dat_index;
 };
 
+// A direct argument a colouring plan can stage per chunk.
+struct HierDirectArg {
+    int arg_index;
+    HierScalarType type;
+};
+
 // The indirect arguments a hierarchical strategy plans over, grouped by dat:
 // the increments for hierarchical atomics, every argument on an incremented
 // or read-written dat for hierarchical colouring.  Generated with the wrapper
@@ -44,6 +50,9 @@ struct HierArgGroups {
     // gathered once per chunk, but never coloured or flushed.  Empty when no
     // group is.
     std::span<const bool> read_only = {};
+    // Direct read arguments, staged after the groups when the plan's
+    // variants ask for it.
+    std::span<const HierDirectArg> direct = {};
 
     bool is_read_only(std::size_t dat_index) const {
         return dat_index < read_only.size() && read_only[dat_index];
@@ -74,6 +83,8 @@ struct HierPlanOptions {
     // Marking exclusive owners changes the packed words, so a plan built with
     // it off is a different plan and is keyed separately.
     bool exclusive_flush = true;
+    // HierVariant bits for the strategy being planned.
+    int variants = 0;
 };
 
 struct HierPlanStatistics {
@@ -83,6 +94,9 @@ struct HierPlanStatistics {
     // section, so the flush needs no global atomic.  The rest of
     // distinct_targets flush with atomicAdd.
     std::size_t exclusive_owners = 0;
+    // Distinct targets of read-only groups, staged and seeded but never
+    // flushed; not part of the counts above.
+    std::size_t read_targets = 0;
     // Colouring: launches over all sections, and the most thread colours any
     // chunk needs.
     std::size_t launches = 0;

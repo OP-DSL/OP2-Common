@@ -32,7 +32,10 @@ HierPlanBuildResult build_hier_atomics_plan(
                               ? detail::ExclusiveOwners::section
                               : detail::ExclusiveOwners::none,
                           plan);
-    plan.staging->has_exclusive = plan.statistics.exclusive_owners > 0 ? 1 : 0;
+    // Read-only owners seed too, so they need the seed pass as well.
+    plan.staging->has_exclusive =
+        plan.statistics.exclusive_owners + plan.statistics.read_targets > 0
+            ? 1 : 0;
     return {FallbackReason::none, std::move(plan)};
 }
 

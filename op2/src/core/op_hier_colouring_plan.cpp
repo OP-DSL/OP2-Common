@@ -4,6 +4,7 @@
 #include <bit>
 #include <cassert>
 #include <cstdint>
+#include <numeric>
 #include <utility>
 
 namespace op::f2c {
@@ -19,19 +20,23 @@ struct ColourTarget {
 };
 
 // Colour items greedily so that no two items of a colour share a target,
-// trying 64 colours a round.  targets(i) lists item i's targets, and masks,
-// one per target of each dat, start and end clear.  Return the colour count.
+// trying 64 colours a round, taking items in order (or index order when it is
+// empty).  targets(i) lists item i's targets, and masks, one per target of
+// each dat, start and end clear.  Return the colour count.
 template<typename Targets>
 int greedy_colour(int count, Targets&& targets,
                   std::vector<std::vector<std::uint64_t>>& masks,
-                  std::vector<int>& colours) {
+                  std::vector<int>& colours,
+                  std::span<const int> order = {}) {
     colours.assign(static_cast<std::size_t>(count), -1);
     std::vector<ColourTarget> marked;
     int coloured = 0;
     int ncolours = 0;
 
     for (int base = 0; coloured < count; base += 64) {
-        for (int item = 0; item < count; ++item) {
+        for (int step = 0; step < count; ++step) {
+            int item = order.empty() ? step
+                                     : order[static_cast<std::size_t>(step)];
             auto& colour = colours[static_cast<std::size_t>(item)];
             if (colour >= 0)
                 continue;
@@ -126,6 +131,8 @@ HierPlanBuildResult build_hier_colouring_plan(
     std::vector<std::size_t> chunk_target_offsets;
     std::vector<int> colours;
     std::vector<int> colour_starts;
+    std::vector<int> order;
+    std::vector<int> recoloured;
 
     for (std::size_t section = 0; section < sections.size(); ++section) {
         const int first_chunk = plan.section_chunk_offsets[section];
@@ -160,15 +167,35 @@ HierPlanBuildResult build_hier_colouring_plan(
 
             chunk_target_offsets.push_back(chunk_targets.size());
 
-            int thread_colours = greedy_colour(
-                end - start,
-                [&](int element) {
-                    return std::span<const ColourTarget>{
-                        element_targets.data() +
-                            static_cast<std::size_t>(element) * per_element,
-                        per_element};
-                },
-                masks, colours);
+            auto element_targets_of = [&](int element) {
+                return std::span<const ColourTarget>{
+                    element_targets.data() +
+                        static_cast<std::size_t>(element) * per_element,
+                    per_element};
+            };
+            int thread_colours = greedy_colour(end - start, element_targets_of,
+                                               masks, colours);
+
+            // Iterated greedy: recolouring with the colour classes taken in
+            // reverse never needs more colours, and often fewer, and fewer
+            // colours are fewer serialised passes.
+            if ((options.variants & hier_variant_recolour) != 0) {
+                for (int round = 0; round < 4 && thread_colours > 1; ++round) {
+                    order.resize(static_cast<std::size_t>(end - start));
+                    std::iota(order.begin(), order.end(), 0);
+                    std::stable_sort(order.begin(), order.end(),
+                                     [&](int a, int b) {
+                                         return colours[static_cast<std::size_t>(a)] >
+                                                colours[static_cast<std::size_t>(b)];
+                                     });
+                    int again = greedy_colour(end - start, element_targets_of,
+                                              masks, recoloured, order);
+                    if (again >= thread_colours)
+                        break;
+                    colours.swap(recoloured);
+                    thread_colours = again;
+                }
+            }
             if (thread_colours > 255)
                 return {FallbackReason::too_many_colours,
                         std::nullopt};
