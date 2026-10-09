@@ -69,7 +69,12 @@ struct DynamicSmemBindings {
     int *output_d;
     int last_word;
 
-    template<op::f2c::KernelVariant Variant>
+    static constexpr std::array strategies{
+        op::f2c::Strategy::plain,
+        op::f2c::Strategy::hier_atomics,
+    };
+
+    template<op::f2c::Strategy S>
     auto make_arguments(op::f2c::LaunchContext&, op_arg *) {
         auto args = std::array<void *, 2>{&output_d, &last_word};
         return op::f2c::KernelArguments{args, args};
@@ -119,12 +124,15 @@ int main(int argc, char **argv) {
 
         op::f2c::KernelInfo info(
             "f2c_dynamic_smem_launch", "c_CUDA", "Direct",
-            op::f2c::ExecutionPolicy::direct(false),
-            "f2c_dynamic_smem_baseline",
+            op::f2c::LoopDescription::direct(false));
+        info.register_variant(
+            op::f2c::Strategy::plain, "f2c_dynamic_smem_baseline",
             reinterpret_cast<const void *>(f2c_dynamic_smem_baseline),
             baseline_source);
-        info.register_staged_variant(
-            "f2c_dynamic_smem_staged",
+        // Registered without argument groups, so forcing it launches with the
+        // caller's dynamic shared bytes and no plan.
+        info.register_variant(
+            op::f2c::Strategy::hier_atomics, "f2c_dynamic_smem_staged",
             reinterpret_cast<const void *>(f2c_dynamic_smem_staged),
             staged_source);
 
@@ -135,7 +143,7 @@ int main(int argc, char **argv) {
                 &set, nullptr, 0,
                 DynamicSmemBindings{output_d, last_word},
                 op::f2c::KernelExecutionOptions{
-                    op::f2c::KernelVariant::staged, shared_bytes});
+                    op::f2c::Strategy::hier_atomics, shared_bytes});
 
             saw_jit |= result.used_jit;
             launched_blocks = result.max_blocks;

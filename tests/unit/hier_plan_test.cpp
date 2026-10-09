@@ -177,10 +177,10 @@ struct ChunkFixture {
 };
 
 void expect_reason(const f2c::HierPlanBuildResult& result,
-                   f2c::HierFallbackReason reason) {
+                   f2c::FallbackReason reason) {
     CHECK(!result);
     CHECK(result.reason == reason);
-    CHECK(f2c::hier_fallback_reason_name(reason) != "unknown");
+    CHECK(f2c::fallback_reason_name(reason) != "unknown");
 }
 
 f2c::HierSmemStageWord stage_word(const f2c::HierPlan& plan,
@@ -336,7 +336,7 @@ void test_chunk_sizes_and_clamping() {
     CHECK(saturated.plan->selected_chunk_size == 1024);
 
     expect_reason(fixture.build(512, 1023),
-                  f2c::HierFallbackReason::insufficient_shared_memory);
+                  f2c::FallbackReason::insufficient_shared_memory);
 }
 
 void test_runtime_fallbacks() {
@@ -346,14 +346,14 @@ void test_runtime_fallbacks() {
                                              2, "double", sizeof(double), 1,
                                              OP_READ));
         expect_reason(fixture.build(),
-                      f2c::HierFallbackReason::incompatible_argument);
+                      f2c::FallbackReason::incompatible_argument);
     }
     {
         MixedFixture fixture;
         for (auto& arg : fixture.args)
             arg.opt = 0;
         expect_reason(fixture.build(),
-                      f2c::HierFallbackReason::no_active_argument);
+                      f2c::FallbackReason::no_active_argument);
     }
     {
         MixedFixture fixture;
@@ -375,7 +375,7 @@ void test_runtime_fallbacks() {
             &fixture.source, fixture.args, fixture.sections, descriptor,
             fixture.options());
         expect_reason(result,
-                      f2c::HierFallbackReason::incompatible_argument);
+                      f2c::FallbackReason::incompatible_argument);
     }
 }
 
@@ -716,7 +716,7 @@ void test_colour_rounds_and_limit() {
             &source, args, sections, descriptor, {size, size, 0});
         if (size > 255) {
             expect_reason(result,
-                          f2c::HierFallbackReason::too_many_colours);
+                          f2c::FallbackReason::too_many_colours);
             continue;
         }
 
@@ -783,14 +783,14 @@ void test_colour_fallbacks() {
                                              3, "integer(4)", sizeof(int), 1,
                                              OP_READ));
         expect_reason(build_colour(fixture),
-                      f2c::HierFallbackReason::incompatible_argument);
+                      f2c::FallbackReason::incompatible_argument);
     }
     {
         MixedFixture fixture;
         for (auto& arg : fixture.args)
             arg.opt = 0;
         expect_reason(build_colour(fixture),
-                      f2c::HierFallbackReason::no_active_argument);
+                      f2c::FallbackReason::no_active_argument);
     }
     {
         // Two groups resolving to one dat would be coloured independently.
@@ -805,7 +805,7 @@ void test_colour_fallbacks() {
             &fixture.edges, fixture.args, sections,
             {arg_desc, dat_desc, -1}, {4, 4, 0});
         expect_reason(result,
-                      f2c::HierFallbackReason::incompatible_argument);
+                      f2c::FallbackReason::incompatible_argument);
     }
 }
 
@@ -817,15 +817,15 @@ void test_packed_word_boundaries() {
     static_assert(f2c::hier_smem_stage_owner(word));
     static_assert(f2c::hier_smem_stage_exclusive(word));
     constexpr std::array fallback_reasons{
-        f2c::HierFallbackReason::none,
-        f2c::HierFallbackReason::no_active_argument,
-        f2c::HierFallbackReason::incompatible_argument,
-        f2c::HierFallbackReason::insufficient_shared_memory,
-        f2c::HierFallbackReason::low_compression,
-        f2c::HierFallbackReason::too_many_colours,
+        f2c::FallbackReason::none,
+        f2c::FallbackReason::no_active_argument,
+        f2c::FallbackReason::incompatible_argument,
+        f2c::FallbackReason::insufficient_shared_memory,
+        f2c::FallbackReason::low_compression,
+        f2c::FallbackReason::too_many_colours,
     };
     for (auto reason : fallback_reasons)
-        CHECK(f2c::hier_fallback_reason_name(reason) != "unknown");
+        CHECK(f2c::fallback_reason_name(reason) != "unknown");
 }
 
 void test_plan_owner_lifecycle() {

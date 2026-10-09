@@ -101,7 +101,7 @@ inline void hier_plan_check_gpu(gpuError_t result, const char *operation) {
 
 class HierPlanCacheEntry {
 private:
-    HierFallbackReason m_reason;
+    FallbackReason m_reason;
     std::optional<HierPlan> m_plan;
     int *m_source_offsets_d = nullptr;
     HierSmemStageWord *m_stage_words_d = nullptr;
@@ -156,7 +156,7 @@ public:
     ~HierPlanCacheEntry() { release_device_storage(); }
 
     explicit operator bool() const { return m_plan.has_value(); }
-    HierFallbackReason reason() const { return m_reason; }
+    FallbackReason reason() const { return m_reason; }
     const HierPlan *plan() const {
         return m_plan.has_value() ? &*m_plan : nullptr;
     }

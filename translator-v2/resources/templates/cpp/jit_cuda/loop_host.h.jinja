@@ -275,8 +275,19 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
 }
 {% endif %}
 
+{%- if lh is direct -%}
+    {%- set strategy = "plain" -%}
+{%- elif config.atomics -%}
+    {%- set strategy = "atomics" -%}
+{%- else -%}
+    {%- set strategy = "colouring" -%}
+{%- endif %}
 struct op2_k_{{lh.name}}{{variant}}_bindings {
-    template<op::f2c::KernelVariant Variant>
+    static constexpr std::array strategies{
+        op::f2c::Strategy::{{strategy}},
+    };
+
+    template<op::f2c::Strategy S>
     auto make_arguments(op::f2c::LaunchContext& launch, op_arg *args) const {
 {% if lh.args|opt|length > 0 %}
         launch.opt_flags = 0;
@@ -388,13 +399,10 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
     }
 };
 
-static op::f2c::ExecutionPolicy
-op2_k_{{lh.name}}{{variant}}_execution_policy() {
+static op::f2c::LoopDescription
+op2_k_{{lh.name}}{{variant}}_loop() {
 {% if lh is direct %}
-    return op::f2c::ExecutionPolicy::direct(
-        {{"true" if config.gbl_inc_atomic else "false"}});
-{% elif config.atomics %}
-    return op::f2c::ExecutionPolicy::atomics(
+    return op::f2c::LoopDescription::direct(
         {{"true" if config.gbl_inc_atomic else "false"}});
 {% else %}
     static constexpr std::array<int, {{lh.args|length}}> indirect_dats = {
@@ -408,7 +416,7 @@ op2_k_{{lh.name}}{{variant}}_execution_policy() {
 #else
     constexpr int part_size = -1;
 #endif
-    return op::f2c::ExecutionPolicy::color2(
+    return op::f2c::LoopDescription::indirect(
         indirect_dats, part_size,
         {{"true" if config.gbl_inc_atomic else "false"}});
 {% endif %}
@@ -444,16 +452,18 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
         &kernel::op2_{{lh.kernel}}_gbl_stride,
         &kernel::op2_{{lh.kernel}}_gbl_stride_d);
 {% endif %}
+    info.register_variant(
+        op::f2c::Strategy::{{strategy}},
+        "op2_k_{{lh.name}}{{variant}}_wrapper",
+        (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
+        op2_k_{{lh.name}}{{variant}}_src);
     return true;
 }
 
 static op::f2c::KernelInfo& op2_k_{{lh.name}}{{variant}}_info() {
     static op::f2c::KernelInfo info(
         "{{lh.name}}", "c_CUDA", "{{variant_str()}}",
-        op2_k_{{lh.name}}{{variant}}_execution_policy(),
-        "op2_k_{{lh.name}}{{variant}}_wrapper",
-        (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-        op2_k_{{lh.name}}{{variant}}_src);
+        op2_k_{{lh.name}}{{variant}}_loop());
     static const bool registered =
         op2_k_{{lh.name}}{{variant}}_register_info(info);
     (void)registered;

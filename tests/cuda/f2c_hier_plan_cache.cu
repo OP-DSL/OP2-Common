@@ -163,23 +163,32 @@ struct Fixture {
     }
 };
 
+f2c::HierPlanCacheStatistics plan_statistics(const f2c::KernelInfo& info) {
+    return info.hier_plan_cache_statistics(f2c::Strategy::hier_atomics);
+}
+
 struct Bindings {
     int *output_d;
     int last_shared_byte;
 
-    template<f2c::KernelVariant Variant>
+    static constexpr std::array strategies{
+        f2c::Strategy::hier_atomics,
+        f2c::Strategy::atomics,
+    };
+
+    template<f2c::Strategy S>
     auto make_arguments(f2c::LaunchContext& launch, op_arg *) {
-        if constexpr (Variant == f2c::KernelVariant::baseline) {
+        if constexpr (S == f2c::Strategy::atomics) {
             auto args = std::array<void *, 1>{&output_d};
             return f2c::KernelArguments{args, args};
         } else {
             auto args = std::array<void *, 8>{
                 &output_d,
-                &launch.staged.plan.source_offsets,
-                &launch.staged.plan.stage_words,
-                &launch.staged.plan.stage_counts,
-                &launch.staged.chunk_begin,
-                &launch.staged.chunk_end,
+                &launch.hier.plan.source_offsets,
+                &launch.hier.plan.stage_words,
+                &launch.hier.plan.stage_counts,
+                &launch.hier.chunk_begin,
+                &launch.hier.chunk_end,
                 &launch.set_stride,
                 &last_shared_byte,
             };
@@ -204,13 +213,14 @@ int main(int argc, char **argv) {
     bool saw_jit = false;
     {
         f2c::KernelInfo info(
-            "f2c_hier_plan_cache", "c_CUDA", "Atomics",
-            f2c::ExecutionPolicy::atomics(false),
-            "f2c_hier_plan_cache_baseline",
+           "f2c_hier_plan_cache", "c_CUDA", "Atomics",
+           f2c::LoopDescription::indirect(std::array{0, -1}, -1, false));
+        info.register_variant(
+            f2c::Strategy::atomics, "f2c_hier_plan_cache_baseline",
             reinterpret_cast<const void *>(f2c_hier_plan_cache_baseline),
             baseline_source);
-        info.register_staged_variant(
-            "f2c_hier_plan_cache_staged",
+        info.register_variant(
+            f2c::Strategy::hier_atomics, "f2c_hier_plan_cache_staged",
             reinterpret_cast<const void *>(f2c_hier_plan_cache_staged),
             staged_source, fixture.descriptor());
 
@@ -221,16 +231,18 @@ int main(int argc, char **argv) {
         CUDA_SAFE_CALL(gpuDeviceSynchronize());
         CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                                  gpuMemcpyDeviceToHost));
-        CHECK(dormant.variant == f2c::KernelVariant::baseline);
+        CHECK(dormant.strategy == f2c::Strategy::atomics);
+        CHECK(dormant.skipped_reason(f2c::Strategy::hier_atomics) ==
+              f2c::FallbackReason::disabled);
         CHECK(output[0] == -1);
-        CHECK(info.hier_plan_cache_statistics().entries == 0);
+        CHECK(plan_statistics(info).entries == 0);
 
         auto invoke = [&]() {
             CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
             auto result = info.invoke(
                 &fixture.source, fixture.args.data(), fixture.args.size(),
                 Bindings{output_d, fixture.shared_bytes() - 1},
-                f2c::KernelExecutionOptions::hierarchical_test());
+                f2c::KernelExecutionOptions{f2c::Strategy::hier_atomics});
             CUDA_SAFE_CALL(gpuDeviceSynchronize());
             CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                                      gpuMemcpyDeviceToHost));
@@ -241,9 +253,9 @@ int main(int argc, char **argv) {
         f2c::KernelInvocationResult result{};
         for (int invocation = 0; invocation < 10; ++invocation) {
             result = invoke();
-            CHECK(result.variant == f2c::KernelVariant::staged);
-            CHECK(result.hier_smem_reason ==
-                  f2c::HierFallbackReason::none);
+            CHECK(result.strategy == f2c::Strategy::hier_atomics);
+            CHECK(result.skipped_reason(f2c::Strategy::hier_atomics) ==
+                  f2c::FallbackReason::none);
             CHECK(result.block_size == 128);
             CHECK(result.max_blocks == 1);
         }
@@ -261,19 +273,19 @@ int main(int argc, char **argv) {
         CHECK(output[7] == 256);
         CHECK(output[8] == 42);
 
-        auto statistics = info.hier_plan_cache_statistics();
+        auto statistics = plan_statistics(info);
         CHECK(statistics.entries == 1);
         CHECK(statistics.builds == 1);
         CHECK(statistics.uploads == 1);
 
         fixture.args[0].opt = 0;
         result = invoke();
-        CHECK(result.variant == f2c::KernelVariant::baseline);
-        CHECK(result.hier_smem_reason ==
-              f2c::HierFallbackReason::no_active_argument);
+        CHECK(result.strategy == f2c::Strategy::atomics);
+        CHECK(result.skipped_reason(f2c::Strategy::hier_atomics) ==
+              f2c::FallbackReason::no_active_argument);
         CHECK(output[0] == -1);
 
-        statistics = info.hier_plan_cache_statistics();
+        statistics = plan_statistics(info);
         CHECK(statistics.entries == 2);
         CHECK(statistics.builds == 2);
         CHECK(statistics.uploads == 1);
@@ -283,21 +295,21 @@ int main(int argc, char **argv) {
         fixture.args[0].dim = 2;
         fixture.args[0].size = 2 * sizeof(double);
         result = invoke();
-        CHECK(result.variant == f2c::KernelVariant::staged);
+        CHECK(result.strategy == f2c::Strategy::hier_atomics);
         CHECK(output[8] == 42);
 
-        statistics = info.hier_plan_cache_statistics();
+        statistics = plan_statistics(info);
         CHECK(statistics.entries == 3);
         CHECK(statistics.builds == 3);
         CHECK(statistics.uploads == 2);
 
         fixture.args[1].opt = 1;
         result = invoke();
-        CHECK(result.variant == f2c::KernelVariant::baseline);
-        CHECK(result.hier_smem_reason ==
-              f2c::HierFallbackReason::incompatible_argument);
+        CHECK(result.strategy == f2c::Strategy::atomics);
+        CHECK(result.skipped_reason(f2c::Strategy::hier_atomics) ==
+              f2c::FallbackReason::incompatible_argument);
 
-        statistics = info.hier_plan_cache_statistics();
+        statistics = plan_statistics(info);
         CHECK(statistics.entries == 4);
         CHECK(statistics.builds == 4);
         CHECK(statistics.uploads == 2);
@@ -312,13 +324,14 @@ int main(int argc, char **argv) {
             split.source.core_size = 128;
 
             f2c::KernelInfo split_info(
-                "f2c_hier_smem_split", "c_CUDA", "Atomics",
-                f2c::ExecutionPolicy::atomics(false),
-                "f2c_hier_plan_cache_baseline",
+               "f2c_hier_smem_split", "c_CUDA", "Atomics",
+               f2c::LoopDescription::indirect(std::array{0, -1}, -1, false));
+            split_info.register_variant(
+                f2c::Strategy::atomics, "f2c_hier_plan_cache_baseline",
                 reinterpret_cast<const void *>(f2c_hier_plan_cache_baseline),
                 baseline_source);
-            split_info.register_staged_variant(
-                "f2c_hier_plan_cache_staged",
+            split_info.register_variant(
+                f2c::Strategy::hier_atomics, "f2c_hier_plan_cache_staged",
                 reinterpret_cast<const void *>(f2c_hier_plan_cache_staged),
                 staged_source, split.descriptor());
 
@@ -326,12 +339,12 @@ int main(int argc, char **argv) {
             auto split_result = split_info.invoke(
                 &split.source, split.args.data(), split.args.size(),
                 Bindings{output_d, split.shared_bytes() - 1},
-                f2c::KernelExecutionOptions::hierarchical_test());
+                f2c::KernelExecutionOptions{f2c::Strategy::hier_atomics});
             CUDA_SAFE_CALL(gpuDeviceSynchronize());
             CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                                      gpuMemcpyDeviceToHost));
 
-            CHECK(split_result.variant == f2c::KernelVariant::staged);
+            CHECK(split_result.strategy == f2c::Strategy::hier_atomics);
             // The last launch is the second section: chunk 1 of 2.
             CHECK(output[5] == 1);
             CHECK(output[6] == 2);
@@ -349,13 +362,14 @@ int main(int argc, char **argv) {
                 spread.map_values[i] = static_cast<int>(i);
 
             f2c::KernelInfo spread_info(
-                "f2c_hier_smem_spread", "c_CUDA", "Atomics",
-                f2c::ExecutionPolicy::atomics(false),
-                "f2c_hier_plan_cache_baseline",
+               "f2c_hier_smem_spread", "c_CUDA", "Atomics",
+               f2c::LoopDescription::indirect(std::array{0, -1}, -1, false));
+            spread_info.register_variant(
+                f2c::Strategy::atomics, "f2c_hier_plan_cache_baseline",
                 reinterpret_cast<const void *>(f2c_hier_plan_cache_baseline),
                 baseline_source);
-            spread_info.register_staged_variant(
-                "f2c_hier_plan_cache_staged",
+            spread_info.register_variant(
+                f2c::Strategy::hier_atomics, "f2c_hier_plan_cache_staged",
                 reinterpret_cast<const void *>(f2c_hier_plan_cache_staged),
                 staged_source, spread.descriptor());
 
@@ -363,17 +377,17 @@ int main(int argc, char **argv) {
             auto spread_result = spread_info.invoke(
                 &spread.source, spread.args.data(), spread.args.size(),
                 Bindings{output_d, spread.shared_bytes() - 1},
-                f2c::KernelExecutionOptions::hierarchical_test());
+                f2c::KernelExecutionOptions{f2c::Strategy::hier_atomics});
             CUDA_SAFE_CALL(gpuDeviceSynchronize());
             CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                                      gpuMemcpyDeviceToHost));
 
-            CHECK(spread_result.variant == f2c::KernelVariant::baseline);
-            CHECK(spread_result.hier_smem_reason ==
-                  f2c::HierFallbackReason::low_compression);
+            CHECK(spread_result.strategy == f2c::Strategy::atomics);
+            CHECK(spread_result.skipped_reason(f2c::Strategy::hier_atomics) ==
+                  f2c::FallbackReason::low_compression);
             CHECK(output[0] == -1);
 
-            auto spread_statistics = spread_info.hier_plan_cache_statistics();
+            auto spread_statistics = plan_statistics(spread_info);
             CHECK(spread_statistics.builds == 1);
             CHECK(spread_statistics.uploads == 0);
         }
@@ -382,7 +396,7 @@ int main(int argc, char **argv) {
         output_d = nullptr;
         op_exit();
 
-        statistics = info.hier_plan_cache_statistics();
+        statistics = plan_statistics(info);
         CHECK(statistics.entries == 0);
         CHECK(statistics.builds == 4);
         CHECK(statistics.uploads == 2);

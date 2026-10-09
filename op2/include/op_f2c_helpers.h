@@ -4,6 +4,7 @@
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <op_gpu_shims.h>
+#include <op_f2c_dispatch.h>
 #include <op_hier_plan_cache.h>
 #include <op_hier_plan.h>
 
@@ -101,36 +102,6 @@ static bool jit_seq_compile = false;
 static bool jit_debug = false;
 static bool jit_force = false;
 
-// OP_HIER_SMEM_ATOMICS selects the hierarchical shared-memory atomics policy:
-//
-//   0 / no / false     always run the baseline global-atomic wrapper
-//   1 / yes / true     stage wherever a loop is eligible and compresses enough
-//   unset / auto       use the validated per-architecture policy
-//
-// Forcing on bypasses the architecture policy but neither the eligibility
-// checks nor the minimum compression: such a loop still falls back, with a
-// reason.
-enum class HierSmemPolicy {
-    off,
-    on,
-    automatic,
-};
-
-static HierSmemPolicy hier_smem_policy = HierSmemPolicy::automatic;
-
-// OP_HIER_COLOURING takes the same values for color2 loops: 0 keeps the color2
-// wrapper, 1 runs hierarchical colouring wherever its plan builds, and auto
-// keeps color2 until measurements justify a default.
-static HierSmemPolicy hier_colour_policy = HierSmemPolicy::automatic;
-
-// Validation control: OP_HIER_SMEM_EXCLUSIVE=0 keeps every owner on a global
-// atomic, so a run can be compared against one that uses exclusive flushes.
-static bool hier_smem_exclusive = true;
-
-// OP_HIER_SMEM_MIN_COMPRESSION: plans averaging fewer staged references per
-// flushed target than this run the baseline wrapper; 0 stages every plan.
-static double hier_smem_min_compression = 1.5;
-
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
 static int jit_max_threads = 16;
 #else
@@ -141,29 +112,6 @@ static int jit_max_threads = 4;
 static std::atomic_int jit_active_threads = 0;
 
 static std::string jit_arch = "";
-
-// Parse a hierarchical policy variable: 0, 1 or auto.
-static void parse_hier_policy(const char *variable, const char *description,
-                              HierSmemPolicy& policy) {
-    char *value_str = std::getenv(variable);
-    if (value_str == nullptr)
-        return;
-
-    auto value = std::string(value_str);
-    std::transform(value.begin(), value.end(), value.begin(),
-        [](auto c){ return std::tolower(c); });
-
-    if (value == "1" || value == "yes" || value == "true") {
-        std::printf("Enabling %s\n", description);
-        policy = HierSmemPolicy::on;
-    } else if (value == "0" || value == "no" || value == "false") {
-        policy = HierSmemPolicy::off;
-    } else if (value != "auto") {
-        std::fprintf(stderr,
-                     "warning: ignoring %s='%s', expected 0, 1 or auto\n",
-                     variable, value_str);
-    }
-}
 
 static void jit_init() {
     if (jit_initialized) return;
@@ -192,38 +140,7 @@ static void jit_init() {
         }
     }
 
-    char *hier_smem_excl_str = std::getenv("OP_HIER_SMEM_EXCLUSIVE");
-    if (hier_smem_excl_str != nullptr) {
-        auto excl = std::string(hier_smem_excl_str);
-        std::transform(excl.begin(), excl.end(), excl.begin(),
-            [](auto c){ return std::tolower(c); });
-
-        if (excl == "0" || excl == "no" || excl == "false") {
-            std::printf("Disabling hierarchical exclusive flushes\n");
-            hier_smem_exclusive = false;
-        }
-    }
-
-    char *hier_smem_min_str = std::getenv("OP_HIER_SMEM_MIN_COMPRESSION");
-    if (hier_smem_min_str != nullptr) {
-        char *end = nullptr;
-        double min_compression = std::strtod(hier_smem_min_str, &end);
-        if (end != hier_smem_min_str && *end == '\0' && min_compression >= 0.0) {
-            std::printf("Hierarchical shared-memory atomics minimum compression: %.2fx\n",
-                        min_compression);
-            hier_smem_min_compression = min_compression;
-        } else {
-            std::fprintf(stderr,
-                         "warning: ignoring OP_HIER_SMEM_MIN_COMPRESSION='%s', "
-                         "expected a non-negative number\n",
-                         hier_smem_min_str);
-        }
-    }
-
-    parse_hier_policy("OP_HIER_SMEM_ATOMICS",
-                      "hierarchical shared-memory atomics", hier_smem_policy);
-    parse_hier_policy("OP_HIER_COLOURING", "hierarchical colouring",
-                      hier_colour_policy);
+    init_strategy_config();
 
     char *seq_compile_str = std::getenv("OP_JIT_SEQ_COMPILE");
     if (seq_compile_str != nullptr) {
@@ -338,288 +255,6 @@ public:
         CUDA_SAFE_CALLN(gpuPeekAtLastError());
         if (jit_debug) CUDA_SAFE_CALLN(gpuStreamSynchronize(0));
     }
-};
-
-class ExecutionSchedule {
-private:
-    enum class Kind {
-        direct,
-        atomics,
-        color2,
-    };
-
-    Kind m_kind;
-    op_set m_set = nullptr;
-    op_plan *m_plan = nullptr;
-    bool m_separate_owned = false;
-
-    ExecutionSchedule(Kind kind, op_set set, op_plan *plan,
-                      bool separate_owned)
-        : m_kind{kind}, m_set{set}, m_plan{plan},
-          m_separate_owned{separate_owned} {}
-
-public:
-    static ExecutionSchedule direct(op_set set) {
-        return ExecutionSchedule{Kind::direct, set, nullptr, false};
-    }
-
-    static ExecutionSchedule atomics(op_set set, bool separate_owned) {
-        return ExecutionSchedule{Kind::atomics, set, nullptr, separate_owned};
-    }
-
-    static ExecutionSchedule color2(op_set set, op_plan *plan) {
-        return ExecutionSchedule{Kind::color2, set, plan, false};
-    }
-
-    int size() const {
-        switch (m_kind) {
-        case Kind::direct:
-            return 1;
-        case Kind::atomics:
-            return m_separate_owned ? 3 : 2;
-        case Kind::color2:
-            return m_plan->ncolors;
-        }
-
-        assert(false);
-        return 0;
-    }
-
-    ExecutionSection operator[](int index) const {
-        assert(index >= 0 && index < size());
-
-        switch (m_kind) {
-        case Kind::direct:
-            return {0, static_cast<int>(m_set->size)};
-        case Kind::atomics:
-            if (index == 0)
-                return {0, m_set->core_size};
-            if (m_separate_owned && index == 1)
-                return {m_set->core_size, static_cast<int>(m_set->size)};
-
-            return {m_separate_owned ? static_cast<int>(m_set->size)
-                                     : m_set->core_size,
-                    static_cast<int>(m_set->size) + m_set->exec_size};
-        case Kind::color2:
-            return {m_plan->col_offsets[0][index],
-                    m_plan->col_offsets[0][index + 1]};
-        }
-
-        assert(false);
-        return {0, 0};
-    }
-
-    // Every exchange is paired with exactly one wait, so exactly one index in
-    // [0, size()] answers true; size() means after the last section, which is
-    // where a color2 plan with no non-core colour waits.
-    bool wait_before(int index) const {
-        assert(index >= 0 && index <= size());
-
-        switch (m_kind) {
-        case Kind::direct:
-            // A direct loop reads no halo: its exchange only brings the dats
-            // to this device.
-            return index == 0;
-        case Kind::atomics:
-            return index == 1;
-        case Kind::color2:
-            return index == m_plan->ncolors_core;
-        }
-
-        assert(false);
-        return false;
-    }
-
-    bool process_globals_after(int index) const {
-        assert(index >= 0 && index < size());
-
-        switch (m_kind) {
-        case Kind::direct:
-            return index == 0;
-        case Kind::atomics:
-            return index == 1;
-        case Kind::color2:
-            return index == m_plan->ncolors_owned - 1;
-        }
-
-        assert(false);
-        return false;
-    }
-
-    int set_stride() const {
-        int size = m_set->size;
-        if (m_kind != Kind::direct)
-            size += m_set->exec_size;
-
-        return (size + 31) & ~31;
-    }
-
-    int *color_reorder() const {
-        return m_kind == Kind::color2 ? m_plan->col_reord : nullptr;
-    }
-};
-
-enum class KernelVariant {
-    baseline,
-    staged,
-};
-
-struct KernelExecutionOptions {
-    KernelVariant variant = KernelVariant::baseline;
-    int shared_bytes = 0;
-    bool plan_hier_smem_for_testing = false;
-
-    static KernelExecutionOptions hierarchical_test() {
-        return {KernelVariant::staged, 0, true};
-    }
-};
-
-struct KernelExecution {
-    KernelVariant variant;
-    JitKernel *jit_kernel;
-    ExecutionSchedule schedule;
-    int block_size;
-    int block_limit;
-    int max_blocks;
-    int shared_bytes;
-    const HierPlan *hier_smem_plan;
-    HierPlanDeviceView hier_smem_device;
-    HierFallbackReason hier_smem_reason;
-
-    // Return how many launches run a section: one per block colour under a
-    // colouring plan, otherwise one.
-    int launches(int section_index) const {
-        if (hier_smem_plan == nullptr || !hier_smem_plan->colouring)
-            return 1;
-
-        const auto& offsets = hier_smem_plan->colouring->section_launch_offsets;
-        return offsets[section_index + 1] - offsets[section_index];
-    }
-
-    // Return the plan chunks one launch covers; under a colouring plan they
-    // index chunk_order.
-    std::pair<int, int> chunk_range(int section_index, int launch) const {
-        assert(hier_smem_plan != nullptr);
-        const auto& plan = *hier_smem_plan;
-        if (!plan.colouring)
-            return {plan.section_chunk_offsets[section_index],
-                    plan.section_chunk_offsets[section_index + 1]};
-
-        const auto& colouring = *plan.colouring;
-        int index = colouring.section_launch_offsets[section_index] + launch;
-        return {colouring.launch_chunk_offsets[index],
-                colouring.launch_chunk_offsets[index + 1]};
-    }
-
-    int num_blocks(int section_index, int launch) const {
-        if (hier_smem_plan != nullptr) {
-            auto [begin, end] = chunk_range(section_index, launch);
-            return std::min(end - begin, block_limit);
-        }
-
-        auto section = schedule[section_index];
-        int blocks = (section.size() + block_size - 1) / block_size;
-        return std::min(blocks, block_limit);
-    }
-
-    int dynamic_shared_bytes(int section_index) const {
-        if (hier_smem_plan == nullptr)
-            return shared_bytes;
-        if (!hier_smem_plan->staging)
-            return 0;
-
-        auto bytes = hier_smem_plan->staging->section_shared_bytes[section_index];
-        assert(bytes <= static_cast<std::size_t>(INT32_MAX));
-        return static_cast<int>(bytes);
-    }
-};
-
-class ExecutionPolicy {
-public:
-    enum class Kind {
-        direct,
-        atomics,
-        color2,
-    };
-
-private:
-    Kind m_kind;
-    bool m_gbl_inc_atomic = false;
-    int m_part_size = -1;
-    std::vector<int> m_indirect_dats;
-
-    ExecutionPolicy(Kind kind, bool gbl_inc_atomic, int part_size,
-                    std::vector<int> indirect_dats)
-        : m_kind{kind}, m_gbl_inc_atomic{gbl_inc_atomic},
-          m_part_size{part_size}, m_indirect_dats{std::move(indirect_dats)} {}
-
-public:
-    static ExecutionPolicy direct(bool gbl_inc_atomic) {
-        return {Kind::direct, gbl_inc_atomic, -1, {}};
-    }
-
-    static ExecutionPolicy atomics(bool gbl_inc_atomic) {
-        return {Kind::atomics, gbl_inc_atomic, -1, {}};
-    }
-
-    template<std::size_t N>
-    static ExecutionPolicy color2(const std::array<int, N>& indirect_dats,
-                                  int part_size, bool gbl_inc_atomic) {
-        return {Kind::color2, gbl_inc_atomic, part_size,
-                {indirect_dats.begin(), indirect_dats.end()}};
-    }
-
-    Kind kind() const { return m_kind; }
-    bool gbl_inc_atomic() const { return m_gbl_inc_atomic; }
-    int part_size() const { return m_part_size; }
-    std::size_t nargs() const { return m_indirect_dats.size(); }
-    int ninds() const {
-        int max_ind = -1;
-        for (int ind : m_indirect_dats)
-            max_ind = std::max(max_ind, ind);
-        return max_ind + 1;
-    }
-    int *indirect_dats() { return m_indirect_dats.data(); }
-};
-
-struct LaunchContext {
-    int global_stride;
-    unsigned opt_flags;
-    int start;
-    int end;
-    int set_stride;
-    int *color_reorder;
-
-    struct {
-        HierPlanDeviceView plan;
-        int chunk_begin;
-        int chunk_end;
-        int has_exclusive;
-    } staged;
-};
-
-struct GlobalInitContext {
-    int block_size;
-    int max_blocks;
-    int global_stride;
-};
-
-template<std::size_t OfflineN, std::size_t JitN>
-struct KernelArguments {
-    std::array<void *, OfflineN> offline;
-    std::array<void *, JitN> jit;
-};
-
-template<std::size_t OfflineN, std::size_t JitN>
-KernelArguments(std::array<void *, OfflineN>, std::array<void *, JitN>)
-    -> KernelArguments<OfflineN, JitN>;
-
-struct KernelInvocationResult {
-    bool used_jit;
-    KernelVariant variant;
-    int block_size;
-    int max_blocks;
-    HierFallbackReason hier_smem_reason = HierFallbackReason::none;
 };
 
 enum class ParamType {
@@ -786,6 +421,9 @@ struct KernelImplementation {
     gpuFuncAttributes_t offline_attrs;
     std::string source;
 
+    // The argument groups a hierarchical strategy plans over.
+    std::optional<HierArgGroups> groups;
+
     int offline_max_dynamic_shared_bytes = 0;
     std::unordered_map<uint64_t, JitKernel> jit_kernels;
     std::unordered_map<uint64_t, HashInfo> hash_infos;
@@ -801,29 +439,20 @@ private:
     std::string m_profile_name;
     std::string m_profile_target;
     std::string m_profile_variant;
-    ExecutionPolicy m_policy;
-    KernelImplementation m_baseline;
-    std::unique_ptr<KernelImplementation> m_staged;
-    std::optional<HierArgGroups> m_staging_descriptor;
-    detail::HierPlanCache m_hier_plan_cache;
-    std::set<HierFallbackReason> m_hier_smem_reported;
-    std::optional<std::size_t> m_hier_smem_capacity;
+    LoopDescription m_loop;
+    std::array<std::unique_ptr<KernelImplementation>, strategy_count>
+        m_variants;
+    std::array<detail::HierPlanCache, strategy_count> m_plan_caches;
+    std::set<std::pair<Strategy, std::array<FallbackReason, strategy_count>>>
+        m_reported;
+    std::optional<std::size_t> m_hier_atomics_capacity;
     bool m_plan_owner_registered = false;
     std::vector<JitParam> m_params;
     std::mutex m_jit_kernels_mutex;
 
-    KernelImplementation& implementation(KernelVariant variant) {
-        if (variant == KernelVariant::baseline)
-            return m_baseline;
-
-        if (m_staged == nullptr) {
-            std::fprintf(stderr,
-                         "error: staged implementation requested but not registered (in %s)\n",
-                         m_name.c_str());
-            std::exit(1);
-        }
-
-        return *m_staged;
+    // Return a strategy's registered variant, or null.
+    KernelImplementation *variant(Strategy strategy) {
+        return m_variants[strategy_index(strategy)].get();
     }
 
     bool is_jit_candidate(const KernelImplementation& impl) {
@@ -959,7 +588,8 @@ private:
     }
 
     static void release_hier_plans_callback(void *owner) {
-        static_cast<KernelInfo *>(owner)->m_hier_plan_cache.clear();
+        for (auto& cache : static_cast<KernelInfo *>(owner)->m_plan_caches)
+            cache.clear();
     }
 
     void register_plan_owner() {
@@ -974,53 +604,53 @@ private:
 public:
     KernelInfo(const KernelInfo&) = delete;
     KernelInfo(std::string_view profile_name, std::string_view profile_target,
-               std::string_view profile_variant, ExecutionPolicy policy,
-               std::string_view name, const void *kernel, std::string_view src)
-        : m_name{name}, m_profile_name{profile_name},
+               std::string_view profile_variant, LoopDescription loop)
+        : m_name{profile_name}, m_profile_name{profile_name},
           m_profile_target{profile_target}, m_profile_variant{profile_variant},
-          m_policy{std::move(policy)}, m_baseline{name, kernel, src} {
+          m_loop{std::move(loop)} {
         jit_init();
-        CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_baseline.offline_attrs,
-                                            m_baseline.offline_kernel));
     }
 
     ~KernelInfo() {
-        auto join_compilations = [](KernelImplementation& impl) {
-            for (auto& [hash, hash_info] : impl.hash_infos) {
+        for (auto& impl : m_variants) {
+            if (impl == nullptr)
+                continue;
+
+            for (auto& [hash, hash_info] : impl->hash_infos) {
                 if (hash_info.jit_thread.joinable())
                     hash_info.jit_thread.join();
             }
-        };
-
-        join_compilations(m_baseline);
-        if (m_staged != nullptr)
-            join_compilations(*m_staged);
+        }
 
         if (m_plan_owner_registered)
             unregister_hier_plan_owner(this);
-        m_hier_plan_cache.clear();
+        for (auto& cache : m_plan_caches)
+            cache.clear();
     }
 
-    void register_staged_variant(std::string_view name, const void *kernel,
-                                 std::string_view src,
-                                 std::optional<HierArgGroups>
-                                     descriptor = std::nullopt) {
-        if (m_staged != nullptr) {
+    // Register the wrapper for one strategy; hierarchical strategies pass the
+    // argument groups their plan is built over.
+    void register_variant(Strategy strategy, std::string_view name,
+                          const void *kernel, std::string_view src,
+                          std::optional<HierArgGroups> groups = std::nullopt) {
+        auto& slot = m_variants[strategy_index(strategy)];
+        if (slot != nullptr) {
             std::fprintf(stderr,
-                         "error: staged implementation already registered (in %s)\n",
-                         m_name.c_str());
+                         "error: %s variant already registered (in %s)\n",
+                         strategy_name(strategy).data(), m_name.c_str());
             std::exit(1);
         }
 
-        auto staged = std::make_unique<KernelImplementation>(name, kernel, src);
-        CUDA_SAFE_CALL(gpuFuncGetAttributes(&staged->offline_attrs,
-                                            staged->offline_kernel));
-        m_staged = std::move(staged);
-        m_staging_descriptor = descriptor;
+        assert(!groups.has_value() || hierarchical(strategy));
+        auto impl = std::make_unique<KernelImplementation>(name, kernel, src);
+        impl->groups = groups;
+        CUDA_SAFE_CALL(gpuFuncGetAttributes(&impl->offline_attrs,
+                                            impl->offline_kernel));
+        slot = std::move(impl);
     }
 
-    HierPlanCacheStatistics hier_plan_cache_statistics() const {
-        return m_hier_plan_cache.statistics();
+    HierPlanCacheStatistics hier_plan_cache_statistics(Strategy strategy) const {
+        return m_plan_caches[strategy_index(strategy)].statistics();
     }
 
     template<typename T>
@@ -1093,12 +723,14 @@ private:
         return {INT32_MAX, 128};
     }
 
-    // Return the staged wrapper's usable dynamic shared-memory capacity.
-    // OP2 fixes the device at initialization, so this is resolved once.
-    std::size_t hier_smem_device_capacity() {
-        assert(m_staged != nullptr);
-        if (m_hier_smem_capacity.has_value())
-            return *m_hier_smem_capacity;
+    // Return the hierarchical atomics wrapper's usable dynamic shared-memory
+    // capacity.  OP2 fixes the device at initialization, so this is resolved
+    // once.
+    std::size_t hier_atomics_capacity() {
+        const auto *impl = variant(Strategy::hier_atomics);
+        assert(impl != nullptr);
+        if (m_hier_atomics_capacity.has_value())
+            return *m_hier_atomics_capacity;
 
         int device = -1;
         CUDA_SAFE_CALL(gpuGetDevice(&device));
@@ -1113,18 +745,18 @@ private:
                              properties.sharedMemPerBlockOptin));
 #endif
         auto static_bytes = static_cast<std::size_t>(
-            m_staged->offline_attrs.sharedSizeBytes);
-        m_hier_smem_capacity = total > static_bytes ? total - static_bytes : 0;
-        return *m_hier_smem_capacity;
+            impl->offline_attrs.sharedSizeBytes);
+        m_hier_atomics_capacity = total > static_bytes ? total - static_bytes : 0;
+        return *m_hier_atomics_capacity;
     }
 
-    // Reject staged wrappers that omit an active indirect increment, or for
-    // colouring an active indirect read-write.
+    // Reject groups that omit an active indirect update the strategy must
+    // see: increments, and for colouring read-writes as well.
     static bool all_indirect_updates_covered(
         std::span<const op_arg> args,
-        const HierArgGroups& descriptor, bool read_write) {
+        const HierArgGroups& groups, bool read_write) {
         std::vector<bool> covered(args.size(), false);
-        for (const auto& arg : descriptor.args) {
+        for (const auto& arg : groups.args) {
             assert(arg.arg_index >= 0 &&
                    static_cast<std::size_t>(arg.arg_index) < args.size());
             covered[static_cast<std::size_t>(arg.arg_index)] = true;
@@ -1141,28 +773,32 @@ private:
         return true;
     }
 
-    // Look up or build the plan for the current loop configuration.
-    const detail::HierPlanCacheEntry& get_hier_smem_plan(
-        op_set set, std::span<const op_arg> args,
+    // Look up or build a hierarchical strategy's plan for the current loop
+    // configuration.
+    const detail::HierPlanCacheEntry& get_hier_plan(
+        Strategy strategy, op_set set, std::span<const op_arg> args,
         std::span<const ExecutionSection> sections, int block_size) {
-        assert(m_staging_descriptor.has_value());
+        assert(hierarchical(strategy));
+        const HierArgGroups& groups = *variant(strategy)->groups;
         register_plan_owner();
 
+        bool atomics = strategy == Strategy::hier_atomics;
+        int chunk_size = strategy_config.chunk_size(strategy);
         HierPlanOptions plan_options{
-            block_size, OP_part_size, hier_smem_device_capacity(),
-            hier_smem_exclusive};
+            block_size, chunk_size > 0 ? chunk_size : OP_part_size,
+            atomics ? hier_atomics_capacity() : 0,
+            atomics && strategy_config.hier_atomics_exclusive};
         auto key = detail::make_hier_plan_key(
-            set, args, static_cast<int>(sections.size()),
-            *m_staging_descriptor, plan_options);
+            set, args, static_cast<int>(sections.size()), groups, plan_options);
 
-        auto report = [this](const HierPlan& plan, bool rejected) {
+        auto report = [&](const HierPlan& plan, bool rejected) {
             if (OP_diags <= 3)
                 return;
 
             const auto& stats = plan.statistics;
             if (plan.colouring) {
-                std::printf("hier_colour: %s chunk %d, %zu chunks, %zu launches, "
-                            "up to %d thread colours\n",
+                std::printf("hier_colouring: %s chunk %d, %zu chunks, "
+                            "%zu launches, up to %d thread colours\n",
                             m_profile_name.c_str(), plan.selected_chunk_size,
                             plan.num_chunks(), stats.launches,
                             stats.max_thread_colours);
@@ -1170,7 +806,7 @@ private:
             }
 
             std::printf(
-                "hier_smem: %s chunk %d, %zu chunks, %zu refs, "
+                "hier_atomics: %s chunk %d, %zu chunks, %zu refs, "
                 "%zu owners (%zu exclusive, %zu atomic), "
                 "compression %.2fx%s\n",
                 m_profile_name.c_str(), plan.selected_chunk_size,
@@ -1181,132 +817,93 @@ private:
         };
 
         // The builder runs only for a new entry, so each plan reports once.
-        return m_hier_plan_cache.get_or_build(std::move(key), [&]() {
-            if (!all_indirect_updates_covered(args, *m_staging_descriptor,
-                                              colours()))
+        auto& cache = m_plan_caches[strategy_index(strategy)];
+        return cache.get_or_build(std::move(key), [&]() {
+            if (!all_indirect_updates_covered(args, groups, !atomics))
                 return HierPlanBuildResult{
-                    HierFallbackReason::incompatible_argument,
-                    std::nullopt};
+                    FallbackReason::incompatible_argument, std::nullopt};
 
-            if (colours()) {
+            if (!atomics) {
                 auto result = build_hier_colouring_plan(
-                    set, args, sections, *m_staging_descriptor, plan_options);
+                    set, args, sections, groups, plan_options);
                 if (result)
                     report(*result.plan, false);
                 return result;
             }
 
             auto result = build_hier_atomics_plan(
-                set, args, sections, *m_staging_descriptor, plan_options);
+                set, args, sections, groups, plan_options);
             if (!result)
                 return result;
 
-            // Drop a plan that barely combines references before it is uploaded.
+            // Drop a plan that barely combines references before it is
+            // uploaded.
             bool rejected = result.plan->statistics.compression() <
-                            hier_smem_min_compression;
+                            strategy_config.hier_atomics_min_compression;
             report(*result.plan, rejected);
             if (rejected)
-                return HierPlanBuildResult{
-                    HierFallbackReason::low_compression, std::nullopt};
+                return HierPlanBuildResult{FallbackReason::low_compression,
+                                           std::nullopt};
 
             return result;
         });
     }
 
-    // Whether this loop's staged wrapper is hierarchical colouring rather than
-    // shared-memory atomics.
-    bool colours() const {
-        return m_policy.kind() == ExecutionPolicy::Kind::color2;
-    }
+    // Report each distinct ladder outcome once per loop, at diagnostic
+    // verbosity: the strategy that ran, and why each one above it did not.
+    void report_selection(
+        Strategy selected,
+        const std::array<FallbackReason, strategy_count>& skipped) {
+        if (OP_diags <= 3 || !m_reported.insert({selected, skipped}).second)
+            return;
 
-    // Whether a staged wrapper exists to launch.  Checked before any policy
-    // question, since it is a property of translation.
-    HierFallbackReason hier_smem_registration() const {
-        return m_staged == nullptr ? HierFallbackReason::not_staged
-                                   : HierFallbackReason::none;
-    }
+        std::string passed;
+        for (Strategy strategy : strategies) {
+            auto reason = skipped[strategy_index(strategy)];
+            if (reason == FallbackReason::none)
+                continue;
 
-    // Whether a plan can be built for that wrapper.  Separate from the above
-    // because the direct-API tests launch a staged wrapper of their own with
-    // explicit shared bytes and no staging descriptor.
-    HierFallbackReason hier_smem_plannable() const {
-        if (!m_staging_descriptor.has_value() ||
-            m_policy.kind() == ExecutionPolicy::Kind::direct)
-            return HierFallbackReason::not_staged;
-
-        return HierFallbackReason::none;
-    }
-
-    // Whether the environment policy wants staging for a generated loop.  The
-    // decision lives here so that nothing about it leaks into generated code.
-    HierFallbackReason hier_smem_policy_allows() const {
-        switch (colours() ? hier_colour_policy : hier_smem_policy) {
-        case HierSmemPolicy::off:
-            return HierFallbackReason::disabled;
-        case HierSmemPolicy::on:
-            return HierFallbackReason::none;
-        case HierSmemPolicy::automatic:
-            // Conservative until the measurement campaign establishes which
-            // architectures gain: every device stays on the baseline, and
-            // known-regressing parts must stay here even once it does.
-            return HierFallbackReason::unvalidated_device;
+            passed += passed.empty() ? " (" : ", ";
+            passed += strategy_name(strategy);
+            passed += ": ";
+            passed += fallback_reason_name(reason);
         }
+        if (!passed.empty())
+            passed += ")";
 
-        return HierFallbackReason::unvalidated_device;
+        std::printf("strategy: %s runs %s%s\n", m_profile_name.c_str(),
+                    strategy_name(selected).data(), passed.c_str());
     }
 
-    // Report a fallback once per loop, at diagnostic verbosity.  Plan-level
-    // reasons are already built once per cache key; this covers the dispatch
-    // decisions, which are re-evaluated on every invocation.
-    void report_hier_smem_fallback(HierFallbackReason reason) {
-        if (OP_diags <= 3 || reason == HierFallbackReason::none)
-            return;
-
-        if (!m_hier_smem_reported.insert(reason).second)
-            return;
-
-        std::printf("%s: %s runs the baseline wrapper (%s)\n",
-                    colours() ? "hier_colour" : "hier_smem",
-                    m_profile_name.c_str(),
-                    std::string(hier_fallback_reason_name(reason))
-                        .c_str());
-    }
-
-    // The schedule a staged wrapper runs: indirect plans chunk the atomics
-    // schedule's core, owned and exec sections.
-    ExecutionSchedule staged_schedule(op_set set, bool global_reduction) const {
-        if (m_policy.kind() == ExecutionPolicy::Kind::direct)
+    // The schedule every strategy but colouring runs: one section for a
+    // direct loop, else core, owned (with a global reduction) and exec.
+    ExecutionSchedule section_schedule(op_set set, bool global_reduction) const {
+        if (m_loop.is_direct())
             return ExecutionSchedule::direct(set);
 
         return ExecutionSchedule::atomics(set, global_reduction);
     }
 
-    // The schedule the baseline wrapper runs.  Only color2 differs from the
-    // staged one, and it is built from an op_plan.
-    ExecutionSchedule baseline_schedule(op_set set, op_arg *args, int nargs,
-                                        bool global_reduction) {
-        if (m_policy.kind() != ExecutionPolicy::Kind::color2)
-            return staged_schedule(set, global_reduction);
-
+    // The colouring schedule, from op_plan.
+    ExecutionSchedule colouring_schedule(op_set set, op_arg *args, int nargs) {
         op_profile_next("Plan");
 
-        int part_size = m_policy.part_size() >= 0
-                            ? m_policy.part_size()
-                            : OP_part_size;
-        if (m_policy.nargs() != static_cast<std::size_t>(nargs) ||
-            m_policy.ninds() == 0) {
+        int part_size = m_loop.part_size() >= 0 ? m_loop.part_size()
+                                                : OP_part_size;
+        if (m_loop.nargs() != static_cast<std::size_t>(nargs) ||
+            m_loop.ninds() == 0) {
             std::fprintf(stderr,
-                         "error: invalid color2 indirect dat mapping (in %s)\n",
+                         "error: invalid colouring indirect dat mapping (in %s)\n",
                          m_name.c_str());
             std::exit(1);
         }
 
         op_plan *plan = op_plan_get_stage(
             m_profile_name.c_str(), set, part_size, nargs, args,
-            m_policy.ninds(), m_policy.indirect_dats(), OP_COLOR2);
+            m_loop.ninds(), m_loop.indirect_dats(), OP_COLOR2);
 
         op_profile_next("Get Kernel");
-        return ExecutionSchedule::color2(set, plan);
+        return ExecutionSchedule::colouring(set, plan);
     }
 
     // Resolve the physical launch policy for a schedule.
@@ -1320,79 +917,91 @@ private:
         block_limit = std::min(
             block_limit,
             ::getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(),
-                                      m_policy.gbl_inc_atomic()));
+                                      m_loop.gbl_inc_atomic()));
         return {block_limit, block_size};
     }
 
+    // Walk the ladder: run the first registered strategy that is enabled and,
+    // for a hierarchical one, whose plan accepts this configuration.  When
+    // none does, the lowest non-hierarchical strategy runs anyway, keeping
+    // its own reason.
     KernelExecution prepare(op_set set, op_arg *args, int nargs,
                             bool global_reduction,
-                            KernelExecutionOptions options) {
-        // Generated loops arrive with the default baseline variant and let the
-        // policy decide.  The direct-API tests instead name the variant
-        // themselves, and separately choose whether they want a real plan.
-        bool caller_chose_staging = options.variant == KernelVariant::staged;
-        bool wants_plan =
-            !caller_chose_staging || options.plan_hier_smem_for_testing;
-
-        HierFallbackReason hier_smem_reason = hier_smem_registration();
-        if (hier_smem_reason == HierFallbackReason::none && wants_plan)
-            hier_smem_reason = hier_smem_plannable();
-        if (hier_smem_reason == HierFallbackReason::none &&
-            !caller_chose_staging)
-            hier_smem_reason = hier_smem_policy_allows();
-
-        // A color2 loop builds its op_plan only once staging is ruled out.
-        bool staged = hier_smem_reason == HierFallbackReason::none;
-        ExecutionSchedule schedule =
-            staged ? staged_schedule(set, global_reduction)
-                   : baseline_schedule(set, args, nargs, global_reduction);
+                            const KernelExecutionOptions& options) {
+        ExecutionSchedule schedule = section_schedule(set, global_reduction);
         int block_limit = 0;
         int block_size = 0;
         std::tie(block_limit, block_size) = launch_config(schedule, args, nargs);
 
-        const HierPlan *hier_smem_plan = nullptr;
-        HierPlanDeviceView hier_smem_device;
-        if (staged && wants_plan) {
-            std::array<ExecutionSection, 3> sections;
-            assert(schedule.size() <= static_cast<int>(sections.size()));
-            for (int i = 0; i < schedule.size(); ++i)
-                sections[static_cast<std::size_t>(i)] = schedule[i];
+        std::array<ExecutionSection, 3> sections;
+        assert(schedule.size() <= static_cast<int>(sections.size()));
+        for (int i = 0; i < schedule.size(); ++i)
+            sections[static_cast<std::size_t>(i)] = schedule[i];
 
-            const auto& cached = get_hier_smem_plan(
-                set, std::span<const op_arg>{args,
+        std::array<FallbackReason, strategy_count> skipped{};
+        std::optional<Strategy> selected;
+        std::optional<Strategy> floor;
+        const detail::HierPlanCacheEntry *entry = nullptr;
+        bool started = !options.force.has_value();
+
+        for (Strategy strategy : strategies) {
+            KernelImplementation *impl = variant(strategy);
+            if (impl == nullptr)
+                continue;
+            if (!hierarchical(strategy))
+                floor = strategy;
+
+            started |= options.force == strategy;
+            if (!started || selected.has_value())
+                continue;
+
+            bool forced = options.force == strategy;
+            auto& reason = skipped[strategy_index(strategy)];
+            if (!forced && !strategy_config.enabled(strategy))
+                reason = FallbackReason::disabled;
+
+            if (reason == FallbackReason::none && impl->groups.has_value()) {
+                const auto& cached = get_hier_plan(
+                    strategy, set,
+                    std::span<const op_arg>{args,
                                             static_cast<std::size_t>(nargs)},
-                std::span<const ExecutionSection>{
-                    sections.data(),
-                    static_cast<std::size_t>(schedule.size())},
-                block_size);
-            hier_smem_reason = cached.reason();
-            if (cached) {
-                hier_smem_plan = cached.plan();
-                hier_smem_device = cached.device_view();
-
-                // The wrapper's single stride argument indexes both the maps
-                // and the packed words, so the plan has to have been built
-                // against the same stride the schedule reports.
-                assert(hier_smem_plan->set_stride == schedule.set_stride());
+                    std::span<const ExecutionSection>{
+                        sections.data(),
+                        static_cast<std::size_t>(schedule.size())},
+                    block_size);
+                reason = cached.reason();
+                if (cached)
+                    entry = &cached;
             }
+
+            if (reason == FallbackReason::none)
+                selected = strategy;
         }
 
-        KernelVariant variant = KernelVariant::staged;
-        if (hier_smem_reason != HierFallbackReason::none) {
-            variant = KernelVariant::baseline;
-            report_hier_smem_fallback(hier_smem_reason);
+        assert(selected.has_value() || floor.has_value());
+        Strategy strategy = selected.value_or(*floor);
 
-            if (staged) {
-                schedule = baseline_schedule(set, args, nargs, global_reduction);
-                std::tie(block_limit, block_size) =
-                    launch_config(schedule, args, nargs);
-            }
+        const HierPlan *plan = nullptr;
+        HierPlanDeviceView plan_device;
+        if (entry != nullptr) {
+            plan = entry->plan();
+            plan_device = entry->device_view();
+
+            // The wrapper's single stride argument indexes both the maps and
+            // the plan's per-element arrays, so the plan has to have been
+            // built against the same stride the schedule reports.
+            assert(plan->set_stride == schedule.set_stride());
+        }
+
+        if (strategy == Strategy::colouring) {
+            schedule = colouring_schedule(set, args, nargs);
+            std::tie(block_limit, block_size) =
+                launch_config(schedule, args, nargs);
         }
 
         KernelExecution execution{
-            variant, nullptr, schedule, block_size, block_limit, 0,
-            options.shared_bytes, hier_smem_plan, hier_smem_device,
-            hier_smem_reason};
+            strategy, nullptr, schedule, block_size, block_limit, 0,
+            options.shared_bytes, plan, plan_device, skipped};
 
         // Reduction scratch uses the selected plan's capped physical grid.
         for (int i = 0; i < schedule.size(); ++i)
@@ -1403,7 +1012,8 @@ private:
         for (auto& param : m_params)
             param.update(args, nargs, execution);
 
-        execution.jit_kernel = get_kernel(implementation(variant));
+        report_selection(strategy, skipped);
+        execution.jit_kernel = get_kernel(*variant(strategy));
 
         return execution;
     }
@@ -1472,7 +1082,7 @@ private:
     void launch_section(const KernelExecution& execution, int section_index,
                         int num_blocks,
                         void **args, void **args_jit) {
-        auto& impl = implementation(execution.variant);
+        auto& impl = *variant(execution.strategy);
 
         if (execution.jit_kernel == nullptr) {
             op_profile_next("Offline Kernel");
@@ -1488,16 +1098,30 @@ private:
                                          section_index));
     }
 
-    template<KernelVariant Variant, typename Bindings>
+    template<Strategy S, typename Bindings>
     void bind_and_launch(const KernelExecution& execution, int section_index,
                          int num_blocks,
                          LaunchContext& launch, op_arg *args,
                          Bindings& bindings) {
-        auto kernel_args =
-            bindings.template make_arguments<Variant>(launch, args);
+        auto kernel_args = bindings.template make_arguments<S>(launch, args);
         launch_section(execution, section_index, num_blocks,
                        kernel_args.offline.data(),
                        kernel_args.jit.data());
+    }
+
+    // Call f.template operator()<S>() for the strategy S, among those the
+    // bindings generate arguments for, that the execution selected.
+    template<typename Bindings, typename F>
+    static void with_strategy(Strategy strategy, F&& f) {
+        [[maybe_unused]] bool found = [&]<std::size_t... I>(
+                                          std::index_sequence<I...>) {
+            return ((strategy == Bindings::strategies[I]
+                         ? (f.template operator()<Bindings::strategies[I]>(),
+                            true)
+                         : false) ||
+                    ...);
+        }(std::make_index_sequence<Bindings::strategies.size()>{});
+        assert(found);
     }
 
 public:
@@ -1520,7 +1144,7 @@ public:
             op_mpi_set_dirtybit_cuda(nargs, args);
             op_profile_exit();
 
-            return {false, options.variant, 0, 0};
+            return {};
         }
 
         bool global_reduction = has_global_reduction(args, nargs);
@@ -1534,7 +1158,7 @@ public:
         op_profile_enter("Prepare GBLs");
         int global_stride = execution.block_size * execution.max_blocks;
         prepareDeviceGblsWithPolicy(args, nargs, global_stride,
-                                    m_policy.gbl_inc_atomic());
+                                    m_loop.gbl_inc_atomic());
 
         GlobalInitContext global_init{execution.block_size,
                                       execution.max_blocks, global_stride};
@@ -1567,25 +1191,22 @@ public:
                     schedule.color_reorder(),
                     {}};
 
-                if (execution.hier_smem_plan != nullptr) {
-                    launch.staged.plan = execution.hier_smem_device;
-                    std::tie(launch.staged.chunk_begin,
-                             launch.staged.chunk_end) =
+                if (execution.plan != nullptr) {
+                    launch.hier.plan = execution.plan_device;
+                    std::tie(launch.hier.chunk_begin, launch.hier.chunk_end) =
                         execution.chunk_range(section_index, launch_index);
-                    if (const auto& staging = execution.hier_smem_plan->staging)
-                        launch.staged.has_exclusive = staging->has_exclusive;
+                    if (const auto& staging = execution.plan->staging)
+                        launch.hier.has_exclusive = staging->has_exclusive;
                 }
 
                 int num_blocks =
                     execution.num_blocks(section_index, launch_index);
-                if (execution.variant == KernelVariant::baseline)
-                    bind_and_launch<KernelVariant::baseline>(
-                        execution, section_index, num_blocks, launch, args,
-                        bindings);
-                else
-                    bind_and_launch<KernelVariant::staged>(
-                        execution, section_index, num_blocks, launch, args,
-                        bindings);
+                with_strategy<Bindings>(
+                    execution.strategy, [&]<Strategy S>() {
+                        bind_and_launch<S>(execution, section_index,
+                                           num_blocks, launch, args,
+                                           bindings);
+                    });
             }
 
             if (global_output &&
@@ -1593,7 +1214,7 @@ public:
                 op_profile_next("Process GBLs");
                 exit_sync |= processDeviceGblsWithPolicy(
                     args, nargs, global_stride, global_stride,
-                    m_policy.gbl_inc_atomic());
+                    m_loop.gbl_inc_atomic());
                 op_profile_next("Kernel");
             }
         }
@@ -1616,9 +1237,8 @@ public:
         op_profile_exit();
         op_profile_exit();
 
-        return {execution.jit_kernel != nullptr, execution.variant,
-                execution.block_size, execution.max_blocks,
-                execution.hier_smem_reason};
+        return {execution.jit_kernel != nullptr, execution.strategy,
+                execution.block_size, execution.max_blocks, execution.skipped};
     }
 };
 

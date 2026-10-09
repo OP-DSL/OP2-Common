@@ -42,25 +42,22 @@ struct HierArgGroups {
     int chunk_size_override = -1;
 };
 
-// Why an eligible-looking loop ran the baseline wrapper.  These are stable
-// diagnostic names, reported once per loop or plan at OP_diags > 3.
-enum class HierFallbackReason {
+// Why a strategy passed a loop down the ladder.  These are stable diagnostic
+// names, reported once per loop outcome or plan at OP_diags > 3.
+enum class FallbackReason {
     none,
-    // Dispatch outcomes, decided before any plan is built.
-    disabled,             // OP_HIER_SMEM_ATOMICS or OP_HIER_COLOURING is 0
-    unvalidated_device,   // automatic policy has no measurements for this GPU
-    not_staged,           // loop registered no staged wrapper
+    disabled,             // the strategy's variable turns it off
     // Plan outcomes, decided once per cache key.
     no_active_argument,
     incompatible_argument,
     insufficient_shared_memory,
-    low_compression,      // below OP_HIER_SMEM_MIN_COMPRESSION
+    low_compression,      // below OP_HIER_ATOMICS_MIN_COMPRESSION
     too_many_colours,     // a chunk needs more thread colours than fit a byte
 };
 
 // Convert a fallback reason to its stable diagnostic name.
 std::string_view
-hier_fallback_reason_name(HierFallbackReason reason);
+fallback_reason_name(FallbackReason reason);
 
 struct HierPlanOptions {
     int block_size = 128;
@@ -134,12 +131,12 @@ struct HierPlan {
 };
 
 struct HierPlanBuildResult {
-    HierFallbackReason reason = HierFallbackReason::none;
+    FallbackReason reason = FallbackReason::none;
     std::optional<HierPlan> plan;
 
     // Report whether planning succeeded and produced a usable plan.
     explicit operator bool() const {
-        return reason == HierFallbackReason::none && plan.has_value();
+        return reason == FallbackReason::none && plan.has_value();
     }
 };
 

@@ -75,7 +75,7 @@ HierPlanBuildResult build_hier_colouring_plan(
     const HierPlanOptions& options) {
     ResolvedInput resolved;
     auto reason = resolve_input(set, args, groups, options, false, resolved);
-    if (reason != HierFallbackReason::none)
+    if (reason != FallbackReason::none)
         return {reason, std::nullopt};
 
     assert(!sections.empty() && sections.front().start == 0);
@@ -164,7 +164,7 @@ HierPlanBuildResult build_hier_colouring_plan(
                 },
                 masks, colours);
             if (thread_colours > 255)
-                return {HierFallbackReason::too_many_colours,
+                return {FallbackReason::too_many_colours,
                         std::nullopt};
 
             for (int source = start; source < end; ++source)
@@ -219,7 +219,7 @@ HierPlanBuildResult build_hier_colouring_plan(
     }
 
     plan.statistics.launches = colouring.launch_chunk_offsets.size() - 1;
-    return {HierFallbackReason::none, std::move(plan)};
+    return {FallbackReason::none, std::move(plan)};
 }
 
 } // namespace op::f2c

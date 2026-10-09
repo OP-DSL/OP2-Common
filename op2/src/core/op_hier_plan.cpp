@@ -56,7 +56,7 @@ int normalize_chunk_size(const HierArgGroups& groups,
 
 namespace detail {
 
-HierFallbackReason resolve_input(
+FallbackReason resolve_input(
     op_set set, std::span<const op_arg> args,
     const HierArgGroups& groups,
     const HierPlanOptions& options, bool increments_only,
@@ -119,12 +119,12 @@ HierFallbackReason resolve_input(
                                          target_set->exec_size +
                                          target_set->nonexec_size;
         } else if (resolved_dat.dat != arg.dat) {
-            return HierFallbackReason::incompatible_argument;
+            return FallbackReason::incompatible_argument;
         }
     }
 
     if (!any_active)
-        return HierFallbackReason::no_active_argument;
+        return FallbackReason::no_active_argument;
 
     // The translator groups dat arguments by source expression, so two groups
     // can still resolve to one runtime op_dat (the same dat passed through two
@@ -146,7 +146,7 @@ HierFallbackReason resolve_input(
         const auto *dat = resolved.dats[dat_index].dat;
         if (dat != nullptr &&
             !claimed.emplace(dat, dat_index).second)
-            return HierFallbackReason::incompatible_argument;
+            return FallbackReason::incompatible_argument;
     }
 
     for (std::size_t arg_index = 0; arg_index < args.size(); ++arg_index) {
@@ -155,35 +155,31 @@ HierFallbackReason resolve_input(
             continue;
 
         if (!grouped_args[arg_index] && claimed.count(arg.dat) != 0)
-            return HierFallbackReason::incompatible_argument;
+            return FallbackReason::incompatible_argument;
     }
 
-    return HierFallbackReason::none;
+    return FallbackReason::none;
 }
 
 } // namespace detail
 
 // Provide stable names for policy diagnostics and fallback reporting.
 std::string_view
-hier_fallback_reason_name(HierFallbackReason reason) {
+fallback_reason_name(FallbackReason reason) {
     switch (reason) {
-    case HierFallbackReason::none:
+    case FallbackReason::none:
         return "none";
-    case HierFallbackReason::disabled:
+    case FallbackReason::disabled:
         return "disabled";
-    case HierFallbackReason::unvalidated_device:
-        return "unvalidated_device";
-    case HierFallbackReason::not_staged:
-        return "not_staged";
-    case HierFallbackReason::no_active_argument:
+    case FallbackReason::no_active_argument:
         return "no_active_argument";
-    case HierFallbackReason::incompatible_argument:
+    case FallbackReason::incompatible_argument:
         return "incompatible_argument";
-    case HierFallbackReason::insufficient_shared_memory:
+    case FallbackReason::insufficient_shared_memory:
         return "insufficient_shared_memory";
-    case HierFallbackReason::low_compression:
+    case FallbackReason::low_compression:
         return "low_compression";
-    case HierFallbackReason::too_many_colours:
+    case FallbackReason::too_many_colours:
         return "too_many_colours";
     }
 

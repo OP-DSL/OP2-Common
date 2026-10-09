@@ -29,7 +29,7 @@ struct ResolvedInput {
 
 // Resolve generated metadata and runtime identities into canonical plan input.
 // Increments-only groups additionally assert every active argument is OP_INC.
-HierFallbackReason resolve_input(
+FallbackReason resolve_input(
     op_set set, std::span<const op_arg> args, const HierArgGroups& groups,
     const HierPlanOptions& options, bool increments_only,
     ResolvedInput& resolved);

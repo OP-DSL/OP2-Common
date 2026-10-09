@@ -53,6 +53,14 @@ Indirect (colouring)
     {%- endif -%}
 {%- endfor -%}
 {%- set has_hier_smem = (config.atomics or hier_colouring) and args_hier_smem|length > 0 and hier_smem.supported -%}
+{%- if lh is direct -%}
+    {%- set baseline_strategy = "plain" -%}
+{%- elif config.atomics -%}
+    {%- set baseline_strategy = "atomics" -%}
+{%- else -%}
+    {%- set baseline_strategy = "colouring" -%}
+{%- endif -%}
+{%- set staged_strategy = "hier_colouring" if hier_colouring else "hier_atomics" -%}
 {#- Staged dats whose dimension the staged wrapper needs even under SoA. -#}
 {%- set hier_smem_dim_ids = [] if hier_colouring else hier_smem.dat_ids -%}
 
@@ -547,24 +555,35 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
             (void *)&launch.end,
             (void *)&launch.set_stride{{"," if staged}}
     {% if staged and hier_colouring %}
-            (void *)&launch.staged.plan.source_offsets,
-            (void *)&launch.staged.plan.chunk_order,
-            (void *)&launch.staged.plan.thread_colours,
-            (void *)&launch.staged.plan.chunk_thread_colours,
-            (void *)&launch.staged.chunk_begin,
-            (void *)&launch.staged.chunk_end
+            (void *)&launch.hier.plan.source_offsets,
+            (void *)&launch.hier.plan.chunk_order,
+            (void *)&launch.hier.plan.thread_colours,
+            (void *)&launch.hier.plan.chunk_thread_colours,
+            (void *)&launch.hier.chunk_begin,
+            (void *)&launch.hier.chunk_end
     {% elif staged %}
-            (void *)&launch.staged.plan.source_offsets,
-            (void *)&launch.staged.plan.stage_words,
-            (void *)&launch.staged.plan.stage_counts,
-            (void *)&launch.staged.chunk_begin,
-            (void *)&launch.staged.chunk_end,
-            (void *)&launch.staged.has_exclusive
+            (void *)&launch.hier.plan.source_offsets,
+            (void *)&launch.hier.plan.stage_words,
+            (void *)&launch.hier.plan.stage_counts,
+            (void *)&launch.hier.chunk_begin,
+            (void *)&launch.hier.chunk_end,
+            (void *)&launch.hier.has_exclusive
     {% endif %}
 {%- endmacro %}
 
 struct op2_k_{{lh.name}}{{variant}}_bindings {
-    template<op::f2c::KernelVariant Variant>
+{% if has_hier_smem %}
+    static constexpr std::array strategies{
+        op::f2c::Strategy::{{baseline_strategy}},
+        op::f2c::Strategy::{{staged_strategy}},
+    };
+{% else %}
+    static constexpr std::array strategies{
+        op::f2c::Strategy::{{baseline_strategy}},
+    };
+{% endif %}
+
+    template<op::f2c::Strategy S>
     auto make_arguments(op::f2c::LaunchContext& launch, op_arg *args) const {
 {% if lh.args|opt|length > 0 %}
         launch.opt_flags = 0;
@@ -575,7 +594,7 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
 {% endif %}
 
 {% if has_hier_smem %}
-        if constexpr (Variant == op::f2c::KernelVariant::baseline) {
+        if constexpr (S == op::f2c::Strategy::{{baseline_strategy}}) {
             auto offline = std::array{
 {{kernel_arguments()}}
             };
@@ -641,13 +660,10 @@ struct op2_k_{{lh.name}}{{variant}}_bindings {
     }
 };
 
-static op::f2c::ExecutionPolicy
-op2_k_{{lh.name}}{{variant}}_execution_policy() {
+static op::f2c::LoopDescription
+op2_k_{{lh.name}}{{variant}}_loop() {
 {% if lh is direct %}
-    return op::f2c::ExecutionPolicy::direct(
-        {{"true" if config.gbl_inc_atomic else "false"}});
-{% elif config.atomics %}
-    return op::f2c::ExecutionPolicy::atomics(
+    return op::f2c::LoopDescription::direct(
         {{"true" if config.gbl_inc_atomic else "false"}});
 {% else %}
     static constexpr std::array<int, {{lh.args|length}}> indirect_dats = {
@@ -661,7 +677,7 @@ op2_k_{{lh.name}}{{variant}}_execution_policy() {
 #else
     constexpr int part_size = -1;
 #endif
-    return op::f2c::ExecutionPolicy::color2(
+    return op::f2c::LoopDescription::indirect(
         indirect_dats, part_size,
         {{"true" if config.gbl_inc_atomic else "false"}});
 {% endif %}
@@ -693,6 +709,11 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
     info.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
+    info.register_variant(
+        op::f2c::Strategy::{{baseline_strategy}},
+        "op2_k_{{lh.name}}{{variant}}_wrapper",
+        (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
+        op2_k_{{lh.name}}{{variant}}_src);
 {% if has_hier_smem %}
     static constexpr std::array staged_args = {
     {% for arg in args_hier_smem %}
@@ -710,7 +731,8 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
 #else
     constexpr int staged_part_size = -1;
 #endif
-    info.register_staged_variant(
+    info.register_variant(
+        op::f2c::Strategy::{{staged_strategy}},
         "op2_k_{{lh.name}}{{variant}}_staged_wrapper",
         (void *)op2_k_{{lh.name}}{{variant}}_staged_wrapper,
         op2_k_{{lh.name}}{{variant}}_staged_src,
@@ -723,10 +745,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register_info(
 static op::f2c::KernelInfo& op2_k_{{lh.name}}{{variant}}_info() {
     static op::f2c::KernelInfo info(
         "{{lh.name}}", "c_CUDA", "{{variant_str()}}",
-        op2_k_{{lh.name}}{{variant}}_execution_policy(),
-        "op2_k_{{lh.name}}{{variant}}_wrapper",
-        (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-        op2_k_{{lh.name}}{{variant}}_src);
+        op2_k_{{lh.name}}{{variant}}_loop());
     static const bool registered =
         op2_k_{{lh.name}}{{variant}}_register_info(info);
     (void)registered;

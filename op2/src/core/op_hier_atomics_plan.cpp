@@ -255,7 +255,7 @@ HierPlanBuildResult build_hier_atomics_plan(
     // Resolve runtime metadata once for every candidate.
     ResolvedInput resolved;
     auto reason = resolve_input(set, args, groups, options, true, resolved);
-    if (reason != HierFallbackReason::none)
+    if (reason != FallbackReason::none)
         return {reason, std::nullopt};
 
     assert(!sections.empty() && sections.front().start == 0);
@@ -277,7 +277,7 @@ HierPlanBuildResult build_hier_atomics_plan(
     auto capacity = static_cast<long long>(limit / per_element);
     long long blocks = capacity / options.block_size;
     if (blocks < 1)
-        return {HierFallbackReason::insufficient_shared_memory,
+        return {FallbackReason::insufficient_shared_memory,
                 std::nullopt};
 
     int chunk_size = static_cast<int>(std::min(
@@ -288,7 +288,7 @@ HierPlanBuildResult build_hier_atomics_plan(
     build_candidate(resolved, sections, chunk_size, options.exclusive_flush,
                     plan);
     plan.staging->has_exclusive = plan.statistics.exclusive_owners > 0 ? 1 : 0;
-    return {HierFallbackReason::none, std::move(plan)};
+    return {FallbackReason::none, std::move(plan)};
 }
 
 
