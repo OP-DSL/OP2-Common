@@ -258,24 +258,28 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {%- endif -%}
 {%- endmacro -%}
 
-{#- Seed one staged region through the single owner of each of its slots. -#}
-{% macro hier_smem_init(strategy, arg, index) %}
-{% set dat = lh.dat(arg) %}
-{% set group = group_dats[strategy]|index(arg.dat_id) %}
+{#- Seed every staged region through the single owner of each of its slots,
+    in one pass over the chunk, so every argument's loads are in flight at
+    once rather than one argument's dependent chain after another's. -#}
+{% macro hier_smem_seed_all(strategy, grouped) %}
         for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
              n += blockDim.x) {
-{% if arg is opt %}
-            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) == 0)
-                break;
-
-{% endif %}
-            // Only owners are ever marked exclusive, so this covers both.
-            f2c::HierSmemStageWord word = stage_words[{{index}} * stride + n];
-            if (!f2c::hier_smem_stage_exclusive(word))
-                continue;
-
-            int target = {{map_lookup(arg)}};
-            f2c::hier_smem_seed(word, {{hier_smem_global(arg, dat)}}, op2_stage{{group}}, op2_stage{{group}}_count, {{dat_dim_w(dat)}});
+{% for arg in grouped %}
+    {% set dat = lh.dat(arg) %}
+    {% set group = group_dats[strategy]|index(arg.dat_id) %}
+    {% if arg is opt %}
+            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0) {
+    {% else %}
+            {
+    {% endif %}
+                // Only owners are ever marked exclusive, so this covers both.
+                f2c::HierSmemStageWord word = stage_words[{{loop.index0}} * stride + n];
+                if (f2c::hier_smem_stage_exclusive(word)) {
+                    int target = {{map_lookup(arg)}};
+                    f2c::hier_smem_seed(word, {{hier_smem_global(arg, dat)}}, op2_stage{{group}}, op2_stage{{group}}_count, {{dat_dim_w(dat)}});
+                }
+            }
+{% endfor %}
         }
 {% endmacro %}
 
@@ -402,9 +406,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         // when the plan has no exclusive owner, since the scan would otherwise
         // re-read every packed word from global memory to find nothing.
         if (has_exclusive) {
-        {% for arg in grouped %}
-{{- hier_smem_init(strategy, arg, loop.index0)}}
-        {% endfor %}
+{{hier_smem_seed_all(strategy, grouped)}}
             __syncthreads();
         }
 
@@ -415,9 +417,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% else %}
         // Seed every slot from its target, so the elements read and update
         // the targets' current values.
-        {% for arg in grouped %}
-{{- hier_smem_init(strategy, arg, loop.index0)}}
-        {% endfor %}
+{{hier_smem_seed_all(strategy, grouped)}}
         __syncthreads();
 {{hier_colour_passes(jit)}}
     {% endif %}
