@@ -43,7 +43,7 @@ struct HierSmemStagingDescriptor {
 enum class HierSmemFallbackReason {
     none,
     // Dispatch outcomes, decided before any plan is built.
-    disabled,             // OP_HIER_SMEM_ATOMICS=0
+    disabled,             // OP_HIER_SMEM_ATOMICS or OP_HIER_COLOURING is 0
     unvalidated_device,   // automatic policy has no measurements for this GPU
     not_staged,           // loop registered no staged wrapper
     // Plan outcomes, decided once per cache key.

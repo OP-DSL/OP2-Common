@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -19,6 +20,9 @@ struct HierSmemPlanDeviceView {
     const int *source_offsets = nullptr;
     const HierSmemStageWord *stage_words = nullptr;
     const int *stage_counts = nullptr;
+    const int *chunk_order = nullptr;
+    const std::uint8_t *thread_colours = nullptr;
+    const int *chunk_thread_colours = nullptr;
 };
 
 struct HierSmemPlanCacheStatistics {
@@ -102,6 +106,9 @@ private:
     int *m_source_offsets_d = nullptr;
     HierSmemStageWord *m_stage_words_d = nullptr;
     int *m_stage_counts_d = nullptr;
+    int *m_chunk_order_d = nullptr;
+    std::uint8_t *m_thread_colours_d = nullptr;
+    int *m_chunk_thread_colours_d = nullptr;
 
     template<typename T>
     // Upload only the compact arrays read by a staged wrapper.
@@ -119,6 +126,13 @@ private:
             "gpuMemcpy");
     }
 
+    template<typename T>
+    static void release(T *&pointer) {
+        if (pointer != nullptr)
+            hier_smem_check_gpu(gpuFree(pointer), "gpuFree");
+        pointer = nullptr;
+    }
+
 public:
     HierSmemPlanCacheEntry(const HierSmemPlanCacheEntry&) = delete;
 
@@ -130,6 +144,9 @@ public:
         upload(m_plan->source_offsets, m_source_offsets_d);
         upload(m_plan->stage_words, m_stage_words_d);
         upload(m_plan->stage_counts, m_stage_counts_d);
+        upload(m_plan->chunk_order, m_chunk_order_d);
+        upload(m_plan->thread_colours, m_thread_colours_d);
+        upload(m_plan->chunk_thread_colours, m_chunk_thread_colours_d);
     }
 
     ~HierSmemPlanCacheEntry() { release_device_storage(); }
@@ -140,27 +157,22 @@ public:
         return m_plan.has_value() ? &*m_plan : nullptr;
     }
     HierSmemPlanDeviceView device_view() const {
-        return {m_source_offsets_d, m_stage_words_d, m_stage_counts_d};
+        return {m_source_offsets_d, m_stage_words_d, m_stage_counts_d,
+                m_chunk_order_d, m_thread_colours_d, m_chunk_thread_colours_d};
     }
 
     // OP2 selects one device at initialization and never switches, so these
     // free on the device they were allocated on.
     void release_device_storage() {
-        if (m_source_offsets_d != nullptr)
-            hier_smem_check_gpu(gpuFree(m_source_offsets_d), "gpuFree");
-        if (m_stage_words_d != nullptr)
-            hier_smem_check_gpu(gpuFree(m_stage_words_d), "gpuFree");
-        if (m_stage_counts_d != nullptr)
-            hier_smem_check_gpu(gpuFree(m_stage_counts_d), "gpuFree");
-
-        m_source_offsets_d = nullptr;
-        m_stage_words_d = nullptr;
-        m_stage_counts_d = nullptr;
+        release(m_source_offsets_d);
+        release(m_stage_words_d);
+        release(m_stage_counts_d);
+        release(m_chunk_order_d);
+        release(m_thread_colours_d);
+        release(m_chunk_thread_colours_d);
     }
 };
 
-// Cache both usable plans and fallback results; only usable plans own device
-// copies of the compact arrays consumed by staged wrappers.
 // Cache both usable plans and fallback results; only usable plans own device
 // copies of the compact arrays consumed by staged wrappers.  A loop sees one
 // key in the common case and a second when optional state flips, so the
