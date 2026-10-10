@@ -1,6 +1,11 @@
 SHELL = /bin/sh
 .SUFFIXES:
 
+# Check for GNU Make 4 or later
+ifeq ($(filter-out 0 1 2 3,$(firstword $(subst ., ,$(MAKE_VERSION)))),)
+  $(error GNU Make >= 4.0 required (found $(MAKE_VERSION)); on macOS: brew install make, then run gmake)
+endif
+
 .DEFAULT_GOAL := all
 
 # Helper function to upper-case a string
@@ -57,6 +62,37 @@ ifeq ($(MAKECMDGOALS),config)
 
   # Compiler definitions
   include $(MAKEFILES_DIR)/compilers.mk
+
+  # Find Homebrew HDF5 on macOS
+  ifeq ($(shell uname -s),Darwin)
+    ifndef HDF5_INSTALL_PATH
+      ifndef HDF5_SEQ_INSTALL_PATH
+        HDF5_SEQ_INSTALL_PATH := $(shell brew --prefix --installed hdf5 2> /dev/null)
+        ifeq ($(HDF5_SEQ_INSTALL_PATH),)
+          undefine HDF5_SEQ_INSTALL_PATH
+        endif
+      endif
+      ifndef HDF5_PAR_INSTALL_PATH
+        HDF5_PAR_INSTALL_PATH := $(shell brew --prefix --installed hdf5-mpi 2> /dev/null)
+        ifeq ($(HDF5_PAR_INSTALL_PATH),)
+          undefine HDF5_PAR_INSTALL_PATH
+        endif
+      endif
+    endif
+
+    # MPI include path for the translator (Homebrew Open MPI)
+    ifndef MPI_INC
+      CONFIG_MPI_INC := $(shell $(CONFIG_MPICXX) --showme:incdirs 2> /dev/null)
+    endif
+
+    # Create a venv for the translator (Homebrew Python does not allow pip installs)
+    TRANSLATOR_DIR := $(ROOT_DIR)/translator-v2
+    ifeq ($(wildcard $(TRANSLATOR_DIR)/.venv),)
+      $(info Creating $(TRANSLATOR_DIR)/.venv)
+      $(shell python3 -m venv $(TRANSLATOR_DIR)/.venv && \
+        $(TRANSLATOR_DIR)/.venv/bin/pip install -q -r $(TRANSLATOR_DIR)/requirements.txt >&2)
+    endif
+  endif
 
   $(info Looking for compilers and dependencies:)
   $(info )
