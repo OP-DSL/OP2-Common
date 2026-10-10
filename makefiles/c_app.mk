@@ -71,6 +71,7 @@ clean:
 	-$(RM) $(foreach variant,$(ALL_VARIANTS),*_$(variant))
 	-$(RM) -rf generated
 	-$(RM) *.d
+	-$(RM) -r *.dSYM
 	-$(RM) *.o
 	-$(RM) out_grid.*
 	-$(RM) out_grid_mpi.*
@@ -79,7 +80,8 @@ endif
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $(APP_EXTRA_TRANSLATOR_FLAGS) $(APP_INC) $$^ -o $$@
+	$(TRANSLATOR) $(APP_EXTRA_TRANSLATOR_FLAGS) $(APP_INC) $$^ -o $$@ \
+	  || { rm -rf $$@; exit 1; }
 
 generate: generated/$(APP_NAME)
 endef

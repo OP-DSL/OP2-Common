@@ -36,6 +36,23 @@ Finally, to build OP2 and any of the apps:
  5. Run `make -j$(nproc)` in the `op2` directory to build the run-time libraries.
  6. Run `make -j$(nproc)` in any of the app directories to build the respective apps.
 
+### macOS
+
+Install the dependencies with [Homebrew](https://brew.sh):
+```sh
+brew install make gcc libomp open-mpi hdf5-mpi
+```
+Use `hdf5` instead of `hdf5-mpi` if you don't need MPI; the two cannot be installed together.
+
+Then follow the steps above with these changes:
+ * Step 1: set `OP2_COMPILER=gnu`.
+ * Step 2: `HDF5_{SEQ, PAR}_INSTALL_PATH` are not needed; Homebrew's HDF5 is found automatically.
+ * Steps 4-6: run `gmake` instead of `make`, and `-j$(sysctl -n hw.ncpu)` instead of `-j$(nproc)`.
+
+`gmake config` also creates `translator-v2/.venv` with the code generator's Python packages.
+
+CUDA and HIP are not supported on macOS.
+
 ## Citing
 To cite OP2, please reference the following paper:
 

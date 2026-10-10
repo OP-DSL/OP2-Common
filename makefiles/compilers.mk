@@ -50,6 +50,31 @@ ifneq ($(and $(shell which $(CONFIG_CC) 2> /dev/null),$(shell which $(CONFIG_CXX
   CONFIG_HAVE_C := true
 endif
 
+# Fortran preprocessor (macOS cpp is traditional and does not handle ##)
+ifeq ($(shell uname -s),Darwin)
+  CONFIG_FPP ?= $(CONFIG_CC) -E -x c
+else
+  CONFIG_FPP ?= cpp
+endif
+
+# Use Homebrew libomp on macOS if the compiler has no OpenMP of its own
+OMP_TEST = echo 'int main(){}' | $(CONFIG_CXX) $(1) -x c++ - -o /dev/null 2> /dev/null && echo ok
+
+ifeq ($(shell uname -s),Darwin)
+  ifeq ($(CONFIG_CPP_HAS_OMP),true)
+    ifneq ($(shell $(call OMP_TEST,$(CONFIG_OMP_CXXFLAGS))),ok)
+      LIBOMP_PREFIX := $(shell brew --prefix --installed libomp 2> /dev/null)
+      LIBOMP_CXXFLAGS := -Xpreprocessor -fopenmp -I$(LIBOMP_PREFIX)/include -L$(LIBOMP_PREFIX)/lib -lomp
+
+      ifneq ($(and $(LIBOMP_PREFIX),$(shell $(call OMP_TEST,$(LIBOMP_CXXFLAGS)))),)
+        CONFIG_OMP_CXXFLAGS := $(LIBOMP_CXXFLAGS)
+      else
+        CONFIG_CPP_HAS_OMP := false
+      endif
+    endif
+  endif
+endif
+
 ifneq ($(shell which $(CONFIG_NVCC) 2> /dev/null),)
   CONFIG_NVCC != which $(CONFIG_NVCC)
   CONFIG_HAVE_C_CUDA := true

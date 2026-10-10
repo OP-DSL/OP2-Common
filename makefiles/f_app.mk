@@ -79,13 +79,15 @@ clean:
 	-$(RM) $(foreach variant,$(ALL_VARIANTS),*_$(variant))
 	-$(RM) -rf generated
 	-$(RM) *.o
+	-$(RM) -r *.dSYM
 	-$(RM) -r mod
 endif
 
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@
+	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@ \
+	  || { rm -rf $$@; exit 1; }
 
 generate: generated/$(APP_NAME)
 endef
