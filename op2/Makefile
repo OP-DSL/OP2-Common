@@ -7,6 +7,9 @@ MOD_CUDA ?= $(MOD)/cuda
 
 INC ?= $(OP2_INC) $(PARMETIS_INC) $(PTSCOTCH_INC) $(KAHIP_INC) $(CUDA_INC) $(HIP_INC)
 
+# Fortran preprocessor (set by make config); fallback for older .config.mk files
+FPP ?= cpp
+
 # Calculate the libraries that we can actually build
 ifeq ($(HAVE_C),true)
   OP2_BUILDABLE_LIBS := seq openmp
@@ -256,7 +259,7 @@ $(OBJ)/%+mpi+hip.o: src/%.cpp | $(OBJ)
 
 # Preprocess (non-traditional) +cpp files
 $(OBJ)/fortran/%+cpp.F90: src/fortran/%.F90 | $(OBJ)
-	$(shell cpp $(INC) $< | sed s/##//g | sed s/\"@\"//g | sed s#/@/#//#g | tr "@" "\\n" > $@)
+	$(shell $(FPP) $(INC) $< | sed s/##//g | sed s/\"@\"//g | sed s#/@/#//#g | tr "@" "\\n" > $@)
 
 # Compile OP2_Fortran_Declarations first, as other F90 sources use it as a module
 $(OBJ)/fortran/op2_for_declarations+cpp.o: $(OBJ)/fortran/op2_for_declarations+cpp.F90 | $(OBJ) $(MOD)

@@ -9,7 +9,8 @@
 #
 # Python lookup order:
 #   1. $OP2_PYTHON            - explicit env override
-#   2. $(command -v python3)  - system Python on PATH
+#   2. translator-v2/.venv    - repo-local venv
+#   3. $(command -v python3)  - system Python on PATH
 #
 # In all cases the chosen Python must already have jinja2, fparser and pcpp
 # importable, otherwise this script prints how to fix it and exits 1.
@@ -22,6 +23,8 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
 if [ -n "$OP2_PYTHON" ] && [ -x "$OP2_PYTHON" ]; then
     PY="$OP2_PYTHON"
+elif [ -x "$SCRIPT_DIR/.venv/bin/python3" ]; then
+    PY="$SCRIPT_DIR/.venv/bin/python3"
 else
     PY=$(command -v python3 || true)
 fi
