@@ -18,5 +18,6 @@
 /deps/
 
 # Miscellaneous
+*.dSYM/
 *~
 *.swp
