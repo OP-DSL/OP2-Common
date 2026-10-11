@@ -4,13 +4,13 @@
 #
 # Locates a working Python 3 (with our runtime deps) and runs the translator.
 # Python is a dependency the user provides - via a venv, conda env, or their
-# system Python - the same way as with the CMake build; this script doesn't
-# create or manage one itself.
+# system Python. If none has the deps, translator-v2/.venv is created.
 #
 # Python lookup order:
 #   1. $OP2_PYTHON            - explicit env override
 #   2. translator-v2/.venv    - repo-local venv
-#   3. $(command -v python3)  - system Python on PATH
+#   3. $(command -v python3)  - system Python on PATH; if it lacks the deps,
+#                               translator-v2/.venv is created from it
 #
 # In all cases the chosen Python must already have jinja2, fparser and pcpp
 # importable, otherwise this script prints how to fix it and exits 1.
@@ -27,6 +27,18 @@ elif [ -x "$SCRIPT_DIR/.venv/bin/python3" ]; then
     PY="$SCRIPT_DIR/.venv/bin/python3"
 else
     PY=$(command -v python3 || true)
+
+    # System Python lacks the deps (e.g. Homebrew Python, which blocks pip
+    # installs): create the repo-local venv and install them there
+    if [ -n "$PY" ] && ! "$PY" -c "import jinja2, fparser, pcpp" &> /dev/null; then
+        echo "op2-translator: creating $SCRIPT_DIR/.venv" >&2
+        "$PY" -m venv "$SCRIPT_DIR/.venv"
+        if ! "$SCRIPT_DIR/.venv/bin/pip" install -q -r "$SCRIPT_DIR/requirements.txt" >&2; then
+            rm -rf "$SCRIPT_DIR/.venv"
+            exit 1
+        fi
+        PY="$SCRIPT_DIR/.venv/bin/python3"
+    fi
 fi
 
 if [ -z "$PY" ]; then
