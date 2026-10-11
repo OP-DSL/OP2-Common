@@ -29,6 +29,7 @@ jobs:
           path: OP2-Common
 
       - name: Checkout OP2-APPS
+        if: github.event_name == 'push'
         uses: actions/checkout@v2
         with:
           repository: OP-DSL/OP2-APPS
@@ -59,16 +60,19 @@ jobs:
           for file in $FILES; do make -C $(dirname $file) generate; done
 
       - name: Update OP2-APPS
+        if: github.event_name == 'push'
         run: |
           rsync -a --exclude='.gitignore' --delete OP2-Common/apps/ OP2-APPS/apps/
 
       - name: Configure git name and email
+        if: github.event_name == 'push'
         working-directory: OP2-APPS
         run: |
           git config user.name 'opdslapps'
           git config user.email '<>'
 
       - name: Commit and push OP2-APPS
+        if: github.event_name == 'push'
         working-directory: OP2-APPS
         run: |
           COMMIT_MSG=$(git --git-dir ../OP2-Common/.git log -n 1 --pretty=format:"%h %s" $GITHUB_SHA)
