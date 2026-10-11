@@ -2,6 +2,16 @@ ifdef HDF5_INSTALL_PATH
   HDF5_PAR_INSTALL_PATH ?= $(HDF5_INSTALL_PATH)
 endif
 
+# Homebrew HDF5 on macOS
+ifndef HDF5_PAR_INSTALL_PATH
+  ifeq ($(shell uname -s),Darwin)
+    HDF5_PAR_BREW := $(shell brew --prefix --installed hdf5-mpi 2> /dev/null)
+    ifneq ($(HDF5_PAR_BREW),)
+      HDF5_PAR_INSTALL_PATH := $(HDF5_PAR_BREW)
+    endif
+  endif
+endif
+
 ifdef HDF5_PAR_INSTALL_PATH
   HDF5_PAR_INC_PATH := -I$(HDF5_PAR_INSTALL_PATH)/include
   HDF5_PAR_LIB_PATH := -L$(HDF5_PAR_INSTALL_PATH)/lib -Wl,-rpath,$(HDF5_PAR_INSTALL_PATH)/lib

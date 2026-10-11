@@ -21,3 +21,6 @@
 *.dSYM/
 *~
 *.swp
+
+# Translator venv (created by translator-v2/op2-translator.sh)
+translator-v2/.venv/
