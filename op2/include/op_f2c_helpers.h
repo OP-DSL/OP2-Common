@@ -485,6 +485,13 @@ private:
                     static_cast<int>(samples[index].size()) >=
                         autotune_config.samples);
         }
+
+        bool explored() const {
+            bool any = reported;
+            for (const auto& times : samples)
+                any |= !times.empty();
+            return any;
+        }
     };
 
     // What one invocation contributes to its configuration's exploration.
@@ -681,10 +688,12 @@ public:
           m_loop{std::move(loop)} {
         jit_init();
         register_plan_owner();
+        autotune_register_source(this, &KernelInfo::autotune_rows_callback);
     }
 
     ~KernelInfo() {
         join_compilations();
+        autotune_unregister_source(this);
 
         if (m_plan_owner_registered)
             unregister_hier_plan_owner(this);
@@ -1153,16 +1162,20 @@ private:
                    : 0.5f * (values[middle - 1] + values[middle]);
     }
 
-    // Report one configuration: each strategy's median time, or why it was
-    // not a candidate, against the ladder's choice.  The root rank prints a
-    // line once exploration ends; at exit every rank adds a row, with the
-    // configuration's total calls, to the OP_AUTOTUNE_REPORT file.
-    void autotune_report(AutotuneState& state, bool at_exit = false) {
-        if (state.reported && !at_exit)
-            return;
-        bool print = !state.reported;
-        state.reported = true;
+    static std::string autotune_header() {
+        std::string header = "loop,set,set_size,inactive_args,params,calls";
+        for (Strategy strategy : strategies) {
+            header += ",";
+            header += strategy_name(strategy);
+        }
+        return header + ",ladder,fastest,speedup,kernels,state";
+    }
 
+    // One configuration's report row and printed line: each strategy's
+    // median time, or why it was not a candidate, against the ladder's
+    // choice.  The row carries the configuration's calls so far.
+    std::pair<std::string, std::string>
+    autotune_summary(const AutotuneState& state) const {
         std::array<float, strategy_count> medians{};
         std::optional<Strategy> fastest;
         bool complete = true;
@@ -1187,7 +1200,7 @@ private:
 
         auto cell = [&](Strategy strategy) -> std::string {
             auto index = strategy_index(strategy);
-            if (variant(strategy) == nullptr)
+            if (m_variants[index] == nullptr)
                 return "";
             if (!state.candidate[index])
                 return std::string{fallback_reason_name(state.rejected[index])};
@@ -1210,32 +1223,14 @@ private:
         std::snprintf(params, sizeof(params), "%016llx",
                       static_cast<unsigned long long>(state.params));
 
-        std::string header = "loop,set,set_size,inactive_args,params,calls";
         std::string row = m_profile_name + "," + state.set_name + "," +
                           std::to_string(state.set_size) + "," +
                           state.inactive + "," + params + "," +
                           std::to_string(state.calls);
-        for (Strategy strategy : strategies) {
-            header += ",";
-            header += strategy_name(strategy);
-            row += "," + cell(strategy);
-        }
-        char tail[96];
-        std::snprintf(tail, sizeof(tail), ",%s,%s,%.3f,%s,%s",
-                      strategy_name(state.ladder).data(),
-                      fastest ? strategy_name(*fastest).data() : "",
-                      speedup, kernels, complete ? "complete" : "partial");
-        header += ",ladder,fastest,speedup,kernels,state";
-        row += tail;
-        if (at_exit)
-            autotune_record(header, row);
-
-        if (!print || !op_is_root())
-            return;
-
         std::string times;
         for (Strategy strategy : strategies) {
             auto text = cell(strategy);
+            row += "," + text;
             if (text.empty())
                 continue;
 
@@ -1245,28 +1240,54 @@ private:
             if (state.candidate[index] && !state.samples[index].empty())
                 times += "us";
         }
-        std::printf("autotune: %s on %s (%d)%s%s, %s: %s; ladder %s, "
-                    "fastest %s (%.2fx)%s\n",
-                    m_profile_name.c_str(), state.set_name.c_str(),
-                    state.set_size,
-                    state.inactive.empty() ? "" : ", inactive args ",
-                    state.inactive.c_str(), kernels, times.c_str(),
-                    strategy_name(state.ladder).data(),
-                    fastest ? strategy_name(*fastest).data() : "none",
-                    speedup, complete ? "" : ", partial");
+
+        char tail[96];
+        std::snprintf(tail, sizeof(tail), ",%s,%s,%.3f,%s,%s",
+                      strategy_name(state.ladder).data(),
+                      fastest ? strategy_name(*fastest).data() : "",
+                      speedup, kernels, complete ? "complete" : "partial");
+        row += tail;
+
+        std::string line = "autotune: " + m_profile_name + " on " +
+                           state.set_name + " (" +
+                           std::to_string(state.set_size) + ")";
+        if (!state.inactive.empty())
+            line += ", inactive args " + state.inactive;
+        line += std::string{", "} + kernels + ": " + times;
+        std::snprintf(tail, sizeof(tail), "; ladder %s, fastest %s (%.2fx)%s",
+                      strategy_name(state.ladder).data(),
+                      fastest ? strategy_name(*fastest).data() : "none",
+                      speedup, complete ? "" : ", partial");
+        line += tail;
+        return {row, line};
     }
 
-    // At shutdown, record every explored configuration, printing those
-    // still being explored, and count those never explored.
+    // Print a configuration's results on the root rank, once.
+    void autotune_report(AutotuneState& state) {
+        if (state.reported)
+            return;
+        state.reported = true;
+        if (op_is_root())
+            std::printf("%s\n", autotune_summary(state).second.c_str());
+    }
+
+    // Add a report row for every explored configuration, as it stands.
+    static void autotune_rows_callback(void *owner) {
+        const auto *info = static_cast<const KernelInfo *>(owner);
+        auto header = autotune_header();
+        for (const auto& [key, state] : info->m_autotune) {
+            if (state.explored())
+                autotune_record(header, info->autotune_summary(state).first);
+        }
+    }
+
+    // At op_exit, print the configurations still being explored, and count
+    // those never explored.
     void autotune_flush() {
         std::size_t unexplored = m_autotune_dropped;
         for (auto& [key, state] : m_autotune) {
-            bool explored = state.reported;
-            for (const auto& samples : state.samples)
-                explored |= !samples.empty();
-
-            if (explored)
-                autotune_report(state, true);
+            if (state.explored())
+                autotune_report(state);
             else
                 ++unexplored;
         }

@@ -253,8 +253,8 @@ void op_renumber_ptr(int *ptr) {
 int getHybridGPU() { return OP_hybrid_gpu; }
 
 void op_exit() {
-  op::f2c::release_hier_plan_device_storage();
   op::f2c::autotune_write_report(0, 1);
+  op::f2c::release_hier_plan_device_storage();
   op_cuda_exit(); // frees dat_d memory
   op_rt_exit();   // frees plan memory
   op_exit_core(); // frees lib core variables
