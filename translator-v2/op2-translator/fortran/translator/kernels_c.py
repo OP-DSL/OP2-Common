@@ -1175,6 +1175,7 @@ def translateLevel4Expr(level_4_expr: f2003.Level_4_Expr, ctx: Context) -> str:
     op_map = {
         ".EQ.": "==",
         ".NE.": "!=",
+        "/=": "!=",
         ".LT.": "<",
         ".LE.": "<=",
         ".GT.": ">",
@@ -1229,8 +1230,9 @@ def translateRealLiteralConstant(real_literal_constant: f2003.Real_Literal_Const
     is_float = kind_spec_is_float[kind_spec]
     raw = str(real_literal_constant.items[0])
 
+    # An E exponent leaves the kind to the suffix: 1.0E-7 is default real,
+    # 1.0E-7_8 double.
     if "E" in raw:
-        is_float = True
         raw = raw.replace("E", "e")
     elif "D" in raw:
         is_float = False
