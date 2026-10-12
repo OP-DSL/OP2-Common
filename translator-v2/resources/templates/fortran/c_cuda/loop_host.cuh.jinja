@@ -75,6 +75,9 @@
 
 {%- set group_args = {"hier_atomics": args_hier_atomics + args_hier_reads, "hier_colouring": args_hier_colouring + args_hier_reads} -%}
 {%- set group_dats = {"hier_atomics": group_ids.hier_atomics + read_groups.ids, "hier_colouring": group_ids.hier_colouring + read_groups.ids} -%}
+{#- SoA dats whose runtime dimension a hierarchical wrapper takes: its groups,
+    and for colouring the direct reads it can stage. -#}
+{%- set dim_dats = {"hier_atomics": group_dats.hier_atomics, "hier_colouring": group_dats.hier_colouring + args_direct_reads|map(attribute="dat_id")|list} -%}
 
 {#- Whether hierarchical colouring can compute every element of a chunk at
     once: its groups only increment and read, so each thread can keep its
@@ -582,7 +585,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (strategy in group_dats and dat.id in group_dats[strategy])) %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (strategy in dim_dats and dat.id in dim_dats[strategy])) %}
     const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
@@ -734,7 +737,7 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
     {% for arg in lh.args|info %}
             (void *)&args[{{arg.id}}].data_d,
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (strategy in group_dats and dat.id in group_dats[strategy])) %}
+    {% for dat in lh.dats if dat.dim is none and (dat is not soa or (strategy in dim_dats and dat.id in dim_dats[strategy])) %}
             (void *)&args[{{dat.arg_id}}].dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}

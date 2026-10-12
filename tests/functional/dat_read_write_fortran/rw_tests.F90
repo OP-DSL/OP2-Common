@@ -28,6 +28,7 @@ program rw_tests_fortran
   type(op_dat) :: pe_r
   type(op_dat) :: pn_init_i, pn_init_r
   type(op_dat) :: pn_count, pn_a, pn_b, pn_d
+  type(op_dat) :: pe_w, pn_w, pn_v, pn_u
   type(op_set) :: dummy_set
   type(op_map) :: dummy_map
   type(op_dat) :: dummy_dat
@@ -44,13 +45,15 @@ program rw_tests_fortran
   real(c_double), pointer, dimension(:)   :: f_init_r, f_e_r
 
   integer(4), dimension(:), allocatable, target :: e2n, e2f, e2h, n_init_i
-  real(8), dimension(:), allocatable, target :: e_r, n_init_r, n_a
+  real(8), dimension(:), allocatable, target :: e_r, n_init_r, n_a, e_w
 
   integer(4), dimension(:), allocatable :: fetched_i, expected_i
   real(8), dimension(:), allocatable :: fetched, expected, edge_sum, hub_count
 
   real(8) :: total, total_expected, total_local
   integer(4) :: use_d
+  ! Not a literal, so the translator sees these dimensions as run-time ones.
+  integer(4) :: ndim
 
   call op_init_base(0, 0)
   call op_profile_start("FortranReadWriteTests")
@@ -79,6 +82,18 @@ program rw_tests_fortran
   call op_decl_dat(nodes, 2, "real(8)", n_a, pn_a, "pn_a")
   call op_decl_dat(nodes, 1, "real(8)", n_init_r, pn_b, "pn_b")
   call op_decl_dat(nodes, 1, "real(8)", n_init_r, pn_d, "pn_d")
+
+  ! Dats for the run-time dimension loops: each edge's value and twice it.
+  ndim = 2
+  allocate(e_w(2 * nedge))
+  do e = 1, nedge
+    e_w(2 * e - 1) = e_r(e)
+    e_w(2 * e) = 2.0_8 * e_r(e)
+  end do
+  call op_decl_dat(edges, ndim, "real(8)", e_w, pe_w, "pe_w")
+  call op_decl_dat(nodes, ndim, "real(8)", n_a, pn_w, "pn_w")
+  call op_decl_dat(nodes, ndim, "real(8)", n_a, pn_v, "pn_v")
+  call op_decl_dat(nodes, ndim, "real(8)", n_a, pn_u, "pn_u")
 
   call nullify_dummy(dummy_set, dummy_map, dummy_dat)
   call op_partition("", "", dummy_set, dummy_map, dummy_dat)
@@ -182,7 +197,42 @@ program rw_tests_fortran
   end do
   write(*,*) "rw_mixed passed [rank", my_rank, "]"
 
-  deallocate(fetched_i, expected_i, fetched, expected, edge_sum, hub_count)
+  ! --- rw_mixed's node updates with run-time dimensions, from a direct read ---
+  ! rw_dims read-writes, so colouring serialises it; inc_dims only increments.
+  do pass = 1, npass
+    call op_par_loop_5(rw_dims, edges, &
+      op_arg_dat(pn_w, 1, m_e2n, ndim, "real(8)", OP_RW), &
+      op_arg_dat(pn_w, 2, m_e2n, ndim, "real(8)", OP_RW), &
+      op_arg_dat(pn_v, 1, m_e2n, ndim, "real(8)", OP_INC), &
+      op_arg_dat(pn_v, 2, m_e2n, ndim, "real(8)", OP_INC), &
+      op_arg_dat(pe_w, -1, OP_ID, ndim, "real(8)", OP_READ))
+    call op_par_loop_3(inc_dims, edges, &
+      op_arg_dat(pn_u, 1, m_e2n, ndim, "real(8)", OP_INC), &
+      op_arg_dat(pn_u, 2, m_e2n, ndim, "real(8)", OP_INC), &
+      op_arg_dat(pe_w, -1, OP_ID, ndim, "real(8)", OP_READ))
+  end do
+
+  ! The same totals as pn_a's, held in expected.
+  call op_fetch_data(pn_w, fetched)
+  do i = 1, 2 * nodes%setPtr%size
+    call check(abs(fetched(i) - expected(i)) < tol, i, my_rank, &
+      "rw_dims read-write failed")
+  end do
+  call op_fetch_data(pn_v, fetched)
+  do i = 1, 2 * nodes%setPtr%size
+    call check(abs(fetched(i) - expected(i)) < tol, i, my_rank, &
+      "rw_dims increment failed")
+  end do
+  write(*,*) "rw_dims passed [rank", my_rank, "]"
+
+  call op_fetch_data(pn_u, fetched)
+  do i = 1, 2 * nodes%setPtr%size
+    call check(abs(fetched(i) - expected(i)) < tol, i, my_rank, &
+      "inc_dims increment failed")
+  end do
+  write(*,*) "inc_dims passed [rank", my_rank, "]"
+
+  deallocate(fetched_i, expected_i, fetched, expected, edge_sum, hub_count, e_w)
 
   call op_profile_end()
 

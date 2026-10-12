@@ -2,7 +2,7 @@ module rw_kernels
     implicit none
     private
 
-    public :: rw_count, rw_mixed
+    public :: rw_count, rw_mixed, rw_dims, inc_dims
 
 contains
   ! Count each edge at both of its nodes and at its hub, through read-write
@@ -44,4 +44,36 @@ contains
     if (use_d == 1) dh = dh + 1.0_8
     total = total + er
   end subroutine rw_mixed
+
+  ! Read-write and increment updates on dats whose dimensions are given only
+  ! at run time, from a direct read of another such dat.
+  subroutine rw_dims(w0, w1, v0, v1, ew)
+    real(8), dimension(2), intent(inout) :: w0
+    real(8), dimension(2), intent(inout) :: w1
+    real(8), dimension(2), intent(inout) :: v0
+    real(8), dimension(2), intent(inout) :: v1
+    real(8), dimension(2), intent(in)    :: ew
+
+    w0(1) = w0(1) + ew(1)
+    w0(2) = w0(2) + ew(2)
+    w1(1) = w1(1) + ew(1)
+    w1(2) = w1(2) + ew(2)
+    v0(1) = v0(1) + ew(1)
+    v0(2) = v0(2) + ew(2)
+    v1(1) = v1(1) + ew(1)
+    v1(2) = v1(2) + ew(2)
+  end subroutine rw_dims
+
+  ! The increments alone, so hierarchical colouring can compute every element
+  ! of a chunk at once.
+  subroutine inc_dims(u0, u1, ew)
+    real(8), dimension(2), intent(inout) :: u0
+    real(8), dimension(2), intent(inout) :: u1
+    real(8), dimension(2), intent(in)    :: ew
+
+    u0(1) = u0(1) + ew(1)
+    u0(2) = u0(2) + ew(2)
+    u1(1) = u1(1) + ew(1)
+    u1(2) = u1(2) + ew(2)
+  end subroutine inc_dims
 end module
