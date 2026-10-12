@@ -36,6 +36,7 @@
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op_f2c_helpers.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
@@ -244,6 +245,7 @@ void op_renumber_ptr(int *ptr){};
 int getHybridGPU() { return OP_hybrid_gpu; }
 
 void op_exit() {
+  op::f2c::jit_finalize(); // joins JIT threads while the CUDA context is alive
   op_cuda_exit(); // frees dat_d memory
   op_rt_exit();   // frees plan memory
   op_exit_core(); // frees lib core variables

@@ -17,6 +17,7 @@
 #include <atomic>
 #include <algorithm>
 #include <functional>
+#include <cctype>
 // #include <iostream>
 
 #define NVRTC_SAFE_CALL(x)                                                          \
@@ -75,24 +76,29 @@ namespace op::f2c {
 
 constexpr uint64_t hash_seed_default = RAPID_SEED;
 
-static bool jit_initialized = false;
+class KernelInfo;
 
-static bool jit_enable = true;
-static bool jit_seq_compile = false;
-static bool jit_debug = false;
+inline std::mutex jit_kernel_infos_mutex;
+inline std::vector<KernelInfo *> jit_kernel_infos;
+
+inline bool jit_initialized = false;
+
+inline bool jit_enable = true;
+inline bool jit_seq_compile = false;
+inline bool jit_debug = false;
 
 #if defined(OP2_CUDA) && __CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 3
-static int jit_max_threads = 16;
+inline int jit_max_threads = 16;
 #else
 // No multi-threaded NVVM/hiprtc but still some gain for multithreading
-static int jit_max_threads = 4;
+inline int jit_max_threads = 4;
 #endif
 
-static std::atomic_int jit_active_threads = 0;
+inline std::atomic_int jit_active_threads = 0;
 
-static std::string jit_arch = "";
+inline std::string jit_arch = "";
 
-static void jit_init() {
+inline void jit_init() {
     if (jit_initialized) return;
 
     char *enable_str = std::getenv("OP_JIT_ENABLE");
@@ -161,12 +167,12 @@ static void jit_init() {
 }
 
 template<typename T>
-static inline uint64_t hash(const T key, uint64_t seed = hash_seed_default) {
+inline uint64_t hash(const T key, uint64_t seed = hash_seed_default) {
     return rapidhash_withSeed((void *)&key, sizeof(T), seed);
 }
 
 template<typename T>
-static inline uint64_t hash(const T* key, size_t len, uint64_t seed = hash_seed_default) {
+inline uint64_t hash(const T* key, size_t len, uint64_t seed = hash_seed_default) {
     return rapidhash_withSeed((void *)key, sizeof(T) * len, seed);
 }
 
@@ -338,6 +344,8 @@ private:
 
     std::vector<JitParam> m_params;
     std::string m_src;
+    const char *m_prelude;
+    const char *m_params_header;
 
     std::mutex m_jit_kernels_mutex;
     std::unordered_map<uint64_t, JitKernel> m_jit_kernels;
@@ -370,9 +378,7 @@ private:
         ++jit_active_threads;
 
         std::string jit_src = std::string("#include <op_f2c_prelude.h>\n") +
-#ifdef OP_F2C_PARAMS
-                              std::string("#include <op_f2c_params.h>\n") +
-#endif
+                              (m_params_header == nullptr ? "" : "#include <op_f2c_params.h>\n") +
                               std::string("\nnamespace f2c = op::f2c;\n") +
                               format_params() + m_src;
         
@@ -380,16 +386,11 @@ private:
         //     " ***\n" << jit_src << "\n***\n\n";
         
         auto do_compile = [&](auto jit_src, auto hash) {
-#ifdef OP_F2C_PARAMS
-            const char *headers[] = { OP_F2C_PRELUDE_DATA, OP_F2C_PARAMS_DATA };
+            const char *headers[] = { m_prelude, m_params_header };
             const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
-#else
-            const char *headers[] = { OP_F2C_PRELUDE_DATA };
-            const char *header_names[] = { "op_f2c_prelude.h" };
-#endif
             gpuRtcProgram_t prog;
             NVRTC_SAFE_CALL(gpuRtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
-                            sizeof(headers) / sizeof(headers[0]), headers, header_names));
+                            m_params_header == nullptr ? 1 : 2, headers, header_names));
 
 #ifdef OP2_CUDA
             const char *opts[] = {
@@ -465,13 +466,31 @@ private:
 
 public:
     KernelInfo(const KernelInfo&) = delete;
-    KernelInfo(std::string_view name, const void *kernel, std::string_view src)
-        : m_name{name}, m_kernel{kernel}, m_src{src} {
+    KernelInfo(std::string_view name, const void *kernel, std::string_view src,
+               const char *prelude, const char *params_header = nullptr)
+            : m_name{name}
+            , m_kernel{kernel}
+            , m_src{src}
+            , m_prelude{prelude}
+            , m_params_header{params_header} {
+
         jit_init();
         CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_kernel_attrs, m_kernel));
+
+        std::scoped_lock lock(jit_kernel_infos_mutex);
+        jit_kernel_infos.push_back(this);
     }
 
     ~KernelInfo() {
+        wait_for_compilation();
+
+        std::scoped_lock lock(jit_kernel_infos_mutex);
+        jit_kernel_infos.erase(
+            std::remove(jit_kernel_infos.begin(), jit_kernel_infos.end(), this),
+            jit_kernel_infos.end());
+    }
+
+    void wait_for_compilation() {
         for (auto& [hash, hash_info] : m_hash_infos) {
             if (hash_info.jit_thread.joinable())
                 hash_info.jit_thread.join();
@@ -538,5 +557,18 @@ public:
         kernel->invoke(num_blocks, block_size, args_jit);
     }
 };
+
+inline void jit_finalize() {
+    std::vector<KernelInfo *> kernel_infos;
+    {
+        std::scoped_lock lock(jit_kernel_infos_mutex);
+        // Joining can block while NVRTC/HIPRTC completes. Take a snapshot so
+        // KernelInfo destruction can still remove itself from the registry.
+        kernel_infos = jit_kernel_infos;
+    }
+
+    for (KernelInfo *kernel : kernel_infos)
+        kernel->wait_for_compilation();
+}
 
 } // namespace op::f2c
