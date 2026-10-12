@@ -145,6 +145,8 @@ def main(argv=None) -> None:
                 if const_ptr != "":
                     app.external_consts.add(const_ptr.lower())
 
+    lang.finalizeApplication(app)
+
     if args.force_soa:
         for program in app.programs:
             for loop in program.loops:

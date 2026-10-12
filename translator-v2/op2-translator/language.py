@@ -34,6 +34,15 @@ class Lang(Findable["Lang"]):
     def validate(self, app: Application) -> None:
         pass
 
+    def finalizeApplication(self, app: Application) -> None:
+        """Perform language-specific analysis that needs every source file.
+
+        Parsing is deliberately per source file.  Implementations that need
+        cross-translation-unit information can resolve it here, before the
+        normal validation and code-generation phases.
+        """
+        pass
+
     @abstractmethod
     def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Any:
         pass

@@ -28,6 +28,8 @@ void consts4(double *dat) {
     dat[i] = my_const4[i];
 }
 
+void run_cross_file_const(op_set set, op_dat dat);
+
 // --- main ---
 int main(int argc, char **argv) {
 
@@ -69,6 +71,15 @@ int main(int argc, char **argv) {
       for (int d = 0; d < 4; ++d)
         check(std::abs(data_fetched4[i * 4 + d] - my_const4[d]) < TOL, i * 4 + d, "consts4 failed");
     printf("consts4 passed\n");
+  }
+  {
+    run_cross_file_const(set, dat1);
+
+    std::vector<double> data_fetched(size, 0.0);
+    op_fetch_data(dat1, data_fetched.data());
+    for (int i = 0; i < size; ++i)
+      check(std::abs(data_fetched[i] - my_const1) < TOL, i, "cross-file consts failed");
+    printf("cross-file consts passed\n");
   }
 
   op_profile_end();

@@ -55,6 +55,11 @@ class Cpp(Lang):
     def validate(self, app: Application) -> None:
         pass
 
+    def finalizeApplication(self, app: Application) -> None:
+        import cpp.parser
+
+        cpp.parser.findLoopConsts(app)
+
     @lru_cache(maxsize=None)
     def parseFile(
         self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
@@ -136,8 +141,6 @@ class Cpp(Lang):
         cpp.parser.parseLoops(ast, program)
         cpp.parser.parseMeta(ast_pp.cursor, program)
 
-        cpp.parser.findLoopConsts(program)
-        
         return program
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
