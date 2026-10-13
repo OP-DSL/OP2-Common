@@ -1,3 +1,5 @@
+{% import "cpp/utils.jinja" as utils %}
+
 {%- if config.hip -%}
     {% set api_prefix = "hip" %}
 {%- else -%}
@@ -637,5 +639,8 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     if (exit_sync) CUDA_SAFE_CALL({{api_prefix}}StreamSynchronize(0));
 
     op_profile_exit();
+    
+    {{ utils.calculate_bytes_moved(lh)|indent(4) }}
+
     op_profile_exit();
 }

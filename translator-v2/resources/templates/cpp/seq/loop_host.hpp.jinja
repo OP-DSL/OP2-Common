@@ -1,3 +1,5 @@
+{% extends "cpp/loop_host.hpp.jinja" %}
+
 {%- macro variant_str() -%}
     {%- if lh is direct -%}
 Direct
@@ -64,8 +66,11 @@ info{{arg.id}}_temp
     {%- endif -%}
 {%- endmacro -%}
 
+{% block kernel %}
+{% endblock %}
+
+{% block host_prologue %}
 #include <op_lib_cpp.h>
-#include <op_profile.h>
 
 #include <cstdint>
 #include <cmath>
@@ -130,13 +135,17 @@ void op_par_loop_{{lh.name}}(
 {% for arg in lh.args|idx|indirect %}
         int idx{{arg.id}} = {{map_lookup(arg)}};
 {% endfor %}
+{% endblock %}
 
+{% block host_loop %}
         op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
 {% for arg in lh.args %}
             {{arg_to_pointer(arg)}}{{"," if not loop.last}}
 {% endfor %}
         );
+{% endblock %}
 
+{% block host_epilogue %}
 {% if lh is indirect %}
         if (n == set->size - 1) {
     {% for arg in lh.args|gbl|reject("read") %}
@@ -175,5 +184,6 @@ void op_par_loop_{{lh.name}}(
     op_profile_exit();
 
     op_mpi_set_dirtybit(n_args, args);
-    op_profile_exit();
-}
+
+{{super()}}
+{% endblock %}

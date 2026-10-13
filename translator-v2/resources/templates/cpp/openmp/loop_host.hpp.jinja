@@ -316,7 +316,7 @@ void {{lh.name}}_wrapper(
 {% block host_epilogue %}
     {% if lh is indirect -%} {# TODO: is this indirect check necessary? #}
     op_profile_next("MPI Wait");
-    if (set_size == set->core_size)
+    if (n_exec == set->core_size)
         op_mpi_wait_all(num_args_expanded, args_expanded);
 
     {% endif %}
@@ -352,7 +352,6 @@ void {{lh.name}}_wrapper(
     op_profile_exit();
 
     op_mpi_set_dirtybit(num_args_expanded, args_expanded);
-    op_profile_exit();
 
 {{super()}}
 {% endblock %}

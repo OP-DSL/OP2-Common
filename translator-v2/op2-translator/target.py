@@ -45,14 +45,14 @@ class Cuda(Target):
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False, "target": "cuda"}
 
 class Hip(Target):
     name = "hip"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False, "target": "hip"}
 
 class CCuda(Target):
     name = "c_cuda"
