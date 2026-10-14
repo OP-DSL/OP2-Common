@@ -46,6 +46,7 @@
 #include <unordered_map>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <fstream>
 
 /*
@@ -420,13 +421,20 @@ op_set op_decl_set_core(idx_l_t size, char const *name) {
   return set;
 }
 
+// Whether a dat's type names a double, as C or Fortran spells it.
+static bool is_double_type(std::string_view type) {
+  if (type.ends_with(":soa"))
+    type.remove_suffix(4);
+  return type == "double" || type == "r8" || type == "real*8" || type == "real(8)";
+}
+
 void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords) {
   const char *type = coords->type;
   if (coords->dim != 2 && coords->dim != 3) {
     printf("op_set_coords error -- coordinates %s have dimension %d, not 2 or 3\n", coords->name, coords->dim);
     exit(-1);
   }
-  if (strcmp(type, "double") != 0 && strcmp(type, "double:soa") != 0) {
+  if (!is_double_type(type)) {
     printf("op_set_coords error -- coordinates %s are %s, not double\n", coords->name, type);
     exit(-1);
   }
