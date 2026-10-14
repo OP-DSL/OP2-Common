@@ -35,6 +35,8 @@
  * of the OpenMP back-end
  */
 
+#include <loop/autotune.h>
+#include <loop/strategy.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
@@ -176,6 +178,8 @@ void op_printf(const char *format, ...) {
 void op_print(const char *line) { printf("%s\n", line); }
 
 void op_exit() {
+  op::loop::autotune_write_report(0, 1);
+  op::loop::release_all();
   op_rt_exit();
   op_exit_core();
 }

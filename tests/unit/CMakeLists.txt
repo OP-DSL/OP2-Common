@@ -11,3 +11,11 @@ foreach(_test set_colouring_test chunk_partition_test chunk_encode_test loop_lad
     add_test(NAME ${_test} COMMAND ${_test})
     set_tests_properties(${_test} PROPERTIES LABELS "unit")
 endforeach()
+
+# The OpenMP strategies, header-only over the same library.
+if(TARGET OpenMP::OpenMP_CXX)
+    add_executable(cpu_strategy_test cpu_strategy_test.cpp)
+    target_link_libraries(cpu_strategy_test PRIVATE op2_seq OpenMP::OpenMP_CXX)
+    add_test(NAME cpu_strategy_test COMMAND cpu_strategy_test)
+    set_tests_properties(cpu_strategy_test PROPERTIES LABELS "unit")
+endif()
