@@ -1,0 +1,402 @@
+{%- macro variant_str() -%}
+{{"Direct" if lh is direct else "Indirect"}}
+{%- endmacro -%}
+
+{%- set strategies = config.strategies -%}
+{%- set chunk_strategies = ["chunk_atomics", "chunk_colouring"] -%}
+{#- Enabled by default: plain, and chunk colouring over the set colouring
+    floor; an atomic increment is a compare-and-swap loop on most CPUs. -#}
+{%- set default_strategies = ["plain", "chunk_colouring", "colouring"] -%}
+{#- A packed variant gathers a pack of elements' arguments into local arrays,
+    runs the kernel over the pack as one SIMD loop, and scatters the results.
+    chunk_atomics has none. -#}
+{%- set packed_strategies = strategies|reject("eq", "chunk_atomics")|list if config.packed else [] -%}
+{%- set pack = config.pack_width -%}
+
+{#- Globals each thread keeps its own copy of. -#}
+{%- set args_per_thread = lh.args|gbl|select2("reduction", "work")|list + lh.args|info|list -%}
+
+{#- Argument groups for the chunked strategies, with their dat ids in
+    first-use order, as the c_cuda target groups them. -#}
+{%- set args_chunk_atomics = lh.args|dat|indirect(lh)|inc|list -%}
+{%- set updated = namespace(ids=[]) -%}
+{%- for arg in lh.args|dat|indirect(lh) -%}
+    {%- if (arg is inc or arg is read_write) and arg.dat_id not in updated.ids -%}
+        {%- set updated.ids = updated.ids + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set args_chunk_colouring = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", updated.ids)|list -%}
+{%- set group_ids = namespace(chunk_atomics=[], chunk_colouring=[]) -%}
+{%- for arg in args_chunk_atomics -%}
+    {%- if arg.dat_id not in group_ids.chunk_atomics -%}
+        {%- set group_ids.chunk_atomics = group_ids.chunk_atomics + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- for arg in args_chunk_colouring -%}
+    {%- if arg.dat_id not in group_ids.chunk_colouring -%}
+        {%- set group_ids.chunk_colouring = group_ids.chunk_colouring + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set group_args = {"chunk_atomics": args_chunk_atomics, "chunk_colouring": args_chunk_colouring} -%}
+{%- set group_dats = {"chunk_atomics": group_ids.chunk_atomics, "chunk_colouring": group_ids.chunk_colouring} -%}
+
+{#- The kernel increments through op2_inc: atomically under atomics, in
+    place under every other strategy, whose increments reach memory no other
+    thread updates meanwhile. -#}
+{%- set hooks = ["plain"] + (["atomic"] if "atomics" in strategies else []) -%}
+
+{%- macro ctype(arg) -%}
+{{lh.dat(arg).typ.c() if arg is dat else arg.typ.c()}}
+{%- endmacro -%}
+
+{%- macro dat_dim(dat) -%}
+{{dat.dim if dat.dim is not none else "dat%s_dim" % dat.id}}
+{%- endmacro -%}
+
+{%- macro gbl_dim(arg) -%}
+{{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}}
+{%- endmacro -%}
+
+{%- macro map_idx(arg) -%}
+{{"args[%s].idx" % arg.id if arg is runtime_map_idx else arg.map_idx - 1}}
+{%- endmacro -%}
+
+{%- macro map_lookup(arg) -%}
+map{{arg.map_id}}[n * map{{arg.map_id}}_dim + {{map_idx(arg)}}]
+{%- endmacro -%}
+
+{#- An argument's global data for element n. -#}
+{%- macro global_address(arg) -%}
+    {%- if arg is direct -%}
+dat{{arg.dat_id}} + n * {{dat_dim(lh.dat(arg))}}
+    {%- else -%}
+dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim(lh.dat(arg))}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- An argument as the kernel sees it.  mode "range" passes global data and
+    this thread's globals; "packed" a lane of the pack's arrays; "staged"
+    chunk_atomics' increments as their slots in the chunk's scratch. -#}
+{%- macro arg_ptr(arg, mode) -%}
+    {%- if arg in args_per_thread and mode == "packed" -%}
+f2c::Ptr{op2_lane{{arg.id}} + op2_l, {{pack}}}
+    {%- elif arg is gbl or arg is info -%}
+f2c::Ptr{gbl{{arg.id}}}
+    {%- elif mode == "packed" -%}
+f2c::Ptr{op2_pack{{arg.id}} + op2_l, {{pack}}}
+    {%- elif mode == "staged" and arg in args_chunk_atomics -%}
+f2c::Ptr{op2_stage{{group_dats.chunk_atomics|index(arg.dat_id)}} + stage_words[{{args_chunk_atomics|index(arg)}} * stride + n] * {{dat_dim(lh.dat(arg))}}}
+    {%- else -%}
+f2c::Ptr{ {{-global_address(arg)-}} }
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_value(arg, mode) -%}
+    {%- if arg is idx and arg is indirect -%}
+idx{{arg.id}}
+    {%- elif arg is idx -%}
+idx
+    {%- elif arg is opt and arg is scalar(lh) -%}
+(opt{{arg.id}} ? {{arg_ptr(arg, mode)}}.data[0] : zero_{{ctype(arg)}})
+    {%- elif arg is scalar(lh) -%}
+{{arg_ptr(arg, mode)}}.data[0]
+    {%- else -%}
+{{arg_ptr(arg, mode)}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- One call of the translated kernel for element n. -#}
+{%- macro kernel_call(mode) -%}
+{% if lh.args|idx|direct|length > 0 %}
+[[maybe_unused]] const int idx = n + 1;
+{% endif %}
+{% for arg in lh.args|idx|indirect %}
+const int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
+{% endfor %}
+kernel::{{lh.kernel}}(
+{% for arg in lh.args %}
+    {{arg_value(arg, mode)}}{{"," if not loop.last}}
+{% endfor %}
+);
+{%- endmacro -%}
+
+{#- What every body reads from the arguments once per call. -#}
+{% macro prologue() %}
+{% for dat in lh.dats %}
+    {% set cv = "const " if dat is read_in(lh) else "" %}
+    [[maybe_unused]] {{cv}}{{dat.typ.c()}} *const dat{{dat.id}} =
+        reinterpret_cast<{{cv}}{{dat.typ.c()}} *>(args[{{dat.arg_id}}].data);
+    {% if dat.dim is none %}
+    [[maybe_unused]] const int dat{{dat.id}}_dim = args[{{dat.arg_id}}].dim;
+    {% endif %}
+{% endfor %}
+{% for map in lh.maps %}
+    [[maybe_unused]] const int *const map{{map.id}} = args[{{map.arg_id}}].map_data;
+    [[maybe_unused]] const int map{{map.id}}_dim =
+        args[{{map.arg_id}}].map != nullptr ? args[{{map.arg_id}}].map->dim : 0;
+{% endfor %}
+{% for arg in lh.args|gbl if arg not in args_per_thread %}
+    {% set cv = "const " if arg is read else "" %}
+    [[maybe_unused]] {{cv}}{{arg.typ.c()}} *const gbl{{arg.id}} =
+        reinterpret_cast<{{cv}}{{arg.typ.c()}} *>(args[{{arg.id}}].data);
+{% endfor %}
+{% for arg in args_per_thread %}
+    [[maybe_unused]] {{arg.typ.c()}} *const gbl{{arg.id}} = work.global<{{arg.typ.c()}}>({{arg.id}});
+{% endfor %}
+{% for arg in lh.args|opt %}
+    [[maybe_unused]] const bool opt{{arg.id}} = args[{{arg.id}}].opt != 0;
+{% endfor %}
+    [[maybe_unused]] int zero_int = 0;
+    [[maybe_unused]] bool zero_bool = 0;
+    [[maybe_unused]] float zero_float = 0;
+    [[maybe_unused]] double zero_double = 0;
+{% endmacro %}
+
+{#- A guard for an optional argument's work. -#}
+{%- macro if_active(arg) -%}
+{{"if (opt%s)" % arg.id if arg is opt}}
+{%- endmacro -%}
+
+{#- Whether any argument in a staged group is active for this call. -#}
+{%- macro stage_group_active(dat_id) -%}
+    {%- set members = args_chunk_atomics|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- if members|reject("opt")|list|length > 0 -%}
+true
+    {%- else -%}
+        {%- for arg in members -%}
+opt{{arg.id}}{{" || " if not loop.last}}
+        {%- endfor -%}
+    {%- endif -%}
+{%- endmacro -%}
+
+namespace op2_m_{{lh.name}}{{variant}} {
+
+{% for hook in hooks %}
+namespace op2_s_{{hook}} {
+
+template<typename T, typename U>
+static inline void op2_inc(T& target, U value) {
+    f2c::{{hook}}_inc(target, value);
+}
+
+{{kernel_func}}}
+
+{% endfor %}
+}
+
+{#- A thread's share of elements, or of a set colouring's positions. -#}
+{% for hook in hooks %}
+template<bool op2_ordered>
+static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::cpu::Work& work,
+                                                op_arg *args) {
+    namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_{{hook}};
+{{prologue()}}
+    for (int op2_i = work.begin; op2_i < work.end; ++op2_i) {
+        const int n = op2_ordered ? work.order[op2_i] : op2_i;
+        {{kernel_call("range")|indent(8)}}
+    }
+}
+
+{% endfor %}
+{% if packed_strategies %}
+    {% for hook in hooks %}
+{#- The same share in packs: each argument's components gathered lane-major,
+    the kernel run over the lanes as one SIMD loop, and the results stored
+    or added back one lane at a time. -#}
+template<bool op2_ordered>
+static void op2_k_{{lh.name}}{{variant}}_packed_{{hook}}(const op::cpu::Work& work,
+                                                 op_arg *args) {
+    namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
+    constexpr int op2_width = {{pack}};
+{{prologue()}}
+    std::size_t op2_bytes = 0;
+        {% for arg in lh.args|dat %}
+    op2_bytes += op::cpu::pack_bytes<{{ctype(arg)}}>({{dat_dim(lh.dat(arg))}} * op2_width);
+        {% endfor %}
+        {% for arg in args_per_thread %}
+    op2_bytes += op::cpu::pack_bytes<{{ctype(arg)}}>({{gbl_dim(arg)}} * op2_width);
+        {% endfor %}
+    char *op2_cursor = op::cpu::pack_storage(op2_bytes);
+        {% for arg in lh.args|dat %}
+    {{ctype(arg)}} *const op2_pack{{arg.id}} = op::cpu::pack_array<{{ctype(arg)}}>(op2_cursor, {{dat_dim(lh.dat(arg))}} * op2_width);
+        {% endfor %}
+        {% for arg in args_per_thread %}
+    {{ctype(arg)}} *const op2_lane{{arg.id}} = op::cpu::pack_array<{{ctype(arg)}}>(op2_cursor, {{gbl_dim(arg)}} * op2_width);
+        {% endfor %}
+
+    for (int op2_base = work.begin; op2_base < work.end; op2_base += op2_width) {
+        const int op2_lanes = std::min(op2_width, work.end - op2_base);
+        int op2_n[op2_width];
+        for (int op2_l = 0; op2_l < op2_lanes; ++op2_l)
+            op2_n[op2_l] = op2_ordered ? work.order[op2_base + op2_l] : op2_base + op2_l;
+
+        {% for arg in lh.args|dat %}
+            {% set dim = dat_dim(lh.dat(arg)) %}
+        {{if_active(arg)}}
+        for (int op2_l = 0; op2_l < op2_lanes; ++op2_l) {
+            {% if arg is inc %}
+            for (int op2_c = 0; op2_c < {{dim}}; ++op2_c)
+                op2_pack{{arg.id}}[op2_c * op2_width + op2_l] = 0;
+            {% else %}
+            const int n = op2_n[op2_l];
+            const {{ctype(arg)}} *op2_source = {{global_address(arg)}};
+            for (int op2_c = 0; op2_c < {{dim}}; ++op2_c)
+                op2_pack{{arg.id}}[op2_c * op2_width + op2_l] = op2_source[op2_c];
+            {% endif %}
+        }
+        {% endfor %}
+        {% for arg in args_per_thread %}
+        {{if_active(arg)}}
+        for (int op2_l = 0; op2_l < op2_width; ++op2_l)
+            for (int op2_c = 0; op2_c < {{gbl_dim(arg)}}; ++op2_c)
+                op2_lane{{arg.id}}[op2_c * op2_width + op2_l] = {{"0" if arg is inc else "gbl%s[op2_c]" % arg.id}};
+        {% endfor %}
+
+#pragma omp simd
+        for (int op2_l = 0; op2_l < op2_lanes; ++op2_l) {
+            const int n = op2_n[op2_l];
+            {{kernel_call("packed")|indent(12)}}
+        }
+
+        {% for arg in lh.args|dat if arg is not read %}
+            {% set dim = dat_dim(lh.dat(arg)) %}
+        {{if_active(arg)}}
+        for (int op2_l = 0; op2_l < op2_lanes; ++op2_l) {
+            const int n = op2_n[op2_l];
+            {{ctype(arg)}} *op2_target = {{global_address(arg)}};
+            for (int op2_c = 0; op2_c < {{dim}}; ++op2_c)
+            {% if arg is inc %}
+                f2c::{{hook if arg is indirect else "plain"}}_inc(op2_target[op2_c], op2_pack{{arg.id}}[op2_c * op2_width + op2_l]);
+            {% else %}
+                op2_target[op2_c] = op2_pack{{arg.id}}[op2_c * op2_width + op2_l];
+            {% endif %}
+        }
+        {% endfor %}
+        {% for arg in args_per_thread if arg is not work %}
+        {{if_active(arg)}}
+        for (int op2_l = 0; op2_l < op2_lanes; ++op2_l)
+            for (int op2_c = 0; op2_c < {{gbl_dim(arg)}}; ++op2_c) {
+                const {{ctype(arg)}} op2_value = op2_lane{{arg.id}}[op2_c * op2_width + op2_l];
+            {% if arg is inc %}
+                gbl{{arg.id}}[op2_c] += op2_value;
+            {% elif arg is min %}
+                gbl{{arg.id}}[op2_c] = op2_value < gbl{{arg.id}}[op2_c] ? op2_value : gbl{{arg.id}}[op2_c];
+            {% else %}
+                gbl{{arg.id}}[op2_c] = op2_value > gbl{{arg.id}}[op2_c] ? op2_value : gbl{{arg.id}}[op2_c];
+            {% endif %}
+            }
+        {% endfor %}
+    }
+}
+
+    {% endfor %}
+{% endif %}
+{% if "chunk_atomics" in strategies %}
+{#- One chunk of chunk_atomics: its increments accumulate in place in the
+    thread's scratch, then each slot is added to its target atomically, as
+    other threads' chunks may share it. -#}
+static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
+                                         op_arg *args) {
+    namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
+{{prologue()}}
+    const auto& staging = work.partition->staging;
+    const int stride = work.partition->set_stride;
+    const op::chunk::StageWord *const stage_words = staging.stage_words.data();
+    const int *const op2_counts =
+        staging.stage_counts.data() + work.chunk * {{group_dats.chunk_atomics|length}};
+    const int *const op2_slots =
+        staging.slot_offsets.data() + work.chunk * {{group_dats.chunk_atomics|length}};
+
+    char *op2_cursor = work.scratch;
+    {% for dat_id in group_dats.chunk_atomics %}
+        {% set dat = lh.dat(dat_id) %}
+    const int op2_stage{{loop.index0}}_count =
+        ({{stage_group_active(dat_id)}}) ? op2_counts[{{loop.index0}}] : 0;
+    {{dat.typ.c()}} *const op2_stage{{loop.index0}} = f2c::stage_region<{{dat.typ.c()}}>(
+        op2_cursor, op2_stage{{loop.index0}}_count, {{dat_dim(dat)}});
+    f2c::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(dat)}}, 0, 1);
+    {% endfor %}
+
+    for (int n = work.begin; n < work.end; ++n) {
+        {{kernel_call("staged")|indent(8)}}
+    }
+
+    {% for dat_id in group_dats.chunk_atomics %}
+        {% set dat = lh.dat(dat_id) %}
+    for (int op2_s = 0; op2_s < op2_stage{{loop.index0}}_count; ++op2_s) {
+        const int op2_target = staging.slot_targets[op2_slots[{{loop.index0}}] + op2_s];
+        f2c::stage_flush(f2c::Ptr{dat{{dat_id}} + op2_target * {{dat_dim(dat)}}},
+                         op2_stage{{loop.index0}}, op2_s, {{dat_dim(dat)}});
+    }
+    {% endfor %}
+}
+
+{% endif %}
+{%- macro strategy_class(strategy) -%}
+{{ {"plain": "Simple", "atomics": "Simple", "colouring": "Colouring",
+    "chunk_atomics": "ChunkAtomics", "chunk_colouring": "ChunkColouring"}[strategy] }}
+{%- endmacro -%}
+
+{%- macro body(strategy, packed) -%}
+    {%- set hook = "atomic" if strategy == "atomics" else "plain" -%}
+    {%- set ordered = "true" if strategy == "colouring" else "false" -%}
+    {%- if strategy == "chunk_atomics" -%}
+&op2_k_{{lh.name}}{{variant}}_staged
+    {%- else -%}
+&op2_k_{{lh.name}}{{variant}}_{{"packed" if packed else "range"}}_{{hook}}<{{ordered}}>
+    {%- endif -%}
+{%- endmacro -%}
+
+static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
+{% if strategies|select("in", chunk_strategies)|list %}
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
+#else
+    constexpr int chunk_size = 0;
+#endif
+{% endif %}
+{% for strategy in strategies %}
+    {% set chunked = strategy in chunk_strategies %}
+    {% if chunked %}
+    static constexpr std::array<op::chunk::ArgGroup, {{group_args[strategy]|length}}> {{strategy}}_groups = {{"{{"}}
+        {% for arg in group_args[strategy] %}
+        op::chunk::ArgGroup{ {{arg.id}}, {{group_dats[strategy]|index(arg.dat_id)}} },
+        {% endfor %}
+    {{"}}"}};
+    {% endif %}
+    {% set tail = (", op::chunk::ArgGroups{ %s_groups, %d }, chunk_size" % (strategy, group_dats[strategy]|length)) if chunked else "" %}
+    {% if strategy in packed_strategies %}
+    loop.add<op::cpu::{{strategy_class(strategy)}}>(
+        op::loop::Default::disabled, "{{strategy}}:packed",
+        {{body(strategy, true)}}{{tail}});
+    {% endif %}
+    loop.add<op::cpu::{{strategy_class(strategy)}}>(
+        op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}}, "{{strategy}}",
+        {{body(strategy, false)}}{{tail}});
+{% endfor %}
+    return true;
+}
+
+static op::cpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
+    static op::cpu::Loop loop(
+        "{{lh.name}}", "c_OpenMP", "{{variant_str()}}",
+        op::cpu::LoopDescription{ {{"true" if lh is direct else "false"}} });
+    static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
+    (void)registered;
+    return loop;
+}
+
+extern "C" void op2_k_{{lh.name}}{{variant}}_c(
+    op_set set,
+{% for arg in lh.args %}
+    op_arg arg{{arg.id}}{{"," if not loop.last}}
+{% endfor %}
+) {
+    op_arg args[] = {
+{% for arg in lh.args %}
+        arg{{arg.id}}{{"," if not loop.last}}
+{% endfor %}
+    };
+
+    op2_k_{{lh.name}}{{variant}}_loop().invoke(set, args, {{lh.args|length}});
+}

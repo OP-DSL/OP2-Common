@@ -58,6 +58,33 @@ def validStrategies(loop: OP.Loop) -> List[str]:
     return strategies
 
 
+# A strategies override restricts the valid set; the lowest valid
+# non-chunked strategy always stays, so the runtime has a floor.
+def restrictStrategies(loop: OP.Loop, strategies: List[str]) -> List[str]:
+    valid = validStrategies(loop)
+    kept = [strategy for strategy in valid if strategy in strategies]
+    if all(chunkStrategy(strategy) for strategy in kept):
+        kept.append(valid[-1])
+    return kept
+
+
+# Whether a packed body can gather every argument lane by lane: one map
+# component per argument, no info payload, whose element a pack's lanes would
+# race to set, and no dat both stored back and passed twice, as an element's
+# two copies of one target would each be stored.
+def packable(loop: OP.Loop) -> bool:
+    dats = [arg for arg in loop.args if isinstance(arg, OP.ArgDat)]
+    for arg in loop.args:
+        if isinstance(arg, OP.ArgInfo):
+            return False
+        if isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1:
+            return False
+        if isinstance(arg, OP.ArgDat) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
+            if len([other for other in dats if other.dat_id == arg.dat_id]) > 1:
+                return False
+    return True
+
+
 class FortranSeq(Scheme):
     lang = Lang.get("F90")
     target = Target.get("seq")
@@ -362,17 +389,9 @@ class FortranCCuda(Scheme):
         config["strategies"] = validStrategies(loop)
         return config
 
-    # A strategies override restricts the valid set; the lowest valid
-    # non-chunked strategy always stays, so the runtime has a floor.
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
-        valid = validStrategies(loop)
         config = super().getConfig(loop, config_overrides)
-
-        strategies = [strategy for strategy in valid if strategy in config["strategies"]]
-        if all(chunkStrategy(strategy) for strategy in strategies):
-            strategies.append(valid[-1])
-
-        config["strategies"] = strategies
+        config["strategies"] = restrictStrategies(loop, config["strategies"])
         return config
 
     def translateKernel(
@@ -449,3 +468,78 @@ class FortranCHip(FortranCCuda):
 
 
 Scheme.register(FortranCHip)
+
+
+class FortranCOpenMP(Scheme):
+    lang = Lang.get("F90")
+    target = Target.get("c_openmp")
+
+    fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
+
+    consts_template = Path("fortran/c_openmp/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/c_openmp/loop_host.F90.jinja"), Path("fortran/c_openmp/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("fortran/c_openmp/master_kernel.F90.jinja"), Path("fortran/c_openmp/master_kernel.cpp.jinja")]
+
+    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
+                return False
+
+        return True
+
+    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+        config = self.target.defaultConfig()
+        config["strategies"] = validStrategies(loop)
+        config["packed"] = packable(loop)
+        return config
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        config["strategies"] = restrictStrategies(loop, config["strategies"])
+        return config
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(loop.kernel, program, [])
+
+        assert(len(kernel_entities) == 1)
+        kernel_entity = kernel_entities[0]
+
+        dependencies, _ = ftk.extractDependencies([kernel_entity], app, [])
+
+        kernel_entity = copy.deepcopy(kernel_entity)
+        dependencies = copy.deepcopy(dependencies)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.fixHydraIO(entity)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.removeExternals(entity)
+
+        const_rename = None
+        if self.lang.user_consts_module is None:
+            const_rename = lambda const: f"op2_const_{const}"
+            ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, const_rename)
+
+        # Each strategy's generated code defines op2_inc: atomic or plain.
+        ftk.insertAtomicIncs(
+            kernel_entity,
+            [kernel_entity] + dependencies,
+            loop,
+            app,
+            lambda arg: isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC,
+            c_api=True,
+            call="op2_inc",
+        )
+
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
+        return ftk_c.translate(info)
+
+
+Scheme.register(FortranCOpenMP)

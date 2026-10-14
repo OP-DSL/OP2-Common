@@ -15,18 +15,19 @@
 #     [EXCLUDE_VARIANTS <v...>]    # threaded into all four variant-family calls below
 #     [MPI_ONLY]                   # build only the _par / _soa_par families,
 #                                  # for a test whose API exists only under MPI
-#     [MPI_RANKS_LOWCOST <n>]      # default 8 (seq/genseq/openmp)
+#     [MPI_RANKS_LOWCOST <n>]      # default 8 (seq/genseq/openmp/c_openmp)
 #     [MPI_RANKS_GPU <n>]          # default 4 (cuda/c_cuda/hip/c_hip)
 #     [OMP_NUM_THREADS <n>]        # default 6
 #     [LABELS <l...>]              # extra ctest labels beyond the automatic ones
 #     [LINK_LIBRARIES <lib...>]    # linked to every executable created here,
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
-#     [STRATEGIES <s...>]          # also run each c_cuda/c_hip variant once per
-#                                  # execution strategy, forced through its
-#                                  # environment, as <target>_<strategy>, and
-#                                  # once exploring them all, as
-#                                  # <target>_autotune
+#     [STRATEGIES <s...>]          # also run each c_cuda/c_hip/c_openmp variant
+#                                  # once per execution strategy, forced through
+#                                  # its environment, as <target>_<strategy>
+#                                  # (c_openmp also each one's packed variant,
+#                                  # as <target>_<strategy>_packed), and once
+#                                  # exploring them all, as <target>_autotune
 # )
 #
 # NAME is not a parameter - it's always derived from the calling directory's
@@ -34,15 +35,16 @@
 # dat_reductions_par_mpi_seq, ...), so a directory can't drift onto some
 # other naming convention.
 # ---------------------------------------------------------------------------
-# The environment that forces a strategy; a chunked strategy runs only as a
-# JIT kernel, so its tests compile each configuration on its first call.
-function(_op2_strategy_environment _strategy _out)
+# The environment that forces a strategy; a GPU chunked strategy runs only as
+# a JIT kernel, so its tests compile each configuration on its first call.
+function(_op2_strategy_environment _strategy _variant _out)
     set(_env "OP_STRATEGY=${_strategy}")
-    if(_strategy MATCHES "^chunk_")
+    if(NOT _strategy MATCHES "^(plain|atomics|colouring|chunk_atomics|chunk_colouring)(:packed)?$")
+        message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
+    endif()
+    if(_strategy MATCHES "^chunk_" AND NOT _variant MATCHES "openmp$")
         list(APPEND _env "OP_JIT_ENABLE=1" "OP_JIT_MIN_CALLS=1"
                          "OP_JIT_SEQ_COMPILE=1")
-    elseif(NOT _strategy MATCHES "^(plain|atomics|colouring)$")
-        message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
     endif()
     set(${_out} "${_env}" PARENT_SCOPE)
 endfunction()
@@ -189,26 +191,39 @@ function(op2_add_functional_tests)
                 LABELS     "${_labels}"
                 PROCESSORS "${_nproc}")
 
-            if(_v MATCHES "^(mpi_)?openmp$")
+            set(_base_env "")
+            if(_v MATCHES "^(mpi_)?(c_)?openmp$")
+                set(_base_env "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
                 set_tests_properties(${_tgt} PROPERTIES
-                    ENVIRONMENT "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
+                    ENVIRONMENT "${_base_env}")
             endif()
 
-            if(_v MATCHES "^(mpi_)?(c_cuda|c_hip)$")
-                foreach(_strategy IN LISTS _A_STRATEGIES)
-                    _op2_strategy_environment(${_strategy} _env)
-                    add_test(NAME ${_tgt}_${_strategy} COMMAND ${_cmd})
-                    set_tests_properties(${_tgt}_${_strategy} PROPERTIES
+            if(_v MATCHES "^(mpi_)?(c_cuda|c_hip|c_openmp)$")
+                set(_strategies ${_A_STRATEGIES})
+                if(_v MATCHES "c_openmp$")
+                    foreach(_strategy IN LISTS _A_STRATEGIES)
+                        if(NOT _strategy STREQUAL "chunk_atomics")
+                            list(APPEND _strategies "${_strategy}:packed")
+                        endif()
+                    endforeach()
+                endif()
+                foreach(_strategy IN LISTS _strategies)
+                    _op2_strategy_environment(${_strategy} ${_v} _env)
+                    list(APPEND _env ${_base_env})
+                    string(REPLACE ":" "_" _suffix "${_strategy}")
+                    add_test(NAME ${_tgt}_${_suffix} COMMAND ${_cmd})
+                    set_tests_properties(${_tgt}_${_suffix} PROPERTIES
                         LABELS      "${_labels};strategy"
                         PROCESSORS  "${_nproc}"
                         ENVIRONMENT "${_env}")
                 endforeach()
                 if(_A_STRATEGIES)
+                    set(_env OP_AUTOTUNE=report OP_JIT_ENABLE=1 ${_base_env})
                     add_test(NAME ${_tgt}_autotune COMMAND ${_cmd})
                     set_tests_properties(${_tgt}_autotune PROPERTIES
                         LABELS      "${_labels};strategy"
                         PROCESSORS  "${_nproc}"
-                        ENVIRONMENT "OP_AUTOTUNE=report;OP_JIT_ENABLE=1")
+                        ENVIRONMENT "${_env}")
                 endif()
             endif()
         endforeach()
