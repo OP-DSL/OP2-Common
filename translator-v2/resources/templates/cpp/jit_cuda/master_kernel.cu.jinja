@@ -12,23 +12,13 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
 [[maybe_unused]] static uint64_t op2_const_{{const.ptr}}_hash = 0;
 {% endfor %}
 
-#define INCBIN_STYLE INCBIN_STYLE_SNAKE
-#define INCBIN_PREFIX
-#include <extern/incbin.h>
-
 {% set tag = range(1000000000, 9999999999) | random %}
-// Note: OP_F2C_PARAMS unused in C++ backend (can be simply extended if needed)
-// #define OP_F2C_PARAMS OP_F2C_PARAMS_{{tag}}
-// #define OP_F2C_PARAMS_DATA OP_F2C_PARAMS_{{tag}}_data
-// INCTXT(OP_F2C_PARAMS, "op2_const_list_params.h");
-
-#define OP_F2C_PRELUDE OP_F2C_PRELUDE_{{tag}}
-#define OP_F2C_PRELUDE_DATA OP_F2C_PRELUDE_{{tag}}_data
-INCTXT(OP_F2C_PRELUDE, "kernel/prelude.h");
-
+#define OP_F2C_JIT_TAG {{tag}}
+#include <kernel/jit_embed.h>
 
 #include <kernel/prelude.h>
-#include <op_f2c_helpers.h>
+#include <kernel/strategy.h>
+#include <gpu/loop.h>
 
 #include <op_lib_cpp.h>
 #include <op_profile.h>
@@ -36,20 +26,12 @@ INCTXT(OP_F2C_PRELUDE, "kernel/prelude.h");
 #include <cstdint>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 namespace f2c = op::f2c;
 
 void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
     // Unused with JIT
-}
-
-extern "C" {
-
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads);
-bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads);
-int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name);
-void setGblIncAtomic(bool enable);
-
 }
 
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}

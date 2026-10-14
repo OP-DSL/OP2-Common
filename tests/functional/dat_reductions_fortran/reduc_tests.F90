@@ -21,6 +21,7 @@ program reduc_tests_fortran
   type(op_map) :: m_e2n
   type(op_dat) :: pe_dat1, pe_dat1_u, pe_dat4, pe_dat4_u
   type(op_dat) :: pn_dat1, pn_dat1_u, pn_dat3, pn_dat3_u
+  type(op_dat) :: pn_dat1_r
   type(op_set) :: dummy_set
   type(op_map) :: dummy_map
   type(op_dat) :: dummy_dat
@@ -43,6 +44,8 @@ program reduc_tests_fortran
 
   real(4), dimension(:), allocatable :: fetched
   real(4), dimension(:), allocatable :: expected
+
+  real(8) :: inc_total, inc_total_expected, inc_total_local
 
   call op_init_base(0, 0)
   call op_profile_start("FortranReductionTests")
@@ -67,6 +70,8 @@ program reduc_tests_fortran
 
   call op_decl_dat(nodes, 1, "real(4)", n_dat1, pn_dat1, "pn_dat1")
   call op_decl_dat(nodes, 1, "real(4)", n_dat1, pn_dat1_u, "pn_dat1_u")
+  ! Its own target, so this case does not chain onto the loop above.
+  call op_decl_dat(nodes, 1, "real(4)", n_dat1, pn_dat1_r, "pn_dat1_r")
   call op_decl_dat(nodes, 3, "real(4)", n_dat3, pn_dat3, "pn_dat3")
   call op_decl_dat(nodes, 3, "real(4)", n_dat3, pn_dat3_u, "pn_dat3_u")
 
@@ -111,6 +116,54 @@ program reduc_tests_fortran
       "indirect_dat1_inc failed")
   end do
   write(*,*) "indirect_dat1_inc passed [rank", my_rank, "]"
+
+  deallocate(fetched)
+  deallocate(expected)
+
+  inc_total = 0.0_8
+
+  ! --- Indirect Dat INC DIM=1 with a global reduction ---
+  ! A global reduction makes the atomics schedule keep owned work in its own
+  ! section, ahead of the exec halo, so this covers all three sections and the
+  ! global-processing point between them.
+  call op_par_loop_4(indirect_inc_reduce, edges, &
+    op_arg_dat(pn_dat1_r, 1, m_e2n, 1, "real(4)", OP_INC), &
+    op_arg_dat(pn_dat1_r, 2, m_e2n, 1, "real(4)", OP_INC), &
+    op_arg_dat(pe_dat1, -1, OP_ID, 1, "real(4)", OP_READ), &
+    op_arg_gbl(inc_total, 1, "real(8)", OP_INC))
+
+  allocate(fetched(node_size_inc_halo))
+  call op_fetch_data(pn_dat1_r, fetched)
+
+  allocate(expected(node_size_inc_halo))
+  do i = 1, node_size_inc_halo
+    expected(i) = f_n_dat1(1, i)
+  end do
+
+  ! Only owned edges contribute to the reduction; halo edges are counted by
+  ! the rank that owns them.
+  inc_total_local = 0.0_8
+  do e = 0, edges%setPtr%size + edges%setPtr%exec_size - 1
+    n0 = f_m_e2n(2 * e + 1)
+    n1 = f_m_e2n(2 * e + 2)
+
+    expected(n0 + 1) = expected(n0 + 1) + f_e_dat1(1, e + 1)
+    expected(n1 + 1) = expected(n1 + 1) + f_e_dat1(1, e + 1)
+  end do
+
+  do e = 0, edges%setPtr%size - 1
+    inc_total_local = inc_total_local + 2.0_8 * real(f_e_dat1(1, e + 1), 8)
+  end do
+
+  call global_sum(inc_total_local, inc_total_expected)
+
+  do i = 1, nodes%setPtr%size
+    call check(abs(real(fetched(i)) - real(expected(i))) < tol, i, my_rank, &
+      "indirect_inc_reduce dat failed")
+  end do
+  call check(abs(inc_total - inc_total_expected) < 1.0d-6, 0, my_rank, &
+    "indirect_inc_reduce global reduction failed")
+  write(*,*) "indirect_inc_reduce passed [rank", my_rank, "]"
 
   deallocate(fetched)
   deallocate(expected)
@@ -197,6 +250,19 @@ program reduc_tests_fortran
 contains ! ---------------------------------------------------------------------------------------------------
 
   ! --- Utility functions ---
+  subroutine global_sum(local, total)
+    real(8), intent(in)  :: local
+    real(8), intent(out) :: total
+#ifdef USE_MPI
+    integer(4) :: ierr
+
+    call mpi_allreduce(local, total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, &
+      MPI_COMM_WORLD, ierr)
+#else
+    total = local
+#endif
+  end subroutine global_sum
+
   subroutine check(cond, idx, rank, msg)
     logical, intent(in) :: cond
     integer, intent(in) :: idx
