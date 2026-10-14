@@ -64,11 +64,16 @@ clean:
 	-rm -rf $(LIB)
 	-rm -rf $(MOD)
 
+# Backend-neutral par_loop support: the strategy ladder
+OP2_LOOP := $(addprefix $(OBJ)/loop/,\
+	op_loop_strategy.o)
+
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_lib_core.o \
+	op_device.o \
 	op_rt_support.o \
-	SafeLong.o)
+	SafeLong.o) $(OP2_LOOP)
 
 OP2_FOR_BASE := $(addprefix $(OBJ)/fortran/,\
 	op2_for_declarations+cpp.o \

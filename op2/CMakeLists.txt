@@ -44,13 +44,20 @@ _op2_preprocess_fortran(
 
 # --- C/C++ groups --------------------------------------------------------
 
+# Backend-neutral par_loop support: the strategy ladder.
+set(_op2_loop_srcs
+    "${_src}/loop/op_loop_strategy.cpp"
+)
+
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
 set(_op2_core_srcs
     "${_src}/core/op_lib_core.cpp"
+    "${_src}/core/op_device.cpp"
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"
     "${_src}/externlib/op_profile.cpp"
+    ${_op2_loop_srcs}
 )
 
 # Backend-specific groups for single-node variants.
