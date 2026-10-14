@@ -79,6 +79,15 @@ class CHip(CCuda):
         return config
 
 
+class COpenMP(Target):
+    name = "c_openmp"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        # Inlined kernels, so a packed variant's SIMD loop can vectorise.
+        return {"device": 1, "pack_width": 8, "func_prefix": "__attribute__((always_inline)) inline"}
+
+
 class OpenMP(Target):
     name = "openmp"
     kernel_translation = False
@@ -97,4 +106,5 @@ Target.register(Cuda)
 Target.register(Hip)
 Target.register(CCuda)
 Target.register(CHip)
+Target.register(COpenMP)
 Target.register(OpenMP)
