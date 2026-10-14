@@ -498,8 +498,13 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
         elif not param.is_const_local:
             param.is_const = False
 
-        if param.is_const == None and ("atomicAdd", 0) in param.as_arg:
+        if param.is_const == None and any((call, 0) in param.as_arg for call in increment_calls):
             param.is_const = False
+
+
+# Increment calls inserted by insertAtomicIncs, and whether each takes its
+# target by pointer.  op2_inc is defined by each strategy's generated code.
+increment_calls = {"atomicAdd": True, "op2_inc": False}
 
 
 def tryResolveParams(ctx: Context) -> bool:
@@ -556,7 +561,7 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
         func_name = translateName(func_name_node, ctx)
         sub_info = ctx.info.subprograms.get(func_name)
 
-        if func_name != "atomicAdd" and sub_info is None:
+        if func_name not in increment_calls and sub_info is None:
             return None
 
         arg_idx = [id(item) for item in parent.items].index(id(node))
@@ -1111,9 +1116,12 @@ def translateActualArgSpecList(actual_arg_spec_list: f2003.Actual_Arg_Spec_List,
 
 # Handles Actual_Arg_Spec_Lists and Section_Subscript_Lists for functions
 def translateArgList(arg_list: List[f2003.Base], ctx: Context, call_target: str) -> str:
-    if call_target == "atomicAdd":
+    if call_target in increment_calls:
         assert(len(arg_list) == 2)
-        return ", ".join([f"&({translateGeneric(arg_list[0], ctx)})", translateGeneric(arg_list[1], ctx)])
+        target = translateGeneric(arg_list[0], ctx)
+        if increment_calls[call_target]:
+            target = f"&({target})"
+        return ", ".join([target, translateGeneric(arg_list[1], ctx)])
 
     target_sub = ctx.info.subprograms[call_target]
 

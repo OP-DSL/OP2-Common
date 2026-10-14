@@ -22,6 +22,11 @@
 #     [LINK_LIBRARIES <lib...>]    # linked to every executable created here,
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
+#     [STRATEGIES <s...>]          # also run each c_cuda/c_hip variant once per
+#                                  # execution strategy, forced through its
+#                                  # environment, as <target>_<strategy>, and
+#                                  # once exploring them all, as
+#                                  # <target>_autotune
 # )
 #
 # NAME is not a parameter - it's always derived from the calling directory's
@@ -29,11 +34,24 @@
 # dat_reductions_par_mpi_seq, ...), so a directory can't drift onto some
 # other naming convention.
 # ---------------------------------------------------------------------------
+# The environment that forces a strategy; a chunked strategy runs only as a
+# JIT kernel, so its tests compile each configuration on its first call.
+function(_op2_strategy_environment _strategy _out)
+    set(_env "OP_STRATEGY=${_strategy}")
+    if(_strategy MATCHES "^chunk_")
+        list(APPEND _env "OP_JIT_ENABLE=1" "OP_JIT_MIN_CALLS=1"
+                         "OP_JIT_SEQ_COMPILE=1")
+    elseif(NOT _strategy MATCHES "^(plain|atomics|colouring)$")
+        message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
+    endif()
+    set(${_out} "${_env}" PARENT_SCOPE)
+endfunction()
+
 function(op2_add_functional_tests)
     cmake_parse_arguments(_A
         "MPI_ONLY"
         "LANGUAGE;MPI_RANKS_LOWCOST;MPI_RANKS_GPU;OMP_NUM_THREADS"
-        "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES"
+        "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES;STRATEGIES"
         ${ARGN})
 
     if(NOT _A_MPI_RANKS_LOWCOST)
@@ -87,6 +105,7 @@ function(op2_add_functional_tests)
     op2_add_app_variants(
         NAME "${_A_NAME}_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
         VARIANTS mpi_* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+        COMPILE_DEFINITIONS USE_MPI
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -105,6 +124,7 @@ function(op2_add_functional_tests)
     op2_add_app_variants(
         NAME "${_A_NAME}_soa_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
         VARIANTS mpi_* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+        COMPILE_DEFINITIONS USE_MPI
         TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} ${_A_SOA_TRANSLATOR_ARGS}
         SUMMARY_BUCKET TESTS
         TARGETS_VAR _fam_targets)
@@ -172,6 +192,24 @@ function(op2_add_functional_tests)
             if(_v MATCHES "^(mpi_)?openmp$")
                 set_tests_properties(${_tgt} PROPERTIES
                     ENVIRONMENT "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
+            endif()
+
+            if(_v MATCHES "^(mpi_)?(c_cuda|c_hip)$")
+                foreach(_strategy IN LISTS _A_STRATEGIES)
+                    _op2_strategy_environment(${_strategy} _env)
+                    add_test(NAME ${_tgt}_${_strategy} COMMAND ${_cmd})
+                    set_tests_properties(${_tgt}_${_strategy} PROPERTIES
+                        LABELS      "${_labels};strategy"
+                        PROCESSORS  "${_nproc}"
+                        ENVIRONMENT "${_env}")
+                endforeach()
+                if(_A_STRATEGIES)
+                    add_test(NAME ${_tgt}_autotune COMMAND ${_cmd})
+                    set_tests_properties(${_tgt}_autotune PROPERTIES
+                        LABELS      "${_labels};strategy"
+                        PROCESSORS  "${_nproc}"
+                        ENVIRONMENT "OP_AUTOTUNE=report;OP_JIT_ENABLE=1")
+                endif()
             endif()
         endforeach()
     endif()

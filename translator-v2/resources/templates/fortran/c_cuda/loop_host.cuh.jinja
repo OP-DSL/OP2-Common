@@ -5,38 +5,105 @@
 {%- endif -%}
 
 {%- macro variant_str() -%}
-    {%- if lh is direct -%}
-Direct
-    {%- elif config.atomics -%}
-Indirect (atomics)
-    {%- elif config.color2 -%}
-Indirect (colouring)
-    {%- endif -%}
+{{"Direct" if lh is direct else "Indirect"}}
 {%- endmacro -%}
+
+{%- set strategies = config.strategies -%}
+{#- The chunked strategies are built only as JIT kernels, which know every
+    dimension and setting as a constant; offline builds hold the rest. -#}
+{%- set chunk_strategies = ["chunk_atomics", "chunk_colouring"] -%}
+{%- set offline_strategies = strategies|reject("in", chunk_strategies)|list -%}
+
+{#- A chunked wrapper's plan parameters: type, name, and the launch context
+    field that binds it. -#}
+{%- set staging_params = [
+    ("const int *__restrict", "source_offsets", "launch.chunk.plan->source_offsets"),
+    ("const op::chunk::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
+    ("const int *__restrict", "stage_counts", "launch.chunk.plan->stage_counts"),
+    ("const int *__restrict", "slot_offsets", "launch.chunk.plan->slot_offsets"),
+    ("const int *__restrict", "slot_targets", "launch.chunk.plan->slot_targets"),
+] -%}
+{%- set colouring_params = [
+    ("const int *__restrict", "chunk_order", "launch.chunk.plan->chunk_order"),
+    ("const unsigned char *__restrict", "thread_colours", "launch.chunk.plan->thread_colours"),
+    ("const int *__restrict", "chunk_thread_colours", "launch.chunk.plan->chunk_thread_colours"),
+    ("const int *__restrict", "wave_pred_offsets", "launch.chunk.plan->wave_pred_offsets"),
+    ("const int *__restrict", "wave_preds", "launch.chunk.plan->wave_preds"),
+    ("int *", "wave_done", "launch.chunk.plan->wave_done"),
+    ("int *", "wave_ticket", "launch.chunk.wave_ticket"),
+    ("const int", "wave_epoch", "launch.chunk.wave_epoch"),
+] -%}
+{%- set range_params = [
+    ("const int", "chunk_begin", "launch.chunk.chunk_begin"),
+    ("const int", "chunk_end", "launch.chunk.chunk_end"),
+] -%}
+{%- set chunk_params = {"chunk_atomics": staging_params + range_params,
+                        "chunk_colouring": staging_params + colouring_params + range_params} -%}
 
 {%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
 {%- if config.gbl_inc_atomic -%}
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
 
-{%- macro type_c(arg) -%}
-    {%- if arg.typ is instance(OP.Int) -%}
-        int
-    {%- elif arg.typ is instance(OP.Bool) -%}
-        bool
-    {%- elif arg.typ.size == 32 -%}
-        float
-    {%- else -%}
-        double
+{#- Argument groups for the chunked strategies, with their dat ids in
+    first-use order.  chunk_atomics stages every indirect increment;
+    chunk_colouring colours every indirect argument on a dat the loop
+    increments or read-writes.  The translator lists a chunked strategy only
+    when its group arguments have one map component and a supported scalar
+    type.  The runtime partitions over the same groups the wrapper lays its
+    regions out by. -#}
+{%- set args_chunk_atomics = lh.args|dat|indirect(lh)|inc|list -%}
+{%- set updated = namespace(ids=[]) -%}
+{%- for arg in lh.args|dat|indirect(lh) -%}
+    {%- if (arg is inc or arg is read_write) and arg.dat_id not in updated.ids -%}
+        {%- set updated.ids = updated.ids + [arg.dat_id] -%}
     {%- endif -%}
+{%- endfor -%}
+{%- set args_chunk_colouring = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", updated.ids)|list -%}
+{%- set group_ids = namespace(chunk_atomics=[], chunk_colouring=[]) -%}
+{%- for arg in args_chunk_atomics -%}
+    {%- if arg.dat_id not in group_ids.chunk_atomics -%}
+        {%- set group_ids.chunk_atomics = group_ids.chunk_atomics + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- for arg in args_chunk_colouring -%}
+    {%- if arg.dat_id not in group_ids.chunk_colouring -%}
+        {%- set group_ids.chunk_colouring = group_ids.chunk_colouring + [arg.dat_id] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set group_args = {"chunk_atomics": args_chunk_atomics, "chunk_colouring": args_chunk_colouring} -%}
+{%- set group_dats = {"chunk_atomics": group_ids.chunk_atomics, "chunk_colouring": group_ids.chunk_colouring} -%}
+
+{#- Whether chunk colouring can compute every element of a chunk at once:
+    its groups only increment and read, so each thread can keep its
+    increments in registers until its colour's turn. -#}
+{%- set colour_shape = namespace(parallel=true) -%}
+{%- for arg in args_chunk_colouring -%}
+    {%- if not (arg is inc or arg is read) -%}
+        {%- set colour_shape.parallel = false -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set chunk_colouring_parallel = colour_shape.parallel -%}
+
+{#- How each strategy applies the translated kernel's op2_inc calls. -#}
+{%- macro inc_hook(strategy) -%}
+    {%- if strategy != "plain" %}
+template<typename T, typename U>
+static __device__ inline void op2_inc(T& target, U value) {
+    f2c::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
+}
+    {% endif -%}
 {%- endmacro -%}
 
-{%- macro gbl_dim(arg) -%}
-    {%- if arg.dim is not none -%}
-{{arg.dim}}
-    {%- else -%}
-arg{{arg.id}}.dim
-    {%- endif -%}
+{#- The translated kernel, in a namespace of its own for each strategy
+    named. -#}
+{%- macro kernel_namespaces(names) -%}
+    {%- for strategy in names %}
+namespace op2_s_{{strategy}} {
+{{inc_hook(strategy)}}
+{{kernel_func}}}
+
+    {% endfor -%}
 {%- endmacro -%}
 
 {%- macro gbl_dim_w(arg) -%}
@@ -44,16 +111,6 @@ arg{{arg.id}}.dim
 {{arg.dim}}
     {%- else -%}
 arg{{arg.id}}_dim
-    {%- endif -%}
-{%- endmacro -%}
-
-{%- macro arg_dim(arg) -%}
-    {%- if (arg is gbl or arg is info) and arg.dim is not none -%}
-{{arg.dim}}
-    {%- elif arg is dat and lh.dat(arg).dim is not none -%}
-{{lh.dat(arg).dim}}
-    {%- else -%}
-arg{{arg.id}}.dim
     {%- endif -%}
 {%- endmacro -%}
 
@@ -77,7 +134,7 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
-{%- macro arg_to_pointer_cuda(arg, jit = false) %}
+{%- macro arg_to_pointer_cuda(arg, jit = false, staged = none, local = false) %}
     {%- if arg is idx and arg is indirect -%}
 idx{{arg.id}}
     {%- elif arg is idx -%}
@@ -88,25 +145,25 @@ idx
         {%- else -%}
             {%- set zero_type = lh.dat(arg).typ.c() -%}
         {%- endif -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit)}} : zero_{{zero_type}}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : zero_{{zero_type}}
     {%- else -%}
-{{arg_to_pointer2(arg, jit)}}
+{{arg_to_pointer2(arg, jit, staged, local)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer2(arg, jit) -%}
+{%- macro arg_to_pointer2(arg, jit, staged = none, local = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
 op2_gbl{{arg.id}}_d
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 gbl{{arg.id}}
     {%- elif arg is scalar(lh) -%}
-{{arg_to_pointer3(arg)}}.data[0]
+{{arg_to_pointer3(arg, staged, local)}}.data[0]
     {%- else -%}
-{{arg_to_pointer3(arg)}}
+{{arg_to_pointer3(arg, staged, local)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg) -%}
+{%- macro arg_to_pointer3(arg, staged = none, local = false) -%}
     {%- if arg is info -%}
 f2c::Ptr{info{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
@@ -114,11 +171,37 @@ f2c::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg is gbl -%}
 f2c::Ptr{gbl{{arg.id}}}
     {%- else -%}
-{{arg_to_pointer4(arg)}}
+{{arg_to_pointer4(arg, staged, local)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer4(arg) -%}
+{#- A grouped argument's staged slot for element n, its components
+    contiguous, or under OP_CHUNK_ATOMICS_UNSTAGED_SINGLES its global target
+    if the chunk references it only there. -#}
+{%- macro stage_slot(arg, strategy) -%}
+    {%- set group = group_dats[strategy]|index(arg.dat_id) -%}
+    {%- set word = "stage_words[%d * stride + n]" % group_args[strategy]|index(arg) -%}
+    {%- if strategy == "chunk_atomics" -%}
+(((op2_variants & op::chunk::variant_unstaged_singles) && {{word}} == op::chunk::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
+    {%- else -%}
+f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- staged names the strategy whose group arguments point at their staged
+    slots; local points the indirect increments at per-thread registers. -#}
+{%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
+    {%- if local and arg in args_chunk_atomics -%}
+f2c::Ptr{op2_local{{arg.id}}}
+    {%- elif staged is not none and arg in group_args[staged] -%}
+{{stage_slot(arg, staged)}}
+    {%- else -%}
+{{arg_global_pointer(arg)}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- An argument's global data for element n. -#}
+{%- macro arg_global_pointer(arg) -%}
     {%- if arg is direct and lh.dat(arg) is soa -%}
 f2c::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
@@ -130,101 +213,39 @@ f2c::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro kernel_call() -%}
-void *kernel_args[] = {
-    {% for dat in lh.dats %}
-    &arg{{dat.arg_id}}.data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-    &arg{{map.arg_id}}.map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar %}
-    (void *)arg{{arg.id}}.data,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    &arg{{dat.arg_id}}.dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-    &arg{{arg.id}}.idx,
-    {% endfor %}
-    {% if lh is indirect and config.color2 %}
-    &plan->col_reord,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-    &opt_flags,
-    {% endif %}
-    &start,
-    &end,
-    &size
-};
-
-void *kernel_args_jit[] = {
-    {% for dat in lh.dats %}
-    &arg{{dat.arg_id}}.data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-    &arg{{map.arg_id}}.map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-    &arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    &arg{{dat.arg_id}}.dim,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-    &arg{{arg.id}}.idx,
-    {% endfor %}
-    {% if lh is indirect and config.color2 %}
-    &plan->col_reord,
-    {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    &stride_gbl,
-    {% endif %}
-    {% if lh.args|opt|length > 0 %}
-    &opt_flags,
-    {% endif %}
-    &start,
-    &end,
-    &size
-};
-
-info.invoke(kernel_inst, num_blocks, block_size, kernel_args, kernel_args_jit);
+{#- One call of the translated kernel for element n. -#}
+{%- macro kernel_call(jit, staged = none, local = false) -%}
+{% if lh.args|idx|direct|length > 0 %}
+int idx = n + 1;
+{% endif %}
+{% for arg in lh.args|idx|indirect %}
+int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
+{% endfor %}
+{{lh.kernel}}(
+{% for arg in lh.args %}
+    {{arg_to_pointer_cuda(arg, jit, staged, local)}}{{"," if not loop.last}}
+{% endfor %}
+);
 {%- endmacro -%}
 
 {%- macro init_gbls() -%}
-op2_k_{{lh.name}}{{variant}}_init_gbls<<<max_blocks, block_size>>>(
+op2_k_{{lh.name}}{{variant}}_init_gbls<<<context.max_blocks, context.block_size>>>(
     {% for arg in args_gbl_per_thread %}
-    ({{arg.typ.c()}} *)arg{{arg.id}}.data_d,
+    ({{arg.typ.c()}} *)args[{{arg.id}}].data_d,
     {% endfor %}
     {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
     gbl{{arg.id}}_ref_d,
     {% endfor %}
     {% for arg in args_gbl_per_thread if arg.dim is none %}
-    arg{{arg.id}}.dim,
+    args[{{arg.id}}].dim,
     {% endfor %}
     {% for arg in args_gbl_per_thread if arg is opt %}
-    arg{{arg.id}}.opt,
+    args[{{arg.id}}].opt,
     {% endfor %}
-    stride_gbl
+    context.global_stride
 );
 
 CUDA_SAFE_CALL({{api_prefix}}PeekAtLastError());
-{%- endmacro -%}
-
-{%- macro process_gbls() -%}
-exit_sync = processDeviceGbls(args, n_args, block_size * max_blocks, block_size * max_blocks);
 {%- endmacro -%}
 
 namespace op2_m_{{lh.name}}{{variant}} {
@@ -239,15 +260,202 @@ int op2_stride_dat{{dat.id}};
 __constant__ int op2_stride_dat{{dat.id}}_d;
 {% endfor %}
 
+{% for dat in lh.dats if dat.dim is none %}
+int op2_dim_dat{{dat.id}};
+{% endfor %}
+
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
 
-{{kernel_func}}}
+int op2_block_size;
+{% if strategies|select("in", chunk_strategies)|list %}
+int op2_chunk_variants;
+{% endif %}
+{{kernel_namespaces(offline_strategies)}}
+}
 
-{% macro kernel_wrapper(jit = false) %}
-extern "C" __global__ {{"__launch_bounds__(128)" if config.hip}}
-void op2_k_{{lh.name}}{{variant}}_wrapper(
+{#- Whether any argument in a staged group is active for this launch. -#}
+{%- macro stage_group_active(strategy, dat_id) -%}
+    {%- set members = group_args[strategy]|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- if members|reject("opt")|list|length > 0 -%}
+true
+    {%- else -%}
+        {%- for arg in members -%}
+((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0{{" || " if not loop.last}}
+        {%- endfor -%}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- A slot's global target as an f2c::Ptr; its stride carries the layout, so
+    the staging helpers need no AoS/SoA variants. -#}
+{%- macro stage_global(arg, dat) -%}
+    {%- if dat is soa -%}
+f2c::Ptr{dat{{arg.dat_id}} + target, op2_stride_dat{{arg.dat_id}}_d}
+    {%- else -%}
+f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- A lane per slot of each staged region, from the chunk's list of the
+    region's targets, applies action: seed the slot from its target, store it
+    back, or flush it with a global atomic. -#}
+{% macro stage_slots(strategy, action) %}
+{% for dat_id in group_dats[strategy] %}
+    {% set arg = group_args[strategy]|selectattr("dat_id", "eq", dat_id)|first %}
+    {% set dat = lh.dat(arg) %}
+        for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += blockDim.x) {
+            const int target = slot_targets[op2_chunk_slots[{{loop.index0}}] + s];
+            f2c::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim_w(dat)}});
+        }
+{% endfor %}
+{% endmacro %}
+
+{#- Apply a chunk's elements to their staged slots one thread colour at a
+    time.  In the parallel shape every element computes at once into
+    per-thread increments, and only applying them is coloured. -#}
+{%- macro chunk_colour_passes() %}
+        const int op2_colours = chunk_thread_colours[chunk];
+        for (int op2_base = op2_source_begin; op2_base < op2_source_end;
+             op2_base += blockDim.x) {
+            const int n = op2_base + threadIdx.x;
+            const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
+    {% if chunk_colouring_parallel %}
+        {% for arg in args_chunk_atomics %}
+            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim_w(lh.dat(arg))}}] = {};
+        {% endfor %}
+
+            if (op2_colour >= 0) {
+                {{kernel_call(true, "chunk_colouring", true)|indent(16)}}
+            }
+
+            // Every staged read completes before any slot changes.
+            __syncthreads();
+
+            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
+                if (op2_colour == op2_pass) {
+        {% for arg in args_chunk_atomics %}
+            {% if arg is opt %}
+                    if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
+                        f2c::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+            {% else %}
+                    f2c::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+            {% endif %}
+        {% endfor %}
+                }
+
+                __syncthreads();
+            }
+    {% else %}
+            const int op2_n = n;
+            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
+                if (op2_colour == op2_pass) {
+                    // Opaque, so this element's address arithmetic is not
+                    // hoisted out of the pass loop and kept live through it.
+                    const int n = f2c::opaque(op2_n);
+                    {{kernel_call(true, "chunk_colouring")|indent(20)}}
+                }
+
+                __syncthreads();
+            }
+    {% endif %}
+        }
+{%- endmacro %}
+
+{#- Stage a chunk's grouped targets in shared memory, apply its elements to
+    them, then write each target once.  chunk_atomics clears its slots,
+    accumulates into them with shared atomics and flushes them with global
+    ones.  chunk_colouring seeds every slot and stores it back, since a
+    batch's chunks share no target, and applies its elements by thread
+    colour.  Only JIT kernels are built from it. -#}
+{%- macro chunk_body(strategy) %}
+    {% set dats = group_dats[strategy] %}
+    extern __shared__ char op2_stage_smem[];
+
+    {% for dat_id in dats %}
+    const bool op2_stage{{loop.index0}}_active = {{stage_group_active(strategy, dat_id)}};
+    {% endfor %}
+
+    {% if strategy == "chunk_colouring" %}
+    // Physical blocks grid-stride over this batch's chunks, which share no
+    // target of any group.  A wavefront batch covers a section instead: its
+    // blocks take positions in turn, each once the earlier positions sharing
+    // one of its targets are done.
+    constexpr bool op2_wavefront = (op2_variants & op::chunk::variant_wavefront) != 0;
+    __shared__ int op2_taken;
+    for (int op2_i = op2_wavefront ? f2c::wave_take(wave_ticket, chunk_begin, op2_taken)
+                                   : chunk_begin + blockIdx.x;
+         op2_i < chunk_end;
+         op2_i = op2_wavefront ? f2c::wave_take(wave_ticket, chunk_begin, op2_taken)
+                               : op2_i + gridDim.x) {
+        if (op2_wavefront)
+            f2c::wave_wait(wave_pred_offsets, wave_preds, wave_done, op2_i, wave_epoch);
+        const int chunk = chunk_order[op2_i];
+    {% else %}
+    // Physical blocks grid-stride over this section's chunks; the partition
+    // guarantees no chunk spans a section boundary.
+    for (int chunk = chunk_begin + blockIdx.x; chunk < chunk_end;
+         chunk += gridDim.x) {
+    {% endif %}
+        const int op2_source_begin = source_offsets[chunk];
+        const int op2_source_end = source_offsets[chunk + 1];
+        const int *op2_chunk_counts =
+            stage_counts + chunk * {{dats|length}};
+        const int *op2_chunk_slots = slot_offsets + chunk * {{dats|length}};
+
+        // Walk the same region layout the host planner sized this chunk for.
+        char *op2_stage_cursor = op2_stage_smem;
+    {% for dat_id in dats %}
+        {% set dat = lh.dat(dat_id) %}
+        const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
+        {{dat.typ.c()}} *op2_stage{{loop.index0}} = f2c::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
+    {% endfor %}
+
+    {% if strategy == "chunk_atomics" %}
+        // Clear every region before accumulating into it.
+        {% for dat_id in dats %}
+        f2c::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
+        {% endfor %}
+        __syncthreads();
+
+        for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
+             n += blockDim.x) {
+            {{kernel_call(true, strategy)|indent(12)}}
+        }
+    {% else %}
+        // Seed every slot from its target, so the elements read and update
+        // the targets' current values.
+{{stage_slots(strategy, "seed")}}
+        __syncthreads();
+{{chunk_colour_passes()}}
+    {% endif %}
+
+        __syncthreads();
+
+        // One write per distinct target reaches global memory.
+{{stage_slots(strategy, "store" if strategy == "chunk_colouring" else "flush")}}
+
+        // Keep the next iteration from reusing memory a warp is still
+        // flushing.
+        __syncthreads();
+    {% if strategy == "chunk_colouring" %}
+        if (op2_wavefront)
+            f2c::wave_signal(wave_done, op2_i, wave_epoch);
+    {% endif %}
+    }
+{%- endmacro %}
+
+{#- The HIP wrappers carry launch bounds: the default block size offline,
+    the JIT kernel's own block size as a constant. -#}
+{%- macro launch_bounds(jit) -%}
+    {%- if config.hip -%}
+__launch_bounds__({{"op2_block_size_d" if jit else "128"}})
+    {%- endif -%}
+{%- endmacro -%}
+
+{% macro kernel_wrapper(strategy, jit = false) %}
+extern "C" __global__ {{launch_bounds(jit)}}
+void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for dat in lh.dats %}
     {{"const " if dat is read_in(lh)}}{{dat.typ.c()}} *__restrict dat{{dat.id}},
     {% endfor %}
@@ -263,13 +471,13 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
+    {% for dat in lh.dats if dat.dim is none and dat is not soa and not jit %}
     const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
     const int arg{{arg.id}}_idx,
     {% endfor %}
-    {% if lh is indirect and config.color2 %}
+    {% if strategy == "colouring" %}
     const int *__restrict col_reord,
     {% endif %}
     {% if args_gbl_per_thread|length > 0 %}
@@ -280,18 +488,37 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride
+    const int stride{{"," if strategy in chunk_strategies}}
+    {% for ctype, name, expr in chunk_params.get(strategy, []) %}
+    {{ctype}} {{name}}{{"," if not loop.last}}
+    {% endfor %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
+    using namespace op2_m_{{lh.name}}{{variant}}::op2_s_{{strategy}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    {% if jit %}
+        {% for dat in lh.dats if dat.dim is none %}
+    [[maybe_unused]] constexpr int dat{{dat.id}}_dim = op2_dim_dat{{dat.id}}_d;
+        {% endfor %}
+    {% endif %}
+    {% if strategy in chunk_strategies %}
+    [[maybe_unused]] constexpr int op2_variants = op2_chunk_variants_d;
+    {% endif %}
 
     [[maybe_unused]] int zero_int = 0;
     [[maybe_unused]] bool zero_bool = 0;
     [[maybe_unused]] float zero_float = 0;
     [[maybe_unused]] double zero_double = 0;
 
+    {% if strategy in chunk_strategies %}
+    (void)start;
+    (void)end;
+    (void)thread_id;
+{{chunk_body(strategy)}}
+}
+    {% else %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
-    {% if lh is indirect and config.color2 %}
+    {% if strategy == "colouring" %}
         int n = col_reord[i];
     {% else %}
         int n = i;
@@ -312,20 +539,25 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
         );
     }
 }
+    {% endif %}
 {% endmacro %}
 
-{{kernel_wrapper()}}
+{% for strategy in strategies %}
+    {% if strategy in offline_strategies %}
+{{kernel_wrapper(strategy)}}
+    {% endif %}
 
-const char op2_k_{{lh.name}}{{variant}}_src[] = R"_op2_k(
+const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
 namespace op2_m_{{lh.name}}{{variant}} {
 
 using int64_t = long long int;
+{{kernel_namespaces([strategy])}}
+}
 
-{{kernel_func}}}
-
-{{kernel_wrapper(jit=true)}}
+{{kernel_wrapper(strategy, jit=true)}}
 )_op2_k";
 
+{% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
 __global__
 static void op2_k_{{lh.name}}{{variant}}_init_gbls(
@@ -363,7 +595,181 @@ static void op2_k_{{lh.name}}{{variant}}_init_gbls(
     {% endif %}
 {% endfor %}
 }
+
+static void op2_k_{{lh.name}}{{variant}}_init_globals(
+    const op::gpu::GlobalsContext& context, op_arg *args) {
+{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
+    static {{arg.typ.c()}} *gbl{{arg.id}}_ref_d = nullptr;
+    static int gbl{{arg.id}}_ref_capacity = 0;
+    const int gbl{{arg.id}}_ref_dim =
+        {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}};
+
+    {% if arg is opt %}
+    if (args[{{arg.id}}].opt == 1) {
+    {% endif %}
+    if (gbl{{arg.id}}_ref_capacity < gbl{{arg.id}}_ref_dim) {
+        if (gbl{{arg.id}}_ref_d != nullptr)
+            CUDA_SAFE_CALL({{api_prefix}}Free(gbl{{arg.id}}_ref_d));
+        CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d,
+            gbl{{arg.id}}_ref_dim * sizeof({{arg.typ.c()}})));
+        gbl{{arg.id}}_ref_capacity = gbl{{arg.id}}_ref_dim;
+    }
+
+    CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(
+        gbl{{arg.id}}_ref_d, args[{{arg.id}}].data,
+        gbl{{arg.id}}_ref_dim * sizeof({{arg.typ.c()}}),
+        {{api_prefix}}MemcpyHostToDevice, 0));
+    {% if arg is opt %}
+    }
+    {% endif %}
+{% endfor %}
+    {{init_gbls()|indent(4)}}
+}
 {% endif %}
+
+{% macro kernel_arguments(strategy, jit = false) %}
+    {% for dat in lh.dats %}
+        (void *)&args[{{dat.arg_id}}].data_d,
+    {% endfor %}
+    {% for map in lh.maps %}
+        (void *)&args[{{map.arg_id}}].map_data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
+        (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar if not jit %}
+        (void *)args[{{arg.id}}].data,
+    {% endfor %}
+    {% for arg in lh.args|info %}
+        (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for dat in lh.dats if dat.dim is none and dat is not soa and not jit %}
+        (void *)&args[{{dat.arg_id}}].dim,
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+        (void *)&args[{{arg.id}}].idx,
+    {% endfor %}
+    {% if strategy == "colouring" %}
+        (void *)&launch.colour_order,
+    {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+        (void *)&launch.global_stride,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+        (void *)&launch.opt_flags,
+    {% endif %}
+        (void *)&launch.start,
+        (void *)&launch.end,
+        (void *)&launch.set_stride,
+    {% for ctype, name, expr in chunk_params.get(strategy, []) %}
+        (void *)&{{expr}},
+    {% endfor %}
+{%- endmacro %}
+
+{#- Each strategy's kernel arguments, offline and JIT, from the launch. -#}
+{% for strategy in strategies %}
+static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
+    op::gpu::LaunchContext& launch, op_arg *args,
+    std::vector<void *>& offline, std::vector<void *>& jit) {
+{% if lh.args|opt|length > 0 %}
+    launch.opt_flags = 0;
+    {% for arg in lh.args|opt %}
+    if (args[{{arg.id}}].opt)
+        launch.opt_flags |= 1 << {{lh.optIdx(arg)}};
+    {% endfor %}
+{% else %}
+    (void)args;
+{% endif %}
+
+    {% if strategy in offline_strategies %}
+    offline = {
+{{kernel_arguments(strategy)}}    };
+    {% else %}
+    offline = {};
+    {% endif %}
+    jit = {
+{{kernel_arguments(strategy, jit=true)}}    };
+}
+
+{% endfor %}
+static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
+    namespace kernel = op2_m_{{lh.name}}{{variant}};
+    auto& jit = loop.jit();
+
+{% if lh.dats|direct(lh)|soa|length > 0 %}
+    jit.add_dat_stride_param("op2_stride_direct_d",
+        &kernel::op2_stride_direct,
+        {{lh.args|direct(lh)|soa(lh)|first|attr("id")}},
+        &kernel::op2_stride_direct_d);
+{% endif %}
+{% for dat in lh.dats|indirect(lh)|soa %}
+    jit.add_dat_stride_param("op2_stride_dat{{dat.id}}_d",
+        &kernel::op2_stride_dat{{dat.id}}, {{dat.arg_id}},
+        &kernel::op2_stride_dat{{dat.id}}_d);
+{% endfor %}
+{% for const in lh.consts if lh.const_types.get("op2_const_" + const + "_d") is not fcharacter %}
+    {% if lh.const_types.get("op2_const_" + const + "_d") is farray %}
+    jit.add_param("op2_const_{{const}}_d", {{"op2_const_" if lang.user_consts_module is none}}{{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{"op2_const_" if lang.user_consts_module is none}}{{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
+    {% else %}
+    jit.add_param("op2_const_{{const}}_d", &{{"op2_const_" if lang.user_consts_module is none}}{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
+    {% endif %}
+{% endfor %}
+{% for dat in lh.dats if dat.dim is none %}
+    jit.add_dat_dim_param("op2_dim_dat{{dat.id}}_d",
+        &kernel::op2_dim_dat{{dat.id}}, {{dat.arg_id}});
+{% endfor %}
+{% for arg in lh.args|gbl|read|scalar %}
+    jit.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
+        &kernel::op2_gbl{{arg.id}}, {{arg.id}});
+{% endfor %}
+    jit.add_block_size_param("op2_block_size_d", &kernel::op2_block_size);
+{% if strategies|select("in", chunk_strategies)|list %}
+    // The run's chunk variants: a constant to a JIT compile.
+    kernel::op2_chunk_variants = op::chunk::options().variants;
+    jit.add_setting_param("op2_chunk_variants_d", &kernel::op2_chunk_variants);
+#ifdef OP_PART_SIZE_{{kernel_idx}}
+    constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
+#else
+    constexpr int chunk_size = 0;
+#endif
+{% endif %}
+{% for strategy in strategies %}
+    {% if strategy in chunk_strategies %}
+    static constexpr std::array<op::chunk::ArgGroup, {{group_args[strategy]|length}}> {{strategy}}_groups = {{"{{"}}
+        {% for arg in group_args[strategy] %}
+        op::chunk::ArgGroup{ {{arg.id}}, {{group_dats[strategy]|index(arg.dat_id)}} },
+        {% endfor %}
+    {{"}}"}};
+    {% endif %}
+    loop.add<op::gpu::{{"ChunkAtomics" if strategy == "chunk_atomics" else "ChunkColouring" if strategy == "chunk_colouring" else "Colouring" if strategy == "colouring" else "Simple"}}>(
+        op::loop::Default::{{"disabled" if strategy in chunk_strategies else "enabled"}},
+    {% if strategy in ["plain", "atomics"] %}
+        "{{strategy}}",
+    {% endif %}
+        op::gpu::KernelSource{
+            "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
+            {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
+            op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
+        &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
+    {% if strategy in chunk_strategies %}
+        op::chunk::ArgGroups{ {{strategy}}_groups, {{group_dats[strategy]|length}} },
+        chunk_size);
+    {% endif %}
+{% endfor %}
+    return true;
+}
+
+static op::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
+    static op::gpu::Loop loop(
+        "{{lh.name}}", "c_CUDA", "{{variant_str()}}",
+        op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}},
+                                  {{"true" if config.gbl_inc_atomic else "false"}} },
+        OP_F2C_JIT_HEADERS,
+        {{"&op2_k_%s%s_init_globals" % (lh.name, variant) if args_gbl_per_thread|length > 0 else "nullptr"}});
+    static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
+    (void)registered;
+    return loop;
+}
 
 extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_set set,
@@ -371,283 +777,11 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     op_arg arg{{arg.id}}{{"," if not loop.last}}
 {% endfor %}
 ) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}};
-
-    int n_args = {{lh.args|length}};
-    op_arg args[{{lh.args|length}}];
-
-    op_profile_enter_kernel("{{lh.name}}", "c_CUDA", "{{variant_str()}}");
-    op_profile_enter("Init");
-
-    op_profile_enter("Kernel Info Setup");
-
-    static bool first_invocation = true;
-    static op::f2c::KernelInfo info("op2_k_{{lh.name}}{{variant}}_wrapper",
-                                    (void *)op2_k_{{lh.name}}{{variant}}_wrapper,
-                                    op2_k_{{lh.name}}{{variant}}_src);
-
-    if (first_invocation) {
-{% if lh.dats|direct(lh)|soa|length > 0 %}
-        info.add_param("op2_stride_direct_d", &kernel::op2_stride_direct, &kernel::op2_stride_direct_d);
-{% endif %}
-{% for dat in lh.dats|indirect(lh)|soa %}
-        info.add_param("op2_stride_dat{{dat.id}}_d", &kernel::op2_stride_dat{{dat.id}}, &kernel::op2_stride_dat{{dat.id}}_d);
-{% endfor %}
-{% for const in lh.consts if lh.const_types.get("op2_const_" + const + "_d") is not fcharacter %}
-    {% if lh.const_types.get("op2_const_" + const + "_d") is farray %}
-        info.add_param("op2_const_{{const}}_d", {{"op2_const_" if lang.user_consts_module is none}}{{const}}, sizeof(op2_const_{{const}}_d) / sizeof({{"op2_const_" if lang.user_consts_module is none}}{{const}}[0]), op2_const_{{const}}_d, &op2_const_{{const}}_hash);
-    {% else %}
-        info.add_param("op2_const_{{const}}_d", &{{"op2_const_" if lang.user_consts_module is none}}{{const}}, &op2_const_{{const}}_d, &op2_const_{{const}}_hash);
-    {% endif %}
-{% endfor %}
-{% for arg in lh.args|gbl|read|scalar %}
-        info.add_param("op2_gbl{{arg.id}}_d", &kernel::op2_gbl{{arg.id}});
-{% endfor %}
-
-        first_invocation = false;
-    }
-
+    op_arg args[] = {
 {% for arg in lh.args %}
-    args[{{loop.index0}}] = arg{{arg.id}};
+        arg{{arg.id}}{{"," if not loop.last}}
 {% endfor %}
-
-    op_profile_next("MPI Exchanges");
-    int n_exec = op_mpi_halo_exchanges(set, n_args, args, {{config.device}});
-{% if lh is direct %}
-    {# A direct loop reads no halo: its exchange only brings the dats to this device. #}
-    op_mpi_wait_all(n_args, args);
-{% endif %}
-
-    if (n_exec == 0) {
-        op_profile_exit();
-        op_profile_exit();
-
-{% if lh is indirect %}
-        op_mpi_wait_all(n_args, args);
-{% endif %}
-
-{% for arg in lh.args|gbl|reduction %}
-        op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
-{% endfor %}
-
-        op_mpi_set_dirtybit_cuda(n_args, args);
-        op_profile_exit();
-        return;
-    }
-
-    setGblIncAtomic({{"true" if config.gbl_inc_atomic else "false"}});
-
-{% for arg in lh.args|gbl|read|scalar %}
-    kernel::op2_gbl{{arg.id}} = (({{arg.typ.c()}} *)arg{{arg.id}}.data)[0];
-{% endfor %}
-
-{% if lh.dats|direct(lh)|soa|length > 0 %}
-    kernel::op2_stride_direct = f2c::round32(getSetSizeFromOpArg(&arg{{lh.args|direct(lh)|soa(lh)|first|attr("id")}}));
-{% endif %}
-{% for dat in lh.dats|indirect(lh)|soa %}
-    kernel::op2_stride_dat{{dat.id}} = f2c::round32(getSetSizeFromOpArg(&arg{{dat.arg_id}}));
-{% endfor %}
-
-{% for arg in lh.args|gbl if arg is min or arg is max or arg is work %}
-    static {{arg.typ.c()}}* gbl{{arg.id}}_ref_d = nullptr;
-{% endfor %}
-
-    op_profile_next("Get Kernel");
-    auto *kernel_inst = info.get_kernel();
-    op_profile_exit();
-
-{% if lh is direct %}
-    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->size);
-    block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
-
-    int num_blocks = (set->size + (block_size - 1)) / block_size;
-    num_blocks = std::min(num_blocks, block_limit);
-    int max_blocks = num_blocks;
-{% elif config.atomics %}
-    {% if lh.args|gbl|reduction|length == 0 %}
-    std::array<int, 3> sections = {0, set->core_size, set->size + set->exec_size};
-    {% else %}
-    std::array<int, 4> sections = {0, set->core_size, set->size, set->size + set->exec_size};
-{% endif %}
-
-    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, set->core_size);
-    block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
-
-    int max_blocks = 0;
-    for (int i = 1; i < sections.size(); ++i)
-        max_blocks = std::max(max_blocks, (sections[i] - sections[i - 1] + (block_size - 1)) / block_size);
-
-    max_blocks = std::min(max_blocks, block_limit);
-{% elif config.color2 %}
-    int n_dats_indirect = {{lh.dats|indirect(lh)|length}};
-    std::array<int, {{lh.args|length}}> dats_indirect = {
-    {%- for arg in lh.args -%}
-        {{lh.dats|indirect(lh)|index(lh.dat(arg)) if arg is dat and arg is indirect else "-1"}}
-        {{-", " if not loop.last}}
-    {%- endfor -%}
     };
 
-    op_profile_enter("Plan");
-
-#ifdef OP_PART_SIZE_{{kernel_idx}}
-    int part_size = OP_PART_SIZE_{{kernel_idx}};
-#else
-    int part_size = OP_part_size;
-#endif
-
-    op_plan *plan = op_plan_get_stage("{{lh.name}}", set, part_size, n_args,
-                        args, n_dats_indirect, dats_indirect.data(), OP_COLOR2);
-
-    int max_size = 0;
-    for (int col = 0; col < plan->ncolors; ++col) {
-        int start = plan->col_offsets[0][col];
-        int end = plan->col_offsets[0][col + 1];
-
-        max_size = std::max(max_size, end - start);
-    }
-
-    auto [block_limit, block_size] = info.get_launch_config(kernel_inst, max_size);
-    block_limit = std::min(block_limit, getBlockLimit(args, n_args, block_size, "{{lh.name}}"));
-
-    int max_blocks = 0;
-    for (int col = 0; col < plan->ncolors; ++col) {
-        int start = plan->col_offsets[0][col];
-        int end = plan->col_offsets[0][col + 1];
-
-        int num_blocks = (end - start + (block_size - 1)) / block_size;
-        max_blocks = std::max(max_blocks, num_blocks);
-    }
-
-    max_blocks = std::min(max_blocks, block_limit);
-    op_profile_exit();
-{% endif %}
-
-{% if lh.args|opt|length > 0 %}
-    unsigned opt_flags = 0;
-    {% for arg in lh.args|opt %}
-    if (arg{{arg.id}}.opt) opt_flags |= 1 << {{lh.optIdx(arg)}};
-    {% endfor %}
-{% endif %}
-
-    op_profile_enter("Prepare GBLs");
-    prepareDeviceGbls(args, n_args, block_size * max_blocks);
-    bool exit_sync = false;
-
-{% for arg in lh.args %}
-    arg{{arg.id}} = args[{{loop.index0}}];
-{% endfor %}
-
-    op_profile_next("Update GBL Refs");
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    if (gbl{{arg.id}}_ref_d == nullptr{{" && arg%s.opt == 1" % arg.id if arg is opt}}) {
-        CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}})));
-    }
-
-    {{"if (arg%s.opt == 1) " % arg.id if arg is opt-}}
-        CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(gbl{{arg.id}}_ref_d, arg{{arg.id}}.data, {{gbl_dim(arg)}} * sizeof({{arg.typ.c()}}), {{api_prefix}}MemcpyHostToDevice, 0));
-{% endfor %}
-
-{% if args_gbl_per_thread|length > 0 %}
-    op_profile_next("Init GBLs");
-
-    int stride_gbl = block_size * max_blocks;
-    {{init_gbls()|indent}}
-{% endif %}
-
-    op_profile_exit();
-    op_profile_next("Computation");
-
-{% if lh is direct %}
-    int start = 0;
-    int end = set->size;
-
-    op_profile_enter("Kernel");
-
-    int size = f2c::round32(set->size);
-    {{kernel_call()|indent}}
-
-    op_profile_next("Process GBLs");
-    {{process_gbls()|indent}}
-
-    op_profile_exit();
-{% elif config.atomics %}
-    op_profile_enter("Kernel");
-
-    for (int round = 1; round < sections.size(); ++round) {
-        if (round == 2) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all(n_args, args);
-            op_profile_next("Kernel");
-        }
-
-        int start = sections[round - 1];
-        int end = sections[round];
-
-        if (end - start > 0) {
-            int num_blocks = (end - start + (block_size - 1)) / block_size;
-            num_blocks = std::min(num_blocks, block_limit);
-
-            int size = f2c::round32(set->size + set->exec_size);
-            {{kernel_call()|indent(12)}}
-        }
-
-    {% if lh.args|gbl|reject("read")|list|length > 0 %}
-        if (round == 2) {
-            op_profile_next("Process GBLs");
-            {{process_gbls()|indent(12)}}
-            op_profile_next("Kernel");
-        }
-    {% endif %}
-    }
-
-    op_profile_exit();
-{% else %}
-    op_profile_enter("Kernel");
-
-    for (int col = 0; col < plan->ncolors; ++col) {
-        if (col == plan->ncolors_core) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all(n_args, args);
-            op_profile_next("Kernel");
-        }
-
-        int start = plan->col_offsets[0][col];
-        int end = plan->col_offsets[0][col + 1];
-
-        int num_blocks = (end - start + (block_size - 1)) / block_size;
-        num_blocks = std::min(num_blocks, block_limit);
-
-        int size = f2c::round32(set->size + set->exec_size);
-        {{kernel_call()|indent(8)}}
-
-    {% if lh.args|gbl|reject("read")|list|length > 0 %}
-        if (col == plan->ncolors_owned - 1) {
-            op_profile_next("Process GBLs");
-            {{process_gbls()|indent(12)}}
-            op_profile_next("Kernel");
-        }
-    {% endif %}
-    }
-
-    if (plan->ncolors_core == plan->ncolors) {
-        op_profile_next("MPI Wait");
-        op_mpi_wait_all(n_args, args);
-        op_profile_next("Kernel");
-    }
-
-    op_profile_exit();
-{% endif %}
-
-    op_profile_exit();
-
-    op_profile_enter("Finalise");
-{% for arg in lh.args|gbl|reduction %}
-    op_mpi_reduce(&arg{{arg.id}}, ({{arg.typ.c()}} *)arg{{arg.id}}.data);
-{% endfor %}
-
-    op_mpi_set_dirtybit_cuda(n_args, args);
-    if (exit_sync) CUDA_SAFE_CALL({{api_prefix}}StreamSynchronize(0));
-
-    op_profile_exit();
-    op_profile_exit();
+    op2_k_{{lh.name}}{{variant}}_loop().invoke(set, args, {{lh.args|length}});
 }
