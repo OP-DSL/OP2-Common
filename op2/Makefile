@@ -68,6 +68,7 @@ clean:
 # planner libraries the strategies build on
 OP2_LOOP := $(addprefix $(OBJ)/loop/,\
 	op_loop_strategy.o \
+	op_loop_autotune.o \
 	op_set_colouring.o \
 	op_chunk_partition.o \
 	op_chunk_colouring.o)

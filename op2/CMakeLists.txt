@@ -48,6 +48,7 @@ _op2_preprocess_fortran(
 # planner libraries the strategies build on.
 set(_op2_loop_srcs
     "${_src}/loop/op_loop_strategy.cpp"
+    "${_src}/loop/op_loop_autotune.cpp"
     "${_src}/loop/op_set_colouring.cpp"
     "${_src}/loop/op_chunk_partition.cpp"
     "${_src}/loop/op_chunk_colouring.cpp"
