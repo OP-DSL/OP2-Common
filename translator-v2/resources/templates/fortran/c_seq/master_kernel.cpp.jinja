@@ -18,7 +18,7 @@ extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
     {% endfor %}
 {% endif %}
 
-#include <op_f2c_prelude.h>
+#include <kernel/prelude.h>
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 

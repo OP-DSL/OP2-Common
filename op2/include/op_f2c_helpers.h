@@ -369,7 +369,7 @@ private:
     std::thread compile(uint64_t hash) {
         ++jit_active_threads;
 
-        std::string jit_src = std::string("#include <op_f2c_prelude.h>\n") +
+        std::string jit_src = std::string("#include <kernel/prelude.h>\n") +
 #ifdef OP_F2C_PARAMS
                               std::string("#include <op_f2c_params.h>\n") +
 #endif
@@ -382,10 +382,10 @@ private:
         auto do_compile = [&](auto jit_src, auto hash) {
 #ifdef OP_F2C_PARAMS
             const char *headers[] = { OP_F2C_PRELUDE_DATA, OP_F2C_PARAMS_DATA };
-            const char *header_names[] = { "op_f2c_prelude.h", "op_f2c_params.h" };
+            const char *header_names[] = { "kernel/prelude.h", "op_f2c_params.h" };
 #else
             const char *headers[] = { OP_F2C_PRELUDE_DATA };
-            const char *header_names[] = { "op_f2c_prelude.h" };
+            const char *header_names[] = { "kernel/prelude.h" };
 #endif
             gpuRtcProgram_t prog;
             NVRTC_SAFE_CALL(gpuRtcCreateProgram(&prog, jit_src.c_str(), m_name.c_str(),
