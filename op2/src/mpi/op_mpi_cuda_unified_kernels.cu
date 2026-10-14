@@ -5,7 +5,7 @@
 #include <op_lib_mpi.h>
 #include <op_mpi_halo.h>
 #include <op_cuda_rt_support.h>
-#include <op_gpu_shims.h>
+#include <gpu/shims.h>
 
 #include <array>
 #include <cstdio>

@@ -37,6 +37,7 @@
 #define gpuMallocAsync cudaMallocAsync
 #define gpuFreeAsync cudaFreeAsync
 #define gpuMemcpyAsync cudaMemcpyAsync
+#define gpuMemsetAsync cudaMemsetAsync
 
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
@@ -52,6 +53,9 @@
 
 #define gpuStreamCreateWithFlags cudaStreamCreateWithFlags
 #define gpuEventCreateWithFlags cudaEventCreateWithFlags
+#define gpuEventCreate cudaEventCreate
+#define gpuEventDestroy cudaEventDestroy
+#define gpuEventElapsedTime cudaEventElapsedTime
 #define gpuEventRecord cudaEventRecord
 #define gpuEventSynchronize cudaEventSynchronize
 #define gpuStreamWaitEvent cudaStreamWaitEvent
@@ -66,11 +70,16 @@
 #define gpuGetDeviceProperties cudaGetDeviceProperties
 
 #define gpuFuncGetAttributes cudaFuncGetAttributes
+#define gpuFuncSetAttribute cudaFuncSetAttribute
+#define gpuFuncAttributeMaxDynamicSharedMemorySize cudaFuncAttributeMaxDynamicSharedMemorySize
 
 // Driver API
 #define gpuDrvResult_t CUresult
 #define gpuDrvModule_t CUmodule
 #define gpuDrvFunction_t CUfunction
+
+#define gpuDrvFuncSetAttribute cuFuncSetAttribute
+#define gpuDrvFuncAttributeMaxDynamicSharedMemorySize CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
 
 #define gpuDrvGetErrorName cuGetErrorName
 #define gpuDrvModuleLoadData cuModuleLoadData
@@ -129,6 +138,7 @@
 #define gpuMallocAsync hipMallocAsync
 #define gpuFreeAsync hipFreeAsync
 #define gpuMemcpyAsync hipMemcpyAsync
+#define gpuMemsetAsync hipMemsetAsync
 
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
@@ -144,6 +154,9 @@
 
 #define gpuStreamCreateWithFlags hipStreamCreateWithFlags
 #define gpuEventCreateWithFlags hipEventCreateWithFlags
+#define gpuEventCreate hipEventCreate
+#define gpuEventDestroy hipEventDestroy
+#define gpuEventElapsedTime hipEventElapsedTime
 #define gpuEventRecord hipEventRecord
 #define gpuEventSynchronize hipEventSynchronize
 #define gpuStreamWaitEvent hipStreamWaitEvent
@@ -158,11 +171,18 @@
 #define gpuGetDeviceProperties hipGetDeviceProperties
 
 #define gpuFuncGetAttributes hipFuncGetAttributes
+#define gpuFuncSetAttribute hipFuncSetAttribute
+#define gpuFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
 
 // Driver API
 #define gpuDrvResult_t hipError_t
 #define gpuDrvModule_t hipModule_t
 #define gpuDrvFunction_t hipFunction_t
+
+// HIP exposes the same attribute setter for runtime function pointers and
+// module function handles.
+#define gpuDrvFuncSetAttribute hipFuncSetAttribute
+#define gpuDrvFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData

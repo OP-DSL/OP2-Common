@@ -43,8 +43,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <op_gpu_shims.h>
+#include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
+#include <op_device.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -58,6 +59,32 @@ char *OP_consts_h, *OP_consts_d, *OP_reduct_h, *OP_reduct_d;
 //
 // CUDA utility functions
 //
+
+namespace {
+
+void *device_malloc(size_t bytes) {
+  void *pointer = nullptr;
+  cutilSafeCall(gpuMalloc(&pointer, bytes));
+  return pointer;
+}
+
+void device_free(void *pointer) { cutilSafeCall(gpuFree(pointer)); }
+
+void device_copy(void *destination, const void *source, size_t bytes) {
+  cutilSafeCall(gpuMemcpy(destination, source, bytes, gpuMemcpyDefault));
+}
+
+void device_memset(void *pointer, int value, size_t bytes) {
+  cutilSafeCall(gpuMemset(pointer, value, bytes));
+}
+
+} // namespace
+
+const op::Device& op_cuda_device() {
+  static const op::Device device{device_malloc, device_free, device_copy,
+                                 device_memset};
+  return device;
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -333,7 +360,15 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     gpuFree(test);
 
-    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
+    // No device-wide cache config: on Volta and later the L1 cache and shared
+    // memory are one resource whose split the driver already chooses per
+    // kernel launch.  gpuDeviceSetCacheConfig(gpuFuncCachePreferL1) replaced
+    // that per-kernel decision with one blunt global answer, which starved
+    // kernels staging indirect increments in shared memory: on an H100 a 4 KB
+    // staged allocation was enough to cap residency at one block per SM.
+    // Leaving the driver to size it costs kernels that use no shared memory
+    // nothing measurable, and individual kernels that want a specific split
+    // can still hint via gpuFuncAttributePreferredSharedMemoryCarveout.
 
     int deviceId = -1;
     gpuGetDevice(&deviceId);
@@ -343,6 +378,7 @@ void cutilDeviceInit(int argc, char **argv) {
   } else {
     printf("\n Using CPU\n");
   }
+  op::set_device(op_cuda_device());
 }
 
 void op_upload_dat(op_dat dat) {

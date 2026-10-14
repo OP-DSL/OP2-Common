@@ -2,7 +2,7 @@
 
 #include <extern/rapidhash.h>
 #include <op_profile.h>
-#include <op_gpu_shims.h>
+#include <gpu/shims.h>
 
 #include <array>
 #include <vector>

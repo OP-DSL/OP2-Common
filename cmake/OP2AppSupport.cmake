@@ -585,7 +585,7 @@ function(_op2_add_variant_executable)
         target_compile_definitions(${_tgt} PRIVATE USE_MPI)
     endif()
 
-    # op_gpu_shims.h / op_f2c_helpers.h gate their gpu* aliases on these.
+    # gpu/shims.h / op_f2c_helpers.h gate their gpu* aliases on these.
     if(_base MATCHES "^(cuda|c_cuda)$")
         target_compile_definitions(${_tgt} PRIVATE OP2_CUDA)
     elseif(_base MATCHES "^(hip|c_hip)$")

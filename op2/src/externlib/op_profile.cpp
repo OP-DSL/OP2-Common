@@ -1,4 +1,5 @@
 #include <op_profile.h>
+#include <loop/autotune.h>
 #include <op_lib_core.h>
 
 #ifdef OPMPI
@@ -596,7 +597,17 @@ void op_profile_next(const char* name) { op_profile::instance().next(name); }
 void op_profile_exit() { op_profile::instance().exit(); }
 void op_profile_end() { op_profile::instance().finish(); }
 
-void op_profile_output() { op_profile::instance().output(); }
+void op_profile_output() {
+  op_profile::instance().output();
+
+  // Here as well as at op_exit, which some applications never call
+  int rank = 0, ranks = 1;
+#ifdef OPMPI
+  MPI_Comm_rank(OP_MPI_WORLD, &rank);
+  MPI_Comm_size(OP_MPI_WORLD, &ranks);
+#endif
+  op::loop::autotune_write_report(rank, ranks);
+}
 void op_profile_output_json(const char* filename) { op_profile::instance().output_json(filename); }
 
 }

@@ -28,3 +28,24 @@ INCTXT(OP_CHUNK_LAYOUT, "loop/chunk_layout.h");
 #define OP_STRATEGY_KERNEL OP_F2C_JIT_CAT(op_strategy_kernel_, OP_F2C_JIT_TAG)
 #define OP_STRATEGY_KERNEL_DATA OP_F2C_JIT_CAT(OP_STRATEGY_KERNEL, _data)
 INCTXT(OP_STRATEGY_KERNEL, "kernel/strategy.h");
+
+// The embedded headers as the backend's JIT service takes them; the
+// application's constants header when the unit embedded one as
+// OP_F2C_PARAMS.
+#ifdef OP_F2C_PARAMS
+#define OP_F2C_JIT_HEADERS                                                     \
+    ::op::gpu::JitHeaders {                                                    \
+        {OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA,    \
+         OP_F2C_PARAMS_DATA},                                                  \
+        {"kernel/prelude.h", "loop/chunk_layout.h", "kernel/strategy.h",      \
+         "op_f2c_params.h"},                                                   \
+        true                                                                   \
+    }
+#else
+#define OP_F2C_JIT_HEADERS                                                     \
+    ::op::gpu::JitHeaders {                                                    \
+        {OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},   \
+        {"kernel/prelude.h", "loop/chunk_layout.h", "kernel/strategy.h"},     \
+        false                                                                  \
+    }
+#endif

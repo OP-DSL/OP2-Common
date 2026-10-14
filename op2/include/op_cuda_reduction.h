@@ -40,7 +40,7 @@
  * is based on C++ templates, while the other file only includes C routines.
  */
 
-#include <op_gpu_shims.h>
+#include <gpu/shims.h>
 
 /*
  * reduction routine for arbitrary datatypes
