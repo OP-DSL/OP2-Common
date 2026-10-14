@@ -35,6 +35,8 @@
  * of the mpi back-end
  */
 
+#include <loop/autotune.h>
+#include <loop/strategy.h>
 #include <mpi.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -237,6 +239,13 @@ void op_print(const char *line) {
 }
 
 void op_exit() {
+  {
+    int rank = 0, ranks = 1;
+    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    MPI_Comm_size(OP_MPI_WORLD, &ranks);
+    op::loop::autotune_write_report(rank, ranks);
+  }
+  op::loop::release_all();
 
   op_mpi_exit();
   op_rt_exit();

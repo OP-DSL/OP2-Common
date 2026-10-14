@@ -13,6 +13,10 @@
 #include <hip/hip_runtime.h>
 #endif
 
+#if !defined(__CUDACC__) && !defined(__HIPCC__)
+#include <atomic>
+#endif
+
 namespace op::f2c {
 
 /* Scratch staging helpers.
@@ -99,7 +103,22 @@ DEVICE inline int opaque(int x) {
     return x;
 }
 
-#if defined(__CUDACC__) || defined(__HIPCC__)
+#if !defined(__CUDACC__) && !defined(__HIPCC__)
+// Host threads: a compare-and-swap loop for a floating-point target, a
+// locked add for an integer one.
+template<typename T, typename U>
+inline void atomic_inc(T& target, U value) {
+    std::atomic_ref<T>{target}.fetch_add(static_cast<T>(value),
+                                         std::memory_order_relaxed);
+}
+
+template<typename T>
+inline void stage_flush(Ptr<T> target, const T *region, IndexType slot,
+                        IndexType dim) {
+    for (IndexType c = 0; c < dim; ++c)
+        atomic_inc(target.data[c * target.stride], region[slot * dim + c]);
+}
+#else
 template<typename T, typename U>
 DEVICE inline void atomic_inc(T& target, U value) {
 #if defined(__HIP_DEVICE_COMPILE__)

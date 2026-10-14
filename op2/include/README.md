@@ -59,6 +59,15 @@ gpu/loop.h             (includes: gpu/strategy.h; the loop the generated
                         code builds and invokes)
 ```
 
+#### OpenMP backend of the translated kernels
+```
+cpu/strategy.h         (includes: loop/chunk_partition.h, loop/set_colouring.h;
+                        the plain, atomics, colouring and chunked strategies
+                        over host threads, and the per-thread globals)
+cpu/loop.h             (includes: cpu/strategy.h, loop/autotune.h; the loop
+                        the generated code builds and invokes)
+```
+
 #### Sequential layer
 ```
 op_seq.h   (auto-generated, includes: op_lib_core.h)
