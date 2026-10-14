@@ -169,60 +169,36 @@ std::string_view Strategy::family() const {
 
 namespace {
 
-// OP_STRATEGY, read when a ladder is built: a strategy forced for every
-// loop, and those forced for named loops.
-struct Forced {
-    std::string every;
-    std::vector<std::pair<std::string, std::string>> loops;
-};
-
-Forced forced() {
-        Forced result;
-        const char *text = std::getenv("OP_STRATEGY");
-        if (text == nullptr)
-            return result;
-
-        std::string_view rest = text;
-        while (!rest.empty()) {
-            auto comma = rest.find(',');
-            auto item = rest.substr(0, comma);
-            rest = comma == std::string_view::npos ? std::string_view{}
-                                                   : rest.substr(comma + 1);
-            if (item.empty())
-                continue;
-            // "name" or "name:size" for every loop; "loop:name" or
-            // "loop:name:size" for one.  A variant's suffix is all digits.
-            auto colon = item.find(':');
-            auto tail = colon == std::string_view::npos
-                            ? std::string_view{}
-                            : item.substr(colon + 1);
-            bool variant = !tail.empty() &&
-                           std::all_of(tail.begin(), tail.end(), [](char c) {
-                               return std::isdigit(static_cast<unsigned char>(c));
-                           });
-            if (colon == std::string_view::npos || variant)
-                result.every = item;
-            else
-                result.loops.emplace_back(std::string{item.substr(0, colon)},
-                                          std::string{tail});
-        }
-        return result;
-}
-
-std::optional<std::string> forced_for(std::string_view loop) {
-    const auto parsed = forced();
-    for (const auto& [name, strategy] : parsed.loops)
-        if (name == loop)
-            return strategy;
-    if (!parsed.every.empty())
-        return parsed.every;
-    return std::nullopt;
+// OP_STRATEGY, read when a ladder is built: the names forced on a loop,
+// most specific first.  An item "<loop>:<name>" forces name on that loop;
+// any other item is a name, which may hold a colon ("atomics:256",
+// "atomics:packed"), forced on every loop that has it.
+std::vector<std::string> forced_for(std::string_view loop) {
+    std::vector<std::string> specific;
+    std::vector<std::string> every;
+    const char *text = std::getenv("OP_STRATEGY");
+    std::string_view rest = text != nullptr ? text : "";
+    while (!rest.empty()) {
+        auto comma = rest.find(',');
+        auto item = rest.substr(0, comma);
+        rest = comma == std::string_view::npos ? std::string_view{}
+                                               : rest.substr(comma + 1);
+        if (item.empty())
+            continue;
+        if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
+            item[loop.size()] == ':')
+            specific.emplace_back(item.substr(loop.size() + 1));
+        else
+            every.emplace_back(item);
+    }
+    specific.insert(specific.end(), every.begin(), every.end());
+    return specific;
 }
 
 } // namespace
 
 Ladder::Ladder(std::string_view loop_name)
-    : m_name{loop_name}, m_forced_name{forced_for(loop_name)} {}
+    : m_name{loop_name}, m_forced_names{forced_for(loop_name)} {}
 
 void Ladder::add(std::unique_ptr<Strategy> strategy, Default default_setting) {
     assert(strategy != nullptr);
@@ -243,8 +219,13 @@ void Ladder::add(std::unique_ptr<Strategy> strategy, Default default_setting) {
         entry.off = !enabled;
     }
 
-    if (m_forced_name && *m_forced_name == entry.strategy->name())
-        m_forced = m_entries.size();
+    for (std::size_t rank = 0;
+         rank < std::min(m_forced_rank, m_forced_names.size()); ++rank)
+        if (m_forced_names[rank] == entry.strategy->name()) {
+            m_forced = m_entries.size();
+            m_forced_rank = rank;
+            break;
+        }
     m_entries.push_back(std::move(entry));
 }
 

@@ -185,7 +185,7 @@ struct Selection {
 // selected when no other is ready, enabled or not, whatever its own status.
 // Variables are read at registration: OP_<FAMILY>=0/1 over the default, and
 // OP_STRATEGY=<name> or OP_STRATEGY=<loop>:<name> (a comma-separated list of
-// either) forcing one.
+// either) forcing one; a loop's own item wins over a name for every loop.
 class Ladder {
 private:
     struct Entry {
@@ -196,7 +196,10 @@ private:
     };
 
     std::string m_name;
-    std::optional<std::string> m_forced_name;
+    // OP_STRATEGY's names for this loop, most specific first, and the rank
+    // of the one forced.
+    std::vector<std::string> m_forced_names;
+    std::size_t m_forced_rank = SIZE_MAX;
     std::vector<Entry> m_entries;
     std::optional<std::size_t> m_forced;
     std::vector<std::string> m_reported;
