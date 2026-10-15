@@ -5,10 +5,10 @@
 // phase.  A body runs the translated kernel over its elements on the calling
 // thread, so the element loop is visible to the compiler.
 
-#include <loop/chunk_partition.h>
-#include <loop/set_colouring.h>
+#include <cpu/chunk_plan.h>
 #include <loop/strategy.h>
 #include <op_lib_core.h>
+#include <plan/colouring.h>
 
 #include <omp.h>
 
@@ -39,8 +39,8 @@ struct Work {
     // The calling thread's copy of each argument kept per thread, by
     // argument index; null for the others.
     char *const *globals = nullptr;
-    // chunk_atomics: the partition, the chunk and the thread's scratch.
-    const op::chunk::Partition *partition = nullptr;
+    // chunk_atomics: the plan, the chunk and the thread's scratch.
+    const ChunkPlan *plan = nullptr;
     int chunk = 0;
     char *scratch = nullptr;
 
@@ -262,7 +262,7 @@ public:
 // Each colour of a set colouring split over the threads.
 class Colouring : public StrategyBase {
 private:
-    std::unordered_map<std::uint64_t, op::colouring::SetColouring> m_entries;
+    std::unordered_map<std::uint64_t, op::plan::SetColouring> m_entries;
 
 public:
     Colouring(Loop& loop, std::string_view name, Body body)
@@ -277,26 +277,26 @@ public:
 
 // --- The chunked strategies -------------------------------------------------------
 
-// A chunk partition: each batch's chunks shared out over the threads, a body
-// call per chunk.  chunk_colouring's batches share no target, so its chunks
-// run the plain body over their elements; chunk_atomics' chunks accumulate
-// into the thread's scratch and flush it with atomics.
+// A chunk plan (cpu/chunk_plan.h): each batch's chunks shared out over the
+// threads, a body call per chunk.  chunk_colouring's batches share no
+// target, so its chunks run the plain body over their elements;
+// chunk_atomics' chunks accumulate into the thread's scratch and flush it
+// with atomics.
 class ChunkBase : public StrategyBase {
 protected:
     struct Entry {
         std::string_view rejected;
-        std::unique_ptr<op::chunk::Partition> partition;
-        std::size_t scratch_bytes = 0;
+        std::unique_ptr<ChunkPlan> plan;
     };
 
-    op::chunk::Kind m_kind;
-    op::chunk::ArgGroups m_groups;
+    bool m_coloured;
+    op::plan::ArgGroups m_groups;
     int m_chunk_size;
     std::unordered_map<std::uint64_t, Entry> m_entries;
 
-    ChunkBase(Loop& loop, std::string_view name, op::chunk::Kind kind,
-              Body body, op::chunk::ArgGroups groups, int chunk_size)
-        : StrategyBase{loop, name, body}, m_kind{kind}, m_groups{groups},
+    ChunkBase(Loop& loop, std::string_view name, bool coloured, Body body,
+              op::plan::ArgGroups groups, int chunk_size)
+        : StrategyBase{loop, name, body}, m_coloured{coloured}, m_groups{groups},
           m_chunk_size{chunk_size} {}
 
     Entry& entry_for(const op::loop::Configuration& configuration);
@@ -312,17 +312,15 @@ public:
 class ChunkAtomics : public ChunkBase {
 public:
     ChunkAtomics(Loop& loop, std::string_view name, Body body,
-                 op::chunk::ArgGroups groups, int chunk_size)
-        : ChunkBase{loop, name, op::chunk::Kind::staged, body, groups,
-                    chunk_size} {}
+                 op::plan::ArgGroups groups, int chunk_size)
+        : ChunkBase{loop, name, false, body, groups, chunk_size} {}
 };
 
+// Conflicts come from the call's updated dats, so it needs no groups.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, std::string_view name, Body body,
-                   op::chunk::ArgGroups groups, int chunk_size)
-        : ChunkBase{loop, name, op::chunk::Kind::coloured, body, groups,
-                    chunk_size} {}
+    ChunkColouring(Loop& loop, std::string_view name, Body body, int chunk_size)
+        : ChunkBase{loop, name, true, body, {}, chunk_size} {}
 };
 
 } // namespace op::cpu

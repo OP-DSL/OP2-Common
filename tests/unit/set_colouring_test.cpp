@@ -2,7 +2,7 @@
 // owned elements take the first colours when asked, and only the owned
 // elements run when nothing updates the halo.
 
-#include <loop/set_colouring.h>
+#include <plan/colouring.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -77,7 +77,7 @@ void test_set_colouring() {
             if (arg.idx >= 0 && (arg.acc == OP_INC || arg.acc == OP_RW))
                 updated.push_back(arg.map == &a ? &map_a : &map_b);
 
-        auto colouring = op::colouring::colour_set(&source, args, separate_owned);
+        auto colouring = op::plan::colour_set(&source, args, separate_owned);
         CHECK(colouring.colours >= 1);
         CHECK(static_cast<int>(colouring.order.size()) == exec_length);
         CHECK(colouring.offsets.size() ==

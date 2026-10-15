@@ -5,11 +5,11 @@
 // launch's kernel arguments through a function it supplies.
 
 #include <gpu/chunk_encode.h>
-#include <loop/chunk_partition.h>
+#include <gpu/chunk_plan.h>
 #include <gpu/jit.h>
-#include <op_lib_cpp.h>
 #include <loop/strategy.h>
-#include <loop/set_colouring.h>
+#include <op_lib_cpp.h>
+#include <plan/colouring.h>
 
 #include <algorithm>
 #include <cassert>
@@ -189,7 +189,7 @@ public:
 class Colouring : public StrategyBase {
 private:
     struct Entry {
-        op::colouring::SetColouring colouring;
+        op::plan::SetColouring colouring;
         int *order_d = nullptr;
     };
 
@@ -210,27 +210,26 @@ public:
 
 // --- The chunked strategies -------------------------------------------------------
 
-// A chunk partition staged in shared memory: one launch per batch of
-// chunks, each block taking chunks in turn.
+// A chunk plan staged in shared memory (gpu/chunk_plan.h): one launch per
+// batch of chunks, each block taking chunks in turn.
 class ChunkBase : public StrategyBase {
 protected:
     struct Entry {
         std::string_view rejected;
-        std::unique_ptr<op::chunk::Partition> partition;
-        DevicePlan plan;
+        std::unique_ptr<ChunkPlan> plan;
+        DevicePlan device;
     };
 
-    op::chunk::Kind m_kind;
-    op::chunk::ArgGroups m_groups;
+    bool m_coloured;
+    op::plan::ArgGroups m_groups;
     int m_chunk_size;
     std::unordered_map<std::uint64_t, Entry> m_entries;
     Entry *m_entry = nullptr;
-    int m_wave_epoch = 0;
 
-    ChunkBase(Loop& loop, std::string_view family, op::chunk::Kind kind,
-              KernelSource source, Binder bind, op::chunk::ArgGroups groups,
+    ChunkBase(Loop& loop, std::string_view family, bool coloured,
+              KernelSource source, Binder bind, op::plan::ArgGroups groups,
               int chunk_size, int block_size)
-        : StrategyBase{loop, family, source, bind, block_size}, m_kind{kind},
+        : StrategyBase{loop, family, source, bind, block_size}, m_coloured{coloured},
           m_groups{groups}, m_chunk_size{chunk_size} {}
 
     Entry& entry_for(const op::loop::Configuration& configuration);
@@ -244,7 +243,7 @@ public:
     std::string statistics(const op::loop::Prepared& prepared) const override;
     void release() override;
 
-    // Configurations partitioned so far, accepted or rejected.
+    // Configurations planned so far, accepted or rejected.
     std::size_t entries() const { return m_entries.size(); }
 };
 
@@ -252,9 +251,9 @@ public:
 class ChunkAtomics : public ChunkBase {
 public:
     ChunkAtomics(Loop& loop, KernelSource source, Binder bind,
-                 op::chunk::ArgGroups groups, int chunk_size, int block_size)
-        : ChunkBase{loop, "chunk_atomics", op::chunk::Kind::staged, source,
-                    bind, groups, chunk_size, block_size} {}
+                 op::plan::ArgGroups groups, int chunk_size, int block_size)
+        : ChunkBase{loop, "chunk_atomics", false, source, bind, groups,
+                    chunk_size, block_size} {}
 };
 
 // Coloured chunks, then coloured elements within each, so every slot is
@@ -262,9 +261,9 @@ public:
 class ChunkColouring : public ChunkBase {
 public:
     ChunkColouring(Loop& loop, KernelSource source, Binder bind,
-                   op::chunk::ArgGroups groups, int chunk_size, int block_size)
-        : ChunkBase{loop, "chunk_colouring", op::chunk::Kind::coloured, source,
-                    bind, groups, chunk_size, block_size} {}
+                   op::plan::ArgGroups groups, int chunk_size, int block_size)
+        : ChunkBase{loop, "chunk_colouring", true, source, bind, groups,
+                    chunk_size, block_size} {}
 };
 
 } // namespace op::gpu

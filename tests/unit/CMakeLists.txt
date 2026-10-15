@@ -2,10 +2,11 @@ if(NOT TARGET op2_seq)
     return()
 endif()
 
-# Host-only tests of the par_loop support: the planner libraries, the
-# strategy ladder and the autotuner, against the sequential library.
-foreach(_test set_colouring_test chunk_partition_test chunk_encode_test loop_ladder_test
-              loop_autotune_test)
+# Host-only tests of the par_loop support: the planning building blocks and
+# the backends' plans over them, the strategy ladder and the autotuner,
+# against the sequential library.
+foreach(_test set_colouring_test plan_chunks_test gpu_chunk_plan_test chunk_encode_test
+              loop_ladder_test loop_autotune_test)
     add_executable(${_test} ${_test}.cpp)
     target_link_libraries(${_test} PRIVATE op2_seq)
     add_test(NAME ${_test} COMMAND ${_test})

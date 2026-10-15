@@ -21,9 +21,9 @@
 #define OP_F2C_PRELUDE_DATA OP_F2C_JIT_CAT(OP_F2C_PRELUDE, _data)
 INCTXT(OP_F2C_PRELUDE, "kernel/prelude.h");
 
-#define OP_CHUNK_LAYOUT OP_F2C_JIT_CAT(op_chunk_layout_, OP_F2C_JIT_TAG)
-#define OP_CHUNK_LAYOUT_DATA OP_F2C_JIT_CAT(OP_CHUNK_LAYOUT, _data)
-INCTXT(OP_CHUNK_LAYOUT, "loop/chunk_layout.h");
+#define OP_STAGING_LAYOUT OP_F2C_JIT_CAT(op_staging_layout_, OP_F2C_JIT_TAG)
+#define OP_STAGING_LAYOUT_DATA OP_F2C_JIT_CAT(OP_STAGING_LAYOUT, _data)
+INCTXT(OP_STAGING_LAYOUT, "plan/staging_layout.h");
 
 #define OP_STRATEGY_KERNEL OP_F2C_JIT_CAT(op_strategy_kernel_, OP_F2C_JIT_TAG)
 #define OP_STRATEGY_KERNEL_DATA OP_F2C_JIT_CAT(OP_STRATEGY_KERNEL, _data)
@@ -35,17 +35,17 @@ INCTXT(OP_STRATEGY_KERNEL, "kernel/strategy.h");
 #ifdef OP_F2C_PARAMS
 #define OP_F2C_JIT_HEADERS                                                     \
     ::op::gpu::JitHeaders {                                                    \
-        {OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA,    \
+        {OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA, \
          OP_F2C_PARAMS_DATA},                                                  \
-        {"kernel/prelude.h", "loop/chunk_layout.h", "kernel/strategy.h",      \
+        {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h",     \
          "op_f2c_params.h"},                                                   \
         true                                                                   \
     }
 #else
 #define OP_F2C_JIT_HEADERS                                                     \
     ::op::gpu::JitHeaders {                                                    \
-        {OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},   \
-        {"kernel/prelude.h", "loop/chunk_layout.h", "kernel/strategy.h"},     \
+        {OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA}, \
+        {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"},    \
         false                                                                  \
     }
 #endif

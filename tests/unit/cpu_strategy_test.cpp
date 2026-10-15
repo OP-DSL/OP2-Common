@@ -72,8 +72,7 @@ void range_body(const cpu::Work& work, op_arg *args) {
 
 // A chunk accumulates into its staged slots and flushes them atomically.
 void staged_body(const cpu::Work& work, op_arg *args) {
-    const auto& partition = *work.partition;
-    const auto& staging = partition.staging;
+    const auto& staging = work.plan->staging;
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
@@ -83,7 +82,7 @@ void staged_body(const cpu::Work& work, op_arg *args) {
     double *stage = f2c::stage_region<double>(cursor, count, 2);
     f2c::stage_clear(stage, count * 2, 0, 1);
 
-    const auto stride = static_cast<std::size_t>(partition.set_stride);
+    const auto stride = static_cast<std::size_t>(staging.stride);
     for (int n = work.begin; n < work.end; ++n)
         element(n, x, map, w, work.global<double>(3), work.global<double>(4),
                 work.global<int>(5), [](double& t, double v) { t += v; },
@@ -97,7 +96,7 @@ void staged_body(const cpu::Work& work, op_arg *args) {
     }
 }
 
-constexpr std::array<op::chunk::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+constexpr std::array<op::plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
 
 void run(const char *strategy) {
     setenv("OP_STRATEGY", strategy, 1);
@@ -189,13 +188,13 @@ void run(const char *strategy) {
     args[5].acc = 4;
 
     cpu::Loop loop("test_loop", "c_OpenMP", "Indirect", cpu::LoopDescription{false});
-    op::chunk::ArgGroups arg_groups{groups, 1};
+    op::plan::ArgGroups arg_groups{groups, 1};
     loop.add<cpu::ChunkAtomics>(op::loop::Default::disabled, "chunk_atomics",
                                 &staged_body, arg_groups, 0);
     loop.add<cpu::Simple>(op::loop::Default::disabled, "atomics",
                           &range_body<true, false>);
     loop.add<cpu::ChunkColouring>(op::loop::Default::enabled, "chunk_colouring",
-                                  &range_body<false, false>, arg_groups, 0);
+                                  &range_body<false, false>, 0);
     loop.add<cpu::Colouring>(op::loop::Default::enabled, "colouring",
                              &range_body<false, true>);
     // The forced strategy itself runs, not one the ladder falls through to.

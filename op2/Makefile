@@ -65,13 +65,14 @@ clean:
 	-rm -rf $(MOD)
 
 # Backend-neutral par_loop support: the strategy ladder and tuner, and the
-# planner libraries the strategies build on
+# planning building blocks the backends' strategies compose
 OP2_LOOP := $(addprefix $(OBJ)/loop/,\
 	op_loop_strategy.o \
-	op_loop_autotune.o \
+	op_loop_autotune.o) $(addprefix $(OBJ)/plan/,\
 	op_set_colouring.o \
-	op_chunk_partition.o \
-	op_chunk_colouring.o)
+	op_chunks.o \
+	op_staging.o \
+	op_chunk_options.o)
 
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\

@@ -21,7 +21,7 @@
     field that binds it. -#}
 {%- set staging_params = [
     ("const int *__restrict", "source_offsets", "launch.chunk.plan->source_offsets"),
-    ("const op::chunk::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
+    ("const op::plan::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
     ("const int *__restrict", "stage_counts", "launch.chunk.plan->stage_counts"),
     ("const int *__restrict", "slot_offsets", "launch.chunk.plan->slot_offsets"),
     ("const int *__restrict", "slot_targets", "launch.chunk.plan->slot_targets"),
@@ -185,7 +185,7 @@ f2c::Ptr{gbl{{arg.id}}}
     {%- set group = group_dats[strategy]|index(arg.dat_id) -%}
     {%- set word = "stage_words[%d * stride + n]" % group_args[strategy]|index(arg) -%}
     {%- if strategy == "chunk_atomics" -%}
-((op2_unstaged_singles && {{word}} == op::chunk::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
+((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
     {%- else -%}
 f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
@@ -741,9 +741,9 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% endif %}
 {% for strategy in strategies %}
     {% if strategy in chunk_strategies %}
-    static constexpr std::array<op::chunk::ArgGroup, {{group_args[strategy]|length}}> {{strategy}}_groups = {{"{{"}}
+    static constexpr std::array<op::plan::ArgGroup, {{group_args[strategy]|length}}> {{strategy}}_groups = {{"{{"}}
         {% for arg in group_args[strategy] %}
-        op::chunk::ArgGroup{ {{arg.id}}, {{group_dats[strategy]|index(arg.dat_id)}} },
+        op::plan::ArgGroup{ {{arg.id}}, {{group_dats[strategy]|index(arg.dat_id)}} },
         {% endfor %}
     {{"}}"}};
     {% endif %}
@@ -758,7 +758,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
             op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
         &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
     {% if strategy in chunk_strategies %}
-        op::chunk::ArgGroups{ {{strategy}}_groups, {{group_dats[strategy]|length}} },
+        op::plan::ArgGroups{ {{strategy}}_groups, {{group_dats[strategy]|length}} },
         chunk_size);
     {% endif %}
 {% endfor %}

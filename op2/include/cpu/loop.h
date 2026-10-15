@@ -9,6 +9,7 @@
 #include <loop/strategy.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
+#include <plan/options.h>
 
 #include <omp.h>
 
@@ -22,10 +23,6 @@
 #include <vector>
 
 namespace op::cpu {
-
-// Elements per chunk when neither the translator nor OP_CHUNK_*_CHUNK_SIZE
-// gives one.
-constexpr int default_chunk_size = 256;
 
 class Loop {
 private:
@@ -292,7 +289,7 @@ inline op::loop::Prepared Colouring::prepare(
     auto key = configuration.key();
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
-        auto colouring = op::colouring::colour_set(
+        auto colouring = op::plan::colour_set(
             configuration.set, configuration.args,
             m_loop.sections(configuration).size() == 3);
         if (OP_diags > 3)
@@ -307,7 +304,7 @@ inline op::loop::Prepared Colouring::prepare(
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
     const auto& colouring =
-        *static_cast<const op::colouring::SetColouring *>(prepared.entry);
+        *static_cast<const op::plan::SetColouring *>(prepared.entry);
     // Every colour can hold halo-dependent elements, so the wait comes first.
     return run_phases(
         launch, colouring.colours, 0, colouring.owned_colours - 1, [&](int colour) {
@@ -319,7 +316,7 @@ inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
 
 inline std::string Colouring::statistics(const op::loop::Prepared& prepared) const {
     const auto& colouring =
-        *static_cast<const op::colouring::SetColouring *>(prepared.entry);
+        *static_cast<const op::plan::SetColouring *>(prepared.entry);
     return std::to_string(colouring.colours) + " colours";
 }
 
@@ -332,38 +329,33 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     if (found != m_entries.end())
         return found->second;
 
-    // A thread runs a chunk on its own: no lanes, and scratch bounded only
-    // so a chunk's slots stay in the caches.
-    const auto& options = op::chunk::options();
-    int option = m_kind == op::chunk::Kind::staged ? options.atomics_chunk_size
-                                                   : options.colouring_chunk_size;
-    op::chunk::Constraints constraints;
-    constraints.lanes = 1;
-    constraints.scratch_bytes = std::size_t{1} << 20;
-    constraints.elements = op::chunk::chunk_size(m_chunk_size, option,
-                                                 default_chunk_size);
-
-    auto result = op::chunk::build_partition(m_kind, configuration,
-                                             m_loop.sections(configuration),
-                                             m_groups, constraints, options);
+    const auto& options = op::plan::chunk_options();
+    auto sections = m_loop.sections(configuration);
+    auto result =
+        m_coloured
+            ? plan_chunk_colouring(configuration.args, sections,
+                                   op::plan::chunk_size(m_chunk_size,
+                                                        options.colouring_chunk_size,
+                                                        default_chunk_size))
+            : plan_chunk_atomics(configuration.args, sections, m_groups,
+                                 op::plan::chunk_size(m_chunk_size,
+                                                      options.atomics_chunk_size,
+                                                      default_chunk_size),
+                                 options.min_compression);
     Entry entry;
     entry.rejected = result.rejected;
-    entry.partition = std::move(result.partition);
-    if (entry.rejected.empty() && m_kind == op::chunk::Kind::staged)
-        for (auto bytes : entry.partition->staging.chunk_scratch_bytes)
-            entry.scratch_bytes = std::max(entry.scratch_bytes, bytes);
+    entry.plan = std::move(result.plan);
 
     if (OP_diags > 3) {
-        if (entry.partition == nullptr)
+        if (entry.plan == nullptr)
             std::printf("%s: %s rejected (%s)\n", m_name.c_str(),
                         m_loop.name().c_str(), std::string{entry.rejected}.c_str());
         else
-            std::printf("%s: %s chunk %d, %zu chunks, %zu batches, "
+            std::printf("%s: %s chunk %d, %d chunks, %d batches, "
                         "compression %.2fx%s\n",
                         m_name.c_str(), m_loop.name().c_str(),
-                        entry.partition->chunk_size, entry.partition->num_chunks(),
-                        entry.partition->statistics.batches,
-                        entry.partition->statistics.compression(),
+                        entry.plan->chunks.size, entry.plan->chunks.count(),
+                        entry.plan->batches.count(), entry.plan->compression,
                         entry.rejected.empty() ? "" : ", rejected");
     }
     return m_entries.emplace(key, std::move(entry)).first->second;
@@ -380,31 +372,31 @@ inline op::loop::Prepared ChunkBase::prepare(
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
     const auto& entry = *static_cast<const Entry *>(prepared.entry);
-    const auto& partition = *entry.partition;
+    const auto& plan = *entry.plan;
     const auto& sections = m_loop.call_sections();
-    m_loop.reserve_scratch(entry.scratch_bytes);
+    m_loop.reserve_scratch(plan.scratch_bytes);
 
     auto [wait, globals] = section_points(sections);
     return run_phases(launch, sections.size(), wait, globals, [&](int section) {
         if (sections[section].size() == 0)
             return;
-        const int batches = partition.batches(section);
+        const int batches = plan.batches.batches(section);
 #pragma omp parallel num_threads(m_loop.threads())
         {
             const int thread = omp_get_thread_num();
             Work work;
             work.globals = m_loop.globals().thread(thread);
-            work.partition = &partition;
+            work.plan = &plan;
             work.scratch = m_loop.scratch(thread);
             for (int batch = 0; batch < batches; ++batch) {
-                const auto range = partition.batch_range(section, batch);
+                const auto range = plan.batches.positions(section, batch);
                 const int first = range.first;
                 const int last = range.second;
 #pragma omp for schedule(static)
                 for (int position = first; position < last; ++position) {
-                    work.chunk = partition.chunk_at(position);
-                    work.begin = partition.source_offsets[static_cast<std::size_t>(work.chunk)];
-                    work.end = partition.source_offsets[static_cast<std::size_t>(work.chunk) + 1];
+                    work.chunk = plan.batches.chunk(position);
+                    work.begin = plan.chunks.begin(work.chunk);
+                    work.end = plan.chunks.end(work.chunk);
                     m_body(work, launch.args);
                 }
             }
@@ -414,11 +406,13 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
 
 inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) const {
     const auto& entry = *static_cast<const Entry *>(prepared.entry);
-    const auto& partition = *entry.partition;
+    if (entry.plan == nullptr)
+        return std::string{entry.rejected};
+    const auto& plan = *entry.plan;
     char text[128];
-    std::snprintf(text, sizeof(text), "chunk %d, %zu chunks, %zu batches, compression %.2f",
-                  partition.chunk_size, partition.num_chunks(),
-                  partition.statistics.batches, partition.statistics.compression());
+    std::snprintf(text, sizeof(text), "chunk %d, %d chunks, %d batches, compression %.2f",
+                  plan.chunks.size, plan.chunks.count(), plan.batches.count(),
+                  plan.compression);
     return text;
 }
 

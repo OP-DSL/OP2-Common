@@ -1,5 +1,5 @@
 // The chunk_atomics strategy in a loop with atomics as its floor: disabled
-// by default, forced through OP_STRATEGY, its partition cached per
+// by default, forced through OP_STRATEGY, its plan cached per
 // configuration and rejected for the reasons the planner names.
 
 #define OP_F2C_JIT_TAG chunk_strategy_test
@@ -126,7 +126,7 @@ struct Fixture {
     op_map_core map{};
     std::vector<int> map_values;
     std::array<op_arg, 2> args{};
-    std::array<op::chunk::ArgGroup, 1> group_args{{{0, 0}}};
+    std::array<op::plan::ArgGroup, 1> group_args{{{0, 0}}};
 
     Fixture() : map_values(256) {
         source.index = 0;
@@ -176,7 +176,7 @@ struct Fixture {
         args[1].opt = 0;
     }
 
-    op::chunk::ArgGroups groups() const { return {group_args, 1}; }
+    op::plan::ArgGroups groups() const { return {group_args, 1}; }
 
     int shared_bytes() const {
         return target.size * args[0].dim * static_cast<int>(sizeof(double));
@@ -184,8 +184,8 @@ struct Fixture {
 };
 
 gpu::JitHeaders headers() {
-    return {{OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"kernel/prelude.h", "loop/chunk_layout.h", "kernel/strategy.h"}};
+    return {{OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
+            {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"}};
 }
 
 void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
 
     bool saw_jit = false;
     {
-        // Disabled by default: atomics runs and no partition is built.
+        // Disabled by default: atomics runs and no plan is built.
         gpu::Loop dormant("chunk_strategy", "c_CUDA", "Indirect", {false, false},
                           headers());
         add_strategies(dormant, fixture);
@@ -319,7 +319,7 @@ int main(int argc, char **argv) {
         }
 
         // Every reference reaches a different target, so staging combines
-        // nothing: the partition is rejected below the default minimum
+        // nothing: the plan is rejected below the default minimum
         // compression.
         {
             Fixture spread;

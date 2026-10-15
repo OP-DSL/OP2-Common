@@ -6,10 +6,11 @@
 
 #include <gpu/jit.h>
 #include <gpu/strategy.h>
-#include <op_lib_cpp.h>
 #include <loop/autotune.h>
 #include <loop/strategy.h>
+#include <op_lib_cpp.h>
 #include <op_profile.h>
+#include <plan/options.h>
 
 #include <cstring>
 #include <memory>
@@ -401,7 +402,7 @@ inline op::loop::Prepared Colouring::prepare(
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
         Entry entry;
-        entry.colouring = op::colouring::colour_set(
+        entry.colouring = op::plan::colour_set(
             configuration.set, configuration.args, m_call.sections.size() == 3);
         const auto& order = entry.colouring.order;
         if (!order.empty()) {
@@ -467,26 +468,26 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
         return found->second;
 
     // A chunk is one block's elements unless a size is given.
-    auto options = op::chunk::options();
-    op::chunk::Constraints constraints;
-    constraints.lanes = m_block_size;
-    constraints.scratch_bytes = config().shared_bytes;
-    constraints.elements = op::chunk::chunk_size(
-        m_chunk_size,
-        m_kind == op::chunk::Kind::staged ? options.atomics_chunk_size
-                                          : options.colouring_chunk_size,
-        m_block_size);
-    options.unstaged_singles = config().unstaged_singles;
-    options.wavefront = config().wavefront;
-    options.window = config().window;
-    auto result = op::chunk::build_partition(m_kind, configuration,
-                                             m_call.sections, m_groups,
-                                             constraints, options);
+    const auto& options = op::plan::chunk_options();
+    const auto& run = config();
+    ChunkLimits limits{m_block_size, run.shared_bytes};
+    auto result =
+        m_coloured
+            ? plan_chunk_colouring(
+                  configuration.args, m_call.sections, m_groups,
+                  op::plan::chunk_size(m_chunk_size, options.colouring_chunk_size,
+                                       m_block_size),
+                  limits, run.wavefront, run.window)
+            : plan_chunk_atomics(
+                  configuration.args, m_call.sections, m_groups,
+                  op::plan::chunk_size(m_chunk_size, options.atomics_chunk_size,
+                                       m_block_size),
+                  limits, run.unstaged_singles, options.min_compression);
     Entry entry;
     entry.rejected = result.rejected;
-    entry.partition = std::move(result.partition);
+    entry.plan = std::move(result.plan);
     if (entry.rejected.empty())
-        entry.plan = DevicePlan(*entry.partition);
+        entry.device = DevicePlan(*entry.plan);
     report(entry);
     return m_entries.emplace(key, std::move(entry)).first->second;
 }
@@ -494,26 +495,24 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 inline void ChunkBase::report(const Entry& entry) const {
     if (OP_diags <= 3)
         return;
-    if (entry.partition == nullptr) {
+    if (entry.plan == nullptr) {
         std::printf("%s: %s rejected (%s)\n", m_name.c_str(),
                     m_loop.name().c_str(), std::string{entry.rejected}.c_str());
         return;
     }
-    const auto& partition = *entry.partition;
-    const auto& stats = partition.statistics;
-    if (m_kind == op::chunk::Kind::coloured)
-        std::printf("%s: %s chunk %d, %zu chunks, %zu batches, up to %d thread "
+    const auto& plan = *entry.plan;
+    if (m_coloured)
+        std::printf("%s: %s chunk %d, %d chunks, %d batches, up to %d thread "
                     "colours, compression %.2fx\n",
-                    m_name.c_str(), m_loop.name().c_str(), partition.chunk_size,
-                    partition.num_chunks(), stats.batches,
-                    stats.max_thread_colours, stats.compression());
+                    m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
+                    plan.chunks.count(), plan.batches.count(),
+                    plan.max_thread_colours, plan.compression());
     else
-        std::printf("%s: %s chunk %d, %zu chunks, %zu refs, %zu targets "
+        std::printf("%s: %s chunk %d, %d chunks, %zu refs, %zu targets "
                     "(%zu unstaged), compression %.2fx%s\n",
-                    m_name.c_str(), m_loop.name().c_str(), partition.chunk_size,
-                    partition.num_chunks(), stats.raw_references,
-                    stats.distinct_targets, stats.unstaged_singles,
-                    stats.compression(),
+                    m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
+                    plan.chunks.count(), plan.references, plan.distinct_targets,
+                    plan.staging.unstaged_singles, plan.compression(),
                     entry.rejected.empty() ? "" : ", rejected");
 }
 
@@ -535,12 +534,12 @@ inline op::loop::Prepared ChunkBase::prepare(
     // Reduction scratch uses the capped physical grid.  A wavefront batch's
     // blocks take chunks in turn, so it needs no more of them than the
     // device holds at once.
-    const auto& partition = *m_entry->partition;
+    const auto& batches = m_entry->plan->batches;
     for (int section = 0; section < m_call.sections.size(); ++section)
-        for (int batch = 0; batch < partition.batches(section); ++batch) {
-            auto [begin, end] = partition.batch_range(section, batch);
+        for (int batch = 0; batch < batches.batches(section); ++batch) {
+            auto [begin, end] = batches.positions(section, batch);
             int blocks = std::min(end - begin, m_call.block_limit);
-            if (m_entry->plan.wavefront())
+            if (m_entry->plan->wavefront)
                 blocks = std::min(blocks, config().resident_blocks(m_block_size));
             m_call.max_blocks = std::max(m_call.max_blocks, blocks);
         }
@@ -550,14 +549,14 @@ inline op::loop::Prepared ChunkBase::prepare(
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
     const auto& entry = *static_cast<const Entry *>(prepared.entry);
-    const auto& partition = *entry.partition;
+    const auto& plan = *entry.plan;
     const auto& sections = m_call.sections;
 
     // Every section of a wavefront call takes its positions from zero.
     int epoch = 0;
-    if (entry.plan.wavefront()) {
-        epoch = entry.plan.next_wave_epoch();
-        CUDA_SAFE_CALL(gpuMemsetAsync(entry.plan.wave_tickets, 0,
+    if (plan.wavefront) {
+        epoch = entry.device.next_wave_epoch();
+        CUDA_SAFE_CALL(gpuMemsetAsync(entry.device.wave_tickets, 0,
                                       static_cast<std::size_t>(sections.size()) *
                                           sizeof(int),
                                       0));
@@ -574,23 +573,23 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
     return run_phases(
         prepared, launch, sections.size(), wait, globals,
         [&](int section) {
-            return sections[section].size() > 0 ? partition.batches(section) : 0;
+            return sections[section].size() > 0 ? plan.batches.batches(section) : 0;
         },
         [&](int section, int batch, LaunchContext& context) {
-            auto [begin, end] = partition.batch_range(section, batch);
+            auto [begin, end] = plan.batches.positions(section, batch);
             context.start = sections[section].begin;
             context.end = sections[section].end;
-            context.chunk.plan = &entry.plan;
+            context.chunk.plan = &entry.device;
             context.chunk.chunk_begin = begin;
             context.chunk.chunk_end = end;
-            if (entry.plan.wavefront()) {
-                context.chunk.wave_ticket = entry.plan.wave_tickets + section;
+            if (plan.wavefront) {
+                context.chunk.wave_ticket = entry.device.wave_tickets + section;
                 context.chunk.wave_epoch = epoch;
             }
             int blocks = std::min(end - begin, m_call.block_limit);
-            if (entry.plan.wavefront())
+            if (plan.wavefront)
                 blocks = std::min(blocks, config().resident_blocks(m_block_size));
-            auto bytes = partition.scratch_bytes(section, batch);
+            auto bytes = plan.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
             return Geometry{blocks, static_cast<int>(bytes)};
         });
@@ -598,17 +597,16 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
 
 inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) const {
     const auto& entry = *static_cast<const Entry *>(prepared.entry);
-    if (entry.partition == nullptr)
+    if (entry.plan == nullptr)
         return std::string{entry.rejected};
+    const auto& plan = *entry.plan;
     char text[96];
-    const auto& stats = entry.partition->statistics;
-    std::snprintf(text, sizeof(text), ", chunk %d, %zu chunks, compression %.2f",
-                  entry.partition->chunk_size, entry.partition->num_chunks(),
-                  stats.compression());
+    std::snprintf(text, sizeof(text), ", chunk %d, %d chunks, compression %.2f",
+                  plan.chunks.size, plan.chunks.count(), plan.compression());
     std::string out = StrategyBase::statistics(prepared) + text;
-    if (m_kind == op::chunk::Kind::coloured)
-        out += ", " + std::to_string(stats.batches) + " batches, " +
-               std::to_string(stats.max_thread_colours) + " thread colours";
+    if (m_coloured)
+        out += ", " + std::to_string(plan.batches.count()) + " batches, " +
+               std::to_string(plan.max_thread_colours) + " thread colours";
     return out;
 }
 
