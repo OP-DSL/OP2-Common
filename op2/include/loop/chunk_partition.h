@@ -25,7 +25,7 @@ struct Options {
     // references per flushed target than this are rejected; 0 accepts all.
     double min_compression = 1.5;
     // OP_CHUNK_ATOMICS_CHUNK_SIZE, OP_CHUNK_COLOURING_CHUNK_SIZE: elements
-    // per chunk; zero leaves it to OP_part_size and the lanes.
+    // per chunk; zero leaves it to the backend.
     int atomics_chunk_size = 0;
     int colouring_chunk_size = 0;
 
@@ -39,6 +39,12 @@ struct Options {
 
 const Options& options();
 void init_options();
+
+// Elements per chunk: the translator's size for the loop, else the
+// variable's, else the backend's.
+inline int chunk_size(int loop_size, int option_size, int backend_size) {
+    return loop_size > 0 ? loop_size : option_size > 0 ? option_size : backend_size;
+}
 
 // The indirect arguments a chunked strategy stages, grouped by dat as its
 // kernel lays its regions out: chunk_atomics stages every increment,
@@ -62,7 +68,7 @@ struct Constraints {
     std::size_t scratch_bytes = 0;
     // Slots a region may hold.
     int max_slots = chunk::max_slots;
-    // Requested chunk size; zero takes the options' or OP_part_size.
+    // Requested chunk size, rounded up to lanes.
     int elements = 0;
 };
 
