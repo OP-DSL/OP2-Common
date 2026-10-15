@@ -284,6 +284,27 @@ void test_variables() {
     loop::init();
 }
 
+// A ladder longer than any fixed bound: every strategy before the last is
+// passed over, disabled or rejected, and the last runs.
+void test_long_ladder() {
+    loop::Ladder ladder{"long_loop"};
+    std::vector<Fake *> fakes;
+    for (int i = 0; i < 40; ++i) {
+        auto fake = std::make_unique<Fake>("fake:" + std::to_string(i));
+        fake->statuses.assign(4, loop::Status::rejected);
+        fakes.push_back(fake.get());
+        ladder.add(std::move(fake), i % 2 == 0 ? loop::Default::enabled
+                                               : loop::Default::disabled);
+    }
+    fakes.back()->statuses.clear();
+    for (int call = 0; call < 2; ++call) {
+        auto selection = ladder.select(configuration());
+        CHECK(selection.strategy == fakes.back());
+        CHECK(selection.prepared.status == loop::Status::ready);
+    }
+    CHECK(fakes[0]->prepares == 2 && fakes[1]->prepares == 0);
+}
+
 void test_release_registry() {
     int releases = 0;
     auto release = [](void *owner) { ++*static_cast<int *>(owner); };
@@ -320,6 +341,7 @@ int main() {
         test_configuration();
         test_defaults();
         test_variables();
+        test_long_ladder();
         test_release_registry();
         time_selects();
     } catch (const std::exception& error) {

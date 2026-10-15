@@ -238,28 +238,28 @@ void Ladder::add(std::unique_ptr<Strategy> strategy, Default default_setting) {
             break;
         }
     m_entries.push_back(std::move(entry));
+    m_reasons.emplace_back();
 }
 
 Selection Ladder::select(const Configuration& configuration) {
     assert(!m_entries.empty());
-    std::array<std::string_view, 16> reasons{};
-    assert(m_entries.size() <= reasons.size());
+    std::fill(m_reasons.begin(), m_reasons.end(), std::string_view{});
 
     Selection selection;
     std::size_t index = m_forced.value_or(0);
     for (; index < m_entries.size(); ++index) {
         auto& entry = m_entries[index];
         if (!entry.enabled && index != m_forced) {
-            reasons[index] = "disabled";
+            m_reasons[index] = "disabled";
             continue;
         }
         selection.prepared = entry.strategy->prepare(configuration, false);
         if (selection.prepared.status == Status::ready) {
             selection.strategy = entry.strategy.get();
-            report(selection, {reasons.data(), index});
+            report(selection, {m_reasons.data(), index});
             return selection;
         }
-        reasons[index] = selection.prepared.reason;
+        m_reasons[index] = selection.prepared.reason;
     }
 
     // The floor, which keeps its own reason when it was passed over.
@@ -267,7 +267,7 @@ Selection Ladder::select(const Configuration& configuration) {
     if (selection.prepared.strategy != floor.strategy.get())
         selection.prepared = floor.strategy->prepare(configuration, false);
     selection.strategy = floor.strategy.get();
-    report(selection, {reasons.data(), m_entries.size() - 1});
+    report(selection, {m_reasons.data(), m_entries.size() - 1});
     return selection;
 }
 
