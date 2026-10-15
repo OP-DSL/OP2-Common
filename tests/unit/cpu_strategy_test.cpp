@@ -5,6 +5,7 @@
 #include <cpu/loop.h>
 #include <kernel/strategy.h>
 #include <op_lib_c.h>
+#include <op_profile.h>
 
 #include <omp.h>
 
@@ -227,9 +228,11 @@ void run(const char *strategy) {
 
 int main(int argc, char **argv) {
     op_init(argc, argv, 0);
+    op_profile_start("OpenMP strategy test");
     omp_set_num_threads(8);
     for (const char *strategy : {"chunk_atomics", "atomics", "chunk_colouring", "colouring"})
         run(strategy);
+    op_profile_end();
     op_exit();
     std::printf("cpu strategy tests passed\n");
     return EXIT_SUCCESS;
