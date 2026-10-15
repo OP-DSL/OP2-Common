@@ -158,6 +158,7 @@ int main(int argc, char **argv) {
     {
         Fixture fixture;
         setenv("OP_STRATEGY", "chunk_atomics", 1);
+        op::loop::init();
         gpu::Loop loop("dynamic_smem_launch", "c_CUDA", "Indirect", {false, false},
                        gpu::JitHeaders{{OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA,
                                         OP_STRATEGY_KERNEL_DATA},

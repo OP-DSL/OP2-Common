@@ -6,9 +6,8 @@
 // delay and the register prior.  One per loop.
 
 #include <extern/rapidhash.h>
-#include <loop/chunk_partition.h>
+#include <gpu/config.h>
 #include <gpu/shims.h>
-#include <loop/autotune.h>
 #include <loop/strategy.h>
 #include <op_rt_support.h>
 
@@ -68,125 +67,6 @@
 
 namespace op::gpu {
 
-// --- Run-wide configuration ---------------------------------------------------
-
-struct JitConfig {
-    bool enable = true;         // OP_JIT_ENABLE
-    bool seq_compile = false;   // OP_JIT_SEQ_COMPILE: compile on the calling thread
-    bool debug = false;         // OP_JIT_DEBUG: print compiles, synchronise launches
-    bool force = false;         // OP_JIT_FORCE: specialise every kernel
-    // OP_JIT_MAX_THREADS: compiles in flight at once.
-#if defined(OP2_CUDA) && (__CUDACC_VER_MAJOR__ > 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ >= 3))
-    int max_threads = 16;
-#else
-    // No multi-threaded NVVM/hiprtc but still some gain for multithreading
-    int max_threads = 4;
-#endif
-    // OP_JIT_MIN_CALLS: calls of a configuration before its compile starts,
-    // so parameters that change every call never compile.
-    int min_calls = 9;
-    // OP_JIT_MIN_REGISTERS: an offline kernel using more registers than this
-    // is specialised; the prior for when a compile pays.
-    int min_registers = 32;
-    // OP_AUTOTUNE_BLOCK_SIZES: block sizes registered as variants of every
-    // strategy, for the tuner to explore.
-    std::vector<int> block_sizes;
-    std::string arch;
-
-    // The device, read once.
-    std::size_t shared_bytes = 0;
-    int multiprocessors = 0;
-    int threads_per_multiprocessor = 0;
-    int default_block_size = 128;
-
-    // The most blocks of block_size threads the device holds at once.
-    int resident_blocks(int block_size) const {
-        return multiprocessors *
-               std::max(threads_per_multiprocessor / block_size, 1);
-    }
-};
-
-inline JitConfig& jit_config_storage() {
-    static JitConfig config;
-    return config;
-}
-
-inline const JitConfig& jit_config() { return jit_config_storage(); }
-
-// Read the variables and the device once, before any loop is built.
-inline void jit_init() {
-    static bool initialized = false;
-    if (initialized)
-        return;
-    initialized = true;
-    auto& config = jit_config_storage();
-
-    op::loop::env::parse_bool("OP_JIT_ENABLE", config.enable);
-    if (!config.enable)
-        std::printf("Disabling JIT compilation\n");
-    op::loop::env::parse_bool("OP_JIT_DEBUG", config.debug);
-    if (config.debug)
-        std::printf("Enabling JIT debug\n");
-    op::loop::env::parse_bool("OP_JIT_SEQ_COMPILE", config.seq_compile);
-    op::loop::env::parse_bool("OP_JIT_FORCE", config.force);
-    if (config.force)
-        std::printf("Forcing JIT compilation regardless of register count\n");
-    op::loop::env::parse_number("OP_JIT_MAX_THREADS", config.max_threads);
-    op::loop::env::parse_number("OP_JIT_MIN_CALLS", config.min_calls);
-    op::loop::env::parse_number("OP_JIT_MIN_REGISTERS", config.min_registers);
-
-    if (const char *text = std::getenv("OP_AUTOTUNE_BLOCK_SIZES")) {
-        std::string_view rest = text;
-        while (!rest.empty()) {
-            auto comma = rest.find(',');
-            auto item = rest.substr(0, comma);
-            rest = comma == std::string_view::npos ? std::string_view{}
-                                                   : rest.substr(comma + 1);
-            int size = std::atoi(std::string{item}.c_str());
-            if (size > 0)
-                config.block_sizes.push_back(size);
-            else if (!item.empty())
-                std::fprintf(stderr,
-                             "warning: ignoring OP_AUTOTUNE_BLOCK_SIZES item '%s'\n",
-                             std::string{item}.c_str());
-        }
-    }
-
-#ifdef OP2_HIP
-    // Shared and global fp64 atomics are both native, so a chunk's single
-    // references go unstaged; under CUDA a pointer that may be either makes
-    // every increment a generic atomic, and shared fp64 adds are
-    // compare-and-swap loops.
-    op::chunk::init_options(op::chunk::variant_unstaged_singles);
-#else
-    op::chunk::init_options(0);
-#endif
-    op::loop::init_autotune_config();
-
-    int device;
-    CUDA_SAFE_CALL(gpuGetDevice(&device));
-    gpuDeviceProp_t props;
-    CUDA_SAFE_CALL(gpuGetDeviceProperties(&props, device));
-
-    std::size_t shared_bytes = props.sharedMemPerBlock;
-#ifdef OP2_CUDA
-    shared_bytes = std::max(shared_bytes,
-                            static_cast<std::size_t>(props.sharedMemPerBlockOptin));
-#endif
-    // A staged kernel's own static shared memory is a few words.
-    constexpr std::size_t static_bytes = 64;
-    config.shared_bytes = shared_bytes > static_bytes ? shared_bytes - static_bytes : 0;
-    config.multiprocessors = props.multiProcessorCount;
-    config.threads_per_multiprocessor = props.maxThreadsPerMultiProcessor;
-
-#ifdef OP2_CUDA
-    int cc = props.major * 10 + props.minor;
-    config.arch = "-arch=sm_" + std::to_string(cc);
-    if (config.debug)
-        std::printf("JIT arch flag: %s\n", config.arch.c_str());
-#endif
-}
-
 // --- Hashing ------------------------------------------------------------------------
 
 constexpr uint64_t hash_seed_default = RAPID_SEED;
@@ -237,7 +117,7 @@ public:
         CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1,
                                         1, shared_bytes, NULL, args, 0));
         CUDA_SAFE_CALL(gpuPeekAtLastError());
-        if (jit_config().debug)
+        if (config().debug)
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
     }
 };
@@ -455,7 +335,7 @@ public:
         CUDA_SAFE_CALL(gpuLaunchKernel(kernel, num_blocks, block_size, args,
                                        shared_bytes, 0));
         CUDA_SAFE_CALL(gpuPeekAtLastError());
-        if (jit_config().debug)
+        if (config().debug)
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
     }
 
@@ -513,7 +393,7 @@ private:
 
 #ifdef OP2_CUDA
             const char *opts[] = {
-                jit_config().arch.c_str(),
+                config().arch.c_str(),
                 "--std=c++20",
 #if __CUDACC_VER_MAJOR__ > 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ >= 4)
                 "--minimal",
@@ -569,9 +449,7 @@ private:
 
 public:
     JitService(std::string_view loop, JitHeaders headers)
-        : m_loop{loop}, m_headers{std::move(headers)} {
-        jit_init();
-    }
+        : m_loop{loop}, m_headers{std::move(headers)} {}
     JitService(const JitService&) = delete;
 
     // --- Parameters, registered by the generated code ---
@@ -661,13 +539,13 @@ public:
     // now.  pending while nothing can run, unavailable when nothing ever can.
     Acquired acquire(JitKernels& kernels, const KernelSource& source,
                      int block_size, bool now) {
-        const auto& config = jit_config();
+        const auto& run = config();
         bool offline = offline_usable(kernels, source, block_size);
-        if (!config.enable)
+        if (!run.enable)
             return {offline ? op::loop::Status::ready : op::loop::Status::unavailable,
                     nullptr};
-        bool specialise = !offline || config.force ||
-                          kernels.m_offline_attrs.numRegs > config.min_registers;
+        bool specialise = !offline || run.force ||
+                          kernels.m_offline_attrs.numRegs > run.min_registers;
         if (!specialise)
             return {op::loop::Status::ready, nullptr};
 
@@ -681,14 +559,14 @@ public:
 
         auto& compile = kernels.m_compiles[hash];
         ++compile.count;
-        if ((now || compile.count >= static_cast<std::size_t>(config.min_calls)) &&
-            !compile.started && active_threads < config.max_threads) {
-            if (config.debug)
+        if ((now || compile.count >= static_cast<std::size_t>(run.min_calls)) &&
+            !compile.started && active_threads < run.max_threads) {
+            if (run.debug)
                 std::printf("compiling %s for hash %lx\n",
                             std::string{source.name}.c_str(), hash);
             compile.started = true;
             compile.thread = this->compile(kernels, source, hash);
-            if (config.seq_compile) {
+            if (run.seq_compile) {
                 compile.thread.join();
                 std::scoped_lock lock(kernels.m_mutex);
                 return {op::loop::Status::ready, &kernels.m_kernels.at(hash)};

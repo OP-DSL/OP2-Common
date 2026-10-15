@@ -31,10 +31,12 @@ namespace {
 
 // Options with no compression floor, so small fixtures are never rejected
 // for it.
-chunk::Options test_options(int variants = 0, int window = 0) {
+chunk::Options test_options(bool unstaged_singles = false, bool wavefront = false,
+                            int window = 0) {
     chunk::Options options;
     options.min_compression = 0.0;
-    options.variants = variants;
+    options.unstaged_singles = unstaged_singles;
+    options.wavefront = wavefront;
     options.window = window;
     return options;
 }
@@ -455,11 +457,11 @@ struct OrderFixture {
         args[0] = make_dat_arg(&dat, &map, 1, "double", sizeof(double));
     }
 
-    chunk::Result build(int variants = 0) {
+    chunk::Result build(bool unstaged_singles = false) {
         return chunk::build_partition(
             chunk::Kind::staged, Configuration{&source, args},
             Sections::direct(&source), chunk::ArgGroups{group_args, 1},
-            constraints(4, 4, 1024), test_options(variants));
+            constraints(4, 4, 1024), test_options(unstaged_singles));
     }
 };
 
@@ -488,7 +490,7 @@ void test_slots_in_target_order() {
 // referenced once there, so they stay in global memory.
 void test_unstaged_singles() {
     OrderFixture fixture;
-    auto result = fixture.build(chunk::variant_unstaged_singles);
+    auto result = fixture.build(true);
     CHECK(result);
     const auto& partition = *result.partition;
     constexpr int u = chunk::unstaged_word;
@@ -764,7 +766,7 @@ void test_colour_random() {
     // targets.
     auto wave = chunk::build_partition(
         chunk::Kind::coloured, configuration, sections, groups,
-        constraints(32, 64, 1 << 20), test_options(chunk::variant_wavefront, 4));
+        constraints(32, 64, 1 << 20), test_options(false, true, 4));
     CHECK(wave);
     const auto& partition = *wave.partition;
     const auto& colouring = *partition.colouring;

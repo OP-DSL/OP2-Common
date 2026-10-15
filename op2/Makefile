@@ -127,12 +127,14 @@ OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
 OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	gpu/op_gpu_config+cuda.o \
 	cuda/op_cuda_decl+cuda.o \
 	cuda/op_cuda_rt_support+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
 	externlib/op_profile.o)
 
 OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	gpu/op_gpu_config+hip.o \
 	cuda/op_cuda_decl+hip.o \
 	cuda/op_cuda_rt_support+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
@@ -177,6 +179,7 @@ OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers+mpi.o)
 
 OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	gpu/op_gpu_config+cuda.o \
 	cuda/op_cuda_rt_support+mpi+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
 	mpi/op_mpi_core.o \
@@ -193,6 +196,7 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_profile+mpi.o)
 
 OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
+	gpu/op_gpu_config+hip.o \
 	cuda/op_cuda_rt_support+mpi+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
 	mpi/op_mpi_core.o \

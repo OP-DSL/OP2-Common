@@ -251,6 +251,7 @@ int main(int argc, char **argv) {
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
+    op::loop::init();
     {
         gpu::Loop loop("chunk_strategy", "c_CUDA", "Indirect", {false, false},
                        headers());

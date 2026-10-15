@@ -19,7 +19,7 @@
 
 namespace op::chunk {
 
-// Run-wide options, read once by init_options.
+// Run-wide options, read by init_options, which op_init calls.
 struct Options {
     // OP_CHUNK_ATOMICS_MIN_COMPRESSION: staged partitions averaging fewer
     // references per flushed target than this are rejected; 0 accepts all.
@@ -28,16 +28,17 @@ struct Options {
     // per chunk; zero leaves it to OP_part_size and the lanes.
     int atomics_chunk_size = 0;
     int colouring_chunk_size = 0;
-    // OP_CHUNK_COLOURING_WINDOW: chunks per window of a wavefront partition;
-    // zero leaves it to the planner.
+
+    // Set by the backend, not by init_options: a staged chunk's single
+    // references left in global memory, and the wavefront partition with its
+    // chunks per window (zero leaves it to the planner).
+    bool unstaged_singles = false;
+    bool wavefront = false;
     int window = 0;
-    // Variant bits: OP_CHUNK_ATOMICS_UNSTAGED_SINGLES and
-    // OP_CHUNK_COLOURING_WAVEFRONT over the backend's defaults.
-    int variants = 0;
 };
 
 const Options& options();
-void init_options(int default_variants);
+void init_options();
 
 // The indirect arguments a chunked strategy stages, grouped by dat as its
 // kernel lays its regions out: chunk_atomics stages every increment,

@@ -101,6 +101,7 @@ constexpr std::array<op::chunk::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
 
 void run(const char *strategy) {
     setenv("OP_STRATEGY", strategy, 1);
+    op::loop::init();
 
     op_set_core source{};
     source.index = 0;

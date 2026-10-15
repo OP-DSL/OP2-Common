@@ -87,11 +87,7 @@ AutotuneConfig config;
 const AutotuneConfig& autotune_config() { return config; }
 
 void init_autotune_config() {
-    static bool initialized = false;
-    if (initialized)
-        return;
-    initialized = true;
-
+    config = {};
     if (const char *text = std::getenv("OP_AUTOTUNE")) {
         auto value = env::lower(text);
         if (value == "report" || value == "select") {

@@ -35,6 +35,10 @@ bool parse_number(const char *variable, int& value);
 
 } // namespace env
 
+// Read the run-wide variables: OP_STRATEGY and the tuner's OP_AUTOTUNE*.
+// op_init calls it; a later call reads them again.
+void init();
+
 // --- One call -----------------------------------------------------------------
 
 // One call, as a view: the set and the arguments.  The key is the call's
@@ -183,8 +187,8 @@ struct Selection {
 
 // A loop's strategies in ladder order.  The last one is the floor: it is
 // selected when no other is ready, enabled or not, whatever its own status.
-// Variables are read at registration: OP_<FAMILY>=0/1 over the default, and
-// OP_STRATEGY=<name> or OP_STRATEGY=<loop>:<name> (a comma-separated list of
+// OP_<FAMILY>=0/1 is read at registration, over the default; OP_STRATEGY,
+// read by init, is <name> or <loop>:<name> (a comma-separated list of
 // either) forcing one; a loop's own item wins over a name for every loop.
 class Ladder {
 private:

@@ -77,7 +77,7 @@ Result build_coloured(const op::loop::Configuration& configuration,
     partition->section_batch_offsets.assign(1, 0);
     partition->batch_chunk_offsets.assign(1, 0);
 
-    const bool wavefront = (options.variants & variant_wavefront) != 0;
+    const bool wavefront = options.wavefront;
     const int wave_window =
         options.window > 0 ? options.window : default_wave_window;
     std::vector<std::vector<int>> latest(wavefront ? ndats : 0);

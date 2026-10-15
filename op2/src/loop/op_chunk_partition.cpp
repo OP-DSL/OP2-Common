@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstdio>
 #include <limits>
 #include <unordered_map>
 #include <utility>
@@ -21,33 +20,14 @@ Options run_options;
 
 const Options& options() { return run_options; }
 
-void init_options(int default_variants) {
-    static bool initialized = false;
-    if (initialized)
-        return;
-    initialized = true;
-    run_options.variants = default_variants;
-
+void init_options() {
+    run_options = {};
     op::loop::env::parse_number("OP_CHUNK_ATOMICS_MIN_COMPRESSION",
                                 run_options.min_compression);
     op::loop::env::parse_number("OP_CHUNK_ATOMICS_CHUNK_SIZE",
                                 run_options.atomics_chunk_size);
     op::loop::env::parse_number("OP_CHUNK_COLOURING_CHUNK_SIZE",
                                 run_options.colouring_chunk_size);
-    op::loop::env::parse_number("OP_CHUNK_COLOURING_WINDOW", run_options.window);
-
-    const std::pair<const char *, int> bits[] = {
-        {"OP_CHUNK_ATOMICS_UNSTAGED_SINGLES", variant_unstaged_singles},
-        {"OP_CHUNK_COLOURING_WAVEFRONT", variant_wavefront},
-    };
-    for (const auto& [variable, bit] : bits) {
-        bool on = (run_options.variants & bit) != 0;
-        if (!op::loop::env::parse_bool(variable, on))
-            continue;
-        run_options.variants = on ? (run_options.variants | bit)
-                                  : (run_options.variants & ~bit);
-        std::printf("%s %s\n", on ? "Enabling" : "Disabling", variable);
-    }
 }
 
 // --- Resolution ---------------------------------------------------------------
@@ -432,7 +412,7 @@ Result build_staged(const op::loop::Configuration& configuration,
     if (chunk_size == 0)
         return {"insufficient_scratch", nullptr};
 
-    bool unstaged_singles = (options.variants & variant_unstaged_singles) != 0;
+    bool unstaged_singles = options.unstaged_singles;
     auto partition = std::make_unique<Partition>();
     build_staging(resolved, sections, chunk_size, *partition, unstaged_singles);
     size_batches(*partition);
