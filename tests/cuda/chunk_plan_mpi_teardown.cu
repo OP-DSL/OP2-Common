@@ -71,24 +71,18 @@ int main(int argc, char **argv) {
     arg.acc = OP_INC;
 
     std::array args{arg};
-    std::array groups{op::chunk::ArgGroup{0, 0}};
+    std::array groups{op::plan::ArgGroup{0, 0}};
 
     int device = -1;
     gpuDeviceProp_t properties{};
     CHECK(gpuGetDevice(&device) == gpuSuccess);
     CHECK(gpuGetDeviceProperties(&properties, device) == gpuSuccess);
-    op::chunk::Constraints constraints;
-    constraints.lanes = 128;
-    constraints.elements = 128;
-    constraints.scratch_bytes = properties.sharedMemPerBlock;
-
-    auto result = op::chunk::build_partition(
-        op::chunk::Kind::staged, op::loop::Configuration{&source, args},
-        op::loop::Sections::direct(&source), op::chunk::ArgGroups{groups, 1},
-        constraints, op::chunk::Options{});
+    auto result = op::gpu::plan_chunk_atomics(
+        args, op::loop::Sections::direct(&source), op::plan::ArgGroups{groups, 1}, 128,
+        op::gpu::ChunkLimits{128, properties.sharedMemPerBlock}, false, 1.5);
     CHECK(result);
 
-    op::gpu::DevicePlan plan(*result.partition);
+    op::gpu::DevicePlan plan(*result.plan);
     CHECK(plan.source_offsets != nullptr && plan.stage_words != nullptr);
     op::loop::register_release(&plan, release_plan);
 

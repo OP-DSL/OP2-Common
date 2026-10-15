@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace op::colouring {
+namespace op::plan {
 
 // order lists the elements colour by colour, offsets where each colour's run
 // starts, and the colours below owned_colours hold owned elements only, so a
@@ -27,4 +27,4 @@ struct SetColouring {
 SetColouring colour_set(op_set set, std::span<const op_arg> args,
                         bool separate_owned);
 
-} // namespace op::colouring
+} // namespace op::plan

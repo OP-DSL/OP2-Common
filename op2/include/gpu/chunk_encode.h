@@ -1,11 +1,10 @@
 #pragma once
 
-// A chunk partition as the GPU kernels read it: its arrays resident on the
-// device through op::device(), plus the per-call wavefront state.  Host code
-// shared by the CUDA and HIP strategies, and testable against the host
-// device.
+// A chunk plan as the GPU kernels read it: its arrays resident on the device
+// through op::device(), plus the per-call wavefront state.  Host code shared
+// by the CUDA and HIP strategies, and testable against the host device.
 
-#include <loop/chunk_partition.h>
+#include <gpu/chunk_plan.h>
 #include <op_device.h>
 
 #include <cstddef>
@@ -44,7 +43,7 @@ private:
 
 public:
     int *source_offsets = nullptr;
-    chunk::StageWord *stage_words = nullptr;
+    plan::StageWord *stage_words = nullptr;
     int *stage_counts = nullptr;
     int *slot_offsets = nullptr;
     int *slot_targets = nullptr;
@@ -52,7 +51,7 @@ public:
     std::uint8_t *thread_colours = nullptr;
     int *chunk_thread_colours = nullptr;
 
-    // Wavefront partitions: predecessors, a done flag per position holding
+    // Wavefront plans: predecessors, a done flag per position holding
     // the epoch of the call that last ran it, and a counter per section.
     int *wave_pred_offsets = nullptr;
     int *wave_preds = nullptr;
@@ -85,23 +84,20 @@ public:
     }
 
     // Upload the arrays a staged kernel reads.
-    explicit DevicePlan(const chunk::Partition& partition) {
-        upload(partition.source_offsets, source_offsets);
-        upload(partition.staging.stage_words, stage_words);
-        upload(partition.staging.stage_counts, stage_counts);
-        upload(partition.staging.slot_offsets, slot_offsets);
-        upload(partition.staging.slot_targets, slot_targets);
-        if (const auto& colouring = partition.colouring) {
-            upload(colouring->chunk_order, chunk_order);
-            upload(colouring->thread_colours, thread_colours);
-            upload(colouring->chunk_thread_colours, chunk_thread_colours);
-            if (colouring->wavefront) {
-                upload(colouring->wave_pred_offsets, wave_pred_offsets);
-                upload(colouring->wave_preds, wave_preds);
-                allocate_zeroed(colouring->chunk_order.size(), wave_done);
-                allocate_zeroed(partition.section_batch_offsets.size() - 1,
-                                wave_tickets);
-            }
+    explicit DevicePlan(const ChunkPlan& plan) {
+        upload(plan.chunks.offsets, source_offsets);
+        upload(plan.staging.stage_words, stage_words);
+        upload(plan.staging.stage_counts, stage_counts);
+        upload(plan.staging.slot_offsets, slot_offsets);
+        upload(plan.staging.slot_targets, slot_targets);
+        upload(plan.batches.order, chunk_order);
+        upload(plan.thread_colours, thread_colours);
+        upload(plan.chunk_thread_colours, chunk_thread_colours);
+        if (plan.wavefront) {
+            upload(plan.wave_pred_offsets, wave_pred_offsets);
+            upload(plan.wave_preds, wave_preds);
+            allocate_zeroed(plan.batches.order.size(), wave_done);
+            allocate_zeroed(plan.batches.section_batches.size() - 1, wave_tickets);
         }
     }
 

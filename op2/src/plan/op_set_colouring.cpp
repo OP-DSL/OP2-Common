@@ -1,6 +1,6 @@
-#include <loop/set_colouring.h>
+#include <plan/colouring.h>
 
-#include <loop/greedy_colour.h>
+#include <plan/greedy_colour.h>
 
 #include <algorithm>
 #include <cassert>
@@ -8,7 +8,7 @@
 #include <numeric>
 #include <utility>
 
-namespace op::colouring {
+namespace op::plan {
 
 SetColouring colour_set(op_set set, std::span<const op_arg> args,
                         bool separate_owned) {
@@ -55,11 +55,11 @@ SetColouring colour_set(op_set set, std::span<const op_arg> args,
     // Colour [begin, end) with colours from base, returning the count used.
     auto colour_range = [&](int begin, int end, int base) {
         std::vector<int> range_colours;
-        int count = op::loop::detail::greedy_colour(
+        int count = detail::greedy_colour(
             end - begin,
             [&](int element, auto&& f) {
                 for (const auto& [arg, dat] : updates)
-                    f(dat, op::loop::detail::arg_target(*arg, begin + element));
+                    f(dat, detail::arg_target(*arg, begin + element));
             },
             masks, range_colours);
         for (int element = begin; element < end; ++element)
@@ -94,4 +94,4 @@ SetColouring colour_set(op_set set, std::span<const op_arg> args,
     return colouring;
 }
 
-} // namespace op::colouring
+} // namespace op::plan

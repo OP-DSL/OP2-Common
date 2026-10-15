@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace chunk = op::chunk;
+namespace plan = op::plan;
 
 namespace {
 
@@ -87,42 +87,32 @@ void test_encode() {
         args[idx].type = "int";
         args[idx].acc = OP_RW;
     }
-    std::array<chunk::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
+    std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
+    auto sections = op::loop::Sections::direct(&edges);
+    op::gpu::ChunkLimits limits{4, 1 << 16};
 
-    chunk::Constraints constraints;
-    constraints.lanes = 4;
-    constraints.elements = 4;
-    constraints.scratch_bytes = 1 << 16;
-    chunk::Options options;
-    options.min_compression = 0.0;
-    options.wavefront = true;
-    options.window = 2;
-
-    auto result = chunk::build_partition(
-        chunk::Kind::coloured, op::loop::Configuration{&edges, args},
-        op::loop::Sections::direct(&edges), chunk::ArgGroups{group_args, 1},
-        constraints, options);
+    auto result = op::gpu::plan_chunk_colouring(
+        args, sections, plan::ArgGroups{group_args, 1}, 4, limits, true, 2);
     CHECK(result);
-    const auto& partition = *result.partition;
-    CHECK(partition.colouring->wavefront);
+    const auto& chunk_plan = *result.plan;
+    CHECK(chunk_plan.wavefront);
 
     op::set_device({counting_malloc, counting_free, host_copy, host_memset});
     {
-        op::gpu::DevicePlan plan(partition);
+        op::gpu::DevicePlan plan(chunk_plan);
         CHECK(mallocs == 12);
-        CHECK(same(plan.source_offsets, partition.source_offsets));
-        CHECK(same(plan.stage_words, partition.staging.stage_words));
-        CHECK(same(plan.stage_counts, partition.staging.stage_counts));
-        CHECK(same(plan.slot_offsets, partition.staging.slot_offsets));
-        CHECK(same(plan.slot_targets, partition.staging.slot_targets));
-        CHECK(same(plan.chunk_order, partition.colouring->chunk_order));
-        CHECK(same(plan.thread_colours, partition.colouring->thread_colours));
-        CHECK(same(plan.chunk_thread_colours,
-                   partition.colouring->chunk_thread_colours));
-        CHECK(same(plan.wave_pred_offsets, partition.colouring->wave_pred_offsets));
-        CHECK(same(plan.wave_preds, partition.colouring->wave_preds));
+        CHECK(same(plan.source_offsets, chunk_plan.chunks.offsets));
+        CHECK(same(plan.stage_words, chunk_plan.staging.stage_words));
+        CHECK(same(plan.stage_counts, chunk_plan.staging.stage_counts));
+        CHECK(same(plan.slot_offsets, chunk_plan.staging.slot_offsets));
+        CHECK(same(plan.slot_targets, chunk_plan.staging.slot_targets));
+        CHECK(same(plan.chunk_order, chunk_plan.batches.order));
+        CHECK(same(plan.thread_colours, chunk_plan.thread_colours));
+        CHECK(same(plan.chunk_thread_colours, chunk_plan.chunk_thread_colours));
+        CHECK(same(plan.wave_pred_offsets, chunk_plan.wave_pred_offsets));
+        CHECK(same(plan.wave_preds, chunk_plan.wave_preds));
         CHECK(plan.wavefront());
-        for (std::size_t i = 0; i < partition.num_chunks(); ++i)
+        for (int i = 0; i < chunk_plan.chunks.count(); ++i)
             CHECK(plan.wave_done[i] == 0);
         CHECK(plan.wave_tickets[0] == 0);
         CHECK(plan.next_wave_epoch() == 1 && plan.next_wave_epoch() == 2);
@@ -133,18 +123,15 @@ void test_encode() {
     }
     CHECK(frees == 12);
 
-    // A staged partition without colouring uploads five arrays.
-    options.wavefront = false;
+    // A chunk_atomics plan uploads five arrays.
     for (auto& arg : args)
         arg.acc = OP_INC;
-    auto staged = chunk::build_partition(
-        chunk::Kind::staged, op::loop::Configuration{&edges, args},
-        op::loop::Sections::direct(&edges), chunk::ArgGroups{group_args, 1},
-        constraints, options);
+    auto staged = op::gpu::plan_chunk_atomics(
+        args, sections, plan::ArgGroups{group_args, 1}, 4, limits, false, 0.0);
     CHECK(staged);
     mallocs = frees = 0;
     {
-        op::gpu::DevicePlan plan(*staged.partition);
+        op::gpu::DevicePlan plan(*staged.plan);
         CHECK(mallocs == 5);
         CHECK(!plan.wavefront());
         plan.release();

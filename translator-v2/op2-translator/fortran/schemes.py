@@ -23,11 +23,13 @@ def chunkStrategy(strategy: str) -> bool:
     return strategy in ["chunk_atomics", "chunk_colouring"]
 
 
-# Whether a chunk partition can group an argument: one map component, and a
-# scalar type the planner knows.
-def chunkGroupable(loop: OP.Loop, arg: OP.ArgDat) -> bool:
+# Whether a chunk plan can follow an argument: one map component, and when
+# its targets are staged a scalar type the planner knows.
+def chunkGroupable(loop: OP.Loop, arg: OP.ArgDat, staged: bool = True) -> bool:
     if arg.map_idx is not None and arg.map_idx < -1:
         return False
+    if not staged:
+        return True
 
     typ = loop.dat(arg).typ
     return (isinstance(typ, OP.Float) and typ.size in [32, 64]) or (
@@ -36,7 +38,8 @@ def chunkGroupable(loop: OP.Loop, arg: OP.ArgDat) -> bool:
 
 
 # Return the strategies that are statically valid for a loop, in ladder order.
-def validStrategies(loop: OP.Loop) -> List[str]:
+# staged_colouring: chunk_colouring stages its targets, as on the GPU.
+def validStrategies(loop: OP.Loop, staged_colouring: bool = True) -> List[str]:
     indirect = [arg for arg in loop.args if isinstance(arg, OP.ArgDat) and arg.map_id is not None]
     incs = [arg for arg in indirect if arg.access_type == OP.AccessType.INC]
     rws = [arg for arg in indirect if arg.access_type == OP.AccessType.RW]
@@ -51,7 +54,7 @@ def validStrategies(loop: OP.Loop) -> List[str]:
         strategies.append("atomics")
 
     coloured_dats = {arg.dat_id for arg in incs + rws}
-    if all(chunkGroupable(loop, arg) for arg in indirect if arg.dat_id in coloured_dats):
+    if all(chunkGroupable(loop, arg, staged_colouring) for arg in indirect if arg.dat_id in coloured_dats):
         strategies.append("chunk_colouring")
     strategies.append("colouring")
 
@@ -60,8 +63,8 @@ def validStrategies(loop: OP.Loop) -> List[str]:
 
 # A strategies override restricts the valid set; the lowest valid
 # non-chunked strategy always stays, so the runtime has a floor.
-def restrictStrategies(loop: OP.Loop, strategies: List[str]) -> List[str]:
-    valid = validStrategies(loop)
+def restrictStrategies(loop: OP.Loop, strategies: List[str], staged_colouring: bool = True) -> List[str]:
+    valid = validStrategies(loop, staged_colouring)
     kept = [strategy for strategy in valid if strategy in strategies]
     if all(chunkStrategy(strategy) for strategy in kept):
         kept.append(valid[-1])
@@ -489,13 +492,13 @@ class FortranCOpenMP(Scheme):
 
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
-        config["strategies"] = validStrategies(loop)
+        config["strategies"] = validStrategies(loop, staged_colouring=False)
         config["packed"] = packable(loop)
         return config
 
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
-        config["strategies"] = restrictStrategies(loop, config["strategies"])
+        config["strategies"] = restrictStrategies(loop, config["strategies"], staged_colouring=False)
         return config
 
     def translateKernel(

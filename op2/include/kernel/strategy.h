@@ -6,7 +6,7 @@
 // includes, generated or synthesised.
 
 #include <kernel/prelude.h>
-#include <loop/chunk_layout.h>
+#include <plan/staging_layout.h>
 
 // Declares atomicAdd for the staging helpers under offline HIP.
 #if defined(__HIPCC__) && !defined(__HIPCC_RTC__)

@@ -1,6 +1,7 @@
 #pragma once
 
-// Greedy colouring shared by the set and chunk planners.
+// Internal to the planners: the greedy colouring the set and chunk
+// colourings share.
 
 #include <op_lib_core.h>
 
@@ -9,7 +10,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace op::loop::detail {
+namespace op::plan::detail {
 
 // The global target an argument reaches from one source element.
 inline int arg_target(const op_arg& arg, int source) {
@@ -71,4 +72,4 @@ int greedy_colour(int count, Targets&& targets,
     return ncolours;
 }
 
-} // namespace op::loop::detail
+} // namespace op::plan::detail

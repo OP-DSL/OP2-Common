@@ -85,7 +85,7 @@ struct Fixture {
     op_map_core map{};
     std::vector<int> map_values;
     std::array<op_arg, 1> args{};
-    std::array<op::chunk::ArgGroup, 1> group_args{{{0, 0}}};
+    std::array<op::plan::ArgGroup, 1> group_args{{{0, 0}}};
 
     Fixture() : map_values(sources) {
         source.index = 0;
@@ -126,7 +126,7 @@ struct Fixture {
         args[0].acc = OP_INC;
     }
 
-    op::chunk::ArgGroups groups() const { return {group_args, 1}; }
+    op::plan::ArgGroups groups() const { return {group_args, 1}; }
 };
 
 } // namespace
@@ -160,9 +160,9 @@ int main(int argc, char **argv) {
         setenv("OP_STRATEGY", "chunk_atomics", 1);
         op::loop::init();
         gpu::Loop loop("dynamic_smem_launch", "c_CUDA", "Indirect", {false, false},
-                       gpu::JitHeaders{{OP_F2C_PRELUDE_DATA, OP_CHUNK_LAYOUT_DATA,
+                       gpu::JitHeaders{{OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA,
                                         OP_STRATEGY_KERNEL_DATA},
-                                       {"kernel/prelude.h", "loop/chunk_layout.h",
+                                       {"kernel/prelude.h", "plan/staging_layout.h",
                                         "kernel/strategy.h"}});
         loop.add<gpu::ChunkAtomics>(
             op::loop::Default::disabled,
@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
             op::loop::Configuration configuration{&fixture.source, fixture.args};
             auto selection = loop.ladder().select(configuration);
             if (selection.strategy->name() != "chunk_atomics") {
-                std::fprintf(stderr, "the partition was rejected: %s\n",
+                std::fprintf(stderr, "the plan was rejected: %s\n",
                              std::string{selection.prepared.reason}.c_str());
                 return EXIT_FAILURE;
             }

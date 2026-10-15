@@ -16,29 +16,18 @@
 {#- Globals each thread keeps its own copy of. -#}
 {%- set args_per_thread = lh.args|gbl|select2("reduction", "work")|list + lh.args|info|list -%}
 
-{#- Argument groups for the chunked strategies, with their dat ids in
-    first-use order, as the c_cuda target groups them. -#}
+{#- chunk_atomics' argument groups, every indirect increment by dat with the
+    dat ids in first-use order, as the c_cuda target groups them; the
+    runtime stages them in the regions the staged body lays out.
+    chunk_colouring needs none: it colours by the call's updated dats. -#}
 {%- set args_chunk_atomics = lh.args|dat|indirect(lh)|inc|list -%}
-{%- set updated = namespace(ids=[]) -%}
-{%- for arg in lh.args|dat|indirect(lh) -%}
-    {%- if (arg is inc or arg is read_write) and arg.dat_id not in updated.ids -%}
-        {%- set updated.ids = updated.ids + [arg.dat_id] -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- set args_chunk_colouring = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", updated.ids)|list -%}
-{%- set group_ids = namespace(chunk_atomics=[], chunk_colouring=[]) -%}
+{%- set group_ids = namespace(chunk_atomics=[]) -%}
 {%- for arg in args_chunk_atomics -%}
     {%- if arg.dat_id not in group_ids.chunk_atomics -%}
         {%- set group_ids.chunk_atomics = group_ids.chunk_atomics + [arg.dat_id] -%}
     {%- endif -%}
 {%- endfor -%}
-{%- for arg in args_chunk_colouring -%}
-    {%- if arg.dat_id not in group_ids.chunk_colouring -%}
-        {%- set group_ids.chunk_colouring = group_ids.chunk_colouring + [arg.dat_id] -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- set group_args = {"chunk_atomics": args_chunk_atomics, "chunk_colouring": args_chunk_colouring} -%}
-{%- set group_dats = {"chunk_atomics": group_ids.chunk_atomics, "chunk_colouring": group_ids.chunk_colouring} -%}
+{%- set group_dats = {"chunk_atomics": group_ids.chunk_atomics} -%}
 
 {#- The kernel increments through op2_inc: atomically under atomics, in
     place under every other strategy, whose increments reach memory no other
@@ -299,9 +288,9 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
                                          op_arg *args) {
     namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
 {{prologue()}}
-    const auto& staging = work.partition->staging;
-    const int stride = work.partition->set_stride;
-    const op::chunk::StageWord *const stage_words = staging.stage_words.data();
+    const auto& staging = work.plan->staging;
+    const int stride = staging.stride;
+    const op::plan::StageWord *const stage_words = staging.stage_words.data();
     const int *const op2_counts =
         staging.stage_counts.data() + work.chunk * {{group_dats.chunk_atomics|length}};
     const int *const op2_slots =
@@ -356,15 +345,18 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
 #endif
 {% endif %}
 {% for strategy in strategies %}
-    {% set chunked = strategy in chunk_strategies %}
-    {% if chunked %}
-    static constexpr std::array<op::chunk::ArgGroup, {{group_args[strategy]|length}}> {{strategy}}_groups = {{"{{"}}
-        {% for arg in group_args[strategy] %}
-        op::chunk::ArgGroup{ {{arg.id}}, {{group_dats[strategy]|index(arg.dat_id)}} },
+    {% if strategy == "chunk_atomics" %}
+    static constexpr std::array<op::plan::ArgGroup, {{args_chunk_atomics|length}}> chunk_atomics_groups = {{"{{"}}
+        {% for arg in args_chunk_atomics %}
+        op::plan::ArgGroup{ {{arg.id}}, {{group_dats.chunk_atomics|index(arg.dat_id)}} },
         {% endfor %}
     {{"}}"}};
+    {% set tail = ", op::plan::ArgGroups{ chunk_atomics_groups, %d }, chunk_size" % group_dats.chunk_atomics|length %}
+    {% elif strategy == "chunk_colouring" %}
+    {% set tail = ", chunk_size" %}
+    {% else %}
+    {% set tail = "" %}
     {% endif %}
-    {% set tail = (", op::chunk::ArgGroups{ %s_groups, %d }, chunk_size" % (strategy, group_dats[strategy]|length)) if chunked else "" %}
     {% if strategy in packed_strategies %}
     loop.add<op::cpu::{{strategy_class(strategy)}}>(
         op::loop::Default::disabled, "{{strategy}}:packed",

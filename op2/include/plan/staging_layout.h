@@ -1,10 +1,10 @@
 #pragma once
 
-// The layout of a chunk partition as the host planner writes it and a staged
+// The staging layout as the host writes it (plan/staging.h) and a staged
 // kernel reads it.  Compiled on the host and for the device, by NVRTC too,
 // so it includes nothing.
 
-namespace op::chunk {
+namespace op::plan {
 
 /* Staging, laid out as op_plan lays out a block: a chunk stages each staged
    dat's distinct targets in ascending order, a scratch slot each (op_plan's
@@ -19,4 +19,4 @@ using StageWord = unsigned short;
 constexpr int max_slots = 0xffff;
 constexpr StageWord unstaged_word = 0xffff;
 
-} // namespace op::chunk
+} // namespace op::plan
