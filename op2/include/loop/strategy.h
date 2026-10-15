@@ -206,6 +206,9 @@ private:
     std::size_t m_forced_rank = SIZE_MAX;
     std::vector<Entry> m_entries;
     std::optional<std::size_t> m_forced;
+    // Why select passed over each strategy, sized as they are added so a
+    // select allocates nothing.
+    std::vector<std::string_view> m_reasons;
     std::vector<std::string> m_reported;
 
     void report(const Selection& selection,
