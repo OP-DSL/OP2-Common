@@ -95,7 +95,7 @@ void test_encode() {
     constraints.scratch_bytes = 1 << 16;
     chunk::Options options;
     options.min_compression = 0.0;
-    options.variants = chunk::variant_wavefront;
+    options.wavefront = true;
     options.window = 2;
 
     auto result = chunk::build_partition(
@@ -134,7 +134,7 @@ void test_encode() {
     CHECK(frees == 12);
 
     // A staged partition without colouring uploads five arrays.
-    options.variants = 0;
+    options.wavefront = false;
     for (auto& arg : args)
         arg.acc = OP_INC;
     auto staged = chunk::build_partition(

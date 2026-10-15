@@ -237,6 +237,7 @@ void test_variables() {
     // OP_STRATEGY forces one for every loop, or for a named loop, even when
     // its family is off; the ladder falls through from it.
     setenv("OP_STRATEGY", "other:colouring,test_loop:atomics:256", 1);
+    loop::init();
     {
         loop::Ladder ladder{"test_loop"};
         ladder.add(std::make_unique<Fake>("chunk_atomics"), loop::Default::enabled);
@@ -266,10 +267,12 @@ void test_variables() {
         CHECK(!ladder.forced().has_value());
     }
     unsetenv("OP_STRATEGY");
+    loop::init();
 
     // A variant named by a word forces every loop that has it; a loop's own
     // item wins over it.
     setenv("OP_STRATEGY", "atomics:packed,other:colouring", 1);
+    loop::init();
     for (const char *name : {"test_loop", "other"}) {
         loop::Ladder ladder{name};
         ladder.add(std::make_unique<Fake>("atomics:packed"), loop::Default::disabled);
@@ -278,6 +281,7 @@ void test_variables() {
         CHECK(ladder.forced() == (std::string_view{name} == "other" ? 2u : 0u));
     }
     unsetenv("OP_STRATEGY");
+    loop::init();
 }
 
 void test_release_registry() {

@@ -185,7 +185,7 @@ f2c::Ptr{gbl{{arg.id}}}
     {%- set group = group_dats[strategy]|index(arg.dat_id) -%}
     {%- set word = "stage_words[%d * stride + n]" % group_args[strategy]|index(arg) -%}
     {%- if strategy == "chunk_atomics" -%}
-(((op2_variants & op::chunk::variant_unstaged_singles) && {{word}} == op::chunk::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
+((op2_unstaged_singles && {{word}} == op::chunk::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
     {%- else -%}
 f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
@@ -273,7 +273,8 @@ int op2_dim_dat{{dat.id}};
 
 int op2_block_size;
 {% if strategies|select("in", chunk_strategies)|list %}
-int op2_chunk_variants;
+int op2_unstaged_singles;
+int op2_wavefront;
 {% endif %}
 {{kernel_namespaces(offline_strategies)}}
 }
@@ -384,7 +385,6 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     // target of any group.  A wavefront batch covers a section instead: its
     // blocks take positions in turn, each once the earlier positions sharing
     // one of its targets are done.
-    constexpr bool op2_wavefront = (op2_variants & op::chunk::variant_wavefront) != 0;
     __shared__ int op2_taken;
     for (int op2_i = op2_wavefront ? f2c::wave_take(wave_ticket, chunk_begin, op2_taken)
                                    : chunk_begin + blockIdx.x;
@@ -505,7 +505,8 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
         {% endfor %}
     {% endif %}
     {% if strategy in chunk_strategies %}
-    [[maybe_unused]] constexpr int op2_variants = op2_chunk_variants_d;
+    [[maybe_unused]] constexpr bool op2_unstaged_singles = op2_unstaged_singles_d != 0;
+    [[maybe_unused]] constexpr bool op2_wavefront = op2_wavefront_d != 0;
     {% endif %}
 
     [[maybe_unused]] int zero_int = 0;
@@ -727,9 +728,11 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% endfor %}
     jit.add_block_size_param("op2_block_size_d", &kernel::op2_block_size);
 {% if strategies|select("in", chunk_strategies)|list %}
-    // The run's chunk variants: a constant to a JIT compile.
-    kernel::op2_chunk_variants = op::chunk::options().variants;
-    jit.add_setting_param("op2_chunk_variants_d", &kernel::op2_chunk_variants);
+    // The run's chunk kernel variants: constants to a JIT compile.
+    kernel::op2_unstaged_singles = op::gpu::config().unstaged_singles;
+    jit.add_setting_param("op2_unstaged_singles_d", &kernel::op2_unstaged_singles);
+    kernel::op2_wavefront = op::gpu::config().wavefront;
+    jit.add_setting_param("op2_wavefront_d", &kernel::op2_wavefront);
 #ifdef OP_PART_SIZE_{{kernel_idx}}
     constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
 #else

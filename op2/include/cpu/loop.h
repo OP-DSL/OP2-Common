@@ -77,14 +77,6 @@ private:
         }
     }
 
-    // The run-wide options this backend reads: the tuner's, and the chunk
-    // planner's with no variant on by default.
-    static bool init_options() {
-        op::loop::init_autotune_config();
-        op::chunk::init_options(0);
-        return true;
-    }
-
 public:
     Loop(const Loop&) = delete;
 
@@ -92,7 +84,7 @@ public:
          std::string_view profile_variant, LoopDescription description)
         : m_name{name}, m_profile_target{profile_target},
           m_profile_variant{profile_variant}, m_description{description},
-          m_ladder{(init_options(), name)} {
+          m_ladder{name} {
         if (op::loop::autotune_config().report)
             m_tuner.emplace(m_ladder);
         op::loop::register_release(this, &Loop::release_callback);
@@ -342,8 +334,7 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 
     // A thread runs a chunk on its own: no lanes, and scratch bounded only
     // so a chunk's slots stay in the caches.
-    auto options = op::chunk::options();
-    options.variants = 0;
+    const auto& options = op::chunk::options();
     int option = m_kind == op::chunk::Kind::staged ? options.atomics_chunk_size
                                                    : options.colouring_chunk_size;
     op::chunk::Constraints constraints;

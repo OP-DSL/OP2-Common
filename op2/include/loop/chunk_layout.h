@@ -19,17 +19,4 @@ using StageWord = unsigned short;
 constexpr int max_slots = 0xffff;
 constexpr StageWord unstaged_word = 0xffff;
 
-/* Run-wide options of the chunked strategies, from OP_CHUNK_ATOMICS_* and
-   OP_CHUNK_COLOURING_* variables.  The planner reads them from its options
-   and a JIT kernel as one constant, so a kernel holds only the code its
-   options need. */
-enum Variant : int {
-    // chunk_atomics: a chunk's only reference to a target increments global
-    // memory directly, as staging it would save no global atomic.
-    variant_unstaged_singles = 1 << 0,
-    // chunk_colouring: one launch per section, its chunks taken in an order
-    // that keeps them after every earlier chunk sharing a target.
-    variant_wavefront = 1 << 1,
-};
-
 } // namespace op::chunk

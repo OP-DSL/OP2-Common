@@ -34,6 +34,7 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
+#include <gpu/config.h>
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <loop/autotune.h>
@@ -57,11 +58,13 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::gpu::init();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::gpu::init();
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,

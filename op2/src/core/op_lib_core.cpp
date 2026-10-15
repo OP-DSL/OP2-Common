@@ -36,6 +36,8 @@
  */
 
 #include "op_lib_core.h"
+#include <loop/chunk_partition.h>
+#include <loop/strategy.h>
 #include <malloc.h>
 #include <string.h>
 #include <sys/time.h>
@@ -388,6 +390,10 @@ void op_init_core(int argc, char **argv, int diags) {
 
   /*Initialize the double linked list to hold op_dats*/
   TAILQ_INIT(&OP_dat_list);
+
+  // The par_loop strategies' run-wide variables.
+  op::loop::init();
+  op::chunk::init_options();
 }
 
 op_set op_decl_set_core(idx_l_t size, char const *name) {

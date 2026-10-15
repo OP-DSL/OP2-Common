@@ -34,6 +34,7 @@ struct AutotuneConfig {
 };
 
 const AutotuneConfig& autotune_config();
+// Read by init.
 void init_autotune_config();
 
 // A loop's tuning: the timings of each candidate strategy for every

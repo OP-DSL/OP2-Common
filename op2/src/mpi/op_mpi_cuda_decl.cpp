@@ -36,6 +36,7 @@
 
 #include <mpi.h>
 
+#include <gpu/config.h>
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <loop/autotune.h>
@@ -81,6 +82,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   op_init_core(argc, argv, diags);
 
   cutilDeviceInit(argc, argv);
+  op::gpu::init();
   op_gpu_direct_init();
 }
 
@@ -104,6 +106,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   op_init_core(argc, argv, diags);
 
   cutilDeviceInit(argc, argv);
+  op::gpu::init();
   op_gpu_direct_init();
 }
 

@@ -114,7 +114,7 @@ void test_exploration() {
     setenv("OP_AUTOTUNE_SAMPLES", "2", 1);
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
-    loop::init_autotune_config();
+    loop::init();
     CHECK(loop::autotune_config().select);
 
     Fixture fixture;

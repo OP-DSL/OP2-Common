@@ -1,5 +1,7 @@
 #include <loop/strategy.h>
 
+#include <loop/autotune.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cctype>
@@ -169,22 +171,16 @@ std::string_view Strategy::family() const {
 
 namespace {
 
-// OP_STRATEGY, read when a ladder is built: the names forced on a loop,
-// most specific first.  An item "<loop>:<name>" forces name on that loop;
-// any other item is a name, which may hold a colon ("atomics:256",
-// "atomics:packed"), forced on every loop that has it.
+// OP_STRATEGY's items, as init read them.
+std::vector<std::string> strategy_items;
+
+// The names forced on a loop, most specific first.  An item "<loop>:<name>"
+// forces name on that loop; any other item is a name, which may hold a colon
+// ("atomics:256", "atomics:packed"), forced on every loop that has it.
 std::vector<std::string> forced_for(std::string_view loop) {
     std::vector<std::string> specific;
     std::vector<std::string> every;
-    const char *text = std::getenv("OP_STRATEGY");
-    std::string_view rest = text != nullptr ? text : "";
-    while (!rest.empty()) {
-        auto comma = rest.find(',');
-        auto item = rest.substr(0, comma);
-        rest = comma == std::string_view::npos ? std::string_view{}
-                                               : rest.substr(comma + 1);
-        if (item.empty())
-            continue;
+    for (std::string_view item : strategy_items) {
         if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
             item[loop.size()] == ':')
             specific.emplace_back(item.substr(loop.size() + 1));
@@ -196,6 +192,21 @@ std::vector<std::string> forced_for(std::string_view loop) {
 }
 
 } // namespace
+
+void init() {
+    strategy_items.clear();
+    const char *text = std::getenv("OP_STRATEGY");
+    std::string_view rest = text != nullptr ? text : "";
+    while (!rest.empty()) {
+        auto comma = rest.find(',');
+        auto item = rest.substr(0, comma);
+        rest = comma == std::string_view::npos ? std::string_view{}
+                                               : rest.substr(comma + 1);
+        if (!item.empty())
+            strategy_items.emplace_back(item);
+    }
+    init_autotune_config();
+}
 
 Ladder::Ladder(std::string_view loop_name)
     : m_name{loop_name}, m_forced_names{forced_for(loop_name)} {}

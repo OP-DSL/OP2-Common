@@ -49,7 +49,10 @@ kernel/jit_embed.h     (embeds the three kernel headers as text for NVRTC;
 #### CUDA and HIP backend of the translated kernels
 ```
 gpu/shims.h            (gpu* aliases over the CUDA or HIP runtime)
-gpu/jit.h              (includes: gpu/shims.h, loop/autotune.h; the JIT
+gpu/config.h           (the run-wide configuration: JIT policy, block sizes,
+                        device, chunk kernel variants; read by op_init, from
+                        src/gpu)
+gpu/jit.h              (includes: gpu/config.h, gpu/shims.h; the JIT
                         service: parameters, compiles and every JIT policy)
 gpu/chunk_encode.h     (includes: loop/chunk_partition.h, op_device.h; a
                         chunk partition uploaded as the kernels read it)

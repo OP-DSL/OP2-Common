@@ -79,6 +79,7 @@ set(_op2_backend_openmp_srcs
 # Single-node CUDA backend, shared verbatim by CUDA and HIP (HIP promotes the
 # .cu to LANGUAGE HIP via _op2_mark_cu_as_hip() and defines OP2_HIP).
 set(_op2_backend_cuda_srcs
+    "${_src}/gpu/op_gpu_config.cpp"
     "${_src}/cuda/op_cuda_decl.cpp"
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
@@ -111,6 +112,7 @@ set(_op2_backend_mpi_cpu_overlay_srcs
 )
 
 set(_op2_backend_mpi_cuda_overlay_srcs
+    "${_src}/gpu/op_gpu_config.cpp"
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
     "${_src}/mpi/op_mpi_cuda_decl.cpp"

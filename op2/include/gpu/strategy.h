@@ -117,7 +117,7 @@ protected:
     // Whether no kernel can ever come about: no usable offline kernel, and
     // the JIT off.  A strategy that plans checks this before planning.
     bool never_available() const {
-        return !jit_config().enable &&
+        return !config().enable &&
                !JitService::offline_usable(m_kernels, m_source, m_block_size);
     }
 

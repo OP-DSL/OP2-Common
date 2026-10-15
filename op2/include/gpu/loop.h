@@ -119,8 +119,8 @@ public:
     // size ahead of it, for the tuner.
     template<typename S, typename... Args>
     void add(op::loop::Default default_setting, Args&&... args) {
-        int default_size = jit_config().default_block_size;
-        for (int size : jit_config().block_sizes)
+        int default_size = config().default_block_size;
+        for (int size : config().block_sizes)
             if (size != default_size)
                 m_ladder.add(std::make_unique<S>(*this, args..., size),
                              op::loop::Default::disabled);
@@ -261,7 +261,7 @@ inline StrategyBase::StrategyBase(Loop& loop, std::string_view family,
                                   int block_size)
     : m_loop{loop}, m_name{family}, m_source{source}, m_bind{bind},
       m_block_size{block_size} {
-    if (block_size != jit_config().default_block_size)
+    if (block_size != config().default_block_size)
         m_name += ":" + std::to_string(block_size);
     m_kernels.register_offline(source.offline);
 }
@@ -468,11 +468,15 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 
     op::chunk::Constraints constraints;
     constraints.lanes = m_block_size;
-    constraints.scratch_bytes = jit_config().shared_bytes;
+    constraints.scratch_bytes = config().shared_bytes;
     constraints.elements = m_chunk_size;
+    auto options = op::chunk::options();
+    options.unstaged_singles = config().unstaged_singles;
+    options.wavefront = config().wavefront;
+    options.window = config().window;
     auto result = op::chunk::build_partition(m_kind, configuration,
                                              m_call.sections, m_groups,
-                                             constraints);
+                                             constraints, options);
     Entry entry;
     entry.rejected = result.rejected;
     entry.partition = std::move(result.partition);
@@ -532,7 +536,7 @@ inline op::loop::Prepared ChunkBase::prepare(
             auto [begin, end] = partition.batch_range(section, batch);
             int blocks = std::min(end - begin, m_call.block_limit);
             if (m_entry->plan.wavefront())
-                blocks = std::min(blocks, jit_config().resident_blocks(m_block_size));
+                blocks = std::min(blocks, config().resident_blocks(m_block_size));
             m_call.max_blocks = std::max(m_call.max_blocks, blocks);
         }
     return acquire(now, m_entry);
@@ -580,7 +584,7 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
             }
             int blocks = std::min(end - begin, m_call.block_limit);
             if (entry.plan.wavefront())
-                blocks = std::min(blocks, jit_config().resident_blocks(m_block_size));
+                blocks = std::min(blocks, config().resident_blocks(m_block_size));
             auto bytes = partition.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
             return Geometry{blocks, static_cast<int>(bytes)};
