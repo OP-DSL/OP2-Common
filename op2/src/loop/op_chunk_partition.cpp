@@ -1,7 +1,5 @@
 #include <loop/chunk_internal.h>
 
-#include <op_lib_c.h>
-
 #include <algorithm>
 #include <cassert>
 #include <limits>
@@ -37,8 +35,7 @@ namespace detail {
 std::string_view resolve_input(const op::loop::Configuration& configuration,
                                const ArgGroups& groups,
                                const Constraints& constraints,
-                               int requested_chunk_size, bool read_write,
-                               ResolvedInput& resolved) {
+                               bool read_write, ResolvedInput& resolved) {
     // The groups are generated alongside the kernel they describe, so their
     // shape is an internal invariant rather than a runtime condition.
     op_set set = configuration.set;
@@ -46,7 +43,7 @@ std::string_view resolve_input(const op::loop::Configuration& configuration,
     assert(set != nullptr);
     assert(!groups.args.empty() && groups.groups > 0);
     assert(groups.args.size() <= args.size());
-    assert(constraints.lanes > 0);
+    assert(constraints.lanes > 0 && constraints.elements > 0);
 
     resolved.set_stride = op::loop::indirect_set_stride(set);
     resolved.args = args;
@@ -55,9 +52,7 @@ std::string_view resolve_input(const op::loop::Configuration& configuration,
 
     // Round the requested chunk size up to a lanes multiple, clamped so the
     // result stays an int.
-    int requested = requested_chunk_size > 0 ? requested_chunk_size
-                                             : constraints.lanes;
-    long long blocks = (static_cast<long long>(requested) +
+    long long blocks = (static_cast<long long>(constraints.elements) +
                         constraints.lanes - 1) / constraints.lanes;
     long long limit = std::numeric_limits<int>::max() / constraints.lanes;
     resolved.chunk_size = static_cast<int>(
@@ -396,11 +391,8 @@ Result build_staged(const op::loop::Configuration& configuration,
                     const op::loop::Sections& sections, const ArgGroups& groups,
                     const Constraints& constraints, const Options& options) {
     ResolvedInput resolved;
-    int requested = constraints.elements > 0 ? constraints.elements
-                    : options.atomics_chunk_size > 0 ? options.atomics_chunk_size
-                                                     : OP_part_size;
-    auto reason = resolve_input(configuration, groups, constraints, requested,
-                                false, resolved);
+    auto reason = resolve_input(configuration, groups, constraints, false,
+                                resolved);
     if (!reason.empty())
         return {reason, nullptr};
 

@@ -466,11 +466,16 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     if (found != m_entries.end())
         return found->second;
 
+    // A chunk is one block's elements unless a size is given.
+    auto options = op::chunk::options();
     op::chunk::Constraints constraints;
     constraints.lanes = m_block_size;
     constraints.scratch_bytes = config().shared_bytes;
-    constraints.elements = m_chunk_size;
-    auto options = op::chunk::options();
+    constraints.elements = op::chunk::chunk_size(
+        m_chunk_size,
+        m_kind == op::chunk::Kind::staged ? options.atomics_chunk_size
+                                          : options.colouring_chunk_size,
+        m_block_size);
     options.unstaged_singles = config().unstaged_singles;
     options.wavefront = config().wavefront;
     options.window = config().window;

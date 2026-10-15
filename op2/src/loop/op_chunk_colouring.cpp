@@ -1,7 +1,5 @@
 #include <loop/chunk_internal.h>
 
-#include <op_lib_c.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -25,11 +23,8 @@ Result build_coloured(const op::loop::Configuration& configuration,
                       const ArgGroups& groups, const Constraints& constraints,
                       const Options& options) {
     ResolvedInput resolved;
-    int requested = constraints.elements > 0 ? constraints.elements
-                    : options.colouring_chunk_size > 0 ? options.colouring_chunk_size
-                                                       : OP_part_size;
-    auto reason = resolve_input(configuration, groups, constraints, requested,
-                                true, resolved);
+    auto reason = resolve_input(configuration, groups, constraints, true,
+                                resolved);
     if (!reason.empty())
         return {reason, nullptr};
 

@@ -23,8 +23,8 @@
 
 namespace op::cpu {
 
-// Elements per chunk when neither the translator, OP_CHUNK_*_CHUNK_SIZE nor
-// OP_part_size gives one.
+// Elements per chunk when neither the translator nor OP_CHUNK_*_CHUNK_SIZE
+// gives one.
 constexpr int default_chunk_size = 256;
 
 class Loop {
@@ -340,9 +340,8 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     op::chunk::Constraints constraints;
     constraints.lanes = 1;
     constraints.scratch_bytes = std::size_t{1} << 20;
-    constraints.elements = m_chunk_size > 0                    ? m_chunk_size
-                           : option > 0 || OP_part_size > 0 ? 0
-                                                              : default_chunk_size;
+    constraints.elements = op::chunk::chunk_size(m_chunk_size, option,
+                                                 default_chunk_size);
 
     auto result = op::chunk::build_partition(m_kind, configuration,
                                              m_loop.sections(configuration),

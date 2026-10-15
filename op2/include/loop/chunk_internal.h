@@ -40,8 +40,7 @@ struct ResolvedInput {
 std::string_view resolve_input(const op::loop::Configuration& configuration,
                                const ArgGroups& groups,
                                const Constraints& constraints,
-                               int requested_chunk_size, bool read_write,
-                               ResolvedInput& resolved);
+                               bool read_write, ResolvedInput& resolved);
 
 // The largest lanes multiple, up to the requested chunk size, whose
 // worst-case staging fits the scratch, or 0 if none does.
