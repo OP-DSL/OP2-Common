@@ -9,8 +9,24 @@ VARIANT_FILTER_OUT := mpi_%
 
 include ../../../makefiles/f_app.mk
 
-APP_NAME := fusion_soa
+APP_NAME := fusion_par
+APP_EXTRA_FLAGS := -DUSE_MPI
 
+VARIANT_FILTER := mpi_%
+
+include ../../../makefiles/f_app.mk
+
+APP_NAME := fusion_soa
+APP_EXTRA_FLAGS :=
+
+VARIANT_FILTER_OUT := mpi_%
 APP_EXTRA_TRANSLATOR_FLAGS += --force_soa
+
+include ../../../makefiles/f_app.mk
+
+APP_NAME := fusion_soa_par
+APP_EXTRA_FLAGS := -DUSE_MPI
+
+VARIANT_FILTER := mpi_%
 
 include ../../../makefiles/f_app.mk
