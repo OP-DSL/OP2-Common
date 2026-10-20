@@ -40,6 +40,10 @@ using IndexType = int;
 template<typename U> struct is_const_type { static constexpr bool value = false; };
 template<typename U> struct is_const_type<const U> { static constexpr bool value = true; };
 
+template<typename U> struct is_integer_type { static constexpr bool value = false; };
+template<> struct is_integer_type<int> { static constexpr bool value = true; };
+template<> struct is_integer_type<int64_t> { static constexpr bool value = true; };
+
 template<bool B, typename R = void> struct enable_if {};
 template<typename R> struct enable_if<true, R> { using type = R; };
 
@@ -154,16 +158,27 @@ public:
 
 /* Fortran intrinsics */
 
+// x**e for an integer exponent, by repeated squaring as gfortran's powi: a
+// negative exponent gives 1/x**|e| for a real base, and for an integer one
+// 0 unless the base is 1 or -1.
 template<typename T>
 inline constexpr T pow(T x, int e) {
-    if (e < 0)  return 0;
-    if (e == 0) return 1;
+    if constexpr (is_integer_type<T>::value) {
+        if (e < 0)
+            return x == 1 ? 1 : x == -1 ? ((e & 1) ? -1 : 1) : 0;
+    }
 
-    T r = x;
-    for (int i = 1; i < e; ++i)
-        r *= x;
-
-    return r;
+    unsigned n = e < 0 ? 0u - static_cast<unsigned>(e) : static_cast<unsigned>(e);
+    T r = 1;
+    while (true) {
+        if (n & 1)
+            r *= x;
+        n >>= 1;
+        if (n == 0)
+            break;
+        x *= x;
+    }
+    return e < 0 ? T(1) / r : r;
 }
 
 inline constexpr float pow(float x, float e) { return powf(x, e); }
