@@ -24,10 +24,9 @@
 #                                  # (OP2 links only what OP2 needs)
 #     [STRATEGIES <s...>]          # also run each c_cuda/c_hip/c_openmp variant
 #                                  # once per execution strategy, forced through
-#                                  # its environment, as <target>_<strategy>
-#                                  # (c_openmp also each one's packed variant,
-#                                  # as <target>_<strategy>_packed), and once
-#                                  # exploring them all, as <target>_autotune
+#                                  # its environment, as <target>_<strategy>,
+#                                  # and once exploring them all, as
+#                                  # <target>_autotune
 # )
 #
 # NAME is not a parameter - it's always derived from the calling directory's
@@ -35,18 +34,13 @@
 # dat_reductions_par_mpi_seq, ...), so a directory can't drift onto some
 # other naming convention.
 # ---------------------------------------------------------------------------
-# The environment that forces a strategy, <family> or <family>:packed; a GPU
-# chunked strategy runs only as a JIT kernel, so its tests compile each
-# configuration on its first call.
+# The environment that forces a strategy; a GPU chunked strategy runs only
+# as a JIT kernel, so its tests compile each configuration on its first call.
 function(_op2_strategy_environment _strategy _variant _out)
-    if(NOT _strategy MATCHES "^(plain|atomics|colouring|chunk_atomics|chunk_colouring)(:packed)?$")
+    if(NOT _strategy MATCHES "^(plain|atomics|colouring|chunk_atomics|chunk_colouring)$")
         message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
     endif()
-    string(REPLACE ":packed" "" _family "${_strategy}")
-    set(_env "OP_STRATEGY=${_family}")
-    if(_strategy MATCHES ":packed$")
-        list(APPEND _env "OP_PACKED=on")
-    endif()
+    set(_env "OP_STRATEGY=${_strategy}")
     if(_strategy MATCHES "^chunk_" AND NOT _variant MATCHES "openmp$")
         list(APPEND _env "OP_JIT_ENABLE=1" "OP_JIT_MIN_CALLS=1"
                          "OP_JIT_SEQ_COMPILE=1")
@@ -204,20 +198,11 @@ function(op2_add_functional_tests)
             endif()
 
             if(_v MATCHES "^(mpi_)?(c_cuda|c_hip|c_openmp)$")
-                set(_strategies ${_A_STRATEGIES})
-                if(_v MATCHES "c_openmp$")
-                    foreach(_strategy IN LISTS _A_STRATEGIES)
-                        if(NOT _strategy STREQUAL "chunk_atomics")
-                            list(APPEND _strategies "${_strategy}:packed")
-                        endif()
-                    endforeach()
-                endif()
-                foreach(_strategy IN LISTS _strategies)
+                foreach(_strategy IN LISTS _A_STRATEGIES)
                     _op2_strategy_environment(${_strategy} ${_v} _env)
                     list(APPEND _env ${_base_env})
-                    string(REPLACE ":" "_" _suffix "${_strategy}")
-                    add_test(NAME ${_tgt}_${_suffix} COMMAND ${_cmd})
-                    set_tests_properties(${_tgt}_${_suffix} PROPERTIES
+                    add_test(NAME ${_tgt}_${_strategy} COMMAND ${_cmd})
+                    set_tests_properties(${_tgt}_${_strategy} PROPERTIES
                         LABELS      "${_labels};strategy"
                         PROCESSORS  "${_nproc}"
                         ENVIRONMENT "${_env}")

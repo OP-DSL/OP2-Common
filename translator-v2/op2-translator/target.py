@@ -84,8 +84,8 @@ class COpenMP(Target):
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        # Inlined kernels, so a packed variant's SIMD loop can vectorise.
-        return {"device": 1, "pack_width": 8, "func_prefix": "__attribute__((always_inline)) inline"}
+        # Kernels inlined into each body that calls them.
+        return {"device": 1, "func_prefix": "__attribute__((always_inline)) inline"}
 
 
 class OpenMP(Target):

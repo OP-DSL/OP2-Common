@@ -83,8 +83,7 @@ cpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
                         plans a host thread runs a chunk of on its own)
 cpu/strategy.h         (includes: cpu/chunk_plan.h, plan/colouring.h; the
                         plain, atomics, colouring and chunked strategies over
-                        host threads, the packed axis, and the per-thread
-                        globals)
+                        host threads, and the per-thread globals)
 cpu/loop.h             (includes: cpu/strategy.h, loop/autotune.h; the loop
                         the generated code builds and invokes)
 ```
