@@ -20,8 +20,9 @@ namespace op::loop {
 struct AutotuneConfig {
     bool report = false;
     // OP_AUTOTUNE=select also reports, and once a configuration is explored
-    // runs its fastest candidate whenever that beats the ladder's choice by
-    // more than OP_AUTOTUNE_MARGIN, a fraction of the ladder's time.
+    // runs its fastest candidate whenever that beats the ladder's current
+    // choice by more than OP_AUTOTUNE_MARGIN, a fraction of the ladder's
+    // time; otherwise the ladder's choice runs.
     bool select = false;
     double margin = 0.03;
     // OP_AUTOTUNE_WARMUP untimed, then OP_AUTOTUNE_SAMPLES timed, runs of
@@ -54,12 +55,15 @@ private:
         bool done() const;
     };
 
-    // One configuration of the loop.
+    // One configuration of the loop; its trials are added once it has been
+    // seen min_calls times.
     struct State {
         std::string description;
         std::vector<Trial> trials;
+        // The ladder's choice, as of the latest call while exploring.
         Strategy *ladder = nullptr;
-        // What OP_AUTOTUNE=select runs once the configuration is explored.
+        // What OP_AUTOTUNE=select runs once the configuration is explored;
+        // none to follow the ladder.
         Strategy *selected = nullptr;
         std::size_t calls = 0;
         std::size_t cursor = 0;
@@ -68,6 +72,15 @@ private:
         bool trivial = false;
 
         bool explored() const;
+    };
+
+    // A configuration's trials against the ladder's choice.
+    struct Summary {
+        const Trial *fastest = nullptr;
+        const Trial *ladder = nullptr;
+        bool complete = true;
+        // The ladder's median time over the fastest's; 0 without both.
+        float speedup = 0.0f;
     };
 
 public:
@@ -82,14 +95,20 @@ public:
 
 private:
     const Ladder& m_ladder;
-    // Configurations seen that often get no new state; the counts of those
-    // and of configurations never explored are reported per loop.
+    // Once this many configurations have state a new one gets none; those
+    // dropped and those never explored are counted per loop.
     static constexpr std::size_t max_keys = 4096;
     std::unordered_map<std::uint64_t, State> m_states;
     std::size_t m_dropped = 0;
 
-    Strategy *fastest_or_ladder(const State& state) const;
-    std::string row(const State& state, const Trial& trial) const;
+    void add_trials(State& state, const Configuration& configuration,
+                    const Selection& selection);
+    Decision run_selected(const State& state, const Configuration& configuration,
+                          const Decision& ladder);
+    Summary summarise(const State& state) const;
+    Strategy *winner(const Summary& summary) const;
+    std::string row(const State& state, const Summary& summary,
+                    const Trial& trial) const;
     std::string line(const State& state) const;
     void report(State& state);
     static void rows_callback(void *owner);
@@ -100,12 +119,12 @@ public:
     Autotuner(const Autotuner&) = delete;
 
     // The ladder's selection, unless the configuration is being explored:
-    // then each candidate (every strategy not turned off by its variable
-    // whose prepare with now is ready) runs in turn for its warm-ups and
-    // samples.  Pending defers a trial, unavailable or rejected retires it
-    // with its reason.  When every trial is done the configuration is
-    // reported and, under select, its fastest strategy runs from then on if
-    // it beats the ladder's by the margin.
+    // once seen min_calls times, each candidate (every strategy not turned
+    // off by its variable whose prepare is ready or pending) runs in turn for
+    // its warm-ups and samples.  Pending defers a trial, unavailable or
+    // rejected retires it with its reason.  When every trial is done the
+    // configuration is reported and, under select, its fastest strategy runs
+    // from then on if it beats the ladder's current choice by the margin.
     Decision choose(const Configuration& configuration,
                     const Selection& selection);
 
