@@ -294,6 +294,10 @@ public:
     // printed once per loop.
     Selection select(const Configuration& configuration);
 
+    // The strategy select tries first: the forced one, else the first
+    // enabled.
+    std::optional<std::size_t> preferred() const;
+
     std::size_t size() const { return m_entries.size(); }
     Strategy& operator[](std::size_t index) { return *m_entries[index].strategy; }
     const Strategy& operator[](std::size_t index) const {

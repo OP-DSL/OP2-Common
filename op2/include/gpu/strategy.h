@@ -178,6 +178,12 @@ public:
 
     const Call& call() const { return m_call; }
     int block_size() const { return m_block_size; }
+    const KernelSource& source() const { return m_source; }
+    Binder binder() const { return m_bind; }
+    int offline_registers() const { return m_kernels.offline_registers(); }
+
+    // A grid-stride call's geometry, without touching this strategy's own.
+    Call simple_call(const op::loop::Configuration& configuration) const;
 
     // Free device state while the device is up.
     virtual void release() { m_kernels.join(); }
@@ -195,9 +201,7 @@ public:
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
                                op::loop::Urgency urgency) override {
-        begin(configuration);
-        for (const auto& section : m_call.sections.span())
-            m_call.max_blocks = std::max(m_call.max_blocks, grid(section.size()));
+        m_call = simple_call(configuration);
         return acquire(urgency, nullptr);
     }
 

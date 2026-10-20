@@ -500,6 +500,7 @@ op_dat op_mpi_get_data(op_dat dat) {
 }
 
 void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
+  op_lazy_flush("put data");
   if (local_size != (size_t)dat->set->size) {
     printf("Error: op_mpi_put_data local_size %zu does not match set size %d "
            "for dat %s\n",

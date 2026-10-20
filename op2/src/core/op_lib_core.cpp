@@ -208,6 +208,17 @@ void op_check_fallback_mode(const char *name) {
   }
 }
 
+static void (*op_lazy_flush_fn)(const char *reason) = NULL;
+
+void op_lazy_set_flush(void (*flush)(const char *reason)) {
+  op_lazy_flush_fn = flush;
+}
+
+void op_lazy_flush(const char *reason) {
+  if (op_lazy_flush_fn != NULL)
+    op_lazy_flush_fn(reason);
+}
+
 void op_disable_mpi_reductions(bool disable) {
   OP_disable_mpi_reductions = disable;
 }
@@ -295,6 +306,8 @@ void op_set_args(int argc, char *argv) {
 void op_init_core(int argc, char **argv, int diags) {
   op_printf("\n Initializing OP2\n");
   OP_diags = diags;
+  if (getenv("OP_DIAGS"))
+    OP_diags = atoi(getenv("OP_DIAGS"));
 
   if (getenv("OP_HYBRID_BALANCE")) {
     char *val = getenv("OP_HYBRID_BALANCE");
@@ -1529,6 +1542,7 @@ op_set op_get_set(int idx) {
 }
 
 void op_dat_write_index(op_set set, int *dat) {
+  op_lazy_flush("op_dat_write_index");
   op_arg arg = op_arg_dat_ptr(1, (char *)dat, -2, NULL, 1, "int", OP_WRITE);
   if (set != arg.dat->set) {
     op_printf("Error: op_dat_write_index set and arg.dat->set do not match\n");
@@ -1550,6 +1564,7 @@ void op_print_dat_to_txtfile2(int *dat, const char *file_name) {
  *******************************************************************************/
 
 unsigned long op_get_data_ptr(op_dat d) {
+  op_lazy_flush("op_get_data_ptr");
   op_download_dat(d);
   return (unsigned long)(d->data);
 }
@@ -1568,11 +1583,13 @@ unsigned long op_get_data_ptr2(unsigned long data) {
   if (item_dat == NULL) {
     printf("ERROR: op_dat not found for dat with %lu pointer\n", data);
   }
+  op_lazy_flush("op_get_data_ptr2");
   op_download_dat(item_dat);
   return (unsigned long)(item_dat->data);
 }
 
 unsigned long op_reset_data_ptr(char *data, int mode) {
+  op_lazy_flush("op_reset_data_ptr");
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   op_dat item_dat = NULL;

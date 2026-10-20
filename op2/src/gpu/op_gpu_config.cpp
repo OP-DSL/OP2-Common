@@ -49,6 +49,13 @@ void init() {
 
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", config.window);
 
+    env::parse_bool("OP_LAZY", config.lazy);
+    env::parse_number("OP_LAZY_MAX_CALLS", config.lazy_max_calls);
+    env::parse_number("OP_LAZY_COPY_BYTES", config.lazy_copy_bytes);
+    config.lazy_max_calls = std::max(config.lazy_max_calls, 1);
+    env::parse_bool("OP_FUSION", config.fusion);
+    env::parse_number("OP_FUSION_MAX_REGISTERS", config.fusion_max_registers);
+
     int device;
     check(gpuGetDevice(&device), "gpuGetDevice");
     gpuDeviceProp_t props;
@@ -64,6 +71,13 @@ void init() {
     config.shared_bytes = shared_bytes > static_bytes ? shared_bytes - static_bytes : 0;
     config.multiprocessors = props.multiProcessorCount;
     config.threads_per_multiprocessor = props.maxThreadsPerMultiProcessor;
+    config.registers_per_multiprocessor = props.regsPerMultiprocessor;
+    config.warp_size = props.warpSize;
+#ifdef OP2_CUDA
+    config.blocks_per_multiprocessor = props.maxBlocksPerMultiProcessor;
+#else
+    config.blocks_per_multiprocessor = 32;
+#endif
 
 #ifdef OP2_CUDA
     config.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);

@@ -1225,6 +1225,7 @@ op_dat op_mpi_get_data(op_dat dat) {
  *******************************************************************************/
 
 void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
+  op_lazy_flush("put data");
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
 

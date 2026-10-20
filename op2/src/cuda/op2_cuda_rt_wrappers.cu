@@ -280,6 +280,7 @@ void op_upload_dat(op_dat dat);
 void op_download_dat(op_dat dat);
 
 void op_put_dat(op_dat dat) {
+  op_lazy_flush("upload");
   if (dat->dirty_hd == 1) { //Running on device, but dirty on host
     op_upload_dat(dat);
     dat->dirty_hd = 0;
@@ -287,6 +288,7 @@ void op_put_dat(op_dat dat) {
 }
 
 void op_get_dat(op_dat dat) {
+  op_lazy_flush("download");
   if (dat->dirty_hd == 2) { //Running on host, but dirty on device
     op_download_dat(dat);
     dat->dirty_hd = 0;

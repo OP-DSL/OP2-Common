@@ -382,6 +382,8 @@ using namespace op::unified_exchanges;
 // MPI time is charged to the kernel being run, and the args are checked under
 // OP_diags, as the older per-dat and grouped exchanges did.
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
+    if (device == 1)
+        op_lazy_flush("host loop");
     if (OP_diags > 0) {
         int dummy;
         for (int n = 0; n < nargs; ++n)

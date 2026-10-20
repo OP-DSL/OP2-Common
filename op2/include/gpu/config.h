@@ -1,7 +1,7 @@
 #pragma once
 
 // The CUDA and HIP backend's run-wide configuration: the JIT policy, the
-// device, and the wavefront's window.  Read by init, which the backend's
+// device, the wavefront's window and lazy execution.  Read by init, which the backend's
 // op_init calls once the device is set.
 
 #include <algorithm>
@@ -29,14 +29,41 @@ struct Config {
     std::size_t shared_bytes = 0;
     int multiprocessors = 0;
     int threads_per_multiprocessor = 0;
+    int blocks_per_multiprocessor = 0;
+    int registers_per_multiprocessor = 0;
+    int warp_size = 0;
 
     // OP_CHUNK_COLOURING_WINDOW: chunks a wavefront colours at a time.
     int window = 0;
+
+    // OP_LAZY: queue calls and run them when the host needs their results.
+    bool lazy = true;
+    // OP_LAZY_MAX_CALLS: the queue runs once it holds this many calls.
+    int lazy_max_calls = 64;
+    // OP_LAZY_COPY_BYTES: a READ global up to this size is copied into its
+    // queued call; a larger one runs the queue at once.
+    int lazy_copy_bytes = 4096;
+    // OP_FUSION: run queued calls that may share a kernel as one.
+    bool fusion = true;
+    // OP_FUSION_MAX_REGISTERS: a call whose kernel uses more registers is
+    // never fused; 0 for no limit.
+    int fusion_max_registers = 64;
 
     // The most blocks of block_size threads the device holds at once.
     int resident_blocks(int block_size) const {
         return multiprocessors *
                std::max(threads_per_multiprocessor / block_size, 1);
+    }
+
+    // Blocks of block_size threads a multiprocessor holds when each thread
+    // uses registers, allocated per warp in units of 256.
+    int occupancy(int registers, int block_size) const {
+        int warps = (block_size + warp_size - 1) / warp_size;
+        int per_warp = (registers * warp_size + 255) / 256 * 256;
+        int by_registers = per_warp > 0 ? registers_per_multiprocessor / (per_warp * warps)
+                                        : blocks_per_multiprocessor;
+        return std::min({by_registers, threads_per_multiprocessor / block_size,
+                         blocks_per_multiprocessor});
     }
 };
 

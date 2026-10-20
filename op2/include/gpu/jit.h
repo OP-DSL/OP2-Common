@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -97,6 +98,16 @@ public:
     JitKernel(const JitKernel&) = delete;
     JitKernel(char *cubin, std::string_view name) : m_name{name}, m_cubin{cubin} {}
 
+    int registers() {
+        ensure_loaded();
+        int count = 0;
+        CU_SAFE_CALL(gpuDrvFuncGetAttribute(&count, gpuDrvFuncAttributeNumRegs, m_kernel));
+        return count;
+    }
+
+    // Blocks of block_size threads a multiprocessor holds, by registers.
+    int occupancy(int block_size) { return config().occupancy(registers(), block_size); }
+
     void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
         ensure_loaded();
         if (shared_bytes > m_max_dynamic_shared_bytes) {
@@ -113,12 +124,33 @@ public:
     }
 };
 
+// One parameter of a grid-stride JIT wrapper, in binding order: a dat's or
+// map's device pointer, a global's, a per-call value, or the launch range.
+struct FusionParam {
+    enum Kind { buffer, global, value, start, end };
+
+    const char *type;
+    const char *name;
+    Kind kind;
+};
+
+// What a fused kernel needs of a strategy: its element function, named
+// within the strategy's declarations, and its wrapper's parameters, of which
+// the function takes all but the range.
+struct FusionSource {
+    const char *body;
+    std::span<const FusionParam> params;
+};
+
 // What a strategy's kernel is built from: the offline function, if any, and
-// the source a specialised one is compiled from.
+// the source a specialised one is compiled from, its declarations ahead of
+// its wrapper; fusion when a fused kernel can take it.
 struct KernelSource {
     std::string_view name;
     const void *offline = nullptr;
     std::string_view source;
+    std::string_view decls = {};
+    const FusionSource *fusion = nullptr;
 };
 
 // --- Parameters ---------------------------------------------------------------------
@@ -163,9 +195,12 @@ template<> struct JitTypes<bool>     { static const ParamType value = ParamType:
 class JitParam {
 private:
     std::string m_name;
-    // The application's or the call's value; a launch value is held in
-    // m_launch, applied before each use.
+    // Where an application constant is read from at update.
     void *m_data;
+    // The application's or the call's value as of the last update, or a
+    // queued call's, restored; a launch value is held in m_launch, applied
+    // before each use.
+    std::vector<std::byte> m_value;
     int m_launch = 0;
     void *m_data_d;
     std::size_t m_n_elems;
@@ -187,32 +222,60 @@ public:
         : m_name{name}, m_data{data}, m_data_d{data_d}, m_n_elems{len},
           m_elem_size{sizeof(T)}, m_type{JitTypes<T>::value}, m_array{len > 1},
           m_source{source}, m_arg_index{arg_index},
-          m_hash_device_ptr{hash_device_ptr} {}
+          m_hash_device_ptr{hash_device_ptr} {
+        if (!launch())
+            m_value.resize(len * sizeof(T));
+    }
 
-    // The call's values.
+    // Whether the strategy gives the value at each use.
+    bool launch() const {
+        return m_source == ParamSource::global_stride ||
+               m_source == ParamSource::block_size ||
+               m_source == ParamSource::unstaged_singles ||
+               m_source == ParamSource::wavefront;
+    }
+
+    // The application's and the call's values.
     void update(op_arg *args, int nargs) {
         switch (m_source) {
+        case ParamSource::external:
+            std::memcpy(m_value.data(), m_data, m_value.size());
+            return;
         case ParamSource::scalar_arg:
             assert(m_arg_index >= 0 && m_arg_index < nargs);
             assert(args[m_arg_index].data != nullptr);
-            std::memcpy(m_data, args[m_arg_index].data, m_elem_size);
+            std::memcpy(m_value.data(), args[m_arg_index].data, m_elem_size);
             return;
         case ParamSource::dat_stride: {
             assert(m_arg_index >= 0 && m_arg_index < nargs);
             assert(m_elem_size == sizeof(int) && m_n_elems == 1);
             int size = getSetSizeFromOpArg(&args[m_arg_index]);
-            *static_cast<int *>(m_data) = (size + 31) & ~31;
+            size = (size + 31) & ~31;
+            std::memcpy(m_value.data(), &size, sizeof(int));
             return;
         }
-        case ParamSource::dat_dim:
+        case ParamSource::dat_dim: {
             assert(m_arg_index >= 0 && m_arg_index < nargs);
             assert(m_elem_size == sizeof(int) && m_n_elems == 1);
-            *static_cast<int *>(m_data) = args[m_arg_index].dim;
+            int dim = args[m_arg_index].dim;
+            std::memcpy(m_value.data(), &dim, sizeof(int));
             return;
+        }
         default:
             (void)nargs;
             return;
         }
+    }
+
+    // The value bytes update gave, kept with a queued call and given back
+    // before it runs.
+    void save(std::vector<std::byte>& out) const {
+        out.insert(out.end(), m_value.begin(), m_value.end());
+    }
+
+    const std::byte *restore(const std::byte *in) {
+        std::memcpy(m_value.data(), in, m_value.size());
+        return in + m_value.size();
     }
 
     // The strategy's values, for a launch-sourced parameter.
@@ -226,7 +289,10 @@ public:
         }
     }
 
-    const void *data() const { return m_data != nullptr ? m_data : &m_launch; }
+    const void *data() const {
+        return m_value.empty() ? static_cast<const void *>(&m_launch)
+                               : static_cast<const void *>(m_value.data());
+    }
 
     uint64_t hash() {
         m_hash_last = hash_bytes(data(), m_n_elems * m_elem_size);
@@ -359,6 +425,9 @@ public:
             CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_offline_attrs, kernel));
     }
 
+    // The offline kernel's registers; 0 without one.
+    int offline_registers() const { return m_offline_attrs.numRegs; }
+
     // Launch the offline kernel.
     void launch_offline(const void *kernel, int num_blocks, int block_size,
                         void **args, int shared_bytes) {
@@ -414,22 +483,19 @@ private:
         return src;
     }
 
-    std::thread compile(JitKernels& kernels, const KernelSource& source,
-                        uint64_t hash) {
+    // Compile source into kernels' entry for hash, on a thread of its own;
+    // name is the kernel's, loop the compile's for messages.
+    static std::thread compile(JitKernels& kernels, const JitHeaders& headers,
+                               std::string name, std::string source, uint64_t hash,
+                               std::string loop) {
         ++active_threads;
-        std::string jit_src = std::string("#include <kernel/prelude.h>\n"
-                                          "#include <kernel/strategy.h>\n") +
-                              (m_headers.params ? "#include <op_f2c_params.h>\n" : "") +
-                              "\nnamespace f2c = op::f2c;\n" + format_params() +
-                              std::string{source.source};
-
-        auto do_compile = [this, &kernels, name = std::string{source.name}](
-                              std::string jit_src, uint64_t hash) {
+        auto do_compile = [&kernels, &headers, name = std::move(name),
+                           loop = std::move(loop)](std::string jit_src, uint64_t hash) {
             gpuRtcProgram_t prog;
             NVRTC_SAFE_CALL(gpuRtcCreateProgram(
                 &prog, jit_src.c_str(), name.c_str(),
-                static_cast<int>(m_headers.data.size()), m_headers.data.data(),
-                m_headers.names.data()));
+                static_cast<int>(headers.data.size()), headers.data.data(),
+                headers.names.data()));
 
 #ifdef OP2_CUDA
             const char *opts[] = {
@@ -457,7 +523,7 @@ private:
                     std::printf("%s\n", log.c_str());
                 }
                 std::fprintf(stderr, "error: JIT compile of %s failed (in %s)\n",
-                             name.c_str(), m_loop.c_str());
+                             name.c_str(), loop.c_str());
                 std::exit(1);
             }
 
@@ -475,7 +541,7 @@ private:
             --active_threads;
         };
 
-        return std::thread(do_compile, std::move(jit_src), hash);
+        return std::thread(do_compile, std::move(source), hash);
     }
 
     template<typename T>
@@ -491,6 +557,60 @@ public:
     JitService(std::string_view loop, JitHeaders headers)
         : m_loop{loop}, m_headers{std::move(headers)} {}
     JitService(const JitService&) = delete;
+
+    // What every compile's source starts with.
+    static std::string preamble(const JitHeaders& headers) {
+        return std::string("#include <kernel/prelude.h>\n"
+                           "#include <kernel/strategy.h>\n") +
+               (headers.params ? "#include <op_f2c_params.h>\n" : "") +
+               "\nnamespace f2c = op::f2c;\n";
+    }
+
+    const JitHeaders& headers() const { return m_headers; }
+
+    // The parameters' hash and constants under a strategy's launch values.
+    uint64_t params_hash(const LaunchValues& launch) { return hash_params(launch); }
+    std::string params_source(const LaunchValues& launch) {
+        hash_params(launch);
+        return format_params();
+    }
+
+    // The kernel compiled for hash, else its compile started from
+    // make_source() once asked OP_JIT_MIN_CALLS times (at once for
+    // Urgency::now) and joined when wait is set or under
+    // OP_JIT_SEQ_COMPILE; null while it is not ready.
+    template<typename MakeSource>
+    static Acquired acquire_compiled(JitKernels& kernels, const JitHeaders& headers,
+                                     std::string_view name, uint64_t hash,
+                                     op::loop::Urgency urgency, bool wait,
+                                     MakeSource&& make_source, std::string_view loop) {
+        const auto& run = config();
+        {
+            std::scoped_lock lock(kernels.m_mutex);
+            auto found = kernels.m_kernels.find(hash);
+            if (found != kernels.m_kernels.end())
+                return {op::loop::Status::ready, &found->second};
+        }
+
+        auto& compile = kernels.compile_entry(hash);
+        ++compile.count;
+        bool due = urgency != op::loop::Urgency::later ||
+                   compile.count >= static_cast<std::size_t>(run.min_calls);
+        if (due && !compile.started && (wait || active_threads < run.max_threads)) {
+            if (run.debug)
+                std::printf("compiling %s for hash %lx\n", std::string{name}.c_str(), hash);
+            compile.started = true;
+            compile.thread = JitService::compile(kernels, headers, std::string{name},
+                                                 make_source(), hash, std::string{loop});
+        }
+        if (compile.started && (wait || run.seq_compile)) {
+            if (compile.thread.joinable())
+                compile.thread.join();
+            std::scoped_lock lock(kernels.m_mutex);
+            return {op::loop::Status::ready, &kernels.m_kernels.at(hash)};
+        }
+        return {op::loop::Status::pending, nullptr};
+    }
 
     // --- Parameters, registered by the generated code ---
 
@@ -539,10 +659,25 @@ public:
 
     // --- Per call ---
 
-    // The call's values, at invoke.
+    // The application's and the call's values, at invoke.
     void update(op_arg *args, int nargs) {
         for (auto& param : m_params)
             param.update(args, nargs);
+    }
+
+    // The values update gave, for a queued call, and back before it runs.
+    std::vector<std::byte> save() const {
+        std::vector<std::byte> out;
+        for (const auto& param : m_params)
+            param.save(out);
+        return out;
+    }
+
+    void restore(const std::vector<std::byte>& in) {
+        const std::byte *cursor = in.data();
+        for (auto& param : m_params)
+            cursor = param.restore(cursor);
+        assert(cursor == in.data() + in.size());
     }
 
     // Upload the changed values an offline kernel reads, under a strategy's
@@ -581,35 +716,18 @@ public:
             return {op::loop::Status::ready, nullptr};
 
         auto hash = hash_params(launch);
-        {
-            std::scoped_lock lock(kernels.m_mutex);
-            auto found = kernels.m_kernels.find(hash);
-            if (found != kernels.m_kernels.end())
-                return {op::loop::Status::ready, &found->second};
-        }
-
-        auto& compile = kernels.compile_entry(hash);
-        ++compile.count;
         // Waiting is for a strategy with nothing else to run.
         bool wait = urgency == op::loop::Urgency::wait && !offline;
-        bool due = urgency != op::loop::Urgency::later ||
-                   compile.count >= static_cast<std::size_t>(run.min_calls);
-        if (due && !compile.started && (wait || active_threads < run.max_threads)) {
-            if (run.debug)
-                std::printf("compiling %s for hash %lx\n",
-                            std::string{source.name}.c_str(), hash);
-            compile.started = true;
-            compile.thread = this->compile(kernels, source, hash);
-        }
-        if (compile.started && (wait || run.seq_compile)) {
-            if (compile.thread.joinable())
-                compile.thread.join();
-            std::scoped_lock lock(kernels.m_mutex);
-            return {op::loop::Status::ready, &kernels.m_kernels.at(hash)};
-        }
-
-        return {offline ? op::loop::Status::ready : op::loop::Status::pending,
-                nullptr};
+        auto acquired = acquire_compiled(
+            kernels, m_headers, source.name, hash, urgency, wait,
+            [&] {
+                return preamble(m_headers) + format_params() +
+                       std::string{source.decls} + std::string{source.source};
+            },
+            m_loop);
+        if (acquired.kernel == nullptr && offline)
+            acquired.status = op::loop::Status::ready;
+        return acquired;
     }
 
 };

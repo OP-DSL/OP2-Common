@@ -274,6 +274,7 @@ void mvReductArraysToHost(int reduct_bytes) {
 //
 
 void op_cuda_get_data(op_dat dat) {
+  op_lazy_flush("fetch");
   if (!OP_hybrid_gpu)
     return;
   if (dat->dirty_hd == 2)
@@ -307,6 +308,7 @@ void op_cuda_get_data(op_dat dat) {
 }
 
 void deviceSync() {
+  op_lazy_flush("device sync");
   cutilSafeCall(gpuDeviceSynchronize());
 }
 
@@ -354,6 +356,7 @@ void cutilDeviceInit(int argc, char **argv) {
 }
 
 void op_upload_dat(op_dat dat) {
+  op_lazy_flush("upload");
   if (!OP_hybrid_gpu)
     return;
   size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
@@ -379,6 +382,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
+  op_lazy_flush("download");
   if (!OP_hybrid_gpu)
     return;
   size_t logical_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
@@ -406,6 +410,8 @@ void op_download_dat(op_dat dat) {
 /* Without MPI there are no halos, so an exchange is only the host/device sync:
    bring each dat into the space the loop runs in. */
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
+  if (device == 1)
+    op_lazy_flush("host loop");
   for (int n = 0; n < nargs; n++) {
     if (!args[n].opt || args[n].argtype != OP_ARG_DAT)
       continue;

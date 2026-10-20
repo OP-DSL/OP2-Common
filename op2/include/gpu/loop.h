@@ -4,7 +4,9 @@
 // par_loop, from plain data, holding the ladder, the tuner and the JIT
 // service, and running one call through them.
 
+#include <gpu/fusion.h>
 #include <gpu/jit.h>
+#include <gpu/lazy.h>
 #include <gpu/strategy.h>
 #include <loop/autotune.h>
 #include <loop/strategy.h>
@@ -21,7 +23,7 @@
 
 namespace op::gpu {
 
-class Loop {
+class Loop : public QueuedLoop {
 private:
     std::string m_name;
     std::string m_profile_target;
@@ -72,6 +74,8 @@ public:
         if (op::loop::autotune_config().report)
             m_tuner.emplace(m_ladder);
         op::loop::register_release(this, &Loop::release_callback);
+        op_lazy_set_flush(&flush_queue);
+        queue().set_runner([](std::vector<PendingCall>& calls) { fusion().run(calls); });
     }
 
     ~Loop() {
@@ -136,14 +140,106 @@ public:
 
     // --- Per call ---
 
-    // Run the loop.
+    // Call the loop: queue the call under OP_LAZY, else run it.
     void invoke(op_set set, op_arg *args, int nargs) {
+        if (!config().lazy) {
+            m_jit.update(args, nargs);
+            run_call(set, args, nargs);
+            return;
+        }
+        auto call = Queue::capture(*this, set, args, nargs);
+        m_jit.update(call.args.data(), nargs);
+        call.params = m_jit.save();
+        queue().push(std::move(call));
+    }
+
+    // Run a queued call with the values it was made with.
+    void execute(PendingCall& call) override {
+        call.bind_globals();
+        m_jit.restore(call.params);
+        run_call(call.set, call.args.data(), static_cast<int>(call.args.size()));
+    }
+
+    // --- Fusion (gpu/fusion.h) ---
+
+    bool fusion_member(PendingCall& call, FusionMember& member) override {
+        if (m_tuner || !config().enable)
+            return false;
+        // No halo: every element is core and none is redundant.
+        if (call.set->core_size != call.set->size || call.set->exec_size != 0)
+            return false;
+        auto index = m_ladder.preferred();
+        if (!index)
+            return false;
+        auto& strategy = static_cast<StrategyBase&>(m_ladder[*index]);
+        if (strategy.source().fusion == nullptr)
+            return false;
+
+        call.bind_globals();
+        m_jit.restore(call.params);
+        auto nargs = static_cast<int>(call.args.size());
+        op::loop::Configuration configuration{call.set, call.args};
+        auto geometry = strategy.simple_call(configuration);
+        const auto& sections = geometry.sections;
+        member.call = &call;
+        member.strategy = &strategy;
+        member.begin = sections[0].begin;
+        member.end = sections[sections.size() - 1].end;
+        member.set_stride = sections.set_stride();
+        member.block_size = strategy.block_size();
+        member.block_limit = geometry.block_limit;
+        member.max_blocks = geometry.max_blocks;
+        member.global_stride = geometry.global_stride;
+        auto hash = m_jit.params_hash({geometry.global_stride, member.block_size, false, false});
+        hash = op::gpu::hash_bytes(m_name.data(), m_name.size(), hash);
+        member.key = op::gpu::hash_bytes(strategy.name().data(), strategy.name().size(), hash);
+        member.global_output = has_global_output(call.args.data(), nargs);
+        for (const auto& arg : call.args)
+            member.device_globals |=
+                arg.opt != 0 && (arg.argtype == OP_ARG_INFO ||
+                                 (arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1)));
+        member.registers = strategy.offline_registers();
+        return true;
+    }
+
+    std::string fusion_params(const FusionMember& member) override {
+        m_jit.restore(member.call->params);
+        return m_jit.params_source({member.global_stride, member.block_size, false, false});
+    }
+
+    const JitHeaders& fusion_headers() const override { return m_jit.headers(); }
+    const std::string& fusion_name() const override { return m_name; }
+
+    void fused_begin(FusionMember& member) override {
+        auto *args = member.call->args.data();
+        auto nargs = static_cast<int>(member.call->args.size());
+        member.call->bind_globals();
+        op_mpi_halo_exchanges(member.call->set, nargs, args, 2);
+        prepareDeviceGblsWithPolicy(args, nargs, member.global_stride,
+                                    m_description.gbl_inc_atomic);
+        if (m_init_globals != nullptr)
+            m_init_globals({member.block_size, member.max_blocks, member.global_stride}, args);
+    }
+
+    void fused_end(FusionMember& member) override {
+        auto *args = member.call->args.data();
+        auto nargs = static_cast<int>(member.call->args.size());
+        op_mpi_wait_all(nargs, args);
+        if (member.global_output &&
+            processDeviceGblsWithPolicy(args, nargs, member.global_stride,
+                                        member.global_stride, m_description.gbl_inc_atomic))
+            CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+        op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
+        op_mpi_set_dirtybit_cuda(nargs, args);
+    }
+
+    // Run a call whose JIT parameters are current.
+    void run_call(op_set set, op_arg *args, int nargs) {
         op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                                 m_profile_variant.c_str());
         op_profile_enter("Init");
         op_profile_enter("Get Kernel");
 
-        m_jit.update(args, nargs);
         op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
         auto selection = m_ladder.select(configuration);
         auto decision = m_tuner ? m_tuner->choose(configuration, selection)
@@ -214,6 +310,21 @@ inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
       m_block_size{point.values[0]} {
     m_kernels.register_offline(source.offline);
+}
+
+inline StrategyBase::Call StrategyBase::simple_call(
+    const op::loop::Configuration& configuration) const {
+    Call call;
+    call.sections = m_loop.sections(configuration);
+    call.block_limit = m_loop.block_limit(
+        const_cast<op_arg *>(configuration.args.data()),
+        static_cast<int>(configuration.args.size()), m_block_size);
+    for (const auto& section : call.sections.span()) {
+        int blocks = (section.size() + m_block_size - 1) / m_block_size;
+        call.max_blocks = std::max(call.max_blocks, std::min(blocks, call.block_limit));
+    }
+    call.global_stride = m_block_size * call.max_blocks;
+    return call;
 }
 
 inline void StrategyBase::begin(const op::loop::Configuration& configuration) {

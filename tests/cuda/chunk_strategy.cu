@@ -220,6 +220,8 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
     auto selection = loop.ladder().select(configuration);
     loop.invoke(&fixture.source, fixture.args.data(),
                 static_cast<int>(fixture.args.size()));
+    // The output is read behind OP2's back, so run the queued call.
+    op_lazy_flush("test");
     CUDA_SAFE_CALL(gpuDeviceSynchronize());
     CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                              gpuMemcpyDeviceToHost));

@@ -80,6 +80,8 @@
 
 #define gpuDrvFuncSetAttribute cuFuncSetAttribute
 #define gpuDrvFuncAttributeMaxDynamicSharedMemorySize CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
+#define gpuDrvFuncGetAttribute cuFuncGetAttribute
+#define gpuDrvFuncAttributeNumRegs CU_FUNC_ATTRIBUTE_NUM_REGS
 
 #define gpuDrvGetErrorName cuGetErrorName
 #define gpuDrvModuleLoadData cuModuleLoadData
@@ -183,6 +185,8 @@
 // module function handles.
 #define gpuDrvFuncSetAttribute hipFuncSetAttribute
 #define gpuDrvFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
+#define gpuDrvFuncGetAttribute hipFuncGetAttribute
+#define gpuDrvFuncAttributeNumRegs HIP_FUNC_ATTRIBUTE_NUM_REGS
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData

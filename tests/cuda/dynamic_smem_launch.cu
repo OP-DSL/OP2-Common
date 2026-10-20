@@ -195,6 +195,8 @@ int main(int argc, char **argv) {
                         static_cast<int>(fixture.args.size()));
         }
 
+        // The output is read behind OP2's back, so run the queued calls.
+        op_lazy_flush("test");
         CUDA_SAFE_CALL(gpuDeviceSynchronize());
         CUDA_SAFE_CALL(gpuMemcpy(&output, output_d, sizeof(output),
                                  gpuMemcpyDeviceToHost));

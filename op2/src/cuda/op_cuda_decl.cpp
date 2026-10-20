@@ -144,6 +144,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 }
 
 int op_free_dat_temp_char(op_dat dat) {
+  op_lazy_flush("free");
   // free data on device
   cutilSafeCall(gpuFree(dat->data_d));
 
@@ -233,7 +234,10 @@ void op_printf(const char *format, ...) {
 
 void op_print(const char *line) { printf("%s\n", line); }
 
-void op_timers(double *cpu, double *et) { op_timers_core(cpu, et); }
+void op_timers(double *cpu, double *et) {
+  op_lazy_flush("timers");
+  op_timers_core(cpu, et);
+}
 
 int getSetSizeFromOpArg(op_arg *arg) {
   if (arg->dat->set->size > std::numeric_limits<int>::max()) {
@@ -256,6 +260,7 @@ void op_renumber_ptr(int *ptr) {
 int getHybridGPU() { return OP_hybrid_gpu; }
 
 void op_exit() {
+  op_lazy_flush("exit");
   op::loop::autotune_write_report(0, 1);
   op::loop::release_all();
   op_cuda_exit(); // frees dat_d memory
@@ -320,6 +325,7 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
 }
 
 void op_upload_all() {
+  op_lazy_flush("upload");
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;

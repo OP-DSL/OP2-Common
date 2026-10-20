@@ -182,7 +182,8 @@ typedef struct op_dat_core {
 
 typedef op_dat_core *op_dat;
 
-typedef struct {
+/* Named: nvcc 13.0 crashes instantiating std::vector of the unnamed struct. */
+typedef struct op_arg {
   int index;        /* index */
   op_dat dat;       /* dataset */
   op_map map;       /* indirect mapping */
@@ -347,6 +348,12 @@ bool op_check_whitelist(const char *name);
 void op_check_fallback_mode(const char *name);
 
 void op_disable_mpi_reductions(bool disable);
+
+/* Lazy execution: a backend that queues par_loops registers the function
+   that runs its queue; op_lazy_flush runs it, naming why, before anything
+   reads or writes dat data on the host. */
+void op_lazy_set_flush(void (*flush)(const char *reason));
+void op_lazy_flush(const char *reason);
 
 void op_upload_dat(op_dat dat);
 

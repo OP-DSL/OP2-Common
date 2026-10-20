@@ -155,6 +155,7 @@ void cutilDeviceInit(int argc, char **argv) {
 }
 
 void op_upload_dat(op_dat dat) {
+  op_lazy_flush("upload");
   if (OP_set_halos.empty()) return;
   idx_g_t set_size = dat->set->size + OP_set_halos[dat->set->index].import_exec.size() +
                  OP_set_halos[dat->set->index].import_nonexec.size();
@@ -179,6 +180,7 @@ void op_upload_dat(op_dat dat) {
 }
 
 void op_download_dat(op_dat dat) {
+  op_lazy_flush("download");
   //Check if partitionig is done
   if (OP_set_halos.empty()) return;
   //  printf("Downloading %s\n", dat->name);

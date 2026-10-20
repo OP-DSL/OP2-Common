@@ -397,6 +397,15 @@ void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
     m_reasons.emplace_back();
 }
 
+std::optional<std::size_t> Ladder::preferred() const {
+    if (m_forced)
+        return m_forced;
+    for (std::size_t index = 0; index < m_entries.size(); ++index)
+        if (m_entries[index].enabled)
+            return index;
+    return std::nullopt;
+}
+
 Selection Ladder::select(const Configuration& configuration) {
     assert(!m_entries.empty());
     std::fill(m_reasons.begin(), m_reasons.end(), std::string_view{});

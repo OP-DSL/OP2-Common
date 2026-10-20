@@ -48,6 +48,39 @@
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
 
+{#- The strategies whose JIT wrapper runs each element through op2_body, and
+    those a fused kernel can take, with the parameter list of their JIT
+    wrappers in binding order: C type, name, and kind (buffer: a dat's or
+    map's device pointer; global: a global's; value; start; end).  op2_body
+    takes all but start and end. -#}
+{%- set body_strategies = ["plain", "atomics", "colouring"] -%}
+{%- set fusion_strategies = ["plain", "atomics"] -%}
+{%- set fusion_ns = namespace(params=[]) -%}
+{%- for dat in lh.dats -%}
+    {%- set fusion_ns.params = fusion_ns.params + [(("const " if dat is read_in(lh) else "") ~ dat.typ.c() ~ " *", "dat%d" % dat.id, "buffer")] -%}
+{%- endfor -%}
+{%- for map in lh.maps -%}
+    {%- set fusion_ns.params = fusion_ns.params + [("const int *", "map%d" % map.id, "buffer")] -%}
+{%- endfor -%}
+{%- for arg in lh.args|gbl if not (arg is read and arg is scalar) -%}
+    {%- set fusion_ns.params = fusion_ns.params + [(("const " if arg is read else "") ~ arg.typ.c() ~ " *", "gbl%d" % arg.id, "global")] -%}
+{%- endfor -%}
+{%- for arg in lh.args|info -%}
+    {%- set fusion_ns.params = fusion_ns.params + [(arg.typ.c() ~ " *", "info%d" % arg.id, "global")] -%}
+{%- endfor -%}
+{%- for arg in lh.args|runtime_map_idx -%}
+    {%- set fusion_ns.params = fusion_ns.params + [("const int", "arg%d_idx" % arg.id, "value")] -%}
+{%- endfor -%}
+{%- set fusion_params_head = fusion_ns.params -%}
+{%- set fusion_ns.params = [] -%}
+{%- if args_gbl_per_thread|length > 0 -%}
+    {%- set fusion_ns.params = fusion_ns.params + [("const int", "stride_gbl", "value")] -%}
+{%- endif -%}
+{%- if lh.args|opt|length > 0 -%}
+    {%- set fusion_ns.params = fusion_ns.params + [("const unsigned", "opt_flags", "value")] -%}
+{%- endif -%}
+{%- set fusion_params = fusion_params_head + fusion_ns.params + [("const int", "start", "start"), ("const int", "end", "end"), ("const int", "stride", "value")] -%}
+
 {#- Argument groups for the chunked strategies (fortran/schemes.py
     chunkGroups): the arguments each plan follows and their dats in
     first-use order, one group each.  The translator lists a chunked
@@ -72,12 +105,16 @@ static __device__ inline void op2_inc(T& target, U value) {
 {%- endmacro -%}
 
 {#- The translated kernel, in a namespace of its own for each strategy
-    named. -#}
-{%- macro kernel_namespaces(names) -%}
+    named, with op2_body when body is set (JIT sources only). -#}
+{%- macro kernel_namespaces(names, body = false) -%}
     {%- for strategy in names %}
 namespace op2_s_{{strategy}} {
 {{inc_hook(strategy)}}
-{{kernel_func}}}
+{{kernel_func}}
+        {%- if body and strategy in body_strategies %}
+{{element_body()}}
+        {% endif -%}
+}
 
     {% endfor -%}
 {%- endmacro -%}
@@ -203,6 +240,28 @@ int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
 {% endfor %}
 );
 {%- endmacro -%}
+
+{#- One element's work in a grid-stride JIT wrapper, as a function a fused
+    kernel calls too. -#}
+{%- macro element_body() %}
+static __device__ __forceinline__ void op2_body(
+    {% for ctype, name, kind in fusion_params if kind not in ["start", "end"] %}
+    {{ctype}}{{"__restrict " if kind in ["buffer", "global"] else " "}}{{name}},
+    {% endfor %}
+    const int thread_id,
+    const int n
+) {
+    {% for dat in lh.dats if dat.dim is none %}
+    [[maybe_unused]] constexpr int dat{{dat.id}}_dim = op2_dim_dat{{dat.id}}_d;
+    {% endfor %}
+    [[maybe_unused]] int zero_int = 0;
+    [[maybe_unused]] bool zero_bool = 0;
+    [[maybe_unused]] float zero_float = 0;
+    [[maybe_unused]] double zero_double = 0;
+
+    {{kernel_call(true)|indent(4)}}
+}
+{%- endmacro %}
 
 {%- macro init_gbls() -%}
 op2_k_{{lh.name}}{{variant}}_init_gbls<<<context.max_blocks, context.block_size>>>(
@@ -495,6 +554,17 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
         int n = i;
     {% endif %}
 
+    {% if jit %}
+        op2_body(
+        {% for ctype, name, kind in fusion_params if kind not in ["start", "end"] %}
+            {{name}},
+        {% endfor %}
+            thread_id,
+            n
+        );
+    }
+}
+    {% else %}
     {% if lh.args|idx|direct|length > 0 %}
         int idx = n + 1;
     {% endif %}
@@ -511,6 +581,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     }
 }
     {% endif %}
+    {% endif %}
 {% endmacro %}
 
 {% for strategy in strategies %}
@@ -518,13 +589,15 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
 {{kernel_wrapper(strategy)}}
     {% endif %}
 
-const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
+const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_decls[] = R"_op2_k(
 namespace op2_m_{{lh.name}}{{variant}} {
 
 using int64_t = long long int;
-{{kernel_namespaces([strategy])}}
+{{kernel_namespaces([strategy], body=true)}}
 }
+)_op2_k";
 
+const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
 {{kernel_wrapper(strategy, jit=true)}}
 )_op2_k";
 
@@ -663,6 +736,20 @@ static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
 }
 
 {% endfor %}
+{% if strategies|select("in", fusion_strategies)|list %}
+static constexpr op::gpu::FusionParam op2_k_{{lh.name}}{{variant}}_fusion_params[] = {
+    {% for ctype, name, kind in fusion_params %}
+    { "{{ctype}}", "{{name}}", op::gpu::FusionParam::{{kind}} },
+    {% endfor %}
+};
+
+    {% for strategy in strategies if strategy in fusion_strategies %}
+static constexpr op::gpu::FusionSource op2_k_{{lh.name}}{{variant}}_{{strategy}}_fusion{
+    "op2_m_{{lh.name}}{{variant}}::op2_s_{{strategy}}::op2_body",
+    op2_k_{{lh.name}}{{variant}}_fusion_params};
+
+    {% endfor %}
+{% endif %}
 static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     namespace kernel = op2_m_{{lh.name}}{{variant}};
     auto& jit = loop.jit();
@@ -711,7 +798,9 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
         op::gpu::KernelSource{
             "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
             {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
-            op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
+            op2_k_{{lh.name}}{{variant}}_{{strategy}}_src,
+            op2_k_{{lh.name}}{{variant}}_{{strategy}}_decls,
+            {{"&op2_k_%s%s_%s_fusion" % (lh.name, variant, strategy) if strategy in fusion_strategies else "nullptr"}}},
         &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
     {% if strategy in chunk_strategies %}
         op::plan::ArgGroups{ {{strategy}}_groups, {{groups[strategy].dats|length}} });

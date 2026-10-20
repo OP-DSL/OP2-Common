@@ -174,6 +174,7 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 }
 
 int op_free_dat_temp_char(op_dat dat) {
+  op_lazy_flush("free");
   // free data on device
   cutilSafeCall(gpuFree(dat->data_d));
   return op_free_dat_temp_core(dat);
@@ -263,6 +264,7 @@ void op_print(const char *line) {
 }
 
 void op_timers(double *cpu, double *et) {
+  op_lazy_flush("timers");
   MPI_Barrier(OP_MPI_WORLD);
   op_timers_core(cpu, et);
 }
@@ -284,6 +286,7 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 */
 
 void op_exit() {
+  op_lazy_flush("exit");
   {
     int rank = 0, ranks = 1;
     MPI_Comm_rank(OP_MPI_WORLD, &rank);
@@ -343,6 +346,7 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
 }
 
 void op_upload_all() {
+  op_lazy_flush("upload");
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
