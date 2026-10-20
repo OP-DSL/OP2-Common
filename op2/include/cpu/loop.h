@@ -14,7 +14,6 @@
 #include <omp.h>
 
 #include <chrono>
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,35 +42,6 @@ private:
 
     static void release_callback(void *owner) {
         static_cast<Loop *>(owner)->release();
-    }
-
-    static bool is_type(const char *actual, const char *expected) {
-        return actual != nullptr && std::strcmp(actual, expected) == 0;
-    }
-
-    void reduce_mpi_globals(op_arg *args, int nargs) {
-        for (int i = 0; i < nargs; ++i) {
-            auto& arg = args[i];
-            if (arg.opt == 0 || arg.argtype != OP_ARG_GBL ||
-                (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
-                continue;
-
-            if (is_type(arg.type, "double")) {
-                op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
-            } else if (is_type(arg.type, "float")) {
-                op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
-            } else if (is_type(arg.type, "int")) {
-                op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
-            } else if (is_type(arg.type, "bool")) {
-                op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
-            } else {
-                std::fprintf(stderr,
-                             "error: unsupported MPI reduction type '%s' (in %s)\n",
-                             arg.type == nullptr ? "<null>" : arg.type,
-                             m_name.c_str());
-                std::exit(1);
-            }
-        }
     }
 
 public:
@@ -114,10 +84,7 @@ public:
     op::loop::Ladder& ladder() { return m_ladder; }
 
     op::loop::Sections sections(const op::loop::Configuration& configuration) const {
-        if (m_description.direct)
-            return op::loop::Sections::direct(configuration.set);
-        return op::loop::Sections::indirect(configuration.set,
-                                            configuration.global_reduction());
+        return op::loop::Sections::of(configuration, m_description.direct);
     }
 
     const op::loop::Sections& call_sections() const { return m_sections; }
@@ -175,7 +142,7 @@ public:
         if (n_exec == 0) {
             op_profile_next("MPI Wait");
             op_mpi_wait_all(nargs, args);
-            reduce_mpi_globals(args, nargs);
+            op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
             op_mpi_set_dirtybit(nargs, args);
             op_profile_exit();
             op_profile_exit();
@@ -194,7 +161,7 @@ public:
             m_tuner->sample(decision, *microseconds);
 
         op_profile_next("MPI Reduce");
-        reduce_mpi_globals(args, nargs);
+        op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
         op_mpi_set_dirtybit(nargs, args);
         op_profile_exit();
         op_profile_exit();
@@ -267,30 +234,17 @@ std::optional<float> StrategyBase::run_phases(const op::loop::Launch& launch,
         std::chrono::duration<double, std::micro>(elapsed).count());
 }
 
-// The phase that waits for the halo and the one after which the globals
-// are combined.
-inline std::pair<int, int> section_points(const op::loop::Sections& sections) {
-    int wait = 0;
-    int globals = 0;
-    for (int i = 0; i <= sections.size(); ++i) {
-        if (sections.wait_before(i))
-            wait = i;
-        if (i < sections.size() && sections.process_globals_after(i))
-            globals = i;
-    }
-    return {wait, globals};
-}
-
 // --- Plain and atomics ---
 
 inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
                                         const op::loop::Launch& launch) {
     assert(prepared.strategy == this);
     const auto& sections = m_loop.call_sections();
-    auto [wait, globals] = section_points(sections);
-    return run_phases(launch, sections.size(), wait, globals, [&](int section) {
-        split(sections[section].begin, sections[section].end, nullptr, launch.args);
-    });
+    return run_phases(launch, sections.size(), sections.wait_index(),
+                      sections.globals_index(), [&](int section) {
+                          split(sections[section].begin, sections[section].end,
+                                nullptr, launch.args);
+                      });
 }
 
 // --- Colouring ---
@@ -380,8 +334,8 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
     const auto& sections = m_loop.call_sections();
     m_loop.reserve_scratch(plan.scratch_bytes);
 
-    auto [wait, globals] = section_points(sections);
-    return run_phases(launch, sections.size(), wait, globals, [&](int section) {
+    return run_phases(launch, sections.size(), sections.wait_index(),
+                      sections.globals_index(), [&](int section) {
         if (sections[section].size() == 0)
             return;
         const int batches = plan.batches.batches(section);

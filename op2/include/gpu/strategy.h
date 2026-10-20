@@ -97,13 +97,12 @@ protected:
     };
 
     // The call being prepared: how the sections run, the most blocks a
-    // launch may use, the largest launch, and the kernel.
+    // launch may use, and the largest launch.
     struct Call {
         op::loop::Sections sections;
         int block_limit = 0;
         int max_blocks = 0;
         int global_stride = 0;
-        JitKernel *kernel = nullptr;
     };
 
     Loop& m_loop;
@@ -212,7 +211,6 @@ private:
     };
 
     std::unordered_map<std::uint64_t, Entry> m_entries;
-    Entry *m_entry = nullptr;
 
 public:
     Colouring(Loop& loop, const op::loop::Point& point, KernelSource source,
@@ -243,7 +241,6 @@ protected:
     op::plan::ArgGroups m_groups;
     int m_chunk_size;
     std::unordered_map<std::uint64_t, Entry> m_entries;
-    Entry *m_entry = nullptr;
 
     ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured,
               KernelSource source, Binder bind, op::plan::ArgGroups groups)

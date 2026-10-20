@@ -7,6 +7,8 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <initializer_list>
 #include <mutex>
 #include <utility>
 
@@ -166,6 +168,58 @@ Sections Sections::indirect(op_set set, bool separate_owned) {
     sections.m_globals_after = 1;
     sections.m_set_stride = indirect_set_stride(set);
     return sections;
+}
+
+Sections Sections::of(const Configuration& configuration, bool direct) {
+    if (direct)
+        return Sections::direct(configuration.set);
+    return Sections::indirect(configuration.set, configuration.global_reduction());
+}
+
+ScalarType scalar_type(const char *type) {
+    auto is = [type](std::initializer_list<const char *> names) {
+        return type != nullptr &&
+               std::any_of(names.begin(), names.end(), [type](const char *name) {
+                   return std::strcmp(type, name) == 0;
+               });
+    };
+    if (is({"double", "r8", "real*8", "real(8)"}))
+        return ScalarType::f64;
+    if (is({"float", "r4", "real*4", "real(4)"}))
+        return ScalarType::f32;
+    if (is({"int", "i4", "integer*4", "integer(4)"}))
+        return ScalarType::i32;
+    if (is({"bool", "logical"}))
+        return ScalarType::logical;
+    return ScalarType::unknown;
+}
+
+void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
+    for (int i = 0; i < nargs; ++i) {
+        auto& arg = args[i];
+        if (arg.opt == 0 || arg.argtype != OP_ARG_GBL ||
+            (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
+            continue;
+
+        switch (scalar_type(arg.type)) {
+        case ScalarType::f64:
+            op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
+            break;
+        case ScalarType::f32:
+            op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
+            break;
+        case ScalarType::i32:
+            op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
+            break;
+        case ScalarType::logical:
+            op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
+            break;
+        case ScalarType::unknown:
+            std::fprintf(stderr, "error: unsupported MPI reduction type '%s' (in %s)\n",
+                         arg.type == nullptr ? "<null>" : arg.type, loop);
+            std::exit(1);
+        }
+    }
 }
 
 // --- Strategies ---------------------------------------------------------------

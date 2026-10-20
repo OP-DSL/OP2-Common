@@ -101,6 +101,9 @@ private:
 public:
     static Sections direct(op_set set);
     static Sections indirect(op_set set, bool separate_owned);
+    // A call's sections: direct, or indirect with the owned elements apart
+    // when it reduces a global.
+    static Sections of(const Configuration& configuration, bool direct);
 
     int size() const { return m_count; }
     const Section& operator[](int index) const {
@@ -110,12 +113,10 @@ public:
         return {m_sections.data(), static_cast<std::size_t>(m_count)};
     }
 
-    // Exactly one index in [0, size()] answers true; size() means after the
-    // last section.
-    bool wait_before(int index) const { return index == m_wait_before; }
-    bool process_globals_after(int index) const {
-        return index == m_globals_after;
-    }
+    // The section the halo wait comes before, in [0, size()], size() for
+    // after the last; the section the globals are processed after.
+    int wait_index() const { return m_wait_before; }
+    int globals_index() const { return m_globals_after; }
     int set_stride() const { return m_set_stride; }
 };
 
@@ -126,6 +127,22 @@ struct Launch {
     int nargs;
     bool timed;
 };
+
+// A global's element type, from its C or Fortran spelling.
+enum class ScalarType {
+    f64,
+    f32,
+    i32,
+    logical,
+    unknown,
+};
+
+ScalarType scalar_type(const char *type);
+
+// Reduce the call's INC, MIN and MAX globals across the ranks once this
+// rank's elements are combined into them; an unsupported type stops the run,
+// naming loop.
+void reduce_mpi_globals(op_arg *args, int nargs, const char *loop);
 
 // --- Strategies ---------------------------------------------------------------
 
@@ -164,7 +181,9 @@ public:
     // synchronously and now is set.
     virtual Prepared prepare(const Configuration& configuration, bool now) = 0;
 
-    // Run what prepare returned; microseconds when the launch is timed.
+    // Run what prepare returned; microseconds when the launch is timed.  A
+    // run always follows this strategy's prepare for the same call, so the
+    // strategy may keep per-call state from it.
     virtual std::optional<float> run(const Prepared& prepared,
                                      const Launch& launch) = 0;
 
