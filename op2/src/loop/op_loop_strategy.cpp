@@ -85,6 +85,13 @@ bool Configuration::global_reduction() const {
     return false;
 }
 
+bool Configuration::indirect_write() const {
+    return std::any_of(args.begin(), args.end(), [](const op_arg& arg) {
+        return arg.opt != 0 && arg.argtype == OP_ARG_DAT && arg.map != nullptr &&
+               arg.acc != OP_READ;
+    });
+}
+
 std::uint64_t Configuration::key() const {
     if (m_keyed)
         return m_key;
@@ -151,10 +158,10 @@ Sections Sections::direct(op_set set) {
     return sections;
 }
 
-Sections Sections::indirect(op_set set, bool separate_owned) {
+Sections Sections::indirect(op_set set, bool separate_owned, bool exec) {
     Sections sections;
     int size = static_cast<int>(set->size);
-    int end = size + set->exec_size;
+    int end = size + (exec ? set->exec_size : 0);
     if (separate_owned) {
         sections.m_sections = {{{0, set->core_size},
                                 {set->core_size, size},
@@ -173,7 +180,8 @@ Sections Sections::indirect(op_set set, bool separate_owned) {
 Sections Sections::of(const Configuration& configuration, bool direct) {
     if (direct)
         return Sections::direct(configuration.set);
-    return Sections::indirect(configuration.set, configuration.global_reduction());
+    return Sections::indirect(configuration.set, configuration.global_reduction(),
+                              configuration.indirect_write());
 }
 
 ScalarType scalar_type(const char *type) {

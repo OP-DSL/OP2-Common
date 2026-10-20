@@ -62,6 +62,8 @@ public:
 
     // Any active global argument reduced across the set.
     bool global_reduction() const;
+    // Any active dat argument written through a map.
+    bool indirect_write() const;
 
     // The set index and, per argument, its activity, kind, dat and map
     // indices, map component, access and dimension.
@@ -100,7 +102,9 @@ private:
 
 public:
     static Sections direct(op_set set);
-    static Sections indirect(op_set set, bool separate_owned);
+    // exec: the loop writes through a map, so it runs the exec halo too for
+    // its owned elements to get every contribution.
+    static Sections indirect(op_set set, bool separate_owned, bool exec = true);
     // A call's sections: direct, or indirect with the owned elements apart
     // when it reduces a global.
     static Sections of(const Configuration& configuration, bool direct);
