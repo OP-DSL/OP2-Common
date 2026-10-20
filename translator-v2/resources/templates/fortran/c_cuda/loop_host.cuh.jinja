@@ -80,6 +80,14 @@
     {%- set fusion_ns.params = fusion_ns.params + [("const unsigned", "opt_flags", "value")] -%}
 {%- endif -%}
 {%- set fusion_params = fusion_params_head + fusion_ns.params + [("const int", "start", "start"), ("const int", "end", "end"), ("const int", "stride", "value")] -%}
+{#- The scalar READ globals, which op2_body takes under their constants'
+    names: the JIT wrapper passes the constant, a fused kernel the call's
+    value, so a value that changes every call compiles once. -#}
+{%- set fusion_ns.params = [] -%}
+{%- for arg in lh.args|gbl|read|scalar -%}
+    {%- set fusion_ns.params = fusion_ns.params + [("const " ~ arg.typ.c(), "op2_gbl%d_d" % arg.id, "scalar", arg.id)] -%}
+{%- endfor -%}
+{%- set fusion_scalars = fusion_ns.params -%}
 
 {#- Argument groups for the chunked strategies (fortran/schemes.py
     chunkGroups): the arguments each plan follows and their dats in
@@ -247,6 +255,9 @@ int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
 static __device__ __forceinline__ void op2_body(
     {% for ctype, name, kind in fusion_params if kind not in ["start", "end"] %}
     {{ctype}}{{"__restrict " if kind in ["buffer", "global"] else " "}}{{name}},
+    {% endfor %}
+    {% for ctype, name, kind, arg_id in fusion_scalars %}
+    {{ctype}} {{name}},
     {% endfor %}
     const int thread_id,
     const int n
@@ -559,6 +570,9 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
         {% for ctype, name, kind in fusion_params if kind not in ["start", "end"] %}
             {{name}},
         {% endfor %}
+        {% for ctype, name, kind, arg_id in fusion_scalars %}
+            {{name}},
+        {% endfor %}
             thread_id,
             n
         );
@@ -740,6 +754,9 @@ static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
 static constexpr op::gpu::FusionParam op2_k_{{lh.name}}{{variant}}_fusion_params[] = {
     {% for ctype, name, kind in fusion_params %}
     { "{{ctype}}", "{{name}}", op::gpu::FusionParam::{{kind}} },
+    {% endfor %}
+    {% for ctype, name, kind, arg_id in fusion_scalars %}
+    { "{{ctype}}", "{{name}}", op::gpu::FusionParam::scalar, {{arg_id}} },
     {% endfor %}
 };
 

@@ -193,7 +193,7 @@ public:
         member.block_limit = geometry.block_limit;
         member.max_blocks = geometry.max_blocks;
         member.global_stride = geometry.global_stride;
-        auto hash = m_jit.params_hash({geometry.global_stride, member.block_size, false, false});
+        auto hash = m_jit.fusion_hash({geometry.global_stride, member.block_size, false, false});
         hash = op::gpu::hash_bytes(m_name.data(), m_name.size(), hash);
         member.key = op::gpu::hash_bytes(strategy.name().data(), strategy.name().size(), hash);
         member.global_output = has_global_output(call.args.data(), nargs);
@@ -207,7 +207,7 @@ public:
 
     std::string fusion_params(const FusionMember& member) override {
         m_jit.restore(member.call->params);
-        return m_jit.params_source({member.global_stride, member.block_size, false, false});
+        return m_jit.fusion_source({member.global_stride, member.block_size, false, false});
     }
 
     const JitHeaders& fusion_headers() const override { return m_jit.headers(); }

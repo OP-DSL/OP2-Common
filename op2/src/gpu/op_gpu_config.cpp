@@ -56,6 +56,8 @@ void init() {
     env::parse_bool("OP_FUSION", config.fusion);
     env::parse_number("OP_FUSION_MAX_REGISTERS", config.fusion_max_registers);
     env::parse_bool("OP_FUSION_TUNE", config.fusion_tune);
+    if (const char *dump = std::getenv("OP_FUSION_DUMP"))
+        config.fusion_dump = dump;
 
     int device;
     check(gpuGetDevice(&device), "gpuGetDevice");

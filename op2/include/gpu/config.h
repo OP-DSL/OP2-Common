@@ -51,6 +51,8 @@ struct Config {
     // OP_FUSION_TUNE: time a fused kernel against its calls run apart and
     // keep the faster.
     bool fusion_tune = true;
+    // OP_FUSION_DUMP: a directory each fused kernel's source is written to.
+    std::string fusion_dump;
 
     // The most blocks of block_size threads the device holds at once.
     int resident_blocks(int block_size) const {

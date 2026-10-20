@@ -192,6 +192,8 @@ private:
         std::vector<void *> buffers;
         std::vector<int> buffer_index;
         std::vector<int> values;
+        // The scalar READ globals' values, each in a slot of its own.
+        std::vector<std::uint64_t> scalars;
         // Kept alive until the launch: the bindings point into them.
         std::vector<LaunchContext> contexts;
     };
@@ -208,11 +210,19 @@ private:
             context.set_stride = member.set_stride;
             member.strategy->binder()(context, member.call->args.data(), offline, jit);
             const auto& params = member.strategy->source().fusion->params;
-            assert(jit.size() == params.size());
-            for (std::size_t i = 0; i < params.size(); ++i) {
-                switch (params[i].kind) {
+            std::size_t slot = 0;
+            for (const auto& param : params) {
+                if (param.kind == FusionParam::scalar) {
+                    const auto& arg = member.call->args[static_cast<std::size_t>(param.arg)];
+                    std::uint64_t value = 0;
+                    std::memcpy(&value, arg.data, std::min<std::size_t>(arg.size, sizeof(value)));
+                    arguments.scalars.push_back(value);
+                    continue;
+                }
+                void *bound = jit[slot++];
+                switch (param.kind) {
                 case FusionParam::buffer: {
-                    void *pointer = *static_cast<void *const *>(jit[i]);
+                    void *pointer = *static_cast<void *const *>(bound);
                     auto found = std::find(arguments.buffers.begin(),
                                            arguments.buffers.end(), pointer);
                     arguments.buffer_index.push_back(
@@ -225,11 +235,11 @@ private:
                     // Placed by the globals' preparation, so never shared.
                     arguments.buffer_index.push_back(
                         static_cast<int>(arguments.buffers.size()));
-                    arguments.buffers.push_back(*static_cast<void *const *>(jit[i]));
+                    arguments.buffers.push_back(*static_cast<void *const *>(bound));
                     break;
                 case FusionParam::value: {
                     int value;
-                    std::memcpy(&value, jit[i], sizeof(int));
+                    std::memcpy(&value, bound, sizeof(int));
                     arguments.values.push_back(value);
                     break;
                 }
@@ -237,6 +247,7 @@ private:
                     break;
                 }
             }
+            assert(slot == jit.size());
         });
         return arguments;
     }
@@ -279,11 +290,11 @@ private:
             text += "}\n";
         });
 
-        std::string signature;
+        std::string signature, scalars;
         for (std::size_t b = 0; b < arguments.buffers.size(); ++b)
             signature += "    void *b" + std::to_string(b) + ",\n";
         std::string body;
-        std::size_t buffer = 0, value = 0;
+        std::size_t buffer = 0, value = 0, scalar = 0;
         k = 0;
         for (std::size_t c = 0; c < group.size(); ++c) {
             auto chain = std::to_string(c);
@@ -302,6 +313,10 @@ private:
                     } else if (param.kind == FusionParam::value) {
                         std::string name = "v" + std::to_string(value++);
                         signature += "    " + std::string{param.type} + " " + name + ",\n";
+                        body += name + ", ";
+                    } else if (param.kind == FusionParam::scalar) {
+                        std::string name = "s" + std::to_string(scalar++);
+                        scalars += "    " + std::string{param.type} + " " + name + ",\n";
                         body += name + ", ";
                     }
                 }
@@ -322,7 +337,7 @@ private:
         text += "__launch_bounds__(" +
                 std::to_string(group.front().front().block_size) + ")\n";
 #endif
-        text += "void op2_fused(\n" + signature + ranges +
+        text += "void op2_fused(\n" + signature + scalars + ranges +
                 ") {\n    int block = blockIdx.x;\n" + body + "}\n";
         return text;
     }
@@ -338,7 +353,12 @@ private:
 
         auto acquired = JitService::acquire_compiled(
             m_kernels, loop_of(group.front().front()).fusion_headers(), "op2_fused", hash,
-            op::loop::Urgency::later, false, [&] { return source(group, arguments); },
+            op::loop::Urgency::later, false,
+            [&] {
+                auto text = source(group, arguments);
+                dump(entry.name, hash, text);
+                return text;
+            },
             entry.name);
         auto *compiled = acquired.kernel;
         if (compiled == nullptr || entry.checked)
@@ -364,6 +384,18 @@ private:
                       member_occupancy == INT32_MAX ? 0 : member_occupancy,
                       entry.rejected ? ", rejected" : "");
         return entry.rejected ? nullptr : compiled;
+    }
+
+    // Write a fused kernel's source under OP_FUSION_DUMP.
+    static void dump(const std::string& name, std::uint64_t hash, const std::string& text) {
+        if (config().fusion_dump.empty())
+            return;
+        char file[32];
+        std::snprintf(file, sizeof(file), "/op2_fused_%016lx.cu", hash);
+        if (FILE *out = std::fopen((config().fusion_dump + file).c_str(), "w")) {
+            std::fprintf(out, "// %s\n%s", name.c_str(), text.c_str());
+            std::fclose(out);
+        }
     }
 
     static void run_apart(Group& group) {
@@ -404,6 +436,8 @@ private:
             argv.push_back(&buffer);
         for (auto& value : arguments.values)
             argv.push_back(&value);
+        for (auto& scalar : arguments.scalars)
+            argv.push_back(&scalar);
         // Each chain's range and blocks: the fewest any member allows.
         std::vector<int> ranges;
         ranges.reserve(3 * group.size());

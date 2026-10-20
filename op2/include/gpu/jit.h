@@ -125,13 +125,16 @@ public:
 };
 
 // One parameter of a grid-stride JIT wrapper, in binding order: a dat's or
-// map's device pointer, a global's, a per-call value, or the launch range.
+// map's device pointer, a global's, a per-call value, or the launch range;
+// then op2_body's scalar READ globals, which the JIT wrapper bakes in, with
+// their arguments.
 struct FusionParam {
-    enum Kind { buffer, global, value, start, end };
+    enum Kind { buffer, global, value, start, end, scalar };
 
     const char *type;
     const char *name;
     Kind kind;
+    int arg = -1;
 };
 
 // What a fused kernel needs of a strategy: its element function, named
@@ -226,6 +229,8 @@ public:
         if (!launch())
             m_value.resize(len * sizeof(T));
     }
+
+    bool scalar() const { return m_source == ParamSource::scalar_arg; }
 
     // Whether the strategy gives the value at each use.
     bool launch() const {
@@ -466,20 +471,23 @@ private:
     static inline std::atomic_int active_threads = 0;
 
     // The parameters' hash under a strategy's launch values, which stay
-    // applied for a compile that follows.
-    uint64_t hash_params(const LaunchValues& launch) {
+    // applied for a compile that follows; without the scalar arguments for
+    // a kernel that takes them as arguments.
+    uint64_t hash_params(const LaunchValues& launch, bool scalars = true) {
         uint64_t hash = hash_seed_default;
         for (auto& param : m_params) {
             param.apply(launch);
-            hash = op::gpu::hash(param.hash(), hash);
+            if (scalars || !param.scalar())
+                hash = op::gpu::hash(param.hash(), hash);
         }
         return hash;
     }
 
-    std::string format_params() const {
+    std::string format_params(bool scalars = true) const {
         std::string src;
         for (const auto& param : m_params)
-            src += param.format();
+            if (scalars || !param.scalar())
+                src += param.format();
         return src;
     }
 
@@ -568,11 +576,12 @@ public:
 
     const JitHeaders& headers() const { return m_headers; }
 
-    // The parameters' hash and constants under a strategy's launch values.
-    uint64_t params_hash(const LaunchValues& launch) { return hash_params(launch); }
-    std::string params_source(const LaunchValues& launch) {
-        hash_params(launch);
-        return format_params();
+    // The parameters' hash and constants under a strategy's launch values,
+    // for a fused kernel, which takes the scalar arguments as arguments.
+    uint64_t fusion_hash(const LaunchValues& launch) { return hash_params(launch, false); }
+    std::string fusion_source(const LaunchValues& launch) {
+        hash_params(launch, false);
+        return format_params(false);
     }
 
     // The kernel compiled for hash, else its compile started from
