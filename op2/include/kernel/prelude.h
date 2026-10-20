@@ -216,13 +216,25 @@ DEVICE inline int64_t min(int64_t x0, int64_t x1) { return H_MIN(x0, x1); }
 DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return H_MIN(H_MIN(x0, x1), x2); }
 DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
 
+#if defined(__CUDACC__) || defined(__HIPCC__)
 inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
-inline constexpr float min(float x0, float x1, float x2) { return fminf(fminf(x0, x1), x2); }
-inline constexpr float min(float x0, float x1, float x2, float x3) { return fminf(fminf(x0, x1), fminf(x2, x3)); }
-
 inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
-inline constexpr double min(double x0, double x1, double x2) { return fmin(fmin(x0, x1), x2); }
-inline constexpr double min(double x0, double x1, double x2, double x3) { return fmin(fmin(x0, x1), fmin(x2, x3)); }
+inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
+inline constexpr double max(double x0, double x1) { return fmax(x0, x1); }
+#else
+// libm's fmin and fmax, a NaN argument giving the other (Fortran leaves a
+// NaN's result to the processor), as selects: GCC does not vectorise the
+// calls.
+inline constexpr float min(float x0, float x1) { return ((x1 < x0) | (x0 != x0)) ? x1 : x0; }
+inline constexpr double min(double x0, double x1) { return ((x1 < x0) | (x0 != x0)) ? x1 : x0; }
+inline constexpr float max(float x0, float x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
+inline constexpr double max(double x0, double x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
+#endif
+
+inline constexpr float min(float x0, float x1, float x2) { return min(min(x0, x1), x2); }
+inline constexpr float min(float x0, float x1, float x2, float x3) { return min(min(min(x0, x1), x2), x3); }
+inline constexpr double min(double x0, double x1, double x2) { return min(min(x0, x1), x2); }
+inline constexpr double min(double x0, double x1, double x2, double x3) { return min(min(min(x0, x1), x2), x3); }
 
 DEVICE inline int max(int x0, int x1) { return H_MAX(x0, x1); }
 DEVICE inline int max(int x0, int x1, int x2) { return H_MAX(H_MAX(x0, x1), x2); }
@@ -232,13 +244,10 @@ DEVICE inline int64_t max(int64_t x0, int64_t x1) { return H_MAX(x0, x1); }
 DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return H_MAX(H_MAX(x0, x1), x2); }
 DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
 
-inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
-inline constexpr float max(float x0, float x1, float x2) { return fmaxf(fmaxf(x0, x1), x2); }
-inline constexpr float max(float x0, float x1, float x2, float x3) { return fmaxf(fmaxf(x0, x1), fmaxf(x2, x3)); }
-
-inline constexpr double max(double x0, double x1) { return fmax(x0, x1); }
-inline constexpr double max(double x0, double x1, double x2) { return fmax(fmax(x0, x1), x2); }
-inline constexpr double max(double x0, double x1, double x2, double x3) { return fmax(fmax(x0, x1), fmax(x2, x3)); }
+inline constexpr float max(float x0, float x1, float x2) { return max(max(x0, x1), x2); }
+inline constexpr float max(float x0, float x1, float x2, float x3) { return max(max(max(x0, x1), x2), x3); }
+inline constexpr double max(double x0, double x1, double x2) { return max(max(x0, x1), x2); }
+inline constexpr double max(double x0, double x1, double x2, double x3) { return max(max(max(x0, x1), x2), x3); }
 
 inline constexpr int mod(int a, int p) { return a % p; }
 inline constexpr int64_t mod(int64_t a, int64_t p) { return a % p; }
