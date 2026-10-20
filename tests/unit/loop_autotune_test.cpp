@@ -85,8 +85,9 @@ struct Fixture {
         return fake;
     }
 
-    Fixture() {
-        chunk_atomics = add("chunk_atomics", loop::Default::disabled, 4.0f);
+    explicit Fixture(loop::Default chunk_atomics_setting = loop::Default::disabled,
+                     float chunk_atomics_time = 4.0f) {
+        chunk_atomics = add("chunk_atomics", chunk_atomics_setting, chunk_atomics_time);
         atomics = add("atomics", loop::Default::enabled, 10.0f);
         chunk_colouring = add("chunk_colouring", loop::Default::disabled, 8.0f);
         colouring = add("colouring", loop::Default::enabled, 20.0f);
@@ -188,6 +189,35 @@ void test_exploration() {
     fixture.tuner.flush();
 }
 
+// The ladder's choice changes while a configuration is explored, once
+// chunk_atomics' kernel arrives: select compares the fastest with the
+// ladder's choice at the end, and keeps to the ladder unless it is beaten by
+// the margin.
+void test_ladder_changes() {
+    setenv("OP_AUTOTUNE", "select", 1);
+    setenv("OP_AUTOTUNE_MARGIN", "0.05", 1);
+    setenv("OP_AUTOTUNE_WARMUP", "1", 1);
+    setenv("OP_AUTOTUNE_SAMPLES", "2", 1);
+    setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
+    setenv("OP_CHUNK_COLOURING", "0", 1);
+    loop::init();
+
+    Fixture fixture(loop::Default::enabled, 10.2f);
+    loop::Configuration configuration{&edges, args};
+    fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending,
+                                       loop::Status::pending};
+    CHECK(fixture.call(configuration) == fixture.atomics);
+    for (int i = 0; i < 12; ++i)
+        fixture.call(configuration);
+    CHECK(fixture.atomics->timed_runs == 2 && fixture.chunk_atomics->timed_runs == 2);
+
+    // atomics is fastest, but by less than the margin over chunk_atomics,
+    // which the ladder now runs.
+    for (int i = 0; i < 3; ++i)
+        CHECK(fixture.call(configuration) == fixture.chunk_atomics);
+    fixture.tuner.flush();
+}
+
 } // namespace
 
 int main() {
@@ -204,6 +234,7 @@ int main() {
 
     try {
         test_exploration();
+        test_ladder_changes();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

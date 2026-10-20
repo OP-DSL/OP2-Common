@@ -156,59 +156,31 @@ Autotuner::~Autotuner() { autotune_unregister_source(this); }
 
 Autotuner::Decision Autotuner::choose(const Configuration& configuration,
                                       const Selection& selection) {
-    Decision decision{selection.strategy, selection.prepared, false, nullptr};
-    if (selection.prepared.status != Status::ready)
-        return decision;
-
+    Decision ladder{selection.strategy, selection.prepared, false, nullptr};
     auto key = configuration.key();
     auto found = m_states.find(key);
     if (found == m_states.end()) {
         if (m_states.size() >= max_keys) {
             ++m_dropped;
-            return decision;
+            return ladder;
         }
-
-        // Every strategy not turned off whose plan accepts the configuration
-        // is a candidate; nothing to compare when the ladder's choice is the
-        // only one.
-        State state;
-        state.description = configuration.describe();
-        state.ladder = selection.strategy;
-        int others = 0;
-        for (std::size_t i = 0; i < m_ladder.size(); ++i) {
-            Trial trial;
-            trial.strategy = const_cast<Strategy *>(&m_ladder[i]);
-            if (!m_ladder.explorable(i)) {
-                trial.reason = "disabled";
-            } else if (trial.strategy == selection.strategy) {
-                trial.candidate = true;
-            } else {
-                auto prepared = trial.strategy->prepare(configuration, Urgency::later);
-                trial.candidate = prepared.status == Status::ready ||
-                                  prepared.status == Status::pending;
-                if (!trial.candidate)
-                    trial.reason = prepared.reason;
-                else
-                    ++others;
-            }
-            state.trials.push_back(std::move(trial));
-        }
-        state.reported = state.trivial = others == 0;
-        found = m_states.emplace(key, std::move(state)).first;
+        found = m_states.emplace(key, State{}).first;
     }
 
     auto& state = found->second;
     ++state.calls;
-    if (state.reported) {
-        if (state.selected == nullptr || state.selected == selection.strategy)
-            return decision;
-        auto prepared = state.selected->prepare(configuration, Urgency::later);
-        if (prepared.status != Status::ready)
-            return decision;
-        return {state.selected, prepared, false, nullptr};
-    }
+    if (state.reported)
+        return run_selected(state, configuration, ladder);
+    state.ladder = selection.strategy;
     if (state.calls < static_cast<std::size_t>(config.min_calls))
-        return decision;
+        return ladder;
+    if (state.trials.empty()) {
+        add_trials(state, configuration, selection);
+        if (state.trivial) {
+            state.reported = true;
+            return ladder;
+        }
+    }
 
     for (std::size_t step = 0; step < state.trials.size(); ++step) {
         std::size_t index = (state.cursor + step) % state.trials.size();
@@ -228,7 +200,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
         }
 
         state.cursor = index + 1;
-        decision = {trial.strategy, prepared, false, &state};
+        Decision decision{trial.strategy, prepared, false, &state};
         if (trial.warmups < config.warmup)
             ++trial.warmups;
         else
@@ -236,43 +208,85 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
         return decision;
     }
 
-    bool pending = false;
     for (const auto& trial : state.trials)
-        pending |= !trial.done();
-    if (pending)
-        return decision;
+        if (!trial.done())
+            return ladder;
 
     if (config.select)
-        state.selected = fastest_or_ladder(state);
+        state.selected = winner(summarise(state));
     report(state);
-    if (state.selected == nullptr || state.selected == selection.strategy)
-        return decision;
+    return run_selected(state, configuration, ladder);
+}
+
+// Every strategy not turned off is a trial: the ladder's choice, and every
+// other whose prepare is ready or pending; the rest are retired with their
+// reasons.  Trivial when the ladder's choice is the only candidate.
+void Autotuner::add_trials(State& state, const Configuration& configuration,
+                           const Selection& selection) {
+    state.description = configuration.describe();
+    int others = 0;
+    for (std::size_t i = 0; i < m_ladder.size(); ++i) {
+        Trial trial;
+        trial.strategy = const_cast<Strategy *>(&m_ladder[i]);
+        if (!m_ladder.explorable(i)) {
+            trial.reason = "disabled";
+        } else if (trial.strategy == selection.strategy) {
+            trial.candidate = true;
+        } else {
+            auto prepared = trial.strategy->prepare(configuration, Urgency::later);
+            trial.candidate = prepared.status == Status::ready ||
+                              prepared.status == Status::pending;
+            if (!trial.candidate)
+                trial.reason = prepared.reason;
+            else
+                ++others;
+        }
+        state.trials.push_back(std::move(trial));
+    }
+    state.trivial = others == 0;
+}
+
+// What an explored configuration runs: its selected strategy when that is
+// ready, else the ladder's choice.
+Autotuner::Decision Autotuner::run_selected(const State& state,
+                                            const Configuration& configuration,
+                                            const Decision& ladder) {
+    if (state.selected == nullptr || state.selected == ladder.strategy)
+        return ladder;
     auto prepared = state.selected->prepare(configuration, Urgency::later);
     if (prepared.status != Status::ready)
-        return decision;
+        return ladder;
     return {state.selected, prepared, false, nullptr};
 }
 
-// The fastest candidate, if it beats the ladder's choice by the margin.
-Strategy *Autotuner::fastest_or_ladder(const State& state) const {
-    const Trial *fastest = nullptr;
-    const Trial *ladder = nullptr;
+Autotuner::Summary Autotuner::summarise(const State& state) const {
+    Summary summary;
+    float fastest = 0.0f;
     for (const auto& trial : state.trials) {
+        summary.complete &= trial.done();
         if (trial.strategy == state.ladder)
-            ladder = &trial;
+            summary.ladder = &trial;
         if (trial.samples.empty())
             continue;
-        if (fastest == nullptr ||
-            median(trial.samples) < median(fastest->samples))
-            fastest = &trial;
+        float time = median(trial.samples);
+        if (summary.fastest == nullptr || time < fastest) {
+            summary.fastest = &trial;
+            fastest = time;
+        }
     }
+    if (summary.fastest != nullptr && summary.ladder != nullptr &&
+        !summary.ladder->samples.empty())
+        summary.speedup = median(summary.ladder->samples) / fastest;
+    return summary;
+}
 
-    if (fastest != nullptr &&
-        (ladder == nullptr || ladder->samples.empty() ||
-         median(fastest->samples) <
-             median(ladder->samples) * (1.0 - config.margin)))
-        return fastest->strategy;
-    return state.ladder;
+// The fastest strategy when it beats the ladder's choice by the margin;
+// none, so the ladder's choice runs, otherwise.
+Strategy *Autotuner::winner(const Summary& summary) const {
+    if (summary.fastest == nullptr || summary.fastest == summary.ladder)
+        return nullptr;
+    return summary.speedup * (1.0 - config.margin) > 1.0 ? summary.fastest->strategy
+                                                          : nullptr;
 }
 
 void Autotuner::sample(const Decision& decision, float microseconds) {
@@ -289,24 +303,8 @@ void Autotuner::sample(const Decision& decision, float microseconds) {
 }
 
 // One strategy's report row for a configuration.
-std::string Autotuner::row(const State& state, const Trial& trial) const {
-    const Trial *fastest = nullptr;
-    const Trial *ladder = nullptr;
-    bool complete = true;
-    for (const auto& other : state.trials) {
-        complete &= other.done();
-        if (other.strategy == state.ladder)
-            ladder = &other;
-        if (!other.samples.empty() &&
-            (fastest == nullptr ||
-             median(other.samples) < median(fastest->samples)))
-            fastest = &other;
-    }
-    float speedup = fastest != nullptr && ladder != nullptr &&
-                            !ladder->samples.empty()
-                        ? median(ladder->samples) / median(fastest->samples)
-                        : 0.0f;
-
+std::string Autotuner::row(const State& state, const Summary& summary,
+                           const Trial& trial) const {
     std::string status = trial.candidate
                              ? (trial.samples.empty() ? "pending" : "timed")
                              : std::string{trial.reason};
@@ -315,7 +313,7 @@ std::string Autotuner::row(const State& state, const Trial& trial) const {
         std::snprintf(median_text, sizeof(median_text), "%.1f",
                       median(trial.samples));
     char speedup_text[32];
-    std::snprintf(speedup_text, sizeof(speedup_text), "%.3f", speedup);
+    std::snprintf(speedup_text, sizeof(speedup_text), "%.3f", summary.speedup);
     Strategy *selected = state.selected != nullptr ? state.selected : state.ladder;
 
     std::string text = m_ladder.name();
@@ -324,10 +322,10 @@ std::string Autotuner::row(const State& state, const Trial& trial) const {
              std::string{trial.strategy->name()}, status,
              std::string{median_text}, std::to_string(trial.samples.size()),
              std::string{state.ladder->name()},
-             fastest != nullptr ? std::string{fastest->strategy->name()}
-                                : std::string{},
+             summary.fastest != nullptr ? std::string{summary.fastest->strategy->name()}
+                                        : std::string{},
              std::string{speedup_text}, std::string{selected->name()},
-             std::string{complete ? "complete" : "partial"},
+             std::string{summary.complete ? "complete" : "partial"},
              quoted(trial.statistics)})
         text += "," + column;
     return text;
@@ -337,17 +335,7 @@ std::string Autotuner::row(const State& state, const Trial& trial) const {
 // candidate, against the ladder's choice.
 std::string Autotuner::line(const State& state) const {
     std::string times;
-    const Trial *fastest = nullptr;
-    const Trial *ladder = nullptr;
-    bool complete = true;
     for (const auto& trial : state.trials) {
-        complete &= trial.done();
-        if (trial.strategy == state.ladder)
-            ladder = &trial;
-        if (!trial.samples.empty() &&
-            (fastest == nullptr ||
-             median(trial.samples) < median(fastest->samples)))
-            fastest = &trial;
         if (!trial.candidate && trial.reason == "disabled")
             continue;
 
@@ -366,16 +354,14 @@ std::string Autotuner::line(const State& state) const {
         }
     }
 
-    float speedup = fastest != nullptr && ladder != nullptr &&
-                            !ladder->samples.empty()
-                        ? median(ladder->samples) / median(fastest->samples)
-                        : 0.0f;
+    auto summary = summarise(state);
     char tail[160];
     std::snprintf(tail, sizeof(tail), "; ladder %s, fastest %s (%.2fx)%s",
                   std::string{state.ladder->name()}.c_str(),
-                  fastest != nullptr ? std::string{fastest->strategy->name()}.c_str()
-                                     : "none",
-                  speedup, complete ? "" : ", partial");
+                  summary.fastest != nullptr
+                      ? std::string{summary.fastest->strategy->name()}.c_str()
+                      : "none",
+                  summary.speedup, summary.complete ? "" : ", partial");
     std::string text = "autotune: " + m_ladder.name() + " on " +
                        state.description + ": " + times + tail;
     if (state.selected != nullptr)
@@ -398,9 +384,10 @@ void Autotuner::rows_callback(void *owner) {
     for (const auto& [key, state] : tuner->m_states) {
         if (!state.explored())
             continue;
+        auto summary = tuner->summarise(state);
         for (const auto& trial : state.trials)
             if (trial.candidate || trial.reason != "disabled")
-                autotune_record(header, tuner->row(state, trial));
+                autotune_record(header, tuner->row(state, summary, trial));
     }
 }
 
