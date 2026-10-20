@@ -407,10 +407,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     jit.add_block_size_param("op2_block_size_d", &kernel::op2_block_size);
 
     loop.add<op::gpu::{{"Colouring" if strategy == "colouring" else "Simple"}}>(
-        op::loop::Default::enabled,
-{% if strategy != "colouring" %}
-        "{{strategy}}",
-{% endif %}
+        "{{strategy}}", op::loop::Default::enabled,
         op::gpu::KernelSource{
             "op2_k_{{lh.name}}{{variant}}_wrapper",
             (const void *)op2_k_{{lh.name}}{{variant}}_wrapper,

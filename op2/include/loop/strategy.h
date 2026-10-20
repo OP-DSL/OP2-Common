@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -24,8 +25,12 @@ namespace env {
 
 std::string lower(std::string_view text);
 
-// Parse a 0/1 variable into value, warning about anything else; whether the
-// variable was set.
+// A switch's text, on or off (also 1/0, yes/no, true/false); none for
+// anything else.
+std::optional<bool> switch_value(std::string_view text);
+
+// Parse a switch variable into value, warning about anything else; whether
+// the variable was set.
 bool parse_bool(const char *variable, bool& value);
 
 // Parse a non-negative number into value, warning about anything else;
@@ -150,9 +155,8 @@ class Strategy {
 public:
     virtual ~Strategy() = default;
 
-    // "atomics", or a variant "atomics:256".  The part before the colon is
-    // the family, which the variable OP_<FAMILY>=0/1 enables; the full name
-    // is what OP_STRATEGY forces and the report column.
+    // The family and each axis's value, "chunk_atomics=on;block_size=64;
+    // chunk_size=128;singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
     // Resolve the configuration: build or find its plan, find or request its
@@ -171,7 +175,7 @@ public:
         return {};
     }
 
-    // The family: the name up to its colon.
+    // The family: the name up to its first '='.
     std::string_view family() const;
 };
 
@@ -185,23 +189,48 @@ struct Selection {
     Prepared prepared;
 };
 
+// --- Variants -----------------------------------------------------------------
+
+// One way a family's strategies vary, such as their block size.  Its values
+// are OP_<FAMILY>_<VARIABLE>, else OP_<VARIABLE>, else the defaults: one
+// value or a comma-separated list, the first for the strategy that runs and
+// the rest for the tuner.  A switch takes on or off, any other axis positive
+// numbers; a strategy's name gives each value under the axis's key.
+struct Axis {
+    std::string_view variable;
+    std::string_view key;
+    bool binary = false;
+    std::vector<int> defaults;
+};
+
+// A strategy's place on its family's axes: its name and a value per axis.
+struct Point {
+    std::string name;
+    std::vector<int> values;
+};
+
 // A loop's strategies in ladder order.  The last one is the floor: it is
 // selected when no other is ready, enabled or not, whatever its own status.
-// OP_<FAMILY>=0/1 is read at registration, over the default; OP_STRATEGY,
-// read by init, is <name> or <loop>:<name> (a comma-separated list of
-// either) forcing one; a loop's own item wins over a name for every loop.
+// A family adds a strategy per point of its axes; the point of every axis's
+// first value is the one the ladder runs and OP_STRATEGY forces, the others
+// only the tuner tries.  OP_<FAMILY>=on/off is read at registration, over
+// the default, and off turns all of the family off; OP_STRATEGY, read by init, is
+// <family> or <loop>:<family> (a comma-separated list of either), a loop's
+// own item winning over a family for every loop.
 class Ladder {
 private:
     struct Entry {
         std::unique_ptr<Strategy> strategy;
+        // The family's point of first values, which the ladder may run.
+        bool runs;
         bool enabled;
         // Turned off by its variable: never run and never explored.
         bool off;
     };
 
     std::string m_name;
-    // OP_STRATEGY's names for this loop, most specific first, and the rank
-    // of the one forced.
+    // OP_STRATEGY's families for this loop, most specific first, and the
+    // rank of the one forced.
     std::vector<std::string> m_forced_names;
     std::size_t m_forced_rank = SIZE_MAX;
     std::vector<Entry> m_entries;
@@ -211,16 +240,24 @@ private:
     std::vector<std::string_view> m_reasons;
     std::vector<std::string> m_reported;
 
+    void add_entry(std::unique_ptr<Strategy> strategy, bool runs, bool enabled,
+                   bool off);
     void report(const Selection& selection,
                 std::span<const std::string_view> reasons);
 
 public:
+    using Make = std::function<std::unique_ptr<Strategy>(const Point& point)>;
+
     explicit Ladder(std::string_view loop_name);
     Ladder(const Ladder&) = delete;
 
     const std::string& name() const { return m_name; }
 
-    void add(std::unique_ptr<Strategy> strategy, Default default_setting);
+    // A family: make builds its strategy for each point of the axes, the
+    // tuner's ahead of the one that runs, so a family's last strategy is
+    // the one that runs.
+    void add(std::string_view family, Default default_setting,
+             std::span<const Axis> axes, const Make& make);
 
     // First enabled strategy, from the forced one if any, whose prepare is
     // ready; else the floor's prepared value, which may not be ready.  At

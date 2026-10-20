@@ -74,19 +74,22 @@ struct Fixture {
     Fake *colouring;
     loop::Autotuner tuner{ladder};
 
+    // A family without axes, its one strategy a Fake taking time.
+    Fake *add(std::string_view family, loop::Default setting, float time) {
+        Fake *fake = nullptr;
+        ladder.add(family, setting, {}, [&](const loop::Point& point) {
+            auto made = std::make_unique<Fake>(point.name, time);
+            fake = made.get();
+            return made;
+        });
+        return fake;
+    }
+
     Fixture() {
-        auto a = std::make_unique<Fake>("chunk_atomics", 4.0f);
-        auto b = std::make_unique<Fake>("atomics", 10.0f);
-        auto c = std::make_unique<Fake>("chunk_colouring", 8.0f);
-        auto d = std::make_unique<Fake>("colouring", 20.0f);
-        chunk_atomics = a.get();
-        atomics = b.get();
-        chunk_colouring = c.get();
-        colouring = d.get();
-        ladder.add(std::move(a), loop::Default::disabled);
-        ladder.add(std::move(b), loop::Default::enabled);
-        ladder.add(std::move(c), loop::Default::disabled);
-        ladder.add(std::move(d), loop::Default::enabled);
+        chunk_atomics = add("chunk_atomics", loop::Default::disabled, 4.0f);
+        atomics = add("atomics", loop::Default::enabled, 10.0f);
+        chunk_colouring = add("chunk_colouring", loop::Default::disabled, 8.0f);
+        colouring = add("colouring", loop::Default::enabled, 20.0f);
     }
 
     // One call: select, let the tuner decide, run, sample.
@@ -175,7 +178,7 @@ void test_exploration() {
     int retired = 0;
     for (std::size_t i = 1; i < rows.size(); ++i) {
         CHECK(rows[i].rfind("flux,", 0) == 0);
-        selected_chunk += rows[i].find(",chunk_atomics,complete,") != std::string::npos;
+        selected_chunk += rows[i].find(",chunk_atomics=on,complete,") != std::string::npos;
         retired += rows[i].find(",no_kernel,") != std::string::npos;
     }
     CHECK(selected_chunk == 3);

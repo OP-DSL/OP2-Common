@@ -16,8 +16,7 @@
 
 namespace op::cpu {
 
-// Elements per chunk when neither the translator nor OP_CHUNK_*_CHUNK_SIZE
-// gives one.
+// Elements per chunk unless OP_CHUNK_SIZES says otherwise.
 constexpr int default_chunk_size = 256;
 
 // The scratch a staged chunk may use.

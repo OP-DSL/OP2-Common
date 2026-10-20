@@ -35,12 +35,17 @@
 # dat_reductions_par_mpi_seq, ...), so a directory can't drift onto some
 # other naming convention.
 # ---------------------------------------------------------------------------
-# The environment that forces a strategy; a GPU chunked strategy runs only as
-# a JIT kernel, so its tests compile each configuration on its first call.
+# The environment that forces a strategy, <family> or <family>:packed; a GPU
+# chunked strategy runs only as a JIT kernel, so its tests compile each
+# configuration on its first call.
 function(_op2_strategy_environment _strategy _variant _out)
-    set(_env "OP_STRATEGY=${_strategy}")
     if(NOT _strategy MATCHES "^(plain|atomics|colouring|chunk_atomics|chunk_colouring)(:packed)?$")
         message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
+    endif()
+    string(REPLACE ":packed" "" _family "${_strategy}")
+    set(_env "OP_STRATEGY=${_family}")
+    if(_strategy MATCHES ":packed$")
+        list(APPEND _env "OP_PACKED=on")
     endif()
     if(_strategy MATCHES "^chunk_" AND NOT _variant MATCHES "openmp$")
         list(APPEND _env "OP_JIT_ENABLE=1" "OP_JIT_MIN_CALLS=1"

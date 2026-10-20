@@ -10,6 +10,7 @@
 #include <loop/strategy.h>
 #include <op_lib_cpp.h>
 #include <plan/colouring.h>
+#include <plan/options.h>
 
 #include <algorithm>
 #include <cassert>
@@ -74,6 +75,17 @@ struct LoopDescription {
     bool gbl_inc_atomic;
 };
 
+// --- Variants -------------------------------------------------------------------
+
+// The block size a strategy runs unless OP_BLOCK_SIZES says otherwise, and
+// the HIP offline kernels' launch bound.
+constexpr int default_block_size = 128;
+
+// Every strategy's first axis: OP_<FAMILY>_BLOCK_SIZES, else OP_BLOCK_SIZES.
+inline op::loop::Axis block_size_axis() {
+    return {"BLOCK_SIZES", "block_size", false, {default_block_size}};
+}
+
 // --- The base of every GPU strategy ------------------------------------------------
 
 class StrategyBase : public op::loop::Strategy {
@@ -99,11 +111,15 @@ protected:
     KernelSource m_source;
     Binder m_bind;
     int m_block_size;
+    // The chunked strategies' switches, constants to every kernel of the
+    // loop.
+    bool m_unstaged_singles = false;
+    bool m_wavefront = false;
     JitKernels m_kernels;
     Call m_call;
 
-    StrategyBase(Loop& loop, std::string_view family, KernelSource source,
-                 Binder bind, int block_size);
+    StrategyBase(Loop& loop, const op::loop::Point& point, KernelSource source,
+                 Binder bind);
 
     // Blocks of a grid-stride launch over elements.
     int grid(int elements) const {
@@ -148,6 +164,8 @@ protected:
                                     Launches&& launches, Fill&& fill);
 
 public:
+    static std::vector<op::loop::Axis> axes() { return {block_size_axis()}; }
+
     std::string_view name() const override { return m_name; }
 
     std::string statistics(const op::loop::Prepared& prepared) const override {
@@ -167,9 +185,9 @@ public:
 // increments: none for plain, global atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, std::string_view family, KernelSource source,
-           Binder bind, int block_size)
-        : StrategyBase{loop, family, source, bind, block_size} {}
+    Simple(Loop& loop, const op::loop::Point& point, KernelSource source,
+           Binder bind)
+        : StrategyBase{loop, point, source, bind} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
                                bool now) override {
@@ -197,8 +215,9 @@ private:
     Entry *m_entry = nullptr;
 
 public:
-    Colouring(Loop& loop, KernelSource source, Binder bind, int block_size)
-        : StrategyBase{loop, "colouring", source, bind, block_size} {}
+    Colouring(Loop& loop, const op::loop::Point& point, KernelSource source,
+              Binder bind)
+        : StrategyBase{loop, point, source, bind} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
                                bool now) override;
@@ -226,11 +245,17 @@ protected:
     std::unordered_map<std::uint64_t, Entry> m_entries;
     Entry *m_entry = nullptr;
 
-    ChunkBase(Loop& loop, std::string_view family, bool coloured,
-              KernelSource source, Binder bind, op::plan::ArgGroups groups,
-              int chunk_size, int block_size)
-        : StrategyBase{loop, family, source, bind, block_size}, m_coloured{coloured},
-          m_groups{groups}, m_chunk_size{chunk_size} {}
+    ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured,
+              KernelSource source, Binder bind, op::plan::ArgGroups groups)
+        : StrategyBase{loop, point, source, bind}, m_coloured{coloured},
+          m_groups{groups}, m_chunk_size{point.values[1]} {}
+
+    // The block size, the chunk size, a block multiple of 128 elements by
+    // default, and the strategy's switch.
+    static std::vector<op::loop::Axis> chunk_axes(op::loop::Axis variant) {
+        return {block_size_axis(), op::plan::chunk_size_axis(default_block_size),
+                std::move(variant)};
+    }
 
     Entry& entry_for(const op::loop::Configuration& configuration);
     void report(const Entry& entry) const;
@@ -250,20 +275,43 @@ public:
 // Increments staged in shared memory and flushed with global atomics.
 class ChunkAtomics : public ChunkBase {
 public:
-    ChunkAtomics(Loop& loop, KernelSource source, Binder bind,
-                 op::plan::ArgGroups groups, int chunk_size, int block_size)
-        : ChunkBase{loop, "chunk_atomics", false, source, bind, groups,
-                    chunk_size, block_size} {}
+    ChunkAtomics(Loop& loop, const op::loop::Point& point, KernelSource source,
+                 Binder bind, op::plan::ArgGroups groups)
+        : ChunkBase{loop, point, false, source, bind, groups} {
+        m_unstaged_singles = point.values[2] != 0;
+    }
+
+    // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
+    // target increments global memory directly, as staging it would save no
+    // global atomic.  On by default under HIP, where shared and global fp64
+    // atomics are both native; under CUDA a pointer that may be either makes
+    // every increment a generic atomic, and shared fp64 adds are
+    // compare-and-swap loops.
+    static std::vector<op::loop::Axis> axes() {
+#ifdef OP2_HIP
+        constexpr int unstaged_singles = 1;
+#else
+        constexpr int unstaged_singles = 0;
+#endif
+        return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {unstaged_singles}});
+    }
 };
 
 // Coloured chunks, then coloured elements within each, so every slot is
 // seeded and stored with plain loads and stores.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, KernelSource source, Binder bind,
-                   op::plan::ArgGroups groups, int chunk_size, int block_size)
-        : ChunkBase{loop, "chunk_colouring", true, source, bind, groups,
-                    chunk_size, block_size} {}
+    ChunkColouring(Loop& loop, const op::loop::Point& point, KernelSource source,
+                   Binder bind, op::plan::ArgGroups groups)
+        : ChunkBase{loop, point, true, source, bind, groups} {
+        m_wavefront = point.values[2] != 0;
+    }
+
+    // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
+    // in an order that keeps them after every earlier chunk sharing a target.
+    static std::vector<op::loop::Axis> axes() {
+        return chunk_axes({"WAVEFRONT", "wavefront", true, {0}});
+    }
 };
 
 } // namespace op::gpu

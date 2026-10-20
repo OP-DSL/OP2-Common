@@ -1,13 +1,12 @@
 #pragma once
 
 // The CUDA and HIP backend's run-wide configuration: the JIT policy, the
-// block sizes, the device, and the chunked strategies' kernel variants.
-// Read by init, which the backend's op_init calls once the device is set.
+// device, and the wavefront's window.  Read by init, which the backend's
+// op_init calls once the device is set.
 
 #include <algorithm>
 #include <cstddef>
 #include <string>
-#include <vector>
 
 namespace op::gpu {
 
@@ -24,25 +23,14 @@ struct Config {
     // OP_JIT_MIN_REGISTERS: an offline kernel using more registers than this
     // is specialised; the prior for when a compile pays.
     int min_registers = 32;
-    // OP_AUTOTUNE_BLOCK_SIZES: block sizes registered as variants of every
-    // strategy, for the tuner to explore.
-    std::vector<int> block_sizes;
     std::string arch;
 
     // The device.
     std::size_t shared_bytes = 0;
     int multiprocessors = 0;
     int threads_per_multiprocessor = 0;
-    int default_block_size = 128;
 
-    // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
-    // target increments global memory directly, as staging it would save no
-    // global atomic.
-    bool unstaged_singles = false;
-    // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
-    // in an order that keeps them after every earlier chunk sharing a
-    // target; OP_CHUNK_COLOURING_WINDOW chunks are coloured at a time.
-    bool wavefront = false;
+    // OP_CHUNK_COLOURING_WINDOW: chunks a wavefront colours at a time.
     int window = 0;
 
     // The most blocks of block_size threads the device holds at once.

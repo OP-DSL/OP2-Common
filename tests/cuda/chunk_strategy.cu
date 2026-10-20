@@ -190,13 +190,13 @@ gpu::JitHeaders headers() {
 
 void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
     loop.add<gpu::ChunkAtomics>(
-        op::loop::Default::disabled,
+        "chunk_atomics", op::loop::Default::disabled,
         gpu::KernelSource{"chunk_strategy_staged",
                           reinterpret_cast<const void *>(chunk_strategy_staged),
                           staged_source},
-        &bind_staged, fixture.groups(), 256);
+        &bind_staged, fixture.groups());
     loop.add<gpu::Simple>(
-        op::loop::Default::enabled, "atomics",
+        "atomics", op::loop::Default::enabled,
         gpu::KernelSource{"chunk_strategy_baseline",
                           reinterpret_cast<const void *>(chunk_strategy_baseline),
                           baseline_source},
@@ -224,7 +224,7 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
     CUDA_SAFE_CALL(gpuDeviceSynchronize());
     CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                              gpuMemcpyDeviceToHost));
-    return {std::string{selection.strategy->name()}, std::string{chunk.reason},
+    return {std::string{selection.strategy->family()}, std::string{chunk.reason},
             selection.prepared.kernel != nullptr,
             static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks};
 }
@@ -233,6 +233,8 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
 
 int main(int argc, char **argv) {
     op_init(argc, argv, 2);
+    // Every source in one chunk.
+    setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", "256", 1);
 
     Fixture fixture;
     CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));

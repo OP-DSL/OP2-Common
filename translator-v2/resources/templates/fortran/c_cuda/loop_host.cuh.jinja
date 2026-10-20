@@ -728,16 +728,8 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% endfor %}
     jit.add_block_size_param("op2_block_size_d", &kernel::op2_block_size);
 {% if strategies|select("in", chunk_strategies)|list %}
-    // The run's chunk kernel variants: constants to a JIT compile.
-    kernel::op2_unstaged_singles = op::gpu::config().unstaged_singles;
-    jit.add_setting_param("op2_unstaged_singles_d", &kernel::op2_unstaged_singles);
-    kernel::op2_wavefront = op::gpu::config().wavefront;
-    jit.add_setting_param("op2_wavefront_d", &kernel::op2_wavefront);
-#ifdef OP_PART_SIZE_{{kernel_idx}}
-    constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
-#else
-    constexpr int chunk_size = 0;
-#endif
+    jit.add_unstaged_singles_param("op2_unstaged_singles_d", &kernel::op2_unstaged_singles);
+    jit.add_wavefront_param("op2_wavefront_d", &kernel::op2_wavefront);
 {% endif %}
 {% for strategy in strategies %}
     {% if strategy in chunk_strategies %}
@@ -748,18 +740,14 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     {{"}}"}};
     {% endif %}
     loop.add<op::gpu::{{"ChunkAtomics" if strategy == "chunk_atomics" else "ChunkColouring" if strategy == "chunk_colouring" else "Colouring" if strategy == "colouring" else "Simple"}}>(
-        op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}},
-    {% if strategy in ["plain", "atomics"] %}
-        "{{strategy}}",
-    {% endif %}
+        "{{strategy}}", op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}},
         op::gpu::KernelSource{
             "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
             {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
             op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
         &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
     {% if strategy in chunk_strategies %}
-        op::plan::ArgGroups{ {{strategy}}_groups, {{group_dats[strategy]|length}} },
-        chunk_size);
+        op::plan::ArgGroups{ {{strategy}}_groups, {{group_dats[strategy]|length}} });
     {% endif %}
 {% endfor %}
     return true;

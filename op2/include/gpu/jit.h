@@ -140,16 +140,26 @@ enum class ParamType {
     logical,
 };
 
-// Where a parameter's value comes from: the call, the strategy's launch, or
-// nothing after registration.
+// Where a parameter's value comes from: the application, the call, or the
+// strategy.
 enum class ParamSource {
-    external,       // a constant the application sets
-    scalar_arg,     // a scalar global argument
-    dat_stride,     // a dat's SoA stride
-    dat_dim,        // a dat's run-time dimension
-    global_stride,  // the launch's per-thread global stride
-    block_size,     // the launch's block size
-    setting,        // a run-wide setting, fixed at registration
+    external,          // a constant the application sets
+    scalar_arg,        // a scalar global argument
+    dat_stride,        // a dat's SoA stride
+    dat_dim,           // a dat's run-time dimension
+    global_stride,     // the launch's per-thread global stride
+    block_size,        // the launch's block size
+    unstaged_singles,  // the strategy's unstaged singles switch
+    wavefront,         // the strategy's wavefront switch
+};
+
+// What a strategy fixes for its kernel: the launch, and its variant's
+// switches.
+struct LaunchValues {
+    int global_stride = 0;
+    int block_size = 0;
+    bool unstaged_singles = false;
+    bool wavefront = false;
 };
 
 template<typename T> struct JitTypes {};
@@ -214,11 +224,15 @@ public:
     }
 
     // The launch's values, which the strategy decides.
-    void set_launch(int global_stride, int block_size) {
-        if (m_source == ParamSource::global_stride)
-            *static_cast<int *>(m_data) = global_stride;
-        else if (m_source == ParamSource::block_size)
-            *static_cast<int *>(m_data) = block_size;
+    void set_launch(const LaunchValues& values) {
+        auto *data = static_cast<int *>(m_data);
+        switch (m_source) {
+        case ParamSource::global_stride:    *data = values.global_stride; return;
+        case ParamSource::block_size:       *data = values.block_size; return;
+        case ParamSource::unstaged_singles: *data = values.unstaged_singles; return;
+        case ParamSource::wavefront:        *data = values.wavefront; return;
+        default:                            return;
+        }
     }
 
     uint64_t hash() {
@@ -500,9 +514,14 @@ public:
                               ParamSource::block_size, -1);
     }
 
-    void add_setting_param(std::string_view name, int *data) {
+    void add_unstaged_singles_param(std::string_view name, int *data) {
         m_params.emplace_back(name, data, 1, static_cast<int *>(nullptr), nullptr,
-                              ParamSource::setting, -1);
+                              ParamSource::unstaged_singles, -1);
+    }
+
+    void add_wavefront_param(std::string_view name, int *data) {
+        m_params.emplace_back(name, data, 1, static_cast<int *>(nullptr), nullptr,
+                              ParamSource::wavefront, -1);
     }
 
     // --- Per call ---
@@ -514,9 +533,9 @@ public:
     }
 
     // The launch's values, set by a strategy before it asks for its kernel.
-    void set_launch(int global_stride, int block_size) {
+    void set_launch(const LaunchValues& values) {
         for (auto& param : m_params)
-            param.set_launch(global_stride, block_size);
+            param.set_launch(values);
     }
 
     // Upload the changed values the offline kernels read.

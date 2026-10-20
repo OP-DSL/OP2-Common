@@ -91,10 +91,21 @@ public:
 
     // --- Registration, by the generated code ---
 
+    // Add a family: a strategy S per point of S's axes and, when packed is
+    // given, the packed axis after them, built from the loop, the point, the
+    // body or packed body, and args.
     template<typename S, typename... Args>
-    void add(op::loop::Default default_setting, Args&&... args) {
-        m_ladder.add(std::make_unique<S>(*this, std::forward<Args>(args)...),
-                     default_setting);
+    void add(std::string_view family, op::loop::Default default_setting,
+             Body body, Body packed, Args&&... args) {
+        auto axes = S::axes();
+        if (packed != nullptr)
+            axes.push_back(packed_axis());
+        m_ladder.add(family, default_setting, axes,
+                     [&](const op::loop::Point& point) {
+                         bool packs = packed != nullptr && point.values.back() != 0;
+                         return std::make_unique<S>(*this, point,
+                                                    packs ? packed : body, args...);
+                     });
     }
 
     // --- For the strategies ---
@@ -329,19 +340,12 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     if (found != m_entries.end())
         return found->second;
 
-    const auto& options = op::plan::chunk_options();
     auto sections = m_loop.sections(configuration);
     auto result =
         m_coloured
-            ? plan_chunk_colouring(configuration.args, sections,
-                                   op::plan::chunk_size(m_chunk_size,
-                                                        options.colouring_chunk_size,
-                                                        default_chunk_size))
-            : plan_chunk_atomics(configuration.args, sections, m_groups,
-                                 op::plan::chunk_size(m_chunk_size,
-                                                      options.atomics_chunk_size,
-                                                      default_chunk_size),
-                                 options.min_compression);
+            ? plan_chunk_colouring(configuration.args, sections, m_chunk_size)
+            : plan_chunk_atomics(configuration.args, sections, m_groups, m_chunk_size,
+                                 op::plan::chunk_options().min_compression);
     Entry entry;
     entry.rejected = result.rejected;
     entry.plan = std::move(result.plan);
