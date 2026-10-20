@@ -3,6 +3,7 @@
 // wavefront, and the rejections.
 
 #include <gpu/chunk_plan.h>
+#include <kernel/strategy.h>
 
 #include <algorithm>
 #include <array>
@@ -376,6 +377,31 @@ void test_optional_and_alignment() {
     CHECK(aligned);
     CHECK((aligned.plan->batch_scratch_bytes ==
            std::vector<std::size_t>{24, 40}));
+}
+
+// The kernel's region walk over each chunk's counts ends within the scratch
+// the plan sized it, an inactive double group between two active ones
+// included.
+void test_region_walk() {
+    MixedFixture fixture;
+    fixture.args[0].opt = 0;
+    fixture.args[1].opt = 0;
+    fixture.args[3].opt = 1;
+    std::array<plan::ArgGroup, 4> group_args{{{3, 0}, {0, 1}, {1, 1}, {2, 2}}};
+    auto result = atomics(fixture.args, fixture.sections(),
+                          plan::ArgGroups{group_args, 3}, 2, 4, 1024);
+    CHECK(result);
+    const auto& staging = result.plan->staging;
+    alignas(16) static char base[1 << 12];
+    for (int chunk = 0; chunk < result.plan->chunks.count(); ++chunk) {
+        const int *counts = &staging.stage_counts[static_cast<std::size_t>(chunk) * 3];
+        char *cursor = base;
+        op::f2c::stage_region<float>(cursor, counts[0], 1);
+        op::f2c::stage_region<double>(cursor, counts[1], 2);
+        op::f2c::stage_region<int>(cursor, counts[2], 3);
+        CHECK(static_cast<std::size_t>(cursor - base) <=
+              staging.chunk_scratch_bytes[static_cast<std::size_t>(chunk)]);
+    }
 }
 
 void test_chunk_sizes_and_clamping() {
@@ -831,6 +857,7 @@ int main() {
     try {
         test_mixed_plan();
         test_optional_and_alignment();
+        test_region_walk();
         test_chunk_sizes_and_clamping();
         test_runtime_rejections();
         test_slots_in_target_order();

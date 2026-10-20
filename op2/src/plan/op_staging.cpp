@@ -53,8 +53,8 @@ std::size_t bytes_per_source_element(const References& references) {
 std::size_t scratch_bytes(const References& references, std::span<const int> counts) {
     std::size_t bytes = 0;
     for (std::size_t group = 0; group < references.groups.size(); ++group) {
-        // Inactive groups keep their place with a zero-length region, so the
-        // staged kernel can walk this layout without branching on opt state.
+        // An inactive group takes no space; the kernel walks it as an empty,
+        // unpadded region.
         const auto& resolved = references.groups[group];
         if (resolved.dat == nullptr)
             continue;

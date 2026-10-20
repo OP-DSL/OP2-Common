@@ -41,8 +41,11 @@ namespace op::f2c {
 // an aligned integer: an integer round trip hides that it points into shared
 // memory, and every increment through it then compiles to a run-time choice
 // between shared, cluster-shared and global atomics on a 64-bit generic address.
+// An empty region takes no padding, as the host sizes none for it.
 template<typename T>
 DEVICE inline T *stage_region(char *&cursor, IndexType count, IndexType dim) {
+    if (count == 0)
+        return (T *)cursor;
     constexpr size_t alignment = sizeof(T);
     cursor += (alignment - ((size_t)cursor & (alignment - 1))) &
               (alignment - 1);
