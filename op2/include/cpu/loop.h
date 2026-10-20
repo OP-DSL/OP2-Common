@@ -113,20 +113,14 @@ public:
 
     // --- Per call ---
 
-    // Run the loop: ready once it ran, else the floor's status, with nothing
-    // run and no exchange started.
-    op::loop::Status invoke(op_set set, op_arg *args, int nargs) {
+    // Run the loop.
+    void invoke(op_set set, op_arg *args, int nargs) {
         op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                                 m_profile_variant.c_str());
         op_profile_enter("Init");
 
         op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
         auto selection = m_ladder.select(configuration);
-        if (selection.prepared.status != op::loop::Status::ready) {
-            op_profile_exit();
-            op_profile_exit();
-            return selection.prepared.status;
-        }
         auto decision = m_tuner ? m_tuner->choose(configuration, selection)
                                 : op::loop::Autotuner::Decision{
                                       selection.strategy, selection.prepared,
@@ -141,7 +135,7 @@ public:
             op_mpi_set_dirtybit(nargs, args);
             op_profile_exit();
             op_profile_exit();
-            return op::loop::Status::ready;
+            return;
         }
 
         op_profile_next("Prepare GBLs");
@@ -160,7 +154,6 @@ public:
         op_mpi_set_dirtybit(nargs, args);
         op_profile_exit();
         op_profile_exit();
-        return op::loop::Status::ready;
     }
 
     // At op_exit: report the configurations still being explored.
@@ -241,7 +234,7 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 // --- Colouring ---
 
 inline op::loop::Prepared Colouring::prepare(
-    const op::loop::Configuration& configuration, bool) {
+    const op::loop::Configuration& configuration, op::loop::Urgency) {
     auto key = configuration.key();
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
@@ -311,7 +304,7 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 }
 
 inline op::loop::Prepared ChunkBase::prepare(
-    const op::loop::Configuration& configuration, bool) {
+    const op::loop::Configuration& configuration, op::loop::Urgency) {
     auto& entry = entry_for(configuration);
     if (!entry.rejected.empty())
         return prepared(op::loop::Status::rejected, &entry, entry.rejected);

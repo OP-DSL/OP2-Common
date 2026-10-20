@@ -227,7 +227,8 @@ public:
     Simple(Loop& loop, const op::loop::Point& point, Body body)
         : StrategyBase{loop, point, body} {}
 
-    op::loop::Prepared prepare(const op::loop::Configuration&, bool) override {
+    op::loop::Prepared prepare(const op::loop::Configuration&,
+                               op::loop::Urgency) override {
         return prepared(op::loop::Status::ready, nullptr);
     }
 
@@ -247,7 +248,7 @@ public:
         : StrategyBase{loop, point, body} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               bool now) override;
+                               op::loop::Urgency urgency) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
@@ -285,7 +286,7 @@ public:
     }
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               bool now) override;
+                               op::loop::Urgency urgency) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;

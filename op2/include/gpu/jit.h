@@ -554,10 +554,12 @@ public:
     // The kernel for the current values: the offline one, unless the policy
     // specialises (no usable offline kernel, OP_JIT_FORCE, or more registers
     // than OP_JIT_MIN_REGISTERS); then the compiled one once it exists, its
-    // compile starting once asked OP_JIT_MIN_CALLS times, or at once when
-    // now.  pending while nothing can run, unavailable when nothing ever can.
+    // compile starting once asked OP_JIT_MIN_CALLS times, at once for
+    // Urgency::now, and joined for Urgency::wait when no offline kernel can
+    // run meanwhile.  pending while nothing can run, unavailable when
+    // nothing ever can.
     Acquired acquire(JitKernels& kernels, const KernelSource& source,
-                     int block_size, bool now) {
+                     int block_size, op::loop::Urgency urgency) {
         const auto& run = config();
         bool offline = offline_usable(kernels, source, block_size);
         if (!run.enable)
@@ -578,18 +580,22 @@ public:
 
         auto& compile = kernels.m_compiles[hash];
         ++compile.count;
-        if ((now || compile.count >= static_cast<std::size_t>(run.min_calls)) &&
-            !compile.started && active_threads < run.max_threads) {
+        // Waiting is for a strategy with nothing else to run.
+        bool wait = urgency == op::loop::Urgency::wait && !offline;
+        bool due = urgency != op::loop::Urgency::later ||
+                   compile.count >= static_cast<std::size_t>(run.min_calls);
+        if (due && !compile.started && (wait || active_threads < run.max_threads)) {
             if (run.debug)
                 std::printf("compiling %s for hash %lx\n",
                             std::string{source.name}.c_str(), hash);
             compile.started = true;
             compile.thread = this->compile(kernels, source, hash);
-            if (run.seq_compile) {
+        }
+        if (compile.started && (wait || run.seq_compile)) {
+            if (compile.thread.joinable())
                 compile.thread.join();
-                std::scoped_lock lock(kernels.m_mutex);
-                return {op::loop::Status::ready, &kernels.m_kernels.at(hash)};
-            }
+            std::scoped_lock lock(kernels.m_mutex);
+            return {op::loop::Status::ready, &kernels.m_kernels.at(hash)};
         }
 
         return {offline ? op::loop::Status::ready : op::loop::Status::pending,

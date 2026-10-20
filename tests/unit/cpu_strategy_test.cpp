@@ -201,7 +201,7 @@ void run(const char *strategy) {
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());
     op::loop::Configuration configuration{&source, args};
-    CHECK(loop.ladder()[*forced].prepare(configuration, true).status ==
+    CHECK(loop.ladder()[*forced].prepare(configuration, op::loop::Urgency::now).status ==
           op::loop::Status::ready);
 
     // Twice, so the second call reuses the cached plan.
@@ -213,8 +213,7 @@ void run(const char *strategy) {
         for (int n = 0; n < edges; ++n)
             element(n, expected.data(), map_values.data(), w.data(), &expected_sum,
                     &expected_max, &expected_loc, [](double& t, double v) { t += v; });
-        CHECK(loop.invoke(&source, args.data(), static_cast<int>(args.size())) ==
-              op::loop::Status::ready);
+        loop.invoke(&source, args.data(), static_cast<int>(args.size()));
     }
 
     for (std::size_t i = 0; i < x.size(); ++i)

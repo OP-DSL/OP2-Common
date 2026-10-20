@@ -28,11 +28,12 @@ namespace {
 struct Fake : loop::Strategy {
     std::string fake_name;
     std::vector<int> values;
-    // Statuses answered in turn; ready once exhausted.
+    // Statuses answered in turn, pending becoming ready when waited for;
+    // ready once exhausted.
     std::deque<loop::Status> statuses;
     std::string_view reason = "scripted";
     int prepares = 0;
-    int now_prepares = 0;
+    int waits = 0;
     int runs = 0;
     float time = 1.0f;
 
@@ -42,13 +43,17 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Prepared prepare(const loop::Configuration&, bool now) override {
+    loop::Prepared prepare(const loop::Configuration&, loop::Urgency urgency) override {
         ++prepares;
-        now_prepares += now;
         loop::Status status = loop::Status::ready;
         if (!statuses.empty()) {
             status = statuses.front();
             statuses.pop_front();
+        }
+        if (urgency == loop::Urgency::wait) {
+            ++waits;
+            if (status == loop::Status::pending)
+                status = loop::Status::ready;
         }
         loop::Prepared prepared;
         prepared.strategy = this;
@@ -209,20 +214,21 @@ void test_defaults() {
     selection = fixture.ladder.select(configuration());
     CHECK(selection.strategy == fixture.atomics);
 
-    // With nothing ready the floor is selected whatever its status, and
-    // prepared only once.
+    // With nothing ready the floor is waited for, so a selection is always
+    // ready.
     fixture.atomics->statuses = {loop::Status::unavailable};
-    fixture.colouring->statuses = {loop::Status::pending};
+    fixture.colouring->statuses = {loop::Status::pending, loop::Status::pending};
     int before = fixture.colouring->prepares;
     selection = fixture.ladder.select(configuration());
     CHECK(selection.strategy == fixture.colouring);
-    CHECK(selection.prepared.status == loop::Status::pending);
-    CHECK(fixture.colouring->prepares == before + 1);
+    CHECK(selection.prepared.status == loop::Status::ready);
+    CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
 
     loop::Launch launch{args.data(), 1, true};
     CHECK(fixture.atomics->run(selection.prepared.strategy == fixture.atomics
                                    ? selection.prepared
-                                   : fixture.atomics->prepare(configuration(), false),
+                                   : fixture.atomics->prepare(configuration(),
+                                                              loop::Urgency::later),
                                launch) == 1.0f);
 }
 

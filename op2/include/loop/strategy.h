@@ -155,6 +155,14 @@ enum class Status {
 
 class Strategy;
 
+// How soon a prepare needs its kernel: when the backend's policy gets to
+// it, started now, or built before prepare returns.
+enum class Urgency {
+    later,
+    now,
+    wait,
+};
+
 // A strategy's answer for one configuration.  Opaque to everything but the
 // strategy that produced it; carries no ownership.
 struct Prepared {
@@ -176,10 +184,10 @@ public:
     // chunk_size=128;singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
-    // Resolve the configuration: build or find its plan, find or request its
-    // kernel, at once when now.  Never blocks unless the backend builds
-    // synchronously and now is set.
-    virtual Prepared prepare(const Configuration& configuration, bool now) = 0;
+    // Resolve the configuration: build or find its plan, and find or request
+    // its kernel as urgency asks.  Blocks only for Urgency::wait, or when
+    // the backend builds synchronously.
+    virtual Prepared prepare(const Configuration& configuration, Urgency urgency) = 0;
 
     // Run what prepare returned; microseconds when the launch is timed.  A
     // run always follows this strategy's prepare for the same call, so the
@@ -279,9 +287,10 @@ public:
              std::span<const Axis> axes, const Make& make);
 
     // First enabled strategy, from the forced one if any, whose prepare is
-    // ready; else the floor's prepared value, which may not be ready.  At
-    // diagnostic verbosity each distinct outcome (what ran, and why each
-    // earlier strategy did not) is printed once per loop.
+    // ready; else the floor, waited for, so the selection is always ready: a
+    // floor that cannot run stops the program.  At diagnostic verbosity each
+    // distinct outcome (what ran, and why each earlier strategy did not) is
+    // printed once per loop.
     Selection select(const Configuration& configuration);
 
     std::size_t size() const { return m_entries.size(); }

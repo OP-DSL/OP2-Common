@@ -146,7 +146,7 @@ protected:
 
     // Finish a call: the launch parameters and the kernel, as a Prepared
     // value over entry.
-    op::loop::Prepared acquire(bool now, const void *entry);
+    op::loop::Prepared acquire(op::loop::Urgency urgency, const void *entry);
 
     // Bind and launch one kernel.
     void launch(const op::loop::Prepared& prepared, LaunchContext& context,
@@ -189,11 +189,11 @@ public:
         : StrategyBase{loop, point, source, bind} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               bool now) override {
+                               op::loop::Urgency urgency) override {
         begin(configuration);
         for (const auto& section : m_call.sections.span())
             m_call.max_blocks = std::max(m_call.max_blocks, grid(section.size()));
-        return acquire(now, nullptr);
+        return acquire(urgency, nullptr);
     }
 
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -218,7 +218,7 @@ public:
         : StrategyBase{loop, point, source, bind} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               bool now) override;
+                               op::loop::Urgency urgency) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
@@ -259,7 +259,7 @@ protected:
 
 public:
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               bool now) override;
+                               op::loop::Urgency urgency) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
