@@ -7,7 +7,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include <string_view>
 
 namespace op::gpu {
 
@@ -48,36 +47,6 @@ void init() {
     env::parse_number("OP_JIT_MIN_CALLS", config.min_calls);
     env::parse_number("OP_JIT_MIN_REGISTERS", config.min_registers);
 
-    if (const char *text = std::getenv("OP_AUTOTUNE_BLOCK_SIZES")) {
-        std::string_view rest = text;
-        while (!rest.empty()) {
-            auto comma = rest.find(',');
-            auto item = rest.substr(0, comma);
-            rest = comma == std::string_view::npos ? std::string_view{}
-                                                   : rest.substr(comma + 1);
-            int size = std::atoi(std::string{item}.c_str());
-            if (size > 0)
-                config.block_sizes.push_back(size);
-            else if (!item.empty())
-                std::fprintf(stderr,
-                             "warning: ignoring OP_AUTOTUNE_BLOCK_SIZES item '%s'\n",
-                             std::string{item}.c_str());
-        }
-    }
-
-#ifdef OP2_HIP
-    // Shared and global fp64 atomics are both native, so a chunk's single
-    // references go unstaged; under CUDA a pointer that may be either makes
-    // every increment a generic atomic, and shared fp64 adds are
-    // compare-and-swap loops.
-    config.unstaged_singles = true;
-#endif
-    if (env::parse_bool("OP_CHUNK_ATOMICS_UNSTAGED_SINGLES", config.unstaged_singles))
-        op_printf("%s OP_CHUNK_ATOMICS_UNSTAGED_SINGLES\n",
-                  config.unstaged_singles ? "Enabling" : "Disabling");
-    if (env::parse_bool("OP_CHUNK_COLOURING_WAVEFRONT", config.wavefront))
-        op_printf("%s OP_CHUNK_COLOURING_WAVEFRONT\n",
-                  config.wavefront ? "Enabling" : "Disabling");
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", config.window);
 
     int device;

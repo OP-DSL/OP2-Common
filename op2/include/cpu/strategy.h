@@ -9,6 +9,7 @@
 #include <loop/strategy.h>
 #include <op_lib_core.h>
 #include <plan/colouring.h>
+#include <plan/options.h>
 
 #include <omp.h>
 
@@ -52,6 +53,13 @@ struct Work {
 
 // Run one thread's share of a phase.
 using Body = void (*)(const Work& work, op_arg *args);
+
+// The axis of a family whose loop has a packed body, the kernel run over
+// lane-major copies of its arguments as one SIMD loop:
+// OP_<FAMILY>_PACKED, else OP_PACKED, by default left to the tuner.
+inline op::loop::Axis packed_axis() {
+    return {"PACKED", "packed", true, {0, 1}};
+}
 
 // A packed body's arrays: per thread, grown to the largest call's need and
 // aligned to a cache line.
@@ -212,8 +220,8 @@ protected:
     std::string m_name;
     Body m_body;
 
-    StrategyBase(Loop& loop, std::string_view name, Body body)
-        : m_loop{loop}, m_name{name}, m_body{body} {}
+    StrategyBase(Loop& loop, const op::loop::Point& point, Body body)
+        : m_loop{loop}, m_name{point.name}, m_body{body} {}
 
     op::loop::Prepared prepared(op::loop::Status status, const void *entry,
                                 std::string_view reason = {}) {
@@ -237,6 +245,8 @@ protected:
                                     Phase&& phase);
 
 public:
+    static std::vector<op::loop::Axis> axes() { return {}; }
+
     std::string_view name() const override { return m_name; }
 };
 
@@ -246,8 +256,8 @@ public:
 // for plain, atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, std::string_view name, Body body)
-        : StrategyBase{loop, name, body} {}
+    Simple(Loop& loop, const op::loop::Point& point, Body body)
+        : StrategyBase{loop, point, body} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration&, bool) override {
         return prepared(op::loop::Status::ready, nullptr);
@@ -265,8 +275,8 @@ private:
     std::unordered_map<std::uint64_t, op::plan::SetColouring> m_entries;
 
 public:
-    Colouring(Loop& loop, std::string_view name, Body body)
-        : StrategyBase{loop, name, body} {}
+    Colouring(Loop& loop, const op::loop::Point& point, Body body)
+        : StrategyBase{loop, point, body} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
                                bool now) override;
@@ -294,14 +304,18 @@ protected:
     int m_chunk_size;
     std::unordered_map<std::uint64_t, Entry> m_entries;
 
-    ChunkBase(Loop& loop, std::string_view name, bool coloured, Body body,
-              op::plan::ArgGroups groups, int chunk_size)
-        : StrategyBase{loop, name, body}, m_coloured{coloured}, m_groups{groups},
-          m_chunk_size{chunk_size} {}
+    ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured, Body body,
+              op::plan::ArgGroups groups)
+        : StrategyBase{loop, point, body}, m_coloured{coloured}, m_groups{groups},
+          m_chunk_size{point.values[0]} {}
 
     Entry& entry_for(const op::loop::Configuration& configuration);
 
 public:
+    static std::vector<op::loop::Axis> axes() {
+        return {op::plan::chunk_size_axis(default_chunk_size)};
+    }
+
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
                                bool now) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -311,16 +325,16 @@ public:
 
 class ChunkAtomics : public ChunkBase {
 public:
-    ChunkAtomics(Loop& loop, std::string_view name, Body body,
-                 op::plan::ArgGroups groups, int chunk_size)
-        : ChunkBase{loop, name, false, body, groups, chunk_size} {}
+    ChunkAtomics(Loop& loop, const op::loop::Point& point, Body body,
+                 op::plan::ArgGroups groups)
+        : ChunkBase{loop, point, false, body, groups} {}
 };
 
 // Conflicts come from the call's updated dats, so it needs no groups.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, std::string_view name, Body body, int chunk_size)
-        : ChunkBase{loop, name, true, body, {}, chunk_size} {}
+    ChunkColouring(Loop& loop, const op::loop::Point& point, Body body)
+        : ChunkBase{loop, point, true, body, {}} {}
 };
 
 } // namespace op::cpu

@@ -115,18 +115,16 @@ public:
 
     // --- Registration, by the generated code ---
 
-    // Add a strategy, built from the arguments after its block size, which
-    // comes last.  OP_AUTOTUNE_BLOCK_SIZES adds a disabled variant of it per
-    // size ahead of it, for the tuner.
+    // Add a family: a strategy S per point of S's axes, built from the
+    // loop, the point and args.
     template<typename S, typename... Args>
-    void add(op::loop::Default default_setting, Args&&... args) {
-        int default_size = config().default_block_size;
-        for (int size : config().block_sizes)
-            if (size != default_size)
-                m_ladder.add(std::make_unique<S>(*this, args..., size),
-                             op::loop::Default::disabled);
-        m_ladder.add(std::make_unique<S>(*this, args..., default_size),
-                     default_setting);
+    void add(std::string_view family, op::loop::Default default_setting,
+             Args&&... args) {
+        auto axes = S::axes();
+        m_ladder.add(family, default_setting, axes,
+                     [&](const op::loop::Point& point) {
+                         return std::make_unique<S>(*this, point, args...);
+                     });
     }
 
     JitService& jit() { return m_jit; }
@@ -257,13 +255,10 @@ public:
 
 // --- The strategies' definitions that need the loop ---------------------------------
 
-inline StrategyBase::StrategyBase(Loop& loop, std::string_view family,
-                                  KernelSource source, Binder bind,
-                                  int block_size)
-    : m_loop{loop}, m_name{family}, m_source{source}, m_bind{bind},
-      m_block_size{block_size} {
-    if (block_size != config().default_block_size)
-        m_name += ":" + std::to_string(block_size);
+inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
+                                  KernelSource source, Binder bind)
+    : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
+      m_block_size{point.values[0]} {
     m_kernels.register_offline(source.offline);
 }
 
@@ -277,7 +272,8 @@ inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
 
 inline op::loop::Prepared StrategyBase::acquire(bool now, const void *entry) {
     m_call.global_stride = m_block_size * m_call.max_blocks;
-    m_loop.jit().set_launch(m_call.global_stride, m_block_size);
+    m_loop.jit().set_launch(
+        {m_call.global_stride, m_block_size, m_unstaged_singles, m_wavefront});
     auto acquired = m_loop.jit().acquire(m_kernels, m_source, m_block_size, now);
     m_call.kernel = acquired.kernel;
 
@@ -467,22 +463,15 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     if (found != m_entries.end())
         return found->second;
 
-    // A chunk is one block's elements unless a size is given.
-    const auto& options = op::plan::chunk_options();
     const auto& run = config();
     ChunkLimits limits{m_block_size, run.shared_bytes};
     auto result =
         m_coloured
-            ? plan_chunk_colouring(
-                  configuration.args, m_call.sections, m_groups,
-                  op::plan::chunk_size(m_chunk_size, options.colouring_chunk_size,
-                                       m_block_size),
-                  limits, run.wavefront, run.window)
-            : plan_chunk_atomics(
-                  configuration.args, m_call.sections, m_groups,
-                  op::plan::chunk_size(m_chunk_size, options.atomics_chunk_size,
-                                       m_block_size),
-                  limits, run.unstaged_singles, options.min_compression);
+            ? plan_chunk_colouring(configuration.args, m_call.sections, m_groups,
+                                   m_chunk_size, limits, m_wavefront, run.window)
+            : plan_chunk_atomics(configuration.args, m_call.sections, m_groups,
+                                 m_chunk_size, limits, m_unstaged_singles,
+                                 op::plan::chunk_options().min_compression);
     Entry entry;
     entry.rejected = result.rejected;
     entry.plan = std::move(result.plan);

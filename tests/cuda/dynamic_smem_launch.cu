@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 constexpr int result_value = 0x5a17;
@@ -158,6 +159,7 @@ int main(int argc, char **argv) {
     {
         Fixture fixture;
         setenv("OP_STRATEGY", "chunk_atomics", 1);
+        setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", std::to_string(sources).c_str(), 1);
         op::loop::init();
         gpu::Loop loop("dynamic_smem_launch", "c_CUDA", "Indirect", {false, false},
                        gpu::JitHeaders{{OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA,
@@ -165,13 +167,13 @@ int main(int argc, char **argv) {
                                        {"kernel/prelude.h", "plan/staging_layout.h",
                                         "kernel/strategy.h"}});
         loop.add<gpu::ChunkAtomics>(
-            op::loop::Default::disabled,
+            "chunk_atomics", op::loop::Default::disabled,
             gpu::KernelSource{"dynamic_smem_staged",
                               reinterpret_cast<const void *>(dynamic_smem_staged),
                               staged_source},
-            &bind, fixture.groups(), sources);
+            &bind, fixture.groups());
         loop.add<gpu::Simple>(
-            op::loop::Default::enabled, "plain",
+            "plain", op::loop::Default::enabled,
             gpu::KernelSource{"dynamic_smem_baseline",
                               reinterpret_cast<const void *>(dynamic_smem_baseline),
                               baseline_source},
@@ -180,7 +182,7 @@ int main(int argc, char **argv) {
         for (int invocation = 0; invocation < 10; ++invocation) {
             op::loop::Configuration configuration{&fixture.source, fixture.args};
             auto selection = loop.ladder().select(configuration);
-            if (selection.strategy->name() != "chunk_atomics") {
+            if (selection.strategy->family() != "chunk_atomics") {
                 std::fprintf(stderr, "the plan was rejected: %s\n",
                              std::string{selection.prepared.reason}.c_str());
                 return EXIT_FAILURE;

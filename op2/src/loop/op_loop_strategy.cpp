@@ -23,18 +23,24 @@ std::string lower(std::string_view text) {
     return out;
 }
 
+std::optional<bool> switch_value(std::string_view text) {
+    auto lowered = lower(text);
+    if (lowered == "on" || lowered == "1" || lowered == "yes" || lowered == "true")
+        return true;
+    if (lowered == "off" || lowered == "0" || lowered == "no" || lowered == "false")
+        return false;
+    return std::nullopt;
+}
+
 bool parse_bool(const char *variable, bool& value) {
     const char *text = std::getenv(variable);
     if (text == nullptr)
         return false;
 
-    auto lowered = lower(text);
-    if (lowered == "1" || lowered == "yes" || lowered == "true")
-        value = true;
-    else if (lowered == "0" || lowered == "no" || lowered == "false")
-        value = false;
+    if (auto parsed = switch_value(text))
+        value = *parsed;
     else
-        std::fprintf(stderr, "warning: ignoring %s='%s', expected 0 or 1\n",
+        std::fprintf(stderr, "warning: ignoring %s='%s', expected on or off\n",
                      variable, text);
     return true;
 }
@@ -166,7 +172,7 @@ Sections Sections::indirect(op_set set, bool separate_owned) {
 
 std::string_view Strategy::family() const {
     auto text = name();
-    return text.substr(0, text.find(':'));
+    return text.substr(0, text.find('='));
 }
 
 namespace {
@@ -174,9 +180,8 @@ namespace {
 // OP_STRATEGY's items, as init read them.
 std::vector<std::string> strategy_items;
 
-// The names forced on a loop, most specific first.  An item "<loop>:<name>"
-// forces name on that loop; any other item is a name, which may hold a colon
-// ("atomics:256", "atomics:packed"), forced on every loop that has it.
+// The families forced on a loop, most specific first: "<loop>:<family>"
+// forces that loop, a bare family every loop that has it.
 std::vector<std::string> forced_for(std::string_view loop) {
     std::vector<std::string> specific;
     std::vector<std::string> every;
@@ -184,11 +189,104 @@ std::vector<std::string> forced_for(std::string_view loop) {
         if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
             item[loop.size()] == ':')
             specific.emplace_back(item.substr(loop.size() + 1));
-        else
+        else if (item.find(':') == std::string_view::npos)
             every.emplace_back(item);
     }
     specific.insert(specific.end(), every.begin(), every.end());
     return specific;
+}
+
+std::string upper(std::string_view text) {
+    std::string out{text};
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    return out;
+}
+
+// Print a warning once per run, however many loops meet it.
+void warn_once(const std::string& message) {
+    static std::vector<std::string> warned;
+    if (std::find(warned.begin(), warned.end(), message) != warned.end())
+        return;
+    warned.push_back(message);
+    std::fprintf(stderr, "%s", message.c_str());
+}
+
+// An axis's values from one variable, in order without repeats; empty when
+// the variable is unset or holds nothing usable.
+std::vector<int> axis_values(const std::string& variable, const Axis& axis) {
+    std::vector<int> values;
+    const char *text = std::getenv(variable.c_str());
+    std::string_view rest = text != nullptr ? text : "";
+    while (!rest.empty()) {
+        auto comma = rest.find(',');
+        auto item = std::string{rest.substr(0, comma)};
+        rest = comma == std::string_view::npos ? std::string_view{}
+                                               : rest.substr(comma + 1);
+        int value = -1;
+        if (axis.binary) {
+            if (auto parsed = env::switch_value(item))
+                value = *parsed ? 1 : 0;
+        } else {
+            char *end = nullptr;
+            long parsed = std::strtol(item.c_str(), &end, 10);
+            if (end != item.c_str() && *end == '\0' && parsed > 0 && parsed <= INT32_MAX)
+                value = static_cast<int>(parsed);
+        }
+        if (value < 0)
+            warn_once("warning: ignoring " + variable + " item '" + item +
+                      "', expected " + (axis.binary ? "on or off" : "a positive number") +
+                      "\n");
+        else if (std::find(values.begin(), values.end(), value) == values.end())
+            values.push_back(value);
+    }
+    return values;
+}
+
+// Each axis's values for family: its own variable's, else the axis-wide
+// variable's, else the defaults.
+std::vector<std::vector<int>> family_values(std::string_view family,
+                                            std::span<const Axis> axes) {
+    std::vector<std::vector<int>> values;
+    for (const auto& axis : axes) {
+        auto variable = std::string{axis.variable};
+        auto chosen = axis_values("OP_" + upper(family) + "_" + variable, axis);
+        if (chosen.empty())
+            chosen = axis_values("OP_" + variable, axis);
+        if (chosen.empty())
+            chosen = axis.defaults;
+        assert(!chosen.empty());
+        values.push_back(std::move(chosen));
+    }
+    return values;
+}
+
+// Every point of the values, the first values' first, named
+// "<family>=on;<key>=<value>;...", a switch's value on or off.
+std::vector<Point> points(std::string_view family, std::span<const Axis> axes,
+                          const std::vector<std::vector<int>>& values) {
+    std::vector<Point> out;
+    std::vector<std::size_t> index(axes.size(), 0);
+    while (true) {
+        Point point{std::string{family} + "=on", {}};
+        for (std::size_t i = 0; i < axes.size(); ++i) {
+            int value = values[i][index[i]];
+            point.values.push_back(value);
+            point.name += ";" + std::string{axes[i].key} + "=" +
+                          (axes[i].binary ? (value != 0 ? "on" : "off")
+                                          : std::to_string(value));
+        }
+        out.push_back(std::move(point));
+
+        std::size_t axis = 0;
+        for (; axis < axes.size(); ++axis) {
+            if (++index[axis] < values[axis].size())
+                break;
+            index[axis] = 0;
+        }
+        if (axis == axes.size())
+            return out;
+    }
 }
 
 } // namespace
@@ -211,7 +309,19 @@ void init() {
 Ladder::Ladder(std::string_view loop_name)
     : m_name{loop_name}, m_forced_names{forced_for(loop_name)} {}
 
-void Ladder::add(std::unique_ptr<Strategy> strategy, Default default_setting) {
+void Ladder::add(std::string_view family, Default default_setting,
+                 std::span<const Axis> axes, const Make& make) {
+    bool enabled = default_setting == Default::enabled;
+    bool off = env::parse_bool(("OP_" + upper(family)).c_str(), enabled) && !enabled;
+
+    auto all = points(family, axes, family_values(family, axes));
+    for (std::size_t i = 1; i < all.size(); ++i)
+        add_entry(make(all[i]), false, false, off);
+    add_entry(make(all[0]), true, enabled, off);
+}
+
+void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
+                       bool enabled, bool off) {
     assert(strategy != nullptr);
     for (const auto& entry : m_entries)
         if (entry.strategy->name() == strategy->name()) {
@@ -220,23 +330,15 @@ void Ladder::add(std::unique_ptr<Strategy> strategy, Default default_setting) {
             std::exit(1);
         }
 
-    Entry entry{std::move(strategy), default_setting == Default::enabled, false};
-    std::string variable = "OP_" + env::lower(entry.strategy->family());
-    std::transform(variable.begin(), variable.end(), variable.begin(),
-                   [](unsigned char c) { return std::toupper(c); });
-    bool enabled = entry.enabled;
-    if (env::parse_bool(variable.c_str(), enabled)) {
-        entry.enabled = enabled;
-        entry.off = !enabled;
-    }
-
-    for (std::size_t rank = 0;
-         rank < std::min(m_forced_rank, m_forced_names.size()); ++rank)
-        if (m_forced_names[rank] == entry.strategy->name()) {
-            m_forced = m_entries.size();
-            m_forced_rank = rank;
-            break;
-        }
+    Entry entry{std::move(strategy), runs, enabled, off};
+    if (runs)
+        for (std::size_t rank = 0;
+             rank < std::min(m_forced_rank, m_forced_names.size()); ++rank)
+            if (m_forced_names[rank] == entry.strategy->family()) {
+                m_forced = m_entries.size();
+                m_forced_rank = rank;
+                break;
+            }
     m_entries.push_back(std::move(entry));
     m_reasons.emplace_back();
 }
@@ -250,7 +352,9 @@ Selection Ladder::select(const Configuration& configuration) {
     for (; index < m_entries.size(); ++index) {
         auto& entry = m_entries[index];
         if (!entry.enabled && index != m_forced) {
-            m_reasons[index] = "disabled";
+            // The tuner's variants are no part of the ladder.
+            if (entry.runs)
+                m_reasons[index] = "disabled";
             continue;
         }
         selection.prepared = entry.strategy->prepare(configuration, false);

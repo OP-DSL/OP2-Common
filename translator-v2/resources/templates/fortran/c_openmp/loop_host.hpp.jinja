@@ -3,7 +3,6 @@
 {%- endmacro -%}
 
 {%- set strategies = config.strategies -%}
-{%- set chunk_strategies = ["chunk_atomics", "chunk_colouring"] -%}
 {#- Enabled by default: plain, and chunk colouring over the set colouring
     floor; an atomic increment is a compare-and-swap loop on most CPUs. -#}
 {%- set default_strategies = ["plain", "chunk_colouring", "colouring"] -%}
@@ -337,13 +336,6 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
 {%- endmacro -%}
 
 static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
-{% if strategies|select("in", chunk_strategies)|list %}
-#ifdef OP_PART_SIZE_{{kernel_idx}}
-    constexpr int chunk_size = OP_PART_SIZE_{{kernel_idx}};
-#else
-    constexpr int chunk_size = 0;
-#endif
-{% endif %}
 {% for strategy in strategies %}
     {% if strategy == "chunk_atomics" %}
     static constexpr std::array<op::plan::ArgGroup, {{args_chunk_atomics|length}}> chunk_atomics_groups = {{"{{"}}
@@ -351,20 +343,13 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
         op::plan::ArgGroup{ {{arg.id}}, {{group_dats.chunk_atomics|index(arg.dat_id)}} },
         {% endfor %}
     {{"}}"}};
-    {% set tail = ", op::plan::ArgGroups{ chunk_atomics_groups, %d }, chunk_size" % group_dats.chunk_atomics|length %}
-    {% elif strategy == "chunk_colouring" %}
-    {% set tail = ", chunk_size" %}
+    {% set tail = ", op::plan::ArgGroups{ chunk_atomics_groups, %d }" % group_dats.chunk_atomics|length %}
     {% else %}
     {% set tail = "" %}
     {% endif %}
-    {% if strategy in packed_strategies %}
     loop.add<op::cpu::{{strategy_class(strategy)}}>(
-        op::loop::Default::disabled, "{{strategy}}:packed",
-        {{body(strategy, true)}}{{tail}});
-    {% endif %}
-    loop.add<op::cpu::{{strategy_class(strategy)}}>(
-        op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}}, "{{strategy}}",
-        {{body(strategy, false)}}{{tail}});
+        "{{strategy}}", op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}},
+        {{body(strategy, false)}}, {{body(strategy, true) if strategy in packed_strategies else "nullptr"}}{{tail}});
 {% endfor %}
     return true;
 }
