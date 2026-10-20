@@ -290,15 +290,15 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 
     if (OP_diags > 3) {
         if (entry.plan == nullptr)
-            std::printf("%s: %s rejected (%s)\n", m_name.c_str(),
-                        m_loop.name().c_str(), std::string{entry.rejected}.c_str());
+            std::printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
+                        m_loop.name().c_str(), std::string{entry.rejected}.c_str(),
+                        result.compression);
         else
             std::printf("%s: %s chunk %d, %d chunks, %d batches, "
-                        "compression %.2fx%s\n",
+                        "compression %.2fx\n",
                         m_name.c_str(), m_loop.name().c_str(),
                         entry.plan->chunks.size, entry.plan->chunks.count(),
-                        entry.plan->batches.count(), entry.plan->compression,
-                        entry.rejected.empty() ? "" : ", rejected");
+                        entry.plan->batches.count(), entry.plan->compression);
     }
     return m_entries.emplace(key, std::move(entry)).first->second;
 }

@@ -260,7 +260,7 @@ protected:
     }
 
     Entry& entry_for(const op::loop::Configuration& configuration);
-    void report(const Entry& entry) const;
+    void report(const ChunkResult& result) const;
 
 public:
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,

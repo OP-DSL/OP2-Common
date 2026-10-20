@@ -258,7 +258,8 @@ void test_cpu_plans() {
 
     auto rejected = op::cpu::plan_chunk_atomics(chain.args, sections,
                                                 plan::ArgGroups{groups, 1}, 100, 2.5);
-    CHECK(!rejected && rejected.rejected == "low_compression" && rejected.plan != nullptr);
+    CHECK(!rejected && rejected.rejected == "low_compression" && rejected.plan == nullptr);
+    CHECK(rejected.compression > 1.9 && rejected.compression < 2.5);
 
     chain.args[0].opt = chain.args[1].opt = 0;
     CHECK(op::cpu::plan_chunk_colouring(chain.args, sections, 16).rejected ==

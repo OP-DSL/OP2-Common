@@ -421,24 +421,27 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
             : plan_chunk_atomics(configuration.args, m_call.sections, m_groups,
                                  m_chunk_size, limits, m_unstaged_singles,
                                  op::plan::chunk_options().min_compression);
+    report(result);
     Entry entry;
     entry.rejected = result.rejected;
     entry.plan = std::move(result.plan);
-    if (entry.rejected.empty())
+    if (entry.rejected.empty()) {
         entry.device = DevicePlan(*entry.plan);
-    report(entry);
+        entry.plan->release_uploaded();
+    }
     return m_entries.emplace(key, std::move(entry)).first->second;
 }
 
-inline void ChunkBase::report(const Entry& entry) const {
+inline void ChunkBase::report(const ChunkResult& result) const {
     if (OP_diags <= 3)
         return;
-    if (entry.plan == nullptr) {
-        std::printf("%s: %s rejected (%s)\n", m_name.c_str(),
-                    m_loop.name().c_str(), std::string{entry.rejected}.c_str());
+    if (result.plan == nullptr) {
+        std::printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
+                    m_loop.name().c_str(), std::string{result.rejected}.c_str(),
+                    result.compression);
         return;
     }
-    const auto& plan = *entry.plan;
+    const auto& plan = *result.plan;
     if (m_coloured)
         std::printf("%s: %s chunk %d, %d chunks, %d batches, up to %d thread "
                     "colours, compression %.2fx\n",
@@ -447,11 +450,10 @@ inline void ChunkBase::report(const Entry& entry) const {
                     plan.max_thread_colours, plan.compression());
     else
         std::printf("%s: %s chunk %d, %d chunks, %zu refs, %zu targets "
-                    "(%zu unstaged), compression %.2fx%s\n",
+                    "(%zu unstaged), compression %.2fx\n",
                     m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
                     plan.chunks.count(), plan.references, plan.distinct_targets,
-                    plan.staging.unstaged_singles, plan.compression(),
-                    entry.rejected.empty() ? "" : ", rejected");
+                    plan.staging.unstaged_singles, plan.compression());
 }
 
 inline op::loop::Prepared ChunkBase::prepare(
