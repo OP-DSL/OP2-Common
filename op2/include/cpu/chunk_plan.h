@@ -35,11 +35,12 @@ struct ChunkPlan {
 
 // rejected names why the call does not suit the strategy: a reason of
 // plan::grouped_references or plan::updated_references,
-// insufficient_scratch, or low_compression (with the plan, for its
-// figures).
+// insufficient_scratch, or low_compression; a rejection has no plan, and a
+// low_compression one keeps its compression.
 struct ChunkResult {
     std::string_view rejected;
     std::unique_ptr<ChunkPlan> plan;
+    double compression = 0.0;
 
     explicit operator bool() const { return rejected.empty() && plan != nullptr; }
 };
@@ -69,7 +70,7 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
         out->scratch_bytes = std::max(out->scratch_bytes, bytes);
     out->compression = targets.compression();
     if (out->compression < min_compression)
-        return {"low_compression", std::move(out)};
+        return {"low_compression", nullptr, out->compression};
     return {{}, std::move(out)};
 }
 

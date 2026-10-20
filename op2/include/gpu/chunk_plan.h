@@ -65,14 +65,29 @@ struct ChunkPlan {
         return batch_scratch_bytes[
             static_cast<std::size_t>(batches.batch_index(section, batch))];
     }
+
+    // Once uploaded, drop what only the device reads; the batches, their
+    // scratch, the wavefront flag and the figures stay.
+    void release_uploaded() {
+        plan::Staging kept;
+        kept.stride = staging.stride;
+        kept.unstaged_singles = staging.unstaged_singles;
+        staging = std::move(kept);
+        thread_colours = {};
+        chunk_thread_colours = {};
+        wave_pred_offsets = {};
+        wave_preds = {};
+    }
 };
 
 // rejected names why the call does not suit the strategy: a reason of
-// plan::grouped_references, insufficient_scratch, low_compression (with the
-// plan, for its figures) or too_many_colours.
+// plan::grouped_references, insufficient_scratch, low_compression or
+// too_many_colours; a rejection has no plan, and a low_compression one keeps
+// its compression.
 struct ChunkResult {
     std::string_view rejected;
     std::unique_ptr<ChunkPlan> plan;
+    double compression = 0.0;
 
     explicit operator bool() const { return rejected.empty() && plan != nullptr; }
 };
@@ -139,7 +154,7 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
     out->batches = plan::section_batches(out->chunks);
     detail::size_batches(*out);
     if (!unstaged_singles && out->compression() < min_compression)
-        return {"low_compression", std::move(out)};
+        return {"low_compression", nullptr, out->compression()};
     return {{}, std::move(out)};
 }
 

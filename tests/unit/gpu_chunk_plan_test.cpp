@@ -351,7 +351,8 @@ void test_mixed_plan() {
     rejected = atomics(fixture.args, fixture.sections(), fixture.groups(), 2, 4, 1024,
                        false, 1.5);
     expect_rejected(rejected, "low_compression");
-    CHECK(rejected.plan != nullptr);
+    CHECK(rejected.plan == nullptr && rejected.compression > 0.0 &&
+          rejected.compression < 1.5);
 }
 
 void test_optional_and_alignment() {
