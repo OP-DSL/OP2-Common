@@ -191,7 +191,8 @@ public:
 
     // Run what prepare returned; microseconds when the launch is timed.  A
     // run always follows this strategy's prepare for the same call, so the
-    // strategy may keep per-call state from it.
+    // strategy may keep per-call state from it; other strategies of the loop
+    // may be prepared in between, so state they share must not carry it.
     virtual std::optional<float> run(const Prepared& prepared,
                                      const Launch& launch) = 0;
 
