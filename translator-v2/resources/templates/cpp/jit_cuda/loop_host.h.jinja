@@ -147,13 +147,11 @@ __constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
     {% endfor %}
     {% if args_gbl_per_thread|length > 0 %}
 
-int op2_{{lh.kernel}}_gbl_stride = -1;
 __constant__ int op2_{{lh.kernel}}_gbl_stride_d;
     {% endif %}
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
-int op2_block_size;
 
 {{kernel_func}}}
 
@@ -399,12 +397,11 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
-    jit.add_global_stride_param(
-        "op2_{{lh.kernel}}_gbl_stride_d",
-        &kernel::op2_{{lh.kernel}}_gbl_stride,
-        &kernel::op2_{{lh.kernel}}_gbl_stride_d);
+    jit.add_launch_param("op2_{{lh.kernel}}_gbl_stride_d",
+                         op::gpu::ParamSource::global_stride,
+                         &kernel::op2_{{lh.kernel}}_gbl_stride_d);
 {% endif %}
-    jit.add_block_size_param("op2_block_size_d", &kernel::op2_block_size);
+    jit.add_launch_param("op2_block_size_d", op::gpu::ParamSource::block_size);
 
     loop.add<op::gpu::{{"Colouring" if strategy == "colouring" else "Simple"}}>(
         "{{strategy}}", op::loop::Default::enabled,

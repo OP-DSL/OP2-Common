@@ -228,9 +228,8 @@ inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
 inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
                                                 const void *entry) {
     m_call.global_stride = m_block_size * m_call.max_blocks;
-    m_loop.jit().set_launch(
-        {m_call.global_stride, m_block_size, m_unstaged_singles, m_wavefront});
-    auto acquired = m_loop.jit().acquire(m_kernels, m_source, m_block_size, urgency);
+    auto acquired =
+        m_loop.jit().acquire(m_kernels, m_source, launch_values(), urgency);
 
     op::loop::Prepared prepared;
     prepared.strategy = this;
@@ -259,7 +258,6 @@ inline void StrategyBase::launch(const op::loop::Prepared& prepared,
     }
 
     op_profile_next("Offline Kernel");
-    m_loop.jit().upload();
     m_kernels.launch_offline(m_source.offline, geometry.blocks, m_block_size,
                              offline.data(), geometry.shared_bytes);
 }
@@ -270,6 +268,10 @@ std::optional<float> StrategyBase::run_phases(
     int phases, int wait_before, int globals_after, Launches&& launches,
     Fill&& fill) {
     assert(prepared.strategy == this);
+    // An offline kernel reads the call's and this strategy's values from
+    // device symbols.
+    if (prepared.kernel == nullptr)
+        m_loop.jit().upload(launch_values());
     int timed_pairs = 0;
     for (int phase = 0; phase < phases; ++phase) {
         if (phase == wait_before) {

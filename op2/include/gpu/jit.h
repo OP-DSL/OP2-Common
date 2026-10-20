@@ -154,7 +154,7 @@ enum class ParamSource {
 };
 
 // What a strategy fixes for its kernel: the launch, and its variant's
-// switches.
+// switches.  Passed to each acquire and upload, never kept between them.
 struct LaunchValues {
     int global_stride = 0;
     int block_size = 0;
@@ -172,7 +172,10 @@ template<> struct JitTypes<bool>     { static const ParamType value = ParamType:
 class JitParam {
 private:
     std::string m_name;
+    // The application's or the call's value; a launch value is held in
+    // m_launch, applied before each use.
     void *m_data;
+    int m_launch = 0;
     void *m_data_d;
     std::size_t m_n_elems;
     std::size_t m_elem_size;
@@ -194,8 +197,6 @@ public:
           m_elem_size{sizeof(T)}, m_type{JitTypes<T>::value}, m_array{len > 1},
           m_source{source}, m_arg_index{arg_index},
           m_hash_device_ptr{hash_device_ptr} {}
-
-    ParamSource source() const { return m_source; }
 
     // The call's values.
     void update(op_arg *args, int nargs) {
@@ -223,20 +224,21 @@ public:
         }
     }
 
-    // The launch's values, which the strategy decides.
-    void set_launch(const LaunchValues& values) {
-        auto *data = static_cast<int *>(m_data);
+    // The strategy's values, for a launch-sourced parameter.
+    void apply(const LaunchValues& values) {
         switch (m_source) {
-        case ParamSource::global_stride:    *data = values.global_stride; return;
-        case ParamSource::block_size:       *data = values.block_size; return;
-        case ParamSource::unstaged_singles: *data = values.unstaged_singles; return;
-        case ParamSource::wavefront:        *data = values.wavefront; return;
+        case ParamSource::global_stride:    m_launch = values.global_stride; return;
+        case ParamSource::block_size:       m_launch = values.block_size; return;
+        case ParamSource::unstaged_singles: m_launch = values.unstaged_singles; return;
+        case ParamSource::wavefront:        m_launch = values.wavefront; return;
         default:                            return;
         }
     }
 
+    const void *data() const { return m_data != nullptr ? m_data : &m_launch; }
+
     uint64_t hash() {
-        m_hash_last = hash_bytes(m_data, m_n_elems * m_elem_size);
+        m_hash_last = hash_bytes(data(), m_n_elems * m_elem_size);
         return m_hash_last;
     }
 
@@ -248,7 +250,7 @@ public:
                                                         : m_hash_device;
         if (hash() == hash_device)
             return;
-        CUDA_SAFE_CALL(gpuMemcpyAsync(m_data_d, m_data, m_elem_size * m_n_elems,
+        CUDA_SAFE_CALL(gpuMemcpyAsync(m_data_d, data(), m_elem_size * m_n_elems,
                                       gpuMemcpyHostToDevice));
         if (m_hash_device_ptr != nullptr)
             *m_hash_device_ptr = m_hash_last;
@@ -272,13 +274,13 @@ public:
         if (m_array)
             os << "{ ";
         for (std::size_t i = 0; i < m_n_elems; ++i) {
-            char *elem = (char *)m_data + m_elem_size * i;
+            const char *elem = static_cast<const char *>(data()) + m_elem_size * i;
             switch (m_type) {
-            case ParamType::i32:     os << *((int *)elem); break;
-            case ParamType::i64:     os << *((int64_t *)elem); break;
-            case ParamType::f32:     os << std::hexfloat << *((float *)elem); break;
-            case ParamType::f64:     os << std::hexfloat << *((double *)elem); break;
-            case ParamType::logical: os << std::boolalpha << *((bool *)elem); break;
+            case ParamType::i32:     os << *((const int *)elem); break;
+            case ParamType::i64:     os << *((const int64_t *)elem); break;
+            case ParamType::f32:     os << std::hexfloat << *((const float *)elem); break;
+            case ParamType::f64:     os << std::hexfloat << *((const double *)elem); break;
+            case ParamType::logical: os << std::boolalpha << *((const bool *)elem); break;
             }
             if (m_array && i < m_n_elems - 1)
                 os << ", ";
@@ -374,10 +376,14 @@ private:
     std::vector<JitParam> m_params;
     static inline std::atomic_int active_threads = 0;
 
-    uint64_t hash_params() {
+    // The parameters' hash under a strategy's launch values, which stay
+    // applied for a compile that follows.
+    uint64_t hash_params(const LaunchValues& launch) {
         uint64_t hash = hash_seed_default;
-        for (auto& param : m_params)
+        for (auto& param : m_params) {
+            param.apply(launch);
             hash = op::gpu::hash(param.hash(), hash);
+        }
         return hash;
     }
 
@@ -502,26 +508,13 @@ public:
                               ParamSource::dat_dim, arg_index);
     }
 
-    void add_global_stride_param(std::string_view name, int *data,
-                                 const int *symbol = nullptr,
-                                 uint64_t *hash_device_ptr = nullptr) {
-        m_params.emplace_back(name, data, 1, lookup_symbol(symbol),
-                              hash_device_ptr, ParamSource::global_stride, -1);
-    }
-
-    void add_block_size_param(std::string_view name, int *data) {
-        m_params.emplace_back(name, data, 1, static_cast<int *>(nullptr), nullptr,
-                              ParamSource::block_size, -1);
-    }
-
-    void add_unstaged_singles_param(std::string_view name, int *data) {
-        m_params.emplace_back(name, data, 1, static_cast<int *>(nullptr), nullptr,
-                              ParamSource::unstaged_singles, -1);
-    }
-
-    void add_wavefront_param(std::string_view name, int *data) {
-        m_params.emplace_back(name, data, 1, static_cast<int *>(nullptr), nullptr,
-                              ParamSource::wavefront, -1);
+    // A value each strategy decides (global stride, block size, singles,
+    // wavefront), given to every acquire and upload; symbol is the copy an
+    // offline kernel reads, if any.
+    void add_launch_param(std::string_view name, ParamSource source,
+                          const int *symbol = nullptr) {
+        m_params.emplace_back(name, static_cast<int *>(nullptr), 1,
+                              lookup_symbol(symbol), nullptr, source, -1);
     }
 
     // --- Per call ---
@@ -532,16 +525,13 @@ public:
             param.update(args, nargs);
     }
 
-    // The launch's values, set by a strategy before it asks for its kernel.
-    void set_launch(const LaunchValues& values) {
-        for (auto& param : m_params)
-            param.set_launch(values);
-    }
-
-    // Upload the changed values the offline kernels read.
-    void upload() {
-        for (auto& param : m_params)
+    // Upload the changed values an offline kernel reads, under a strategy's
+    // launch values.
+    void upload(const LaunchValues& launch) {
+        for (auto& param : m_params) {
+            param.apply(launch);
             param.upload();
+        }
     }
 
     // Whether the offline kernel can launch at a block size.
@@ -559,9 +549,9 @@ public:
     // run meanwhile.  pending while nothing can run, unavailable when
     // nothing ever can.
     Acquired acquire(JitKernels& kernels, const KernelSource& source,
-                     int block_size, op::loop::Urgency urgency) {
+                     const LaunchValues& launch, op::loop::Urgency urgency) {
         const auto& run = config();
-        bool offline = offline_usable(kernels, source, block_size);
+        bool offline = offline_usable(kernels, source, launch.block_size);
         if (!run.enable)
             return {offline ? op::loop::Status::ready : op::loop::Status::unavailable,
                     nullptr};
@@ -570,7 +560,7 @@ public:
         if (!specialise)
             return {op::loop::Status::ready, nullptr};
 
-        auto hash = hash_params();
+        auto hash = hash_params(launch);
         {
             std::scoped_lock lock(kernels.m_mutex);
             auto found = kernels.m_kernels.find(hash);
@@ -602,11 +592,6 @@ public:
                 nullptr};
     }
 
-    // Whether the current values' kernel is being compiled.
-    bool compiling(JitKernels& kernels) {
-        auto found = kernels.m_compiles.find(hash_params());
-        return found != kernels.m_compiles.end() && found->second.started;
-    }
 };
 
 } // namespace op::gpu

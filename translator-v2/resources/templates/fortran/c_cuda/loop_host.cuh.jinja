@@ -244,11 +244,6 @@ int op2_dim_dat{{dat.id}};
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
 
-int op2_block_size;
-{% if strategies|select("in", chunk_strategies)|list %}
-int op2_unstaged_singles;
-int op2_wavefront;
-{% endif %}
 {{kernel_namespaces(offline_strategies)}}
 }
 
@@ -698,10 +693,10 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     jit.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
-    jit.add_block_size_param("op2_block_size_d", &kernel::op2_block_size);
+    jit.add_launch_param("op2_block_size_d", op::gpu::ParamSource::block_size);
 {% if strategies|select("in", chunk_strategies)|list %}
-    jit.add_unstaged_singles_param("op2_unstaged_singles_d", &kernel::op2_unstaged_singles);
-    jit.add_wavefront_param("op2_wavefront_d", &kernel::op2_wavefront);
+    jit.add_launch_param("op2_unstaged_singles_d", op::gpu::ParamSource::unstaged_singles);
+    jit.add_launch_param("op2_wavefront_d", op::gpu::ParamSource::wavefront);
 {% endif %}
 {% for strategy in strategies %}
     {% if strategy in chunk_strategies %}
