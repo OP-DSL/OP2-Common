@@ -11,8 +11,6 @@
 #include <plan/colouring.h>
 #include <plan/options.h>
 
-#include <omp.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cstdint>

@@ -98,7 +98,6 @@ public:
     // --- For the strategies ---
 
     const std::string& name() const { return m_name; }
-    const LoopDescription& description() const { return m_description; }
     op::loop::Ladder& ladder() { return m_ladder; }
 
     op::loop::Sections sections(const op::loop::Configuration& configuration) const {

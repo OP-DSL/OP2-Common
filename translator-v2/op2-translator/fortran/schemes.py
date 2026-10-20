@@ -15,11 +15,6 @@ from target import Target
 from util import find
 
 
-# Execution strategies for the C API GPU targets, in ladder order; the runtime
-# runs the first enabled one whose plan accepts the loop.
-strategy_ladder = ["plain", "chunk_atomics", "atomics", "chunk_colouring", "colouring"]
-
-
 def chunkStrategy(strategy: str) -> bool:
     return strategy in ["chunk_atomics", "chunk_colouring"]
 
