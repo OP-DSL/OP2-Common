@@ -56,6 +56,7 @@ void init() {
     env::parse_bool("OP_FUSION", config.fusion);
     env::parse_number("OP_FUSION_MAX_REGISTERS", config.fusion_max_registers);
     env::parse_bool("OP_FUSION_TUNE", config.fusion_tune);
+    env::parse_bool("OP_FUSION_OVERLAP", config.fusion_overlap);
     if (const char *dump = std::getenv("OP_FUSION_DUMP"))
         config.fusion_dump = dump;
 

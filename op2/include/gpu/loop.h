@@ -162,22 +162,18 @@ public:
 
     // --- Fusion (gpu/fusion.h) ---
 
-    bool fusion_member(PendingCall& call, FusionMember& member) override {
-        if (m_tuner || !config().enable)
-            return false;
+    const char *fusion_member(PendingCall& call, FusionMember& member) override {
+        if (m_tuner)
+            return "tuning";
+        if (!config().enable)
+            return "JIT off";
         auto nargs = static_cast<int>(call.args.size());
-        // A fused kernel runs its elements at once, after the halo: an
-        // indirect call with a halo takes no reduction, which its exec
-        // elements would join.
-        bool halo = call.set->core_size != call.set->size || call.set->exec_size != 0;
-        if (!m_description.direct && halo && has_global_output(call.args.data(), nargs))
-            return false;
         auto index = m_ladder.preferred();
         if (!index)
-            return false;
+            return "no strategy";
         auto& strategy = static_cast<StrategyBase&>(m_ladder[*index]);
         if (strategy.source().fusion == nullptr)
-            return false;
+            return strategy.name().data();  // a std::string's, so terminated
 
         call.bind_globals();
         m_jit.restore(call.params);
@@ -188,6 +184,10 @@ public:
         member.strategy = &strategy;
         member.begin = sections[0].begin;
         member.end = sections[sections.size() - 1].end;
+        // A direct call reads no halo.
+        member.core = m_description.direct ? member.end : call.set->core_size;
+        member.owned = call.set->size;
+        member.exec = !m_description.direct && configuration.indirect_write();
         member.set_stride = sections.set_stride();
         member.block_size = strategy.block_size();
         member.block_limit = geometry.block_limit;
@@ -202,7 +202,7 @@ public:
                 arg.opt != 0 && (arg.argtype == OP_ARG_INFO ||
                                  (arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1)));
         member.registers = strategy.offline_registers();
-        return true;
+        return nullptr;
     }
 
     std::string fusion_params(const FusionMember& member) override {
@@ -216,22 +216,24 @@ public:
     void fused_begin(FusionMember& member) override {
         auto *args = member.call->args.data();
         auto nargs = static_cast<int>(member.call->args.size());
-        member.call->bind_globals();
-        op_mpi_halo_exchanges(member.call->set, nargs, args, 2);
-        op_mpi_wait_all(nargs, args);
         prepareDeviceGblsWithPolicy(args, nargs, member.global_stride,
                                     m_description.gbl_inc_atomic);
         if (m_init_globals != nullptr)
             m_init_globals({member.block_size, member.max_blocks, member.global_stride}, args);
     }
 
-    void fused_end(FusionMember& member) override {
+    void fused_globals(FusionMember& member) override {
         auto *args = member.call->args.data();
         auto nargs = static_cast<int>(member.call->args.size());
         if (member.global_output &&
             processDeviceGblsWithPolicy(args, nargs, member.global_stride,
                                         member.global_stride, m_description.gbl_inc_atomic))
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+    }
+
+    void fused_end(FusionMember& member) override {
+        auto *args = member.call->args.data();
+        auto nargs = static_cast<int>(member.call->args.size());
         op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
         op_mpi_set_dirtybit_cuda(nargs, args);
     }

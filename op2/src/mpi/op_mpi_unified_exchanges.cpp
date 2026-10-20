@@ -29,12 +29,17 @@ struct ExchangeSpec {
     // Null unless this dat is going out as a partial exchange over that map.
     op_map map = nullptr;
 
-    ExchangeSpec(op_dat dat) : dat{dat} {}
+    // Which of a batch's exchanges it belongs to (op_mpi_halo_exchanges_batch).
+    int sub = 0;
+
+    ExchangeSpec(op_dat dat, int sub) : dat{dat}, sub{sub} {}
     bool is_partial() const { return map != nullptr; }
 };
 
+// The specs are keyed by neighbour + key_offset: a batch keeps each of its
+// exchanges' messages apart.
 void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange,
-                     SpecsByNeighbour<GatherSpec> &gathers) {
+                     SpecsByNeighbour<GatherSpec> &gathers, int key_offset) {
     auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
@@ -42,7 +47,7 @@ void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange
 
         for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
             auto list = placement.nonexec_export_permap + nonexec_list.disps[i];
-            gathers[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i], list, dat);
+            gathers[nonexec_list.ranks[i] + key_offset].emplace_back(nonexec_list.sizes[i], list, dat);
         }
 
         return;
@@ -53,17 +58,17 @@ void extract_gathers(const DatPlacement &placement, const ExchangeSpec &exchange
 
     for (int i = 0; i < exec_list.ranks_size(); ++i) {
         auto list = placement.exec_export + exec_list.disps[i];
-        gathers[exec_list.ranks[i]].emplace_back(exec_list.sizes[i], list, dat);
+        gathers[exec_list.ranks[i] + key_offset].emplace_back(exec_list.sizes[i], list, dat);
     }
 
     for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
         auto list = placement.nonexec_export + nonexec_list.disps[i];
-        gathers[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i], list, dat);
+        gathers[nonexec_list.ranks[i] + key_offset].emplace_back(nonexec_list.sizes[i], list, dat);
     }
 }
 
 void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchange,
-                      SpecsByNeighbour<ScatterSpec> &scatters) {
+                      SpecsByNeighbour<ScatterSpec> &scatters, int key_offset) {
     auto &dat = placement.dat;
 
     if (exchange.is_partial()) {
@@ -71,7 +76,7 @@ void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchang
 
         for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
             auto list = placement.nonexec_import_permap + nonexec_list.disps[i];
-            scatters[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i], list, dat);
+            scatters[nonexec_list.ranks[i] + key_offset].emplace_back(nonexec_list.sizes[i], list, dat);
         }
 
         return;
@@ -84,34 +89,35 @@ void extract_scatters(const DatPlacement &placement, const ExchangeSpec &exchang
     auto nonexec_offset = exchange.dat->set->size + exec_list.size();
 
     for (int i = 0; i < exec_list.ranks_size(); ++i) {
-        scatters[exec_list.ranks[i]].emplace_back(exec_list.sizes[i],
+        scatters[exec_list.ranks[i] + key_offset].emplace_back(exec_list.sizes[i],
                                                    (int) (exec_offset + exec_list.disps[i]), dat);
     }
 
     for (int i = 0; i < nonexec_list.ranks_size(); ++i) {
-        scatters[nonexec_list.ranks[i]].emplace_back(nonexec_list.sizes[i],
+        scatters[nonexec_list.ranks[i] + key_offset].emplace_back(nonexec_list.sizes[i],
                                                       (int) (nonexec_offset + nonexec_list.disps[i]), dat);
     }
 }
 
+// One message: to or from a neighbour, under its exchange's tag.
 struct Block {
+    int neighbour;
+    int tag;
     void *data;
     size_t size;
 
-    void send(int neighbour, MPI_Request *request, int tag, MPI_Comm comm) {
+    void send(MPI_Request *request, MPI_Comm comm) {
         int err = MPI_Isend(data, size, MPI_CHAR, neighbour, tag, comm, request);
         assert(err == MPI_SUCCESS);
     }
 
-    void recv(int neighbour, MPI_Request *request, int tag, MPI_Comm comm) {
+    void recv(MPI_Request *request, MPI_Comm comm) {
         int err = MPI_Irecv(data, size, MPI_CHAR, neighbour, tag, comm, request);
         assert(err == MPI_SUCCESS);
     }
 };
 
 struct ExchangeContext {
-    bool exec;
-
     // Where the scatter lands: 1 host, 2 device. Recorded because the copy that
     // receives the halo is the one that becomes current (see exchange_and_scatter).
     int device = 1;
@@ -137,8 +143,13 @@ struct ExchangeContext {
 
     // Built once and iterated once per exchange, so a vector beats a map:
     // clear() keeps the capacity instead of freeing a node per neighbour.
-    std::vector<std::pair<int, Block>> send_blocks;
-    std::vector<std::pair<int, Block>> recv_blocks;
+    std::vector<Block> send_blocks;
+    std::vector<Block> recv_blocks;
+
+    // The tag of each exchange of the outstanding batch (one for a plain
+    // exchange), and the communicator's size, which spaces their spec keys.
+    std::vector<int> sub_tags;
+    int ranks = 1;
 
     std::vector<MPI_Request> send_reqs;
     std::vector<MPI_Request> recv_reqs;
@@ -150,19 +161,18 @@ struct ExchangeContext {
     size_t n_gather_specs = 0;
     size_t n_scatter_specs = 0;
 
-    void reset(int device, bool exec) {
+    void reset(int device) {
         backend = &backend_for(device);
 
         this->device = device;
-        this->exec = exec;
 
         // Every rank resets for every exchange, so the communicator is created
         // collectively if halo creation has not already made it.
         comm = op::mpi::detail::comm_state(OP_MPI_WORLD).comm;
-        tag++;
-        if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
+        MPI_Comm_size(comm, &ranks);
 
         exchanges.clear();
+        sub_tags.clear();
 
         // Keep the buckets and the inner vectors' capacity: clearing the maps
         // frees every node and vector, so each exchange would reallocate them.
@@ -176,26 +186,45 @@ struct ExchangeContext {
         n_scatter_specs = 0;
     }
 
-    void add(const op_arg& arg) {
+    // Start the next exchange: one per loop, each under the next tag, so a
+    // batch sends and receives what the loops' own exchanges would, in turn.
+    void begin_sub() {
+        tag++;
+        if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
+        sub_tags.push_back(tag);
+    }
+
+    // exec: whether the arg's loop runs the exec halo, whose direct args
+    // then need theirs.
+    void add(const op_arg& arg, bool exec) {
         if (!arg.opt) return;
         if (arg.argtype != OP_ARG_DAT) return;
         if (arg.acc != OP_READ && arg.acc != OP_RW) return;
         if (arg.dat->dirtybit != 1) return;
         if (!exec && arg.map == OP_ID) return;
 
+        int sub = (int) sub_tags.size() - 1;
         for (auto& exchange : exchanges) {
-            if (arg.dat->index == exchange.dat->index) {
-                // Fallback to full exchange if map mismatch
-                if (exchange.is_partial() && (arg.map == OP_ID || exchange.map->index != arg.map->index)) {
-                    exchange.map = nullptr;
-                }
+            if (arg.dat->index != exchange.dat->index) continue;
 
-                // Already doing full exchange - nothing to add
-                return;
+            // An earlier exchange of the batch has brought the whole halo, as
+            // its wait would have cleared the dirty bit; a partial one leaves
+            // it dirty.
+            if (exchange.sub != sub) {
+                if (!exchange.is_partial()) return;
+                continue;
             }
+
+            // Fallback to full exchange if map mismatch
+            if (exchange.is_partial() && (arg.map == OP_ID || exchange.map->index != arg.map->index)) {
+                exchange.map = nullptr;
+            }
+
+            // Already doing full exchange - nothing to add
+            return;
         }
 
-        auto& exchange = exchanges.emplace_back(arg.dat);
+        auto& exchange = exchanges.emplace_back(arg.dat, sub);
 
         // Do partial exchange if available
         if (arg.map != OP_ID && OP_map_partial_exchange[arg.map->index]) {
@@ -208,16 +237,16 @@ struct ExchangeContext {
             return;
         }
 
-        // Normalise exchanges
+        // Normalise exchanges: each of a batch's in dat order, as alone
         std::sort(exchanges.begin(), exchanges.end(), [](auto& a, auto& b) {
-            return a.dat->index < b.dat->index;
+            return a.sub != b.sub ? a.sub < b.sub : a.dat->index < b.dat->index;
         });
 
         for (auto& exchange : exchanges) {
             auto placement = backend->placement(exchange.dat, exchange.map);
 
-            extract_gathers(placement, exchange, gathers_for_neighbour);
-            extract_scatters(placement, exchange, scatters_for_neighbour);
+            extract_gathers(placement, exchange, gathers_for_neighbour, exchange.sub * ranks);
+            extract_scatters(placement, exchange, scatters_for_neighbour, exchange.sub * ranks);
         }
 
         size_t gather_size = 0;
@@ -245,7 +274,7 @@ struct ExchangeContext {
         auto bufs = backend->alloc_buffers(gather_size, scatter_size);
 
         size_t gather_offset = 0;
-        for (auto &[neighbour, gathers] : gathers_for_neighbour) {
+        for (auto &[key, gathers] : gathers_for_neighbour) {
             if (gathers.empty()) continue;
             auto block_start = (void *) ((char * ) bufs.gather_mpi + gather_offset);
             auto block_start_offset = gather_offset;
@@ -255,11 +284,12 @@ struct ExchangeContext {
                 gather_offset += gather.gather_size();
             }
 
-            send_blocks.emplace_back(neighbour, Block{block_start, gather_offset - block_start_offset});
+            send_blocks.push_back(Block{key % ranks, sub_tags[key / ranks], block_start,
+                                        gather_offset - block_start_offset});
         }
 
         size_t scatter_offset = 0;
-        for (auto &[neighbour, scatters] : scatters_for_neighbour) {
+        for (auto &[key, scatters] : scatters_for_neighbour) {
             if (scatters.empty()) continue;
             auto block_start = (void *) ((char * ) bufs.scatter_mpi + scatter_offset);
             auto block_start_offset = scatter_offset;
@@ -269,7 +299,8 @@ struct ExchangeContext {
                 scatter_offset += scatter.scatter_size();
             }
 
-            recv_blocks.emplace_back(neighbour, Block{block_start, scatter_offset - block_start_offset});
+            recv_blocks.push_back(Block{key % ranks, sub_tags[key / ranks], block_start,
+                                        scatter_offset - block_start_offset});
         }
 
         // Initiate gathers
@@ -293,8 +324,8 @@ struct ExchangeContext {
         send_reqs.resize(send_blocks.size());
 
         auto send_index = 0;
-        for (auto [neighbour, block] : send_blocks) {
-            block.send(neighbour, &send_reqs[send_index], tag, comm);
+        for (auto &block : send_blocks) {
+            block.send(&send_reqs[send_index], comm);
             ++send_index;
         }
     }
@@ -303,8 +334,8 @@ struct ExchangeContext {
         recv_reqs.resize(recv_blocks.size());
 
         auto recv_index = 0;
-        for (auto [neighbour, block] : recv_blocks) {
-            block.recv(neighbour, &recv_reqs[recv_index], tag, comm);
+        for (auto &block : recv_blocks) {
+            block.recv(&recv_reqs[recv_index], comm);
             ++recv_index;
         }
     }
@@ -379,22 +410,15 @@ ExchangeContext ctx;
 
 using namespace op::unified_exchanges;
 
-// MPI time is charged to the kernel being run, and the args are checked under
-// OP_diags, as the older per-dat and grouped exchanges did.
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
-    if (device == 1)
-        op_lazy_flush("host loop");
+// One call's part of an exchange: the checks, each dat brought into the
+// space the loop runs in, and the dats it needs added. Returns the elements
+// the loop runs.
+static int add_call(op_set set, int nargs, op_arg *args, int device) {
     if (OP_diags > 0) {
         int dummy;
         for (int n = 0; n < nargs; ++n)
             op_arg_check(set, n, args[n], &dummy, "halo exchange");
     }
-    double cpu_start, wall_start, cpu_end, wall_end;
-    op_timers_core(&cpu_start, &wall_start);
-
-    if (ctx.unwaited != nullptr)
-        unpaired(std::string("the halo exchange on set '") + ctx.unwaited->name + "' was never waited for");
-    ctx.unwaited = set;
 
     // Bring each dat into the space this loop runs in - every arg, not just the
     // ones that end up being exchanged, since a direct loop exchanges nothing but
@@ -426,18 +450,55 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
         break;
     }
 
-    ctx.reset(device, exec);
-
     for (int n = 0; n < nargs; ++n) {
-        ctx.add(args[n]);
+        ctx.add(args[n], exec);
     }
 
+    return size;
+}
+
+// MPI time is charged to the kernel being run, and the args are checked under
+// OP_diags, as the older per-dat and grouped exchanges did.
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
+    if (device == 1)
+        op_lazy_flush("host loop");
+    double cpu_start, wall_start, cpu_end, wall_end;
+    op_timers_core(&cpu_start, &wall_start);
+
+    if (ctx.unwaited != nullptr)
+        unpaired(std::string("the halo exchange on set '") + ctx.unwaited->name + "' was never waited for");
+    ctx.unwaited = set;
+
+    ctx.reset(device);
+    ctx.begin_sub();
+    int size = add_call(set, nargs, args, device);
     ctx.prepare_and_gather();
 
     op_timers_core(&cpu_end, &wall_end);
     if (OP_kern_max > 0)
         OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
     return size;
+}
+
+void op_mpi_halo_exchanges_batch(int ncalls, op_set *sets, int *nargs, op_arg **args,
+                                 int device) {
+    double cpu_start, wall_start, cpu_end, wall_end;
+    op_timers_core(&cpu_start, &wall_start);
+
+    if (ctx.unwaited != nullptr)
+        unpaired(std::string("the halo exchange on set '") + ctx.unwaited->name + "' was never waited for");
+    ctx.unwaited = sets[0];
+
+    ctx.reset(device);
+    for (int c = 0; c < ncalls; ++c) {
+        ctx.begin_sub();
+        add_call(sets[c], nargs[c], args[c], device);
+    }
+    ctx.prepare_and_gather();
+
+    op_timers_core(&cpu_end, &wall_end);
+    if (OP_kern_max > 0)
+        OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
 }
 
 void op_mpi_wait_all(int, op_arg *) {

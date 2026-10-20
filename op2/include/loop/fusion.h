@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace op::loop::fusion {
@@ -57,36 +58,84 @@ inline bool atomic_increments(const Use& x, bool x_atomic, const Use& y, bool y_
            y_atomic;
 }
 
-// Whether b may run after a for each element in turn: every dat either
-// writes is reached only directly by both, or only incremented by both
-// with every indirect increment atomic.
+// Whether a call using y may run after one using x for each element in
+// turn, as far as their one dat goes: neither writes it, both reach it only
+// directly, or both only increment it with every indirect increment atomic.
+inline bool element_wise(const Use& x, bool x_atomic, const Use& y, bool y_atomic) {
+    if (x.dat != y.dat || !(x.write || y.write))
+        return true;
+    if (x.all_direct && y.all_direct)
+        return true;
+    return x.only_inc && y.only_inc && (!x.indirect_inc || x_atomic) &&
+           (!y.indirect_inc || y_atomic);
+}
+
+// Whether a call using y may follow one using x in a chain, whose halos are
+// exchanged before either runs: element by element, and y's exchange the
+// same before x runs as after.  y_exec: y runs the exec halo, where it would
+// need the exchange of a dat x writes that it reads directly.
+inline bool chains(const Use& x, bool x_atomic, const Use& y, bool y_atomic, bool y_exec) {
+    return element_wise(x, x_atomic, y, y_atomic) &&
+           !(y_exec && x.dat == y.dat && x.write && y.read && y.any_direct);
+}
+
+// Whether b may run after a for each element in turn, dat by dat.
 inline bool element_wise(const std::vector<Use>& a, bool a_atomic,
                          const std::vector<Use>& b, bool b_atomic) {
     for (const auto& x : a)
-        for (const auto& y : b) {
-            if (x.dat != y.dat || !(x.write || y.write))
-                continue;
-            if (x.all_direct && y.all_direct)
-                continue;
-            if (x.only_inc && y.only_inc && (!x.indirect_inc || a_atomic) &&
-                (!y.indirect_inc || b_atomic))
-                continue;
-            return false;
-        }
-    return true;
-}
-
-// Whether a and b may run at once: every dat either writes only gets
-// atomic indirect increments from both.
-inline bool independent(const std::vector<Use>& a, bool a_atomic,
-                        const std::vector<Use>& b, bool b_atomic) {
-    for (const auto& x : a)
         for (const auto& y : b)
-            if (x.dat == y.dat && (x.write || y.write) &&
-                !atomic_increments(x, a_atomic, y, b_atomic))
+            if (!element_wise(x, a_atomic, y, b_atomic))
                 return false;
     return true;
 }
 
+// Whether calls using x and y may run at once, as far as their one dat
+// goes: neither writes it, or both only increment it atomically.
+inline bool concurrent(const Use& x, bool x_atomic, const Use& y, bool y_atomic) {
+    return x.dat != y.dat || !(x.write || y.write) ||
+           atomic_increments(x, x_atomic, y, y_atomic);
+}
+
+// Whether a and b may run at once, dat by dat.
+inline bool independent(const std::vector<Use>& a, bool a_atomic,
+                        const std::vector<Use>& b, bool b_atomic) {
+    for (const auto& x : a)
+        for (const auto& y : b)
+            if (!concurrent(x, a_atomic, y, b_atomic))
+                return false;
+    return true;
+}
+
+// How a call reaches a dat, for reports: "increments through a map".
+inline std::string access(const Use& use) {
+    std::string verb = use.only_inc          ? "increments"
+                       : use.read && use.write ? "reads and writes"
+                       : use.write            ? "writes"
+                                              : "reads";
+    if (use.all_direct)
+        return verb;
+    return verb + (use.any_direct ? " directly and through a map" : " through a map");
+}
+
+// The first dat that keeps b from running after a: in a chain when
+// same_range (b_exec as for chains), else at once; both null when there is
+// none.
+struct Conflict {
+    const Use *first = nullptr;
+    const Use *second = nullptr;
+};
+
+inline Conflict conflict(const std::vector<Use>& a, bool a_atomic,
+                         const std::vector<Use>& b, bool b_atomic, bool same_range,
+                         bool b_exec) {
+    for (const auto& x : a)
+        for (const auto& y : b) {
+            bool fits = same_range ? chains(x, a_atomic, y, b_atomic, b_exec)
+                                   : concurrent(x, a_atomic, y, b_atomic);
+            if (!fits)
+                return {&x, &y};
+        }
+    return {};
+}
 
 } // namespace op::loop::fusion

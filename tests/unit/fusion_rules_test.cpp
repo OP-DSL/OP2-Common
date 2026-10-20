@@ -127,11 +127,53 @@ void test_rules() {
           !use[0].all_direct && use[0].any_direct && use[0].indirect_inc);
 }
 
+// What reports name: the first dat in conflict and how each call reaches it.
+void test_conflicts() {
+    Mesh mesh;
+    auto *x = &mesh.x;
+    auto *y = &mesh.y;
+    auto *edges = &mesh.edge_nodes;
+
+    // A direct write gathered by the next call.
+    Args write_x{arg(x, nullptr, OP_WRITE), arg(y, nullptr, OP_READ)};
+    Args gather_x{arg(y, edges, OP_READ), arg(x, edges, OP_READ)};
+    auto a = fusion::uses(write_x);
+    auto b = fusion::uses(gather_x);
+    auto found = fusion::conflict(a, false, b, false, false, false);
+    CHECK(found.first != nullptr && found.first->dat == x && found.second->dat == x);
+    CHECK(fusion::access(*found.first) == "writes");
+    CHECK(fusion::access(*found.second) == "reads through a map");
+
+    // Atomic increments then a direct read and write of their target.
+    Args inc_x{arg(x, edges, OP_INC)};
+    Args update_x{arg(x, nullptr, OP_RW)};
+    a = fusion::uses(inc_x);
+    b = fusion::uses(update_x);
+    found = fusion::conflict(a, true, b, false, true, false);
+    CHECK(found.first != nullptr);
+    CHECK(fusion::access(*found.first) == "increments through a map");
+    CHECK(fusion::access(*found.second) == "reads and writes");
+
+    // None between element-wise calls; at once, the shared dat conflicts.
+    Args read_x{arg(x, nullptr, OP_READ)};
+    Args write_x_alone{arg(x, nullptr, OP_WRITE)};
+    a = fusion::uses(write_x_alone);
+    b = fusion::uses(read_x);
+    CHECK(fusion::conflict(a, false, b, false, true, false).first == nullptr);
+    CHECK(fusion::conflict(a, false, b, false, false, false).first != nullptr);
+
+    // In the exec halo, a direct read of what the first writes would need
+    // an exchange between them; a direct write after a direct read would not.
+    CHECK(fusion::conflict(a, false, b, false, true, true).first != nullptr);
+    CHECK(fusion::conflict(b, false, a, false, true, true).first == nullptr);
+}
+
 } // namespace
 
 int main() {
     try {
         test_rules();
+        test_conflicts();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

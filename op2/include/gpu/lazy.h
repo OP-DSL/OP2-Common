@@ -30,15 +30,18 @@ public:
     virtual void execute(PendingCall& call) = 0;
 
     // Fill member from the call when the loop's preferred strategy can take
-    // part in a fused kernel; restores the call's JIT parameter values.
-    virtual bool fusion_member(PendingCall& call, FusionMember& member) = 0;
+    // part in a fused kernel, restoring the call's JIT parameter values;
+    // else say why not.
+    virtual const char *fusion_member(PendingCall& call, FusionMember& member) = 0;
     // The member's JIT parameters as a compile's constants.
     virtual std::string fusion_params(const FusionMember& member) = 0;
     virtual const JitHeaders& fusion_headers() const = 0;
     virtual const std::string& fusion_name() const = 0;
-    // Before the fused launch: exchanges and device globals; after it: the
-    // globals' processing and the dirty bits.
+    // Around a fused launch, after its halo exchange: the device globals'
+    // preparation; their processing, once the owned elements have run; and
+    // their reduction across the ranks and the dirty bits.
     virtual void fused_begin(FusionMember& member) = 0;
+    virtual void fused_globals(FusionMember& member) = 0;
     virtual void fused_end(FusionMember& member) = 0;
 
 protected:

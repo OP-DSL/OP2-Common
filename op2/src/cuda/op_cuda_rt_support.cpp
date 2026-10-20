@@ -430,6 +430,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
   return set->size;
 }
 
+void op_mpi_halo_exchanges_batch(int ncalls, op_set *sets, int *nargs, op_arg **args,
+                                 int device) {
+  for (int c = 0; c < ncalls; c++)
+    op_mpi_halo_exchanges(sets[c], nargs[c], args[c], device);
+}
+
 void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;

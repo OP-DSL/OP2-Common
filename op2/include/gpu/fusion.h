@@ -5,7 +5,10 @@
 // set whose dependencies are element-wise: for each element the kernel runs
 // each call's op2_body in queue order.  Independent chains share a kernel in
 // disjoint block ranges.  Each call's strategy supplies its declarations and
-// its element function (FusionSource); only the wrapper is written here.
+// its element function (FusionSource); only the wrapper is written here.  A
+// fused kernel exchanges every member's halo at once and launches as the
+// strategies do: the elements that need no halo while it arrives, then the
+// rest.
 
 #include <gpu/jit.h>
 #include <gpu/lazy.h>
@@ -18,8 +21,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace op::gpu {
@@ -29,10 +35,15 @@ namespace op::gpu {
 struct FusionMember {
     PendingCall *call = nullptr;
     StrategyBase *strategy = nullptr;
-    // The elements, in one launch, and the arrays' stride.
+    // The elements, those of them that need no halo, the owned ones, and
+    // the arrays' stride; whether the elements include the exec halo, which
+    // unlike their counts is the same on every rank.
     int begin = 0;
     int end = 0;
+    int core = 0;
+    int owned = 0;
     int set_stride = 0;
+    bool exec = false;
     int block_size = 0;
     // The most blocks the reduction scratch allows, the blocks the call
     // would launch, and its per-thread global stride.
@@ -74,6 +85,9 @@ private:
     std::unordered_map<std::uint64_t, Entry> m_entries;
     std::size_t m_fused_launches = 0;
     std::size_t m_fused_calls = 0;
+    // For OP_diags: the run layouts printed, and why groups closed, by kind.
+    std::unordered_set<std::uint64_t> m_reported;
+    std::map<std::string, std::size_t> m_closes;
 
     static void release_callback(void *owner) {
         static_cast<Fusion *>(owner)->release();
@@ -89,8 +103,13 @@ private:
         if (OP_diags > 1 && m_fused_launches > 0)
             op_printf("fusion: %zu fused launches ran %zu calls\n", m_fused_launches,
                       m_fused_calls);
+        if (OP_diags > 1)
+            for (const auto& [kind, count] : m_closes)
+                op_printf("fusion: %zu closed by %s\n", count, kind.c_str());
         m_fused_launches = 0;
         m_fused_calls = 0;
+        m_closes.clear();
+        m_reported.clear();
     }
 
     static QueuedLoop& loop_of(const FusionMember& member) { return *member.call->loop; }
@@ -123,17 +142,25 @@ private:
         return count;
     }
 
+    // Whether member and other run the same elements.  Grouping looks only
+    // at what every rank sees alike, so the ranks fuse alike, though their
+    // exchanges would match regardless (op_mpi_halo_exchanges_batch).
+    static bool same_range(const FusionMember& member, const FusionMember& other) {
+        return member.call->set == other.call->set && member.exec == other.exec;
+    }
+
     // Whether member may run after every call of chain, element by element.
     static bool joins(const Chain& chain, const FusionMember& member,
                       const std::vector<op::loop::fusion::Use>& member_uses) {
-        const auto& first = chain.front();
-        if (member.call->set != first.call->set || member.begin != first.begin ||
-            member.end != first.end)
+        if (!same_range(member, chain.front()))
             return false;
-        for (const auto& other : chain)
-            if (!op::loop::fusion::element_wise(uses(other), atomic(other), member_uses,
-                                                atomic(member)))
+        for (const auto& other : chain) {
+            auto other_uses = uses(other);
+            if (op::loop::fusion::conflict(other_uses, atomic(other), member_uses,
+                                           atomic(member), true, member.exec)
+                    .first != nullptr)
                 return false;
+        }
         return true;
     }
 
@@ -146,22 +173,27 @@ private:
         return true;
     }
 
-    // Place member in the group: in the first chain it may follow, being
-    // independent of the others, else in a chain of its own, being
-    // independent of all.  False when it fits nowhere.
-    static bool place(Group& group, const FusionMember& member) {
-        if (group.empty()) {
-            group.push_back({member});
-            return true;
-        }
-        if (member.block_size != group.front().front().block_size)
-            return false;
+    enum class Placed { nowhere, chain, apart };
+
+    static bool device_globals_clash(Group& group, const FusionMember& member) {
         int device_globals = member.device_globals;
         for_members(group, [&](const FusionMember& other) {
             device_globals += other.device_globals;
         });
-        if (device_globals > 1)
-            return false;
+        return device_globals > 1;
+    }
+
+    // Place member in the group: in the first chain it may follow, being
+    // independent of the others, else in a chain of its own, being
+    // independent of all.
+    static Placed place(Group& group, const FusionMember& member) {
+        if (group.empty()) {
+            group.push_back({member});
+            return Placed::apart;
+        }
+        if (member.block_size != group.front().front().block_size ||
+            device_globals_clash(group, member))
+            return Placed::nowhere;
 
         auto member_uses = uses(member);
         std::vector<bool> apart(group.size());
@@ -175,14 +207,52 @@ private:
                 others = others && (d == c || apart[d]);
             if (others) {
                 group[c].push_back(member);
-                return true;
+                return Placed::chain;
             }
         }
         if (std::all_of(apart.begin(), apart.end(), [](bool b) { return b; })) {
             group.push_back({member});
-            return true;
+            return Placed::apart;
         }
-        return false;
+        return Placed::nowhere;
+    }
+
+    // Why member fits nowhere in group, for reports: its first conflict
+    // with the latest member it has one with, and that conflict's kind.
+    static std::pair<std::string, std::string> explain(Group& group,
+                                                       const FusionMember& member) {
+        if (member.block_size != group.front().front().block_size)
+            return {"block sizes differ", "block sizes"};
+        if (device_globals_clash(group, member))
+            return {"both take device globals", "device globals"};
+        auto member_uses = uses(member);
+        for (auto chain = group.rbegin(); chain != group.rend(); ++chain)
+            for (auto other = chain->rbegin(); other != chain->rend(); ++other) {
+                bool same_set = other->call->set == member.call->set;
+                bool in_chain = same_range(member, *other);
+                auto other_uses = uses(*other);
+                auto found = op::loop::fusion::conflict(other_uses, atomic(*other),
+                                                        member_uses, atomic(member), in_chain,
+                                                        member.exec);
+                if (found.first == nullptr)
+                    continue;
+                bool halo = in_chain && op::loop::fusion::element_wise(
+                                         *found.first, atomic(*other), *found.second,
+                                         atomic(member));
+                std::string kind = op::loop::fusion::access(*found.first) + " -> " +
+                                   op::loop::fusion::access(*found.second) +
+                                   (halo       ? ", same set, read in the exec halo"
+                                    : in_chain ? ", same set"
+                                    : same_set ? ", same set, other range"
+                                               : ", other sets");
+                std::string detail = loop_of(*other).fusion_name() + " -> " +
+                                     loop_of(member).fusion_name() + " on " +
+                                     found.first->dat->name + " (" +
+                                     other->call->set->name + " -> " +
+                                     member.call->set->name + "): " + kind;
+                return {detail, kind};
+            }
+        return {"it would join two chains", "two chains"};
     }
 
     // A fused kernel's arguments: the distinct dat and map pointers in
@@ -423,12 +493,51 @@ private:
         return values[values.size() / 2];
     }
 
+    // One halo exchange for every member.
+    static void exchange(Group& group) {
+        std::vector<op_set> sets;
+        std::vector<int> nargs;
+        std::vector<op_arg *> args;
+        for_members(group, [&](FusionMember& member) {
+            member.call->bind_globals();
+            sets.push_back(member.call->set);
+            nargs.push_back(static_cast<int>(member.call->args.size()));
+            args.push_back(member.call->args.data());
+        });
+        op_mpi_halo_exchanges_batch(static_cast<int>(sets.size()), sets.data(), nargs.data(),
+                                    args.data(), 2);
+    }
+
+    // A chain's elements in phase 0, before the halo wait: those no member
+    // needs the halo for, none without OP_FUSION_OVERLAP; 1: the rest of the
+    // owned ones, or of all when no member writes a global; 2: the exec halo,
+    // after the globals' processing.
+    static std::pair<int, int> phase_range(const Chain& chain, int phase) {
+        const auto& first = chain.front();
+        int core = config().fusion_overlap ? first.end : first.begin;
+        bool globals = false;
+        for (const auto& member : chain) {
+            core = std::min(core, member.core);
+            globals |= member.global_output;
+        }
+        int owned = globals ? first.owned : first.end;
+        switch (phase) {
+        case 0:
+            return {first.begin, core};
+        case 1:
+            return {core, std::max(core, owned)};
+        default:
+            return {std::max(core, owned), first.end};
+        }
+    }
+
     void run_fused(Group& group, JitKernel& compiled, const std::string& name) {
         op_profile_enter_kernel(name.c_str(), "c_CUDA", "Fused");
-        op_profile_enter("Computation");
+        op_profile_enter("MPI Exchanges");
+        exchange(group);
+        op_profile_next("Prepare GBLs");
         for_members(group, [](FusionMember& member) { loop_of(member).fused_begin(member); });
-        // After the exchanges and the globals' preparation, which place the
-        // globals.
+        // After the globals' preparation, which places them.
         auto arguments = bind(group);
 
         std::vector<void *> argv;
@@ -438,23 +547,38 @@ private:
             argv.push_back(&value);
         for (auto& scalar : arguments.scalars)
             argv.push_back(&scalar);
-        // Each chain's range and blocks: the fewest any member allows.
-        std::vector<int> ranges;
-        ranges.reserve(3 * group.size());
-        int blocks = 0;
-        for (const auto& chain : group) {
-            const auto& first = chain.front();
-            int chain_blocks =
-                (first.end - first.begin + first.block_size - 1) / first.block_size;
-            for (const auto& member : chain)
-                chain_blocks = std::min({chain_blocks, member.block_limit, member.max_blocks});
-            ranges.insert(ranges.end(), {first.begin, first.end, chain_blocks});
-            blocks += chain_blocks;
-        }
+        std::vector<int> ranges(3 * group.size());
         for (auto& range : ranges)
             argv.push_back(&range);
-        if (blocks > 0)
-            compiled.launch(blocks, group.front().front().block_size, argv.data(), 0);
+
+        op_profile_next("Computation");
+        for (int phase = 0; phase < 3; ++phase) {
+            if (phase == 1) {
+                op_profile_next("MPI Wait");
+                op_mpi_wait_all(0, nullptr);
+                op_profile_next("Computation");
+            }
+            // Each chain's range and blocks: the fewest any member allows.
+            int blocks = 0;
+            for (std::size_t c = 0; c < group.size(); ++c) {
+                const auto& chain = group[c];
+                auto [begin, end] = phase_range(chain, phase);
+                int chain_blocks = (end - begin + chain.front().block_size - 1) /
+                                   chain.front().block_size;
+                for (const auto& member : chain)
+                    chain_blocks =
+                        std::min({chain_blocks, member.block_limit, member.max_blocks});
+                ranges[3 * c] = begin;
+                ranges[3 * c + 1] = end;
+                ranges[3 * c + 2] = std::max(chain_blocks, 0);
+                blocks += ranges[3 * c + 2];
+            }
+            if (blocks > 0)
+                compiled.launch(blocks, group.front().front().block_size, argv.data(), 0);
+            if (phase == 1)
+                for_members(group,
+                            [](FusionMember& member) { loop_of(member).fused_globals(member); });
+        }
 
         for_members(group, [](FusionMember& member) { loop_of(member).fused_end(member); });
         op_profile_exit();
@@ -506,29 +630,65 @@ public:
     Fusion(const Fusion&) = delete;
 
     // Run the queued calls in order, as fused kernels where they may share
-    // one.
+    // one.  Under OP_diags, each distinct layout is printed once at 3, and
+    // why groups closed is counted.
     void run(std::vector<PendingCall>& calls) {
+        if (!config().fusion) {
+            for (auto& call : calls)
+                call.loop->execute(call);
+            return;
+        }
         Group group;
         auto close = [&] {
             if (!group.empty())
                 launch(group);
             group.clear();
         };
+        // Groups apart by " / ", chains by " | ", members of a chain by "+".
+        std::string layout, reasons;
+        auto note = [&](const char *separator, const std::string& name) {
+            if (OP_diags > 2)
+                layout += (layout.empty() ? "" : separator) + name;
+        };
+        auto closed = [&](const std::string& name, const std::string& detail,
+                          const std::string& kind) {
+            ++m_closes[kind];
+            if (OP_diags > 2)
+                reasons += "  " + name + ": " + detail + "\n";
+        };
         for (auto& call : calls) {
             FusionMember member;
-            bool eligible = config().fusion && call.loop->fusion_member(call, member) &&
-                            fusable(member);
-            if (!eligible) {
+            const char *why = call.loop->fusion_member(call, member);
+            if (why == nullptr && !fusable(member))
+                why = "registers";
+            if (why != nullptr) {
+                const auto& name = call.loop->fusion_name();
+                if (OP_diags > 1)
+                    closed(name, std::string{"runs alone: "} + why,
+                           std::string{"a call that runs alone: "} + why);
+                note(" / ", "(" + name + ")");
                 close();
                 call.loop->execute(call);
                 continue;
             }
-            if (!place(group, member)) {
+            const auto& name = loop_of(member).fusion_name();
+            bool fresh = group.empty();
+            auto placed = place(group, member);
+            if (placed == Placed::nowhere) {
+                if (OP_diags > 1) {
+                    auto [detail, kind] = explain(group, member);
+                    closed(name, detail, kind);
+                }
                 close();
                 group.push_back({member});
+                fresh = true;
             }
+            note(fresh ? " / " : placed == Placed::chain ? "+" : " | ", name);
         }
         close();
+        if (OP_diags > 2 &&
+            m_reported.insert(hash_bytes(layout.data(), layout.size(), 0)).second)
+            op_printf("fusion: layout %s\n%s", layout.c_str(), reasons.c_str());
     }
 };
 

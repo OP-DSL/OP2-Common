@@ -19,7 +19,8 @@ loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate strategy per configuration)
 loop/fusion.h          (includes: op_lib_core.h; when queued calls may share
-                        a kernel, element by element or all at once)
+                        a kernel, element by element or all at once, and
+                        what keeps them apart, for reports)
 ```
 
 #### Planning building blocks, backend neutral (sources under src/plan)
@@ -73,7 +74,8 @@ gpu/lazy.h             (includes: gpu/config.h, loop/strategy.h; the
                         queue of captured calls and when it runs)
 gpu/fusion.h           (includes: gpu/jit.h, gpu/lazy.h, gpu/strategy.h,
                         loop/fusion.h; the queued calls' fused kernels:
-                        grouping, source, compile, timing and launch)
+                        grouping, source, compile, timing, and launch around
+                        one batched halo exchange)
 gpu/loop.h             (includes: gpu/fusion.h; the loop the generated
                         code builds and invokes, queued under OP_LAZY)
 ```

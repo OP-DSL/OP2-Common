@@ -370,6 +370,11 @@ void op_download_dat(op_dat dat);
    halo when an indirect arg is written. op_mpi_test_all progresses an exchange
    that is still outstanding, without waiting for it. */
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device);
+/* One exchange for ncalls loops run together, call c over sets[c] with
+   nargs[c] args[c]: each as op_mpi_halo_exchanges would, waited for by one
+   op_mpi_wait_all. */
+void op_mpi_halo_exchanges_batch(int ncalls, op_set *sets, int *nargs, op_arg **args,
+                                 int device);
 void op_mpi_wait_all(int nargs, op_arg *args);
 void op_mpi_test_all(int nargs, op_arg *args);
 

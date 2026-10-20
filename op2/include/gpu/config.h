@@ -51,6 +51,10 @@ struct Config {
     // OP_FUSION_TUNE: time a fused kernel against its calls run apart and
     // keep the faster.
     bool fusion_tune = true;
+    // OP_FUSION_OVERLAP: a fused kernel runs the elements that need no halo
+    // while it arrives, as the strategies do; off, it waits, then runs all,
+    // which suits ranks sharing a device.
+    bool fusion_overlap = true;
     // OP_FUSION_DUMP: a directory each fused kernel's source is written to.
     std::string fusion_dump;
 
