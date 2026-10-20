@@ -165,8 +165,12 @@ public:
     bool fusion_member(PendingCall& call, FusionMember& member) override {
         if (m_tuner || !config().enable)
             return false;
-        // No halo: every element is core and none is redundant.
-        if (call.set->core_size != call.set->size || call.set->exec_size != 0)
+        auto nargs = static_cast<int>(call.args.size());
+        // A fused kernel runs its elements at once, after the halo: an
+        // indirect call with a halo takes no reduction, which its exec
+        // elements would join.
+        bool halo = call.set->core_size != call.set->size || call.set->exec_size != 0;
+        if (!m_description.direct && halo && has_global_output(call.args.data(), nargs))
             return false;
         auto index = m_ladder.preferred();
         if (!index)
@@ -177,7 +181,6 @@ public:
 
         call.bind_globals();
         m_jit.restore(call.params);
-        auto nargs = static_cast<int>(call.args.size());
         op::loop::Configuration configuration{call.set, call.args};
         auto geometry = strategy.simple_call(configuration);
         const auto& sections = geometry.sections;
@@ -215,6 +218,7 @@ public:
         auto nargs = static_cast<int>(member.call->args.size());
         member.call->bind_globals();
         op_mpi_halo_exchanges(member.call->set, nargs, args, 2);
+        op_mpi_wait_all(nargs, args);
         prepareDeviceGblsWithPolicy(args, nargs, member.global_stride,
                                     m_description.gbl_inc_atomic);
         if (m_init_globals != nullptr)
@@ -224,7 +228,6 @@ public:
     void fused_end(FusionMember& member) override {
         auto *args = member.call->args.data();
         auto nargs = static_cast<int>(member.call->args.size());
-        op_mpi_wait_all(nargs, args);
         if (member.global_output &&
             processDeviceGblsWithPolicy(args, nargs, member.global_stride,
                                         member.global_stride, m_description.gbl_inc_atomic))

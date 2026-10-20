@@ -10,6 +10,7 @@
 #include <gpu/jit.h>
 #include <gpu/lazy.h>
 #include <gpu/strategy.h>
+#include <loop/fusion.h>
 #include <op_lib_core.h>
 #include <op_profile.h>
 
@@ -48,88 +49,6 @@ struct FusionMember {
     int registers = 0;
 };
 
-namespace fusion_detail {
-
-inline bool writes(const op_arg& arg) {
-    return arg.acc == OP_WRITE || arg.acc == OP_RW || arg.acc == OP_INC;
-}
-
-// How a call uses one dat.
-struct Use {
-    op_dat dat = nullptr;
-    bool read = false;
-    bool write = false;
-    bool only_inc = true;
-    bool all_direct = true;
-    bool any_direct = false;
-    bool indirect_inc = false;
-};
-
-inline std::vector<Use> uses(const PendingCall& call) {
-    std::vector<Use> out;
-    for (const auto& arg : call.args) {
-        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT)
-            continue;
-        auto found = std::find_if(out.begin(), out.end(),
-                                  [&](const Use& use) { return use.dat == arg.dat; });
-        if (found == out.end()) {
-            out.push_back({arg.dat});
-            found = out.end() - 1;
-        }
-        bool direct = arg.map == nullptr;
-        found->read |= arg.acc == OP_READ || arg.acc == OP_RW;
-        found->write |= writes(arg);
-        found->only_inc &= arg.acc == OP_INC;
-        found->all_direct &= direct;
-        found->any_direct |= direct;
-        found->indirect_inc |= !direct && arg.acc == OP_INC;
-    }
-    return out;
-}
-
-// Both only increment the dat, every increment indirect and atomic: such
-// calls commute, element by element or all at once.
-inline bool atomic_increments(const Use& x, bool x_atomic, const Use& y, bool y_atomic) {
-    return x.only_inc && y.only_inc && !x.any_direct && !y.any_direct && x_atomic &&
-           y_atomic;
-}
-
-// Whether b may run after a for each element in turn: every dat either
-// writes is reached only directly by both, or only incremented by both
-// with every indirect increment atomic.
-inline bool element_wise(const std::vector<Use>& a, bool a_atomic,
-                         const std::vector<Use>& b, bool b_atomic) {
-    for (const auto& x : a)
-        for (const auto& y : b) {
-            if (x.dat != y.dat || !(x.write || y.write))
-                continue;
-            if (x.all_direct && y.all_direct)
-                continue;
-            if (x.only_inc && y.only_inc && (!x.indirect_inc || a_atomic) &&
-                (!y.indirect_inc || b_atomic))
-                continue;
-            return false;
-        }
-    return true;
-}
-
-// Whether a and b may run at once: every dat either writes only gets
-// atomic indirect increments from both.
-inline bool independent(const std::vector<Use>& a, bool a_atomic,
-                        const std::vector<Use>& b, bool b_atomic) {
-    for (const auto& x : a)
-        for (const auto& y : b)
-            if (x.dat == y.dat && (x.write || y.write) &&
-                !atomic_increments(x, a_atomic, y, b_atomic))
-                return false;
-    return true;
-}
-
-inline bool atomic(const FusionMember& member) {
-    return member.strategy->family() == "atomics";
-}
-
-} // namespace fusion_detail
 
 class Fusion {
 private:
@@ -176,6 +95,15 @@ private:
 
     static QueuedLoop& loop_of(const FusionMember& member) { return *member.call->loop; }
 
+    static std::vector<op::loop::fusion::Use> uses(const FusionMember& member) {
+        return op::loop::fusion::uses(member.call->args);
+    }
+
+    // Whether the member's indirect increments are atomic.
+    static bool atomic(const FusionMember& member) {
+        return member.strategy->family() == "atomics";
+    }
+
     static bool fusable(const FusionMember& member) {
         return config().fusion_max_registers <= 0 || member.registers == 0 ||
                member.registers <= config().fusion_max_registers;
@@ -197,25 +125,23 @@ private:
 
     // Whether member may run after every call of chain, element by element.
     static bool joins(const Chain& chain, const FusionMember& member,
-                      const std::vector<fusion_detail::Use>& uses) {
+                      const std::vector<op::loop::fusion::Use>& member_uses) {
         const auto& first = chain.front();
         if (member.call->set != first.call->set || member.begin != first.begin ||
             member.end != first.end)
             return false;
         for (const auto& other : chain)
-            if (!fusion_detail::element_wise(fusion_detail::uses(*other.call),
-                                             fusion_detail::atomic(other), uses,
-                                             fusion_detail::atomic(member)))
+            if (!op::loop::fusion::element_wise(uses(other), atomic(other), member_uses,
+                                                atomic(member)))
                 return false;
         return true;
     }
 
     static bool independent(const Chain& chain, const FusionMember& member,
-                            const std::vector<fusion_detail::Use>& uses) {
+                            const std::vector<op::loop::fusion::Use>& member_uses) {
         for (const auto& other : chain)
-            if (!fusion_detail::independent(fusion_detail::uses(*other.call),
-                                            fusion_detail::atomic(other), uses,
-                                            fusion_detail::atomic(member)))
+            if (!op::loop::fusion::independent(uses(other), atomic(other), member_uses,
+                                               atomic(member)))
                 return false;
         return true;
     }
@@ -237,12 +163,12 @@ private:
         if (device_globals > 1)
             return false;
 
-        auto uses = fusion_detail::uses(*member.call);
+        auto member_uses = uses(member);
         std::vector<bool> apart(group.size());
         for (std::size_t c = 0; c < group.size(); ++c)
-            apart[c] = independent(group[c], member, uses);
+            apart[c] = independent(group[c], member, member_uses);
         for (std::size_t c = 0; c < group.size(); ++c) {
-            if (!joins(group[c], member, uses))
+            if (!joins(group[c], member, member_uses))
                 continue;
             bool others = true;
             for (std::size_t d = 0; d < group.size(); ++d)

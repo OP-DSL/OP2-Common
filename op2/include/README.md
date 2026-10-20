@@ -18,6 +18,8 @@ loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
                         registry)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate strategy per configuration)
+loop/fusion.h          (includes: op_lib_core.h; when queued calls may share
+                        a kernel, element by element or all at once)
 ```
 
 #### Planning building blocks, backend neutral (sources under src/plan)
@@ -55,7 +57,8 @@ kernel/jit_embed.h     (embeds the three kernel headers as text for NVRTC;
 ```
 gpu/shims.h            (gpu* aliases over the CUDA or HIP runtime)
 gpu/config.h           (the run-wide configuration: JIT policy, device,
-                        wavefront window; read by op_init, from src/gpu)
+                        wavefront window, lazy execution and fusion; read by
+                        op_init, from src/gpu)
 gpu/jit.h              (includes: gpu/config.h, gpu/shims.h; the JIT
                         service: parameters, compiles and every JIT policy)
 gpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
@@ -66,8 +69,13 @@ gpu/chunk_encode.h     (includes: gpu/chunk_plan.h, gpu/shims.h; a chunk
 gpu/strategy.h         (includes: gpu/jit.h, gpu/chunk_encode.h; the plain,
                         atomics, colouring and chunked strategies, and their
                         axes: block size, unstaged singles, wavefront)
-gpu/loop.h             (includes: gpu/strategy.h; the loop the generated
-                        code builds and invokes)
+gpu/lazy.h             (includes: gpu/config.h, loop/strategy.h; the
+                        queue of captured calls and when it runs)
+gpu/fusion.h           (includes: gpu/jit.h, gpu/lazy.h, gpu/strategy.h,
+                        loop/fusion.h; the queued calls' fused kernels:
+                        grouping, source, compile, timing and launch)
+gpu/loop.h             (includes: gpu/fusion.h; the loop the generated
+                        code builds and invokes, queued under OP_LAZY)
 ```
 
 #### OpenMP backend of the translated kernels

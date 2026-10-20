@@ -22,6 +22,7 @@
 #     [LINK_LIBRARIES <lib...>]    # linked to every executable created here,
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
+#     [ENVIRONMENT <var=value...>] # set for every test made here
 #     [STRATEGIES <s...>]          # also run each c_cuda/c_hip/c_openmp variant
 #                                  # once per execution strategy, forced through
 #                                  # its environment, as <target>_<strategy>,
@@ -52,7 +53,7 @@ function(op2_add_functional_tests)
     cmake_parse_arguments(_A
         "MPI_ONLY"
         "LANGUAGE;MPI_RANKS_LOWCOST;MPI_RANKS_GPU;OMP_NUM_THREADS"
-        "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES;STRATEGIES"
+        "SOURCES;TRANSLATOR_ARGS;SOA_TRANSLATOR_ARGS;EXCLUDE_VARIANTS;LABELS;LINK_LIBRARIES;STRATEGIES;ENVIRONMENT"
         ${ARGN})
 
     if(NOT _A_MPI_RANKS_LOWCOST)
@@ -190,9 +191,11 @@ function(op2_add_functional_tests)
                 LABELS     "${_labels}"
                 PROCESSORS "${_nproc}")
 
-            set(_base_env "")
+            set(_base_env ${_A_ENVIRONMENT})
             if(_v MATCHES "^(mpi_)?(c_)?openmp$")
-                set(_base_env "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
+                list(APPEND _base_env "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
+            endif()
+            if(_base_env)
                 set_tests_properties(${_tgt} PROPERTIES
                     ENVIRONMENT "${_base_env}")
             endif()
