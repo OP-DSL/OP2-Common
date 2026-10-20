@@ -632,6 +632,15 @@ function(_op2_add_variant_executable)
         target_link_libraries(${_tgt} PRIVATE OpenMP::OpenMP_CXX)
     endif()
 
+    # A translated Fortran kernel's intrinsics set no errno, as gfortran's
+    # do not; with it, each sqrt keeps a branch to libm and no loop calling
+    # one vectorises.
+    if(_A_LANGUAGE STREQUAL "fortran" AND _base MATCHES "^c_(seq|openmp)$"
+            AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
+        target_compile_options(${_tgt} PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-fno-math-errno>)
+    endif()
+
     # HIP variants reuse .cu/.hip.cpp sources; promote them to LANGUAGE HIP.
     set(_master_lang "${_op2_variant_${_A_LANGUAGE}_${_base}_master_lang}")
     if(_master_lang STREQUAL "HIP")
