@@ -89,10 +89,10 @@ function(op2_add_functional_tests)
 
     # 1. Build the four legacy variant-families (plain / par / soa / soa_par),
     # or under MPI_ONLY just the two _par ones.
-    # USE_MPI needs no explicit COMPILE_DEFINITIONS: _op2_add_variant_executable()
-    # already applies it to every mpi_-prefixed target. SUMMARY_BUCKET TESTS
-    # routes these into the test count instead of the "Apps:" line, reusing
-    # op2_add_app_variants()'s own tracking rather than a separate counter.
+    # The _par families pass USE_MPI to the call, so the translator sees it
+    # too. SUMMARY_BUCKET TESTS routes these into the test count instead of
+    # the "Apps:" line, reusing op2_add_app_variants()'s own tracking rather
+    # than a separate counter.
     if(NOT _A_MPI_ONLY)
         op2_add_app_variants(
             NAME "${_A_NAME}" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
