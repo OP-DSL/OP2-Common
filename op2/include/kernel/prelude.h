@@ -176,7 +176,7 @@ inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
 
 DEVICE inline int abs(int x) { return ::abs(x); }
-DEVICE inline int64_t abs(int64_t x) { return ::abs(x); }
+DEVICE inline int64_t abs(int64_t x) { return x < 0 ? -x : x; }
 inline constexpr float abs(float x) { return fabsf(x); }
 inline constexpr double abs(double x) { return fabs(x); }
 
