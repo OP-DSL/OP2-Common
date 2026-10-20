@@ -132,12 +132,6 @@ void mvReductArraysToHost(int reduct_bytes);
 
 #ifdef __cplusplus
 }
-
-#include <op_device.h>
-
-// The backend's device memory, registered with op::set_device by
-// cutilDeviceInit.
-const op::Device& op_cuda_device();
 #endif
 
 #endif /* __OP_CUDA_RT_SUPPORT_H */

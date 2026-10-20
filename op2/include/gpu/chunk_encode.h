@@ -1,11 +1,10 @@
 #pragma once
 
-// A chunk plan as the GPU kernels read it: its arrays resident on the device
-// through op::device(), plus the per-call wavefront state.  Host code shared
-// by the CUDA and HIP strategies, and testable against the host device.
+// A chunk plan as the GPU kernels read it: its arrays resident on the device,
+// plus the per-call wavefront state.
 
 #include <gpu/chunk_plan.h>
-#include <op_device.h>
+#include <gpu/shims.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -23,21 +22,22 @@ private:
     static void upload(const std::vector<T>& source, T *&destination) {
         if (source.empty())
             return;
-        const auto& device = op::device();
-        destination = static_cast<T *>(device.malloc(source.size() * sizeof(T)));
-        device.copy(destination, source.data(), source.size() * sizeof(T));
+        CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&destination),
+                                 source.size() * sizeof(T)));
+        CUDA_SAFE_CALL(gpuMemcpy(destination, source.data(), source.size() * sizeof(T),
+                                 gpuMemcpyHostToDevice));
     }
 
     static void allocate_zeroed(std::size_t count, int *&destination) {
-        const auto& device = op::device();
-        destination = static_cast<int *>(device.malloc(count * sizeof(int)));
-        device.memset(destination, 0, count * sizeof(int));
+        CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&destination),
+                                 count * sizeof(int)));
+        CUDA_SAFE_CALL(gpuMemset(destination, 0, count * sizeof(int)));
     }
 
     template<typename T>
     static void release(T *&pointer) {
         if (pointer != nullptr)
-            op::device().free(pointer);
+            CUDA_SAFE_CALL(gpuFree(pointer));
         pointer = nullptr;
     }
 

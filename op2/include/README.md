@@ -8,13 +8,6 @@ op_lib_cpp.h    (includes: op_lib_core.h, op_lib_c.h)
 op_rt_support.h (includes: op_lib_core.h)
 ```
 
-
-#### Device memory
-```
-op_device.h     (op::Device: malloc, free, copy, memset; the host until a
-                 backend registers its own, as cutilDeviceInit does)
-```
-
 #### par_loop support, backend neutral (sources under src/loop)
 ```
 loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
@@ -68,8 +61,8 @@ gpu/jit.h              (includes: gpu/config.h, gpu/shims.h; the JIT
 gpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
                         plans under the device's limits: block multiples,
                         shared memory, 16-bit stage words, 8-bit colours)
-gpu/chunk_encode.h     (includes: gpu/chunk_plan.h, op_device.h; a chunk plan
-                        uploaded as the kernels read it)
+gpu/chunk_encode.h     (includes: gpu/chunk_plan.h, gpu/shims.h; a chunk
+                        plan uploaded as the kernels read it)
 gpu/strategy.h         (includes: gpu/jit.h, gpu/chunk_encode.h; the plain,
                         atomics, colouring and chunked strategies, and their
                         axes: block size, unstaged singles, wavefront)

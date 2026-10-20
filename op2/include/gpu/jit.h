@@ -40,17 +40,6 @@
         }                                                                       \
     } while (0)
 
-#define CUDA_SAFE_CALL(x)                                                       \
-    do {                                                                        \
-        gpuError_t result = x;                                                  \
-        if (result != gpuSuccess) {                                             \
-            const char *msg = gpuGetErrorString(result);                        \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,     \
-                    __FILE__, __LINE__);                                        \
-            exit(1);                                                            \
-        }                                                                       \
-    } while (0)
-
 #ifdef OP2_CUDA
 #define CU_SAFE_CALL(x)                                                         \
     do {                                                                        \
