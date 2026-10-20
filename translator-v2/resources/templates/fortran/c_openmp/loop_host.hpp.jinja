@@ -15,18 +15,11 @@
 {#- Globals each thread keeps its own copy of. -#}
 {%- set args_per_thread = lh.args|gbl|select2("reduction", "work")|list + lh.args|info|list -%}
 
-{#- chunk_atomics' argument groups, every indirect increment by dat with the
-    dat ids in first-use order, as the c_cuda target groups them; the
-    runtime stages them in the regions the staged body lays out.
-    chunk_colouring needs none: it colours by the call's updated dats. -#}
-{%- set args_chunk_atomics = lh.args|dat|indirect(lh)|inc|list -%}
-{%- set group_ids = namespace(chunk_atomics=[]) -%}
-{%- for arg in args_chunk_atomics -%}
-    {%- if arg.dat_id not in group_ids.chunk_atomics -%}
-        {%- set group_ids.chunk_atomics = group_ids.chunk_atomics + [arg.dat_id] -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- set group_dats = {"chunk_atomics": group_ids.chunk_atomics} -%}
+{#- chunk_atomics' argument groups (fortran/schemes.py chunkGroups), as the
+    c_cuda target groups them; the runtime stages them in the regions the
+    staged body lays out.  chunk_colouring needs none: it colours by the
+    call's updated dats. -#}
+{%- set groups = config.chunk_groups -%}
 
 {#- The kernel increments through op2_inc: atomically under atomics, in
     place under every other strategy, whose increments reach memory no other
@@ -72,8 +65,8 @@ f2c::Ptr{op2_lane{{arg.id}} + op2_l, {{pack}}}
 f2c::Ptr{gbl{{arg.id}}}
     {%- elif mode == "packed" -%}
 f2c::Ptr{op2_pack{{arg.id}} + op2_l, {{pack}}}
-    {%- elif mode == "staged" and arg in args_chunk_atomics -%}
-f2c::Ptr{op2_stage{{group_dats.chunk_atomics|index(arg.dat_id)}} + stage_words[{{args_chunk_atomics|index(arg)}} * stride + n] * {{dat_dim(lh.dat(arg))}}}
+    {%- elif mode == "staged" and arg in groups.chunk_atomics.args -%}
+f2c::Ptr{op2_stage{{groups.chunk_atomics.group(arg)}} + stage_words[{{groups.chunk_atomics.position(arg)}} * stride + n] * {{dat_dim(lh.dat(arg))}}}
     {%- else -%}
 f2c::Ptr{ {{-global_address(arg)-}} }
     {%- endif -%}
@@ -147,7 +140,7 @@ kernel::{{lh.kernel}}(
 
 {#- Whether any argument in a staged group is active for this call. -#}
 {%- macro stage_group_active(dat_id) -%}
-    {%- set members = args_chunk_atomics|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- set members = groups.chunk_atomics.args|selectattr("dat_id", "eq", dat_id)|list -%}
     {%- if members|reject("opt")|list|length > 0 -%}
 true
     {%- else -%}
@@ -291,12 +284,12 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
     const int stride = staging.stride;
     const op::plan::StageWord *const stage_words = staging.stage_words.data();
     const int *const op2_counts =
-        staging.stage_counts.data() + work.chunk * {{group_dats.chunk_atomics|length}};
+        staging.stage_counts.data() + work.chunk * {{groups.chunk_atomics.dats|length}};
     const int *const op2_slots =
-        staging.slot_offsets.data() + work.chunk * {{group_dats.chunk_atomics|length}};
+        staging.slot_offsets.data() + work.chunk * {{groups.chunk_atomics.dats|length}};
 
     char *op2_cursor = work.scratch;
-    {% for dat_id in group_dats.chunk_atomics %}
+    {% for dat_id in groups.chunk_atomics.dats %}
         {% set dat = lh.dat(dat_id) %}
     const int op2_stage{{loop.index0}}_count =
         ({{stage_group_active(dat_id)}}) ? op2_counts[{{loop.index0}}] : 0;
@@ -309,7 +302,7 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
         {{kernel_call("staged")|indent(8)}}
     }
 
-    {% for dat_id in group_dats.chunk_atomics %}
+    {% for dat_id in groups.chunk_atomics.dats %}
         {% set dat = lh.dat(dat_id) %}
     for (int op2_s = 0; op2_s < op2_stage{{loop.index0}}_count; ++op2_s) {
         const int op2_target = staging.slot_targets[op2_slots[{{loop.index0}}] + op2_s];
@@ -338,12 +331,12 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
 static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
 {% for strategy in strategies %}
     {% if strategy == "chunk_atomics" %}
-    static constexpr std::array<op::plan::ArgGroup, {{args_chunk_atomics|length}}> chunk_atomics_groups = {{"{{"}}
-        {% for arg in args_chunk_atomics %}
-        op::plan::ArgGroup{ {{arg.id}}, {{group_dats.chunk_atomics|index(arg.dat_id)}} },
+    static constexpr std::array<op::plan::ArgGroup, {{groups.chunk_atomics.args|length}}> chunk_atomics_groups = {{"{{"}}
+        {% for arg in groups.chunk_atomics.args %}
+        op::plan::ArgGroup{ {{arg.id}}, {{groups.chunk_atomics.group(arg)}} },
         {% endfor %}
     {{"}}"}};
-    {% set tail = ", op::plan::ArgGroups{ chunk_atomics_groups, %d }" % group_dats.chunk_atomics|length %}
+    {% set tail = ", op::plan::ArgGroups{ chunk_atomics_groups, %d }" % groups.chunk_atomics.dats|length %}
     {% else %}
     {% set tail = "" %}
     {% endif %}

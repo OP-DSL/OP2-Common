@@ -48,45 +48,18 @@
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
 
-{#- Argument groups for the chunked strategies, with their dat ids in
-    first-use order.  chunk_atomics stages every indirect increment;
-    chunk_colouring colours every indirect argument on a dat the loop
-    increments or read-writes.  The translator lists a chunked strategy only
-    when its group arguments have one map component and a supported scalar
-    type.  The runtime partitions over the same groups the wrapper lays its
-    regions out by. -#}
-{%- set args_chunk_atomics = lh.args|dat|indirect(lh)|inc|list -%}
-{%- set updated = namespace(ids=[]) -%}
-{%- for arg in lh.args|dat|indirect(lh) -%}
-    {%- if (arg is inc or arg is read_write) and arg.dat_id not in updated.ids -%}
-        {%- set updated.ids = updated.ids + [arg.dat_id] -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- set args_chunk_colouring = lh.args|dat|indirect(lh)|selectattr("dat_id", "in", updated.ids)|list -%}
-{%- set group_ids = namespace(chunk_atomics=[], chunk_colouring=[]) -%}
-{%- for arg in args_chunk_atomics -%}
-    {%- if arg.dat_id not in group_ids.chunk_atomics -%}
-        {%- set group_ids.chunk_atomics = group_ids.chunk_atomics + [arg.dat_id] -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- for arg in args_chunk_colouring -%}
-    {%- if arg.dat_id not in group_ids.chunk_colouring -%}
-        {%- set group_ids.chunk_colouring = group_ids.chunk_colouring + [arg.dat_id] -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- set group_args = {"chunk_atomics": args_chunk_atomics, "chunk_colouring": args_chunk_colouring} -%}
-{%- set group_dats = {"chunk_atomics": group_ids.chunk_atomics, "chunk_colouring": group_ids.chunk_colouring} -%}
+{#- Argument groups for the chunked strategies (fortran/schemes.py
+    chunkGroups): the arguments each plan follows and their dats in
+    first-use order, one group each.  The translator lists a chunked
+    strategy only when its group arguments have one map component and a
+    supported scalar type.  The runtime partitions over the same groups the
+    wrapper lays its regions out by. -#}
+{%- set groups = config.chunk_groups -%}
 
 {#- Whether chunk colouring can compute every element of a chunk at once:
     its groups only increment and read, so each thread can keep its
     increments in registers until its colour's turn. -#}
-{%- set colour_shape = namespace(parallel=true) -%}
-{%- for arg in args_chunk_colouring -%}
-    {%- if not (arg is inc or arg is read) -%}
-        {%- set colour_shape.parallel = false -%}
-    {%- endif -%}
-{%- endfor -%}
-{%- set chunk_colouring_parallel = colour_shape.parallel -%}
+{%- set chunk_colouring_parallel = groups.chunk_colouring.args|reject("inc")|reject("read")|list|length == 0 -%}
 
 {#- How each strategy applies the translated kernel's op2_inc calls. -#}
 {%- macro inc_hook(strategy) -%}
@@ -182,8 +155,8 @@ f2c::Ptr{gbl{{arg.id}}}
     contiguous, or under OP_CHUNK_ATOMICS_UNSTAGED_SINGLES its global target
     if the chunk references it only there. -#}
 {%- macro stage_slot(arg, strategy) -%}
-    {%- set group = group_dats[strategy]|index(arg.dat_id) -%}
-    {%- set word = "stage_words[%d * stride + n]" % group_args[strategy]|index(arg) -%}
+    {%- set group = groups[strategy].group(arg) -%}
+    {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
     {%- if strategy == "chunk_atomics" -%}
 ((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
     {%- else -%}
@@ -194,9 +167,9 @@ f2c::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
 {#- staged names the strategy whose group arguments point at their staged
     slots; local points the indirect increments at per-thread registers. -#}
 {%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
-    {%- if local and arg in args_chunk_atomics -%}
+    {%- if local and arg in groups.chunk_atomics.args -%}
 f2c::Ptr{op2_local{{arg.id}}}
-    {%- elif staged is not none and arg in group_args[staged] -%}
+    {%- elif staged is not none and arg in groups[staged].args -%}
 {{stage_slot(arg, staged)}}
     {%- else -%}
 {{arg_global_pointer(arg)}}
@@ -281,7 +254,7 @@ int op2_wavefront;
 
 {#- Whether any argument in a staged group is active for this launch. -#}
 {%- macro stage_group_active(strategy, dat_id) -%}
-    {%- set members = group_args[strategy]|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- set members = groups[strategy].args|selectattr("dat_id", "eq", dat_id)|list -%}
     {%- if members|reject("opt")|list|length > 0 -%}
 true
     {%- else -%}
@@ -305,8 +278,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     region's targets, applies action: seed the slot from its target, store it
     back, or flush it with a global atomic. -#}
 {% macro stage_slots(strategy, action) %}
-{% for dat_id in group_dats[strategy] %}
-    {% set arg = group_args[strategy]|selectattr("dat_id", "eq", dat_id)|first %}
+{% for arg in groups[strategy].leaders() %}
     {% set dat = lh.dat(arg) %}
         for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += blockDim.x) {
             const int target = slot_targets[op2_chunk_slots[{{loop.index0}}] + s];
@@ -325,7 +297,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
             const int n = op2_base + threadIdx.x;
             const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
     {% if chunk_colouring_parallel %}
-        {% for arg in args_chunk_atomics %}
+        {% for arg in groups.chunk_atomics.args %}
             {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim_w(lh.dat(arg))}}] = {};
         {% endfor %}
 
@@ -338,7 +310,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 
             for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
                 if (op2_colour == op2_pass) {
-        {% for arg in args_chunk_atomics %}
+        {% for arg in groups.chunk_atomics.args %}
             {% if arg is opt %}
                     if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
                         f2c::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
@@ -373,7 +345,7 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     batch's chunks share no target, and applies its elements by thread
     colour.  Only JIT kernels are built from it. -#}
 {%- macro chunk_body(strategy) %}
-    {% set dats = group_dats[strategy] %}
+    {% set dats = groups[strategy].dats %}
     extern __shared__ char op2_stage_smem[];
 
     {% for dat_id in dats %}
@@ -733,9 +705,9 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% endif %}
 {% for strategy in strategies %}
     {% if strategy in chunk_strategies %}
-    static constexpr std::array<op::plan::ArgGroup, {{group_args[strategy]|length}}> {{strategy}}_groups = {{"{{"}}
-        {% for arg in group_args[strategy] %}
-        op::plan::ArgGroup{ {{arg.id}}, {{group_dats[strategy]|index(arg.dat_id)}} },
+    static constexpr std::array<op::plan::ArgGroup, {{groups[strategy].args|length}}> {{strategy}}_groups = {{"{{"}}
+        {% for arg in groups[strategy].args %}
+        op::plan::ArgGroup{ {{arg.id}}, {{groups[strategy].group(arg)}} },
         {% endfor %}
     {{"}}"}};
     {% endif %}
@@ -747,7 +719,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
             op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
         &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
     {% if strategy in chunk_strategies %}
-        op::plan::ArgGroups{ {{strategy}}_groups, {{group_dats[strategy]|length}} });
+        op::plan::ArgGroups{ {{strategy}}_groups, {{groups[strategy].dats|length}} });
     {% endif %}
 {% endfor %}
     return true;
