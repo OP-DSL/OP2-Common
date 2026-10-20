@@ -183,7 +183,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
             } else if (trial.strategy == selection.strategy) {
                 trial.candidate = true;
             } else {
-                auto prepared = trial.strategy->prepare(configuration, false);
+                auto prepared = trial.strategy->prepare(configuration, Urgency::later);
                 trial.candidate = prepared.status == Status::ready ||
                                   prepared.status == Status::pending;
                 if (!trial.candidate)
@@ -202,7 +202,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
     if (state.reported) {
         if (state.selected == nullptr || state.selected == selection.strategy)
             return decision;
-        auto prepared = state.selected->prepare(configuration, false);
+        auto prepared = state.selected->prepare(configuration, Urgency::later);
         if (prepared.status != Status::ready)
             return decision;
         return {state.selected, prepared, false, nullptr};
@@ -218,7 +218,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
 
         Prepared prepared = trial.strategy == selection.strategy
                                 ? selection.prepared
-                                : trial.strategy->prepare(configuration, true);
+                                : trial.strategy->prepare(configuration, Urgency::now);
         if (prepared.status == Status::pending)
             continue;
         if (prepared.status != Status::ready) {
@@ -247,7 +247,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
     report(state);
     if (state.selected == nullptr || state.selected == selection.strategy)
         return decision;
-    auto prepared = state.selected->prepare(configuration, false);
+    auto prepared = state.selected->prepare(configuration, Urgency::later);
     if (prepared.status != Status::ready)
         return decision;
     return {state.selected, prepared, false, nullptr};

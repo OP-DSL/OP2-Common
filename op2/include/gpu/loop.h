@@ -137,9 +137,8 @@ public:
 
     // --- Per call ---
 
-    // Run the loop: ready once it ran, else the floor's status, with nothing
-    // run and no exchange started.
-    op::loop::Status invoke(op_set set, op_arg *args, int nargs) {
+    // Run the loop.
+    void invoke(op_set set, op_arg *args, int nargs) {
         op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                                 m_profile_variant.c_str());
         op_profile_enter("Init");
@@ -148,12 +147,6 @@ public:
         m_jit.update(args, nargs);
         op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
         auto selection = m_ladder.select(configuration);
-        if (selection.prepared.status != op::loop::Status::ready) {
-            op_profile_exit();
-            op_profile_exit();
-            op_profile_exit();
-            return selection.prepared.status;
-        }
         auto decision = m_tuner ? m_tuner->choose(configuration, selection)
                                 : op::loop::Autotuner::Decision{
                                       selection.strategy, selection.prepared,
@@ -169,7 +162,7 @@ public:
             op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
             op_mpi_set_dirtybit_cuda(nargs, args);
             op_profile_exit();
-            return op::loop::Status::ready;
+            return;
         }
         op_profile_exit();
 
@@ -200,7 +193,6 @@ public:
         op_mpi_set_dirtybit_cuda(nargs, args);
         op_profile_exit();
         op_profile_exit();
-        return op::loop::Status::ready;
     }
 
     // At op_exit, while the device is still up: join the compiles, report
@@ -233,11 +225,12 @@ inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
         static_cast<int>(configuration.args.size()), m_block_size);
 }
 
-inline op::loop::Prepared StrategyBase::acquire(bool now, const void *entry) {
+inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
+                                                const void *entry) {
     m_call.global_stride = m_block_size * m_call.max_blocks;
     m_loop.jit().set_launch(
         {m_call.global_stride, m_block_size, m_unstaged_singles, m_wavefront});
-    auto acquired = m_loop.jit().acquire(m_kernels, m_source, m_block_size, now);
+    auto acquired = m_loop.jit().acquire(m_kernels, m_source, m_block_size, urgency);
 
     op::loop::Prepared prepared;
     prepared.strategy = this;
@@ -345,7 +338,7 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 // --- Colouring ---
 
 inline op::loop::Prepared Colouring::prepare(
-    const op::loop::Configuration& configuration, bool now) {
+    const op::loop::Configuration& configuration, op::loop::Urgency urgency) {
     if (never_available())
         return unavailable();
     begin(configuration);
@@ -375,7 +368,7 @@ inline op::loop::Prepared Colouring::prepare(
             m_call.max_blocks,
             grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
                  colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(now, entry);
+    return acquire(urgency, entry);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
@@ -461,7 +454,7 @@ inline void ChunkBase::report(const Entry& entry) const {
 }
 
 inline op::loop::Prepared ChunkBase::prepare(
-    const op::loop::Configuration& configuration, bool now) {
+    const op::loop::Configuration& configuration, op::loop::Urgency urgency) {
     if (never_available())
         return unavailable();
     begin(configuration);
@@ -487,7 +480,7 @@ inline op::loop::Prepared ChunkBase::prepare(
                 blocks = std::min(blocks, config().resident_blocks(m_block_size));
             m_call.max_blocks = std::max(m_call.max_blocks, blocks);
         }
-    return acquire(now, entry);
+    return acquire(urgency, entry);
 }
 
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,

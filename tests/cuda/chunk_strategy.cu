@@ -216,11 +216,10 @@ struct Outcome {
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
     op::loop::Configuration configuration{&fixture.source, fixture.args};
-    auto chunk = loop.ladder()[0].prepare(configuration, false);
+    auto chunk = loop.ladder()[0].prepare(configuration, op::loop::Urgency::later);
     auto selection = loop.ladder().select(configuration);
-    CHECK(loop.invoke(&fixture.source, fixture.args.data(),
-                      static_cast<int>(fixture.args.size())) ==
-          op::loop::Status::ready);
+    loop.invoke(&fixture.source, fixture.args.data(),
+                static_cast<int>(fixture.args.size()));
     CUDA_SAFE_CALL(gpuDeviceSynchronize());
     CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                              gpuMemcpyDeviceToHost));

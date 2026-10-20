@@ -411,7 +411,7 @@ Selection Ladder::select(const Configuration& configuration) {
                 m_reasons[index] = "disabled";
             continue;
         }
-        selection.prepared = entry.strategy->prepare(configuration, false);
+        selection.prepared = entry.strategy->prepare(configuration, Urgency::later);
         if (selection.prepared.status == Status::ready) {
             selection.strategy = entry.strategy.get();
             report(selection, {m_reasons.data(), index});
@@ -420,11 +420,17 @@ Selection Ladder::select(const Configuration& configuration) {
         m_reasons[index] = selection.prepared.reason;
     }
 
-    // The floor, which keeps its own reason when it was passed over.
+    // The floor must run, so wait for its kernel; without one the loop
+    // cannot run at all.
     auto& floor = m_entries.back();
-    if (selection.prepared.strategy != floor.strategy.get())
-        selection.prepared = floor.strategy->prepare(configuration, false);
     selection.strategy = floor.strategy.get();
+    selection.prepared = floor.strategy->prepare(configuration, Urgency::wait);
+    if (selection.prepared.status != Status::ready) {
+        std::fprintf(stderr, "error: %s has nothing to run: %s is %s\n",
+                     m_name.c_str(), std::string{floor.strategy->name()}.c_str(),
+                     std::string{selection.prepared.reason}.c_str());
+        std::exit(1);
+    }
     report(selection, {m_reasons.data(), m_entries.size() - 1});
     return selection;
 }
@@ -446,8 +452,6 @@ void Ladder::report(const Selection& selection,
     if (!passed.empty())
         passed += ")";
     std::string outcome = std::string{selection.strategy->name()} + passed;
-    if (selection.prepared.status != Status::ready)
-        outcome += std::string{" ["} + std::string{selection.prepared.reason} + "]";
     if (std::find(m_reported.begin(), m_reported.end(), outcome) !=
         m_reported.end())
         return;

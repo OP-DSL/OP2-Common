@@ -191,12 +191,8 @@ int main(int argc, char **argv) {
             launched_blocks =
                 static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks;
 
-            auto status = loop.invoke(&fixture.source, fixture.args.data(),
-                                      static_cast<int>(fixture.args.size()));
-            if (status != op::loop::Status::ready) {
-                std::fprintf(stderr, "the loop did not run\n");
-                return EXIT_FAILURE;
-            }
+            loop.invoke(&fixture.source, fixture.args.data(),
+                        static_cast<int>(fixture.args.size()));
         }
 
         CUDA_SAFE_CALL(gpuDeviceSynchronize());
