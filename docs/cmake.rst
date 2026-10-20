@@ -548,8 +548,7 @@ For each variant, the call:
    whichever of ``CUDA``, ``HIP`` or ``Fortran`` the variant needs;
 3. links the matching OP2 library - ``op2::op2_seq`` for ``seq``,
    ``op2::op2_openmp`` for ``openmp``, ``op2::op2_mpi_cuda`` for ``mpi_cuda``,
-   and so on - along with MPI, OpenMP or the CUDA runtime as required;
-4. defines ``USE_MPI`` on every ``mpi_*`` variant.
+   and so on - along with MPI, OpenMP or the CUDA runtime as required.
 
 The translation is a normal build step with a depfile, so editing a kernel
 header retranslates and rebuilds only what depends on it. You do not run the
@@ -583,9 +582,10 @@ repository keep two programs and make two calls, one per family:
        VARIANTS mpi_*)                  # my_app_par_mpi_seq, ...
 
 Each call owns a distinct ``NAME``, so the two sets of executables do not
-collide. If your program handles both cases from one source - guarded by
-``#ifdef USE_MPI``, which every ``mpi_*`` variant defines for you - then one
-call covering every variant is enough.
+collide. A program that handles both cases from one source, guarded by
+``#ifdef USE_MPI``, still takes two calls, with ``COMPILE_DEFINITIONS USE_MPI``
+on the ``mpi_*`` one: a call translates its sources once for all its
+variants, so nothing defines ``USE_MPI`` per variant.
 
 Two keywords are easy to miss. Compile definitions and include directories
 must be passed **to the call**, not applied to the resulting targets with
