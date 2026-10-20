@@ -55,6 +55,7 @@ void init() {
     config.lazy_max_calls = std::max(config.lazy_max_calls, 1);
     env::parse_bool("OP_FUSION", config.fusion);
     env::parse_number("OP_FUSION_MAX_REGISTERS", config.fusion_max_registers);
+    env::parse_bool("OP_FUSION_TUNE", config.fusion_tune);
 
     int device;
     check(gpuGetDevice(&device), "gpuGetDevice");

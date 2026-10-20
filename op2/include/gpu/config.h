@@ -48,6 +48,9 @@ struct Config {
     // OP_FUSION_MAX_REGISTERS: a call whose kernel uses more registers is
     // never fused; 0 for no limit.
     int fusion_max_registers = 64;
+    // OP_FUSION_TUNE: time a fused kernel against its calls run apart and
+    // keep the faster.
+    bool fusion_tune = true;
 
     // The most blocks of block_size threads the device holds at once.
     int resident_blocks(int block_size) const {
