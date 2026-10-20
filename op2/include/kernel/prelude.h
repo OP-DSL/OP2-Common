@@ -205,6 +205,9 @@ inline constexpr int int_(int64_t x) { return (int)x; }
 inline constexpr int int_(float x) { return (int)x; }
 inline constexpr int int_(double x) { return (int)x; }
 
+inline constexpr float aint(float x) { return truncf(x); }
+inline constexpr double aint(double x) { return ::trunc(x); }
+
 DEVICE inline int min(int x0, int x1) { return H_MIN(x0, x1); }
 DEVICE inline int min(int x0, int x1, int x2) { return H_MIN(H_MIN(x0, x1), x2); }
 DEVICE inline int min(int x0, int x1, int x2, int x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
