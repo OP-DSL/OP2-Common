@@ -12,7 +12,6 @@
 #include <op_profile.h>
 #include <plan/options.h>
 
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -56,39 +55,6 @@ private:
                 return true;
         }
         return false;
-    }
-
-    static bool is_type(const char *actual, const char *expected) {
-        return actual != nullptr && std::strcmp(actual, expected) == 0;
-    }
-
-    void reduce_mpi_globals(op_arg *args, int nargs) {
-        for (int i = 0; i < nargs; ++i) {
-            auto& arg = args[i];
-            if (arg.opt == 0 || arg.argtype != OP_ARG_GBL ||
-                (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
-                continue;
-
-            if (is_type(arg.type, "double") || is_type(arg.type, "r8") ||
-                is_type(arg.type, "real*8") || is_type(arg.type, "real(8)")) {
-                op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
-            } else if (is_type(arg.type, "float") || is_type(arg.type, "r4") ||
-                       is_type(arg.type, "real*4") || is_type(arg.type, "real(4)")) {
-                op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
-            } else if (is_type(arg.type, "int") || is_type(arg.type, "i4") ||
-                       is_type(arg.type, "integer*4") ||
-                       is_type(arg.type, "integer(4)")) {
-                op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
-            } else if (is_type(arg.type, "bool") || is_type(arg.type, "logical")) {
-                op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
-            } else {
-                std::fprintf(stderr,
-                             "error: unsupported MPI reduction type '%s' (in %s)\n",
-                             arg.type == nullptr ? "<null>" : arg.type,
-                             m_name.c_str());
-                std::exit(1);
-            }
-        }
     }
 
 public:
@@ -136,10 +102,7 @@ public:
     op::loop::Ladder& ladder() { return m_ladder; }
 
     op::loop::Sections sections(const op::loop::Configuration& configuration) const {
-        if (m_description.direct)
-            return op::loop::Sections::direct(configuration.set);
-        return op::loop::Sections::indirect(configuration.set,
-                                            configuration.global_reduction());
+        return op::loop::Sections::of(configuration, m_description.direct);
     }
 
     // The most blocks a launch may use: as many as the reduction scratch
@@ -203,7 +166,7 @@ public:
             op_profile_exit();
             op_profile_exit();
             op_mpi_wait_all(nargs, args);
-            reduce_mpi_globals(args, nargs);
+            op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
             op_mpi_set_dirtybit_cuda(nargs, args);
             op_profile_exit();
             return op::loop::Status::ready;
@@ -233,7 +196,7 @@ public:
         op_profile_enter("Finalise");
         if (m_exit_sync)
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
-        reduce_mpi_globals(args, nargs);
+        op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
         op_mpi_set_dirtybit_cuda(nargs, args);
         op_profile_exit();
         op_profile_exit();
@@ -275,7 +238,6 @@ inline op::loop::Prepared StrategyBase::acquire(bool now, const void *entry) {
     m_loop.jit().set_launch(
         {m_call.global_stride, m_block_size, m_unstaged_singles, m_wavefront});
     auto acquired = m_loop.jit().acquire(m_kernels, m_source, m_block_size, now);
-    m_call.kernel = acquired.kernel;
 
     op::loop::Prepared prepared;
     prepared.strategy = this;
@@ -369,16 +331,9 @@ std::optional<float> StrategyBase::run_phases(
 inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
                                         const op::loop::Launch& launch) {
     const auto& sections = m_call.sections;
-    int wait = 0;
-    int globals = 0;
-    for (int i = 0; i <= sections.size(); ++i) {
-        if (sections.wait_before(i))
-            wait = i;
-        if (i < sections.size() && sections.process_globals_after(i))
-            globals = i;
-    }
     return run_phases(
-        prepared, launch, sections.size(), wait, globals,
+        prepared, launch, sections.size(), sections.wait_index(),
+        sections.globals_index(),
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
         [&](int phase, int, LaunchContext& context) {
             context.start = sections[phase].begin;
@@ -412,15 +367,15 @@ inline op::loop::Prepared Colouring::prepare(
                         entry.colouring.owned_colours);
         found = m_entries.emplace(key, std::move(entry)).first;
     }
-    m_entry = &found->second;
+    auto *entry = &found->second;
 
-    const auto& colouring = m_entry->colouring;
+    const auto& colouring = entry->colouring;
     for (int colour = 0; colour < colouring.colours; ++colour)
         m_call.max_blocks = std::max(
             m_call.max_blocks,
             grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
                  colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(now, m_entry);
+    return acquire(now, entry);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
@@ -510,29 +465,29 @@ inline op::loop::Prepared ChunkBase::prepare(
     if (never_available())
         return unavailable();
     begin(configuration);
-    m_entry = &entry_for(configuration);
-    if (!m_entry->rejected.empty()) {
+    auto *entry = &entry_for(configuration);
+    if (!entry->rejected.empty()) {
         op::loop::Prepared prepared;
         prepared.strategy = this;
         prepared.status = op::loop::Status::rejected;
-        prepared.reason = m_entry->rejected;
-        prepared.entry = m_entry;
+        prepared.reason = entry->rejected;
+        prepared.entry = entry;
         return prepared;
     }
 
     // Reduction scratch uses the capped physical grid.  A wavefront batch's
     // blocks take chunks in turn, so it needs no more of them than the
     // device holds at once.
-    const auto& batches = m_entry->plan->batches;
+    const auto& batches = entry->plan->batches;
     for (int section = 0; section < m_call.sections.size(); ++section)
         for (int batch = 0; batch < batches.batches(section); ++batch) {
             auto [begin, end] = batches.positions(section, batch);
             int blocks = std::min(end - begin, m_call.block_limit);
-            if (m_entry->plan->wavefront)
+            if (entry->plan->wavefront)
                 blocks = std::min(blocks, config().resident_blocks(m_block_size));
             m_call.max_blocks = std::max(m_call.max_blocks, blocks);
         }
-    return acquire(now, m_entry);
+    return acquire(now, entry);
 }
 
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
@@ -551,16 +506,9 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                                       0));
     }
 
-    int wait = 0;
-    int globals = 0;
-    for (int i = 0; i <= sections.size(); ++i) {
-        if (sections.wait_before(i))
-            wait = i;
-        if (i < sections.size() && sections.process_globals_after(i))
-            globals = i;
-    }
     return run_phases(
-        prepared, launch, sections.size(), wait, globals,
+        prepared, launch, sections.size(), sections.wait_index(),
+        sections.globals_index(),
         [&](int section) {
             return sections[section].size() > 0 ? plan.batches.batches(section) : 0;
         },
@@ -602,7 +550,6 @@ inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) con
 inline void ChunkBase::release() {
     StrategyBase::release();
     m_entries.clear();
-    m_entry = nullptr;
 }
 
 } // namespace op::gpu

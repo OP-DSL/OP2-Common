@@ -197,13 +197,11 @@ public:
             if (m_offsets[static_cast<std::size_t>(i)] == SIZE_MAX ||
                 arg.argtype != OP_ARG_GBL || arg.acc == OP_WORK)
                 continue;
-            if (std::strcmp(arg.type, "double") == 0) {
-                combine<double>(args, i);
-            } else if (std::strcmp(arg.type, "float") == 0) {
-                combine<float>(args, i);
-            } else if (std::strcmp(arg.type, "int") == 0) {
-                combine<int>(args, i);
-            } else {
+            switch (op::loop::scalar_type(arg.type)) {
+            case op::loop::ScalarType::f64: combine<double>(args, i); break;
+            case op::loop::ScalarType::f32: combine<float>(args, i); break;
+            case op::loop::ScalarType::i32: combine<int>(args, i); break;
+            default:
                 std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n",
                              arg.type, loop);
                 std::exit(1);

@@ -155,21 +155,33 @@ void test_configuration() {
     // on their own when a global reduction follows them.
     auto direct = loop::Sections::direct(&source);
     CHECK(direct.size() == 1 && direct[0].begin == 0 && direct[0].end == 128);
-    CHECK(direct.wait_before(0) && !direct.wait_before(1));
-    CHECK(direct.process_globals_after(0));
+    CHECK(direct.wait_index() == 0 && direct.globals_index() == 0);
     CHECK(direct.set_stride() == 128);
 
     auto indirect = loop::Sections::indirect(&source, false);
     CHECK(indirect.size() == 2);
     CHECK(indirect[0].end == 100 && indirect[1].begin == 100 && indirect[1].end == 136);
-    CHECK(!indirect.wait_before(0) && indirect.wait_before(1));
-    CHECK(indirect.process_globals_after(1));
+    CHECK(indirect.wait_index() == 1 && indirect.globals_index() == 1);
     CHECK(indirect.set_stride() == 160);
 
     auto separate = loop::Sections::indirect(&source, true);
     CHECK(separate.size() == 3);
     CHECK(separate[1].begin == 100 && separate[1].end == 128 && separate[2].end == 136);
-    CHECK(separate.wait_before(1) && separate.process_globals_after(1));
+    CHECK(separate.wait_index() == 1 && separate.globals_index() == 1);
+
+    // A call's own: the owned elements apart only when it reduces.
+    CHECK(loop::Sections::of(one, true).size() == 1);
+    CHECK(loop::Sections::of(one, false).size() == 2);
+    CHECK(loop::Sections::of(reduced, false).size() == 3);
+
+    // Element types in either language's spelling.
+    CHECK(loop::scalar_type("double") == loop::ScalarType::f64);
+    CHECK(loop::scalar_type("real(8)") == loop::ScalarType::f64);
+    CHECK(loop::scalar_type("r4") == loop::ScalarType::f32);
+    CHECK(loop::scalar_type("integer(4)") == loop::ScalarType::i32);
+    CHECK(loop::scalar_type("logical") == loop::ScalarType::logical);
+    CHECK(loop::scalar_type("char") == loop::ScalarType::unknown);
+    CHECK(loop::scalar_type(nullptr) == loop::ScalarType::unknown);
 }
 
 void test_defaults() {
