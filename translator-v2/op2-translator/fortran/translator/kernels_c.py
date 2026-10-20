@@ -1049,6 +1049,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
     intrinsic_funcs = {
         "abs":   "f2c::abs",
+        "aint":  "f2c::aint",
         "dble":  "f2c::dble",
         "int":   "f2c::int_",
         "min":   "f2c::min",
@@ -1079,7 +1080,7 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
         "dcos":  "f2c::cos",
         "dcosh": "f2c::cosh",
         "dexp":  "f2c::exp",
-        "dint":  "f2c::int",
+        "dint":  "f2c::aint",
         "dsign": "f2c::copysign",
         "dsin":  "f2c::sin",
         "dsinh": "f2c::sinh",
