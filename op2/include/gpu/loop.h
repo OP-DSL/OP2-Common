@@ -351,9 +351,10 @@ inline op::loop::Prepared Colouring::prepare(
             configuration.set, configuration.args, m_call.sections.size() == 3);
         const auto& order = entry.colouring.order;
         if (!order.empty()) {
-            entry.order_d = static_cast<int *>(
-                op::device().malloc(order.size() * sizeof(int)));
-            op::device().copy(entry.order_d, order.data(), order.size() * sizeof(int));
+            CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),
+                                     order.size() * sizeof(int)));
+            CUDA_SAFE_CALL(gpuMemcpy(entry.order_d, order.data(),
+                                     order.size() * sizeof(int), gpuMemcpyHostToDevice));
         }
         if (OP_diags > 3)
             std::printf("colouring: %s %d colours, %d over owned elements\n",
@@ -399,7 +400,7 @@ inline void Colouring::release() {
     StrategyBase::release();
     for (auto& [key, entry] : m_entries)
         if (entry.order_d != nullptr)
-            op::device().free(entry.order_d);
+            CUDA_SAFE_CALL(gpuFree(entry.order_d));
     m_entries.clear();
 }
 

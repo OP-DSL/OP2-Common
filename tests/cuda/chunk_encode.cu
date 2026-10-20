@@ -1,12 +1,11 @@
-// The device plan against the host device: every array a staged kernel
-// reads is uploaded, the wavefront state is zeroed, and release frees it.
+// The device plan: every array a staged kernel reads is uploaded, the
+// wavefront state is zeroed, and release frees it.
 
 #include <gpu/chunk_encode.h>
 
 #include <array>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -23,30 +22,17 @@ namespace {
                                      std::to_string(__LINE__));                 \
     } while (false)
 
-int mallocs = 0;
-int frees = 0;
-
-void *counting_malloc(std::size_t bytes) {
-    ++mallocs;
-    return std::malloc(bytes);
-}
-
-void counting_free(void *pointer) {
-    ++frees;
-    std::free(pointer);
-}
-
-void host_copy(void *destination, const void *source, std::size_t bytes) {
-    std::memcpy(destination, source, bytes);
-}
-
-void host_memset(void *pointer, int value, std::size_t bytes) {
-    std::memset(pointer, value, bytes);
+template<typename T>
+std::vector<T> download(const T *device, std::size_t count) {
+    std::vector<T> host(count);
+    CUDA_SAFE_CALL(gpuMemcpy(host.data(), device, count * sizeof(T),
+                             gpuMemcpyDeviceToHost));
+    return host;
 }
 
 template<typename T>
 bool same(const T *device, const std::vector<T>& host) {
-    return std::memcmp(device, host.data(), host.size() * sizeof(T)) == 0;
+    return device != nullptr && download(device, host.size()) == host;
 }
 
 // Edge i of a chain of 16 reaches nodes i and i+1; chunks of 4 lanes.
@@ -97,10 +83,8 @@ void test_encode() {
     const auto& chunk_plan = *result.plan;
     CHECK(chunk_plan.wavefront);
 
-    op::set_device({counting_malloc, counting_free, host_copy, host_memset});
     {
         op::gpu::DevicePlan plan(chunk_plan);
-        CHECK(mallocs == 12);
         CHECK(same(plan.source_offsets, chunk_plan.chunks.offsets));
         CHECK(same(plan.stage_words, chunk_plan.staging.stage_words));
         CHECK(same(plan.stage_counts, chunk_plan.staging.stage_counts));
@@ -112,32 +96,28 @@ void test_encode() {
         CHECK(same(plan.wave_pred_offsets, chunk_plan.wave_pred_offsets));
         CHECK(same(plan.wave_preds, chunk_plan.wave_preds));
         CHECK(plan.wave_tickets != nullptr);
-        for (int i = 0; i < chunk_plan.chunks.count(); ++i)
-            CHECK(plan.wave_done[i] == 0);
-        CHECK(plan.wave_tickets[0] == 0);
+        auto chunks = static_cast<std::size_t>(chunk_plan.chunks.count());
+        CHECK(download(plan.wave_done, chunks) == std::vector<int>(chunks, 0));
+        CHECK(download(plan.wave_tickets, 1) == std::vector<int>{0});
         CHECK(plan.next_wave_epoch() == 1 && plan.next_wave_epoch() == 2);
 
         op::gpu::DevicePlan moved(std::move(plan));
         CHECK(plan.source_offsets == nullptr && moved.source_offsets != nullptr);
-        CHECK(frees == 0);
     }
-    CHECK(frees == 12);
 
-    // A chunk_atomics plan uploads five arrays.
+    // A chunk_atomics plan uploads no colour or wavefront arrays.
     for (auto& arg : args)
         arg.acc = OP_INC;
     auto staged = op::gpu::plan_chunk_atomics(
         args, sections, plan::ArgGroups{group_args, 1}, 4, limits, false, 0.0);
     CHECK(staged);
-    mallocs = frees = 0;
     {
         op::gpu::DevicePlan plan(*staged.plan);
-        CHECK(mallocs == 5);
-        CHECK(plan.wave_tickets == nullptr);
+        CHECK(same(plan.stage_words, staged.plan->staging.stage_words));
+        CHECK(plan.thread_colours == nullptr && plan.wave_tickets == nullptr);
         plan.release();
-        CHECK(frees == 5 && plan.stage_words == nullptr);
+        CHECK(plan.stage_words == nullptr && plan.source_offsets == nullptr);
     }
-    CHECK(frees == 5);
 }
 
 } // namespace

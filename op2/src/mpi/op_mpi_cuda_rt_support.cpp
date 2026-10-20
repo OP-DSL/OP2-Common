@@ -47,7 +47,6 @@
 
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
-#include <op_device.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -153,7 +152,6 @@ void cutilDeviceInit(int argc, char **argv) {
   } else {
     printf("\n Using CPU on rank %d\n", rank);
   }
-  op::set_device(op_cuda_device());
 }
 
 void op_upload_dat(op_dat dat) {

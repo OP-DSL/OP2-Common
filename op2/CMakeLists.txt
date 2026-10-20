@@ -59,7 +59,6 @@ set(_op2_loop_srcs
 # all of them profile.
 set(_op2_core_srcs
     "${_src}/core/op_lib_core.cpp"
-    "${_src}/core/op_device.cpp"
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"
     "${_src}/externlib/op_profile.cpp"
