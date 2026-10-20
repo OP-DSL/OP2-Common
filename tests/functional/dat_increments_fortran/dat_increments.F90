@@ -1,4 +1,4 @@
-program smemtest
+program dat_increments
 !
 ! Functional test for indirect OP_INC handling.  It deliberately combines
 ! mixed scalar types and dimensions, repeated/aliased arguments, two target
@@ -55,7 +55,7 @@ program smemtest
 
     runtime_dim = 4
     nedge = nnode + 4 * (nn - 1) * (nn - 2)
-    if (mod(nedge, 128) == 0) error stop "smemtest source size must not be divisible by 128"
+    if (mod(nedge, 128) == 0) error stop "dat_increments source size must not be divisible by 128"
 
     allocate(pp(2 * nedge), pp_rev(2 * nedge), to_other(nedge))
     allocate(edge_weight(nedge), u8(nnode), u4(2 * nnode))
@@ -94,7 +94,7 @@ program smemtest
         end do
     end do
 
-    if (e /= nedge + 1) error stop "smemtest edge count is inconsistent"
+    if (e /= nedge + 1) error stop "dat_increments edge count is inconsistent"
 
     do e = 1, nedge
         pp_rev(2 * e - 1) = pp(2 * e)
@@ -159,7 +159,7 @@ program smemtest
     beta = 2.0_8
     failures = 0
 
-    call op_profile_start("SMEMTEST")
+    call op_profile_start("DAT_INCREMENTS")
 
     do sweep = 1, nsweeps
         enable_optional = mod(sweep, 2) == 1
@@ -372,4 +372,4 @@ contains
         end if
     end function chki
 
-end program smemtest
+end program dat_increments

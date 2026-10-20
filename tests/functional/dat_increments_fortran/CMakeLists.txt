@@ -1,0 +1,9 @@
+# Indirect increments of mixed types and dimensions, with aliased, optional
+# and runtime-dimensioned arguments, checked element by element against a
+# host reference.  Serial only: the reference indexes the global numbering.
+# The Fortran openmp target misrenders the runtime-dimensioned dat.
+op2_add_functional_tests(
+    LANGUAGE fortran
+    SOURCES  dat_increments.F90
+    EXCLUDE_VARIANTS mpi_* openmp
+    STRATEGIES       chunk_atomics atomics chunk_colouring colouring)
