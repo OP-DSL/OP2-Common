@@ -23,6 +23,7 @@ if(CMAKE_Fortran_COMPILER)
     endif()
 
     add_subdirectory(const_fortran)
+    add_subdirectory(dat_increments_fortran)
     add_subdirectory(dat_reductions_fortran)
     add_subdirectory(dat_read_write_fortran)
     add_subdirectory(gbl_fortran)
