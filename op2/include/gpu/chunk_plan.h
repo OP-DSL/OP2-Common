@@ -23,7 +23,7 @@ namespace op::gpu {
 // What a chunk may use: chunks are multiples of the block, and a chunk's
 // staging fits the shared memory.
 struct ChunkLimits {
-    int block_size = 128;
+    int block_size = 0;
     std::size_t shared_bytes = 0;
 };
 

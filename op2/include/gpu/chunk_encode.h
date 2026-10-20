@@ -103,7 +103,6 @@ public:
 
     ~DevicePlan() { release(); }
 
-    bool wavefront() const { return wave_tickets != nullptr; }
 
     // The epoch a wavefront call marks its positions done with.
     int next_wave_epoch() const { return ++m_wave_epoch; }

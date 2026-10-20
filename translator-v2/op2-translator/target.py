@@ -60,7 +60,6 @@ class CCuda(Target):
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {
-            "device": 2,
             "atomics": True,
             "color2": False,
             "gbl_inc_atomic": False,
@@ -85,7 +84,7 @@ class COpenMP(Target):
 
     def defaultConfig(self) -> Dict[str, Any]:
         # Kernels inlined into each body that calls them.
-        return {"device": 1, "func_prefix": "__attribute__((always_inline)) inline"}
+        return {"func_prefix": "__attribute__((always_inline)) inline"}
 
 
 class OpenMP(Target):

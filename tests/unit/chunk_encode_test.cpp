@@ -111,7 +111,7 @@ void test_encode() {
         CHECK(same(plan.chunk_thread_colours, chunk_plan.chunk_thread_colours));
         CHECK(same(plan.wave_pred_offsets, chunk_plan.wave_pred_offsets));
         CHECK(same(plan.wave_preds, chunk_plan.wave_preds));
-        CHECK(plan.wavefront());
+        CHECK(plan.wave_tickets != nullptr);
         for (int i = 0; i < chunk_plan.chunks.count(); ++i)
             CHECK(plan.wave_done[i] == 0);
         CHECK(plan.wave_tickets[0] == 0);
@@ -133,7 +133,7 @@ void test_encode() {
     {
         op::gpu::DevicePlan plan(*staged.plan);
         CHECK(mallocs == 5);
-        CHECK(!plan.wavefront());
+        CHECK(plan.wave_tickets == nullptr);
         plan.release();
         CHECK(frees == 5 && plan.stage_words == nullptr);
     }
