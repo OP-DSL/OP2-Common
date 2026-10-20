@@ -11,8 +11,10 @@
 #include <loop/strategy.h>
 #include <op_rt_support.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -319,15 +321,44 @@ class JitKernels {
 private:
     struct Compile {
         std::size_t count = 0;
+        // When it was last asked for, on m_clock.
+        std::uint64_t used = 0;
         bool started = false;
         std::thread thread;
     };
+
+    // Past this many entries the least recently asked-for half of those not
+    // started go, so values that change every call stay bounded.
+    static constexpr std::size_t max_compiles = 256;
 
     gpuFuncAttributes_t m_offline_attrs{};
     int m_offline_max_dynamic_shared_bytes = 0;
     std::unordered_map<uint64_t, JitKernel> m_kernels;
     std::unordered_map<uint64_t, Compile> m_compiles;
+    std::uint64_t m_clock = 0;
     std::mutex m_mutex;
+
+    // The entry for a hash, marked as used now.
+    Compile& compile_entry(uint64_t hash) {
+        auto [found, inserted] = m_compiles.try_emplace(hash);
+        found->second.used = ++m_clock;
+        if (inserted && m_compiles.size() > max_compiles)
+            evict();
+        return found->second;
+    }
+
+    // Drop the least recently used half of the entries not started; the
+    // newest is never among them.
+    void evict() {
+        std::vector<std::pair<std::uint64_t, uint64_t>> idle;
+        for (const auto& [hash, compile] : m_compiles)
+            if (!compile.started)
+                idle.emplace_back(compile.used, hash);
+        auto middle = idle.begin() + static_cast<std::ptrdiff_t>(idle.size() / 2);
+        std::nth_element(idle.begin(), middle, idle.end());
+        for (auto entry = idle.begin(); entry != middle; ++entry)
+            m_compiles.erase(entry->second);
+    }
 
 public:
     JitKernels() = default;
@@ -568,7 +599,7 @@ public:
                 return {op::loop::Status::ready, &found->second};
         }
 
-        auto& compile = kernels.m_compiles[hash];
+        auto& compile = kernels.compile_entry(hash);
         ++compile.count;
         // Waiting is for a strategy with nothing else to run.
         bool wait = urgency == op::loop::Urgency::wait && !offline;
