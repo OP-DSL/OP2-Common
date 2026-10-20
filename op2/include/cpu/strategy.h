@@ -54,36 +54,6 @@ struct Work {
 // Run one thread's share of a phase.
 using Body = void (*)(const Work& work, op_arg *args);
 
-// The axis of a family whose loop has a packed body, the kernel run over
-// lane-major copies of its arguments as one SIMD loop:
-// OP_<FAMILY>_PACKED, else OP_PACKED, by default left to the tuner.
-inline op::loop::Axis packed_axis() {
-    return {"PACKED", "packed", true, {0, 1}};
-}
-
-// A packed body's arrays: per thread, grown to the largest call's need and
-// aligned to a cache line.
-inline char *pack_storage(std::size_t bytes) {
-    static thread_local std::vector<char> storage;
-    if (storage.size() < bytes + 64)
-        storage.resize(bytes + 64);
-    auto address = reinterpret_cast<std::uintptr_t>(storage.data());
-    return storage.data() + (64 - address % 64) % 64;
-}
-
-template<typename T>
-constexpr std::size_t pack_bytes(std::size_t count) {
-    return (count * sizeof(T) + 63) / 64 * 64;
-}
-
-// Carve the next count values of T out of a pack's storage.
-template<typename T>
-T *pack_array(char *&cursor, std::size_t count) {
-    T *base = reinterpret_cast<T *>(cursor);
-    cursor += pack_bytes<T>(count);
-    return base;
-}
-
 // Facts about a loop that every strategy reads.
 struct LoopDescription {
     bool direct;

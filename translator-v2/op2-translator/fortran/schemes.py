@@ -103,23 +103,6 @@ def restrictStrategies(loop: OP.Loop, strategies: List[str], staged_colouring: b
     return kept
 
 
-# Whether a packed body can gather every argument lane by lane: one map
-# component per argument, no info payload, whose element a pack's lanes would
-# race to set, and no dat both stored back and passed twice, as an element's
-# two copies of one target would each be stored.
-def packable(loop: OP.Loop) -> bool:
-    dats = [arg for arg in loop.args if isinstance(arg, OP.ArgDat)]
-    for arg in loop.args:
-        if isinstance(arg, OP.ArgInfo):
-            return False
-        if isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1:
-            return False
-        if isinstance(arg, OP.ArgDat) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
-            if len([other for other in dats if other.dat_id == arg.dat_id]) > 1:
-                return False
-    return True
-
-
 class FortranSeq(Scheme):
     lang = Lang.get("F90")
     target = Target.get("seq")
@@ -526,7 +509,6 @@ class FortranCOpenMP(Scheme):
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
         config["strategies"] = validStrategies(loop, staged_colouring=False)
-        config["packed"] = packable(loop)
         return config
 
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:

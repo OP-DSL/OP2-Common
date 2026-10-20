@@ -61,20 +61,15 @@ public:
 
     // --- Registration, by the generated code ---
 
-    // Add a family: a strategy S per point of S's axes and, when packed is
-    // given, the packed axis after them, built from the loop, the point, the
-    // body or packed body, and args.
+    // Add a family: a strategy S per point of S's axes, built from the
+    // loop, the point, the body and args.
     template<typename S, typename... Args>
     void add(std::string_view family, op::loop::Default default_setting,
-             Body body, Body packed, Args&&... args) {
+             Body body, Args&&... args) {
         auto axes = S::axes();
-        if (packed != nullptr)
-            axes.push_back(packed_axis());
         m_ladder.add(family, default_setting, axes,
                      [&](const op::loop::Point& point) {
-                         bool packs = packed != nullptr && point.values.back() != 0;
-                         return std::make_unique<S>(*this, point,
-                                                    packs ? packed : body, args...);
+                         return std::make_unique<S>(*this, point, body, args...);
                      });
     }
 
@@ -181,19 +176,15 @@ inline void StrategyBase::split(int begin, int end, const int *order,
                                 op_arg *args) {
     if (end <= begin)
         return;
-    // Shares are whole multiples of 16 elements, so a packed body's packs
-    // stay aligned.
-    const long long units = (static_cast<long long>(end) - begin + 15) / 16;
+    const long long size = static_cast<long long>(end) - begin;
     const Globals& globals = m_loop.globals();
 #pragma omp parallel num_threads(m_loop.threads())
     {
         const long long thread = omp_get_thread_num();
         const long long count = omp_get_num_threads();
         Work work;
-        work.begin = static_cast<int>(
-            std::min<long long>(end, begin + 16 * (units * thread / count)));
-        work.end = static_cast<int>(
-            std::min<long long>(end, begin + 16 * (units * (thread + 1) / count)));
+        work.begin = static_cast<int>(begin + size * thread / count);
+        work.end = static_cast<int>(begin + size * (thread + 1) / count);
         work.order = order;
         work.globals = globals.thread(static_cast<int>(thread));
         if (work.begin < work.end)
