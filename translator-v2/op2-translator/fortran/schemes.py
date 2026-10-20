@@ -1,6 +1,7 @@
 import copy
 import traceback
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -37,24 +38,55 @@ def chunkGroupable(loop: OP.Loop, arg: OP.ArgDat, staged: bool = True) -> bool:
     )
 
 
+# A chunked strategy's groups: the arguments its plan follows, and the
+# distinct dats among them in first-use order, one group each.
+@dataclass(frozen=True)
+class ChunkGroups:
+    args: List[OP.ArgDat]
+    dats: List[int]
+
+    # An argument's group, and its position, which picks its stage word.
+    def group(self, arg: OP.ArgDat) -> int:
+        return self.dats.index(arg.dat_id)
+
+    def position(self, arg: OP.ArgDat) -> int:
+        return self.args.index(arg)
+
+    # Each group's first argument, which names its dat.
+    def leaders(self) -> List[OP.ArgDat]:
+        return [next(arg for arg in self.args if arg.dat_id == dat) for dat in self.dats]
+
+
+# chunk_atomics follows the indirect increments; chunk_colouring every
+# indirect argument of a dat the loop updates (INC or RW), reads included.
+def chunkGroups(loop: OP.Loop) -> Dict[str, ChunkGroups]:
+    indirect = [arg for arg in loop.args if isinstance(arg, OP.ArgDat) and arg.map_id is not None]
+    updated = {arg.dat_id for arg in indirect if arg.access_type in [OP.AccessType.INC, OP.AccessType.RW]}
+
+    def groups(args: List[OP.ArgDat]) -> ChunkGroups:
+        return ChunkGroups(args, list(dict.fromkeys(arg.dat_id for arg in args)))
+
+    return {
+        "chunk_atomics": groups([arg for arg in indirect if arg.access_type == OP.AccessType.INC]),
+        "chunk_colouring": groups([arg for arg in indirect if arg.dat_id in updated]),
+    }
+
+
 # Return the strategies that are statically valid for a loop, in ladder order.
 # staged_colouring: chunk_colouring stages its targets, as on the GPU.
 def validStrategies(loop: OP.Loop, staged_colouring: bool = True) -> List[str]:
-    indirect = [arg for arg in loop.args if isinstance(arg, OP.ArgDat) and arg.map_id is not None]
-    incs = [arg for arg in indirect if arg.access_type == OP.AccessType.INC]
-    rws = [arg for arg in indirect if arg.access_type == OP.AccessType.RW]
-
-    if len(incs) == 0 and len(rws) == 0:
+    groups = chunkGroups(loop)
+    if len(groups["chunk_colouring"].args) == 0:
         return ["plain"]
 
     strategies = []
+    rws = [arg for arg in groups["chunk_colouring"].args if arg.access_type == OP.AccessType.RW]
     if len(rws) == 0:
-        if all(chunkGroupable(loop, arg) for arg in incs):
+        if all(chunkGroupable(loop, arg) for arg in groups["chunk_atomics"].args):
             strategies.append("chunk_atomics")
         strategies.append("atomics")
 
-    coloured_dats = {arg.dat_id for arg in incs + rws}
-    if all(chunkGroupable(loop, arg, staged_colouring) for arg in indirect if arg.dat_id in coloured_dats):
+    if all(chunkGroupable(loop, arg, staged_colouring) for arg in groups["chunk_colouring"].args):
         strategies.append("chunk_colouring")
     strategies.append("colouring")
 
@@ -395,6 +427,7 @@ class FortranCCuda(Scheme):
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
         config["strategies"] = restrictStrategies(loop, config["strategies"])
+        config["chunk_groups"] = chunkGroups(loop)
         return config
 
     def translateKernel(
@@ -499,6 +532,7 @@ class FortranCOpenMP(Scheme):
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
         config["strategies"] = restrictStrategies(loop, config["strategies"], staged_colouring=False)
+        config["chunk_groups"] = chunkGroups(loop)
         return config
 
     def translateKernel(
