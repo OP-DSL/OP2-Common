@@ -28,6 +28,13 @@ private:
                                  gpuMemcpyHostToDevice));
     }
 
+    static std::vector<int> slot_counts(const plan::Staging& staging) {
+        std::vector<int> counts;
+        for (std::size_t region = 0; region + 1 < staging.slot_offsets.size(); ++region)
+            counts.push_back(staging.slot_offsets[region + 1] - staging.slot_offsets[region]);
+        return counts;
+    }
+
     static void allocate_zeroed(std::size_t count, int *&destination) {
         CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&destination),
                                  count * sizeof(int)));
@@ -44,6 +51,10 @@ private:
 public:
     int *source_offsets = nullptr;
     plan::StageWord *stage_words = nullptr;
+    // Each region's slot count, from the plan's offsets: a kernel reads its
+    // counts up front and its offsets only when it flushes, so no offset
+    // stays in a register through the user kernel.
+    int *stage_counts = nullptr;
     int *slot_offsets = nullptr;
     int *slot_targets = nullptr;
     int *chunk_order = nullptr;
@@ -67,6 +78,7 @@ public:
             release();
             std::swap(source_offsets, other.source_offsets);
             std::swap(stage_words, other.stage_words);
+            std::swap(stage_counts, other.stage_counts);
             std::swap(slot_offsets, other.slot_offsets);
             std::swap(slot_targets, other.slot_targets);
             std::swap(chunk_order, other.chunk_order);
@@ -85,6 +97,7 @@ public:
     explicit DevicePlan(const ChunkPlan& plan) {
         upload(plan.chunks.offsets, source_offsets);
         upload(plan.staging.stage_words, stage_words);
+        upload(slot_counts(plan.staging), stage_counts);
         upload(plan.staging.slot_offsets, slot_offsets);
         upload(plan.staging.slot_targets, slot_targets);
         upload(plan.batches.order, chunk_order);
@@ -109,6 +122,7 @@ public:
     void release() {
         release(source_offsets);
         release(stage_words);
+        release(stage_counts);
         release(slot_offsets);
         release(slot_targets);
         release(chunk_order);

@@ -87,6 +87,11 @@ void test_encode() {
         op::gpu::DevicePlan plan(chunk_plan);
         CHECK(same(plan.source_offsets, chunk_plan.chunks.offsets));
         CHECK(same(plan.stage_words, chunk_plan.staging.stage_words));
+        const auto& offsets = chunk_plan.staging.slot_offsets;
+        std::vector<int> counts;
+        for (std::size_t region = 0; region + 1 < offsets.size(); ++region)
+            counts.push_back(offsets[region + 1] - offsets[region]);
+        CHECK(same(plan.stage_counts, counts));
         CHECK(same(plan.slot_offsets, chunk_plan.staging.slot_offsets));
         CHECK(same(plan.slot_targets, chunk_plan.staging.slot_targets));
         CHECK(same(plan.chunk_order, chunk_plan.batches.order));
