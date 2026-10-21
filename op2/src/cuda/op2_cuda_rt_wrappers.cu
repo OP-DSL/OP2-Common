@@ -37,6 +37,8 @@
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <vector>
 
 #ifdef __CUDACC__
@@ -102,6 +104,52 @@ static bool opt_disabled(const op_arg& arg, const op_arg *args) {
         return args[arg.acc].opt == 0;
 
     return arg.opt == 0;
+}
+
+// Per-thread globals: component d of thread t at t + d * max_threads, for
+// every one of max_threads threads; the reductions read all of them.
+
+// MIN, MAX and WORK start every thread's copy at the host value, staged in
+// the arena; INC starts at zero.
+static bool starts_from_host(const op_arg& arg) {
+    return arg.argtype == OP_ARG_GBL && arg.acc != OP_INC;
+}
+
+// Copy value to every thread's copy, in units of T dividing the element.
+template<typename T>
+__global__ void broadcast_kernel(T *out, const T *value, int dim, int units,
+                                 int max_threads) {
+    for (int t = blockIdx.x * blockDim.x + threadIdx.x; t < max_threads;
+         t += blockDim.x * gridDim.x)
+        for (int d = 0; d < dim; ++d)
+            for (int u = 0; u < units; ++u)
+                out[((size_t) d * max_threads + t) * units + u] = value[d * units + u];
+}
+
+template<typename T>
+static void broadcast_per_thread(const op_arg& arg, const void *value, int max_threads) {
+    int units = arg.size / arg.dim / sizeof(T);
+    int blocks = std::min((max_threads + 255) / 256, 1024);
+    broadcast_kernel<<<blocks, 256, 0, gpu_stream>>>(
+        (T *) arg.data_d, (const T *) value, arg.dim, units, max_threads);
+    cutilSafeCall(gpuPeekAtLastError());
+}
+
+static void init_per_thread(const op_arg& arg, char *value, int max_threads) {
+    if (arg.size == 0 || max_threads == 0) return;
+    if (!starts_from_host(arg)) {
+        cutilSafeCall(gpuMemsetAsync(arg.data_d, 0, (size_t) arg.size * max_threads,
+                                     gpu_stream));
+        return;
+    }
+
+    cutilSafeCall(gpuMemcpyAsync(value, arg.data, arg.size, gpuMemcpyHostToDevice,
+                                  gpu_stream));
+    int width = arg.size / arg.dim;
+    if (width % 8 == 0)      broadcast_per_thread<uint64_t>(arg, value, max_threads);
+    else if (width % 4 == 0) broadcast_per_thread<uint32_t>(arg, value, max_threads);
+    else if (width % 2 == 0) broadcast_per_thread<uint16_t>(arg, value, max_threads);
+    else                     broadcast_per_thread<uint8_t>(arg, value, max_threads);
 }
 
 template<typename T, typename F, typename HF>
@@ -331,6 +379,8 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
 
         if (needs_per_thread_storage(args[i], use_gbl_inc_atomics)) {
             required_size += align(args[i].size * max_threads * sizeof(char));
+            if (starts_from_host(args[i]))
+                required_size += align(args[i].size * sizeof(char));
         } else if (needs_device_storage(args[i])) {
             required_size += align(args[i].size * sizeof(char));
         }
@@ -345,8 +395,16 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
 
         if (needs_per_thread_storage(args[i], use_gbl_inc_atomics)) {
             args[i].data_d = allocated;
-            // op_printf("Assigned per-thread storage for arg %d at device address %p\n", i, args[i].data_d);
             allocated += align(args[i].size * max_threads * sizeof(char));
+            // An info argument's copies are written by the kernel.
+            if (args[i].argtype != OP_ARG_GBL) continue;
+
+            char *value = nullptr;
+            if (starts_from_host(args[i])) {
+                value = allocated;
+                allocated += align(args[i].size * sizeof(char));
+            }
+            init_per_thread(args[i], value, max_threads);
         } else if (needs_device_storage(args[i])) {
             args[i].data_d = allocated;
             allocated += align(args[i].size * sizeof(char));

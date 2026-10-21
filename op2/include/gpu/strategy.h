@@ -60,15 +60,6 @@ struct LaunchContext {
 using Binder = void (*)(LaunchContext& launch, op_arg *args,
                         std::vector<void *>& offline, std::vector<void *>& jit);
 
-struct GlobalsContext {
-    int block_size;
-    int max_blocks;
-    int global_stride;
-};
-
-// Initialise the per-thread global reduction storage before a loop runs.
-using GlobalsInit = void (*)(const GlobalsContext& context, op_arg *args);
-
 // Facts about a loop that every strategy reads.
 struct LoopDescription {
     bool direct;

@@ -1,9 +1,3 @@
-{%- if config.hip -%}
-    {% set api_prefix = "hip" %}
-{%- else -%}
-    {% set api_prefix = "cuda" %}
-{%- endif -%}
-
 {% macro stride_cuda(arg, jit) -%}
     {% if lh.dat(arg) is soa %}
 {{ " * " }}
@@ -34,14 +28,6 @@ Indirect (colouring)
 {%- if config.gbl_inc_atomic -%}
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
-
-{%- macro gbl_dim_w(arg) -%}
-    {%- if arg.dim is not none -%}
-{{arg.dim}}
-    {%- else -%}
-arg{{arg.id}}_dim
-    {%- endif -%}
-{%- endmacro -%}
 
 {%- macro dat_dim_w(dat) -%}
     {%- if dat.dim is not none -%}
@@ -115,26 +101,6 @@ dat{{arg.dat_id}} + {{map_lookup(arg)}}
     {%- else -%}
 dat{{arg.dat_id}} + {{map_lookup(arg)}}
     {%- endif -%}
-{%- endmacro -%}
-
-{%- macro init_gbls() -%}
-op2_k_{{lh.name}}{{variant}}_init_gbls<<<context.max_blocks, context.block_size>>>(
-    {% for arg in args_gbl_per_thread %}
-    ({{arg.typ.c()}} *)args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    gbl{{arg.id}}_ref_d,
-    {% endfor %}
-    {% for arg in args_gbl_per_thread if arg.dim is none %}
-    args[{{arg.id}}].dim,
-    {% endfor %}
-    {% for arg in args_gbl_per_thread if arg is opt %}
-    args[{{arg.id}}].opt,
-    {% endfor %}
-    context.global_stride
-);
-
-CUDA_SAFE_CALL({{api_prefix}}PeekAtLastError());
 {%- endmacro -%}
 
 namespace op2_m_{{lh.name}}{{variant}} {
@@ -251,75 +217,6 @@ namespace op2_m_{{lh.name}}{{variant}} {
 {{kernel_wrapper(jit=true)}}
 )_op2_k";
 
-{% if args_gbl_per_thread|length > 0 %}
-__global__
-static void op2_k_{{lh.name}}{{variant}}_init_gbls(
-{% for arg in args_gbl_per_thread %}
-    {{arg.typ.c()}} *gbl{{arg.id}},
-{% endfor %}
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    {{arg.typ.c()}} *gbl{{arg.id}}_ref,
-{% endfor %}
-{% for arg in args_gbl_per_thread if arg.dim is none %}
-    int arg{{arg.id}}_dim,
-{% endfor %}
-{% for arg in args_gbl_per_thread if arg is opt %}
-    int arg{{arg.id}}_opt,
-{% endfor %}
-    int stride
-) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}};
-
-    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-
-{% for arg in args_gbl_per_thread %}
-    {% if arg is opt %}
-    if (arg{{arg.id}}_opt == 1) {
-    {% endif %}
-    for (int d = 0; d < {{gbl_dim_w(arg)}}; ++d) {
-        gbl{{arg.id}}[thread_id + d * stride] = {% if arg is inc -%}
-            0;
-    {%- else -%}
-            gbl{{arg.id}}_ref[d];
-    {%- endif +%}
-    }
-    {% if arg is opt %}
-    }
-    {% endif %}
-{% endfor %}
-}
-
-static void op2_k_{{lh.name}}{{variant}}_init_globals(
-    const op::gpu::GlobalsContext& context, op_arg *args) {
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    static {{arg.typ.c()}} *gbl{{arg.id}}_ref_d = nullptr;
-    static int gbl{{arg.id}}_ref_capacity = 0;
-    const int gbl{{arg.id}}_ref_dim =
-        {{arg.dim if arg.dim is not none else "args[%s].dim" % arg.id}};
-
-    {% if arg is opt %}
-    if (args[{{arg.id}}].opt == 1) {
-    {% endif %}
-    if (gbl{{arg.id}}_ref_capacity < gbl{{arg.id}}_ref_dim) {
-        if (gbl{{arg.id}}_ref_d != nullptr)
-            CUDA_SAFE_CALL({{api_prefix}}Free(gbl{{arg.id}}_ref_d));
-        CUDA_SAFE_CALL({{api_prefix}}Malloc(&gbl{{arg.id}}_ref_d,
-            gbl{{arg.id}}_ref_dim * sizeof({{arg.typ.c()}})));
-        gbl{{arg.id}}_ref_capacity = gbl{{arg.id}}_ref_dim;
-    }
-
-    CUDA_SAFE_CALL({{api_prefix}}MemcpyAsync(
-        gbl{{arg.id}}_ref_d, args[{{arg.id}}].data,
-        gbl{{arg.id}}_ref_dim * sizeof({{arg.typ.c()}}),
-        {{api_prefix}}MemcpyHostToDevice, 0));
-    {% if arg is opt %}
-    }
-    {% endif %}
-{% endfor %}
-    {{init_gbls()|indent(4)}}
-}
-{% endif %}
-
 {% macro kernel_arguments(jit = false) %}
     {% for dat in lh.dats %}
         (void *)&args[{{dat.arg_id}}].data_d,
@@ -418,8 +315,7 @@ static op::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
         "{{lh.name}}", "c_CUDA", "{{variant_str()}}",
         op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}},
                                   {{"true" if config.gbl_inc_atomic else "false"}} },
-        OP_F2C_JIT_HEADERS,
-        {{"&op2_k_%s%s_init_globals" % (lh.name, variant) if args_gbl_per_thread|length > 0 else "nullptr"}});
+        OP_F2C_JIT_HEADERS);
     static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
     (void)registered;
     return loop;

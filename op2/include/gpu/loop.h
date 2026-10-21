@@ -30,7 +30,6 @@ private:
     op::loop::Ladder m_ladder;
     std::optional<op::loop::Autotuner> m_tuner;
     JitService m_jit;
-    GlobalsInit m_init_globals;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
     // A launch's kernel arguments, offline and JIT, filled by the binders.
@@ -60,15 +59,13 @@ private:
 public:
     Loop(const Loop&) = delete;
 
-    // profile_target and profile_variant name the loop to the profiler;
-    // init_globals, if any, initialises the per-thread reduction storage.
+    // profile_target and profile_variant name the loop to the profiler.
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, LoopDescription description,
-         JitHeaders headers, GlobalsInit init_globals = nullptr)
+         JitHeaders headers)
         : m_name{name}, m_profile_target{profile_target},
           m_profile_variant{profile_variant}, m_description{description},
-          m_ladder{name}, m_jit{name, std::move(headers)},
-          m_init_globals{init_globals} {
+          m_ladder{name}, m_jit{name, std::move(headers)} {
         if (op::loop::autotune_config().report)
             m_tuner.emplace(m_ladder);
         op::loop::register_release(this, &Loop::release_callback);
@@ -170,10 +167,6 @@ public:
         m_exit_sync = false;
         prepareDeviceGblsWithPolicy(args, nargs, call.global_stride,
                                     m_description.gbl_inc_atomic);
-        if (m_init_globals != nullptr)
-            m_init_globals({static_cast<StrategyBase *>(decision.strategy)->block_size(),
-                            call.max_blocks, call.global_stride},
-                           args);
         op_profile_exit();
 
         op_profile_next("Computation");
