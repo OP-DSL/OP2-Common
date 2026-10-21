@@ -39,11 +39,13 @@ bool parse_bool(const char *variable, bool& value) {
     if (text == nullptr)
         return false;
 
-    if (auto parsed = switch_value(text))
-        value = *parsed;
-    else
+    auto parsed = switch_value(text);
+    if (!parsed) {
         std::fprintf(stderr, "warning: ignoring %s='%s', expected on or off\n",
                      variable, text);
+        return false;
+    }
+    value = *parsed;
     return true;
 }
 
@@ -54,21 +56,23 @@ bool parse_number(const char *variable, double& value) {
 
     char *end = nullptr;
     double parsed = std::strtod(text, &end);
-    if (end != text && *end == '\0' && parsed >= 0.0)
-        value = parsed;
-    else
+    if (end == text || *end != '\0' || parsed < 0.0) {
         std::fprintf(stderr,
                      "warning: ignoring %s='%s', expected a non-negative "
                      "number\n",
                      variable, text);
+        return false;
+    }
+    value = parsed;
     return true;
 }
 
 bool parse_number(const char *variable, int& value) {
     double parsed = value;
-    bool set = parse_number(variable, parsed);
+    if (!parse_number(variable, parsed))
+        return false;
     value = static_cast<int>(parsed);
-    return set;
+    return true;
 }
 
 } // namespace env

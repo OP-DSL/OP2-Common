@@ -257,6 +257,19 @@ void test_variables() {
     unsetenv("OP_CHUNK_ATOMICS");
     unsetenv("OP_ATOMICS");
 
+    // An unusable value is ignored, leaving the default.
+    setenv("OP_CHUNK_ATOMICS", "maybe", 1);
+    setenv("OP_ATOMICS", "maybe", 1);
+    {
+        loop::Ladder ladder{"test_loop"};
+        add(ladder, "chunk_atomics", loop::Default::disabled);
+        add(ladder, "atomics", loop::Default::enabled);
+        CHECK(!ladder.enabled(0) && ladder.explorable(0));
+        CHECK(ladder.enabled(1) && ladder.explorable(1));
+    }
+    unsetenv("OP_CHUNK_ATOMICS");
+    unsetenv("OP_ATOMICS");
+
     // OP_STRATEGY forces a family for every loop, or for a named loop, even
     // when the family is disabled; the ladder falls through from it.
     setenv("OP_STRATEGY", "other:colouring,test_loop:atomics", 1);

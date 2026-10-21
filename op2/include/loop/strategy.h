@@ -29,12 +29,12 @@ std::string lower(std::string_view text);
 // anything else.
 std::optional<bool> switch_value(std::string_view text);
 
-// Parse a switch variable into value, warning about anything else; whether
-// the variable was set.
+// Parse a switch variable into value, warning about and ignoring anything
+// else; whether value was read from it.
 bool parse_bool(const char *variable, bool& value);
 
-// Parse a non-negative number into value, warning about anything else;
-// whether the variable was set.
+// Parse a non-negative number into value, warning about and ignoring
+// anything else; whether value was read from it.
 bool parse_number(const char *variable, double& value);
 bool parse_number(const char *variable, int& value);
 
