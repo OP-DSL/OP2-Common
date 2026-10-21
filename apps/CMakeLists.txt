@@ -11,6 +11,7 @@ add_subdirectory(c/reduction)
 
 if(CMAKE_Fortran_COMPILER)
     add_subdirectory(fortran/airfoil)
+    add_subdirectory(fortran/hydra_proxy)
     add_subdirectory(fortran/jac1)
     add_subdirectory(fortran/jac1_long)
     add_subdirectory(fortran/reduction)
