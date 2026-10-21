@@ -104,6 +104,10 @@ private:
         static_cast<Fusion *>(owner)->release();
     }
 
+    static void report_callback(void *owner) {
+        static_cast<Fusion *>(owner)->report();
+    }
+
     void release() {
         m_kernels.join();
         for (auto& event : m_events)
@@ -111,6 +115,10 @@ private:
                 gpuEventDestroy(event);
                 event = nullptr;
             }
+        report();
+    }
+
+    void report() {
         if (OP_diags > 1 && m_fused_launches > 0)
             op_printf("fusion: %zu fused launches ran %zu calls\n", m_fused_launches,
                       m_fused_calls);
@@ -700,7 +708,8 @@ private:
 
 public:
     Fusion() {
-        op::loop::register_release(this, &Fusion::release_callback);
+        op::loop::register_release(this, &Fusion::release_callback,
+                                   &Fusion::report_callback);
     }
     ~Fusion() { op::loop::unregister_release(this); }
     Fusion(const Fusion&) = delete;

@@ -484,6 +484,7 @@ namespace {
 struct Owner {
     void *owner;
     void (*release)(void *owner);
+    void (*report)(void *owner);
 };
 
 std::mutex owners_mutex;
@@ -491,12 +492,13 @@ std::vector<Owner> owners;
 
 } // namespace
 
-void register_release(void *owner, void (*release)(void *owner)) {
+void register_release(void *owner, void (*release)(void *owner),
+                      void (*report)(void *owner)) {
     assert(owner != nullptr && release != nullptr);
     std::scoped_lock lock(owners_mutex);
     assert(std::none_of(owners.begin(), owners.end(),
                         [owner](const Owner& item) { return item.owner == owner; }));
-    owners.push_back({owner, release});
+    owners.push_back({owner, release, report});
 }
 
 void unregister_release(void *owner) {
@@ -512,6 +514,17 @@ void release_all() {
     }
     for (const auto& item : current)
         item.release(item.owner);
+}
+
+void report_all() {
+    std::vector<Owner> current;
+    {
+        std::scoped_lock lock(owners_mutex);
+        current = owners;
+    }
+    for (const auto& item : current)
+        if (item.report != nullptr)
+            item.report(item.owner);
 }
 
 } // namespace op::loop

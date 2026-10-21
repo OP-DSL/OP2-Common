@@ -77,6 +77,7 @@ program hydra_proxy
     chains = max(1, min(chains, 2))
 
     call op_init_base(0, 0)
+    call op_profile_start("hydra_proxy")
     call op_mpi_rank(rank)
     ranks = op_mpi_size()
 
@@ -296,6 +297,8 @@ program hydra_proxy
             " us/iteration (second half)"
     end if
     call op_timing_output()
+    call op_profile_end()
+    call op_profile_output()
     call op_exit()
 
 contains

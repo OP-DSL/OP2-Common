@@ -607,6 +607,7 @@ void op_profile_output() {
   MPI_Comm_size(OP_MPI_WORLD, &ranks);
 #endif
   op::loop::autotune_write_report(rank, ranks);
+  op::loop::report_all();
 }
 void op_profile_output_json(const char* filename) { op_profile::instance().output_json(filename); }
 

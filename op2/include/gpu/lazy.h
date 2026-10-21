@@ -110,7 +110,7 @@ private:
     std::map<std::string, std::size_t> m_runs;
     std::size_t m_executed = 0;
 
-    static void release_callback(void *owner) {
+    static void report_callback(void *owner) {
         static_cast<Queue *>(owner)->report();
     }
 
@@ -132,7 +132,9 @@ private:
     }
 
 public:
-    Queue() { op::loop::register_release(this, &Queue::release_callback); }
+    Queue() {
+        op::loop::register_release(this, &Queue::report_callback, &Queue::report_callback);
+    }
     ~Queue() { op::loop::unregister_release(this); }
     Queue(const Queue&) = delete;
 

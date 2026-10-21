@@ -316,9 +316,12 @@ public:
 // --- Teardown -----------------------------------------------------------------
 
 // Owners of device state register a release callback, which op_exit runs
-// before tearing the device down.
-void register_release(void *owner, void (*release)(void *owner));
+// before tearing the device down, and optionally a diagnostics report, which
+// op_exit (through release) and op_profile_output print.
+void register_release(void *owner, void (*release)(void *owner),
+                      void (*report)(void *owner) = nullptr);
 void unregister_release(void *owner);
 void release_all();
+void report_all();
 
 } // namespace op::loop
