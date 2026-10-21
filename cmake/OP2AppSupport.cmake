@@ -653,12 +653,14 @@ function(_op2_add_variant_executable)
         endforeach()
     endif()
 
-    # CUDA Fortran, as in the core library.
+    # CUDA Fortran, as in the core library; the link needs -cuda too, for
+    # the CUDA Fortran runtime.
     if(_A_LANGUAGE STREQUAL "fortran" AND _base STREQUAL "cuda"
             AND CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC|PGI")
         target_compile_definitions(${_tgt} PRIVATE OP2_WITH_CUDAFOR)
         target_compile_options(${_tgt} PRIVATE
             $<$<COMPILE_LANGUAGE:Fortran>:-cuda>)
+        target_link_options(${_tgt} PRIVATE -cuda)
     endif()
 
     # Explicit linker language: mixed Fortran + .cu/.hip.cpp targets must link
