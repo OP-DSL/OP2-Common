@@ -67,7 +67,7 @@ info{{arg.id}}(thread_id)
     {%- elif arg in args_gbl_per_thread -%}
 gbl{{arg.id}}(thread_id)
     {%- elif arg is gbl -%}
-gbl{{arg.id}}{{"(1)" if arg.dim == 1}}
+gbl{{arg.id}}{{"(1)" if arg.dim == 1 and not (arg is read and arg is scalar)}}
     {%- elif arg is direct and lh.dat(arg) is soa -%}
 dat{{arg.dat_id}}(n)
     {%- elif arg is direct -%}
@@ -88,7 +88,7 @@ call op2_k_{{lh.name}}_wr<<<num_blocks, block_size>>>( &
     map{{map.id}}_d, &
     {% endfor %}
     {% for arg in lh.args|gbl %}
-    gbl{{arg.id}}_d, &
+    {{("gbl%s(1)" if arg is read and arg is scalar else "gbl%s_d") % arg.id}}, &
     {% endfor %}
     {% for arg in lh.args|info %}
     info{{arg.id}}_d, &
@@ -228,7 +228,7 @@ subroutine op2_k_{{lh.name}}_wr( &
     integer(4), dimension(*) :: map{{map.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    {{arg.typ}}, dimension(*) :: gbl{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, {{"value" if arg is read and arg is scalar else "dimension(*)"}} :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|info %}
     {{arg.typ}}, dimension(*) :: info{{arg.id}}{{"\n" if loop.last}}
@@ -352,7 +352,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
 {% for arg in lh.args|gbl %}
     {{arg.typ}}, dimension(:), pointer :: gbl{{arg.id}}
+    {% if not (arg is read and arg is scalar) %}
     {{arg.typ}}, dimension(:), pointer, device :: gbl{{arg.id}}_d
+    {% endif %}
     {% if arg is min or arg is max or arg is work %}
     {{arg.typ}}, dimension(:), allocatable, device, save :: gbl{{arg.id}}_ref_d
     {% endif %}
@@ -493,8 +495,14 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
 {% for arg in lh.args|gbl %}
     call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{gbl_dim(arg)}}/))
+    {# A scalar the kernel reads is passed by value: it has no device copy. #}
+    {% if not (arg is read and arg is scalar) %}
     call c_f_pointer(arg{{arg.id}}%data_d, gbl{{arg.id}}_d, (/{{gbl_dim(arg)}}
-                     {{-" * block_size * max_blocks" if arg is reduction}}/)){{-"\n" if loop.last}}
+                     {{-" * block_size * max_blocks" if arg is reduction}}/))
+    {% endif %}
+    {% if loop.last %}
+
+    {% endif %}
 {% endfor %}
 {% for arg in lh.args|info %}
     call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{gbl_dim(arg)}}/))
