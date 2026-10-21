@@ -37,14 +37,6 @@ arg{{arg.id}}%dim
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro gbl_dim_w(arg) -%}
-    {%- if arg.dim is not none -%}
-{{arg.dim}}
-    {%- else -%}
-arg{{arg.id}}_dim
-    {%- endif -%}
-{%- endmacro -%}
-
 {%- macro map_idx(arg) -%}
     {%- if arg is runtime_map_idx -%}
 arg{{arg.id}}_idx
@@ -107,24 +99,6 @@ call op2_k_{{lh.name}}_wr<<<num_blocks, block_size>>>( &
     {% for extra_arg in varargs %}
     {{extra_arg}}{{"," if not loop.last}} &
     {% endfor %}
-)
-{%- endmacro -%}
-
-{%- macro init_gbls() -%}
-call op2_k_{{lh.name}}_init_gbls<<<max_blocks, block_size>>>( &
-    {% for arg in args_gbl_per_thread %}
-    gbl{{arg.id}}_d, &
-    {% endfor %}
-    {% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    gbl{{arg.id}}_ref_d, &
-    {% endfor %}
-    {% for arg in args_gbl_per_thread if arg.dim is none %}
-    arg{{arg.id}}%dim, &
-    {% endfor %}
-    {% for arg in args_gbl_per_thread if arg is opt %}
-    arg{{arg.id}}%opt, &
-    {% endfor %}
-    0 &
 )
 {%- endmacro -%}
 
@@ -265,63 +239,6 @@ subroutine op2_k_{{lh.name}}_wr( &
     end do
 end subroutine
 
-{% if args_gbl_per_thread|length > 0 %}
-attributes(global) &
-subroutine op2_k_{{lh.name}}_init_gbls( &
-{% for arg in args_gbl_per_thread %}
-    gbl{{arg.id}}, &
-{% endfor %}
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    gbl{{arg.id}}_ref, &
-{% endfor %}
-{% for arg in args_gbl_per_thread if arg.dim is none %}
-    arg{{arg.id}}_dim, &
-{% endfor %}
-{% for arg in args_gbl_per_thread if arg is opt %}
-    arg{{arg.id}}_opt, &
-{% endfor %}
-    dummy &
-)
-    implicit none
-
-    ! parameters
-{% for arg in args_gbl_per_thread %}
-    {{arg.typ}}, dimension(*) :: gbl{{arg.id}}{{"\n" if loop.last}}
-{% endfor %}
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    {{arg.typ}}, dimension(*) :: gbl{{arg.id}}_ref{{"\n" if loop.last}}
-{% endfor %}
-{% for arg in args_gbl_per_thread if arg.dim is none %}
-    integer(4), value :: arg{{arg.id}}_dim{{"\n" if loop.last}}
-{% endfor %}
-{% for arg in args_gbl_per_thread if arg is opt %}
-    integer(4), value :: arg{{arg.id}}_opt{{"\n" if loop.last}}
-{% endfor %}
-    integer(4), value :: dummy
-
-    ! locals
-    integer(4) :: thread_id, d
-
-    thread_id = threadIdx%x + (blockIdx%x - 1) * blockDim%x
-{% for arg in args_gbl_per_thread %}
-
-    {% if arg is opt %}
-    if (arg{{arg.id}}_opt == 1) then
-    {% endif %}
-    do d = 1, {{gbl_dim_w(arg)}}
-        gbl{{arg.id}}(thread_id + (d - 1) * op2_stride_gbl_d) = {% if arg is inc -%}
-            0
-    {%- else -%}
-            gbl{{arg.id}}_ref(d)
-    {%- endif +%}
-    end do
-    {% if arg is opt %}
-    end if
-    {% endif %}
-{% endfor %}
-end subroutine
-
-{% endif %}
 subroutine op2_k_{{lh.name}}{{variant}}( &
     name, &
     set, &
@@ -354,9 +271,6 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {{arg.typ}}, dimension(:), pointer :: gbl{{arg.id}}
     {% if not (arg is read and arg is scalar) %}
     {{arg.typ}}, dimension(:), pointer, device :: gbl{{arg.id}}_d
-    {% endif %}
-    {% if arg is min or arg is max or arg is work %}
-    {{arg.typ}}, dimension(:), allocatable, device, save :: gbl{{arg.id}}_ref_d
     {% endif %}
 
 {% endfor %}
@@ -528,20 +442,6 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         op2_stride_gbl_d = op2_stride_gbl
     end if
 
-{% endif %}
-{% for arg in args_gbl_per_thread|select2("min", "max", "work") %}
-    if (.not. allocated(gbl{{arg.id}}_ref_d){{" .and. arg%s%%opt == 1" % arg.id if arg is opt}}) then
-        allocate(gbl{{arg.id}}_ref_d({{gbl_dim(arg)}}))
-    end if
-
-    {{"if (arg%s%%opt == 1) " % arg.id if arg is opt}}gbl{{arg.id}}_ref_d = gbl{{arg.id}}
-
-{% endfor %}
-{% if args_gbl_per_thread|length > 0 %}
-    call op_profile_enter("Init GBLs")
-    {{init_gbls()|indent}}
-
-    call op_profile_exit()
 {% endif %}
     call op_profile_next("Computation")
 {% if lh is direct %}
