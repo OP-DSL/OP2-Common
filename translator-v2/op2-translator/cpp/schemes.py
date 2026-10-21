@@ -89,6 +89,11 @@ class CppCuda(Scheme):
     loop_host_templates = [Path("cpp/cuda/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/cuda/master_kernel.cu.jinja")]
 
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -136,6 +141,11 @@ class CppHip(Scheme):
     consts_template = None
     loop_host_templates = [Path("cpp/hip/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/hip/master_kernel.cpp.jinja")]
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
 
     def translateKernel(
         self,
