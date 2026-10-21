@@ -296,6 +296,26 @@ void test_cpu_plans() {
     chain.args[0].opt = chain.args[1].opt = 0;
     CHECK(op::cpu::plan_chunk_colouring(chain.args, sections, 16).rejected ==
           "no_active_argument");
+
+    // An empty section has no batches, and an empty set none at all.
+    Chain halo(8, 8, 8);
+    halo.args.resize(2);
+    auto split = Sections::indirect(&halo.edges, true);
+    CHECK(split.size() == 3 && split[1].size() == 0);
+    auto sectioned = op::cpu::plan_chunk_atomics(halo.args, split,
+                                                 plan::ArgGroups{groups, 1}, 4, 0.0);
+    CHECK(sectioned);
+    CHECK((sectioned.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
+    CHECK(op::cpu::plan_chunk_colouring(halo.args, split, 4).plan->batches.batches(1) == 0);
+
+    Chain empty(0);
+    empty.args.resize(2);
+    auto none = Sections::direct(&empty.edges);
+    auto coloured_empty = op::cpu::plan_chunk_colouring(empty.args, none, 4);
+    auto staged_empty = op::cpu::plan_chunk_atomics(empty.args, none,
+                                                    plan::ArgGroups{groups, 1}, 4, 0.0);
+    CHECK(coloured_empty && coloured_empty.plan->batches.count() == 0);
+    CHECK(staged_empty && staged_empty.plan->batches.count() == 0);
 }
 
 } // namespace

@@ -318,9 +318,9 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
 
     return run_phases(launch, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {
-        if (sections[section].size() == 0)
-            return;
         const int batches = plan.batches.batches(section);
+        if (batches == 0)
+            return;
 #pragma omp parallel num_threads(m_loop.threads())
         {
             const int thread = omp_get_thread_num();

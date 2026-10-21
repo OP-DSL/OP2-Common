@@ -56,7 +56,9 @@ std::string_view grouped_references(std::span<const op_arg> args,
 
         assert(arg.argtype == OP_ARG_DAT);
         assert(read_write || arg.acc == OP_INC);
-        assert(arg.dat != nullptr && arg.map != nullptr && arg.map_data != nullptr);
+        assert(arg.dat != nullptr && arg.map != nullptr);
+        // A set with no elements to run may have no map data.
+        assert(arg.map_data != nullptr || arg.map->from->size + arg.map->from->exec_size == 0);
         assert(arg.idx >= 0 && arg.idx < arg.map->dim);
         assert(arg.dim > 0 && arg.size % arg.dim == 0);
 
@@ -210,9 +212,13 @@ ChunkTargets chunk_targets(const Chunks& chunks, const References& references) {
 
 ChunkBatches section_batches(const Chunks& chunks) {
     ChunkBatches batches;
-    batches.batch_offsets = chunks.section_offsets;
-    for (std::size_t section = 0; section < chunks.section_offsets.size(); ++section)
-        batches.section_batches.push_back(static_cast<int>(section));
+    batches.batch_offsets.push_back(0);
+    batches.section_batches.push_back(0);
+    for (std::size_t section = 0; section + 1 < chunks.section_offsets.size(); ++section) {
+        if (chunks.section_offsets[section + 1] > chunks.section_offsets[section])
+            batches.batch_offsets.push_back(chunks.section_offsets[section + 1]);
+        batches.section_batches.push_back(batches.count());
+    }
     return batches;
 }
 
@@ -282,7 +288,8 @@ Wavefront wavefront(const ChunkBatches& coloured, const ChunkTargets& targets) {
         int end = begin;
         for (int batch = 0; batch < coloured.batches(section); ++batch)
             end = coloured.positions(section, batch).second;
-        wave.batches.batch_offsets.push_back(end);
+        if (end > begin)
+            wave.batches.batch_offsets.push_back(end);
         wave.batches.section_batches.push_back(wave.batches.count());
 
         // Positions sharing a target are ordered among themselves, so waiting

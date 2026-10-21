@@ -253,6 +253,7 @@ protected:
 
     Entry& entry_for(const op::loop::Configuration& configuration);
     void report(const ChunkResult& result) const;
+    int batch_blocks(const ChunkPlan& plan, int begin, int end) const;
 
 public:
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,

@@ -131,8 +131,8 @@ ChunkTargets chunk_targets(const Chunks& chunks, const References& references);
 // --- Batches --------------------------------------------------------------------
 
 // Per section, batches of chunks run one after another, the chunks of a
-// batch at once.  order lists the chunks batch by batch; empty, the
-// positions are the chunks themselves.
+// batch at once; a section without chunks has no batch.  order lists the
+// chunks batch by batch; empty, the positions are the chunks themselves.
 struct ChunkBatches {
     std::vector<int> order;
     // Per batch its first position, then the position count.

@@ -467,12 +467,19 @@ inline op::loop::Prepared ChunkBase::prepare(
     for (int section = 0; section < m_call.sections.size(); ++section)
         for (int batch = 0; batch < batches.batches(section); ++batch) {
             auto [begin, end] = batches.positions(section, batch);
-            int blocks = std::min(end - begin, m_call.block_limit);
-            if (entry->plan->wavefront)
-                blocks = std::min(blocks, config().resident_blocks(m_block_size));
-            m_call.max_blocks = std::max(m_call.max_blocks, blocks);
+            m_call.max_blocks =
+                std::max(m_call.max_blocks, batch_blocks(*entry->plan, begin, end));
         }
     return acquire(urgency, entry);
+}
+
+// A block per chunk up to the call's limit, and for a wavefront no more
+// than the device holds at once.
+inline int ChunkBase::batch_blocks(const ChunkPlan& plan, int begin, int end) const {
+    int blocks = std::min(end - begin, m_call.block_limit);
+    if (plan.wavefront)
+        blocks = std::min(blocks, config().resident_blocks(m_block_size));
+    return blocks;
 }
 
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
@@ -494,9 +501,7 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
     return run_phases(
         prepared, launch, sections.size(), sections.wait_index(),
         sections.globals_index(),
-        [&](int section) {
-            return sections[section].size() > 0 ? plan.batches.batches(section) : 0;
-        },
+        [&](int section) { return plan.batches.batches(section); },
         [&](int section, int batch, LaunchContext& context) {
             auto [begin, end] = plan.batches.positions(section, batch);
             context.start = sections[section].begin;
@@ -508,12 +513,9 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                 context.chunk.wave_ticket = entry.device.wave_tickets + section;
                 context.chunk.wave_epoch = epoch;
             }
-            int blocks = std::min(end - begin, m_call.block_limit);
-            if (plan.wavefront)
-                blocks = std::min(blocks, config().resident_blocks(m_block_size));
             auto bytes = plan.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
-            return Geometry{blocks, static_cast<int>(bytes)};
+            return Geometry{batch_blocks(plan, begin, end), static_cast<int>(bytes)};
         });
 }
 

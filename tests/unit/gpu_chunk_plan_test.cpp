@@ -716,6 +716,36 @@ void test_colour_chain_batches() {
     check_colouring(*sectioned.plan, halo.args, halo.groups(), split);
 }
 
+// An empty section has no batches under every batching, and an empty set
+// plans no chunks and no batches.
+void test_empty_sections() {
+    ChainFixture halo(8, 8, 8);
+    auto split = Sections::indirect(&halo.edges, true);
+    auto waves = colouring(halo.args, split, halo.groups(), 4, 4, 1 << 16, true);
+    CHECK(waves && waves.plan->wavefront);
+    CHECK((waves.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
+
+    for (auto& arg : halo.args)
+        arg.acc = OP_INC;
+    auto staged = atomics(halo.args, split, halo.groups(), 4, 4, 1 << 16);
+    CHECK(staged);
+    CHECK((staged.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
+    CHECK((staged.plan->batch_scratch_bytes.size() == 2));
+
+    ChainFixture empty(0);
+    auto none = Sections::direct(&empty.edges);
+    for (bool wavefront : {false, true}) {
+        auto result = colouring(empty.args, none, empty.groups(), 4, 4, 1 << 16, wavefront);
+        CHECK(result && result.plan->chunks.count() == 0);
+        CHECK(result.plan->batches.count() == 0 && result.plan->batches.batches(0) == 0);
+    }
+    for (auto& arg : empty.args)
+        arg.acc = OP_INC;
+    auto result = atomics(empty.args, none, empty.groups(), 4, 4, 1 << 16);
+    CHECK(result && result.plan->chunks.count() == 0);
+    CHECK(result.plan->batches.count() == 0 && result.plan->batches.batches(0) == 0);
+}
+
 // Every element reaches one target, so a chunk needs one colour per element.
 void test_colour_rounds_and_limit() {
     for (int size : {100, 255, 256}) {
@@ -877,6 +907,7 @@ int main() {
         test_unstaged_singles();
         test_colour_mixed_plan();
         test_colour_chain_batches();
+        test_empty_sections();
         test_colour_rounds_and_limit();
         test_colour_random();
         test_colour_rejections();
