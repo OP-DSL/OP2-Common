@@ -1162,6 +1162,18 @@ void op_mpi_reduce_int(op_arg *arg, int *) { reduce_gbl<int>(arg, MPI_INT); }
    does not list MPI_CHAR among the reduction types. */
 void op_mpi_reduce_bool(op_arg *arg, bool *) { reduce_gbl<bool>(arg, MPI_CHAR); }
 
+void *op_mpi_start_max(double *data, int count) {
+  auto *request = new MPI_Request;
+  MPI_Iallreduce(MPI_IN_PLACE, data, count, MPI_DOUBLE, MPI_MAX, OP_MPI_WORLD, request);
+  return request;
+}
+
+void op_mpi_finish_max(void *request) {
+  auto *mpi_request = static_cast<MPI_Request *>(request);
+  MPI_Wait(mpi_request, MPI_STATUS_IGNORE);
+  delete mpi_request;
+}
+
 /*******************************************************************************
  * Routine to get a copy of the data held in a distributed op_dat
  *******************************************************************************/

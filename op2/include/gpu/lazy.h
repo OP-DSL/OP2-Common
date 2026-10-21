@@ -48,6 +48,11 @@ protected:
     ~QueuedLoop() = default;
 };
 
+// Why the queue runs: for every rank at the same call (a global returned to
+// the host), at op_exit, or for this rank alone (a fetch, a full queue after
+// a local flush, ...).
+enum class Flush { local, global, exit };
+
 // One captured call: the set, a copy of the arguments, the values of its
 // READ globals, and the loop's JIT parameter values.
 struct PendingCall {
@@ -83,7 +88,7 @@ private:
     std::vector<PendingCall> m_calls;
     bool m_running = false;
     // Runs a batch of calls in order: the fusion engine.
-    void (*m_runner)(std::vector<PendingCall>& calls) = nullptr;
+    void (*m_runner)(std::vector<PendingCall>& calls, Flush flush) = nullptr;
     // For OP_diags: runs by reason, and calls run.
     std::map<std::string, std::size_t> m_runs;
     std::size_t m_executed = 0;
@@ -114,7 +119,9 @@ public:
     ~Queue() { op::loop::unregister_release(this); }
     Queue(const Queue&) = delete;
 
-    void set_runner(void (*runner)(std::vector<PendingCall>& calls)) { m_runner = runner; }
+    void set_runner(void (*runner)(std::vector<PendingCall>& calls, Flush flush)) {
+        m_runner = runner;
+    }
 
     // A call of loop over set, with its arguments and READ globals copied.
     static PendingCall capture(QueuedLoop& loop, op_set set, op_arg *args,
@@ -144,23 +151,29 @@ public:
         bool flush = call.flush;
         m_calls.push_back(std::move(call));
         if (flush)
-            run("global");
+            run("global", Flush::global);
         else if (m_calls.size() >= static_cast<std::size_t>(config().lazy_max_calls))
-            run("queue full");
+            run("queue full", Flush::local);
     }
 
     // Run every queued call, in order.  Nothing runs it again meanwhile:
-    // the uploads and downloads a call makes flush too.
-    void run(const char *reason) {
-        if (m_running || m_calls.empty())
+    // the uploads and downloads a call makes flush too.  op_exit reaches the
+    // runner even with nothing queued.
+    void run(const char *reason, Flush flush) {
+        if (m_running)
             return;
+        if (m_calls.empty()) {
+            if (flush == Flush::exit && m_runner != nullptr)
+                m_runner(m_calls, flush);
+            return;
+        }
         m_running = true;
         if (OP_diags > 2)
             op_printf("lazy: running %zu calls (%s)\n", m_calls.size(), reason);
         ++m_runs[reason];
         m_executed += m_calls.size();
         if (m_runner != nullptr)
-            m_runner(m_calls);
+            m_runner(m_calls, flush);
         else
             for (auto& call : m_calls)
                 call.loop->execute(call);
@@ -174,6 +187,8 @@ inline Queue& queue() {
     return instance;
 }
 
-inline void flush_queue(const char *reason) { queue().run(reason); }
+inline void flush_queue(const char *reason) {
+    queue().run(reason, std::strcmp(reason, "exit") == 0 ? Flush::exit : Flush::local);
+}
 
 } // namespace op::gpu

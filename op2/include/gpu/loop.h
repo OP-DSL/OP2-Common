@@ -75,7 +75,8 @@ public:
             m_tuner.emplace(m_ladder);
         op::loop::register_release(this, &Loop::release_callback);
         op_lazy_set_flush(&flush_queue);
-        queue().set_runner([](std::vector<PendingCall>& calls) { fusion().run(calls); });
+        queue().set_runner(
+            [](std::vector<PendingCall>& calls, Flush flush) { fusion().run(calls, flush); });
     }
 
     ~Loop() {

@@ -10,6 +10,7 @@
 // strategies do: the elements that need no halo while it arrives, then the
 // rest.
 
+#include <gpu/agreement.h>
 #include <gpu/jit.h>
 #include <gpu/lazy.h>
 #include <gpu/runs.h>
@@ -71,13 +72,16 @@ private:
     struct Entry {
         std::string name;
         bool checked = false;
+        // Its kernel holds too few blocks per multiprocessor here.
         bool rejected = false;
         int registers = 0;
-        // Timed runs, fused and apart, alternating from fused; decided once
-        // each has its warm-up and samples.
+        // Timed runs, fused and apart, alternating from fused, once every
+        // rank has the kernel; this rank's medians go to the agreement once
+        // each kind has its warm-up and samples.
         std::vector<float> fused_times;
         std::vector<float> apart_times;
-        bool decided = false;
+        bool timed = false;
+        bool reported = false;
     };
 
     static constexpr std::size_t tune_samples = 3;
@@ -85,6 +89,7 @@ private:
     JitKernels m_kernels;
     gpuEvent_t m_events[2] = {};
     std::unordered_map<std::uint64_t, Entry> m_entries;
+    Agreement m_agreement;
     std::size_t m_fused_launches = 0;
     std::size_t m_fused_calls = 0;
     // For OP_diags: the run layouts printed, and why groups closed, by kind.
@@ -596,6 +601,9 @@ private:
         m_fused_calls += members(group);
     }
 
+    // Run the group fused or apart as every rank agrees (gpu/agreement.h):
+    // apart until all have its kernel, then timed both ways where tuning,
+    // then as the slowest rank's times say.
     void launch(Group& group) {
         if (members(group) == 1) {
             run_apart(group);
@@ -603,14 +611,35 @@ private:
         }
         auto arguments = bind(group);
         auto hash = group_hash(group, arguments);
-        auto *compiled = kernel(hash, group, arguments);
         auto& entry = m_entries[hash];
-        if (compiled == nullptr) {
+        m_agreement.seen(hash);
+        auto *compiled = kernel(hash, group, arguments);
+        if (compiled != nullptr || entry.rejected)
+            m_agreement.ready(hash, entry.rejected);
+        const auto& agreed = m_agreement.agreed(hash);
+        if (agreed.not_ready != 0.0 || compiled == nullptr) {
             run_apart(group);
             return;
         }
-        if (!config().fusion_tune || entry.decided) {
+        if (!config().fusion_tune) {
             run_fused(group, *compiled, entry.name);
+            return;
+        }
+        if (agreed.fused >= 0.0 && agreed.apart >= 0.0) {
+            bool fused = agreed.fused < agreed.apart;
+            if (OP_diags > 2 && !entry.reported)
+                op_printf("fusion: %s %.1f us fused, %.1f us apart on the slowest rank: %s\n",
+                          entry.name.c_str(), agreed.fused, agreed.apart,
+                          fused ? "fused" : "apart");
+            entry.reported = true;
+            if (fused)
+                run_fused(group, *compiled, entry.name);
+            else
+                run_apart(group);
+            return;
+        }
+        if (entry.timed) {
+            run_apart(group);
             return;
         }
 
@@ -624,13 +653,9 @@ private:
         auto samples = [](const std::vector<float>& times) {
             return std::vector<float>(times.begin() + 1, times.end());
         };
-        float fused_time = median(samples(entry.fused_times));
-        float apart_time = median(samples(entry.apart_times));
-        entry.decided = true;
-        entry.rejected = fused_time >= apart_time;
-        if (OP_diags > 2)
-            op_printf("fusion: %s %.1f us fused, %.1f us apart: %s\n", entry.name.c_str(),
-                      fused_time, apart_time, entry.rejected ? "apart" : "fused");
+        entry.timed = true;
+        m_agreement.timed(hash, median(samples(entry.fused_times)),
+                          median(samples(entry.apart_times)));
     }
 
 public:
@@ -641,7 +666,11 @@ public:
     // Run the queued calls in order, as fused kernels where they may share
     // one.  Under OP_diags, each distinct layout is printed once at 3, and
     // why groups closed is counted.
-    void run(std::vector<PendingCall>& calls) {
+    void run(std::vector<PendingCall>& calls, Flush flush) {
+        if (flush == Flush::exit)
+            m_agreement.finish();
+        if (calls.empty())
+            return;
         if (!config().fusion) {
             for (auto& call : calls)
                 call.loop->execute(call);
@@ -719,6 +748,8 @@ public:
             note(fresh ? " / " : placed == Placed::chain ? "+" : " | ", name);
         }
         close();
+        if (flush == Flush::global)
+            m_agreement.round();
         if (OP_diags > 1)
             m_shapes.end(m_run_launches);
         if (OP_diags > 2 &&

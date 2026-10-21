@@ -484,6 +484,14 @@ void op_mpi_reduce_float(op_arg *args, float *data) {
   (void)data;
 }
 
+void *op_mpi_start_max(double *data, int count) {
+  (void)data;
+  (void)count;
+  return nullptr;
+}
+
+void op_mpi_finish_max(void *request) { (void)request; }
+
 void op_mpi_reduce_double(op_arg *args, double *data) {
   (void)args;
   (void)data;

@@ -394,6 +394,11 @@ void op_mpi_reduce_int(op_arg *args, int *data);
 
 void op_mpi_reduce_bool(op_arg *args, bool *data);
 
+/* A nonblocking element-wise maximum of count doubles in place over every
+   rank, finished by op_mpi_finish_max; without MPI it is done at once. */
+void *op_mpi_start_max(double *data, int count);
+void op_mpi_finish_max(void *request);
+
 void op_mpi_barrier();
 
 /* Exchange the halos of args and wait for them, outside of an op_par_loop.
