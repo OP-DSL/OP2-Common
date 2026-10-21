@@ -31,7 +31,6 @@
  */
 
 #include <loop/autotune.h>
-#include <loop/strategy.h>
 #include <op_lib_c.h>
 
 /*
@@ -222,8 +221,7 @@ void op_print(const char *line) { printf("%s\n", line); }
 void op_timers(double *cpu, double *et) { op_timers_core(cpu, et); }
 
 void op_exit() {
-  op::loop::autotune_write_report(0, 1);
-  op::loop::release_all();
+  op::loop::finalise(0, 1);
   op_exit_core();
 }
 

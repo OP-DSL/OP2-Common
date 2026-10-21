@@ -54,6 +54,11 @@ void autotune_write_report(int rank, int ranks) {
     std::fclose(file);
 }
 
+void finalise(int rank, int ranks) {
+    autotune_write_report(rank, ranks);
+    release_all();
+}
+
 // --- Configuration --------------------------------------------------------------
 
 namespace {

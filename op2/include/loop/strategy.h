@@ -303,8 +303,8 @@ public:
 
 // --- Teardown -----------------------------------------------------------------
 
-// Owners of device state register a release callback, which op_exit runs
-// before tearing the device down.
+// Owners of device state register a release callback, which finalise
+// (loop/autotune.h) runs at op_exit, before the device is torn down.
 void register_release(void *owner, void (*release)(void *owner));
 void unregister_release(void *owner);
 void release_all();

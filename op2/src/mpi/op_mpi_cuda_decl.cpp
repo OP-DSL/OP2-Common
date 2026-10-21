@@ -40,7 +40,6 @@
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <loop/autotune.h>
-#include <loop/strategy.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
@@ -288,9 +287,8 @@ void op_exit() {
     int rank = 0, ranks = 1;
     MPI_Comm_rank(OP_MPI_WORLD, &rank);
     MPI_Comm_size(OP_MPI_WORLD, &ranks);
-    op::loop::autotune_write_report(rank, ranks);
+    op::loop::finalise(rank, ranks);
   }
-  op::loop::release_all();
 
   // free the device halo lists, while the device is still up
   OP_set_halos_d = std::vector<DeviceSetHalo>();

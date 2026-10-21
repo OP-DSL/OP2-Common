@@ -141,4 +141,8 @@ public:
 // applications that never call op_exit still get a report.
 void autotune_write_report(int rank, int ranks);
 
+// At op_exit: write the report, then release every loop's strategies, which
+// flushes the tuners the report reads.
+void finalise(int rank, int ranks);
+
 } // namespace op::loop
