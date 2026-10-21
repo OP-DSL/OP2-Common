@@ -122,9 +122,7 @@ public:
         op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
         auto selection = m_ladder.select(configuration);
         auto decision = m_tuner ? m_tuner->choose(configuration, selection)
-                                : op::loop::Autotuner::Decision{
-                                      selection.strategy, selection.prepared,
-                                      false, nullptr};
+                                : op::loop::Autotuner::Decision{selection};
 
         op_profile_next("MPI Exchanges");
         int n_exec = op_mpi_halo_exchanges(set, nargs, args, 1);
@@ -144,8 +142,8 @@ public:
         m_globals.prepare(args, nargs, m_threads);
 
         op_profile_next("Computation");
-        op::loop::Launch launch{args, nargs, decision.timed};
-        auto microseconds = decision.strategy->run(decision.prepared, launch);
+        op::loop::Launch launch{args, nargs, decision.timed != nullptr};
+        auto microseconds = decision.prepared.strategy->run(decision.prepared, launch);
         if (microseconds && m_tuner)
             m_tuner->sample(decision, *microseconds);
 

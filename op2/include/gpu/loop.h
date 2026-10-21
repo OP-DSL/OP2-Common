@@ -142,10 +142,8 @@ public:
         op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
         auto selection = m_ladder.select(configuration);
         auto decision = m_tuner ? m_tuner->choose(configuration, selection)
-                                : op::loop::Autotuner::Decision{
-                                      selection.strategy, selection.prepared,
-                                      false, nullptr};
-        const auto& call = static_cast<StrategyBase *>(decision.strategy)->call();
+                                : op::loop::Autotuner::Decision{selection};
+        const auto& call = static_cast<StrategyBase *>(decision.prepared.strategy)->call();
 
         op_profile_next("MPI Exchanges");
         int n_exec = op_mpi_halo_exchanges(set, nargs, args, 2);
@@ -169,8 +167,8 @@ public:
 
         op_profile_next("Computation");
         op_profile_enter("Kernel");
-        op::loop::Launch launch{args, nargs, decision.timed};
-        auto microseconds = decision.strategy->run(decision.prepared, launch);
+        op::loop::Launch launch{args, nargs, decision.timed != nullptr};
+        auto microseconds = decision.prepared.strategy->run(decision.prepared, launch);
         if (microseconds && m_tuner)
             m_tuner->sample(decision, *microseconds);
         op_profile_exit();

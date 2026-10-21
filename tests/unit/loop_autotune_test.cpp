@@ -99,11 +99,11 @@ struct Fixture {
         auto decision = tuner.choose(configuration, selection);
         loop::Launch launch{const_cast<op_arg *>(configuration.args.data()),
                             static_cast<int>(configuration.args.size()),
-                            decision.timed};
-        auto us = decision.strategy->run(decision.prepared, launch);
+                            decision.timed != nullptr};
+        auto us = decision.prepared.strategy->run(decision.prepared, launch);
         if (us)
             tuner.sample(decision, *us);
-        return static_cast<Fake *>(decision.strategy);
+        return static_cast<Fake *>(decision.prepared.strategy);
     }
 };
 

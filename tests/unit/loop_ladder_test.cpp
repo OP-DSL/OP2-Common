@@ -200,8 +200,7 @@ void test_defaults() {
     // never asked.
     auto selection = fixture.ladder.select(configuration());
     CHECK(selection.strategy == fixture.atomics);
-    CHECK(selection.prepared.status == loop::Status::ready);
-    CHECK(selection.prepared.strategy == fixture.atomics);
+    CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.chunk_atomics->prepares == 0);
     CHECK(fixture.colouring->prepares == 0);
 
@@ -221,12 +220,12 @@ void test_defaults() {
     int before = fixture.colouring->prepares;
     selection = fixture.ladder.select(configuration());
     CHECK(selection.strategy == fixture.colouring);
-    CHECK(selection.prepared.status == loop::Status::ready);
+    CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
 
     loop::Launch launch{args.data(), 1, true};
-    CHECK(fixture.atomics->run(selection.prepared.strategy == fixture.atomics
-                                   ? selection.prepared
+    CHECK(fixture.atomics->run(selection.strategy == fixture.atomics
+                                   ? selection
                                    : fixture.atomics->prepare(configuration(),
                                                               loop::Urgency::later),
                                launch) == 1.0f);
@@ -381,7 +380,7 @@ void test_long_ladder() {
     for (int call = 0; call < 2; ++call) {
         auto selection = ladder.select(configuration());
         CHECK(selection.strategy == fakes.back());
-        CHECK(selection.prepared.status == loop::Status::ready);
+        CHECK(selection.status == loop::Status::ready);
     }
     CHECK(fakes[0]->prepares == 2 && fakes[1]->prepares == 0);
 }

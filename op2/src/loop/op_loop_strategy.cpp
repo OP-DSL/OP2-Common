@@ -397,11 +397,11 @@ void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
     m_reasons.emplace_back();
 }
 
-Selection Ladder::select(const Configuration& configuration) {
+Prepared Ladder::select(const Configuration& configuration) {
     assert(!m_entries.empty());
     std::fill(m_reasons.begin(), m_reasons.end(), std::string_view{});
 
-    Selection selection;
+    Prepared selection;
     std::size_t index = m_forced.value_or(0);
     for (; index < m_entries.size(); ++index) {
         auto& entry = m_entries[index];
@@ -411,31 +411,31 @@ Selection Ladder::select(const Configuration& configuration) {
                 m_reasons[index] = "disabled";
             continue;
         }
-        selection.prepared = entry.strategy->prepare(configuration, Urgency::later);
-        if (selection.prepared.status == Status::ready) {
-            selection.strategy = entry.strategy.get();
+        selection = entry.strategy->prepare(configuration, Urgency::later);
+        assert(selection.strategy == entry.strategy.get());
+        if (selection.status == Status::ready) {
             report(selection, {m_reasons.data(), index});
             return selection;
         }
-        m_reasons[index] = selection.prepared.reason;
+        m_reasons[index] = selection.reason;
     }
 
     // The floor must run, so wait for its kernel; without one the loop
     // cannot run at all.
     auto& floor = m_entries.back();
-    selection.strategy = floor.strategy.get();
-    selection.prepared = floor.strategy->prepare(configuration, Urgency::wait);
-    if (selection.prepared.status != Status::ready) {
+    selection = floor.strategy->prepare(configuration, Urgency::wait);
+    assert(selection.strategy == floor.strategy.get());
+    if (selection.status != Status::ready) {
         std::fprintf(stderr, "error: %s has nothing to run: %s is %s\n",
                      m_name.c_str(), std::string{floor.strategy->name()}.c_str(),
-                     std::string{selection.prepared.reason}.c_str());
+                     std::string{selection.reason}.c_str());
         std::exit(1);
     }
     report(selection, {m_reasons.data(), m_entries.size() - 1});
     return selection;
 }
 
-void Ladder::report(const Selection& selection,
+void Ladder::report(const Prepared& selection,
                     std::span<const std::string_view> reasons) {
     if (OP_diags <= 3)
         return;

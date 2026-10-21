@@ -166,6 +166,7 @@ enum class Urgency {
 // A strategy's answer for one configuration.  Opaque to everything but the
 // strategy that produced it; carries no ownership.
 struct Prepared {
+    // The strategy that prepared it, which runs it.
     Strategy *strategy = nullptr;
     Status status = Status::unavailable;
     // A fixed identifier when not ready: "disabled", "low_compression",
@@ -210,11 +211,6 @@ public:
 enum class Default {
     enabled,
     disabled,
-};
-
-struct Selection {
-    Strategy *strategy = nullptr;
-    Prepared prepared;
 };
 
 // --- Variants -----------------------------------------------------------------
@@ -270,7 +266,7 @@ private:
 
     void add_entry(std::unique_ptr<Strategy> strategy, bool runs, bool enabled,
                    bool off);
-    void report(const Selection& selection,
+    void report(const Prepared& selection,
                 std::span<const std::string_view> reasons);
 
 public:
@@ -292,7 +288,7 @@ public:
     // floor that cannot run stops the program.  At diagnostic verbosity each
     // distinct outcome (what ran, and why each earlier strategy did not) is
     // printed once per loop.
-    Selection select(const Configuration& configuration);
+    Prepared select(const Configuration& configuration);
 
     std::size_t size() const { return m_entries.size(); }
     Strategy& operator[](std::size_t index) { return *m_entries[index].strategy; }

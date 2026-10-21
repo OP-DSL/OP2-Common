@@ -221,7 +221,7 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
     CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
                              gpuMemcpyDeviceToHost));
     return {std::string{selection.strategy->family()}, std::string{chunk.reason},
-            selection.prepared.kernel != nullptr,
+            selection.kernel != nullptr,
             static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks};
 }
 

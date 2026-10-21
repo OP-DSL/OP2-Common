@@ -182,10 +182,10 @@ int main(int argc, char **argv) {
             auto selection = loop.ladder().select(configuration);
             if (selection.strategy->family() != "chunk_atomics") {
                 std::fprintf(stderr, "the plan was rejected: %s\n",
-                             std::string{selection.prepared.reason}.c_str());
+                             std::string{selection.reason}.c_str());
                 return EXIT_FAILURE;
             }
-            saw_jit |= selection.prepared.kernel != nullptr;
+            saw_jit |= selection.kernel != nullptr;
             launched_blocks =
                 static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks;
 

@@ -133,8 +133,8 @@ Autotuner::~Autotuner() {
 }
 
 Autotuner::Decision Autotuner::choose(const Configuration& configuration,
-                                      const Selection& selection) {
-    Decision ladder{selection.strategy, selection.prepared, false, nullptr};
+                                      const Prepared& selection) {
+    Decision ladder{selection};
     auto key = configuration.key();
     auto found = m_states.find(key);
     if (found == m_states.end()) {
@@ -167,7 +167,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
             continue;
 
         Prepared prepared = trial.strategy == selection.strategy
-                                ? selection.prepared
+                                ? selection
                                 : trial.strategy->prepare(configuration, Urgency::now);
         if (prepared.status == Status::pending)
             continue;
@@ -178,11 +178,11 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
         }
 
         state.cursor = index + 1;
-        Decision decision{trial.strategy, prepared, false, &state};
+        Decision decision{prepared};
         if (trial.warmups < config.warmup)
             ++trial.warmups;
         else
-            decision.timed = true;
+            decision.timed = &trial;
         return decision;
     }
 
@@ -200,7 +200,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
 // other whose prepare is ready or pending; the rest are retired with their
 // reasons.  Trivial when the ladder's choice is the only candidate.
 void Autotuner::add_trials(State& state, const Configuration& configuration,
-                           const Selection& selection) {
+                           const Prepared& selection) {
     state.description = configuration.describe();
     int others = 0;
     for (std::size_t i = 0; i < m_ladder.size(); ++i) {
@@ -229,12 +229,12 @@ void Autotuner::add_trials(State& state, const Configuration& configuration,
 Autotuner::Decision Autotuner::run_selected(const State& state,
                                             const Configuration& configuration,
                                             const Decision& ladder) {
-    if (state.selected == nullptr || state.selected == ladder.strategy)
+    if (state.selected == nullptr || state.selected == ladder.prepared.strategy)
         return ladder;
     auto prepared = state.selected->prepare(configuration, Urgency::later);
     if (prepared.status != Status::ready)
         return ladder;
-    return {state.selected, prepared, false, nullptr};
+    return {prepared};
 }
 
 Autotuner::Summary Autotuner::summarise(const State& state) const {
@@ -268,16 +268,12 @@ Strategy *Autotuner::winner(const Summary& summary) const {
 }
 
 void Autotuner::sample(const Decision& decision, float microseconds) {
-    if (decision.state == nullptr)
+    Trial *trial = decision.timed;
+    if (trial == nullptr)
         return;
-    for (auto& trial : decision.state->trials) {
-        if (trial.strategy != decision.strategy)
-            continue;
-        trial.samples.push_back(microseconds);
-        if (trial.done())
-            trial.statistics = trial.strategy->statistics(decision.prepared);
-        return;
-    }
+    trial->samples.push_back(microseconds);
+    if (trial->done())
+        trial->statistics = trial->strategy->statistics(decision.prepared);
 }
 
 // One strategy's report row for a configuration.

@@ -84,13 +84,11 @@ private:
     };
 
 public:
-    // What one call runs: the strategy, its prepared value, and whether the
-    // run is timed for the configuration being explored.
+    // What one call runs, and the trial its run is a timed sample of while
+    // the configuration is explored; none for an untimed run.
     struct Decision {
-        Strategy *strategy = nullptr;
         Prepared prepared;
-        bool timed = false;
-        State *state = nullptr;
+        Trial *timed = nullptr;
     };
 
 private:
@@ -102,7 +100,7 @@ private:
     std::size_t m_dropped = 0;
 
     void add_trials(State& state, const Configuration& configuration,
-                    const Selection& selection);
+                    const Prepared& selection);
     Decision run_selected(const State& state, const Configuration& configuration,
                           const Decision& ladder);
     Summary summarise(const State& state) const;
@@ -124,8 +122,7 @@ public:
     // rejected retires it with its reason.  When every trial is done the
     // configuration is reported and, under select, its fastest strategy runs
     // from then on if it beats the ladder's current choice by the margin.
-    Decision choose(const Configuration& configuration,
-                    const Selection& selection);
+    Decision choose(const Configuration& configuration, const Prepared& selection);
 
     // Record one timed run.
     void sample(const Decision& decision, float microseconds);
