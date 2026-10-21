@@ -436,6 +436,10 @@ void op_mpi_halo_exchanges_batch(int ncalls, op_set *sets, int *nargs, op_arg **
     op_mpi_halo_exchanges(sets[c], nargs[c], args[c], device);
 }
 
+void op_mpi_progress(void) {}
+
+void op_mpi_drain(void) {}
+
 void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;

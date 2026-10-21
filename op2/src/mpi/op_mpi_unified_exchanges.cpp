@@ -5,6 +5,7 @@
 #include <op_mpi_comm.h>
 #include <op_mpi_halo.h>
 
+#include <array>
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
@@ -161,10 +162,98 @@ struct ExchangeContext {
     size_t n_gather_specs = 0;
     size_t n_scatter_specs = 0;
 
+    // --- Asynchronous exchanges (OP_MPI_ASYNC=1, device backend) ---
+    // The wait enqueues the scatter behind the slot's flag and returns; the
+    // exchange stays pending until progress() has posted its sends (once its
+    // gather has run), raised its flag (once its receives are in), and seen
+    // its sends and scatter complete.  drain() progresses until no flag is
+    // outstanding, so nothing on the device waits for the host: every blocking
+    // device operation drains first.
+    struct Pending {
+        int slot = 0;
+        unsigned seq = 0;
+        bool gathers = false;
+        std::vector<Block> sends;
+        std::vector<MPI_Request> send_reqs;
+        std::vector<MPI_Request> recv_reqs;
+        bool sent = false;
+        bool received = false;
+    };
+
+    bool async = false;
+    int slot = 0;
+    std::vector<Pending> pending;
+    std::array<bool, Backend::slots> slot_busy{};
+    std::array<unsigned, Backend::slots> slot_seq{};
+
+    static bool async_enabled() {
+        static const bool enabled = [] {
+            const char *value = getenv("OP_MPI_ASYNC");
+            return value != nullptr && value[0] == '1';
+        }();
+        return enabled;
+    }
+
+    static bool test_all(std::vector<MPI_Request> &reqs) {
+        if (reqs.empty()) return true;
+        int done = 0;
+        MPI_Testall(reqs.size(), reqs.data(), &done, MPI_STATUSES_IGNORE);
+        if (done) reqs.clear();
+        return done != 0;
+    }
+
+    void progress() {
+        for (auto it = pending.begin(); it != pending.end();) {
+            auto &p = *it;
+            if (!p.sent && (!p.gathers || backend_for(2).gathered(p.slot))) {
+                p.send_reqs.resize(p.sends.size());
+                for (size_t i = 0; i < p.sends.size(); ++i)
+                    p.sends[i].send(&p.send_reqs[i], comm);
+                p.sent = true;
+            }
+            if (!p.received && test_all(p.recv_reqs)) {
+                backend_for(2).raise(p.slot, p.seq);
+                p.received = true;
+            }
+            if (p.sent && p.received && test_all(p.send_reqs) && backend_for(2).scattered(p.slot)) {
+                slot_busy[p.slot] = false;
+                it = pending.erase(it);
+                continue;
+            }
+            ++it;
+        }
+    }
+
+    // Until every pending exchange has posted its sends and raised its flag.
+    void drain() {
+        auto outstanding = [&] {
+            return std::any_of(pending.begin(), pending.end(),
+                               [](const Pending &p) { return !p.sent || !p.received; });
+        };
+        while (outstanding()) progress();
+    }
+
+    // Until nothing is pending.
+    void drain_all() {
+        while (!pending.empty()) progress();
+    }
+
+    int acquire_slot() {
+        for (;;) {
+            for (int s = 0; s < Backend::slots; ++s)
+                if (!slot_busy[s]) {
+                    slot_busy[s] = true;
+                    return s;
+                }
+            progress();
+        }
+    }
+
     void reset(int device) {
         backend = &backend_for(device);
 
         this->device = device;
+        async = device == 2 && async_enabled() && backend->asynchronous();
 
         // Every rank resets for every exchange, so the communicator is created
         // collectively if halo creation has not already made it.
@@ -265,13 +354,20 @@ struct ExchangeContext {
             }
         }
 
-        // Wait for any previous sendreqs to complete
-        if (send_reqs.size() > 0) {
-            MPI_Waitall(send_reqs.size(), send_reqs.data(), MPI_STATUSES_IGNORE);
-            send_reqs.clear();
-        }
+        ExchangeBuffers bufs;
+        if (async) {
+            slot = acquire_slot();
+            if (backend->grows(slot, gather_size, scatter_size)) drain_all();
+            bufs = backend->slot_buffers(slot, gather_size, scatter_size);
+        } else {
+            // Wait for any previous sendreqs to complete
+            if (send_reqs.size() > 0) {
+                MPI_Waitall(send_reqs.size(), send_reqs.data(), MPI_STATUSES_IGNORE);
+                send_reqs.clear();
+            }
 
-        auto bufs = backend->alloc_buffers(gather_size, scatter_size);
+            bufs = backend->alloc_buffers(gather_size, scatter_size);
+        }
 
         size_t gather_offset = 0;
         for (auto &[key, gathers] : gathers_for_neighbour) {
@@ -301,6 +397,13 @@ struct ExchangeContext {
 
             recv_blocks.push_back(Block{key % ranks, sub_tags[key / ranks], block_start,
                                         scatter_offset - block_start_offset});
+        }
+
+        if (async) {
+            // The slot's own buffers: nothing earlier to wait for.
+            if (n_gather_specs > 0) backend->slot_gathers(slot, gathers_for_neighbour);
+            post_recvs();
+            return;
         }
 
         // Initiate gathers
@@ -345,6 +448,21 @@ struct ExchangeContext {
             return;
         }
 
+        if (async) {
+            auto &p = pending.emplace_back();
+            p.slot = slot;
+            p.seq = ++slot_seq[slot];
+            p.gathers = n_gather_specs > 0;
+            p.sends = send_blocks;
+            p.recv_reqs = std::move(recv_reqs);
+            recv_reqs.clear();
+            if (n_scatter_specs > 0) backend->slot_scatters(slot, p.seq, scatters_for_neighbour);
+            set_dirtybits();
+            exchanges.clear();
+            progress();
+            return;
+        }
+
         if (!backend->synchronous) {
             if (n_gather_specs > 0) {
                 backend->wait_gathers();
@@ -362,7 +480,11 @@ struct ExchangeContext {
             backend->initiate_scatters(scatters_for_neighbour);
         }
 
-        // Set dirtybits
+        set_dirtybits();
+        exchanges.clear();
+    }
+
+    void set_dirtybits() {
         for (auto& exchange : exchanges) {
             if (exchange.is_partial()) continue;
 
@@ -374,8 +496,6 @@ struct ExchangeContext {
             exchange.dat->dirtybit = 0;
             exchange.dat->dirty_hd = device;
         }
-
-        exchanges.clear();
     }
 
     // Progress the outstanding requests without blocking, completing them if
@@ -427,6 +547,8 @@ static int add_call(op_set set, int nargs, op_arg *args, int device) {
         if (!args[n].opt || args[n].argtype != OP_ARG_DAT) continue;
 
         if (device == 2 && args[n].dat->dirty_hd == 1) {
+            // A synchronous copy: nothing on the device may wait for the host.
+            ctx.drain();
             op_upload_dat(args[n].dat);
             args[n].dat->dirty_hd = 0;
         }
@@ -518,11 +640,17 @@ void op_mpi_wait_all(int, op_arg *) {
 
 void op_mpi_test_all(int, op_arg *) {
     ctx.test();
+    ctx.progress();
 }
+
+void op_mpi_progress() { ctx.progress(); }
+
+void op_mpi_drain() { ctx.drain(); }
 
 void op_mpi_halo_exchanges_exit() {
     if (ctx.unwaited != nullptr)
         unpaired(std::string("op_exit with the halo exchange on set '") + ctx.unwaited->name + "' never waited for");
+    ctx.drain_all();
     // Each exchange completes the previous one's sends; nothing follows the last.
     if (!ctx.send_reqs.empty()) {
         MPI_Waitall(ctx.send_reqs.size(), ctx.send_reqs.data(), MPI_STATUSES_IGNORE);

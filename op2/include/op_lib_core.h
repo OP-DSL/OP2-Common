@@ -377,6 +377,12 @@ void op_mpi_halo_exchanges_batch(int ncalls, op_set *sets, int *nargs, op_arg **
                                  int device);
 void op_mpi_wait_all(int nargs, op_arg *args);
 void op_mpi_test_all(int nargs, op_arg *args);
+/* Under OP_MPI_ASYNC an exchange's wait returns at once, its scatter held on
+   the device until the host has its receives: op_mpi_progress moves pending
+   exchanges on without blocking, and op_mpi_drain until nothing on the device
+   waits for the host, which every blocking device operation needs first. */
+void op_mpi_progress(void);
+void op_mpi_drain(void);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 

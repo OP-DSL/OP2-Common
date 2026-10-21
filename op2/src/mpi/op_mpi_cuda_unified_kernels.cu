@@ -10,6 +10,8 @@
 #include <array>
 #include <cstdio>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 #ifdef __CUDACC__
 #include <cub/cub.cuh>
@@ -50,7 +52,39 @@ public:
     void wait_gathers() override;
     void wait_scatters() override;
 
+    bool asynchronous() const override { return true; }
+    bool grows(int slot, size_t gather_size, size_t scatter_size) const override;
+    ExchangeBuffers slot_buffers(int slot, size_t gather_size, size_t scatter_size) override;
+    void slot_gathers(int slot, const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) override;
+    void slot_scatters(int slot, unsigned seq,
+                       const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) override;
+    bool gathered(int slot) override;
+    bool scattered(int slot) override;
+    void raise(int slot, unsigned seq) override;
+
 private:
+    struct Slot {
+        void *gather_buf = nullptr;
+        size_t gather_buf_size = 0;
+        void *scatter_buf = nullptr;
+        size_t scatter_buf_size = 0;
+        void *gather_host = nullptr;
+        size_t gather_host_size = 0;
+        void *scatter_host = nullptr;
+        size_t scatter_host_size = 0;
+        size_t gather_used = 0;
+        size_t scatter_used = 0;
+        gpuEvent_t gather_event;
+        bool gather_event_initialised = false;
+        gpuEvent_t scatter_event;
+        bool scatter_event_initialised = false;
+    };
+
+    std::array<Slot, slots> async_slots;
+    // Each slot's flag, in mapped pinned memory, at its device address too.
+    volatile unsigned *flags = nullptr;
+    void *flags_d = nullptr;
+
     void *gather_buf = nullptr;
     size_t gather_buf_size = 0;
 
@@ -319,6 +353,95 @@ void CudaBackend::wait_scatters() {
     }
 
     cutilSafeCall(gpuEventSynchronize(scatter_event));
+}
+
+}
+
+namespace op::unified_exchanges {
+
+// --- Asynchronous exchanges ---
+
+static bool host_fits(size_t size, size_t capacity) { return OP_gpu_direct || size <= capacity; }
+
+bool CudaBackend::grows(int slot, size_t gather_size, size_t scatter_size) const {
+    const auto &s = async_slots[slot];
+    return !host_fits(gather_size, s.gather_host_size) || !host_fits(scatter_size, s.scatter_host_size);
+}
+
+ExchangeBuffers CudaBackend::slot_buffers(int slot, size_t gather_size, size_t scatter_size) {
+    auto &s = async_slots[slot];
+    // Stream-ordered: the slot is free, so nothing still reads these.
+    ensure_capacity(&s.gather_buf, &s.gather_buf_size, gather_size);
+    ensure_capacity(&s.scatter_buf, &s.scatter_buf_size, scatter_size);
+    s.gather_used = gather_size;
+    s.scatter_used = scatter_size;
+
+    if (OP_gpu_direct) {
+        return {s.gather_buf, s.scatter_buf, s.gather_buf, s.scatter_buf};
+    }
+
+    ensure_host_capacity(&s.gather_host, &s.gather_host_size, gather_size);
+    ensure_host_capacity(&s.scatter_host, &s.scatter_host_size, scatter_size);
+    return {s.gather_buf, s.scatter_buf, s.gather_host, s.scatter_host};
+}
+
+void CudaBackend::slot_gathers(int slot, const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
+    auto &s = async_slots[slot];
+    launch_copies(gathers_for_neighbour, &gathers_d, &gathers_size,
+                  &gather_disps_d, &gather_disps_size);
+    if (!OP_gpu_direct && s.gather_used > 0) {
+        cutilSafeCall(gpuMemcpyAsync(s.gather_host, s.gather_buf, s.gather_used,
+                                     gpuMemcpyDeviceToHost, 0));
+    }
+    record_event(s.gather_event, s.gather_event_initialised);
+}
+
+void CudaBackend::slot_scatters(int slot, unsigned seq,
+                                const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
+    if (flags == nullptr) {
+        void *host = nullptr;
+        cutilSafeCall(gpuHostAlloc(&host, slots * sizeof(unsigned), gpuHostAllocMapped));
+        std::memset(host, 0, slots * sizeof(unsigned));
+        cutilSafeCall(gpuHostGetDevicePointer(&flags_d, host, 0));
+        flags = static_cast<volatile unsigned *>(host);
+    }
+
+    auto &s = async_slots[slot];
+    auto result = gpuStreamWaitValueGeq32(0, static_cast<unsigned *>(flags_d) + slot, seq);
+    if (result != GPU_SUCCESS) {
+        std::fprintf(stderr, "OP2: the device cannot wait on a value in a stream (error %d), "
+                             "which OP_MPI_ASYNC needs\n", static_cast<int>(result));
+        std::exit(1);
+    }
+    if (!OP_gpu_direct && s.scatter_used > 0) {
+        cutilSafeCall(gpuMemcpyAsync(s.scatter_buf, s.scatter_host, s.scatter_used,
+                                     gpuMemcpyHostToDevice, 0));
+    }
+    launch_copies(scatters_for_neighbour, &scatters_d, &scatters_size,
+                  &scatter_disps_d, &scatter_disps_size);
+    record_event(s.scatter_event, s.scatter_event_initialised);
+}
+
+static bool event_done(gpuEvent_t event, bool initialised) {
+    if (!initialised) return true;
+    auto result = gpuEventQuery(event);
+    if (result == gpuErrorNotReady) return false;
+    cutilSafeCall(result);
+    return true;
+}
+
+bool CudaBackend::gathered(int slot) {
+    return event_done(async_slots[slot].gather_event, async_slots[slot].gather_event_initialised);
+}
+
+bool CudaBackend::scattered(int slot) {
+    return event_done(async_slots[slot].scatter_event, async_slots[slot].scatter_event_initialised);
+}
+
+void CudaBackend::raise(int slot, unsigned seq) {
+    // The receives are complete; the device reads the flag across PCIe.
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    flags[slot] = seq;
 }
 
 }

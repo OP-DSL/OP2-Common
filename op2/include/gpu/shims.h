@@ -102,6 +102,35 @@
 #define gpuRtcGetCode nvrtcGetCUBIN
 #define gpuRtcDestroyProgram nvrtcDestroyProgram
 
+// Asynchronous exchanges: event queries, mapped pinned memory, and a stream
+// waiting on a 32-bit value.
+#define gpuErrorNotReady cudaErrorNotReady
+#define gpuEventQuery cudaEventQuery
+#define gpuHostAlloc cudaHostAlloc
+#define gpuHostAllocMapped cudaHostAllocMapped
+#define gpuHostGetDevicePointer cudaHostGetDevicePointer
+
+// Hold stream until the word at addr, in device or mapped host memory, is at
+// least value.  The driver function is found through the runtime, so the
+// libraries need not link the driver.
+inline gpuDrvResult_t gpuStreamWaitValueGeq32(gpuStream_t stream, void *addr,
+                                              unsigned int value) {
+    using Wait = CUresult (*)(CUstream, CUdeviceptr, cuuint32_t, unsigned int);
+    static const Wait wait = [] {
+        void *function = nullptr;
+        cudaDriverEntryPointQueryResult status;
+        if (cudaGetDriverEntryPointByVersion("cuStreamWaitValue32", &function, 12000,
+                                             cudaEnableDefault, &status) != cudaSuccess ||
+            status != cudaDriverEntryPointSuccess)
+            function = nullptr;
+        return reinterpret_cast<Wait>(function);
+    }();
+    if (wait == nullptr)
+        return CUDA_ERROR_NOT_SUPPORTED;
+    return wait(reinterpret_cast<CUstream>(stream), reinterpret_cast<CUdeviceptr>(addr), value,
+                CU_STREAM_WAIT_VALUE_GEQ);
+}
+
 #endif
 
 #ifdef OP2_HIP
@@ -206,6 +235,17 @@
 #define gpuRtcGetCodeSize hiprtcGetCodeSize
 #define gpuRtcGetCode hiprtcGetCode
 #define gpuRtcDestroyProgram hiprtcDestroyProgram
+
+#define gpuErrorNotReady hipErrorNotReady
+#define gpuEventQuery hipEventQuery
+#define gpuHostAlloc hipHostMalloc
+#define gpuHostAllocMapped hipHostMallocMapped
+#define gpuHostGetDevicePointer hipHostGetDevicePointer
+
+inline gpuDrvResult_t gpuStreamWaitValueGeq32(gpuStream_t stream, void *addr,
+                                              unsigned int value) {
+    return hipStreamWaitValue32(stream, addr, value, hipStreamWaitValueGte, 0xffffffffu);
+}
 
 #endif
 

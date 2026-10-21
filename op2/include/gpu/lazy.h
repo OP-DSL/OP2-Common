@@ -1,9 +1,11 @@
 #pragma once
 
 // Lazy execution for the CUDA and HIP backend.  A call is captured into one
-// process-wide queue and runs once the host needs its results: when a call
-// writes a global back to the host, and wherever op_lazy_flush is called
-// (fetches, uploads, timers, op_exit).
+// process-wide queue and handed to the runner (the fusion engine) at once,
+// which launches each kernel as soon as no later call can join it; the
+// queue flushes, closing the last kernel, once the host needs results: when
+// a call writes a global back to the host, and wherever op_lazy_flush is
+// called (fetches, uploads, timers, op_exit).
 
 #include <gpu/config.h>
 #include <loop/strategy.h>
@@ -12,6 +14,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <map>
 #include <string>
 #include <utility>
@@ -53,6 +56,19 @@ protected:
 // a local flush, ...).
 enum class Flush { local, global, exit };
 
+struct PendingCall;
+
+// Runs the queue's calls in order as they come: the fusion engine.  A call
+// it takes stays where it is until the flush.
+class Runner {
+public:
+    virtual void push(PendingCall& call) = 0;
+    virtual void flush(Flush flush) = 0;
+
+protected:
+    ~Runner() = default;
+};
+
 // One captured call: the set, a copy of the arguments, the values of its
 // READ globals, and the loop's JIT parameter values.
 struct PendingCall {
@@ -85,10 +101,11 @@ inline bool returns_to_host(const op_arg& arg) {
 
 class Queue {
 private:
-    std::vector<PendingCall> m_calls;
+    // The calls since the last flush; a deque, so the runner's references
+    // stay valid as calls are added.
+    std::deque<PendingCall> m_calls;
     bool m_running = false;
-    // Runs a batch of calls in order: the fusion engine.
-    void (*m_runner)(std::vector<PendingCall>& calls, Flush flush) = nullptr;
+    Runner *m_runner = nullptr;
     // For OP_diags: runs by reason, and calls run.
     std::map<std::string, std::size_t> m_runs;
     std::size_t m_executed = 0;
@@ -119,9 +136,7 @@ public:
     ~Queue() { op::loop::unregister_release(this); }
     Queue(const Queue&) = delete;
 
-    void set_runner(void (*runner)(std::vector<PendingCall>& calls, Flush flush)) {
-        m_runner = runner;
-    }
+    void set_runner(Runner *runner) { m_runner = runner; }
 
     // A call of loop over set, with its arguments and READ globals copied.
     static PendingCall capture(QueuedLoop& loop, op_set set, op_arg *args,
@@ -147,36 +162,34 @@ public:
         return call;
     }
 
+    // Hand the call to the runner, which may launch the kernels before it.
+    // Nothing flushes meanwhile: the uploads and downloads a launch makes
+    // flush too.
     void push(PendingCall call) {
         bool flush = call.flush;
         m_calls.push_back(std::move(call));
+        m_running = true;
+        m_runner->push(m_calls.back());
+        m_running = false;
         if (flush)
             run("global", Flush::global);
         else if (m_calls.size() >= static_cast<std::size_t>(config().lazy_max_calls))
             run("queue full", Flush::local);
     }
 
-    // Run every queued call, in order.  Nothing runs it again meanwhile:
-    // the uploads and downloads a call makes flush too.  op_exit reaches the
-    // runner even with nothing queued.
+    // Close the runner's last kernel.  op_exit reaches the runner even with
+    // nothing queued.
     void run(const char *reason, Flush flush) {
-        if (m_running)
+        if (m_running || (m_calls.empty() && flush != Flush::exit))
             return;
-        if (m_calls.empty()) {
-            if (flush == Flush::exit && m_runner != nullptr)
-                m_runner(m_calls, flush);
-            return;
-        }
         m_running = true;
-        if (OP_diags > 2)
+        if (OP_diags > 2 && !m_calls.empty())
             op_printf("lazy: running %zu calls (%s)\n", m_calls.size(), reason);
-        ++m_runs[reason];
-        m_executed += m_calls.size();
-        if (m_runner != nullptr)
-            m_runner(m_calls, flush);
-        else
-            for (auto& call : m_calls)
-                call.loop->execute(call);
+        if (!m_calls.empty()) {
+            ++m_runs[reason];
+            m_executed += m_calls.size();
+        }
+        m_runner->flush(flush);
         m_calls.clear();
         m_running = false;
     }

@@ -87,6 +87,8 @@ private:
     void ensure_loaded() {
         if (m_loaded)
             return;
+        // Loading a module waits for the device.
+        op_mpi_drain();
         CU_SAFE_CALL(gpuDrvModuleLoadData(&m_module, m_cubin));
         CU_SAFE_CALL(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
         m_loaded = true;
@@ -119,8 +121,10 @@ public:
         CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1,
                                         1, shared_bytes, NULL, args, 0));
         CUDA_SAFE_CALL(gpuPeekAtLastError());
-        if (config().debug)
+        if (config().debug) {
+            op_mpi_drain();
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+        }
     }
 };
 
@@ -445,8 +449,10 @@ public:
         CUDA_SAFE_CALL(gpuLaunchKernel(kernel, num_blocks, block_size, args,
                                        shared_bytes, 0));
         CUDA_SAFE_CALL(gpuPeekAtLastError());
-        if (config().debug)
+        if (config().debug) {
+            op_mpi_drain();
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+        }
     }
 
     // Wait for every compile still running.

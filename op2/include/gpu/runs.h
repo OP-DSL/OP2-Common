@@ -25,6 +25,8 @@ struct RunCall {
     std::span<const op_arg> args;
     bool atomic = false;
     bool fusable = false;
+    // Per argument: a dat dirty when the call was queued.
+    std::vector<bool> dirty;
 };
 
 class RunShapes {
@@ -35,8 +37,10 @@ private:
         std::size_t launches = 0;
         op::loop::dag::Graph graph;
         // Of the halos needed before any write in the run, those dirty when
-        // the shape last began: exchanges a prediction could start early.
+        // their reader was queued, last time: exchanges a prediction could
+        // start early.
         std::size_t dirty_before = 0;
+        std::vector<bool> halo_dirty;
         // The calls' loop names, for the halo list.
         std::vector<std::string> names;
     };
@@ -45,7 +49,6 @@ private:
     op::loop::dag::Predictor m_predictor;
     std::size_t m_runs = 0;
     std::size_t m_hits = 0;
-    std::uint64_t m_current = 0;
 
     static int median(std::vector<int> values) {
         if (values.empty())
@@ -54,48 +57,56 @@ private:
         return values[values.size() / 2];
     }
 
-public:
-    static void count_dirty(Shape& shape) {
-        shape.dirty_before = 0;
-        for (const auto& halo : shape.graph.halos)
-            shape.dirty_before += halo.before_run() && halo.dat->dirtybit == 1;
+    // Whether a halo needed before any write was dirty when its reader was
+    // queued.
+    static bool dirty_at_reader(const op::loop::dag::Halo& halo, std::span<const RunCall> calls) {
+        const auto& reader = calls[static_cast<std::size_t>(halo.reader)];
+        for (std::size_t a = 0; a < reader.args.size(); ++a)
+            if (reader.args[a].opt != 0 && reader.args[a].dat == halo.dat && reader.dirty[a])
+                return true;
+        return false;
     }
 
-    // A run about to execute: its signature, and its graph the first time.
-    void begin(std::span<const RunCall> calls, std::span<const std::string *> names) {
+public:
+    // A run that has executed: its signature, the prediction, and its graph
+    // the first time.
+    void observe(std::span<const RunCall> calls, std::span<const std::string *> names,
+                 std::size_t launches) {
         op::loop::dag::Signature signature;
         for (const auto& call : calls)
             signature.add(call.loop, call.set, call.args);
-        m_current = signature.value();
+        auto key = signature.value();
         ++m_runs;
-        m_hits += m_predictor.observe(m_current);
+        m_hits += m_predictor.observe(key);
 
-        auto& shape = m_shapes[m_current];
-        if (shape.runs++ > 0) {
-            count_dirty(shape);
-            return;
+        auto& shape = m_shapes[key];
+        shape.launches += launches;
+        if (shape.runs++ == 0) {
+            shape.calls = calls.size();
+            for (const auto *name : names)
+                shape.names.push_back(*name);
+            std::vector<op::loop::dag::Node> nodes;
+            nodes.reserve(calls.size());
+            for (const auto& call : calls) {
+                auto& node = nodes.emplace_back();
+                node.set = call.set;
+                node.atomic = call.atomic;
+                node.fusable = call.fusable;
+                node.uses = op::loop::fusion::uses(call.args);
+                for (const auto& arg : call.args)
+                    node.exec |= arg.opt != 0 && arg.argtype == OP_ARG_DAT &&
+                                 arg.map != nullptr && arg.acc != OP_READ;
+            }
+            shape.graph = op::loop::dag::build(nodes);
         }
-        shape.calls = calls.size();
-        for (const auto *name : names)
-            shape.names.push_back(*name);
-        std::vector<op::loop::dag::Node> nodes;
-        nodes.reserve(calls.size());
-        for (const auto& call : calls) {
-            auto& node = nodes.emplace_back();
-            node.set = call.set;
-            node.atomic = call.atomic;
-            node.fusable = call.fusable;
-            node.uses = op::loop::fusion::uses(call.args);
-            for (const auto& arg : call.args)
-                node.exec |= arg.opt != 0 && arg.argtype == OP_ARG_DAT && arg.map != nullptr &&
-                             arg.acc != OP_READ;
+        shape.dirty_before = 0;
+        shape.halo_dirty.clear();
+        for (const auto& halo : shape.graph.halos) {
+            bool dirty = halo.before_run() && dirty_at_reader(halo, calls);
+            shape.halo_dirty.push_back(dirty);
+            shape.dirty_before += dirty;
         }
-        shape.graph = op::loop::dag::build(nodes);
-        count_dirty(shape);
     }
-
-    // The run took this many kernel launches.
-    void end(std::size_t launches) { m_shapes[m_current].launches += launches; }
 
     void report() {
         if (m_runs == 0)
@@ -138,11 +149,12 @@ public:
                       median(slack_levels), wave_count, reader_count, before,
                       shape->dirty_before);
             if (OP_diags > 2)
-                for (const auto& halo : graph.halos) {
+                for (std::size_t h = 0; h < graph.halos.size(); ++h) {
+                    const auto& halo = graph.halos[h];
                     auto level = [&](int c) { return graph.level[static_cast<std::size_t>(c)]; };
                     int writer = op::loop::dag::last_writer(halo);
                     op_printf("dag:   %s%s: %s (call %d, level %d) -> %s (call %d, level %d)\n",
-                              halo.dat->name, halo.before_run() && halo.dat->dirtybit == 1 ? " dirty" : "",
+                              halo.dat->name, shape->halo_dirty[h] ? " dirty" : "",
                               writer < 0 ? "before the run" : shape->names[static_cast<std::size_t>(writer)].c_str(),
                               writer, writer < 0 ? -1 : level(writer),
                               shape->names[static_cast<std::size_t>(halo.reader)].c_str(), halo.reader,

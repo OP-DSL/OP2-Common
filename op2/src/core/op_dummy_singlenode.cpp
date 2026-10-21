@@ -90,6 +90,10 @@ void op_mpi_reduce_float(op_arg *args, float *data) {
   (void)data;
 }
 
+void op_mpi_progress(void) {}
+
+void op_mpi_drain(void) {}
+
 void *op_mpi_start_max(double *data, int count) {
   (void)data;
   (void)count;

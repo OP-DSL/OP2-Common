@@ -60,6 +60,46 @@ public:
 
     virtual void wait_gathers() = 0;
     virtual void wait_scatters() = 0;
+
+    // --- Asynchronous exchanges (OP_MPI_ASYNC) ---
+    // An exchange in flight holds a slot: buffers, events and a flag of its
+    // own.  Its scatter waits on the device for the flag, which the host
+    // raises once the receives are in, so the host never blocks on it.  Only
+    // a device backend has slots.
+
+    static constexpr int slots = 8;
+
+    virtual bool asynchronous() const { return false; }
+
+    // Whether the slot's buffers would have to grow: done only once nothing
+    // is in flight, as freeing staging memory synchronises the device.
+    virtual bool grows(int slot, size_t gather_size, size_t scatter_size) const {
+        (void) slot; (void) gather_size; (void) scatter_size;
+        return false;
+    }
+
+    virtual ExchangeBuffers slot_buffers(int slot, size_t gather_size, size_t scatter_size) {
+        (void) slot;
+        return alloc_buffers(gather_size, scatter_size);
+    }
+
+    virtual void slot_gathers(int slot, const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {
+        (void) slot;
+        initiate_gathers(gathers_for_neighbour);
+    }
+
+    // The scatter, held on the device until the slot's flag reaches seq.
+    virtual void slot_scatters(int slot, unsigned seq,
+                               const SpecsByNeighbour<ScatterSpec> &scatters_for_neighbour) {
+        (void) slot; (void) seq;
+        initiate_scatters(scatters_for_neighbour);
+    }
+
+    // Whether the slot's gather (and its copy to the host) or scatter has run.
+    virtual bool gathered(int slot) { (void) slot; return true; }
+    virtual bool scattered(int slot) { (void) slot; return true; }
+
+    virtual void raise(int slot, unsigned seq) { (void) slot; (void) seq; }
 };
 
 // Always available: the host backend has no accelerator dependency.

@@ -64,7 +64,7 @@ struct FusionMember {
 };
 
 
-class Fusion {
+class Fusion final : public Runner {
 private:
     using Chain = std::vector<FusionMember>;
     using Group = std::vector<Chain>;
@@ -495,6 +495,7 @@ private:
         CUDA_SAFE_CALL(gpuEventRecord(m_events[0], 0));
         run();
         CUDA_SAFE_CALL(gpuEventRecord(m_events[1], 0));
+        op_mpi_drain();
         CUDA_SAFE_CALL(gpuEventSynchronize(m_events[1]));
         float ms = 0.0f;
         CUDA_SAFE_CALL(gpuEventElapsedTime(&ms, m_events[0], m_events[1]));
@@ -658,103 +659,108 @@ private:
                           median(samples(entry.apart_times)));
     }
 
+    // The kernel being gathered, and for OP_diags the run so far: its calls'
+    // shapes, launches, layout (groups apart by " / ", chains by " | ",
+    // members of a chain by "+") and why groups closed.
+    Group m_group;
+    std::vector<RunCall> m_run;
+    std::vector<const std::string *> m_run_names;
+    std::string m_layout, m_reasons;
+
+    void close() {
+        if (!m_group.empty())
+            launch(m_group);
+        m_group.clear();
+        op_mpi_progress();
+    }
+
+    void note(const char *separator, const std::string& name) {
+        if (OP_diags > 2)
+            m_layout += (m_layout.empty() ? "" : separator) + name;
+    }
+
+    void closed(const std::string& name, const std::string& detail, const std::string& kind) {
+        ++m_closes[kind];
+        if (OP_diags > 2)
+            m_reasons += "  " + name + ": " + detail + "\n";
+    }
+
 public:
-    Fusion() { op::loop::register_release(this, &Fusion::release_callback); }
+    Fusion() {
+        op::loop::register_release(this, &Fusion::release_callback);
+    }
     ~Fusion() { op::loop::unregister_release(this); }
     Fusion(const Fusion&) = delete;
 
-    // Run the queued calls in order, as fused kernels where they may share
-    // one.  Under OP_diags, each distinct layout is printed once at 3, and
-    // why groups closed is counted.
-    void run(std::vector<PendingCall>& calls, Flush flush) {
+    // The next queued call: it joins the kernel being gathered, or that
+    // kernel launches and the call starts the next, or runs alone.
+    void push(PendingCall& call) override {
+        if (!config().fusion) {
+            call.loop->execute(call);
+            return;
+        }
+        FusionMember member;
+        const char *why = call.loop->fusion_member(call, member);
+        if (why == nullptr && !fusable(member))
+            why = "registers";
+        const auto& name = call.loop->fusion_name();
+        if (OP_diags > 1) {
+            auto& shape = m_run.emplace_back();
+            shape.loop = std::hash<std::string>{}(name);
+            shape.set = call.set;
+            shape.args = call.args;
+            shape.atomic = member.strategy != nullptr && atomic(member);
+            shape.fusable = why == nullptr;
+            for (const auto& arg : call.args)
+                shape.dirty.push_back(arg.opt != 0 && arg.argtype == OP_ARG_DAT &&
+                                      arg.dat->dirtybit == 1);
+            m_run_names.push_back(&name);
+        }
+        if (why != nullptr) {
+            if (OP_diags > 1)
+                closed(name, std::string{"runs alone: "} + why,
+                       std::string{"a call that runs alone: "} + why);
+            note(" / ", "(" + name + ")");
+            close();
+            call.loop->execute(call);
+            ++m_run_launches;
+            return;
+        }
+        bool fresh = m_group.empty();
+        auto placed = place(m_group, member);
+        if (placed == Placed::nowhere) {
+            if (OP_diags > 1) {
+                auto [detail, kind] = explain(m_group, member);
+                closed(name, detail, kind);
+            }
+            close();
+            m_group.push_back({member});
+            fresh = true;
+        }
+        note(fresh ? " / " : placed == Placed::chain ? "+" : " | ", name);
+    }
+
+    // The queue flushes: the last kernel launches.  At a global flush every
+    // rank is here at the same call, so the agreement takes its round.
+    void flush(Flush flush) override {
         if (flush == Flush::exit)
             m_agreement.finish();
-        if (calls.empty())
-            return;
-        if (!config().fusion) {
-            for (auto& call : calls)
-                call.loop->execute(call);
-            return;
-        }
-        // Every call's membership first: the run's shape needs them all.
-        std::vector<FusionMember> members_of(calls.size());
-        std::vector<const char *> whys(calls.size());
-        for (std::size_t i = 0; i < calls.size(); ++i) {
-            whys[i] = calls[i].loop->fusion_member(calls[i], members_of[i]);
-            if (whys[i] == nullptr && !fusable(members_of[i]))
-                whys[i] = "registers";
-        }
-        if (OP_diags > 1) {
-            std::vector<RunCall> shape(calls.size());
-            std::vector<const std::string *> names(calls.size());
-            for (std::size_t i = 0; i < calls.size(); ++i) {
-                names[i] = &calls[i].loop->fusion_name();
-                const auto& member = members_of[i];
-                shape[i].loop = std::hash<std::string>{}(calls[i].loop->fusion_name());
-                shape[i].set = calls[i].set;
-                shape[i].args = calls[i].args;
-                shape[i].atomic = member.strategy != nullptr && atomic(member);
-                shape[i].fusable = whys[i] == nullptr;
-            }
-            m_shapes.begin(shape, names);
-            m_run_launches = 0;
-        }
-
-        Group group;
-        auto close = [&] {
-            if (!group.empty())
-                launch(group);
-            group.clear();
-        };
-        // Groups apart by " / ", chains by " | ", members of a chain by "+".
-        std::string layout, reasons;
-        auto note = [&](const char *separator, const std::string& name) {
-            if (OP_diags > 2)
-                layout += (layout.empty() ? "" : separator) + name;
-        };
-        auto closed = [&](const std::string& name, const std::string& detail,
-                          const std::string& kind) {
-            ++m_closes[kind];
-            if (OP_diags > 2)
-                reasons += "  " + name + ": " + detail + "\n";
-        };
-        for (std::size_t i = 0; i < calls.size(); ++i) {
-            auto& call = calls[i];
-            const auto& member = members_of[i];
-            const char *why = whys[i];
-            if (why != nullptr) {
-                const auto& name = call.loop->fusion_name();
-                if (OP_diags > 1)
-                    closed(name, std::string{"runs alone: "} + why,
-                           std::string{"a call that runs alone: "} + why);
-                note(" / ", "(" + name + ")");
-                close();
-                call.loop->execute(call);
-                ++m_run_launches;
-                continue;
-            }
-            const auto& name = loop_of(member).fusion_name();
-            bool fresh = group.empty();
-            auto placed = place(group, member);
-            if (placed == Placed::nowhere) {
-                if (OP_diags > 1) {
-                    auto [detail, kind] = explain(group, member);
-                    closed(name, detail, kind);
-                }
-                close();
-                group.push_back({member});
-                fresh = true;
-            }
-            note(fresh ? " / " : placed == Placed::chain ? "+" : " | ", name);
-        }
         close();
+        // What flushed the queue may block on the device next.
+        op_mpi_drain();
         if (flush == Flush::global)
             m_agreement.round();
-        if (OP_diags > 1)
-            m_shapes.end(m_run_launches);
-        if (OP_diags > 2 &&
-            m_reported.insert(hash_bytes(layout.data(), layout.size(), 0)).second)
-            op_printf("fusion: layout %s\n%s", layout.c_str(), reasons.c_str());
+        if (OP_diags > 1 && !m_run.empty()) {
+            m_shapes.observe(m_run, m_run_names, m_run_launches);
+            if (OP_diags > 2 &&
+                m_reported.insert(hash_bytes(m_layout.data(), m_layout.size(), 0)).second)
+                op_printf("fusion: layout %s\n%s", m_layout.c_str(), m_reasons.c_str());
+        }
+        m_run.clear();
+        m_run_names.clear();
+        m_layout.clear();
+        m_reasons.clear();
+        m_run_launches = 0;
     }
 };
 

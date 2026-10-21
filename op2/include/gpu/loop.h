@@ -75,8 +75,7 @@ public:
             m_tuner.emplace(m_ladder);
         op::loop::register_release(this, &Loop::release_callback);
         op_lazy_set_flush(&flush_queue);
-        queue().set_runner(
-            [](std::vector<PendingCall>& calls, Flush flush) { fusion().run(calls, flush); });
+        queue().set_runner(&fusion());
     }
 
     ~Loop() {
@@ -133,6 +132,7 @@ public:
         if (!m_global_output)
             return;
         op_profile_next("Process GBLs");
+        op_mpi_drain();
         m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, global_stride,
                                                    global_stride,
                                                    m_description.gbl_inc_atomic);
@@ -146,6 +146,8 @@ public:
         if (!config().lazy) {
             m_jit.update(args, nargs);
             run_call(set, args, nargs);
+            // The caller may block on the device next.
+            op_mpi_drain();
             return;
         }
         auto call = Queue::capture(*this, set, args, nargs);
@@ -226,6 +228,8 @@ public:
     void fused_globals(FusionMember& member) override {
         auto *args = member.call->args.data();
         auto nargs = static_cast<int>(member.call->args.size());
+        if (member.global_output)
+            op_mpi_drain();
         if (member.global_output &&
             processDeviceGblsWithPolicy(args, nargs, member.global_stride,
                                         member.global_stride, m_description.gbl_inc_atomic))
@@ -288,8 +292,10 @@ public:
         op_profile_exit();
 
         op_profile_enter("Finalise");
-        if (m_exit_sync)
+        if (m_exit_sync) {
+            op_mpi_drain();
             CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+        }
         op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
         op_mpi_set_dirtybit_cuda(nargs, args);
         op_profile_exit();
@@ -426,6 +432,7 @@ std::optional<float> StrategyBase::run_phases(
         return std::nullopt;
     if (timed_pairs == 0)
         return 0.0f;
+    op_mpi_drain();
     CUDA_SAFE_CALL(gpuEventSynchronize(m_loop.event(2 * timed_pairs - 1)));
     float total = 0.0f;
     for (int pair = 0; pair < timed_pairs; ++pair) {
@@ -468,6 +475,7 @@ inline op::loop::Prepared Colouring::prepare(
             configuration.set, configuration.args, m_call.sections.size() == 3);
         const auto& order = entry.colouring.order;
         if (!order.empty()) {
+            op_mpi_drain();
             CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),
                                      order.size() * sizeof(int)));
             CUDA_SAFE_CALL(gpuMemcpy(entry.order_d, order.data(),
@@ -544,6 +552,7 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     entry.rejected = result.rejected;
     entry.plan = std::move(result.plan);
     if (entry.rejected.empty()) {
+        op_mpi_drain();
         entry.device = DevicePlan(*entry.plan);
         entry.plan->release_uploaded();
     }

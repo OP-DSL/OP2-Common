@@ -21,7 +21,7 @@ program hydra_proxy
     integer(4) :: nx = 64, ny = 64, nz = 64, iters = 50, stages = 3, sweeps = 2
     integer(4) :: rank, ranks, k0, nk, nnode, nedge, it, s, m, b, i, j, k, l, e, c
     integer(4), dimension(6) :: nbnd
-    real(8) :: alpha, nrm, t0, t1
+    real(8) :: alpha, nrm, t0, t1, th
     real(8), dimension(5) :: total
     character(len=32) :: arg
 
@@ -257,6 +257,9 @@ program hydra_proxy
             op_arg_gbl(nrm, 1, "real(8)", OP_INC))
         if (rank == 0 .and. (it == 1 .or. mod(it, 10) == 0)) &
             print '(A,I6,A,ES22.14)', " iteration", it, "  residual", sqrt(nrm)
+        ! The second half's time, clear of compiles and tuning: the norm has
+        ! synchronised.
+        if (it == iters / 2) call op_timers(th)
     end do
     call op_timers(t1)
 
@@ -268,6 +271,8 @@ program hydra_proxy
         print '(A,5ES22.14)', " checksum", total
         print '(A,F10.3,A,F10.2,A)', " time", t1 - t0, " s, ", 1.0e6_8 * (t1 - t0) / iters, &
             " us/iteration"
+        print '(A,F10.2,A)', " steady", 1.0e6_8 * (t1 - th) / (iters - iters / 2), &
+            " us/iteration (second half)"
     end if
     call op_timing_output()
     call op_exit()
