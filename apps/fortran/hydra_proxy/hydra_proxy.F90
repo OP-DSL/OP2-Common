@@ -269,6 +269,7 @@ program hydra_proxy
         print '(A,F10.3,A,F10.2,A)', " time", t1 - t0, " s, ", 1.0e6_8 * (t1 - t0) / iters, &
             " us/iteration"
     end if
+    call op_timing_output()
     call op_exit()
 
 contains

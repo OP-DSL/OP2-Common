@@ -12,6 +12,7 @@
 
 #include <gpu/jit.h>
 #include <gpu/lazy.h>
+#include <gpu/runs.h>
 #include <gpu/strategy.h>
 #include <loop/fusion.h>
 #include <op_lib_core.h>
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -88,6 +90,9 @@ private:
     // For OP_diags: the run layouts printed, and why groups closed, by kind.
     std::unordered_set<std::uint64_t> m_reported;
     std::map<std::string, std::size_t> m_closes;
+    // For OP_diags > 1: the runs' shapes, and the current run's launches.
+    RunShapes m_shapes;
+    std::size_t m_run_launches = 0;
 
     static void release_callback(void *owner) {
         static_cast<Fusion *>(owner)->release();
@@ -103,9 +108,11 @@ private:
         if (OP_diags > 1 && m_fused_launches > 0)
             op_printf("fusion: %zu fused launches ran %zu calls\n", m_fused_launches,
                       m_fused_calls);
-        if (OP_diags > 1)
+        if (OP_diags > 1) {
             for (const auto& [kind, count] : m_closes)
                 op_printf("fusion: %zu closed by %s\n", count, kind.c_str());
+            m_shapes.report();
+        }
         m_fused_launches = 0;
         m_fused_calls = 0;
         m_closes.clear();
@@ -468,9 +475,10 @@ private:
         }
     }
 
-    static void run_apart(Group& group) {
+    void run_apart(Group& group) {
         for_members(group,
                     [](FusionMember& member) { member.call->loop->execute(*member.call); });
+        m_run_launches += members(group);
     }
 
     // The GPU time of run, in microseconds.
@@ -584,6 +592,7 @@ private:
         op_profile_exit();
         op_profile_exit();
         ++m_fused_launches;
+        ++m_run_launches;
         m_fused_calls += members(group);
     }
 
@@ -638,6 +647,30 @@ public:
                 call.loop->execute(call);
             return;
         }
+        // Every call's membership first: the run's shape needs them all.
+        std::vector<FusionMember> members_of(calls.size());
+        std::vector<const char *> whys(calls.size());
+        for (std::size_t i = 0; i < calls.size(); ++i) {
+            whys[i] = calls[i].loop->fusion_member(calls[i], members_of[i]);
+            if (whys[i] == nullptr && !fusable(members_of[i]))
+                whys[i] = "registers";
+        }
+        if (OP_diags > 1) {
+            std::vector<RunCall> shape(calls.size());
+            std::vector<const std::string *> names(calls.size());
+            for (std::size_t i = 0; i < calls.size(); ++i) {
+                names[i] = &calls[i].loop->fusion_name();
+                const auto& member = members_of[i];
+                shape[i].loop = std::hash<std::string>{}(calls[i].loop->fusion_name());
+                shape[i].set = calls[i].set;
+                shape[i].args = calls[i].args;
+                shape[i].atomic = member.strategy != nullptr && atomic(member);
+                shape[i].fusable = whys[i] == nullptr;
+            }
+            m_shapes.begin(shape, names);
+            m_run_launches = 0;
+        }
+
         Group group;
         auto close = [&] {
             if (!group.empty())
@@ -656,11 +689,10 @@ public:
             if (OP_diags > 2)
                 reasons += "  " + name + ": " + detail + "\n";
         };
-        for (auto& call : calls) {
-            FusionMember member;
-            const char *why = call.loop->fusion_member(call, member);
-            if (why == nullptr && !fusable(member))
-                why = "registers";
+        for (std::size_t i = 0; i < calls.size(); ++i) {
+            auto& call = calls[i];
+            const auto& member = members_of[i];
+            const char *why = whys[i];
             if (why != nullptr) {
                 const auto& name = call.loop->fusion_name();
                 if (OP_diags > 1)
@@ -669,6 +701,7 @@ public:
                 note(" / ", "(" + name + ")");
                 close();
                 call.loop->execute(call);
+                ++m_run_launches;
                 continue;
             }
             const auto& name = loop_of(member).fusion_name();
@@ -686,6 +719,8 @@ public:
             note(fresh ? " / " : placed == Placed::chain ? "+" : " | ", name);
         }
         close();
+        if (OP_diags > 1)
+            m_shapes.end(m_run_launches);
         if (OP_diags > 2 &&
             m_reported.insert(hash_bytes(layout.data(), layout.size(), 0)).second)
             op_printf("fusion: layout %s\n%s", layout.c_str(), reasons.c_str());
