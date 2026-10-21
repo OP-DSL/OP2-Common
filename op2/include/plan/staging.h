@@ -20,8 +20,7 @@ struct Staging {
     // Per reference and element, stage_words[reference * stride + element].
     int stride = 0;
     std::vector<StageWord> stage_words;
-    // Per region, its slot count and where slot_targets lists its targets.
-    std::vector<int> stage_counts;
+    // Per region its first slot in slot_targets, then the slot count.
     std::vector<int> slot_offsets;
     std::vector<int> slot_targets;
     // Per chunk, the scratch bytes its regions need.

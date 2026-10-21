@@ -78,7 +78,8 @@ void staged_body(const cpu::Work& work, op_arg *args) {
     auto *w = reinterpret_cast<const double *>(args[2].data);
 
     char *cursor = work.scratch;
-    const int count = staging.stage_counts[static_cast<std::size_t>(work.chunk)];
+    const int first = staging.slot_offsets[static_cast<std::size_t>(work.chunk)];
+    const int count = staging.slot_offsets[static_cast<std::size_t>(work.chunk) + 1] - first;
     double *stage = f2c::stage_region<double>(cursor, count, 2);
     f2c::stage_clear(stage, count * 2, 0, 1);
 
@@ -89,7 +90,6 @@ void staged_body(const cpu::Work& work, op_arg *args) {
                 stage + 2 * staging.stage_words[static_cast<std::size_t>(n)],
                 stage + 2 * staging.stage_words[stride + static_cast<std::size_t>(n)]);
 
-    const int first = staging.slot_offsets[static_cast<std::size_t>(work.chunk)];
     for (int s = 0; s < count; ++s) {
         int target = staging.slot_targets[static_cast<std::size_t>(first + s)];
         f2c::stage_flush(f2c::Ptr<double>{x + 2 * target}, stage, s, 2);

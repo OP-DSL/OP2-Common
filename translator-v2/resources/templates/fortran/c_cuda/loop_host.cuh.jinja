@@ -16,7 +16,6 @@
 {%- set staging_params = [
     ("const int *__restrict", "source_offsets", "launch.chunk.plan->source_offsets"),
     ("const op::plan::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
-    ("const int *__restrict", "stage_counts", "launch.chunk.plan->stage_counts"),
     ("const int *__restrict", "slot_offsets", "launch.chunk.plan->slot_offsets"),
     ("const int *__restrict", "slot_targets", "launch.chunk.plan->slot_targets"),
 ] -%}
@@ -335,15 +334,14 @@ f2c::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% endif %}
         const int op2_source_begin = source_offsets[chunk];
         const int op2_source_end = source_offsets[chunk + 1];
-        const int *op2_chunk_counts =
-            stage_counts + chunk * {{dats|length}};
+        // A region's slots run from its offset to the next region's.
         const int *op2_chunk_slots = slot_offsets + chunk * {{dats|length}};
 
         // Walk the same region layout the host planner sized this chunk for.
         char *op2_stage_cursor = op2_stage_smem;
     {% for dat_id in dats %}
         {% set dat = lh.dat(dat_id) %}
-        const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
+        const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_slots[{{loop.index}}] - op2_chunk_slots[{{loop.index0}}] : 0;
         {{dat.typ.c()}} *op2_stage{{loop.index0}} = f2c::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
     {% endfor %}
 

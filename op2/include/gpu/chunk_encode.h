@@ -44,7 +44,6 @@ private:
 public:
     int *source_offsets = nullptr;
     plan::StageWord *stage_words = nullptr;
-    int *stage_counts = nullptr;
     int *slot_offsets = nullptr;
     int *slot_targets = nullptr;
     int *chunk_order = nullptr;
@@ -68,7 +67,6 @@ public:
             release();
             std::swap(source_offsets, other.source_offsets);
             std::swap(stage_words, other.stage_words);
-            std::swap(stage_counts, other.stage_counts);
             std::swap(slot_offsets, other.slot_offsets);
             std::swap(slot_targets, other.slot_targets);
             std::swap(chunk_order, other.chunk_order);
@@ -87,7 +85,6 @@ public:
     explicit DevicePlan(const ChunkPlan& plan) {
         upload(plan.chunks.offsets, source_offsets);
         upload(plan.staging.stage_words, stage_words);
-        upload(plan.staging.stage_counts, stage_counts);
         upload(plan.staging.slot_offsets, slot_offsets);
         upload(plan.staging.slot_targets, slot_targets);
         upload(plan.batches.order, chunk_order);
@@ -112,7 +109,6 @@ public:
     void release() {
         release(source_offsets);
         release(stage_words);
-        release(stage_counts);
         release(slot_offsets);
         release(slot_targets);
         release(chunk_order);

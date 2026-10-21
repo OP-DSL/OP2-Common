@@ -176,8 +176,7 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
     const auto& staging = work.plan->staging;
     const int stride = staging.stride;
     const op::plan::StageWord *const stage_words = staging.stage_words.data();
-    const int *const op2_counts =
-        staging.stage_counts.data() + work.chunk * {{groups.chunk_atomics.dats|length}};
+    // A region's slots run from its offset to the next region's.
     const int *const op2_slots =
         staging.slot_offsets.data() + work.chunk * {{groups.chunk_atomics.dats|length}};
 
@@ -185,7 +184,7 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
     {% for dat_id in groups.chunk_atomics.dats %}
         {% set dat = lh.dat(dat_id) %}
     const int op2_stage{{loop.index0}}_count =
-        ({{stage_group_active(dat_id)}}) ? op2_counts[{{loop.index0}}] : 0;
+        ({{stage_group_active(dat_id)}}) ? op2_slots[{{loop.index}}] - op2_slots[{{loop.index0}}] : 0;
     {{dat.typ.c()}} *const op2_stage{{loop.index0}} = f2c::stage_region<{{dat.typ.c()}}>(
         op2_cursor, op2_stage{{loop.index0}}_count, {{dat_dim(dat)}});
     f2c::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(dat)}}, 0, 1);

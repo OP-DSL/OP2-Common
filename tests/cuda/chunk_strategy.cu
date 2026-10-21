@@ -21,7 +21,7 @@ extern "C" __global__ void chunk_strategy_baseline(int *result) {
 
 extern "C" __global__ void chunk_strategy_staged(
     int *result, const int *source_offsets, const unsigned short *stage_words,
-    const int *stage_counts, int chunk_begin, int chunk_end, int set_stride,
+    const int *slot_offsets, int chunk_begin, int chunk_end, int set_stride,
     int last_shared_byte) {
     extern __shared__ unsigned char scratch[];
 
@@ -32,7 +32,7 @@ extern "C" __global__ void chunk_strategy_staged(
     if (blockIdx.x == 0 && threadIdx.x == 0) {
         result[0] = source_offsets[chunk_begin];
         result[1] = source_offsets[chunk_end];
-        result[2] = stage_counts[chunk_begin];
+        result[2] = slot_offsets[chunk_begin + 1] - slot_offsets[chunk_begin];
         result[3] = static_cast<int>(stage_words[0]);
         result[4] = static_cast<int>(stage_words[1]);
         result[5] = chunk_begin;
@@ -65,7 +65,7 @@ extern "C" __global__ void chunk_strategy_baseline(int *result) {
 constexpr char staged_source[] = R"op2(
 extern "C" __global__ void chunk_strategy_staged(
     int *result, const int *source_offsets, const unsigned short *stage_words,
-    const int *stage_counts, int chunk_begin, int chunk_end, int set_stride,
+    const int *slot_offsets, int chunk_begin, int chunk_end, int set_stride,
     int last_shared_byte) {
     extern __shared__ unsigned char scratch[];
 
@@ -76,7 +76,7 @@ extern "C" __global__ void chunk_strategy_staged(
     if (blockIdx.x == 0 && threadIdx.x == 0) {
         result[0] = source_offsets[chunk_begin];
         result[1] = source_offsets[chunk_end];
-        result[2] = stage_counts[chunk_begin];
+        result[2] = slot_offsets[chunk_begin + 1] - slot_offsets[chunk_begin];
         result[3] = static_cast<int>(stage_words[0]);
         result[4] = static_cast<int>(stage_words[1]);
         result[5] = chunk_begin;
@@ -105,7 +105,7 @@ void bind_staged(gpu::LaunchContext& launch, op_arg *,
         (void *)&output_d,
         (void *)&launch.chunk.plan->source_offsets,
         (void *)&launch.chunk.plan->stage_words,
-        (void *)&launch.chunk.plan->stage_counts,
+        (void *)&launch.chunk.plan->slot_offsets,
         (void *)&launch.chunk.chunk_begin,
         (void *)&launch.chunk.chunk_end,
         (void *)&launch.set_stride,

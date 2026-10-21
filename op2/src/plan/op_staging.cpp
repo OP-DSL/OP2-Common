@@ -106,12 +106,12 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
     staging.stride = stride;
     const std::size_t groups = references.groups.size();
     staging.stage_words.assign(references.items.size() * static_cast<std::size_t>(stride), 0);
-    staging.stage_counts.reserve(static_cast<std::size_t>(chunks.count()) * groups);
-    staging.slot_offsets.reserve(static_cast<std::size_t>(chunks.count()) * groups);
+    staging.slot_offsets.reserve(static_cast<std::size_t>(chunks.count()) * groups + 1);
     staging.chunk_scratch_bytes.reserve(static_cast<std::size_t>(chunks.count()));
 
-    // Per group, each of the chunk's targets' slot.
+    // Per group, each of the chunk's targets' slot, and the chunk's slot count.
     std::vector<std::vector<int>> slots(groups);
+    std::vector<int> counts(groups);
     for (std::size_t group = 0; group < groups; ++group)
         slots[group].assign(static_cast<std::size_t>(references.groups[group].extent), -1);
 
@@ -136,7 +136,7 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                 slot = count++;
                 staging.slot_targets.push_back(target);
             }
-            staging.stage_counts.push_back(count);
+            counts[group] = count;
         }
 
         for (int element = chunks.begin(chunk); element < chunks.end(chunk); ++element)
@@ -152,9 +152,9 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                              [static_cast<std::size_t>(target)]);
             }
 
-        staging.chunk_scratch_bytes.push_back(scratch_bytes(
-            references, std::span<const int>{staging.stage_counts}.last(groups)));
+        staging.chunk_scratch_bytes.push_back(scratch_bytes(references, counts));
     }
+    staging.slot_offsets.push_back(static_cast<int>(staging.slot_targets.size()));
     return staging;
 }
 

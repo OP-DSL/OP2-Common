@@ -208,9 +208,19 @@ plan::StageWord stage_word(const gpu::ChunkPlan& chunk_plan,
         static_cast<std::size_t>(source_element)];
 }
 
+// Each region's slot count, from the offsets.
+std::vector<int> slot_counts(const plan::Staging& staging) {
+    std::vector<int> counts;
+    for (std::size_t region = 0; region + 1 < staging.slot_offsets.size(); ++region)
+        counts.push_back(staging.slot_offsets[region + 1] - staging.slot_offsets[region]);
+    return counts;
+}
+
 int stage_count(const gpu::ChunkPlan& chunk_plan, std::size_t ndats,
                 std::size_t chunk, std::size_t staged_dat) {
-    return chunk_plan.staging.stage_counts[chunk * ndats + staged_dat];
+    const auto& offsets = chunk_plan.staging.slot_offsets;
+    auto region = chunk * ndats + staged_dat;
+    return offsets[region + 1] - offsets[region];
 }
 
 // Check the staging every kernel relies on: each region lists its chunk's
@@ -221,15 +231,16 @@ void check_slot_lists(const gpu::ChunkPlan& chunk_plan,
                       const plan::ArgGroups& groups) {
     const auto& staging = chunk_plan.staging;
     const auto ndats = static_cast<std::size_t>(groups.groups);
-    CHECK(staging.stage_counts.size() == num_chunks(chunk_plan) * ndats);
-    CHECK(staging.slot_offsets.size() == staging.stage_counts.size());
+    CHECK(staging.slot_offsets.size() == num_chunks(chunk_plan) * ndats + 1);
+    CHECK(staging.slot_offsets.front() == 0);
+    CHECK(static_cast<std::size_t>(staging.slot_offsets.back()) ==
+          staging.slot_targets.size());
 
     std::size_t slots = 0;
-    for (std::size_t region = 0; region < staging.stage_counts.size();
-         ++region) {
+    for (std::size_t region = 0; region + 1 < staging.slot_offsets.size(); ++region) {
         auto first = static_cast<std::size_t>(staging.slot_offsets[region]);
-        auto count = static_cast<std::size_t>(staging.stage_counts[region]);
-        CHECK(first + count <= staging.slot_targets.size());
+        CHECK(staging.slot_offsets[region + 1] >= staging.slot_offsets[region]);
+        auto count = static_cast<std::size_t>(staging.slot_offsets[region + 1]) - first;
         for (std::size_t s = 1; s < count; ++s)
             CHECK(staging.slot_targets[first + s - 1] <
                   staging.slot_targets[first + s]);
@@ -251,7 +262,7 @@ void check_slot_lists(const gpu::ChunkPlan& chunk_plan,
                 int slot = stage_word(chunk_plan, i, source);
                 if (slot == plan::unstaged_word)
                     continue;
-                CHECK(slot < staging.stage_counts[region]);
+                CHECK(slot < staging.slot_offsets[region + 1] - staging.slot_offsets[region]);
                 CHECK(staging.slot_targets[static_cast<std::size_t>(
                           staging.slot_offsets[region] + slot)] ==
                       arg.map_data[source * arg.map->dim + arg.idx]);
@@ -313,7 +324,7 @@ void test_mixed_plan() {
     CHECK(chunk_plan.batches.positions(1, 0) == std::make_pair(1, 2));
     CHECK(chunk_plan.scratch_bytes(1, 0) ==
           chunk_plan.staging.chunk_scratch_bytes[1]);
-    CHECK((chunk_plan.staging.stage_counts == std::vector<int>{2, 2, 0, 3, 3, 0}));
+    CHECK((slot_counts(chunk_plan.staging) == std::vector<int>{2, 2, 0, 3, 3, 0}));
     CHECK(stage_count(chunk_plan, 3, 0, 0) == 2);
     CHECK(stage_count(chunk_plan, 3, 0, 1) == 2);
     CHECK((chunk_plan.staging.chunk_scratch_bytes ==
@@ -328,7 +339,7 @@ void test_mixed_plan() {
     CHECK(stage_word(chunk_plan, 2, 1) == 1);
     CHECK(stage_word(chunk_plan, 1, 5) == 2);
     CHECK(stage_word(chunk_plan, 2, 4) == 2);
-    CHECK((chunk_plan.staging.slot_offsets == std::vector<int>{0, 2, 4, 4, 7, 10}));
+    CHECK((chunk_plan.staging.slot_offsets == std::vector<int>{0, 2, 4, 4, 7, 10, 10}));
     CHECK((chunk_plan.staging.slot_targets ==
            std::vector<int>{0, 1, 0, 1, 1, 2, 3, 0, 1, 2}));
 
@@ -362,8 +373,7 @@ void test_optional_and_alignment() {
     fixture.args[3].opt = 1;
     auto active = fixture.build();
     CHECK(active);
-    CHECK((active.plan->staging.stage_counts ==
-           std::vector<int>{2, 2, 1, 3, 3, 2}));
+    CHECK((slot_counts(active.plan->staging) == std::vector<int>{2, 2, 1, 3, 3, 2}));
     CHECK((active.plan->batch_scratch_bytes ==
            std::vector<std::size_t>{60, 92}));
     CHECK(active.plan->references == 24);
@@ -393,9 +403,10 @@ void test_region_walk() {
                           plan::ArgGroups{group_args, 3}, 2, 4, 1024);
     CHECK(result);
     const auto& staging = result.plan->staging;
+    const auto all_counts = slot_counts(staging);
     alignas(16) static char base[1 << 12];
     for (int chunk = 0; chunk < result.plan->chunks.count(); ++chunk) {
-        const int *counts = &staging.stage_counts[static_cast<std::size_t>(chunk) * 3];
+        const int *counts = &all_counts[static_cast<std::size_t>(chunk) * 3];
         char *cursor = base;
         op::f2c::stage_region<float>(cursor, counts[0], 1);
         op::f2c::stage_region<double>(cursor, counts[1], 2);
@@ -505,7 +516,7 @@ void test_slots_in_target_order() {
     CHECK(result);
     const auto& chunk_plan = *result.plan;
     CHECK(num_chunks(chunk_plan) == 2);
-    CHECK((chunk_plan.staging.stage_counts == std::vector<int>{3, 3}));
+    CHECK((slot_counts(chunk_plan.staging) == std::vector<int>{3, 3}));
     CHECK((chunk_plan.staging.slot_targets == std::vector<int>{0, 1, 3, 0, 1, 2}));
     CHECK((words_of(chunk_plan, 8) == std::vector<int>{2, 1, 2, 0, 2, 1, 2, 0}));
     CHECK(chunk_plan.references == 8);
@@ -521,7 +532,7 @@ void test_unstaged_singles() {
     CHECK(result);
     const auto& chunk_plan = *result.plan;
     constexpr int u = plan::unstaged_word;
-    CHECK((chunk_plan.staging.stage_counts == std::vector<int>{1, 1}));
+    CHECK((slot_counts(chunk_plan.staging) == std::vector<int>{1, 1}));
     CHECK((chunk_plan.staging.slot_targets == std::vector<int>{3, 2}));
     CHECK((words_of(chunk_plan, 8) == std::vector<int>{0, u, 0, u, 0, u, 0, u}));
     CHECK(chunk_plan.references == 8);
@@ -810,7 +821,8 @@ void test_colour_random() {
             for (std::size_t dat = 0; dat < ndats; ++dat) {
                 const auto& staging = chunk_plan.staging;
                 auto region = c * ndats + dat;
-                for (int s = 0; s < staging.stage_counts[region]; ++s) {
+                for (int s = 0; s < staging.slot_offsets[region + 1] - staging.slot_offsets[region];
+                     ++s) {
                     int target = staging.slot_targets[static_cast<std::size_t>(
                         staging.slot_offsets[region] + s)];
                     int& last = latest[dat][static_cast<std::size_t>(target)];
