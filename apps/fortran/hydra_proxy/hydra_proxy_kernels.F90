@@ -279,11 +279,22 @@ contains
         q(5) = max(q(5), 0.1_8)
     end subroutine
 
-    subroutine res_norm(res, nrm)
+    ! The squared residual's sum and maximum, with its node, when on.
+    subroutine res_norm(res, idx, on, nrm, rmax, iloc)
         real(8), dimension(5), intent(in) :: res
-        real(8), intent(inout) :: nrm
+        integer(4), intent(in) :: idx, on
+        real(8), intent(inout) :: nrm, rmax
+        integer(4), intent(inout) :: iloc
 
-        nrm = nrm + res(1)**2 + res(2)**2 + res(3)**2 + res(4)**2 + res(5)**2
+        real(8) :: r
+
+        if (on == 0) return
+        r = res(1)**2 + res(2)**2 + res(3)**2 + res(4)**2 + res(5)**2
+        nrm = nrm + r
+        if (r > rmax) then
+            rmax = r
+            iloc = idx
+        end if
     end subroutine
 
     subroutine sum5(q, s)

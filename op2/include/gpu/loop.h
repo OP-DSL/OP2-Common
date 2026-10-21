@@ -202,8 +202,9 @@ public:
         member.global_output = has_global_output(call.args.data(), nargs);
         for (const auto& arg : call.args)
             member.device_globals |=
-                arg.opt != 0 && (arg.argtype == OP_ARG_INFO ||
-                                 (arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1)));
+                arg_enabled(arg, call.args.data()) &&
+                (arg.argtype == OP_ARG_INFO ||
+                 (arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1)));
         member.registers = strategy.offline_registers();
         return nullptr;
     }

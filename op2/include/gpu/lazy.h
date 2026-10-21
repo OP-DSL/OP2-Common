@@ -91,9 +91,15 @@ struct PendingCall {
     }
 };
 
+// Whether an argument takes part: an info argument with the reduction it
+// carries a payload for.
+inline bool arg_enabled(const op_arg& arg, const op_arg *args) {
+    return arg.argtype == OP_ARG_INFO ? args[arg.acc].opt != 0 : arg.opt != 0;
+}
+
 // Whether an argument hands a value back to the host when the call ends.
-inline bool returns_to_host(const op_arg& arg) {
-    if (arg.opt == 0)
+inline bool returns_to_host(const op_arg& arg, const op_arg *args) {
+    if (!arg_enabled(arg, args))
         return false;
     if (arg.argtype == OP_ARG_INFO)
         return true;
@@ -108,7 +114,7 @@ inline std::string flush_cause(const PendingCall& call) {
     for (const auto& arg : call.args) {
         bool large = arg.opt != 0 && arg.argtype == OP_ARG_GBL && arg.acc == OP_READ &&
                      arg.size > config().lazy_copy_bytes;
-        if (!returns_to_host(arg) && !large)
+        if (!returns_to_host(arg, call.args.data()) && !large)
             continue;
         cause += cause.empty() ? "" : ", ";
         if (arg.argtype == OP_ARG_INFO)
@@ -183,7 +189,7 @@ public:
         call.args.assign(args, args + nargs);
         for (int i = 0; i < nargs; ++i) {
             const auto& arg = args[i];
-            call.flush |= returns_to_host(arg);
+            call.flush |= returns_to_host(arg, args);
             if (arg.opt == 0 || arg.argtype != OP_ARG_GBL || arg.acc != OP_READ)
                 continue;
             if (arg.size > config().lazy_copy_bytes) {

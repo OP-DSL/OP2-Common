@@ -3,15 +3,18 @@ program hydra_proxy
 ! A strong-scaling proxy for Hydra-like OP2 codes: many small loops per
 ! iteration over nodes, edges and six boundary sets, the same kernels called
 ! on several sets, gradient -> limiter -> flux chains, residual smoothing,
-! Runge-Kutta stages and a residual norm each iteration.  Halos are exchanged
-! inside every stage (q, gradients, limiter, residual per smoothing sweep).
+! Runge-Kutta stages and a residual norm.  Halos are exchanged inside every
+! stage (q, gradients, limiter, residual per smoothing sweep).  The norm, and
+! the residual's maximum with its location, are reduced every monitor
+! iterations (and the first, middle and last), through optional arguments
+! that are off in between, as Hydra's monitoring is.
 !
 ! The mesh is an nx x ny x nz box of nodes with edges along the axes, each
 ! rank building its own slab of z planes, so it arrives partitioned.  With
 ! two chains, a second set of variables goes through the same stages on its
 ! own dats, as an independent equation set (a turbulence model, say) would.
 !
-!     hydra_proxy [nx ny nz [iterations [stages [sweeps [chains]]]]]
+!     hydra_proxy [nx ny nz [iterations [stages [sweeps [chains [monitor]]]]]]
 !
     use OP2_FORTRAN_DECLARATIONS
     use OP2_FORTRAN_REFERENCE
@@ -21,9 +24,12 @@ program hydra_proxy
     implicit none
 
     integer(4) :: nx = 64, ny = 64, nz = 64, iters = 50, stages = 3, sweeps = 2, chains = 1
+    integer(4) :: monitor = 1
     integer(4) :: rank, ranks, k0, nk, nnode, nedge, it, s, m, b, i, j, k, l, e, c, ch
+    integer(4) :: on, iloc
     integer(4), dimension(6) :: nbnd
-    real(8) :: alpha, nrm, t0, t1, th
+    logical :: monitoring
+    real(8) :: alpha, nrm, rmax, t0, t1, th
     real(8), dimension(5) :: total
     character(len=32) :: arg
 
@@ -75,6 +81,11 @@ program hydra_proxy
         read (arg, *) chains
     end if
     chains = max(1, min(chains, 2))
+    if (command_argument_count() >= 8) then
+        call get_command_argument(8, arg)
+        read (arg, *) monitor
+    end if
+    monitor = max(1, monitor)
 
     call op_init_base(0, 0)
     call op_profile_start("hydra_proxy")
@@ -271,12 +282,21 @@ program hydra_proxy
             end do
         end do
 
+        monitoring = it == 1 .or. mod(it, monitor) == 0 .or. it == iters / 2 .or. it == iters
+        on = merge(1, 0, monitoring)
         nrm = 0.0_8
-        call op_par_loop_2(res_norm, nodes, &
+        rmax = 0.0_8
+        iloc = -1
+        call op_par_loop_6(res_norm, nodes, &
             op_arg_dat(p_res(1), -1, OP_ID, 5, "real(8)", OP_READ), &
-            op_arg_gbl(nrm, 1, "real(8)", OP_INC))
-        if (rank == 0 .and. (it == 1 .or. mod(it, 10) == 0)) &
-            print '(A,I6,A,ES22.14)', " iteration", it, "  residual", sqrt(nrm)
+            op_arg_idx(-1, OP_ID), &
+            op_arg_gbl(on, 1, "integer(4)", OP_READ), &
+            op_opt_arg_gbl(monitoring, nrm, 1, "real(8)", OP_INC), &
+            op_opt_arg_gbl(monitoring, rmax, 1, "real(8)", OP_MAX), &
+            op_arg_info(iloc, 1, "integer(4)", 5))
+        if (rank == 0 .and. monitoring .and. (it == 1 .or. mod(it, 10) == 0)) &
+            print '(A,I6,A,ES22.14,A,ES22.14,A,I9)', " iteration", it, "  residual", sqrt(nrm), &
+                "  max", sqrt(rmax), " at", iloc
         ! The second half's time, clear of compiles and tuning: the norm has
         ! synchronised.
         if (it == iters / 2) call op_timers(th)
