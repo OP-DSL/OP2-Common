@@ -1,11 +1,20 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import op as OP
 from language import Lang
 from scheme import Scheme
 from store import Application, ParseError, Program
 from target import Target
+
+
+# Atomics serve only the increments: a loop that reads and writes an indirect
+# dat is coloured.
+def colourIndirectRW(config: Dict[str, Any], loop: OP.Loop) -> None:
+    if any(isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW
+           for arg in loop.args):
+        config["atomics"] = False
+        config["color2"] = True
 
 
 class CppSeq(Scheme):
@@ -178,6 +187,11 @@ class CppJitCuda(Scheme):
     loop_host_templates = [Path("cpp/jit_cuda/loop_host.h.jinja")]
     master_kernel_templates = [Path("cpp/jit_cuda/master_kernel.cu.jinja")]
 
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -237,6 +251,11 @@ class CppJitHip(Scheme):
     consts_template = None
     loop_host_templates = [Path("cpp/jit_hip/loop_host.h.jinja")]
     master_kernel_templates = [Path("cpp/jit_hip/master_kernel.cpp.jinja")]
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
 
     def translateKernel(
         self,
