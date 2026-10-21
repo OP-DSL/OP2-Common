@@ -177,12 +177,6 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     [[maybe_unused]] double zero_double = 0;
 
     {% endif %}
-    {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
-    {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
-    for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
-        arg{{arg.id}}_{{arg.map_idx}}_local[d] = zero_{{lh.dat(arg).typ}};
-
-    {% endfor %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
     {% if lh is indirect and config.color2 %}
         int n = col_reord[i];
@@ -198,6 +192,12 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
         int idx{{arg.id}} = {{map_lookup(arg)}};
     {% endfor %}
 
+    {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
+        {{lh.dat(arg).typ}} arg{{arg.id}}_{{arg.map_idx}}_local[{{lh.dat(arg).dim}}];
+        for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
+            arg{{arg.id}}_{{arg.map_idx}}_local[d] = zero_{{lh.dat(arg).typ}};
+
+    {% endfor %}
         op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}(
     {% for arg in lh.args %}
             {{arg_to_pointer_cuda(arg, jit)}}{{"," if not loop.last}}
