@@ -111,7 +111,6 @@ private:
                     const Trial& trial) const;
     std::string line(const State& state) const;
     void report(State& state);
-    static void rows_callback(void *owner);
 
 public:
     explicit Autotuner(const Ladder& ladder);
@@ -134,21 +133,15 @@ public:
     // At op_exit, print the configurations still being explored, and count
     // those never explored.
     void flush();
+
+    // Append a report row per explored configuration and strategy, as they
+    // stand.
+    void rows(std::vector<std::string>& out) const;
 };
 
-// A loop's tuning state, which adds a row per explored configuration and
-// strategy with autotune_record whenever the report is written.
-using AutotuneSource = void (*)(void *owner);
-void autotune_register_source(void *owner, AutotuneSource add_rows);
-void autotune_unregister_source(void *owner);
-
-// Record one CSV row; header names the columns and is written once, ahead
-// of the first row.
-void autotune_record(std::string_view header, std::string row);
-
-// Write every source's rows, as they stand, to OP_AUTOTUNE_REPORT, suffixed
-// with the rank when there is more than one.  A later call overwrites the
-// file, so applications that never call op_exit still get a report.
+// Write every loop's report rows to OP_AUTOTUNE_REPORT, suffixed with the
+// rank when there is more than one.  A later call overwrites the file, so
+// applications that never call op_exit still get a report.
 void autotune_write_report(int rank, int ranks);
 
 } // namespace op::loop

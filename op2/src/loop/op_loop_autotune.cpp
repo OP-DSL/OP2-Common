@@ -10,50 +10,30 @@
 
 namespace op::loop {
 
-// --- Report collector -----------------------------------------------------------
+// --- Report -----------------------------------------------------------------------
 
 namespace {
 
-std::mutex report_mutex;
-std::vector<std::pair<void *, AutotuneSource>> sources;
-std::string header_row;
-std::vector<std::string> rows;
+std::mutex tuners_mutex;
+std::vector<const Autotuner *> tuners;
+
+constexpr const char *header =
+    "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
+    "fastest,speedup,selected,state,statistics";
 
 } // namespace
-
-void autotune_register_source(void *owner, AutotuneSource add_rows) {
-    std::scoped_lock lock(report_mutex);
-    sources.emplace_back(owner, add_rows);
-}
-
-void autotune_unregister_source(void *owner) {
-    std::scoped_lock lock(report_mutex);
-    std::erase_if(sources,
-                  [owner](const auto& source) { return source.first == owner; });
-}
-
-void autotune_record(std::string_view header, std::string row) {
-    std::scoped_lock lock(report_mutex);
-    if (header_row.empty())
-        header_row = header;
-    rows.push_back(std::move(row));
-}
 
 void autotune_write_report(int rank, int ranks) {
     const char *path = std::getenv("OP_AUTOTUNE_REPORT");
     if (path == nullptr || path[0] == '\0')
         return;
 
-    // The sources call autotune_record, so call them unlocked.
-    std::vector<std::pair<void *, AutotuneSource>> current;
+    std::vector<std::string> rows;
     {
-        std::scoped_lock lock(report_mutex);
-        current = sources;
+        std::scoped_lock lock(tuners_mutex);
+        for (const auto *tuner : tuners)
+            tuner->rows(rows);
     }
-    for (const auto& [owner, add_rows] : current)
-        add_rows(owner);
-
-    std::scoped_lock lock(report_mutex);
     if (rows.empty())
         return;
 
@@ -65,15 +45,13 @@ void autotune_write_report(int rank, int ranks) {
     if (file == nullptr) {
         std::fprintf(stderr, "warning: cannot write autotune report %s\n",
                      name.c_str());
-        rows.clear();
         return;
     }
 
-    std::fprintf(file, "%s\n", header_row.c_str());
+    std::fprintf(file, "%s\n", header);
     for (const auto& row : rows)
         std::fprintf(file, "%s\n", row.c_str());
     std::fclose(file);
-    rows.clear();
 }
 
 // --- Configuration --------------------------------------------------------------
@@ -120,10 +98,6 @@ float median(std::vector<float> values) {
                : 0.5f * (values[middle - 1] + values[middle]);
 }
 
-constexpr const char *header =
-    "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
-    "fastest,speedup,selected,state,statistics";
-
 std::string quoted(std::string_view text) {
     std::string out = "\"";
     for (char c : text)
@@ -149,10 +123,14 @@ bool Autotuner::State::explored() const {
 }
 
 Autotuner::Autotuner(const Ladder& ladder) : m_ladder{ladder} {
-    autotune_register_source(this, &Autotuner::rows_callback);
+    std::scoped_lock lock(tuners_mutex);
+    tuners.push_back(this);
 }
 
-Autotuner::~Autotuner() { autotune_unregister_source(this); }
+Autotuner::~Autotuner() {
+    std::scoped_lock lock(tuners_mutex);
+    std::erase(tuners, this);
+}
 
 Autotuner::Decision Autotuner::choose(const Configuration& configuration,
                                       const Selection& selection) {
@@ -378,16 +356,14 @@ void Autotuner::report(State& state) {
         std::printf("%s\n", line(state).c_str());
 }
 
-// Add a report row for every explored configuration, as it stands.
-void Autotuner::rows_callback(void *owner) {
-    const auto *tuner = static_cast<const Autotuner *>(owner);
-    for (const auto& [key, state] : tuner->m_states) {
+void Autotuner::rows(std::vector<std::string>& out) const {
+    for (const auto& [key, state] : m_states) {
         if (!state.explored())
             continue;
-        auto summary = tuner->summarise(state);
+        auto summary = summarise(state);
         for (const auto& trial : state.trials)
             if (trial.candidate || trial.reason != "disabled")
-                autotune_record(header, tuner->row(state, summary, trial));
+                out.push_back(row(state, summary, trial));
     }
 }
 
