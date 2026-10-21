@@ -457,9 +457,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     call op_profile_exit()
 {% elif config.atomics %}
     {% if lh.args|gbl|reduction|length == 0 %}
-    sections = (/0, set%setptr%core_size, set%setptr%size + set%setptr%exec_size, 0/)
+    sections = (/0, set%setptr%core_size, n_exec, 0/)
     {% else %}
-    sections = (/0, set%setptr%core_size, set%setptr%size, set%setptr%size + set%setptr%exec_size/)
+    sections = (/0, set%setptr%core_size, set%setptr%size, n_exec/)
     {% endif %}
 
     call op_profile_enter("Kernel")

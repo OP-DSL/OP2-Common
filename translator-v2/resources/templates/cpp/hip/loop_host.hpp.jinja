@@ -340,11 +340,11 @@ op_hip_{{lh.name}}<<<num_blocks, block_size
 
         {% if lh.args|gbl|reduction|length > 0 %}
         int start = round == 0 ? 0 : (round == 1 ? set->core_size : set->size);
-        int end = round == 0 ? set->core_size : (round == 1 ? set->size : set->size + set->exec_size);
+        int end = round == 0 ? set->core_size : (round == 1 ? set->size : set_size);
 
         {% else %}
         int start = round == 0 ? 0 : set->core_size;
-        int end = round == 0 ? set->core_size : set->size + set->exec_size;
+        int end = round == 0 ? set->core_size : set_size;
 
         {% endif %}
         if (end - start > 0) {
