@@ -3,7 +3,7 @@ import traceback
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, FrozenSet, List, Optional
 
 import fortran.translator.kernels as ftk
 import fortran.translator.kernels_c as ftk_c
@@ -52,50 +52,63 @@ class ChunkGroups:
         return [next(arg for arg in self.args if arg.dat_id == dat) for dat in self.dats]
 
 
-# chunk_atomics follows the indirect increments; chunk_colouring every
-# indirect argument of a dat the loop updates (INC or RW), reads included.
-def chunkGroups(loop: OP.Loop) -> Dict[str, ChunkGroups]:
-    indirect = [arg for arg in loop.args if isinstance(arg, OP.ArgDat) and arg.map_id is not None]
-    updated = {arg.dat_id for arg in indirect if arg.access_type in [OP.AccessType.INC, OP.AccessType.RW]}
+# A loop's chunked strategies as a scheme plans them: each one's argument
+# groups, and the strategies the loop can statically run, in ladder order.
+# staged names the chunked strategies whose kernels stage their targets,
+# which restricts their arguments to types the planner knows.
+@dataclass(frozen=True)
+class ChunkStrategies:
+    groups: Dict[str, ChunkGroups]
+    valid: List[str]
 
-    def groups(args: List[OP.ArgDat]) -> ChunkGroups:
-        return ChunkGroups(args, list(dict.fromkeys(arg.dat_id for arg in args)))
+    # chunk_atomics follows the indirect increments; chunk_colouring every
+    # indirect argument of a dat the loop updates (INC or RW), reads included.
+    @staticmethod
+    def of(loop: OP.Loop, staged: FrozenSet[str]) -> "ChunkStrategies":
+        indirect = [arg for arg in loop.args if isinstance(arg, OP.ArgDat) and arg.map_id is not None]
+        updated = {arg.dat_id for arg in indirect if arg.access_type in [OP.AccessType.INC, OP.AccessType.RW]}
 
-    return {
-        "chunk_atomics": groups([arg for arg in indirect if arg.access_type == OP.AccessType.INC]),
-        "chunk_colouring": groups([arg for arg in indirect if arg.dat_id in updated]),
-    }
+        def grouped(args: List[OP.ArgDat]) -> ChunkGroups:
+            return ChunkGroups(args, list(dict.fromkeys(arg.dat_id for arg in args)))
+
+        groups = {
+            "chunk_atomics": grouped([arg for arg in indirect if arg.access_type == OP.AccessType.INC]),
+            "chunk_colouring": grouped([arg for arg in indirect if arg.dat_id in updated]),
+        }
+
+        def groupable(strategy: str) -> bool:
+            return all(chunkGroupable(loop, arg, strategy in staged) for arg in groups[strategy].args)
+
+        if len(groups["chunk_colouring"].args) == 0:
+            return ChunkStrategies(groups, ["plain"])
+
+        valid = []
+        if not any(arg.access_type == OP.AccessType.RW for arg in groups["chunk_colouring"].args):
+            if groupable("chunk_atomics"):
+                valid.append("chunk_atomics")
+            valid.append("atomics")
+        if groupable("chunk_colouring"):
+            valid.append("chunk_colouring")
+        valid.append("colouring")
+        return ChunkStrategies(groups, valid)
+
+    # An override's strategies within the valid set, keeping the lowest valid
+    # non-chunked strategy as the runtime's floor; without one, every valid
+    # strategy.
+    def restrict(self, strategies: Optional[List[str]]) -> List[str]:
+        if strategies is None:
+            return list(self.valid)
+        kept = [strategy for strategy in self.valid if strategy in strategies]
+        if all(chunkStrategy(strategy) for strategy in kept):
+            kept.append(self.valid[-1])
+        return kept
 
 
-# Return the strategies that are statically valid for a loop, in ladder order.
-# staged_colouring: chunk_colouring stages its targets, as on the GPU.
-def validStrategies(loop: OP.Loop, staged_colouring: bool = True) -> List[str]:
-    groups = chunkGroups(loop)
-    if len(groups["chunk_colouring"].args) == 0:
-        return ["plain"]
-
-    strategies = []
-    rws = [arg for arg in groups["chunk_colouring"].args if arg.access_type == OP.AccessType.RW]
-    if len(rws) == 0:
-        if all(chunkGroupable(loop, arg) for arg in groups["chunk_atomics"].args):
-            strategies.append("chunk_atomics")
-        strategies.append("atomics")
-
-    if all(chunkGroupable(loop, arg, staged_colouring) for arg in groups["chunk_colouring"].args):
-        strategies.append("chunk_colouring")
-    strategies.append("colouring")
-
-    return strategies
-
-
-# A strategies override restricts the valid set; the lowest valid
-# non-chunked strategy always stays, so the runtime has a floor.
-def restrictStrategies(loop: OP.Loop, strategies: List[str], staged_colouring: bool = True) -> List[str]:
-    valid = validStrategies(loop, staged_colouring)
-    kept = [strategy for strategy in valid if strategy in strategies]
-    if all(chunkStrategy(strategy) for strategy in kept):
-        kept.append(valid[-1])
-    return kept
+# The strategies a loop's kernels are generated for, and their groups.
+def setChunkConfig(config: Dict[str, Any], loop: OP.Loop, staged: FrozenSet[str]) -> None:
+    chunks = ChunkStrategies.of(loop, staged)
+    config["strategies"] = chunks.restrict(config.get("strategies"))
+    config["chunk_groups"] = chunks.groups
 
 
 class FortranSeq(Scheme):
@@ -392,20 +405,19 @@ class FortranCCuda(Scheme):
 
         return True
 
+    staged = frozenset({"chunk_atomics", "chunk_colouring"})
+
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
 
         # The C++ schemes share this target and still read these.
         del config["atomics"]
         del config["color2"]
-
-        config["strategies"] = validStrategies(loop)
         return config
 
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
-        config["strategies"] = restrictStrategies(loop, config["strategies"])
-        config["chunk_groups"] = chunkGroups(loop)
+        setChunkConfig(config, loop, self.staged)
         return config
 
     def translateKernel(
@@ -501,15 +513,12 @@ class FortranCOpenMP(Scheme):
 
         return True
 
-    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
-        config = self.target.defaultConfig()
-        config["strategies"] = validStrategies(loop, staged_colouring=False)
-        return config
+    # chunk_colouring runs the plain body over its chunks.
+    staged = frozenset({"chunk_atomics"})
 
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
-        config["strategies"] = restrictStrategies(loop, config["strategies"], staged_colouring=False)
-        config["chunk_groups"] = chunkGroups(loop)
+        setChunkConfig(config, loop, self.staged)
         return config
 
     def translateKernel(
