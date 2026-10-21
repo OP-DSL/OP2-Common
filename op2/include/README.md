@@ -28,10 +28,13 @@ plan/colouring.h       (includes: op_lib_core.h; the set colouring, as
                         op_plan's OP_COLOR2)
 plan/chunks.h          (includes: loop/strategy.h; the references a planner
                         follows, chunks within sections, each chunk's
-                        targets, coloured batches, the wavefront order and
-                        element colours)
+                        targets, coloured batches, the wavefront order,
+                        element colours, and the result a backend's plan
+                        comes back in)
 plan/staging.h         (includes: plan/chunks.h, plan/staging_layout.h; the
-                        staged kernels' scratch slots and stage words)
+                        staged kernels' scratch slots and stage words, and
+                        the pipeline staging a call's chunks under a
+                        backend's lanes and scratch budget)
 plan/staging_layout.h  (the staging layout both the host and a staged kernel
                         read; no includes, so NVRTC compiles it too)
 plan/options.h         (includes: loop/strategy.h; the chunked strategies'

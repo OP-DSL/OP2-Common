@@ -158,4 +158,23 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
     return staging;
 }
 
+std::string_view stage_chunks(std::span<const op_arg> args,
+                              const op::loop::Sections& sections,
+                              const ArgGroups& groups, bool read_write, int size,
+                              int lanes, std::size_t scratch_bytes,
+                              bool unstaged_singles, StagedChunks& out) {
+    auto reason = grouped_references(args, groups, read_write, out.references);
+    if (!reason.empty())
+        return reason;
+    int chunk_size = staged_chunk_size(out.references, size, lanes, scratch_bytes);
+    if (chunk_size == 0)
+        return "insufficient_scratch";
+
+    out.chunks = chunk_sections(sections, chunk_size);
+    out.targets = chunk_targets(out.chunks, out.references);
+    out.staging = stage(out.chunks, out.targets, out.references, sections.set_stride(),
+                        unstaged_singles);
+    return {};
+}
+
 } // namespace op::plan

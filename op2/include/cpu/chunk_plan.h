@@ -33,17 +33,9 @@ struct ChunkPlan {
     double compression = 0.0;
 };
 
-// rejected names why the call does not suit the strategy: a reason of
-// plan::grouped_references or plan::updated_references,
-// insufficient_scratch, or low_compression; a rejection has no plan, and a
-// low_compression one keeps its compression.
-struct ChunkResult {
-    std::string_view rejected;
-    std::unique_ptr<ChunkPlan> plan;
-    double compression = 0.0;
-
-    explicit operator bool() const { return rejected.empty() && plan != nullptr; }
-};
+// A rejection's reason is one of plan::stage_chunks' or
+// plan::updated_references', or low_compression.
+using ChunkResult = plan::PlanResult<ChunkPlan>;
 
 // chunk_atomics: a section's chunks run at once and may share targets, so a
 // chunk accumulates into its slots and flushes them atomically.  A plan that
@@ -52,25 +44,22 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                       const op::loop::Sections& sections,
                                       const plan::ArgGroups& groups, int size,
                                       double min_compression) {
-    plan::References references;
-    auto reason = plan::grouped_references(args, groups, false, references);
+    plan::StagedChunks staged;
+    auto reason = plan::stage_chunks(args, sections, groups, false, size, 1,
+                                     chunk_scratch_bytes, false, staged);
     if (!reason.empty())
         return {reason, nullptr};
-    int chunk_size = plan::staged_chunk_size(references, size, 1, chunk_scratch_bytes);
-    if (chunk_size == 0)
-        return {"insufficient_scratch", nullptr};
+    double compression = staged.targets.compression();
+    if (compression < min_compression)
+        return {"low_compression", nullptr, compression};
 
     auto out = std::make_unique<ChunkPlan>();
-    out->chunks = plan::chunk_sections(sections, chunk_size);
-    auto targets = plan::chunk_targets(out->chunks, references);
-    out->staging = plan::stage(out->chunks, targets, references,
-                               sections.set_stride(), false);
+    out->chunks = std::move(staged.chunks);
+    out->staging = std::move(staged.staging);
     out->batches = plan::section_batches(out->chunks);
     for (auto bytes : out->staging.chunk_scratch_bytes)
         out->scratch_bytes = std::max(out->scratch_bytes, bytes);
-    out->compression = targets.compression();
-    if (out->compression < min_compression)
-        return {"low_compression", nullptr, out->compression};
+    out->compression = compression;
     return {{}, std::move(out)};
 }
 

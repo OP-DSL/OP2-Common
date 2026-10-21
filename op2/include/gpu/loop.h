@@ -438,13 +438,13 @@ inline void ChunkBase::report(const ChunkResult& result) const {
                     "colours, compression %.2fx\n",
                     m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
                     plan.chunks.count(), plan.batches.count(),
-                    plan.max_thread_colours, plan.compression());
+                    plan.max_thread_colours, plan.compression);
     else
         std::printf("%s: %s chunk %d, %d chunks, %zu refs, %zu targets "
                     "(%zu unstaged), compression %.2fx\n",
                     m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
                     plan.chunks.count(), plan.references, plan.distinct_targets,
-                    plan.staging.unstaged_singles, plan.compression());
+                    plan.staging.unstaged_singles, plan.compression);
 }
 
 inline op::loop::Prepared ChunkBase::prepare(
@@ -526,7 +526,7 @@ inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) con
     const auto& plan = *entry.plan;
     char text[96];
     std::snprintf(text, sizeof(text), ", chunk %d, %d chunks, compression %.2f",
-                  plan.chunks.size, plan.chunks.count(), plan.compression());
+                  plan.chunks.size, plan.chunks.count(), plan.compression);
     std::string out = StrategyBase::statistics(prepared) + text;
     if (m_coloured)
         out += ", " + std::to_string(plan.batches.count()) + " batches, " +

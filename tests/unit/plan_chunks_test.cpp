@@ -5,6 +5,7 @@
 
 #include <cpu/chunk_plan.h>
 #include <plan/chunks.h>
+#include <plan/staging.h>
 
 #include <algorithm>
 #include <array>
@@ -229,6 +230,37 @@ void test_colouring() {
         CHECK(colours.colours[static_cast<std::size_t>(element)] == element % 2);
 }
 
+// The staging pipeline under a backend's limits: the chunk size is a lane
+// multiple, a budget no chunk fits rejects, and singles may stay unstaged.
+void test_stage_chunks() {
+    Chain chain(1000, 600, 100);
+    chain.args.resize(2);
+    auto sections = Sections::indirect(&chain.edges, false);
+    std::array<plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+    plan::ArgGroups grouped{groups, 1};
+
+    plan::StagedChunks staged;
+    CHECK(plan::stage_chunks(chain.args, sections, grouped, false, 100, 48,
+                             std::size_t{1} << 20, true, staged)
+              .empty());
+    CHECK(staged.chunks.size == 144);
+    CHECK(staged.staging.stride == sections.set_stride());
+    CHECK(staged.targets.compression() > 1.9);
+    // A chunk of the chain reaches its first and last nodes once.
+    CHECK(staged.staging.unstaged_singles ==
+          2 * static_cast<std::size_t>(staged.chunks.count()));
+
+    // 48 elements reach at least 49 doubles, beyond 40 doubles of scratch.
+    plan::StagedChunks tight;
+    CHECK(plan::stage_chunks(chain.args, sections, grouped, false, 100, 48,
+                             40 * sizeof(double), false, tight) == "insufficient_scratch");
+
+    chain.args[0].opt = chain.args[1].opt = 0;
+    plan::StagedChunks inactive;
+    CHECK(plan::stage_chunks(chain.args, sections, grouped, false, 100, 48,
+                             std::size_t{1} << 20, false, inactive) == "no_active_argument");
+}
+
 // The OpenMP plans: chunk_colouring needs no groups, chunk_atomics stages
 // the grouped increments.
 void test_cpu_plans() {
@@ -273,6 +305,7 @@ int main() {
         test_references();
         test_chunks_and_targets();
         test_colouring();
+        test_stage_chunks();
         test_cpu_plans();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "plan chunks test failed: %s\n", error.what());

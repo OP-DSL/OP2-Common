@@ -2,13 +2,14 @@
 
 // The chunked strategies' building blocks: a loop's elements cut into chunks
 // inside its sections, the targets each chunk reaches, batches of chunks
-// that share none, a wavefront order over them, and colours for a chunk's
-// elements.  Host algorithms with no device knowledge and no device limits;
+// that share none, a wavefront order over them, colours for a chunk's
+// elements, and the result a backend's plan comes back in.  Host algorithms with no device knowledge and no device limits;
 // a backend composes them into its plans and maps those onto its hardware.
 
 #include <loop/strategy.h>
 
 #include <cstddef>
+#include <memory>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -177,6 +178,19 @@ struct Wavefront {
 };
 
 Wavefront wavefront(const ChunkBatches& coloured, const ChunkTargets& targets);
+
+// --- Plans ----------------------------------------------------------------------
+
+// A backend's plan for a call, or why the call does not suit the strategy;
+// a rejection has no plan, and a low_compression one keeps its compression.
+template<typename Plan>
+struct PlanResult {
+    std::string_view rejected;
+    std::unique_ptr<Plan> plan;
+    double compression = 0.0;
+
+    explicit operator bool() const { return rejected.empty() && plan != nullptr; }
+};
 
 // --- Element colours ------------------------------------------------------------
 

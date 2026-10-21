@@ -54,12 +54,7 @@ struct ChunkPlan {
 
     std::size_t references = 0;
     std::size_t distinct_targets = 0;
-
-    double compression() const {
-        return distinct_targets > 0 ? static_cast<double>(references) /
-                                          static_cast<double>(distinct_targets)
-                                    : 0.0;
-    }
+    double compression = 0.0;
 
     std::size_t scratch_bytes(int section, int batch) const {
         return batch_scratch_bytes[
@@ -80,42 +75,22 @@ struct ChunkPlan {
     }
 };
 
-// rejected names why the call does not suit the strategy: a reason of
-// plan::grouped_references, insufficient_scratch, low_compression or
-// too_many_colours; a rejection has no plan, and a low_compression one keeps
-// its compression.
-struct ChunkResult {
-    std::string_view rejected;
-    std::unique_ptr<ChunkPlan> plan;
-    double compression = 0.0;
-
-    explicit operator bool() const { return rejected.empty() && plan != nullptr; }
-};
+// A rejection's reason is one of plan::stage_chunks', low_compression or
+// too_many_colours.
+using ChunkResult = plan::PlanResult<ChunkPlan>;
 
 namespace detail {
 
-// The chunks, their targets and staging common to both strategies.
-inline std::string_view stage_chunks(std::span<const op_arg> args,
-                                     const op::loop::Sections& sections,
-                                     const plan::ArgGroups& groups, bool read_write,
-                                     int size, const ChunkLimits& limits,
-                                     bool unstaged_singles, plan::References& references,
-                                     plan::ChunkTargets& targets, ChunkPlan& out) {
-    auto reason = plan::grouped_references(args, groups, read_write, references);
-    if (!reason.empty())
-        return reason;
-    int chunk_size = plan::staged_chunk_size(references, size, limits.block_size,
-                                             limits.shared_bytes);
-    if (chunk_size == 0)
-        return "insufficient_scratch";
-
-    out.chunks = plan::chunk_sections(sections, chunk_size);
-    targets = plan::chunk_targets(out.chunks, references);
-    out.staging = plan::stage(out.chunks, targets, references, sections.set_stride(),
-                              unstaged_singles);
-    out.references = targets.total_references;
-    out.distinct_targets = targets.targets.size();
-    return {};
+// A plan holding the staged chunks and their figures; the references and
+// targets stay in staged for the batching.
+inline std::unique_ptr<ChunkPlan> staged_plan(plan::StagedChunks& staged) {
+    auto out = std::make_unique<ChunkPlan>();
+    out->chunks = std::move(staged.chunks);
+    out->staging = std::move(staged.staging);
+    out->references = staged.targets.total_references;
+    out->distinct_targets = staged.targets.targets.size();
+    out->compression = staged.targets.compression();
+    return out;
 }
 
 // Size every batch's shared memory by its largest chunk.
@@ -143,18 +118,17 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                       const plan::ArgGroups& groups, int size,
                                       const ChunkLimits& limits, bool unstaged_singles,
                                       double min_compression) {
-    auto out = std::make_unique<ChunkPlan>();
-    plan::References references;
-    plan::ChunkTargets targets;
-    auto reason = detail::stage_chunks(args, sections, groups, false, size, limits,
-                                       unstaged_singles, references, targets, *out);
+    plan::StagedChunks staged;
+    auto reason = plan::stage_chunks(args, sections, groups, false, size, limits.block_size,
+                                     limits.shared_bytes, unstaged_singles, staged);
     if (!reason.empty())
         return {reason, nullptr};
+    auto out = detail::staged_plan(staged);
+    if (!unstaged_singles && out->compression < min_compression)
+        return {"low_compression", nullptr, out->compression};
 
     out->batches = plan::section_batches(out->chunks);
     detail::size_batches(*out);
-    if (!unstaged_singles && out->compression() < min_compression)
-        return {"low_compression", nullptr, out->compression()};
     return {{}, std::move(out)};
 }
 
@@ -167,15 +141,14 @@ inline ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                         const plan::ArgGroups& groups, int size,
                                         const ChunkLimits& limits, bool wavefront,
                                         int window) {
-    auto out = std::make_unique<ChunkPlan>();
-    plan::References references;
-    plan::ChunkTargets targets;
-    auto reason = detail::stage_chunks(args, sections, groups, true, size, limits,
-                                       false, references, targets, *out);
+    plan::StagedChunks staged;
+    auto reason = plan::stage_chunks(args, sections, groups, true, size, limits.block_size,
+                                     limits.shared_bytes, false, staged);
     if (!reason.empty())
         return {reason, nullptr};
+    auto out = detail::staged_plan(staged);
 
-    auto colours = plan::colour_elements(out->chunks, references);
+    auto colours = plan::colour_elements(out->chunks, staged.references);
     if (colours.max > 255)
         return {"too_many_colours", nullptr};
     out->thread_colours.assign(static_cast<std::size_t>(sections.set_stride()), 0);
@@ -185,15 +158,15 @@ inline ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
 
     if (wavefront) {
         auto wave = plan::wavefront(
-            plan::colour_chunks(out->chunks, targets,
+            plan::colour_chunks(out->chunks, staged.targets,
                                 window > 0 ? window : default_wave_window),
-            targets);
+            staged.targets);
         out->batches = std::move(wave.batches);
         out->wavefront = true;
         out->wave_pred_offsets = std::move(wave.pred_offsets);
         out->wave_preds = std::move(wave.preds);
     } else {
-        out->batches = plan::colour_chunks(out->chunks, targets);
+        out->batches = plan::colour_chunks(out->chunks, staged.targets);
     }
     detail::size_batches(*out);
     return {{}, std::move(out)};
