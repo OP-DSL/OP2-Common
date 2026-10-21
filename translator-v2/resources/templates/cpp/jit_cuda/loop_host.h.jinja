@@ -205,7 +205,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
         );
     {% for arg in lh.args_expanded|indirect|reduction if config.atomics %}
 
-        for (int d = 0; d < {{lh.dat(arg).dim}}; ++d)
+        for (int d = 0; {{"((1 << %d) & opt_flags) && " % lh.optIdx(arg) if arg is opt}}d < {{lh.dat(arg).dim}}; ++d)
             atomicAdd(dat{{arg.dat_id}} + {{map_lookup(arg)}} + d{{stride_cuda(arg,jit)}}, arg{{arg.id}}_{{arg.map_idx}}_local[d]);
     {% endfor %}
     }
