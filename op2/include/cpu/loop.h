@@ -117,14 +117,9 @@ public:
     void invoke(op_set set, op_arg *args, int nargs) {
         op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                                 m_profile_variant.c_str());
-        op_profile_enter("Init");
-
-        op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
-        auto selection = m_ladder.select(configuration);
-        auto decision = m_tuner ? m_tuner->choose(configuration, selection)
-                                : op::loop::Autotuner::Decision{selection};
-
-        op_profile_next("MPI Exchanges");
+        // The exchange decides what the call runs, so it comes first, and
+        // the planning overlaps it.
+        op_profile_enter("MPI Exchanges");
         int n_exec = op_mpi_halo_exchanges(set, nargs, args, 1);
         if (n_exec == 0) {
             op_profile_next("MPI Wait");
@@ -135,6 +130,13 @@ public:
             op_profile_exit();
             return;
         }
+
+        op_profile_next("Init");
+        op::loop::Configuration configuration{
+            set, {args, static_cast<std::size_t>(nargs)}, n_exec};
+        auto selection = m_ladder.select(configuration);
+        auto decision = m_tuner ? m_tuner->choose(configuration, selection)
+                                : op::loop::Autotuner::Decision{selection};
 
         op_profile_next("Prepare GBLs");
         m_sections = sections(configuration);
@@ -236,9 +238,8 @@ inline op::loop::Prepared Colouring::prepare(
     auto key = configuration.key();
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
-        auto colouring = op::plan::colour_set(
-            configuration.set, configuration.args,
-            m_loop.sections(configuration).size() == 3);
+        auto colouring = op::plan::colour_set(configuration.args,
+                                              m_loop.sections(configuration));
         if (OP_diags > 3)
             std::printf("%s: %s %d colours, %d over owned elements\n",
                         m_name.c_str(), m_loop.name().c_str(), colouring.colours,

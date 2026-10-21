@@ -77,7 +77,8 @@ void test_set_colouring() {
             if (arg.idx >= 0 && (arg.acc == OP_INC || arg.acc == OP_RW))
                 updated.push_back(arg.map == &a ? &map_a : &map_b);
 
-        auto colouring = op::plan::colour_set(&source, args, separate_owned);
+        auto sections = op::loop::Sections::indirect(&source, separate_owned, exec_length);
+        auto colouring = op::plan::colour_set(args, sections);
         CHECK(colouring.colours >= 1);
         CHECK(static_cast<int>(colouring.order.size()) == exec_length);
         CHECK(colouring.offsets.size() ==
@@ -114,7 +115,8 @@ void test_set_colouring() {
     auto owned_first = check(true, 10);
     CHECK(owned_first.owned_colours < owned_first.colours);
 
-    // Only reads reach the halo: the owned elements alone run.
+    // Only reads reach the halo, so the exchange runs the owned elements
+    // alone, and only they are coloured.
     for (auto& arg : args)
         arg.acc = OP_READ;
     args[0].acc = OP_INC;

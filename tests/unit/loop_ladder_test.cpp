@@ -99,8 +99,9 @@ struct Fixture {
 op_set_core source{};
 std::array<op_arg, 1> args{};
 
+// An indirect increment: the call runs the exec halo.
 loop::Configuration configuration() {
-    return {&source, args};
+    return {&source, args, source.size + source.exec_size};
 }
 
 void test_configuration() {
@@ -134,24 +135,26 @@ void test_configuration() {
     auto key = one.key();
     CHECK(key == configuration().key());
 
-    // A different map, access, activity or set changes the key.
+    // A different map, access, activity, set or run size changes the key.
+    const int all = source.size + source.exec_size;
     std::array<op_arg, 1> other = args;
     other[0].acc = OP_RW;
-    CHECK(loop::Configuration(&source, other).key() != key);
+    CHECK(loop::Configuration(&source, other, all).key() != key);
     other[0].acc = OP_INC;
     other[0].opt = 0;
-    CHECK(loop::Configuration(&source, other).key() != key);
-    CHECK(loop::Configuration(&source, other).describe() ==
+    CHECK(loop::Configuration(&source, other, all).key() != key);
+    CHECK(loop::Configuration(&source, other, all).describe() ==
           "edges (128), inactive args 0");
     op_set_core elsewhere = source;
     elsewhere.index = 7;
-    CHECK(loop::Configuration(&elsewhere, args).key() != key);
+    CHECK(loop::Configuration(&elsewhere, args, all).key() != key);
+    CHECK(loop::Configuration(&source, args, source.size).key() != key);
 
     std::array<op_arg, 2> reduction{args[0], op_arg{}};
     reduction[1].opt = 1;
     reduction[1].argtype = OP_ARG_GBL;
     reduction[1].acc = OP_INC;
-    loop::Configuration reduced{&source, reduction};
+    loop::Configuration reduced{&source, reduction, all};
     CHECK(reduced.global_reduction());
     CHECK(reduced.describe() == "edges (128) via edge_nodes, reduction");
 
@@ -163,21 +166,27 @@ void test_configuration() {
     CHECK(direct.wait_index() == 0 && direct.globals_index() == 0);
     CHECK(direct.set_stride() == 128);
 
-    auto indirect = loop::Sections::indirect(&source, false);
+    auto indirect = loop::Sections::indirect(&source, false, all);
     CHECK(indirect.size() == 2);
     CHECK(indirect[0].end == 100 && indirect[1].begin == 100 && indirect[1].end == 136);
     CHECK(indirect.wait_index() == 1 && indirect.globals_index() == 1);
     CHECK(indirect.set_stride() == 160);
 
-    auto separate = loop::Sections::indirect(&source, true);
+    auto separate = loop::Sections::indirect(&source, true, all);
     CHECK(separate.size() == 3);
     CHECK(separate[1].begin == 100 && separate[1].end == 128 && separate[2].end == 136);
     CHECK(separate.wait_index() == 1 && separate.globals_index() == 1);
 
-    // A call's own: the owned elements apart only when it reduces.
+    // A call's own: the owned elements apart only when it reduces, the exec
+    // halo only when the exchange runs it.
     CHECK(loop::Sections::of(one, true).size() == 1);
     CHECK(loop::Sections::of(one, false).size() == 2);
     CHECK(loop::Sections::of(reduced, false).size() == 3);
+    auto owned = loop::Sections::of(loop::Configuration(&source, args, source.size), false);
+    CHECK(owned.size() == 2 && owned[1].end == 128);
+    auto owned_reduced =
+        loop::Sections::of(loop::Configuration(&source, reduction, source.size), false);
+    CHECK(owned_reduced.size() == 3 && owned_reduced[2].size() == 0);
 
     // Element types in either language's spelling.
     CHECK(loop::scalar_type("double") == loop::ScalarType::f64);

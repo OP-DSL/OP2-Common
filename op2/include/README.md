@@ -24,8 +24,9 @@ loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
 Algorithms with no device knowledge and no device limits, which each
 backend composes into its own plans (gpu/chunk_plan.h, cpu/chunk_plan.h).
 ```
-plan/colouring.h       (includes: op_lib_core.h; the set colouring, as
-                        op_plan's OP_COLOR2)
+plan/colouring.h       (includes: loop/strategy.h, op_lib_core.h; the set
+                        colouring of a call's sections, as op_plan's
+                        OP_COLOR2)
 plan/chunks.h          (includes: loop/strategy.h; the references a planner
                         follows, chunks within sections, each chunk's
                         targets, coloured batches, the wavefront order,

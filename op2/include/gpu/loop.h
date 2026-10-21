@@ -136,16 +136,10 @@ public:
         op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                                 m_profile_variant.c_str());
         op_profile_enter("Init");
-        op_profile_enter("Get Kernel");
 
-        m_jit.update(args, nargs);
-        op::loop::Configuration configuration{set, {args, static_cast<std::size_t>(nargs)}};
-        auto selection = m_ladder.select(configuration);
-        auto decision = m_tuner ? m_tuner->choose(configuration, selection)
-                                : op::loop::Autotuner::Decision{selection};
-        const auto& call = static_cast<StrategyBase *>(decision.prepared.strategy)->call();
-
-        op_profile_next("MPI Exchanges");
+        // The exchange decides what the call runs, so it comes first, and
+        // the planning overlaps it.
+        op_profile_enter("MPI Exchanges");
         int n_exec = op_mpi_halo_exchanges(set, nargs, args, 2);
         if (n_exec == 0) {
             op_profile_exit();
@@ -156,6 +150,15 @@ public:
             op_profile_exit();
             return;
         }
+
+        op_profile_next("Get Kernel");
+        m_jit.update(args, nargs);
+        op::loop::Configuration configuration{
+            set, {args, static_cast<std::size_t>(nargs)}, n_exec};
+        auto selection = m_ladder.select(configuration);
+        auto decision = m_tuner ? m_tuner->choose(configuration, selection)
+                                : op::loop::Autotuner::Decision{selection};
+        const auto& call = static_cast<StrategyBase *>(decision.prepared.strategy)->call();
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
@@ -335,8 +338,7 @@ inline op::loop::Prepared Colouring::prepare(
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
         Entry entry;
-        entry.colouring = op::plan::colour_set(
-            configuration.set, configuration.args, m_call.sections.size() == 3);
+        entry.colouring = op::plan::colour_set(configuration.args, m_call.sections);
         const auto& order = entry.colouring.order;
         if (!order.empty()) {
             CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),

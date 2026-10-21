@@ -200,7 +200,7 @@ void run(const char *strategy) {
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());
-    op::loop::Configuration configuration{&source, args};
+    op::loop::Configuration configuration{&source, args, source.size + source.exec_size};
     CHECK(loop.ladder()[*forced].prepare(configuration, op::loop::Urgency::now).status ==
           op::loop::Status::ready);
 

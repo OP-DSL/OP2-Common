@@ -99,6 +99,7 @@ std::uint64_t Configuration::key() const {
     };
 
     mix(static_cast<std::uint64_t>(set->index));
+    mix(static_cast<std::uint64_t>(run_size));
     for (const op_arg& arg : args) {
         mix(static_cast<std::uint64_t>(arg.opt));
         if (arg.opt == 0)
@@ -151,10 +152,11 @@ Sections Sections::direct(op_set set) {
     return sections;
 }
 
-Sections Sections::indirect(op_set set, bool separate_owned) {
+Sections Sections::indirect(op_set set, bool separate_owned, int run_size) {
+    assert(run_size >= set->size && run_size <= set->size + set->exec_size);
     Sections sections;
     int size = static_cast<int>(set->size);
-    int end = size + set->exec_size;
+    int end = run_size;
     if (separate_owned) {
         sections.m_sections = {{{0, set->core_size},
                                 {set->core_size, size},
@@ -173,7 +175,8 @@ Sections Sections::indirect(op_set set, bool separate_owned) {
 Sections Sections::of(const Configuration& configuration, bool direct) {
     if (direct)
         return Sections::direct(configuration.set);
-    return Sections::indirect(configuration.set, configuration.global_reduction());
+    return Sections::indirect(configuration.set, configuration.global_reduction(),
+                              configuration.run_size);
 }
 
 ScalarType scalar_type(const char *type) {

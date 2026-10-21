@@ -167,7 +167,7 @@ void test_references() {
 void test_chunks_and_targets() {
     // 6 core edges, 4 more owned, 2 in the exec halo: three sections.
     Chain chain(10, 6, 2);
-    auto sections = Sections::indirect(&chain.edges, true);
+    auto sections = Sections::indirect(&chain.edges, true, chain.edges.size + chain.edges.exec_size);
     auto chunks = plan::chunk_sections(sections, 4);
     CHECK(chunks.size == 4);
     CHECK((chunks.offsets == std::vector<int>{0, 4, 6, 10, 12}));
@@ -235,7 +235,7 @@ void test_colouring() {
 void test_stage_chunks() {
     Chain chain(1000, 600, 100);
     chain.args.resize(2);
-    auto sections = Sections::indirect(&chain.edges, false);
+    auto sections = Sections::indirect(&chain.edges, false, chain.edges.size + chain.edges.exec_size);
     std::array<plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
     plan::ArgGroups grouped{groups, 1};
 
@@ -265,7 +265,7 @@ void test_stage_chunks() {
 // the grouped increments.
 void test_cpu_plans() {
     Chain chain(1000, 600, 100);
-    auto sections = Sections::indirect(&chain.edges, false);
+    auto sections = Sections::indirect(&chain.edges, false, chain.edges.size + chain.edges.exec_size);
 
     auto coloured = op::cpu::plan_chunk_colouring(chain.args, sections, 16);
     CHECK(coloured);
@@ -300,7 +300,7 @@ void test_cpu_plans() {
     // An empty section has no batches, and an empty set none at all.
     Chain halo(8, 8, 8);
     halo.args.resize(2);
-    auto split = Sections::indirect(&halo.edges, true);
+    auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     CHECK(split.size() == 3 && split[1].size() == 0);
     auto sectioned = op::cpu::plan_chunk_atomics(halo.args, split,
                                                  plan::ArgGroups{groups, 1}, 4, 0.0);

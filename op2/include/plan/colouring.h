@@ -4,6 +4,7 @@
 // of any indirect argument, as op_plan did under OP_COLOR2.  Host code with
 // no device knowledge; a strategy runs one phase per colour.
 
+#include <loop/strategy.h>
 #include <op_lib_core.h>
 
 #include <span>
@@ -21,10 +22,9 @@ struct SetColouring {
     std::vector<int> order;
 };
 
-// Colour the elements the loop runs (the exec halo too when an indirect
-// argument updates) greedily in element order; with separate_owned the owned
-// elements take the first colours and the halo's its own after them.
-SetColouring colour_set(op_set set, std::span<const op_arg> args,
-                        bool separate_owned);
+// Colour the elements the sections run greedily in element order: those up
+// to the end of the section the globals follow first, as the owned colours,
+// then the rest.
+SetColouring colour_set(std::span<const op_arg> args, const op::loop::Sections& sections);
 
 } // namespace op::plan

@@ -212,7 +212,7 @@ struct Outcome {
 
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
-    op::loop::Configuration configuration{&fixture.source, fixture.args};
+    op::loop::Configuration configuration{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
     auto chunk = loop.ladder()[0].prepare(configuration, op::loop::Urgency::later);
     auto selection = loop.ladder().select(configuration);
     loop.invoke(&fixture.source, fixture.args.data(),

@@ -2,7 +2,6 @@
 
 #include <plan/greedy_colour.h>
 
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <numeric>
@@ -10,18 +9,12 @@
 
 namespace op::plan {
 
-SetColouring colour_set(op_set set, std::span<const op_arg> args,
-                        bool separate_owned) {
-    assert(set != nullptr);
+SetColouring colour_set(std::span<const op_arg> args, const op::loop::Sections& sections) {
+    assert(sections.size() > 0);
 
-    // The elements run: the exec halo too when an indirect argument updates.
-    int exec_length = set->size;
-    for (const op_arg& arg : args)
-        if (arg.opt != 0 && arg.argtype == OP_ARG_DAT && arg.idx >= 0 &&
-            arg.acc != OP_READ) {
-            exec_length += set->exec_size;
-            break;
-        }
+    // The elements the sections run, and the end of those the globals follow.
+    const int exec_length = sections[sections.size() - 1].end;
+    const int owned = sections[sections.globals_index()].end;
 
     // The updated targets, one mask vector per updated dat.
     std::vector<std::pair<const op_arg *, std::size_t>> updates;
@@ -68,8 +61,7 @@ SetColouring colour_set(op_set set, std::span<const op_arg> args,
         return count;
     };
 
-    const int owned = std::min(set->size, exec_length);
-    if (separate_owned) {
+    if (owned < exec_length) {
         colouring.owned_colours = colour_range(0, owned, 0);
         colouring.colours =
             colouring.owned_colours +

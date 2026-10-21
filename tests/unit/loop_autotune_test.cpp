@@ -122,7 +122,7 @@ void test_exploration() {
     CHECK(loop::autotune_config().select);
 
     Fixture fixture;
-    loop::Configuration configuration{&edges, args};
+    loop::Configuration configuration{&edges, args, edges.size + edges.exec_size};
 
     // chunk_atomics compiles for two calls, chunk_colouring is turned off
     // and never asked.
@@ -154,7 +154,7 @@ void test_exploration() {
 
     // A configuration on another set is explored on its own; there a
     // candidate that turns out unavailable is retired.
-    loop::Configuration other{&cells, args};
+    loop::Configuration other{&cells, args, cells.size + cells.exec_size};
     fixture.chunk_atomics->statuses = {loop::Status::unavailable};
     fixture.chunk_atomics->reason = "no_kernel";
     before = fixture.atomics->timed_runs;
@@ -203,7 +203,7 @@ void test_ladder_changes() {
     loop::init();
 
     Fixture fixture(loop::Default::enabled, 10.2f);
-    loop::Configuration configuration{&edges, args};
+    loop::Configuration configuration{&edges, args, edges.size + edges.exec_size};
     fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending,
                                        loop::Status::pending};
     CHECK(fixture.call(configuration) == fixture.atomics);

@@ -146,7 +146,7 @@ struct MixedFixture {
     }
 
     plan::ArgGroups groups() const { return {group_args, 3}; }
-    Sections sections() { return Sections::indirect(&source, false); }
+    Sections sections() { return Sections::indirect(&source, false, source.size + source.exec_size); }
 
     gpu::ChunkResult build(bool coloured = false) {
         return coloured ? colouring(args, sections(), groups(), 2, 4, 1024)
@@ -707,7 +707,7 @@ void test_colour_chain_batches() {
     // Colours never cross a section, and an empty section has no batches:
     // 8 core elements, no further owned ones, 8 in the exec halo.
     ChainFixture halo(8, 8, 8);
-    auto split = Sections::indirect(&halo.edges, true);
+    auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     CHECK(split.size() == 3 && split[1].size() == 0);
     auto sectioned = halo.build(split, 4);
     CHECK(sectioned);
@@ -720,7 +720,7 @@ void test_colour_chain_batches() {
 // plans no chunks and no batches.
 void test_empty_sections() {
     ChainFixture halo(8, 8, 8);
-    auto split = Sections::indirect(&halo.edges, true);
+    auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     auto waves = colouring(halo.args, split, halo.groups(), 4, 4, 1 << 16, true);
     CHECK(waves && waves.plan->wavefront);
     CHECK((waves.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
@@ -810,7 +810,7 @@ void test_colour_random() {
     };
     std::array<plan::ArgGroup, 3> group_args{{{0, 0}, {1, 0}, {2, 1}}};
     plan::ArgGroups groups{group_args, 2};
-    auto sections = Sections::indirect(&source, true);
+    auto sections = Sections::indirect(&source, true, source.size + source.exec_size);
 
     auto result = colouring(args, sections, groups, 32, 64, 1 << 20);
     CHECK(result);

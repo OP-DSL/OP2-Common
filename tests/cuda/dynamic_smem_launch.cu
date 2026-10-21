@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
             &bind);
 
         for (int invocation = 0; invocation < 10; ++invocation) {
-            op::loop::Configuration configuration{&fixture.source, fixture.args};
+            op::loop::Configuration configuration{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
             auto selection = loop.ladder().select(configuration);
             if (selection.strategy->family() != "chunk_atomics") {
                 std::fprintf(stderr, "the plan was rejected: %s\n",

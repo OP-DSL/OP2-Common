@@ -56,15 +56,18 @@ private:
 public:
     op_set set;
     std::span<const op_arg> args;
+    // The elements the call runs, as op_mpi_halo_exchanges returned it: the
+    // exec halo too when the exchange decided the call runs it.
+    int run_size;
 
-    Configuration(op_set set_, std::span<const op_arg> args_)
-        : set{set_}, args{args_} {}
+    Configuration(op_set set_, std::span<const op_arg> args_, int run_size_)
+        : set{set_}, args{args_}, run_size{run_size_} {}
 
     // Any active global argument reduced across the set.
     bool global_reduction() const;
 
-    // The set index and, per argument, its activity, kind, dat and map
-    // indices, map component, access and dimension.
+    // The set index, the run size and, per argument, its activity, kind, dat
+    // and map indices, map component, access and dimension.
     std::uint64_t key() const;
 
     // "edges (3.1M) via edge_nodes, reduction"; for reports only.
@@ -100,7 +103,8 @@ private:
 
 public:
     static Sections direct(op_set set);
-    static Sections indirect(op_set set, bool separate_owned);
+    // Ending at run_size, which takes in the exec halo when the call runs it.
+    static Sections indirect(op_set set, bool separate_owned, int run_size);
     // A call's sections: direct, or indirect with the owned elements apart
     // when it reduces a global.
     static Sections of(const Configuration& configuration, bool direct);
