@@ -95,15 +95,13 @@ bool env_enabled(const char *name) {
 int *output_d = nullptr;
 int last_shared_byte = 0;
 
-void bind_baseline(gpu::LaunchContext&, op_arg *, std::vector<void *>& offline,
-                   std::vector<void *>& jit) {
-    offline = {&output_d};
-    jit = offline;
+void bind_baseline(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
+    arguments = {&output_d};
 }
 
 void bind_staged(gpu::LaunchContext& launch, op_arg *,
-                 std::vector<void *>& offline, std::vector<void *>& jit) {
-    offline = {
+                 std::vector<void *>& arguments) {
+    arguments = {
         (void *)&output_d,
         (void *)&launch.chunk.plan->source_offsets,
         (void *)&launch.chunk.plan->stage_words,
@@ -113,7 +111,6 @@ void bind_staged(gpu::LaunchContext& launch, op_arg *,
         (void *)&launch.set_stride,
         (void *)&last_shared_byte,
     };
-    jit = offline;
 }
 
 // 256 sources, each pair reaching one of 4 targets of a dim-1 double dat,

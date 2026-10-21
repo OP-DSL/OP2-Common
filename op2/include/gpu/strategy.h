@@ -56,9 +56,10 @@ struct LaunchContext {
     } chunk;
 };
 
-// Fill a launch's kernel arguments, offline and JIT, from the context.
+// Fill a launch's kernel arguments, one list for its offline and JIT
+// kernels alike, from the context.
 using Binder = void (*)(LaunchContext& launch, op_arg *args,
-                        std::vector<void *>& offline, std::vector<void *>& jit);
+                        std::vector<void *>& arguments);
 
 // Facts about a loop that every strategy reads.
 struct LoopDescription {

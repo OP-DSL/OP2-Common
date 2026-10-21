@@ -129,7 +129,12 @@ __launch_bounds__({{"op2_block_size_d" if jit else "128"}})
     {%- endif -%}
 {%- endmacro -%}
 
+{#- The JIT wrapper takes the offline wrapper's parameters, so both launch
+    from one argument list.  Those the JIT kernel has as constants come last,
+    unnamed there, so the ones it reads keep the offsets they would have
+    without them. -#}
 {% macro kernel_wrapper(jit = false) %}
+{% set scalar_gbls = lh.args|gbl|read|scalar|list %}
 extern "C" __global__ {{launch_bounds(jit)}}
 void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for dat in lh.dats %}
@@ -140,9 +145,6 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endfor %}
     {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
     {{"const " if arg is read}}{{arg.typ.c()}} *__restrict gbl{{arg.id}},
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar if not jit %}
-    const {{arg.typ.c()}} gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
@@ -161,7 +163,10 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride
+    const int stride{{"," if scalar_gbls}}
+    {% for arg in scalar_gbls %}
+    const {{arg.typ.c()}} {{("/*gbl%s*/" if jit else "gbl%s") % arg.id}}{{"," if not loop.last}}
+    {% endfor %}
 ) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -217,7 +222,7 @@ namespace op2_m_{{lh.name}}{{variant}} {
 {{kernel_wrapper(jit=true)}}
 )_op2_k";
 
-{% macro kernel_arguments(jit = false) %}
+{% macro kernel_arguments() %}
     {% for dat in lh.dats %}
         (void *)&args[{{dat.arg_id}}].data_d,
     {% endfor %}
@@ -226,9 +231,6 @@ namespace op2_m_{{lh.name}}{{variant}} {
     {% endfor %}
     {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
         (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar if not jit %}
-        (void *)args[{{arg.id}}].data,
     {% endfor %}
     {% for arg in lh.args|info %}
         (void *)&args[{{arg.id}}].data_d,
@@ -248,11 +250,14 @@ namespace op2_m_{{lh.name}}{{variant}} {
         (void *)&launch.start,
         (void *)&launch.end,
         (void *)&launch.set_stride,
+    {% for arg in lh.args|gbl|read|scalar %}
+        (void *)args[{{arg.id}}].data,
+    {% endfor %}
 {%- endmacro %}
 
 static void op2_k_{{lh.name}}{{variant}}_bind(
     op::gpu::LaunchContext& launch, op_arg *args,
-    std::vector<void *>& offline, std::vector<void *>& jit) {
+    std::vector<void *>& arguments) {
 {% if lh.args|opt|length > 0 %}
     launch.opt_flags = 0;
     {% for arg in lh.args|opt %}
@@ -263,10 +268,8 @@ static void op2_k_{{lh.name}}{{variant}}_bind(
     (void)args;
 {% endif %}
 
-    offline = {
+    arguments = {
 {{kernel_arguments()}}    };
-    jit = {
-{{kernel_arguments(jit=true)}}    };
 }
 
 static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {

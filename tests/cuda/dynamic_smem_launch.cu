@@ -65,10 +65,8 @@ bool env_enabled(const char *name) {
 int *output_d = nullptr;
 int last_word = 0;
 
-void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& offline,
-          std::vector<void *>& jit) {
-    offline = {&output_d, &last_word};
-    jit = offline;
+void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
+    arguments = {&output_d, &last_word};
 }
 
 // One chunk of 256 elements, each pair reaching one target of a dim-64

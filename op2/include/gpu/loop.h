@@ -32,9 +32,8 @@ private:
     JitService m_jit;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
-    // A launch's kernel arguments, offline and JIT, filled by the binders.
-    std::vector<void *> m_offline_args;
-    std::vector<void *> m_jit_args;
+    // A launch's kernel arguments, filled by the binders.
+    std::vector<void *> m_arguments;
     // The call under way: whether any global is written, and whether its
     // processing needs a synchronisation before the host reads.
     bool m_global_output = false;
@@ -108,8 +107,7 @@ public:
                                        m_description.gbl_inc_atomic);
     }
 
-    std::vector<void *>& offline_args() { return m_offline_args; }
-    std::vector<void *>& jit_args() { return m_jit_args; }
+    std::vector<void *>& arguments() { return m_arguments; }
 
     gpuEvent_t event(std::size_t index) {
         while (m_events.size() <= index) {
@@ -238,20 +236,19 @@ inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
 inline void StrategyBase::launch(const op::loop::Prepared& prepared,
                                  LaunchContext& context, op_arg *args,
                                  Geometry geometry) {
-    auto& offline = m_loop.offline_args();
-    auto& jit = m_loop.jit_args();
-    m_bind(context, args, offline, jit);
+    auto& arguments = m_loop.arguments();
+    m_bind(context, args, arguments);
     if (prepared.kernel != nullptr) {
         op_profile_next("JIT Kernel");
         static_cast<JitKernel *>(prepared.kernel)
-            ->launch(geometry.blocks, m_block_size, jit.data(),
+            ->launch(geometry.blocks, m_block_size, arguments.data(),
                      geometry.shared_bytes);
         return;
     }
 
     op_profile_next("Offline Kernel");
     m_kernels.launch_offline(m_source.offline, geometry.blocks, m_block_size,
-                             offline.data(), geometry.shared_bytes);
+                             arguments.data(), geometry.shared_bytes);
 }
 
 template<typename Launches, typename Fill>

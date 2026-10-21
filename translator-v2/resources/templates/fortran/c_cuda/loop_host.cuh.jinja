@@ -389,7 +389,13 @@ __launch_bounds__({{"op2_block_size_d" if jit else "128"}})
     {%- endif -%}
 {%- endmacro -%}
 
+{#- The JIT wrapper takes the offline wrapper's parameters, so both launch
+    from one argument list.  Those the JIT kernel has as constants come last,
+    unnamed there, so the ones it reads keep the offsets they would have
+    without them. -#}
 {% macro kernel_wrapper(strategy, jit = false) %}
+{% set scalar_gbls = lh.args|gbl|read|scalar|list %}
+{% set runtime_dims = lh.dats|selectattr("dim", "none")|reject("soa")|list %}
 extern "C" __global__ {{launch_bounds(jit)}}
 void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for dat in lh.dats %}
@@ -401,14 +407,8 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
     {{"const " if arg is read}}{{arg.typ.c()}} *__restrict gbl{{arg.id}},
     {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar if not jit %}
-    const {{arg.typ.c()}} gbl{{arg.id}},
-    {% endfor %}
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa and not jit %}
-    const int dat{{dat.id}}_dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
     const int arg{{arg.id}}_idx,
@@ -424,9 +424,15 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride{{"," if strategy in chunk_strategies}}
+    const int stride{{"," if strategy in chunk_strategies or scalar_gbls or runtime_dims}}
     {% for ctype, name, expr in chunk_params.get(strategy, []) %}
-    {{ctype}} {{name}}{{"," if not loop.last}}
+    {{ctype}} {{name}}{{"," if not loop.last or scalar_gbls or runtime_dims}}
+    {% endfor %}
+    {% for arg in scalar_gbls %}
+    const {{arg.typ.c()}} {{("/*gbl%s*/" if jit else "gbl%s") % arg.id}}{{"," if not loop.last or runtime_dims}}
+    {% endfor %}
+    {% for dat in runtime_dims %}
+    const int {{("/*dat%s_dim*/" if jit else "dat%s_dim") % dat.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
@@ -495,7 +501,7 @@ using int64_t = long long int;
 )_op2_k";
 
 {% endfor %}
-{% macro kernel_arguments(strategy, jit = false) %}
+{% macro kernel_arguments(strategy) %}
     {% for dat in lh.dats %}
         (void *)&args[{{dat.arg_id}}].data_d,
     {% endfor %}
@@ -505,14 +511,8 @@ using int64_t = long long int;
     {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
         (void *)&args[{{arg.id}}].data_d,
     {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar if not jit %}
-        (void *)args[{{arg.id}}].data,
-    {% endfor %}
     {% for arg in lh.args|info %}
         (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa and not jit %}
-        (void *)&args[{{dat.arg_id}}].dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
         (void *)&args[{{arg.id}}].idx,
@@ -532,13 +532,20 @@ using int64_t = long long int;
     {% for ctype, name, expr in chunk_params.get(strategy, []) %}
         (void *)&{{expr}},
     {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar %}
+        (void *)args[{{arg.id}}].data,
+    {% endfor %}
+    {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
+        (void *)&args[{{dat.arg_id}}].dim,
+    {% endfor %}
 {%- endmacro %}
 
-{#- Each strategy's kernel arguments, offline and JIT, from the launch. -#}
+{#- Each strategy's kernel arguments, for its offline and JIT kernels alike,
+    from the launch. -#}
 {% for strategy in strategies %}
 static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
     op::gpu::LaunchContext& launch, op_arg *args,
-    std::vector<void *>& offline, std::vector<void *>& jit) {
+    std::vector<void *>& arguments) {
 {% if lh.args|opt|length > 0 %}
     launch.opt_flags = 0;
     {% for arg in lh.args|opt %}
@@ -549,14 +556,8 @@ static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
     (void)args;
 {% endif %}
 
-    {% if strategy in offline_strategies %}
-    offline = {
+    arguments = {
 {{kernel_arguments(strategy)}}    };
-    {% else %}
-    offline = {};
-    {% endif %}
-    jit = {
-{{kernel_arguments(strategy, jit=true)}}    };
 }
 
 {% endfor %}
