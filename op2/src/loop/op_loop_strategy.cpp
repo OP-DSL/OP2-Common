@@ -412,19 +412,24 @@ Prepared Ladder::select(const Configuration& configuration) {
     std::size_t index = m_forced.value_or(0);
     for (; index < m_entries.size(); ++index) {
         auto& entry = m_entries[index];
-        if (!entry.enabled && index != m_forced) {
+        bool forced = index == m_forced;
+        if (!entry.enabled && !forced) {
             // The tuner's variants are no part of the ladder.
             if (entry.runs)
                 m_reasons[index] = "disabled";
             continue;
         }
-        selection = entry.strategy->prepare(configuration, Urgency::later);
+        // The run asked for the forced strategy, so its kernel is waited for.
+        selection = entry.strategy->prepare(configuration,
+                                            forced ? Urgency::wait : Urgency::later);
         assert(selection.strategy == entry.strategy.get());
         if (selection.status == Status::ready) {
             report(selection, {m_reasons.data(), index});
             return selection;
         }
         m_reasons[index] = selection.reason;
+        if (forced)
+            warn_forced(selection.reason);
     }
 
     // The floor must run, so wait for its kernel; without one the loop
@@ -440,6 +445,16 @@ Prepared Ladder::select(const Configuration& configuration) {
     }
     report(selection, {m_reasons.data(), m_entries.size() - 1});
     return selection;
+}
+
+void Ladder::warn_forced(std::string_view reason) {
+    if (std::find(m_warned.begin(), m_warned.end(), reason) != m_warned.end())
+        return;
+
+    m_warned.emplace_back(reason);
+    std::fprintf(stderr, "warning: %s passes over its forced strategy %s: %s\n",
+                 m_name.c_str(), std::string{(*this)[*m_forced].name()}.c_str(),
+                 m_warned.back().c_str());
 }
 
 void Ladder::report(const Prepared& selection,

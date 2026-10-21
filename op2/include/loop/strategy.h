@@ -267,9 +267,12 @@ private:
     // select allocates nothing.
     std::vector<std::string_view> m_reasons;
     std::vector<std::string> m_reported;
+    // Why the forced strategy was passed over, each warned about once.
+    std::vector<std::string> m_warned;
 
     void add_entry(std::unique_ptr<Strategy> strategy, bool runs, bool enabled,
                    bool off);
+    void warn_forced(std::string_view reason);
     void report(const Prepared& selection,
                 std::span<const std::string_view> reasons);
 
@@ -289,9 +292,10 @@ public:
 
     // First enabled strategy, from the forced one if any, whose prepare is
     // ready; else the floor, waited for, so the selection is always ready: a
-    // floor that cannot run stops the program.  At diagnostic verbosity each
-    // distinct outcome (what ran, and why each earlier strategy did not) is
-    // printed once per loop.
+    // floor that cannot run stops the program.  The forced strategy is
+    // waited for too, and each reason it is still passed over is warned
+    // about once.  At diagnostic verbosity each distinct outcome (what ran,
+    // and why each earlier strategy did not) is printed once per loop.
     Prepared select(const Configuration& configuration);
 
     std::size_t size() const { return m_entries.size(); }

@@ -202,10 +202,13 @@ function(op2_add_functional_tests)
                     _op2_strategy_environment(${_strategy} ${_v} _env)
                     list(APPEND _env ${_base_env})
                     add_test(NAME ${_tgt}_${_strategy} COMMAND ${_cmd})
+                    # A loop that passes over its forced strategy has not
+                    # tested it.
                     set_tests_properties(${_tgt}_${_strategy} PROPERTIES
                         LABELS      "${_labels};strategy"
                         PROCESSORS  "${_nproc}"
-                        ENVIRONMENT "${_env}")
+                        ENVIRONMENT "${_env}"
+                        FAIL_REGULAR_EXPRESSION "passes over its forced strategy")
                 endforeach()
                 if(_A_STRATEGIES)
                     set(_env OP_AUTOTUNE=report OP_JIT_ENABLE=1 ${_base_env})

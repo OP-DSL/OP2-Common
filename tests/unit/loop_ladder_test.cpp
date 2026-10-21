@@ -271,7 +271,8 @@ void test_variables() {
     unsetenv("OP_ATOMICS");
 
     // OP_STRATEGY forces a family for every loop, or for a named loop, even
-    // when the family is disabled; the ladder falls through from it.
+    // when the family is disabled; its kernel is waited for, and the ladder
+    // falls through from it only when it cannot run.
     setenv("OP_STRATEGY", "other:colouring,test_loop:atomics", 1);
     loop::init();
     {
@@ -284,7 +285,13 @@ void test_variables() {
         auto selection = ladder.select(configuration());
         CHECK(selection.strategy->name() == "atomics=on");
 
-        static_cast<Fake&>(ladder[1]).statuses = {loop::Status::pending};
+        auto& atomics = static_cast<Fake&>(ladder[1]);
+        atomics.statuses = {loop::Status::pending};
+        selection = ladder.select(configuration());
+        CHECK(selection.strategy->name() == "atomics=on");
+        CHECK(atomics.waits == atomics.prepares);
+
+        atomics.statuses = {loop::Status::rejected};
         selection = ladder.select(configuration());
         CHECK(selection.strategy->name() == "plain=on");
         CHECK(static_cast<Fake&>(ladder[0]).prepares == 0);
