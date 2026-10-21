@@ -163,9 +163,21 @@ void test_predictor() {
     CHECK(!predictor.observe(1));
     CHECK(predictor.observe(2));
     CHECK(predictor.observe(1));
-    CHECK(predictor.predict(1, next) && next == 2);
+    CHECK(predictor.predict(next) && next == 2);
     CHECK(!predictor.observe(3));
-    CHECK(predictor.predict(1, next) && next == 3);
+    CHECK(!predictor.predict(next));
+    CHECK(!predictor.observe(1));
+    CHECK(predictor.predict(next) && next == 3);
+
+    // 1 2 1 3 repeated: only the last two runs say what follows a 1.
+    dag::Predictor first, second(2);
+    std::size_t first_hits = 0, second_hits = 0;
+    for (int cycle = 0; cycle < 8; ++cycle)
+        for (std::uint64_t signature : {1, 2, 1, 3}) {
+            first_hits += first.observe(signature);
+            second_hits += second.observe(signature);
+        }
+    CHECK(first_hits <= 16 && second_hits >= 26);
 }
 
 } // namespace

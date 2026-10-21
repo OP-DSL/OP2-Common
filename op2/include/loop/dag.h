@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 namespace op::loop::dag {
@@ -218,43 +219,44 @@ public:
 };
 
 // Predicts the next run's signature from the runs so far: the one that
-// followed the current signature last time.
+// followed the last order runs' signatures last time.
 class Predictor {
 private:
-    struct Transition {
-        std::uint64_t from = 0;
-        std::uint64_t to = 0;
-    };
-    std::vector<Transition> m_transitions;
-    std::uint64_t m_last = 0;
-    bool m_started = false;
+    std::size_t m_order;
+    std::unordered_map<std::uint64_t, std::uint64_t> m_next;
+    // The last order signatures, oldest first.
+    std::vector<std::uint64_t> m_history;
 
-public:
-    // The prediction for the run after one with signature current, if any.
-    bool predict(std::uint64_t current, std::uint64_t& next) const {
-        for (const auto& transition : m_transitions)
-            if (transition.from == current) {
-                next = transition.to;
-                return true;
-            }
-        return false;
+    std::uint64_t context() const {
+        std::uint64_t hash = 0xcbf29ce484222325ull;
+        for (auto signature : m_history)
+            hash = (hash ^ signature) * 0x100000001b3ull;
+        return hash;
     }
 
-    // Record a run; true when it was the prediction made after the last.
+public:
+    explicit Predictor(std::size_t order = 1) : m_order(order) {}
+
+    // The prediction for the next run, if any.
+    bool predict(std::uint64_t& next) const {
+        if (m_history.size() < m_order)
+            return false;
+        auto found = m_next.find(context());
+        if (found == m_next.end())
+            return false;
+        next = found->second;
+        return true;
+    }
+
+    // Record a run; true when it was the prediction.
     bool observe(std::uint64_t signature) {
-        bool hit = false;
-        if (m_started) {
-            std::uint64_t predicted;
-            hit = predict(m_last, predicted) && predicted == signature;
-            auto found = std::find_if(m_transitions.begin(), m_transitions.end(),
-                                      [&](const Transition& t) { return t.from == m_last; });
-            if (found != m_transitions.end())
-                found->to = signature;
-            else
-                m_transitions.push_back({m_last, signature});
-        }
-        m_last = signature;
-        m_started = true;
+        std::uint64_t predicted = 0;
+        bool hit = predict(predicted) && predicted == signature;
+        if (m_history.size() == m_order)
+            m_next[context()] = signature;
+        m_history.push_back(signature);
+        if (m_history.size() > m_order)
+            m_history.erase(m_history.begin());
         return hit;
     }
 };

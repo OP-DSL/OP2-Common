@@ -11,6 +11,7 @@
 #include <loop/strategy.h>
 #include <op_lib_core.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -99,6 +100,27 @@ inline bool returns_to_host(const op_arg& arg) {
     return arg.argtype == OP_ARG_GBL && arg.acc != OP_READ && arg.acc != OP_WORK;
 }
 
+// Why a call runs the queue, for OP_diags: its loop, and the arguments that
+// hand values back or are READ globals too large to copy.
+inline std::string flush_cause(const PendingCall& call) {
+    static const char *const access[] = {"READ", "WRITE", "RW", "INC", "MIN", "MAX", "WORK"};
+    std::string cause;
+    for (const auto& arg : call.args) {
+        bool large = arg.opt != 0 && arg.argtype == OP_ARG_GBL && arg.acc == OP_READ &&
+                     arg.size > config().lazy_copy_bytes;
+        if (!returns_to_host(arg) && !large)
+            continue;
+        cause += cause.empty() ? "" : ", ";
+        if (arg.argtype == OP_ARG_INFO)
+            cause += "info";
+        else
+            cause += std::string(access[arg.acc]) + " " + arg.type + "(" + std::to_string(arg.dim) + ")";
+        if (large)
+            cause += " " + std::to_string(arg.size) + " bytes";
+    }
+    return call.loop->fusion_name() + ": " + cause;
+}
+
 class Queue {
 private:
     // The calls since the last flush; a deque, so the runner's references
@@ -109,6 +131,8 @@ private:
     // For OP_diags: runs by reason, and calls run.
     std::map<std::string, std::size_t> m_runs;
     std::size_t m_executed = 0;
+    // Global flushes by cause.
+    std::map<std::string, std::size_t> m_global_causes;
 
     static void report_callback(void *owner) {
         static_cast<Queue *>(owner)->report();
@@ -127,8 +151,18 @@ private:
             }
             op_printf(")\n");
         }
+        std::vector<std::pair<std::size_t, const std::string *>> causes;
+        for (const auto& [cause, count] : m_global_causes)
+            causes.emplace_back(count, &cause);
+        std::sort(causes.begin(), causes.end(),
+                  [](const auto& a, const auto& b) { return a.first > b.first; });
+        for (std::size_t c = 0; c < std::min<std::size_t>(causes.size(), 30); ++c)
+            op_printf("lazy: %zu global flushes at %s\n", causes[c].first, causes[c].second->c_str());
+        if (causes.size() > 30)
+            op_printf("lazy: %zu more global flush causes\n", causes.size() - 30);
         m_runs.clear();
         m_executed = 0;
+        m_global_causes.clear();
     }
 
 public:
@@ -173,6 +207,8 @@ public:
         m_running = true;
         m_runner->push(m_calls.back());
         m_running = false;
+        if (flush && OP_diags > 1)
+            ++m_global_causes[flush_cause(m_calls.back())];
         if (flush)
             run("global", Flush::global);
         else if (m_calls.size() >= static_cast<std::size_t>(config().lazy_max_calls))

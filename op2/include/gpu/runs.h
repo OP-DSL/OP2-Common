@@ -9,6 +9,7 @@
 #include <op_lib_core.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -46,9 +47,12 @@ private:
     };
 
     std::unordered_map<std::uint64_t, Shape> m_shapes;
-    op::loop::dag::Predictor m_predictor;
+    // Predictors from the last 1 to 4 runs, and their hits.
+    std::array<op::loop::dag::Predictor, 4> m_predictors{
+        op::loop::dag::Predictor(1), op::loop::dag::Predictor(2), op::loop::dag::Predictor(3),
+        op::loop::dag::Predictor(4)};
     std::size_t m_runs = 0;
-    std::size_t m_hits = 0;
+    std::array<std::size_t, 4> m_hits{};
 
     static int median(std::vector<int> values) {
         if (values.empty())
@@ -77,7 +81,8 @@ public:
             signature.add(call.loop, call.set, call.args);
         auto key = signature.value();
         ++m_runs;
-        m_hits += m_predictor.observe(key);
+        for (std::size_t o = 0; o < m_predictors.size(); ++o)
+            m_hits[o] += m_predictors[o].observe(key);
 
         auto& shape = m_shapes[key];
         shape.launches += launches;
@@ -111,8 +116,12 @@ public:
     void report() {
         if (m_runs == 0)
             return;
-        op_printf("dag: %zu runs, %zu shapes, next run predicted %.1f%%\n", m_runs,
-                  m_shapes.size(), 100.0 * static_cast<double>(m_hits) / static_cast<double>(m_runs));
+        auto rate = [&](std::size_t o) {
+            return 100.0 * static_cast<double>(m_hits[o]) / static_cast<double>(m_runs);
+        };
+        op_printf("dag: %zu runs, %zu shapes, next run predicted %.1f%% from the last run, "
+                  "%.1f%% from the last 2, %.1f%% from 3, %.1f%% from 4\n",
+                  m_runs, m_shapes.size(), rate(0), rate(1), rate(2), rate(3));
         std::vector<std::pair<std::uint64_t, const Shape *>> shapes;
         for (const auto& [signature, shape] : m_shapes)
             shapes.emplace_back(signature, &shape);
@@ -170,7 +179,8 @@ public:
                 }
         }
         m_shapes.clear();
-        m_runs = m_hits = 0;
+        m_runs = 0;
+        m_hits = {};
     }
 };
 
@@ -278,7 +288,7 @@ public:
         m_predictor.observe(key);
         std::uint64_t next = 0;
         m_predicted = nullptr;
-        if (m_predictor.predict(key, next)) {
+        if (m_predictor.predict(next)) {
             auto found = m_segments.find(next);
             if (found != m_segments.end())
                 m_predicted = &found->second;
