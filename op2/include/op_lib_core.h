@@ -383,6 +383,14 @@ void op_mpi_test_all(int nargs, op_arg *args);
    waits for the host, which every blocking device operation needs first. */
 void op_mpi_progress(void);
 void op_mpi_drain(void);
+/* Under OP_MPI_ASYNC, start dat's halo exchange now, ahead of the loop that
+   will read its halo (every rank must start the same ones): that loop's own
+   exchange then only waits for it, unless dat is written first, which
+   op_mpi_early_written records.  Otherwise these do nothing. */
+void op_mpi_exchange_early(op_dat dat);
+void op_mpi_early_written(op_dat dat);
+/* Whether device exchanges are asynchronous (OP_MPI_ASYNC=1 under MPI). */
+int op_mpi_async_exchanges(void);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 

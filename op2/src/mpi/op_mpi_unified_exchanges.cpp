@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
+#include <ctime>
 #include <string>
 
 namespace op::unified_exchanges {
@@ -178,6 +179,12 @@ struct ExchangeContext {
         std::vector<MPI_Request> recv_reqs;
         bool sent = false;
         bool received = false;
+        // An early exchange (start_early) of this dat, scattered once its
+        // reader attaches: until then it holds its slot; a dat written first
+        // leaves it to complete unused.
+        op_dat early = nullptr;
+        SpecsByNeighbour<ScatterSpec> scatters;
+        bool scattering = false;
     };
 
     bool async = false;
@@ -202,7 +209,11 @@ struct ExchangeContext {
         return done != 0;
     }
 
+    // Whether the last progress() moved anything on.
+    bool moved = false;
+
     void progress() {
+        moved = false;
         for (auto it = pending.begin(); it != pending.end();) {
             auto &p = *it;
             if (!p.sent && (!p.gathers || backend_for(2).gathered(p.slot))) {
@@ -210,12 +221,18 @@ struct ExchangeContext {
                 for (size_t i = 0; i < p.sends.size(); ++i)
                     p.sends[i].send(&p.send_reqs[i], comm);
                 p.sent = true;
+                moved = true;
             }
             if (!p.received && test_all(p.recv_reqs)) {
                 backend_for(2).raise(p.slot, p.seq);
                 p.received = true;
+                moved = true;
             }
-            if (p.sent && p.received && test_all(p.send_reqs) && backend_for(2).scattered(p.slot)) {
+            bool done = p.early == nullptr ? backend_for(2).scattered(p.slot)
+                        : p.scattering             ? backend_for(2).scattered(p.slot)
+                                                   : !early_pending(p);
+            if (p.sent && p.received && done && test_all(p.send_reqs)) {
+                moved = true;
                 slot_busy[p.slot] = false;
                 it = pending.erase(it);
                 continue;
@@ -230,12 +247,105 @@ struct ExchangeContext {
             return std::any_of(pending.begin(), pending.end(),
                                [](const Pending &p) { return !p.sent || !p.received; });
         };
-        while (outstanding()) progress();
+        while (outstanding()) {
+            progress();
+            // Polling the device and MPI flat out slows the other processes
+            // sharing them.
+            if (!moved) wait_a_little();
+        }
     }
 
-    // Until nothing is pending.
+    static void wait_a_little() {
+        struct timespec pause = {0, 2000};
+        nanosleep(&pause, nullptr);
+    }
+
+    // Until nothing is pending; early exchanges no reader attached are let go.
     void drain_all() {
-        while (!pending.empty()) progress();
+        early_dats.clear();
+        while (!pending.empty()) {
+            progress();
+            if (!moved) wait_a_little();
+        }
+    }
+
+    // --- Early exchanges ---
+    // Started ahead of the loop that reads the halo (op_mpi_exchange_early),
+    // under a tag from the dat and its count of early exchanges so far, so
+    // ranks that start them at different moments still match.  Every rank
+    // must start the same ones.
+
+    // The dats with an early exchange waiting for its reader: at most half
+    // the slots, so the exchanges whose readers have come always find one.
+    // The count is alike on every rank, which skipping must be.
+    static constexpr size_t early_limit = Backend::slots / 2;
+    std::vector<op_dat> early_dats;
+    std::unordered_map<int, unsigned> early_count;
+    // For OP_diags: early exchanges started, and attached to a reader.
+    size_t early_started = 0;
+    size_t early_used = 0;
+
+    bool early_pending(const Pending &p) const {
+        return std::find(early_dats.begin(), early_dats.end(), p.early) != early_dats.end();
+    }
+
+    Pending *early_of(op_dat dat) {
+        if (std::find(early_dats.begin(), early_dats.end(), dat) == early_dats.end())
+            return nullptr;
+        for (auto &p : pending)
+            if (p.early == dat && !p.scattering) return &p;
+        return nullptr;
+    }
+
+    // The early exchanges this exchange's args attached to.
+    std::vector<op_dat> attached;
+
+    void start_early(op_dat dat) {
+        if (!async_enabled() || dat->dirtybit != 1 || early_of(dat) != nullptr ||
+            early_dats.size() >= early_limit)
+            return;
+        reset(2);
+        if (!async) return;
+        int early_tag = 0x1000 + (int) ((dat->index * 8u + early_count[dat->index]++ % 8u) % 0x6000u);
+        sub_tags.push_back(early_tag);
+        exchanges.emplace_back(dat, 0);
+        prepare_and_gather();
+        if (exchanges.empty()) return;
+
+        auto &p = pending.emplace_back();
+        p.slot = slot;
+        p.seq = ++slot_seq[slot];
+        p.gathers = n_gather_specs > 0;
+        p.sends = send_blocks;
+        p.recv_reqs = std::move(recv_reqs);
+        recv_reqs.clear();
+        p.early = dat;
+        p.scatters = scatters_for_neighbour;
+        early_dats.push_back(dat);
+        ++early_started;
+        exchanges.clear();
+        progress();
+    }
+
+    // The dat is written: an early exchange of it no longer serves.
+    void written(op_dat dat) {
+        early_dats.erase(std::remove(early_dats.begin(), early_dats.end(), dat), early_dats.end());
+    }
+
+    // At the wait: hold the attached early exchanges' scatters behind their
+    // flags, as the exchange's own.
+    void scatter_attached() {
+        for (op_dat dat : attached) {
+            auto *p = early_of(dat);
+            if (p == nullptr) continue;
+            if (!p->scatters.empty()) backend_for(2).slot_scatters(p->slot, p->seq, p->scatters);
+            p->scattering = true;
+            ++early_used;
+            written(dat);
+            dat->dirtybit = 0;
+            dat->dirty_hd = 2;
+        }
+        attached.clear();
     }
 
     int acquire_slot() {
@@ -246,6 +356,7 @@ struct ExchangeContext {
                     return s;
                 }
             progress();
+            if (!moved) wait_a_little();
         }
     }
 
@@ -291,6 +402,12 @@ struct ExchangeContext {
         if (arg.acc != OP_READ && arg.acc != OP_RW) return;
         if (arg.dat->dirtybit != 1) return;
         if (!exec && arg.map == OP_ID) return;
+
+        if (async && early_of(arg.dat) != nullptr) {
+            if (std::find(attached.begin(), attached.end(), arg.dat) == attached.end())
+                attached.push_back(arg.dat);
+            return;
+        }
 
         int sub = (int) sub_tags.size() - 1;
         for (auto& exchange : exchanges) {
@@ -357,7 +474,10 @@ struct ExchangeContext {
         ExchangeBuffers bufs;
         if (async) {
             slot = acquire_slot();
-            if (backend->grows(slot, gather_size, scatter_size)) drain_all();
+            // Growing frees staging memory, which waits for the device: nothing
+            // there may wait for the host.  Early exchanges stay, as on every
+            // other rank.
+            if (backend->grows(slot, gather_size, scatter_size)) drain();
             bufs = backend->slot_buffers(slot, gather_size, scatter_size);
         } else {
             // Wait for any previous sendreqs to complete
@@ -444,6 +564,8 @@ struct ExchangeContext {
     }
 
     void exchange_and_scatter() {
+        if (async) scatter_attached();
+
         if (exchanges.size() == 0) {
             return;
         }
@@ -645,12 +767,20 @@ void op_mpi_test_all(int, op_arg *) {
 
 void op_mpi_progress() { ctx.progress(); }
 
+void op_mpi_exchange_early(op_dat dat) { ctx.start_early(dat); }
+
+void op_mpi_early_written(op_dat dat) { ctx.written(dat); }
+
+int op_mpi_async_exchanges() { return ExchangeContext::async_enabled() ? 1 : 0; }
+
 void op_mpi_drain() { ctx.drain(); }
 
 void op_mpi_halo_exchanges_exit() {
     if (ctx.unwaited != nullptr)
         unpaired(std::string("op_exit with the halo exchange on set '") + ctx.unwaited->name + "' never waited for");
     ctx.drain_all();
+    if (OP_diags > 1 && ctx.early_started > 0)
+        op_printf("halo exchanges started early: %zu, used %zu\n", ctx.early_started, ctx.early_used);
     // Each exchange completes the previous one's sends; nothing follows the last.
     if (!ctx.send_reqs.empty()) {
         MPI_Waitall(ctx.send_reqs.size(), ctx.send_reqs.data(), MPI_STATUSES_IGNORE);

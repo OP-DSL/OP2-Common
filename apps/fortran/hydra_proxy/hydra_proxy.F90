@@ -7,9 +7,11 @@ program hydra_proxy
 ! inside every stage (q, gradients, limiter, residual per smoothing sweep).
 !
 ! The mesh is an nx x ny x nz box of nodes with edges along the axes, each
-! rank building its own slab of z planes, so it arrives partitioned.
+! rank building its own slab of z planes, so it arrives partitioned.  With
+! two chains, a second set of variables goes through the same stages on its
+! own dats, as an independent equation set (a turbulence model, say) would.
 !
-!     hydra_proxy [nx ny nz [iterations [stages [sweeps]]]]
+!     hydra_proxy [nx ny nz [iterations [stages [sweeps [chains]]]]]
 !
     use OP2_FORTRAN_DECLARATIONS
     use OP2_FORTRAN_REFERENCE
@@ -18,15 +20,17 @@ program hydra_proxy
 
     implicit none
 
-    integer(4) :: nx = 64, ny = 64, nz = 64, iters = 50, stages = 3, sweeps = 2
-    integer(4) :: rank, ranks, k0, nk, nnode, nedge, it, s, m, b, i, j, k, l, e, c
+    integer(4) :: nx = 64, ny = 64, nz = 64, iters = 50, stages = 3, sweeps = 2, chains = 1
+    integer(4) :: rank, ranks, k0, nk, nnode, nedge, it, s, m, b, i, j, k, l, e, c, ch
     integer(4), dimension(6) :: nbnd
     real(8) :: alpha, nrm, t0, t1, th
     real(8), dimension(5) :: total
     character(len=32) :: arg
 
     integer(4), dimension(:), allocatable, target :: e2n
-    real(8), dimension(:), allocatable, target :: q, qold, res, grad, lim, dtl, vol, deg, sm, ew
+    ! Per chain: q(:, ch) and so on.
+    real(8), dimension(:, :), allocatable, target :: q, qold, res, grad, lim, sm
+    real(8), dimension(:), allocatable, target :: dtl, vol, deg, ew
     type :: boundary
         integer(4), dimension(:), allocatable :: b2n
         real(8), dimension(:), allocatable :: bn
@@ -37,7 +41,8 @@ program hydra_proxy
     type(op_set), dimension(6) :: bsets
     type(op_map) :: p_e2n
     type(op_map), dimension(6) :: p_b2n
-    type(op_dat) :: p_q, p_qold, p_res, p_grad, p_lim, p_dtl, p_vol, p_deg, p_sm, p_ew
+    type(op_dat), dimension(2) :: p_q, p_qold, p_res, p_grad, p_lim, p_sm
+    type(op_dat) :: p_dtl, p_vol, p_deg, p_ew
     type(op_dat), dimension(6) :: p_bn
     type(op_set) :: dummy_set
     type(op_map) :: dummy_map
@@ -65,6 +70,11 @@ program hydra_proxy
         call get_command_argument(6, arg)
         read (arg, *) sweeps
     end if
+    if (command_argument_count() >= 7) then
+        call get_command_argument(7, arg)
+        read (arg, *) chains
+    end if
+    chains = max(1, min(chains, 2))
 
     call op_init_base(0, 0)
     call op_mpi_rank(rank)
@@ -76,17 +86,20 @@ program hydra_proxy
     if (rank < mod(nz, ranks)) nk = nk + 1
     nnode = nx * ny * nk
 
-    allocate(q(5 * nnode), qold(5 * nnode), res(5 * nnode), grad(15 * nnode), lim(5 * nnode))
-    allocate(dtl(nnode), vol(nnode), deg(nnode), sm(5 * nnode))
+    allocate(q(5 * nnode, 2), qold(5 * nnode, 2), res(5 * nnode, 2), grad(15 * nnode, 2))
+    allocate(lim(5 * nnode, 2), sm(5 * nnode, 2))
+    allocate(dtl(nnode), vol(nnode), deg(nnode))
     do k = k0, k0 + nk - 1
         do j = 0, ny - 1
             do i = 0, nx - 1
                 l = 1 + i + nx * (j + ny * (k - k0))
-                q(5 * l - 4) = 1.0_8 + 0.1_8 * sin(0.1_8 * i) * cos(0.13_8 * j)
-                q(5 * l - 3) = 0.1_8 + 0.01_8 * sin(0.07_8 * k)
-                q(5 * l - 2) = 0.01_8 * cos(0.11_8 * i)
-                q(5 * l - 1) = 0.01_8 * sin(0.05_8 * j)
-                q(5 * l) = 2.5_8 + 0.05_8 * cos(0.09_8 * (i + j + k))
+                do ch = 1, 2
+                    q(5 * l - 4, ch) = 1.0_8 + 0.1_8 * sin(0.1_8 * i + ch) * cos(0.13_8 * j)
+                    q(5 * l - 3, ch) = 0.1_8 + 0.01_8 * sin(0.07_8 * k)
+                    q(5 * l - 2, ch) = 0.01_8 * cos(0.11_8 * i)
+                    q(5 * l - 1, ch) = 0.01_8 * sin(0.05_8 * j + ch)
+                    q(5 * l, ch) = 2.5_8 + 0.05_8 * cos(0.09_8 * (i + j + k))
+                end do
                 vol(l) = 1.0_8 + 0.1_8 * sin(0.3_8 * (i + 2 * j + 3 * k))
                 deg(l) = 6.0_8
                 if (i == 0 .or. i == nx - 1) deg(l) = deg(l) - 1.0_8
@@ -145,115 +158,121 @@ program hydra_proxy
         call op_decl_map(bsets(b), nodes, 1, bnd(b)%b2n, p_b2n(b), trim(bname(b)) // "_n")
         call op_decl_dat(bsets(b), 3, "real(8)", bnd(b)%bn, p_bn(b), trim(bname(b)) // "_normal")
     end do
-    call op_decl_dat(nodes, 5, "real(8)", q, p_q, "q")
-    call op_decl_dat(nodes, 5, "real(8)", qold, p_qold, "qold")
-    call op_decl_dat(nodes, 5, "real(8)", res, p_res, "res")
-    call op_decl_dat(nodes, 15, "real(8)", grad, p_grad, "grad")
-    call op_decl_dat(nodes, 5, "real(8)", lim, p_lim, "lim")
+    do ch = 1, chains
+        call op_decl_dat(nodes, 5, "real(8)", q(:, ch), p_q(ch), "q" // achar(48 + ch))
+        call op_decl_dat(nodes, 5, "real(8)", qold(:, ch), p_qold(ch), "qold" // achar(48 + ch))
+        call op_decl_dat(nodes, 5, "real(8)", res(:, ch), p_res(ch), "res" // achar(48 + ch))
+        call op_decl_dat(nodes, 15, "real(8)", grad(:, ch), p_grad(ch), "grad" // achar(48 + ch))
+        call op_decl_dat(nodes, 5, "real(8)", lim(:, ch), p_lim(ch), "lim" // achar(48 + ch))
+        call op_decl_dat(nodes, 5, "real(8)", sm(:, ch), p_sm(ch), "smooth" // achar(48 + ch))
+    end do
     call op_decl_dat(nodes, 1, "real(8)", dtl, p_dtl, "dtl")
     call op_decl_dat(nodes, 1, "real(8)", vol, p_vol, "vol")
     call op_decl_dat(nodes, 1, "real(8)", deg, p_deg, "deg")
-    call op_decl_dat(nodes, 5, "real(8)", sm, p_sm, "smooth")
     call op_decl_dat(edges, 3, "real(8)", ew, p_ew, "edge_weights")
     call op_partition("", "", dummy_set, dummy_map, dummy_dat)
 
-    if (rank == 0) print '(A,3I6,A,I4,A,I8,A,I3,A,I3,A,I3)', " mesh", nx, ny, nz, &
+    if (rank == 0) print '(A,3I6,A,I4,A,I8,A,I3,A,I3,A,I5,A,I2)', " mesh", nx, ny, nz, &
         "  ranks", ranks, "  nodes/rank", nnode, "  stages", stages, "  sweeps", sweeps, &
-        "  iterations", iters
+        "  iterations", iters, "  chains", chains
 
     call op_timers(t0)
     do it = 1, iters
-        call op_par_loop_2(copy5, nodes, &
-            op_arg_dat(p_q, -1, OP_ID, 5, "real(8)", OP_READ), &
-            op_arg_dat(p_qold, -1, OP_ID, 5, "real(8)", OP_WRITE))
+        do ch = 1, chains
+            call op_par_loop_2(copy5, nodes, &
+                op_arg_dat(p_q(ch), -1, OP_ID, 5, "real(8)", OP_READ), &
+                op_arg_dat(p_qold(ch), -1, OP_ID, 5, "real(8)", OP_WRITE))
+        end do
         call op_par_loop_3(local_dt, nodes, &
-            op_arg_dat(p_q, -1, OP_ID, 5, "real(8)", OP_READ), &
+            op_arg_dat(p_q(1), -1, OP_ID, 5, "real(8)", OP_READ), &
             op_arg_dat(p_vol, -1, OP_ID, 1, "real(8)", OP_READ), &
             op_arg_dat(p_dtl, -1, OP_ID, 1, "real(8)", OP_WRITE))
 
         do s = 1, stages
             alpha = 1.0_8 / dble(stages - s + 1)
 
-            call op_par_loop_1(zero15, nodes, &
-                op_arg_dat(p_grad, -1, OP_ID, 15, "real(8)", OP_WRITE))
-            call op_par_loop_5(grad_edge, edges, &
-                op_arg_dat(p_q, 1, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_q, 2, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
-                op_arg_dat(p_grad, 1, p_e2n, 15, "real(8)", OP_INC), &
-                op_arg_dat(p_grad, 2, p_e2n, 15, "real(8)", OP_INC))
-            do b = 1, 6
-                call op_par_loop_3(grad_bnd, bsets(b), &
-                    op_arg_dat(p_q, 1, p_b2n(b), 5, "real(8)", OP_READ), &
-                    op_arg_dat(p_bn(b), -1, OP_ID, 3, "real(8)", OP_READ), &
-                    op_arg_dat(p_grad, 1, p_b2n(b), 15, "real(8)", OP_INC))
+            do ch = 1, chains
+                call op_par_loop_1(zero15, nodes, &
+                    op_arg_dat(p_grad(ch), -1, OP_ID, 15, "real(8)", OP_WRITE))
+                call op_par_loop_5(grad_edge, edges, &
+                    op_arg_dat(p_q(ch), 1, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_q(ch), 2, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
+                    op_arg_dat(p_grad(ch), 1, p_e2n, 15, "real(8)", OP_INC), &
+                    op_arg_dat(p_grad(ch), 2, p_e2n, 15, "real(8)", OP_INC))
+                do b = 1, 6
+                    call op_par_loop_3(grad_bnd, bsets(b), &
+                        op_arg_dat(p_q(ch), 1, p_b2n(b), 5, "real(8)", OP_READ), &
+                        op_arg_dat(p_bn(b), -1, OP_ID, 3, "real(8)", OP_READ), &
+                        op_arg_dat(p_grad(ch), 1, p_b2n(b), 15, "real(8)", OP_INC))
+                end do
+                call op_par_loop_2(grad_scale, nodes, &
+                    op_arg_dat(p_vol, -1, OP_ID, 1, "real(8)", OP_READ), &
+                    op_arg_dat(p_grad(ch), -1, OP_ID, 15, "real(8)", OP_RW))
+
+                call op_par_loop_1(zero5, nodes, &
+                    op_arg_dat(p_lim(ch), -1, OP_ID, 5, "real(8)", OP_WRITE))
+                call op_par_loop_7(lim_edge, edges, &
+                    op_arg_dat(p_q(ch), 1, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_q(ch), 2, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_grad(ch), 1, p_e2n, 15, "real(8)", OP_READ), &
+                    op_arg_dat(p_grad(ch), 2, p_e2n, 15, "real(8)", OP_READ), &
+                    op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
+                    op_arg_dat(p_lim(ch), 1, p_e2n, 5, "real(8)", OP_INC), &
+                    op_arg_dat(p_lim(ch), 2, p_e2n, 5, "real(8)", OP_INC))
+                call op_par_loop_2(lim_finish, nodes, &
+                    op_arg_dat(p_deg, -1, OP_ID, 1, "real(8)", OP_READ), &
+                    op_arg_dat(p_lim(ch), -1, OP_ID, 5, "real(8)", OP_RW))
+
+                call op_par_loop_1(zero5, nodes, &
+                    op_arg_dat(p_res(ch), -1, OP_ID, 5, "real(8)", OP_WRITE))
+                call op_par_loop_9(flux_edge, edges, &
+                    op_arg_dat(p_q(ch), 1, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_q(ch), 2, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_grad(ch), 1, p_e2n, 15, "real(8)", OP_READ), &
+                    op_arg_dat(p_grad(ch), 2, p_e2n, 15, "real(8)", OP_READ), &
+                    op_arg_dat(p_lim(ch), 1, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_lim(ch), 2, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
+                    op_arg_dat(p_res(ch), 1, p_e2n, 5, "real(8)", OP_INC), &
+                    op_arg_dat(p_res(ch), 2, p_e2n, 5, "real(8)", OP_INC))
+                do b = 1, 6
+                    call op_par_loop_3(flux_bnd, bsets(b), &
+                        op_arg_dat(p_q(ch), 1, p_b2n(b), 5, "real(8)", OP_READ), &
+                        op_arg_dat(p_bn(b), -1, OP_ID, 3, "real(8)", OP_READ), &
+                        op_arg_dat(p_res(ch), 1, p_b2n(b), 5, "real(8)", OP_INC))
+                end do
+                call op_par_loop_5(visc_edge, edges, &
+                    op_arg_dat(p_q(ch), 1, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_q(ch), 2, p_e2n, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
+                    op_arg_dat(p_res(ch), 1, p_e2n, 5, "real(8)", OP_INC), &
+                    op_arg_dat(p_res(ch), 2, p_e2n, 5, "real(8)", OP_INC))
+
+                do m = 1, sweeps
+                    call op_par_loop_4(smooth_edge, edges, &
+                        op_arg_dat(p_res(ch), 1, p_e2n, 5, "real(8)", OP_READ), &
+                        op_arg_dat(p_res(ch), 2, p_e2n, 5, "real(8)", OP_READ), &
+                        op_arg_dat(p_sm(ch), 1, p_e2n, 5, "real(8)", OP_INC), &
+                        op_arg_dat(p_sm(ch), 2, p_e2n, 5, "real(8)", OP_INC))
+                    call op_par_loop_2(smooth_node, nodes, &
+                        op_arg_dat(p_sm(ch), -1, OP_ID, 5, "real(8)", OP_RW), &
+                        op_arg_dat(p_res(ch), -1, OP_ID, 5, "real(8)", OP_RW))
+                end do
+
+                call op_par_loop_6(rk_update, nodes, &
+                    op_arg_dat(p_qold(ch), -1, OP_ID, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_res(ch), -1, OP_ID, 5, "real(8)", OP_READ), &
+                    op_arg_dat(p_dtl, -1, OP_ID, 1, "real(8)", OP_READ), &
+                    op_arg_dat(p_vol, -1, OP_ID, 1, "real(8)", OP_READ), &
+                    op_arg_gbl(alpha, 1, "real(8)", OP_READ), &
+                    op_arg_dat(p_q(ch), -1, OP_ID, 5, "real(8)", OP_WRITE))
             end do
-            call op_par_loop_2(grad_scale, nodes, &
-                op_arg_dat(p_vol, -1, OP_ID, 1, "real(8)", OP_READ), &
-                op_arg_dat(p_grad, -1, OP_ID, 15, "real(8)", OP_RW))
-
-            call op_par_loop_1(zero5, nodes, &
-                op_arg_dat(p_lim, -1, OP_ID, 5, "real(8)", OP_WRITE))
-            call op_par_loop_7(lim_edge, edges, &
-                op_arg_dat(p_q, 1, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_q, 2, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_grad, 1, p_e2n, 15, "real(8)", OP_READ), &
-                op_arg_dat(p_grad, 2, p_e2n, 15, "real(8)", OP_READ), &
-                op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
-                op_arg_dat(p_lim, 1, p_e2n, 5, "real(8)", OP_INC), &
-                op_arg_dat(p_lim, 2, p_e2n, 5, "real(8)", OP_INC))
-            call op_par_loop_2(lim_finish, nodes, &
-                op_arg_dat(p_deg, -1, OP_ID, 1, "real(8)", OP_READ), &
-                op_arg_dat(p_lim, -1, OP_ID, 5, "real(8)", OP_RW))
-
-            call op_par_loop_1(zero5, nodes, &
-                op_arg_dat(p_res, -1, OP_ID, 5, "real(8)", OP_WRITE))
-            call op_par_loop_9(flux_edge, edges, &
-                op_arg_dat(p_q, 1, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_q, 2, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_grad, 1, p_e2n, 15, "real(8)", OP_READ), &
-                op_arg_dat(p_grad, 2, p_e2n, 15, "real(8)", OP_READ), &
-                op_arg_dat(p_lim, 1, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_lim, 2, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
-                op_arg_dat(p_res, 1, p_e2n, 5, "real(8)", OP_INC), &
-                op_arg_dat(p_res, 2, p_e2n, 5, "real(8)", OP_INC))
-            do b = 1, 6
-                call op_par_loop_3(flux_bnd, bsets(b), &
-                    op_arg_dat(p_q, 1, p_b2n(b), 5, "real(8)", OP_READ), &
-                    op_arg_dat(p_bn(b), -1, OP_ID, 3, "real(8)", OP_READ), &
-                    op_arg_dat(p_res, 1, p_b2n(b), 5, "real(8)", OP_INC))
-            end do
-            call op_par_loop_5(visc_edge, edges, &
-                op_arg_dat(p_q, 1, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_q, 2, p_e2n, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_ew, -1, OP_ID, 3, "real(8)", OP_READ), &
-                op_arg_dat(p_res, 1, p_e2n, 5, "real(8)", OP_INC), &
-                op_arg_dat(p_res, 2, p_e2n, 5, "real(8)", OP_INC))
-
-            do m = 1, sweeps
-                call op_par_loop_4(smooth_edge, edges, &
-                    op_arg_dat(p_res, 1, p_e2n, 5, "real(8)", OP_READ), &
-                    op_arg_dat(p_res, 2, p_e2n, 5, "real(8)", OP_READ), &
-                    op_arg_dat(p_sm, 1, p_e2n, 5, "real(8)", OP_INC), &
-                    op_arg_dat(p_sm, 2, p_e2n, 5, "real(8)", OP_INC))
-                call op_par_loop_2(smooth_node, nodes, &
-                    op_arg_dat(p_sm, -1, OP_ID, 5, "real(8)", OP_RW), &
-                    op_arg_dat(p_res, -1, OP_ID, 5, "real(8)", OP_RW))
-            end do
-
-            call op_par_loop_6(rk_update, nodes, &
-                op_arg_dat(p_qold, -1, OP_ID, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_res, -1, OP_ID, 5, "real(8)", OP_READ), &
-                op_arg_dat(p_dtl, -1, OP_ID, 1, "real(8)", OP_READ), &
-                op_arg_dat(p_vol, -1, OP_ID, 1, "real(8)", OP_READ), &
-                op_arg_gbl(alpha, 1, "real(8)", OP_READ), &
-                op_arg_dat(p_q, -1, OP_ID, 5, "real(8)", OP_WRITE))
         end do
 
         nrm = 0.0_8
         call op_par_loop_2(res_norm, nodes, &
-            op_arg_dat(p_res, -1, OP_ID, 5, "real(8)", OP_READ), &
+            op_arg_dat(p_res(1), -1, OP_ID, 5, "real(8)", OP_READ), &
             op_arg_gbl(nrm, 1, "real(8)", OP_INC))
         if (rank == 0 .and. (it == 1 .or. mod(it, 10) == 0)) &
             print '(A,I6,A,ES22.14)', " iteration", it, "  residual", sqrt(nrm)
@@ -263,12 +282,14 @@ program hydra_proxy
     end do
     call op_timers(t1)
 
-    total = 0.0_8
-    call op_par_loop_2(sum5, nodes, &
-        op_arg_dat(p_q, -1, OP_ID, 5, "real(8)", OP_READ), &
-        op_arg_gbl(total, 5, "real(8)", OP_INC))
+    do ch = 1, chains
+        total = 0.0_8
+        call op_par_loop_2(sum5, nodes, &
+            op_arg_dat(p_q(ch), -1, OP_ID, 5, "real(8)", OP_READ), &
+            op_arg_gbl(total, 5, "real(8)", OP_INC))
+        if (rank == 0) print '(A,5ES22.14)', " checksum", total
+    end do
     if (rank == 0) then
-        print '(A,5ES22.14)', " checksum", total
         print '(A,F10.3,A,F10.2,A)', " time", t1 - t0, " s, ", 1.0e6_8 * (t1 - t0) / iters, &
             " us/iteration"
         print '(A,F10.2,A)', " steady", 1.0e6_8 * (t1 - th) / (iters - iters / 2), &

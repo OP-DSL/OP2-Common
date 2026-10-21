@@ -1472,6 +1472,8 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   for (int n = 0; n < nargs; n++) {
     if (args[n].argtype == OP_ARG_DAT) {
       set_dirtybit(&args[n], 2);
+      if (args[n].opt && args[n].acc != OP_READ)
+        op_mpi_early_written(args[n].dat);
     }
   }
 }

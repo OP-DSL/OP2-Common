@@ -67,7 +67,7 @@ public:
     // raises once the receives are in, so the host never blocks on it.  Only
     // a device backend has slots.
 
-    static constexpr int slots = 8;
+    static constexpr int slots = 32;
 
     virtual bool asynchronous() const { return false; }
 

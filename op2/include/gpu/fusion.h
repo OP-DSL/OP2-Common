@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -663,6 +664,12 @@ private:
     // shapes, launches, layout (groups apart by " / ", chains by " | ",
     // members of a chain by "+") and why groups closed.
     Group m_group;
+    // Halo exchanges started ahead of their readers, with asynchronous
+    // exchanges, unless OP_MPI_EARLY=0.
+    EarlyExchanges m_early;
+    bool m_planning = op_mpi_async_exchanges() != 0 &&
+                      !(std::getenv("OP_MPI_EARLY") != nullptr &&
+                        std::string{std::getenv("OP_MPI_EARLY")} == "0");
     std::vector<RunCall> m_run;
     std::vector<const std::string *> m_run_names;
     std::string m_layout, m_reasons;
@@ -672,6 +679,12 @@ private:
             launch(m_group);
         m_group.clear();
         op_mpi_progress();
+    }
+
+    // The segment's calls before launched have run.
+    void launched(std::size_t launched) {
+        if (m_planning)
+            m_early.launched(launched, [](op_dat dat) { op_mpi_exchange_early(dat); });
     }
 
     void note(const char *separator, const std::string& name) {
@@ -704,17 +717,23 @@ public:
         if (why == nullptr && !fusable(member))
             why = "registers";
         const auto& name = call.loop->fusion_name();
-        if (OP_diags > 1) {
-            auto& shape = m_run.emplace_back();
+        std::size_t index = m_early.calls();
+        if (OP_diags > 1 || m_planning) {
+            RunCall shape;
             shape.loop = std::hash<std::string>{}(name);
             shape.set = call.set;
             shape.args = call.args;
             shape.atomic = member.strategy != nullptr && atomic(member);
             shape.fusable = why == nullptr;
-            for (const auto& arg : call.args)
-                shape.dirty.push_back(arg.opt != 0 && arg.argtype == OP_ARG_DAT &&
-                                      arg.dat->dirtybit == 1);
-            m_run_names.push_back(&name);
+            if (m_planning)
+                m_early.push(shape);
+            if (OP_diags > 1) {
+                for (const auto& arg : call.args)
+                    shape.dirty.push_back(arg.opt != 0 && arg.argtype == OP_ARG_DAT &&
+                                          arg.dat->dirtybit == 1);
+                m_run.push_back(std::move(shape));
+                m_run_names.push_back(&name);
+            }
         }
         if (why != nullptr) {
             if (OP_diags > 1)
@@ -724,6 +743,7 @@ public:
             close();
             call.loop->execute(call);
             ++m_run_launches;
+            launched(index + 1);
             return;
         }
         bool fresh = m_group.empty();
@@ -734,6 +754,7 @@ public:
                 closed(name, detail, kind);
             }
             close();
+            launched(index);
             m_group.push_back({member});
             fresh = true;
         }
@@ -746,10 +767,14 @@ public:
         if (flush == Flush::exit)
             m_agreement.finish();
         close();
+        launched(m_early.calls());
         // What flushed the queue may block on the device next.
         op_mpi_drain();
-        if (flush == Flush::global)
+        if (flush == Flush::global) {
             m_agreement.round();
+            if (m_planning)
+                m_early.end([](op_dat dat) { op_mpi_exchange_early(dat); });
+        }
         if (OP_diags > 1 && !m_run.empty()) {
             m_shapes.observe(m_run, m_run_names, m_run_launches);
             if (OP_diags > 2 &&

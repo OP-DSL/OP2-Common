@@ -440,6 +440,12 @@ void op_mpi_progress(void) {}
 
 void op_mpi_drain(void) {}
 
+void op_mpi_exchange_early(op_dat dat) { (void)dat; }
+
+void op_mpi_early_written(op_dat dat) { (void)dat; }
+
+int op_mpi_async_exchanges(void) { return 0; }
+
 void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
