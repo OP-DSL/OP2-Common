@@ -1,11 +1,10 @@
 #include <gpu/config.h>
 
+#include <gpu/check.h>
 #include <gpu/shims.h>
 #include <loop/strategy.h>
 #include <op_lib_core.h>
 
-#include <cstdio>
-#include <cstdlib>
 #include <string>
 
 namespace op::gpu {
@@ -13,13 +12,6 @@ namespace op::gpu {
 namespace {
 
 Config run_config;
-
-void check(gpuError_t result, const char *call) {
-    if (result == gpuSuccess)
-        return;
-    std::fprintf(stderr, "error: %s failed with %s\n", call, gpuGetErrorString(result));
-    std::exit(1);
-}
 
 } // namespace
 
@@ -50,9 +42,9 @@ void init() {
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", config.window);
 
     int device;
-    check(gpuGetDevice(&device), "gpuGetDevice");
+    GPU_CHECK(gpuGetDevice(&device));
     gpuDeviceProp_t props;
-    check(gpuGetDeviceProperties(&props, device), "gpuGetDeviceProperties");
+    GPU_CHECK(gpuGetDeviceProperties(&props, device));
 
     std::size_t shared_bytes = props.sharedMemPerBlock;
 #ifdef OP2_CUDA

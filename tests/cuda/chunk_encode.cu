@@ -25,8 +25,8 @@ namespace {
 template<typename T>
 std::vector<T> download(const T *device, std::size_t count) {
     std::vector<T> host(count);
-    CUDA_SAFE_CALL(gpuMemcpy(host.data(), device, count * sizeof(T),
-                             gpuMemcpyDeviceToHost));
+    GPU_CHECK(gpuMemcpy(host.data(), device, count * sizeof(T),
+                        gpuMemcpyDeviceToHost));
     return host;
 }
 

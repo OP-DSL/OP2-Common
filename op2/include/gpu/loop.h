@@ -4,6 +4,7 @@
 // par_loop, from plain data, holding the ladder, the tuner and the JIT
 // service, and running one call through them.
 
+#include <gpu/check.h>
 #include <gpu/jit.h>
 #include <gpu/strategy.h>
 #include <loop/autotune.h>
@@ -112,7 +113,7 @@ public:
     gpuEvent_t event(std::size_t index) {
         while (m_events.size() <= index) {
             gpuEvent_t event;
-            CUDA_SAFE_CALL(gpuEventCreate(&event));
+            GPU_CHECK(gpuEventCreate(&event));
             m_events.push_back(event);
         }
         return m_events[index];
@@ -179,7 +180,7 @@ public:
 
         op_profile_enter("Finalise");
         if (m_exit_sync)
-            CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+            GPU_CHECK(gpuStreamSynchronize(0));
         op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
         op_mpi_set_dirtybit_cuda(nargs, args);
         op_profile_exit();
@@ -194,7 +195,7 @@ public:
         for (std::size_t i = 0; i < m_ladder.size(); ++i)
             static_cast<StrategyBase&>(m_ladder[i]).release();
         for (auto event : m_events)
-            CUDA_SAFE_CALL(gpuEventDestroy(event));
+            GPU_CHECK(gpuEventDestroy(event));
         m_events.clear();
     }
 };
@@ -273,7 +274,7 @@ std::optional<float> StrategyBase::run_phases(
         int count = launches(phase);
         bool timing = launch.timed && count > 0;
         if (timing)
-            CUDA_SAFE_CALL(gpuEventRecord(m_loop.event(2 * timed_pairs), 0));
+            GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs), 0));
 
         for (int index = 0; index < count; ++index) {
             LaunchContext context;
@@ -285,7 +286,7 @@ std::optional<float> StrategyBase::run_phases(
         }
 
         if (timing)
-            CUDA_SAFE_CALL(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
+            GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
         if (phase == globals_after)
             m_loop.process_globals(launch.args, launch.nargs, m_call.global_stride);
     }
@@ -300,12 +301,12 @@ std::optional<float> StrategyBase::run_phases(
         return std::nullopt;
     if (timed_pairs == 0)
         return 0.0f;
-    CUDA_SAFE_CALL(gpuEventSynchronize(m_loop.event(2 * timed_pairs - 1)));
+    GPU_CHECK(gpuEventSynchronize(m_loop.event(2 * timed_pairs - 1)));
     float total = 0.0f;
     for (int pair = 0; pair < timed_pairs; ++pair) {
         float ms = 0.0f;
-        CUDA_SAFE_CALL(gpuEventElapsedTime(&ms, m_loop.event(2 * pair),
-                                           m_loop.event(2 * pair + 1)));
+        GPU_CHECK(gpuEventElapsedTime(&ms, m_loop.event(2 * pair),
+                                      m_loop.event(2 * pair + 1)));
         total += ms;
     }
     return total * 1000.0f;
@@ -341,10 +342,10 @@ inline op::loop::Prepared Colouring::prepare(
         entry.colouring = op::plan::colour_set(configuration.args, m_call.sections);
         const auto& order = entry.colouring.order;
         if (!order.empty()) {
-            CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),
-                                     order.size() * sizeof(int)));
-            CUDA_SAFE_CALL(gpuMemcpy(entry.order_d, order.data(),
-                                     order.size() * sizeof(int), gpuMemcpyHostToDevice));
+            GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),
+                                order.size() * sizeof(int)));
+            GPU_CHECK(gpuMemcpy(entry.order_d, order.data(),
+                                order.size() * sizeof(int), gpuMemcpyHostToDevice));
         }
         if (OP_diags > 3)
             std::printf("colouring: %s %d colours, %d over owned elements\n",
@@ -390,7 +391,7 @@ inline void Colouring::release() {
     StrategyBase::release();
     for (auto& [key, entry] : m_entries)
         if (entry.order_d != nullptr)
-            CUDA_SAFE_CALL(gpuFree(entry.order_d));
+            GPU_CHECK(gpuFree(entry.order_d));
     m_entries.clear();
 }
 
@@ -494,10 +495,10 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
     int epoch = 0;
     if (plan.wavefront) {
         epoch = entry.device.next_wave_epoch();
-        CUDA_SAFE_CALL(gpuMemsetAsync(entry.device.wave_tickets, 0,
-                                      static_cast<std::size_t>(sections.size()) *
-                                          sizeof(int),
-                                      0));
+        GPU_CHECK(gpuMemsetAsync(entry.device.wave_tickets, 0,
+                                 static_cast<std::size_t>(sections.size()) *
+                                     sizeof(int),
+                                 0));
     }
 
     return run_phases(

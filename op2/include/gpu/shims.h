@@ -203,18 +203,3 @@
 #define gpuRtcDestroyProgram hiprtcDestroyProgram
 
 #endif
-
-#include <cstdio>
-#include <cstdlib>
-
-// Stop the program on a failed runtime call, naming it.
-#define CUDA_SAFE_CALL(x)                                                       \
-    do {                                                                        \
-        gpuError_t result = x;                                                  \
-        if (result != gpuSuccess) {                                             \
-            const char *msg = gpuGetErrorString(result);                        \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,     \
-                    __FILE__, __LINE__);                                        \
-            exit(1);                                                            \
-        }                                                                       \
-    } while (0)

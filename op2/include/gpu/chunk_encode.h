@@ -3,6 +3,7 @@
 // A chunk plan as the GPU kernels read it: its arrays resident on the device,
 // plus the per-call wavefront state.
 
+#include <gpu/check.h>
 #include <gpu/chunk_plan.h>
 #include <gpu/shims.h>
 
@@ -22,10 +23,10 @@ private:
     static void upload(const std::vector<T>& source, T *&destination) {
         if (source.empty())
             return;
-        CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&destination),
-                                 source.size() * sizeof(T)));
-        CUDA_SAFE_CALL(gpuMemcpy(destination, source.data(), source.size() * sizeof(T),
-                                 gpuMemcpyHostToDevice));
+        GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&destination),
+                            source.size() * sizeof(T)));
+        GPU_CHECK(gpuMemcpy(destination, source.data(), source.size() * sizeof(T),
+                            gpuMemcpyHostToDevice));
     }
 
     static std::vector<int> slot_counts(const plan::Staging& staging) {
@@ -36,15 +37,15 @@ private:
     }
 
     static void allocate_zeroed(std::size_t count, int *&destination) {
-        CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&destination),
-                                 count * sizeof(int)));
-        CUDA_SAFE_CALL(gpuMemset(destination, 0, count * sizeof(int)));
+        GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&destination),
+                            count * sizeof(int)));
+        GPU_CHECK(gpuMemset(destination, 0, count * sizeof(int)));
     }
 
     template<typename T>
     static void release(T *&pointer) {
         if (pointer != nullptr)
-            CUDA_SAFE_CALL(gpuFree(pointer));
+            GPU_CHECK(gpuFree(pointer));
         pointer = nullptr;
     }
 

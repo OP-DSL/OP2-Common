@@ -211,15 +211,15 @@ struct Outcome {
 };
 
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
-    CUDA_SAFE_CALL(gpuMemset(output_d, 0, sizeof(output)));
+    GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
     op::loop::Configuration configuration{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
     auto chunk = loop.ladder()[0].prepare(configuration, op::loop::Urgency::later);
     auto selection = loop.ladder().select(configuration);
     loop.invoke(&fixture.source, fixture.args.data(),
                 static_cast<int>(fixture.args.size()));
-    CUDA_SAFE_CALL(gpuDeviceSynchronize());
-    CUDA_SAFE_CALL(gpuMemcpy(output.data(), output_d, sizeof(output),
-                             gpuMemcpyDeviceToHost));
+    GPU_CHECK(gpuDeviceSynchronize());
+    GPU_CHECK(gpuMemcpy(output.data(), output_d, sizeof(output),
+                        gpuMemcpyDeviceToHost));
     return {std::string{selection.strategy->family()}, std::string{chunk.reason},
             selection.kernel != nullptr,
             static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks};
@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
     setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", "256", 1);
 
     Fixture fixture;
-    CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
+    GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
     last_shared_byte = fixture.shared_bytes() - 1;
 
     bool saw_jit = false;
@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
             CHECK(output[0] == -1);
         }
 
-        CUDA_SAFE_CALL(gpuFree(output_d));
+        GPU_CHECK(gpuFree(output_d));
         output_d = nullptr;
         op_exit();
         CHECK(chunk.entries() == 0);

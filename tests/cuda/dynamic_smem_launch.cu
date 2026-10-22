@@ -135,8 +135,8 @@ int main(int argc, char **argv) {
 
     gpuDeviceProp_t props;
     int device = 0;
-    CUDA_SAFE_CALL(gpuGetDevice(&device));
-    CUDA_SAFE_CALL(gpuGetDeviceProperties(&props, device));
+    GPU_CHECK(gpuGetDevice(&device));
+    GPU_CHECK(gpuGetDeviceProperties(&props, device));
     if (props.sharedMemPerBlockOptin < static_cast<std::size_t>(shared_bytes)) {
         std::printf("device allows under %d bytes of dynamic shared memory\n",
                     shared_bytes);
@@ -145,8 +145,8 @@ int main(int argc, char **argv) {
     }
 
     int output = -1;
-    CUDA_SAFE_CALL(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
-    CUDA_SAFE_CALL(gpuMemcpy(output_d, &output, sizeof(output), gpuMemcpyHostToDevice));
+    GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
+    GPU_CHECK(gpuMemcpy(output_d, &output, sizeof(output), gpuMemcpyHostToDevice));
     last_word = shared_bytes / static_cast<int>(sizeof(int)) - 1;
 
     op_profile_start("Dynamic shared-memory launch test");
@@ -193,15 +193,15 @@ int main(int argc, char **argv) {
                         static_cast<int>(fixture.args.size()));
         }
 
-        CUDA_SAFE_CALL(gpuDeviceSynchronize());
-        CUDA_SAFE_CALL(gpuMemcpy(&output, output_d, sizeof(output),
-                                 gpuMemcpyDeviceToHost));
+        GPU_CHECK(gpuDeviceSynchronize());
+        GPU_CHECK(gpuMemcpy(&output, output_d, sizeof(output),
+                            gpuMemcpyDeviceToHost));
     }
 
     op_profile_exit();
     op_profile_end();
 
-    CUDA_SAFE_CALL(gpuFree(output_d));
+    GPU_CHECK(gpuFree(output_d));
     op_exit();
 
     bool expect_jit = env_enabled("OP_EXPECT_JIT");

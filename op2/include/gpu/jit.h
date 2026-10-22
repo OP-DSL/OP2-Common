@@ -6,6 +6,7 @@
 // delay and the register prior.  One per loop.
 
 #include <extern/rapidhash.h>
+#include <gpu/check.h>
 #include <gpu/config.h>
 #include <gpu/shims.h>
 #include <loop/strategy.h>
@@ -29,33 +30,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#define NVRTC_SAFE_CALL(x)                                                      \
-    do {                                                                        \
-        gpuRtcResult_t result = x;                                              \
-        if (result != GPURTC_SUCCESS) {                                         \
-            const char *msg = gpuRtcGetErrorString(result);                     \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,     \
-                    __FILE__, __LINE__);                                        \
-            exit(1);                                                            \
-        }                                                                       \
-    } while (0)
-
-#ifdef OP2_CUDA
-#define CU_SAFE_CALL(x)                                                         \
-    do {                                                                        \
-        gpuDrvResult_t result = x;                                              \
-        if (result != GPU_SUCCESS) {                                            \
-            const char *msg;                                                    \
-            gpuDrvGetErrorName(result, &msg);                                   \
-            fprintf(stderr, "error: " #x " failed with %s at %s:%d\n", msg,     \
-                    __FILE__, __LINE__);                                        \
-            exit(1);                                                            \
-        }                                                                       \
-    } while (0)
-#else
-#define CU_SAFE_CALL(x) CUDA_SAFE_CALL(x)
-#endif
 
 namespace op::gpu {
 
@@ -87,8 +61,8 @@ private:
     void ensure_loaded() {
         if (m_loaded)
             return;
-        CU_SAFE_CALL(gpuDrvModuleLoadData(&m_module, m_cubin));
-        CU_SAFE_CALL(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
+        GPU_DRV_CHECK(gpuDrvModuleLoadData(&m_module, m_cubin));
+        GPU_DRV_CHECK(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
         m_loaded = true;
         delete[] m_cubin;
         m_cubin = nullptr;
@@ -101,16 +75,16 @@ public:
     void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
         ensure_loaded();
         if (shared_bytes > m_max_dynamic_shared_bytes) {
-            CU_SAFE_CALL(gpuDrvFuncSetAttribute(
+            GPU_DRV_CHECK(gpuDrvFuncSetAttribute(
                 m_kernel, gpuDrvFuncAttributeMaxDynamicSharedMemorySize,
                 shared_bytes));
             m_max_dynamic_shared_bytes = shared_bytes;
         }
-        CU_SAFE_CALL(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1,
-                                        1, shared_bytes, NULL, args, 0));
-        CUDA_SAFE_CALL(gpuPeekAtLastError());
+        GPU_DRV_CHECK(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1,
+                                         1, shared_bytes, NULL, args, 0));
+        GPU_CHECK(gpuPeekAtLastError());
         if (config().debug)
-            CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+            GPU_CHECK(gpuStreamSynchronize(0));
     }
 };
 
@@ -245,8 +219,8 @@ public:
                                                         : m_hash_device;
         if (hash() == hash_device)
             return;
-        CUDA_SAFE_CALL(gpuMemcpyAsync(m_data_d, data(), m_elem_size * m_n_elems,
-                                      gpuMemcpyHostToDevice));
+        GPU_CHECK(gpuMemcpyAsync(m_data_d, data(), m_elem_size * m_n_elems,
+                                 gpuMemcpyHostToDevice));
         if (m_hash_device_ptr != nullptr)
             *m_hash_device_ptr = m_hash_last;
         else
@@ -379,7 +353,7 @@ public:
 
     void register_offline(const void *kernel) {
         if (kernel != nullptr)
-            CUDA_SAFE_CALL(gpuFuncGetAttributes(&m_offline_attrs, kernel));
+            GPU_CHECK(gpuFuncGetAttributes(&m_offline_attrs, kernel));
     }
 
     // Launch the offline kernel.
@@ -387,15 +361,15 @@ public:
                         void **args, int shared_bytes) {
         assert(kernel != nullptr);
         if (shared_bytes > m_offline_max_dynamic_shared_bytes) {
-            CUDA_SAFE_CALL(gpuFuncSetAttribute(
+            GPU_CHECK(gpuFuncSetAttribute(
                 kernel, gpuFuncAttributeMaxDynamicSharedMemorySize, shared_bytes));
             m_offline_max_dynamic_shared_bytes = shared_bytes;
         }
-        CUDA_SAFE_CALL(gpuLaunchKernel(kernel, num_blocks, block_size, args,
-                                       shared_bytes, 0));
-        CUDA_SAFE_CALL(gpuPeekAtLastError());
+        GPU_CHECK(gpuLaunchKernel(kernel, num_blocks, block_size, args,
+                                  shared_bytes, 0));
+        GPU_CHECK(gpuPeekAtLastError());
         if (config().debug)
-            CUDA_SAFE_CALL(gpuStreamSynchronize(0));
+            GPU_CHECK(gpuStreamSynchronize(0));
     }
 
     // Wait for every compile still running.
@@ -449,7 +423,7 @@ private:
         auto do_compile = [this, &kernels, name = std::string{source.name}](
                               std::string jit_src, uint64_t hash) {
             gpuRtcProgram_t prog;
-            NVRTC_SAFE_CALL(gpuRtcCreateProgram(
+            GPU_RTC_CHECK(gpuRtcCreateProgram(
                 &prog, jit_src.c_str(), name.c_str(),
                 static_cast<int>(m_headers.data.size()), m_headers.data.data(),
                 m_headers.names.data()));
@@ -473,10 +447,10 @@ private:
             auto success = gpuRtcCompileProgram(prog, sizeof(opts) / sizeof(char *), opts);
             if (success != GPURTC_SUCCESS) {
                 size_t log_size;
-                NVRTC_SAFE_CALL(gpuRtcGetProgramLogSize(prog, &log_size));
+                GPU_RTC_CHECK(gpuRtcGetProgramLogSize(prog, &log_size));
                 if (log_size > 1) {
                     std::string log(log_size, '\0');
-                    NVRTC_SAFE_CALL(gpuRtcGetProgramLog(prog, log.data()));
+                    GPU_RTC_CHECK(gpuRtcGetProgramLog(prog, log.data()));
                     std::printf("%s\n", log.c_str());
                 }
                 std::fprintf(stderr, "error: JIT compile of %s failed (in %s)\n",
@@ -485,10 +459,10 @@ private:
             }
 
             size_t cubin_size;
-            NVRTC_SAFE_CALL(gpuRtcGetCodeSize(prog, &cubin_size));
+            GPU_RTC_CHECK(gpuRtcGetCodeSize(prog, &cubin_size));
             char *cubin = new char[cubin_size];
-            NVRTC_SAFE_CALL(gpuRtcGetCode(prog, cubin));
-            NVRTC_SAFE_CALL(gpuRtcDestroyProgram(&prog));
+            GPU_RTC_CHECK(gpuRtcGetCode(prog, cubin));
+            GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
 
             std::scoped_lock lock(kernels.m_mutex);
             auto [it, inserted] = kernels.m_kernels.emplace(
@@ -506,7 +480,7 @@ private:
         if (symbol == nullptr)
             return nullptr;
         T *data_d = nullptr;
-        CUDA_SAFE_CALL(gpuGetSymbolAddress((void **)&data_d, (const void *)symbol));
+        GPU_CHECK(gpuGetSymbolAddress((void **)&data_d, (const void *)symbol));
         return data_d;
     }
 
