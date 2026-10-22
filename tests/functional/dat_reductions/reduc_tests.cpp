@@ -41,6 +41,12 @@ void indirect_dat3_inc(float *n0i, float *n1i, const float *er) {
     n1i[d] += er[d];
   }
 }
+void indirect_dat1_opt_inc(float *n0i, float *n1i, const float *er, const int *on) {
+  if (*on) {
+    *n0i += (*er);
+    *n1i += (*er);
+  }
+}
 // A 16-wide count, whose scratch caps a GPU grid below the spoke count, so
 // a thread runs several spokes.
 void spoke_count(int *ni, int *lanes) {
@@ -74,6 +80,7 @@ int main(int argc, char **argv) {
 
   op_dat pn_dat1 = op_decl_dat(nodes, 1, "float", mesh.n_dat1.data(), "pn_dat1");
   op_dat pn_dat1_u = op_decl_dat(nodes, 1, "float", mesh.n_dat1.data(), "pn_dat1_u");
+  op_dat pn_dat1_o = op_decl_dat(nodes, 1, "float", mesh.n_dat1.data(), "pn_dat1_o");
   op_dat pn_dat3 = op_decl_dat(nodes, 3, "float", mesh.n_dat3.data(), "pn_dat3");
   op_dat pn_dat3_u = op_decl_dat(nodes, 3, "float", mesh.n_dat3.data(), "pn_dat3_u");
 
@@ -129,6 +136,27 @@ int main(int argc, char **argv) {
     }
 
     printf("indirect_dat1_inc passed [rank %d]\n", my_rank);
+  }
+
+  // --- Optional indirect Dat INC DIM=1, active then inactive: one pass, as above ---
+  {
+    for (int on = 1; on >= 0; --on)
+      op_par_loop(indirect_dat1_opt_inc, "indirect_dat1_opt_inc", edges,
+        op_opt_arg_dat(on, pn_dat1_o, 0, m_e2n, 1, "float", OP_INC),
+        op_opt_arg_dat(on, pn_dat1_o, 1, m_e2n, 1, "float", OP_INC),
+        op_arg_dat(pe_dat1,   -1, OP_ID, 1, "float", OP_READ),
+        op_arg_gbl(&on, 1, "int", OP_READ)
+      );
+
+    std::vector<float> fetched(node_size_inc_halo, 0.0);
+    std::vector<float> expected(node_size_inc_halo, 0.0);
+    op_fetch_data(pn_dat1_o, fetched.data());
+    op_fetch_data(pn_dat1_u, expected.data());
+
+    for (int i = 0; i < nodes->size; ++i)
+      check(fetched[i] == expected[i], i, my_rank, "indirect_dat1_opt_inc failed");
+
+    printf("indirect_dat1_opt_inc passed [rank %d]\n", my_rank);
   }
 
   // --- Indirect Dat INC DIM=3---
