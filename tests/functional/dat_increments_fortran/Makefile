@@ -5,7 +5,7 @@ include ../../../makefiles/common.mk
 APP_NAME := dat_increments
 APP_SRC := dat_increments.F90
 
-VARIANT_FILTER_OUT := mpi_% openmp
+VARIANT_FILTER_OUT := mpi_%
 
 include ../../../makefiles/f_app.mk
 
