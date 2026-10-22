@@ -194,7 +194,7 @@ public:
         for (std::size_t i = 0; i < m_ladder.size(); ++i)
             static_cast<StrategyBase&>(m_ladder[i]).release();
         for (auto event : m_events)
-            gpuEventDestroy(event);
+            CUDA_SAFE_CALL(gpuEventDestroy(event));
         m_events.clear();
     }
 };
