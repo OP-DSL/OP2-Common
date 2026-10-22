@@ -306,4 +306,4 @@ inline constexpr double tan(double x) { return ::tan(x); }
 inline constexpr float tanh(float x) { return tanhf(x); }
 inline constexpr double tanh(double x) { return ::tanh(x); }
 
-} // namespace op::prelude
+} // namespace op::f2c

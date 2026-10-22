@@ -34,14 +34,11 @@ namespace op::f2c {
    Thread indices are parameters rather than reads of threadIdx, which keeps
    the staging helpers compilable for the host. */
 
-// Carve the next region out of the shared buffer, advancing the cursor.
-// Every supported scalar type has alignof == sizeof, so one value does both.
-//
-// The padding is added to the pointer rather than rebuilding the pointer from
-// an aligned integer: an integer round trip hides that it points into shared
-// memory, and every increment through it then compiles to a run-time choice
-// between shared, cluster-shared and global atomics on a 64-bit generic address.
-// An empty region takes no padding, as the host sizes none for it.
+// Carve the next region out of the shared buffer, advancing the cursor
+// (alignof == sizeof for every supported scalar type).  Pad the pointer, not
+// an integer round trip of it: that hides that it points into shared memory,
+// so every increment through it becomes a generic atomic.  An empty region
+// takes no padding, as the host sizes none for it.
 template<typename T>
 DEVICE inline T *stage_region(char *&cursor, IndexType count, IndexType dim) {
     if (count == 0)

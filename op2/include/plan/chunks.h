@@ -3,8 +3,8 @@
 // The chunked strategies' building blocks: a loop's elements cut into chunks
 // inside its sections, the targets each chunk reaches, batches of chunks
 // that share none, a wavefront order over them, colours for a chunk's
-// elements, and the result a backend's plan comes back in.  Host algorithms with no device knowledge and no device limits;
-// a backend composes them into its plans and maps those onto its hardware.
+// elements, and the result a backend's plan comes back in.  Host algorithms
+// with no device limits, which a backend composes into its own plans.
 
 #include <loop/strategy.h>
 

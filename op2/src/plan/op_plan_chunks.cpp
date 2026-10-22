@@ -73,20 +73,8 @@ std::string_view grouped_references(std::span<const op_arg> args,
     if (!any_active)
         return "no_active_argument";
 
-    // The translator groups dat arguments by source expression, so two groups
-    // can still resolve to one runtime op_dat (the same dat passed through two
-    // dummy arguments, say).  Each group is planned from its own targets: a
-    // staged group owns an independent region, and a coloured group's
-    // conflicts are found only within it, so two groups on one dat could race
-    // on the same global address.
-    //
-    // An ungrouped argument on a grouped dat is a related hazard.  Colouring
-    // does not order it, and under staging its reads would miss increments
-    // still sitting in scratch.  That loop is already unsound under global
-    // atomics, but staging turns "possibly stale" into "certainly stale", so
-    // reject rather than change its behaviour.
-    //
-    // One pass answers both: every dat argument must map to at most one group.
+    // Groups are planned apart, so two resolving to one dat (passed through two
+    // dummy arguments) would race.
     std::unordered_map<const op_dat_core *, std::size_t> claimed;
     for (std::size_t index = 0; index < references.groups.size(); ++index) {
         const auto *dat = references.groups[index].dat;
@@ -94,8 +82,8 @@ std::string_view grouped_references(std::span<const op_arg> args,
             return "incompatible_argument";
     }
 
-    // An ungrouped indirect update of any dat is one the strategy would not
-    // order at all, so it is rejected too.
+    // Nothing orders an ungrouped argument: on a grouped dat it would read
+    // stale staged targets, and an indirect update would race.
     for (std::size_t index = 0; index < args.size(); ++index) {
         const op_arg& arg = args[index];
         if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.dat == nullptr ||
