@@ -162,10 +162,11 @@ class FortranOpenMP(Scheme):
     loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
     master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
 
-    # SIMD lanes sharing a read-write target would lose updates.
+    # SIMD lanes sharing a read-write target would lose updates, and an inactive
+    # optional argument has no data to copy.
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
-        if indirectRW(loop):
+        if indirectRW(loop) or any(getattr(arg, "opt", False) for arg in loop.args):
             config["vectorise"] = config["vectorise"] | {"enable": False}
         return config
 
