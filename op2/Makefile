@@ -69,10 +69,10 @@ clean:
 OP2_LOOP := $(addprefix $(OBJ)/loop/,\
 	op_loop_strategy.o \
 	op_loop_autotune.o) $(addprefix $(OBJ)/plan/,\
-	op_set_colouring.o \
-	op_chunks.o \
-	op_staging.o \
-	op_chunk_options.o)
+	op_plan_colouring.o \
+	op_plan_chunks.o \
+	op_plan_staging.o \
+	op_plan_options.o)
 
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\

@@ -49,10 +49,10 @@ _op2_preprocess_fortran(
 set(_op2_loop_srcs
     "${_src}/loop/op_loop_strategy.cpp"
     "${_src}/loop/op_loop_autotune.cpp"
-    "${_src}/plan/op_set_colouring.cpp"
-    "${_src}/plan/op_chunks.cpp"
-    "${_src}/plan/op_staging.cpp"
-    "${_src}/plan/op_chunk_options.cpp"
+    "${_src}/plan/op_plan_colouring.cpp"
+    "${_src}/plan/op_plan_chunks.cpp"
+    "${_src}/plan/op_plan_staging.cpp"
+    "${_src}/plan/op_plan_options.cpp"
 )
 
 # Core sources for every library with a backend; op_profile is here because
