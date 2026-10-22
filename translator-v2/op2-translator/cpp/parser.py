@@ -251,6 +251,9 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
     if opt and len(args) != 5:
         raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
+    if opt:
+        args = args[1:]
+
     ptr = parseIdentifier(args[0])
     dim = parseIntExpression(args[1])
     typ, _ = parseType(parseStringLit(args[2]), loc)
