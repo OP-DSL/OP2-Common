@@ -194,6 +194,9 @@ public:
         switch (m_source) {
         case ParamSource::scalar_arg:
             assert(m_arg_index >= 0 && m_arg_index < nargs);
+            // An inactive optional global's kernel never reads it.
+            if (args[m_arg_index].opt == 0)
+                return;
             assert(args[m_arg_index].data != nullptr);
             std::memcpy(m_data, args[m_arg_index].data, m_elem_size);
             return;

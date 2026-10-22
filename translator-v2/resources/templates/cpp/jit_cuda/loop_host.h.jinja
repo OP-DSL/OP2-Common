@@ -217,6 +217,8 @@ namespace op2_m_{{lh.name}}{{variant}} {
 {{kernel_wrapper(jit=true)}}
 )_op2_k";
 
+{# An inactive optional global may have no data, so its by-value argument
+   is read from the JIT's copy. #}
 {% macro kernel_arguments() %}
     {% for dat in lh.dats %}
         (void *)&args[{{dat.arg_id}}].data_d,
@@ -246,7 +248,12 @@ namespace op2_m_{{lh.name}}{{variant}} {
         (void *)&launch.end,
         (void *)&launch.set_stride,
     {% for arg in lh.args|gbl|read|scalar %}
+        {% if arg is opt %}
+        args[{{arg.id}}].opt ? (void *)args[{{arg.id}}].data
+                    : (void *)&op2_m_{{lh.name}}{{variant}}::op2_gbl{{arg.id}},
+        {% else %}
         (void *)args[{{arg.id}}].data,
+        {% endif %}
     {% endfor %}
 {%- endmacro %}
 
