@@ -179,10 +179,9 @@
 #define gpuDrvModule_t hipModule_t
 #define gpuDrvFunction_t hipFunction_t
 
-// HIP exposes the same attribute setter for runtime function pointers and
-// module function handles.
-#define gpuDrvFuncSetAttribute hipFuncSetAttribute
-#define gpuDrvFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
+// HIP has no attribute setter for a module function, and an AMD device needs
+// no opt-in for dynamic shared memory.
+#define gpuDrvFuncSetAttribute(function, attribute, value) hipSuccess
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData
