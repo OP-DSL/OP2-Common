@@ -179,6 +179,7 @@ void test_exploration() {
     int retired = 0;
     for (std::size_t i = 1; i < rows.size(); ++i) {
         CHECK(rows[i].rfind("flux,", 0) == 0);
+        CHECK(rows[i].find("chunk_colouring") == std::string::npos);
         selected_chunk += rows[i].find(",chunk_atomics=on,complete,") != std::string::npos;
         retired += rows[i].find(",no_kernel,") != std::string::npos;
     }

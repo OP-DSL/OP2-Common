@@ -212,7 +212,7 @@ void Autotuner::add_trials(State& state, const Configuration& configuration,
         Trial trial;
         trial.strategy = const_cast<Strategy *>(&m_ladder[i]);
         if (!m_ladder.explorable(i)) {
-            trial.reason = "disabled";
+            trial.off = true;
         } else if (trial.strategy == selection.strategy) {
             trial.candidate = true;
         } else {
@@ -315,7 +315,7 @@ std::string Autotuner::row(const State& state, const Summary& summary,
 std::string Autotuner::line(const State& state) const {
     std::string times;
     for (const auto& trial : state.trials) {
-        if (!trial.candidate && trial.reason == "disabled")
+        if (trial.off)
             continue;
 
         times += times.empty() ? "" : ", ";
@@ -363,7 +363,7 @@ void Autotuner::rows(std::vector<std::string>& out) const {
             continue;
         auto summary = summarise(state);
         for (const auto& trial : state.trials)
-            if (trial.candidate || trial.reason != "disabled")
+            if (!trial.off)
                 out.push_back(row(state, summary, trial));
     }
 }

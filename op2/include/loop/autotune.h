@@ -46,6 +46,8 @@ private:
     struct Trial {
         Strategy *strategy = nullptr;
         bool candidate = false;
+        // Turned off by its variable: never explored or reported.
+        bool off = false;
         // Why it is not a candidate, or was retired.
         std::string_view reason;
         int warmups = 0;

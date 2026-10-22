@@ -173,8 +173,8 @@ struct Prepared {
     // The strategy that prepared it, which runs it.
     Strategy *strategy = nullptr;
     Status status = Status::unavailable;
-    // A fixed identifier when not ready: "disabled", "low_compression",
-    // "compiling", ...
+    // A fixed identifier when not ready: "low_compression", "compiling",
+    // "kernel_unavailable", ...
     std::string_view reason;
     // The strategy's cached entry and kernel for the configuration.
     const void *entry = nullptr;
