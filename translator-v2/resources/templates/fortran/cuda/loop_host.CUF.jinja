@@ -108,6 +108,7 @@ err = cudaDeviceSynchronize()
 if (err /= 0) then
     print *, "error in gpu kernel: ", "{{lh.name}}"
     print *, cudaGetErrorString(err)
+    stop 1
 end if
 
 call processDeviceGbls(args, size(args), block_size * max_blocks, block_size * max_blocks)
@@ -326,7 +327,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         err = cudaDeviceSynchronize()
 
         if (err /= 0) then
+            print *, "error in gpu kernel: ", "{{lh.name}}"
             print *, cudaGetErrorString(err)
+            stop 1
         end if
 
         call op_profile_exit()
@@ -535,7 +538,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     err = cudaDeviceSynchronize()
 
     if (err /= 0) then
+        print *, "error in gpu kernel: ", "{{lh.name}}"
         print *, cudaGetErrorString(err)
+        stop 1
     end if
 
     call op_profile_exit()
