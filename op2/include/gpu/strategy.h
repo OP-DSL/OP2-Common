@@ -106,7 +106,8 @@ protected:
     // loop.
     bool m_unstaged_singles = false;
     bool m_wavefront = false;
-    JitKernels m_kernels;
+    OfflineKernel m_offline;
+    op::loop::JitCache<JitKernel> m_cache;
     Call m_call;
 
     StrategyBase(Loop& loop, const op::loop::Point& point, KernelSource source,
@@ -129,8 +130,7 @@ protected:
     // Whether no kernel can ever come about: no usable offline kernel, and
     // the JIT off.  A strategy that plans checks this before planning.
     bool never_available() const {
-        return !config().enable &&
-               !JitService::offline_usable(m_kernels, m_source, m_block_size);
+        return !op::loop::jit_policy().enable && !m_offline.usable(m_block_size);
     }
 
     op::loop::Prepared unavailable() {
@@ -172,7 +172,7 @@ public:
     int block_size() const { return m_block_size; }
 
     // Free device state while the device is up.
-    virtual void release() { m_kernels.join(); }
+    virtual void release() { m_cache.join(); }
 };
 
 // --- Plain and atomics ------------------------------------------------------------

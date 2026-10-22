@@ -40,8 +40,8 @@ bool parse_number(const char *variable, int& value);
 
 } // namespace env
 
-// Read the run-wide variables: OP_STRATEGY and the tuner's OP_AUTOTUNE*.
-// op_init calls it; a later call reads them again.
+// Read the run-wide variables: OP_STRATEGY, the tuner's OP_AUTOTUNE* and the
+// JIT's OP_JIT_*.  op_init calls it; a later call reads them again.
 void init();
 
 // --- One call -----------------------------------------------------------------

@@ -64,11 +64,13 @@ clean:
 	-rm -rf $(LIB)
 	-rm -rf $(MOD)
 
-# Backend-neutral par_loop support: the strategy ladder and tuner, and the
-# planning building blocks the backends' strategies compose
+# Backend-neutral par_loop support: the strategy ladder and tuner, the JIT's
+# policy, parameters and build cache, and the planning building blocks the
+# backends' strategies compose
 OP2_LOOP := $(addprefix $(OBJ)/loop/,\
 	op_loop_strategy.o \
-	op_loop_autotune.o) $(addprefix $(OBJ)/plan/,\
+	op_loop_autotune.o \
+	op_loop_jit.o) $(addprefix $(OBJ)/plan/,\
 	op_plan_colouring.o \
 	op_plan_chunks.o \
 	op_plan_staging.o \

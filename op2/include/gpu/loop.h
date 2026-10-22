@@ -1,8 +1,8 @@
 #pragma once
 
 // The CUDA and HIP backend's loop: the object the generated code builds per
-// par_loop, from plain data, holding the ladder, the tuner and the JIT
-// service, and running one call through them.
+// par_loop, from plain data, holding the ladder, the tuner and its JIT, and
+// running one call through them.
 
 #include <gpu/check.h>
 #include <gpu/jit.h>
@@ -30,7 +30,7 @@ private:
     LoopDescription m_description;
     op::loop::Ladder m_ladder;
     std::optional<op::loop::Autotuner> m_tuner;
-    JitService m_jit;
+    Jit m_jit;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
     // A launch's kernel arguments, filled by the binders.
@@ -90,7 +90,7 @@ public:
                      });
     }
 
-    JitService& jit() { return m_jit; }
+    Jit& jit() { return m_jit; }
 
     // --- For the strategies ---
 
@@ -205,9 +205,8 @@ public:
 inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
                                   KernelSource source, Binder bind)
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
-      m_block_size{point.values[0]} {
-    m_kernels.register_offline(source.offline);
-}
+      m_block_size{point.values[0]}, m_offline{source.offline},
+      m_cache{source.name, config().build_threads} {}
 
 inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
     m_call = {};
@@ -220,18 +219,32 @@ inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
 inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
                                                 const void *entry) {
     m_call.global_stride = m_block_size * m_call.max_blocks;
-    auto acquired =
-        m_loop.jit().acquire(m_kernels, m_source, launch_values(), urgency);
-
     op::loop::Prepared prepared;
     prepared.strategy = this;
-    prepared.status = acquired.status;
     prepared.entry = entry;
+
+    // Specialise when no offline kernel can run, when forced, or when the
+    // offline kernel's registers say a compile pays.
+    const auto& policy = op::loop::jit_policy();
+    bool offline = m_offline.usable(m_block_size);
+    if (!policy.enable ||
+        (offline && !policy.force && m_offline.registers() <= config().min_registers)) {
+        if (offline)
+            prepared.status = op::loop::Status::ready;
+        else
+            prepared.reason = "kernel_unavailable";
+        return prepared;
+    }
+
+    auto& jit = m_loop.jit();
+    auto& params = jit.params();
+    params.apply(launch_values().slots());
+    auto acquired = m_cache.acquire(params.hash(), urgency, offline, [&] {
+        return jit.compiler().job(params, m_source);
+    });
+    prepared.status = acquired.status;
     prepared.kernel = acquired.kernel;
-    if (acquired.status == op::loop::Status::pending)
-        prepared.reason = "compiling";
-    else if (acquired.status == op::loop::Status::unavailable)
-        prepared.reason = "kernel_unavailable";
+    prepared.reason = acquired.reason;
     return prepared;
 }
 
@@ -249,8 +262,8 @@ inline void StrategyBase::launch(const op::loop::Prepared& prepared,
     }
 
     op_profile_next("Offline Kernel");
-    m_kernels.launch_offline(m_source.offline, geometry.blocks, m_block_size,
-                             arguments.data(), geometry.shared_bytes);
+    m_offline.launch(geometry.blocks, m_block_size, arguments.data(),
+                     geometry.shared_bytes);
 }
 
 template<typename Launches, typename Fill>

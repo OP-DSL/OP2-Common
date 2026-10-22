@@ -18,6 +18,10 @@ loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
                         registry)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate strategy per configuration)
+loop/jit.h             (includes: loop/strategy.h; the JIT's policy, read by
+                        op_init, the parameters a loop's kernels are
+                        specialised on, and a strategy's cache of built
+                        kernels; a backend supplies the mechanism)
 ```
 
 #### Planning building blocks, backend neutral (sources under src/plan)
@@ -58,10 +62,12 @@ kernel/jit_embed.h     (embeds the three kernel headers as text for NVRTC;
 #### CUDA and HIP backend of the translated kernels
 ```
 gpu/shims.h            (gpu* aliases over the CUDA or HIP runtime)
-gpu/config.h           (the run-wide configuration: JIT policy, device,
-                        wavefront window; read by op_init, from src/gpu)
-gpu/jit.h              (includes: gpu/config.h, gpu/shims.h; the JIT
-                        service: parameters, compiles and every JIT policy)
+gpu/config.h           (the run-wide configuration: the JIT mechanism's
+                        settings, device, wavefront window; read by op_init,
+                        from src/gpu)
+gpu/jit.h              (includes: gpu/config.h, gpu/shims.h, loop/jit.h; the
+                        JIT mechanism: offline kernels and their symbols,
+                        NVRTC or hipRTC compiles, launches)
 gpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
                         plans under the device's limits: block multiples,
                         shared memory, 16-bit stage words, 8-bit colours)

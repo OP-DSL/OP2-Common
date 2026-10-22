@@ -1,6 +1,7 @@
 #include <loop/strategy.h>
 
 #include <loop/autotune.h>
+#include <loop/jit.h>
 
 #include <algorithm>
 #include <cassert>
@@ -365,6 +366,7 @@ void init() {
             strategy_items.emplace_back(item);
     }
     init_autotune_config();
+    init_jit_policy();
 }
 
 Ladder::Ladder(std::string_view loop_name)

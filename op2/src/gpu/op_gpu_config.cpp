@@ -2,6 +2,7 @@
 
 #include <gpu/check.h>
 #include <gpu/shims.h>
+#include <loop/jit.h>
 #include <loop/strategy.h>
 #include <op_lib_core.h>
 
@@ -22,21 +23,11 @@ void init() {
     auto& config = run_config;
     config = {};
 
+    // NVRTC compiles in parallel from CUDA 12.3; earlier, and hipRTC, still
+    // gain from a few at once.
 #if defined(OP2_CUDA) && CUDART_VERSION >= 12030
-    config.max_threads = 16;
+    config.build_threads = 16;
 #endif
-    env::parse_bool("OP_JIT_ENABLE", config.enable);
-    if (!config.enable)
-        op_printf("Disabling JIT compilation\n");
-    env::parse_bool("OP_JIT_DEBUG", config.debug);
-    if (config.debug)
-        op_printf("Enabling JIT debug\n");
-    env::parse_bool("OP_JIT_SEQ_COMPILE", config.seq_compile);
-    env::parse_bool("OP_JIT_FORCE", config.force);
-    if (config.force)
-        op_printf("Forcing JIT compilation regardless of register count\n");
-    env::parse_number("OP_JIT_MAX_THREADS", config.max_threads);
-    env::parse_number("OP_JIT_MIN_CALLS", config.min_calls);
     env::parse_number("OP_JIT_MIN_REGISTERS", config.min_registers);
 
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", config.window);
@@ -59,7 +50,7 @@ void init() {
 
 #ifdef OP2_CUDA
     config.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);
-    if (config.debug)
+    if (op::loop::jit_policy().debug)
         op_printf("JIT arch flag: %s\n", config.arch.c_str());
 #endif
 }
