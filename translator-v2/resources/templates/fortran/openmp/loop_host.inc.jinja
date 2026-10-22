@@ -47,6 +47,40 @@ dat{{dat.id}}_dim
     {%- endif -%}
 {%- endmacro -%}
 
+{%- macro gbl_dim(arg) -%}
+    {%- if arg.dim is not none -%}
+{{arg.dim}}
+    {%- else -%}
+arg{{arg.id}}%dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro gbl_dim_w(arg) -%}
+    {%- if arg.dim is not none -%}
+{{arg.dim}}
+    {%- else -%}
+arg{{arg.id}}_dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- Each thread's slot of a reduction's scratch, padded to 64 elements, and
+    the offset of its last element. -#}
+{%- macro gbl_slot_w(arg) -%}
+    {%- if arg.dim is not none -%}
+{{arg.dim|round_up(64)}}
+    {%- else -%}
+((arg{{arg.id}}_dim + 63) / 64 * 64)
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro gbl_last_w(arg) -%}
+    {%- if arg.dim is not none -%}
+{{arg.dim - 1}}
+    {%- else -%}
+arg{{arg.id}}_dim - 1
+    {%- endif -%}
+{%- endmacro -%}
+
 {% set vectorise = config.vectorise.enable and lh.kernel not in config.vectorise.blacklist %}
 
 #define SIMD_LEN {{config.vectorise.simd_len}}
@@ -87,6 +121,9 @@ subroutine {{lh.kernel}}_wrapper2( &
 {% for dat in lh.dats if dat.dim is none %}
     dat{{dat.id}}_dim, &
 {% endfor %}
+{% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+    arg{{arg.id}}_dim, &
+{% endfor %}
     start, &
     end &
 )
@@ -96,6 +133,9 @@ subroutine {{lh.kernel}}_wrapper2( &
 {% for dat in lh.dats if dat.dim is none %}
     integer(4) :: dat{{dat.id}}_dim
 {% endfor %}
+{% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+    integer(4) :: arg{{arg.id}}_dim
+{% endfor %}
 {% for dat in lh.dats %}
     {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
@@ -103,10 +143,10 @@ subroutine {{lh.kernel}}_wrapper2( &
     integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension({{gbl_dim_w(arg)}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|info %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: info{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension({{gbl_dim_w(arg)}}) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     integer(4) :: start, end
 
@@ -119,10 +159,10 @@ subroutine {{lh.kernel}}_wrapper2( &
     {{lh.dat(arg).typ}}, dimension(SIMD_LEN, {{dat_dim_w(lh.dat(arg))}}) :: arg{{arg.id}}_local
     {% endfor %}
     {% for arg in lh.args|gbl|reduction %}
-    {{arg.typ}}, dimension(SIMD_LEN, {{arg.dim}}) :: arg{{arg.id}}_local
+    {{arg.typ}}, dimension(SIMD_LEN, {{gbl_dim_w(arg)}}) :: arg{{arg.id}}_local
     {% endfor %}
     {% for arg in lh.args|info %}
-    {{arg.typ}}, dimension(SIMD_LEN, {{arg.dim}}) :: info{{arg.id}}_local
+    {{arg.typ}}, dimension(SIMD_LEN, {{gbl_dim_w(arg)}}) :: info{{arg.id}}_local
     {% endfor %}
 
     block = start
@@ -216,6 +256,9 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for dat in lh.dats if dat.dim is none %}
     dat{{dat.id}}_dim, &
 {% endfor %}
+{% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+    arg{{arg.id}}_dim, &
+{% endfor %}
     set, &
     args, &
     num_dats_indirect, &
@@ -229,6 +272,9 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for dat in lh.dats if dat.dim is none %}
     integer(4) :: dat{{dat.id}}_dim
 {% endfor %}
+{% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+    integer(4) :: arg{{arg.id}}_dim
+{% endfor %}
 {% for dat in lh.dats %}
     {{dat.typ}}, dimension({{dat_dim_w(dat)}}, *) :: dat{{dat.id}}{{"\n" if loop.last}}
 {% endfor %}
@@ -236,10 +282,10 @@ subroutine {{lh.kernel}}_wrapper( &
     integer(4), dimension(:, :) :: map{{map.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension({{gbl_dim_w(arg)}}) :: gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|info %}
-    {{arg.typ}}, dimension({{arg.dim}}) :: info{{arg.id}}{{"\n" if loop.last}}
+    {{arg.typ}}, dimension({{gbl_dim_w(arg)}}) :: info{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
     type(op_set) :: set
     type(op_arg), dimension({{lh.args|length}}) :: args
@@ -293,20 +339,20 @@ subroutine {{lh.kernel}}_wrapper( &
 
 {% endif %}
 {% for arg in lh.args|gbl|reduction %}
-    allocate(gbl{{arg.id}}_temp(num_threads * {{arg.dim|round_up(64)}}))
+    allocate(gbl{{arg.id}}_temp(num_threads * {{gbl_slot_w(arg)}}))
     {% if arg is inc %}
     gbl{{arg.id}}_temp = 0
     {% else %}
 
     do thread = 1, num_threads
-        start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
-        gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}) = gbl{{arg.id}}
+        start = (thread - 1) * {{gbl_slot_w(arg)}} + 1
+        gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}}) = gbl{{arg.id}}
     end do
     {% endif %}
 
 {% endfor %}
 {% for arg in lh.args|info %}
-    allocate(info{{arg.id}}_temp(num_threads * {{arg.dim|round_up(64)}}))
+    allocate(info{{arg.id}}_temp(num_threads * {{gbl_slot_w(arg)}}))
 
 {% endfor %}
 {% if lh is direct %}
@@ -321,16 +367,19 @@ subroutine {{lh.kernel}}_wrapper( &
     {% endfor %}
     {% for arg in lh.args|gbl %}
         {% if arg is reduction %}
-            gbl{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
+            gbl{{arg.id}}_temp(omp_get_thread_num() * {{gbl_slot_w(arg)}} + 1), &
         {% else %}
             gbl{{arg.id}}, &
         {% endif %}
     {% endfor %}
     {% for arg in lh.args|info %}
-            info{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
+            info{{arg.id}}_temp(omp_get_thread_num() * {{gbl_slot_w(arg)}} + 1), &
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none %}
             dat{{dat.id}}_dim, &
+    {% endfor %}
+    {% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+            arg{{arg.id}}_dim, &
     {% endfor %}
             start, &
             end &
@@ -339,19 +388,19 @@ subroutine {{lh.kernel}}_wrapper( &
 {% for arg in lh.args|gbl|reduction %}
 
     do thread = 1, num_threads
-        start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
+        start = (thread - 1) * {{gbl_slot_w(arg)}} + 1
     {% if arg is inc %}
-        gbl{{arg.id}} = gbl{{arg.id}} + gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}})
+        gbl{{arg.id}} = gbl{{arg.id}} + gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}})
     {% else %}
         {% if lh.args|info|count > 0 %}
         {%- set info_arg = (lh.args | info)[0] %}
-        where (gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}) {{">" if arg is max else "<" }} gbl{{arg.id}}(:))
-            gbl{{arg.id}}(:) = gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}})
-            info{{info_arg.id}}(:) = info{{info_arg.id}}_temp(start : start + {{arg.dim - 1}})
+        where (gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}}) {{">" if arg is max else "<" }} gbl{{arg.id}}(:))
+            gbl{{arg.id}}(:) = gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}})
+            info{{info_arg.id}}(:) = info{{info_arg.id}}_temp(start : start + {{gbl_last_w(arg)}})
         end where
         {% else %}
         gbl{{arg.id}} = {{arg.access_type.name-}}
-            (gbl{{arg.id}}, gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}))
+            (gbl{{arg.id}}, gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}}))
         {% endif %}
     {% endif %}
     end do
@@ -382,13 +431,16 @@ subroutine {{lh.kernel}}_wrapper( &
     {% endfor %}
     {% for arg in lh.args|gbl %}
         {% if arg is reduction %}
-                gbl{{arg.id}}_temp(omp_get_thread_num() * {{arg.dim|round_up(64)}} + 1), &
+                gbl{{arg.id}}_temp(omp_get_thread_num() * {{gbl_slot_w(arg)}} + 1), &
         {% else %}
                 gbl{{arg.id}}, &
         {% endif %}
     {% endfor %}
     {% for dat in lh.dats if dat.dim is none %}
                 dat{{dat.id}}_dim, &
+    {% endfor %}
+    {% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+                arg{{arg.id}}_dim, &
     {% endfor %}
                 offset, &
                 offset + num_elem - 1 &
@@ -405,12 +457,12 @@ subroutine {{lh.kernel}}_wrapper( &
     {% for arg in lh.args|gbl|reduction %}
 
         do thread = 1, num_threads
-            start = (thread - 1) * {{arg.dim|round_up(64)}} + 1
+            start = (thread - 1) * {{gbl_slot_w(arg)}} + 1
         {% if arg is inc %}
-            gbl{{arg.id}} = gbl{{arg.id}} + gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}})
+            gbl{{arg.id}} = gbl{{arg.id}} + gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}})
         {% else %}
             gbl{{arg.id}} = {{arg.access_type.name-}}
-                (gbl{{arg.id}}, gbl{{arg.id}}_temp(start : start + {{arg.dim - 1}}))
+                (gbl{{arg.id}}, gbl{{arg.id}}_temp(start : start + {{gbl_last_w(arg)}}))
         {% endif %}
         end do
     {% endfor %}
@@ -499,10 +551,10 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
         {{-"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|gbl %}
-    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
+    call c_f_pointer(arg{{arg.id}}%data, gbl{{arg.id}}, (/{{gbl_dim(arg)}}/)){{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|info %}
-    call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{arg.dim}}/)){{"\n" if loop.last}}
+    call c_f_pointer(arg{{arg.id}}%data, info{{arg.id}}, (/{{gbl_dim(arg)}}/)){{"\n" if loop.last}}
 {% endfor %}
     call {{lh.kernel}}_wrapper( &
         name, &
@@ -520,6 +572,9 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endfor %}
 {% for dat in lh.dats if dat.dim is none %}
         dat{{dat.id}}_dim, &
+{% endfor %}
+{% for arg in lh.args|select2("gbl", "info") if arg.dim is none %}
+        arg{{arg.id}}%dim, &
 {% endfor %}
         set, &
         args, &
