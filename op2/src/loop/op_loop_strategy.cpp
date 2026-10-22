@@ -1,9 +1,11 @@
 #include <loop/strategy.h>
 
+#include <extern/rapidhash.h>
 #include <loop/autotune.h>
 #include <loop/jit.h>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cctype>
 #include <cstdio>
@@ -94,32 +96,32 @@ std::uint64_t Configuration::key() const {
     if (m_keyed)
         return m_key;
 
-    // FNV-1a over the words that shape the call.
-    std::uint64_t hash = 14695981039346656037ull;
-    auto mix = [&](std::uint64_t word) {
-        for (int byte = 0; byte < 8; ++byte) {
-            hash ^= (word >> (8 * byte)) & 0xff;
-            hash *= 1099511628211ull;
-        }
-    };
-
-    mix(static_cast<std::uint64_t>(set->index));
-    mix(static_cast<std::uint64_t>(run_size));
+    // The words that shape the call, hashed a buffer at a time.
+    constexpr std::size_t arg_words = 7;
+    std::array<std::int32_t, 2 + 32 * arg_words> words;
+    std::size_t count = 0;
+    std::uint64_t hash = RAPID_SEED;
+    words[count++] = set->index;
+    words[count++] = run_size;
     for (const op_arg& arg : args) {
-        mix(static_cast<std::uint64_t>(arg.opt));
+        if (count + arg_words > words.size()) {
+            hash = rapidhash_withSeed(words.data(), count * sizeof(words[0]), hash);
+            count = 0;
+        }
+        words[count++] = arg.opt;
         if (arg.opt == 0)
             continue;
-        mix(static_cast<std::uint64_t>(arg.argtype));
-        mix(static_cast<std::uint64_t>(arg.dat != nullptr ? arg.dat->index : -1));
-        mix(static_cast<std::uint64_t>(arg.map != nullptr ? arg.map->index : -1));
-        mix(static_cast<std::uint64_t>(arg.idx));
-        mix(static_cast<std::uint64_t>(arg.acc));
-        mix(static_cast<std::uint64_t>(arg.dim));
+        words[count++] = arg.argtype;
+        words[count++] = arg.dat != nullptr ? arg.dat->index : -1;
+        words[count++] = arg.map != nullptr ? arg.map->index : -1;
+        words[count++] = arg.idx;
+        words[count++] = arg.acc;
+        words[count++] = arg.dim;
     }
 
-    m_key = hash;
+    m_key = rapidhash_withSeed(words.data(), count * sizeof(words[0]), hash);
     m_keyed = true;
-    return hash;
+    return m_key;
 }
 
 std::string Configuration::describe() const {

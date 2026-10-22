@@ -1,3 +1,5 @@
+#pragma once
+
 /*
  * rapidhash - Very fast, high quality, platform-independent hashing algorithm.
  * Copyright (C) 2024 Nicolas De Carli
