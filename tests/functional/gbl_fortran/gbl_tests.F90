@@ -40,6 +40,8 @@ program gbl_tests_fortran
   real(8), dimension(5) :: expected5
   real(8) :: expected
   integer :: i, d
+  ! Not a literal, so the translator sees these dimensions as run-time ones.
+  integer(4) :: gdim
   integer :: local_size
   integer :: my_rank
   integer :: comm_size
@@ -181,6 +183,46 @@ program gbl_tests_fortran
     call check(abs(g_max5(d) - expected5(d)) < tol, d - 1, "max5 failed")
   end do
   write(*,*) "max5 passed"
+
+  ! --- Run-time dimensions ---
+  gdim = 5
+  g_read5 = (/ 31.0d0, 41.0d0, 51.0d0, 61.0d0, 71.0d0 /)
+  call op_par_loop_2(read5_k, set, &
+    op_arg_dat(dat5, -1, OP_ID, 5, "real(8)", OP_WRITE), &
+    op_arg_gbl(g_read5, gdim, "real(8)", OP_READ))
+
+  call op_fetch_data(dat5, fetched5)
+  do i = 1, local_size
+    do d = 1, 5
+      call check(abs(fetched5((i - 1) * 5 + d) - g_read5(d)) < tol, &
+        (i - 1) * 5 + (d - 1), "read5 run-time dimension failed")
+    end do
+  end do
+
+  g_inc5 = 0.0d0
+  call op_par_loop_2(inc5_k, set, &
+    op_arg_dat(dat_iota5, -1, OP_ID, 5, "real(8)", OP_READ), &
+    op_arg_gbl(g_inc5, gdim, "real(8)", OP_INC))
+
+  expected5 = 0.0d0
+  do i = 0, gbl_size - 1
+    do d = 1, 5
+      expected5(d) = expected5(d) + real(i * 5 + (d - 1), 8)
+    end do
+  end do
+  do d = 1, 5
+    call check(abs(g_inc5(d) - expected5(d)) < tol, d - 1, "inc5 run-time dimension failed")
+  end do
+
+  g_min5 = huge(g_min5)
+  call op_par_loop_2(min5_k, set, &
+    op_arg_dat(dat_iota5, -1, OP_ID, 5, "real(8)", OP_READ), &
+    op_arg_gbl(g_min5, gdim, "real(8)", OP_MIN))
+
+  do d = 1, 5
+    call check(abs(g_min5(d) - real(d - 1, 8)) < tol, d - 1, "min5 run-time dimension failed")
+  end do
+  write(*,*) "run-time dimensions passed"
 
   call op_profile_end()
   
