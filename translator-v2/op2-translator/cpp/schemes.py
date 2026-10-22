@@ -8,11 +8,15 @@ from store import Application, ParseError, Program
 from target import Target
 
 
+def indirectRW(loop: OP.Loop) -> bool:
+    return any(isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW
+               for arg in loop.args)
+
+
 # Atomics serve only the increments: a loop that reads and writes an indirect
 # dat is coloured.
 def colourIndirectRW(config: Dict[str, Any], loop: OP.Loop) -> None:
-    if any(isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW
-           for arg in loop.args):
+    if indirectRW(loop):
         config["atomics"] = False
         config["color2"] = True
 
@@ -57,6 +61,13 @@ class CppOpenMP(Scheme):
     consts_template = None
     loop_host_templates = [Path("cpp/openmp/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/openmp/master_kernel.cpp.jinja")]
+
+    # SIMD lanes sharing a read-write target would lose updates.
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        if indirectRW(loop):
+            config["vectorise"] = config["vectorise"] | {"enable": False}
+        return config
 
     def translateKernel(
         self,
