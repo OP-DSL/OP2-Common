@@ -9,6 +9,9 @@
 
 #include "../utility.h"
 
+#include <cstdint>
+#include <cstring>
+
 #define TOL 1e-9
 
 // --- Utility functions ---
@@ -53,6 +56,11 @@ void max5(const double *dat, double *g) {
     g[i] = MAX(g[i], dat[i]);
 }
 
+void read_nonfinite(double *d, float *f, const double *gd, const float *gf) {
+  *d = *gd;
+  *f = *gf;
+}
+
 void opt_read_inc(const double *dat, const double *g, double *sum, const int *on) {
   if (*on)
     *sum += *dat + *g;
@@ -89,6 +97,11 @@ int main(int argc, char **argv) {
 
   op_dat dat_iota1 = op_decl_dat(set, 1, "double", data1.data(), "dat_iota1");
   op_dat dat_iota5 = op_decl_dat(set, 5, "double", data5.data(), "dat_iota5");
+
+  std::vector<double> data_nf_d(local_size, 0.0);
+  std::vector<float> data_nf_f(local_size, 0.0f);
+  op_dat dat_nf_d = op_decl_dat(set, 1, "double", data_nf_d.data(), "dat_nf_d");
+  op_dat dat_nf_f = op_decl_dat(set, 1, "float", data_nf_f.data(), "dat_nf_f");
 
   op_partition("", "", NULL, NULL, NULL);
   
@@ -222,6 +235,34 @@ int main(int argc, char **argv) {
     }
 
     printf("max5 passed\n");
+  }
+
+  // --- READ of non-finite values, which a JIT kernel has as constants ---
+  {
+    double g_ninf = -std::numeric_limits<double>::infinity();
+    const uint32_t nan_bits = 0x7fc00123u;
+    float g_nan;
+    std::memcpy(&g_nan, &nan_bits, sizeof(g_nan));
+
+    // Enough calls for the loop to reach its JIT kernel.
+    for (int pass = 0; pass < 12; ++pass)
+      op_par_loop(read_nonfinite, "read_nonfinite", set,
+                op_arg_dat(dat_nf_d, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(dat_nf_f, -1, OP_ID, 1, "float", OP_WRITE),
+                op_arg_gbl(&g_ninf, 1, "double", OP_READ),
+                op_arg_gbl(&g_nan, 1, "float", OP_READ));
+
+    std::vector<double> fetched_d(local_size);
+    std::vector<float> fetched_f(local_size);
+    op_fetch_data(dat_nf_d, fetched_d.data());
+    op_fetch_data(dat_nf_f, fetched_f.data());
+    for (int i = 0; i < set->size; ++i) {
+      uint32_t bits;
+      std::memcpy(&bits, &fetched_f[i], sizeof(bits));
+      check(fetched_d[i] == g_ninf && bits == nan_bits, i, "read_nonfinite failed");
+    }
+
+    printf("read_nonfinite passed\n");
   }
 
   // --- Optional READ and INC, active then inactive; the inactive READ has no data ---

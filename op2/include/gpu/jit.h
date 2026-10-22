@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -263,6 +264,21 @@ public:
         __builtin_unreachable();
     }
 
+    // A finite value in hexfloat, exactly; a NaN or infinity, which hexfloat
+    // writes as a word no compiler reads, as its bits.
+    template <typename Bits, typename T>
+    static void format_float(std::ostream& os, T value, const char *type,
+                             const char *suffix) {
+        if (std::isfinite(value)) {
+            os << std::hexfloat << value;
+            return;
+        }
+        Bits bits;
+        std::memcpy(&bits, &value, sizeof(bits));
+        os << "__builtin_bit_cast(" << type << ", 0x" << std::hex << bits
+           << std::dec << suffix << ")";
+    }
+
     std::string format_value() const {
         std::ostringstream os;
         if (m_array)
@@ -272,8 +288,12 @@ public:
             switch (m_type) {
             case ParamType::i32:     os << *((const int *)elem); break;
             case ParamType::i64:     os << *((const int64_t *)elem); break;
-            case ParamType::f32:     os << std::hexfloat << *((const float *)elem); break;
-            case ParamType::f64:     os << std::hexfloat << *((const double *)elem); break;
+            case ParamType::f32:
+                format_float<uint32_t>(os, *((const float *)elem), "float", "u");
+                break;
+            case ParamType::f64:
+                format_float<uint64_t>(os, *((const double *)elem), "double", "ull");
+                break;
             case ParamType::logical: os << std::boolalpha << *((const bool *)elem); break;
             }
             if (m_array && i < m_n_elems - 1)
