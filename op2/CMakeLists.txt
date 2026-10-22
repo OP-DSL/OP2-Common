@@ -430,15 +430,18 @@ if(CMAKE_Fortran_COMPILER)
 
     # --- op2_for_openmp ---
     # No source here uses OpenMP - the !$omp directives live in generated
-    # kernels, so this link is a usage requirement, not a build need.
-    if(OpenMP_Fortran_FOUND)
+    # kernels, so this link is a usage requirement, not a build need.  c_openmp
+    # links it too, its threads in generated C++, so C++ OpenMP alone will do.
+    if(OpenMP_Fortran_FOUND OR OpenMP_CXX_FOUND)
         add_library(op2_for_openmp
             ${_op2_core_srcs}
             ${_op2_backend_openmp_srcs}
             ${_op2_fortran_base_srcs}
             ${_op2_fortran_cuda_stub_srcs})
         _op2_configure_fortran_target(op2_for_openmp)
-        target_link_libraries(op2_for_openmp PUBLIC OpenMP::OpenMP_Fortran)
+        if(OpenMP_Fortran_FOUND)
+            target_link_libraries(op2_for_openmp PUBLIC OpenMP::OpenMP_Fortran)
+        endif()
         _op2_register_for(op2_for_openmp)
     endif()
 
