@@ -16,7 +16,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -86,7 +85,11 @@ public:
         return m_function != nullptr && block_size <= m_attributes.maxThreadsPerBlock;
     }
 
-    int registers() const { return m_attributes.numRegs; }
+    // The prior for when a specialised kernel pays: more registers than
+    // OP_JIT_MIN_REGISTERS.
+    bool worth_specialising() const {
+        return m_attributes.numRegs > config().min_registers;
+    }
 
     void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
         assert(m_function != nullptr);
@@ -222,7 +225,8 @@ private:
             }
             std::fprintf(stderr, "error: JIT compile of %s failed (in %s)\n",
                          name.c_str(), m_loop.c_str());
-            std::exit(1);
+            GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
+            return nullptr;
         }
 
         size_t cubin_size;
@@ -238,7 +242,8 @@ public:
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
     // The job that builds source's kernel with the parameters' current
-    // values baked in.
+    // values baked in; it prints the compiler's log and returns none when
+    // the compile fails.
     auto job(const op::loop::ParamSet& params, const KernelSource& source) const {
         std::string text = std::string("#include <kernel/prelude.h>\n"
                                        "#include <kernel/strategy.h>\n") +

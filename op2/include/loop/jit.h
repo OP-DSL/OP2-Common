@@ -40,6 +40,13 @@ struct JitPolicy {
     // OP_JIT_MAX_THREADS: builds on threads at once, across every cache; the
     // mechanism's default when unset.
     std::optional<int> max_threads;
+
+    // Whether a strategy's kernel is specialised: the JIT is on, and no
+    // offline kernel can run, the run forces it, or the mechanism's prior
+    // says a build pays.
+    bool specialise(bool offline, bool prior) const {
+        return enable && (!offline || force || prior);
+    }
 };
 
 const JitPolicy& jit_policy();

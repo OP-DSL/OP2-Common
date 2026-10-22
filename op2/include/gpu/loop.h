@@ -223,12 +223,8 @@ inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
     prepared.strategy = this;
     prepared.entry = entry;
 
-    // Specialise when no offline kernel can run, when forced, or when the
-    // offline kernel's registers say a compile pays.
-    const auto& policy = op::loop::jit_policy();
     bool offline = m_offline.usable(m_block_size);
-    if (!policy.enable ||
-        (offline && !policy.force && m_offline.registers() <= config().min_registers)) {
+    if (!op::loop::jit_policy().specialise(offline, m_offline.worth_specialising())) {
         if (offline)
             prepared.status = op::loop::Status::ready;
         else

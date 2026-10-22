@@ -17,7 +17,7 @@ endfunction()
 
 # Runtime tests of the GPU backend: a loop built from test kernels, run
 # offline and with every kernel compiled on its first call.
-foreach(_test dynamic_smem_launch chunk_strategy)
+foreach(_test dynamic_smem_launch chunk_strategy jit_build_failure)
     add_executable(${_test} ${_test}.cu)
     target_link_libraries(${_test} PRIVATE op2_cuda CUDA::nvrtc CUDA::cuda_driver)
     target_compile_definitions(${_test} PRIVATE OP2_CUDA)
