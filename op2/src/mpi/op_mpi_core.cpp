@@ -1124,7 +1124,8 @@ extern "C++" {
    below only names the MPI datatype. */
 template <typename T>
 static void reduce_gbl(op_arg *arg, MPI_Datatype type) {
-  if (OP_disable_mpi_reductions || arg->data == NULL)
+  // An inactive optional argument has nothing to reduce.
+  if (OP_disable_mpi_reductions || arg->opt == 0 || arg->data == NULL)
     return;
   op_timers_core(&c1, &t1);
   if (arg->argtype == OP_ARG_GBL) {
