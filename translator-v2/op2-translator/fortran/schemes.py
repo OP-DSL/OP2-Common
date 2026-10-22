@@ -188,7 +188,8 @@ class FortranOpenMP(Scheme):
 
         ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
-        if not config["vectorise"]:
+        vectorise = config["vectorise"]
+        if not vectorise["enable"] or loop.kernel in vectorise["blacklist"]:
             return ftk.writeSource(kernel_entities + dependencies)
 
         simd_kernel_entities = copy.deepcopy(kernel_entities)
