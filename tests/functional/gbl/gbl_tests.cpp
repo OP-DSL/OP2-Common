@@ -53,6 +53,11 @@ void max5(const double *dat, double *g) {
     g[i] = MAX(g[i], dat[i]);
 }
 
+void opt_read_inc(const double *dat, const double *g, double *sum, const int *on) {
+  if (*on)
+    *sum += *dat + *g;
+}
+
 // --- main ---
 int main(int argc, char **argv) {
 
@@ -217,6 +222,26 @@ int main(int argc, char **argv) {
     }
 
     printf("max5 passed\n");
+  }
+
+  // --- Optional READ and INC, active then inactive; the inactive READ has no data ---
+  {
+    double g_read = 2.0;
+    double g_sum = 0.0;
+
+    for (int on = 1; on >= 0; --on) {
+      double *g_read_ptr = on ? &g_read : nullptr;
+      op_par_loop(opt_read_inc, "opt_read_inc", set,
+                op_arg_dat(dat_iota1, -1, OP_ID, 1, "double", OP_READ),
+                op_opt_arg_gbl(on, g_read_ptr, 1, "double", OP_READ),
+                op_opt_arg_gbl(on, &g_sum, 1, "double", OP_INC),
+                op_arg_gbl(&on, 1, "int", OP_READ));
+    }
+
+    double expected = (gbl_size - 1) * gbl_size / 2 + gbl_size * g_read;
+    check(std::abs(g_sum - expected) < TOL, 0, "opt_read_inc failed");
+
+    printf("opt_read_inc passed\n");
   }
 
   op_profile_end();
