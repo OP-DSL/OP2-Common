@@ -33,6 +33,11 @@ def chunkGroupable(loop: OP.Loop, arg: OP.ArgDat, staged: bool = True) -> bool:
     )
 
 
+def indirectRW(loop: OP.Loop) -> bool:
+    return any(isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW
+               for arg in loop.args)
+
+
 # A chunked strategy's groups: the arguments its plan follows, and the
 # distinct dats among them in first-use order, one group each.
 @dataclass(frozen=True)
@@ -156,6 +161,13 @@ class FortranOpenMP(Scheme):
     consts_template = Path("fortran/openmp/consts.F90.jinja")
     loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
     master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
+
+    # SIMD lanes sharing a read-write target would lose updates.
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        if indirectRW(loop):
+            config["vectorise"] = config["vectorise"] | {"enable": False}
+        return config
 
     def translateKernel(
         self,

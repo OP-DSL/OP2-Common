@@ -1,6 +1,6 @@
 APP_EXTRA_TRANSLATOR_FLAGS ?= -I $(OP2_INSTALL_PATH)/include
 
-# The OpenMP SIMD path loses updates when lanes share an indirect RW target.
+# The Fortran openmp target misrenders the runtime-dimensioned dats.
 NO_OPENMP := openmp mpi_openmp
 
 include ../../../makefiles/common.mk
