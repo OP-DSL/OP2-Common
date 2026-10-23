@@ -82,8 +82,9 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
 }
 
 void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
-                                 bool gbl_inc_atomic) {
+                                 bool gbl_inc_atomic, const unsigned char *on_host) {
     (void) gbl_inc_atomic;
+    (void) on_host;
     prepareDeviceGbls(args, nargs, max_threads);
 }
 

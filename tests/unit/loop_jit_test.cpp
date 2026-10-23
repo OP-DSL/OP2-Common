@@ -15,6 +15,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace loop = op::loop;
 
@@ -228,15 +229,15 @@ void test_params() {
     int64_t big = int64_t{1} << 40;
 
     loop::ParamSet params;
-    params.add("c", &constant, 1, loop::ParamSource::external);
-    params.add("table", table, 3, loop::ParamSource::external);
-    params.add("g0", &gbl0, 1, loop::ParamSource::scalar_arg, 0);
-    params.add("g2", &gbl2, 1, loop::ParamSource::scalar_arg, 2);
-    params.add("stride", &stride, 1, loop::ParamSource::dat_stride, 1);
-    params.add("dim", &dim, 1, loop::ParamSource::dat_dim, 1);
-    params.add("block", static_cast<int *>(nullptr), 1, loop::ParamSource::strategy, 1);
-    params.add("flag", &flag, 1, loop::ParamSource::external);
-    params.add("big", &big, 1, loop::ParamSource::external);
+    params.add("c", &constant, loop::ParamSource::external);
+    params.add_array("table", table, 3, loop::ParamSource::external);
+    params.add("g0", &gbl0, loop::ParamSource::scalar_arg, 0);
+    params.add("g2", &gbl2, loop::ParamSource::scalar_arg, 2);
+    params.add("stride", &stride, loop::ParamSource::dat_stride, 1);
+    params.add("dim", &dim, loop::ParamSource::dat_dim, 1);
+    params.add("block", static_cast<int *>(nullptr), loop::ParamSource::strategy, 1);
+    params.add("flag", &flag, loop::ParamSource::external);
+    params.add("big", &big, loop::ParamSource::external);
 
     loop::Configuration configuration{&set, {args, 3}, 100};
     params.update(args, 3);
@@ -281,11 +282,11 @@ void test_modes() {
     int stride = 0;
     auto modes = [&] {
         loop::ParamSet params{"flux"};
-        params.add("c", &constant, 1, loop::ParamSource::external, -1, true);
-        params.add("table", table, 3, loop::ParamSource::external, -1, true);
-        params.add("g", &global, 1, loop::ParamSource::scalar_arg, 0, true);
-        params.add("stride", &stride, 1, loop::ParamSource::dat_stride, 1, true);
-        params.add("fixed", &constant, 1, loop::ParamSource::external);
+        params.add("c", &constant, loop::ParamSource::external, -1, true);
+        params.add_array("table", table, 3, loop::ParamSource::external, -1, true);
+        params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+        params.add("stride", &stride, loop::ParamSource::dat_stride, 1, true);
+        params.add("fixed", &constant, loop::ParamSource::external);
         std::string out;
         for (std::size_t i = 0; i < params.size(); ++i) {
             out += params[i].initial() == baked ? "b" : "r";
@@ -327,8 +328,8 @@ void test_statistics() {
     double constant = 0.0;
     double global = 0.0;
     loop::ParamSet params{"flux"};
-    params.add("c", &constant, 1, loop::ParamSource::external, -1, true);
-    params.add("g", &global, 1, loop::ParamSource::scalar_arg, 0, true);
+    params.add("c", &constant, loop::ParamSource::external, -1, true);
+    params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
     auto call = [&](int set) {
         params.update(args, 1);
         loop::Configuration configuration{&sets[set], {args, 1}, sets[set].size};
@@ -390,6 +391,75 @@ void test_statistics() {
     CHECK(params[1].mode() == runtime);
 }
 
+// A READ global of any dimension is read in place with the call's
+// dimension, at run time when inactive or above OP_JIT_MAX_GBL_BYTES (and
+// then never hashed), and otherwise moves like a scalar global; an array of
+// one element is still an array.
+void test_array_globals() {
+    policy({});
+    op_set_core set{};
+    set.size = 10;
+    set.core_size = 10;
+    double g5[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    double one = 1.0;
+    std::vector<double> big(1000, 0.0);
+    op_arg args[4]{};
+    for (auto& arg : args) {
+        arg.opt = 1;
+        arg.argtype = OP_ARG_GBL;
+        arg.acc = OP_READ;
+    }
+    args[0].data = reinterpret_cast<char *>(g5);
+    args[0].dim = 5;
+    args[1].opt = 0;
+    args[2].data = reinterpret_cast<char *>(&one);
+    args[2].dim = 1;
+    args[3].data = reinterpret_cast<char *>(big.data());
+    args[3].dim = 1000;
+
+    loop::ParamSet params{"flux"};
+    for (int i = 0; i < 4; ++i)
+        params.add_array(std::string{"g"} + std::to_string(i),
+                         static_cast<double *>(nullptr), 0,
+                         loop::ParamSource::array_arg, i, true);
+    loop::Configuration configuration{&set, {args, 4}, 10};
+    auto call = [&] {
+        params.update(args, 4);
+        return params.key(configuration, {});
+    };
+
+    auto key = call();
+    CHECK(params[0].data() == g5 && params[0].elems() == 5 && params[0].array());
+    CHECK(params[1].elems() == 0 && params[2].elems() == 1 && params[2].array());
+    for (int i = 0; i < 4; ++i)
+        CHECK(params[i].mode() == runtime);
+    CHECK(params[0].last_hash() != 0 && params[3].last_hash() == 0);
+    g5[0] = 10.0;
+    CHECK(call() == key);
+
+    // The new value leads from the third call, so 32 calls later it is in.
+    for (int i = 0; i < 32; ++i)
+        call();
+    CHECK(params[0].mode() == baked && params[2].mode() == baked);
+    CHECK(params[1].mode() == runtime && params[3].mode() == runtime);
+    key = call();
+    g5[1] = 20.0;
+    CHECK(call() != key);
+    CHECK(loop::format_cxx(params) ==
+          "static constexpr double g0[5] = { 0x1.4p+3, 0x1.4p+4, 0x1.8p+1, 0x1p+2, 0x1.4p+2 };\n"
+          "static constexpr double g2[1] = { 0x1p+0 };\n");
+
+    policy({{"OP_JIT_MAX_GBL_BYTES", "16"}});
+    loop::ParamSet capped{"flux"};
+    capped.add_array("g0", static_cast<double *>(nullptr), 0,
+                     loop::ParamSource::array_arg, 0, true);
+    for (int i = 0; i < 40; ++i) {
+        capped.update(args, 4);
+        capped.key(configuration, {});
+    }
+    CHECK(capped[0].mode() == runtime);
+}
+
 } // namespace
 
 int main() {
@@ -403,6 +473,7 @@ int main() {
         test_params();
         test_modes();
         test_statistics();
+        test_array_globals();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

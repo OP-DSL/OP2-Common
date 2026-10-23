@@ -107,9 +107,11 @@ void Param::settle(std::string_view loop, bool runtime, const JitPolicy& policy)
         else
             m_fixed = false;
     } else if (runtime && m_class == ParamClass::global) {
+        // An array_arg's size is each call's, so its cap is checked per call.
         m_initial = ParamMode::runtime;
         m_fixed = policy.level < 2 ||
-                  bytes() > static_cast<std::size_t>(policy.max_gbl_bytes);
+                  (m_source == ParamSource::scalar_arg &&
+                   bytes() > static_cast<std::size_t>(policy.max_gbl_bytes));
     }
     m_mode = m_initial;
 }
@@ -123,6 +125,16 @@ void Param::update(op_arg *args, int nargs) {
             return;
         assert(args[m_index].data != nullptr);
         std::memcpy(m_data, args[m_index].data, m_elem_size);
+        return;
+    case ParamSource::array_arg:
+        assert(m_index >= 0 && m_index < nargs);
+        if (args[m_index].opt == 0) {
+            m_data = nullptr;
+            m_elems = 0;
+            return;
+        }
+        m_data = args[m_index].data;
+        m_elems = static_cast<std::size_t>(args[m_index].dim);
         return;
     case ParamSource::dat_stride: {
         assert(m_index >= 0 && m_index < nargs);
@@ -164,17 +176,25 @@ std::vector<ParamSet::History> *ParamSet::histories(std::uint64_t configuration)
 }
 
 void ParamSet::observe(const Configuration& configuration) {
-    for (auto& param : m_params)
-        if (param.source() != ParamSource::strategy)
-            param.hash();
+    const auto& run = jit_policy();
+    for (auto& param : m_params) {
+        if (param.source() == ParamSource::strategy)
+            continue;
+        if (param.sized_out(run)) {
+            param.set_mode(ParamMode::runtime);
+            continue;
+        }
+        param.hash();
+        if (param.fixed())
+            param.set_mode(param.initial());
+    }
     if (!m_moving)
         return;
 
-    const auto& run = jit_policy();
     auto *history = histories(configuration.key());
     for (std::size_t i = 0; i < m_params.size(); ++i) {
         auto& param = m_params[i];
-        if (param.fixed())
+        if (param.fixed() || param.sized_out(run))
             continue;
         if (history == nullptr) {
             param.set_mode(param.initial());

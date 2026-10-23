@@ -40,6 +40,9 @@ class JitKernel {
 private:
     std::string m_name;
     std::vector<RuntimeSymbol> m_symbols;
+    // The arguments of the READ globals it has baked in, which it never
+    // reads from the device.
+    std::vector<int> m_baked_globals;
     bool m_loaded = false;
     int m_max_dynamic_shared_bytes = 0;
     char *m_cubin;
@@ -63,9 +66,13 @@ private:
 
 public:
     JitKernel(const JitKernel&) = delete;
-    JitKernel(char *cubin, std::string_view name, std::vector<RuntimeSymbol> symbols)
-        : m_name{name}, m_symbols{std::move(symbols)}, m_cubin{cubin} {}
+    JitKernel(char *cubin, std::string_view name, std::vector<RuntimeSymbol> symbols,
+              std::vector<int> baked_globals)
+        : m_name{name}, m_symbols{std::move(symbols)},
+          m_baked_globals{std::move(baked_globals)}, m_cubin{cubin} {}
     ~JitKernel() { delete[] m_cubin; }
+
+    const std::vector<int>& baked_globals() const { return m_baked_globals; }
 
     // Launch, its module's symbols first given the call's values of params.
     void launch(int num_blocks, int block_size, void **args, int shared_bytes,
@@ -215,10 +222,9 @@ private:
     std::string m_loop;
     JitHeaders m_headers;
 
-    // The run-time parameters as a built kernel has them: a scalar global as
-    // its wrapper's argument, which the source reads through
-    // f2c::param_value; any other as a symbol of its module, added to
-    // symbols.
+    // The run-time parameters as a built kernel has them: a global as its
+    // wrapper's argument, which the source reads through f2c::param_value;
+    // any other as a symbol of its module, added to symbols.
     static std::string runtime_declarations(const op::loop::ParamSet& params,
                                             std::vector<RuntimeSymbol>& symbols) {
         std::string out;
@@ -226,7 +232,8 @@ private:
             const auto& param = params[i];
             if (param.mode() != op::loop::ParamMode::runtime)
                 continue;
-            if (param.source() == op::loop::ParamSource::scalar_arg) {
+            if (param.source() == op::loop::ParamSource::scalar_arg ||
+                param.source() == op::loop::ParamSource::array_arg) {
                 out += "static constexpr f2c::RuntimeParam " + param.name() + "{};\n";
                 continue;
             }
@@ -242,7 +249,8 @@ private:
     }
 
     std::unique_ptr<JitKernel> compile(const std::string& text, const std::string& name,
-                                       std::vector<RuntimeSymbol> symbols) const {
+                                       std::vector<RuntimeSymbol> symbols,
+                                       std::vector<int> baked_globals) const {
         gpuRtcProgram_t prog;
         GPU_RTC_CHECK(gpuRtcCreateProgram(
             &prog, text.c_str(), name.c_str(),
@@ -285,7 +293,8 @@ private:
         char *cubin = new char[cubin_size];
         GPU_RTC_CHECK(gpuRtcGetCode(prog, cubin));
         GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
-        return std::make_unique<JitKernel>(cubin, name, std::move(symbols));
+        return std::make_unique<JitKernel>(cubin, name, std::move(symbols),
+                                           std::move(baked_globals));
     }
 
 public:
@@ -297,6 +306,11 @@ public:
     // compiler's log and returns none when the compile fails.
     auto job(const op::loop::ParamSet& params, const KernelSource& source) const {
         std::vector<RuntimeSymbol> symbols;
+        std::vector<int> baked_globals;
+        for (std::size_t i = 0; i < params.size(); ++i)
+            if (params[i].source() == op::loop::ParamSource::array_arg &&
+                params[i].mode() == op::loop::ParamMode::baked)
+                baked_globals.push_back(params[i].index());
         std::string text = std::string("#include <kernel/prelude.h>\n"
                                        "#include <kernel/strategy.h>\n") +
                            (m_headers.params ? "#include <op_f2c_params.h>\n" : "") +
@@ -305,8 +319,9 @@ public:
                            runtime_declarations(params, symbols) +
                            std::string{source.source};
         return [this, text = std::move(text), name = std::string{source.name},
-                symbols = std::move(symbols)]() mutable {
-            return compile(text, name, std::move(symbols));
+                symbols = std::move(symbols),
+                baked_globals = std::move(baked_globals)]() mutable {
+            return compile(text, name, std::move(symbols), std::move(baked_globals));
         };
     }
 };

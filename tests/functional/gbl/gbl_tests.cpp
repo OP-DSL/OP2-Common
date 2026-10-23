@@ -56,6 +56,11 @@ void max5(const double *dat, double *g) {
     g[i] = MAX(g[i], dat[i]);
 }
 
+void opt_read5(double *dat, const double *g, const int *on) {
+  for (int i = 0; i < 5; ++i)
+    dat[i] = *on ? g[i] : -1.0;
+}
+
 void read_nonfinite(double *d, float *f, const double *gd, const float *gf) {
   *d = *gd;
   *f = *gf;
@@ -283,6 +288,50 @@ int main(int argc, char **argv) {
     check(std::abs(g_sum - expected) < TOL, 0, "opt_read_inc failed");
 
     printf("opt_read_inc passed\n");
+  }
+
+  // --- READ of an array over enough passes for its JIT kernel, the value
+  // changing near the end ---
+  {
+    double g[5] = {33.0, 43.0, 53.0, 63.0, 73.0};
+    std::vector<double> fetched(local_size * 5, 0.0);
+    for (int pass = 0; pass < 12; ++pass) {
+      if (pass == 10)
+        for (int d = 0; d < 5; ++d)
+          g[d] += 1.0;
+      op_par_loop(read5, "read5_passes", set,
+                op_arg_dat(dat5, -1, OP_ID, 5, "double", OP_WRITE),
+                op_arg_gbl(g, 5, "double", OP_READ));
+
+      op_fetch_data(dat5, fetched.data());
+      for (int i = 0; i < local_size; ++i)
+        for (int d = 0; d < 5; ++d)
+          check(std::abs(fetched[i * 5 + d] - g[d]) < TOL, i * 5 + d, "read5_passes failed");
+    }
+
+    printf("read5_passes passed\n");
+  }
+
+  // --- Optional READ of an array, inactive then active, each long enough
+  // for its JIT kernel; the inactive one has no data ---
+  {
+    double g[5] = {3.0, 4.0, 5.0, 6.0, 7.0};
+    std::vector<double> fetched(local_size * 5, 0.0);
+    for (int pass = 0; pass < 20; ++pass) {
+      int on = pass >= 10;
+      op_par_loop(opt_read5, "opt_read5", set,
+                op_arg_dat(dat5, -1, OP_ID, 5, "double", OP_WRITE),
+                op_opt_arg_gbl(on, on ? g : nullptr, 5, "double", OP_READ),
+                op_arg_gbl(&on, 1, "int", OP_READ));
+
+      op_fetch_data(dat5, fetched.data());
+      for (int i = 0; i < local_size; ++i)
+        for (int d = 0; d < 5; ++d)
+          check(std::abs(fetched[i * 5 + d] - (on ? g[d] : -1.0)) < TOL, i * 5 + d,
+                "opt_read5 failed");
+    }
+
+    printf("opt_read5 passed\n");
   }
 
   op_profile_end();

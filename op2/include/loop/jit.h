@@ -98,7 +98,8 @@ template<> struct ParamTypes<bool>    { static const ParamType value = ParamType
 // strategy.
 enum class ParamSource {
     external,    // a constant the application sets
-    scalar_arg,  // a scalar global argument
+    scalar_arg,  // a scalar READ global argument
+    array_arg,   // a READ global argument of any dimension, read in place
     dat_stride,  // a dat's SoA stride
     dat_dim,     // a dat's run-time dimension
     strategy,    // a value the strategy fixes, in its backend's slot
@@ -130,6 +131,7 @@ private:
     int m_value = 0;
     std::size_t m_elems;
     std::size_t m_elem_size;
+    bool m_array;
     ParamType m_type;
     ParamSource m_source;
     ParamClass m_class;
@@ -146,18 +148,19 @@ private:
         switch (source) {
         case ParamSource::external:   return ParamClass::constant;
         case ParamSource::scalar_arg: return ParamClass::global;
+        case ParamSource::array_arg:  return ParamClass::global;
         default:                      return ParamClass::structural;
         }
     }
 
 public:
-    // A parameter of elems elements, an array when more than one, read from
-    // data.
+    // A parameter of elems elements, read from data; an array_arg's data
+    // and elements are each call's.
     template<typename T>
-    Param(std::string_view name, T *data, std::size_t elems, ParamSource source,
-          int index)
+    Param(std::string_view name, T *data, std::size_t elems, bool array,
+          ParamSource source, int index)
         : m_name{name}, m_data{data}, m_elems{elems}, m_elem_size{sizeof(T)},
-          m_type{ParamTypes<T>::value}, m_source{source},
+          m_array{array}, m_type{ParamTypes<T>::value}, m_source{source},
           m_class{class_of(source)}, m_index{index} {}
 
     const std::string& name() const { return m_name; }
@@ -168,10 +171,18 @@ public:
     bool fixed() const { return m_fixed; }
     ParamMode mode() const { return m_mode; }
     void set_mode(ParamMode mode) { m_mode = mode; }
+    int index() const { return m_index; }
     std::size_t elems() const { return m_elems; }
-    bool array() const { return m_elems > 1; }
+    bool array() const { return m_array; }
     std::size_t bytes() const { return m_elems * m_elem_size; }
     const void *data() const { return m_data != nullptr ? m_data : &m_value; }
+
+    // Whether an array_arg is at run time this call whatever its statistics:
+    // inactive, or above OP_JIT_MAX_GBL_BYTES.  Its value is not hashed then.
+    bool sized_out(const JitPolicy& policy) const {
+        return m_source == ParamSource::array_arg &&
+               (m_elems == 0 || bytes() > static_cast<std::size_t>(policy.max_gbl_bytes));
+    }
 
     // Settle the initial mode by the policy, for loop's kernels; runtime is
     // whether the mechanism can give the parameter at run time.
@@ -241,19 +252,31 @@ private:
     std::vector<History> *histories(std::uint64_t configuration);
     void observe(const Configuration& configuration);
 
+    std::size_t insert(Param param, bool runtime) {
+        auto& added = m_params.emplace_back(std::move(param));
+        added.settle(m_loop, runtime, jit_policy());
+        m_moving |= !added.fixed();
+        return m_params.size() - 1;
+    }
+
 public:
     explicit ParamSet(std::string_view loop = {}) : m_loop{loop} {}
     ParamSet(const ParamSet&) = delete;
 
-    // Add a parameter, its mode settled by the policy; runtime is whether
-    // the mechanism can give it at run time.  Its index.
+    // Add a scalar parameter, its mode settled by the policy; runtime is
+    // whether the mechanism can give it at run time.  Its index.
     template<typename T>
-    std::size_t add(std::string_view name, T *data, std::size_t elems,
-                    ParamSource source, int index = -1, bool runtime = false) {
-        auto& param = m_params.emplace_back(name, data, elems, source, index);
-        param.settle(m_loop, runtime, jit_policy());
-        m_moving |= !param.fixed();
-        return m_params.size() - 1;
+    std::size_t add(std::string_view name, T *data, ParamSource source,
+                    int index = -1, bool runtime = false) {
+        return insert(Param{name, data, 1, false, source, index}, runtime);
+    }
+
+    // Add an array of elems elements, or of the call's dimension for an
+    // array_arg.
+    template<typename T>
+    std::size_t add_array(std::string_view name, T *data, std::size_t elems,
+                          ParamSource source, int index = -1, bool runtime = false) {
+        return insert(Param{name, data, elems, true, source, index}, runtime);
     }
 
     std::size_t size() const { return m_params.size(); }

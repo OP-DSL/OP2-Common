@@ -94,9 +94,11 @@ static bool needs_per_thread_storage(const op_arg& arg,
            arg.acc == OP_WORK;
 }
 
-static bool needs_device_storage(const op_arg& arg) {
+// A READ global the kernel has from the host side (by value, or baked into
+// it) needs no device copy.
+static bool needs_device_storage(const op_arg& arg, bool on_host) {
     if (arg.argtype == OP_ARG_INFO) return true;
-    return arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1);
+    return arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && on_host);
 }
 
 static bool opt_disabled(const op_arg& arg, const op_arg *args) {
@@ -369,8 +371,14 @@ void op_put_all_cuda(int nargs, op_arg *args) {
   }
 }
 
+// on_host: per argument, whether the kernel has it from the host side; when
+// none is given, a READ global of dimension 1 is taken to come by value.
 void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
-                                 bool use_gbl_inc_atomics) {
+                                 bool use_gbl_inc_atomics,
+                                 const unsigned char *on_host) {
+    auto host_side = [&](int i) {
+        return on_host != nullptr ? on_host[i] != 0 : args[i].dim == 1;
+    };
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
@@ -381,7 +389,7 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
             required_size += align(args[i].size * max_threads * sizeof(char));
             if (starts_from_host(args[i]))
                 required_size += align(args[i].size * sizeof(char));
-        } else if (needs_device_storage(args[i])) {
+        } else if (needs_device_storage(args[i], host_side(i))) {
             required_size += align(args[i].size * sizeof(char));
         }
     }
@@ -405,7 +413,7 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
                 allocated += align(args[i].size * sizeof(char));
             }
             init_per_thread(args[i], value, max_threads);
-        } else if (needs_device_storage(args[i])) {
+        } else if (needs_device_storage(args[i], host_side(i))) {
             args[i].data_d = allocated;
             allocated += align(args[i].size * sizeof(char));
 
@@ -450,7 +458,7 @@ bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,
 }
 
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
-    prepareDeviceGblsWithPolicy(args, nargs, max_threads, gbl_inc_atomic);
+    prepareDeviceGblsWithPolicy(args, nargs, max_threads, gbl_inc_atomic, nullptr);
 }
 
 int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {

@@ -27,7 +27,7 @@ extern "C" {
 int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
                             const char *name, bool gbl_inc_atomic);
 void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
-                                 bool gbl_inc_atomic);
+                                 bool gbl_inc_atomic, const unsigned char *on_host);
 bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,
                                  int max_threads, bool gbl_inc_atomic);
 }

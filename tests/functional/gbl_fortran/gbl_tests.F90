@@ -39,7 +39,9 @@ program gbl_tests_fortran
 
   real(8), dimension(5) :: expected5
   real(8) :: expected
-  integer :: i, d
+  integer :: i, d, pass
+  integer(4) :: on
+  logical :: active
   ! Not a literal, so the translator sees these dimensions as run-time ones.
   integer(4) :: gdim
   integer :: local_size
@@ -223,6 +225,59 @@ program gbl_tests_fortran
     call check(abs(g_min5(d) - real(d - 1, 8)) < tol, d - 1, "min5 run-time dimension failed")
   end do
   write(*,*) "run-time dimensions passed"
+
+  ! A run-time dimension of 1: the kernel reads the global's device copy.
+  gdim = 1
+  g_read5(1) = 22.0d0
+  call op_par_loop_2(read_first_k, set, &
+    op_arg_dat(dat1, -1, OP_ID, 1, "real(8)", OP_WRITE), &
+    op_arg_gbl(g_read5, gdim, "real(8)", OP_READ))
+
+  call op_fetch_data(dat1, fetched1)
+  do i = 1, local_size
+    call check(abs(fetched1(i) - g_read5(1)) < tol, i - 1, "read run-time dimension 1 failed")
+  end do
+  write(*,*) "run-time dimension 1 passed"
+
+  ! --- READ of an array over enough passes for its JIT kernel, the value
+  ! changing near the end ---
+  g_read5 = (/ 33.0d0, 43.0d0, 53.0d0, 63.0d0, 73.0d0 /)
+  do pass = 1, 12
+    if (pass == 11) g_read5 = g_read5 + 1.0d0
+    call op_par_loop_2(read5_k, set, &
+      op_arg_dat(dat5, -1, OP_ID, 5, "real(8)", OP_WRITE), &
+      op_arg_gbl(g_read5, 5, "real(8)", OP_READ))
+
+    call op_fetch_data(dat5, fetched5)
+    do i = 1, local_size
+      do d = 1, 5
+        call check(abs(fetched5((i - 1) * 5 + d) - g_read5(d)) < tol, &
+          (i - 1) * 5 + (d - 1), "read5 passes failed")
+      end do
+    end do
+  end do
+  write(*,*) "read5 passes passed"
+
+  ! --- Optional READ of an array, inactive then active, each long enough
+  ! for its JIT kernel ---
+  do pass = 1, 20
+    active = pass > 10
+    on = merge(1, 0, active)
+    call op_par_loop_3(opt_read5_k, set, &
+      op_arg_dat(dat5, -1, OP_ID, 5, "real(8)", OP_WRITE), &
+      op_opt_arg_gbl(active, g_read5, 5, "real(8)", OP_READ), &
+      op_arg_gbl(on, 1, "integer(4)", OP_READ))
+
+    call op_fetch_data(dat5, fetched5)
+    do i = 1, local_size
+      do d = 1, 5
+        expected = merge(g_read5(d), -1.0d0, active)
+        call check(abs(fetched5((i - 1) * 5 + d) - expected) < tol, &
+          (i - 1) * 5 + (d - 1), "opt read5 failed")
+      end do
+    end do
+  end do
+  write(*,*) "opt read5 passed"
 
   call op_profile_end()
   

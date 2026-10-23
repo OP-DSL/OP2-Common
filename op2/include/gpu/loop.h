@@ -28,6 +28,10 @@ private:
     bool m_gbl_inc_atomic;
     SymbolBindings m_symbols;
     Compiler m_compiler;
+    // Per argument, whether every kernel has it by value; and the call's
+    // flags, which add the READ globals the chosen kernel bakes in.
+    std::vector<unsigned char> m_by_value;
+    std::vector<unsigned char> m_on_host;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
     // A launch's kernel arguments, filled by the binders.
@@ -58,6 +62,23 @@ private:
         void *data_d = nullptr;
         GPU_CHECK(gpuGetSymbolAddress(&data_d, (const void *)symbol));
         m_symbols.bind(param, data_d, shared_hash);
+    }
+
+    void mark_by_value(int arg_index) {
+        if (m_by_value.size() <= static_cast<std::size_t>(arg_index))
+            m_by_value.resize(static_cast<std::size_t>(arg_index) + 1, 0);
+        m_by_value[static_cast<std::size_t>(arg_index)] = 1;
+    }
+
+    // Per argument, whether the kernel that runs has it from the host side
+    // and so needs no device copy of it.
+    const unsigned char *on_host(const op::loop::Prepared& prepared, int nargs) {
+        m_on_host.assign(m_by_value.begin(), m_by_value.end());
+        m_on_host.resize(static_cast<std::size_t>(nargs), 0);
+        if (prepared.kernel != nullptr)
+            for (int arg : static_cast<const JitKernel *>(prepared.kernel)->baked_globals())
+                m_on_host[static_cast<std::size_t>(arg)] = 1;
+        return m_on_host.data();
     }
 
 public:
@@ -94,42 +115,53 @@ public:
     template<typename T>
     void add_param(std::string_view name, T *data, const T *symbol = nullptr,
                    uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::external, -1, true),
+        bind(m_params.add(name, data, op::loop::ParamSource::external, -1, true),
              symbol, hash_device_ptr);
     }
 
     template<typename T>
     void add_param(std::string_view name, T *data, std::size_t len,
                    const T *symbol = nullptr, uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, len, op::loop::ParamSource::external, -1, true),
+        bind(m_params.add_array(name, data, len, op::loop::ParamSource::external, -1,
+                                true),
              symbol, hash_device_ptr);
     }
 
+    // A scalar READ global, which every kernel has by value.
     template<typename T>
     void add_scalar_arg_param(std::string_view name, T *data, int arg_index,
                               const T *symbol = nullptr,
                               uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::scalar_arg, arg_index,
+        bind(m_params.add(name, data, op::loop::ParamSource::scalar_arg, arg_index,
                           true),
              symbol, hash_device_ptr);
+        mark_by_value(arg_index);
+    }
+
+    // Any other READ global, which an offline kernel reads from its device
+    // copy.
+    template<typename T>
+    void add_global_param(std::string_view name, int arg_index) {
+        m_params.add_array(name, static_cast<T *>(nullptr), 0,
+                           op::loop::ParamSource::array_arg, arg_index, true);
     }
 
     void add_dat_stride_param(std::string_view name, int *data, int arg_index,
                               const int *symbol = nullptr,
                               uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::dat_stride, arg_index,
+        bind(m_params.add(name, data, op::loop::ParamSource::dat_stride, arg_index,
                           true),
              symbol, hash_device_ptr);
     }
 
     void add_dat_dim_param(std::string_view name, int *data, int arg_index) {
-        m_params.add(name, data, 1, op::loop::ParamSource::dat_dim, arg_index);
+        m_params.add(name, data, op::loop::ParamSource::dat_dim, arg_index);
     }
 
     // A value each strategy decides, given to every acquire and upload.
     void add_launch_param(std::string_view name, LaunchValue value,
                           const int *symbol = nullptr) {
-        bind(m_params.add(name, static_cast<int *>(nullptr), 1,
+        bind(m_params.add(name, static_cast<int *>(nullptr),
                           op::loop::ParamSource::strategy, static_cast<int>(value)),
              symbol, nullptr);
     }
@@ -205,7 +237,8 @@ public:
         op_profile_enter("Prepare GBLs");
         m_global_output = has_global_output(args, nargs);
         m_exit_sync = false;
-        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, m_gbl_inc_atomic);
+        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, m_gbl_inc_atomic,
+                                    on_host(decision.prepared, nargs));
         op_profile_exit();
 
         op_profile_next("Computation");

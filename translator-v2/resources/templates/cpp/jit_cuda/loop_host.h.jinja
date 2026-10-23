@@ -68,15 +68,17 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 &gbl{{arg.id}}
     {%- else -%}
-{{arg_to_pointer3(arg)}}
+{{arg_to_pointer3(arg, jit)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg) -%}
+{%- macro arg_to_pointer3(arg, jit) -%}
     {%- if arg is info -%}
 info{{arg.id}} + thread_id
     {%- elif arg in args_gbl_per_thread -%}
 gbl{{arg.id}} + thread_id
+    {%- elif jit and arg is gbl and arg is read -%}
+f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
     {%- elif arg is gbl -%}
 gbl{{arg.id}}
     {%- else -%}
@@ -295,6 +297,9 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% for arg in lh.args|gbl|read|scalar %}
     loop.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
+{% endfor %}
+{% for arg in lh.args|gbl|read|reject("scalar") %}
+    loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}});
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
     loop.add_launch_param("op2_{{lh.kernel}}_gbl_stride_d",

@@ -119,17 +119,19 @@ f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 gbl{{arg.id}}
     {%- elif arg is scalar(lh) -%}
-{{arg_to_pointer3(arg, staged, local)}}.data[0]
+{{arg_to_pointer3(arg, jit, staged, local)}}.data[0]
     {%- else -%}
-{{arg_to_pointer3(arg, staged, local)}}
+{{arg_to_pointer3(arg, jit, staged, local)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg, staged = none, local = false) -%}
+{%- macro arg_to_pointer3(arg, jit, staged = none, local = false) -%}
     {%- if arg is info -%}
 f2c::Ptr{info{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
 f2c::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
+    {%- elif jit and arg is gbl and arg is read -%}
+f2c::Ptr{f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
     {%- elif arg is gbl -%}
 f2c::Ptr{gbl{{arg.id}}}
     {%- else -%}
@@ -591,6 +593,9 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% for arg in lh.args|gbl|read|scalar %}
     loop.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
+{% endfor %}
+{% for arg in lh.args|gbl|read|reject("scalar") %}
+    loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}});
 {% endfor %}
     loop.add_launch_param("op2_block_size_d", op::gpu::LaunchValue::block_size);
 {% if strategies|select("in", chunk_strategies)|list %}

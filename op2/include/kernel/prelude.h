@@ -49,7 +49,7 @@ template<typename R> struct enable_if<true, R> { using type = R; };
 
 // A JIT kernel's parameter given at run time: defined as one of these in
 // place of its baked value, so param_value(name, argument) reads the
-// kernel's argument instead.
+// kernel's argument instead.  A baked array comes as its pointer.
 struct RuntimeParam {};
 
 template<typename T>
@@ -60,6 +60,11 @@ DEVICE constexpr const T& param_value(const T& baked, const T&) {
 template<typename T>
 DEVICE constexpr const T& param_value(RuntimeParam, const T& argument) {
     return argument;
+}
+
+template<typename T, unsigned N>
+DEVICE constexpr const T *param_value(const T (&baked)[N], const T *) {
+    return baked;
 }
 
 template<typename T>
