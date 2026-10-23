@@ -60,14 +60,11 @@ struct JitPolicy {
     std::vector<std::string> runtime_params;
     std::vector<std::string> constant_params;
 
-    bool enabled() const { return level > 0; }
+    // OP_JIT_MIN_REGISTERS: an offline kernel using more registers than
+    // this is specialised (loop/select.h's register rule).
+    int min_registers = 32;
 
-    // Whether a strategy's kernel is specialised: the JIT is on, and no
-    // offline kernel can run, the run forces it, or the mechanism's prior
-    // says a build pays.
-    bool specialise(bool offline, bool prior) const {
-        return enabled() && (!offline || force || prior);
-    }
+    bool enabled() const { return level > 0; }
 };
 
 const JitPolicy& jit_policy();

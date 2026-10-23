@@ -28,7 +28,6 @@ void init() {
 #if defined(OP2_CUDA) && CUDART_VERSION >= 12030
     config.build_threads = 16;
 #endif
-    env::parse_number("OP_JIT_MIN_REGISTERS", config.min_registers);
 
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", config.window);
 

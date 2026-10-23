@@ -3,6 +3,7 @@
 #include <extern/rapidhash.h>
 #include <loop/autotune.h>
 #include <loop/jit.h>
+#include <loop/select.h>
 
 #include <algorithm>
 #include <array>
@@ -426,7 +427,8 @@ Prepared Ladder::select(const Configuration& configuration) {
         }
         // The run asked for the forced strategy, so its kernel is waited for.
         selection = entry.strategy->prepare(configuration,
-                                            forced ? Urgency::wait : Urgency::later);
+                                            forced ? Urgency::wait : Urgency::later,
+                                            choose_kernel(*entry.strategy, configuration));
         assert(selection.strategy == entry.strategy.get());
         if (selection.status == Status::ready) {
             report(selection, {m_reasons.data(), index});
@@ -440,7 +442,8 @@ Prepared Ladder::select(const Configuration& configuration) {
     // The floor must run, so wait for its kernel; without one the loop
     // cannot run at all.
     auto& floor = m_entries.back();
-    selection = floor.strategy->prepare(configuration, Urgency::wait);
+    selection = floor.strategy->prepare(configuration, Urgency::wait,
+                                        choose_kernel(*floor.strategy, configuration));
     assert(selection.strategy == floor.strategy.get());
     if (selection.status != Status::ready) {
         std::fprintf(stderr, "error: %s has nothing to run: %s is %s\n",

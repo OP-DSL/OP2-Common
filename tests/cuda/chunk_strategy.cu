@@ -6,6 +6,7 @@
 #include <kernel/jit_embed.h>
 
 #include <gpu/loop.h>
+#include <loop/select.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -213,7 +214,9 @@ struct Outcome {
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
     op::loop::Configuration configuration{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
-    auto chunk = loop.ladder()[0].prepare(configuration, op::loop::Urgency::later);
+    auto chunk = loop.ladder()[0].prepare(
+        configuration, op::loop::Urgency::later,
+        op::loop::choose_kernel(loop.ladder()[0], configuration));
     auto selection = loop.ladder().select(configuration);
     loop.invoke(&fixture.source, fixture.args.data(),
                 static_cast<int>(fixture.args.size()));

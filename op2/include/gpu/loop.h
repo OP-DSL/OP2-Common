@@ -289,14 +289,14 @@ inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
 
 inline op::loop::Prepared StrategyBase::acquire(
     const op::loop::Configuration& configuration, op::loop::Urgency urgency,
-    const void *entry) {
+    op::loop::KernelKind kind, const void *entry) {
     m_call.global_stride = m_block_size * m_call.max_blocks;
     op::loop::Prepared prepared;
     prepared.strategy = this;
     prepared.entry = entry;
 
     bool offline = m_offline.usable(m_block_size);
-    if (!op::loop::jit_policy().specialise(offline, m_offline.worth_specialising())) {
+    if (kind == op::loop::KernelKind::offline) {
         if (offline)
             prepared.status = op::loop::Status::ready;
         else
@@ -411,8 +411,9 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 // --- Colouring ---
 
 inline op::loop::Prepared Colouring::prepare(
-    const op::loop::Configuration& configuration, op::loop::Urgency urgency) {
-    if (never_available())
+    const op::loop::Configuration& configuration, op::loop::Urgency urgency,
+    op::loop::KernelKind kind) {
+    if (never_available(kind))
         return unavailable();
     begin(configuration);
     auto key = configuration.key();
@@ -441,7 +442,7 @@ inline op::loop::Prepared Colouring::prepare(
             m_call.max_blocks,
             grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
                  colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(configuration, urgency, entry);
+    return acquire(configuration, urgency, kind, entry);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
@@ -529,8 +530,9 @@ inline void ChunkBase::report(const ChunkResult& result) const {
 }
 
 inline op::loop::Prepared ChunkBase::prepare(
-    const op::loop::Configuration& configuration, op::loop::Urgency urgency) {
-    if (never_available())
+    const op::loop::Configuration& configuration, op::loop::Urgency urgency,
+    op::loop::KernelKind kind) {
+    if (never_available(kind))
         return unavailable();
     begin(configuration);
     auto *entry = &entry_for(configuration);
@@ -553,7 +555,7 @@ inline op::loop::Prepared ChunkBase::prepare(
             m_call.max_blocks =
                 std::max(m_call.max_blocks, batch_blocks(*entry->plan, begin, end));
         }
-    return acquire(configuration, urgency, entry);
+    return acquire(configuration, urgency, kind, entry);
 }
 
 // A block per chunk up to the call's limit, and for a wavefront no more

@@ -70,7 +70,8 @@ clean:
 OP2_LOOP := $(addprefix $(OBJ)/loop/,\
 	op_loop_strategy.o \
 	op_loop_autotune.o \
-	op_loop_jit.o) $(addprefix $(OBJ)/plan/,\
+	op_loop_jit.o \
+	op_loop_select.o) $(addprefix $(OBJ)/plan/,\
 	op_plan_colouring.o \
 	op_plan_chunks.o \
 	op_plan_staging.o \

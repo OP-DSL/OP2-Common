@@ -6,6 +6,7 @@
 #include <kernel/jit_embed.h>
 
 #include <gpu/loop.h>
+#include <loop/select.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -99,7 +100,9 @@ int main(int argc, char **argv) {
             passed &= check(run(loop, set, args, call) == call, "result");
 
         op::loop::Configuration configuration{&set, args, set.size};
-        auto broken = loop.ladder()[0].prepare(configuration, op::loop::Urgency::now);
+        auto broken = loop.ladder()[0].prepare(
+            configuration, op::loop::Urgency::now,
+            op::loop::choose_kernel(loop.ladder()[0], configuration));
         passed &= check(broken.status == op::loop::Status::unavailable,
                         "the broken strategy is available");
         std::string_view expected = jit ? "build_failed" : "kernel_unavailable";

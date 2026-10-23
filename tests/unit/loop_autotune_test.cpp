@@ -38,7 +38,8 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Prepared prepare(const loop::Configuration&, loop::Urgency) override {
+    loop::Prepared prepare(const loop::Configuration&, loop::Urgency,
+                           loop::KernelKind) override {
         loop::Status status = loop::Status::ready;
         if (!statuses.empty()) {
             status = statuses.front();

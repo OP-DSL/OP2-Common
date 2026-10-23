@@ -167,6 +167,23 @@ enum class Urgency {
     wait,
 };
 
+// The kinds of kernel a strategy may run: the one compiled with the
+// application, or one specialised at run time.
+enum class KernelKind {
+    offline,
+    jit,
+};
+
+// The kernels a strategy has, and the facts the selection weighs them by.
+struct Kernels {
+    // An offline kernel that can run at the strategy's launch shape.
+    bool offline = true;
+    // A source a specialised kernel can be built from.
+    bool jit = false;
+    // The offline kernel's registers per thread; 0 when unknown.
+    int offline_registers = 0;
+};
+
 // A strategy's answer for one configuration.  Opaque to everything but the
 // strategy that produced it; carries no ownership.
 struct Prepared {
@@ -189,10 +206,15 @@ public:
     // chunk_size=128;singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
+    // The kernels it has: an offline one only, unless the backend says
+    // otherwise.
+    virtual Kernels kernels() const { return {}; }
+
     // Resolve the configuration: build or find its plan, and find or request
-    // its kernel as urgency asks.  Blocks only for Urgency::wait, or when
-    // the backend builds synchronously.
-    virtual Prepared prepare(const Configuration& configuration, Urgency urgency) = 0;
+    // its kernel of the kind the selection chose, as urgency asks.  Blocks
+    // only for Urgency::wait, or when the backend builds synchronously.
+    virtual Prepared prepare(const Configuration& configuration, Urgency urgency,
+                             KernelKind kind) = 0;
 
     // Run what prepare returned; microseconds when the launch is timed.  A
     // run always follows this strategy's prepare for the same call, so the

@@ -201,7 +201,8 @@ void run(const char *strategy) {
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());
     op::loop::Configuration configuration{&source, args, source.size + source.exec_size};
-    CHECK(loop.ladder()[*forced].prepare(configuration, op::loop::Urgency::now).status ==
+    CHECK(loop.ladder()[*forced].prepare(configuration, op::loop::Urgency::now,
+                                         op::loop::KernelKind::offline).status ==
           op::loop::Status::ready);
 
     // Twice, so the second call reuses the cached plan.

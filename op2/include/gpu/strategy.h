@@ -127,10 +127,10 @@ protected:
     // Begin a call: its sections and the blocks the reduction scratch allows.
     void begin(const op::loop::Configuration& configuration);
 
-    // Whether no kernel can ever come about: no usable offline kernel, and
-    // the JIT off.  A strategy that plans checks this before planning.
-    bool never_available() const {
-        return !op::loop::jit_policy().enabled() && !m_offline.usable(m_block_size);
+    // Whether no kernel of kind can come about: the offline kind with no
+    // usable offline kernel.  A strategy that plans checks this first.
+    bool never_available(op::loop::KernelKind kind) const {
+        return kind == op::loop::KernelKind::offline && !m_offline.usable(m_block_size);
     }
 
     op::loop::Prepared unavailable() {
@@ -141,10 +141,11 @@ protected:
         return prepared;
     }
 
-    // Finish a call: the launch parameters and the kernel, as a Prepared
-    // value over entry.
+    // Finish a call: the launch parameters and the kernel of kind, as a
+    // Prepared value over entry.
     op::loop::Prepared acquire(const op::loop::Configuration& configuration,
-                               op::loop::Urgency urgency, const void *entry);
+                               op::loop::Urgency urgency, op::loop::KernelKind kind,
+                               const void *entry);
 
     // Bind and launch one kernel.
     void launch(const op::loop::Prepared& prepared, LaunchContext& context,
@@ -164,6 +165,11 @@ public:
     static std::vector<op::loop::Axis> axes() { return {block_size_axis()}; }
 
     std::string_view name() const override { return m_name; }
+
+    op::loop::Kernels kernels() const override {
+        return {m_offline.usable(m_block_size), !m_source.source.empty(),
+                m_offline.registers()};
+    }
 
     std::string statistics(const op::loop::Prepared& prepared) const override {
         return prepared.kernel != nullptr ? "jit" : "offline";
@@ -187,11 +193,12 @@ public:
         : StrategyBase{loop, point, source, bind} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               op::loop::Urgency urgency) override {
+                               op::loop::Urgency urgency,
+                               op::loop::KernelKind kind) override {
         begin(configuration);
         for (const auto& section : m_call.sections.span())
             m_call.max_blocks = std::max(m_call.max_blocks, grid(section.size()));
-        return acquire(configuration, urgency, nullptr);
+        return acquire(configuration, urgency, kind, nullptr);
     }
 
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -216,7 +223,8 @@ public:
         : StrategyBase{loop, point, source, bind} {}
 
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               op::loop::Urgency urgency) override;
+                               op::loop::Urgency urgency,
+                               op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
@@ -258,7 +266,8 @@ protected:
 
 public:
     op::loop::Prepared prepare(const op::loop::Configuration& configuration,
-                               op::loop::Urgency urgency) override;
+                               op::loop::Urgency urgency,
+                               op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;

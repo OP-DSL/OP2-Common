@@ -119,11 +119,7 @@ public:
         return m_function != nullptr && block_size <= m_attributes.maxThreadsPerBlock;
     }
 
-    // The prior for when a specialised kernel pays: more registers than
-    // OP_JIT_MIN_REGISTERS.
-    bool worth_specialising() const {
-        return m_attributes.numRegs > config().min_registers;
-    }
+    int registers() const { return m_attributes.numRegs; }
 
     void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
         assert(m_function != nullptr);

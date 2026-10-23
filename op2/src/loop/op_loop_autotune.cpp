@@ -1,4 +1,5 @@
 #include <loop/autotune.h>
+#include <loop/select.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -173,7 +174,9 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
 
         Prepared prepared = trial.strategy == selection.strategy
                                 ? selection
-                                : trial.strategy->prepare(configuration, Urgency::now);
+                                : trial.strategy->prepare(
+                                      configuration, Urgency::now,
+                                      choose_kernel(*trial.strategy, configuration));
         if (prepared.status == Status::pending)
             continue;
         if (prepared.status != Status::ready) {
@@ -216,7 +219,8 @@ void Autotuner::add_trials(State& state, const Configuration& configuration,
         } else if (trial.strategy == selection.strategy) {
             trial.candidate = true;
         } else {
-            auto prepared = trial.strategy->prepare(configuration, Urgency::later);
+            auto prepared = trial.strategy->prepare(
+                configuration, Urgency::later, choose_kernel(*trial.strategy, configuration));
             trial.candidate = prepared.status == Status::ready ||
                               prepared.status == Status::pending;
             if (!trial.candidate)
@@ -236,7 +240,8 @@ Autotuner::Decision Autotuner::run_selected(const State& state,
                                             const Decision& ladder) {
     if (state.selected == nullptr || state.selected == ladder.prepared.strategy)
         return ladder;
-    auto prepared = state.selected->prepare(configuration, Urgency::later);
+    auto prepared = state.selected->prepare(configuration, Urgency::later,
+                                            choose_kernel(*state.selected, configuration));
     if (prepared.status != Status::ready)
         return ladder;
     return {prepared};

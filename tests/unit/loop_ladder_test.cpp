@@ -36,6 +36,9 @@ struct Fake : loop::Strategy {
     int waits = 0;
     int runs = 0;
     float time = 1.0f;
+    // The kernels it reports, and the kind its latest prepare was asked for.
+    loop::Kernels facts;
+    loop::KernelKind kind = loop::KernelKind::offline;
 
     explicit Fake(std::string name) : fake_name{std::move(name)} {}
     explicit Fake(const loop::Point& point)
@@ -43,8 +46,12 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Prepared prepare(const loop::Configuration&, loop::Urgency urgency) override {
+    loop::Kernels kernels() const override { return facts; }
+
+    loop::Prepared prepare(const loop::Configuration&, loop::Urgency urgency,
+                           loop::KernelKind asked) override {
         ++prepares;
+        kind = asked;
         loop::Status status = loop::Status::ready;
         if (!statuses.empty()) {
             status = statuses.front();
@@ -236,7 +243,8 @@ void test_defaults() {
     CHECK(fixture.atomics->run(selection.strategy == fixture.atomics
                                    ? selection
                                    : fixture.atomics->prepare(configuration(),
-                                                              loop::Urgency::later),
+                                                              loop::Urgency::later,
+                                                              loop::KernelKind::offline),
                                launch) == 1.0f);
 }
 
@@ -414,6 +422,18 @@ void test_long_ladder() {
     CHECK(fakes[0]->prepares == 2 && fakes[1]->prepares == 0);
 }
 
+// The ladder prepares each strategy with the kind the selection chose for
+// it: the floor with no offline kernel a specialised one.
+void test_kernel_kinds() {
+    loop::init();
+    Fixture fixture;
+    fixture.atomics->statuses = {loop::Status::unavailable};
+    fixture.colouring->facts = {false, true, 0};
+    fixture.ladder.select(configuration());
+    CHECK(fixture.atomics->kind == loop::KernelKind::offline);
+    CHECK(fixture.colouring->kind == loop::KernelKind::jit);
+}
+
 void test_release_registry() {
     int releases = 0;
     auto release = [](void *owner) { ++*static_cast<int *>(owner); };
@@ -452,6 +472,7 @@ int main() {
         test_variables();
         test_axes();
         test_long_ladder();
+        test_kernel_kinds();
         test_release_registry();
         time_selects();
     } catch (const std::exception& error) {

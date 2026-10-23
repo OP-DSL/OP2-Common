@@ -3,6 +3,7 @@
 // keys and C++ constants, and the modes and statistics that move them.
 
 #include <loop/jit.h>
+#include <loop/select.h>
 
 #include <array>
 #include <atomic>
@@ -11,6 +12,7 @@
 #include <initializer_list>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -66,7 +68,7 @@ struct Builds {
 void policy(std::initializer_list<std::pair<const char *, const char *>> variables) {
     for (const char *name :
          {"OP_JIT_LEVEL", "OP_JIT_FORCE", "OP_JIT_SEQ_COMPILE", "OP_JIT_DEBUG",
-          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_VARYING",
+          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_MIN_REGISTERS", "OP_JIT_VARYING",
           "OP_JIT_MAX_GBL_BYTES", "OP_JIT_MAX_CONST_BYTES", "OP_JIT_RUNTIME_PARAMS",
           "OP_JIT_CONSTANT_PARAMS"})
         unsetenv(name);
@@ -184,18 +186,48 @@ void test_build_slots() {
     }
 }
 
-// Specialise when the JIT is on and no offline kernel can run, the run
-// forces it, or the mechanism's prior says a build pays.
-void test_specialise() {
+// A strategy with the kernels it is given, for the selection to choose
+// between.
+struct Kernels : loop::Strategy {
+    loop::Kernels facts;
+
+    explicit Kernels(loop::Kernels facts_) : facts{facts_} {}
+    std::string_view name() const override { return "kernels"; }
+    loop::Kernels kernels() const override { return facts; }
+    loop::Prepared prepare(const loop::Configuration&, loop::Urgency,
+                           loop::KernelKind) override {
+        return {};
+    }
+    std::optional<float> run(const loop::Prepared&, const loop::Launch&) override {
+        return std::nullopt;
+    }
+};
+
+// The register rule: a specialised kernel when the JIT is on and the
+// strategy can build one, and no offline kernel can run, the run forces
+// it, or the offline kernel uses more than OP_JIT_MIN_REGISTERS registers.
+void test_choose_kernel() {
+    op_set_core set{};
+    loop::Configuration configuration{&set, {}, 0};
+    auto choose = [&](bool offline, bool jit, int registers) {
+        Kernels strategy{{offline, jit, registers}};
+        return loop::choose_kernel(strategy, configuration);
+    };
+    constexpr auto offline = loop::KernelKind::offline;
+    constexpr auto jit = loop::KernelKind::jit;
+
     policy({});
-    const auto& jit = loop::jit_policy();
-    CHECK(jit.specialise(false, false));
-    CHECK(!jit.specialise(true, false));
-    CHECK(jit.specialise(true, true));
+    CHECK(choose(false, true, 0) == jit);
+    CHECK(choose(true, true, 32) == offline);
+    CHECK(choose(true, true, 33) == jit);
+    CHECK(choose(true, false, 100) == offline);
+    CHECK(choose(false, false, 0) == offline);
+    policy({{"OP_JIT_MIN_REGISTERS", "64"}});
+    CHECK(choose(true, true, 33) == offline);
     policy({{"OP_JIT_FORCE", "1"}});
-    CHECK(jit.specialise(true, false));
+    CHECK(choose(true, true, 0) == jit);
     policy({{"OP_JIT_LEVEL", "0"}, {"OP_JIT_FORCE", "1"}});
-    CHECK(!jit.specialise(false, true));
+    CHECK(choose(false, true, 100) == offline);
 }
 
 // The parameters take the call's and the strategy's values, key a build by
@@ -540,7 +572,7 @@ int main() {
         test_failed_build();
         test_eviction();
         test_build_slots();
-        test_specialise();
+        test_choose_kernel();
         test_params();
         test_key_words();
         test_modes();

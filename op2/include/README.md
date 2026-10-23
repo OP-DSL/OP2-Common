@@ -24,6 +24,9 @@ loop/jit.h             (includes: loop/strategy.h; the JIT's policy, read by
                         between baked in and run time, and a strategy's
                         cache of built kernels; a backend supplies the
                         mechanism)
+loop/select.h          (includes: loop/strategy.h; the selection's
+                        heuristics: the kernel kind each strategy runs,
+                        which the ladder and the tuner ask for)
 loop/loop.h            (includes: loop/autotune.h, loop/jit.h; the base of
                         every backend's loop: its ladder, tuner and JIT
                         parameters, and the steps of a call every backend
