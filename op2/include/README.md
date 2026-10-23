@@ -20,8 +20,14 @@ loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate strategy per configuration)
 loop/jit.h             (includes: loop/strategy.h; the JIT's policy, read by
                         op_init, the parameters a loop's kernels are
-                        specialised on, and a strategy's cache of built
-                        kernels; a backend supplies the mechanism)
+                        specialised on and the statistics that move them
+                        between baked in and run time, and a strategy's
+                        cache of built kernels; a backend supplies the
+                        mechanism)
+loop/loop.h            (includes: loop/autotune.h, loop/jit.h; the base of
+                        every backend's loop: its ladder, tuner and JIT
+                        parameters, and the steps of a call every backend
+                        shares)
 ```
 
 #### Planning building blocks, backend neutral (sources under src/plan)
@@ -67,7 +73,8 @@ gpu/config.h           (the run-wide configuration: the JIT mechanism's
                         from src/gpu)
 gpu/jit.h              (includes: gpu/config.h, gpu/shims.h, loop/jit.h; the
                         JIT mechanism: offline kernels and their symbols,
-                        NVRTC or hipRTC compiles, launches)
+                        NVRTC or hipRTC compiles, run-time parameters as
+                        wrapper arguments or module symbols, launches)
 gpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
                         plans under the device's limits: block multiples,
                         shared memory, 16-bit stage words, 8-bit colours)
@@ -76,8 +83,9 @@ gpu/chunk_encode.h     (includes: gpu/chunk_plan.h, gpu/shims.h; a chunk
 gpu/strategy.h         (includes: gpu/jit.h, gpu/chunk_encode.h; the plain,
                         atomics, colouring and chunked strategies, and their
                         axes: block size, unstaged singles, wavefront)
-gpu/loop.h             (includes: gpu/strategy.h; the loop the generated
-                        code builds and invokes)
+gpu/loop.h             (includes: gpu/strategy.h, loop/loop.h; the loop the
+                        generated code builds, registers its parameters on
+                        and invokes)
 ```
 
 #### OpenMP backend of the translated kernels
@@ -87,8 +95,8 @@ cpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
 cpu/strategy.h         (includes: cpu/chunk_plan.h, plan/colouring.h; the
                         plain, atomics, colouring and chunked strategies over
                         host threads, and the per-thread globals)
-cpu/loop.h             (includes: cpu/strategy.h, loop/autotune.h; the loop
-                        the generated code builds and invokes)
+cpu/loop.h             (includes: cpu/strategy.h, loop/loop.h; the loop the
+                        generated code builds and invokes)
 ```
 
 #### Sequential layer

@@ -275,34 +275,33 @@ static void op2_k_{{lh.name}}{{variant}}_bind(
 
 static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     namespace kernel = op2_m_{{lh.name}}{{variant}};
-    auto& jit = loop.jit();
 
 {% for dat in lh.dats|soa %}
-    jit.add_dat_stride_param(
+    loop.add_dat_stride_param(
         "op2_{{lh.kernel}}_dat{{dat.id}}_stride_d",
         &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride, {{dat.arg_id}},
         &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride_d);
 {% endfor %}
 {% for const in lh.consts %}
     {% if const.dim == 1 %}
-    jit.add_param("op2_const_{{const.ptr}}_d", &{{const.ptr}},
+    loop.add_param("op2_const_{{const.ptr}}_d", &{{const.ptr}},
         &op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
     {% else %}
-    jit.add_param("op2_const_{{const.ptr}}_d", {{const.ptr}},
+    loop.add_param("op2_const_{{const.ptr}}_d", {{const.ptr}},
         sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]),
         op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
     {% endif %}
 {% endfor %}
 {% for arg in lh.args|gbl|read|scalar %}
-    jit.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
+    loop.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
-    jit.add_launch_param("op2_{{lh.kernel}}_gbl_stride_d",
-                         op::gpu::ParamSource::global_stride,
+    loop.add_launch_param("op2_{{lh.kernel}}_gbl_stride_d",
+                         op::gpu::LaunchValue::global_stride,
                          &kernel::op2_{{lh.kernel}}_gbl_stride_d);
 {% endif %}
-    jit.add_launch_param("op2_block_size_d", op::gpu::ParamSource::block_size);
+    loop.add_launch_param("op2_block_size_d", op::gpu::LaunchValue::block_size);
 
     loop.add<op::gpu::{{"Colouring" if strategy == "colouring" else "Simple"}}>(
         "{{strategy}}", op::loop::Default::enabled,

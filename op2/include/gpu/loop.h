@@ -1,13 +1,14 @@
 #pragma once
 
 // The CUDA and HIP backend's loop: the object the generated code builds per
-// par_loop, from plain data, holding the ladder, the tuner and its JIT, and
+// par_loop, from plain data, adding to the base loop the parameters' device
+// symbols, the compiler of its specialised kernels and the launches, and
 // running one call through them.
 
 #include <gpu/check.h>
 #include <gpu/jit.h>
 #include <gpu/strategy.h>
-#include <loop/autotune.h>
+#include <loop/loop.h>
 #include <loop/strategy.h>
 #include <op_lib_cpp.h>
 #include <op_profile.h>
@@ -22,15 +23,11 @@
 
 namespace op::gpu {
 
-class Loop {
+class Loop : public op::loop::Loop {
 private:
-    std::string m_name;
-    std::string m_profile_target;
-    std::string m_profile_variant;
-    LoopDescription m_description;
-    op::loop::Ladder m_ladder;
-    std::optional<op::loop::Autotuner> m_tuner;
-    Jit m_jit;
+    bool m_gbl_inc_atomic;
+    SymbolBindings m_symbols;
+    Compiler m_compiler;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
     // A launch's kernel arguments, filled by the binders.
@@ -39,10 +36,6 @@ private:
     // processing needs a synchronisation before the host reads.
     bool m_global_output = false;
     bool m_exit_sync = false;
-
-    static void release_callback(void *owner) {
-        static_cast<Loop *>(owner)->release();
-    }
 
     static bool has_global_output(op_arg *args, int nargs) {
         for (int i = 0; i < nargs; ++i) {
@@ -56,25 +49,27 @@ private:
         return false;
     }
 
-public:
-    Loop(const Loop&) = delete;
+    // Bind a parameter to the device symbol an offline kernel reads it from,
+    // if there is one.
+    template<typename T>
+    void bind(std::size_t param, const T *symbol, std::uint64_t *shared_hash) {
+        if (symbol == nullptr)
+            return;
+        void *data_d = nullptr;
+        GPU_CHECK(gpuGetSymbolAddress(&data_d, (const void *)symbol));
+        m_symbols.bind(param, data_d, shared_hash);
+    }
 
+public:
     // profile_target and profile_variant name the loop to the profiler.
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, LoopDescription description,
          JitHeaders headers)
-        : m_name{name}, m_profile_target{profile_target},
-          m_profile_variant{profile_variant}, m_description{description},
-          m_ladder{name}, m_jit{name, std::move(headers)} {
-        if (op::loop::autotune_config().report)
-            m_tuner.emplace(m_ladder);
-        op::loop::register_release(this, &Loop::release_callback);
-    }
+        : op::loop::Loop{name, profile_target, profile_variant, description.direct},
+          m_gbl_inc_atomic{description.gbl_inc_atomic},
+          m_compiler{name, std::move(headers)} {}
 
-    ~Loop() {
-        op::loop::unregister_release(this);
-        release();
-    }
+    ~Loop() override { release(); }
 
     // --- Registration, by the generated code ---
 
@@ -90,22 +85,71 @@ public:
                      });
     }
 
-    Jit& jit() { return m_jit; }
+    // The parameters the kernels are specialised on.  symbol is the copy an
+    // offline kernel reads, if any, and hash_device_ptr the hash of its value
+    // there, shared by every loop that reads it.  A built kernel can have
+    // each at run time but a dat's dimension and a strategy's value, which
+    // its source needs as constants.
+
+    template<typename T>
+    void add_param(std::string_view name, T *data, const T *symbol = nullptr,
+                   uint64_t *hash_device_ptr = nullptr) {
+        bind(m_params.add(name, data, 1, op::loop::ParamSource::external, -1, true),
+             symbol, hash_device_ptr);
+    }
+
+    template<typename T>
+    void add_param(std::string_view name, T *data, std::size_t len,
+                   const T *symbol = nullptr, uint64_t *hash_device_ptr = nullptr) {
+        bind(m_params.add(name, data, len, op::loop::ParamSource::external, -1, true),
+             symbol, hash_device_ptr);
+    }
+
+    template<typename T>
+    void add_scalar_arg_param(std::string_view name, T *data, int arg_index,
+                              const T *symbol = nullptr,
+                              uint64_t *hash_device_ptr = nullptr) {
+        bind(m_params.add(name, data, 1, op::loop::ParamSource::scalar_arg, arg_index,
+                          true),
+             symbol, hash_device_ptr);
+    }
+
+    void add_dat_stride_param(std::string_view name, int *data, int arg_index,
+                              const int *symbol = nullptr,
+                              uint64_t *hash_device_ptr = nullptr) {
+        bind(m_params.add(name, data, 1, op::loop::ParamSource::dat_stride, arg_index,
+                          true),
+             symbol, hash_device_ptr);
+    }
+
+    void add_dat_dim_param(std::string_view name, int *data, int arg_index) {
+        m_params.add(name, data, 1, op::loop::ParamSource::dat_dim, arg_index);
+    }
+
+    // A value each strategy decides, given to every acquire and upload.
+    void add_launch_param(std::string_view name, LaunchValue value,
+                          const int *symbol = nullptr) {
+        bind(m_params.add(name, static_cast<int *>(nullptr), 1,
+                          op::loop::ParamSource::strategy, static_cast<int>(value)),
+             symbol, nullptr);
+    }
 
     // --- For the strategies ---
 
-    const std::string& name() const { return m_name; }
-    op::loop::Ladder& ladder() { return m_ladder; }
+    const Compiler& compiler() const { return m_compiler; }
 
-    op::loop::Sections sections(const op::loop::Configuration& configuration) const {
-        return op::loop::Sections::of(configuration, m_description.direct);
+    // Upload the changed values an offline kernel reads, under a strategy's
+    // launch values.
+    void upload(const LaunchValues& launch) {
+        m_params.apply(launch.slots());
+        m_symbols.upload(m_params);
     }
 
     // The most blocks a launch may use: as many as the reduction scratch
     // allows.
     int block_limit(op_arg *args, int nargs, int block_size) const {
         return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(),
-                                       m_description.gbl_inc_atomic);
+                                       m_gbl_inc_atomic);
     }
 
     std::vector<void *>& arguments() { return m_arguments; }
@@ -125,8 +169,7 @@ public:
             return;
         op_profile_next("Process GBLs");
         m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, global_stride,
-                                                   global_stride,
-                                                   m_description.gbl_inc_atomic);
+                                                   global_stride, m_gbl_inc_atomic);
         op_profile_next("Kernel");
     }
 
@@ -153,28 +196,21 @@ public:
         }
 
         op_profile_next("Get Kernel");
-        m_jit.update(args, nargs);
         op::loop::Configuration configuration{
             set, {args, static_cast<std::size_t>(nargs)}, n_exec};
-        auto selection = m_ladder.select(configuration);
-        auto decision = m_tuner ? m_tuner->choose(configuration, selection)
-                                : op::loop::Autotuner::Decision{selection};
+        auto decision = decide(configuration, args, nargs);
         const auto& call = static_cast<StrategyBase *>(decision.prepared.strategy)->call();
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
         m_global_output = has_global_output(args, nargs);
         m_exit_sync = false;
-        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride,
-                                    m_description.gbl_inc_atomic);
+        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, m_gbl_inc_atomic);
         op_profile_exit();
 
         op_profile_next("Computation");
         op_profile_enter("Kernel");
-        op::loop::Launch launch{args, nargs, decision.timed != nullptr};
-        auto microseconds = decision.prepared.strategy->run(decision.prepared, launch);
-        if (microseconds && m_tuner)
-            m_tuner->sample(decision, *microseconds);
+        run(decision, args, nargs);
         op_profile_exit();
         op_profile_exit();
 
@@ -187,11 +223,10 @@ public:
         op_profile_exit();
     }
 
-    // At op_exit, while the device is still up: join the compiles, report
-    // the tuner, and free every strategy's device state.
-    void release() {
-        if (m_tuner)
-            m_tuner->flush();
+    // At op_exit, while the device is still up: report the tuner, join the
+    // compiles, and free every strategy's device state.
+    void release() override {
+        op::loop::Loop::release();
         for (std::size_t i = 0; i < m_ladder.size(); ++i)
             static_cast<StrategyBase&>(m_ladder[i]).release();
         for (auto event : m_events)
@@ -233,11 +268,10 @@ inline op::loop::Prepared StrategyBase::acquire(
         return prepared;
     }
 
-    auto& jit = m_loop.jit();
-    auto& params = jit.params();
+    auto& params = m_loop.params();
     auto key = params.key(configuration, launch_values().slots());
     auto acquired = m_cache.acquire(key, urgency, offline, [&] {
-        return jit.compiler().job(params, m_source);
+        return m_loop.compiler().job(params, m_source);
     });
     prepared.status = acquired.status;
     prepared.kernel = acquired.kernel;
@@ -254,7 +288,7 @@ inline void StrategyBase::launch(const op::loop::Prepared& prepared,
         op_profile_next("JIT Kernel");
         static_cast<JitKernel *>(prepared.kernel)
             ->launch(geometry.blocks, m_block_size, arguments.data(),
-                     geometry.shared_bytes, m_loop.jit().params());
+                     geometry.shared_bytes, m_loop.params());
         return;
     }
 
@@ -272,7 +306,7 @@ std::optional<float> StrategyBase::run_phases(
     // An offline kernel reads the call's and this strategy's values from
     // device symbols.
     if (prepared.kernel == nullptr)
-        m_loop.jit().upload(launch_values());
+        m_loop.upload(launch_values());
     int timed_pairs = 0;
     for (int phase = 0; phase < phases; ++phase) {
         if (phase == wait_before) {

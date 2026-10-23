@@ -1,11 +1,11 @@
 #pragma once
 
 // The OpenMP backend's loop: the object the generated code builds per
-// par_loop, holding the ladder and the tuner, and running one call through
-// them over the host threads.
+// par_loop, adding to the base loop the call's sections, threads, globals and
+// chunk scratch, and running one call through them over the host threads.
 
 #include <cpu/strategy.h>
-#include <loop/autotune.h>
+#include <loop/loop.h>
 #include <loop/strategy.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
@@ -23,15 +23,8 @@
 
 namespace op::cpu {
 
-class Loop {
+class Loop : public op::loop::Loop {
 private:
-    std::string m_name;
-    std::string m_profile_target;
-    std::string m_profile_variant;
-    LoopDescription m_description;
-    op::loop::Ladder m_ladder;
-    std::optional<op::loop::Autotuner> m_tuner;
-
     // The call under way: its sections, its threads, their globals and
     // chunk scratch.
     op::loop::Sections m_sections;
@@ -40,24 +33,10 @@ private:
     std::vector<std::unique_ptr<char[]>> m_scratch;
     std::size_t m_scratch_bytes = 0;
 
-    static void release_callback(void *owner) {
-        static_cast<Loop *>(owner)->release();
-    }
-
 public:
-    Loop(const Loop&) = delete;
-
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, LoopDescription description)
-        : m_name{name}, m_profile_target{profile_target},
-          m_profile_variant{profile_variant}, m_description{description},
-          m_ladder{name} {
-        if (op::loop::autotune_config().report)
-            m_tuner.emplace(m_ladder);
-        op::loop::register_release(this, &Loop::release_callback);
-    }
-
-    ~Loop() { op::loop::unregister_release(this); }
+        : op::loop::Loop{name, profile_target, profile_variant, description.direct} {}
 
     // --- Registration, by the generated code ---
 
@@ -74,13 +53,6 @@ public:
     }
 
     // --- For the strategies ---
-
-    const std::string& name() const { return m_name; }
-    op::loop::Ladder& ladder() { return m_ladder; }
-
-    op::loop::Sections sections(const op::loop::Configuration& configuration) const {
-        return op::loop::Sections::of(configuration, m_description.direct);
-    }
 
     const op::loop::Sections& call_sections() const { return m_sections; }
     int threads() const { return m_threads; }
@@ -134,9 +106,7 @@ public:
         op_profile_next("Init");
         op::loop::Configuration configuration{
             set, {args, static_cast<std::size_t>(nargs)}, n_exec};
-        auto selection = m_ladder.select(configuration);
-        auto decision = m_tuner ? m_tuner->choose(configuration, selection)
-                                : op::loop::Autotuner::Decision{selection};
+        auto decision = decide(configuration, args, nargs);
 
         op_profile_next("Prepare GBLs");
         m_sections = sections(configuration);
@@ -144,22 +114,13 @@ public:
         m_globals.prepare(args, nargs, m_threads);
 
         op_profile_next("Computation");
-        op::loop::Launch launch{args, nargs, decision.timed != nullptr};
-        auto microseconds = decision.prepared.strategy->run(decision.prepared, launch);
-        if (microseconds && m_tuner)
-            m_tuner->sample(decision, *microseconds);
+        run(decision, args, nargs);
 
         op_profile_next("MPI Reduce");
         op::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
         op_mpi_set_dirtybit(nargs, args);
         op_profile_exit();
         op_profile_exit();
-    }
-
-    // At op_exit: report the configurations still being explored.
-    void release() {
-        if (m_tuner)
-            m_tuner->flush();
     }
 };
 

@@ -29,7 +29,7 @@ INCTXT(OP_STAGING_LAYOUT, "plan/staging_layout.h");
 #define OP_STRATEGY_KERNEL_DATA OP_F2C_JIT_CAT(OP_STRATEGY_KERNEL, _data)
 INCTXT(OP_STRATEGY_KERNEL, "kernel/strategy.h");
 
-// The embedded headers as the backend's JIT service takes them; the
+// The embedded headers as the backend's JIT compiler takes them; the
 // application's constants header when the unit embedded one as
 // OP_F2C_PARAMS.
 #ifdef OP_F2C_PARAMS

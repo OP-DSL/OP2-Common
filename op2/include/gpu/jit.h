@@ -142,9 +142,8 @@ struct KernelSource {
 
 // --- Parameters ---------------------------------------------------------------------
 
-// The slot of each value a strategy fixes for its kernel, as the generated
-// code names it.
-enum class ParamSource {
+// Each value a strategy fixes for its kernel, by its slot.
+enum class LaunchValue {
     global_stride,
     block_size,
     unstaged_singles,
@@ -310,96 +309,6 @@ public:
             return compile(text, name, std::move(symbols));
         };
     }
-};
-
-// --- The loop's JIT -----------------------------------------------------------------
-
-// A loop's parameters, the symbols its offline kernels read them from, and
-// the compiler of its specialised kernels.
-class Jit {
-private:
-    op::loop::ParamSet m_params;
-    SymbolBindings m_symbols;
-    Compiler m_compiler;
-
-    template<typename T>
-    void bind(std::size_t param, const T *symbol, std::uint64_t *shared_hash) {
-        if (symbol == nullptr)
-            return;
-        void *data_d = nullptr;
-        GPU_CHECK(gpuGetSymbolAddress(&data_d, (const void *)symbol));
-        m_symbols.bind(param, data_d, shared_hash);
-    }
-
-public:
-    Jit(std::string_view loop, JitHeaders headers)
-        : m_params{loop}, m_compiler{loop, std::move(headers)} {}
-    Jit(const Jit&) = delete;
-
-    // --- Parameters, registered by the generated code ---
-
-    // Each kind a built kernel can have at run time but a dat's dimension
-    // and a strategy's value, which its source needs as constants.
-
-    template<typename T>
-    void add_param(std::string_view name, T *data, const T *symbol = nullptr,
-                   uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::external, -1, true),
-             symbol, hash_device_ptr);
-    }
-
-    template<typename T>
-    void add_param(std::string_view name, T *data, std::size_t len,
-                   const T *symbol = nullptr, uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, len, op::loop::ParamSource::external, -1, true),
-             symbol, hash_device_ptr);
-    }
-
-    template<typename T>
-    void add_scalar_arg_param(std::string_view name, T *data, int arg_index,
-                              const T *symbol = nullptr,
-                              uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::scalar_arg, arg_index,
-                          true),
-             symbol, hash_device_ptr);
-    }
-
-    void add_dat_stride_param(std::string_view name, int *data, int arg_index,
-                              const int *symbol = nullptr,
-                              uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::dat_stride, arg_index,
-                          true),
-             symbol, hash_device_ptr);
-    }
-
-    void add_dat_dim_param(std::string_view name, int *data, int arg_index) {
-        m_params.add(name, data, 1, op::loop::ParamSource::dat_dim, arg_index);
-    }
-
-    // A value each strategy decides (global stride, block size, singles,
-    // wavefront), given to every acquire and upload; symbol is the copy an
-    // offline kernel reads, if any.
-    void add_launch_param(std::string_view name, ParamSource source,
-                          const int *symbol = nullptr) {
-        bind(m_params.add(name, static_cast<int *>(nullptr), 1,
-                          op::loop::ParamSource::strategy, static_cast<int>(source)),
-             symbol, nullptr);
-    }
-
-    // --- Per call ---
-
-    // The call's values, at invoke.
-    void update(op_arg *args, int nargs) { m_params.update(args, nargs); }
-
-    // Upload the changed values an offline kernel reads, under a strategy's
-    // launch values.
-    void upload(const LaunchValues& launch) {
-        m_params.apply(launch.slots());
-        m_symbols.upload(m_params);
-    }
-
-    op::loop::ParamSet& params() { return m_params; }
-    const Compiler& compiler() const { return m_compiler; }
 };
 
 } // namespace op::gpu
