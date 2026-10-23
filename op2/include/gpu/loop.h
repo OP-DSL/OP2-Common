@@ -138,12 +138,15 @@ public:
         mark_by_value(arg_index);
     }
 
-    // Any other READ global, which an offline kernel reads from its device
-    // copy.
+    // Any other READ global: by value, or else read by an offline kernel
+    // from its device copy.
     template<typename T>
-    void add_global_param(std::string_view name, int arg_index) {
+    void add_global_param(std::string_view name, int arg_index,
+                          bool by_value = false) {
         m_params.add_array(name, static_cast<T *>(nullptr), 0,
                            op::loop::ParamSource::array_arg, arg_index, true);
+        if (by_value)
+            mark_by_value(arg_index);
     }
 
     void add_dat_stride_param(std::string_view name, int *data, int arg_index,

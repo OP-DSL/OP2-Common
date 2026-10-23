@@ -24,6 +24,18 @@ Indirect (colouring)
     {%- set strategy = "colouring" -%}
 {%- endif -%}
 
+{#- READ globals of a literal dimension passed by value, as the scalars are,
+    so no kernel reads a device copy of them: up to 256 bytes each and 1 KB
+    in all, well within the kernel argument buffer. -#}
+{%- set by_value = namespace(args=[], bytes=0) -%}
+{%- for arg in lh.args|gbl|read|reject("scalar") if arg.dim is not none and arg is not opt and arg.typ.size is defined -%}
+    {%- set bytes = arg.dim * arg.typ.size // 8 -%}
+    {%- if bytes <= 256 and by_value.bytes + bytes <= 1024 -%}
+        {%- set by_value.args = by_value.args + [arg] -%}
+        {%- set by_value.bytes = by_value.bytes + bytes -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set gbls_by_value = by_value.args -%}
 {%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
 {%- if config.gbl_inc_atomic -%}
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
@@ -77,6 +89,10 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 info{{arg.id}} + thread_id
     {%- elif arg in args_gbl_per_thread -%}
 gbl{{arg.id}} + thread_id
+    {%- elif jit and arg in gbls_by_value -%}
+f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)
+    {%- elif arg in gbls_by_value -%}
+gbl{{arg.id}}.data
     {%- elif jit and arg is gbl and arg is read -%}
 f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
     {%- elif arg is gbl -%}
@@ -139,7 +155,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% for map in lh.maps %}
     const int *__restrict map{{map.id}},
     {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) and arg not in gbls_by_value %}
     {{"const " if arg is read}}{{arg.typ.c()}} *__restrict gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
@@ -159,9 +175,12 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride{{"," if scalar_gbls}}
+    const int stride{{"," if scalar_gbls or gbls_by_value}}
     {% for arg in scalar_gbls %}
-    const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last}}
+    const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last or gbls_by_value}}
+    {% endfor %}
+    {% for arg in gbls_by_value %}
+    const f2c::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -227,7 +246,7 @@ namespace op2_m_{{lh.name}}{{variant}} {
     {% for map in lh.maps %}
         (void *)&args[{{map.arg_id}}].map_data_d,
     {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) and arg not in gbls_by_value %}
         (void *)&args[{{arg.id}}].data_d,
     {% endfor %}
     {% for arg in lh.args|info %}
@@ -255,6 +274,9 @@ namespace op2_m_{{lh.name}}{{variant}} {
         {% else %}
         (void *)args[{{arg.id}}].data,
         {% endif %}
+    {% endfor %}
+    {% for arg in gbls_by_value %}
+        (void *)args[{{arg.id}}].data,
     {% endfor %}
 {%- endmacro %}
 
@@ -299,7 +321,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
         &kernel::op2_gbl{{arg.id}}, {{arg.id}});
 {% endfor %}
 {% for arg in lh.args|gbl|read|reject("scalar") %}
-    loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}});
+    loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}{{", true" if arg in gbls_by_value}});
 {% endfor %}
 {% if args_gbl_per_thread|length > 0 %}
     loop.add_launch_param("op2_{{lh.kernel}}_gbl_stride_d",

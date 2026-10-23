@@ -47,6 +47,12 @@ template<> struct is_integer_type<int64_t> { static constexpr bool value = true;
 template<bool B, typename R = void> struct enable_if {};
 template<typename R> struct enable_if<true, R> { using type = R; };
 
+// A small array passed by value, as a kernel argument.
+template<typename T, unsigned N>
+struct Array {
+    T data[N];
+};
+
 // A JIT kernel's parameter given at run time: defined as one of these in
 // place of its baked value, so param_value(name, argument) reads the
 // kernel's argument instead.  A baked array comes as its pointer.
