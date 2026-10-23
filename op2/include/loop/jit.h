@@ -286,6 +286,18 @@ public:
     // The call's values, at invoke.
     void update(op_arg *args, int nargs);
 
+    // Whether any parameter's mode may move, so its statistics matter.
+    bool moving() const { return m_moving; }
+
+    // Record the call's values in the configuration's statistics and take
+    // the modes they give, once per call.
+    void observe_call(const Configuration& configuration) {
+        if (m_observed == m_calls)
+            return;
+        m_observed = m_calls;
+        observe(configuration);
+    }
+
     // A strategy's values, by slot.
     void apply(std::span<const int> values) {
         for (auto& param : m_params)
@@ -293,14 +305,9 @@ public:
     }
 
     // The key a kernel specialised under a strategy's values is built under:
-    // each baked parameter's value, each run-time one marked as such.  The
-    // call's first key records its values in the configuration's statistics
-    // and takes the modes they give.
+    // each baked parameter's value, each run-time one marked as such.
     std::uint64_t key(const Configuration& configuration, std::span<const int> values) {
-        if (m_observed != m_calls) {
-            m_observed = m_calls;
-            observe(configuration);
-        }
+        observe_call(configuration);
         std::uint64_t key = hash_seed;
         for (auto& param : m_params) {
             std::uint64_t value = runtime_mark;

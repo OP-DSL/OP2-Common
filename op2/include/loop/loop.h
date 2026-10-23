@@ -31,10 +31,13 @@ protected:
 
     // A call's decision: the parameters take its values, the ladder selects,
     // and the tuner, while it explores the configuration, may choose another
-    // strategy.
+    // strategy.  Every call counts in the parameters' statistics, whichever
+    // strategy runs, so one that specialises later meets settled modes.
     Autotuner::Decision decide(const Configuration& configuration, op_arg *args,
                                int nargs) {
         m_params.update(args, nargs);
+        if (m_params.moving() && jit_policy().enabled())
+            m_params.observe_call(configuration);
         auto selection = m_ladder.select(configuration);
         return m_tuner ? m_tuner->choose(configuration, selection)
                        : Autotuner::Decision{selection};

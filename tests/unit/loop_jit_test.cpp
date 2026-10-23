@@ -460,6 +460,38 @@ void test_array_globals() {
     CHECK(capped[0].mode() == runtime);
 }
 
+// A call observed without any key still counts: a global invariant for 32
+// such calls is baked in when the first key is asked for, and that key's
+// call is not counted twice.
+void test_observe_every_call() {
+    policy({});
+    op_set_core set{};
+    set.size = 10;
+    set.core_size = 10;
+    double value = 5.0;
+    op_arg args[1]{};
+    args[0].opt = 1;
+    args[0].argtype = OP_ARG_GBL;
+    args[0].acc = OP_READ;
+    args[0].dim = 1;
+    args[0].data = reinterpret_cast<char *>(&value);
+    double global = 0.0;
+    loop::ParamSet params{"flux"};
+    params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+    CHECK(params.moving());
+
+    loop::Configuration configuration{&set, {args, 1}, 10};
+    for (int i = 0; i < 31; ++i) {
+        params.update(args, 1);
+        params.observe_call(configuration);
+    }
+    CHECK(params[0].mode() == runtime);
+    params.update(args, 1);
+    params.observe_call(configuration);
+    auto key = params.key(configuration, {});
+    CHECK(params[0].mode() == baked && params.key(configuration, {}) == key);
+}
+
 } // namespace
 
 int main() {
@@ -474,6 +506,7 @@ int main() {
         test_modes();
         test_statistics();
         test_array_globals();
+        test_observe_every_call();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;
