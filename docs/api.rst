@@ -571,8 +571,24 @@ The following environment variables can be set at run time to control OP2 behavi
      - Set to ``1`` at *translation* time to force SoA data layout for all datasets. Must be set before invoking the translator, not at runtime.
    * - ``OP_TIME_THREADS``
      - Set to ``1`` to break down ``op_timings_to_csv`` output per OpenMP thread (and per thread per rank for MPI+OpenMP).
+   * - ``OP_JIT_LEVEL``
+     - JIT-compiled (``c_cuda`` / ``c_hip``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that keeps changing moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that four in five calls agree on. Replaces ``OP_JIT_ENABLE``.
+   * - ``OP_JIT_FORCE``
+     - Set to ``1`` to specialise every kernel; by default only those whose offline kernel uses more registers than ``OP_JIT_MIN_REGISTERS`` (32), or that have no offline kernel.
+   * - ``OP_JIT_MIN_CALLS``
+     - Integer, default 9. Calls with the same baked values before their kernel's build starts.
    * - ``OP_JIT_MAX_THREADS``
-     - Integer. Caps the maximum number of OpenMP threads used inside JIT-compiled (``c_cuda`` / ``c_hip``) host loops. Useful for tuning thread counts independently of ``OMP_NUM_THREADS``.
+     - Integer. Kernel builds running at once on background threads; 16 with CUDA 12.3 or later, else 4.
+   * - ``OP_JIT_SEQ_COMPILE``
+     - Set to ``1`` to build each kernel on the calling thread when it is due, so it runs from that call on.
+   * - ``OP_JIT_DEBUG``
+     - Set to ``1`` to print each build and each parameter that moves between baked in and run time, and to synchronise after every launch.
+   * - ``OP_JIT_VARYING``
+     - Integer, default 8. Changes within a baked value's last 32 calls past which it moves to run time for the rest of the run.
+   * - ``OP_JIT_MAX_GBL_BYTES``, ``OP_JIT_MAX_CONST_BYTES``
+     - Integers, default 4096 and 16384. The largest ``OP_READ`` global and constant baked in; larger ones stay at run time.
+   * - ``OP_JIT_RUNTIME_PARAMS``, ``OP_JIT_CONSTANT_PARAMS``
+     - Comma-separated parameter names, each ``name`` or ``loop:name`` (as ``OP_JIT_DEBUG`` prints them), always given at run time or always baked in.
    * - ``OP_FALLBACK_MODE``
      - Set to ``warn`` or ``error``. When the translator emits a fallback sequential kernel for a loop it cannot fully parallelise, ``warn`` prints a warning at runtime when the fallback executes; ``error`` aborts. Unset by default (fallback runs silently).
    * - ``OP_PROFILE_LEVEL``

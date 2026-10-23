@@ -47,6 +47,21 @@ template<> struct is_integer_type<int64_t> { static constexpr bool value = true;
 template<bool B, typename R = void> struct enable_if {};
 template<typename R> struct enable_if<true, R> { using type = R; };
 
+// A JIT kernel's parameter given at run time: defined as one of these in
+// place of its baked value, so param_value(name, argument) reads the
+// kernel's argument instead.
+struct RuntimeParam {};
+
+template<typename T>
+DEVICE constexpr const T& param_value(const T& baked, const T&) {
+    return baked;
+}
+
+template<typename T>
+DEVICE constexpr const T& param_value(RuntimeParam, const T& argument) {
+    return argument;
+}
+
 template<typename T>
 struct Ptr {
     T* data;

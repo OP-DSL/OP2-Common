@@ -130,7 +130,7 @@ protected:
     // Whether no kernel can ever come about: no usable offline kernel, and
     // the JIT off.  A strategy that plans checks this before planning.
     bool never_available() const {
-        return !op::loop::jit_policy().enable && !m_offline.usable(m_block_size);
+        return !op::loop::jit_policy().enabled() && !m_offline.usable(m_block_size);
     }
 
     op::loop::Prepared unavailable() {
@@ -143,7 +143,8 @@ protected:
 
     // Finish a call: the launch parameters and the kernel, as a Prepared
     // value over entry.
-    op::loop::Prepared acquire(op::loop::Urgency urgency, const void *entry);
+    op::loop::Prepared acquire(const op::loop::Configuration& configuration,
+                               op::loop::Urgency urgency, const void *entry);
 
     // Bind and launch one kernel.
     void launch(const op::loop::Prepared& prepared, LaunchContext& context,
@@ -190,7 +191,7 @@ public:
         begin(configuration);
         for (const auto& section : m_call.sections.span())
             m_call.max_blocks = std::max(m_call.max_blocks, grid(section.size()));
-        return acquire(urgency, nullptr);
+        return acquire(configuration, urgency, nullptr);
     }
 
     std::optional<float> run(const op::loop::Prepared& prepared,

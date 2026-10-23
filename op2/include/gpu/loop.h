@@ -216,8 +216,9 @@ inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
         static_cast<int>(configuration.args.size()), m_block_size);
 }
 
-inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
-                                                const void *entry) {
+inline op::loop::Prepared StrategyBase::acquire(
+    const op::loop::Configuration& configuration, op::loop::Urgency urgency,
+    const void *entry) {
     m_call.global_stride = m_block_size * m_call.max_blocks;
     op::loop::Prepared prepared;
     prepared.strategy = this;
@@ -234,8 +235,8 @@ inline op::loop::Prepared StrategyBase::acquire(op::loop::Urgency urgency,
 
     auto& jit = m_loop.jit();
     auto& params = jit.params();
-    params.apply(launch_values().slots());
-    auto acquired = m_cache.acquire(params.hash(), urgency, offline, [&] {
+    auto key = params.key(configuration, launch_values().slots());
+    auto acquired = m_cache.acquire(key, urgency, offline, [&] {
         return jit.compiler().job(params, m_source);
     });
     prepared.status = acquired.status;
@@ -253,7 +254,7 @@ inline void StrategyBase::launch(const op::loop::Prepared& prepared,
         op_profile_next("JIT Kernel");
         static_cast<JitKernel *>(prepared.kernel)
             ->launch(geometry.blocks, m_block_size, arguments.data(),
-                     geometry.shared_bytes);
+                     geometry.shared_bytes, m_loop.jit().params());
         return;
     }
 
@@ -370,7 +371,7 @@ inline op::loop::Prepared Colouring::prepare(
             m_call.max_blocks,
             grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
                  colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(urgency, entry);
+    return acquire(configuration, urgency, entry);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
@@ -482,7 +483,7 @@ inline op::loop::Prepared ChunkBase::prepare(
             m_call.max_blocks =
                 std::max(m_call.max_blocks, batch_blocks(*entry->plan, begin, end));
         }
-    return acquire(urgency, entry);
+    return acquire(configuration, urgency, entry);
 }
 
 // A block per chunk up to the call's limit, and for a wavefront no more

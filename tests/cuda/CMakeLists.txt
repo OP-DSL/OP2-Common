@@ -25,13 +25,13 @@ foreach(_test dynamic_smem_launch chunk_strategy jit_build_failure)
 
     add_test(NAME ${_test}_offline COMMAND ${_test})
     set_tests_properties(${_test}_offline PROPERTIES
-        ENVIRONMENT "OP_JIT_ENABLE=0"
+        ENVIRONMENT "OP_JIT_LEVEL=0"
         LABELS "cuda;unit")
 
     add_test(NAME ${_test}_jit COMMAND ${_test})
     set_tests_properties(${_test}_jit PROPERTIES
         ENVIRONMENT
-            "OP_JIT_ENABLE=1;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1"
+            "OP_JIT_LEVEL=2;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1"
         LABELS "cuda;unit")
 endforeach()
 

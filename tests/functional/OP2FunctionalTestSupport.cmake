@@ -42,7 +42,7 @@ function(_op2_strategy_environment _strategy _variant _out)
     endif()
     set(_env "OP_STRATEGY=${_strategy}")
     if(_strategy MATCHES "^chunk_" AND NOT _variant MATCHES "openmp$")
-        list(APPEND _env "OP_JIT_ENABLE=1" "OP_JIT_MIN_CALLS=1"
+        list(APPEND _env "OP_JIT_LEVEL=2" "OP_JIT_MIN_CALLS=1"
                          "OP_JIT_SEQ_COMPILE=1")
     endif()
     set(${_out} "${_env}" PARENT_SCOPE)
@@ -211,7 +211,7 @@ function(op2_add_functional_tests)
                         FAIL_REGULAR_EXPRESSION "passes over its forced strategy")
                 endforeach()
                 if(_A_STRATEGIES)
-                    set(_env OP_AUTOTUNE=report OP_JIT_ENABLE=1 ${_base_env})
+                    set(_env OP_AUTOTUNE=report OP_JIT_LEVEL=2 ${_base_env})
                     add_test(NAME ${_tgt}_autotune COMMAND ${_cmd})
                     set_tests_properties(${_tgt}_autotune PROPERTIES
                         LABELS      "${_labels};strategy"

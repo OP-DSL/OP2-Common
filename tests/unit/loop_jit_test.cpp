@@ -1,6 +1,6 @@
 // The JIT's backend-neutral half on the host: the build cache's policy over
-// fake kernels and jobs, the decision to specialise, and the parameters'
-// values, keys and C++ constants.
+// fake kernels and jobs, the decision to specialise, the parameters' values,
+// keys and C++ constants, and the modes and statistics that move them.
 
 #include <loop/jit.h>
 
@@ -32,6 +32,8 @@ constexpr auto later = loop::Urgency::later;
 constexpr auto now = loop::Urgency::now;
 constexpr auto wait = loop::Urgency::wait;
 constexpr auto ready = loop::Status::ready;
+constexpr auto baked = loop::ParamMode::baked;
+constexpr auto runtime = loop::ParamMode::runtime;
 
 struct FakeKernel {
     int id;
@@ -61,8 +63,11 @@ struct Builds {
 
 // Read the policy from these variables alone.
 void policy(std::initializer_list<std::pair<const char *, const char *>> variables) {
-    for (const char *name : {"OP_JIT_ENABLE", "OP_JIT_FORCE", "OP_JIT_SEQ_COMPILE",
-                             "OP_JIT_DEBUG", "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS"})
+    for (const char *name :
+         {"OP_JIT_LEVEL", "OP_JIT_FORCE", "OP_JIT_SEQ_COMPILE", "OP_JIT_DEBUG",
+          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_VARYING",
+          "OP_JIT_MAX_GBL_BYTES", "OP_JIT_MAX_CONST_BYTES", "OP_JIT_RUNTIME_PARAMS",
+          "OP_JIT_CONSTANT_PARAMS"})
         unsetenv(name);
     for (const auto& [name, value] : variables)
         setenv(name, value, 1);
@@ -188,13 +193,14 @@ void test_specialise() {
     CHECK(jit.specialise(true, true));
     policy({{"OP_JIT_FORCE", "1"}});
     CHECK(jit.specialise(true, false));
-    policy({{"OP_JIT_ENABLE", "0"}, {"OP_JIT_FORCE", "1"}});
+    policy({{"OP_JIT_LEVEL", "0"}, {"OP_JIT_FORCE", "1"}});
     CHECK(!jit.specialise(false, true));
 }
 
 // The parameters take the call's and the strategy's values, key a build by
 // them, and format as C++ constants exactly.
 void test_params() {
+    policy({});
     op_set_core set{};
     set.size = 100;
     op_dat_core dat{};
@@ -232,23 +238,23 @@ void test_params() {
     params.add("flag", &flag, 1, loop::ParamSource::external);
     params.add("big", &big, 1, loop::ParamSource::external);
 
+    loop::Configuration configuration{&set, {args, 3}, 100};
     params.update(args, 3);
     CHECK(gbl0 == 2.5 && gbl2 == 7.0 && stride == 128 && dim == 3);
     std::array<int, 2> slots{0, 64};
-    params.apply(slots);
-    auto key = params.hash();
+    auto key = params.key(configuration, slots);
+    CHECK(params.key(configuration, slots) == key);
 
     global = 3.5;
     params.update(args, 3);
-    CHECK(params.hash() != key);
+    CHECK(params.key(configuration, slots) != key);
     global = 2.5;
     params.update(args, 3);
-    CHECK(params.hash() == key);
+    CHECK(params.key(configuration, slots) == key);
     slots[1] = 128;
-    params.apply(slots);
-    CHECK(params.hash() != key);
+    CHECK(params.key(configuration, slots) != key);
     slots[1] = 64;
-    params.apply(slots);
+    CHECK(params.key(configuration, slots) == key);
 
     CHECK(loop::format_cxx(params) ==
           "static constexpr double c = 0x1p+0;\n"
@@ -264,6 +270,126 @@ void test_params() {
           "static constexpr int64_t big = 1099511627776;\n");
 }
 
+// The initial modes: structural parameters baked; constants baked and
+// moving; READ globals at run time, moving at level 2; a cap or a name in
+// the variables fixing either, unless the mechanism cannot give it at run
+// time.
+void test_modes() {
+    double constant = 1.0;
+    double table[3] = {1.0, 2.0, 3.0};
+    double global = 0.0;
+    int stride = 0;
+    auto modes = [&] {
+        loop::ParamSet params{"flux"};
+        params.add("c", &constant, 1, loop::ParamSource::external, -1, true);
+        params.add("table", table, 3, loop::ParamSource::external, -1, true);
+        params.add("g", &global, 1, loop::ParamSource::scalar_arg, 0, true);
+        params.add("stride", &stride, 1, loop::ParamSource::dat_stride, 1, true);
+        params.add("fixed", &constant, 1, loop::ParamSource::external);
+        std::string out;
+        for (std::size_t i = 0; i < params.size(); ++i) {
+            out += params[i].initial() == baked ? "b" : "r";
+            out += params[i].fixed() ? " " : "* ";
+        }
+        return out;
+    };
+
+    policy({});
+    CHECK(modes() == "b* b* r* b b ");
+    policy({{"OP_JIT_LEVEL", "1"}});
+    CHECK(modes() == "b* b* r b b ");
+    policy({{"OP_JIT_MAX_CONST_BYTES", "8"}, {"OP_JIT_MAX_GBL_BYTES", "4"}});
+    CHECK(modes() == "b* r r b b ");
+    policy({{"OP_JIT_RUNTIME_PARAMS", "c,flux:stride,other:table,fixed"},
+            {"OP_JIT_CONSTANT_PARAMS", "g"}});
+    CHECK(modes() == "r b* b r b ");
+}
+
+// A constant that keeps changing moves to run time, and a global most calls
+// agree on is baked in, each once, by its configuration's statistics; the
+// key follows the modes.
+void test_statistics() {
+    policy({});
+    std::array<op_set_core, 4> sets{};
+    for (int i = 0; i < 4; ++i) {
+        sets[i].index = i;
+        sets[i].size = 10 * (i + 1);
+        sets[i].core_size = sets[i].size;
+    }
+    double value = 0.0;
+    op_arg args[1]{};
+    args[0].opt = 1;
+    args[0].argtype = OP_ARG_GBL;
+    args[0].acc = OP_READ;
+    args[0].dim = 1;
+    args[0].data = reinterpret_cast<char *>(&value);
+
+    double constant = 0.0;
+    double global = 0.0;
+    loop::ParamSet params{"flux"};
+    params.add("c", &constant, 1, loop::ParamSource::external, -1, true);
+    params.add("g", &global, 1, loop::ParamSource::scalar_arg, 0, true);
+    auto call = [&](int set) {
+        params.update(args, 1);
+        loop::Configuration configuration{&sets[set], {args, 1}, sets[set].size};
+        return params.key(configuration, {});
+    };
+
+    // Nine changes in 32 calls move the constant to run time, for good.
+    for (int i = 0; i < 9; ++i) {
+        constant = i;
+        call(0);
+        CHECK(params[0].mode() == baked);
+    }
+    constant = 9.0;
+    auto key = call(0);
+    CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
+    // A run-time value is no part of the key.
+    for (int i = 0; i < 40; ++i) {
+        value = i;
+        CHECK(call(0) == key);
+    }
+    CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
+
+    // A global invariant for 32 calls of another configuration is baked in,
+    // the constant there still baked; varying, it moves back for good.
+    value = 5.0;
+    for (int i = 0; i < 31; ++i) {
+        call(1);
+        CHECK(params[1].mode() == runtime && params[0].mode() == baked);
+    }
+    key = call(1);
+    CHECK(params[1].mode() == baked);
+    value = 6.0;
+    CHECK(call(1) != key);
+    for (int i = 0; i < 7; ++i) {
+        value = 7.0 + i;
+        call(1);
+        CHECK(params[1].mode() == baked);
+    }
+    value = 100.0;
+    call(1);
+    CHECK(params[1].mode() == runtime);
+    value = 5.0;
+    for (int i = 0; i < 40; ++i)
+        call(1);
+    CHECK(params[1].mode() == runtime);
+    call(0);
+    CHECK(params[0].mode() == runtime);
+
+    // Nine calls in ten agreeing is a majority; two in three is not.
+    for (int i = 0; i < 32; ++i) {
+        value = i % 10 == 9 ? 1.0 : 2.0;
+        call(2);
+    }
+    CHECK(params[1].mode() == baked);
+    for (int i = 0; i < 64; ++i) {
+        value = i % 3 == 2 ? 1.0 : 2.0;
+        call(3);
+    }
+    CHECK(params[1].mode() == runtime);
+}
+
 } // namespace
 
 int main() {
@@ -275,6 +401,8 @@ int main() {
         test_build_slots();
         test_specialise();
         test_params();
+        test_modes();
+        test_statistics();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

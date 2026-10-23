@@ -64,7 +64,7 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 
 {%- macro arg_to_pointer2(arg, jit) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
-&op2_gbl{{arg.id}}_d
+&f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 &gbl{{arg.id}}
     {%- else -%}
@@ -125,9 +125,8 @@ __launch_bounds__({{"op2_block_size_d" if jit else "128"}})
 {%- endmacro -%}
 
 {#- The JIT wrapper takes the offline wrapper's parameters, so both launch
-    from one argument list.  Those the JIT kernel has as constants come last,
-    unnamed there, so the ones it reads keep the offsets they would have
-    without them. -#}
+    from one argument list.  The scalar globals come last, read through
+    f2c::param_value as their baked values or the arguments. -#}
 {% macro kernel_wrapper(jit = false) %}
 {% set scalar_gbls = lh.args|gbl|read|scalar|list %}
 extern "C" __global__ {{launch_bounds(jit)}}
@@ -160,7 +159,7 @@ void op2_k_{{lh.name}}{{variant}}_wrapper(
     const int end,
     const int stride{{"," if scalar_gbls}}
     {% for arg in scalar_gbls %}
-    const {{arg.typ.c()}} {{("/*gbl%s*/" if jit else "gbl%s") % arg.id}}{{"," if not loop.last}}
+    const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;

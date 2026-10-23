@@ -2,8 +2,8 @@
 
 // The CUDA and HIP JIT mechanism: the offline kernels and the device symbols
 // they read their parameters from, the kernels built through NVRTC or
-// hipRTC, and their launches.  The policy, the parameters and the build
-// cache are loop/jit.h's.
+// hipRTC, how those have their run-time parameters, and their launches.  The
+// policy, the parameters and the build cache are loop/jit.h's.
 
 #include <gpu/check.h>
 #include <gpu/config.h>
@@ -26,10 +26,20 @@ namespace op::gpu {
 
 // --- Kernels --------------------------------------------------------------------------
 
+// A run-time parameter a built kernel reads from a symbol of its module,
+// uploaded when the parameter's value changes.
+struct RuntimeSymbol {
+    std::size_t param;
+    std::string name;
+    gpuDrvDevicePtr_t address{};
+    std::uint64_t uploaded = 0;
+};
+
 // A kernel built at run time, loaded on its first launch.
 class JitKernel {
 private:
     std::string m_name;
+    std::vector<RuntimeSymbol> m_symbols;
     bool m_loaded = false;
     int m_max_dynamic_shared_bytes = 0;
     char *m_cubin;
@@ -41,6 +51,11 @@ private:
             return;
         GPU_DRV_CHECK(gpuDrvModuleLoadData(&m_module, m_cubin));
         GPU_DRV_CHECK(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
+        for (auto& symbol : m_symbols) {
+            std::size_t bytes = 0;
+            GPU_DRV_CHECK(gpuDrvModuleGetGlobal(&symbol.address, &bytes, m_module,
+                                                symbol.name.c_str()));
+        }
         m_loaded = true;
         delete[] m_cubin;
         m_cubin = nullptr;
@@ -48,11 +63,22 @@ private:
 
 public:
     JitKernel(const JitKernel&) = delete;
-    JitKernel(char *cubin, std::string_view name) : m_name{name}, m_cubin{cubin} {}
+    JitKernel(char *cubin, std::string_view name, std::vector<RuntimeSymbol> symbols)
+        : m_name{name}, m_symbols{std::move(symbols)}, m_cubin{cubin} {}
     ~JitKernel() { delete[] m_cubin; }
 
-    void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
+    // Launch, its module's symbols first given the call's values of params.
+    void launch(int num_blocks, int block_size, void **args, int shared_bytes,
+                const op::loop::ParamSet& params) {
         ensure_loaded();
+        for (auto& symbol : m_symbols) {
+            const auto& param = params[symbol.param];
+            if (param.last_hash() == symbol.uploaded)
+                continue;
+            GPU_DRV_CHECK(gpuDrvMemcpyHtoDAsync(symbol.address, param.data(),
+                                                param.bytes(), 0));
+            symbol.uploaded = param.last_hash();
+        }
         if (shared_bytes > m_max_dynamic_shared_bytes) {
             GPU_DRV_CHECK(gpuDrvFuncSetAttribute(
                 m_kernel, gpuDrvFuncAttributeMaxDynamicSharedMemorySize,
@@ -190,8 +216,34 @@ private:
     std::string m_loop;
     JitHeaders m_headers;
 
-    std::unique_ptr<JitKernel> compile(const std::string& text,
-                                       const std::string& name) const {
+    // The run-time parameters as a built kernel has them: a scalar global as
+    // its wrapper's argument, which the source reads through
+    // f2c::param_value; any other as a symbol of its module, added to
+    // symbols.
+    static std::string runtime_declarations(const op::loop::ParamSet& params,
+                                            std::vector<RuntimeSymbol>& symbols) {
+        std::string out;
+        for (std::size_t i = 0; i < params.size(); ++i) {
+            const auto& param = params[i];
+            if (param.mode() != op::loop::ParamMode::runtime)
+                continue;
+            if (param.source() == op::loop::ParamSource::scalar_arg) {
+                out += "static constexpr f2c::RuntimeParam " + param.name() + "{};\n";
+                continue;
+            }
+            out += "__constant__ ";
+            out += op::loop::cxx_type(param.type());
+            out += " " + param.name();
+            if (param.array())
+                out += "[" + std::to_string(param.elems()) + "]";
+            out += ";\n";
+            symbols.push_back({i, param.name()});
+        }
+        return out;
+    }
+
+    std::unique_ptr<JitKernel> compile(const std::string& text, const std::string& name,
+                                       std::vector<RuntimeSymbol> symbols) const {
         gpuRtcProgram_t prog;
         GPU_RTC_CHECK(gpuRtcCreateProgram(
             &prog, text.c_str(), name.c_str(),
@@ -234,7 +286,7 @@ private:
         char *cubin = new char[cubin_size];
         GPU_RTC_CHECK(gpuRtcGetCode(prog, cubin));
         GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
-        return std::make_unique<JitKernel>(cubin, name);
+        return std::make_unique<JitKernel>(cubin, name, std::move(symbols));
     }
 
 public:
@@ -242,16 +294,20 @@ public:
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
     // The job that builds source's kernel with the parameters' current
-    // values baked in; it prints the compiler's log and returns none when
-    // the compile fails.
+    // values baked in, or at run time as their modes say; it prints the
+    // compiler's log and returns none when the compile fails.
     auto job(const op::loop::ParamSet& params, const KernelSource& source) const {
+        std::vector<RuntimeSymbol> symbols;
         std::string text = std::string("#include <kernel/prelude.h>\n"
                                        "#include <kernel/strategy.h>\n") +
                            (m_headers.params ? "#include <op_f2c_params.h>\n" : "") +
                            "\nnamespace f2c = op::f2c;\n" +
-                           op::loop::format_cxx(params) + std::string{source.source};
-        return [this, text = std::move(text), name = std::string{source.name}] {
-            return compile(text, name);
+                           op::loop::format_cxx(params) +
+                           runtime_declarations(params, symbols) +
+                           std::string{source.source};
+        return [this, text = std::move(text), name = std::string{source.name},
+                symbols = std::move(symbols)]() mutable {
+            return compile(text, name, std::move(symbols));
         };
     }
 };
@@ -277,37 +333,42 @@ private:
 
 public:
     Jit(std::string_view loop, JitHeaders headers)
-        : m_compiler{loop, std::move(headers)} {}
+        : m_params{loop}, m_compiler{loop, std::move(headers)} {}
     Jit(const Jit&) = delete;
 
     // --- Parameters, registered by the generated code ---
 
+    // Each kind a built kernel can have at run time but a dat's dimension
+    // and a strategy's value, which its source needs as constants.
+
     template<typename T>
     void add_param(std::string_view name, T *data, const T *symbol = nullptr,
                    uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::external), symbol,
-             hash_device_ptr);
+        bind(m_params.add(name, data, 1, op::loop::ParamSource::external, -1, true),
+             symbol, hash_device_ptr);
     }
 
     template<typename T>
     void add_param(std::string_view name, T *data, std::size_t len,
                    const T *symbol = nullptr, uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, len, op::loop::ParamSource::external), symbol,
-             hash_device_ptr);
+        bind(m_params.add(name, data, len, op::loop::ParamSource::external, -1, true),
+             symbol, hash_device_ptr);
     }
 
     template<typename T>
     void add_scalar_arg_param(std::string_view name, T *data, int arg_index,
                               const T *symbol = nullptr,
                               uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::scalar_arg, arg_index),
+        bind(m_params.add(name, data, 1, op::loop::ParamSource::scalar_arg, arg_index,
+                          true),
              symbol, hash_device_ptr);
     }
 
     void add_dat_stride_param(std::string_view name, int *data, int arg_index,
                               const int *symbol = nullptr,
                               uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, 1, op::loop::ParamSource::dat_stride, arg_index),
+        bind(m_params.add(name, data, 1, op::loop::ParamSource::dat_stride, arg_index,
+                          true),
              symbol, hash_device_ptr);
     }
 

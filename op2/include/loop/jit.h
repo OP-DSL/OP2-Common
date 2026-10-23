@@ -1,9 +1,11 @@
 #pragma once
 
 // The backend-neutral half of the JIT: the policy its variables set, the
-// parameters a loop's kernels are specialised on, and each strategy's cache
-// of built kernels.  A backend supplies the mechanism: its kernel type, the
-// job that builds one, their launches, and the prior for when a build pays.
+// parameters a loop's kernels are specialised on and the statistics that
+// move them between baked in and given at run time, and each strategy's
+// cache of built kernels.  A backend supplies the mechanism: its kernel
+// type, the job that builds one, their launches, how a kernel has its
+// run-time parameters, and the prior for when a build pays.
 
 #include <extern/rapidhash.h>
 #include <loop/strategy.h>
@@ -11,6 +13,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -30,22 +33,39 @@ namespace op::loop {
 // --- Policy -------------------------------------------------------------------
 
 struct JitPolicy {
-    bool enable = true;        // OP_JIT_ENABLE
+    // OP_JIT_LEVEL: 0 builds no specialised kernel; 1 bakes in the
+    // structural parameters and the constants, a constant that keeps
+    // changing moving to run time, and gives READ globals at run time; 2
+    // also bakes in a READ global that most calls agree on.
+    int level = 2;
     bool force = false;        // OP_JIT_FORCE: specialise every kernel
     bool seq_compile = false;  // OP_JIT_SEQ_COMPILE: build on the calling thread
-    bool debug = false;        // OP_JIT_DEBUG: print builds, synchronise launches
+    bool debug = false;        // OP_JIT_DEBUG: print builds and moves, synchronise launches
     // OP_JIT_MIN_CALLS: times a key is asked for before its build starts, so
     // values that change every call never build.
     int min_calls = 9;
     // OP_JIT_MAX_THREADS: builds on threads at once, across every cache; the
     // mechanism's default when unset.
     std::optional<int> max_threads;
+    // OP_JIT_VARYING: changes within a baked value's last 32 calls past
+    // which it moves to run time for the rest of the run.
+    int varying = 8;
+    // OP_JIT_MAX_GBL_BYTES, OP_JIT_MAX_CONST_BYTES: the largest READ global
+    // and constant baked in; larger ones stay at run time.
+    int max_gbl_bytes = 4096;
+    int max_const_bytes = 16384;
+    // OP_JIT_RUNTIME_PARAMS, OP_JIT_CONSTANT_PARAMS: parameters always given
+    // at run time, or always baked in, by name ("<name>" or "<loop>:<name>").
+    std::vector<std::string> runtime_params;
+    std::vector<std::string> constant_params;
+
+    bool enabled() const { return level > 0; }
 
     // Whether a strategy's kernel is specialised: the JIT is on, and no
     // offline kernel can run, the run forces it, or the mechanism's prior
     // says a build pays.
     bool specialise(bool offline, bool prior) const {
-        return enable && (!offline || force || prior);
+        return enabled() && (!offline || force || prior);
     }
 };
 
@@ -99,6 +119,8 @@ enum class ParamMode {
 };
 
 constexpr std::uint64_t hash_seed = RAPID_SEED;
+// What a key holds in place of a run-time parameter's value.
+constexpr std::uint64_t runtime_mark = 0x9e3779b97f4a7c15ull;
 
 class Param {
 private:
@@ -111,6 +133,10 @@ private:
     ParamType m_type;
     ParamSource m_source;
     ParamClass m_class;
+    // The mode before any statistics, whether they may move it, and the
+    // call's.
+    ParamMode m_initial = ParamMode::baked;
+    bool m_fixed = true;
     ParamMode m_mode = ParamMode::baked;
     // The argument the call's value comes from, or the strategy value's slot.
     int m_index;
@@ -138,11 +164,18 @@ public:
     ParamType type() const { return m_type; }
     ParamSource source() const { return m_source; }
     ParamClass param_class() const { return m_class; }
+    ParamMode initial() const { return m_initial; }
+    bool fixed() const { return m_fixed; }
     ParamMode mode() const { return m_mode; }
+    void set_mode(ParamMode mode) { m_mode = mode; }
     std::size_t elems() const { return m_elems; }
     bool array() const { return m_elems > 1; }
     std::size_t bytes() const { return m_elems * m_elem_size; }
     const void *data() const { return m_data != nullptr ? m_data : &m_value; }
+
+    // Settle the initial mode by the policy, for loop's kernels; runtime is
+    // whether the mechanism can give the parameter at run time.
+    void settle(std::string_view loop, bool runtime, const JitPolicy& policy);
 
     // The call's value, from its arguments.
     void update(op_arg *args, int nargs);
@@ -163,17 +196,63 @@ public:
     std::uint64_t last_hash() const { return m_hash; }
 };
 
-// A loop's parameters, in the order its generated code registers them.
+// A loop's parameters, in the order its generated code registers them,
+// and per configuration of the loop the statistics of those whose mode may
+// move: a baked value that changes more than OP_JIT_VARYING times in its
+// last 32 calls moves to run time, and a run-time READ global baked in once
+// at least 32 calls, four in five of them with one value, have changed no
+// more than that; each parameter moves at most once each way.
 class ParamSet {
 private:
+    // One parameter's statistics under one configuration.
+    struct History {
+        // The latest value, and whether it changed in each of the last 32
+        // calls, the latest in bit 0.
+        std::uint64_t last = 0;
+        std::uint32_t changes = 0;
+        // The value most calls have had, its calls and all calls since it
+        // took the lead.
+        std::uint64_t candidate = 0;
+        std::uint64_t hits = 0;
+        std::uint64_t total = 0;
+        ParamMode mode = ParamMode::baked;
+        bool seen = false;
+        bool promoted = false;
+        bool demoted = false;
+
+        // Record the call's value; whether the mode moved.
+        bool observe(const Param& param, const JitPolicy& policy);
+    };
+
+    // Past this many configurations a new one keeps the initial modes.
+    static constexpr std::size_t max_histories = 4096;
+
+    std::string m_loop;
     std::vector<Param> m_params;
+    // Calls so far, and the one whose values were last observed.
+    std::uint64_t m_calls = 0;
+    std::uint64_t m_observed = ~std::uint64_t{0};
+    // Whether any parameter's mode may move.
+    bool m_moving = false;
+    std::unordered_map<std::uint64_t, std::vector<History>> m_histories;
+    std::uint64_t m_history_key = 0;
+    std::vector<History> *m_history = nullptr;
+
+    std::vector<History> *histories(std::uint64_t configuration);
+    void observe(const Configuration& configuration);
 
 public:
-    // Add a parameter; its index.
+    explicit ParamSet(std::string_view loop = {}) : m_loop{loop} {}
+    ParamSet(const ParamSet&) = delete;
+
+    // Add a parameter, its mode settled by the policy; runtime is whether
+    // the mechanism can give it at run time.  Its index.
     template<typename T>
     std::size_t add(std::string_view name, T *data, std::size_t elems,
-                    ParamSource source, int index = -1) {
-        m_params.emplace_back(name, data, elems, source, index);
+                    ParamSource source, int index = -1, bool runtime = false) {
+        auto& param = m_params.emplace_back(name, data, elems, source, index);
+        param.settle(m_loop, runtime, jit_policy());
+        m_moving |= !param.fixed();
         return m_params.size() - 1;
     }
 
@@ -190,23 +269,37 @@ public:
             param.apply(values);
     }
 
-    // The key a kernel specialised on the current values is built under:
-    // the baked parameters' hashes, combined.
-    std::uint64_t hash() {
-        std::uint64_t hash = hash_seed;
-        for (auto& param : m_params) {
-            if (param.mode() != ParamMode::baked)
-                continue;
-            std::uint64_t value = param.hash();
-            hash = rapidhash_withSeed(&value, sizeof(value), hash);
+    // The key a kernel specialised under a strategy's values is built under:
+    // each baked parameter's value, each run-time one marked as such.  The
+    // call's first key records its values in the configuration's statistics
+    // and takes the modes they give.
+    std::uint64_t key(const Configuration& configuration, std::span<const int> values) {
+        if (m_observed != m_calls) {
+            m_observed = m_calls;
+            observe(configuration);
         }
-        return hash;
+        std::uint64_t key = hash_seed;
+        for (auto& param : m_params) {
+            std::uint64_t value = runtime_mark;
+            if (param.mode() == ParamMode::baked) {
+                if (param.source() == ParamSource::strategy) {
+                    param.apply(values);
+                    param.hash();
+                }
+                value = param.last_hash();
+            }
+            key = rapidhash_withSeed(&value, sizeof(value), key);
+        }
+        return key;
     }
 };
 
 // The baked parameters as C++ constants, "static constexpr double name =
 // value;" a line each, for a compiler that takes source.
 std::string format_cxx(const ParamSet& params);
+
+// A parameter's element type in C++: "double".
+const char *cxx_type(ParamType type);
 
 // --- Builds -------------------------------------------------------------------
 

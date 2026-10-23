@@ -7,7 +7,7 @@ export OP2_INSTALL_PATH
 
 # export OP_AUTO_SOA=1
 export OP_JIT_DEBUG=1
-export OP_JIT_ENABLE=1
+export OP_JIT_LEVEL=2
 export OP_JIT_SEQ_COMPILE=1
 export OP_PROFILE_LEVEL=3
 
