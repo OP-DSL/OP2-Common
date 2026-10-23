@@ -96,8 +96,10 @@ std::uint64_t Configuration::key() const {
     if (m_keyed)
         return m_key;
 
-    // The words that shape the call, hashed a buffer at a time.
-    constexpr std::size_t arg_words = 7;
+    // The words that shape the call, hashed a buffer at a time: per
+    // argument its activity, kind, access and map index in one word, then
+    // its dat, map and dimension.
+    constexpr std::size_t arg_words = 4;
     std::array<std::int32_t, 2 + 32 * arg_words> words;
     std::size_t count = 0;
     std::uint64_t hash = RAPID_SEED;
@@ -108,14 +110,13 @@ std::uint64_t Configuration::key() const {
             hash = rapidhash_withSeed(words.data(), count * sizeof(words[0]), hash);
             count = 0;
         }
-        words[count++] = arg.opt;
-        if (arg.opt == 0)
+        if (arg.opt == 0) {
+            words[count++] = 0;
             continue;
-        words[count++] = arg.argtype;
+        }
+        words[count++] = 1 | arg.argtype << 1 | arg.acc << 4 | (arg.idx & 0xffff) << 16;
         words[count++] = arg.dat != nullptr ? arg.dat->index : -1;
         words[count++] = arg.map != nullptr ? arg.map->index : -1;
-        words[count++] = arg.idx;
-        words[count++] = arg.acc;
         words[count++] = arg.dim;
     }
 

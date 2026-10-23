@@ -12,12 +12,13 @@
 #include <op_lib_core.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
-#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <span>
@@ -120,8 +121,6 @@ enum class ParamMode {
 };
 
 constexpr std::uint64_t hash_seed = RAPID_SEED;
-// What a key holds in place of a run-time parameter's value.
-constexpr std::uint64_t runtime_mark = 0x9e3779b97f4a7c15ull;
 
 class Param {
 private:
@@ -199,9 +198,23 @@ public:
         m_value = values[static_cast<std::size_t>(m_index)];
     }
 
-    // The value's hash, kept as last_hash.
+    // The value's hash, kept as last_hash: a scalar's own bits, so a zero
+    // value hashes to 0, else its rapidhash.
     std::uint64_t hash() {
-        m_hash = rapidhash_withSeed(data(), bytes(), hash_seed);
+        if (m_array) {
+            m_hash = rapidhash_withSeed(data(), bytes(), hash_seed);
+            return m_hash;
+        }
+        switch (m_elem_size) {
+        case 8: std::memcpy(&m_hash, data(), 8); break;
+        case 4: {
+            std::uint32_t bits;
+            std::memcpy(&bits, data(), 4);
+            m_hash = bits;
+            break;
+        }
+        default: m_hash = *static_cast<const unsigned char *>(data()); break;
+        }
         return m_hash;
     }
     std::uint64_t last_hash() const { return m_hash; }
@@ -217,10 +230,11 @@ class ParamSet {
 private:
     // One parameter's statistics under one configuration.
     struct History {
-        // The latest value, and whether it changed in each of the last 32
-        // calls, the latest in bit 0.
+        // The latest value, whether it changed in each of the last 32 calls
+        // (the latest in bit 0), and how many of them it changed in.
         std::uint64_t last = 0;
         std::uint32_t changes = 0;
+        int changed = 0;
         // The value most calls have had, its calls and all calls since it
         // took the lead.
         std::uint64_t candidate = 0;
@@ -305,22 +319,36 @@ public:
     }
 
     // The key a kernel specialised under a strategy's values is built under:
-    // each baked parameter's value, each run-time one marked as such.
+    // each baked parameter's value, hashed 64 at a time with a mask of the
+    // run-time ones (a value's hash may be any 64 bits, so no mark could
+    // stand in for it).
     std::uint64_t key(const Configuration& configuration, std::span<const int> values) {
         observe_call(configuration);
+        std::array<std::uint64_t, 65> words;
+        std::size_t count = 0;
+        std::uint64_t runtime = 0;
         std::uint64_t key = hash_seed;
         for (auto& param : m_params) {
-            std::uint64_t value = runtime_mark;
+            std::uint64_t value = 0;
             if (param.mode() == ParamMode::baked) {
                 if (param.source() == ParamSource::strategy) {
                     param.apply(values);
                     param.hash();
                 }
                 value = param.last_hash();
+            } else {
+                runtime |= std::uint64_t{1} << count;
             }
-            key = rapidhash_withSeed(&value, sizeof(value), key);
+            words[count++] = value;
+            if (count == 64) {
+                words[count++] = runtime;
+                key = rapidhash_withSeed(words.data(), count * sizeof(words[0]), key);
+                count = 0;
+                runtime = 0;
+            }
         }
-        return key;
+        words[count++] = runtime;
+        return rapidhash_withSeed(words.data(), count * sizeof(words[0]), key);
     }
 };
 

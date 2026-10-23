@@ -177,7 +177,9 @@ std::vector<ParamSet::History> *ParamSet::histories(std::uint64_t configuration)
 
 void ParamSet::observe(const Configuration& configuration) {
     const auto& run = jit_policy();
-    for (auto& param : m_params) {
+    auto *history = m_moving ? histories(configuration.key()) : nullptr;
+    for (std::size_t i = 0; i < m_params.size(); ++i) {
+        auto& param = m_params[i];
         if (param.source() == ParamSource::strategy)
             continue;
         if (param.sized_out(run)) {
@@ -185,18 +187,7 @@ void ParamSet::observe(const Configuration& configuration) {
             continue;
         }
         param.hash();
-        if (param.fixed())
-            param.set_mode(param.initial());
-    }
-    if (!m_moving)
-        return;
-
-    auto *history = histories(configuration.key());
-    for (std::size_t i = 0; i < m_params.size(); ++i) {
-        auto& param = m_params[i];
-        if (param.fixed() || param.sized_out(run))
-            continue;
-        if (history == nullptr) {
+        if (param.fixed() || history == nullptr) {
             param.set_mode(param.initial());
             continue;
         }
@@ -221,9 +212,10 @@ bool ParamSet::History::observe(const Param& param, const JitPolicy& run) {
         return false;
     }
 
-    changes = (changes << 1) | (hash != last ? 1u : 0u);
+    unsigned change = hash != last ? 1u : 0u;
+    changed += static_cast<int>(change) - static_cast<int>(changes >> 31);
+    changes = (changes << 1) | change;
     last = hash;
-    int changed = std::popcount(changes);
     if (mode == ParamMode::baked) {
         if (changed <= run.varying)
             return false;
@@ -247,6 +239,7 @@ bool ParamSet::History::observe(const Param& param, const JitPolicy& run) {
     mode = ParamMode::baked;
     promoted = true;
     changes = 0;
+    changed = 0;
     return true;
 }
 

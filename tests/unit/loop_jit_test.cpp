@@ -271,6 +271,32 @@ void test_params() {
           "static constexpr int64_t big = 1099511627776;\n");
 }
 
+// A key tells a baked zero from a run-time parameter, and keeps each of more
+// parameters than it hashes at a time.
+void test_key_words() {
+    op_set_core set{};
+    loop::Configuration configuration{&set, {}, 0};
+    std::array<double, 70> constants{};
+    auto key = [&](const char *runtime) {
+        if (runtime != nullptr)
+            policy({{"OP_JIT_RUNTIME_PARAMS", runtime}});
+        else
+            policy({});
+        loop::ParamSet params{"flux"};
+        for (std::size_t i = 0; i < constants.size(); ++i)
+            params.add("c" + std::to_string(i), &constants[i], loop::ParamSource::external,
+                       -1, true);
+        return params.key(configuration, {});
+    };
+
+    auto baked = key(nullptr);
+    CHECK(key("c0") != baked && key("c69") != baked && key("c0") != key("c69"));
+    constants[69] = 1.0;
+    CHECK(key(nullptr) != baked);
+    constants[69] = 0.0;
+    CHECK(key(nullptr) == baked);
+}
+
 // The initial modes: structural parameters baked; constants baked and
 // moving; READ globals at run time, moving at level 2; a cap or a name in
 // the variables fixing either, unless the mechanism cannot give it at run
@@ -311,8 +337,8 @@ void test_modes() {
 // key follows the modes.
 void test_statistics() {
     policy({});
-    std::array<op_set_core, 4> sets{};
-    for (int i = 0; i < 4; ++i) {
+    std::array<op_set_core, 5> sets{};
+    for (int i = 0; i < 5; ++i) {
         sets[i].index = i;
         sets[i].size = 10 * (i + 1);
         sets[i].core_size = sets[i].size;
@@ -389,6 +415,19 @@ void test_statistics() {
         call(3);
     }
     CHECK(params[1].mode() == runtime);
+
+    // A change stops counting as it leaves the 32-call window: a change in
+    // every four calls keeps a constant baked, one in every three does not.
+    for (int i = 0; i < 128; ++i) {
+        constant = i / 4;
+        call(4);
+        CHECK(params[0].mode() == baked);
+    }
+    for (int i = 0; i < 32; ++i) {
+        constant = -1.0 - i / 3;
+        call(4);
+    }
+    CHECK(params[0].mode() == runtime);
 }
 
 // A READ global of any dimension is read in place with the call's
@@ -503,6 +542,7 @@ int main() {
         test_build_slots();
         test_specialise();
         test_params();
+        test_key_words();
         test_modes();
         test_statistics();
         test_array_globals();

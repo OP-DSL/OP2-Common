@@ -32,6 +32,7 @@ struct RuntimeSymbol {
     std::size_t param;
     std::string name;
     gpuDrvDevicePtr_t address{};
+    // The uploaded value's hash; at first 0, which the zeroed symbol matches.
     std::uint64_t uploaded = 0;
 };
 
@@ -179,7 +180,7 @@ private:
         std::size_t param;
         void *data_d;
         // The uploaded value's hash: shared by every loop binding the symbol
-        // when given, else hash.
+        // when given, else hash; at first 0, which the zeroed symbol matches.
         std::uint64_t *shared_hash;
         std::uint64_t hash = 0;
     };
