@@ -68,7 +68,7 @@ struct Builds {
 void policy(std::initializer_list<std::pair<const char *, const char *>> variables) {
     for (const char *name :
          {"OP_JIT_LEVEL", "OP_JIT_FORCE", "OP_JIT_SEQ_COMPILE", "OP_JIT_DEBUG",
-          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_MIN_REGISTERS", "OP_JIT_VARYING",
+          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_VARYING",
           "OP_JIT_MAX_GBL_BYTES", "OP_JIT_MAX_CONST_BYTES", "OP_JIT_RUNTIME_PARAMS",
           "OP_JIT_CONSTANT_PARAMS"})
         unsetenv(name);
@@ -186,14 +186,19 @@ void test_build_slots() {
     }
 }
 
-// A strategy with the kernels it is given, for the selection to choose
+// A strategy with the estimates it is given, for the selection to choose
 // between.
-struct Kernels : loop::Strategy {
-    loop::Kernels facts;
+struct Estimates : loop::Strategy {
+    loop::Estimate offline;
+    loop::Estimate jit;
 
-    explicit Kernels(loop::Kernels facts_) : facts{facts_} {}
-    std::string_view name() const override { return "kernels"; }
-    loop::Kernels kernels() const override { return facts; }
+    Estimates(loop::Estimate offline_, loop::Estimate jit_)
+        : offline{offline_}, jit{jit_} {}
+    std::string_view name() const override { return "estimates"; }
+    loop::Estimate estimate(const loop::Configuration&,
+                            loop::KernelKind kind) const override {
+        return kind == loop::KernelKind::offline ? offline : jit;
+    }
     loop::Prepared prepare(const loop::Configuration&, loop::Urgency,
                            loop::KernelKind) override {
         return {};
@@ -203,31 +208,35 @@ struct Kernels : loop::Strategy {
     }
 };
 
-// The register rule: a specialised kernel when the JIT is on and the
-// strategy can build one, and no offline kernel can run, the run forces
-// it, or the offline kernel uses more than OP_JIT_MIN_REGISTERS registers.
+// A specialised kernel when the JIT is on and one can run, and the offline
+// one cannot, OP_JIT_FORCE is set, or the backend expects it to be faster;
+// a tie or a missing estimate keeps the offline kernel.
 void test_choose_kernel() {
     op_set_core set{};
     loop::Configuration configuration{&set, {}, 0};
-    auto choose = [&](bool offline, bool jit, int registers) {
-        Kernels strategy{{offline, jit, registers}};
+    auto choose = [&](loop::Estimate offline, loop::Estimate jit) {
+        Estimates strategy{offline, jit};
         return loop::choose_kernel(strategy, configuration);
     };
     constexpr auto offline = loop::KernelKind::offline;
     constexpr auto jit = loop::KernelKind::jit;
+    const loop::Estimate none{};
+    const loop::Estimate unknown{true, std::nullopt};
 
     policy({});
-    CHECK(choose(false, true, 0) == jit);
-    CHECK(choose(true, true, 32) == offline);
-    CHECK(choose(true, true, 33) == jit);
-    CHECK(choose(true, false, 100) == offline);
-    CHECK(choose(false, false, 0) == offline);
-    policy({{"OP_JIT_MIN_REGISTERS", "64"}});
-    CHECK(choose(true, true, 33) == offline);
+    CHECK(choose({true, 1.0f}, {true, 0.9f}) == jit);
+    CHECK(choose({true, 1.0f}, {true, 1.0f}) == offline);
+    CHECK(choose({true, 1.0f}, {true, 1.1f}) == offline);
+    CHECK(choose({true, 1.0f}, unknown) == offline);
+    CHECK(choose(unknown, {true, 0.9f}) == offline);
+    CHECK(choose(none, {true, 1.1f}) == jit);
+    CHECK(choose({true, 1.0f}, none) == offline);
+    CHECK(choose(none, none) == offline);
     policy({{"OP_JIT_FORCE", "1"}});
-    CHECK(choose(true, true, 0) == jit);
+    CHECK(choose({true, 1.0f}, {true, 1.1f}) == jit);
+    CHECK(choose({true, 1.0f}, none) == offline);
     policy({{"OP_JIT_LEVEL", "0"}, {"OP_JIT_FORCE", "1"}});
-    CHECK(choose(false, true, 100) == offline);
+    CHECK(choose(none, {true, 0.9f}) == offline);
 }
 
 // The parameters take the call's and the strategy's values, key a build by

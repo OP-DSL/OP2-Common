@@ -11,6 +11,9 @@
 namespace op::gpu {
 
 struct Config {
+    // OP_JIT_MIN_REGISTERS: an offline kernel using more registers than this
+    // is estimated faster specialised; the prior for when a compile pays.
+    int min_registers = 32;
     // OP_JIT_MAX_THREADS's default: compiles worth running at once.
     int build_threads = 4;
     std::string arch;

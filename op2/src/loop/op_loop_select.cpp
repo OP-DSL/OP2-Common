@@ -5,13 +5,16 @@
 namespace op::loop {
 
 KernelKind choose_kernel(const Strategy& strategy, const Configuration& configuration) {
-    (void)configuration;
     const auto& policy = jit_policy();
-    auto kernels = strategy.kernels();
-    if (!kernels.jit || !policy.enabled())
+    if (!policy.enabled())
         return KernelKind::offline;
-    if (!kernels.offline || policy.force ||
-        kernels.offline_registers > policy.min_registers)
+    auto jit = strategy.estimate(configuration, KernelKind::jit);
+    if (!jit.available)
+        return KernelKind::offline;
+    auto offline = strategy.estimate(configuration, KernelKind::offline);
+    if (!offline.available || policy.force)
+        return KernelKind::jit;
+    if (jit.time && offline.time && *jit.time < *offline.time)
         return KernelKind::jit;
     return KernelKind::offline;
 }

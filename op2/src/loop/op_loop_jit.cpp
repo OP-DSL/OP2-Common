@@ -62,7 +62,6 @@ void init_jit_policy() {
     int threads = 0;
     if (env::parse_number("OP_JIT_MAX_THREADS", threads))
         run_policy.max_threads = threads;
-    env::parse_number("OP_JIT_MIN_REGISTERS", run_policy.min_registers);
     env::parse_number("OP_JIT_VARYING", run_policy.varying);
     env::parse_number("OP_JIT_MAX_GBL_BYTES", run_policy.max_gbl_bytes);
     env::parse_number("OP_JIT_MAX_CONST_BYTES", run_policy.max_const_bytes);

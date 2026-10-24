@@ -166,9 +166,17 @@ public:
 
     std::string_view name() const override { return m_name; }
 
-    op::loop::Kernels kernels() const override {
-        return {m_offline.usable(m_block_size), !m_source.source.empty(),
-                m_offline.registers()};
+    // The offline kernel at a nominal 1 when it can launch the block size; a
+    // specialised one when there is source, expected faster when the offline
+    // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
+    // tenth, until timings calibrate it).
+    op::loop::Estimate estimate(const op::loop::Configuration& configuration,
+                                op::loop::KernelKind kind) const override {
+        (void)configuration;
+        if (kind == op::loop::KernelKind::offline)
+            return {m_offline.usable(m_block_size), 1.0f};
+        bool prior = m_offline.registers() > config().min_registers;
+        return {!m_source.source.empty(), prior ? 0.9f : 1.0f};
     }
 
     std::string statistics(const op::loop::Prepared& prepared) const override {

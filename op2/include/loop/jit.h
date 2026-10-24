@@ -60,10 +60,6 @@ struct JitPolicy {
     std::vector<std::string> runtime_params;
     std::vector<std::string> constant_params;
 
-    // OP_JIT_MIN_REGISTERS: an offline kernel using more registers than
-    // this is specialised (loop/select.h's register rule).
-    int min_registers = 32;
-
     bool enabled() const { return level > 0; }
 };
 

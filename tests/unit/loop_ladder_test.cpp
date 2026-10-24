@@ -36,8 +36,9 @@ struct Fake : loop::Strategy {
     int waits = 0;
     int runs = 0;
     float time = 1.0f;
-    // The kernels it reports, and the kind its latest prepare was asked for.
-    loop::Kernels facts;
+    // The estimates it gives, and the kind its latest prepare was asked for.
+    loop::Estimate offline_estimate{true, 1.0f};
+    loop::Estimate jit_estimate;
     loop::KernelKind kind = loop::KernelKind::offline;
 
     explicit Fake(std::string name) : fake_name{std::move(name)} {}
@@ -46,7 +47,10 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Kernels kernels() const override { return facts; }
+    loop::Estimate estimate(const loop::Configuration&,
+                            loop::KernelKind asked) const override {
+        return asked == loop::KernelKind::offline ? offline_estimate : jit_estimate;
+    }
 
     loop::Prepared prepare(const loop::Configuration&, loop::Urgency urgency,
                            loop::KernelKind asked) override {
@@ -422,13 +426,14 @@ void test_long_ladder() {
     CHECK(fakes[0]->prepares == 2 && fakes[1]->prepares == 0);
 }
 
-// The ladder prepares each strategy with the kind the selection chose for
-// it: the floor with no offline kernel a specialised one.
+// The ladder prepares each strategy with the kind the selection chose from
+// its estimates: the floor with no offline kernel a specialised one.
 void test_kernel_kinds() {
     loop::init();
     Fixture fixture;
     fixture.atomics->statuses = {loop::Status::unavailable};
-    fixture.colouring->facts = {false, true, 0};
+    fixture.colouring->offline_estimate = {};
+    fixture.colouring->jit_estimate = {true, 1.0f};
     fixture.ladder.select(configuration());
     CHECK(fixture.atomics->kind == loop::KernelKind::offline);
     CHECK(fixture.colouring->kind == loop::KernelKind::jit);
