@@ -10,6 +10,7 @@
 #include <gpu/strategy.h>
 #include <loop/loop.h>
 #include <loop/strategy.h>
+#include <op_cuda_rt_support.h>
 #include <op_lib_cpp.h>
 #include <op_profile.h>
 #include <plan/options.h>

@@ -87,9 +87,9 @@ gpu/chunk_encode.h     (includes: gpu/chunk_plan.h, gpu/shims.h; a chunk
 gpu/strategy.h         (includes: gpu/jit.h, gpu/chunk_encode.h; the plain,
                         atomics, colouring and chunked strategies, and their
                         axes: block size, unstaged singles, wavefront)
-gpu/loop.h             (includes: gpu/strategy.h, loop/loop.h; the loop the
-                        generated code builds, registers its parameters on
-                        and invokes)
+gpu/loop.h             (includes: gpu/strategy.h, loop/loop.h,
+                        op_cuda_rt_support.h; the loop the generated code
+                        builds, registers its parameters on and invokes)
 ```
 
 #### OpenMP backend of the translated kernels

@@ -130,6 +130,21 @@ void mvReductArraysToDevice(int reduct_bytes);
 
 void mvReductArraysToHost(int reduct_bytes);
 
+/*
+ * a call's global arguments under the loop strategies' policy: the block
+ * limit their reduction scratch allows, their per-thread copies, and their
+ * combination after the launch
+ */
+
+int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
+                            const char *name, bool gbl_inc_atomic);
+
+void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
+                                 bool gbl_inc_atomic, const unsigned char *on_host);
+
+bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,
+                                 int max_threads, bool gbl_inc_atomic);
+
 #ifdef __cplusplus
 }
 #endif
