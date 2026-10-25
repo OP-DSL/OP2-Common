@@ -61,7 +61,6 @@ OP2-Common/
 │       ├── core/           # Global state, set/map/dat management, execution plans
 │       ├── sequential/     # Sequential backend
 │       ├── openmp/         # OpenMP backend
-│       ├── openmp4/        # OpenMP 4.0 device-offload backend
 │       ├── cuda/           # CUDA backend
 │       ├── mpi/            # MPI backend (+ MPI+CUDA, MPI+HIP, HDF5 I/O, partitioning)
 │       ├── externlib/      # Bundled external libraries
@@ -71,8 +70,8 @@ OP2-Common/
 │   ├── fortran/            # Fortran apps: airfoil, jac1, reduction
 │   └── mesh_generators/    # MATLAB mesh generation scripts
 ├── translator/             # Legacy Python code generators (v1)
-│   ├── c/                  # C/C++ generators (seq, openmp, cuda, openacc, mpi_vec, openmp4)
-│   └── fortran/            # Fortran generators (mpiseq, openmp, cuda, openacc, openmp4)
+│   ├── c/                  # C/C++ generators (seq, openmp, cuda, openacc, mpi_vec)
+│   └── fortran/            # Fortran generators (mpiseq, openmp, cuda, openacc)
 ├── translator-v2/          # Next-generation translator (Jinja2 + libclang)
 │   └── op2-translator/     # Main Python package (CLI, parsers, Jinja templates)
 ├── makefiles/              # Shared GNU Make infrastructure
@@ -127,7 +126,6 @@ OP2-Common/
 | `core/op_rt_support.cpp` | Execution plan construction (colouring for indirect loop safety) |
 | `sequential/` | Sequential reference backend |
 | `openmp/op_openmp_decl.cpp` | OpenMP multi-threaded backend |
-| `openmp4/op_openmp4_decl.cpp` | OpenMP 4.0 device-offload backend |
 | `cuda/op_cuda_decl.cpp` | CUDA backend declarations |
 | `cuda/op_cuda_rt_support.cpp` | CUDA runtime support (memory, device initialization) |
 | `mpi/op_mpi_core.cpp` | MPI halo creation, `op_mpi_get_data`/`put_data`, global reductions |
@@ -300,7 +298,6 @@ make -C op2 -j$(nproc)
 | `seq` | C compiler |
 | `openmp` | C compiler + OpenMP support |
 | `hdf5` | C compiler + sequential HDF5 |
-| `openmp4` | C compiler + OpenMP offload support |
 | `cuda` | NVCC or NVHPC |
 | `hip` | HIP compiler |
 | `mpi` | MPI wrappers + parallel HDF5 |
@@ -347,9 +344,6 @@ Parallel to CUDA, targeting AMD ROCm. Enable by setting `HIP_INSTALL_PATH`.
 - Define `OP2_HIP` to activate HIP shims in `op_gpu_shims.h`.
 - Target architectures set via `HIP_ARCH` (e.g. `gfx90a`).
 
-### OpenMP 4.0 Device Offload
-For compilers with OpenMP target directive support (NVIDIA, AMD, Intel). Source: `op2/src/openmp4/`.
-
 ### MPI (Distributed Memory)
 All backends have an MPI variant (e.g. `mpi_seq`, `mpi_openmp`, `mpi_cuda`).
 
@@ -395,7 +389,6 @@ python3 op2.py path/to/myapp.cpp
 | `op2_gen_cuda_simple_hyb.py` | Hybrid OpenMP + CUDA |
 | `op2_gen_mpi_vec.py` | MPI + vectorization |
 | `op2_gen_openacc.py` | OpenACC |
-| `op2_gen_openmp4.py` | OpenMP 4.0 offload |
 
 **Fortran usage:**
 ```sh

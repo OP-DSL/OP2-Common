@@ -15,10 +15,6 @@ ifeq ($(HAVE_C),true)
     OP2_BUILDABLE_LIBS += hdf5
   endif
 
-  ifeq ($(CPP_HAS_OMP_OFFLOAD),true)
-    OP2_BUILDABLE_LIBS += openmp4
-  endif
-
   MPI_IS_BUILDABLE := false
   ifeq ($(and $(HAVE_MPI_C),$(HAVE_HDF5_PAR)),true)
     MPI_IS_BUILDABLE := true
@@ -158,14 +154,6 @@ OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
-OP2_OPENMP4 := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	openmp4/op_openmp4_decl.o \
-	openmp4/op_openmp4_rt_support.o \
-	externlib/op_profile.o)
-
-OP2_FOR_OPENMP4 := $(OP2_OPENMP4) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
-	op_dummy_wrappers.o)
-
 OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_core.o \
 	mpi/op_mpi_part_core.o \
@@ -244,9 +232,6 @@ $(OBJ)/externlib/op_hdf5.o: src/externlib/op_hdf5.cpp | $(OBJ)
 
 $(OBJ)/externlib/op_renumber.o: src/externlib/op_renumber.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) -c $< -o $@
-
-$(OBJ)/openmp4/%.o: src/openmp4/%.cpp | $(OBJ)
-	$(CXX) $(CXXFLAGS) $(OMP_OFFLOAD_CXXFLAGS) $(INC) -c $< -o $@
 
 $(OBJ)/mpi/%.o: src/mpi/%.cpp | $(OBJ)
 	$(MPICXX) $(CXXFLAGS) $(INC) $(HDF5_PAR_INC) -c $< -o $@

@@ -177,7 +177,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(info )
 endif
 
-OP2_LIBS_SINGLE_NODE := seq cuda hip openmp openmp4
+OP2_LIBS_SINGLE_NODE := seq cuda hip openmp
 OP2_FOR_LIBS_SINGLE_NODE := $(foreach lib,$(OP2_LIBS_SINGLE_NODE),f_$(lib))
 
 OP2_LIBS_MPI := mpi mpi_cuda mpi_hip

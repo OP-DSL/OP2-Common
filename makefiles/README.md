@@ -29,8 +29,6 @@ Basic compiler setup:
 Available OpenMP features:
  * `OMP_CXXFLAGS`: The flags to enable compilation of OpenMP pragmas (e.g. `-fopenmp`).
  * `CPP_HAS_OMP`: Set to `true` if the C and C++ compilers support OpenMP.
- * `OMP_OFFLOAD_CXXFLAGS`: The flags to enable the compilation of OpenMP 4.0 offload pragmas (e.g. `-foffload=nvptx-none`).
- * `CPP_HAS_OMP_OFFLOAD`: Set to `true` if the C and C++ compilers support OpenMP 4.0 offload.
 
 #### `compilers/c_cuda`: The C/C++ CUDA compilers
 Basic compiler setup:
@@ -47,8 +45,6 @@ Basic compiler setup:
 Available OpenMP features:
  * `OMP_FFLAGS`: The flags to enable compilation of OpenMP pragmas (e.g. `-fopenmp`).
  * `F_HAS_OMP`: Set to `true` if the Fortran compiler supports OpenMP.
- * `OMP_OFFLOAD_FFLAGS`: The flags to enable the compilation of OpenMP 4.0 offload pragmas (e.g. `-foffload=nvptx-none`).
- * `F_HAS_OMP_OFFLOAD`: Set to `true` if the Fortran compiler supports OpenMP 4.0 offload.
 
 Available CUDA features:
  * `CUDA_FFLAGS`: The flags to enable compilation of CUDA Fortran (`.CUF`) sources. These should enable target-specific code generation for each of the numerical architectures in the `CUDA_GEN` list.

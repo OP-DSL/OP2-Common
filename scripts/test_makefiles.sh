@@ -580,13 +580,13 @@ echo "=======================> Building Aero Plain DP with Clang Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_plain/dp/
 $OP2_C_CODEGEN_DIR/op2.py aero.cpp
 $OP2_C_CODEGEN_DIR/op2.py aero_mpi.cpp
-make clean;make; make aero_openmp4;
+make clean;make;
 echo " "
 echo " "
 echo "=======================> Building Aero HDF5 DP with Clang Compilers"
 cd $OP2_APPS_DIR/c/aero/aero_hdf5/dp/
 $OP2_C_CODEGEN_DIR/op2.py aero.cpp
-make clean;make;make aero_openmp4;
+make clean;make;
 
 
 
@@ -606,8 +606,6 @@ export OMP_NUM_THREADS=20
 validate "./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 10 ./aero_mpi_openmp OP_PART_SIZE=256"
-export OMP_NUM_THREADS=20
-#./aero_mpi_openmp4 OP_PART_SIZE=256
 
 #COMMENT0
 
@@ -627,8 +625,6 @@ export OMP_NUM_THREADS=20
 validate "./aero_mpi_openmp OP_PART_SIZE=256"
 export OMP_NUM_THREADS=2
 validate "$MPI_INSTALL_PATH/bin/mpirun -np 12 ./aero_mpi_openmp OP_PART_SIZE=256"
-export OMP_NUM_THREADS=20
-#./aero_mpi_openmp4 OP_PART_SIZE=256
 
 echo "All tests Passed !"
 echo "End of Test Script !"

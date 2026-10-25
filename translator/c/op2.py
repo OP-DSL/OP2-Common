@@ -52,7 +52,6 @@ from op2_gen_openacc import op2_gen_openacc
 from op2_gen_cuda import op2_gen_cuda
 from op2_gen_cuda_simple import op2_gen_cuda_simple
 from op2_gen_cuda_simple_hyb import op2_gen_cuda_simple_hyb
-from op2_gen_openmp4 import op2_gen_openmp4
 
 from op2_gen_common import *
 
@@ -936,9 +935,6 @@ def main(srcFilesAndDirs=sys.argv[1:]):
 
   # generates openmp code as well as cuda code into the same file
   op2_gen_cuda_simple_hyb(masterFile, date, consts, kernels, sets) # CPU and GPU will then do comutations as a hybrid application
-
-  #code generator for GPUs with OpenMP4.5
-  op2_gen_openmp4(masterFile, date, consts, kernels)
 
   # import subprocess
   # retcode = subprocess.call("which clang-format > /dev/null", shell=True)
