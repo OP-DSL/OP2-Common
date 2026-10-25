@@ -27,9 +27,6 @@ struct ChunkLimits {
     std::size_t shared_bytes = 0;
 };
 
-// Chunks per wavefront window when the run does not set one.
-constexpr int default_wave_window = 4096;
-
 // Each launch runs a batch of chunks, a block per chunk, each chunk
 // accumulating into its targets' slots in shared memory.
 struct ChunkPlan {
@@ -135,7 +132,7 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
 // chunk_colouring: the chunks of a batch share no target, and a chunk's
 // elements of one thread colour neither, so every slot is seeded and stored
 // with plain loads and stores.  A wavefront plan colours window chunks at a
-// time and runs each section as one batch.
+// time (0: a section at once) and runs each section as one batch.
 inline ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                         const op::loop::Sections& sections,
                                         const plan::ArgGroups& groups, int size,
@@ -158,8 +155,7 @@ inline ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
 
     if (wavefront) {
         auto wave = plan::wavefront(
-            plan::colour_chunks(out->chunks, staged.targets,
-                                window > 0 ? window : default_wave_window),
+            plan::colour_chunks(out->chunks, staged.targets, window),
             staged.targets);
         out->batches = std::move(wave.batches);
         out->wavefront = true;

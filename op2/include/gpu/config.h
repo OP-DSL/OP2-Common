@@ -24,8 +24,9 @@ struct Config {
     int multiprocessors = 0;
     int threads_per_multiprocessor = 0;
 
-    // OP_CHUNK_COLOURING_WINDOW: chunks a wavefront colours at a time.
-    int window = 0;
+    // OP_CHUNK_COLOURING_WINDOW: chunks a wavefront colours at a time; 0
+    // colours a section at once.
+    int window = 4096;
 
     // The most blocks of block_size threads the device holds at once.
     int resident_blocks(int block_size) const {
