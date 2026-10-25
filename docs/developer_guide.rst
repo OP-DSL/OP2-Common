@@ -235,8 +235,8 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
      - Disables internal data copy on ``op_decl_dat``/``op_decl_map``; the user's pointer is used directly.
    * - ``OP_TEST_FREQ=<n>``
      - Frequency of ``MPI_Test`` polling during computation-communication overlap.
-   * - ``OP2_GPU_DIRECT=<0|1>``
-     - Environment variable only.  Overrides the automatic GPU-direct MPI detection: ``1`` forces device pointers to be handed to MPI, ``0`` forces staging through host memory.  Without it OP2 detects support at ``op_init``; see :ref:`perf`.
+   * - ``OP_GPU_DIRECT=<on|off>``
+     - Environment variable only.  Overrides the automatic GPU-direct MPI detection: ``on`` (or ``1``) forces device pointers to be handed to MPI, ``off`` (or ``0``) forces staging through host memory.  Without it OP2 detects support at ``op_init``; see :ref:`perf`.
    * - ``OP_AUTO_SOA``
      - Automatically convert all dataset storage to SoA layout on the device.
    * - ``OP_PARTIAL_EXCHANGE``
@@ -431,7 +431,7 @@ With the legacy **color2** strategy, the execution uses block colours to achieve
 In both variants, the key property is that ``ncolors_core`` (atomics) or the core-element range marks the boundary between locally-computable work and halo-dependent work.
 
 .. note::
-   When the MPI library can send from device memory - detected at start-up, or set with ``OP2_GPU_DIRECT`` (see :doc:`perf`) - the blocks go to MPI straight from the GPU.  Otherwise they are staged through pinned host buffers: one copy to the host after the gather, one back before the scatter.
+   When the MPI library can send from device memory - detected at start-up, or set with ``OP_GPU_DIRECT`` (see :doc:`perf`) - the blocks go to MPI straight from the GPU.  Otherwise they are staged through pinned host buffers: one copy to the host after the gather, one back before the scatter.
 
 CPU Cluster (MPI + OpenMP)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

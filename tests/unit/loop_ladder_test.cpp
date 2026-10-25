@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <initializer_list>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -88,8 +89,14 @@ struct Fake : loop::Strategy {
     }
 };
 
-// A family without axes, its one strategy a Fake.
+// Declare families, reading their variables now.
+void declare(std::initializer_list<loop::Family> families) {
+    loop::declare_families({families.begin(), families.size()});
+}
+
+// A family without axes, declared now, its one strategy a Fake.
 Fake *add(loop::Ladder& ladder, std::string_view family, loop::Default setting) {
+    declare({{family, {}}});
     Fake *fake = nullptr;
     ladder.add(family, setting, {}, [&](const loop::Point& point) {
         auto made = std::make_unique<Fake>(point);
@@ -282,6 +289,18 @@ void test_variables() {
     unsetenv("OP_CHUNK_ATOMICS");
     unsetenv("OP_ATOMICS");
 
+    // A family's variables are read when it is declared, not when a loop
+    // registers it.
+    setenv("OP_ATOMICS", "off", 1);
+    declare({{"atomics", {}}});
+    unsetenv("OP_ATOMICS");
+    {
+        loop::Ladder ladder{"test_loop"};
+        ladder.add("atomics", loop::Default::enabled, {},
+                   [](const loop::Point& point) { return std::make_unique<Fake>(point); });
+        CHECK(!ladder.enabled(0) && !ladder.explorable(0));
+    }
+
     // OP_STRATEGY forces a family for every loop, or for a named loop, even
     // when the family is disabled; its kernel is waited for, and the ladder
     // falls through from it only when it cannot run.
@@ -343,7 +362,11 @@ void test_axes() {
         {"UNSTAGED_SINGLES", "singles", true, {1}},
     };
     auto make = [](const loop::Point& point) { return std::make_unique<Fake>(point); };
+    auto declare_all = [&] {
+        declare({{"chunk_atomics", axes}, {"atomics", {axes[0]}}, {"colouring", {axes[0]}}});
+    };
 
+    declare_all();
     {
         loop::Ladder ladder{"test_loop"};
         ladder.add("chunk_atomics", loop::Default::enabled, axes, make);
@@ -357,6 +380,7 @@ void test_axes() {
     setenv("OP_BLOCK_SIZES", "128,64,128,x", 1);
     setenv("OP_CHUNK_ATOMICS_UNSTAGED_SINGLES", "on,off", 1);
     setenv("OP_ATOMICS_BLOCK_SIZES", "256", 1);
+    declare_all();
     {
         loop::Ladder ladder{"test_loop"};
         ladder.add("chunk_atomics", loop::Default::enabled, axes, make);
@@ -391,6 +415,7 @@ void test_axes() {
     setenv("OP_STRATEGY", "chunk_atomics,test_loop:colouring=on;block_size=64", 1);
     setenv("OP_COLOURING", "off", 1);
     loop::init();
+    declare_all();
     {
         loop::Ladder ladder{"test_loop"};
         ladder.add("chunk_atomics", loop::Default::disabled, axes, make);

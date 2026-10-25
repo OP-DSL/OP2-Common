@@ -417,6 +417,10 @@ void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords);
 
 void op_renumber(op_map base);
 
+/* Read OP_REORDER and OP_REORDER_PROPAGATE; the MPI libraries' op_init calls
+   it. */
+void op_renumber_init();
+
 /*******************************************************************************
 * Utility function to compare two op_sets and return 1 if they are identical
 *******************************************************************************/

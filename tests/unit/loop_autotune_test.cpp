@@ -75,8 +75,11 @@ struct Fixture {
     Fake *colouring;
     loop::Autotuner tuner{ladder};
 
-    // A family without axes, its one strategy a Fake taking time.
+    // A family without axes, declared now, its one strategy a Fake taking
+    // time.
     Fake *add(std::string_view family, loop::Default setting, float time) {
+        const loop::Family declared[] = {{family, {}}};
+        loop::declare_families(declared);
         Fake *fake = nullptr;
         ladder.add(family, setting, {}, [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point.name, time);
@@ -113,11 +116,13 @@ op_set_core cells{};
 std::array<op_arg, 1> args{};
 
 void test_exploration() {
+    std::string path = "/tmp/op2_loop_autotune_test_report.csv";
     setenv("OP_AUTOTUNE", "select", 1);
     setenv("OP_AUTOTUNE_MARGIN", "0", 1);
     setenv("OP_AUTOTUNE_WARMUP", "1", 1);
     setenv("OP_AUTOTUNE_SAMPLES", "2", 1);
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
+    setenv("OP_AUTOTUNE_REPORT", path.c_str(), 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
     loop::init();
     CHECK(loop::autotune_config().select);
@@ -167,8 +172,6 @@ void test_exploration() {
         CHECK(fixture.call(other) == fixture.atomics);
 
     // The report: a row per configuration and strategy.
-    std::string path = "/tmp/op2_loop_autotune_test_report.csv";
-    setenv("OP_AUTOTUNE_REPORT", path.c_str(), 1);
     loop::autotune_write_report(0, 1);
     std::ifstream file(path);
     std::vector<std::string> rows;

@@ -2,6 +2,9 @@
 
 #### Core components
 ```
+op_env.h        (the environment variables' parser: every layer reads its
+                 own through it as op_init runs, and op_init warns about
+                 any OP_ variable nothing read; from src/core)
 op_lib_c.h      (includes: op_lib_core.h)
 op_lib_core.h
 op_lib_cpp.h    (includes: op_lib_core.h, op_lib_c.h)
@@ -13,9 +16,9 @@ op_rt_support.h (includes: op_lib_core.h)
 loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
                         objects the ladder asks to prepare and run a
                         configuration, the axes a family's variants vary
-                        along, the run-wide variables op_init reads, the
-                        sections an indirect loop runs, and the teardown
-                        registry)
+                        along, the families a backend declares, the
+                        run-wide variables op_init reads, the sections an
+                        indirect loop runs, and the teardown registry)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate strategy per configuration)
 loop/jit.h             (includes: loop/strategy.h; the JIT's policy, read by
@@ -74,7 +77,7 @@ kernel/jit_embed.h     (embeds the three kernel headers as text for NVRTC;
 gpu/shims.h            (gpu* aliases over the CUDA or HIP runtime)
 gpu/config.h           (the run-wide configuration: the JIT mechanism's
                         settings, device, wavefront window; read by op_init,
-                        from src/gpu)
+                        which declares the GPU families, from src/gpu)
 gpu/jit.h              (includes: gpu/config.h, gpu/shims.h, loop/jit.h; the
                         JIT mechanism: offline kernels and their symbols,
                         NVRTC or hipRTC compiles, run-time parameters as
@@ -98,7 +101,8 @@ cpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
                         plans a host thread runs a chunk of on its own)
 cpu/strategy.h         (includes: cpu/chunk_plan.h, plan/colouring.h; the
                         plain, atomics, colouring and chunked strategies over
-                        host threads, and the per-thread globals)
+                        host threads, the per-thread globals, and the
+                        families the CPU libraries' op_init declares)
 cpu/loop.h             (includes: cpu/strategy.h, loop/loop.h; the loop the
                         generated code builds and invokes)
 ```

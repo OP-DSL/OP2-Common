@@ -1,5 +1,6 @@
 #include <loop/jit.h>
 
+#include <op_env.h>
 #include <op_rt_support.h>
 
 #include <algorithm>
@@ -17,37 +18,20 @@ namespace {
 JitPolicy run_policy;
 std::atomic_int builds_in_flight = 0;
 
-// A comma-separated list's items.
-std::vector<std::string> items(const char *variable) {
-    std::vector<std::string> out;
-    const char *text = std::getenv(variable);
-    std::string_view rest = text != nullptr ? text : "";
-    while (!rest.empty()) {
-        auto comma = rest.find(',');
-        auto item = rest.substr(0, comma);
-        rest = comma == std::string_view::npos ? std::string_view{}
-                                               : rest.substr(comma + 1);
-        if (!item.empty())
-            out.emplace_back(item);
-    }
-    return out;
-}
-
 } // namespace
 
 const JitPolicy& jit_policy() { return run_policy; }
 
 void init_jit_policy() {
     run_policy = {};
-    if (std::getenv("OP_JIT_ENABLE") != nullptr)
-        op_printf("warning: OP_JIT_ENABLE is no longer read; OP_JIT_LEVEL=0 turns "
-                  "the JIT off\n");
+    env::retired("OP_JIT_ENABLE", "OP_JIT_LEVEL=0 turns the JIT off");
     int level = run_policy.level;
     if (env::parse_number("OP_JIT_LEVEL", level)) {
         if (level <= 2)
             run_policy.level = level;
         else
-            op_printf("warning: ignoring OP_JIT_LEVEL=%d, expected 0, 1 or 2\n", level);
+            env::warn("warning: ignoring OP_JIT_LEVEL=" + std::to_string(level) +
+                      ", expected 0, 1 or 2\n");
     }
     if (!run_policy.enabled())
         op_printf("Disabling JIT compilation\n");
@@ -59,14 +43,12 @@ void init_jit_policy() {
     if (run_policy.force)
         op_printf("Forcing JIT compilation regardless of register count\n");
     env::parse_number("OP_JIT_MIN_CALLS", run_policy.min_calls);
-    int threads = 0;
-    if (env::parse_number("OP_JIT_MAX_THREADS", threads))
-        run_policy.max_threads = threads;
+    env::parse_number("OP_JIT_MAX_THREADS", run_policy.max_threads);
     env::parse_number("OP_JIT_VARYING", run_policy.varying);
     env::parse_number("OP_JIT_MAX_GBL_BYTES", run_policy.max_gbl_bytes);
     env::parse_number("OP_JIT_MAX_CONST_BYTES", run_policy.max_const_bytes);
-    run_policy.runtime_params = items("OP_JIT_RUNTIME_PARAMS");
-    run_policy.constant_params = items("OP_JIT_CONSTANT_PARAMS");
+    env::parse_list("OP_JIT_RUNTIME_PARAMS", run_policy.runtime_params);
+    env::parse_list("OP_JIT_CONSTANT_PARAMS", run_policy.constant_params);
 }
 
 bool take_build_slot(int limit) {

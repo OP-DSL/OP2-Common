@@ -35,8 +35,10 @@
  * of the mpi back-end
  */
 
+#include <cpu/strategy.h>
 #include <loop/autotune.h>
 #include <mpi.h>
+#include <op_env.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_lib_mpi.h>
@@ -72,6 +74,9 @@ void op_init(int argc, char **argv, int diags) {
   OP_MPI_WORLD = MPI_COMM_WORLD;
   OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core(argc, argv, diags);
+  op_renumber_init();
+  op::cpu::init();
+  op::env::finish();
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
@@ -93,6 +98,9 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
   OP_MPI_GLOBAL = MPI_Comm_f2c(global);
 
   op_init_core(argc, argv, diags);
+  op_renumber_init();
+  op::cpu::init();
+  op::env::finish();
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,

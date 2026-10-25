@@ -101,6 +101,7 @@ constexpr std::array<op::plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
 void run(const char *strategy) {
     setenv("OP_STRATEGY", strategy, 1);
     op::loop::init();
+    cpu::init();
 
     op_set_core source{};
     source.index = 0;

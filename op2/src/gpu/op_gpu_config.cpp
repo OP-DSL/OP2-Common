@@ -2,8 +2,10 @@
 
 #include <gpu/check.h>
 #include <gpu/shims.h>
+#include <gpu/strategy.h>
 #include <loop/jit.h>
 #include <loop/strategy.h>
+#include <op_env.h>
 #include <op_lib_core.h>
 
 #include <string>
@@ -19,7 +21,7 @@ Config run_config;
 const Config& config() { return run_config; }
 
 void init() {
-    namespace env = op::loop::env;
+    namespace env = op::env;
     auto& config = run_config;
     config = {};
 
@@ -53,6 +55,16 @@ void init() {
     if (op::loop::jit_policy().debug)
         op_printf("JIT arch flag: %s\n", config.arch.c_str());
 #endif
+
+    // The families the generated code registers, each a strategy class.
+    const op::loop::Family families[] = {
+        {"plain", Simple::axes()},
+        {"atomics", Simple::axes()},
+        {"colouring", Colouring::axes()},
+        {"chunk_atomics", ChunkAtomics::axes()},
+        {"chunk_colouring", ChunkColouring::axes()},
+    };
+    op::loop::declare_families(families);
 }
 
 } // namespace op::gpu

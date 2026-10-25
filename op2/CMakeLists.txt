@@ -61,6 +61,7 @@ set(_op2_loop_srcs
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
 set(_op2_core_srcs
+    "${_src}/core/op_env.cpp"
     "${_src}/core/op_lib_core.cpp"
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"

@@ -19,29 +19,9 @@
 
 namespace op::loop {
 
-// --- Environment variables ---------------------------------------------------
-
-namespace env {
-
-std::string lower(std::string_view text);
-
-// A switch's text, on or off (also 1/0, yes/no, true/false); none for
-// anything else.
-std::optional<bool> switch_value(std::string_view text);
-
-// Parse a switch variable into value, warning about and ignoring anything
-// else; whether value was read from it.
-bool parse_bool(const char *variable, bool& value);
-
-// Parse a non-negative number into value, warning about and ignoring
-// anything else; whether value was read from it.
-bool parse_number(const char *variable, double& value);
-bool parse_number(const char *variable, int& value);
-
-} // namespace env
-
 // Read the run-wide variables: OP_STRATEGY, the tuner's OP_AUTOTUNE* and the
-// JIT's OP_JIT_*.  op_init calls it; a later call reads them again.
+// JIT's OP_JIT_*, and forget the families declared.  op_init calls it before
+// the backend declares its families; a later call reads them again.
 void init();
 
 // --- One call -----------------------------------------------------------------
@@ -263,14 +243,27 @@ struct Point {
     std::vector<int> values;
 };
 
+// A strategy family a backend offers, under the name the generated code
+// registers it by, and its axes.
+struct Family {
+    std::string_view name;
+    std::vector<Axis> axes;
+};
+
+// Read each family's variables, OP_<FAMILY> and its axes'; the backend
+// declares its families as op_init runs, and a ladder takes their settings
+// from here.
+void declare_families(std::span<const Family> families);
+
 // A loop's strategies in ladder order.  The last one is the floor: it is
 // selected when no other is ready, enabled or not, whatever its own status.
 // A family adds a strategy per point of its axes; the point of every axis's
 // first value is the one the ladder runs and OP_STRATEGY forces, the others
-// only the tuner tries.  OP_<FAMILY>=on/off is read at registration, over
-// the default, and off turns all of the family off; OP_STRATEGY, read by init, is
-// <family> or <loop>:<family> (a comma-separated list of either), a loop's
-// own item winning over a family for every loop.
+// only the tuner tries.  OP_<FAMILY>=on/off, read when the family is
+// declared, wins over the default, and off turns all of the family off;
+// OP_STRATEGY, read by init, is <family> or <loop>:<family> (a
+// comma-separated list of either), a loop's own item winning over a family
+// for every loop.
 class Ladder {
 private:
     struct Entry {

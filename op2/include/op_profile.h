@@ -129,6 +129,9 @@ enum class op_profile_level {
 class op_profile {
 private:
   op_profile_level level = op_profile_level::simple;
+  // OP_PROFILE_LEVEL, over set_level, and OP_PROFILE_JSON_OUTPUT.
+  std::optional<op_profile_level> requested_level;
+  std::string json_output;
 
   std::vector<std::reference_wrapper<op_profile_node>> current_scope;
   std::vector<op_profile_clock::clock::time_point> current_starts;
@@ -144,6 +147,9 @@ private:
 public:
   /* Returns the singleton timing instance */
   static op_profile& instance();
+
+  /* Reads OP_PROFILE_LEVEL and OP_PROFILE_JSON_OUTPUT; op_init calls it */
+  void read_environment();
 
   /* Sets the timing level (only before calling start()) - see op_profile_level */
   void set_level(const op_profile_level new_level);
@@ -198,6 +204,7 @@ private:
 /* C/Fortran timing API functions wrapping the public op_profile methods */
 extern "C" {
 
+void op_profile_init();
 void op_profile_start(const char* name);
 
 void op_profile_enter(const char* name);

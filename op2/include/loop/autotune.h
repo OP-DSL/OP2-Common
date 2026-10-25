@@ -32,6 +32,9 @@ struct AutotuneConfig {
     // OP_AUTOTUNE_MIN_CALLS: calls a configuration must see before it is
     // explored, so configurations seen once are never explored.
     int min_calls = 2;
+    // OP_AUTOTUNE_REPORT: the report's file, ".<rank>" appended under MPI;
+    // no report when empty.
+    std::string report_file;
 };
 
 const AutotuneConfig& autotune_config();

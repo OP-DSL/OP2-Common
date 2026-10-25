@@ -19,7 +19,7 @@ Detection only ever turns the feature *on* when it can confirm support, because
 handing a device pointer to an MPI that cannot take one fails inside the transport,
 whereas staging through host memory is always correct and merely slower.
 
-Set ``OP2_GPU_DIRECT`` to override the detection in either direction: ``1`` forces
+Set ``OP_GPU_DIRECT`` to override the detection in either direction: ``1`` forces
 it on for an MPI that supports it but does not advertise it, ``0`` forces the
 staged path for comparison or to work around a broken transport.
 

@@ -47,6 +47,7 @@
 
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
+#include <op_env.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -208,20 +209,21 @@ void op_download_dat(op_dat dat) {
 // staging through host memory is always correct and merely slower.
 //
 // Called once from op_init, after MPI is up, because the capability queries need
-// it. OP2_GPU_DIRECT overrides the detection in either direction.
+// it. OP_GPU_DIRECT overrides the detection in either direction.
 void op_gpu_direct_init() {
     static bool resolved = false;
     if (resolved) return;
     resolved = true;
 
     const char *reason;
-    const char *override_env = getenv("OP2_GPU_DIRECT");
+    std::optional<bool> forced;
+    op::env::parse_bool("OP_GPU_DIRECT", forced);
 
-    if (override_env != NULL) {
-        OP_gpu_direct = atoi(override_env) != 0;
-        reason = "OP2_GPU_DIRECT";
+    if (forced) {
+        OP_gpu_direct = *forced;
+        reason = "OP_GPU_DIRECT";
     } else {
-        reason = "not detected, set OP2_GPU_DIRECT=1 to force";
+        reason = "not detected, set OP_GPU_DIRECT=1 to force";
 
 #if defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
         if (!OP_gpu_direct && MPIX_Query_cuda_support() == 1) {

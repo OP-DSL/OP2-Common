@@ -4,6 +4,7 @@
 #include <loop/autotune.h>
 #include <loop/jit.h>
 #include <loop/select.h>
+#include <op_env.h>
 
 #include <algorithm>
 #include <array>
@@ -13,73 +14,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <map>
 #include <mutex>
 #include <utility>
 
 namespace op::loop {
-
-// --- Environment variables ---------------------------------------------------
-
-namespace env {
-
-std::string lower(std::string_view text) {
-    std::string out{text};
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return out;
-}
-
-std::optional<bool> switch_value(std::string_view text) {
-    auto lowered = lower(text);
-    if (lowered == "on" || lowered == "1" || lowered == "yes" || lowered == "true")
-        return true;
-    if (lowered == "off" || lowered == "0" || lowered == "no" || lowered == "false")
-        return false;
-    return std::nullopt;
-}
-
-bool parse_bool(const char *variable, bool& value) {
-    const char *text = std::getenv(variable);
-    if (text == nullptr)
-        return false;
-
-    auto parsed = switch_value(text);
-    if (!parsed) {
-        std::fprintf(stderr, "warning: ignoring %s='%s', expected on or off\n",
-                     variable, text);
-        return false;
-    }
-    value = *parsed;
-    return true;
-}
-
-bool parse_number(const char *variable, double& value) {
-    const char *text = std::getenv(variable);
-    if (text == nullptr)
-        return false;
-
-    char *end = nullptr;
-    double parsed = std::strtod(text, &end);
-    if (end == text || *end != '\0' || parsed < 0.0) {
-        std::fprintf(stderr,
-                     "warning: ignoring %s='%s', expected a non-negative "
-                     "number\n",
-                     variable, text);
-        return false;
-    }
-    value = parsed;
-    return true;
-}
-
-bool parse_number(const char *variable, int& value) {
-    double parsed = value;
-    if (!parse_number(variable, parsed))
-        return false;
-    value = static_cast<int>(parsed);
-    return true;
-}
-
-} // namespace env
 
 // --- One call -----------------------------------------------------------------
 
@@ -246,6 +185,14 @@ namespace {
 // OP_STRATEGY's items, as init read them.
 std::vector<std::string> strategy_items;
 
+// A declared family's OP_<FAMILY>, and each of its axes' values.
+struct FamilySettings {
+    std::optional<bool> enabled;
+    std::vector<std::vector<int>> values;
+};
+
+std::map<std::string, FamilySettings, std::less<>> family_settings;
+
 // The families forced on a loop, most specific first: "<loop>:<family>"
 // forces that loop, a bare family every loop that has it.
 std::vector<std::string> forced_for(std::string_view loop) {
@@ -269,26 +216,13 @@ std::string upper(std::string_view text) {
     return out;
 }
 
-// Print a warning once per run, however many loops meet it.
-void warn_once(const std::string& message) {
-    static std::vector<std::string> warned;
-    if (std::find(warned.begin(), warned.end(), message) != warned.end())
-        return;
-    warned.push_back(message);
-    std::fprintf(stderr, "%s", message.c_str());
-}
-
 // An axis's values from one variable, in order without repeats; empty when
 // the variable is unset or holds nothing usable.
 std::vector<int> axis_values(const std::string& variable, const Axis& axis) {
+    std::vector<std::string> items;
+    env::parse_list(variable.c_str(), items);
     std::vector<int> values;
-    const char *text = std::getenv(variable.c_str());
-    std::string_view rest = text != nullptr ? text : "";
-    while (!rest.empty()) {
-        auto comma = rest.find(',');
-        auto item = std::string{rest.substr(0, comma)};
-        rest = comma == std::string_view::npos ? std::string_view{}
-                                               : rest.substr(comma + 1);
+    for (const auto& item : items) {
         int value = -1;
         if (axis.binary) {
             if (auto parsed = env::switch_value(item))
@@ -300,7 +234,7 @@ std::vector<int> axis_values(const std::string& variable, const Axis& axis) {
                 value = static_cast<int>(parsed);
         }
         if (value < 0)
-            warn_once("warning: ignoring " + variable + " item '" + item +
+            env::warn("warning: ignoring " + variable + " item '" + item +
                       "', expected " + (axis.binary ? "on or off" : "a positive number") +
                       "\n");
         else if (std::find(values.begin(), values.end(), value) == values.end())
@@ -359,18 +293,19 @@ std::vector<Point> points(std::string_view family, std::span<const Axis> axes,
 
 void init() {
     strategy_items.clear();
-    const char *text = std::getenv("OP_STRATEGY");
-    std::string_view rest = text != nullptr ? text : "";
-    while (!rest.empty()) {
-        auto comma = rest.find(',');
-        auto item = rest.substr(0, comma);
-        rest = comma == std::string_view::npos ? std::string_view{}
-                                               : rest.substr(comma + 1);
-        if (!item.empty())
-            strategy_items.emplace_back(item);
-    }
+    env::parse_list("OP_STRATEGY", strategy_items);
+    family_settings.clear();
     init_autotune_config();
     init_jit_policy();
+}
+
+void declare_families(std::span<const Family> families) {
+    for (const auto& family : families) {
+        FamilySettings settings;
+        env::parse_bool(("OP_" + upper(family.name)).c_str(), settings.enabled);
+        settings.values = family_values(family.name, family.axes);
+        family_settings.insert_or_assign(std::string{family.name}, std::move(settings));
+    }
 }
 
 Ladder::Ladder(std::string_view loop_name)
@@ -378,10 +313,18 @@ Ladder::Ladder(std::string_view loop_name)
 
 void Ladder::add(std::string_view family, Default default_setting,
                  std::span<const Axis> axes, const Make& make) {
-    bool enabled = default_setting == Default::enabled;
-    bool off = env::parse_bool(("OP_" + upper(family)).c_str(), enabled) && !enabled;
+    auto found = family_settings.find(family);
+    if (found == family_settings.end()) {
+        std::fprintf(stderr, "error: %s registers strategy family %s, which no backend declared\n",
+                     m_name.c_str(), std::string{family}.c_str());
+        std::exit(1);
+    }
+    const auto& settings = found->second;
+    assert(settings.values.size() == axes.size());
+    bool enabled = settings.enabled.value_or(default_setting == Default::enabled);
+    bool off = !enabled && settings.enabled.has_value();
 
-    auto all = points(family, axes, family_values(family, axes));
+    auto all = points(family, axes, settings.values);
     for (std::size_t i = 1; i < all.size(); ++i)
         add_entry(make(all[i]), false, false, off);
     add_entry(make(all[0]), true, enabled, off);

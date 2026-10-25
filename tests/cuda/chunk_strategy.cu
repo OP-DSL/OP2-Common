@@ -231,9 +231,9 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
 } // namespace
 
 int main(int argc, char **argv) {
-    op_init(argc, argv, 2);
     // Every source in one chunk.
     setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", "256", 1);
+    op_init(argc, argv, 2);
 
     Fixture fixture;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
@@ -253,6 +253,7 @@ int main(int argc, char **argv) {
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
     op::loop::init();
+    op::gpu::init();
     {
         gpu::Loop loop("chunk_strategy", "c_CUDA", "Indirect", {false, false},
                        headers());

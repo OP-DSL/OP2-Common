@@ -1,5 +1,6 @@
 #include <loop/autotune.h>
 #include <loop/select.h>
+#include <op_env.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -25,8 +26,8 @@ constexpr const char *header =
 } // namespace
 
 void autotune_write_report(int rank, int ranks) {
-    const char *path = std::getenv("OP_AUTOTUNE_REPORT");
-    if (path == nullptr || path[0] == '\0')
+    const auto& path = autotune_config().report_file;
+    if (path.empty())
         return;
 
     std::vector<std::string> rows;
@@ -72,19 +73,13 @@ const AutotuneConfig& autotune_config() { return config; }
 
 void init_autotune_config() {
     config = {};
-    if (const char *text = std::getenv("OP_AUTOTUNE")) {
-        auto value = env::lower(text);
-        if (value == "report" || value == "select") {
-            config.report = true;
-            config.select = value == "select";
-        } else if (value != "0" && value != "off" && value != "no" &&
-                   value != "false") {
-            std::fprintf(stderr,
-                         "warning: ignoring OP_AUTOTUNE='%s', expected 0, "
-                         "report or select\n",
-                         text);
-        }
-    }
+    constexpr env::Choice modes[] = {{"off", 0}, {"0", 0},      {"no", 0},
+                                     {"false", 0}, {"report", 1}, {"select", 2}};
+    int mode = 0;
+    env::parse_choice("OP_AUTOTUNE", modes, mode);
+    config.report = mode > 0;
+    config.select = mode == 2;
+    env::parse_text("OP_AUTOTUNE_REPORT", config.report_file);
     env::parse_number("OP_AUTOTUNE_MARGIN", config.margin);
     env::parse_number("OP_AUTOTUNE_WARMUP", config.warmup);
     env::parse_number("OP_AUTOTUNE_SAMPLES", config.samples);

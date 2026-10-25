@@ -40,6 +40,7 @@
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <loop/autotune.h>
+#include <op_env.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
@@ -79,10 +80,12 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   OP_MPI_WORLD = MPI_COMM_WORLD;
   OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core(argc, argv, diags);
+  op_renumber_init();
 
   cutilDeviceInit(argc, argv);
   op::gpu::init();
   op_gpu_direct_init();
+  op::env::finish();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
@@ -103,10 +106,12 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   OP_MPI_WORLD = MPI_Comm_f2c(local);
   OP_MPI_GLOBAL = MPI_Comm_f2c(global);
   op_init_core(argc, argv, diags);
+  op_renumber_init();
 
   cutilDeviceInit(argc, argv);
   op::gpu::init();
   op_gpu_direct_init();
+  op::env::finish();
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,

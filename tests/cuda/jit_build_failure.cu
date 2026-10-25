@@ -69,6 +69,9 @@ int main(int argc, char **argv) {
     op_init(argc, argv, 2);
     setenv("OP_JIT_MIN_CALLS", "1", 1);
     op::loop::init();
+    op::gpu::init();
+    const op::loop::Family broken[] = {{"broken", gpu::Simple::axes()}};
+    op::loop::declare_families(broken);
 
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(int)));
 

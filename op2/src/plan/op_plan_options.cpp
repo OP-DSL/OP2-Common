@@ -1,6 +1,6 @@
 #include <plan/options.h>
 
-#include <loop/strategy.h>
+#include <op_env.h>
 
 namespace op::plan {
 
@@ -14,7 +14,7 @@ const ChunkOptions& chunk_options() { return run_options; }
 
 void init_chunk_options() {
     run_options = {};
-    op::loop::env::parse_number("OP_CHUNK_ATOMICS_MIN_COMPRESSION",
+    op::env::parse_number("OP_CHUNK_ATOMICS_MIN_COMPRESSION",
                                 run_options.min_compression);
 }
 

@@ -2,7 +2,8 @@
 
 // The CUDA and HIP backend's run-wide configuration: the JIT mechanism's
 // settings, the device, and the wavefront's window.  Read by init, which the
-// backend's op_init calls once the device is set.
+// backend's op_init calls once the device is set, and which also declares
+// the backend's strategy families.
 
 #include <algorithm>
 #include <cstddef>

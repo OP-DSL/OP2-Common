@@ -306,4 +306,17 @@ public:
         : ChunkBase{loop, point, true, body, {}} {}
 };
 
+// Declare the families the generated code registers, each a strategy class;
+// the CPU libraries' op_init calls it.
+inline void init() {
+    const op::loop::Family families[] = {
+        {"plain", Simple::axes()},
+        {"atomics", Simple::axes()},
+        {"colouring", Colouring::axes()},
+        {"chunk_atomics", ChunkAtomics::axes()},
+        {"chunk_colouring", ChunkColouring::axes()},
+    };
+    op::loop::declare_families(families);
+}
+
 } // namespace op::cpu

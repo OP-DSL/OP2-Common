@@ -64,6 +64,7 @@
  *     renumber/hilbert_sfc.hpp  - Hilbert SFC (standalone, geometric)
  */
 
+#include <op_env.h>
 #include <op_lib_c.h>
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
@@ -72,8 +73,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <numeric>
+#include <optional>
 #include <random>
-#include <strings.h>
 #include <utility>
 #include <vector>
 
@@ -378,18 +379,26 @@ template <class Method, std::size_t N> static const char *name_of(const Named<Me
   return "unknown";
 }
 
-/* The method the environment variable var chooses, ignoring case; fallback when
-   it is unset, or, with a warning, set to something else. */
+/* The method the environment variable var chooses, ignoring case; none when it
+   is unset or, with a warning, set to something else. */
 template <class Method, std::size_t N>
-static Method from_env(const char *var, const Named<Method> (&methods)[N], Method fallback) {
-  const char *env = getenv(var);
-  if (env == NULL || env[0] == '\0')
-    return fallback;
-  for (const Named<Method> &named : methods)
-    if (strcasecmp(env, named.value) == 0)
-      return named.method;
-  op_printf("Warning: unknown %s value '%s', using %s\n", var, env, name_of(methods, fallback));
-  return fallback;
+static std::optional<Method> requested(const char *var, const Named<Method> (&methods)[N]) {
+  op::env::Choice choices[N];
+  for (std::size_t i = 0; i < N; ++i)
+    choices[i] = {methods[i].value, static_cast<int>(methods[i].method)};
+  int value = -1;
+  if (!op::env::parse_choice(var, choices, value))
+    return std::nullopt;
+  return static_cast<Method>(value);
+}
+
+/* OP_REORDER and OP_REORDER_PROPAGATE, as op_init read them. */
+static std::optional<ReorderMethod> reorder_requested;
+static std::optional<PropagateMethod> propagate_requested;
+
+void op_renumber_init() {
+  reorder_requested = requested("OP_REORDER", reorder_methods);
+  propagate_requested = requested("OP_REORDER_PROPAGATE", propagate_methods);
 }
 
 /* OP_REORDER; unset, a Hilbert curve if the primary set has geometry, else RCM.
@@ -397,7 +406,7 @@ static Method from_env(const char *var, const Named<Method> (&methods)[N], Metho
    registered on every rank alike, so every rank chooses the same. */
 static ReorderMethod get_reorder_method(op_set set) {
   const bool geometry = set->coords != NULL;
-  ReorderMethod m = from_env("OP_REORDER", reorder_methods, geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM);
+  ReorderMethod m = reorder_requested.value_or(geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM);
   if (m == ReorderMethod::Hilbert && !geometry) {
     op_printf("Warning: OP_REORDER=hilbert needs the geometry of set %s, registered with op_set_coords or "
               "op_set_coords_derived; using RCM\n", set->name);
@@ -411,7 +420,7 @@ static ReorderMethod get_reorder_method(op_set set) {
 static PropagateMethod get_propagate_method(op_set set) {
   const bool geometry = set->coords != NULL;
   PropagateMethod m =
-      from_env("OP_REORDER_PROPAGATE", propagate_methods, geometry ? PropagateMethod::Centroid : PropagateMethod::Lex);
+      propagate_requested.value_or(geometry ? PropagateMethod::Centroid : PropagateMethod::Lex);
   if (m == PropagateMethod::Centroid && !geometry) {
     op_printf("Warning: OP_REORDER_PROPAGATE=centroid needs the geometry of set %s, registered with op_set_coords "
               "or op_set_coords_derived; using lex\n", set->name);
