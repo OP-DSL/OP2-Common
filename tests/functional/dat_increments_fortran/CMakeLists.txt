@@ -3,6 +3,6 @@
 # host reference.  Serial only: the reference indexes the global numbering.
 op2_add_functional_tests(
     LANGUAGE fortran
-    SOURCES  dat_increments.F90
-    EXCLUDE_VARIANTS mpi_*
-    STRATEGIES       chunk_atomics atomics chunk_colouring colouring)
+    SOURCES    dat_increments.F90
+    FAMILIES   serial soa
+    STRATEGIES chunk_atomics atomics chunk_colouring colouring)

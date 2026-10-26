@@ -4,6 +4,6 @@
 # global numbering.
 op2_add_functional_tests(
     LANGUAGE cpp
-    SOURCES  dat_increments.cpp
-    EXCLUDE_VARIANTS mpi_*
-    STRATEGIES       chunk_atomics atomics chunk_colouring colouring)
+    SOURCES    dat_increments.cpp
+    FAMILIES   serial soa
+    STRATEGIES chunk_atomics atomics chunk_colouring colouring)

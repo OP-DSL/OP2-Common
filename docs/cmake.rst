@@ -182,8 +182,14 @@ Set it at configure time:
 4. Test
 ^^^^^^^
 
-With ``-DOP2_ENABLE_TESTS=ON``, the functional tests under ``tests/functional``
-are registered with CTest, one test per built variant:
+With ``-DOP2_ENABLE_TESTS=ON``, CTest runs the unit tests under ``tests/unit``
+(label ``unit``), the GPU runtime tests under ``tests/cuda`` (``cuda``), and the
+functional tests under ``tests/functional``: each directory's program built for
+every variant of the families it asks for (serial, MPI, and SoA on the GPU
+variants).  A JIT variant's test runs the offline kernels; ``<test>_jit``, or
+``<test>_<strategy>`` with each strategy forced, runs every kernel JIT-compiled
+on its first call, and ``<test>_autotune`` explores every strategy (label
+``strategy``):
 
 .. code-block:: shell
 
@@ -193,8 +199,8 @@ are registered with CTest, one test per built variant:
    ctest --test-dir build -R idx           # one directory
    ctest --test-dir build -N               # list without running
 
-Each test carries labels for its language, its category, and whether it is
-``serial`` or ``mpi``, and the MPI ones declare their rank count via the
+Each functional test carries labels for its language, its category, and whether
+it is ``serial`` or ``mpi``, and the MPI ones declare their rank count via the
 ``PROCESSORS`` property so ``ctest -j`` schedules them without oversubscribing.
 
 5. Install
