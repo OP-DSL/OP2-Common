@@ -56,13 +56,20 @@ void init() {
         op_printf("JIT arch flag: %s\n", config.arch.c_str());
 #endif
 
-    // The families the generated code registers, each a strategy class.
+    // The families the generated code registers, each a strategy class, in
+    // ladder order.  chunk_atomics runs by default on AMD, where its unstaged
+    // singles are native atomics.
+#ifdef OP2_HIP
+    const bool chunk_atomics = true;
+#else
+    const bool chunk_atomics = false;
+#endif
     const op::loop::Family families[] = {
         {"plain", Simple::axes()},
+        {"chunk_atomics", ChunkAtomics::axes(), chunk_atomics},
         {"atomics", Simple::axes()},
+        {"chunk_colouring", ChunkColouring::axes(), false},
         {"colouring", Colouring::axes()},
-        {"chunk_atomics", ChunkAtomics::axes()},
-        {"chunk_colouring", ChunkColouring::axes()},
     };
     op::loop::declare_families(families);
 }

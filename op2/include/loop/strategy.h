@@ -218,11 +218,6 @@ public:
     std::string_view family() const;
 };
 
-enum class Default {
-    enabled,
-    disabled,
-};
-
 // --- Variants -----------------------------------------------------------------
 
 // One way a family's strategies vary, such as their block size.  Its values
@@ -244,18 +239,20 @@ struct Point {
 };
 
 // A strategy family a backend offers, under the name the generated code
-// registers it by, and its axes.
+// registers it by, its axes, and whether the ladder runs it by default.
 struct Family {
     std::string_view name;
     std::vector<Axis> axes;
+    bool enabled = true;
 };
 
 // Read each family's variables, OP_<FAMILY> and its axes'; the backend
-// declares its families as op_init runs, and a ladder takes their settings
-// from here.
+// declares its families in ladder order as op_init runs, and a ladder takes
+// their settings and order from here.
 void declare_families(std::span<const Family> families);
 
-// A loop's strategies in ladder order.  The last one is the floor: it is
+// A loop's strategies in ladder order, their families' as declared,
+// whatever order the loop adds them in.  The last one is the floor: it is
 // selected when no other is ready, enabled or not, whatever its own status.
 // A family adds a strategy per point of its axes; the point of every axis's
 // first value is the one the ladder runs and OP_STRATEGY forces, the others
@@ -273,6 +270,8 @@ private:
         bool enabled;
         // Turned off by its variable: never run and never explored.
         bool off;
+        // Its family's place in ladder order.
+        std::size_t rank;
     };
 
     std::string m_name;
@@ -290,7 +289,7 @@ private:
     std::vector<std::string> m_warned;
 
     void add_entry(std::unique_ptr<Strategy> strategy, bool runs, bool enabled,
-                   bool off);
+                   bool off, std::size_t rank);
     void warn_forced(std::string_view reason);
     void report(const Prepared& selection,
                 std::span<const std::string_view> reasons);
@@ -303,11 +302,10 @@ public:
 
     const std::string& name() const { return m_name; }
 
-    // A family: make builds its strategy for each point of the axes, the
-    // tuner's ahead of the one that runs, so a family's last strategy is
-    // the one that runs.
-    void add(std::string_view family, Default default_setting,
-             std::span<const Axis> axes, const Make& make);
+    // A declared family: make builds its strategy for each point of its
+    // axes, the tuner's ahead of the one that runs, so a family's last
+    // strategy is the one that runs.
+    void add(std::string_view family, const Make& make);
 
     // First enabled strategy, from the forced one if any, whose prepare is
     // ready; else the floor, waited for, so the selection is always ready: a

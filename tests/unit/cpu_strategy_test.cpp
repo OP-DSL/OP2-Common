@@ -163,14 +163,10 @@ void run(const char *strategy) {
 
     cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", cpu::LoopDescription{false});
     op::plan::ArgGroups arg_groups{groups, 1};
-    loop.add<cpu::ChunkAtomics>("chunk_atomics", op::loop::Default::disabled,
-                                &staged_body, arg_groups);
-    loop.add<cpu::Simple>("atomics", op::loop::Default::disabled,
-                          &range_body<true, false>);
-    loop.add<cpu::ChunkColouring>("chunk_colouring", op::loop::Default::enabled,
-                                  &range_body<false, false>);
-    loop.add<cpu::Colouring>("colouring", op::loop::Default::enabled,
-                             &range_body<false, true>);
+    loop.add<cpu::ChunkAtomics>("chunk_atomics", &staged_body, arg_groups);
+    loop.add<cpu::Simple>("atomics", &range_body<true, false>);
+    loop.add<cpu::ChunkColouring>("chunk_colouring", &range_body<false, false>);
+    loop.add<cpu::Colouring>("colouring", &range_body<false, true>);
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());

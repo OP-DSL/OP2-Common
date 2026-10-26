@@ -40,16 +40,13 @@ public:
 
     // --- Registration, by the generated code ---
 
-    // Add a family: a strategy S per point of S's axes, built from the
+    // Add a family: a strategy S per point of its axes, built from the
     // loop, the point, the body and args.
     template<typename S, typename... Args>
-    void add(std::string_view family, op::loop::Default default_setting,
-             Body body, Args&&... args) {
-        auto axes = S::axes();
-        m_ladder.add(family, default_setting, axes,
-                     [&](const op::loop::Point& point) {
-                         return std::make_unique<S>(*this, point, body, args...);
-                     });
+    void add(std::string_view family, Body body, Args&&... args) {
+        m_ladder.add(family, [&](const op::loop::Point& point) {
+            return std::make_unique<S>(*this, point, body, args...);
+        });
     }
 
     // --- For the strategies ---

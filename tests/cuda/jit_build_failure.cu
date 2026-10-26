@@ -63,8 +63,10 @@ int main(int argc, char **argv) {
     setenv("OP_JIT_MIN_CALLS", "1", 1);
     op::loop::init();
     op::gpu::init();
-    const op::loop::Family broken[] = {{"broken", gpu::Simple::axes()}};
-    op::loop::declare_families(broken);
+    // A broken family ahead of the working plain one.
+    const op::loop::Family families[] = {{"broken", gpu::Simple::axes()},
+                                         {"plain", gpu::Simple::axes()}};
+    op::loop::declare_families(families);
 
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(int)));
 
@@ -79,13 +81,13 @@ int main(int argc, char **argv) {
     bool passed = true;
     {
         // A strategy with only the broken source, then a working floor.
-        gpu::Loop loop("build_failure", "cuda", "Direct", {true, false}, headers());
-        loop.add<gpu::Simple>("broken", op::loop::Default::enabled,
+        gpu::Loop loop("build_failure", "cuda", "Direct", {true}, headers());
+        loop.add<gpu::Simple>("broken",
                               gpu::KernelSource{"build_failure_offline", nullptr,
                                                 broken_source},
                               &bind);
         loop.add<gpu::Simple>(
-            "plain", op::loop::Default::enabled,
+            "plain",
             gpu::KernelSource{"build_failure_offline",
                               reinterpret_cast<const void *>(build_failure_offline),
                               broken_source},

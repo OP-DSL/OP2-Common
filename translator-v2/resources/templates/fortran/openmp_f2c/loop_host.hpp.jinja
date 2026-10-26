@@ -3,9 +3,6 @@
 {%- endmacro -%}
 
 {%- set strategies = config.strategies -%}
-{#- Enabled by default: plain, and chunk colouring over the set colouring
-    floor; an atomic increment is a compare-and-swap loop on most CPUs. -#}
-{%- set default_strategies = ["plain", "chunk_colouring", "colouring"] -%}
 
 {#- Globals each thread keeps its own copy of. -#}
 {%- set args_per_thread = lh.args|gbl|select2("reduction", "work")|list + lh.args|info|list -%}
@@ -233,8 +230,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
     {% set tail = "" %}
     {% endif %}
     loop.add<op::cpu::{{strategy_class(strategy)}}>(
-        "{{strategy}}", op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}},
-        {{body(strategy)}}{{tail}});
+        "{{strategy}}", {{body(strategy)}}{{tail}});
 {% endfor %}
     return true;
 }

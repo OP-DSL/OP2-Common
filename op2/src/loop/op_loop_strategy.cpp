@@ -185,13 +185,18 @@ namespace {
 // OP_STRATEGY's items, as init read them.
 std::vector<std::string> strategy_items;
 
-// A declared family's OP_<FAMILY>, and each of its axes' values.
+// A declared family's axes, default, OP_<FAMILY>, each axis's values, and
+// its place in ladder order.
 struct FamilySettings {
+    std::vector<Axis> axes;
+    bool enabled_by_default;
     std::optional<bool> enabled;
     std::vector<std::vector<int>> values;
+    std::size_t rank;
 };
 
 std::map<std::string, FamilySettings, std::less<>> family_settings;
+std::size_t declared_families = 0;
 
 // The families forced on a loop, most specific first: "<loop>:<family>"
 // forces that loop, a bare family every loop that has it.
@@ -295,6 +300,7 @@ void init() {
     strategy_items.clear();
     env::parse_list("OP_STRATEGY", strategy_items);
     family_settings.clear();
+    declared_families = 0;
     init_autotune_config();
     init_jit_policy();
 }
@@ -302,8 +308,11 @@ void init() {
 void declare_families(std::span<const Family> families) {
     for (const auto& family : families) {
         FamilySettings settings;
+        settings.axes = family.axes;
+        settings.enabled_by_default = family.enabled;
         env::parse_bool(("OP_" + upper(family.name)).c_str(), settings.enabled);
         settings.values = family_values(family.name, family.axes);
+        settings.rank = declared_families++;
         family_settings.insert_or_assign(std::string{family.name}, std::move(settings));
     }
     for (std::string_view item : strategy_items) {
@@ -317,8 +326,7 @@ void declare_families(std::span<const Family> families) {
 Ladder::Ladder(std::string_view loop_name)
     : m_name{loop_name}, m_forced_names{forced_for(loop_name)} {}
 
-void Ladder::add(std::string_view family, Default default_setting,
-                 std::span<const Axis> axes, const Make& make) {
+void Ladder::add(std::string_view family, const Make& make) {
     auto found = family_settings.find(family);
     if (found == family_settings.end()) {
         std::fprintf(stderr, "error: %s registers strategy family %s, which no backend declared\n",
@@ -326,18 +334,17 @@ void Ladder::add(std::string_view family, Default default_setting,
         std::exit(1);
     }
     const auto& settings = found->second;
-    assert(settings.values.size() == axes.size());
-    bool enabled = settings.enabled.value_or(default_setting == Default::enabled);
+    bool enabled = settings.enabled.value_or(settings.enabled_by_default);
     bool off = !enabled && settings.enabled.has_value();
 
-    auto all = points(family, axes, settings.values);
+    auto all = points(family, settings.axes, settings.values);
     for (std::size_t i = 1; i < all.size(); ++i)
-        add_entry(make(all[i]), false, false, off);
-    add_entry(make(all[0]), true, enabled, off);
+        add_entry(make(all[i]), false, false, off, settings.rank);
+    add_entry(make(all[0]), true, enabled, off, settings.rank);
 }
 
 void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
-                       bool enabled, bool off) {
+                       bool enabled, bool off, std::size_t rank) {
     assert(strategy != nullptr);
     for (const auto& entry : m_entries)
         if (entry.strategy->name() == strategy->name()) {
@@ -346,17 +353,28 @@ void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
             std::exit(1);
         }
 
-    Entry entry{std::move(strategy), runs, enabled, off};
+    // After its family's earlier strategies and those of every family
+    // declared before it.
+    auto position = static_cast<std::size_t>(
+        std::find_if(m_entries.begin(), m_entries.end(),
+                     [&](const Entry& entry) { return entry.rank > rank; }) -
+        m_entries.begin());
+    if (m_forced && *m_forced >= position)
+        ++*m_forced;
+
+    Entry entry{std::move(strategy), runs, enabled, off, rank};
     if (runs)
-        for (std::size_t rank = 0;
-             rank < std::min(m_forced_rank, m_forced_names.size()); ++rank)
-            if (m_forced_names[rank] == entry.strategy->family()) {
-                m_forced = m_entries.size();
-                m_forced_rank = rank;
+        for (std::size_t forced = 0;
+             forced < std::min(m_forced_rank, m_forced_names.size()); ++forced)
+            if (m_forced_names[forced] == entry.strategy->family()) {
+                m_forced = position;
+                m_forced_rank = forced;
                 break;
             }
-    m_entries.push_back(std::move(entry));
-    m_reasons.emplace_back();
+    m_entries.insert(m_entries.begin() + static_cast<std::ptrdiff_t>(position),
+                     std::move(entry));
+    m_reasons.insert(m_reasons.begin() + static_cast<std::ptrdiff_t>(position),
+                     std::string_view{});
 }
 
 Prepared Ladder::select(const Configuration& configuration) {

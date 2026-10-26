@@ -306,15 +306,17 @@ public:
         : ChunkBase{loop, point, true, body, {}} {}
 };
 
-// Declare the families the generated code registers, each a strategy class;
-// the CPU libraries' op_init calls it.
+// Declare the families the generated code registers, each a strategy class,
+// in ladder order; the CPU libraries' op_init calls it.  An atomic increment
+// is a compare-and-swap loop on most CPUs, so chunk colouring runs over the
+// set colouring floor by default.
 inline void init() {
     const op::loop::Family families[] = {
         {"plain", Simple::axes()},
-        {"atomics", Simple::axes()},
-        {"colouring", Colouring::axes()},
-        {"chunk_atomics", ChunkAtomics::axes()},
+        {"chunk_atomics", ChunkAtomics::axes(), false},
+        {"atomics", Simple::axes(), false},
         {"chunk_colouring", ChunkColouring::axes()},
+        {"colouring", Colouring::axes()},
     };
     op::loop::declare_families(families);
 }

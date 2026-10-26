@@ -179,13 +179,13 @@ gpu::JitHeaders headers() {
 
 void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
     loop.add<gpu::ChunkAtomics>(
-        "chunk_atomics", op::loop::Default::disabled,
+        "chunk_atomics",
         gpu::KernelSource{"chunk_strategy_staged",
                           reinterpret_cast<const void *>(chunk_strategy_staged),
                           staged_source},
         &bind_staged, fixture.groups());
     loop.add<gpu::Simple>(
-        "atomics", op::loop::Default::enabled,
+        "atomics",
         gpu::KernelSource{"chunk_strategy_baseline",
                           reinterpret_cast<const void *>(chunk_strategy_baseline),
                           baseline_source},
@@ -235,7 +235,7 @@ int main(int argc, char **argv) {
     {
         // Disabled by default: atomics runs, and the one plan is the one
         // run() prepares itself.
-        gpu::Loop dormant("chunk_strategy", "cuda", "Indirect", {false, false},
+        gpu::Loop dormant("chunk_strategy", "cuda", "Indirect", {false},
                           headers());
         add_strategies(dormant, fixture);
         auto outcome = run(dormant, fixture);
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
     op::loop::init();
     op::gpu::init();
     {
-        gpu::Loop loop("chunk_strategy", "cuda", "Indirect", {false, false},
+        gpu::Loop loop("chunk_strategy", "cuda", "Indirect", {false},
                        headers());
         add_strategies(loop, fixture);
         auto& chunk = static_cast<gpu::ChunkBase&>(loop.ladder()[0]);
@@ -303,7 +303,7 @@ int main(int argc, char **argv) {
             Fixture split;
             split.source.core_size = 128;
             gpu::Loop split_loop("chunk_strategy_split", "cuda", "Indirect",
-                                 {false, false}, headers());
+                                 {false}, headers());
             add_strategies(split_loop, split);
             auto split_outcome = run(split_loop, split);
             CHECK(split_outcome.strategy == "chunk_atomics");
@@ -323,7 +323,7 @@ int main(int argc, char **argv) {
             for (std::size_t i = 0; i < spread.map_values.size(); ++i)
                 spread.map_values[i] = static_cast<int>(i);
             gpu::Loop spread_loop("chunk_strategy_spread", "cuda", "Indirect",
-                                  {false, false}, headers());
+                                  {false}, headers());
             add_strategies(spread_loop, spread);
             auto spread_outcome = run(spread_loop, spread);
             CHECK(spread_outcome.strategy == "atomics");
@@ -355,7 +355,7 @@ int main(int argc, char **argv) {
             } else {
                 last_shared_byte = large.shared_bytes() - 1;
                 gpu::Loop large_loop("chunk_strategy_large", "cuda", "Indirect",
-                                     {false, false}, headers());
+                                     {false}, headers());
                 add_strategies(large_loop, large);
                 auto large_outcome = run(large_loop, large);
                 CHECK(large_outcome.strategy == "chunk_atomics");

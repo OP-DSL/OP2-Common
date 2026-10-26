@@ -71,11 +71,11 @@ struct Fixture {
 
     // A family without axes, declared now, its one strategy a Fake taking
     // time.
-    Fake *add(std::string_view family, loop::Default setting, float time) {
-        const loop::Family declared[] = {{family, {}}};
+    Fake *add(std::string_view family, bool enabled, float time) {
+        const loop::Family declared[] = {{family, {}, enabled}};
         loop::declare_families(declared);
         Fake *fake = nullptr;
-        ladder.add(family, setting, {}, [&](const loop::Point& point) {
+        ladder.add(family, [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point.name, time);
             fake = made.get();
             return made;
@@ -83,12 +83,11 @@ struct Fixture {
         return fake;
     }
 
-    explicit Fixture(loop::Default chunk_atomics_setting = loop::Default::disabled,
-                     float chunk_atomics_time = 4.0f) {
-        chunk_atomics = add("chunk_atomics", chunk_atomics_setting, chunk_atomics_time);
-        atomics = add("atomics", loop::Default::enabled, 10.0f);
-        chunk_colouring = add("chunk_colouring", loop::Default::disabled, 8.0f);
-        colouring = add("colouring", loop::Default::enabled, 20.0f);
+    explicit Fixture(bool chunk_atomics_enabled = false, float chunk_atomics_time = 4.0f) {
+        chunk_atomics = add("chunk_atomics", chunk_atomics_enabled, chunk_atomics_time);
+        atomics = add("atomics", true, 10.0f);
+        chunk_colouring = add("chunk_colouring", false, 8.0f);
+        colouring = add("colouring", true, 20.0f);
     }
 
     // One call: select, let the tuner decide, run, sample.
@@ -201,7 +200,7 @@ void test_ladder_changes() {
     setenv("OP_CHUNK_COLOURING", "0", 1);
     loop::init();
 
-    Fixture fixture(loop::Default::enabled, 10.2f);
+    Fixture fixture(true, 10.2f);
     loop::Configuration configuration{&edges, args, edges.size + edges.exec_size};
     fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending,
                                        loop::Status::pending};

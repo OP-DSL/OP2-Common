@@ -88,10 +88,10 @@ void declare(std::initializer_list<loop::Family> families) {
 }
 
 // A family without axes, declared now, its one strategy a Fake.
-Fake *add(loop::Ladder& ladder, std::string_view family, loop::Default setting) {
-    declare({{family, {}}});
+Fake *add(loop::Ladder& ladder, std::string_view family, bool enabled) {
+    declare({{family, {}, enabled}});
     Fake *fake = nullptr;
-    ladder.add(family, setting, {}, [&](const loop::Point& point) {
+    ladder.add(family, [&](const loop::Point& point) {
         auto made = std::make_unique<Fake>(point);
         fake = made.get();
         return made;
@@ -102,9 +102,9 @@ Fake *add(loop::Ladder& ladder, std::string_view family, loop::Default setting) 
 // A ladder of chunk_atomics (disabled), atomics, colouring (the floor).
 struct Fixture {
     loop::Ladder ladder{"test_loop"};
-    Fake *chunk_atomics = add(ladder, "chunk_atomics", loop::Default::disabled);
-    Fake *atomics = add(ladder, "atomics", loop::Default::enabled);
-    Fake *colouring = add(ladder, "colouring", loop::Default::enabled);
+    Fake *chunk_atomics = add(ladder, "chunk_atomics", false);
+    Fake *atomics = add(ladder, "atomics", true);
+    Fake *colouring = add(ladder, "colouring", true);
 };
 
 op_set_core source{};
@@ -258,9 +258,9 @@ void test_variables() {
     setenv("OP_ATOMICS", "off", 1);
     {
         loop::Ladder ladder{"test_loop"};
-        add(ladder, "chunk_atomics", loop::Default::disabled);
-        add(ladder, "atomics", loop::Default::enabled);
-        add(ladder, "colouring", loop::Default::enabled);
+        add(ladder, "chunk_atomics", false);
+        add(ladder, "atomics", true);
+        add(ladder, "colouring", true);
         CHECK(ladder.enabled(0));
         CHECK(!ladder.enabled(1) && !ladder.explorable(1));
         CHECK(ladder.enabled(2));
@@ -274,8 +274,8 @@ void test_variables() {
     setenv("OP_ATOMICS", "maybe", 1);
     {
         loop::Ladder ladder{"test_loop"};
-        add(ladder, "chunk_atomics", loop::Default::disabled);
-        add(ladder, "atomics", loop::Default::enabled);
+        add(ladder, "chunk_atomics", false);
+        add(ladder, "atomics", true);
         CHECK(!ladder.enabled(0) && ladder.explorable(0));
         CHECK(ladder.enabled(1) && ladder.explorable(1));
     }
@@ -289,7 +289,7 @@ void test_variables() {
     unsetenv("OP_ATOMICS");
     {
         loop::Ladder ladder{"test_loop"};
-        ladder.add("atomics", loop::Default::enabled, {},
+        ladder.add("atomics",
                    [](const loop::Point& point) { return std::make_unique<Fake>(point); });
         CHECK(!ladder.enabled(0) && !ladder.explorable(0));
     }
@@ -301,10 +301,10 @@ void test_variables() {
     loop::init();
     {
         loop::Ladder ladder{"test_loop"};
-        add(ladder, "chunk_atomics", loop::Default::enabled);
-        add(ladder, "atomics", loop::Default::disabled);
-        add(ladder, "plain", loop::Default::enabled);
-        add(ladder, "colouring", loop::Default::enabled);
+        add(ladder, "chunk_atomics", true);
+        add(ladder, "atomics", false);
+        add(ladder, "plain", true);
+        add(ladder, "colouring", true);
         CHECK(ladder.forced() == 1);
         auto selection = ladder.select(configuration());
         CHECK(selection.strategy->name() == "atomics=on");
@@ -322,15 +322,15 @@ void test_variables() {
     }
     {
         loop::Ladder ladder{"other"};
-        add(ladder, "atomics", loop::Default::enabled);
-        add(ladder, "colouring", loop::Default::enabled);
+        add(ladder, "atomics", true);
+        add(ladder, "colouring", true);
         CHECK(ladder.forced() == 1);
         CHECK(ladder.select(configuration()).strategy->name() == "colouring=on");
     }
     {
         loop::Ladder ladder{"third"};
-        add(ladder, "atomics", loop::Default::enabled);
-        add(ladder, "colouring", loop::Default::enabled);
+        add(ladder, "atomics", true);
+        add(ladder, "colouring", true);
         CHECK(!ladder.forced().has_value());
     }
 
@@ -339,8 +339,8 @@ void test_variables() {
     loop::init();
     for (const char *name : {"test_loop", "other"}) {
         loop::Ladder ladder{name};
-        add(ladder, "atomics", loop::Default::enabled);
-        add(ladder, "colouring", loop::Default::enabled);
+        add(ladder, "atomics", true);
+        add(ladder, "colouring", true);
         CHECK(ladder.forced() == (std::string_view{name} == "other" ? 1u : 0u));
     }
     unsetenv("OP_STRATEGY");
@@ -355,14 +355,16 @@ void test_axes() {
         {"UNSTAGED_SINGLES", "singles", true, {1}},
     };
     auto make = [](const loop::Point& point) { return std::make_unique<Fake>(point); };
-    auto declare_all = [&] {
-        declare({{"chunk_atomics", axes}, {"atomics", {axes[0]}}, {"colouring", {axes[0]}}});
+    auto declare_all = [&](bool chunk_atomics) {
+        declare({{"chunk_atomics", axes, chunk_atomics},
+                 {"atomics", {axes[0]}, false},
+                 {"colouring", {axes[0]}}});
     };
 
-    declare_all();
+    declare_all(true);
     {
         loop::Ladder ladder{"test_loop"};
-        ladder.add("chunk_atomics", loop::Default::enabled, axes, make);
+        ladder.add("chunk_atomics", make);
         CHECK(ladder.size() == 1 &&
               ladder[0].name() == "chunk_atomics=on;block_size=128;singles=on");
         CHECK((static_cast<Fake&>(ladder[0]).values == std::vector<int>{128, 1}));
@@ -373,12 +375,13 @@ void test_axes() {
     setenv("OP_BLOCK_SIZES", "128,64,128,x", 1);
     setenv("OP_CHUNK_ATOMICS_UNSTAGED_SINGLES", "on,off", 1);
     setenv("OP_ATOMICS_BLOCK_SIZES", "256", 1);
-    declare_all();
+    declare_all(true);
     {
+        // In declared order, whatever order the loop adds them in.
         loop::Ladder ladder{"test_loop"};
-        ladder.add("chunk_atomics", loop::Default::enabled, axes, make);
-        ladder.add("atomics", loop::Default::disabled, {axes.data(), 1}, make);
-        ladder.add("colouring", loop::Default::enabled, {axes.data(), 1}, make);
+        ladder.add("colouring", make);
+        ladder.add("atomics", make);
+        ladder.add("chunk_atomics", make);
         std::vector<std::string> names;
         for (std::size_t i = 0; i < ladder.size(); ++i)
             names.emplace_back(ladder[i].name());
@@ -408,11 +411,11 @@ void test_axes() {
     setenv("OP_STRATEGY", "chunk_atomics,test_loop:colouring=on;block_size=64", 1);
     setenv("OP_COLOURING", "off", 1);
     loop::init();
-    declare_all();
+    declare_all(false);
     {
         loop::Ladder ladder{"test_loop"};
-        ladder.add("chunk_atomics", loop::Default::disabled, axes, make);
-        ladder.add("colouring", loop::Default::enabled, {axes.data(), 1}, make);
+        ladder.add("colouring", make);
+        ladder.add("chunk_atomics", make);
         CHECK(ladder.forced() == 3);
         CHECK(ladder.select(configuration()).strategy == &ladder[3]);
         CHECK(!ladder.explorable(4) && !ladder.explorable(5));
@@ -430,8 +433,7 @@ void test_long_ladder() {
     loop::Ladder ladder{"long_loop"};
     std::vector<Fake *> fakes;
     for (int i = 0; i < 40; ++i) {
-        auto *fake = add(ladder, "fake_" + std::to_string(i),
-                         i % 2 == 0 ? loop::Default::enabled : loop::Default::disabled);
+        auto *fake = add(ladder, "fake_" + std::to_string(i), i % 2 == 0);
         fake->statuses.assign(4, loop::Status::rejected);
         fakes.push_back(fake);
     }

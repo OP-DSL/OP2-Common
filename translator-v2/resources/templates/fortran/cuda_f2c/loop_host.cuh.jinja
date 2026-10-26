@@ -7,9 +7,6 @@
     dimension and setting as a constant; offline builds hold the rest. -#}
 {%- set chunk_strategies = ["chunk_atomics", "chunk_colouring"] -%}
 {%- set offline_strategies = strategies|reject("in", chunk_strategies)|list -%}
-{#- Enabled by default: plain, atomics and colouring, and chunk_atomics on AMD,
-    where its unstaged singles are native atomics. -#}
-{%- set default_strategies = offline_strategies + (["chunk_atomics"] if config.hip else []) -%}
 
 {#- A chunked wrapper's plan parameters: type, name, and the launch context
     field that binds it. -#}
@@ -630,7 +627,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     {{"}}"}};
     {% endif %}
     loop.add<op::gpu::{{"ChunkAtomics" if strategy == "chunk_atomics" else "ChunkColouring" if strategy == "chunk_colouring" else "Colouring" if strategy == "colouring" else "Simple"}}>(
-        "{{strategy}}", op::loop::Default::{{"enabled" if strategy in default_strategies else "disabled"}},
+        "{{strategy}}",
         op::gpu::KernelSource{
             "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
             {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
