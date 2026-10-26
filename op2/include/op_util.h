@@ -151,8 +151,6 @@ int compare_sets(op_set set1, op_set set2);
 
 int min(int array[], int size);
 
-unsigned op2_hash(const char *s);
-
 int linear_search(int a[], int value, int low, int high);
 
 void op_sort_2(int *__restrict arr1, int *__restrict arr2, int n);

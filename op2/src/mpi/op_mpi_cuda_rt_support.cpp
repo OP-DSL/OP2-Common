@@ -81,46 +81,9 @@ void cutilDeviceInit(int argc, char **argv) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  // no need to ardcode this following, can be done via numawrap scripts
-  /*if (getenv("OMPI_COMM_WORLD_LOCAL_RANK")!=NULL) {
-    rank = atoi(getenv("OMPI_COMM_WORLD_LOCAL_RANK"));
-  } else if (getenv("MV2_COMM_WORLD_LOCAL_RANK")!=NULL) {
-    rank = atoi(getenv("MV2_COMM_WORLD_LOCAL_RANK"));
-  } else if (getenv("MPI_LOCALRANKID")!=NULL) {
-    rank = atoi(getenv("MPI_LOCALRANKID"));
-  } else {
-    rank = rank%deviceCount;
-  }*/
-
   // Test we have access to a device
-
-  // This commented out test does not work with CUDA versions above 6.5
-  /*float *test;
-  gpuError_t err = gpuMalloc((void **)&test, sizeof(float));
-  if (err != gpuSuccess) {
-    OP_hybrid_gpu = 0;
-  } else {
-    OP_hybrid_gpu = 1;
-  }
-  if (OP_hybrid_gpu) {
-    gpuFree(test);
-
-    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
-
-    int deviceId = -1;
-    gpuGetDevice(&deviceId);
-    gpuDeviceProp_t deviceProp;
-    cutilSafeCall ( gpuGetDeviceProperties ( &deviceProp, deviceId ) );
-    printf ( "\n Using CUDA device: %d %s on rank %d\n",deviceId,
-  deviceProp.name,rank );
-  } else {
-    printf ( "\n Using CPU on rank %d\n",rank );
-  }*/
-  //omp_set_default_device(rank);
-//  gpuError_t err = gpuSetDevice(rank);
   float *test;
   OP_hybrid_gpu = 0;
-  //gpuError_t err = gpuMalloc((void **)&test, sizeof(float));
   for (int i = 0; i < deviceCount; i++) {
     gpuError_t err = gpuSetDevice((i+rank)%deviceCount);
     if (err == gpuSuccess) {

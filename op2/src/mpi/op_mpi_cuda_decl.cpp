@@ -277,16 +277,6 @@ void op_timers(double *cpu, double *et) {
 // data in cases where it is not known at compile time
 //
 
-/*
-void
-op_decl_const_char ( int dim, char const * type, int size, char * dat,
-                     char const * name )
-{
-  cutilSafeCall ( gpuMemcpyToSymbol ( name, dat, dim * size, 0,
-                                       gpuMemcpyHostToDevice ) );
-}
-*/
-
 void op_exit() {
   {
     int rank = 0, ranks = 1;
