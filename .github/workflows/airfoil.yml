@@ -15,23 +15,9 @@ jobs:
   validate-airfoil:
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: true
-      matrix:
-        language: [ { name: 'c', ext: 'cpp' } ]
-        optimisation: [ 'seq', 'genseq', 'openmp' ]
-        mesh: [ 'plain' ]
-
-    defaults:
-      run:
-        working-directory: apps/${{ matrix.language.name }}/airfoil/airfoil_${{ matrix.mesh }}/dp
-
-    env:
-      OP2_COMPILER: gnu
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           token: ${{ github.token }}
 
@@ -46,32 +32,16 @@ jobs:
           cache-dependency-path: translator-v2/requirements.txt
 
       - name: Install translator dependencies
-        working-directory: ${{ github.workspace }}
         run: python3 -m pip install -r translator-v2/requirements.txt
 
-      - name: Make build config
-        working-directory: op2
-        run: make config
-
-      - name: Build OP2 backend
-        working-directory: op2
-        run: make -j seq openmp
+      - name: Configure
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+              -DPython3_EXECUTABLE="$(command -v python3)" \
+              -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON -DOP2_ENABLE_APP_TESTS=ON
 
       - name: Build airfoil
-        run: make airfoil_${{ matrix.optimisation }}
+        run: cmake --build build -j"$(nproc)" --target airfoil_seq airfoil_genseq airfoil_openmp
 
-      - name: Get airfoil mesh data
-        if: ${{ matrix.mesh == 'plain' }}
-        run: wget https://op-dsl.github.io/docs/OP2/new_grid.dat
-
-      - name: Run airfoil
-        run: ./airfoil_${{ matrix.optimisation }} > ~/output.txt
-
-      - name: Validate airfoil output
-        run: grep -q "This test is considered PASSED" ~/output.txt || exit 1
-
-      - name: Archive airfoil output
-        uses: actions/upload-artifact@v4
-        with:
-          name: airfoil-${{ matrix.language.name }}-${{ matrix.optimisation }}-${{ matrix.mesh }}-output
-          path: ~/output.txt
+      - name: Run airfoil against its mesh
+        run: ctest --test-dir build -R '^airfoil_plain_dp_(seq|genseq|openmp)$' --output-on-failure

@@ -12,11 +12,9 @@ on:
       - created
 
 env:
-  OP2_INSTALL_PATH: ${{ github.workspace }}/op2
   BASH_ENV: ${{ github.workspace }}/scripts/source_gnuz
   N_PROC: 64
-  M6_WING_PATH: /home/zl/mgcfd-meshes/M6_wing
-  ROTOR_37_1M_PATH: /home/zl/mgcfd-meshes/Rotor37_1M
+  CUDA_ARCHITECTURES: 90
 
 jobs:
   local-test:
@@ -66,96 +64,55 @@ jobs:
           "$OP2_PYTHON" --version
           "$OP2_PYTHON" -c "import jinja2, fparser, pcpp, clang.cindex; print('translator deps OK')"
 
-      # 4. Configure OP2 ---------------------------------------
+      # 4. Clone MG-CFD, whose C++ app the app tests build and run ----------
+      - name: Clone MG-CFD
+        run: |
+          rm -rf "$RUNNER_TEMP/MG-CFD-app-OP2"
+          git clone --depth 1 https://github.com/warwick-hpsc/MG-CFD-app-OP2 \
+              "$RUNNER_TEMP/MG-CFD-app-OP2"
+
+      # 5. Configure OP2, its apps and every test -----------------------------
+      # The dependency prefixes come from scripts/source_gnuz (BASH_ENV); the
+      # meshes are kept in the runner's tool cache between runs.
       - name: Configure OP2
         run: |
-          if [ -f makefiles/.config.mk ]; then
-            echo "Cleaning OP2..."
-            make -C op2 clean
-          fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+              -DPython3_EXECUTABLE="$OP2_PYTHON" \
+              -DCMAKE_CUDA_COMPILER="$CUDA_INSTALL_PATH/bin/nvcc" \
+              -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCHITECTURES" \
+              -DHDF5_ROOT="$HDF5_PAR_INSTALL_PATH" \
+              -DParMETIS_ROOT="$PARMETIS_INSTALL_PATH" \
+              -DMETIS_ROOT="$PARMETIS_INSTALL_PATH" \
+              -DKaHIP_ROOT="$KAHIP_INSTALL_PATH" \
+              -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON -DOP2_ENABLE_APP_TESTS=ON \
+              -DOP2_TEST_MGCFD_DIR="$RUNNER_TEMP/MG-CFD-app-OP2" \
+              -DOP2_TEST_MESH_DIR="$RUNNER_TOOL_CACHE/op2-test-meshes"
 
-          make -C op2 config
+      # 6. Build ----------------------------------------------------------------
+      - name: Build OP2, the apps and the tests
+        run: cmake --build build -j"$N_PROC"
 
-      # 5. Compile OP2 ---------------------------------------
-      - name: Compile OP2
-        run: |
-          echo "Building OP2..."
-          make -C op2 -j"$N_PROC"
+      # 7. Test -------------------------------------------------------------------
+      # Unit, GPU runtime and functional tests, then the apps against their
+      # meshes; ctest -j schedules the MPI tests by their rank counts.
+      - name: Run the unit and functional tests
+        run: ctest --test-dir build -LE apps -j8 --output-on-failure --output-junit tests.xml
 
-      # 6. Compile C++ functional tests ---------------------------------------
-      - name: Compile C++ functional tests
-        run: |
-          cd tests/bash
-          COMPILE_TESTS=TRUE ./functional_cpp_test.sh
+      - name: Run the app tests
+        run: ctest --test-dir build -L apps -j8 --output-on-failure --output-junit apps.xml
 
-      # 7. Run C++ functional tests ---------------------------------------
-      - name: Run C++ functional tests
-        run: |
-          cd tests/bash
-          RUN_TESTS=TRUE ./functional_cpp_test.sh
-
-      # 8. Compile Fortran functional tests ---------------------------------------
-      - name: Compile Fortran functional tests
-        run: |
-          cd tests/bash
-          COMPILE_TESTS=TRUE ./functional_fortran_test.sh
-
-      # 9. Run Fortran functional tests ---------------------------------------
-      - name: Run Fortran functional tests
-        run: |
-          cd tests/bash
-          RUN_TESTS=TRUE ./functional_fortran_test.sh
-
-      # 10. Compile aero tests ---------------------------------------
-      - name: Compile Aero tests
-        run: |
-          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
-          cd tests/bash
-          COMPILE_TESTS=TRUE ./aero_test.sh
-
-      # 11. Run aero tests ---------------------------------------
-      - name: Run Aero tests
-        run: |
-          cd tests/bash
-          RUN_TESTS=TRUE ./aero_test.sh
-
-      # 12. Compile MGCFD tests ---------------------------------------
-      - name: Compile MGCFD tests
-        run: |
-          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
-          cd tests/bash
-          COMPILE_TESTS=TRUE ./mgcfd_test.sh
-
-      # 13. Run MGCFD tests ---------------------------------------
-      - name: Run MGCFD tests
-        run: |
-          cd tests/bash
-          RUN_TESTS=TRUE ./mgcfd_test.sh
-
-      # 14. Compile airfoil tests ---------------------------------------
-      - name: Compile Airfoil tests
-        run: |
-          export APP_EXTRA_TRANSLATOR_FLAGS="-I $(pwd)/op2/include"
-          cd tests/bash
-          COMPILE_TESTS=TRUE ./airfoil_test.sh
-
-      # 15. Run airfoil tests ---------------------------------------
-      - name: Run Airfoil tests
-        run: |
-          cd tests/bash
-          RUN_TESTS=TRUE ./airfoil_test.sh
-
-      # 16. Archive logs ---------------------------------------
-      - name: Upload logs
+      # 8. Archive results ---------------------------------------------------------
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-logs
+          name: test-results
           path: |
-            *.log
-            tests/**/*.log
+            build/tests.xml
+            build/apps.xml
+            build/Testing/Temporary/LastTest*.log
 
-      # 17. Final status message ---------------------------------------
+      # 9. Final status message ---------------------------------------
       - name: Final status
         if: success()
         run: echo "CI tests passed"
