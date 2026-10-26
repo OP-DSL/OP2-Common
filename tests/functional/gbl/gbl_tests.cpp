@@ -39,6 +39,15 @@ void inc5(const double *dat, double *g) {
   for (int i = 0; i < 5; ++i)
     g[i] += dat[i];
 }
+inline void add3(double *g, const double *v) {
+  for (int i = 0; i < 3; ++i)
+    g[i] += v[i];
+}
+// A global of dimension 3 incremented in a helper, which indexes each
+// thread's copy as the kernel would.
+void inc3_helper(const double *dat, double *g) {
+  add3(g, dat);
+}
 
 void min1(const double *dat, double *g) {
   *g = MIN(*g, *dat);
@@ -157,6 +166,23 @@ int main(int argc, char **argv) {
     check(std::abs(g_inc1 - expected) < TOL, 0, "inc1 dat failed");
 
     printf("inc1 passed\n");
+  }
+  {
+    double g_inc3[3] = {0.0, 0.0, 0.0};
+
+    op_par_loop(inc3_helper, "inc3_helper", set,
+              op_arg_dat(dat_iota5, -1, OP_ID, 5, "double", OP_READ),
+              op_arg_gbl(g_inc3, 3, "double", OP_INC));
+
+    double expected[3] = {0.0, 0.0, 0.0};
+    for (int i = 0; i < gbl_size; ++i)
+      for (int d = 0; d < 3; ++d)
+        expected[d] += (double)(i * 5 + d);
+
+    for (int d = 0; d < 3; ++d)
+      check(std::abs(g_inc3[d] - expected[d]) < TOL, d, "inc3_helper failed");
+
+    printf("inc3_helper passed\n");
   }
   {
     double g_inc5[5] = {0.0, 0.0, 0.0, 0.0, 0.0};

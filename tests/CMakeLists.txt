@@ -1,5 +1,8 @@
 add_subdirectory(unit)
 add_subdirectory(functional)
+if(OP2_HAS_TRANSLATOR)
+    add_subdirectory(translator)
+endif()
 
 if(CMAKE_CUDA_COMPILER)
     add_subdirectory(cuda)
