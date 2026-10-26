@@ -306,6 +306,12 @@ void declare_families(std::span<const Family> families) {
         settings.values = family_values(family.name, family.axes);
         family_settings.insert_or_assign(std::string{family.name}, std::move(settings));
     }
+    for (std::string_view item : strategy_items) {
+        auto family = item.substr(item.find(':') + 1);
+        if (family_settings.find(family) == family_settings.end())
+            env::warn("warning: ignoring OP_STRATEGY item '" + std::string{item} +
+                      "', which names no strategy family\n");
+    }
 }
 
 Ladder::Ladder(std::string_view loop_name)
