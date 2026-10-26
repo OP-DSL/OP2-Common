@@ -41,9 +41,13 @@ void test_parse() {
 
     int count = 7;
     setenv("OP_TEST_COUNT", "2.5", 1);
+    CHECK(!env::parse_number("OP_TEST_COUNT", count) && count == 7);
+    setenv("OP_TEST_COUNT", "2", 1);
     CHECK(env::parse_number("OP_TEST_COUNT", count) && count == 2);
-    setenv("OP_TEST_COUNT", "-1", 1);
-    CHECK(!env::parse_number("OP_TEST_COUNT", count) && count == 2);
+    for (const char *text : {"-1", "3", "99999999999"}) {
+        setenv("OP_TEST_COUNT", text, 1);
+        CHECK(!env::parse_number("OP_TEST_COUNT", count, 0, 2) && count == 2);
+    }
     std::optional<int> limit;
     unsetenv("OP_TEST_LIMIT");
     CHECK(!env::parse_number("OP_TEST_LIMIT", limit) && !limit);

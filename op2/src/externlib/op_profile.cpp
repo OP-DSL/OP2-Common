@@ -222,13 +222,9 @@ op_profile& op_profile::instance() {
 
 void op_profile::read_environment() {
   int value = static_cast<int>(level);
-  if (op::env::parse_number("OP_PROFILE_LEVEL", value)) {
-    if (value > static_cast<int>(op_profile_level::kernel_detailed))
-      op::env::warn("warning: ignoring OP_PROFILE_LEVEL=" + std::to_string(value) +
-                    ", expected 0 to 3\n");
-    else
-      requested_level = static_cast<op_profile_level>(value);
-  }
+  if (op::env::parse_number("OP_PROFILE_LEVEL", value, 0,
+                            static_cast<int>(op_profile_level::kernel_detailed)))
+    requested_level = static_cast<op_profile_level>(value);
   op::env::parse_text("OP_PROFILE_JSON_OUTPUT", json_output);
 }
 

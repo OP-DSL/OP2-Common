@@ -6,6 +6,7 @@
 // OP_DISPLAY_ENV, prints them all.  Command-line arguments stay with
 // op_set_args.
 
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -29,13 +30,16 @@ struct Choice {
 // Each reads variable into value when it is set and valid, warns about and
 // ignores anything else, and records the variable with the value it leaves;
 // whether value was read from it.  In order: a switch, a switch with no
-// default, a non-negative number, one with no default, any text,
-// comma-separated items (empty ones dropped), and one of choices.
+// default, a non-negative number, an integer in [min, max], one with no
+// default, any text, comma-separated items (empty ones dropped), and one of
+// choices.
 bool parse_bool(const char *variable, bool& value);
 bool parse_bool(const char *variable, std::optional<bool>& value);
 bool parse_number(const char *variable, double& value);
-bool parse_number(const char *variable, int& value);
-bool parse_number(const char *variable, std::optional<int>& value);
+bool parse_number(const char *variable, int& value, int min = 0,
+                  int max = std::numeric_limits<int>::max());
+bool parse_number(const char *variable, std::optional<int>& value, int min = 0,
+                  int max = std::numeric_limits<int>::max());
 bool parse_text(const char *variable, std::string& value);
 bool parse_list(const char *variable, std::vector<std::string>& value);
 bool parse_choice(const char *variable, std::span<const Choice> choices, int& value);

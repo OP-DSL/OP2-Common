@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -94,21 +95,32 @@ bool parse_number(const char *variable, double& value) {
     return read;
 }
 
-bool parse_number(const char *variable, int& value) {
-    double parsed = value;
-    bool read = parse_number(variable, parsed);
-    if (read)
-        value = static_cast<int>(parsed);
-    record(variable, std::to_string(value), read);
+bool parse_number(const char *variable, std::optional<int>& value, int min, int max) {
+    const char *text = std::getenv(variable);
+    bool read = false;
+    if (text != nullptr) {
+        char *end = nullptr;
+        errno = 0;
+        long parsed = std::strtol(text, &end, 10);
+        if (end == text || *end != '\0' || errno == ERANGE || parsed < min || parsed > max) {
+            ignore(variable, text,
+                   max == std::numeric_limits<int>::max()
+                       ? "an integer of at least " + std::to_string(min)
+                       : "an integer from " + std::to_string(min) + " to " +
+                             std::to_string(max));
+        } else {
+            value = static_cast<int>(parsed);
+            read = true;
+        }
+    }
+    record(variable, value ? std::to_string(*value) : "", read);
     return read;
 }
 
-bool parse_number(const char *variable, std::optional<int>& value) {
-    int parsed = value.value_or(0);
-    bool read = parse_number(variable, parsed);
-    if (read)
-        value = parsed;
-    record(variable, value ? std::to_string(*value) : "", read);
+bool parse_number(const char *variable, int& value, int min, int max) {
+    std::optional<int> parsed = value;
+    bool read = parse_number(variable, parsed, min, max);
+    value = *parsed;
     return read;
 }
 

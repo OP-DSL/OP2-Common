@@ -82,9 +82,8 @@ void init_autotune_config() {
     env::parse_text("OP_AUTOTUNE_REPORT", config.report_file);
     env::parse_number("OP_AUTOTUNE_MARGIN", config.margin);
     env::parse_number("OP_AUTOTUNE_WARMUP", config.warmup);
-    env::parse_number("OP_AUTOTUNE_SAMPLES", config.samples);
+    env::parse_number("OP_AUTOTUNE_SAMPLES", config.samples, 1);
     env::parse_number("OP_AUTOTUNE_MIN_CALLS", config.min_calls);
-    config.samples = std::max(config.samples, 1);
 }
 
 // --- Per-loop tuning --------------------------------------------------------------

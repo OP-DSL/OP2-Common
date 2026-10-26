@@ -25,14 +25,7 @@ const JitPolicy& jit_policy() { return run_policy; }
 void init_jit_policy() {
     run_policy = {};
     env::retired("OP_JIT_ENABLE", "OP_JIT_LEVEL=0 turns the JIT off");
-    int level = run_policy.level;
-    if (env::parse_number("OP_JIT_LEVEL", level)) {
-        if (level <= 2)
-            run_policy.level = level;
-        else
-            env::warn("warning: ignoring OP_JIT_LEVEL=" + std::to_string(level) +
-                      ", expected 0, 1 or 2\n");
-    }
+    env::parse_number("OP_JIT_LEVEL", run_policy.level, 0, 2);
     if (!run_policy.enabled())
         op_printf("Disabling JIT compilation\n");
     env::parse_bool("OP_JIT_DEBUG", run_policy.debug);
@@ -43,7 +36,7 @@ void init_jit_policy() {
     if (run_policy.force)
         op_printf("Forcing JIT compilation regardless of register count\n");
     env::parse_number("OP_JIT_MIN_CALLS", run_policy.min_calls);
-    env::parse_number("OP_JIT_MAX_THREADS", run_policy.max_threads);
+    env::parse_number("OP_JIT_MAX_THREADS", run_policy.max_threads, 1);
     env::parse_number("OP_JIT_VARYING", run_policy.varying);
     env::parse_number("OP_JIT_MAX_GBL_BYTES", run_policy.max_gbl_bytes);
     env::parse_number("OP_JIT_MAX_CONST_BYTES", run_policy.max_const_bytes);
