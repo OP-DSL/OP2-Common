@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
   // indirect reduction
   count1 = 0;
   op_par_loop(res_calc, "res_calc", edges,
-              op_arg_dat(p_res, 0, pecell, 4, "double", OP_INC),
+              op_arg_dat(p_res, 0, pecell, 4, "double", OP_WRITE),
               op_arg_gbl(&count1, 1, "int", OP_INC));
   op_printf("number of edges:: %d should be: %d \n", count1, nedge);
   if (count1 != nedge)

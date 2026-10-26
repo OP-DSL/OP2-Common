@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   | Fortran | `cuda` (CUDA Fortran) | `cuda_legacy` |
 
   Hydra's constant-list headers keep their names (`hydra_const_list_c_cuda.cuh` and so on).
+- The C++ `cuda` and `hip` targets generate a kernel for every execution strategy a loop can run (`plain`, `atomics`, `colouring`, and the JIT-only `chunk_atomics` and `chunk_colouring`), chosen at run time as for `cuda_f2c` and `hip_f2c`, where they used one strategy fixed at translation. Each increment of an indirect `OP_INC` argument goes through the strategy's `op2_inc` (`atomics` is now an atomic add per increment, not a per-element accumulator). Any other use of such an argument, such as an assignment or a read, fails translation: declare it `OP_RW` or `OP_WRITE` (`apps/c/reduction` now declares `res_calc`'s assigned argument `OP_WRITE`).
 
 ---
 

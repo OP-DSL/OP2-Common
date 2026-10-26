@@ -1,6 +1,7 @@
 include("${CMAKE_CURRENT_SOURCE_DIR}/OP2FunctionalTestSupport.cmake")
 
 add_subdirectory(const)
+add_subdirectory(dat_increments)
 add_subdirectory(dat_reductions)
 add_subdirectory(dat_read_write)
 add_subdirectory(gbl)

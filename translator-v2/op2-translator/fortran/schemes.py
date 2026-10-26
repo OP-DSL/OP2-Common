@@ -320,14 +320,6 @@ class FortranCudaF2C(Scheme):
 
     staged = frozenset({"chunk_atomics", "chunk_colouring"})
 
-    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
-        config = self.target.defaultConfig()
-
-        # The C++ schemes share this target and still read these.
-        del config["atomics"]
-        del config["color2"]
-        return config
-
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
         setChunkConfig(config, loop, self.staged)

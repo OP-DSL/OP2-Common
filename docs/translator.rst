@@ -99,10 +99,10 @@ The following code-generation targets are available for C/C++ applications (``.c
      - Ahead-of-time compiled AMD GPU implementation from the legacy templates. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Requires ``HIP_INSTALL_PATH`` and ``HIP_ARCH`` to be set.
    * - ``cuda``
      - ``cuda``
-     - JIT-compiled NVIDIA GPU implementation. Produces ``op2_kernels.cu`` compiled by ``nvcc`` during the application build. Device kernel source strings are embedded in the binary via INCBIN and compiled at application start-up by NVRTC, so the GPU architecture is selected at runtime. Requires ``CUDA_INSTALL_PATH`` and ``nvcc``.
+     - JIT-compiled NVIDIA GPU implementation. Produces ``op2_kernels.cu`` compiled by ``nvcc`` during the application build. Device kernel source strings are embedded in the binary via INCBIN and compiled at application start-up by NVRTC, so the GPU architecture is selected at runtime. Each loop carries a kernel for every execution strategy it can run, chosen at run time. Requires ``CUDA_INSTALL_PATH`` and ``nvcc``.
    * - ``hip``
      - ``hip``
-     - JIT-compiled AMD GPU implementation. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Device kernel source strings are embedded in the binary and compiled at application start-up by the HIP RTC library, so the GPU architecture is selected at runtime. Requires ``HIP_INSTALL_PATH`` and ``hipcc``.
+     - JIT-compiled AMD GPU implementation. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Device kernel source strings are embedded in the binary and compiled at application start-up by the HIP RTC library, so the GPU architecture is selected at runtime. Each loop carries a kernel for every execution strategy it can run, chosen at run time. Requires ``HIP_INSTALL_PATH`` and ``hipcc``.
 
 All targets have a corresponding distributed-memory MPI variant built automatically when an MPI-enabled OP2 library is available (e.g. the ``cuda`` target produces both ``<app>_cuda`` and ``<app>_mpi_cuda``).
 

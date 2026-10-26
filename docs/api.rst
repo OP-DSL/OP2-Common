@@ -303,6 +303,9 @@ Parallel Loops
    - :c:data:`OP_RW`: Read and write.
    - :c:data:`OP_INC`: Increment or global reduction to compute a sum.
 
+   .. note::
+      A kernel may only increment an indirect :c:data:`OP_INC` argument: ``p[i] += e``, ``p[i] -= e``, ``++p[i]``, ``p[i]--`` or ``p[i] = p[i] + e`` (``*p`` for ``p[0]``), each a statement of its own, or pass it to a helper function that does the same. The ``cuda``, ``hip``, ``cuda_f2c`` and ``hip_f2c`` targets apply each increment through the loop's execution strategy and cannot translate any other use, such as an assignment or a read; declare such an argument :c:data:`OP_RW` or :c:data:`OP_WRITE` instead.
+
    The **idx** parameter accepts both positive values to specify a single per-element map index, where the kernel is passed a single dimension array of data, or negative values to specify a range of mapping indicies leading to the kernel being passed a two-dimensional array of data. If a negative index is provided the first **-idx** mapping indicies are provided to the kernel.
 
    Consider the example of a kernel that is executed over a set of triangles, and is supplied the verticies via arguments. Using positive **idx** you would need one :c:type:`op_arg` per vertex, leading to a kernel declaration similar to:

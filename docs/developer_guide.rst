@@ -30,7 +30,7 @@ Execution Plans
 
 Because GPU execution is driven by data residency in graphics memory, the blocking for each parallel loop can be chosen independently for each loop, unlike in MPI where repartitioning is expensive.  Inspired by FFTW, OP2 constructs for each parallel loop an execution **plan** — a customised blocking for the GPU that makes optimum use of the shared memory on each streaming multiprocessor (SM), given the precise memory requirements of that loop.
 
-For *indirect loops* (loops that access datasets indirectly through a mapping), data conflicts on ``OP_INC`` arguments are resolved using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.  This is the default strategy for all GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``cuda_legacy``, ``hip_legacy``) in the v2 translator.
+For *indirect loops* (loops that access datasets indirectly through a mapping), the legacy GPU targets (``cuda_legacy``, ``hip_legacy``) resolve data conflicts on ``OP_INC`` arguments using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.
 
 An alternative **two-level colouring** strategy (``color2`` mode) is also available for cases where atomic operations are undesirable:
 
@@ -38,6 +38,8 @@ An alternative **two-level colouring** strategy (``color2`` mode) is also availa
 2. **Thread colouring:** within each block, threads are coloured and increments applied one colour at a time with ``__syncthreads`` between thread colours.  This avoids atomics but incurs some warp divergence overhead.
 
 The strategy is selected at code-generation time; the default is ``atomics=True, color2=False``.
+
+The JIT GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``) instead generate a kernel for every strategy a loop can run and choose among them at run time (``OP_STRATEGY``, ``OP_AUTOTUNE``): ``plain``, ``atomics`` (an atomic add per increment), ``colouring``, and the JIT-only ``chunk_atomics`` and ``chunk_colouring``, which stage a chunk's targets in shared memory.  The translated kernel applies each increment through ``op2_inc``, which each strategy's generated code defines.
 
 Renumbering
 ~~~~~~~~~~~

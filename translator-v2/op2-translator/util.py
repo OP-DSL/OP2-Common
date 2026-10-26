@@ -236,6 +236,7 @@ class Rewriter:
             self.extend(Span(Location(1, 1), Location(len(self.source_lines), len(self.source_lines[-1]) + 1)))
 
         self.updates = []
+        self.replaced = []
 
     def extend(self, span: Span) -> None:
         original_source_spans = self.source_spans
@@ -261,6 +262,9 @@ class Rewriter:
 
         assert enclosed
 
+        if any(replaced.encloses(span) for replaced in self.replaced):
+            return
+
         for update in self.updates:
             assert not span.overlaps(update[0]), (
                 f'Overlapping spans: new span {span} "{self.extract(span)}", '
@@ -268,6 +272,13 @@ class Rewriter:
             )
 
         self.updates.append((span, replacement))
+
+    # Replace span with text outright: an update within it, made before or
+    # after, is dropped with the text it would have changed.
+    def replace(self, span: Span, text: str) -> None:
+        self.updates = [update for update in self.updates if not span.encloses(update[0])]
+        self.update(span, lambda _: text)
+        self.replaced.append(span)
 
     def rewrite(self) -> str:
         new_source = ""

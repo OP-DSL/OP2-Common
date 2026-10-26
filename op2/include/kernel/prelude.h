@@ -81,6 +81,9 @@ struct Ptr {
     constexpr Ptr(T* data) : data{data} {}
     constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
 
+    // Component i, as a translated C++ kernel indexes an increment target.
+    constexpr T& operator[](IndexType i) const { return data[i * stride]; }
+
     // Excluded when T is already const, else this is a conversion to its own type (nvcc #554-D)
     template<typename U = T, typename = typename enable_if<!is_const_type<U>::value>::type>
     constexpr operator Ptr<const T>() const { return Ptr<const T>{data, stride}; }
