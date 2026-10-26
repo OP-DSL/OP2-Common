@@ -1,6 +1,8 @@
 // The OpenMP strategies against a serial reference, with hand-written
 // bodies: every strategy increments a node dat through a two-component map
 // and reduces a sum and a maximum, the maximum's element carried as info.
+// The edges split into core and owned sections, as a partition's do; the
+// MPI functional tests run the exec halo.
 
 #include <cpu/loop.h>
 #include <kernel/strategy.h>
@@ -25,6 +27,7 @@ namespace cpu = op::cpu;
 namespace {
 
 constexpr int edges = 20000;
+constexpr int core_edges = 12345;
 constexpr int nodes = 3000;
 
 // One element: both targets get the edge's weight and a count, and the
@@ -99,7 +102,7 @@ void run(const char *strategy) {
     op_set_core source{};
     source.index = 0;
     source.size = edges;
-    source.core_size = edges;
+    source.core_size = core_edges;
     source.name = "edges";
     op_set_core target{};
     target.index = 1;
