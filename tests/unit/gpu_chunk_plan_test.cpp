@@ -424,6 +424,15 @@ void test_chunk_sizes_and_clamping() {
               static_cast<std::size_t>(chunk_size) * sizeof(double));
     }
 
+    // A size that is not a lane multiple rounds up to one: 100 with 48
+    // lanes stages chunks of 144, the last of them short.
+    auto rounded = fixture.build(100, 1024 * sizeof(double), 48);
+    CHECK(rounded);
+    CHECK(rounded.plan->chunks.size == 144);
+    CHECK(num_chunks(*rounded.plan) == 8);
+    CHECK(rounded.plan->chunks.offsets.back() == 1024);
+    CHECK(rounded.plan->batch_scratch_bytes[0] == 144 * sizeof(double));
+
     // A request beyond the scratch clamps to what fits.
     auto clamped = fixture.build(512, 2048);
     CHECK(clamped);
