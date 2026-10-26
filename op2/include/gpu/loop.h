@@ -26,7 +26,6 @@ namespace op::gpu {
 
 class Loop : public op::loop::Loop {
 private:
-    bool m_gbl_inc_atomic;
     SymbolBindings m_symbols;
     Compiler m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
@@ -88,7 +87,6 @@ public:
          std::string_view profile_variant, LoopDescription description,
          JitHeaders headers)
         : op::loop::Loop{name, profile_target, profile_variant, description.direct},
-          m_gbl_inc_atomic{description.gbl_inc_atomic},
           m_compiler{name, std::move(headers)} {}
 
     ~Loop() override { release(); }
@@ -130,12 +128,8 @@ public:
 
     // A scalar READ global, which every kernel has by value.
     template<typename T>
-    void add_scalar_arg_param(std::string_view name, T *data, int arg_index,
-                              const T *symbol = nullptr,
-                              uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, op::loop::ParamSource::scalar_arg, arg_index,
-                          true),
-             symbol, hash_device_ptr);
+    void add_scalar_arg_param(std::string_view name, T *data, int arg_index) {
+        m_params.add(name, data, op::loop::ParamSource::scalar_arg, arg_index, true);
         mark_by_value(arg_index);
     }
 
@@ -151,11 +145,10 @@ public:
     }
 
     void add_dat_stride_param(std::string_view name, int *data, int arg_index,
-                              const int *symbol = nullptr,
-                              uint64_t *hash_device_ptr = nullptr) {
+                              const int *symbol) {
         bind(m_params.add(name, data, op::loop::ParamSource::dat_stride, arg_index,
                           true),
-             symbol, hash_device_ptr);
+             symbol, nullptr);
     }
 
     void add_dat_dim_param(std::string_view name, int *data, int arg_index) {
@@ -184,8 +177,7 @@ public:
     // The most blocks a launch may use: as many as the reduction scratch
     // allows.
     int block_limit(op_arg *args, int nargs, int block_size) const {
-        return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(),
-                                       m_gbl_inc_atomic);
+        return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(), false);
     }
 
     std::vector<void *>& arguments() { return m_arguments; }
@@ -205,7 +197,7 @@ public:
             return;
         op_profile_next("Process GBLs");
         m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, global_stride,
-                                                   global_stride, m_gbl_inc_atomic);
+                                                   global_stride, false);
         op_profile_next("Kernel");
     }
 
@@ -241,7 +233,7 @@ public:
         op_profile_enter("Prepare GBLs");
         m_global_output = has_global_output(args, nargs);
         m_exit_sync = false;
-        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, m_gbl_inc_atomic,
+        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, false,
                                     on_host(decision.prepared, nargs));
         op_profile_exit();
 

@@ -69,23 +69,10 @@ int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
     return 1024;
 }
 
-int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
-                            const char *name, bool gbl_inc_atomic) {
-    (void) gbl_inc_atomic;
-    return getBlockLimit(args, nargs, block_size, name);
-}
-
 void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     (void) args;
     (void) nargs;
     (void) max_threads;
-}
-
-void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
-                                 bool gbl_inc_atomic, const unsigned char *on_host) {
-    (void) gbl_inc_atomic;
-    (void) on_host;
-    prepareDeviceGbls(args, nargs, max_threads);
 }
 
 bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {
@@ -94,12 +81,6 @@ bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {
     (void) nthreads;
     (void) max_threads;
     return false;
-}
-
-bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nthreads,
-                                 int max_threads, bool gbl_inc_atomic) {
-    (void) gbl_inc_atomic;
-    return processDeviceGbls(args, nargs, nthreads, max_threads);
 }
 
 void setGblIncAtomic(bool enable) {

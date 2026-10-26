@@ -38,9 +38,6 @@
                         "chunk_colouring": staging_params + colouring_params + range_params} -%}
 
 {%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
-{%- if config.gbl_inc_atomic -%}
-    {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
-{%- endif -%}
 {#- READ globals of a literal dimension passed by value, as the scalars are,
     so no kernel reads a device copy of them: up to 256 bytes each and 1 KB
     in all, well within the kernel argument buffer. -#}
@@ -649,8 +646,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 static op::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
     static op::gpu::Loop loop(
         "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
-        op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}},
-                                  {{"true" if config.gbl_inc_atomic else "false"}} },
+        op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}} },
         OP_F2C_JIT_HEADERS);
     static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
     (void)registered;
