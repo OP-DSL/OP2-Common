@@ -413,8 +413,10 @@ def checkInc(func: Function, param_idx: int, funcs: List[Function], violations: 
         rhs_refs = fu.walkRefs(assignment_node.items[2], node.string)
 
         if len(rhs_refs) == 0:
-            violations.append(msg(f"no-ref: {fu.getItem(node).line}"))
-            continue
+            raise OpError(
+                f"{func.name}: OP_INC argument {func.parameters[param_idx]} may only be incremented, "
+                f"but it is assigned: {fu.getItem(node).line}"
+            )
 
         # The RHS may use the ref any number of times, but only ever as the
         # LHS itself - the same element, if it is indexed
