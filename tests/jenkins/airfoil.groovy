@@ -19,28 +19,6 @@ pipeline {
     stages {
         stage('Setup') {
             parallel {
-                stage('Load OP2 Environment') {
-                    steps {
-                        script {
-                            def vars = sh(
-                                script: '''
-                                #!/bin/bash
-                                . /etc/profile
-                                . "$ENV_SCRIPT"
-                                env
-                                ''',
-                                returnStdout: true
-                            ).trim().split("\n")
-
-                            for (v in vars) {
-                                def pair = v.split("=",2)
-                                if (pair.length == 2) {
-                                    env[pair[0]] = pair[1]
-                                }
-                            }
-                        }
-                    }
-                }
                 stage('Create Artifact Folder') {
                     steps {
                         script {
@@ -62,11 +40,14 @@ pipeline {
             }
         }
 
-        // The dependency prefixes come from the environment loaded above.
+        // Each shell step sources ENV_SCRIPT for the compilers and dependency
+        // prefixes.
         stage('Configure OP2') {
             steps {
                 dir('OP2-Common') {
                     sh '''
+                    . /etc/profile
+                    . "$ENV_SCRIPT"
                     rm -rf build
                     cmake -B build -DCMAKE_BUILD_TYPE=Release \\
                         -DPython3_EXECUTABLE="$(command -v python3)" \\
@@ -84,7 +65,7 @@ pipeline {
         stage('Build OP2 and the apps') {
             steps {
                 dir('OP2-Common') {
-                    sh 'cmake --build build -j'
+                    sh '. /etc/profile; . "$ENV_SCRIPT"; cmake --build build -j'
                 }
             }
         }
@@ -93,7 +74,7 @@ pipeline {
         stage('Run airfoil') {
             steps {
                 dir('OP2-Common') {
-                    sh "ctest --test-dir build -L apps -R '^airfoil_(plain_dp|hdf5_dp|tempdats)_' -j8 --output-on-failure --output-junit airfoil.xml || true"
+                    sh ". /etc/profile; . \"\$ENV_SCRIPT\"; ctest --test-dir build -L apps -R '^airfoil_(plain_dp|hdf5_dp|tempdats)_' -j8 --output-on-failure --output-junit airfoil.xml || true"
                 }
             }
             post {
