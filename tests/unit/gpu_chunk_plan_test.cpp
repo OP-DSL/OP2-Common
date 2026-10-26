@@ -18,10 +18,15 @@
 #include <vector>
 
 #include "../test_support.h"
+#include "builders.h"
 
 namespace gpu = op::gpu;
 namespace plan = op::plan;
 using op::loop::Sections;
+using op::test::dat_arg;
+using op::test::initialize_dat;
+using op::test::initialize_map;
+using op::test::initialize_set;
 
 namespace {
 
@@ -43,50 +48,6 @@ gpu::ChunkResult colouring(std::span<const op_arg> args, const Sections& section
     return gpu::plan_chunk_colouring(args, sections, groups, size,
                                      gpu::ChunkLimits{lanes, shared_bytes},
                                      wavefront, window);
-}
-
-op_arg make_dat_arg(op_dat dat, op_map map, int dim, const char *type,
-                    int scalar_size, int opt = 1,
-                    op_access access = OP_INC) {
-    op_arg arg{};
-    arg.opt = opt;
-    arg.argtype = OP_ARG_DAT;
-    arg.dat = dat;
-    arg.map = map;
-    arg.dim = dim;
-    arg.idx = 0;
-    arg.size = dim * scalar_size;
-    arg.map_data = map->map;
-    arg.type = type;
-    arg.acc = access;
-    return arg;
-}
-
-void initialize_set(op_set_core& set, int size, int core_size = -1,
-                    int exec_size = 0, int nonexec_size = 0) {
-    set = {};
-    set.size = size;
-    set.core_size = core_size < 0 ? size : core_size;
-    set.exec_size = exec_size;
-    set.nonexec_size = nonexec_size;
-}
-
-void initialize_dat(op_dat_core& dat, op_set set, int dim, int scalar_size,
-                    const char *type) {
-    dat = {};
-    dat.set = set;
-    dat.dim = dim;
-    dat.size = dim * scalar_size;
-    dat.type = type;
-}
-
-void initialize_map(op_map_core& map, op_set from, op_set to,
-                    std::vector<int>& values) {
-    map = {};
-    map.from = from;
-    map.to = to;
-    map.dim = 1;
-    map.map = values.data();
 }
 
 // Three dats of different scalar types over a set of 6 elements, 2 core:
@@ -129,14 +90,12 @@ struct MixedFixture {
         initialize_map(map_b, &source, &target_b, map_b_values);
         initialize_map(map_c, &source, &target_c, map_c_values);
 
-        args.push_back(make_dat_arg(&dat_a, &map_a0, 2, "double",
-                                    sizeof(double)));
-        args.push_back(make_dat_arg(&dat_a, &map_a1, 2, "real(8)",
-                                    sizeof(double)));
-        args.push_back(
-            make_dat_arg(&dat_b, &map_b, 3, "integer(4)", sizeof(int)));
-        args.push_back(
-            make_dat_arg(&dat_c, &map_c, 1, "real(4)", sizeof(float), 0));
+        // The arguments spell the types as Fortran does, but for one.
+        args.push_back(dat_arg(&dat_a, &map_a0, 0, OP_INC));
+        args.push_back(dat_arg(&dat_a, &map_a1, 0, OP_INC, "real(8)"));
+        args.push_back(dat_arg(&dat_b, &map_b, 0, OP_INC, "integer(4)"));
+        args.push_back(dat_arg(&dat_c, &map_c, 0, OP_INC, "real(4)"));
+        args.back().opt = 0;
     }
 
     plan::ArgGroups groups() const { return {group_args, 3}; }
@@ -165,7 +124,7 @@ struct ChunkFixture {
         for (int i = 0; i < 1024; ++i)
             map_values[static_cast<std::size_t>(i)] = i;
         initialize_map(map, &source, &target, map_values);
-        args[0] = make_dat_arg(&dat, &map, 1, "double", sizeof(double));
+        args[0] = dat_arg(&dat, &map, 0, OP_INC);
     }
 
     plan::ArgGroups groups() const { return {group_args, 1}; }
@@ -454,32 +413,18 @@ void test_chunk_sizes_and_clamping() {
                   std::numeric_limits<plan::StageWord>::max());
 }
 
-// Edge i of a chain reaches nodes i and i+1, so neighbouring edges and
-// neighbouring chunks share a node.
-struct ChainFixture {
-    op_set_core edges{};
-    op_set_core nodes{};
+// A chain's nodes updated through both components, so neighbouring chunks
+// share a node.
+struct ChainFixture : op::test::Chain {
     op_dat_core dat{};
-    std::vector<int> map_values;
-    op_map_core map{};
     std::vector<op_arg> args;
     std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
 
-    explicit ChainFixture(int size, int core = -1, int exec = 0) {
-        initialize_set(edges, size, core, exec);
-        initialize_set(nodes, size + exec + 1);
+    explicit ChainFixture(int size, int core = -1, int exec = 0)
+        : op::test::Chain(size, core, exec) {
         initialize_dat(dat, &nodes, 1, sizeof(int), "integer(4)");
-        for (int i = 0; i < size + exec; ++i) {
-            map_values.push_back(i);
-            map_values.push_back(i + 1);
-        }
-        initialize_map(map, &edges, &nodes, map_values);
-        map.dim = 2;
-        for (int idx = 0; idx < 2; ++idx) {
-            args.push_back(make_dat_arg(&dat, &map, 1, "integer(4)",
-                                        sizeof(int), 1, OP_RW));
-            args.back().idx = idx;
-        }
+        for (int idx = 0; idx < 2; ++idx)
+            args.push_back(dat_arg(&dat, &map, idx, OP_RW));
     }
 
     plan::ArgGroups groups() const { return {group_args, 1}; }
@@ -493,9 +438,7 @@ struct ChainFixture {
 void test_runtime_rejections() {
     {
         MixedFixture fixture;
-        fixture.args.push_back(make_dat_arg(&fixture.dat_a, &fixture.map_a0,
-                                             2, "double", sizeof(double), 1,
-                                             OP_READ));
+        fixture.args.push_back(dat_arg(&fixture.dat_a, &fixture.map_a0, 0, OP_READ));
         expect_rejected(fixture.build(), "incompatible_argument");
     }
     {
@@ -548,7 +491,7 @@ struct OrderFixture {
         initialize_set(target, 4);
         initialize_dat(dat, &target, 1, sizeof(double), "double");
         initialize_map(map, &source, &target, map_values);
-        args[0] = make_dat_arg(&dat, &map, 1, "double", sizeof(double));
+        args[0] = dat_arg(&dat, &map, 0, OP_INC);
     }
 
     gpu::ChunkResult build(bool unstaged_singles = false) {
@@ -775,8 +718,7 @@ void test_colour_rounds_and_limit() {
         initialize_set(target, 1);
         initialize_dat(dat, &target, 1, sizeof(double), "real(8)");
         initialize_map(map, &source, &target, map_values);
-        std::array<op_arg, 1> args{
-            make_dat_arg(&dat, &map, 1, "real(8)", sizeof(double))};
+        std::array<op_arg, 1> args{dat_arg(&dat, &map, 0, OP_INC)};
         std::array<plan::ArgGroup, 1> group_args{{{0, 0}}};
 
         auto result = colouring(args, Sections::direct(&source),
@@ -821,9 +763,9 @@ void test_colour_random() {
     }
 
     std::vector<op_arg> args{
-        make_dat_arg(&dat_a, &maps[0], 2, "real(8)", sizeof(double), 1, OP_RW),
-        make_dat_arg(&dat_a, &maps[1], 2, "real(8)", sizeof(double), 1, OP_READ),
-        make_dat_arg(&dat_b, &maps[2], 1, "integer(4)", sizeof(int), 1, OP_INC),
+        dat_arg(&dat_a, &maps[0], 0, OP_RW),
+        dat_arg(&dat_a, &maps[1], 0, OP_READ),
+        dat_arg(&dat_b, &maps[2], 0, OP_INC),
     };
     std::array<plan::ArgGroup, 3> group_args{{{0, 0}, {1, 0}, {2, 1}}};
     plan::ArgGroups groups{group_args, 2};

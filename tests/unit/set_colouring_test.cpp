@@ -11,57 +11,40 @@
 #include <vector>
 
 #include "../test_support.h"
+#include "builders.h"
+
+using op::test::dat_arg;
+using op::test::initialize_dat;
+using op::test::initialize_map;
+using op::test::initialize_set;
 
 namespace {
-
-op_arg make_dat_arg(op_dat dat, op_map map, int dim, op_access access) {
-    op_arg arg{};
-    arg.opt = 1;
-    arg.argtype = OP_ARG_DAT;
-    arg.dat = dat;
-    arg.map = map;
-    arg.dim = dim;
-    arg.idx = 0;
-    arg.size = dim * static_cast<int>(sizeof(double));
-    arg.map_data = map->map;
-    arg.type = "double";
-    arg.acc = access;
-    return arg;
-}
 
 // 8 owned elements (4 core) and 2 exec-halo ones over two updated dats.
 void test_set_colouring() {
     op_set_core source{};
-    source.size = 8;
-    source.core_size = 4;
-    source.exec_size = 2;
     op_set_core target_set{};
-    target_set.size = 5;
-    target_set.core_size = 5;
+    initialize_set(source, 8, 4, 2);
+    initialize_set(target_set, 5);
 
     op_dat_core dat_a{};
-    dat_a.set = &target_set;
-    dat_a.dim = 1;
-    dat_a.size = sizeof(double);
-    op_dat_core dat_b = dat_a;
-    dat_b.dim = 2;
-    dat_b.size = 2 * sizeof(double);
-    op_dat_core dat_c = dat_a;
+    op_dat_core dat_b{};
+    op_dat_core dat_c{};
+    initialize_dat(dat_a, &target_set, 1, sizeof(double), "double");
+    initialize_dat(dat_b, &target_set, 2, sizeof(double), "double");
+    initialize_dat(dat_c, &target_set, 1, sizeof(double), "double");
 
     std::vector<int> map_a{0, 0, 1, 1, 2, 2, 3, 3, 4, 4};
     std::vector<int> map_b{1, 2, 3, 4, 0, 1, 2, 3, 4, 0};
     op_map_core a{};
-    a.from = &source;
-    a.to = &target_set;
-    a.dim = 1;
-    a.map = map_a.data();
-    op_map_core b = a;
-    b.map = map_b.data();
+    op_map_core b{};
+    initialize_map(a, &source, &target_set, map_a);
+    initialize_map(b, &source, &target_set, map_b);
 
     std::vector<op_arg> args{
-        make_dat_arg(&dat_a, &a, 1, OP_INC),
-        make_dat_arg(&dat_b, &b, 2, OP_RW),
-        make_dat_arg(&dat_c, &a, 1, OP_READ),
+        dat_arg(&dat_a, &a, 0, OP_INC),
+        dat_arg(&dat_b, &b, 0, OP_RW),
+        dat_arg(&dat_c, &a, 0, OP_READ),
     };
 
     auto check = [&](bool separate_owned, int exec_length) {

@@ -20,9 +20,14 @@
 #include <vector>
 
 #include "../test_support.h"
+#include "builders.h"
 
 namespace f2c = op::f2c;
 namespace cpu = op::cpu;
+using op::test::dat_arg;
+using op::test::initialize_dat;
+using op::test::initialize_map;
+using op::test::initialize_set;
 
 namespace {
 
@@ -100,27 +105,11 @@ void run(const char *strategy) {
     cpu::init();
 
     op_set_core source{};
-    source.index = 0;
-    source.size = edges;
-    source.core_size = core_edges;
-    source.name = "edges";
     op_set_core target{};
+    initialize_set(source, edges, core_edges);
+    initialize_set(target, nodes);
+    source.name = "edges";
     target.index = 1;
-    target.size = nodes;
-    target.core_size = nodes;
-
-    op_dat_core x_dat{};
-    x_dat.index = 0;
-    x_dat.set = &target;
-    x_dat.dim = 2;
-    x_dat.size = 2 * sizeof(double);
-    x_dat.type = "double";
-    op_dat_core w_dat{};
-    w_dat.index = 1;
-    w_dat.set = &source;
-    w_dat.dim = 1;
-    w_dat.size = sizeof(double);
-    w_dat.type = "double";
 
     // Neighbouring edges share nodes, as a mesh's do.
     std::mt19937 random(7);
@@ -136,32 +125,20 @@ void run(const char *strategy) {
             static_cast<double>(random() % 1000) / 7.0 + 1e-6 * n;
     }
     op_map_core map{};
-    map.index = 0;
-    map.from = &source;
-    map.to = &target;
-    map.dim = 2;
-    map.map = map_values.data();
+    initialize_map(map, &source, &target, map_values, 2);
 
     std::vector<double> x(2 * nodes, 1.0);
+    op_dat_core x_dat{};
+    op_dat_core w_dat{};
+    initialize_dat(x_dat, &target, 2, sizeof(double), "double");
+    initialize_dat(w_dat, &source, 1, sizeof(double), "double");
+    w_dat.index = 1;
+    x_dat.data = reinterpret_cast<char *>(x.data());
+    w_dat.data = reinterpret_cast<char *>(w.data());
     double sum = 0.5;
     double max = -1.0;
     int loc = -1;
 
-    auto dat_arg = [&](op_dat dat, int idx, op_access access, void *data) {
-        op_arg arg{};
-        arg.opt = 1;
-        arg.argtype = OP_ARG_DAT;
-        arg.dat = dat;
-        arg.map = idx >= 0 ? &map : nullptr;
-        arg.map_data = idx >= 0 ? map_values.data() : nullptr;
-        arg.idx = idx;
-        arg.dim = dat->dim;
-        arg.size = dat->size;
-        arg.data = static_cast<char *>(data);
-        arg.type = "double";
-        arg.acc = access;
-        return arg;
-    };
     auto gbl_arg = [](void *data, const char *type, int size, op_access access) {
         op_arg arg{};
         arg.opt = 1;
@@ -174,9 +151,9 @@ void run(const char *strategy) {
         return arg;
     };
     std::array<op_arg, 6> args{
-        dat_arg(&x_dat, 0, OP_INC, x.data()),
-        dat_arg(&x_dat, 1, OP_INC, x.data()),
-        dat_arg(&w_dat, -1, OP_READ, w.data()),
+        dat_arg(&x_dat, &map, 0, OP_INC),
+        dat_arg(&x_dat, &map, 1, OP_INC),
+        dat_arg(&w_dat, nullptr, -1, OP_READ),
         gbl_arg(&sum, "double", sizeof(double), OP_INC),
         gbl_arg(&max, "double", sizeof(double), OP_MAX),
         gbl_arg(&loc, "int", sizeof(int), OP_READ),

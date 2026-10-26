@@ -18,65 +18,33 @@
 #include <vector>
 
 #include "../test_support.h"
+#include "builders.h"
 
 namespace plan = op::plan;
 using op::loop::Sections;
+using op::test::dat_arg;
+using op::test::initialize_dat;
 
 namespace {
 
-// Edge i of a chain reaches nodes i and i+1 through a two-component map, so
-// neighbouring edges share a node; a second dat on the nodes is read
-// through the same map, and a third, on the edges, directly.
-struct Chain {
-    op_set_core edges{};
-    op_set_core nodes{};
+// A chain whose nodes carry a dat incremented through both components and a
+// second read through the first, and whose edges carry a third, read
+// directly.
+struct Chain : op::test::Chain {
     op_dat_core x{};
     op_dat_core y{};
     op_dat_core w{};
-    std::vector<int> map_values;
-    op_map_core map{};
     std::vector<op_arg> args;
 
-    explicit Chain(int size, int core = -1, int exec = 0) {
-        edges.size = size;
-        edges.core_size = core < 0 ? size : core;
-        edges.exec_size = exec;
-        nodes.size = size + exec + 1;
-        nodes.core_size = nodes.size;
-        for (auto [dat, set] : {std::pair{&x, &nodes}, {&y, &nodes}, {&w, &edges}}) {
-            dat->set = set;
-            dat->dim = 1;
-            dat->size = sizeof(double);
-            dat->type = "double";
-        }
-        for (int i = 0; i < size + exec; ++i) {
-            map_values.push_back(i);
-            map_values.push_back(i + 1);
-        }
-        map.from = &edges;
-        map.to = &nodes;
-        map.dim = 2;
-        map.map = map_values.data();
-
+    explicit Chain(int size, int core = -1, int exec = 0)
+        : op::test::Chain(size, core, exec) {
+        initialize_dat(x, &nodes, 1, sizeof(double), "double");
+        initialize_dat(y, &nodes, 1, sizeof(double), "double");
+        initialize_dat(w, &edges, 1, sizeof(double), "double");
         for (int idx = 0; idx < 2; ++idx)
-            args.push_back(arg(&x, idx, OP_INC));
-        args.push_back(arg(&y, 0, OP_READ));
-        args.push_back(arg(&w, -1, OP_READ));
-    }
-
-    op_arg arg(op_dat dat, int idx, op_access access) {
-        op_arg out{};
-        out.opt = 1;
-        out.argtype = OP_ARG_DAT;
-        out.dat = dat;
-        out.map = idx >= 0 ? &map : nullptr;
-        out.map_data = idx >= 0 ? map_values.data() : nullptr;
-        out.idx = idx;
-        out.dim = 1;
-        out.size = sizeof(double);
-        out.type = "double";
-        out.acc = access;
-        return out;
+            args.push_back(dat_arg(&x, &map, idx, OP_INC));
+        args.push_back(dat_arg(&y, &map, 0, OP_READ));
+        args.push_back(dat_arg(&w, nullptr, -1, OP_READ));
     }
 };
 
