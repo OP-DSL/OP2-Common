@@ -1,13 +1,9 @@
 # The execution strategies a loop's generated code can run, and the argument
 # groups of the chunked ones, shared by every language's schemes.
 from dataclasses import dataclass
-from typing import Any, Dict, FrozenSet, List, Optional
+from typing import Any, Dict, FrozenSet, List
 
 import op as OP
-
-
-def chunkStrategy(strategy: str) -> bool:
-    return strategy in ["chunk_atomics", "chunk_colouring"]
 
 
 # Whether a chunk plan can follow an argument: one map component, and when
@@ -88,20 +84,9 @@ class ChunkStrategies:
         valid.append("colouring")
         return ChunkStrategies(groups, valid)
 
-    # An override's strategies within the valid set, keeping the lowest valid
-    # non-chunked strategy as the runtime's floor; without one, every valid
-    # strategy.
-    def restrict(self, strategies: Optional[List[str]]) -> List[str]:
-        if strategies is None:
-            return list(self.valid)
-        kept = [strategy for strategy in self.valid if strategy in strategies]
-        if all(chunkStrategy(strategy) for strategy in kept):
-            kept.append(self.valid[-1])
-        return kept
-
 
 # The strategies a loop's kernels are generated for, and their groups.
 def setChunkConfig(config: Dict[str, Any], loop: OP.Loop, staged: FrozenSet[str]) -> None:
     chunks = ChunkStrategies.of(loop, staged)
-    config["strategies"] = chunks.restrict(config.get("strategies"))
+    config["strategies"] = list(chunks.valid)
     config["chunk_groups"] = chunks.groups
