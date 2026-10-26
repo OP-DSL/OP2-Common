@@ -29,8 +29,9 @@
 # )
 #
 # A JIT variant's test runs its offline kernels; each of its loops' JIT
-# kernels runs, built on the first call, under a forced strategy, or, in a
-# directory with no STRATEGIES, as <target>_jit.  Strategies run on the mpi
+# kernels runs, asked for from the first call, under a forced strategy, built
+# by the call, or, in a directory with no STRATEGIES, as <target>_jit, built
+# on threads as a run's are by default, a call waiting for its floor's.  Strategies run on the mpi
 # family when there is one (the same kernels, with halo sections) and on
 # soa; the autotuner on the first of those.
 #
@@ -43,8 +44,11 @@ set(_OP2_TEST_MPI_RANKS_LOWCOST 8)
 set(_OP2_TEST_MPI_RANKS_GPU 4)
 set(_OP2_TEST_OMP_NUM_THREADS 6)
 
-# Every JIT kernel built on its first call, specialised, before it runs.
-set(_OP2_TEST_JIT_ENV OP_JIT_LEVEL=2 OP_JIT_FORCE=1 OP_JIT_MIN_CALLS=1 OP_JIT_SEQ_COMPILE=1)
+# Every kernel specialised, asked for from its first call: built by the
+# call, or on a thread (the default, which CI environments may override).
+set(_OP2_TEST_JIT_ENV OP_JIT_LEVEL=2 OP_JIT_FORCE=1 OP_JIT_MIN_CALLS=1)
+set(_OP2_TEST_JIT_SEQ_ENV ${_OP2_TEST_JIT_ENV} OP_JIT_SEQ_COMPILE=1)
+set(_OP2_TEST_JIT_THREAD_ENV ${_OP2_TEST_JIT_ENV} OP_JIT_SEQ_COMPILE=0)
 
 # A test of the variant in the caller's _cmd, _labels and _nproc, with the
 # environment given after its name.
@@ -222,7 +226,7 @@ function(op2_add_functional_tests)
         if(_jit)
             _op2_variant_test(${_tgt} OP_JIT_LEVEL=0 ${_base_env})
             if(NOT _A_STRATEGIES)
-                _op2_variant_test(${_tgt}_jit ${_OP2_TEST_JIT_ENV} ${_base_env})
+                _op2_variant_test(${_tgt}_jit ${_OP2_TEST_JIT_THREAD_ENV} ${_base_env})
             endif()
         else()
             _op2_variant_test(${_tgt} ${_base_env})
@@ -236,7 +240,7 @@ function(op2_add_functional_tests)
             foreach(_strategy IN LISTS _A_STRATEGIES)
                 set(_env OP_STRATEGY=${_strategy} ${_base_env})
                 if(_jit)
-                    list(APPEND _env ${_OP2_TEST_JIT_ENV})
+                    list(APPEND _env ${_OP2_TEST_JIT_SEQ_ENV})
                 endif()
                 _op2_variant_test(${_tgt}_${_strategy} ${_env})
                 # A loop that passes over its forced strategy has not
