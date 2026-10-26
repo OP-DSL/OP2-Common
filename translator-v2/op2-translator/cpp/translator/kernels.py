@@ -216,11 +216,7 @@ def insertIncrements(
     funcs = [e for e, _ in entities if isinstance(e, Function)]
     rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
 
-    targets: Dict[str, Set[int]] = {}
-    for arg_idx, arg in enumerate(loop.args):
-        if match(arg):
-            mapParam(entity, arg_idx, funcs, lambda func, idx: targets.setdefault(func.name, set()).add(idx))
-
+    targets = argumentTargets(entity, loop, funcs, match)
     for func in funcs:
         for param_idx in sorted(targets.get(func.name, set())):
             rewriteIncrements(func, rewriters[func.name], param_idx, targets, loop, call)
@@ -245,6 +241,95 @@ def insertIncrements(
                         f"so it may take nothing else there: {tokenText(node)}",
                         loop.loc,
                     )
+
+
+# Pass each matched argument as an op::kernel::Ptr, which carries its stride,
+# through every helper it reaches.  A use is p[i], *p, or a pass to a helper
+# whose parameter is a Ptr there, which may take a raw pointer (a local
+# array, at stride 1) at another call; any other use of it is an error.
+def insertPtrs(
+    entity: Entity,
+    loop: OP.Loop,
+    entities: List[Tuple[Entity, Rewriter]],
+    match: Callable[[OP.Arg], bool],
+) -> None:
+    funcs = [e for e, _ in entities if isinstance(e, Function)]
+    rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
+
+    targets = argumentTargets(entity, loop, funcs, match)
+    for func in funcs:
+        for param_idx in sorted(targets.get(func.name, set())):
+            param = parameters(func)[param_idx]
+
+            def fail(node: Cursor, what: str, name: str = param.spelling, func: Function = func) -> None:
+                raise OP.OpError(
+                    f"{func.name}: argument {name} may only be indexed, but {what}: {tokenText(node)}", loop.loc
+                )
+
+            for _, parents, use_index, _ in ptrUses(func, rewriters[func.name], param, targets, fail):
+                # &p[i] and &*p would be raw pointers without the stride.
+                outer = parents[enclosing(parents, use_index - 1)]
+                if outer.kind == CursorKind.UNARY_OPERATOR and operatorToken(outer).spelling == "&":
+                    fail(outer, "its element's address is taken")
+
+
+# The parameters each matched argument reaches, by function.
+def argumentTargets(
+    entity: Entity, loop: OP.Loop, funcs: List[Function], match: Callable[[OP.Arg], bool]
+) -> Dict[str, Set[int]]:
+    targets: Dict[str, Set[int]] = {}
+    for arg_idx, arg in enumerate(loop.args):
+        if match(arg):
+            mapParam(entity, arg_idx, funcs, lambda func, idx: targets.setdefault(func.name, set()).add(idx))
+
+    return targets
+
+
+# Retype param, a pointer, to an op::kernel::Ptr of its element type, and
+# yield each use of it as an element, as (subscript or dereference, its
+# ancestors, its index among them, whether a dereference).  A pass to a
+# helper whose parameter is in targets is skipped; any other use fails, and
+# so do references in skip.
+def ptrUses(
+    func: Function,
+    rewriter: Rewriter,
+    param: Cursor,
+    targets: Dict[str, Set[int]],
+    fail: Callable[[Cursor, str], None],
+    skip: Set[int] = frozenset(),
+) -> Iterator[Tuple[Cursor, Tuple[Cursor, ...], int, bool]]:
+    typ = param.type.get_canonical()
+    if typ.kind == TypeKind.POINTER:
+        element = typ.get_pointee()
+    elif typ.kind in [TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY]:
+        element = typ.element_type
+    else:
+        fail(param, "it is not a pointer")
+
+    name = param.spelling
+    rewriter.update(extentToSpan(param.extent), lambda _: f"op::kernel::Ptr<{element.spelling}> {name}")
+
+    for node, parents in walkWithParents(func.ast):
+        if node.kind != CursorKind.DECL_REF_EXPR or node.hash in skip:
+            continue
+        if node.referenced is None or node.referenced != param:
+            continue
+
+        use_index = enclosing(parents, len(parents) - 1)
+        target = parents[use_index]
+        if target.kind == CursorKind.CALL_EXPR:
+            callee = target.referenced
+            passed = {idx for idx, arg in enumerate(target.get_arguments()) if stripParens(arg)[0] == node}
+            if callee is None or not passed or not passed <= targets.get(callee.spelling, set()):
+                fail(target, "a call takes it")
+            continue
+
+        if target.kind == CursorKind.ARRAY_SUBSCRIPT_EXPR and stripParens(next(target.get_children()))[0] == node:
+            yield target, parents, use_index, False
+        elif target.kind == CursorKind.UNARY_OPERATOR and operatorToken(target).spelling == "*":
+            yield target, parents, use_index, True
+        else:
+            fail(target, "it is used as a pointer")
 
 
 def parameters(func: Function) -> List[Cursor]:
@@ -343,39 +428,8 @@ def rewriteIncrements(
             f"{func.name}: OP_INC argument {name} may only be incremented, but {what}: {tokenText(node)}", loop.loc
         )
 
-    typ = param.type.get_canonical()
-    if typ.kind == TypeKind.POINTER:
-        element = typ.get_pointee()
-    elif typ.kind in [TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY]:
-        element = typ.element_type
-    else:
-        fail(param, "it is not a pointer")
-
-    rewriter.update(extentToSpan(param.extent), lambda _: f"op::kernel::Ptr<{element.spelling}> {name}")
-
     consumed: Set[int] = set()
-    for node, parents in walkWithParents(func.ast):
-        if node.kind != CursorKind.DECL_REF_EXPR or node.hash in consumed:
-            continue
-        if node.referenced is None or node.referenced != param:
-            continue
-
-        use_index = enclosing(parents, len(parents) - 1)
-        target = parents[use_index]
-        if target.kind == CursorKind.CALL_EXPR:
-            callee = target.referenced
-            passed = {idx for idx, arg in enumerate(target.get_arguments()) if stripParens(arg)[0] == node}
-            if callee is None or not passed or not passed <= targets.get(callee.spelling, set()):
-                fail(target, "a call takes it")
-            continue
-
-        if target.kind == CursorKind.ARRAY_SUBSCRIPT_EXPR and stripParens(next(target.get_children()))[0] == node:
-            deref = False
-        elif target.kind == CursorKind.UNARY_OPERATOR and operatorToken(target).spelling == "*":
-            deref = True
-        else:
-            fail(target, "it is used as a pointer")
-
+    for target, parents, use_index, deref in ptrUses(func, rewriter, param, targets, fail, consumed):
         index = enclosing(parents, use_index - 1)
         expr = parents[index]
         children = list(expr.get_children())
@@ -457,28 +511,6 @@ def rewriteIncrements(
             else:
                 rewriter.update(span, lambda _, text=text: text)
 
-
-def insertArgGblStrides(
-    entity: Entity,
-    rewriter: Rewriter,
-    app: Application,
-    loop: OP.Loop,
-    stride: Callable[[int], str],
-    skip: Optional[Callable[[OP.ArgDat], bool]] = None,
-) -> None:
-
-    if not isinstance(entity, Function):
-        return
-
-    for arg_idx in range(len(loop.args)):
-        arg = loop.args[arg_idx]
-        if not isinstance(arg, OP.ArgGbl):
-            continue
-
-        if skip is not None and skip(arg):
-            continue
-
-        insertStride(entity.ast, rewriter, entity.parameters[arg_idx], 0, False, stride)
 
 def insertStride(
     ast: Cursor, rewriter: Rewriter, param: str, id: int, is_vec: bool, stride: Callable[[int], str]

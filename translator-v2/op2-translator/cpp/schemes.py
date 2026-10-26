@@ -204,18 +204,9 @@ class CppCuda(Scheme):
 
     staged = frozenset({"chunk_atomics", "chunk_colouring"})
 
-    # chunk_colouring points every indirect argument of a dat it groups at a
-    # staged slot, which the kernel indexes through the dat's stride set to
-    # 1, so it cannot also reach a grouped SoA dat directly.
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
         setChunkConfig(config, loop, self.staged)
-
-        grouped = config["chunk_groups"]["chunk_colouring"].dats
-        if any(isinstance(arg, OP.ArgDat) and arg.map_id is None and arg.dat_id in grouped and loop.dats[arg.dat_id].soa
-               for arg in loop.args):
-            config["strategies"] = [strategy for strategy in config["strategies"] if strategy != "chunk_colouring"]
-
         return config
 
     def translateKernel(
@@ -245,34 +236,22 @@ class CppCuda(Scheme):
         def atomic_gbl_inc(arg: OP.Arg) -> bool:
             return config["gbl_inc_atomic"] and isinstance(arg, OP.ArgGbl) and arg.access_type == OP.AccessType.INC
 
+        # Every other dat, global and info argument is an op::kernel::Ptr too,
+        # whose stride carries its layout and its thread's copy.
+        def ptr_arg(arg: OP.Arg) -> bool:
+            return (
+                isinstance(arg, (OP.ArgDat, OP.ArgGbl, OP.ArgInfo))
+                and not indirect_inc(arg)
+                and not atomic_gbl_inc(arg)
+            )
+
         for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
             ctk.insertIncrements(entity, loop, extracted_entities, indirect_inc)
             ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::kernel::atomic_inc")
+            ctk.insertPtrs(entity, loop, extracted_entities, ptr_arg)
 
         ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
-
-        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            # An increment target's op::kernel::Ptr carries its stride.
-            ctk.insertStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=indirect_inc,
-                entities=extracted_entities,
-            )
-
-            ctk.insertArgGblStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_gbl_stride_d",
-                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN]
-                or atomic_gbl_inc(arg),
-            )
 
         return ctk.writeSource(extracted_entities)
 

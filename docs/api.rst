@@ -307,6 +307,8 @@ Parallel Loops
    .. note::
       A kernel may only increment an indirect :c:data:`OP_INC` argument: ``p[i] += e``, ``p[i] -= e``, ``++p[i]``, ``p[i]--`` or ``p[i] = p[i] + e`` (``*p`` for ``p[0]``), each a statement of its own, or pass it to a helper function that does the same. The ``cuda``, ``hip``, ``cuda_f2c`` and ``hip_f2c`` targets apply each increment through the loop's execution strategy and cannot translate any other use, such as an assignment or a read; declare such an argument :c:data:`OP_RW` or :c:data:`OP_WRITE` instead.
 
+      The C++ ``cuda`` and ``hip`` targets pass every data and global argument as an ``op::kernel::Ptr``, which carries its stride (the layout, and for a reduction the thread's copy). A kernel may index one (``p[i]``), dereference it (``*p``) or pass it to a helper function, which may take a local array at another call; pointer arithmetic, taking an element's address, holding it in a local pointer, passing it to a library function or testing it against null cannot be translated.
+
    The **idx** parameter accepts both positive values to specify a single per-element map index, where the kernel is passed a single dimension array of data, or negative values to specify a range of mapping indicies leading to the kernel being passed a two-dimensional array of data. If a negative index is provided the first **-idx** mapping indicies are provided to the kernel.
 
    Consider the example of a kernel that is executed over a set of triangles, and is supplied the verticies via arguments. Using positive **idx** you would need one :c:type:`op_arg` per vertex, leading to a kernel declaration similar to:

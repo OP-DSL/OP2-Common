@@ -72,23 +72,12 @@ static __device__ inline void op2_inc(T& target, U value) {
     {% endif -%}
 {%- endmacro -%}
 
-{#- The translated kernel indexes a dat's other arguments through the dat's
-    stride; chunk_colouring points every indirect argument of a grouped dat
-    at a staged slot, which keeps its components together. -#}
-{%- macro staged_strides(strategy) -%}
-    {%- if strategy == "chunk_colouring" -%}
-        {%- for dat_id in groups.chunk_colouring.dats if lh.dat(dat_id) is soa %}
-static constexpr int op2_{{lh.kernel}}_dat{{dat_id}}_stride_d = 1;
-        {% endfor -%}
-    {%- endif -%}
-{%- endmacro -%}
-
 {#- The translated kernel, in a namespace of its own for each strategy
     named. -#}
 {%- macro kernel_namespaces(names) -%}
     {%- for strategy in names %}
 namespace op2_s_{{strategy}} {
-{{inc_hook(strategy)}}{{staged_strides(strategy)}}
+{{inc_hook(strategy)}}
 {{kernel_func}}}
 
     {% endfor -%}
@@ -119,10 +108,8 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 &idx{{arg.id}}
     {%- elif arg is idx -%}
 &idx
-    {%- elif arg is opt and arg is indirect and arg is inc -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{nullptr}
     {%- elif arg is opt -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : nullptr
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : op::kernel::Ptr<{{(lh.dat(arg) if arg is dat else arg).typ.c()}}>{nullptr}
     {%- else -%}
 {{arg_to_pointer2(arg, jit, staged, local)}}
     {%- endif -%}
@@ -130,9 +117,9 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 
 {%- macro arg_to_pointer2(arg, jit, staged = none, local = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
-&op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
+op::kernel::Ptr{&op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
     {%- elif arg is gbl and arg is read and arg is scalar -%}
-&gbl{{arg.id}}
+op::kernel::Ptr{&gbl{{arg.id}}}
     {%- else -%}
 {{arg_to_pointer3(arg, jit, staged, local)}}
     {%- endif -%}
@@ -140,17 +127,17 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 
 {%- macro arg_to_pointer3(arg, jit, staged = none, local = false) -%}
     {%- if arg is info -%}
-info{{arg.id}} + thread_id
+op::kernel::Ptr{info{{arg.id}} + thread_id}
     {%- elif arg in args_gbl_per_thread -%}
-gbl{{arg.id}} + thread_id
+op::kernel::Ptr{gbl{{arg.id}} + thread_id, op2_{{lh.kernel}}_gbl_stride_d}
     {%- elif jit and arg in gbls_by_value -%}
-op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)
+op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)}
     {%- elif arg in gbls_by_value -%}
-gbl{{arg.id}}.data
+op::kernel::Ptr{gbl{{arg.id}}.data}
     {%- elif jit and arg is gbl and arg is read -%}
-op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
+op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
     {%- elif arg is gbl -%}
-gbl{{arg.id}}
+op::kernel::Ptr{gbl{{arg.id}}}
     {%- else -%}
 {{arg_to_pointer4(arg, staged, local)}}
     {%- endif -%}
@@ -158,18 +145,15 @@ gbl{{arg.id}}
 
 {#- A grouped argument's staged slot for element n, its components
     contiguous, or under OP_CHUNK_ATOMICS_UNSTAGED_SINGLES its global target
-    if the chunk references it only there.  An increment target's is an
-    op::kernel::Ptr, as the translated kernel takes it. -#}
+    if the chunk references it only there. -#}
 {%- macro stage_slot(arg, strategy) -%}
     {%- set group = groups[strategy].group(arg) -%}
     {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
     {%- set slot = "op2_stage%d + %s * %s" % (group, word, dat_dim_w(lh.dat(arg))) -%}
     {%- if strategy == "chunk_atomics" -%}
 ((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} })
-    {%- elif arg is inc -%}
-op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
     {%- else -%}
-{{slot}}
+op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
     {%- endif -%}
 {%- endmacro -%}
 
@@ -185,23 +169,18 @@ op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{op2_local{{arg.id}}}
     {%- endif -%}
 {%- endmacro -%}
 
-{#- An argument's global data for element n: an indirect increment target's
-    as an op::kernel::Ptr, whose stride carries the layout; any other's as a
-    pointer the translated kernel indexes through the dat's stride. -#}
+{#- An argument's global data for element n, as an op::kernel::Ptr, whose
+    stride carries the layout. -#}
 {%- macro arg_global_pointer(arg) -%}
     {%- set dat = lh.dat(arg) -%}
     {%- if arg is direct and dat is not soa -%}
-dat{{arg.dat_id}} + n * {{dat_dim_w(dat)}}
+op::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(dat)}}}
     {%- elif arg is direct -%}
-dat{{arg.dat_id}} + n
-    {%- elif arg is inc and dat is soa -%}
-op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
-    {%- elif arg is inc -%}
-op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(dat)}}}
+op::kernel::Ptr{dat{{arg.dat_id}} + n, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
     {%- elif dat is soa -%}
-dat{{arg.dat_id}} + {{map_lookup(arg)}}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
     {%- else -%}
-dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(dat)}}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(dat)}}}
     {%- endif -%}
 {%- endmacro -%}
 
