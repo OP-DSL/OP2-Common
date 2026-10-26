@@ -205,8 +205,8 @@ it is ``serial`` or ``mpi``, and the MPI ones declare their rank count via the
 
 With ``-DOP2_ENABLE_APP_TESTS=ON`` as well (and ``-DOP2_ENABLE_APPS=ON``), every
 variant of airfoil (plain, temporary-dat and HDF5, C++ and Fortran) and aero
-runs to its own validation, label ``apps``.  Their meshes are downloaded once,
-by the ``op2_app_meshes`` test the others depend on, into
+runs to its own validation, label ``apps``.  Each mesh is downloaded once, by
+an ``op2_app_mesh_<file>`` test ahead of the tests that read it, into
 ``OP2_TEST_MESH_DIR`` (default ``<build>/test-meshes``), which can point at a
 directory kept between builds.  ``-DOP2_TEST_MGCFD_DIR=<checkout>`` adds
 MG-CFD's C++ app, built from an `MG-CFD-app-OP2

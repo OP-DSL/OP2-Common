@@ -37,15 +37,17 @@ function(_op2_app_tests name)
     cmake_parse_arguments(_A "" "LANGUAGE;PASS;SERIAL;MPI" "MESHES;FETCH;ARGS" ${ARGN})
 
     set(_links "")
+    set(_meshes ${_A_FETCH})
     foreach(_mesh IN LISTS _A_MESHES)
         string(REPLACE "@" ";" _pair "${_mesh}")
         list(GET _pair 0 _file)
         list(GET _pair -1 _read)
         list(APPEND _links "${OP2_TEST_MESH_DIR}/${_file}@${_read}")
-        list(APPEND _op2_meshes_used "${_file}")
+        list(APPEND _meshes "${_file}")
     endforeach()
-    list(APPEND _op2_meshes_used ${_A_FETCH})
+    list(APPEND _op2_meshes_used ${_meshes})
     set(_op2_meshes_used "${_op2_meshes_used}" PARENT_SCOPE)
+    list(TRANSFORM _meshes PREPEND op2_app_mesh_ OUTPUT_VARIABLE _fixtures)
     list(JOIN _links "|" _links)
 
     foreach(_variant IN LISTS _op2_variants_${_A_LANGUAGE})
@@ -89,7 +91,7 @@ function(_op2_app_tests name)
                 LABELS "apps;${_A_LANGUAGE};${_form}"
                 PROCESSORS ${_nproc}
                 ENVIRONMENT "${_env}"
-                FIXTURES_REQUIRED op2_app_meshes
+                FIXTURES_REQUIRED "${_fixtures}"
                 TIMEOUT 1800)
         endforeach()
     endforeach()
@@ -139,16 +141,14 @@ if(OP2_TEST_MGCFD_DIR)
     endforeach()
 endif()
 
-# One download of every mesh a test reads, before any of them runs.
+# A download per mesh, before the tests that read it run.
 list(REMOVE_DUPLICATES _op2_meshes_used)
-set(_fetch "")
 foreach(_mesh IN LISTS _op2_meshes_used)
-    list(APPEND _fetch "${_mesh}@${_op2_mesh_url_${_mesh}}")
+    add_test(NAME op2_app_mesh_${_mesh}
+        COMMAND ${CMAKE_COMMAND} "-DMESH_DIR=${OP2_TEST_MESH_DIR}"
+                "-DMESHES=${_mesh}@${_op2_mesh_url_${_mesh}}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/fetch_meshes.cmake")
+    set_tests_properties(op2_app_mesh_${_mesh} PROPERTIES
+        LABELS apps
+        FIXTURES_SETUP op2_app_mesh_${_mesh})
 endforeach()
-list(JOIN _fetch "|" _fetch)
-add_test(NAME op2_app_meshes
-    COMMAND ${CMAKE_COMMAND} "-DMESH_DIR=${OP2_TEST_MESH_DIR}" "-DMESHES=${_fetch}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/fetch_meshes.cmake")
-set_tests_properties(op2_app_meshes PROPERTIES
-    LABELS apps
-    FIXTURES_SETUP op2_app_meshes)
