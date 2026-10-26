@@ -38,12 +38,12 @@ extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
     {% endfor %}
 
 {% else %}
-#define OP_F2C_PARAMS OP_F2C_PARAMS_{{tag}}
-#define OP_F2C_PARAMS_DATA OP_F2C_PARAMS_{{tag}}_data
-INCTXT(OP_F2C_PARAMS, "hydra_const_list_params.h");
+#define OP_KERNEL_PARAMS OP_KERNEL_PARAMS_{{tag}}
+#define OP_KERNEL_PARAMS_DATA OP_KERNEL_PARAMS_{{tag}}_data
+INCTXT(OP_KERNEL_PARAMS, "hydra_const_list_params.h");
 
 {% endif %}
-#define OP_F2C_JIT_TAG {{tag}}
+#define OP_KERNEL_JIT_TAG {{tag}}
 #include <kernel/jit_embed.h>
 
 #include <kernel/prelude.h>
@@ -59,7 +59,6 @@ INCTXT(OP_F2C_PARAMS, "hydra_const_list_params.h");
 #include <cstdio>
 #include <vector>
 
-namespace f2c = op::f2c;
 
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
 #include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "hip_f2c" else "cuh"}}"

@@ -201,7 +201,7 @@ def insertStrides(
 
 # Route each increment of a matched argument through op2_inc(target, value),
 # which each strategy's generated code defines, and pass the argument as an
-# f2c::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
+# op::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
 # ++p[i], p[i]--, p[i] = p[i] + e - f (a chain of + and - led by p[i]) or
 # p[i] = e + p[i] (*p for p[0]) as a statement of its own; the argument may
 # also be passed to a helper function under the same rules.  Any other use of
@@ -350,7 +350,7 @@ def rewriteIncrements(
     else:
         fail(param, "it is not a pointer")
 
-    rewriter.update(extentToSpan(param.extent), lambda _: f"f2c::Ptr<{element.spelling}> {name}")
+    rewriter.update(extentToSpan(param.extent), lambda _: f"op::kernel::Ptr<{element.spelling}> {name}")
 
     consumed: Set[int] = set()
     for node, parents in walkWithParents(func.ast):

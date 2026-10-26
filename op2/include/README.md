@@ -69,7 +69,7 @@ kernel/strategy.h      (includes: kernel/prelude.h, plan/staging_layout.h; the
                         increment hooks and the chunked strategies' device
                         helpers)
 kernel/jit_embed.h     (embeds the three kernel headers as text for NVRTC;
-                        define OP_F2C_JIT_TAG first)
+                        define OP_KERNEL_JIT_TAG first)
 ```
 
 #### CUDA and HIP backend of the translated kernels

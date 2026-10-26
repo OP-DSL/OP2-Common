@@ -247,7 +247,7 @@ class CppCuda(Scheme):
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
 
         for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            # An increment target's f2c::Ptr carries its stride.
+            # An increment target's op::kernel::Ptr carries its stride.
             ctk.insertStrides(
                 entity,
                 rewriter,

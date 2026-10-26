@@ -60,7 +60,7 @@ class FArray(FType):
     def spanBounds(self) -> str:
         bounds = []
         for lb, ub in self.shape:
-            bounds.append(f"f2c::Extent{{{lb}, {ub}}}")
+            bounds.append(f"op::kernel::Extent{{{lb}, {ub}}}")
 
         return ", ".join(bounds)
 
@@ -69,7 +69,7 @@ class FArray(FType):
         if const:
             const_str = "const "
 
-        return f"f2c::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
+        return f"op::kernel::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
 
 
 @dataclass(frozen=True)
@@ -603,7 +603,7 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
             if param.is_const:
                 const = "const "
 
-            param_decls.append(f"f2c::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
+            param_decls.append(f"op::kernel::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
 
     return_type = "void"
 
@@ -713,7 +713,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             src += f"{type_.asLocal(name)};\n"
         else:
             src += f"{type_.asLocal('_f2c_arr_' + name)};\n"
-            src += f"const {type_.asSpan('f2c::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
+            src += f"const {type_.asSpan('op::kernel::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
 
     return src + "\n" + init_src
 
@@ -789,7 +789,7 @@ def translateReturnStmt(return_stmt: f2003.Return_Stmt, ctx: Context) -> str:
 
 
 def translateStopStmt(stop_stmt: f2003.Stop_Stmt, ctx: Context) -> str:
-    src = "f2c::trap();"
+    src = "op::kernel::trap();"
     return src
 
 
@@ -1005,7 +1005,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
         for shape, child in zip(array_type.shape, subscript_list.children):
             if not isinstance(child, f2003.Subscript_Triplet):
                 idx = translateGeneric(child, ctx)
-                extents.append(f"f2c::Extent{{{idx}, {idx}}}")
+                extents.append(f"op::kernel::Extent{{{idx}, {idx}}}")
                 continue
 
             if child.items[2] is not None:
@@ -1023,7 +1023,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
             else:
                 ub = shape[1]
 
-            extents.append(f"f2c::Extent{{{lb}, {ub}}}")
+            extents.append(f"op::kernel::Extent{{{lb}, {ub}}}")
 
         return f"{name}.slice({', '.join(extents)})"
 
@@ -1048,45 +1048,45 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
 
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
     intrinsic_funcs = {
-        "abs":   "f2c::abs",
-        "aint":  "f2c::aint",
-        "dble":  "f2c::dble",
-        "int":   "f2c::int_",
-        "min":   "f2c::min",
-        "max":   "f2c::max",
-        "mod":   "f2c::mod",
-        "nint":  "f2c::nint",
-        "sign":  "f2c::copysign",
+        "abs":   "op::kernel::abs",
+        "aint":  "op::kernel::aint",
+        "dble":  "op::kernel::dble",
+        "int":   "op::kernel::int_",
+        "min":   "op::kernel::min",
+        "max":   "op::kernel::max",
+        "mod":   "op::kernel::mod",
+        "nint":  "op::kernel::nint",
+        "sign":  "op::kernel::copysign",
 
-        "acos":  "f2c::acos",
-        "asin":  "f2c::asin",
-        "atan":  "f2c::atan",
-        "atan2": "f2c::atan2",
-        "cos":   "f2c::cos",
-        "cosh":  "f2c::cosh",
-        "exp":   "f2c::exp",
-        "log":   "f2c::log",
-        "log10": "f2c::log10",
-        "sin":   "f2c::sin",
-        "sinh":  "f2c::sinh",
-        "sqrt":  "f2c::sqrt",
-        "tan":   "f2c::tan",
-        "tanh":  "f2c::tanh",
+        "acos":  "op::kernel::acos",
+        "asin":  "op::kernel::asin",
+        "atan":  "op::kernel::atan",
+        "atan2": "op::kernel::atan2",
+        "cos":   "op::kernel::cos",
+        "cosh":  "op::kernel::cosh",
+        "exp":   "op::kernel::exp",
+        "log":   "op::kernel::log",
+        "log10": "op::kernel::log10",
+        "sin":   "op::kernel::sin",
+        "sinh":  "op::kernel::sinh",
+        "sqrt":  "op::kernel::sqrt",
+        "tan":   "op::kernel::tan",
+        "tanh":  "op::kernel::tanh",
 
-        "dabs":  "f2c::abs",
-        "dacos": "f2c::acos",
-        "dasin": "f2c::asin",
-        "datan": "f2c::atan",
-        "dcos":  "f2c::cos",
-        "dcosh": "f2c::cosh",
-        "dexp":  "f2c::exp",
-        "dint":  "f2c::aint",
-        "dsign": "f2c::copysign",
-        "dsin":  "f2c::sin",
-        "dsinh": "f2c::sinh",
-        "dsqrt": "f2c::sqrt",
-        "dtan":  "f2c::tan",
-        "dtanh": "f2c::tanh",
+        "dabs":  "op::kernel::abs",
+        "dacos": "op::kernel::acos",
+        "dasin": "op::kernel::asin",
+        "datan": "op::kernel::atan",
+        "dcos":  "op::kernel::cos",
+        "dcosh": "op::kernel::cosh",
+        "dexp":  "op::kernel::exp",
+        "dint":  "op::kernel::aint",
+        "dsign": "op::kernel::copysign",
+        "dsin":  "op::kernel::sin",
+        "dsinh": "op::kernel::sinh",
+        "dsqrt": "op::kernel::sqrt",
+        "dtan":  "op::kernel::tan",
+        "dtanh": "op::kernel::tanh",
     }
 
     items = intrinsic_function_reference.items
@@ -1159,7 +1159,7 @@ def translateParenthesis(parenthesis: f2003.Parenthesis, ctx: Context) -> str:
 
 def translateMultOperand(mult_operand: f2003.Mult_Operand, ctx: Context) -> str:
     items = mult_operand.items
-    return f"f2c::pow({translateGeneric(items[0], ctx)}, {translateGeneric(items[2], ctx)})"
+    return f"op::kernel::pow({translateGeneric(items[0], ctx)}, {translateGeneric(items[2], ctx)})"
 
 
 def translateAddOperand(add_operand: f2003.Add_Operand, ctx: Context) -> str:

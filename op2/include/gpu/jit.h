@@ -220,7 +220,7 @@ private:
     JitHeaders m_headers;
 
     // The run-time parameters as a built kernel has them: a global as its
-    // wrapper's argument, which the source reads through f2c::param_value;
+    // wrapper's argument, which the source reads through op::kernel::param_value;
     // any other as a symbol of its module, added to symbols.
     static std::string runtime_declarations(const op::loop::ParamSet& params,
                                             std::vector<RuntimeSymbol>& symbols) {
@@ -231,7 +231,7 @@ private:
                 continue;
             if (param.source() == op::loop::ParamSource::scalar_arg ||
                 param.source() == op::loop::ParamSource::array_arg) {
-                out += "static constexpr f2c::RuntimeParam " + param.name() + "{};\n";
+                out += "static constexpr op::kernel::RuntimeParam " + param.name() + "{};\n";
                 continue;
             }
             out += "__constant__ ";
@@ -311,7 +311,7 @@ public:
         std::string text = std::string("#include <kernel/prelude.h>\n"
                                        "#include <kernel/strategy.h>\n") +
                            (m_headers.params ? "#include <op_f2c_params.h>\n" : "") +
-                           "\nnamespace f2c = op::f2c;\n" +
+                           "\n" +
                            op::loop::format_cxx(params) +
                            runtime_declarations(params, symbols) +
                            std::string{source.source};

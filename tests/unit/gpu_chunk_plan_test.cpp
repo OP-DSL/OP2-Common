@@ -361,9 +361,9 @@ void test_region_walk() {
     for (int chunk = 0; chunk < result.plan->chunks.count(); ++chunk) {
         const int *counts = &all_counts[static_cast<std::size_t>(chunk) * 3];
         char *cursor = base;
-        op::f2c::stage_region<float>(cursor, counts[0], 1);
-        op::f2c::stage_region<double>(cursor, counts[1], 2);
-        op::f2c::stage_region<int>(cursor, counts[2], 3);
+        op::kernel::stage_region<float>(cursor, counts[0], 1);
+        op::kernel::stage_region<double>(cursor, counts[1], 2);
+        op::kernel::stage_region<int>(cursor, counts[2], 3);
         CHECK(static_cast<std::size_t>(cursor - base) <=
               staging.chunk_scratch_bytes[static_cast<std::size_t>(chunk)]);
     }

@@ -17,7 +17,7 @@
 #include <atomic>
 #endif
 
-namespace op::f2c {
+namespace op::kernel {
 
 /* Scratch staging helpers.
 
@@ -225,4 +225,4 @@ DEVICE inline void wave_signal(int *done, int position, int epoch) {
 }
 #endif
 
-} // namespace op::f2c
+} // namespace op::kernel

@@ -30,7 +30,6 @@ extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
 #include <cstdint>
 #include <cstdio>
 
-namespace f2c = op::f2c;
 
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
 #include "{{loop_.name}}_kernel_aux1.hpp"

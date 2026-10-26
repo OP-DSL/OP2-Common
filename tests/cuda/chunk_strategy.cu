@@ -4,7 +4,7 @@
 // launch staging more than the 48 KB of shared memory a kernel gets without
 // opting in.  Run offline (OP_JIT_LEVEL=0) and with every kernel compiled.
 
-#define OP_F2C_JIT_TAG chunk_strategy_test
+#define OP_KERNEL_JIT_TAG chunk_strategy_test
 #include <kernel/jit_embed.h>
 
 #include <gpu/loop.h>
@@ -173,7 +173,7 @@ struct Fixture {
 };
 
 gpu::JitHeaders headers() {
-    return {{OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
+    return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
             {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"}};
 }
 

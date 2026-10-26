@@ -22,7 +22,6 @@
 #include "../test_support.h"
 #include "builders.h"
 
-namespace f2c = op::f2c;
 namespace cpu = op::cpu;
 using op::test::dat_arg;
 using op::test::initialize_dat;
@@ -64,9 +63,9 @@ void range_body(const cpu::Work& work, op_arg *args) {
         element(n, x, map, w, work.global<double>(3), work.global<double>(4),
                 work.global<int>(5), [](double& t, double v) {
                     if constexpr (atomic)
-                        f2c::atomic_inc(t, v);
+                        op::kernel::atomic_inc(t, v);
                     else
-                        f2c::plain_inc(t, v);
+                        op::kernel::plain_inc(t, v);
                 });
     }
 }
@@ -81,8 +80,8 @@ void staged_body(const cpu::Work& work, op_arg *args) {
     char *cursor = work.scratch;
     const int first = staging.slot_offsets[static_cast<std::size_t>(work.chunk)];
     const int count = staging.slot_offsets[static_cast<std::size_t>(work.chunk) + 1] - first;
-    double *stage = f2c::stage_region<double>(cursor, count, 2);
-    f2c::stage_clear(stage, count * 2, 0, 1);
+    double *stage = op::kernel::stage_region<double>(cursor, count, 2);
+    op::kernel::stage_clear(stage, count * 2, 0, 1);
 
     const auto stride = static_cast<std::size_t>(staging.stride);
     for (int n = work.begin; n < work.end; ++n)
@@ -93,7 +92,7 @@ void staged_body(const cpu::Work& work, op_arg *args) {
 
     for (int s = 0; s < count; ++s) {
         int target = staging.slot_targets[static_cast<std::size_t>(first + s)];
-        f2c::stage_flush(f2c::Ptr<double>{x + 2 * target}, stage, s, 2);
+        op::kernel::stage_flush(op::kernel::Ptr<double>{x + 2 * target}, stage, s, 2);
     }
 }
 

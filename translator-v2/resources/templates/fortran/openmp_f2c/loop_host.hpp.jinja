@@ -52,11 +52,11 @@ dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim(lh.dat(arg))}}
     in the chunk's scratch. -#}
 {%- macro arg_ptr(arg, mode) -%}
     {%- if arg is gbl or arg is info -%}
-f2c::Ptr{gbl{{arg.id}}}
+op::kernel::Ptr{gbl{{arg.id}}}
     {%- elif mode == "staged" and arg in groups.chunk_atomics.args -%}
-f2c::Ptr{op2_stage{{groups.chunk_atomics.group(arg)}} + stage_words[{{groups.chunk_atomics.position(arg)}} * stride + n] * {{dat_dim(lh.dat(arg))}}}
+op::kernel::Ptr{op2_stage{{groups.chunk_atomics.group(arg)}} + stage_words[{{groups.chunk_atomics.position(arg)}} * stride + n] * {{dat_dim(lh.dat(arg))}}}
     {%- else -%}
-f2c::Ptr{ {{-global_address(arg)-}} }
+op::kernel::Ptr{ {{-global_address(arg)-}} }
     {%- endif -%}
 {%- endmacro -%}
 
@@ -140,7 +140,7 @@ namespace op2_s_{{hook}} {
 
 template<typename T, typename U>
 static inline void op2_inc(T& target, U value) {
-    f2c::{{hook}}_inc(target, value);
+    op::kernel::{{hook}}_inc(target, value);
 }
 
 {{kernel_func}}}
@@ -182,9 +182,9 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
         {% set dat = lh.dat(dat_id) %}
     const int op2_stage{{loop.index0}}_count =
         ({{stage_group_active(dat_id)}}) ? op2_slots[{{loop.index}}] - op2_slots[{{loop.index0}}] : 0;
-    {{dat.typ.c()}} *const op2_stage{{loop.index0}} = f2c::stage_region<{{dat.typ.c()}}>(
+    {{dat.typ.c()}} *const op2_stage{{loop.index0}} = op::kernel::stage_region<{{dat.typ.c()}}>(
         op2_cursor, op2_stage{{loop.index0}}_count, {{dat_dim(dat)}});
-    f2c::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(dat)}}, 0, 1);
+    op::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(dat)}}, 0, 1);
     {% endfor %}
 
     for (int n = work.begin; n < work.end; ++n) {
@@ -195,7 +195,7 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::cpu::Work& work,
         {% set dat = lh.dat(dat_id) %}
     for (int op2_s = 0; op2_s < op2_stage{{loop.index0}}_count; ++op2_s) {
         const int op2_target = staging.slot_targets[op2_slots[{{loop.index0}}] + op2_s];
-        f2c::stage_flush(f2c::Ptr{dat{{dat_id}} + op2_target * {{dat_dim(dat)}}},
+        op::kernel::stage_flush(op::kernel::Ptr{dat{{dat_id}} + op2_target * {{dat_dim(dat)}}},
                          op2_stage{{loop.index0}}, op2_s, {{dat_dim(dat)}});
     }
     {% endfor %}

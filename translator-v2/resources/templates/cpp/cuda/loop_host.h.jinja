@@ -64,7 +64,7 @@
     {%- if strategy != "plain" %}
 template<typename T, typename U>
 static __device__ inline void op2_inc(T& target, U value) {
-    f2c::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
+    op::kernel::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
 }
     {% endif -%}
 {%- endmacro -%}
@@ -117,7 +117,7 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
     {%- elif arg is idx -%}
 &idx
     {%- elif arg is opt and arg is indirect and arg is inc -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : f2c::Ptr<{{lh.dat(arg).typ.c()}}>{nullptr}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{nullptr}
     {%- elif arg is opt -%}
 (1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : nullptr
     {%- else -%}
@@ -127,7 +127,7 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 
 {%- macro arg_to_pointer2(arg, jit, staged = none, local = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
-&f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
+&op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 &gbl{{arg.id}}
     {%- else -%}
@@ -141,11 +141,11 @@ info{{arg.id}} + thread_id
     {%- elif arg in args_gbl_per_thread -%}
 gbl{{arg.id}} + thread_id
     {%- elif jit and arg in gbls_by_value -%}
-f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)
+op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)
     {%- elif arg in gbls_by_value -%}
 gbl{{arg.id}}.data
     {%- elif jit and arg is gbl and arg is read -%}
-f2c::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
+op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})
     {%- elif arg is gbl -%}
 gbl{{arg.id}}
     {%- else -%}
@@ -156,15 +156,15 @@ gbl{{arg.id}}
 {#- A grouped argument's staged slot for element n, its components
     contiguous, or under OP_CHUNK_ATOMICS_UNSTAGED_SINGLES its global target
     if the chunk references it only there.  An increment target's is an
-    f2c::Ptr, as the translated kernel takes it. -#}
+    op::kernel::Ptr, as the translated kernel takes it. -#}
 {%- macro stage_slot(arg, strategy) -%}
     {%- set group = groups[strategy].group(arg) -%}
     {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
     {%- set slot = "op2_stage%d + %s * %s" % (group, word, dat_dim_w(lh.dat(arg))) -%}
     {%- if strategy == "chunk_atomics" -%}
-((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : f2c::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} })
+((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} })
     {%- elif arg is inc -%}
-f2c::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
+op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
     {%- else -%}
 {{slot}}
     {%- endif -%}
@@ -174,7 +174,7 @@ f2c::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
     slots; local points the indirect increments at per-thread registers. -#}
 {%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
     {%- if local and arg in groups.chunk_atomics.args -%}
-f2c::Ptr<{{lh.dat(arg).typ.c()}}>{op2_local{{arg.id}}}
+op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{op2_local{{arg.id}}}
     {%- elif staged is not none and arg in groups[staged].args -%}
 {{stage_slot(arg, staged)}}
     {%- else -%}
@@ -183,7 +183,7 @@ f2c::Ptr<{{lh.dat(arg).typ.c()}}>{op2_local{{arg.id}}}
 {%- endmacro -%}
 
 {#- An argument's global data for element n: an indirect increment target's
-    as an f2c::Ptr, whose stride carries the layout; any other's as a
+    as an op::kernel::Ptr, whose stride carries the layout; any other's as a
     pointer the translated kernel indexes through the dat's stride. -#}
 {%- macro arg_global_pointer(arg) -%}
     {%- set dat = lh.dat(arg) -%}
@@ -192,9 +192,9 @@ dat{{arg.dat_id}} + n * {{dat_dim_w(dat)}}
     {%- elif arg is direct -%}
 dat{{arg.dat_id}} + n
     {%- elif arg is inc and dat is soa -%}
-f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
+op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
     {%- elif arg is inc -%}
-f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(dat)}}}
+op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(dat)}}}
     {%- elif dat is soa -%}
 dat{{arg.dat_id}} + {{map_lookup(arg)}}
     {%- else -%}
@@ -248,13 +248,13 @@ true
     {%- endif -%}
 {%- endmacro -%}
 
-{#- A slot's global target as an f2c::Ptr; its stride carries the layout, so
+{#- A slot's global target as an op::kernel::Ptr; its stride carries the layout, so
     the staging helpers need no AoS/SoA variants. -#}
 {%- macro stage_global(arg, dat) -%}
     {%- if dat is soa -%}
-f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
+op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
     {%- else -%}
-f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
+op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -266,7 +266,7 @@ f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% set dat = lh.dat(arg) %}
         for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += blockDim.x) {
             const int target = slot_targets[op2_chunk_slots[{{loop.index0}}] + s];
-            f2c::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim_w(dat)}});
+            op::kernel::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim_w(dat)}});
         }
 {% endfor %}
 {% endmacro %}
@@ -297,9 +297,9 @@ f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         {% for arg in groups.chunk_atomics.args %}
             {% if arg is opt %}
                     if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
-                        f2c::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+                        op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
             {% else %}
-                    f2c::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+                    op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
             {% endif %}
         {% endfor %}
                 }
@@ -312,7 +312,7 @@ f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
                 if (op2_colour == op2_pass) {
                     // Opaque, so this element's address arithmetic is not
                     // hoisted out of the pass loop and kept live through it.
-                    const int n = f2c::opaque(op2_n);
+                    const int n = op::kernel::opaque(op2_n);
                     {{kernel_call(true, "chunk_colouring", "chunk_colouring")|indent(20)}}
                 }
 
@@ -342,13 +342,13 @@ f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     // blocks take positions in turn, each once the earlier positions sharing
     // one of its targets are done.
     __shared__ int op2_taken;
-    for (int op2_i = op2_wavefront ? f2c::wave_take(wave_ticket, chunk_begin, op2_taken)
+    for (int op2_i = op2_wavefront ? op::kernel::wave_take(wave_ticket, chunk_begin, op2_taken)
                                    : chunk_begin + blockIdx.x;
          op2_i < chunk_end;
-         op2_i = op2_wavefront ? f2c::wave_take(wave_ticket, chunk_begin, op2_taken)
+         op2_i = op2_wavefront ? op::kernel::wave_take(wave_ticket, chunk_begin, op2_taken)
                                : op2_i + gridDim.x) {
         if (op2_wavefront)
-            f2c::wave_wait(wave_pred_offsets, wave_preds, wave_done, op2_i, wave_epoch);
+            op::kernel::wave_wait(wave_pred_offsets, wave_preds, wave_done, op2_i, wave_epoch);
         const int chunk = chunk_order[op2_i];
     {% else %}
     // Physical blocks grid-stride over this section's chunks; the partition
@@ -369,13 +369,13 @@ f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% for dat_id in dats %}
         {% set dat = lh.dat(dat_id) %}
         const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
-        {{dat.typ.c()}} *op2_stage{{loop.index0}} = f2c::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
+        {{dat.typ.c()}} *op2_stage{{loop.index0}} = op::kernel::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
     {% endfor %}
 
     {% if strategy == "chunk_atomics" %}
         // Clear every region before accumulating into it.
         {% for dat_id in dats %}
-        f2c::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
+        op::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
         {% endfor %}
         __syncthreads();
 
@@ -401,7 +401,7 @@ f2c::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         __syncthreads();
     {% if strategy == "chunk_colouring" %}
         if (op2_wavefront)
-            f2c::wave_signal(wave_done, op2_i, wave_epoch);
+            op::kernel::wave_signal(wave_done, op2_i, wave_epoch);
     {% endif %}
     }
 {%- endmacro %}
@@ -416,7 +416,7 @@ __launch_bounds__({{"op2_block_size_d" if jit else "128"}})
 
 {#- The JIT wrapper takes the offline wrapper's parameters, so both launch
     from one argument list.  The scalar globals come last, read through
-    f2c::param_value as their baked values or the arguments. -#}
+    op::kernel::param_value as their baked values or the arguments. -#}
 {% macro kernel_wrapper(strategy, jit = false) %}
 {% set scalar_gbls = lh.args|gbl|read|scalar|list %}
 extern "C" __global__ {{launch_bounds(jit)}}
@@ -455,7 +455,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last or gbls_by_value}}
     {% endfor %}
     {% for arg in gbls_by_value %}
-    const f2c::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
+    const op::kernel::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
@@ -627,7 +627,7 @@ static op::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
     static op::gpu::Loop loop(
         "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
         op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}} },
-        OP_F2C_JIT_HEADERS);
+        OP_KERNEL_JIT_HEADERS);
     static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
     (void)registered;
     return loop;

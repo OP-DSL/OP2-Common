@@ -1,7 +1,7 @@
 // A specialised kernel whose compile fails: its strategy is unavailable and
 // the ladder runs the next, its offline kernel, and the run goes on.
 
-#define OP_F2C_JIT_TAG jit_build_failure_test
+#define OP_KERNEL_JIT_TAG jit_build_failure_test
 #include <kernel/jit_embed.h>
 
 #include <gpu/loop.h>
@@ -37,7 +37,7 @@ void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
 }
 
 gpu::JitHeaders headers() {
-    return {{OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
+    return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
             {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"}};
 }
 
