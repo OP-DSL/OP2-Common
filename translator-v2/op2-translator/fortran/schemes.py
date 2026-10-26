@@ -357,6 +357,9 @@ class FortranCudaF2C(Scheme):
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
 
+        def match_gbl(arg):
+            return isinstance(arg, OP.ArgGbl)
+
         # Each strategy's generated code defines op2_inc: atomic or plain.
         ftk.insertAtomicIncs(
             kernel_entity,
@@ -367,6 +370,16 @@ class FortranCudaF2C(Scheme):
             c_api=True,
             call="op2_inc",
         )
+
+        if config["gbl_inc_atomic"]:
+            ftk.insertAtomicIncs(
+                kernel_entity,
+                [kernel_entity] + dependencies,
+                loop,
+                app,
+                lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
+                c_api=True,
+            )
 
         info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
         setattr(loop, "const_types", info.consts);

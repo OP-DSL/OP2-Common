@@ -26,6 +26,7 @@ namespace op::gpu {
 
 class Loop : public op::loop::Loop {
 private:
+    bool m_gbl_inc_atomic;
     SymbolBindings m_symbols;
     Compiler m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
@@ -87,6 +88,7 @@ public:
          std::string_view profile_variant, LoopDescription description,
          JitHeaders headers)
         : op::loop::Loop{name, profile_target, profile_variant, description.direct},
+          m_gbl_inc_atomic{description.gbl_inc_atomic},
           m_compiler{name, std::move(headers)} {}
 
     ~Loop() override { release(); }
@@ -174,7 +176,8 @@ public:
     // The most blocks a launch may use: as many as the reduction scratch
     // allows.
     int block_limit(op_arg *args, int nargs, int block_size) const {
-        return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(), false);
+        return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(),
+                                       m_gbl_inc_atomic);
     }
 
     std::vector<void *>& arguments() { return m_arguments; }
@@ -194,7 +197,7 @@ public:
             return;
         op_profile_next("Process GBLs");
         m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, global_stride,
-                                                   global_stride, false);
+                                                   global_stride, m_gbl_inc_atomic);
         op_profile_next("Kernel");
     }
 
@@ -230,7 +233,7 @@ public:
         op_profile_enter("Prepare GBLs");
         m_global_output = has_global_output(args, nargs);
         m_exit_sync = false;
-        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, false,
+        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, m_gbl_inc_atomic,
                                     on_host(decision.prepared, nargs));
         op_profile_exit();
 

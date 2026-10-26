@@ -240,8 +240,14 @@ class CppCuda(Scheme):
         def indirect_inc(arg: OP.Arg) -> bool:
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC
 
+        # A global OP_INC incremented in place, which no strategy's op2_inc
+        # covers: every thread adds to the one copy.
+        def atomic_gbl_inc(arg: OP.Arg) -> bool:
+            return config["gbl_inc_atomic"] and isinstance(arg, OP.ArgGbl) and arg.access_type == OP.AccessType.INC
+
         for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
             ctk.insertIncrements(entity, loop, extracted_entities, indirect_inc)
+            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::kernel::atomic_inc")
 
         ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
@@ -264,7 +270,8 @@ class CppCuda(Scheme):
                 app,
                 loop,
                 lambda dat_id: f"op2_{loop.kernel}_gbl_stride_d",
-                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN],
+                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN]
+                or atomic_gbl_inc(arg),
             )
 
         return ctk.writeSource(extracted_entities)

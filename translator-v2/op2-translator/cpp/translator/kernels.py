@@ -199,9 +199,9 @@ def insertStrides(
 
         mapParam(entity, arg_idx, funcs, applyStride, dat.id, is_vec)
 
-# Route each increment of a matched argument through op2_inc(target, value),
-# which each strategy's generated code defines, and pass the argument as an
-# op::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
+# Route each increment of a matched argument through call(target, value),
+# by default op2_inc, which each strategy's generated code defines, and pass
+# the argument as an op::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
 # ++p[i], p[i]--, p[i] = p[i] + e - f (a chain of + and - led by p[i]) or
 # p[i] = e + p[i] (*p for p[0]) as a statement of its own; the argument may
 # also be passed to a helper function under the same rules.  Any other use of
@@ -211,6 +211,7 @@ def insertIncrements(
     loop: OP.Loop,
     entities: List[Tuple[Entity, Rewriter]],
     match: Callable[[OP.Arg], bool],
+    call: str = "op2_inc",
 ) -> None:
     funcs = [e for e, _ in entities if isinstance(e, Function)]
     rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
@@ -222,7 +223,7 @@ def insertIncrements(
 
     for func in funcs:
         for param_idx in sorted(targets.get(func.name, set())):
-            rewriteIncrements(func, rewriters[func.name], param_idx, targets, loop)
+            rewriteIncrements(func, rewriters[func.name], param_idx, targets, loop, call)
 
     # A helper that takes an increment target takes nothing else there.
     for func in funcs:
@@ -332,7 +333,7 @@ def location(extent: SourceRange, end: bool = False) -> Location:
 
 
 def rewriteIncrements(
-    func: Function, rewriter: Rewriter, param_idx: int, targets: Dict[str, Set[int]], loop: OP.Loop
+    func: Function, rewriter: Rewriter, param_idx: int, targets: Dict[str, Set[int]], loop: OP.Loop, call: str
 ) -> None:
     param = parameters(func)[param_idx]
     name = param.spelling
@@ -399,7 +400,7 @@ def rewriteIncrements(
         elif expr.kind == CursorKind.UNARY_OPERATOR and op.spelling in ["++", "--"]:
             step = ", -1)" if op.spelling == "--" else ", 1)"
             insert = op.extent.start.offset > target.extent.start.offset
-            edits.append((extentToSpan(op.extent), step if insert else "op2_inc(", False))
+            edits.append((extentToSpan(op.extent), step if insert else f"{call}(", False))
             suffix = None if insert else step
         elif assigned and op.spelling == "=":
             # x = x + a - b: drop "x +" (or just "x" before a "-"), keeping
@@ -439,10 +440,10 @@ def rewriteIncrements(
             fail(expr, "the value of its increment is used")
 
         if insert and deref and location(target.extent) == start:
-            edits.append((extentToSpan(target.extent), f"op2_inc({name}[0]", False))
+            edits.append((extentToSpan(target.extent), f"{call}({name}[0]", False))
         else:
             if insert:
-                edits.append((Span(start, start), "op2_inc(", False))
+                edits.append((Span(start, start), f"{call}(", False))
             if deref:
                 edits.append((extentToSpan(target.extent), f"{name}[0]", False))
 

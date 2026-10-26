@@ -60,6 +60,7 @@ class Cuda(Target):
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {
+            "gbl_inc_atomic": False,
             "func_prefix": "__device__",
             "hip": False
         }
