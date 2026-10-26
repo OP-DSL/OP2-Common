@@ -167,7 +167,7 @@ if [[ "$TEST_AIRFOIL_FORTRAN" = "TRUE" ]]; then
 
         validate "OMP_NUM_THREADS=6" "airfoil_plain_openmp" "" "PASSED"
         # validate "" "airfoil_plain_cuda_legacy" "" "PASSED"
-        validate "" "airfoil_plain_cuda" "" "PASSED"
+        validate "" "airfoil_plain_cuda_f2c" "" "PASSED"
 
         # validate "" "airfoil_arg_ptrs_seq" "" "PASSED"
         # validate "" "airfoil_arg_ptrs_genseq" "" "PASSED"
@@ -180,14 +180,14 @@ if [[ "$TEST_AIRFOIL_FORTRAN" = "TRUE" ]]; then
 
         validate "OMP_NUM_THREADS=6" "airfoil_hdf5_openmp" "" "PASSED"
         # validate "" "airfoil_hdf5_cuda_legacy" "" "PASSED"
-        validate "" "airfoil_hdf5_cuda" "" "PASSED"
+        validate "" "airfoil_hdf5_cuda_f2c" "" "PASSED"
 
         validate "mpirun -np 16" "airfoil_hdf5_mpi_seq" "" "PASSED"
         validate "mpirun -np 16" "airfoil_hdf5_mpi_genseq" "" "PASSED"
 
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_hdf5_mpi_openmp" "" "PASSED"
         # validate "mpirun -np 4" "airfoil_hdf5_mpi_cuda_legacy" "" "PASSED"
-        validate "mpirun -np 4" "airfoil_hdf5_mpi_cuda" "" "PASSED"
+        validate "mpirun -np 4" "airfoil_hdf5_mpi_cuda_f2c" "" "PASSED"
     fi
 fi
 
