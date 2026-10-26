@@ -8,6 +8,7 @@
 # op2_add_functional_tests(
 #     LANGUAGE cpp|fortran
 #     SOURCES <src...>
+#     [NAME <name>]                # the tests' name, default the directory's
 #     [TRANSLATOR_ARGS <a...>]     # applied to every family, e.g. Fortran's
 #                                  # --consts-module <file>
 #     [FAMILIES <f...>]            # which builds to test, default serial:
@@ -63,7 +64,7 @@ endmacro()
 function(op2_add_functional_tests)
     cmake_parse_arguments(_A
         ""
-        "LANGUAGE"
+        "LANGUAGE;NAME"
         "SOURCES;TRANSLATOR_ARGS;FAMILIES;EXCLUDE_VARIANTS;LINK_LIBRARIES;STRATEGIES"
         ${ARGN})
 
@@ -82,7 +83,9 @@ function(op2_add_functional_tests)
     endforeach()
 
     get_filename_component(_category "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-    set(_A_NAME "${_category}")
+    if(NOT _A_NAME)
+        set(_A_NAME "${_category}")
+    endif()
 
     # The family the strategies run on besides soa, and the one the
     # autotuner runs on.
