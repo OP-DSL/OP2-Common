@@ -200,7 +200,7 @@ inline op::loop::Prepared Colouring::prepare(
         auto colouring = op::plan::colour_set(configuration.args,
                                               m_loop.sections(configuration));
         if (OP_diags > 3)
-            std::printf("%s: %s %d colours, %d over owned elements\n",
+            op_printf("%s: %s %d colours, %d over owned elements\n",
                         m_name.c_str(), m_loop.name().c_str(), colouring.colours,
                         colouring.owned_colours);
         found = m_entries.emplace(key, std::move(colouring)).first;
@@ -248,11 +248,11 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 
     if (OP_diags > 3) {
         if (entry.plan == nullptr)
-            std::printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
+            op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
                         m_loop.name().c_str(), std::string{entry.rejected}.c_str(),
                         result.compression);
         else
-            std::printf("%s: %s chunk %d, %d chunks, %d batches, "
+            op_printf("%s: %s chunk %d, %d chunks, %d batches, "
                         "compression %.2fx\n",
                         m_name.c_str(), m_loop.name().c_str(),
                         entry.plan->chunks.size, entry.plan->chunks.count(),

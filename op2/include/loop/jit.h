@@ -459,7 +459,7 @@ public:
         if (due && entry.state.load(std::memory_order_relaxed) == BuildState::seen &&
             (here || take_build_slot(policy.max_threads.value_or(m_threads)))) {
             if (policy.debug)
-                std::printf("compiling %s for hash %lx\n", m_name.c_str(),
+                op_printf("compiling %s for hash %lx\n", m_name.c_str(),
                             static_cast<unsigned long>(key));
             auto job = make_job();
             if (here) {

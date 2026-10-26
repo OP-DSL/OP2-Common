@@ -168,7 +168,7 @@ void ParamSet::observe(const Configuration& configuration) {
         }
         auto& entry = (*history)[i];
         if (entry.observe(param, run) && run.debug)
-            std::printf("jit: %s %s %s for %s\n", m_loop.c_str(),
+            op_printf("jit: %s %s %s for %s\n", m_loop.c_str(),
                         entry.mode == ParamMode::baked ? "bakes in" : "moves to run time",
                         param.name().c_str(), configuration.describe().c_str());
         param.set_mode(entry.mode);

@@ -76,7 +76,7 @@ void cutilDeviceInit(int argc, char **argv) {
     printf("cutil error: no devices supporting CUDA\n");
     exit(-1);
   }
-  printf("Trying to select a device\n");
+  op_printf("Trying to select a device\n");
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

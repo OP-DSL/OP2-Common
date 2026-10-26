@@ -419,7 +419,7 @@ inline op::loop::Prepared Colouring::prepare(
                                 order.size() * sizeof(int), gpuMemcpyHostToDevice));
         }
         if (OP_diags > 3)
-            std::printf("colouring: %s %d colours, %d over owned elements\n",
+            op_printf("colouring: %s %d colours, %d over owned elements\n",
                         m_loop.name().c_str(), entry.colouring.colours,
                         entry.colouring.owned_colours);
         found = m_entries.emplace(key, std::move(entry)).first;
@@ -499,20 +499,20 @@ inline void ChunkBase::report(const ChunkResult& result) const {
     if (OP_diags <= 3)
         return;
     if (result.plan == nullptr) {
-        std::printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
+        op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
                     m_loop.name().c_str(), std::string{result.rejected}.c_str(),
                     result.compression);
         return;
     }
     const auto& plan = *result.plan;
     if (m_coloured)
-        std::printf("%s: %s chunk %d, %d chunks, %d batches, up to %d thread "
+        op_printf("%s: %s chunk %d, %d chunks, %d batches, up to %d thread "
                     "colours, compression %.2fx\n",
                     m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
                     plan.chunks.count(), plan.batches.count(),
                     plan.max_thread_colours, plan.compression);
     else
-        std::printf("%s: %s chunk %d, %d chunks, %zu refs, %zu targets "
+        op_printf("%s: %s chunk %d, %d chunks, %zu refs, %zu targets "
                     "(%zu unstaged), compression %.2fx\n",
                     m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
                     plan.chunks.count(), plan.references, plan.distinct_targets,

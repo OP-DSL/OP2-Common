@@ -427,9 +427,8 @@ void Ladder::warn_forced(std::string_view reason) {
         return;
 
     m_warned.emplace_back(reason);
-    std::fprintf(stderr, "warning: %s passes over its forced strategy %s: %s\n",
-                 m_name.c_str(), std::string{(*this)[*m_forced].name()}.c_str(),
-                 m_warned.back().c_str());
+    env::warn("warning: " + m_name + " passes over its forced strategy " +
+              std::string{(*this)[*m_forced].name()} + ": " + m_warned.back() + "\n");
 }
 
 void Ladder::report(const Prepared& selection,
@@ -454,7 +453,7 @@ void Ladder::report(const Prepared& selection,
         return;
 
     m_reported.push_back(outcome);
-    std::printf("strategy: %s runs %s\n", m_name.c_str(), outcome.c_str());
+    op_printf("strategy: %s runs %s\n", m_name.c_str(), outcome.c_str());
 }
 
 // --- Teardown -----------------------------------------------------------------
