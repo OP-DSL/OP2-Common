@@ -448,11 +448,6 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
   }
 }
 
-void op_mpi_reset_halos(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
 void op_mpi_barrier() {}
 
 void *op_mpi_perf_time(const char *name, double time) {

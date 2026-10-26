@@ -102,7 +102,6 @@ OP2-Common/
 | `op_lib_cpp.h` | C++ template API (`op_decl_dat<T>`, `op_par_loop` with typed overloads) |
 | `op_seq.h` | Sequential/MPI-sequential `op_par_loop` inline implementation |
 | `op_rt_support.h` | Runtime plan data structures and low-level plan API |
-| `op_openmp_rt_support.h` | OpenMP-specific execution plan functions (`op_plan_get`) |
 | `op_cuda_rt_support.h` | CUDA runtime functions (device init, memory allocation/transfer) |
 | `op_cuda_reduction.h` | GPU reduction templates using shared memory (INC, MAX, MIN, WRITE) |
 | `op_gpu_shims.h` | Unified GPU shim layer mapping `gpu*` macros to CUDA or HIP |

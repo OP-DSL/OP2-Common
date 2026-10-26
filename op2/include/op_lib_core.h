@@ -370,9 +370,7 @@ void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
 
-void op_mpi_reset_halos(int nargs, op_arg *args);
 
-void op_mpi_reduce_combined(op_arg *args, int nargs);
 
 void op_mpi_reduce_float(op_arg *args, float *data);
 

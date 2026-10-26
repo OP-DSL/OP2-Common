@@ -112,12 +112,6 @@ cpu/loop.h             (includes: cpu/strategy.h, loop/loop.h; the loop the
 op_seq.h   (auto-generated, includes: op_lib_core.h)
 ```
 
-#### OpenMP layer
-```
-op_openmp_rt_support.h (includes: op_rt_support.h)
-```
-
-
 #### CUDA layer
 ```
 op_cuda_rt_support.h (includes: op_lib_core.h, op_rt_support.h)
@@ -141,8 +135,7 @@ op_mpi_unified_exchanges.h (includes: op_lib_core.h, op_lib_c.h, op_lib_mpi.h;
 op_mpi_unified_backend.h   (includes: op_mpi_unified_exchanges.h; the buffers
                             and exchange specifications a backend gives the
                             exchange driver)
-op_util.h                  (search, sort and zip helpers for halo
-                            construction)
+op_util.h                  (allocation, search and file helpers)
 ```
 
 #### HDF5 I/O

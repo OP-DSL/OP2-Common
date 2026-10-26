@@ -155,14 +155,6 @@ int linear_search(int a[], int value, int low, int high) {
 }
 
 /*******************************************************************************
-* Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
-*******************************************************************************/
-
-void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
-  std::sort(ZipIter(xs, ys), ZipIter(xs + n, ys + n));
-}
-
-/*******************************************************************************
 * Check if a file exists
 *******************************************************************************/
 int file_exist(char const *filename) {
