@@ -19,17 +19,11 @@
 #include <utility>
 #include <vector>
 
+#include "../test_support.h"
+
 namespace loop = op::loop;
 
 namespace {
-
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition))                                                       \
-            throw std::runtime_error(std::string("check failed: ") +          \
-                                     #condition + " at line " +               \
-                                     std::to_string(__LINE__));                 \
-    } while (false)
 
 constexpr auto later = loop::Urgency::later;
 constexpr auto now = loop::Urgency::now;

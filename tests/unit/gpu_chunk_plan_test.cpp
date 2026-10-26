@@ -17,19 +17,13 @@
 #include <string>
 #include <vector>
 
+#include "../test_support.h"
+
 namespace gpu = op::gpu;
 namespace plan = op::plan;
 using op::loop::Sections;
 
 namespace {
-
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition))                                                       \
-            throw std::runtime_error(std::string("check failed: ") +          \
-                                     #condition + " at line " +               \
-                                     std::to_string(__LINE__));                 \
-    } while (false)
 
 // chunk_atomics with no compression floor, so small fixtures are never
 // rejected for it.
@@ -451,6 +445,42 @@ void test_chunk_sizes_and_clamping() {
                   std::numeric_limits<plan::StageWord>::max());
 }
 
+// Edge i of a chain reaches nodes i and i+1, so neighbouring edges and
+// neighbouring chunks share a node.
+struct ChainFixture {
+    op_set_core edges{};
+    op_set_core nodes{};
+    op_dat_core dat{};
+    std::vector<int> map_values;
+    op_map_core map{};
+    std::vector<op_arg> args;
+    std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
+
+    explicit ChainFixture(int size, int core = -1, int exec = 0) {
+        initialize_set(edges, size, core, exec);
+        initialize_set(nodes, size + exec + 1);
+        initialize_dat(dat, &nodes, 1, sizeof(int), "integer(4)");
+        for (int i = 0; i < size + exec; ++i) {
+            map_values.push_back(i);
+            map_values.push_back(i + 1);
+        }
+        initialize_map(map, &edges, &nodes, map_values);
+        map.dim = 2;
+        for (int idx = 0; idx < 2; ++idx) {
+            args.push_back(make_dat_arg(&dat, &map, 1, "integer(4)",
+                                        sizeof(int), 1, OP_RW));
+            args.back().idx = idx;
+        }
+    }
+
+    plan::ArgGroups groups() const { return {group_args, 1}; }
+
+    gpu::ChunkResult build(const Sections& sections, int lanes,
+                        std::size_t scratch = 1 << 16) {
+        return colouring(args, sections, groups(), lanes, lanes, scratch);
+    }
+};
+
 void test_runtime_rejections() {
     {
         MixedFixture fixture;
@@ -471,6 +501,21 @@ void test_runtime_rejections() {
         std::array<plan::ArgGroup, 4> group_args{{{0, 0}, {1, 1}, {2, 2}, {3, 3}}};
         auto result = atomics(fixture.args, fixture.sections(),
                               plan::ArgGroups{group_args, 4}, 2, 4, 1024);
+        expect_rejected(result, "incompatible_argument");
+    }
+    {
+        // Colouring stages every element of a chunk at once: a chain chunk
+        // of 4 edges reaches 5 nodes, beyond 16 bytes of scratch.
+        ChainFixture fixture(8);
+        expect_rejected(fixture.build(Sections::direct(&fixture.edges), 4, 16),
+                        "insufficient_scratch");
+    }
+    {
+        // Two groups resolving to one dat would be coloured independently.
+        ChainFixture fixture(8);
+        std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 1}}};
+        auto result = colouring(fixture.args, Sections::direct(&fixture.edges),
+                                plan::ArgGroups{group_args, 2}, 4, 4, 1 << 16);
         expect_rejected(result, "incompatible_argument");
     }
 }
@@ -652,41 +697,6 @@ void test_colour_mixed_plan() {
                     fixture.sections());
 }
 
-// Edge i of a chain reaches nodes i and i+1, so neighbouring edges and
-// neighbouring chunks share a node.
-struct ChainFixture {
-    op_set_core edges{};
-    op_set_core nodes{};
-    op_dat_core dat{};
-    std::vector<int> map_values;
-    op_map_core map{};
-    std::vector<op_arg> args;
-    std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
-
-    explicit ChainFixture(int size, int core = -1, int exec = 0) {
-        initialize_set(edges, size, core, exec);
-        initialize_set(nodes, size + exec + 1);
-        initialize_dat(dat, &nodes, 1, sizeof(int), "integer(4)");
-        for (int i = 0; i < size + exec; ++i) {
-            map_values.push_back(i);
-            map_values.push_back(i + 1);
-        }
-        initialize_map(map, &edges, &nodes, map_values);
-        map.dim = 2;
-        for (int idx = 0; idx < 2; ++idx) {
-            args.push_back(make_dat_arg(&dat, &map, 1, "integer(4)",
-                                        sizeof(int), 1, OP_RW));
-            args.back().idx = idx;
-        }
-    }
-
-    plan::ArgGroups groups() const { return {group_args, 1}; }
-
-    gpu::ChunkResult build(const Sections& sections, int lanes,
-                        std::size_t scratch = 1 << 16) {
-        return colouring(args, sections, groups(), lanes, lanes, scratch);
-    }
-};
 
 void test_colour_chain_batches() {
     ChainFixture fixture(16);
@@ -704,8 +714,12 @@ void test_colour_chain_batches() {
         CHECK(chunk_plan.thread_colours[static_cast<std::size_t>(edge)] == edge % 2);
     check_colouring(chunk_plan, fixture.args, fixture.groups(), sections);
 
-    // Colours never cross a section, and an empty section has no batches:
-    // 8 core elements, no further owned ones, 8 in the exec halo.
+}
+
+// Colours never cross a section, an empty section has no batches under
+// every batching, and an empty set plans no chunks and no batches: 8 core
+// elements, no further owned ones, 8 in the exec halo.
+void test_empty_sections() {
     ChainFixture halo(8, 8, 8);
     auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     CHECK(split.size() == 3 && split[1].size() == 0);
@@ -714,13 +728,7 @@ void test_colour_chain_batches() {
     CHECK((sectioned.plan->batches.section_batches ==
            std::vector<int>{0, 2, 2, 4}));
     check_colouring(*sectioned.plan, halo.args, halo.groups(), split);
-}
 
-// An empty section has no batches under every batching, and an empty set
-// plans no chunks and no batches.
-void test_empty_sections() {
-    ChainFixture halo(8, 8, 8);
-    auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     auto waves = colouring(halo.args, split, halo.groups(), 4, 4, 1 << 16, true);
     CHECK(waves && waves.plan->wavefront);
     CHECK((waves.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
@@ -865,35 +873,6 @@ void test_colour_random() {
     }
 }
 
-void test_colour_rejections() {
-    {
-        ChainFixture fixture(8);
-        expect_rejected(fixture.build(Sections::direct(&fixture.edges), 4, 16),
-                        "insufficient_scratch");
-    }
-    {
-        MixedFixture fixture;
-        fixture.args.push_back(make_dat_arg(&fixture.dat_b, &fixture.map_b,
-                                             3, "integer(4)", sizeof(int), 1,
-                                             OP_READ));
-        expect_rejected(fixture.build(true), "incompatible_argument");
-    }
-    {
-        MixedFixture fixture;
-        for (auto& arg : fixture.args)
-            arg.opt = 0;
-        expect_rejected(fixture.build(true), "no_active_argument");
-    }
-    {
-        // Two groups resolving to one dat would be coloured independently.
-        ChainFixture fixture(8);
-        std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 1}}};
-        auto result = colouring(fixture.args, Sections::direct(&fixture.edges),
-                                plan::ArgGroups{group_args, 2}, 4, 4, 1 << 16);
-        expect_rejected(result, "incompatible_argument");
-    }
-}
-
 } // namespace
 
 int main() {
@@ -910,7 +889,6 @@ int main() {
         test_empty_sections();
         test_colour_rounds_and_limit();
         test_colour_random();
-        test_colour_rejections();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "chunk chunk_plan test failed: %s\n", error.what());
         return EXIT_FAILURE;

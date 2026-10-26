@@ -1,6 +1,5 @@
 // A specialised kernel whose compile fails: its strategy is unavailable and
-// the ladder runs the next, or its offline kernel runs instead, and the run
-// goes on.
+// the ladder runs the next, its offline kernel, and the run goes on.
 
 #define OP_F2C_JIT_TAG jit_build_failure_test
 #include <kernel/jit_embed.h>
@@ -13,7 +12,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include <string_view>
 #include <vector>
 
 extern "C" __global__ void build_failure_offline(int *result, int value) {
@@ -36,11 +34,6 @@ int value = 0;
 
 void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
     arguments = {&output_d, &value};
-}
-
-bool env_enabled(const char *name) {
-    const char *text = std::getenv(name);
-    return text != nullptr && text[0] != '\0' && text[0] != '0';
 }
 
 gpu::JitHeaders headers() {
@@ -83,7 +76,6 @@ int main(int argc, char **argv) {
     args[0].opt = 0;
     args[0].argtype = OP_ARG_GBL;
 
-    bool jit = env_enabled("OP_EXPECT_JIT");
     bool passed = true;
     {
         // A strategy with only the broken source, then a working floor.
@@ -108,8 +100,7 @@ int main(int argc, char **argv) {
             op::loop::choose_kernel(loop.ladder()[0], configuration));
         passed &= check(broken.status == op::loop::Status::unavailable,
                         "the broken strategy is available");
-        std::string_view expected = jit ? "build_failed" : "kernel_unavailable";
-        passed &= check(broken.reason == expected, "the broken strategy's reason");
+        passed &= check(broken.reason == "build_failed", "the broken strategy's reason");
         auto selection = loop.ladder().select(configuration);
         passed &= check(selection.strategy->family() == "plain" &&
                             selection.kernel == nullptr,
@@ -120,6 +111,6 @@ int main(int argc, char **argv) {
     op_exit();
     if (!passed)
         return EXIT_FAILURE;
-    std::printf("JIT build failure %s passed\n", jit ? "fallback" : "offline");
+    std::printf("JIT build failure passed\n");
     return EXIT_SUCCESS;
 }

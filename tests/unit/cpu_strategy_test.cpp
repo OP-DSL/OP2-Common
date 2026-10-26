@@ -17,19 +17,12 @@
 #include <string>
 #include <vector>
 
+#include "../test_support.h"
+
 namespace f2c = op::f2c;
 namespace cpu = op::cpu;
 
 namespace {
-
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition)) {                                                     \
-            std::fprintf(stderr, "check failed: %s at line %d\n",            \
-                         #condition, __LINE__);                                 \
-            std::exit(EXIT_FAILURE);                                            \
-        }                                                                       \
-    } while (false)
 
 constexpr int edges = 20000;
 constexpr int nodes = 3000;

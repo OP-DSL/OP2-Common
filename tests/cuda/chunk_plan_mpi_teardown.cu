@@ -10,16 +10,9 @@
 #include <cstdlib>
 #include <vector>
 
-namespace {
+#include "../test_support.h"
 
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition)) {                                                     \
-            std::fprintf(stderr, "check failed: %s at line %d\n",            \
-                         #condition, __LINE__);                                 \
-            std::exit(EXIT_FAILURE);                                            \
-        }                                                                       \
-    } while (false)
+namespace {
 
 void release_plan(void *owner) {
     static_cast<op::gpu::DevicePlan *>(owner)->release();

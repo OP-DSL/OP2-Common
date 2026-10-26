@@ -1,11 +1,14 @@
 // The chunk_atomics strategy in a loop with atomics as its floor: disabled
 // by default, forced through OP_STRATEGY, its plan cached per
-// configuration and rejected for the reasons the planner names.
+// configuration and rejected for the reasons the planner names, and a
+// launch staging more than the 48 KB of shared memory a kernel gets without
+// opting in.  Run offline (OP_JIT_LEVEL=0) and with every kernel compiled.
 
 #define OP_F2C_JIT_TAG chunk_strategy_test
 #include <kernel/jit_embed.h>
 
 #include <gpu/loop.h>
+#include <loop/jit.h>
 #include <loop/select.h>
 #include <op_lib_c.h>
 
@@ -14,6 +17,8 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
+
+#include "../test_support.h"
 
 extern "C" __global__ void chunk_strategy_baseline(int *result) {
     if (blockIdx.x == 0 && threadIdx.x == 0)
@@ -47,15 +52,6 @@ namespace {
 
 namespace gpu = op::gpu;
 
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition)) {                                                     \
-            std::fprintf(stderr, "check failed: %s at line %d\n",            \
-                         #condition, __LINE__);                                 \
-            std::exit(EXIT_FAILURE);                                            \
-        }                                                                       \
-    } while (false)
-
 constexpr char baseline_source[] = R"op2(
 extern "C" __global__ void chunk_strategy_baseline(int *result) {
     if (blockIdx.x == 0 && threadIdx.x == 0)
@@ -87,11 +83,6 @@ extern "C" __global__ void chunk_strategy_staged(
     }
 }
 )op2";
-
-bool env_enabled(const char *name) {
-    const char *value = std::getenv(name);
-    return value != nullptr && value[0] != '\0' && value[0] != '0';
-}
 
 int *output_d = nullptr;
 int last_shared_byte = 0;
@@ -234,6 +225,7 @@ int main(int argc, char **argv) {
     // Every source in one chunk.
     setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", "256", 1);
     op_init(argc, argv, 2);
+    const bool expect_jit = op::loop::jit_policy().level > 0;
 
     Fixture fixture;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
@@ -241,7 +233,8 @@ int main(int argc, char **argv) {
 
     bool saw_jit = false;
     {
-        // Disabled by default: atomics runs and no plan is built.
+        // Disabled by default: atomics runs, and the one plan is the one
+        // run() prepares itself.
         gpu::Loop dormant("chunk_strategy", "cuda", "Indirect", {false, false},
                           headers());
         add_strategies(dormant, fixture);
@@ -338,13 +331,45 @@ int main(int argc, char **argv) {
             CHECK(output[0] == -1);
         }
 
+        // A dim-64 dat whose 128 targets need 64 KB of staging, more than a
+        // launch gets without opting in.
+        {
+            Fixture large;
+            large.target.size = 128;
+            large.target.core_size = 128;
+            large.dat.dim = 64;
+            large.dat.size = 64 * sizeof(double);
+            large.args[0].dim = 64;
+            large.args[0].size = 64 * sizeof(double);
+            for (std::size_t i = 0; i < large.map_values.size(); ++i)
+                large.map_values[i] = static_cast<int>(i / 2);
+
+            gpuDeviceProp_t props;
+            int device = 0;
+            GPU_CHECK(gpuGetDevice(&device));
+            GPU_CHECK(gpuGetDeviceProperties(&props, device));
+            if (props.sharedMemPerBlockOptin <
+                static_cast<std::size_t>(large.shared_bytes())) {
+                std::printf("device allows under %d bytes of shared memory\n",
+                            large.shared_bytes());
+            } else {
+                last_shared_byte = large.shared_bytes() - 1;
+                gpu::Loop large_loop("chunk_strategy_large", "cuda", "Indirect",
+                                     {false, false}, headers());
+                add_strategies(large_loop, large);
+                auto large_outcome = run(large_loop, large);
+                CHECK(large_outcome.strategy == "chunk_atomics");
+                CHECK(large_outcome.max_blocks == 1);
+                CHECK(output[8] == 42);
+            }
+        }
+
         GPU_CHECK(gpuFree(output_d));
         output_d = nullptr;
         op_exit();
         CHECK(chunk.entries() == 0);
     }
 
-    bool expect_jit = env_enabled("OP_EXPECT_JIT");
     CHECK(saw_jit == expect_jit);
     std::printf("chunk strategy %s test passed\n", saw_jit ? "JIT" : "offline");
     return EXIT_SUCCESS;

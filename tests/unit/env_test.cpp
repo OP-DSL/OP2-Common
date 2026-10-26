@@ -11,17 +11,11 @@
 #include <string>
 #include <vector>
 
+#include "../test_support.h"
+
 namespace env = op::env;
 
 namespace {
-
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition))                                                       \
-            throw std::runtime_error(std::string("check failed: ") +          \
-                                     #condition + " at line " +               \
-                                     std::to_string(__LINE__));                 \
-    } while (false)
 
 bool unread(const char *variable) {
     auto names = env::unread();

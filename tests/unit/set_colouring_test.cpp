@@ -10,15 +10,9 @@
 #include <string>
 #include <vector>
 
-namespace {
+#include "../test_support.h"
 
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition))                                                       \
-            throw std::runtime_error(std::string("check failed: ") +          \
-                                     #condition + " at line " +               \
-                                     std::to_string(__LINE__));                 \
-    } while (false)
+namespace {
 
 op_arg make_dat_arg(op_dat dat, op_map map, int dim, op_access access) {
     op_arg arg{};

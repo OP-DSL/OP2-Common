@@ -4,7 +4,6 @@
 #include <loop/strategy.h>
 
 #include <array>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
@@ -14,17 +13,11 @@
 #include <string>
 #include <vector>
 
+#include "../test_support.h"
+
 namespace loop = op::loop;
 
 namespace {
-
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition))                                                       \
-            throw std::runtime_error(std::string("check failed: ") +          \
-                                     #condition + " at line " +               \
-                                     std::to_string(__LINE__));                 \
-    } while (false)
 
 struct Fake : loop::Strategy {
     std::string fake_name;
@@ -477,22 +470,6 @@ void test_release_registry() {
     CHECK(releases == 1);
 }
 
-// The fast path: a select with the ladder's first strategy ready.
-void time_selects() {
-    Fixture fixture;
-    auto config = configuration();
-    constexpr int count = 1000000;
-    auto start = std::chrono::steady_clock::now();
-    for (int i = 0; i < count; ++i) {
-        auto selection = fixture.ladder.select(config);
-        if (selection.strategy != fixture.atomics)
-            std::abort();
-    }
-    auto elapsed = std::chrono::steady_clock::now() - start;
-    std::printf("select: %.0f ns per call\n",
-                std::chrono::duration<double, std::nano>(elapsed).count() / count);
-}
-
 } // namespace
 
 int main() {
@@ -504,7 +481,6 @@ int main() {
         test_long_ladder();
         test_kernel_kinds();
         test_release_registry();
-        time_selects();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

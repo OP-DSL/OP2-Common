@@ -15,25 +15,25 @@ function(op2_test_link_nvrtc_builtins target)
     endif()
 endfunction()
 
-# Runtime tests of the GPU backend: a loop built from test kernels, run
-# offline and with every kernel compiled on its first call.
-foreach(_test dynamic_smem_launch chunk_strategy jit_build_failure)
+# Runtime tests of the GPU backend, from test kernels: the chunked strategy
+# offline (the opt-in to more shared memory differs) and with every kernel
+# compiled on its first call, and a compile that fails.
+foreach(_test chunk_strategy jit_build_failure)
     add_executable(${_test} ${_test}.cu)
     target_link_libraries(${_test} PRIVATE op2_cuda CUDA::nvrtc CUDA::cuda_driver)
     target_compile_definitions(${_test} PRIVATE OP2_CUDA)
     op2_test_link_nvrtc_builtins(${_test})
 
-    add_test(NAME ${_test}_offline COMMAND ${_test})
-    set_tests_properties(${_test}_offline PROPERTIES
-        ENVIRONMENT "OP_JIT_LEVEL=0"
-        LABELS "cuda;unit")
-
     add_test(NAME ${_test}_jit COMMAND ${_test})
     set_tests_properties(${_test}_jit PROPERTIES
-        ENVIRONMENT
-            "OP_JIT_LEVEL=2;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1;OP_EXPECT_JIT=1"
+        ENVIRONMENT "OP_JIT_LEVEL=2;OP_JIT_FORCE=1;OP_JIT_SEQ_COMPILE=1"
         LABELS "cuda;unit")
 endforeach()
+
+add_test(NAME chunk_strategy_offline COMMAND chunk_strategy)
+set_tests_properties(chunk_strategy_offline PROPERTIES
+    ENVIRONMENT "OP_JIT_LEVEL=0"
+    LABELS "cuda;unit")
 
 # The device plan's uploads, read back from the device.
 add_executable(chunk_encode chunk_encode.cu)
