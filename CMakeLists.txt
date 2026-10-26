@@ -29,6 +29,7 @@ option(OP2_ENABLE_HDF5       "Build HDF5 I/O library variants"              ON)
 option(OP2_ENABLE_FORTRAN    "Build Fortran binding libraries"              ON)
 option(OP2_ENABLE_APPS       "Build the example apps under apps/"           OFF)
 option(OP2_ENABLE_TESTS      "Build the functional unit tests under tests/" OFF)
+option(OP2_ENABLE_APP_TESTS  "Also test the example apps against downloaded meshes" OFF)
 option(OP2_ENABLE_TRANSLATOR "Enable the OP2 translator (needs Python 3)"    ON)
 
 # OFF by default as a subproject, on the assumption the parent owns packaging.
