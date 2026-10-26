@@ -40,6 +40,9 @@ using IndexType = int;
 template<typename U> struct is_const_type { static constexpr bool value = false; };
 template<typename U> struct is_const_type<const U> { static constexpr bool value = true; };
 
+template<typename A, typename B> struct is_same_type { static constexpr bool value = false; };
+template<typename A> struct is_same_type<A, A> { static constexpr bool value = true; };
+
 template<typename U> struct is_integer_type { static constexpr bool value = false; };
 template<> struct is_integer_type<int> { static constexpr bool value = true; };
 template<> struct is_integer_type<int64_t> { static constexpr bool value = true; };
@@ -73,6 +76,8 @@ DEVICE constexpr const T *param_value(const T (&baked)[N], const T *) {
     return baked;
 }
 
+// A kernel argument's data and the stride between its components.  A
+// translated C++ kernel only indexes or dereferences it, or passes it on.
 template<typename T>
 struct Ptr {
     T* data;
@@ -81,12 +86,13 @@ struct Ptr {
     constexpr Ptr(T* data) : data{data} {}
     constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
 
-    // Component i, as a translated C++ kernel indexes an increment target.
-    constexpr T& operator[](IndexType i) const { return data[i * stride]; }
+    // A Ptr to const from one to the same type.
+    template<typename U, typename = typename enable_if<is_same_type<const U, T>::value &&
+                                                       !is_const_type<U>::value>::type>
+    constexpr Ptr(const Ptr<U>& other) : data{other.data}, stride{other.stride} {}
 
-    // Excluded when T is already const, else this is a conversion to its own type (nvcc #554-D)
-    template<typename U = T, typename = typename enable_if<!is_const_type<U>::value>::type>
-    constexpr operator Ptr<const T>() const { return Ptr<const T>{data, stride}; }
+    constexpr T& operator[](IndexType i) const { return data[i * stride]; }
+    constexpr T& operator*() const { return data[0]; }
 };
 
 struct Extent {
