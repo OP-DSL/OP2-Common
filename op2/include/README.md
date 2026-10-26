@@ -127,10 +127,26 @@ op_cuda_reduction.h  (has to be kept separate becuase of FORTRAN layer)
 
 #### MPI support
 ```
-op_hdf5.h            (obsolete?)
-op_lib_mpi.h         (include op_lib_core.h, op_rt_support.h, op_mpi_core.h, op_hdf5.h)
-op_mpi_core.h
-op_mpi_hdf5.h
-op_mpi_seq.h         (includes: op_lib_core.h, op_rt_support.h)
-op_util.h
+op_lib_mpi.h               (includes: op_lib_core.h, op_mpi_core.h; the MPI
+                            library's entry points)
+op_mpi_core.h              (the halo and partition records the MPI backends
+                            share, the communicators and reductions)
+op_mpi_halo.h              (includes: op_lib_core.h, op_mpi_core.h; the halo
+                            lists op_halo_create builds)
+op_mpi_comm.h              (the sparse data exchange (NBX) halo construction
+                            uses to find what each rank receives)
+op_mpi_unified_exchanges.h (includes: op_lib_core.h, op_lib_c.h, op_lib_mpi.h;
+                            the halo exchange's gathers and scatters, compiled
+                            for the host and the device)
+op_mpi_unified_backend.h   (includes: op_mpi_unified_exchanges.h; the buffers
+                            and exchange specifications a backend gives the
+                            exchange driver)
+op_util.h                  (search, sort and zip helpers for halo
+                            construction)
+```
+
+#### HDF5 I/O
+```
+op_hdf5.h  (op_decl_*_hdf5, op_get_const_hdf5, op_dump_to_hdf5; from
+            src/externlib/op_hdf5.cpp, src/mpi/op_mpi_hdf5.cpp under MPI)
 ```

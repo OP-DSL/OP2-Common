@@ -9,9 +9,8 @@ Overview
 The current OP2 eDSL supports generating code targeting multiple architectures: 
 
 * **Multi-core CPUs** with SIMD vectorisation and OpenMP threading
-* **Many-core GPUs** using CUDA, HIP, or OpenMP offloading
+* **Many-core GPUs** using CUDA or HIP
 * **Distributed-memory clusters** using MPI
-* **Experimental support** for SYCL-enabled GPUs
 
 OP2 has been used to accelerate a range of computational fluid dynamics (CFD) applications, including full-scale, industrial-grade simulations.
 

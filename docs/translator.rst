@@ -51,7 +51,7 @@ Key options:
    * - Option
      - Description
    * - ``-t <target>``, ``--target <target>``
-     - Code-generation target (see `Targets`_ below). Can be specified multiple times to generate several targets in a single invocation.
+     - Code-generation target (see :ref:`translator:c/c++ targets` and :ref:`translator:fortran targets` below). Can be specified multiple times to generate several targets in a single invocation.
    * - ``-o <dir>``, ``--out <dir>``
      - Output directory for generated files. Defaults to the directory of the first input source file.
    * - ``-soa``, ``--force_soa``
@@ -237,10 +237,10 @@ Legacy Translator
 The v1 translator is a collection of standalone Python scripts located in ``translator/c/`` (C/C++) and ``translator/fortran/`` (Fortran). Each script targets a single parallelisation strategy.
 
 .. note::
-   The legacy translator is retained for compatibility. For new projects, use the :ref:`OP2 Translator <OP2 Translator>`.
+   The legacy translator is retained for compatibility. For new projects, use the :ref:`OP2 Translator <translator:op2 translator>`.
 
-C/C++ Targets
-^^^^^^^^^^^^^
+Legacy C/C++ Targets
+^^^^^^^^^^^^^^^^^^^^
 
 Scripts are located in ``translator/c/``. To use, uncomment the desired generator inside ``op2.py`` and invoke:
 
@@ -274,8 +274,8 @@ Available generators:
    * - ``op2_gen_openacc.py``
      - OpenACC
 
-Fortran Targets
-^^^^^^^^^^^^^^^
+Legacy Fortran Targets
+^^^^^^^^^^^^^^^^^^^^^^
 
 Scripts are located in ``translator/fortran/``. To use, uncomment the desired generator inside ``op2_fortran.py`` and invoke:
 

@@ -702,41 +702,17 @@ The following parallel versions will be generated from the code generator. These
   #On 4 mpi procs with each proc running 8 OpenMP threads
   export OMP_NUM_THREADS=8; $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
-(4) Code-gen SIMD vectorized and MPI + Code-gen SIMD vectorized, on 4 MPI
-
-.. code-block:: bash
-
-  #SIMD vec
-  ./airfoil_vec
-  #On 4 mpi procs with each proc running SIMD vec
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_vec
-
-(5) Code-gen CUDA with mini-partition size of 128 and CUDA thread-block size of 192 and MPI + Code-gen CUDA
+(4) Code-gen CUDA and MPI + Code-gen CUDA, with a thread-block size of 192: the JIT build (``airfoil_cuda``) takes its block size from the environment, the legacy one (``airfoil_cuda_legacy``) as an argument with its mini-partition size
 
 .. code-block:: bash
 
   #On a single GPU
-  ./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+  OP_BLOCK_SIZES=192 ./airfoil_cuda
+  ./airfoil_cuda_legacy OP_PART_SIZE=128 OP_BLOCK_SIZE=192
   #On 4 mpi procs, each proc having a GPU
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+  OP_BLOCK_SIZES=192 $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_cuda
 
-(6) MPI + Code-gen hybrid CUDA with mini-partition size of 128 and CUDA thread-block size of 192
-
-  The hybrid version can be run on both CPUs and GPUs at the same time. If there is only 4 GPUs are available the following execution will allocated 4 MPI procs to be run on 4 GPUs and 8 MPI procs allocated to the remaining CPU cores.
-
-.. code-block:: bash
-
-  #On 12 mpi procs
-  $MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-
-(7) Code-gen OpenACC with mini-partition size of 128 and thread-block size of 192 and MPI + Code-gen OpenACC
-
-.. code-block:: bash
-
-  #On a single GPU
-  ./airfoil_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-  #On 4 mpi procs, each proc having a GPU
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+The HIP builds (``airfoil_hip``, ``airfoil_hip_legacy``) run the same way.  See :ref:`strategies` for how the JIT builds choose and tune each loop's execution strategy.
 
 
 Optimizations

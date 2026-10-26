@@ -39,12 +39,37 @@ An alternative **two-level colouring** strategy (``color2`` mode) is also availa
 
 The strategy is selected at code-generation time; the default is ``atomics=True, color2=False``.
 
-The JIT GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``) instead generate a kernel for every strategy a loop can run and choose among them at run time (``OP_STRATEGY``, ``OP_AUTOTUNE``): ``plain``, ``atomics`` (an atomic add per increment), ``colouring``, and the JIT-only ``chunk_atomics`` and ``chunk_colouring``, which stage a chunk's targets in shared memory.  The translated kernel applies each increment through ``op2_inc``, which each strategy's generated code defines.
+The JIT GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``) and ``openmp_f2c`` instead generate a kernel for every strategy a loop can run and choose among them at run time, as the next section describes.
 
 Renumbering
 ~~~~~~~~~~~
 
 Breaking the execution set into contiguous blocks is good for direct datasets (they will be in contiguous memory, giving coalesced transfers), but for indirect datasets each mini-partition should ideally reference elements held close together in graphics memory.  OP2 therefore provides an optional renumbering step — for example, recursive coordinate bisection — to improve data locality so that neighbouring elements have proximate memory locations.
+
+Loop Strategies
+---------------
+
+The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c`` and ``openmp_f2c`` targets run each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
+
+``loop/``
+    Backend-neutral control.  A loop's *ladder* holds its strategies in order, runs the first that is enabled and ready for a call's *configuration* (its set, run size and arguments), and falls back to the last.  The *autotuner* times every candidate for a configuration under ``OP_AUTOTUNE``.  The JIT's policy decides when a kernel is specialised on the values a loop's parameters take and which stay at run time, and caches the built kernels.  Each strategy gives the ladder a cost estimate for its offline and JIT kernels, and ``loop/select.h`` chooses from those alone: hardware facts stay in the backends.
+
+``plan/``
+    Algorithms with no device knowledge: the set colouring, the chunks of a call's sections and their targets, coloured batches and the wavefront order, and the staging of a chunk's targets in scratch slots.
+
+``gpu/``, ``cpu/``
+    The *backends*: each composes the planning blocks under its own limits and encodings (``gpu/chunk_plan.h``, ``cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and launches the kernels, compiling JIT ones with NVRTC or hipRTC (GPU) or running host threads (CPU).
+
+``kernel/``
+    What a translated kernel compiles against, offline or JIT: ``prelude.h`` (the pointer and array wrappers and the Fortran intrinsics) and ``strategy.h`` (the increment hooks ``op2_inc`` resolves to and the chunked strategies' staging helpers).
+
+The translator emits, per loop, the translated kernel once per strategy namespace with that strategy's ``op2_inc``, a wrapper per strategy (the chunked ones as JIT source only), and a registration of every valid strategy, its argument groups and the parameters the JIT may specialise on; the runtime does the rest.  Each increment of an indirect ``OP_INC`` argument becomes an ``op2_inc`` call, so the kernel is the same for every strategy.
+
+Terms that mean more than one thing elsewhere:
+
+* **backend**: in this layer, the device code under ``gpu/`` or ``cpu/``; the halo exchanges' *transport* (MPI with host staging or GPU-direct) is separate.
+* **variant**: a build of an application for one target (``airfoil_cuda``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy at one value of each of its axes.
+* **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;block_size=64;chunk_size=128;singles=off``).
 
 Plan Construction (``op_plan_core``)
 --------------------------------------
@@ -219,7 +244,7 @@ In either case, the initial distribution serves only as an input convention; OP2
 Runtime arguments
 ~~~~~~~~~~~~~~~~~
 
-Several runtime behaviours are controlled by arguments passed to ``op_init`` (parsed by ``op_set_args``), or by the equivalent environment variables:
+Several runtime behaviours are controlled by arguments passed to ``op_init`` (parsed by ``op_set_args``); the environment variables ``op_init`` reads are listed in :doc:`api`:
 
 .. list-table::
    :header-rows: 1
@@ -228,23 +253,21 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
    * - Argument
      - Effect
    * - ``OP_BLOCK_SIZE=<n>``
-     - CUDA/HIP thread-block size override.
+     - Thread-block size of the legacy targets (``cuda_legacy``, ``hip_legacy``); the strategy targets take ``OP_BLOCK_SIZES`` from the environment (see :ref:`strategies`).
    * - ``OP_PART_SIZE=<n>``
-     - Partition size (mini-partition element count) override.
+     - Mini-partition size of the legacy targets' ``op_plan``; the chunked strategies take ``OP_CHUNK_SIZES``.
    * - ``OP_CACHE_LINE_SIZE=<n>``
-     - Cache line size assumption used in plan construction.
+     - Cache line size assumption used in ``op_plan`` construction.
    * - ``OP_NO_REALLOC``
      - Disables internal data copy on ``op_decl_dat``/``op_decl_map``; the user's pointer is used directly.
    * - ``OP_TEST_FREQ=<n>``
      - Frequency of ``MPI_Test`` polling during computation-communication overlap.
-   * - ``OP_GPU_DIRECT=<on|off>``
-     - Environment variable only.  Overrides the automatic GPU-direct MPI detection: ``on`` (or ``1``) forces device pointers to be handed to MPI, ``off`` (or ``0``) forces staging through host memory.  Without it OP2 detects support at ``op_init``; see :ref:`perf`.
    * - ``OP_AUTO_SOA``
-     - Automatically convert all dataset storage to SoA layout on the device.
+     - Store every dataset of dimension above 1 as SoA on the device (also an environment variable).
    * - ``OP_PARTIAL_EXCHANGE``
      - Enable partial MPI halo exchange (per-mapping halos instead of full set halos).
    * - ``OP_HYBRID_BALANCE=<f>``
-     - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs.  Can also be set via the ``OP_HYBRID_BALANCE`` environment variable.
+     - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs (also an environment variable).
    * - ``OP_MAPS_BASE_INDEX=<0|1>``
      - Mapping table base index: 0 (C/C++ default) or 1 (Fortran-style).
    * - ``OP_CUDA_REDUCTIONS_MIB=<n>``

@@ -104,13 +104,13 @@ If you are using CUDA or HIP, you may also specify a comma separated list of tar
 Application Build Variants
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When building an application, the following parallelisation variants are available as Make targets:
+When building an application, each parallelisation variant is a Make target ``<app>_<variant>`` (``<app>_mpi_<variant>`` with MPI), for example ``airfoil_cuda``:
 
 .. list-table::
    :header-rows: 1
    :widths: 20 80
 
-   * - Target
+   * - Variant
      - Description
    * - ``seq``
      - Single-threaded sequential build using the developer sequential library.
@@ -127,47 +127,49 @@ When building an application, the following parallelisation variants are availab
    * - ``hip_legacy``
      - AMD GPU build from the legacy templates (translator-v2 ``hip_legacy`` target, ahead-of-time compiled).
    * - ``mpi_<variant>``
-     - Distributed-memory MPI variant of any of the above (e.g. ``mpi_cuda``, ``mpi_hip``). Requires an MPI-enabled OP2 library build.
+     - Distributed-memory MPI variant of any of the above (e.g. ``airfoil_mpi_cuda``). Requires an MPI-enabled OP2 library build.
 
 For example, to build the JIT CUDA variant of the Airfoil benchmark:
 
 .. code-block:: shell
 
-   make -C apps/c/airfoil/airfoil_plain/dp cuda
+   make -C apps/c/airfoil/airfoil_plain/dp airfoil_cuda
 
 See :doc:`translator` for details on how to generate the required source files for each variant.
 
 Fortran Application Build Variants
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Fortran application variants are prefixed with ``f_``:
+Fortran application variants are Make targets ``<app>_<variant>`` too:
 
 .. list-table::
    :header-rows: 1
    :widths: 20 80
 
-   * - Target
+   * - Variant
      - Description
-   * - ``f_seq``
-     - Sequential Fortran build.
-   * - ``f_openmp``
+   * - ``seq``
+     - Sequential Fortran build using the reference library.
+   * - ``genseq``
+     - Code-generated sequential Fortran build.
+   * - ``openmp``
      - OpenMP multi-threaded Fortran build.
-   * - ``f_cuda_legacy``
+   * - ``cuda_legacy``
      - Native CUDA Fortran build from the legacy templates. Requires a CUDA Fortran-capable compiler (NVHPC).
-   * - ``f_seq_f2c``
+   * - ``seq_f2c``
      - Fortran interop with sequential C++ kernels.
-   * - ``f_cuda_f2c``
+   * - ``cuda_f2c``
      - Fortran interop with JIT CUDA kernels (recommended GPU target for Fortran).
-   * - ``f_hip_f2c``
+   * - ``hip_f2c``
      - Fortran interop with JIT HIP kernels.
-   * - ``f_mpi_<variant>``
+   * - ``mpi_<variant>``
      - Distributed-memory MPI variant of any of the above.
 
 For example, to build the Fortran Airfoil benchmark with JIT CUDA:
 
 .. code-block:: shell
 
-   make -C apps/fortran/airfoil f_cuda_f2c
+   make -C apps/fortran/airfoil airfoil_plain_cuda_f2c
 
 See :ref:`op2-fortran-api` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
    
