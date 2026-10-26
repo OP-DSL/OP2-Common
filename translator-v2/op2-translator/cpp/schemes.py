@@ -5,12 +5,8 @@ import op as OP
 from language import Lang
 from scheme import Scheme
 from store import Application, ParseError, Program
+from strategy import indirectRW
 from target import Target
-
-
-def indirectRW(loop: OP.Loop) -> bool:
-    return any(isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW
-               for arg in loop.args)
 
 
 # Atomics serve only the increments: a loop that reads and writes an indirect
