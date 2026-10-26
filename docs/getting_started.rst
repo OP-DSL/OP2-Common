@@ -119,21 +119,21 @@ When building an application, the following parallelisation variants are availab
    * - ``openmp``
      - Multi-threaded CPU build using OpenMP.
    * - ``cuda``
-     - NVIDIA GPU build using CUDA (translator-v2 ``cuda`` target, ahead-of-time compiled).
+     - NVIDIA GPU build using CUDA with JIT compilation (translator-v2 ``cuda`` target). Device kernels are compiled at application start-up using NVRTC, enabling runtime specialisation.
    * - ``hip``
-     - AMD GPU build using HIP (translator-v2 ``hip`` target, ahead-of-time compiled).
-   * - ``c_cuda``
-     - NVIDIA GPU build using CUDA with JIT compilation (translator-v2 ``c_cuda`` target). Device kernels are compiled at application start-up using NVRTC, enabling runtime specialisation.
-   * - ``c_hip``
-     - AMD GPU build using HIP with JIT compilation (translator-v2 ``c_hip`` target). Device kernels are compiled at application start-up using the HIP RTC library.
+     - AMD GPU build using HIP with JIT compilation (translator-v2 ``hip`` target). Device kernels are compiled at application start-up using the HIP RTC library.
+   * - ``cuda_legacy``
+     - NVIDIA GPU build from the legacy templates (translator-v2 ``cuda_legacy`` target, ahead-of-time compiled).
+   * - ``hip_legacy``
+     - AMD GPU build from the legacy templates (translator-v2 ``hip_legacy`` target, ahead-of-time compiled).
    * - ``mpi_<variant>``
-     - Distributed-memory MPI variant of any of the above (e.g. ``mpi_cuda``, ``mpi_c_hip``). Requires an MPI-enabled OP2 library build.
+     - Distributed-memory MPI variant of any of the above (e.g. ``mpi_cuda``, ``mpi_hip``). Requires an MPI-enabled OP2 library build.
 
 For example, to build the JIT CUDA variant of the Airfoil benchmark:
 
 .. code-block:: shell
 
-   make -C apps/c/airfoil/airfoil_plain/dp c_cuda
+   make -C apps/c/airfoil/airfoil_plain/dp cuda
 
 See :doc:`translator` for details on how to generate the required source files for each variant.
 
@@ -152,13 +152,13 @@ Fortran application variants are prefixed with ``f_``:
      - Sequential Fortran build.
    * - ``f_openmp``
      - OpenMP multi-threaded Fortran build.
-   * - ``f_cuda``
-     - Native CUDA Fortran build. Requires a CUDA Fortran-capable compiler (NVHPC).
-   * - ``f_c_seq``
+   * - ``f_cuda_legacy``
+     - Native CUDA Fortran build from the legacy templates. Requires a CUDA Fortran-capable compiler (NVHPC).
+   * - ``f_seq_f2c``
      - Fortran interop with sequential C++ kernels.
-   * - ``f_c_cuda``
+   * - ``f_cuda_f2c``
      - Fortran interop with JIT CUDA kernels (recommended GPU target for Fortran).
-   * - ``f_c_hip``
+   * - ``f_hip_f2c``
      - Fortran interop with JIT HIP kernels.
    * - ``f_mpi_<variant>``
      - Distributed-memory MPI variant of any of the above.
@@ -167,7 +167,7 @@ For example, to build the Fortran Airfoil benchmark with JIT CUDA:
 
 .. code-block:: shell
 
-   make -C apps/fortran/airfoil f_c_cuda
+   make -C apps/fortran/airfoil f_cuda_f2c
 
 See :ref:`op2-fortran-api` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
    

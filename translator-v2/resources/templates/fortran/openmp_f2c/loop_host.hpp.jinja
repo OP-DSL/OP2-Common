@@ -11,7 +11,7 @@
 {%- set args_per_thread = lh.args|gbl|select2("reduction", "work")|list + lh.args|info|list -%}
 
 {#- chunk_atomics' argument groups (fortran/schemes.py chunkGroups), as the
-    c_cuda target groups them; the runtime stages them in the regions the
+    cuda_f2c target groups them; the runtime stages them in the regions the
     staged body lays out.  chunk_colouring needs none: it colours by the
     call's updated dats. -#}
 {%- set groups = config.chunk_groups -%}
@@ -241,7 +241,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::cpu::Loop& loop) {
 
 static op::cpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
     static op::cpu::Loop loop(
-        "{{lh.name}}", "c_OpenMP", "{{variant_str()}}",
+        "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
         op::cpu::LoopDescription{ {{"true" if lh is direct else "false"}} });
     static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
     (void)registered;

@@ -9,7 +9,7 @@ FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
 APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%.F90)
 
-BASE_VARIANTS := seq genseq openmp cuda c_seq c_cuda c_hip
+BASE_VARIANTS := seq genseq openmp cuda_legacy seq_f2c cuda_f2c hip_f2c
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -24,19 +24,19 @@ ifeq ($(HAVE_F),true)
   endif
 
   ifeq ($(F_HAS_CUDA),true)
-    BUILDABLE_VARIANTS += cuda
+    BUILDABLE_VARIANTS += cuda_legacy
   endif
 
   ifeq ($(HAVE_C),true)
-    BUILDABLE_VARIANTS += c_seq
+    BUILDABLE_VARIANTS += seq_f2c
   endif
 
   ifeq ($(HAVE_CUDA),true)
-    BUILDABLE_VARIANTS += c_cuda
+    BUILDABLE_VARIANTS += cuda_f2c
   endif
 
   ifeq ($(HAVE_HIP),true)
-    BUILDABLE_VARIANTS += c_hip
+    BUILDABLE_VARIANTS += hip_f2c
   endif
 
   ifeq ($(HAVE_MPI_F),true)
@@ -111,14 +111,14 @@ SEQ_SRC := $(APP_SRC)
 
 $(eval $(call SRC_template,genseq,seq,F90))
 $(eval $(call SRC_template,openmp,openmp,F90))
-$(eval $(call SRC_template,cuda,cuda,F90))
-$(eval $(call SRC_template,c_seq,c_seq,F90))
-$(eval $(call SRC_template,c_cuda,c_cuda,F90))
-$(eval $(call SRC_template,c_hip,c_hip,F90))
+$(eval $(call SRC_template,cuda_legacy,cuda_legacy,F90))
+$(eval $(call SRC_template,seq_f2c,seq_f2c,F90))
+$(eval $(call SRC_template,cuda_f2c,cuda_f2c,F90))
+$(eval $(call SRC_template,hip_f2c,hip_f2c,F90))
 
-C_SEQ_SRC += generated/$(APP_NAME)/c_seq/op2_kernels.o
-C_CUDA_SRC += generated/$(APP_NAME)/c_cuda/op2_kernels.o
-C_HIP_SRC += generated/$(APP_NAME)/c_hip/op2_kernels.o
+SEQ_F2C_SRC += generated/$(APP_NAME)/seq_f2c/op2_kernels.o
+CUDA_F2C_SRC += generated/$(APP_NAME)/cuda_f2c/op2_kernels.o
+HIP_F2C_SRC += generated/$(APP_NAME)/hip_f2c/op2_kernels.o
 
 include $(MAKEFILES_DIR)/lib_helpers.mk
 
@@ -143,7 +143,7 @@ define RULE_template =
 $(call RULE_template_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
 endef
 
-define RULE_template_c_cuda_base =
+define RULE_template_cuda_f2c_base =
 $(APP_NAME)_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME)) | mod/$(APP_NAME)/$(1)
 	$$(FC) $$(FFLAGS) $(2) $(APP_EXTRA_FLAGS) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
 		$($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_FOR_$(3)) $$(CXXLINK) $(CUDA_LIB) -o $$@
@@ -153,11 +153,11 @@ $(APP_NAME)_mpi_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME)) | mod/$
 		$($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_FOR_$(4)) $$(CXXLINK) $(CUDA_LIB) -o $$@
 endef
 
-define RULE_template_c_cuda =
-$(call RULE_template_c_cuda_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
+define RULE_template_cuda_f2c =
+$(call RULE_template_cuda_f2c_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
 endef
 
-define RULE_template_c_hip_base =
+define RULE_template_hip_f2c_base =
 $(APP_NAME)_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME)) | mod/$(APP_NAME)/$(1)
 	$$(FC) $$(FFLAGS) $(2) $(APP_EXTRA_FLAGS) $$(F_MOD_OUT_OPT)$$| $(5) $$(OP2_MOD) \
 		$($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_FOR_$(3)) $$(CXXLINK) $(HIP_LIB) -o $$@
@@ -167,54 +167,54 @@ $(APP_NAME)_mpi_$(1): $(if $(filter-out seq,$(1)),generated/$(APP_NAME)) | mod/$
 		$($(call UPPERCASE,$(1))_SRC) $(OP2_LIB_FOR_$(4)) $$(CXXLINK) $(HIP_LIB) -o $$@
 endef
 
-define RULE_template_c_hip =
-$(call RULE_template_c_hip_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
+define RULE_template_hip_f2c =
+$(call RULE_template_hip_f2c_base,$(strip $(1)),$(strip $(2)),$(strip $(3)),$(strip $(4)),$(strip $(5)))
 endef
 
 # Standard variants
 $(eval $(call RULE_template,        seq,,                   SEQ,     MPI,))
 $(eval $(call RULE_template,        genseq,,                SEQ,     MPI,))
 $(eval $(call RULE_template,        openmp, $(OMP_FFLAGS),  OPENMP,  MPI,))
-$(eval $(call RULE_template,        cuda,   $(CUDA_FFLAGS), CUDA,    MPI_CUDA, $(OP2_MOD_CUDA)))
-$(eval $(call RULE_template,        c_seq,,                 SEQ,     MPI,))
-$(eval $(call RULE_template_c_cuda, c_cuda, $(CUDA_FFLAGS), CUDA,    MPI_CUDA,))
-$(eval $(call RULE_template_c_hip,  c_hip,  $(HIP_FFLAGS),  HIP,     MPI_HIP,))
+$(eval $(call RULE_template,        cuda_legacy, $(CUDA_FFLAGS), CUDA, MPI_CUDA, $(OP2_MOD_CUDA)))
+$(eval $(call RULE_template,        seq_f2c,,                 SEQ,     MPI,))
+$(eval $(call RULE_template_cuda_f2c, cuda_f2c, $(CUDA_FFLAGS), CUDA,    MPI_CUDA,))
+$(eval $(call RULE_template_hip_f2c,  hip_f2c,  $(HIP_FFLAGS),  HIP,     MPI_HIP,))
 
-# C++ build for c_seq
-define C_SEQ_EXTRA_RULES_template =
-$(APP_NAME)_c_seq: generated/$(APP_NAME)/c_seq/op2_kernels.o
-$(APP_NAME)_mpi_c_seq: generated/$(APP_NAME)/c_seq/op2_kernels.o
+# C++ build for seq_f2c
+define SEQ_F2C_EXTRA_RULES_template =
+$(APP_NAME)_seq_f2c: generated/$(APP_NAME)/seq_f2c/op2_kernels.o
+$(APP_NAME)_mpi_seq_f2c: generated/$(APP_NAME)/seq_f2c/op2_kernels.o
 
-generated/$(APP_NAME)/c_seq/op2_kernels.o: generated/$(APP_NAME)
+generated/$(APP_NAME)/seq_f2c/op2_kernels.o: generated/$(APP_NAME)
 	$$(CXX) $$(CXXFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) \
-	    -c generated/$(APP_NAME)/c_seq/op2_kernels_aux1.cpp -o $$@
+	    -c generated/$(APP_NAME)/seq_f2c/op2_kernels_aux1.cpp -o $$@
 endef
 
-$(eval $(call C_SEQ_EXTRA_RULES_template))
+$(eval $(call SEQ_F2C_EXTRA_RULES_template))
 
-# NVCC build for c_cuda
-define C_CUDA_EXTRA_RULES_template =
-$(APP_NAME)_c_cuda: generated/$(APP_NAME)/c_cuda/op2_kernels.o
-$(APP_NAME)_mpi_c_cuda: generated/$(APP_NAME)/c_cuda/op2_kernels.o
+# NVCC build for cuda_f2c
+define CUDA_F2C_EXTRA_RULES_template =
+$(APP_NAME)_cuda_f2c: generated/$(APP_NAME)/cuda_f2c/op2_kernels.o
+$(APP_NAME)_mpi_cuda_f2c: generated/$(APP_NAME)/cuda_f2c/op2_kernels.o
 
-generated/$(APP_NAME)/c_cuda/op2_kernels.o: generated/$(APP_NAME)
+generated/$(APP_NAME)/cuda_f2c/op2_kernels.o: generated/$(APP_NAME)
 	$$(NVCC) $$(NVCCFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) -DOP2_CUDA \
-	    -c generated/$(APP_NAME)/c_cuda/op2_kernels_aux1.cu -o $$@
+	    -c generated/$(APP_NAME)/cuda_f2c/op2_kernels_aux1.cu -o $$@
 endef
 
-$(eval $(call C_CUDA_EXTRA_RULES_template))
+$(eval $(call CUDA_F2C_EXTRA_RULES_template))
 
-# HIPCC build for c_hip
-define C_HIP_EXTRA_RULES_template =
-$(APP_NAME)_c_hip: generated/$(APP_NAME)/c_hip/op2_kernels.o
-$(APP_NAME)_mpi_c_hip: generated/$(APP_NAME)/c_hip/op2_kernels.o
+# HIPCC build for hip_f2c
+define HIP_F2C_EXTRA_RULES_template =
+$(APP_NAME)_hip_f2c: generated/$(APP_NAME)/hip_f2c/op2_kernels.o
+$(APP_NAME)_mpi_hip_f2c: generated/$(APP_NAME)/hip_f2c/op2_kernels.o
 
-generated/$(APP_NAME)/c_hip/op2_kernels.o: generated/$(APP_NAME)
+generated/$(APP_NAME)/hip_f2c/op2_kernels.o: generated/$(APP_NAME)
 	$$(HIPCC) $$(HIPCCFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) -DOP2_HIP \
-	    -c generated/$(APP_NAME)/c_hip/op2_kernels_aux1.hip.cpp -o $$@
+	    -c generated/$(APP_NAME)/hip_f2c/op2_kernels_aux1.hip.cpp -o $$@
 endef
 
-$(eval $(call C_HIP_EXTRA_RULES_template))
+$(eval $(call HIP_F2C_EXTRA_RULES_template))
 
 # Reset optional input variables for following includes of this Makefile
 VARIANT_FILTER := %

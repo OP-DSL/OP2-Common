@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
     bool saw_jit = false;
     {
         // Disabled by default: atomics runs and no plan is built.
-        gpu::Loop dormant("chunk_strategy", "c_CUDA", "Indirect", {false, false},
+        gpu::Loop dormant("chunk_strategy", "cuda", "Indirect", {false, false},
                           headers());
         add_strategies(dormant, fixture);
         auto outcome = run(dormant, fixture);
@@ -255,7 +255,7 @@ int main(int argc, char **argv) {
     op::loop::init();
     op::gpu::init();
     {
-        gpu::Loop loop("chunk_strategy", "c_CUDA", "Indirect", {false, false},
+        gpu::Loop loop("chunk_strategy", "cuda", "Indirect", {false, false},
                        headers());
         add_strategies(loop, fixture);
         auto& chunk = static_cast<gpu::ChunkBase&>(loop.ladder()[0]);
@@ -309,7 +309,7 @@ int main(int argc, char **argv) {
         {
             Fixture split;
             split.source.core_size = 128;
-            gpu::Loop split_loop("chunk_strategy_split", "c_CUDA", "Indirect",
+            gpu::Loop split_loop("chunk_strategy_split", "cuda", "Indirect",
                                  {false, false}, headers());
             add_strategies(split_loop, split);
             auto split_outcome = run(split_loop, split);
@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
             spread.target.core_size = 256;
             for (std::size_t i = 0; i < spread.map_values.size(); ++i)
                 spread.map_values[i] = static_cast<int>(i);
-            gpu::Loop spread_loop("chunk_strategy_spread", "c_CUDA", "Indirect",
+            gpu::Loop spread_loop("chunk_strategy_spread", "cuda", "Indirect",
                                   {false, false}, headers());
             add_strategies(spread_loop, spread);
             auto spread_outcome = run(spread_loop, spread);

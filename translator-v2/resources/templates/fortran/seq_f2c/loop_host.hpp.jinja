@@ -97,7 +97,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     args[{{loop.index0}}] = arg{{arg.id}};
 {% endfor %}
 
-    op_profile_enter_kernel("{{lh.name}}", "c_seq", "{{variant_str()}}");
+    op_profile_enter_kernel("{{lh.name}}", "{{target.name}}", "{{variant_str()}}");
 
     op_profile_enter("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges(set, n_args, args, {{config.device}});

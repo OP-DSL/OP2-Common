@@ -20,7 +20,7 @@ from language import Lang
 from op import OpError, Type
 from scheme import Scheme
 from store import Application, ParseError
-from target import Target
+from target import Target, renamed
 from util import getVersion, safeFind
 
 logger = logging.getLogger(__name__)
@@ -64,11 +64,17 @@ def main(argv=None) -> None:
     parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])
 
     target_names = [target.name for target in Target.all()]
+
+    def target_name(name: str) -> str:
+        if name in renamed:
+            raise ArgumentTypeError(f"{name} is now {renamed[name]}")
+        return name
+
     parser.add_argument(
         "-t",
         "--target",
         help="Code-generation target",
-        type=str,
+        type=target_name,
         action="append",
         nargs=1,
         choices=target_names,
@@ -122,8 +128,9 @@ def main(argv=None) -> None:
 
     Type.set_formatter(lang.formatType)
 
+    lang_targets = [target.name for target in Target.all() if Scheme.find((lang, target))]
     if len(args.target) == 0:
-        args.target = [[target_name] for target_name in target_names]
+        args.target = [[name] for name in lang_targets]
 
     include_dirs = set([Path(dir) for [dir] in args.I])
     defines = [define for [define] in args.D]
@@ -166,7 +173,7 @@ def main(argv=None) -> None:
         scheme = Scheme.find((lang, target))
 
         if not scheme:
-            logger.warning(f"No scheme registered for {lang}/{target}")
+            logger.warning(f"No scheme registered for {lang}/{target}; {lang} has {', '.join(lang_targets)}")
             continue
 
         logger.info(f"Translation scheme: {scheme}")

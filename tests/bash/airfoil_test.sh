@@ -54,13 +54,13 @@ if [[ "$TEST_AIRFOIL_CPP" = "TRUE" ]] && [[ "$TEST_PLAIN" = "TRUE" ]]; then
             echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
             validate "OMP_NUM_THREADS=6" "airfoil_openmp" "" "PASSED"
+            validate "" "airfoil_cuda_legacy" "" "PASSED"
             validate "" "airfoil_cuda" "" "PASSED"
-            validate "" "airfoil_c_cuda" "" "PASSED"
             validate "mpirun -np 16" "airfoil_par_mpi_seq" "" "PASSED"
             validate "mpirun -np 16" "airfoil_par_mpi_genseq" "" "PASSED"
             validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_par_mpi_openmp" "" "PASSED"
+            validate "mpirun -np 4" "airfoil_par_mpi_cuda_legacy" "" "PASSED"
             validate "mpirun -np 4" "airfoil_par_mpi_cuda" "" "PASSED"
-            validate "mpirun -np 4" "airfoil_par_mpi_c_cuda" "" "PASSED"
             validate "" "airfoil_seq" "" "PASSED"
             validate "" "airfoil_genseq" "" "PASSED"
         fi
@@ -87,13 +87,13 @@ if [[ "$TEST_AIRFOIL_CPP" = "TRUE" ]] && [[ "$TEST_TEMPDATS" = "TRUE" ]]; then
         echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
         validate "OMP_NUM_THREADS=6" "airfoil_openmp" "" "PASSED"
+        validate "" "airfoil_cuda_legacy" "" "PASSED"
         validate "" "airfoil_cuda" "" "PASSED"
-        validate "" "airfoil_c_cuda" "" "PASSED"
         validate "mpirun -np 16" "airfoil_par_mpi_seq" "" "PASSED"
         validate "mpirun -np 16" "airfoil_par_mpi_genseq" "" "PASSED"
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_par_mpi_openmp" "" "PASSED"
+        validate "mpirun -np 4" "airfoil_par_mpi_cuda_legacy" "" "PASSED"
         validate "mpirun -np 4" "airfoil_par_mpi_cuda" "" "PASSED"
-        validate "mpirun -np 4" "airfoil_par_mpi_c_cuda" "" "PASSED"
         validate "" "airfoil_seq" "" "PASSED"
         validate "" "airfoil_genseq" "" "PASSED"
     fi
@@ -125,13 +125,13 @@ if [[ "$TEST_AIRFOIL_CPP" = "TRUE" ]] && [[ "$TEST_HDF5" = "TRUE" ]]; then
             echo "" | tee -a "$SCRIPT_RUN_LOC/${TEST_APP}_test.log"
 
             validate "OMP_NUM_THREADS=6" "airfoil_openmp" "" "PASSED"
+            validate "" "airfoil_cuda_legacy" "" "PASSED"
             validate "" "airfoil_cuda" "" "PASSED"
-            validate "" "airfoil_c_cuda" "" "PASSED"
             validate "mpirun -np 16" "airfoil_mpi_seq" "" "PASSED"
             validate "mpirun -np 16" "airfoil_mpi_genseq" "" "PASSED"
             validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_mpi_openmp" "" "PASSED"
+            validate "mpirun -np 4" "airfoil_mpi_cuda_legacy" "" "PASSED"
             validate "mpirun -np 4" "airfoil_mpi_cuda" "" "PASSED"
-            validate "mpirun -np 4" "airfoil_mpi_c_cuda" "" "PASSED"
             validate "" "airfoil_seq" "" "PASSED"
             validate "" "airfoil_genseq" "" "PASSED"
         fi
@@ -166,28 +166,28 @@ if [[ "$TEST_AIRFOIL_FORTRAN" = "TRUE" ]]; then
         validate "" "airfoil_plain_genseq" "" "PASSED"
 
         validate "OMP_NUM_THREADS=6" "airfoil_plain_openmp" "" "PASSED"
-        # validate "" "airfoil_plain_cuda" "" "PASSED"
-        validate "" "airfoil_plain_c_cuda" "" "PASSED"
+        # validate "" "airfoil_plain_cuda_legacy" "" "PASSED"
+        validate "" "airfoil_plain_cuda" "" "PASSED"
 
         # validate "" "airfoil_arg_ptrs_seq" "" "PASSED"
         # validate "" "airfoil_arg_ptrs_genseq" "" "PASSED"
 
         # validate "OMP_NUM_THREADS=6" "airfoil_arg_ptrs_openmp" "" "PASSED"
-        # validate "" "airfoil_arg_ptrs_cuda" "" "PASSED"
+        # validate "" "airfoil_arg_ptrs_cuda_legacy" "" "PASSED"
 
         validate "" "airfoil_hdf5_seq" "" "PASSED"
         validate "" "airfoil_hdf5_genseq" "" "PASSED"
 
         validate "OMP_NUM_THREADS=6" "airfoil_hdf5_openmp" "" "PASSED"
-        # validate "" "airfoil_hdf5_cuda" "" "PASSED"
-        validate "" "airfoil_hdf5_c_cuda" "" "PASSED"
+        # validate "" "airfoil_hdf5_cuda_legacy" "" "PASSED"
+        validate "" "airfoil_hdf5_cuda" "" "PASSED"
 
         validate "mpirun -np 16" "airfoil_hdf5_mpi_seq" "" "PASSED"
         validate "mpirun -np 16" "airfoil_hdf5_mpi_genseq" "" "PASSED"
 
         validate "OMP_NUM_THREADS=6 mpirun -np 8" "airfoil_hdf5_mpi_openmp" "" "PASSED"
-        # validate "mpirun -np 4" "airfoil_hdf5_mpi_cuda" "" "PASSED"
-        validate "mpirun -np 4" "airfoil_hdf5_mpi_c_cuda" "" "PASSED"
+        # validate "mpirun -np 4" "airfoil_hdf5_mpi_cuda_legacy" "" "PASSED"
+        validate "mpirun -np 4" "airfoil_hdf5_mpi_cuda" "" "PASSED"
     fi
 fi
 

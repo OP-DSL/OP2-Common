@@ -572,7 +572,7 @@ The following environment variables can be set at run time to control OP2 behavi
    * - ``OP_TIME_THREADS``
      - Set to ``1`` to break down ``op_timings_to_csv`` output per OpenMP thread (and per thread per rank for MPI+OpenMP).
    * - ``OP_JIT_LEVEL``
-     - JIT-compiled (``c_cuda`` / ``c_hip``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that keeps changing moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that four in five calls agree on. Replaces ``OP_JIT_ENABLE``.
+     - JIT-compiled (``cuda`` / ``hip``, ``cuda_f2c`` / ``hip_f2c``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that keeps changing moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that four in five calls agree on. Replaces ``OP_JIT_ENABLE``.
    * - ``OP_JIT_FORCE``
      - Set to ``1`` to specialise every kernel; by default only those whose offline kernel uses more registers than ``OP_JIT_MIN_REGISTERS`` (32), or that have no offline kernel.
    * - ``OP_JIT_MIN_CALLS``
@@ -767,13 +767,13 @@ Fortran application variants are prefixed with ``f_`` in the Make build system:
      - Sequential Fortran build.
    * - ``f_openmp``
      - OpenMP multi-threaded Fortran build.
-   * - ``f_cuda``
-     - Native CUDA Fortran build (requires NVHPC).
-   * - ``f_c_seq``
+   * - ``f_cuda_legacy``
+     - Native CUDA Fortran build from the legacy templates (requires NVHPC).
+   * - ``f_seq_f2c``
      - Fortran + C++ sequential build.
-   * - ``f_c_cuda``
+   * - ``f_cuda_f2c``
      - Fortran + C CUDA JIT build (recommended GPU target).
-   * - ``f_c_hip``
+   * - ``f_hip_f2c``
      - Fortran + C HIP JIT build.
    * - ``f_mpi_<variant>``
      - Distributed-memory MPI variant of any of the above.

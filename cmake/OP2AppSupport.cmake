@@ -33,8 +33,8 @@ include(GNUInstallDirs)
 # otherwise see none of it.
 # ---------------------------------------------------------------------------
 
-set(_op2_variants_cpp seq genseq openmp cuda hip c_cuda c_hip CACHE INTERNAL "")
-set(_op2_variants_fortran seq genseq openmp cuda c_seq c_openmp c_cuda c_hip CACHE INTERNAL "")
+set(_op2_variants_cpp seq genseq openmp cuda_legacy hip_legacy cuda hip CACHE INTERNAL "")
+set(_op2_variants_fortran seq genseq openmp cuda_legacy seq_f2c openmp_f2c cuda_f2c hip_f2c CACHE INTERNAL "")
 
 macro(_op2_defvariant lang var needs xt lib mpilib msrc mlang extra)
     set(_op2_variant_${lang}_${var}_needs         "${needs}"  CACHE INTERNAL "")
@@ -49,18 +49,18 @@ endmacro()
 _op2_defvariant(cpp     seq     ""               ""       "op2::op2_seq"         "op2::op2_mpi"          ""                ""          "")
 _op2_defvariant(cpp     genseq  ""               "seq"    "op2::op2_seq"         "op2::op2_mpi"          "op2_kernels.cpp" "CXX"       "")
 _op2_defvariant(cpp     openmp  "openmp_cxx"     "openmp" "op2::op2_openmp"      "op2::op2_mpi"          "op2_kernels.cpp" "CXX"       "")
+_op2_defvariant(cpp     cuda_legacy "cuda"       "cuda_legacy" "op2::op2_cuda"   "op2::op2_mpi_cuda"     "op2_kernels.cu"  "CUDA"      "")
+_op2_defvariant(cpp     hip_legacy "hip"         "hip_legacy" "op2::op2_hip"     "op2::op2_mpi_hip"      "op2_kernels.cpp" "HIP"       "")
 _op2_defvariant(cpp     cuda    "cuda"           "cuda"   "op2::op2_cuda"        "op2::op2_mpi_cuda"     "op2_kernels.cu"  "CUDA"      "")
 _op2_defvariant(cpp     hip     "hip"            "hip"    "op2::op2_hip"         "op2::op2_mpi_hip"      "op2_kernels.cpp" "HIP"       "")
-_op2_defvariant(cpp     c_cuda  "cuda"           "c_cuda" "op2::op2_cuda"        "op2::op2_mpi_cuda"     "op2_kernels.cu"  "CUDA"      "")
-_op2_defvariant(cpp     c_hip   "hip"            "c_hip"  "op2::op2_hip"         "op2::op2_mpi_hip"      "op2_kernels.cpp" "HIP"       "")
 _op2_defvariant(fortran seq     ""               ""       "op2::op2_for_seq"     "op2::op2_for_mpi"      ""                ""          "")
 _op2_defvariant(fortran genseq  ""               "seq"    "op2::op2_for_seq"     "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90")
 _op2_defvariant(fortran openmp  "openmp_fortran" "openmp" "op2::op2_for_openmp"  "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90")
-_op2_defvariant(fortran cuda    "cuda_fortran"   "cuda"   "op2::op2_for_cuda"    "op2::op2_for_mpi_cuda" "op2_kernels.F90" "Fortran"   "op2_consts.F90")
-_op2_defvariant(fortran c_seq   ""               "c_seq"  "op2::op2_for_seq"     "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cpp")
-_op2_defvariant(fortran c_openmp "openmp_cxx"     "c_openmp" "op2::op2_for_openmp" "op2::op2_for_mpi"     "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cpp")
-_op2_defvariant(fortran c_cuda  "cuda"           "c_cuda" "op2::op2_for_cuda"    "op2::op2_for_mpi_cuda" "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cu")
-_op2_defvariant(fortran c_hip   "hip"            "c_hip"  "op2::op2_for_hip"     "op2::op2_for_mpi_hip"  "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.hip.cpp")
+_op2_defvariant(fortran cuda_legacy "cuda_fortran" "cuda_legacy" "op2::op2_for_cuda" "op2::op2_for_mpi_cuda" "op2_kernels.F90" "Fortran" "op2_consts.F90")
+_op2_defvariant(fortran seq_f2c ""               "seq_f2c" "op2::op2_for_seq"    "op2::op2_for_mpi"      "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cpp")
+_op2_defvariant(fortran openmp_f2c "openmp_cxx"  "openmp_f2c" "op2::op2_for_openmp" "op2::op2_for_mpi"    "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cpp")
+_op2_defvariant(fortran cuda_f2c "cuda"          "cuda_f2c" "op2::op2_for_cuda"  "op2::op2_for_mpi_cuda" "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.cu")
+_op2_defvariant(fortran hip_f2c "hip"            "hip_f2c" "op2::op2_for_hip"    "op2::op2_for_mpi_hip"  "op2_kernels.F90" "Fortran"   "op2_consts.F90;op2_kernels_aux1.hip.cpp")
 
 # ---------------------------------------------------------------------------
 # Internal: toolchain availability. OpenMP is the one input not already a
@@ -583,14 +583,15 @@ function(_op2_add_variant_executable)
     endif()
 
     # gpu/shims.h / op_f2c_helpers.h gate their gpu* aliases on these.
-    if(_base MATCHES "^(cuda|c_cuda)$")
+    if(_base MATCHES "^cuda(_legacy|_f2c)?$")
         target_compile_definitions(${_tgt} PRIVATE OP2_CUDA)
-    elseif(_base MATCHES "^(hip|c_hip)$")
+    elseif(_base MATCHES "^hip(_legacy|_f2c)?$")
         target_compile_definitions(${_tgt} PRIVATE OP2_HIP)
     endif()
 
-    # c_* variants JIT their kernels at runtime; the precompiled ones do not.
-    if(_base STREQUAL "c_cuda")
+    # The cuda, hip and _f2c GPU variants JIT their kernels at runtime; the
+    # legacy ones do not.
+    if(_base MATCHES "^cuda(_f2c)?$")
         if(TARGET CUDA::nvrtc AND TARGET CUDA::cuda_driver)
             target_link_libraries(${_tgt} PRIVATE CUDA::nvrtc CUDA::cuda_driver)
 
@@ -611,7 +612,7 @@ function(_op2_add_variant_executable)
                     "-Wl,--pop-state")
             endif()
         endif()
-    elseif(_base STREQUAL "c_hip")
+    elseif(_base MATCHES "^hip(_f2c)?$")
         if(TARGET hip::hiprtc)
             target_link_libraries(${_tgt} PRIVATE hip::hiprtc)
         endif()
@@ -627,15 +628,15 @@ function(_op2_add_variant_executable)
         endif()
     endif()
 
-    # c_openmp's threads are in its generated C++.
-    if(_base STREQUAL "c_openmp" AND TARGET OpenMP::OpenMP_CXX)
+    # openmp_f2c's threads are in its generated C++.
+    if(_base STREQUAL "openmp_f2c" AND TARGET OpenMP::OpenMP_CXX)
         target_link_libraries(${_tgt} PRIVATE OpenMP::OpenMP_CXX)
     endif()
 
     # A translated Fortran kernel's intrinsics set no errno, as gfortran's
     # do not; with it, each sqrt keeps a branch to libm and no loop calling
     # one vectorises.
-    if(_A_LANGUAGE STREQUAL "fortran" AND _base MATCHES "^c_(seq|openmp)$"
+    if(_A_LANGUAGE STREQUAL "fortran" AND _base MATCHES "^(seq|openmp)_f2c$"
             AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
         target_compile_options(${_tgt} PRIVATE
             $<$<COMPILE_LANGUAGE:CXX>:-fno-math-errno>)
@@ -655,7 +656,7 @@ function(_op2_add_variant_executable)
 
     # CUDA Fortran, as in the core library; the link needs -cuda too, for
     # the CUDA Fortran runtime.
-    if(_A_LANGUAGE STREQUAL "fortran" AND _base STREQUAL "cuda"
+    if(_A_LANGUAGE STREQUAL "fortran" AND _base STREQUAL "cuda_legacy"
             AND CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC|PGI")
         target_compile_definitions(${_tgt} PRIVATE OP2_WITH_CUDAFOR)
         target_compile_options(${_tgt} PRIVATE

@@ -639,13 +639,13 @@ Running ``make`` with a build target from the ``/step7`` directory (or the appli
    * - ``openmp``
      - Code-generated multi-threaded CPU build using OpenMP.
    * - ``cuda``
-     - Code-generated NVIDIA GPU build (AOT compiled by ``nvcc``).
-   * - ``hip``
-     - Code-generated AMD GPU build (AOT compiled by ``hipcc``).
-   * - ``c_cuda``
      - Code-generated NVIDIA GPU build with JIT compilation (via NVRTC).
-   * - ``c_hip``
+   * - ``hip``
      - Code-generated AMD GPU build with JIT compilation (via HIP RTC).
+   * - ``cuda_legacy``
+     - NVIDIA GPU build from the legacy templates (AOT compiled by ``nvcc``).
+   * - ``hip_legacy``
+     - AMD GPU build from the legacy templates (AOT compiled by ``hipcc``).
    * - ``mpi_<variant>``
      - Distributed-memory MPI version of any of the above (e.g. ``mpi_cuda``).
    * - ``all``
@@ -657,13 +657,13 @@ For example, to build just the JIT CUDA variant and its MPI counterpart:
 
 .. code-block:: shell
 
-   make c_cuda mpi_c_cuda
+   make cuda mpi_cuda
 
 Targets that require hardware or libraries that were not found at configuration time are silently skipped.  The first thing printed by any ``make`` invocation is the list of variants that will actually be built, e.g.:
 
 .. code-block:: text
 
-   Buildable app variants for airfoil_step7: seq genseq openmp c_cuda mpi_seq mpi_genseq mpi_openmp mpi_c_cuda
+   Buildable app variants for airfoil_step7: seq genseq openmp cuda mpi_seq mpi_genseq mpi_openmp mpi_cuda
 
 This will build all the currently supported parallel versions for your system, provided that the relevant OP2 back-end libraries have been built.
 

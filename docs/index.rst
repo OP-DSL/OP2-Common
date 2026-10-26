@@ -15,7 +15,7 @@ The current OP2 eDSL supports generating code targeting multiple architectures:
 
 OP2 has been used to accelerate a range of computational fluid dynamics (CFD) applications, including full-scale, industrial-grade simulations.
 
-Using OP2, these simulation codes achieve performance portability across CPU and GPU architectures, including NVIDIA, AMD, and Intel GPUs. OP2 can also leverage just-in-time (JIT) compilation of device code, generating C_CUDA or C_HIP code and delivering significant performance improvements. JIT compilation is supported in both the Fortran and C++ backends. This capability has been demonstrated through efficient execution on large-scale supercomputers such as Frontier, ARCHER2, LUMI, Wilkes, and Cirrus.
+Using OP2, these simulation codes achieve performance portability across CPU and GPU architectures, including NVIDIA, AMD, and Intel GPUs. OP2 can also leverage just-in-time (JIT) compilation of device code, generating CUDA or HIP code and delivering significant performance improvements. JIT compilation is supported in both the Fortran and C++ backends. This capability has been demonstrated through efficient execution on large-scale supercomputers such as Frontier, ARCHER2, LUMI, Wilkes, and Cirrus.
 
 Hydra is a full-scale, industrial-grade application developed by Rolls-Royce plc for the simulation of aerospace configurations. It has been re-engineered using OP2 to create a performance-portable application, OP2-Hydra, capable of exploiting modern and emerging hardware.
 

@@ -32,30 +32,30 @@ class Seq(Target):
     def defaultConfig(self) -> Dict[str, Any]:
         return {"device": 1}
 
-class CSeq(Target):
-    name = "c_seq"
+class SeqF2C(Target):
+    name = "seq_f2c"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {"device": 1}
 
 
+class CudaLegacy(Target):
+    name = "cuda_legacy"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+
+class HipLegacy(Target):
+    name = "hip_legacy"
+    kernel_translation = True
+
+    def defaultConfig(self) -> Dict[str, Any]:
+        return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+
 class Cuda(Target):
     name = "cuda"
-    kernel_translation = True
-
-    def defaultConfig(self) -> Dict[str, Any]:
-        return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
-
-class Hip(Target):
-    name = "hip"
-    kernel_translation = True
-
-    def defaultConfig(self) -> Dict[str, Any]:
-        return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
-
-class CCuda(Target):
-    name = "c_cuda"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
@@ -68,8 +68,8 @@ class CCuda(Target):
         }
 
 
-class CHip(CCuda):
-    name = "c_hip"
+class Hip(Cuda):
+    name = "hip"
 
     def defaultConfig(self) -> Dict[str, Any]:
         config = super().defaultConfig()
@@ -78,8 +78,16 @@ class CHip(CCuda):
         return config
 
 
-class COpenMP(Target):
-    name = "c_openmp"
+class CudaF2C(Cuda):
+    name = "cuda_f2c"
+
+
+class HipF2C(Hip):
+    name = "hip_f2c"
+
+
+class OpenMPF2C(Target):
+    name = "openmp_f2c"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
@@ -100,10 +108,20 @@ class OpenMP(Target):
 
 
 Target.register(Seq)
-Target.register(CSeq)
+Target.register(SeqF2C)
+Target.register(CudaLegacy)
+Target.register(HipLegacy)
 Target.register(Cuda)
 Target.register(Hip)
-Target.register(CCuda)
-Target.register(CHip)
-Target.register(COpenMP)
+Target.register(CudaF2C)
+Target.register(HipF2C)
+Target.register(OpenMPF2C)
 Target.register(OpenMP)
+
+# The names the targets had before, each with what replaced it.
+renamed = {
+    "c_seq": "seq_f2c",
+    "c_openmp": "openmp_f2c",
+    "c_cuda": "cuda_f2c for Fortran, cuda for C++",
+    "c_hip": "hip_f2c for Fortran, hip for C++",
+}

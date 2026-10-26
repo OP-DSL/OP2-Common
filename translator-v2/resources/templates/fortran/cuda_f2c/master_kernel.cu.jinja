@@ -11,7 +11,7 @@
 {%- endmacro -%}
 
 {% if lang.user_consts_module is not none %}
-    {% if target.name == "c_hip" %}
+    {% if target.name == "hip_f2c" %}
 #include "hydra_const_list_c_hip.hip.h"
     {% else %}
 #include "hydra_const_list_c_cuda.cuh"
@@ -63,5 +63,5 @@ INCTXT(OP_F2C_PARAMS, "hydra_const_list_params.h");
 namespace f2c = op::f2c;
 
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
-#include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "c_hip" else "cuh"}}"
+#include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "hip_f2c" else "cuh"}}"
 {% endfor %}

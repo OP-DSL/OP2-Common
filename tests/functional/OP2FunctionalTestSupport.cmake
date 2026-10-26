@@ -15,14 +15,14 @@
 #     [EXCLUDE_VARIANTS <v...>]    # threaded into all four variant-family calls below
 #     [MPI_ONLY]                   # build only the _par / _soa_par families,
 #                                  # for a test whose API exists only under MPI
-#     [MPI_RANKS_LOWCOST <n>]      # default 8 (seq/genseq/openmp/c_openmp)
-#     [MPI_RANKS_GPU <n>]          # default 4 (cuda/c_cuda/hip/c_hip)
+#     [MPI_RANKS_LOWCOST <n>]      # default 8 (seq/genseq/openmp/openmp_f2c)
+#     [MPI_RANKS_GPU <n>]          # default 4 (cuda/hip, _legacy and _f2c)
 #     [OMP_NUM_THREADS <n>]        # default 6
 #     [LABELS <l...>]              # extra ctest labels beyond the automatic ones
 #     [LINK_LIBRARIES <lib...>]    # linked to every executable created here,
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
-#     [STRATEGIES <s...>]          # also run each c_cuda/c_hip/c_openmp variant
+#     [STRATEGIES <s...>]          # also run each cuda/hip/_f2c variant
 #                                  # once per execution strategy, forced through
 #                                  # its environment, as <target>_<strategy>,
 #                                  # and once exploring them all, as
@@ -41,7 +41,7 @@ function(_op2_strategy_environment _strategy _variant _out)
         message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
     endif()
     set(_env "OP_STRATEGY=${_strategy}")
-    if(_strategy MATCHES "^chunk_" AND NOT _variant MATCHES "openmp$")
+    if(_strategy MATCHES "^chunk_" AND NOT _variant MATCHES "openmp_f2c$")
         list(APPEND _env "OP_JIT_LEVEL=2" "OP_JIT_MIN_CALLS=1"
                          "OP_JIT_SEQ_COMPILE=1")
     endif()
@@ -160,7 +160,7 @@ function(op2_add_functional_tests)
             # makes empty ones vanish rather than becoming stray "" args.
             if(_v MATCHES "^mpi_(.*)")
                 set(_base "${CMAKE_MATCH_1}")
-                if(_base MATCHES "^(cuda|c_cuda|hip|c_hip)$")
+                if(_base MATCHES "^(cuda|hip)(_legacy|_f2c)?$")
                     set(_nproc "${_A_MPI_RANKS_GPU}")
                 else()
                     set(_nproc "${_A_MPI_RANKS_LOWCOST}")
@@ -191,13 +191,13 @@ function(op2_add_functional_tests)
                 PROCESSORS "${_nproc}")
 
             set(_base_env "")
-            if(_v MATCHES "^(mpi_)?(c_)?openmp$")
+            if(_v MATCHES "^(mpi_)?openmp(_f2c)?$")
                 set(_base_env "OMP_NUM_THREADS=${_A_OMP_NUM_THREADS}")
                 set_tests_properties(${_tgt} PROPERTIES
                     ENVIRONMENT "${_base_env}")
             endif()
 
-            if(_v MATCHES "^(mpi_)?(c_cuda|c_hip|c_openmp)$")
+            if(_v MATCHES "^(mpi_)?(cuda|hip|cuda_f2c|hip_f2c|openmp_f2c)$")
                 foreach(_strategy IN LISTS _A_STRATEGIES)
                     _op2_strategy_environment(${_strategy} ${_v} _env)
                     list(APPEND _env ${_base_env})

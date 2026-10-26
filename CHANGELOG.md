@@ -8,7 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- Translator targets renamed (CMake variants and executables follow; the translator rejects an old name, naming its replacement):
+
+  | Language | Old | New |
+  |---|---|---|
+  | C++ | `c_cuda`, `c_hip` (JIT) | `cuda`, `hip` |
+  | C++ | `cuda`, `hip` (legacy templates) | `cuda_legacy`, `hip_legacy` |
+  | Fortran | `c_seq`, `c_openmp`, `c_cuda`, `c_hip` | `seq_f2c`, `openmp_f2c`, `cuda_f2c`, `hip_f2c` |
+  | Fortran | `cuda` (CUDA Fortran) | `cuda_legacy` |
+
+  Hydra's constant-list headers keep their names (`hydra_const_list_c_cuda.cuh` and so on).
 
 ---
 

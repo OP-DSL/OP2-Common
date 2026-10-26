@@ -5,7 +5,7 @@ endif()
 # NVRTC dlopen()s libnvrtc-builtins on its first compile, and that lookup never
 # consults the executable's DT_RUNPATH.  Name it as a direct dependency so the
 # loader resolves it at startup, exactly as op2_add_app_variants does for the
-# c_cuda variants.  See the comment there for the full reasoning.
+# cuda and cuda_f2c variants.  See the comment there for the full reasoning.
 function(op2_test_link_nvrtc_builtins target)
     if(TARGET CUDA::nvrtc_builtins AND _op2_linker_has_push_state)
         target_link_libraries(${target} PRIVATE

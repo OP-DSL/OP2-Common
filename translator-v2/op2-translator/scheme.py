@@ -67,6 +67,7 @@ class Scheme(Findable["Scheme"]):
             "lh": loop,
             "kernel_idx": kernel_idx,
             "lang": self.lang,
+            "target": self.target,
             "config": self.getConfig(loop, config_overrides),
             "kernel_func": None,
         }

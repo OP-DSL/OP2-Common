@@ -69,9 +69,9 @@ Example — generate OpenMP and JIT CUDA variants:
 
 .. code-block:: shell
 
-   python3 op2-translator -t openmp -t c_cuda airfoil.cpp
+   python3 op2-translator -t openmp -t cuda airfoil.cpp
 
-The translator produces a ``generated/`` subdirectory in the output directory containing one subdirectory per target (e.g. ``generated/airfoil/openmp/``, ``generated/airfoil/c_cuda/``). Each subdirectory contains the generated ``op2_kernels.*`` file(s) ready to be compiled as part of the application build.
+The translator produces a ``generated/`` subdirectory in the output directory containing one subdirectory per target (e.g. ``generated/airfoil/openmp/``, ``generated/airfoil/cuda/``). Each subdirectory contains the generated ``op2_kernels.*`` file(s) ready to be compiled as part of the application build.
 
 C/C++ Targets
 ^^^^^^^^^^^^^
@@ -91,34 +91,34 @@ The following code-generation targets are available for C/C++ applications (``.c
    * - ``openmp``
      - ``openmp``
      - Multi-threaded CPU implementation using OpenMP. Produces ``op2_kernels.cpp`` with OpenMP pragmas. Set ``OMP_NUM_THREADS`` at runtime to control thread count.
+   * - ``cuda_legacy``
+     - ``cuda_legacy``
+     - Ahead-of-time compiled NVIDIA GPU implementation from the legacy templates. Produces ``op2_kernels.cu`` compiled offline by ``nvcc`` during the application build. Requires ``CUDA_INSTALL_PATH`` and ``NV_ARCH`` to be set.
+   * - ``hip_legacy``
+     - ``hip_legacy``
+     - Ahead-of-time compiled AMD GPU implementation from the legacy templates. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Requires ``HIP_INSTALL_PATH`` and ``HIP_ARCH`` to be set.
    * - ``cuda``
      - ``cuda``
-     - Ahead-of-time compiled NVIDIA GPU implementation using CUDA. Produces ``op2_kernels.cu`` compiled offline by ``nvcc`` during the application build. Requires ``CUDA_INSTALL_PATH`` and ``NV_ARCH`` to be set.
+     - JIT-compiled NVIDIA GPU implementation. Produces ``op2_kernels.cu`` compiled by ``nvcc`` during the application build. Device kernel source strings are embedded in the binary via INCBIN and compiled at application start-up by NVRTC, so the GPU architecture is selected at runtime. Requires ``CUDA_INSTALL_PATH`` and ``nvcc``.
    * - ``hip``
      - ``hip``
-     - Ahead-of-time compiled AMD GPU implementation using HIP. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Requires ``HIP_INSTALL_PATH`` and ``HIP_ARCH`` to be set.
-   * - ``c_cuda``
-     - ``c_cuda``
-     - JIT-compiled NVIDIA GPU implementation. Produces ``op2_kernels.cu`` compiled by ``nvcc`` during the application build. Device kernel source strings are embedded in the binary via INCBIN and compiled at application start-up by NVRTC, so the GPU architecture is selected at runtime. Requires ``CUDA_INSTALL_PATH`` and ``nvcc``.
-   * - ``c_hip``
-     - ``c_hip``
      - JIT-compiled AMD GPU implementation. Produces ``op2_kernels.cpp`` compiled by ``hipcc`` during the application build. Device kernel source strings are embedded in the binary and compiled at application start-up by the HIP RTC library, so the GPU architecture is selected at runtime. Requires ``HIP_INSTALL_PATH`` and ``hipcc``.
 
 All targets have a corresponding distributed-memory MPI variant built automatically when an MPI-enabled OP2 library is available (e.g. the ``cuda`` target produces both ``<app>_cuda`` and ``<app>_mpi_cuda``).
 
 .. note::
-   The ``c_cuda`` and ``c_hip`` JIT targets use the same CUDA/HIP runtime libraries as the ``cuda`` and ``hip`` AOT targets, and both also require ``nvcc``/``hipcc`` at build time. The key difference is that device kernel source is embedded in the binary and compiled at application launch via NVRTC/HIP RTC, allowing the GPU architecture to be selected at runtime rather than fixed at build time.
+   The ``cuda`` and ``hip`` JIT targets use the same CUDA/HIP runtime libraries as the ``cuda_legacy`` and ``hip_legacy`` AOT targets, and both also require ``nvcc``/``hipcc`` at build time. The key difference is that device kernel source is embedded in the binary and compiled at application launch via NVRTC/HIP RTC, allowing the GPU architecture to be selected at runtime rather than fixed at build time.
 
 Fortran Targets
 ^^^^^^^^^^^^^^^
 
-The language is detected automatically from the file extension (``.F90`` or ``.f90``). The same target name strings are used as for C/C++, and the translator selects the appropriate Fortran code-generation scheme.
+The language is detected automatically from the file extension (``.F90`` or ``.f90``). ``seq`` and ``openmp`` are shared with C/C++; the targets that translate Fortran kernels to C end in ``_f2c``.
 
-Example — generate Fortran OpenMP and C_CUDA variants:
+Example — generate Fortran OpenMP and CUDA (Fortran-to-C) variants:
 
 .. code-block:: shell
 
-   python3 op2-translator -t openmp -t c_cuda myapp.F90
+   python3 op2-translator -t openmp -t cuda_f2c myapp.F90
 
 The following targets are available for Fortran applications:
 
@@ -132,17 +132,19 @@ The following targets are available for Fortran applications:
      - Code-generated sequential Fortran implementation. Produces a ``master_kernel.F90`` containing all loop host subroutines.
    * - ``openmp``
      - Multi-threaded Fortran implementation using OpenMP pragmas. Includes optional SIMD vectorisation of indirect loops.
-   * - ``cuda``
+   * - ``cuda_legacy``
      - Native Fortran CUDA implementation using CUDA Fortran (``.CUF``). Device kernels are written in Fortran with ``attributes(device)`` annotations. Requires a CUDA Fortran-capable compiler (NVHPC).
-   * - ``c_seq``
+   * - ``seq_f2c``
      - Fortran interop with C sequential kernels. Generates both a Fortran host file (``.F90``) and a C kernel file (``.cpp``). Useful for transitioning Fortran applications to portable C kernel implementations.
-   * - ``c_cuda``
+   * - ``openmp_f2c``
+     - Fortran interop with C++ kernels over OpenMP host threads, running every valid execution strategy (plain, atomics, colouring, chunked atomics). Generates Fortran host code (``.F90``) and C++ kernels (``.cpp``).
+   * - ``cuda_f2c``
      - Fortran interop with CUDA kernels using JIT compilation via NVRTC. Generates Fortran host code (``.F90``) and CUDA device kernel source (``.cu``). Device kernels are compiled at application start-up. This is the primary recommended GPU target for Fortran applications.
-   * - ``c_hip``
+   * - ``hip_f2c``
      - Fortran interop with HIP kernels using JIT compilation via the HIP RTC library. Generates Fortran host code (``.F90``) and HIP device kernel source (``.hip.cpp``). Device kernels are compiled at application start-up.
 
 .. note::
-   For Fortran applications, the ``c_cuda`` and ``c_hip`` JIT targets are the primary recommended GPU backends. The native Fortran ``cuda`` target (CUDA Fortran) is also available but requires the NVHPC compiler.
+   For Fortran applications, the ``cuda_f2c`` and ``hip_f2c`` JIT targets are the primary recommended GPU backends. The legacy CUDA Fortran target, ``cuda_legacy``, is also available but requires the NVHPC compiler.
 
 Choosing Between AOT and JIT GPU Targets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -154,8 +156,8 @@ This applies to both C/C++ and Fortran applications:
    :widths: 35 30 35
 
    * - Consideration
-     - AOT (``cuda`` / ``hip``)
-     - JIT (``c_cuda`` / ``c_hip``)
+     - AOT (``cuda_legacy`` / ``hip_legacy``)
+     - JIT (``cuda`` / ``hip``; Fortran ``cuda_f2c`` / ``hip_f2c``)
    * - Build-time GPU compiler required
      - Yes (``nvcc`` / ``hipcc``)
      - Yes (``nvcc`` / ``hipcc``)
@@ -166,7 +168,7 @@ This applies to both C/C++ and Fortran applications:
      - None
      - Small (kernel compilation on first run and when constant values change at runtime)
    * - Fortran native GPU Fortran available
-     - Yes (``cuda`` target with NVHPC)
+     - Yes (``cuda_legacy`` target with NVHPC)
      - N/A — uses C interop layer
    * - Recommended for
      - Deployments with a known GPU

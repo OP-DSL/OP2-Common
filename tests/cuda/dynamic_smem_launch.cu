@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
         setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", std::to_string(sources).c_str(), 1);
         op::loop::init();
         op::gpu::init();
-        gpu::Loop loop("dynamic_smem_launch", "c_CUDA", "Indirect", {false, false},
+        gpu::Loop loop("dynamic_smem_launch", "cuda", "Indirect", {false, false},
                        gpu::JitHeaders{{OP_F2C_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA,
                                         OP_STRATEGY_KERNEL_DATA},
                                        {"kernel/prelude.h", "plan/staging_layout.h",

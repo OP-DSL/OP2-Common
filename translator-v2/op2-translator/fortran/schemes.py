@@ -222,15 +222,15 @@ class FortranOpenMP(Scheme):
 Scheme.register(FortranOpenMP)
 
 
-class FortranCuda(Scheme):
+class FortranCudaLegacy(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("cuda")
+    target = Target.get("cuda_legacy")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/cuda/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/cuda/loop_host.CUF.jinja")]
-    master_kernel_templates = [Path("fortran/cuda/master_kernel.F90.jinja")]
+    consts_template = Path("fortran/cuda_legacy/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/cuda_legacy/loop_host.CUF.jinja")]
+    master_kernel_templates = [Path("fortran/cuda_legacy/master_kernel.F90.jinja")]
 
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
         for arg in loop.args:
@@ -353,18 +353,18 @@ class FortranCuda(Scheme):
         return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")
 
 
-Scheme.register(FortranCuda)
+Scheme.register(FortranCudaLegacy)
 
 
-class FortranCSeq(Scheme):
+class FortranSeqF2C(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("c_seq")
+    target = Target.get("seq_f2c")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/c_seq/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_seq/loop_host.F90.jinja"), Path("fortran/c_seq/loop_host.hpp.jinja")]
-    master_kernel_templates = [Path("fortran/c_seq/master_kernel.F90.jinja"), Path("fortran/c_seq/master_kernel.cpp.jinja")]
+    consts_template = Path("fortran/seq_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/seq_f2c/loop_host.F90.jinja"), Path("fortran/seq_f2c/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("fortran/seq_f2c/master_kernel.F90.jinja"), Path("fortran/seq_f2c/master_kernel.cpp.jinja")]
 
     def translateKernel(
         self,
@@ -399,18 +399,18 @@ class FortranCSeq(Scheme):
         return ftk_c.translate(info)
 
 
-Scheme.register(FortranCSeq)
+Scheme.register(FortranSeqF2C)
 
 
-class FortranCCuda(Scheme):
+class FortranCudaF2C(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("c_cuda")
+    target = Target.get("cuda_f2c")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/c_cuda/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_cuda/loop_host.F90.jinja"), Path("fortran/c_cuda/loop_host.cuh.jinja")]
-    master_kernel_templates = [Path("fortran/c_cuda/master_kernel.F90.jinja"), Path("fortran/c_cuda/master_kernel.cu.jinja")]
+    consts_template = Path("fortran/cuda_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/cuda_f2c/loop_host.F90.jinja"), Path("fortran/cuda_f2c/loop_host.cuh.jinja")]
+    master_kernel_templates = [Path("fortran/cuda_f2c/master_kernel.F90.jinja"), Path("fortran/cuda_f2c/master_kernel.cu.jinja")]
 
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
         for arg in loop.args:
@@ -496,29 +496,29 @@ class FortranCCuda(Scheme):
         return ftk_c.translate(info)
 
 
-Scheme.register(FortranCCuda)
+Scheme.register(FortranCudaF2C)
 
 
-class FortranCHip(FortranCCuda):
-    target = Target.get("c_hip")
+class FortranHipF2C(FortranCudaF2C):
+    target = Target.get("hip_f2c")
 
-    consts_template = Path("fortran/c_hip/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_hip/loop_host.F90.jinja"), Path("fortran/c_hip/loop_host.hip.h.jinja")]
-    master_kernel_templates = [Path("fortran/c_hip/master_kernel.F90.jinja"), Path("fortran/c_hip/master_kernel.hip.cpp.jinja")]
-
-
-Scheme.register(FortranCHip)
+    consts_template = Path("fortran/hip_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/hip_f2c/loop_host.F90.jinja"), Path("fortran/hip_f2c/loop_host.hip.h.jinja")]
+    master_kernel_templates = [Path("fortran/hip_f2c/master_kernel.F90.jinja"), Path("fortran/hip_f2c/master_kernel.hip.cpp.jinja")]
 
 
-class FortranCOpenMP(Scheme):
+Scheme.register(FortranHipF2C)
+
+
+class FortranOpenMPF2C(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("c_openmp")
+    target = Target.get("openmp_f2c")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/c_openmp/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_openmp/loop_host.F90.jinja"), Path("fortran/c_openmp/loop_host.hpp.jinja")]
-    master_kernel_templates = [Path("fortran/c_openmp/master_kernel.F90.jinja"), Path("fortran/c_openmp/master_kernel.cpp.jinja")]
+    consts_template = Path("fortran/openmp_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/openmp_f2c/loop_host.F90.jinja"), Path("fortran/openmp_f2c/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("fortran/openmp_f2c/master_kernel.F90.jinja"), Path("fortran/openmp_f2c/master_kernel.cpp.jinja")]
 
     def canGenLoopHost(self, loop: OP.Loop) -> bool:
         for arg in loop.args:
@@ -579,4 +579,4 @@ class FortranCOpenMP(Scheme):
         return ftk_c.translate(info)
 
 
-Scheme.register(FortranCOpenMP)
+Scheme.register(FortranOpenMPF2C)

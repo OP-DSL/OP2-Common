@@ -30,7 +30,7 @@ Execution Plans
 
 Because GPU execution is driven by data residency in graphics memory, the blocking for each parallel loop can be chosen independently for each loop, unlike in MPI where repartitioning is expensive.  Inspired by FFTW, OP2 constructs for each parallel loop an execution **plan** — a customised blocking for the GPU that makes optimum use of the shared memory on each streaming multiprocessor (SM), given the precise memory requirements of that loop.
 
-For *indirect loops* (loops that access datasets indirectly through a mapping), data conflicts on ``OP_INC`` arguments are resolved using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.  This is the default strategy for all GPU targets (``cuda``, ``hip``, ``c_cuda``, ``c_hip``) in the v2 translator.
+For *indirect loops* (loops that access datasets indirectly through a mapping), data conflicts on ``OP_INC`` arguments are resolved using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.  This is the default strategy for all GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``cuda_legacy``, ``hip_legacy``) in the v2 translator.
 
 An alternative **two-level colouring** strategy (``color2`` mode) is also available for cases where atomic operations are undesirable:
 

@@ -648,7 +648,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 
 static op::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
     static op::gpu::Loop loop(
-        "{{lh.name}}", "c_CUDA", "{{variant_str()}}",
+        "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
         op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}},
                                   {{"true" if config.gbl_inc_atomic else "false"}} },
         OP_F2C_JIT_HEADERS);
