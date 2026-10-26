@@ -1,9 +1,19 @@
-/* Aero (plain and HDF5) through CTest: OP2 is configured with its apps and their tests
-   (tests/apps), every variant built, and each run to its own validation
-   against a downloaded mesh. */
+/* Aero (plain and HDF5) through CTest: OP2 is configured with its apps and
+   their tests (tests/apps), every variant built, and each run to its own
+   validation against a downloaded mesh. */
 
 pipeline {
     agent any
+
+    // The defaults are the CI machine's; a test instance points them at its
+    // own clone and environment.
+    parameters {
+        string(name: 'OP2_REPO', defaultValue: 'https://github.com/OP-DSL/OP2-Common.git',
+               description: 'OP2 repository to build and test')
+        string(name: 'OP2_BRANCH', defaultValue: 'OP2_refactor', description: 'Its branch')
+        string(name: 'ENV_SCRIPT', defaultValue: '/home/zl/work3/OP2-Common/scripts/zam_gnu',
+               description: 'Script sourced for the compilers and dependency prefixes')
+    }
 
     stages {
         stage('Setup') {
@@ -15,7 +25,7 @@ pipeline {
                                 script: '''
                                 #!/bin/bash
                                 . /etc/profile
-                                . /home/zl/work3/OP2-Common/scripts/zam_gnu
+                                . "$ENV_SCRIPT"
                                 env
                                 ''',
                                 returnStdout: true
@@ -44,7 +54,7 @@ pipeline {
                 stage('Checkout OP2-Common') {
                     steps {
                         dir('OP2-Common') {
-                            git url: 'https://github.com/OP-DSL/OP2-Common.git', branch: 'OP2_refactor'
+                            git url: params.OP2_REPO, branch: params.OP2_BRANCH
                         }
                     }
                 }
@@ -62,7 +72,7 @@ pipeline {
                         -DCMAKE_CUDA_ARCHITECTURES=native \\
                         -DHDF5_ROOT="$HDF5_PAR_INSTALL_PATH" \\
                         -DParMETIS_ROOT="$PARMETIS_INSTALL_PATH" \\
-                        -DMETIS_ROOT="$PARMETIS_INSTALL_PATH" \\
+                        -DMETIS_ROOT="${METIS_INSTALL_PATH:-$PARMETIS_INSTALL_PATH}" \\
                         -DKaHIP_ROOT="$KAHIP_INSTALL_PATH" \\
                         -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON -DOP2_ENABLE_APP_TESTS=ON
                     '''
