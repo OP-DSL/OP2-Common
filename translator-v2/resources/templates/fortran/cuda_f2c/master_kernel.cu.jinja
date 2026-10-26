@@ -21,7 +21,6 @@
 #define INCBIN_STYLE INCBIN_STYLE_SNAKE
 #define INCBIN_PREFIX
 #include <extern/incbin.h>
-{% set tag = range(1000000000, 9999999999) | random %}
 
 {% if lang.user_consts_module is none %}
 #include <cstdint>

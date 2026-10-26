@@ -12,7 +12,6 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
 [[maybe_unused]] static uint64_t op2_const_{{const.ptr}}_hash = 0;
 {% endfor %}
 
-{% set tag = range(1000000000, 9999999999) | random %}
 #define OP_F2C_JIT_TAG {{tag}}
 #include <kernel/jit_embed.h>
 

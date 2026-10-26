@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import sys
 import traceback
@@ -137,12 +138,21 @@ class Scheme(Findable["Scheme"]):
         if user_types_file is not None:
             user_types = user_types_file.read_text()
 
+        # A token naming the symbols the master kernel embeds: unique to the
+        # translation, and the same each time it is translated.
+        digest = hashlib.sha1(self.target.name.encode())
+        for program in app.programs:
+            digest.update(program.path.name.encode())
+            for loop in program.loops:
+                digest.update(loop.kernel.encode())
+        tag = digest.hexdigest()[:12]
+
         files = []
         for template_path in self.master_kernel_templates:
             template = env.get_template(str(template_path))
 
             source = template.render(OP=OP, app=app, lang=self.lang, target=self.target,
-                                     user_types=user_types, fallback_loops=fallback_loops)
+                                     user_types=user_types, fallback_loops=fallback_loops, tag=tag)
             extension = "".join(template_path.suffixes[:-1])
 
             files.append((source, extension))
