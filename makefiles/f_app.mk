@@ -9,7 +9,7 @@ FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
 APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%.F90)
 
-BASE_VARIANTS := seq genseq openmp cuda_legacy seq_f2c cuda_f2c hip_f2c
+BASE_VARIANTS := seq genseq openmp cuda_legacy seq_f2c openmp_f2c cuda_f2c hip_f2c
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -29,6 +29,10 @@ ifeq ($(HAVE_F),true)
 
   ifeq ($(HAVE_C),true)
     BUILDABLE_VARIANTS += seq_f2c
+  endif
+
+  ifeq ($(HAVE_C)$(CPP_HAS_OMP)$(F_HAS_OMP),truetruetrue)
+    BUILDABLE_VARIANTS += openmp_f2c
   endif
 
   ifeq ($(HAVE_CUDA),true)
@@ -113,10 +117,12 @@ $(eval $(call SRC_template,genseq,seq,F90))
 $(eval $(call SRC_template,openmp,openmp,F90))
 $(eval $(call SRC_template,cuda_legacy,cuda_legacy,F90))
 $(eval $(call SRC_template,seq_f2c,seq_f2c,F90))
+$(eval $(call SRC_template,openmp_f2c,openmp_f2c,F90))
 $(eval $(call SRC_template,cuda_f2c,cuda_f2c,F90))
 $(eval $(call SRC_template,hip_f2c,hip_f2c,F90))
 
 SEQ_F2C_SRC += generated/$(APP_NAME)/seq_f2c/op2_kernels.o
+OPENMP_F2C_SRC += generated/$(APP_NAME)/openmp_f2c/op2_kernels.o
 CUDA_F2C_SRC += generated/$(APP_NAME)/cuda_f2c/op2_kernels.o
 HIP_F2C_SRC += generated/$(APP_NAME)/hip_f2c/op2_kernels.o
 
@@ -177,6 +183,7 @@ $(eval $(call RULE_template,        genseq,,                SEQ,     MPI,))
 $(eval $(call RULE_template,        openmp, $(OMP_FFLAGS),  OPENMP,  MPI,))
 $(eval $(call RULE_template,        cuda_legacy, $(CUDA_FFLAGS), CUDA, MPI_CUDA, $(OP2_MOD_CUDA)))
 $(eval $(call RULE_template,        seq_f2c,,                 SEQ,     MPI,))
+$(eval $(call RULE_template,        openmp_f2c, $(OMP_FFLAGS), OPENMP, MPI,))
 $(eval $(call RULE_template_cuda_f2c, cuda_f2c, $(CUDA_FFLAGS), CUDA,    MPI_CUDA,))
 $(eval $(call RULE_template_hip_f2c,  hip_f2c,  $(HIP_FFLAGS),  HIP,     MPI_HIP,))
 
@@ -191,6 +198,18 @@ generated/$(APP_NAME)/seq_f2c/op2_kernels.o: generated/$(APP_NAME)
 endef
 
 $(eval $(call SEQ_F2C_EXTRA_RULES_template))
+
+# C++ build for openmp_f2c, whose threads are in the C++
+define OPENMP_F2C_EXTRA_RULES_template =
+$(APP_NAME)_openmp_f2c: generated/$(APP_NAME)/openmp_f2c/op2_kernels.o
+$(APP_NAME)_mpi_openmp_f2c: generated/$(APP_NAME)/openmp_f2c/op2_kernels.o
+
+generated/$(APP_NAME)/openmp_f2c/op2_kernels.o: generated/$(APP_NAME)
+	$$(CXX) $$(CXXFLAGS) $$(OMP_CXXFLAGS) $$(OP2_INC) $(APP_EXTRA_FLAGS) \
+	    -c generated/$(APP_NAME)/openmp_f2c/op2_kernels_aux1.cpp -o $$@
+endef
+
+$(eval $(call OPENMP_F2C_EXTRA_RULES_template))
 
 # NVCC build for cuda_f2c
 define CUDA_F2C_EXTRA_RULES_template =

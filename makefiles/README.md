@@ -61,9 +61,10 @@ This directory contains makefiles corresponding to each library dependency of OP
 These are generic makefiles that define a complete set of build rules for the common source structures found in the apps. The variants that will be built depend on the available compilers and compiler features. All of the possible variants currently are:
  * `seq`: Basic sequential variant that simply links with the OP2 libraries without code translation.
  * `genseq`: Translated sequential variant.
- * `vec`: A sequential variant with OpenMP SIMD vectorisation pragmas.
- * `openmp`: A multi-threaded variant using OpenMP pragmas.
- * `cuda`: A multi-threaded variant using NVIDIA CUDA.
+ * `openmp`: A multi-threaded variant over OpenMP threads; for C++ the strategy-choosing target, for Fortran the legacy templates.
+ * `openmp_legacy` (C++): A multi-threaded variant from the legacy templates, using OpenMP pragmas.
+ * `cuda`, `hip` (C++): GPU variants with JIT-compiled kernels; `cuda_legacy`, `hip_legacy` from the legacy templates.
+ * `seq_f2c`, `openmp_f2c`, `cuda_f2c`, `hip_f2c` (Fortran): Fortran hosts calling kernels translated to C++, sequential, over OpenMP threads, or on the GPU; `cuda_legacy` in CUDA Fortran.
  * `mpi_<variant>`: Many-core MPI variants of all other variants.
 
 A few input variables must be defined before the inclusion of the makefiles. For the `c_app.mk` makefile these are:
