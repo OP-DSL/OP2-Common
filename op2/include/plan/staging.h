@@ -16,6 +16,18 @@
 
 namespace op::plan {
 
+// The indirect arguments a staged kernel stages, grouped by dat as it lays
+// its regions out.  Generated with the kernel they describe.
+struct ArgGroup {
+    int arg;
+    int group;
+};
+
+struct ArgGroups {
+    std::span<const ArgGroup> args;
+    int groups = 0;
+};
+
 struct Staging {
     // Per reference and element, stage_words[reference * stride + element].
     int stride = 0;
@@ -30,21 +42,6 @@ struct Staging {
     std::size_t unstaged_singles = 0;
 };
 
-// The scratch bytes of a chunk with counts slots per group: the regions in
-// group order, each aligned to its scalar size.
-std::size_t scratch_bytes(const References& references, std::span<const int> counts);
-
-// The largest multiple of lanes, up to size rounded up to lanes, whose
-// chunks' worst-case staging fits scratch_bytes and the stage word; 0 if
-// none does.
-int staged_chunk_size(const References& references, int size, int lanes,
-                      std::size_t scratch_bytes);
-
-// Stage every active reference of each chunk.  unstaged_singles leaves a
-// target the chunk references once in global memory.
-Staging stage(const Chunks& chunks, const ChunkTargets& targets,
-              const References& references, int stride, bool unstaged_singles);
-
 // A call's chunks for a staged kernel: the groups' references, the chunks,
 // the targets each reaches, and their staging.
 struct StagedChunks {
@@ -55,12 +52,17 @@ struct StagedChunks {
 };
 
 // Chunk the sections at the largest multiple of lanes up to size whose
-// staging fits scratch_bytes, and stage them; or why not: a reason of
-// grouped_references, or insufficient_scratch.
+// staging fits scratch_limit and the stage word, and stage them, each
+// active reference of a chunk to a slot of its region (unstaged_singles
+// leaves a target the chunk references once in global memory).  Or why
+// not: no_active_argument; incompatible_argument when two groups reach one
+// dat, or an argument outside the groups reaches a grouped dat or makes an
+// update the groups would not order (an indirect increment, or with
+// read_write an indirect read-write); insufficient_scratch.
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::loop::Sections& sections,
                               const ArgGroups& groups, bool read_write, int size,
-                              int lanes, std::size_t scratch_bytes,
+                              int lanes, std::size_t scratch_limit,
                               bool unstaged_singles, StagedChunks& out);
 
 } // namespace op::plan

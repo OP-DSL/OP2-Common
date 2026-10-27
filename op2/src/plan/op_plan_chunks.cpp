@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <unordered_map>
 
 namespace op::plan {
 
@@ -13,88 +12,6 @@ using detail::arg_target;
 using detail::greedy_colour;
 
 // --- References -----------------------------------------------------------------
-
-namespace {
-
-Group group_of(const op_arg& arg) {
-    op_set set = arg.dat->set;
-    return {arg.dat, set->size + set->exec_size + set->nonexec_size, arg.dim,
-            static_cast<std::size_t>(arg.size / arg.dim)};
-}
-
-bool indirect_update(const op_arg& arg, bool read_write) {
-    return arg.idx >= 0 && arg.map != nullptr &&
-           (arg.acc == OP_INC || (read_write && arg.acc == OP_RW));
-}
-
-} // namespace
-
-std::string_view grouped_references(std::span<const op_arg> args,
-                                    const ArgGroups& groups, bool read_write,
-                                    References& references) {
-    // The groups are generated alongside the kernel they describe, so their
-    // shape is an internal invariant rather than a runtime condition.
-    assert(!groups.args.empty() && groups.groups > 0);
-    assert(groups.args.size() <= args.size());
-
-    references = {};
-    references.groups.assign(static_cast<std::size_t>(groups.groups), {});
-    std::vector<bool> grouped(args.size(), false);
-    bool any_active = false;
-    for (const ArgGroup& group : groups.args) {
-        assert(group.arg >= 0 && group.group >= 0);
-        const auto arg_index = static_cast<std::size_t>(group.arg);
-        const auto group_index = static_cast<std::size_t>(group.group);
-        assert(arg_index < args.size() && group_index < references.groups.size());
-        assert(!grouped[arg_index]);
-        grouped[arg_index] = true;
-
-        const op_arg& arg = args[arg_index];
-        references.items.push_back({&arg, group.group});
-        if (arg.opt == 0)
-            continue;
-
-        assert(arg.argtype == OP_ARG_DAT);
-        assert(read_write || arg.acc == OP_INC);
-        assert(arg.dat != nullptr && arg.map != nullptr);
-        // A set with no elements to run may have no map data.
-        assert(arg.map_data != nullptr || arg.map->from->size + arg.map->from->exec_size == 0);
-        assert(arg.idx >= 0 && arg.idx < arg.map->dim);
-        assert(arg.dim > 0 && arg.size % arg.dim == 0);
-
-        any_active = true;
-        auto& resolved = references.groups[group_index];
-        if (resolved.dat == nullptr)
-            resolved = group_of(arg);
-        else if (resolved.dat != arg.dat)
-            return "incompatible_argument";
-    }
-
-    if (!any_active)
-        return "no_active_argument";
-
-    // Groups are planned apart, so two resolving to one dat (passed through two
-    // dummy arguments) would race.
-    std::unordered_map<const op_dat_core *, std::size_t> claimed;
-    for (std::size_t index = 0; index < references.groups.size(); ++index) {
-        const auto *dat = references.groups[index].dat;
-        if (dat != nullptr && !claimed.emplace(dat, index).second)
-            return "incompatible_argument";
-    }
-
-    // Nothing orders an ungrouped argument: on a grouped dat it would read
-    // stale staged targets, and an indirect update would race.
-    for (std::size_t index = 0; index < args.size(); ++index) {
-        const op_arg& arg = args[index];
-        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.dat == nullptr ||
-            grouped[index])
-            continue;
-        if (claimed.count(arg.dat) != 0 || indirect_update(arg, read_write))
-            return "incompatible_argument";
-    }
-
-    return {};
-}
 
 std::string_view updated_references(std::span<const op_arg> args,
                                     References& references) {
@@ -121,7 +38,7 @@ std::string_view updated_references(std::span<const op_arg> args,
         auto found = std::find(dats.begin(), dats.end(), arg.dat);
         if (found == dats.end()) {
             dats.push_back(arg.dat);
-            references.groups.push_back(group_of(arg));
+            references.groups.push_back(Group::of(arg));
             found = dats.end() - 1;
         }
         references.items.push_back({&arg, static_cast<int>(found - dats.begin())});

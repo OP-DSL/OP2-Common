@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cassert>
 #include <limits>
+#include <unordered_map>
 
 namespace op::plan {
 
@@ -48,9 +49,9 @@ std::size_t bytes_per_source_element(const References& references) {
     return total;
 }
 
-} // namespace
-
-std::size_t scratch_bytes(const References& references, std::span<const int> counts) {
+// The scratch bytes of a chunk with counts slots per group: the regions in
+// group order, each aligned to its scalar size.
+std::size_t region_bytes(const References& references, std::span<const int> counts) {
     std::size_t bytes = 0;
     for (std::size_t group = 0; group < references.groups.size(); ++group) {
         // An inactive group takes no space; the kernel walks it as an empty,
@@ -66,8 +67,11 @@ std::size_t scratch_bytes(const References& references, std::span<const int> cou
     return bytes;
 }
 
+// The largest multiple of lanes, up to size rounded up to lanes, whose
+// chunks' worst-case staging fits scratch_limit and the stage word; 0 if
+// none does.
 int staged_chunk_size(const References& references, int size, int lanes,
-                      std::size_t scratch_bytes) {
+                      std::size_t scratch_limit) {
     assert(size > 0 && lanes > 0);
 
     // Round the requested size up to a lanes multiple, clamped so the result
@@ -84,7 +88,7 @@ int staged_chunk_size(const References& references, int size, int lanes,
     // staging is built exactly once.  Region alignment adds at most one
     // scalar of padding per staged dat, which comes off the limit first.
     std::size_t slack = alignment_slack(references);
-    std::size_t limit = scratch_bytes > slack ? scratch_bytes - slack : 0;
+    std::size_t limit = scratch_limit > slack ? scratch_limit - slack : 0;
 
     std::size_t per_element = bytes_per_source_element(references);
     assert(per_element > 0);
@@ -100,6 +104,7 @@ int staged_chunk_size(const References& references, int size, int lanes,
     return static_cast<int>(std::min(requested, blocks * lanes));
 }
 
+// Stage every active reference of each chunk.
 Staging stage(const Chunks& chunks, const ChunkTargets& targets,
               const References& references, int stride, bool unstaged_singles) {
     Staging staging;
@@ -152,21 +157,97 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                              [static_cast<std::size_t>(target)]);
             }
 
-        staging.chunk_scratch_bytes.push_back(scratch_bytes(references, counts));
+        staging.chunk_scratch_bytes.push_back(region_bytes(references, counts));
     }
     staging.slot_offsets.push_back(static_cast<int>(staging.slot_targets.size()));
     return staging;
 }
 
+bool indirect_update(const op_arg& arg, bool read_write) {
+    return arg.idx >= 0 && arg.map != nullptr &&
+           (arg.acc == OP_INC || (read_write && arg.acc == OP_RW));
+}
+
+// The groups' arguments as references, or why the call does not suit them
+// (stage_chunks' reasons but insufficient_scratch).
+std::string_view grouped_references(std::span<const op_arg> args,
+                                    const ArgGroups& groups, bool read_write,
+                                    References& references) {
+    // The groups are generated alongside the kernel they describe, so their
+    // shape is an internal invariant rather than a runtime condition.
+    assert(!groups.args.empty() && groups.groups > 0);
+    assert(groups.args.size() <= args.size());
+
+    references = {};
+    references.groups.assign(static_cast<std::size_t>(groups.groups), {});
+    std::vector<bool> grouped(args.size(), false);
+    bool any_active = false;
+    for (const ArgGroup& group : groups.args) {
+        assert(group.arg >= 0 && group.group >= 0);
+        const auto arg_index = static_cast<std::size_t>(group.arg);
+        const auto group_index = static_cast<std::size_t>(group.group);
+        assert(arg_index < args.size() && group_index < references.groups.size());
+        assert(!grouped[arg_index]);
+        grouped[arg_index] = true;
+
+        const op_arg& arg = args[arg_index];
+        references.items.push_back({&arg, group.group});
+        if (arg.opt == 0)
+            continue;
+
+        assert(arg.argtype == OP_ARG_DAT);
+        assert(read_write || arg.acc == OP_INC);
+        assert(arg.dat != nullptr && arg.map != nullptr);
+        // A set with no elements to run may have no map data.
+        assert(arg.map_data != nullptr || arg.map->from->size + arg.map->from->exec_size == 0);
+        assert(arg.idx >= 0 && arg.idx < arg.map->dim);
+        assert(arg.dim > 0 && arg.size % arg.dim == 0);
+
+        any_active = true;
+        auto& resolved = references.groups[group_index];
+        if (resolved.dat == nullptr)
+            resolved = Group::of(arg);
+        else if (resolved.dat != arg.dat)
+            return "incompatible_argument";
+    }
+
+    if (!any_active)
+        return "no_active_argument";
+
+    // Groups are planned apart, so two resolving to one dat (passed through two
+    // dummy arguments) would race.
+    std::unordered_map<const op_dat_core *, std::size_t> claimed;
+    for (std::size_t index = 0; index < references.groups.size(); ++index) {
+        const auto *dat = references.groups[index].dat;
+        if (dat != nullptr && !claimed.emplace(dat, index).second)
+            return "incompatible_argument";
+    }
+
+    // Nothing orders an ungrouped argument: on a grouped dat it would read
+    // stale staged targets, and an indirect update would race.
+    for (std::size_t index = 0; index < args.size(); ++index) {
+        const op_arg& arg = args[index];
+        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.dat == nullptr ||
+            grouped[index])
+            continue;
+        if (claimed.count(arg.dat) != 0 || indirect_update(arg, read_write))
+            return "incompatible_argument";
+    }
+
+    return {};
+}
+
+} // namespace
+
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::loop::Sections& sections,
                               const ArgGroups& groups, bool read_write, int size,
-                              int lanes, std::size_t scratch_bytes,
+                              int lanes, std::size_t scratch_limit,
                               bool unstaged_singles, StagedChunks& out) {
     auto reason = grouped_references(args, groups, read_write, out.references);
     if (!reason.empty())
         return reason;
-    int chunk_size = staged_chunk_size(out.references, size, lanes, scratch_bytes);
+    int chunk_size = staged_chunk_size(out.references, size, lanes, scratch_limit);
     if (chunk_size == 0)
         return "insufficient_scratch";
 

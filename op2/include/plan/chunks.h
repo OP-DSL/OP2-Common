@@ -27,6 +27,13 @@ struct Group {
     int extent = 0;
     int dimension = 0;
     std::size_t scalar_size = 0;
+
+    // The group of the dat arg reaches.
+    static Group of(const op_arg& arg) {
+        op_set set = arg.dat->set;
+        return {arg.dat, set->size + set->exec_size + set->nonexec_size, arg.dim,
+                static_cast<std::size_t>(arg.size / arg.dim)};
+    }
 };
 
 // An indirect argument and the group of the dat it reaches.
@@ -41,27 +48,6 @@ struct References {
     std::vector<Reference> items;
     std::vector<Group> groups;
 };
-
-// The indirect arguments a staged kernel stages, grouped by dat as it lays
-// its regions out.  Generated with the kernel they describe.
-struct ArgGroup {
-    int arg;
-    int group;
-};
-
-struct ArgGroups {
-    std::span<const ArgGroup> args;
-    int groups = 0;
-};
-
-// The groups' arguments as references, or why the call does not suit them:
-// no_active_argument, or incompatible_argument when two groups reach one dat,
-// or an argument outside the groups reaches a grouped dat or makes an update
-// the groups would not order: an indirect increment, or with read_write an
-// indirect read-write.
-std::string_view grouped_references(std::span<const op_arg> args,
-                                    const ArgGroups& groups, bool read_write,
-                                    References& references);
 
 // Every active indirect argument on a dat the loop increments or
 // read-writes through a map, grouped by dat: what concurrent chunks must not

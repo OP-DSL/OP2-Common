@@ -20,7 +20,7 @@ namespace op::cpu {
 constexpr int default_chunk_size = 256;
 
 // The scratch a staged chunk may use.
-constexpr std::size_t chunk_scratch_bytes = std::size_t{1} << 20;
+constexpr std::size_t chunk_scratch_limit = std::size_t{1} << 20;
 
 // Each batch's chunks shared out over the threads.
 struct ChunkPlan {
@@ -29,7 +29,7 @@ struct ChunkPlan {
     // chunk_atomics: each chunk's slots in its thread's scratch, and the
     // most bytes a chunk needs.
     plan::Staging staging;
-    std::size_t scratch_bytes = 0;
+    std::size_t max_scratch_bytes = 0;
     double compression = 0.0;
 };
 
@@ -46,7 +46,7 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                       double min_compression) {
     plan::StagedChunks staged;
     auto reason = plan::stage_chunks(args, sections, groups, false, size, 1,
-                                     chunk_scratch_bytes, false, staged);
+                                     chunk_scratch_limit, false, staged);
     if (!reason.empty())
         return {reason, nullptr};
     double compression = staged.targets.compression();
@@ -58,7 +58,7 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
     out->staging = std::move(staged.staging);
     out->batches = plan::section_batches(out->chunks);
     for (auto bytes : out->staging.chunk_scratch_bytes)
-        out->scratch_bytes = std::max(out->scratch_bytes, bytes);
+        out->max_scratch_bytes = std::max(out->max_scratch_bytes, bytes);
     out->compression = compression;
     return {{}, std::move(out)};
 }

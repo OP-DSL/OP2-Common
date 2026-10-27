@@ -31,7 +31,7 @@ private:
     int m_threads = 1;
     Globals m_globals;
     std::vector<std::unique_ptr<char[]>> m_scratch;
-    std::size_t m_scratch_bytes = 0;
+    std::size_t m_scratch_capacity = 0;
 
 public:
     Loop(std::string_view name, std::string_view profile_target,
@@ -63,13 +63,13 @@ public:
 
     // Give every thread bytes of chunk scratch, aligned to a cache line.
     void reserve_scratch(std::size_t bytes) {
-        if (bytes <= m_scratch_bytes &&
+        if (bytes <= m_scratch_capacity &&
             m_scratch.size() >= static_cast<std::size_t>(m_threads))
             return;
-        m_scratch_bytes = std::max(bytes, m_scratch_bytes);
+        m_scratch_capacity = std::max(bytes, m_scratch_capacity);
         m_scratch.clear();
         for (int thread = 0; thread < m_threads; ++thread)
-            m_scratch.push_back(std::make_unique<char[]>(m_scratch_bytes + 64));
+            m_scratch.push_back(std::make_unique<char[]>(m_scratch_capacity + 64));
     }
 
     char *scratch(int thread) const {
@@ -275,7 +275,7 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
     const auto& entry = *static_cast<const Entry *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = m_loop.call_sections();
-    m_loop.reserve_scratch(plan.scratch_bytes);
+    m_loop.reserve_scratch(plan.max_scratch_bytes);
 
     return run_phases(launch, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {

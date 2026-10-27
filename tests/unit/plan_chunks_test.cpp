@@ -216,7 +216,7 @@ void test_cpu_plans() {
     CHECK(atomics.chunks.size == 100 && atomics.batches.order.empty());
     CHECK(atomics.staging.stride == sections.set_stride());
     // A chunk of 100 edges reaches 101 nodes.
-    CHECK(atomics.scratch_bytes == 101 * sizeof(double));
+    CHECK(atomics.max_scratch_bytes == 101 * sizeof(double));
     CHECK(atomics.compression > 1.9);
 
     auto rejected = op::cpu::plan_chunk_atomics(chain.args, sections,
