@@ -217,7 +217,7 @@ def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: D
 
         for name, type_ in consts.items():
             if isinstance(type_, FCharacter) or (isinstance(type_, FArray) and isinstance(type_.inner, FCharacter)):
-                loop.consts.discard(name)
+                loop.consts.pop(name, None)
 
         for name, type_ in consts.items():
             actual_name = name

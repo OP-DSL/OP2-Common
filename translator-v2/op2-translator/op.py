@@ -250,7 +250,9 @@ class Loop:
         self.args = []
         self.args_expanded = []
 
-        self.consts = set()
+        # In the order the kernel uses them, so the generated code is the
+        # same each time: a dict as an ordered set.
+        self.consts = {}
 
         self.fallback = False
 
@@ -343,7 +345,7 @@ class Loop:
         return idx
 
     def addConst(self, const: str) -> None:
-        self.consts.add(const)
+        self.consts.setdefault(const, None)
 
     def arg(self, x: Union[Dat, int]) -> Optional[Arg]:
         if isinstance(x, Dat):
