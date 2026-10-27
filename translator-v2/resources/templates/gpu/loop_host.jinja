@@ -1,0 +1,646 @@
+{%- macro variant_str() -%}
+{{"Direct" if lh is direct else "Indirect"}}
+{%- endmacro -%}
+
+{%- set strategies = config.strategies -%}
+{#- The chunked strategies are built only as JIT kernels, which know every
+    dimension and setting as a constant; offline builds hold the rest. -#}
+{%- set chunk_strategies = ["chunk_atomics", "chunk_colouring"] -%}
+{%- set offline_strategies = strategies|reject("in", chunk_strategies)|list -%}
+
+{#- A chunked wrapper's plan parameters: type, name, and the launch context
+    field that binds it. -#}
+{%- set staging_params = [
+    ("const int *__restrict", "source_offsets", "launch.chunk.plan->source_offsets"),
+    ("const op::plan::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
+    ("const int *__restrict", "stage_counts", "launch.chunk.plan->stage_counts"),
+    ("const int *__restrict", "slot_offsets", "launch.chunk.plan->slot_offsets"),
+    ("const int *__restrict", "slot_targets", "launch.chunk.plan->slot_targets"),
+] -%}
+{%- set colouring_params = [
+    ("const int *__restrict", "chunk_order", "launch.chunk.plan->chunk_order"),
+    ("const unsigned char *__restrict", "thread_colours", "launch.chunk.plan->thread_colours"),
+    ("const int *__restrict", "chunk_thread_colours", "launch.chunk.plan->chunk_thread_colours"),
+    ("const int *__restrict", "wave_pred_offsets", "launch.chunk.plan->wave_pred_offsets"),
+    ("const int *__restrict", "wave_preds", "launch.chunk.plan->wave_preds"),
+    ("int *", "wave_done", "launch.chunk.plan->wave_done"),
+    ("int *", "wave_ticket", "launch.chunk.wave_ticket"),
+    ("const int", "wave_epoch", "launch.chunk.wave_epoch"),
+] -%}
+{%- set range_params = [
+    ("const int", "chunk_begin", "launch.chunk.chunk_begin"),
+    ("const int", "chunk_end", "launch.chunk.chunk_end"),
+] -%}
+{%- set chunk_params = {"chunk_atomics": staging_params + range_params,
+                        "chunk_colouring": staging_params + colouring_params + range_params} -%}
+
+{%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
+{%- if config.gbl_inc_atomic -%}
+    {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
+{%- endif -%}
+{#- READ globals of a literal dimension passed by value, as the scalars are,
+    so no kernel reads a device copy of them: up to 256 bytes each and 1 KB
+    in all, well within the kernel argument buffer. -#}
+{%- set by_value = namespace(args=[], bytes=0) -%}
+{%- for arg in lh.args|gbl|read|reject("scalar") if arg.dim is not none and arg is not opt and arg.typ.size is defined -%}
+    {%- set bytes = arg.dim * arg.typ.size // 8 -%}
+    {%- if bytes <= 256 and by_value.bytes + bytes <= 1024 -%}
+        {%- set by_value.args = by_value.args + [arg] -%}
+        {%- set by_value.bytes = by_value.bytes + bytes -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- set gbls_by_value = by_value.args -%}
+
+{#- Argument groups for the chunked strategies (strategy.py ChunkStrategies):
+    the arguments each plan follows and their dats in first-use order, one
+    group each.  The runtime partitions over the same groups the wrapper
+    lays its regions out by. -#}
+{%- set groups = config.chunk_groups -%}
+
+{#- Whether chunk colouring can compute every element of a chunk at once:
+    its groups only increment and read, so each thread can keep its
+    increments in registers until its colour's turn. -#}
+{%- set chunk_colouring_parallel = groups.chunk_colouring.args|reject("inc")|reject("read")|list|length == 0 -%}
+
+{#- How each strategy applies the translated kernel's op2_inc calls. -#}
+{%- macro inc_hook(strategy) -%}
+    {%- if strategy != "plain" %}
+template<typename T, typename U>
+static __device__ inline void op2_inc(T& target, U value) {
+    op::kernel::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
+}
+    {% endif -%}
+{%- endmacro -%}
+
+{#- The translated kernel, in a namespace of its own for each strategy
+    named. -#}
+{%- macro kernel_namespaces(names) -%}
+    {%- for strategy in names %}
+namespace op2_s_{{strategy}} {
+{{inc_hook(strategy)}}
+{{kernel_func}}}
+
+    {% endfor -%}
+{%- endmacro -%}
+
+{%- macro dat_dim_w(dat) -%}
+    {%- if dat.dim is not none -%}
+{{dat.dim}}
+    {%- else -%}
+dat{{dat.id}}_dim
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro map_idx(arg) -%}
+    {%- if arg is runtime_map_idx %}
+arg{{arg.id}}_idx
+    {%- else -%}
+{{arg.map_idx - abi.index_base}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{% macro map_lookup(arg) -%}
+map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
+{%- endmacro %}
+
+{%- macro arg_to_pointer_cuda(arg, jit = false, staged = none, local = false) %}
+    {%- if arg is idx and arg is indirect -%}
+{{abi.idx_arg("idx%d" % arg.id)}}
+    {%- elif arg is idx -%}
+{{abi.idx_arg("idx")}}
+    {%- elif arg is opt and abi.guarded(arg) -%}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : {{abi.inactive(arg)}}
+    {%- else -%}
+{{arg_to_pointer2(arg, jit, staged, local)}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_to_pointer2(arg, jit, staged = none, local = false) -%}
+    {%- if jit and arg is gbl and arg is read and arg is scalar -%}
+{{abi.value("op::kernel::param_value(op2_gbl%d_d, gbl%d)" % (arg.id, arg.id))}}
+    {%- elif arg is gbl and arg is read and arg is scalar -%}
+{{abi.value("gbl%d" % arg.id)}}
+    {%- else -%}
+{{abi.element(arg, arg_to_pointer3(arg, jit, staged, local))}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro arg_to_pointer3(arg, jit, staged = none, local = false) -%}
+    {%- if arg is info -%}
+op::kernel::Ptr{info{{arg.id}} + thread_id, stride_gbl}
+    {%- elif arg in args_gbl_per_thread -%}
+op::kernel::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
+    {%- elif jit and arg in gbls_by_value -%}
+op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)}
+    {%- elif arg in gbls_by_value -%}
+op::kernel::Ptr{gbl{{arg.id}}.data}
+    {%- elif jit and arg is gbl and arg is read -%}
+op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
+    {%- elif arg is gbl -%}
+op::kernel::Ptr{gbl{{arg.id}}}
+    {%- else -%}
+{{arg_to_pointer4(arg, staged, local)}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- A grouped argument's staged slot for element n, its components
+    contiguous, or under OP_CHUNK_ATOMICS_UNSTAGED_SINGLES its global target
+    if the chunk references it only there. -#}
+{%- macro stage_slot(arg, strategy) -%}
+    {%- set group = groups[strategy].group(arg) -%}
+    {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
+    {%- if strategy == "chunk_atomics" -%}
+((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
+    {%- else -%}
+op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- staged names the strategy whose group arguments point at their staged
+    slots; local points the indirect increments at per-thread registers. -#}
+{%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
+    {%- if local and arg in groups.chunk_atomics.args -%}
+op::kernel::Ptr{op2_local{{arg.id}}}
+    {%- elif staged is not none and arg in groups[staged].args -%}
+{{stage_slot(arg, staged)}}
+    {%- else -%}
+{{arg_global_pointer(arg)}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- An argument's global data for element n, as an op::kernel::Ptr, whose
+    stride carries the layout. -#}
+{%- macro arg_global_pointer(arg) -%}
+    {%- if arg is direct and lh.dat(arg) is soa -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
+    {%- elif arg is direct -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
+    {%- elif lh.dat(arg) is soa -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_stride_dat{{arg.dat_id}}_d}
+    {%- else -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- One call of the translated kernel for element n. -#}
+{%- macro kernel_call(jit, strategy, staged = none, local = false) -%}
+{% if lh.args|idx|direct|length > 0 %}
+int idx = n{{" + 1" if abi.index_base}};
+{% endif %}
+{% for arg in lh.args|idx|indirect %}
+int idx{{arg.id}} = {{map_lookup(arg)}}{{" + 1" if abi.index_base}};
+{% endfor %}
+op2_s_{{strategy}}::{{lh.kernel}}(
+{% for arg in lh.args %}
+    {{arg_to_pointer_cuda(arg, jit, staged, local)}}{{"," if not loop.last}}
+{% endfor %}
+);
+{%- endmacro -%}
+
+namespace op2_m_{{lh.name}}{{variant}} {
+
+{% if lh.args|direct(lh)|soa(lh)|length > 0 %}
+int op2_stride_direct;
+__constant__ int op2_stride_direct_d;
+{% endif %}
+
+{% for dat in lh.dats|soa if dat is mapped(lh) %}
+int op2_stride_dat{{dat.id}};
+__constant__ int op2_stride_dat{{dat.id}}_d;
+{% endfor %}
+
+{% for dat in lh.dats if dat.dim is none %}
+int op2_dim_dat{{dat.id}};
+{% endfor %}
+
+{% for arg in lh.args|gbl|read|scalar %}
+{{arg.typ.c()}} op2_gbl{{arg.id}};
+{% endfor %}
+
+{{kernel_namespaces(offline_strategies)}}
+}
+
+{#- Whether any argument in a staged group is active for this launch. -#}
+{%- macro stage_group_active(strategy, dat_id) -%}
+    {%- set members = groups[strategy].args|selectattr("dat_id", "eq", dat_id)|list -%}
+    {%- if members|reject("opt")|list|length > 0 -%}
+true
+    {%- else -%}
+        {%- for arg in members -%}
+((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0{{" || " if not loop.last}}
+        {%- endfor -%}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- A slot's global target as an op::kernel::Ptr; its stride carries the layout, so
+    the staging helpers need no AoS/SoA variants. -#}
+{%- macro stage_global(arg, dat) -%}
+    {%- if dat is soa -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + target, op2_stride_dat{{arg.dat_id}}_d}
+    {%- else -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- A lane per slot of each staged region, from the chunk's list of the
+    region's targets, applies action: seed the slot from its target, store it
+    back, or flush it with a global atomic. -#}
+{% macro stage_slots(strategy, action) %}
+{% for arg in groups[strategy].leaders() %}
+    {% set dat = lh.dat(arg) %}
+        for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += blockDim.x) {
+            const int target = slot_targets[op2_chunk_slots[{{loop.index0}}] + s];
+            op::kernel::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim_w(dat)}});
+        }
+{% endfor %}
+{% endmacro %}
+
+{#- Apply a chunk's elements to their staged slots one thread colour at a
+    time.  In the parallel shape every element computes at once into
+    per-thread increments, and only applying them is coloured. -#}
+{%- macro chunk_colour_passes() %}
+        const int op2_colours = chunk_thread_colours[chunk];
+        for (int op2_base = op2_source_begin; op2_base < op2_source_end;
+             op2_base += blockDim.x) {
+            const int n = op2_base + threadIdx.x;
+            const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
+    {% if chunk_colouring_parallel %}
+        {% for arg in groups.chunk_atomics.args %}
+            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim_w(lh.dat(arg))}}] = {};
+        {% endfor %}
+
+            if (op2_colour >= 0) {
+                {{kernel_call(true, "chunk_colouring", "chunk_colouring", true)|indent(16)}}
+            }
+
+            // Every staged read completes before any slot changes.
+            __syncthreads();
+
+            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
+                if (op2_colour == op2_pass) {
+        {% for arg in groups.chunk_atomics.args %}
+            {% if arg is opt %}
+                    if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
+                        op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+            {% else %}
+                    op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+            {% endif %}
+        {% endfor %}
+                }
+
+                __syncthreads();
+            }
+    {% else %}
+            const int op2_n = n;
+            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
+                if (op2_colour == op2_pass) {
+                    // Opaque, so this element's address arithmetic is not
+                    // hoisted out of the pass loop and kept live through it.
+                    const int n = op::kernel::opaque(op2_n);
+                    {{kernel_call(true, "chunk_colouring", "chunk_colouring")|indent(20)}}
+                }
+
+                __syncthreads();
+            }
+    {% endif %}
+        }
+{%- endmacro %}
+
+{#- Stage a chunk's grouped targets in shared memory, apply its elements to
+    them, then write each target once.  chunk_atomics clears its slots,
+    accumulates into them with shared atomics and flushes them with global
+    ones.  chunk_colouring seeds every slot and stores it back, since a
+    batch's chunks share no target, and applies its elements by thread
+    colour.  Only JIT kernels are built from it. -#}
+{%- macro chunk_body(strategy) %}
+    {% set dats = groups[strategy].dats %}
+    extern __shared__ char op2_stage_smem[];
+
+    {% for dat_id in dats %}
+    const bool op2_stage{{loop.index0}}_active = {{stage_group_active(strategy, dat_id)}};
+    {% endfor %}
+
+    {% if strategy == "chunk_colouring" %}
+    // Physical blocks grid-stride over this batch's chunks, which share no
+    // target of any group.  A wavefront batch covers a section instead: its
+    // blocks take positions in turn, each once the earlier positions sharing
+    // one of its targets are done.
+    __shared__ int op2_taken;
+    for (int op2_i = op2_wavefront ? op::kernel::wave_take(wave_ticket, chunk_begin, op2_taken)
+                                   : chunk_begin + blockIdx.x;
+         op2_i < chunk_end;
+         op2_i = op2_wavefront ? op::kernel::wave_take(wave_ticket, chunk_begin, op2_taken)
+                               : op2_i + gridDim.x) {
+        if (op2_wavefront)
+            op::kernel::wave_wait(wave_pred_offsets, wave_preds, wave_done, op2_i, wave_epoch);
+        const int chunk = chunk_order[op2_i];
+    {% else %}
+    // Physical blocks grid-stride over this section's chunks; the partition
+    // guarantees no chunk spans a section boundary.
+    for (int chunk = chunk_begin + blockIdx.x; chunk < chunk_end;
+         chunk += gridDim.x) {
+    {% endif %}
+        const int op2_source_begin = source_offsets[chunk];
+        const int op2_source_end = source_offsets[chunk + 1];
+        {# Counts up front, slot offsets only at the flush, so no offset
+           stays in a register through the user kernel. #}
+        const int *op2_chunk_counts =
+            stage_counts + chunk * {{dats|length}};
+        const int *op2_chunk_slots = slot_offsets + chunk * {{dats|length}};
+
+        // Walk the same region layout the host planner sized this chunk for.
+        char *op2_stage_cursor = op2_stage_smem;
+    {% for dat_id in dats %}
+        {% set dat = lh.dat(dat_id) %}
+        const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
+        {{dat.typ.c()}} *op2_stage{{loop.index0}} = op::kernel::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
+    {% endfor %}
+
+    {% if strategy == "chunk_atomics" %}
+        // Clear every region before accumulating into it.
+        {% for dat_id in dats %}
+        op::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
+        {% endfor %}
+        __syncthreads();
+
+        for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
+             n += blockDim.x) {
+            {{kernel_call(true, strategy, strategy)|indent(12)}}
+        }
+    {% else %}
+        // Seed every slot from its target, so the elements read and update
+        // the targets' current values.
+{{stage_slots(strategy, "seed")}}
+        __syncthreads();
+{{chunk_colour_passes()}}
+    {% endif %}
+
+        __syncthreads();
+
+        // One write per distinct target reaches global memory.
+{{stage_slots(strategy, "store" if strategy == "chunk_colouring" else "flush")}}
+
+        // Keep the next iteration from reusing memory a warp is still
+        // flushing.
+        __syncthreads();
+    {% if strategy == "chunk_colouring" %}
+        if (op2_wavefront)
+            op::kernel::wave_signal(wave_done, op2_i, wave_epoch);
+    {% endif %}
+    }
+{%- endmacro %}
+
+{#- The HIP wrappers carry launch bounds: the default block size offline,
+    the JIT kernel's own block size as a constant. -#}
+{%- macro launch_bounds(jit) -%}
+    {%- if config.hip -%}
+__launch_bounds__({{"op2_block_size_d" if jit else "128"}})
+    {%- endif -%}
+{%- endmacro -%}
+
+{#- The JIT wrapper takes the offline wrapper's parameters, so both launch
+    from one argument list.  Those the JIT kernel may have as constants come
+    last: a scalar global, read through op::kernel::param_value as its baked value
+    or the argument, and a dimension, unnamed there. -#}
+{% macro kernel_wrapper(strategy, jit = false) %}
+{% set scalar_gbls = lh.args|gbl|read|scalar|list %}
+{% set runtime_dims = lh.dats|selectattr("dim", "none")|reject("soa")|list %}
+extern "C" __global__ {{launch_bounds(jit)}}
+void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
+    {% for dat in lh.dats %}
+    {{"const " if dat is read_in(lh)}}{{dat.typ.c()}} *__restrict dat{{dat.id}},
+    {% endfor %}
+    {% for map in lh.maps %}
+    const int *__restrict map{{map.id}},
+    {% endfor %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) and arg not in gbls_by_value %}
+    {{"const " if arg is read}}{{arg.typ.c()}} *__restrict gbl{{arg.id}},
+    {% endfor %}
+    {% for arg in lh.args|info %}
+    {{arg.typ.c()}} *__restrict info{{arg.id}},
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+    const int arg{{arg.id}}_idx,
+    {% endfor %}
+    {% if strategy == "colouring" %}
+    const int *__restrict col_reord,
+    {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+    const int stride_gbl,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+    const unsigned opt_flags,
+    {% endif %}
+    const int start,
+    const int end,
+    const int stride{{"," if strategy in chunk_strategies or scalar_gbls or runtime_dims or gbls_by_value}}
+    {% for ctype, name, expr in chunk_params.get(strategy, []) %}
+    {{ctype}} {{name}}{{"," if not loop.last or scalar_gbls or runtime_dims or gbls_by_value}}
+    {% endfor %}
+    {% for arg in scalar_gbls %}
+    const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last or runtime_dims or gbls_by_value}}
+    {% endfor %}
+    {% for dat in runtime_dims %}
+    const int {{("/*dat%s_dim*/" if jit else "dat%s_dim") % dat.id}}{{"," if not loop.last or gbls_by_value}}
+    {% endfor %}
+    {% for arg in gbls_by_value %}
+    const op::kernel::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
+    {% endfor %}
+) {
+    using namespace op2_m_{{lh.name}}{{variant}};
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    {% if jit %}
+        {% for dat in lh.dats if dat.dim is none %}
+    [[maybe_unused]] constexpr int dat{{dat.id}}_dim = op2_dim_dat{{dat.id}}_d;
+        {% endfor %}
+    {% endif %}
+    {% if strategy in chunk_strategies %}
+    [[maybe_unused]] constexpr bool op2_unstaged_singles = op2_unstaged_singles_d != 0;
+    [[maybe_unused]] constexpr bool op2_wavefront = op2_wavefront_d != 0;
+    {% endif %}
+{{abi.wrapper_locals()}}
+    {% if strategy in chunk_strategies %}
+    (void)start;
+    (void)end;
+    (void)thread_id;
+{{chunk_body(strategy)}}
+}
+    {% else %}
+    for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
+    {% if strategy == "colouring" %}
+        int n = col_reord[i];
+    {% else %}
+        int n = i;
+    {% endif %}
+
+        {{kernel_call(jit, strategy)|indent(8)}}
+    }
+}
+    {% endif %}
+{% endmacro %}
+
+{% for strategy in strategies %}
+    {% if strategy in offline_strategies %}
+{{kernel_wrapper(strategy)}}
+    {% endif %}
+
+const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
+namespace op2_m_{{lh.name}}{{variant}} {
+
+using int64_t = long long int;
+{{kernel_namespaces([strategy])}}
+}
+
+{{kernel_wrapper(strategy, jit=true)}}
+)_op2_k";
+
+{% endfor %}
+{#- An inactive optional scalar global may have no data, so its by-value
+    argument is read from the JIT's copy. -#}
+{% macro kernel_arguments(strategy) %}
+    {% for dat in lh.dats %}
+        (void *)&args[{{dat.arg_id}}].data_d,
+    {% endfor %}
+    {% for map in lh.maps %}
+        (void *)&args[{{map.arg_id}}].map_data_d,
+    {% endfor %}
+    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) and arg not in gbls_by_value %}
+        (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for arg in lh.args|info %}
+        (void *)&args[{{arg.id}}].data_d,
+    {% endfor %}
+    {% for arg in lh.args|runtime_map_idx %}
+        (void *)&args[{{arg.id}}].idx,
+    {% endfor %}
+    {% if strategy == "colouring" %}
+        (void *)&launch.colour_order,
+    {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+        (void *)&launch.global_stride,
+    {% endif %}
+    {% if lh.args|opt|length > 0 %}
+        (void *)&launch.opt_flags,
+    {% endif %}
+        (void *)&launch.start,
+        (void *)&launch.end,
+        (void *)&launch.set_stride,
+    {% for ctype, name, expr in chunk_params.get(strategy, []) %}
+        (void *)&{{expr}},
+    {% endfor %}
+    {% for arg in lh.args|gbl|read|scalar %}
+        {% if arg is opt %}
+        args[{{arg.id}}].opt ? (void *)args[{{arg.id}}].data
+                    : (void *)&op2_m_{{lh.name}}{{variant}}::op2_gbl{{arg.id}},
+        {% else %}
+        (void *)args[{{arg.id}}].data,
+        {% endif %}
+    {% endfor %}
+    {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
+        (void *)&args[{{dat.arg_id}}].dim,
+    {% endfor %}
+    {% for arg in gbls_by_value %}
+        (void *)args[{{arg.id}}].data,
+    {% endfor %}
+{%- endmacro %}
+
+{#- Each strategy's kernel arguments, for its offline and JIT kernels alike,
+    from the launch. -#}
+{% for strategy in strategies %}
+static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
+    op::gpu::LaunchContext& launch, op_arg *args,
+    std::vector<void *>& arguments) {
+{% if lh.args|opt|length > 0 %}
+    launch.opt_flags = 0;
+    {% for arg in lh.args|opt %}
+    if (args[{{arg.id}}].opt)
+        launch.opt_flags |= 1 << {{lh.optIdx(arg)}};
+    {% endfor %}
+{% else %}
+    (void)args;
+{% endif %}
+
+    arguments = {
+{{kernel_arguments(strategy)}}    };
+}
+
+{% endfor %}
+static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
+    namespace kernel = op2_m_{{lh.name}}{{variant}};
+
+{% if lh.args|direct(lh)|soa(lh)|length > 0 %}
+    loop.add_dat_stride_param("op2_stride_direct_d",
+        &kernel::op2_stride_direct,
+        {{lh.args|direct(lh)|soa(lh)|first|attr("id")}},
+        &kernel::op2_stride_direct_d);
+{% endif %}
+{% for dat in lh.dats|soa if dat is mapped(lh) %}
+    loop.add_dat_stride_param("op2_stride_dat{{dat.id}}_d",
+        &kernel::op2_stride_dat{{dat.id}}, {{dat.arg_id}},
+        &kernel::op2_stride_dat{{dat.id}}_d);
+{% endfor %}
+{{abi.register_consts()}}
+{% for dat in lh.dats if dat.dim is none %}
+    loop.add_dat_dim_param("op2_dim_dat{{dat.id}}_d",
+        &kernel::op2_dim_dat{{dat.id}}, {{dat.arg_id}});
+{% endfor %}
+{% for arg in lh.args|gbl|read|scalar %}
+    loop.add_scalar_arg_param("op2_gbl{{arg.id}}_d",
+        &kernel::op2_gbl{{arg.id}}, {{arg.id}});
+{% endfor %}
+{% for arg in lh.args|gbl|read|reject("scalar") %}
+    loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}{{", true" if arg in gbls_by_value}});
+{% endfor %}
+    loop.add_launch_param("op2_block_size_d", op::gpu::LaunchValue::block_size);
+{% if strategies|select("in", chunk_strategies)|list %}
+    loop.add_launch_param("op2_unstaged_singles_d", op::gpu::LaunchValue::unstaged_singles);
+    loop.add_launch_param("op2_wavefront_d", op::gpu::LaunchValue::wavefront);
+{% endif %}
+{% for strategy in strategies %}
+    {% if strategy in chunk_strategies %}
+    static constexpr std::array<op::plan::ArgGroup, {{groups[strategy].args|length}}> {{strategy}}_groups = {{"{{"}}
+        {% for arg in groups[strategy].args %}
+        op::plan::ArgGroup{ {{arg.id}}, {{groups[strategy].group(arg)}} },
+        {% endfor %}
+    {{"}}"}};
+    {% endif %}
+    loop.add<op::gpu::{{"ChunkAtomics" if strategy == "chunk_atomics" else "ChunkColouring" if strategy == "chunk_colouring" else "Colouring" if strategy == "colouring" else "Simple"}}>(
+        "{{strategy}}",
+        op::gpu::KernelSource{
+            "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
+            {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
+            op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
+        &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
+    {% if strategy in chunk_strategies %}
+        op::plan::ArgGroups{ {{strategy}}_groups, {{groups[strategy].dats|length}} });
+    {% endif %}
+{% endfor %}
+    return true;
+}
+
+static op::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
+    static op::gpu::Loop loop(
+        "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
+        op::gpu::LoopDescription{ {{"true" if lh is direct else "false"}},
+                                  {{"true" if config.gbl_inc_atomic else "false"}} },
+        OP_KERNEL_JIT_HEADERS);
+    static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
+    (void)registered;
+    return loop;
+}
+
+{{abi.entry()}}
+    op_set set,
+{% for arg in lh.args %}
+    op_arg arg{{arg.id}}{{"," if not loop.last}}
+{% endfor %}
+) {
+{{abi.entry_prologue()}}
+    op_arg args[] = {
+{% for arg in lh.args %}
+        arg{{arg.id}}{{"," if not loop.last}}
+{% endfor %}
+    };
+
+    op2_k_{{lh.name}}{{variant}}_loop().invoke(set, args, {{lh.args|length}});
+}
