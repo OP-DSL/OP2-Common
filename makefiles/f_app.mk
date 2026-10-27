@@ -9,7 +9,7 @@ FFLAGS += -DOP_PART_SIZE_1=$(PART_SIZE_ENV)
 
 APP_SRC_OP := $(APP_SRC:%.F90=generated/$(APP_NAME)/%.F90)
 
-BASE_VARIANTS := seq genseq openmp cuda_legacy seq_f2c openmp_f2c cuda_f2c hip_f2c
+BASE_VARIANTS := seq genseq openmp_legacy cuda_legacy seq_f2c openmp_f2c cuda_f2c hip_f2c
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -20,7 +20,7 @@ ifeq ($(HAVE_F),true)
   BUILDABLE_VARIANTS += seq genseq
 
   ifeq ($(F_HAS_OMP),true)
-    BUILDABLE_VARIANTS += openmp
+    BUILDABLE_VARIANTS += openmp_legacy
   endif
 
   ifeq ($(F_HAS_CUDA),true)
@@ -114,7 +114,7 @@ endef
 SEQ_SRC := $(APP_SRC)
 
 $(eval $(call SRC_template,genseq,seq,F90))
-$(eval $(call SRC_template,openmp,openmp,F90))
+$(eval $(call SRC_template,openmp_legacy,openmp_legacy,F90))
 $(eval $(call SRC_template,cuda_legacy,cuda_legacy,F90))
 $(eval $(call SRC_template,seq_f2c,seq_f2c,F90))
 $(eval $(call SRC_template,openmp_f2c,openmp_f2c,F90))
@@ -180,7 +180,7 @@ endef
 # Standard variants
 $(eval $(call RULE_template,        seq,,                   SEQ,     MPI,))
 $(eval $(call RULE_template,        genseq,,                SEQ,     MPI,))
-$(eval $(call RULE_template,        openmp, $(OMP_FFLAGS),  OPENMP,  MPI,))
+$(eval $(call RULE_template,        openmp_legacy, $(OMP_FFLAGS), OPENMP, MPI,))
 $(eval $(call RULE_template,        cuda_legacy, $(CUDA_FFLAGS), CUDA, MPI_CUDA, $(OP2_MOD_CUDA)))
 $(eval $(call RULE_template,        seq_f2c,,                 SEQ,     MPI,))
 $(eval $(call RULE_template,        openmp_f2c, $(OMP_FFLAGS), OPENMP, MPI,))

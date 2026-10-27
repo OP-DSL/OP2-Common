@@ -531,7 +531,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     {%- endfor -%}
     /)
 
-    call op_profile_enter_kernel("{{lh.name}}", "openmp", "{{"Direct" if lh is direct else "Indirect"}}")
+    call op_profile_enter_kernel("{{lh.name}}", "{{target.name}}", "{{"Direct" if lh is direct else "Indirect"}}")
 
     call op_profile_enter("MPI Exchanges")
     set_size = op_mpi_halo_exchanges(set%setcptr, size(args), args, {{config.device}})

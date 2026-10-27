@@ -154,8 +154,8 @@ Fortran application variants are Make targets ``<app>_<variant>`` too:
      - Sequential Fortran build using the reference library.
    * - ``genseq``
      - Code-generated sequential Fortran build.
-   * - ``openmp``
-     - OpenMP multi-threaded Fortran build.
+   * - ``openmp_legacy``
+     - OpenMP multi-threaded Fortran build from the legacy templates.
    * - ``cuda_legacy``
      - Native CUDA Fortran build from the legacy templates. Requires a CUDA Fortran-capable compiler (NVHPC).
    * - ``seq_f2c``

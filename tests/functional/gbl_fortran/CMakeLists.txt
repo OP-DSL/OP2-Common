@@ -15,5 +15,5 @@ op2_add_functional_tests(
     SOURCES  gbl_kernels.F90 gbl_tests.F90
     FAMILIES serial mpi
     TRANSLATOR_ARGS -c "{\".*\": {\"gbl_inc_atomic\": true}}"
-    EXCLUDE_VARIANTS *seq *openmp *seq_f2c *openmp_f2c ${OP2_TEST_MPI_FORTRAN_EXCLUDE}
+    EXCLUDE_VARIANTS *seq *openmp_legacy *seq_f2c *openmp_f2c ${OP2_TEST_MPI_FORTRAN_EXCLUDE}
     LINK_LIBRARIES   ${OP2_TEST_MPI_FORTRAN_LINK})

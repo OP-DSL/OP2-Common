@@ -19,10 +19,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   | C++ | `openmp` (legacy templates) | `openmp_legacy` |
   | Fortran | `c_seq`, `c_openmp`, `c_cuda`, `c_hip` | `seq_f2c`, `openmp_f2c`, `cuda_f2c`, `hip_f2c` |
   | Fortran | `cuda` (CUDA Fortran) | `cuda_legacy` |
+  | Fortran | `openmp` (legacy templates) | `openmp_legacy` |
 
   Hydra's constant-list headers keep their names (`hydra_const_list_c_cuda.cuh` and so on).
 - The C++ `cuda` and `hip` targets generate a kernel for every execution strategy a loop can run (`plain`, `atomics`, `colouring`, and the JIT-only `chunk_atomics` and `chunk_colouring`), chosen at run time as for `cuda_f2c` and `hip_f2c`, where they used one strategy fixed at translation. Each increment of an indirect `OP_INC` argument goes through the strategy's `op2_inc` (`atomics` is now an atomic add per increment, not a per-element accumulator). Any other use of such an argument, such as an assignment or a read, fails translation: declare it `OP_RW` or `OP_WRITE` (`apps/c/reduction` now declares `res_calc`'s assigned argument `OP_WRITE`).
-- The C++ `openmp` target runs each loop over OpenMP threads as `openmp_f2c` does, from the same template: a body for every execution strategy a loop can run, chosen at run time, its kernel taking every argument as an `op::kernel::Ptr` and each indirect increment through `op2_inc`. The legacy templates' target is `openmp_legacy`. The GNU Make builds gain `openmp_legacy` for C++ and `openmp_f2c` for Fortran.
+- The C++ `openmp` target runs each loop over OpenMP threads as `openmp_f2c` does, from the same template: a body for every execution strategy a loop can run, chosen at run time, its kernel taking every argument as an `op::kernel::Ptr` and each indirect increment through `op2_inc`. The legacy templates' target is `openmp_legacy` in both languages; Fortran has no `openmp`. The GNU Make builds gain `openmp_f2c` for Fortran.
 - Testing runs through CTest alone. With `-DOP2_ENABLE_APP_TESTS=ON` the example apps (airfoil, aero, and MG-CFD from a checkout named by `OP2_TEST_MGCFD_DIR`) run every variant to their own validation against downloaded meshes, label `apps`. The GitHub workflows and the Jenkins pipelines configure with CMake and run `ctest`; the bash harness under `tests/bash` and the functional tests' Makefiles are gone. The functional tests build only the families that test something (SoA on the GPU variants only) and run a JIT variant's JIT kernels compiled on their first call.
 
 ---

@@ -115,13 +115,13 @@ All targets have a corresponding distributed-memory MPI variant built automatica
 Fortran Targets
 ^^^^^^^^^^^^^^^
 
-The language is detected automatically from the file extension (``.F90`` or ``.f90``). The targets that translate Fortran kernels to C++ end in ``_f2c``; Fortran's ``openmp`` is the legacy Fortran implementation, and ``openmp_f2c`` runs the same strategies as C++'s ``openmp``.
+The language is detected automatically from the file extension (``.F90`` or ``.f90``). The targets that translate Fortran kernels to C++ end in ``_f2c``; ``openmp_f2c`` runs the same strategies as C++'s ``openmp``.
 
 Example — generate Fortran OpenMP and CUDA (Fortran-to-C) variants:
 
 .. code-block:: shell
 
-   python3 op2-translator -t openmp -t cuda_f2c myapp.F90
+   python3 op2-translator -t openmp_f2c -t cuda_f2c myapp.F90
 
 The following targets are available for Fortran applications:
 
@@ -133,8 +133,8 @@ The following targets are available for Fortran applications:
      - Description
    * - ``seq``
      - Code-generated sequential Fortran implementation. Produces a ``master_kernel.F90`` containing all loop host subroutines.
-   * - ``openmp``
-     - Multi-threaded Fortran implementation using OpenMP pragmas. Includes optional SIMD vectorisation of indirect loops.
+   * - ``openmp_legacy``
+     - Multi-threaded Fortran implementation from the legacy templates, using OpenMP pragmas. Includes optional SIMD vectorisation of indirect loops.
    * - ``cuda_legacy``
      - Native Fortran CUDA implementation using CUDA Fortran (``.CUF``). Device kernels are written in Fortran with ``attributes(device)`` annotations. Requires a CUDA Fortran-capable compiler (NVHPC).
    * - ``seq_f2c``
