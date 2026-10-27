@@ -39,7 +39,7 @@
 #include <gpu/options.h>
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
-#include <loop/autotune.h>
+#include <loop/loop.h>
 #include <op_env.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>

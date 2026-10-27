@@ -45,12 +45,13 @@ _op2_preprocess_fortran(
 # --- C/C++ groups --------------------------------------------------------
 
 # Backend-neutral par_loop support: the strategy ladder and tuner, the JIT's
-# policy, parameters and build cache, and the planning building blocks the
-# backends' strategies compose.
+# policy, parameters and build cache, their reports, and the planning
+# building blocks the backends' strategies compose.
 set(_op2_loop_srcs
     "${_src}/loop/op_loop_strategy.cpp"
     "${_src}/loop/op_loop_autotune.cpp"
     "${_src}/loop/op_loop_jit.cpp"
+    "${_src}/loop/op_loop_report.cpp"
     "${_src}/plan/op_plan_colouring.cpp"
     "${_src}/plan/op_plan_chunks.cpp"
     "${_src}/plan/op_plan_staging.cpp"

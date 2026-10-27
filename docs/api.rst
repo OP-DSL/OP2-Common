@@ -604,7 +604,9 @@ The following environment variables can be set at run time to control OP2 behavi
    * - ``OP_JIT_MAX_GBL_BYTES``, ``OP_JIT_MAX_CONST_BYTES``
      - Integers, default 4096 and 16384. The largest ``OP_READ`` global and constant baked in; larger ones stay at run time.
    * - ``OP_JIT_RUNTIME_PARAMS``, ``OP_JIT_CONSTANT_PARAMS``
-     - Comma-separated parameter names, each ``name`` or ``loop:name`` (as ``OP_JIT_DEBUG`` prints them), always given at run time or always baked in.
+     - Comma-separated parameter names, each ``name`` or ``loop:name`` (as ``OP_JIT_DEBUG`` and the JIT summary print them), always given at run time or always baked in.
+   * - ``OP_JIT_REPORT``
+     - A file path: at ``op_profile_output`` and ``op_exit``, a CSV row per loop configuration with the parameters its kernels bake in, give at run time, and moved (see :ref:`perf`).
    * - ``OP_DISPLAY_ENV``
      - Set to ``1`` (or ``on``) to print, at ``op_init``, every variable OP2 reads with the value in effect, marking those the environment set.
    * - ``OP_FALLBACK_MODE``

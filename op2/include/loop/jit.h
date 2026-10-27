@@ -59,6 +59,9 @@ struct JitOptions {
     // at run time, or always baked in, by name ("<name>" or "<loop>:<name>").
     std::vector<std::string> runtime_params;
     std::vector<std::string> constant_params;
+    // OP_JIT_REPORT: the report's file, ".<rank>" appended under MPI; no
+    // report when empty.
+    std::string report_file;
 
     bool enabled() const { return level > 0; }
 };
@@ -233,10 +236,11 @@ private:
         bool observe(const Param& param, const JitOptions& options);
     };
 
-    // A configuration's statistics, and the calls observed.
+    // A configuration's statistics, the calls observed, and its description.
     struct Histories {
         std::vector<History> params;
         std::uint64_t calls = 0;
+        std::string description;
     };
 
     // Past this many configurations a new one keeps the initial modes.
@@ -253,7 +257,7 @@ private:
     std::uint64_t m_history_key = 0;
     Histories *m_history = nullptr;
 
-    Histories *histories(std::uint64_t call);
+    Histories *histories(const Call& call);
     void observe(const Call& call);
 
     std::size_t insert(Param param, bool runtime) {
@@ -297,6 +301,23 @@ public:
     // statistics have seen a window of its calls.  A mode may still move
     // later, when a value starts or stops changing.
     bool settled(const Call& call) const;
+
+    // A parameter that may move, as one configuration's statistics left it.
+    struct Outcome {
+        const Param *param;
+        ParamMode mode;
+        bool moved;
+    };
+
+    // A configuration the statistics observed: its description, calls and
+    // the parameters that may move.
+    struct ConfigurationModes {
+        std::string_view description;
+        std::uint64_t calls;
+        std::vector<Outcome> params;
+    };
+
+    std::vector<ConfigurationModes> configurations() const;
 
     // Record the call's values in the configuration's statistics and take
     // the modes they give, once per call.
@@ -355,6 +376,23 @@ std::string format_cxx(const ParamSet& params);
 const char *cxx_type(ParamType type);
 
 // --- Builds -------------------------------------------------------------------
+
+// A cache's builds by where they stand: built, failed, under way, and keys
+// asked for whose builds have not started.
+struct BuildCounts {
+    std::size_t built = 0;
+    std::size_t failed = 0;
+    std::size_t building = 0;
+    std::size_t waiting = 0;
+
+    BuildCounts& operator+=(const BuildCounts& other) {
+        built += other.built;
+        failed += other.failed;
+        building += other.building;
+        waiting += other.waiting;
+        return *this;
+    }
+};
 
 // Where a key's build stands.
 enum class BuildState {
@@ -489,6 +527,18 @@ public:
         return found == m_entries.end()
                    ? BuildState::unseen
                    : found->second.state.load(std::memory_order_acquire);
+    }
+
+    BuildCounts counts() const {
+        BuildCounts out;
+        for (const auto& [key, entry] : m_entries)
+            switch (entry.state.load(std::memory_order_acquire)) {
+            case BuildState::ready:    ++out.built; break;
+            case BuildState::failed:   ++out.failed; break;
+            case BuildState::building: ++out.building; break;
+            default:                   ++out.waiting; break;
+            }
+        return out;
     }
 
     // Wait for every build still running.

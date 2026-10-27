@@ -72,7 +72,13 @@ std::uint64_t Call::key() const {
 }
 
 std::string Call::describe() const {
-    std::string text = set->name != nullptr ? set->name : "?";
+    // Fortran pads names with spaces.
+    auto trimmed = [](const char *name) {
+        std::string text = name != nullptr ? name : "?";
+        text.erase(text.find_last_not_of(' ') + 1);
+        return text;
+    };
+    std::string text = trimmed(set->name);
     text += " (" + std::to_string(set->size) + ")";
 
     std::string maps;
@@ -85,7 +91,7 @@ std::string Call::describe() const {
         }
         if (arg.map == nullptr || arg.map->name == nullptr)
             continue;
-        std::string name = arg.map->name;
+        std::string name = trimmed(arg.map->name);
         if (maps.find(name) == std::string::npos)
             maps += (maps.empty() ? "" : ", ") + name;
     }
@@ -310,6 +316,21 @@ std::vector<Point> points(std::string_view family, std::span<const Axis> axes,
     }
 }
 
+// The family, and the axis values where point differs from first:
+// "chunk_atomics (block_size=64 singles=off)".
+std::string label(std::string_view family, const Point& point, const Point& first) {
+    std::string differing;
+    std::string_view items = point.name;
+    for (std::size_t i = 0; i < point.values.size(); ++i) {
+        items.remove_prefix(items.find(';') + 1);
+        if (point.values[i] != first.values[i])
+            differing += (differing.empty() ? "" : " ") +
+                         std::string{items.substr(0, items.find(';'))};
+    }
+    std::string text{family};
+    return differing.empty() ? text : text + " (" + differing + ")";
+}
+
 } // namespace
 
 void init() {
@@ -369,10 +390,14 @@ void Ladder::add(std::string_view family, const Make& make) {
         bool member = i + 1 == all.size();
         auto add = [&](KernelKind kind) {
             std::string name{strategy.name()};
-            if (kind == KernelKind::jit)
+            std::string short_name = label(family, all[i], all.back());
+            if (kind == KernelKind::jit) {
                 name += ";kernel=jit";
-            m_candidates.push_back({&strategy, kind, std::move(name), std::string{family},
-                                    settings.rank, member, member && enabled, off});
+                short_name += " jit";
+            }
+            m_candidates.push_back({&strategy, kind, std::move(name), std::move(short_name),
+                                    std::string{family}, settings.rank, member,
+                                    member && enabled, off});
         };
         auto offline = strategy.estimate(KernelKind::offline);
         auto jit = options.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};

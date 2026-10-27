@@ -253,8 +253,16 @@ public:
         op_profile_exit();
     }
 
-    // At op_exit, while the device is still up: report the tuner, join the
-    // compiles, and free every strategy's device state.
+    op::loop::BuildCounts builds() const override {
+        op::loop::BuildCounts counts;
+        for (const auto& strategy : m_ladder.strategies())
+            counts += static_cast<const StrategyBase&>(*strategy).builds();
+        return counts;
+    }
+
+    // At op_exit, while the device is still up: forget the tuner's
+    // configurations, join the compiles, and free every strategy's device
+    // state.
     void release() override {
         op::loop::Loop::release();
         for (const auto& strategy : m_ladder.strategies())

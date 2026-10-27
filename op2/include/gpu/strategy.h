@@ -176,6 +176,8 @@ public:
 
     const CallState& call_state() const { return m_call_state; }
 
+    op::loop::BuildCounts builds() const { return m_cache.counts(); }
+
     // Free device state while the device is up.
     virtual void release() { m_cache.join(); }
 };

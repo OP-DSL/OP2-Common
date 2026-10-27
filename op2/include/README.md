@@ -32,7 +32,7 @@ loop/strategy.h        (includes: op_lib_core.h; a loop's strategies, each
                         reads, and the sections an indirect loop runs)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate per configuration once its JIT modes
-                        have settled, and op_exit's report and release)
+                        have settled)
 loop/jit.h             (includes: extern/rapidhash.h, loop/strategy.h,
                         op_lib_core.h; the JIT's options, read by op_init,
                         the parameters a loop's kernels are specialised on
@@ -43,8 +43,10 @@ loop/loop.h            (includes: loop/autotune.h, loop/jit.h,
                         loop/strategy.h, op_lib_core.h; the base of every
                         backend's loop: its ladder, tuner and JIT
                         parameters, the steps of a call every backend
-                        shares, and the registry op_exit reports and
-                        releases)
+                        shares, and the registry of every loop, which
+                        op_profile_output and op_exit report on and op_exit
+                        releases; the reports from
+                        src/loop/op_loop_report.cpp)
 ```
 
 #### Planning building blocks, backend neutral (sources under src/plan)

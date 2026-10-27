@@ -30,7 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <loop/autotune.h>
+#include <loop/loop.h>
 #include <op_env.h>
 #include <op_lib_c.h>
 

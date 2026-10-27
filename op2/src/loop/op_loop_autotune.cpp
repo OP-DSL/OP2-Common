@@ -1,82 +1,12 @@
 #include <loop/autotune.h>
-#include <loop/loop.h>
 #include <op_env.h>
-#include <op_lib_c.h>
 
 #include <algorithm>
 #include <cstdio>
-#include <cstdlib>
-#include <mutex>
 #include <utility>
 #include <vector>
 
 namespace op::loop {
-
-// --- Every loop, and the report -------------------------------------------------------
-
-namespace {
-
-std::mutex loops_mutex;
-std::vector<Loop *> loops;
-
-constexpr const char *header =
-    "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
-    "fastest,speedup,selected,state,statistics";
-
-} // namespace
-
-void register_loop(Loop *loop) {
-    std::scoped_lock lock(loops_mutex);
-    loops.push_back(loop);
-}
-
-void unregister_loop(Loop *loop) {
-    std::scoped_lock lock(loops_mutex);
-    std::erase(loops, loop);
-}
-
-void autotune_write_report(int rank, int ranks) {
-    const auto& path = autotune_options().report_file;
-    if (path.empty())
-        return;
-
-    std::vector<std::string> rows;
-    {
-        std::scoped_lock lock(loops_mutex);
-        for (const auto *loop : loops)
-            if (const auto *tuner = loop->tuner())
-                tuner->rows(rows);
-    }
-    if (rows.empty())
-        return;
-
-    std::string name = path;
-    if (ranks > 1)
-        name += "." + std::to_string(rank);
-
-    FILE *file = std::fopen(name.c_str(), "w");
-    if (file == nullptr) {
-        std::fprintf(stderr, "warning: cannot write autotune report %s\n",
-                     name.c_str());
-        return;
-    }
-
-    std::fprintf(file, "%s\n", header);
-    for (const auto& row : rows)
-        std::fprintf(file, "%s\n", row.c_str());
-    std::fclose(file);
-}
-
-void finalise(int rank, int ranks) {
-    autotune_write_report(rank, ranks);
-    std::vector<Loop *> current;
-    {
-        std::scoped_lock lock(loops_mutex);
-        current = loops;
-    }
-    for (auto *loop : current)
-        loop->release();
-}
 
 // --- Options -------------------------------------------------------------------
 
@@ -133,7 +63,7 @@ bool Autotuner::Trial::done() const {
 bool Autotuner::State::explored() const {
     if (trivial)
         return false;
-    bool any = reported;
+    bool any = finished;
     for (const auto& trial : trials)
         any |= !trial.samples.empty();
     return any;
@@ -154,7 +84,7 @@ Autotuner::Decision Autotuner::choose(const Call& call,
 
     auto& state = found->second;
     ++state.calls;
-    if (state.reported)
+    if (state.finished)
         return run_selected(state, call, ladder);
     state.ladder = selection.candidate;
     if (state.calls < static_cast<std::size_t>(options.min_calls) || !settled)
@@ -162,7 +92,7 @@ Autotuner::Decision Autotuner::choose(const Call& call,
     if (state.trials.empty()) {
         add_trials(state, call, selection);
         if (state.trivial) {
-            state.reported = true;
+            state.finished = true;
             return ladder;
         }
     }
@@ -199,7 +129,7 @@ Autotuner::Decision Autotuner::choose(const Call& call,
 
     if (options.select)
         state.selected = winner(summarise(state));
-    report(state);
+    state.finished = true;
     return run_selected(state, call, ladder);
 }
 
@@ -311,52 +241,6 @@ std::string Autotuner::row(const State& state, const Summary& summary,
     return text;
 }
 
-// The printed line: each candidate's median time, or why it was not live,
-// against the ladder's choice.
-std::string Autotuner::line(const State& state) const {
-    std::string times;
-    for (const auto& trial : state.trials) {
-        if (trial.off)
-            continue;
-
-        times += times.empty() ? "" : ", ";
-        times += trial.candidate->name + " ";
-        if (!trial.live) {
-            times += trial.reason;
-        } else if (trial.samples.empty()) {
-            times += "pending";
-        } else {
-            char text[32];
-            std::snprintf(text, sizeof(text), "%.1fus", median(trial.samples));
-            times += text;
-            if (!trial.statistics.empty())
-                times += " (" + trial.statistics + ")";
-        }
-    }
-
-    auto summary = summarise(state);
-    char tail[160];
-    std::snprintf(tail, sizeof(tail), "; ladder %s, fastest %s (%.2fx)%s",
-                  state.ladder->name.c_str(),
-                  summary.fastest != nullptr ? summary.fastest->candidate->name.c_str()
-                                             : "none",
-                  summary.speedup, summary.complete ? "" : ", partial");
-    std::string text = "autotune: " + m_ladder.name() + " on " +
-                       state.description + ": " + times + tail;
-    if (state.selected != nullptr)
-        text += ", selected " + state.selected->name;
-    return text;
-}
-
-// Print a configuration's results on the root rank, once.
-void Autotuner::report(State& state) {
-    if (state.reported)
-        return;
-    state.reported = true;
-    if (op_is_root())
-        std::printf("%s\n", line(state).c_str());
-}
-
 void Autotuner::rows(std::vector<std::string>& out) const {
     for (const auto& [key, state] : m_states) {
         if (!state.explored())
@@ -368,20 +252,31 @@ void Autotuner::rows(std::vector<std::string>& out) const {
     }
 }
 
-void Autotuner::flush() {
-    std::size_t unexplored = m_dropped;
-    for (auto& [key, state] : m_states) {
-        if (state.explored())
-            report(state);
-        else if (!state.trivial)
-            ++unexplored;
+void Autotuner::outcomes(std::vector<Outcome>& out) const {
+    for (const auto& [key, state] : m_states) {
+        if (!state.explored())
+            continue;
+        auto summary = summarise(state);
+        Outcome outcome{state.description, state.calls, state.ladder, nullptr,
+                        state.selected, std::nullopt, std::nullopt, summary.complete};
+        if (summary.ladder != nullptr && !summary.ladder->samples.empty())
+            outcome.ladder_us = median(summary.ladder->samples);
+        if (summary.fastest != nullptr) {
+            outcome.fastest = summary.fastest->candidate;
+            outcome.fastest_us = median(summary.fastest->samples);
+        }
+        out.push_back(outcome);
     }
+}
 
-    if (unexplored > 0 && op_is_root())
-        std::printf("autotune: %s left %zu configurations unexplored "
-                    "(seen fewer than %d times, or past %zu)\n",
-                    m_ladder.name().c_str(), unexplored, options.min_calls,
-                    max_keys);
+std::size_t Autotuner::unexplored() const {
+    std::size_t count = m_dropped;
+    for (const auto& [key, state] : m_states)
+        count += !state.explored() && !state.trivial;
+    return count;
+}
+
+void Autotuner::clear() {
     m_states.clear();
     m_dropped = 0;
 }

@@ -18,10 +18,25 @@ namespace op::loop {
 
 class Loop;
 
-// Every loop the generated code builds, which finalise (loop/autotune.h)
-// reports and releases at op_exit.
+// Every loop the generated code builds, which the reports read and finalise
+// releases.
 void register_loop(Loop *loop);
 void unregister_loop(Loop *loop);
+
+// At op_profile_output and op_exit: write the tuner's and the JIT's reports,
+// OP_AUTOTUNE_REPORT and OP_JIT_REPORT, suffixed with the rank when there
+// is more than one, and print their summaries of this rank's loops once, on
+// rank 0.  A later call writes the files again, so applications that never
+// call op_exit still get them.
+void write_reports(int rank, int ranks);
+
+// At op_exit, while the device is still up: write the reports, then release
+// every loop.
+void finalise(int rank, int ranks);
+
+// The summaries write_reports prints: the tuner's when it is on, the JIT's
+// when it built or observed anything; empty otherwise.
+std::string summaries(int ranks);
 
 class Loop {
 protected:
@@ -74,18 +89,25 @@ public:
 
     const std::string& name() const { return m_name; }
     Ladder& ladder() { return m_ladder; }
+    const Ladder& ladder() const { return m_ladder; }
     ParamSet& params() { return m_params; }
+    const ParamSet& params() const { return m_params; }
     const Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
+
+    // Its specialised kernels' builds, by where they stand; none without a
+    // JIT.
+    virtual BuildCounts builds() const { return {}; }
 
     Sections sections(const Call& call) const {
         return Sections::of(call, m_direct);
     }
 
-    // At op_exit, while the device is still up: report the configurations
-    // still being explored.  A backend also frees its device state.
+    // At op_exit, while the device is still up, once the reports are
+    // written: forget the tuner's configurations.  A backend also frees its
+    // device state.
     virtual void release() {
         if (m_tuner)
-            m_tuner->flush();
+            m_tuner->clear();
     }
 };
 

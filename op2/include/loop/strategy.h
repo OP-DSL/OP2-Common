@@ -265,8 +265,11 @@ void declare_families(std::span<const Family> families);
 struct Candidate {
     Strategy *strategy;
     KernelKind kind;
-    // The strategy's name, ";kernel=jit" added for a specialised kernel.
+    // The strategy's name, ";kernel=jit" added for a specialised kernel; and
+    // for summaries the family, the axis values where its point differs from
+    // the ladder's, and "jit" for a specialised kernel.
     std::string name;
+    std::string label;
     std::string family;
     // Its family's place in ladder order.
     std::size_t rank;

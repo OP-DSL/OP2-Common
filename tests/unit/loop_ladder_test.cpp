@@ -407,6 +407,13 @@ void test_axes() {
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
             CHECK(!ladder[i].enabled && !ladder[i].off);
         CHECK(ladder[3].enabled && ladder[6].enabled);
+
+        // Summaries label a candidate by its family and the axis values where
+        // its point differs from the one the ladder runs.
+        CHECK(ladder[0].label == "chunk_atomics (block_size=64)");
+        CHECK(ladder[1].label == "chunk_atomics (singles=off)");
+        CHECK(ladder[2].label == "chunk_atomics (block_size=64 singles=off)");
+        CHECK(ladder[3].label == "chunk_atomics" && ladder[5].label == "colouring (block_size=64)");
         CHECK(ladder[0].name.starts_with("chunk_atomics="));
 
         // A tuner's variant is never asked by the ladder.

@@ -1,12 +1,13 @@
 #pragma once
 
-// Strategy autotuning: each loop times its candidate strategies per
-// configuration, and the results from every loop are written out at
-// op_profile_output and op_exit.
+// Strategy autotuning: each loop times its candidates per configuration;
+// loop/loop.h's write_reports summarises every loop's results and writes
+// them out at op_profile_output and op_exit.
 
 #include <loop/strategy.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -50,7 +51,7 @@ private:
         const Candidate *candidate = nullptr;
         // Ready or pending when added, and not retired since.
         bool live = false;
-        // Turned off by its variable: never explored or reported.
+        // Turned off by its variable: never explored or in the report.
         bool off = false;
         // Why it is not live.
         std::string_view reason;
@@ -73,7 +74,8 @@ private:
         const Candidate *selected = nullptr;
         std::size_t calls = 0;
         std::size_t cursor = 0;
-        bool reported = false;
+        // Every trial is done.
+        bool finished = false;
         // Nothing live beyond the ladder's choice: nothing to explore.
         bool trivial = false;
 
@@ -90,6 +92,11 @@ private:
     };
 
 public:
+    // The report's columns.
+    static constexpr const char *report_header =
+        "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
+        "fastest,speedup,selected,state,statistics";
+
     // What one call runs, and the trial its run is a timed sample of while
     // the configuration is explored; none for an untimed run.
     struct Decision {
@@ -113,8 +120,6 @@ private:
     const Candidate *winner(const Summary& summary) const;
     std::string row(const State& state, const Summary& summary,
                     const Trial& trial) const;
-    std::string line(const State& state) const;
-    void report(State& state);
 
 public:
     explicit Autotuner(const Ladder& ladder) : m_ladder{ladder} {}
@@ -125,30 +130,38 @@ public:
     // window), each candidate not turned off by its variable whose prepare
     // is ready or pending runs in turn for its warm-ups and samples.  Pending
     // defers a trial, its build started now; unavailable retires it with its
-    // reason.  When every trial is done the configuration is reported and,
-    // under select, its fastest candidate runs from then on if it beats the
-    // ladder's current choice by the margin.
+    // reason.  When every trial is done, under select, its fastest
+    // candidate runs from then on if it beats the ladder's current choice by
+    // the margin.
     Decision choose(const Call& call, const Prepared& selection, bool settled);
 
     // Record one timed run.
     void sample(const Decision& decision, float microseconds);
 
-    // At op_exit, print the configurations still being explored, and count
-    // those never explored.
-    void flush();
+    // An explored configuration, for the summary: the ladder's choice and
+    // the fastest candidate with their median times, none until timed.
+    struct Outcome {
+        std::string_view description;
+        std::size_t calls;
+        const Candidate *ladder;
+        const Candidate *fastest;
+        const Candidate *selected;
+        std::optional<float> ladder_us;
+        std::optional<float> fastest_us;
+        bool complete;
+    };
 
-    // Append a report row per explored configuration and strategy, as they
+    void outcomes(std::vector<Outcome>& out) const;
+    // Configurations seen with something to explore but not explored,
+    // those past max_keys included.
+    std::size_t unexplored() const;
+
+    // Append a report row per explored configuration and candidate, as they
     // stand.
     void rows(std::vector<std::string>& out) const;
+
+    // Forget every configuration.
+    void clear();
 };
-
-// Write every loop's report rows to OP_AUTOTUNE_REPORT, suffixed with the
-// rank when there is more than one.  A later call overwrites the file, so
-// applications that never call op_exit still get a report.
-void autotune_write_report(int rank, int ranks);
-
-// At op_exit, while the device is still up: write the report, then release
-// every loop, which flushes the tuners the report reads.
-void finalise(int rank, int ranks);
 
 } // namespace op::loop

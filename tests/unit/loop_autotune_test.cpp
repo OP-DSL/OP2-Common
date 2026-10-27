@@ -129,7 +129,7 @@ struct Fixture : loop::Loop {
         return static_cast<Fake *>(decision.prepared.candidate->strategy);
     }
 
-    void flush() { m_tuner->flush(); }
+    void clear() { m_tuner->clear(); }
 };
 
 op_set_core edges{};
@@ -193,7 +193,7 @@ void test_exploration() {
         CHECK(fixture.invoke(other) == fixture.atomics);
 
     // The report: a row per configuration and strategy.
-    loop::autotune_write_report(0, 1);
+    loop::write_reports(0, 1);
     std::ifstream file(path);
     std::vector<std::string> rows;
     for (std::string line; std::getline(file, line);)
@@ -212,7 +212,24 @@ void test_exploration() {
     CHECK(retired == 1);
     std::remove(path.c_str());
 
-    fixture.flush();
+    // The summary: on edges chunk_atomics takes 4 to atomics' 10 over 13
+    // calls, on cells atomics is fastest, so the loop takes 0.152 ms to the
+    // ladder's 0.23.
+    auto summary = loop::summaries(1);
+    CHECK(summary.rfind("autotune summary:\n", 0) == 0);
+    CHECK(summary.find("2 configurations of 1 loop explored; 0 not explored") !=
+          std::string::npos);
+    CHECK(summary.find("0.2 ms at the ladder's choices, 0.2 ms at the fastest (1.513x)") !=
+          std::string::npos);
+    CHECK(summary.find("other than the ladder's choice in 1 configuration\n") !=
+          std::string::npos);
+    CHECK(summary.find("  flux               2   1.513x       0.1  atomics  1 ") !=
+          std::string::npos);
+    CHECK(summary.find("1 chunk_atomics") != std::string::npos &&
+          summary.find("1 atomics") != std::string::npos);
+    CHECK(summary.find("JIT summary") == std::string::npos);
+
+    fixture.clear();
 }
 
 // The ladder's choice changes while a configuration is explored, once
@@ -241,7 +258,7 @@ void test_ladder_changes() {
     // which the ladder now runs.
     for (int i = 0; i < 3; ++i)
         CHECK(fixture.invoke(call) == fixture.chunk_atomics);
-    fixture.flush();
+    fixture.clear();
 }
 
 // A strategy's two kernels are two candidates, each timed on its own: the
@@ -290,7 +307,64 @@ void test_kernels() {
     for (int i = 0; i < 2; ++i)
         CHECK(fixture.invoke(call) == fixture.atomics &&
               fixture.last->kind == loop::KernelKind::jit);
-    fixture.flush();
+    fixture.clear();
+}
+
+// A loop's specialised kernels and its configurations' modes, summarised and
+// written to OP_JIT_REPORT: a constant that changes every call moves to run
+// time on edges and stays baked in on cells.
+void test_jit_report() {
+    struct Jitted : loop::Loop {
+        double constant = 0.0;
+        Jitted() : loop::Loop{"flux_jit", "test", "Indirect", false} {
+            m_params.add("op2_const_c_d", &constant, loop::ParamSource::external, -1, true);
+        }
+        loop::BuildCounts builds() const override { return {3, 1, 0, 2}; }
+        void observe(const loop::Call& call) {
+            m_params.update(nullptr, 0);
+            m_params.observe_call(call);
+        }
+    };
+    std::string path = "/tmp/op2_loop_jit_test_report.csv";
+    unsetenv("OP_AUTOTUNE");
+    unsetenv("OP_AUTOTUNE_REPORT");
+    setenv("OP_JIT_REPORT", path.c_str(), 1);
+    loop::init();
+
+    Jitted jitted;
+    loop::Call on_edges{&edges, args, edges.size + edges.exec_size};
+    loop::Call on_cells{&cells, args, cells.size + cells.exec_size};
+    for (int i = 0; i < 40; ++i) {
+        jitted.constant = i;
+        jitted.observe(on_edges);
+    }
+    for (int i = 0; i < 10; ++i)
+        jitted.observe(on_cells);
+
+    auto summary = loop::summaries(1);
+    CHECK(summary.rfind("JIT summary:\n", 0) == 0);
+    CHECK(summary.find("3 kernels built for 1 loop, 1 failed, 2 not built (asked for "
+                       "fewer than 9 times)\n") != std::string::npos);
+    CHECK(summary.find("1 loop with parameters that may move: 2 configurations, 1 "
+                       "settled") != std::string::npos);
+    CHECK(summary.find("  flux_jit  3 (1 failed)               2        1  "
+                       "op2_const_c_d 1/1 (1)\n") != std::string::npos);
+
+    loop::write_reports(0, 1);
+    std::ifstream file(path);
+    std::vector<std::string> rows;
+    for (std::string line; std::getline(file, line);)
+        rows.push_back(line);
+    CHECK(rows.size() == 3);
+    CHECK(rows[0] == "loop,configuration,calls,settled,baked,run_time,moved");
+    int moved = 0, kept = 0;
+    for (std::size_t i = 1; i < rows.size(); ++i) {
+        moved += rows[i] == "flux_jit,\"edges (256)\",40,yes,,op2_const_c_d,op2_const_c_d";
+        kept += rows[i] == "flux_jit,\"cells (64)\",10,no,op2_const_c_d,,";
+    }
+    CHECK(moved == 1 && kept == 1);
+    std::remove(path.c_str());
+    unsetenv("OP_JIT_REPORT");
 }
 
 // Every loop is in the registry while it lives, and op_exit's finalise
@@ -332,6 +406,7 @@ int main() {
         test_exploration();
         test_ladder_changes();
         test_kernels();
+        test_jit_report();
         test_loop_registry();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());

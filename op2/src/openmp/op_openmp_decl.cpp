@@ -36,7 +36,7 @@
  */
 
 #include <cpu/strategy.h>
-#include <loop/autotune.h>
+#include <loop/loop.h>
 #include <op_env.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>

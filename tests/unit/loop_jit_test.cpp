@@ -398,6 +398,25 @@ void test_statistics() {
         next(4);
     }
     CHECK(params[0].mode() == runtime);
+
+    // Each configuration's modes as the reports read them: c moved to run
+    // time on sets 0 and 4, g baked in on sets 2 and 4 and moved on 1, 2
+    // and 4.
+    std::size_t c_moved = 0, g_baked = 0, g_moved = 0;
+    auto configurations = params.configurations();
+    CHECK(configurations.size() == 5);
+    for (const auto& configuration : configurations) {
+        CHECK(configuration.params.size() == 2);
+        for (const auto& outcome : configuration.params) {
+            if (outcome.param == &params[0]) {
+                c_moved += outcome.mode == runtime && outcome.moved;
+            } else {
+                g_baked += outcome.mode == baked;
+                g_moved += outcome.moved;
+            }
+        }
+    }
+    CHECK(c_moved == 2 && g_baked == 2 && g_moved == 3);
 }
 
 // A READ global of any dimension is read in place with the call's

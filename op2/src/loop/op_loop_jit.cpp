@@ -42,6 +42,7 @@ void init_jit_options() {
     env::parse_number("OP_JIT_MAX_CONST_BYTES", run_options.max_const_bytes);
     env::parse_list("OP_JIT_RUNTIME_PARAMS", run_options.runtime_params);
     env::parse_list("OP_JIT_CONSTANT_PARAMS", run_options.constant_params);
+    env::parse_text("OP_JIT_REPORT", run_options.report_file);
 }
 
 bool take_build_slot(int limit) {
@@ -135,17 +136,20 @@ void ParamSet::update(op_arg *args, int nargs) {
         param.update(args, nargs);
 }
 
-ParamSet::Histories *ParamSet::histories(std::uint64_t call) {
-    if (m_history != nullptr && call == m_history_key)
+ParamSet::Histories *ParamSet::histories(const Call& call) {
+    auto key = call.key();
+    if (m_history != nullptr && key == m_history_key)
         return m_history;
-    auto found = m_histories.find(call);
+    auto found = m_histories.find(key);
     if (found == m_histories.end()) {
         if (m_histories.size() >= max_histories)
             return nullptr;
-        found = m_histories.emplace(call, Histories{std::vector<History>(m_params.size())})
+        found = m_histories
+                    .emplace(key, Histories{std::vector<History>(m_params.size()), 0,
+                                            call.describe()})
                     .first;
     }
-    m_history_key = call;
+    m_history_key = key;
     m_history = &found->second;
     return m_history;
 }
@@ -160,9 +164,24 @@ bool ParamSet::settled(const Call& call) const {
     return found->second.calls >= statistics_window;
 }
 
+std::vector<ParamSet::ConfigurationModes> ParamSet::configurations() const {
+    std::vector<ConfigurationModes> out;
+    for (const auto& [key, histories] : m_histories) {
+        ConfigurationModes configuration{histories.description, histories.calls, {}};
+        for (std::size_t i = 0; i < m_params.size(); ++i) {
+            const auto& history = histories.params[i];
+            if (!m_params[i].fixed() && history.seen)
+                configuration.params.push_back(
+                    {&m_params[i], history.mode, history.promoted || history.demoted});
+        }
+        out.push_back(std::move(configuration));
+    }
+    return out;
+}
+
 void ParamSet::observe(const Call& call) {
     const auto& options = jit_options();
-    auto *history = m_moving ? histories(call.key()) : nullptr;
+    auto *history = m_moving ? histories(call) : nullptr;
     if (history != nullptr)
         ++history->calls;
     for (std::size_t i = 0; i < m_params.size(); ++i) {
