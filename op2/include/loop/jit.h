@@ -59,8 +59,8 @@ struct JitOptions {
     // at run time, or always baked in, by name ("<name>" or "<loop>:<name>").
     std::vector<std::string> runtime_params;
     std::vector<std::string> constant_params;
-    // OP_JIT_REPORT: the report's file, ".<rank>" appended under MPI; no
-    // report when empty.
+    // OP_JIT_REPORT: the report's file, ".<rank>" appended under MPI, and
+    // the summary printed at the end; neither when empty.
     std::string report_file;
 
     bool enabled() const { return level > 0; }

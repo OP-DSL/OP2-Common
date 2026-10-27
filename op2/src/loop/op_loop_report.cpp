@@ -282,7 +282,7 @@ LoopJit loop_jit(const Loop& loop) {
 }
 
 std::string jit_summary(const std::vector<Loop *>& current, int ranks) {
-    if (!jit_options().enabled())
+    if (!jit_options().enabled() || jit_options().report_file.empty())
         return {};
     std::vector<LoopJit> jits;
     BuildCounts builds;

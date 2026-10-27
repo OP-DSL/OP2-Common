@@ -35,7 +35,7 @@ void write_reports(int rank, int ranks);
 void finalise(int rank, int ranks);
 
 // The summaries write_reports prints: the tuner's when it is on, the JIT's
-// when it built or observed anything; empty otherwise.
+// under OP_JIT_REPORT when it built or observed anything; empty otherwise.
 std::string summaries(int ranks);
 
 class Loop {

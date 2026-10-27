@@ -311,8 +311,8 @@ void test_kernels() {
 }
 
 // A loop's specialised kernels and its configurations' modes, summarised and
-// written to OP_JIT_REPORT: a constant that changes every call moves to run
-// time on edges and stays baked in on cells.
+// written to OP_JIT_REPORT, and neither without it: a constant that changes
+// every call moves to run time on edges and stays baked in on cells.
 void test_jit_report() {
     struct Jitted : loop::Loop {
         double constant = 0.0;
@@ -364,7 +364,10 @@ void test_jit_report() {
     }
     CHECK(moved == 1 && kept == 1);
     std::remove(path.c_str());
+
     unsetenv("OP_JIT_REPORT");
+    loop::init();
+    CHECK(loop::summaries(1).empty());
 }
 
 // Every loop is in the registry while it lives, and op_exit's finalise
