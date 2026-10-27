@@ -1,3 +1,4 @@
+{% import "fortran/abi.jinja" as abi with context %}
 {%- macro type_c(arg) -%}
     {%- if arg.typ is instance(OP.Int) -%}
         int
@@ -18,19 +19,4 @@ extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
     {% endfor %}
 {% endif %}
 
-#include <cpu/loop.h>
-#include <kernel/prelude.h>
-#include <kernel/strategy.h>
-#include <op_lib_cpp.h>
-#include <op_profile.h>
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-
-
-{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
-#include "{{loop_.name}}_kernel_aux1.hpp"
-{% endfor %}
+{% include "cpu/master_kernel.jinja" %}

@@ -54,5 +54,5 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {%- endmacro -%}
 
 {%- macro loop_include(loop_) -%}
-{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "hip_f2c" else "cuh"}}
+{{loop_.name}}_kernel_aux1.{{ {"openmp_f2c": "hpp", "hip_f2c": "hip.h"}.get(target.name, "cuh") }}
 {%- endmacro -%}
