@@ -396,11 +396,14 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     }
 {%- endmacro %}
 
-{#- The HIP wrappers carry launch bounds: the default block size offline,
-    the JIT kernel's own block size as a constant. -#}
+{#- Launch bounds: the HIP offline wrappers' are the default block size, and
+    a JIT wrapper has its own block size when its strategy compiles it with
+    them (kernel/strategy.h). -#}
 {%- macro launch_bounds(jit) -%}
-    {%- if config.hip -%}
-__launch_bounds__({{"op2_block_size_d" if jit else "128"}})
+    {%- if jit -%}
+OP2_JIT_LAUNCH_BOUNDS
+    {%- elif config.hip -%}
+__launch_bounds__(128)
     {%- endif -%}
 {%- endmacro -%}
 
@@ -450,6 +453,9 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     const op::kernel::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
+    {% if jit and strategy not in chunk_strategies %}
+    OP2_JIT_SMEM_SPILLING
+    {% endif %}
     using namespace op2_m_{{lh.name}}{{variant}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     {% if jit %}

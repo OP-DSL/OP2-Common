@@ -36,7 +36,28 @@ struct RuntimeSymbol {
     std::uint64_t uploaded = 0;
 };
 
-// A kernel built at run time, loaded on its first launch.
+// A kernel's resources as its compiler left them: registers and local
+// memory per thread, static shared memory per block, and the most threads a
+// block can have with them.
+struct KernelFigures {
+    int registers = 0;
+    int local_bytes = 0;
+    int shared_bytes = 0;
+    int max_threads = 0;
+
+    // "64 regs", with the local and shared memory when there is any.
+    std::string text() const {
+        std::string out = std::to_string(registers) + " regs";
+        if (local_bytes > 0)
+            out += ", " + std::to_string(local_bytes) + " B local";
+        if (shared_bytes > 0)
+            out += ", " + std::to_string(shared_bytes) + " B shared";
+        return out;
+    }
+};
+
+// A kernel built at run time, loaded on its first launch or when its figures
+// are read.
 class JitKernel {
 private:
     std::string m_name;
@@ -46,6 +67,7 @@ private:
     std::vector<int> m_baked_globals;
     bool m_loaded = false;
     int m_max_dynamic_shared_bytes = 0;
+    KernelFigures m_figures;
     char *m_cubin;
     gpuDrvModule_t m_module;
     gpuDrvFunction_t m_kernel;
@@ -55,6 +77,15 @@ private:
             return;
         GPU_DRV_CHECK(gpuDrvModuleLoadData(&m_module, m_cubin));
         GPU_DRV_CHECK(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
+        auto attribute = [&](gpuDrvFuncAttribute_t which) {
+            int value = 0;
+            GPU_DRV_CHECK(gpuDrvFuncGetAttribute(&value, which, m_kernel));
+            return value;
+        };
+        m_figures = {attribute(gpuDrvFuncAttributeNumRegs),
+                     attribute(gpuDrvFuncAttributeLocalSizeBytes),
+                     attribute(gpuDrvFuncAttributeSharedSizeBytes),
+                     attribute(gpuDrvFuncAttributeMaxThreadsPerBlock)};
         for (auto& symbol : m_symbols) {
             std::size_t bytes = 0;
             GPU_DRV_CHECK(gpuDrvModuleGetGlobal(&symbol.address, &bytes, m_module,
@@ -74,6 +105,11 @@ public:
     ~JitKernel() { delete[] m_cubin; }
 
     const std::vector<int>& baked_globals() const { return m_baked_globals; }
+
+    const KernelFigures& figures() {
+        ensure_loaded();
+        return m_figures;
+    }
 
     // Launch, its module's symbols first given the call's values of params.
     void launch(int num_blocks, int block_size, void **args, int shared_bytes,
@@ -120,6 +156,12 @@ public:
     }
 
     int registers() const { return m_attributes.numRegs; }
+
+    KernelFigures figures() const {
+        return {m_attributes.numRegs, static_cast<int>(m_attributes.localSizeBytes),
+                static_cast<int>(m_attributes.sharedSizeBytes),
+                m_attributes.maxThreadsPerBlock};
+    }
 
     void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
         assert(m_function != nullptr);
@@ -213,6 +255,14 @@ struct JitHeaders {
     bool params = false;
 };
 
+// How a strategy compiles its specialised kernels beyond the parameters'
+// values: with its block size as launch bounds, and spilling registers to
+// shared memory (kernel/strategy.h's OP2_JIT_* macros).
+struct CompileSwitches {
+    bool launch_bounds = false;
+    bool smem_spilling = false;
+};
+
 // Builds a loop's specialised kernels through NVRTC or hipRTC.
 class Compiler {
 private:
@@ -246,6 +296,7 @@ private:
     }
 
     std::unique_ptr<JitKernel> compile(const std::string& text, const std::string& name,
+                                       CompileSwitches switches,
                                        std::vector<RuntimeSymbol> symbols,
                                        std::vector<int> baked_globals) const {
         gpuRtcProgram_t prog;
@@ -255,7 +306,7 @@ private:
             m_headers.names.data()));
 
 #ifdef OP2_CUDA
-        const char *opts[] = {
+        std::vector<const char *> opts = {
             device().arch.c_str(),
             "--std=c++20",
 #if __CUDACC_VER_MAJOR__ > 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ >= 4)
@@ -264,13 +315,18 @@ private:
             "--device-as-default-execution-space"
         };
 #else // OP2_HIP
-        const char *opts[] = {
+        std::vector<const char *> opts = {
             "--std=c++20",
             "-O3",
             "-munsafe-fp-atomics"
         };
 #endif
-        auto success = gpuRtcCompileProgram(prog, sizeof(opts) / sizeof(char *), opts);
+        if (switches.launch_bounds)
+            opts.push_back("-DOP2_LAUNCH_BOUNDS");
+        if (switches.smem_spilling)
+            opts.push_back("-DOP2_SMEM_SPILLING");
+        auto success =
+            gpuRtcCompileProgram(prog, static_cast<int>(opts.size()), opts.data());
         if (success != GPURTC_SUCCESS) {
             size_t log_size;
             GPU_RTC_CHECK(gpuRtcGetProgramLogSize(prog, &log_size));
@@ -299,9 +355,10 @@ public:
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
     // The job that builds source's kernel with the parameters' current
-    // values baked in, or at run time as their modes say; it prints the
-    // compiler's log and returns none when the compile fails.
-    auto job(const op::loop::ParamSet& params, const KernelSource& source) const {
+    // values baked in, or at run time as their modes say, under switches; it
+    // prints the compiler's log and returns none when the compile fails.
+    auto job(const op::loop::ParamSet& params, const KernelSource& source,
+             CompileSwitches switches) const {
         std::vector<RuntimeSymbol> symbols;
         std::vector<int> baked_globals;
         for (std::size_t i = 0; i < params.size(); ++i)
@@ -315,10 +372,11 @@ public:
                            op::loop::format_cxx(params) +
                            runtime_declarations(params, symbols) +
                            std::string{source.source};
-        return [this, text = std::move(text), name = std::string{source.name},
+        return [this, text = std::move(text), name = std::string{source.name}, switches,
                 symbols = std::move(symbols),
                 baked_globals = std::move(baked_globals)]() mutable {
-            return compile(text, name, std::move(symbols), std::move(baked_globals));
+            return compile(text, name, switches, std::move(symbols),
+                           std::move(baked_globals));
         };
     }
 };

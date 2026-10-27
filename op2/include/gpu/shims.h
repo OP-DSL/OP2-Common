@@ -81,6 +81,12 @@
 
 #define gpuDrvFuncSetAttribute cuFuncSetAttribute
 #define gpuDrvFuncAttributeMaxDynamicSharedMemorySize CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
+#define gpuDrvFuncGetAttribute cuFuncGetAttribute
+#define gpuDrvFuncAttribute_t CUfunction_attribute
+#define gpuDrvFuncAttributeNumRegs CU_FUNC_ATTRIBUTE_NUM_REGS
+#define gpuDrvFuncAttributeMaxThreadsPerBlock CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK
+#define gpuDrvFuncAttributeLocalSizeBytes CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES
+#define gpuDrvFuncAttributeSharedSizeBytes CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES
 
 #define gpuDrvGetErrorName cuGetErrorName
 #define gpuDrvModuleLoadData cuModuleLoadData
@@ -186,6 +192,12 @@
 // HIP has no attribute setter for a module function, and an AMD device needs
 // no opt-in for dynamic shared memory.
 #define gpuDrvFuncSetAttribute(function, attribute, value) hipSuccess
+#define gpuDrvFuncGetAttribute hipFuncGetAttribute
+#define gpuDrvFuncAttribute_t hipFunction_attribute
+#define gpuDrvFuncAttributeNumRegs HIP_FUNC_ATTRIBUTE_NUM_REGS
+#define gpuDrvFuncAttributeMaxThreadsPerBlock HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK
+#define gpuDrvFuncAttributeLocalSizeBytes HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES
+#define gpuDrvFuncAttributeSharedSizeBytes HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData

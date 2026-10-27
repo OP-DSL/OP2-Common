@@ -71,6 +71,37 @@ inline op::loop::Axis block_size_axis() {
     return {"BLOCK_SIZES", "block_size", false, {default_block_size}};
 }
 
+// Whether the offline kernels have launch bounds: under HIP, whose compiler
+// otherwise allows for 1024 threads a block.
+#ifdef OP2_HIP
+constexpr bool offline_launch_bounds = true;
+#else
+constexpr bool offline_launch_bounds = false;
+#endif
+
+// OP_<FAMILY>_LAUNCH_BOUNDS, else OP_LAUNCH_BOUNDS: the specialised kernel
+// has its block size as launch bounds, which the compiler also takes as an
+// occupancy target and may cut registers for.  As the offline kernels by
+// default.
+inline op::loop::Axis launch_bounds_axis() {
+    return {"LAUNCH_BOUNDS", "launch_bounds", true, {offline_launch_bounds}};
+}
+
+// OP_<FAMILY>_SMEM_SPILLING, else OP_SMEM_SPILLING (CUDA 13 and later, off
+// by default): the specialised kernel spills registers to shared memory
+// before local memory.  It needs launch bounds, which size the shared memory
+// it takes, and a kernel without dynamic shared memory, so the chunked
+// strategies have no such axis.
+#if defined(OP2_CUDA) && CUDART_VERSION >= 13000
+constexpr bool smem_spilling_supported = true;
+#else
+constexpr bool smem_spilling_supported = false;
+#endif
+
+inline op::loop::Axis smem_spilling_axis() {
+    return {"SMEM_SPILLING", "smem_spilling", true, {0}};
+}
+
 // --- The base of every GPU strategy ------------------------------------------------
 
 class StrategyBase : public op::loop::Strategy {
@@ -95,6 +126,8 @@ protected:
     KernelSource m_source;
     Binder m_bind;
     int m_block_size;
+    // How its specialised kernel is compiled.
+    CompileSwitches m_switches;
     // The chunked strategies' switches, constants to every kernel of the
     // loop.
     bool m_unstaged_singles = false;
@@ -120,10 +153,18 @@ protected:
     // Begin a call: its sections and the blocks the reduction scratch allows.
     void begin(const op::loop::Call& call);
 
+    // Whether its offline kernel launches its block size and stands for it:
+    // compiled with its switches.
+    bool offline_usable() const {
+        return m_offline.usable(m_block_size) &&
+               m_switches.launch_bounds == offline_launch_bounds &&
+               !m_switches.smem_spilling;
+    }
+
     // Whether no kernel of kind can come about: the offline kind with no
     // usable offline kernel.  A strategy that plans checks this first.
     bool never_available(op::loop::KernelKind kind) const {
-        return kind == op::loop::KernelKind::offline && !m_offline.usable(m_block_size);
+        return kind == op::loop::KernelKind::offline && !offline_usable();
     }
 
     op::loop::Prepared unavailable() {
@@ -155,23 +196,31 @@ protected:
                                     Launches&& launches, Fill&& fill);
 
 public:
-    static std::vector<op::loop::Axis> axes() { return {block_size_axis()}; }
+    static std::vector<op::loop::Axis> axes() {
+        std::vector<op::loop::Axis> out{block_size_axis(), launch_bounds_axis()};
+        if (smem_spilling_supported)
+            out.push_back(smem_spilling_axis());
+        return out;
+    }
 
     std::string_view name() const override { return m_name; }
 
-    // The offline kernel at a nominal 1 when it can launch the block size; a
-    // specialised one when there is source, expected faster when the offline
-    // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
-    // tenth, until timings calibrate it).
+    // The offline kernel at a nominal 1 when it can launch the block size
+    // and has the switches; a specialised one when there is source, expected
+    // faster when the offline kernel uses more than OP_JIT_MIN_REGISTERS
+    // registers (by an arbitrary tenth, until timings calibrate it).
     op::loop::Estimate estimate(op::loop::KernelKind kind) const override {
         if (kind == op::loop::KernelKind::offline)
-            return {m_offline.usable(m_block_size), 1.0f};
+            return {offline_usable(), 1.0f};
         bool prior = m_offline.registers() > options().min_registers;
         return {!m_source.source.empty(), prior ? 0.9f : 1.0f};
     }
 
+    // The kernel kind and its registers, local and shared memory.
     std::string statistics(const op::loop::Prepared& prepared) const override {
-        return prepared.kernel != nullptr ? "jit" : "offline";
+        if (prepared.kernel != nullptr)
+            return "jit, " + static_cast<JitKernel *>(prepared.kernel)->figures().text();
+        return "offline, " + m_offline.figures().text();
     }
 
     const CallState& call_state() const { return m_call_state; }
@@ -253,11 +302,11 @@ protected:
         : StrategyBase{loop, point, source, bind}, m_coloured{coloured},
           m_groups{groups}, m_chunk_size{point.value("chunk_size")} {}
 
-    // The block size, the chunk size, a block multiple of 128 elements by
-    // default, and the strategy's switch.
+    // The block size, launch bounds, the chunk size, a block multiple of 128
+    // elements by default, and the strategy's switch.
     static std::vector<op::loop::Axis> chunk_axes(op::loop::Axis variant) {
-        return {block_size_axis(), op::plan::chunk_size_axis(default_block_size),
-                std::move(variant)};
+        return {block_size_axis(), launch_bounds_axis(),
+                op::plan::chunk_size_axis(default_block_size), std::move(variant)};
     }
 
     Entry& entry_for(const op::loop::Call& call);

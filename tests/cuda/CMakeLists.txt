@@ -17,8 +17,9 @@ endfunction()
 
 # Runtime tests of the GPU backend, from test kernels: the chunked strategy
 # offline (the opt-in to more shared memory differs) and with every kernel
-# compiled on its first call, and a compile that fails.
-foreach(_test chunk_strategy jit_build_failure)
+# compiled on its first call, a compile that fails, and a kernel whose
+# registers exceed its block without launch bounds.
+foreach(_test chunk_strategy jit_build_failure jit_thread_limit)
     add_executable(${_test} ${_test}.cu)
     target_link_libraries(${_test} PRIVATE op2_cuda CUDA::nvrtc CUDA::cuda_driver)
     target_compile_definitions(${_test} PRIVATE OP2_CUDA)

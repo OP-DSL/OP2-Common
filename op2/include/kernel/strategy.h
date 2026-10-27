@@ -17,6 +17,22 @@
 #include <atomic>
 #endif
 
+// A specialised wrapper's launch bounds, its block size, and its first
+// statement, which lets the compiler spill registers to shared memory: each
+// when its strategy compiles it with OP2_LAUNCH_BOUNDS or OP2_SMEM_SPILLING
+// defined (gpu/jit.h), else nothing.
+#ifdef OP2_LAUNCH_BOUNDS
+#define OP2_JIT_LAUNCH_BOUNDS __launch_bounds__(op2_block_size_d)
+#else
+#define OP2_JIT_LAUNCH_BOUNDS
+#endif
+
+#ifdef OP2_SMEM_SPILLING
+#define OP2_JIT_SMEM_SPILLING asm volatile(".pragma \"enable_smem_spilling\";");
+#else
+#define OP2_JIT_SMEM_SPILLING
+#endif
+
 namespace op::kernel {
 
 /* Scratch staging helpers.

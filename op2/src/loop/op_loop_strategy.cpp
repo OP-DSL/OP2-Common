@@ -201,6 +201,12 @@ int Point::value(std::string_view key) const {
     return values[static_cast<std::size_t>(found - keys.begin())];
 }
 
+int Point::value(std::string_view key, int otherwise) const {
+    auto found = std::find(keys.begin(), keys.end(), key);
+    return found != keys.end() ? values[static_cast<std::size_t>(found - keys.begin())]
+                               : otherwise;
+}
+
 namespace {
 
 // OP_STRATEGY's items, as init read them.

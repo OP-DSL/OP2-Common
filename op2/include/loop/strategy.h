@@ -189,7 +189,7 @@ public:
     virtual ~Strategy() = default;
 
     // The family and each axis's value, "chunk_atomics=on;block_size=64;
-    // chunk_size=128;singles=on"; the report column.
+    // launch_bounds=off;chunk_size=128;singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
     // Its kernel of kind: an offline one at a nominal 1 and no specialised
@@ -244,6 +244,8 @@ struct Point {
     std::vector<int> values;
 
     int value(std::string_view key) const;
+    // Or otherwise, when its family has no such axis.
+    int value(std::string_view key, int otherwise) const;
 };
 
 // A strategy family a backend offers, under the name the generated code

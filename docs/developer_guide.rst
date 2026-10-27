@@ -69,7 +69,7 @@ Terms that mean more than one thing elsewhere:
 
 * **backend**: in this layer, the device code under ``gpu/`` or ``cpu/``; the halo exchanges' *transport* (MPI with host staging or GPU-direct) is separate.
 * **variant**: a build of an application for one target (``airfoil_cuda``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy (one value of each of its family's axes) with one of its kernels.
-* **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;block_size=64;chunk_size=128;singles=off``).
+* **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;block_size=64;launch_bounds=off;chunk_size=128;singles=off``).
 
 Plan Construction (``op_plan_core``)
 --------------------------------------
