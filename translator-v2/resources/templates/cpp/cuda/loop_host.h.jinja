@@ -127,9 +127,9 @@ op::kernel::Ptr{&gbl{{arg.id}}}
 
 {%- macro arg_to_pointer3(arg, jit, staged = none, local = false) -%}
     {%- if arg is info -%}
-op::kernel::Ptr{info{{arg.id}} + thread_id}
+op::kernel::Ptr{info{{arg.id}} + thread_id, stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
-op::kernel::Ptr{gbl{{arg.id}} + thread_id, op2_{{lh.kernel}}_gbl_stride_d}
+op::kernel::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
     {%- elif jit and arg in gbls_by_value -%}
 op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)}
     {%- elif arg in gbls_by_value -%}
@@ -212,10 +212,6 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 {% for dat in lh.dats if dat.dim is none %}
 int op2_dim_dat{{dat.id}};
 {% endfor %}
-    {% if args_gbl_per_thread|length > 0 %}
-
-__constant__ int op2_{{lh.kernel}}_gbl_stride_d;
-    {% endif %}
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
@@ -428,6 +424,9 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% if strategy == "colouring" %}
     const int *__restrict col_reord,
     {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+    const int stride_gbl,
+    {% endif %}
     {% if lh.args|opt|length > 0 %}
     const unsigned opt_flags,
     {% endif %}
@@ -515,6 +514,9 @@ using int64_t = long long int;
     {% if strategy == "colouring" %}
         (void *)&launch.colour_order,
     {% endif %}
+    {% if args_gbl_per_thread|length > 0 %}
+        (void *)&launch.global_stride,
+    {% endif %}
     {% if lh.args|opt|length > 0 %}
         (void *)&launch.opt_flags,
     {% endif %}
@@ -596,11 +598,6 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
 {% for arg in lh.args|gbl|read|reject("scalar") %}
     loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}{{", true" if arg in gbls_by_value}});
 {% endfor %}
-{% if args_gbl_per_thread|length > 0 %}
-    loop.add_launch_param("op2_{{lh.kernel}}_gbl_stride_d",
-                         op::gpu::LaunchValue::global_stride,
-                         &kernel::op2_{{lh.kernel}}_gbl_stride_d);
-{% endif %}
     loop.add_launch_param("op2_block_size_d", op::gpu::LaunchValue::block_size);
 {% if strategies|select("in", chunk_strategies)|list %}
     loop.add_launch_param("op2_unstaged_singles_d", op::gpu::LaunchValue::unstaged_singles);
