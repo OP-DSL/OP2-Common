@@ -51,12 +51,10 @@
 {%- endfor -%}
 {%- set gbls_by_value = by_value.args -%}
 
-{#- Argument groups for the chunked strategies (fortran/schemes.py
-    chunkGroups): the arguments each plan follows and their dats in
-    first-use order, one group each.  The translator lists a chunked
-    strategy only when its group arguments have one map component and a
-    supported scalar type.  The runtime partitions over the same groups the
-    wrapper lays its regions out by. -#}
+{#- Argument groups for the chunked strategies (strategy.py ChunkStrategies):
+    the arguments each plan follows and their dats in first-use order, one
+    group each.  The runtime partitions over the same groups the wrapper
+    lays its regions out by. -#}
 {%- set groups = config.chunk_groups -%}
 
 {#- Whether chunk colouring can compute every element of a chunk at once:
@@ -191,14 +189,14 @@ op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg
 {%- endmacro -%}
 
 {#- One call of the translated kernel for element n. -#}
-{%- macro kernel_call(jit, staged = none, local = false) -%}
+{%- macro kernel_call(jit, strategy, staged = none, local = false) -%}
 {% if lh.args|idx|direct|length > 0 %}
 int idx = n + 1;
 {% endif %}
 {% for arg in lh.args|idx|indirect %}
 int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
 {% endfor %}
-{{lh.kernel}}(
+op2_s_{{strategy}}::{{lh.kernel}}(
 {% for arg in lh.args %}
     {{arg_to_pointer_cuda(arg, jit, staged, local)}}{{"," if not loop.last}}
 {% endfor %}
@@ -278,7 +276,7 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         {% endfor %}
 
             if (op2_colour >= 0) {
-                {{kernel_call(true, "chunk_colouring", true)|indent(16)}}
+                {{kernel_call(true, "chunk_colouring", "chunk_colouring", true)|indent(16)}}
             }
 
             // Every staged read completes before any slot changes.
@@ -305,7 +303,7 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
                     // Opaque, so this element's address arithmetic is not
                     // hoisted out of the pass loop and kept live through it.
                     const int n = op::kernel::opaque(op2_n);
-                    {{kernel_call(true, "chunk_colouring")|indent(20)}}
+                    {{kernel_call(true, "chunk_colouring", "chunk_colouring")|indent(20)}}
                 }
 
                 __syncthreads();
@@ -373,7 +371,7 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
 
         for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
              n += blockDim.x) {
-            {{kernel_call(true, strategy)|indent(12)}}
+            {{kernel_call(true, strategy, strategy)|indent(12)}}
         }
     {% else %}
         // Seed every slot from its target, so the elements read and update
@@ -456,7 +454,6 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endfor %}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
-    using namespace op2_m_{{lh.name}}{{variant}}::op2_s_{{strategy}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     {% if jit %}
         {% for dat in lh.dats if dat.dim is none %}
@@ -487,19 +484,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
         int n = i;
     {% endif %}
 
-    {% if lh.args|idx|direct|length > 0 %}
-        int idx = n + 1;
-    {% endif %}
-
-    {% for arg in lh.args|idx|indirect %}
-        int idx{{arg.id}} = {{map_lookup(arg)}} + 1;
-    {% endfor %}
-
-        {{lh.kernel}}(
-    {% for arg in lh.args %}
-            {{arg_to_pointer_cuda(arg, jit)}}{{"," if not loop.last}}
-    {% endfor %}
-        );
+        {{kernel_call(jit, strategy)|indent(8)}}
     }
 }
     {% endif %}
