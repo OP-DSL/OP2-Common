@@ -33,13 +33,13 @@ protected:
     // and the tuner, while it explores the configuration, may choose another
     // strategy.  Every call counts in the parameters' statistics, whichever
     // strategy runs, so one that specialises later meets settled modes.
-    Autotuner::Decision decide(const Configuration& configuration, op_arg *args,
+    Autotuner::Decision decide(const Call& call, op_arg *args,
                                int nargs) {
         m_params.update(args, nargs);
-        if (m_params.moving() && jit_policy().enabled())
-            m_params.observe_call(configuration);
-        auto selection = m_ladder.select(configuration);
-        return m_tuner ? m_tuner->choose(configuration, selection)
+        if (m_params.moving() && jit_options().enabled())
+            m_params.observe_call(call);
+        auto selection = m_ladder.select(call);
+        return m_tuner ? m_tuner->choose(call, selection)
                        : Autotuner::Decision{selection};
     }
 
@@ -58,7 +58,7 @@ public:
         : m_name{name}, m_profile_target{profile_target},
           m_profile_variant{profile_variant}, m_direct{direct}, m_ladder{name},
           m_params{name} {
-        if (autotune_config().report)
+        if (autotune_options().report)
             m_tuner.emplace(m_ladder);
         register_release(this, &Loop::release_callback);
     }
@@ -70,8 +70,8 @@ public:
     Ladder& ladder() { return m_ladder; }
     ParamSet& params() { return m_params; }
 
-    Sections sections(const Configuration& configuration) const {
-        return Sections::of(configuration, m_direct);
+    Sections sections(const Call& call) const {
+        return Sections::of(call, m_direct);
     }
 
     // At op_exit, while the device is still up: report the configurations

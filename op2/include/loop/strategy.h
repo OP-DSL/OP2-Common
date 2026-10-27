@@ -26,9 +26,9 @@ void init();
 
 // --- One call -----------------------------------------------------------------
 
-// One call, as a view: the set and the arguments.  The key is the call's
-// shape, which is what plans and the tuner depend on.
-class Configuration {
+// One call, as a view: the set and the arguments.  Its configuration, the
+// shape its key identifies, is what plans and the tuner depend on.
+class Call {
 private:
     mutable std::uint64_t m_key = 0;
     mutable bool m_keyed = false;
@@ -40,7 +40,7 @@ public:
     // exec halo too when the exchange decided the call runs it.
     int run_size;
 
-    Configuration(op_set set_, std::span<const op_arg> args_, int run_size_)
+    Call(op_set set_, std::span<const op_arg> args_, int run_size_)
         : set{set_}, args{args_}, run_size{run_size_} {}
 
     // Any active global argument reduced across the set.
@@ -89,7 +89,7 @@ public:
     static Sections indirect(op_set set, bool separate_owned, int run_size);
     // A call's sections: direct, or indirect with the owned elements apart
     // when it reduces a global.
-    static Sections of(const Configuration& configuration, bool direct);
+    static Sections of(const Call& call, bool direct);
 
     int size() const { return m_count; }
     const Section& operator[](int index) const {
@@ -187,26 +187,26 @@ public:
     // chunk_size=128;singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
-    // Estimate its kernel of kind for configuration: an offline one at a
-    // nominal 1 and no specialised one, unless the backend says otherwise.
-    virtual Estimate estimate(const Configuration& configuration, KernelKind kind) const {
-        (void)configuration;
+    // Estimate its kernel of kind for call: an offline one at a nominal 1
+    // and no specialised one, unless the backend says otherwise.
+    virtual Estimate estimate(const Call& call, KernelKind kind) const {
+        (void)call;
         if (kind == KernelKind::offline)
             return {true, 1.0f};
         return {};
     }
 
-    // Resolve the configuration: build or find its plan, and find or request
-    // its kernel, as urgency asks.  Blocks only for Urgency::wait, or when the
+    // Resolve call: build or find its configuration's plan, and find or
+    // request its kernel, as urgency asks.  Blocks only for Urgency::wait, or when the
     // backend builds synchronously.  The kernel is a specialised one when the
     // JIT is on and one can run, and the offline one cannot, OP_JIT_FORCE is
     // set, or the estimates expect it faster; else the offline one.  A tie
     // or a missing estimate keeps the offline kernel, as a specialised one
     // costs a build.
-    Prepared prepare(const Configuration& configuration, Urgency urgency);
+    Prepared prepare(const Call& call, Urgency urgency);
 
     // prepare with a kernel of kind.
-    virtual Prepared prepare_kind(const Configuration& configuration, Urgency urgency,
+    virtual Prepared prepare_kind(const Call& call, Urgency urgency,
                                   KernelKind kind) = 0;
 
     // Run what prepare returned; microseconds when the launch is timed.  A
@@ -324,7 +324,7 @@ public:
     // waited for too, and each reason it is still passed over is warned
     // about once.  At diagnostic verbosity each distinct outcome (what ran,
     // and why each earlier strategy did not) is printed once per loop.
-    Prepared select(const Configuration& configuration);
+    Prepared select(const Call& call);
 
     std::size_t size() const { return m_entries.size(); }
     Strategy& operator[](std::size_t index) { return *m_entries[index].strategy; }

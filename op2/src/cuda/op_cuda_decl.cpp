@@ -34,7 +34,7 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
-#include <gpu/config.h>
+#include <gpu/options.h>
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <loop/autotune.h>

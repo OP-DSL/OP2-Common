@@ -41,12 +41,12 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Estimate estimate(const loop::Configuration&,
+    loop::Estimate estimate(const loop::Call&,
                             loop::KernelKind asked) const override {
         return asked == loop::KernelKind::offline ? offline_estimate : jit_estimate;
     }
 
-    loop::Prepared prepare_kind(const loop::Configuration&, loop::Urgency urgency,
+    loop::Prepared prepare_kind(const loop::Call&, loop::Urgency urgency,
                            loop::KernelKind asked) override {
         ++prepares;
         kind = asked;
@@ -111,11 +111,11 @@ op_set_core source{};
 std::array<op_arg, 1> args{};
 
 // An indirect increment: the call runs the exec halo.
-loop::Configuration configuration() {
+loop::Call indirect_call() {
     return {&source, args, source.size + source.exec_size};
 }
 
-void test_configuration() {
+void test_call() {
     op_set_core target{};
     target.index = 1;
     target.size = 64;
@@ -140,26 +140,26 @@ void test_configuration() {
     args[0].acc = OP_INC;
     args[0].dim = 1;
 
-    auto one = configuration();
+    auto one = indirect_call();
     CHECK(!one.global_reduction());
     CHECK(one.describe() == "edges (128) via edge_nodes");
     auto key = one.key();
-    CHECK(key == configuration().key());
+    CHECK(key == indirect_call().key());
 
     // A different map, access, activity, set or run size changes the key.
     const int all = source.size + source.exec_size;
     std::array<op_arg, 1> other = args;
     other[0].acc = OP_RW;
-    CHECK(loop::Configuration(&source, other, all).key() != key);
+    CHECK(loop::Call(&source, other, all).key() != key);
     other[0].acc = OP_INC;
     other[0].opt = 0;
-    CHECK(loop::Configuration(&source, other, all).key() != key);
-    CHECK(loop::Configuration(&source, other, all).describe() ==
+    CHECK(loop::Call(&source, other, all).key() != key);
+    CHECK(loop::Call(&source, other, all).describe() ==
           "edges (128), inactive args 0");
     op_set_core elsewhere = source;
     elsewhere.index = 7;
-    CHECK(loop::Configuration(&elsewhere, args, all).key() != key);
-    CHECK(loop::Configuration(&source, args, source.size).key() != key);
+    CHECK(loop::Call(&elsewhere, args, all).key() != key);
+    CHECK(loop::Call(&source, args, source.size).key() != key);
 
     // Another dat in its place keeps the key, as a temporary declared again
     // does; which arguments share a dat changes it.
@@ -167,18 +167,18 @@ void test_configuration() {
     again.index = 9;
     other = args;
     other[0].dat = &again;
-    CHECK(loop::Configuration(&source, other, all).key() == key);
+    CHECK(loop::Call(&source, other, all).key() == key);
     std::array<op_arg, 2> pair{args[0], args[0]};
     pair[1].idx = 1;
-    auto shared = loop::Configuration(&source, pair, all).key();
+    auto shared = loop::Call(&source, pair, all).key();
     pair[1].dat = &again;
-    CHECK(loop::Configuration(&source, pair, all).key() != shared);
+    CHECK(loop::Call(&source, pair, all).key() != shared);
 
     std::array<op_arg, 2> reduction{args[0], op_arg{}};
     reduction[1].opt = 1;
     reduction[1].argtype = OP_ARG_GBL;
     reduction[1].acc = OP_INC;
-    loop::Configuration reduced{&source, reduction, all};
+    loop::Call reduced{&source, reduction, all};
     CHECK(reduced.global_reduction());
     CHECK(reduced.describe() == "edges (128) via edge_nodes, reduction");
 
@@ -206,10 +206,10 @@ void test_configuration() {
     CHECK(loop::Sections::of(one, true).size() == 1);
     CHECK(loop::Sections::of(one, false).size() == 2);
     CHECK(loop::Sections::of(reduced, false).size() == 3);
-    auto owned = loop::Sections::of(loop::Configuration(&source, args, source.size), false);
+    auto owned = loop::Sections::of(loop::Call(&source, args, source.size), false);
     CHECK(owned.size() == 2 && owned[1].end == 128);
     auto owned_reduced =
-        loop::Sections::of(loop::Configuration(&source, reduction, source.size), false);
+        loop::Sections::of(loop::Call(&source, reduction, source.size), false);
     CHECK(owned_reduced.size() == 3 && owned_reduced[2].size() == 0);
 
     // Element types in either language's spelling.
@@ -231,7 +231,7 @@ void test_defaults() {
 
     // The first enabled strategy that is ready runs; a disabled one is
     // never asked.
-    auto selection = fixture.ladder.select(configuration());
+    auto selection = fixture.ladder.select(indirect_call());
     CHECK(selection.strategy == fixture.atomics);
     CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.chunk_atomics->prepares == 0);
@@ -239,11 +239,11 @@ void test_defaults() {
 
     // Pending or rejected, the ladder moves on.
     fixture.atomics->statuses = {loop::Status::pending, loop::Status::unavailable};
-    selection = fixture.ladder.select(configuration());
+    selection = fixture.ladder.select(indirect_call());
     CHECK(selection.strategy == fixture.colouring);
-    selection = fixture.ladder.select(configuration());
+    selection = fixture.ladder.select(indirect_call());
     CHECK(selection.strategy == fixture.colouring);
-    selection = fixture.ladder.select(configuration());
+    selection = fixture.ladder.select(indirect_call());
     CHECK(selection.strategy == fixture.atomics);
 
     // With nothing ready the floor is waited for, so a selection is always
@@ -251,7 +251,7 @@ void test_defaults() {
     fixture.atomics->statuses = {loop::Status::unavailable};
     fixture.colouring->statuses = {loop::Status::pending, loop::Status::pending};
     int before = fixture.colouring->prepares;
-    selection = fixture.ladder.select(configuration());
+    selection = fixture.ladder.select(indirect_call());
     CHECK(selection.strategy == fixture.colouring);
     CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
@@ -259,7 +259,7 @@ void test_defaults() {
     loop::Launch launch{args.data(), 1, true};
     CHECK(fixture.atomics->run(selection.strategy == fixture.atomics
                                    ? selection
-                                   : fixture.atomics->prepare_kind(configuration(),
+                                   : fixture.atomics->prepare_kind(indirect_call(),
                                                                    loop::Urgency::later,
                                                                    loop::KernelKind::offline),
                                launch) == 1.0f);
@@ -277,7 +277,7 @@ void test_variables() {
         CHECK(ladder.enabled(0));
         CHECK(!ladder.enabled(1) && !ladder.explorable(1));
         CHECK(ladder.enabled(2));
-        CHECK(ladder.select(configuration()).strategy->name() == "chunk_atomics=on");
+        CHECK(ladder.select(indirect_call()).strategy->name() == "chunk_atomics=on");
     }
     unsetenv("OP_CHUNK_ATOMICS");
     unsetenv("OP_ATOMICS");
@@ -319,17 +319,17 @@ void test_variables() {
         add(ladder, "plain", true);
         add(ladder, "colouring", true);
         CHECK(ladder.forced() == 1);
-        auto selection = ladder.select(configuration());
+        auto selection = ladder.select(indirect_call());
         CHECK(selection.strategy->name() == "atomics=on");
 
         auto& atomics = static_cast<Fake&>(ladder[1]);
         atomics.statuses = {loop::Status::pending};
-        selection = ladder.select(configuration());
+        selection = ladder.select(indirect_call());
         CHECK(selection.strategy->name() == "atomics=on");
         CHECK(atomics.waits == atomics.prepares);
 
         atomics.statuses = {loop::Status::unavailable};
-        selection = ladder.select(configuration());
+        selection = ladder.select(indirect_call());
         CHECK(selection.strategy->name() == "plain=on");
         CHECK(static_cast<Fake&>(ladder[0]).prepares == 0);
     }
@@ -338,7 +338,7 @@ void test_variables() {
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
         CHECK(ladder.forced() == 1);
-        CHECK(ladder.select(configuration()).strategy->name() == "colouring=on");
+        CHECK(ladder.select(indirect_call()).strategy->name() == "colouring=on");
     }
     {
         loop::Ladder ladder{"third"};
@@ -413,7 +413,7 @@ void test_axes() {
 
         // A tuner's variant is never asked by the ladder.
         static_cast<Fake&>(ladder[3]).statuses = {loop::Status::unavailable};
-        CHECK(ladder.select(configuration()).strategy == &ladder[6]);
+        CHECK(ladder.select(indirect_call()).strategy == &ladder[6]);
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
             CHECK(static_cast<Fake&>(ladder[i]).prepares == 0);
     }
@@ -430,7 +430,7 @@ void test_axes() {
         ladder.add("colouring", make);
         ladder.add("chunk_atomics", make);
         CHECK(ladder.forced() == 3);
-        CHECK(ladder.select(configuration()).strategy == &ladder[3]);
+        CHECK(ladder.select(indirect_call()).strategy == &ladder[3]);
         CHECK(!ladder.explorable(4) && !ladder.explorable(5));
     }
     unsetenv("OP_STRATEGY");
@@ -451,8 +451,8 @@ void test_long_ladder() {
         fakes.push_back(fake);
     }
     fakes.back()->statuses.clear();
-    for (int call = 0; call < 2; ++call) {
-        auto selection = ladder.select(configuration());
+    for (int repeat = 0; repeat < 2; ++repeat) {
+        auto selection = ladder.select(indirect_call());
         CHECK(selection.strategy == fakes.back());
         CHECK(selection.status == loop::Status::ready);
     }
@@ -467,7 +467,7 @@ void test_kernel_kinds() {
     fixture.atomics->statuses = {loop::Status::unavailable};
     fixture.colouring->offline_estimate = {};
     fixture.colouring->jit_estimate = {true, 1.0f};
-    fixture.ladder.select(configuration());
+    fixture.ladder.select(indirect_call());
     CHECK(fixture.atomics->kind == loop::KernelKind::offline);
     CHECK(fixture.colouring->kind == loop::KernelKind::jit);
 }
@@ -489,7 +489,7 @@ void test_release_registry() {
 
 int main() {
     try {
-        test_configuration();
+        test_call();
         test_defaults();
         test_variables();
         test_axes();

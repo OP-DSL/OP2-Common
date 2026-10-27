@@ -36,7 +36,7 @@
 
 #include <mpi.h>
 
-#include <gpu/config.h>
+#include <gpu/options.h>
 #include <gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <loop/autotune.h>

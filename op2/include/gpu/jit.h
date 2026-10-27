@@ -6,7 +6,7 @@
 // policy, the parameters and the build cache are loop/jit.h's.
 
 #include <gpu/check.h>
-#include <gpu/config.h>
+#include <gpu/options.h>
 #include <gpu/shims.h>
 #include <loop/jit.h>
 #include <op_lib_core.h>
@@ -96,7 +96,7 @@ public:
         GPU_DRV_CHECK(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1,
                                          1, shared_bytes, NULL, args, 0));
         GPU_CHECK(gpuPeekAtLastError());
-        if (op::loop::jit_policy().debug)
+        if (op::loop::jit_options().debug)
             GPU_CHECK(gpuStreamSynchronize(0));
     }
 };
@@ -131,7 +131,7 @@ public:
         GPU_CHECK(gpuLaunchKernel(m_function, num_blocks, block_size, args,
                                   shared_bytes, 0));
         GPU_CHECK(gpuPeekAtLastError());
-        if (op::loop::jit_policy().debug)
+        if (op::loop::jit_options().debug)
             GPU_CHECK(gpuStreamSynchronize(0));
     }
 };
@@ -256,7 +256,7 @@ private:
 
 #ifdef OP2_CUDA
         const char *opts[] = {
-            config().arch.c_str(),
+            device().arch.c_str(),
             "--std=c++20",
 #if __CUDACC_VER_MAJOR__ > 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ >= 4)
             "--minimal",

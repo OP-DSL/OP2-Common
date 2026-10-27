@@ -33,7 +33,7 @@ namespace op::loop {
 
 // --- Policy -------------------------------------------------------------------
 
-struct JitPolicy {
+struct JitOptions {
     // OP_JIT_LEVEL: 0 builds no specialised kernel; 1 bakes in the
     // structural parameters and the constants, a constant that keeps
     // changing moving to run time, and gives READ globals at run time; 2
@@ -63,9 +63,9 @@ struct JitPolicy {
     bool enabled() const { return level > 0; }
 };
 
-const JitPolicy& jit_policy();
+const JitOptions& jit_options();
 // Read by init.
-void init_jit_policy();
+void init_jit_options();
 
 // Take one of limit build slots, shared by every cache; whether one was free.
 bool take_build_slot(int limit);
@@ -159,14 +159,14 @@ public:
 
     // Whether an array_arg is at run time this call whatever its statistics:
     // inactive, or above OP_JIT_MAX_GBL_BYTES.  Its value is not hashed then.
-    bool sized_out(const JitPolicy& policy) const {
+    bool sized_out(const JitOptions& options) const {
         return m_source == ParamSource::array_arg &&
-               (m_elems == 0 || bytes() > static_cast<std::size_t>(policy.max_gbl_bytes));
+               (m_elems == 0 || bytes() > static_cast<std::size_t>(options.max_gbl_bytes));
     }
 
     // Settle the initial mode by the policy, for loop's kernels; runtime is
     // whether the mechanism can give the parameter at run time.
-    void settle(std::string_view loop, bool runtime, const JitPolicy& policy);
+    void settle(std::string_view loop, bool runtime, const JitOptions& options);
 
     // The call's value, from its arguments.
     void update(op_arg *args, int nargs);
@@ -227,7 +227,7 @@ private:
         bool demoted = false;
 
         // Record the call's value; whether the mode moved.
-        bool observe(const Param& param, const JitPolicy& policy);
+        bool observe(const Param& param, const JitOptions& options);
     };
 
     // Past this many configurations a new one keeps the initial modes.
@@ -244,12 +244,12 @@ private:
     std::uint64_t m_history_key = 0;
     std::vector<History> *m_history = nullptr;
 
-    std::vector<History> *histories(std::uint64_t configuration);
-    void observe(const Configuration& configuration);
+    std::vector<History> *histories(std::uint64_t call);
+    void observe(const Call& call);
 
     std::size_t insert(Param param, bool runtime) {
         auto& added = m_params.emplace_back(std::move(param));
-        added.settle(m_loop, runtime, jit_policy());
+        added.settle(m_loop, runtime, jit_options());
         m_moving |= !added.fixed();
         return m_params.size() - 1;
     }
@@ -286,11 +286,11 @@ public:
 
     // Record the call's values in the configuration's statistics and take
     // the modes they give, once per call.
-    void observe_call(const Configuration& configuration) {
+    void observe_call(const Call& call) {
         if (m_observed == m_calls)
             return;
         m_observed = m_calls;
-        observe(configuration);
+        observe(call);
     }
 
     // A strategy's values, by slot.
@@ -303,8 +303,8 @@ public:
     // each baked parameter's value, hashed 64 at a time with a mask of the
     // run-time ones (a value's hash may be any 64 bits, so no mark could
     // stand in for it).
-    std::uint64_t key(const Configuration& configuration, std::span<const int> values) {
-        observe_call(configuration);
+    std::uint64_t key(const Call& call, std::span<const int> values) {
+        observe_call(call);
         std::array<std::uint64_t, 65> words;
         std::size_t count = 0;
         std::uint64_t runtime = 0;
@@ -439,14 +439,14 @@ public:
 
         auto& entry = entry_for(key);
         ++entry.calls;
-        const auto& policy = jit_policy();
+        const auto& options = jit_options();
         // Waiting is for a strategy with nothing else to run.
-        bool here = (urgency == Urgency::wait && !offline) || policy.seq_compile;
+        bool here = (urgency == Urgency::wait && !offline) || options.seq_compile;
         bool due = urgency != Urgency::later ||
-                   entry.calls >= static_cast<std::size_t>(policy.min_calls);
+                   entry.calls >= static_cast<std::size_t>(options.min_calls);
         if (due && entry.state.load(std::memory_order_relaxed) == BuildState::seen &&
-            (here || take_build_slot(policy.max_threads.value_or(m_threads)))) {
-            if (policy.debug)
+            (here || take_build_slot(options.max_threads.value_or(m_threads)))) {
+            if (options.debug)
                 op_printf("compiling %s for hash %lx\n", m_name.c_str(),
                             static_cast<unsigned long>(key));
             auto job = make_job();

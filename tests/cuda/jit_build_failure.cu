@@ -95,12 +95,12 @@ int main(int argc, char **argv) {
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");
 
-        op::loop::Configuration configuration{&set, args, set.size};
-        auto broken = loop.ladder()[0].prepare(configuration, op::loop::Urgency::now);
+        op::loop::Call call{&set, args, set.size};
+        auto broken = loop.ladder()[0].prepare(call, op::loop::Urgency::now);
         passed &= check(broken.status == op::loop::Status::unavailable,
                         "the broken strategy is available");
         passed &= check(broken.reason == "build_failed", "the broken strategy's reason");
-        auto selection = loop.ladder().select(configuration);
+        auto selection = loop.ladder().select(call);
         passed &= check(selection.strategy->name().starts_with("plain=") &&
                             selection.kernel == nullptr,
                         "the floor runs its offline kernel");

@@ -32,7 +32,7 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Prepared prepare_kind(const loop::Configuration&, loop::Urgency,
+    loop::Prepared prepare_kind(const loop::Call&, loop::Urgency,
                            loop::KernelKind) override {
         loop::Status status = loop::Status::ready;
         if (!statuses.empty()) {
@@ -91,11 +91,11 @@ struct Fixture {
     }
 
     // One call: select, let the tuner decide, run, sample.
-    Fake *call(const loop::Configuration& configuration) {
-        auto selection = ladder.select(configuration);
-        auto decision = tuner.choose(configuration, selection);
-        loop::Launch launch{const_cast<op_arg *>(configuration.args.data()),
-                            static_cast<int>(configuration.args.size()),
+    Fake *invoke(const loop::Call& call) {
+        auto selection = ladder.select(call);
+        auto decision = tuner.choose(call, selection);
+        loop::Launch launch{const_cast<op_arg *>(call.args.data()),
+                            static_cast<int>(call.args.size()),
                             decision.timed != nullptr};
         auto us = decision.prepared.strategy->run(decision.prepared, launch);
         if (us)
@@ -118,24 +118,24 @@ void test_exploration() {
     setenv("OP_AUTOTUNE_REPORT", path.c_str(), 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
     loop::init();
-    CHECK(loop::autotune_config().select);
+    CHECK(loop::autotune_options().select);
 
     Fixture fixture;
-    loop::Configuration configuration{&edges, args, edges.size + edges.exec_size};
+    loop::Call call{&edges, args, edges.size + edges.exec_size};
 
     // chunk_atomics compiles for two calls, chunk_colouring is turned off
     // and never asked.
     fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending};
 
     // Seen once: the ladder's choice runs, untimed.
-    CHECK(fixture.call(configuration) == fixture.atomics);
+    CHECK(fixture.invoke(call) == fixture.atomics);
     CHECK(fixture.atomics->timed_runs == 0);
 
     // Explored from the second call: each candidate takes its warm-up and
     // two samples in turn, pending ones deferring, so nine calls explore
     // three candidates.
     for (int i = 0; i < 9; ++i)
-        fixture.call(configuration);
+        fixture.invoke(call);
     CHECK(fixture.chunk_colouring->runs == 0);
     CHECK(fixture.atomics->timed_runs == 2);
     CHECK(fixture.chunk_atomics->timed_runs == 2);
@@ -147,22 +147,22 @@ void test_exploration() {
     // Explored: the fastest runs from now on, untimed.
     int before = fixture.chunk_atomics->runs;
     for (int i = 0; i < 3; ++i)
-        CHECK(fixture.call(configuration) == fixture.chunk_atomics);
+        CHECK(fixture.invoke(call) == fixture.chunk_atomics);
     CHECK(fixture.chunk_atomics->runs == before + 3);
     CHECK(fixture.chunk_atomics->timed_runs == 2);
 
     // A configuration on another set is explored on its own; there a
     // candidate that turns out unavailable is retired.
-    loop::Configuration other{&cells, args, cells.size + cells.exec_size};
+    loop::Call other{&cells, args, cells.size + cells.exec_size};
     fixture.chunk_atomics->statuses = {loop::Status::unavailable};
     fixture.chunk_atomics->reason = "no_kernel";
     before = fixture.atomics->timed_runs;
     for (int i = 0; i < 8; ++i)
-        fixture.call(other);
+        fixture.invoke(other);
     CHECK(fixture.atomics->timed_runs == before + 2);
     CHECK(fixture.chunk_atomics->timed_runs == 2);
     for (int i = 0; i < 2; ++i)
-        CHECK(fixture.call(other) == fixture.atomics);
+        CHECK(fixture.invoke(other) == fixture.atomics);
 
     // The report: a row per configuration and strategy.
     loop::autotune_write_report(0, 1);
@@ -201,18 +201,18 @@ void test_ladder_changes() {
     loop::init();
 
     Fixture fixture(true, 10.2f);
-    loop::Configuration configuration{&edges, args, edges.size + edges.exec_size};
+    loop::Call call{&edges, args, edges.size + edges.exec_size};
     fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending,
                                        loop::Status::pending};
-    CHECK(fixture.call(configuration) == fixture.atomics);
+    CHECK(fixture.invoke(call) == fixture.atomics);
     for (int i = 0; i < 12; ++i)
-        fixture.call(configuration);
+        fixture.invoke(call);
     CHECK(fixture.atomics->timed_runs == 2 && fixture.chunk_atomics->timed_runs == 2);
 
     // atomics is fastest, but by less than the margin over chunk_atomics,
     // which the ladder now runs.
     for (int i = 0; i < 3; ++i)
-        CHECK(fixture.call(configuration) == fixture.chunk_atomics);
+        CHECK(fixture.invoke(call) == fixture.chunk_atomics);
     fixture.tuner.flush();
 }
 

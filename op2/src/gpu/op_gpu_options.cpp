@@ -1,4 +1,4 @@
-#include <gpu/config.h>
+#include <gpu/options.h>
 
 #include <gpu/check.h>
 #include <gpu/shims.h>
@@ -14,30 +14,34 @@ namespace op::gpu {
 
 namespace {
 
-Config run_config;
+Options run_options;
+Device run_device;
 
 } // namespace
 
-const Config& config() { return run_config; }
+const Options& options() { return run_options; }
+const Device& device() { return run_device; }
 
 void init() {
     namespace env = op::env;
-    auto& config = run_config;
-    config = {};
+    auto& options = run_options;
+    auto& device = run_device;
+    options = {};
+    device = {};
 
     // NVRTC compiles in parallel from CUDA 12.3; earlier, and hipRTC, still
     // gain from a few at once.
 #if defined(OP2_CUDA) && CUDART_VERSION >= 12030
-    config.build_threads = 16;
+    options.build_threads = 16;
 #endif
-    env::parse_number("OP_JIT_MIN_REGISTERS", config.min_registers);
+    env::parse_number("OP_JIT_MIN_REGISTERS", options.min_registers);
 
-    env::parse_number("OP_CHUNK_COLOURING_WINDOW", config.window);
+    env::parse_number("OP_CHUNK_COLOURING_WINDOW", options.window);
 
-    int device;
-    GPU_CHECK(gpuGetDevice(&device));
+    int id;
+    GPU_CHECK(gpuGetDevice(&id));
     gpuDeviceProp_t props;
-    GPU_CHECK(gpuGetDeviceProperties(&props, device));
+    GPU_CHECK(gpuGetDeviceProperties(&props, id));
 
     std::size_t shared_bytes = props.sharedMemPerBlock;
 #ifdef OP2_CUDA
@@ -46,14 +50,14 @@ void init() {
 #endif
     // A staged kernel's own static shared memory is a few words.
     constexpr std::size_t static_bytes = 64;
-    config.shared_bytes = shared_bytes > static_bytes ? shared_bytes - static_bytes : 0;
-    config.multiprocessors = props.multiProcessorCount;
-    config.threads_per_multiprocessor = props.maxThreadsPerMultiProcessor;
+    device.shared_bytes = shared_bytes > static_bytes ? shared_bytes - static_bytes : 0;
+    device.multiprocessors = props.multiProcessorCount;
+    device.threads_per_multiprocessor = props.maxThreadsPerMultiProcessor;
 
 #ifdef OP2_CUDA
-    config.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);
-    if (op::loop::jit_policy().debug)
-        op_printf("JIT arch flag: %s\n", config.arch.c_str());
+    device.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);
+    if (op::loop::jit_options().debug)
+        op_printf("JIT arch flag: %s\n", device.arch.c_str());
 #endif
 
     // The families the generated code registers, each a strategy class, in

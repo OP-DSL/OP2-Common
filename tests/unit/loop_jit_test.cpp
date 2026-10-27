@@ -67,7 +67,7 @@ void policy(std::initializer_list<std::pair<const char *, const char *>> variabl
         unsetenv(name);
     for (const auto& [name, value] : variables)
         setenv(name, value, 1);
-    loop::init_jit_policy();
+    loop::init_jit_options();
 }
 
 // A key builds once asked for OP_JIT_MIN_CALLS times; until then the
@@ -189,11 +189,11 @@ struct Estimates : loop::Strategy {
     Estimates(loop::Estimate offline_, loop::Estimate jit_)
         : offline{offline_}, jit{jit_} {}
     std::string_view name() const override { return "estimates"; }
-    loop::Estimate estimate(const loop::Configuration&,
+    loop::Estimate estimate(const loop::Call&,
                             loop::KernelKind kind) const override {
         return kind == loop::KernelKind::offline ? offline : jit;
     }
-    loop::Prepared prepare_kind(const loop::Configuration&, loop::Urgency,
+    loop::Prepared prepare_kind(const loop::Call&, loop::Urgency,
                                 loop::KernelKind kind) override {
         chosen = kind;
         return {};
@@ -208,10 +208,10 @@ struct Estimates : loop::Strategy {
 // a tie or a missing estimate keeps the offline kernel.
 void test_choose_kernel() {
     op_set_core set{};
-    loop::Configuration configuration{&set, {}, 0};
+    loop::Call call{&set, {}, 0};
     auto choose = [&](loop::Estimate offline, loop::Estimate jit) {
         Estimates strategy{offline, jit};
-        strategy.prepare(configuration, loop::Urgency::later);
+        strategy.prepare(call, loop::Urgency::later);
         return strategy.chosen;
     };
     constexpr auto offline = loop::KernelKind::offline;
@@ -276,23 +276,23 @@ void test_params() {
     params.add("flag", &flag, loop::ParamSource::external);
     params.add("big", &big, loop::ParamSource::external);
 
-    loop::Configuration configuration{&set, {args, 3}, 100};
+    loop::Call call{&set, {args, 3}, 100};
     params.update(args, 3);
     CHECK(gbl0 == 2.5 && gbl2 == 7.0 && stride == 128 && dim == 3);
     std::array<int, 2> slots{0, 64};
-    auto key = params.key(configuration, slots);
-    CHECK(params.key(configuration, slots) == key);
+    auto key = params.key(call, slots);
+    CHECK(params.key(call, slots) == key);
 
     global = 3.5;
     params.update(args, 3);
-    CHECK(params.key(configuration, slots) != key);
+    CHECK(params.key(call, slots) != key);
     global = 2.5;
     params.update(args, 3);
-    CHECK(params.key(configuration, slots) == key);
+    CHECK(params.key(call, slots) == key);
     slots[1] = 128;
-    CHECK(params.key(configuration, slots) != key);
+    CHECK(params.key(call, slots) != key);
     slots[1] = 64;
-    CHECK(params.key(configuration, slots) == key);
+    CHECK(params.key(call, slots) == key);
 
     CHECK(loop::format_cxx(params) ==
           "static constexpr double c = 0x1p+0;\n"
@@ -312,7 +312,7 @@ void test_params() {
 // parameters than it hashes at a time.
 void test_key_words() {
     op_set_core set{};
-    loop::Configuration configuration{&set, {}, 0};
+    loop::Call call{&set, {}, 0};
     std::array<double, 70> constants{};
     auto key = [&](const char *runtime) {
         if (runtime != nullptr)
@@ -323,7 +323,7 @@ void test_key_words() {
         for (std::size_t i = 0; i < constants.size(); ++i)
             params.add("c" + std::to_string(i), &constants[i], loop::ParamSource::external,
                        -1, true);
-        return params.key(configuration, {});
+        return params.key(call, {});
     };
 
     auto baked = key(nullptr);
@@ -393,25 +393,25 @@ void test_statistics() {
     loop::ParamSet params{"flux"};
     params.add("c", &constant, loop::ParamSource::external, -1, true);
     params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
-    auto call = [&](int set) {
+    auto next = [&](int set) {
         params.update(args, 1);
-        loop::Configuration configuration{&sets[set], {args, 1}, sets[set].size};
-        return params.key(configuration, {});
+        loop::Call call{&sets[set], {args, 1}, sets[set].size};
+        return params.key(call, {});
     };
 
     // Nine changes in 32 calls move the constant to run time, for good.
     for (int i = 0; i < 9; ++i) {
         constant = i;
-        call(0);
+        next(0);
         CHECK(params[0].mode() == baked);
     }
     constant = 9.0;
-    auto key = call(0);
+    auto key = next(0);
     CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
     // A run-time value is no part of the key.
     for (int i = 0; i < 40; ++i) {
         value = i;
-        CHECK(call(0) == key);
+        CHECK(next(0) == key);
     }
     CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
 
@@ -419,37 +419,37 @@ void test_statistics() {
     // the constant there still baked; varying, it moves back for good.
     value = 5.0;
     for (int i = 0; i < 31; ++i) {
-        call(1);
+        next(1);
         CHECK(params[1].mode() == runtime && params[0].mode() == baked);
     }
-    key = call(1);
+    key = next(1);
     CHECK(params[1].mode() == baked);
     value = 6.0;
-    CHECK(call(1) != key);
+    CHECK(next(1) != key);
     for (int i = 0; i < 7; ++i) {
         value = 7.0 + i;
-        call(1);
+        next(1);
         CHECK(params[1].mode() == baked);
     }
     value = 100.0;
-    call(1);
+    next(1);
     CHECK(params[1].mode() == runtime);
     value = 5.0;
     for (int i = 0; i < 40; ++i)
-        call(1);
+        next(1);
     CHECK(params[1].mode() == runtime);
-    call(0);
+    next(0);
     CHECK(params[0].mode() == runtime);
 
     // Nine calls in ten agreeing is a majority; two in three is not.
     for (int i = 0; i < 32; ++i) {
         value = i % 10 == 9 ? 1.0 : 2.0;
-        call(2);
+        next(2);
     }
     CHECK(params[1].mode() == baked);
     for (int i = 0; i < 64; ++i) {
         value = i % 3 == 2 ? 1.0 : 2.0;
-        call(3);
+        next(3);
     }
     CHECK(params[1].mode() == runtime);
 
@@ -457,12 +457,12 @@ void test_statistics() {
     // every four calls keeps a constant baked, one in every three does not.
     for (int i = 0; i < 128; ++i) {
         constant = i / 4;
-        call(4);
+        next(4);
         CHECK(params[0].mode() == baked);
     }
     for (int i = 0; i < 32; ++i) {
         constant = -1.0 - i / 3;
-        call(4);
+        next(4);
     }
     CHECK(params[0].mode() == runtime);
 }
@@ -498,29 +498,29 @@ void test_array_globals() {
         params.add_array(std::string{"g"} + std::to_string(i),
                          static_cast<double *>(nullptr), 0,
                          loop::ParamSource::array_arg, i, true);
-    loop::Configuration configuration{&set, {args, 4}, 10};
-    auto call = [&] {
+    loop::Call call{&set, {args, 4}, 10};
+    auto next = [&] {
         params.update(args, 4);
-        return params.key(configuration, {});
+        return params.key(call, {});
     };
 
-    auto key = call();
+    auto key = next();
     CHECK(params[0].data() == g5 && params[0].elems() == 5 && params[0].array());
     CHECK(params[1].elems() == 0 && params[2].elems() == 1 && params[2].array());
     for (int i = 0; i < 4; ++i)
         CHECK(params[i].mode() == runtime);
     CHECK(params[0].last_hash() != 0 && params[3].last_hash() == 0);
     g5[0] = 10.0;
-    CHECK(call() == key);
+    CHECK(next() == key);
 
     // The new value leads from the third call, so 32 calls later it is in.
     for (int i = 0; i < 32; ++i)
-        call();
+        next();
     CHECK(params[0].mode() == baked && params[2].mode() == baked);
     CHECK(params[1].mode() == runtime && params[3].mode() == runtime);
-    key = call();
+    key = next();
     g5[1] = 20.0;
-    CHECK(call() != key);
+    CHECK(next() != key);
     CHECK(loop::format_cxx(params) ==
           "static constexpr double g0[5] = { 0x1.4p+3, 0x1.4p+4, 0x1.8p+1, 0x1p+2, 0x1.4p+2 };\n"
           "static constexpr double g2[1] = { 0x1p+0 };\n");
@@ -531,7 +531,7 @@ void test_array_globals() {
                      loop::ParamSource::array_arg, 0, true);
     for (int i = 0; i < 40; ++i) {
         capped.update(args, 4);
-        capped.key(configuration, {});
+        capped.key(call, {});
     }
     CHECK(capped[0].mode() == runtime);
 }
@@ -556,16 +556,16 @@ void test_observe_every_call() {
     params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
     CHECK(params.moving());
 
-    loop::Configuration configuration{&set, {args, 1}, 10};
+    loop::Call call{&set, {args, 1}, 10};
     for (int i = 0; i < 31; ++i) {
         params.update(args, 1);
-        params.observe_call(configuration);
+        params.observe_call(call);
     }
     CHECK(params[0].mode() == runtime);
     params.update(args, 1);
-    params.observe_call(configuration);
-    auto key = params.key(configuration, {});
-    CHECK(params[0].mode() == baked && params.key(configuration, {}) == key);
+    params.observe_call(call);
+    auto key = params.key(call, {});
+    CHECK(params[0].mode() == baked && params.key(call, {}) == key);
 }
 
 } // namespace

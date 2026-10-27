@@ -21,7 +21,7 @@ namespace op::loop {
 
 // --- One call -----------------------------------------------------------------
 
-bool Configuration::global_reduction() const {
+bool Call::global_reduction() const {
     for (const op_arg& arg : args) {
         if (arg.opt == 0 || arg.argtype != OP_ARG_GBL)
             continue;
@@ -31,7 +31,7 @@ bool Configuration::global_reduction() const {
     return false;
 }
 
-std::uint64_t Configuration::key() const {
+std::uint64_t Call::key() const {
     if (m_keyed)
         return m_key;
 
@@ -71,7 +71,7 @@ std::uint64_t Configuration::key() const {
     return m_key;
 }
 
-std::string Configuration::describe() const {
+std::string Call::describe() const {
     std::string text = set->name != nullptr ? set->name : "?";
     text += " (" + std::to_string(set->size) + ")";
 
@@ -126,11 +126,11 @@ Sections Sections::indirect(op_set set, bool separate_owned, int run_size) {
     return sections;
 }
 
-Sections Sections::of(const Configuration& configuration, bool direct) {
+Sections Sections::of(const Call& call, bool direct) {
     if (direct)
-        return Sections::direct(configuration.set);
-    return Sections::indirect(configuration.set, configuration.global_reduction(),
-                              configuration.run_size);
+        return Sections::direct(call.set);
+    return Sections::indirect(call.set, call.global_reduction(),
+                              call.run_size);
 }
 
 ScalarType scalar_type(const char *type) {
@@ -181,22 +181,22 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
 
 // --- Strategies ---------------------------------------------------------------
 
-Prepared Strategy::prepare(const Configuration& configuration, Urgency urgency) {
+Prepared Strategy::prepare(const Call& call, Urgency urgency) {
     auto kind = [&] {
-        const auto& policy = jit_policy();
-        if (!policy.enabled())
+        const auto& options = jit_options();
+        if (!options.enabled())
             return KernelKind::offline;
-        auto jit = estimate(configuration, KernelKind::jit);
+        auto jit = estimate(call, KernelKind::jit);
         if (!jit.available)
             return KernelKind::offline;
-        auto offline = estimate(configuration, KernelKind::offline);
-        if (!offline.available || policy.force)
+        auto offline = estimate(call, KernelKind::offline);
+        if (!offline.available || options.force)
             return KernelKind::jit;
         if (jit.time && offline.time && *jit.time < *offline.time)
             return KernelKind::jit;
         return KernelKind::offline;
     }();
-    return prepare_kind(configuration, urgency, kind);
+    return prepare_kind(call, urgency, kind);
 }
 
 // --- Variants -----------------------------------------------------------------
@@ -329,8 +329,8 @@ void init() {
     env::parse_list("OP_STRATEGY", strategy_items);
     family_settings.clear();
     declared_families = 0;
-    init_autotune_config();
-    init_jit_policy();
+    init_autotune_options();
+    init_jit_options();
 }
 
 void declare_families(std::span<const Family> families) {
@@ -405,7 +405,7 @@ void Ladder::add_entry(std::unique_ptr<Strategy> strategy, std::string_view fami
                      std::string_view{});
 }
 
-Prepared Ladder::select(const Configuration& configuration) {
+Prepared Ladder::select(const Call& call) {
     assert(!m_entries.empty());
     std::fill(m_reasons.begin(), m_reasons.end(), std::string_view{});
 
@@ -421,7 +421,7 @@ Prepared Ladder::select(const Configuration& configuration) {
             continue;
         }
         // The run asked for the forced strategy, so its kernel is waited for.
-        selection = entry.strategy->prepare(configuration,
+        selection = entry.strategy->prepare(call,
                                             forced ? Urgency::wait : Urgency::later);
         assert(selection.strategy == entry.strategy.get());
         if (selection.status == Status::ready) {
@@ -436,7 +436,7 @@ Prepared Ladder::select(const Configuration& configuration) {
     // The floor must run, so wait for its kernel; without one the loop
     // cannot run at all.
     auto& floor = m_entries.back();
-    selection = floor.strategy->prepare(configuration, Urgency::wait);
+    selection = floor.strategy->prepare(call, Urgency::wait);
     assert(selection.strategy == floor.strategy.get());
     if (selection.status != Status::ready) {
         std::fprintf(stderr, "error: %s has nothing to run: %s is %s\n",

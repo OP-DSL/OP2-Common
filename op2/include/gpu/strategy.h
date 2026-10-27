@@ -83,7 +83,7 @@ protected:
 
     // The call being prepared: how the sections run, the most blocks a
     // launch may use, and the largest launch.
-    struct Call {
+    struct CallState {
         op::loop::Sections sections;
         int block_limit = 0;
         int max_blocks = 0;
@@ -101,24 +101,24 @@ protected:
     bool m_wavefront = false;
     OfflineKernel m_offline;
     op::loop::JitCache<JitKernel> m_cache;
-    Call m_call;
+    CallState m_call_state;
 
     StrategyBase(Loop& loop, const op::loop::Point& point, KernelSource source,
                  Binder bind);
 
     // This strategy's values for its kernel, from the call being prepared.
     LaunchValues launch_values() const {
-        return {m_call.global_stride, m_block_size, m_unstaged_singles, m_wavefront};
+        return {m_call_state.global_stride, m_block_size, m_unstaged_singles, m_wavefront};
     }
 
     // Blocks of a grid-stride launch over elements.
     int grid(int elements) const {
         int blocks = (elements + m_block_size - 1) / m_block_size;
-        return std::min(blocks, m_call.block_limit);
+        return std::min(blocks, m_call_state.block_limit);
     }
 
     // Begin a call: its sections and the blocks the reduction scratch allows.
-    void begin(const op::loop::Configuration& configuration);
+    void begin(const op::loop::Call& call);
 
     // Whether no kernel of kind can come about: the offline kind with no
     // usable offline kernel.  A strategy that plans checks this first.
@@ -136,7 +136,7 @@ protected:
 
     // Finish a call: the launch parameters and the kernel of kind, as a
     // Prepared value over entry.
-    op::loop::Prepared acquire(const op::loop::Configuration& configuration,
+    op::loop::Prepared acquire(const op::loop::Call& call,
                                op::loop::Urgency urgency, op::loop::KernelKind kind,
                                const void *entry);
 
@@ -163,12 +163,12 @@ public:
     // specialised one when there is source, expected faster when the offline
     // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
     // tenth, until timings calibrate it).
-    op::loop::Estimate estimate(const op::loop::Configuration& configuration,
+    op::loop::Estimate estimate(const op::loop::Call& call,
                                 op::loop::KernelKind kind) const override {
-        (void)configuration;
+        (void)call;
         if (kind == op::loop::KernelKind::offline)
             return {m_offline.usable(m_block_size), 1.0f};
-        bool prior = m_offline.registers() > config().min_registers;
+        bool prior = m_offline.registers() > options().min_registers;
         return {!m_source.source.empty(), prior ? 0.9f : 1.0f};
     }
 
@@ -176,7 +176,7 @@ public:
         return prepared.kernel != nullptr ? "jit" : "offline";
     }
 
-    const Call& call() const { return m_call; }
+    const CallState& call_state() const { return m_call_state; }
 
     // Free device state while the device is up.
     virtual void release() { m_cache.join(); }
@@ -192,13 +192,13 @@ public:
            Binder bind)
         : StrategyBase{loop, point, source, bind} {}
 
-    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override {
-        begin(configuration);
-        for (const auto& section : m_call.sections.span())
-            m_call.max_blocks = std::max(m_call.max_blocks, grid(section.size()));
-        return acquire(configuration, urgency, kind, nullptr);
+        begin(call);
+        for (const auto& section : m_call_state.sections.span())
+            m_call_state.max_blocks = std::max(m_call_state.max_blocks, grid(section.size()));
+        return acquire(call, urgency, kind, nullptr);
     }
 
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -222,7 +222,7 @@ public:
               Binder bind)
         : StrategyBase{loop, point, source, bind} {}
 
-    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -260,12 +260,12 @@ protected:
                 std::move(variant)};
     }
 
-    Entry& entry_for(const op::loop::Configuration& configuration);
+    Entry& entry_for(const op::loop::Call& call);
     void report(const ChunkResult& result) const;
     int batch_blocks(const ChunkPlan& plan, int begin, int end) const;
 
 public:
-    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,

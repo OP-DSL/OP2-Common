@@ -169,8 +169,8 @@ void run(const char *strategy) {
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());
-    op::loop::Configuration configuration{&source, args, source.size + source.exec_size};
-    CHECK(loop.ladder()[*forced].prepare_kind(configuration, op::loop::Urgency::now,
+    op::loop::Call call{&source, args, source.size + source.exec_size};
+    CHECK(loop.ladder()[*forced].prepare_kind(call, op::loop::Urgency::now,
                                               op::loop::KernelKind::offline).status ==
           op::loop::Status::ready);
 
@@ -179,7 +179,7 @@ void run(const char *strategy) {
     double expected_sum = sum;
     double expected_max = max;
     int expected_loc = loc;
-    for (int call = 0; call < 2; ++call) {
+    for (int repeat = 0; repeat < 2; ++repeat) {
         for (int n = 0; n < edges; ++n)
             element(n, expected.data(), map_values.data(), w.data(), &expected_sum,
                     &expected_max, &expected_loc, [](double& t, double v) { t += v; });

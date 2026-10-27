@@ -15,33 +15,33 @@ namespace op::loop {
 
 namespace {
 
-JitPolicy run_policy;
+JitOptions run_options;
 std::atomic_int builds_in_flight = 0;
 
 } // namespace
 
-const JitPolicy& jit_policy() { return run_policy; }
+const JitOptions& jit_options() { return run_options; }
 
-void init_jit_policy() {
-    run_policy = {};
+void init_jit_options() {
+    run_options = {};
     env::retired("OP_JIT_ENABLE", "OP_JIT_LEVEL=0 turns the JIT off");
-    env::parse_number("OP_JIT_LEVEL", run_policy.level, 0, 2);
-    if (!run_policy.enabled())
+    env::parse_number("OP_JIT_LEVEL", run_options.level, 0, 2);
+    if (!run_options.enabled())
         op_printf("Disabling JIT compilation\n");
-    env::parse_bool("OP_JIT_DEBUG", run_policy.debug);
-    if (run_policy.debug)
+    env::parse_bool("OP_JIT_DEBUG", run_options.debug);
+    if (run_options.debug)
         op_printf("Enabling JIT debug\n");
-    env::parse_bool("OP_JIT_SEQ_COMPILE", run_policy.seq_compile);
-    env::parse_bool("OP_JIT_FORCE", run_policy.force);
-    if (run_policy.force)
+    env::parse_bool("OP_JIT_SEQ_COMPILE", run_options.seq_compile);
+    env::parse_bool("OP_JIT_FORCE", run_options.force);
+    if (run_options.force)
         op_printf("Forcing JIT compilation regardless of register count\n");
-    env::parse_number("OP_JIT_MIN_CALLS", run_policy.min_calls);
-    env::parse_number("OP_JIT_MAX_THREADS", run_policy.max_threads, 1);
-    env::parse_number("OP_JIT_VARYING", run_policy.varying);
-    env::parse_number("OP_JIT_MAX_GBL_BYTES", run_policy.max_gbl_bytes);
-    env::parse_number("OP_JIT_MAX_CONST_BYTES", run_policy.max_const_bytes);
-    env::parse_list("OP_JIT_RUNTIME_PARAMS", run_policy.runtime_params);
-    env::parse_list("OP_JIT_CONSTANT_PARAMS", run_policy.constant_params);
+    env::parse_number("OP_JIT_MIN_CALLS", run_options.min_calls);
+    env::parse_number("OP_JIT_MAX_THREADS", run_options.max_threads, 1);
+    env::parse_number("OP_JIT_VARYING", run_options.varying);
+    env::parse_number("OP_JIT_MAX_GBL_BYTES", run_options.max_gbl_bytes);
+    env::parse_number("OP_JIT_MAX_CONST_BYTES", run_options.max_const_bytes);
+    env::parse_list("OP_JIT_RUNTIME_PARAMS", run_options.runtime_params);
+    env::parse_list("OP_JIT_CONSTANT_PARAMS", run_options.constant_params);
 }
 
 bool take_build_slot(int limit) {
@@ -56,7 +56,7 @@ void release_build_slot() { --builds_in_flight; }
 
 // --- Parameters ---------------------------------------------------------------
 
-void Param::settle(std::string_view loop, bool runtime, const JitPolicy& policy) {
+void Param::settle(std::string_view loop, bool runtime, const JitOptions& options) {
     auto named = [&](const std::vector<std::string>& names) {
         return std::any_of(names.begin(), names.end(), [&](std::string_view item) {
             if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
@@ -68,8 +68,8 @@ void Param::settle(std::string_view loop, bool runtime, const JitPolicy& policy)
 
     m_fixed = true;
     m_initial = ParamMode::baked;
-    if (named(policy.constant_params)) {
-    } else if (named(policy.runtime_params)) {
+    if (named(options.constant_params)) {
+    } else if (named(options.runtime_params)) {
         if (runtime)
             m_initial = ParamMode::runtime;
         else
@@ -77,16 +77,16 @@ void Param::settle(std::string_view loop, bool runtime, const JitPolicy& policy)
                       "OP_JIT_RUNTIME_PARAMS\n",
                       std::string{loop}.c_str(), m_name.c_str());
     } else if (runtime && m_source == ParamSource::external) {
-        if (bytes() > static_cast<std::size_t>(policy.max_const_bytes))
+        if (bytes() > static_cast<std::size_t>(options.max_const_bytes))
             m_initial = ParamMode::runtime;
         else
             m_fixed = false;
     } else if (runtime && global()) {
         // An array_arg's size is each call's, so its cap is checked per call.
         m_initial = ParamMode::runtime;
-        m_fixed = policy.level < 2 ||
+        m_fixed = options.level < 2 ||
                   (m_source == ParamSource::scalar_arg &&
-                   bytes() > static_cast<std::size_t>(policy.max_gbl_bytes));
+                   bytes() > static_cast<std::size_t>(options.max_gbl_bytes));
     }
     m_mode = m_initial;
 }
@@ -135,29 +135,29 @@ void ParamSet::update(op_arg *args, int nargs) {
         param.update(args, nargs);
 }
 
-std::vector<ParamSet::History> *ParamSet::histories(std::uint64_t configuration) {
-    if (m_history != nullptr && configuration == m_history_key)
+std::vector<ParamSet::History> *ParamSet::histories(std::uint64_t call) {
+    if (m_history != nullptr && call == m_history_key)
         return m_history;
-    auto found = m_histories.find(configuration);
+    auto found = m_histories.find(call);
     if (found == m_histories.end()) {
         if (m_histories.size() >= max_histories)
             return nullptr;
-        found = m_histories.emplace(configuration, std::vector<History>(m_params.size()))
+        found = m_histories.emplace(call, std::vector<History>(m_params.size()))
                     .first;
     }
-    m_history_key = configuration;
+    m_history_key = call;
     m_history = &found->second;
     return m_history;
 }
 
-void ParamSet::observe(const Configuration& configuration) {
-    const auto& run = jit_policy();
-    auto *history = m_moving ? histories(configuration.key()) : nullptr;
+void ParamSet::observe(const Call& call) {
+    const auto& options = jit_options();
+    auto *history = m_moving ? histories(call.key()) : nullptr;
     for (std::size_t i = 0; i < m_params.size(); ++i) {
         auto& param = m_params[i];
         if (param.source() == ParamSource::strategy)
             continue;
-        if (param.sized_out(run)) {
+        if (param.sized_out(options)) {
             param.set_mode(ParamMode::runtime);
             continue;
         }
@@ -167,15 +167,15 @@ void ParamSet::observe(const Configuration& configuration) {
             continue;
         }
         auto& entry = (*history)[i];
-        if (entry.observe(param, run) && run.debug)
+        if (entry.observe(param, options) && options.debug)
             op_printf("jit: %s %s %s for %s\n", m_loop.c_str(),
                         entry.mode == ParamMode::baked ? "bakes in" : "moves to run time",
-                        param.name().c_str(), configuration.describe().c_str());
+                        param.name().c_str(), call.describe().c_str());
         param.set_mode(entry.mode);
     }
 }
 
-bool ParamSet::History::observe(const Param& param, const JitPolicy& run) {
+bool ParamSet::History::observe(const Param& param, const JitOptions& options) {
     std::uint64_t hash = param.last_hash();
     if (!seen) {
         seen = true;
@@ -192,7 +192,7 @@ bool ParamSet::History::observe(const Param& param, const JitPolicy& run) {
     changes = (changes << 1) | change;
     last = hash;
     if (mode == ParamMode::baked) {
-        if (changed <= run.varying)
+        if (changed <= options.varying)
             return false;
         mode = ParamMode::runtime;
         demoted = true;
@@ -209,7 +209,7 @@ bool ParamSet::History::observe(const Param& param, const JitPolicy& run) {
         total = 0;
     }
     ++total;
-    if (total < 32 || 5 * hits < 4 * total || changed > run.varying)
+    if (total < 32 || 5 * hits < 4 * total || changed > options.varying)
         return false;
     mode = ParamMode::baked;
     promoted = true;

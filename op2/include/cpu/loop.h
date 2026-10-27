@@ -101,12 +101,12 @@ public:
         }
 
         op_profile_next("Init");
-        op::loop::Configuration configuration{
+        op::loop::Call call{
             set, {args, static_cast<std::size_t>(nargs)}, n_exec};
-        auto decision = decide(configuration, args, nargs);
+        auto decision = decide(call, args, nargs);
 
         op_profile_next("Prepare GBLs");
-        m_sections = sections(configuration);
+        m_sections = sections(call);
         m_threads = omp_get_max_threads();
         m_globals.prepare(args, nargs, m_threads);
 
@@ -192,13 +192,13 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 // --- Colouring ---
 
 inline op::loop::Prepared Colouring::prepare_kind(
-    const op::loop::Configuration& configuration, op::loop::Urgency,
+    const op::loop::Call& call, op::loop::Urgency,
     op::loop::KernelKind) {
-    auto key = configuration.key();
+    auto key = call.key();
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
-        auto colouring = op::plan::colour_set(configuration.args,
-                                              m_loop.sections(configuration));
+        auto colouring = op::plan::colour_set(call.args,
+                                              m_loop.sections(call));
         if (OP_diags > 3)
             op_printf("%s: %s %d colours, %d over owned elements\n",
                         m_name.c_str(), m_loop.name().c_str(), colouring.colours,
@@ -230,17 +230,17 @@ inline std::string Colouring::statistics(const op::loop::Prepared& prepared) con
 // --- The chunked strategies ---
 
 inline ChunkBase::Entry& ChunkBase::entry_for(
-    const op::loop::Configuration& configuration) {
-    auto key = configuration.key();
+    const op::loop::Call& call) {
+    auto key = call.key();
     auto found = m_entries.find(key);
     if (found != m_entries.end())
         return found->second;
 
-    auto sections = m_loop.sections(configuration);
+    auto sections = m_loop.sections(call);
     auto result =
         m_coloured
-            ? plan_chunk_colouring(configuration.args, sections, m_chunk_size)
-            : plan_chunk_atomics(configuration.args, sections, m_groups, m_chunk_size,
+            ? plan_chunk_colouring(call.args, sections, m_chunk_size)
+            : plan_chunk_atomics(call.args, sections, m_groups, m_chunk_size,
                                  op::plan::chunk_options().min_compression);
     Entry entry;
     entry.rejected = result.rejected;
@@ -262,9 +262,9 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
 }
 
 inline op::loop::Prepared ChunkBase::prepare_kind(
-    const op::loop::Configuration& configuration, op::loop::Urgency,
+    const op::loop::Call& call, op::loop::Urgency,
     op::loop::KernelKind) {
-    auto& entry = entry_for(configuration);
+    auto& entry = entry_for(call);
     if (!entry.rejected.empty())
         return prepared(op::loop::Status::unavailable, &entry, entry.rejected);
     return prepared(op::loop::Status::ready, &entry);

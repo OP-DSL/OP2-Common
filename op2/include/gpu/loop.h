@@ -224,16 +224,16 @@ public:
         }
 
         op_profile_next("Get Kernel");
-        op::loop::Configuration configuration{
+        op::loop::Call call{
             set, {args, static_cast<std::size_t>(nargs)}, n_exec};
-        auto decision = decide(configuration, args, nargs);
-        const auto& call = static_cast<StrategyBase *>(decision.prepared.strategy)->call();
+        auto decision = decide(call, args, nargs);
+        const auto& state = static_cast<StrategyBase *>(decision.prepared.strategy)->call_state();
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
         m_global_output = has_global_output(args, nargs);
         m_exit_sync = false;
-        prepareDeviceGblsWithPolicy(args, nargs, call.global_stride, m_gbl_inc_atomic,
+        prepareDeviceGblsWithPolicy(args, nargs, state.global_stride, m_gbl_inc_atomic,
                                     on_host(decision.prepared, nargs));
         op_profile_exit();
 
@@ -270,20 +270,20 @@ inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
                                   KernelSource source, Binder bind)
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
       m_block_size{point.value("block_size")}, m_offline{source.offline},
-      m_cache{source.name, config().build_threads} {}
+      m_cache{source.name, options().build_threads} {}
 
-inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
-    m_call = {};
-    m_call.sections = m_loop.sections(configuration);
-    m_call.block_limit = m_loop.block_limit(
-        const_cast<op_arg *>(configuration.args.data()),
-        static_cast<int>(configuration.args.size()), m_block_size);
+inline void StrategyBase::begin(const op::loop::Call& call) {
+    m_call_state = {};
+    m_call_state.sections = m_loop.sections(call);
+    m_call_state.block_limit = m_loop.block_limit(
+        const_cast<op_arg *>(call.args.data()),
+        static_cast<int>(call.args.size()), m_block_size);
 }
 
 inline op::loop::Prepared StrategyBase::acquire(
-    const op::loop::Configuration& configuration, op::loop::Urgency urgency,
+    const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind, const void *entry) {
-    m_call.global_stride = m_block_size * m_call.max_blocks;
+    m_call_state.global_stride = m_block_size * m_call_state.max_blocks;
     op::loop::Prepared prepared;
     prepared.strategy = this;
     prepared.entry = entry;
@@ -298,7 +298,7 @@ inline op::loop::Prepared StrategyBase::acquire(
     }
 
     auto& params = m_loop.params();
-    auto key = params.key(configuration, launch_values().slots());
+    auto key = params.key(call, launch_values().slots());
     auto acquired = m_cache.acquire(key, urgency, offline, [&] {
         return m_loop.compiler().job(params, m_source);
     });
@@ -351,8 +351,8 @@ std::optional<float> StrategyBase::run_phases(
 
         for (int index = 0; index < count; ++index) {
             LaunchContext context;
-            context.global_stride = m_call.global_stride;
-            context.set_stride = m_call.sections.set_stride();
+            context.global_stride = m_call_state.global_stride;
+            context.set_stride = m_call_state.sections.set_stride();
             Geometry geometry = fill(phase, index, context);
             if (geometry.blocks > 0)
                 this->launch(prepared, context, launch.args, geometry);
@@ -361,7 +361,7 @@ std::optional<float> StrategyBase::run_phases(
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
         if (phase == globals_after)
-            m_loop.process_globals(launch.args, launch.nargs, m_call.global_stride);
+            m_loop.process_globals(launch.args, launch.nargs, m_call_state.global_stride);
     }
 
     if (phases == wait_before) {
@@ -389,7 +389,7 @@ std::optional<float> StrategyBase::run_phases(
 
 inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
                                         const op::loop::Launch& launch) {
-    const auto& sections = m_call.sections;
+    const auto& sections = m_call_state.sections;
     return run_phases(
         prepared, launch, sections.size(), sections.wait_index(),
         sections.globals_index(),
@@ -404,16 +404,16 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 // --- Colouring ---
 
 inline op::loop::Prepared Colouring::prepare_kind(
-    const op::loop::Configuration& configuration, op::loop::Urgency urgency,
+    const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
     if (never_available(kind))
         return unavailable();
-    begin(configuration);
-    auto key = configuration.key();
+    begin(call);
+    auto key = call.key();
     auto found = m_entries.find(key);
     if (found == m_entries.end()) {
         Entry entry;
-        entry.colouring = op::plan::colour_set(configuration.args, m_call.sections);
+        entry.colouring = op::plan::colour_set(call.args, m_call_state.sections);
         const auto& order = entry.colouring.order;
         if (!order.empty()) {
             GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),
@@ -431,11 +431,11 @@ inline op::loop::Prepared Colouring::prepare_kind(
 
     const auto& colouring = entry->colouring;
     for (int colour = 0; colour < colouring.colours; ++colour)
-        m_call.max_blocks = std::max(
-            m_call.max_blocks,
+        m_call_state.max_blocks = std::max(
+            m_call_state.max_blocks,
             grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
                  colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(configuration, urgency, kind, entry);
+    return acquire(call, urgency, kind, entry);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
@@ -472,19 +472,18 @@ inline void Colouring::release() {
 // --- The chunked strategies ---
 
 inline ChunkBase::Entry& ChunkBase::entry_for(
-    const op::loop::Configuration& configuration) {
-    auto key = configuration.key();
+    const op::loop::Call& call) {
+    auto key = call.key();
     auto found = m_entries.find(key);
     if (found != m_entries.end())
         return found->second;
 
-    const auto& run = config();
-    ChunkLimits limits{m_block_size, run.shared_bytes};
+    ChunkLimits limits{m_block_size, device().shared_bytes};
     auto result =
         m_coloured
-            ? plan_chunk_colouring(configuration.args, m_call.sections, m_groups,
-                                   m_chunk_size, limits, m_wavefront, run.window)
-            : plan_chunk_atomics(configuration.args, m_call.sections, m_groups,
+            ? plan_chunk_colouring(call.args, m_call_state.sections, m_groups,
+                                   m_chunk_size, limits, m_wavefront, options().window)
+            : plan_chunk_atomics(call.args, m_call_state.sections, m_groups,
                                  m_chunk_size, limits, m_unstaged_singles,
                                  op::plan::chunk_options().min_compression);
     report(result);
@@ -523,12 +522,12 @@ inline void ChunkBase::report(const ChunkResult& result) const {
 }
 
 inline op::loop::Prepared ChunkBase::prepare_kind(
-    const op::loop::Configuration& configuration, op::loop::Urgency urgency,
+    const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
     if (never_available(kind))
         return unavailable();
-    begin(configuration);
-    auto *entry = &entry_for(configuration);
+    begin(call);
+    auto *entry = &entry_for(call);
     if (!entry->rejected.empty()) {
         op::loop::Prepared prepared;
         prepared.strategy = this;
@@ -542,21 +541,21 @@ inline op::loop::Prepared ChunkBase::prepare_kind(
     // blocks take chunks in turn, so it needs no more of them than the
     // device holds at once.
     const auto& batches = entry->plan->batches;
-    for (int section = 0; section < m_call.sections.size(); ++section)
+    for (int section = 0; section < m_call_state.sections.size(); ++section)
         for (int batch = 0; batch < batches.batches(section); ++batch) {
             auto [begin, end] = batches.positions(section, batch);
-            m_call.max_blocks =
-                std::max(m_call.max_blocks, batch_blocks(*entry->plan, begin, end));
+            m_call_state.max_blocks =
+                std::max(m_call_state.max_blocks, batch_blocks(*entry->plan, begin, end));
         }
-    return acquire(configuration, urgency, kind, entry);
+    return acquire(call, urgency, kind, entry);
 }
 
 // A block per chunk up to the call's limit, and for a wavefront no more
 // than the device holds at once.
 inline int ChunkBase::batch_blocks(const ChunkPlan& plan, int begin, int end) const {
-    int blocks = std::min(end - begin, m_call.block_limit);
+    int blocks = std::min(end - begin, m_call_state.block_limit);
     if (plan.wavefront)
-        blocks = std::min(blocks, config().resident_blocks(m_block_size));
+        blocks = std::min(blocks, device().resident_blocks(m_block_size));
     return blocks;
 }
 
@@ -564,7 +563,7 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
     const auto& entry = *static_cast<const Entry *>(prepared.entry);
     const auto& plan = *entry.plan;
-    const auto& sections = m_call.sections;
+    const auto& sections = m_call_state.sections;
 
     // Every section of a wavefront call takes its positions from zero.
     int epoch = 0;

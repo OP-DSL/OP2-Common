@@ -73,10 +73,11 @@ kernel/jit_embed.h     (embeds the three kernel headers as text for NVRTC;
 #### CUDA and HIP backend of the translated kernels
 ```
 gpu/shims.h            (gpu* aliases over the CUDA or HIP runtime)
-gpu/config.h           (the run-wide configuration: the JIT mechanism's
-                        settings, device, wavefront window; read by op_init,
-                        which declares the GPU families, from src/gpu)
-gpu/jit.h              (includes: gpu/config.h, gpu/shims.h, loop/jit.h; the
+gpu/options.h          (the run-wide options, the JIT mechanism's and the
+                        wavefront window, and the device's facts; read by
+                        op_init, which declares the GPU families, from
+                        src/gpu)
+gpu/jit.h              (includes: gpu/options.h, gpu/shims.h, loop/jit.h; the
                         JIT mechanism: offline kernels and their symbols,
                         NVRTC or hipRTC compiles, run-time parameters as
                         wrapper arguments or module symbols, launches)

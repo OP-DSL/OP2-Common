@@ -17,7 +17,7 @@ namespace op::loop {
 // OP_AUTOTUNE=report times every candidate strategy for each loop
 // configuration and reports how they compare with the ladder's choice, which
 // still runs once a configuration has been explored.
-struct AutotuneConfig {
+struct AutotuneOptions {
     bool report = false;
     // OP_AUTOTUNE=select also reports, and once a configuration is explored
     // runs its fastest candidate whenever that beats the ladder's current
@@ -37,9 +37,9 @@ struct AutotuneConfig {
     std::string report_file;
 };
 
-const AutotuneConfig& autotune_config();
+const AutotuneOptions& autotune_options();
 // Read by init.
-void init_autotune_config();
+void init_autotune_options();
 
 // A loop's tuning: the timings of each candidate strategy for every
 // configuration of the loop seen often enough, and what to run from them.
@@ -104,9 +104,9 @@ private:
     std::unordered_map<std::uint64_t, State> m_states;
     std::size_t m_dropped = 0;
 
-    void add_trials(State& state, const Configuration& configuration,
+    void add_trials(State& state, const Call& call,
                     const Prepared& selection);
-    Decision run_selected(const State& state, const Configuration& configuration,
+    Decision run_selected(const State& state, const Call& call,
                           const Decision& ladder);
     Summary summarise(const State& state) const;
     Strategy *winner(const Summary& summary) const;
@@ -127,7 +127,7 @@ public:
     // rejected retires it with its reason.  When every trial is done the
     // configuration is reported and, under select, its fastest strategy runs
     // from then on if it beats the ladder's current choice by the margin.
-    Decision choose(const Configuration& configuration, const Prepared& selection);
+    Decision choose(const Call& call, const Prepared& selection);
 
     // Record one timed run.
     void sample(const Decision& decision, float microseconds);

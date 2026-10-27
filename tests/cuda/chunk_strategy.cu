@@ -203,9 +203,9 @@ struct Outcome {
 
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
-    op::loop::Configuration configuration{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
-    auto chunk = loop.ladder()[0].prepare(configuration, op::loop::Urgency::later);
-    auto selection = loop.ladder().select(configuration);
+    op::loop::Call call{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
+    auto chunk = loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+    auto selection = loop.ladder().select(call);
     loop.invoke(&fixture.source, fixture.args.data(),
                 static_cast<int>(fixture.args.size()));
     GPU_CHECK(gpuDeviceSynchronize());
@@ -214,7 +214,7 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
     auto name = selection.strategy->name();
     return {std::string{name.substr(0, name.find('='))}, std::string{chunk.reason},
             selection.kernel != nullptr,
-            static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks};
+            static_cast<gpu::StrategyBase *>(selection.strategy)->call_state().max_blocks};
 }
 
 } // namespace
@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
     // Every source in one chunk.
     setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", "256", 1);
     op_init(argc, argv, 2);
-    const bool expect_jit = op::loop::jit_policy().level > 0;
+    const bool expect_jit = op::loop::jit_options().level > 0;
 
     Fixture fixture;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));

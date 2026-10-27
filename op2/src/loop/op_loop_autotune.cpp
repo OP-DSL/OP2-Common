@@ -25,7 +25,7 @@ constexpr const char *header =
 } // namespace
 
 void autotune_write_report(int rank, int ranks) {
-    const auto& path = autotune_config().report_file;
+    const auto& path = autotune_options().report_file;
     if (path.empty())
         return;
 
@@ -60,29 +60,29 @@ void finalise(int rank, int ranks) {
     release_all();
 }
 
-// --- Configuration --------------------------------------------------------------
+// --- Options -------------------------------------------------------------------
 
 namespace {
 
-AutotuneConfig config;
+AutotuneOptions options;
 
 } // namespace
 
-const AutotuneConfig& autotune_config() { return config; }
+const AutotuneOptions& autotune_options() { return options; }
 
-void init_autotune_config() {
-    config = {};
+void init_autotune_options() {
+    options = {};
     constexpr env::Choice modes[] = {{"off", 0}, {"0", 0},      {"no", 0},
                                      {"false", 0}, {"report", 1}, {"select", 2}};
     int mode = 0;
     env::parse_choice("OP_AUTOTUNE", modes, mode);
-    config.report = mode > 0;
-    config.select = mode == 2;
-    env::parse_text("OP_AUTOTUNE_REPORT", config.report_file);
-    env::parse_number("OP_AUTOTUNE_MARGIN", config.margin);
-    env::parse_number("OP_AUTOTUNE_WARMUP", config.warmup);
-    env::parse_number("OP_AUTOTUNE_SAMPLES", config.samples, 1);
-    env::parse_number("OP_AUTOTUNE_MIN_CALLS", config.min_calls);
+    options.report = mode > 0;
+    options.select = mode == 2;
+    env::parse_text("OP_AUTOTUNE_REPORT", options.report_file);
+    env::parse_number("OP_AUTOTUNE_MARGIN", options.margin);
+    env::parse_number("OP_AUTOTUNE_WARMUP", options.warmup);
+    env::parse_number("OP_AUTOTUNE_SAMPLES", options.samples, 1);
+    env::parse_number("OP_AUTOTUNE_MIN_CALLS", options.min_calls);
 }
 
 // --- Per-loop tuning --------------------------------------------------------------
@@ -108,8 +108,8 @@ std::string quoted(std::string_view text) {
 
 bool Autotuner::Trial::done() const {
     return !candidate ||
-           (warmups >= config.warmup &&
-            static_cast<int>(samples.size()) >= config.samples);
+           (warmups >= options.warmup &&
+            static_cast<int>(samples.size()) >= options.samples);
 }
 
 bool Autotuner::State::explored() const {
@@ -131,10 +131,10 @@ Autotuner::~Autotuner() {
     std::erase(tuners, this);
 }
 
-Autotuner::Decision Autotuner::choose(const Configuration& configuration,
+Autotuner::Decision Autotuner::choose(const Call& call,
                                       const Prepared& selection) {
     Decision ladder{selection};
-    auto key = configuration.key();
+    auto key = call.key();
     auto found = m_states.find(key);
     if (found == m_states.end()) {
         if (m_states.size() >= max_keys) {
@@ -147,12 +147,12 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
     auto& state = found->second;
     ++state.calls;
     if (state.reported)
-        return run_selected(state, configuration, ladder);
+        return run_selected(state, call, ladder);
     state.ladder = selection.strategy;
-    if (state.calls < static_cast<std::size_t>(config.min_calls))
+    if (state.calls < static_cast<std::size_t>(options.min_calls))
         return ladder;
     if (state.trials.empty()) {
-        add_trials(state, configuration, selection);
+        add_trials(state, call, selection);
         if (state.trivial) {
             state.reported = true;
             return ladder;
@@ -167,7 +167,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
 
         Prepared prepared = trial.strategy == selection.strategy
                                 ? selection
-                                : trial.strategy->prepare(configuration, Urgency::now);
+                                : trial.strategy->prepare(call, Urgency::now);
         if (prepared.status == Status::pending)
             continue;
         if (prepared.status != Status::ready) {
@@ -178,7 +178,7 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
 
         state.cursor = index + 1;
         Decision decision{prepared};
-        if (trial.warmups < config.warmup)
+        if (trial.warmups < options.warmup)
             ++trial.warmups;
         else
             decision.timed = &trial;
@@ -189,18 +189,18 @@ Autotuner::Decision Autotuner::choose(const Configuration& configuration,
         if (!trial.done())
             return ladder;
 
-    if (config.select)
+    if (options.select)
         state.selected = winner(summarise(state));
     report(state);
-    return run_selected(state, configuration, ladder);
+    return run_selected(state, call, ladder);
 }
 
 // Every strategy not turned off is a trial: the ladder's choice, and every
 // other whose prepare is ready or pending; the rest are retired with their
 // reasons.  Trivial when the ladder's choice is the only candidate.
-void Autotuner::add_trials(State& state, const Configuration& configuration,
+void Autotuner::add_trials(State& state, const Call& call,
                            const Prepared& selection) {
-    state.description = configuration.describe();
+    state.description = call.describe();
     int others = 0;
     for (std::size_t i = 0; i < m_ladder.size(); ++i) {
         Trial trial;
@@ -210,7 +210,7 @@ void Autotuner::add_trials(State& state, const Configuration& configuration,
         } else if (trial.strategy == selection.strategy) {
             trial.candidate = true;
         } else {
-            auto prepared = trial.strategy->prepare(configuration, Urgency::later);
+            auto prepared = trial.strategy->prepare(call, Urgency::later);
             trial.candidate = prepared.status == Status::ready ||
                               prepared.status == Status::pending;
             if (!trial.candidate)
@@ -226,11 +226,11 @@ void Autotuner::add_trials(State& state, const Configuration& configuration,
 // What an explored configuration runs: its selected strategy when that is
 // ready, else the ladder's choice.
 Autotuner::Decision Autotuner::run_selected(const State& state,
-                                            const Configuration& configuration,
+                                            const Call& call,
                                             const Decision& ladder) {
     if (state.selected == nullptr || state.selected == ladder.prepared.strategy)
         return ladder;
-    auto prepared = state.selected->prepare(configuration, Urgency::later);
+    auto prepared = state.selected->prepare(call, Urgency::later);
     if (prepared.status != Status::ready)
         return ladder;
     return {prepared};
@@ -262,7 +262,7 @@ Autotuner::Summary Autotuner::summarise(const State& state) const {
 Strategy *Autotuner::winner(const Summary& summary) const {
     if (summary.fastest == nullptr || summary.fastest == summary.ladder)
         return nullptr;
-    return summary.speedup * (1.0 - config.margin) > 1.0 ? summary.fastest->strategy
+    return summary.speedup * (1.0 - options.margin) > 1.0 ? summary.fastest->strategy
                                                           : nullptr;
 }
 
@@ -374,7 +374,7 @@ void Autotuner::flush() {
     if (unexplored > 0 && op_is_root())
         std::printf("autotune: %s left %zu configurations unexplored "
                     "(seen fewer than %d times, or past %zu)\n",
-                    m_ladder.name().c_str(), unexplored, config.min_calls,
+                    m_ladder.name().c_str(), unexplored, options.min_calls,
                     max_keys);
     m_states.clear();
     m_dropped = 0;
