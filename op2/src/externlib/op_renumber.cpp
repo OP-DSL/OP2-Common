@@ -59,15 +59,18 @@
  *
  * The ordering algorithms themselves live in header-only modules:
  *
- *     renumber/rcm.hpp          - RCM + shared graph utilities
- *     renumber/sloan.hpp        - Sloan (depends on rcm.hpp)
- *     renumber/hilbert_sfc.hpp  - Hilbert SFC (standalone, geometric)
+ *     renumber/rcm.h          - RCM + shared graph utilities
+ *     renumber/sloan.h        - Sloan (depends on renumber/rcm.h)
+ *     renumber/hilbert_sfc.h  - Hilbert SFC (standalone, geometric)
  */
 
 #include <op_env.h>
 #include <op_lib_c.h>
 #include <op_mpi_core.h>
 #include <op_mpi_halo.h>
+#include <renumber/hilbert_sfc.h>
+#include <renumber/rcm.h>
+#include <renumber/sloan.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -77,10 +80,6 @@
 #include <random>
 #include <utility>
 #include <vector>
-
-#include "renumber/rcm.hpp"
-#include "renumber/sloan.hpp"
-#include "renumber/hilbert_sfc.hpp"
 
 /* Stops the job unless perm is a permutation of 0..perm.size()-1: every ordering
    is built as one, so anything else is a bug that would scramble the set. */

@@ -1,5 +1,5 @@
 /*
- * sloan.hpp
+ * renumber/sloan.h
  *
  * Sloan's profile-minimising node ordering.
  *
@@ -19,13 +19,12 @@
  * Weights (W1, W2) = (2, 1) follow Sloan's original recommendation and
  * work well on typical FE/FV meshes.
  *
- * Depends on rcm.hpp for bfs_levels and find_pseudo_peripheral.
+ * Depends on renumber/rcm.h for bfs_levels and find_pseudo_peripheral.
  */
 
-#ifndef SLOAN_HPP
-#define SLOAN_HPP
+#pragma once
 
-#include "rcm.hpp"
+#include <renumber/rcm.h>
 
 #include <vector>
 #include <algorithm>
@@ -152,4 +151,3 @@ inline void sloan_order(const std::vector<int> &row_offsets,
 
 } // namespace op_renumber_impl
 
-#endif // SLOAN_HPP

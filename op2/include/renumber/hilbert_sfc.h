@@ -1,5 +1,5 @@
 /*
- * hilbert_sfc.hpp
+ * renumber/hilbert_sfc.h
  *
  * Hilbert space-filling-curve (SFC) node ordering.
  *
@@ -25,8 +25,7 @@
  * detect when the grid resolution has become marginal.
  */
 
-#ifndef HILBERT_SFC_HPP
-#define HILBERT_SFC_HPP
+#pragma once
 
 #include <vector>
 #include <algorithm>
@@ -256,4 +255,3 @@ inline void hilbert_sfc_order(const double *coords,
 
 } // namespace op_renumber_impl
 
-#endif // HILBERT_SFC_HPP

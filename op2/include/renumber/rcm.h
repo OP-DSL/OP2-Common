@@ -1,5 +1,5 @@
 /*
- * rcm.hpp
+ * renumber/rcm.h
  *
  * Reverse Cuthill-McKee (RCM) node ordering.
  *
@@ -13,8 +13,7 @@
  * so sloan.hpp includes this header rather than duplicating them.
  */
 
-#ifndef RCM_HPP
-#define RCM_HPP
+#pragma once
 
 #include <vector>
 #include <algorithm>
@@ -164,4 +163,3 @@ inline void rcm_order(const std::vector<int> &row_offsets,
 
 } // namespace op_renumber_impl
 
-#endif // RCM_HPP
