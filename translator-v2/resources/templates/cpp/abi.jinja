@@ -48,3 +48,14 @@ void op_par_loop_{{lh.name}}(
 {%- macro entry_prologue() %}
     (void)name;
 {%- endmacro -%}
+
+{%- macro master_extras() %}
+
+void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
+    // Unused with JIT
+}
+{% endmacro -%}
+
+{%- macro loop_include(loop_) -%}
+{{loop_.name}}_kernel.h
+{%- endmacro -%}

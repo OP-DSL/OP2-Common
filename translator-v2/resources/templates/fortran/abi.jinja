@@ -49,3 +49,10 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 
 {%- macro entry_prologue() -%}
 {%- endmacro -%}
+
+{%- macro master_extras() -%}
+{%- endmacro -%}
+
+{%- macro loop_include(loop_) -%}
+{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "hip_f2c" else "cuh"}}
+{%- endmacro -%}

@@ -1,3 +1,4 @@
+{% import "cpp/abi.jinja" as abi with context %}
 #include <cstdint>
 
 {% for const in app.consts() %}
@@ -12,27 +13,4 @@ extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif 
 [[maybe_unused]] static uint64_t op2_const_{{const.ptr}}_hash = 0;
 {% endfor %}
 
-#define OP_KERNEL_JIT_TAG {{tag}}
-#include <kernel/jit_embed.h>
-
-#include <kernel/prelude.h>
-#include <kernel/strategy.h>
-#include <gpu/loop.h>
-
-#include <op_lib_cpp.h>
-#include <op_profile.h>
-
-#include <array>
-#include <cstdint>
-#include <cmath>
-#include <cstdio>
-#include <vector>
-
-
-void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
-    // Unused with JIT
-}
-
-{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
-#include "{{loop_.name}}_kernel.h"
-{% endfor %}
+{% include "gpu/master_kernel.jinja" %}

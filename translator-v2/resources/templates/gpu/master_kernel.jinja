@@ -1,0 +1,22 @@
+{#- The tail of a GPU master kernel: the headers its JIT compiles embed, the
+    runtime, and the loops' hosts. -#}
+#define OP_KERNEL_JIT_TAG {{tag}}
+#include <kernel/jit_embed.h>
+
+#include <kernel/prelude.h>
+#include <kernel/strategy.h>
+#include <gpu/loop.h>
+
+#include <op_lib_cpp.h>
+#include <op_profile.h>
+
+#include <array>
+#include <cstdint>
+#include <cmath>
+#include <cstdio>
+#include <vector>
+
+{{abi.master_extras()}}
+{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
+#include "{{abi.loop_include(loop_)}}"
+{% endfor %}

@@ -1,3 +1,4 @@
+{% import "fortran/abi.jinja" as abi with context %}
 {%- macro type_c(arg) -%}
     {%- if arg.typ is instance(OP.Int) -%}
         int
@@ -43,23 +44,4 @@ extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
 INCTXT(OP_KERNEL_PARAMS, "hydra_const_list_params.h");
 
 {% endif %}
-#define OP_KERNEL_JIT_TAG {{tag}}
-#include <kernel/jit_embed.h>
-
-#include <kernel/prelude.h>
-#include <kernel/strategy.h>
-#include <gpu/loop.h>
-
-#include <op_lib_cpp.h>
-#include <op_profile.h>
-
-#include <array>
-#include <cstdint>
-#include <cmath>
-#include <cstdio>
-#include <vector>
-
-
-{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
-#include "{{loop_.name}}_kernel_aux1.{{"hip.h" if target.name == "hip_f2c" else "cuh"}}"
-{% endfor %}
+{% include "gpu/master_kernel.jinja" %}
