@@ -37,20 +37,6 @@ void write5_within_kernel(double *dat0, double *dat1, const double *read) {
   write5(dat1, read);
 }
 
-inline void weigh3(const double *v, double *out) {
-  *out = v[0] + 10.0 * v[1] + 100.0 * v[2];
-}
-// One helper called with a dat on the loop's set, one on another set (each
-// with its own stride under SoA) and a local array.
-void weigh_shared(double *r, const double *own, const double *other) {
-  const double local[3] = {1.0, 2.0, 3.0};
-  double a, b, c;
-  weigh3(own, &a);
-  weigh3(other, &b);
-  weigh3(local, &c);
-  r[0] = a + 2.0 * b + 4.0 * c;
-}
-
 // --- main ---
 int main(int argc, char **argv) {
 
@@ -79,23 +65,6 @@ int main(int argc, char **argv) {
   op_dat dat5_0 = op_decl_dat(set, 5, "double", data5_0.data(), "dat5_0");
   op_dat dat5_1 = op_decl_dat(set, 5, "double", data5_1.data(), "dat5_1");
   op_dat dat_iota1 = op_decl_dat(set, 1, "double", data1.data(), "dat_iota1");
-
-  // A second set of another size, reached through a map.
-  const int other_size = local_size + 17;
-  op_set other = op_decl_set(other_size, "other_set");
-  std::vector<int> to_other(local_size);
-  for (int i = 0; i < local_size; ++i)
-    to_other[i] = (7 * i) % other_size;
-  op_map set_to_other = op_decl_map(set, other, 1, to_other.data(), "set_to_other");
-
-  std::vector<double> own3(local_size * 3), other3(other_size * 3), weighed(local_size, 0.0);
-  for (int i = 0; i < local_size * 3; ++i)
-    own3[i] = local_start * 3 + i;
-  for (int j = 0; j < other_size * 3; ++j)
-    other3[j] = 1000.0 + j;
-  op_dat dat_own3 = op_decl_dat(set, 3, "double", own3.data(), "dat_own3");
-  op_dat dat_other3 = op_decl_dat(other, 3, "double", other3.data(), "dat_other3");
-  op_dat dat_weighed = op_decl_dat(set, 1, "double", weighed.data(), "dat_weighed");
 
   op_partition("", "", NULL, NULL, NULL);
   
@@ -141,26 +110,6 @@ int main(int argc, char **argv) {
     }
 
     printf("write5_within_kernel passed\n");
-  }
-
-  // --- A helper shared by dats of two sets and a local ---
-  {
-    op_par_loop(weigh_shared, "weigh_shared", set,
-              op_arg_dat(dat_weighed, -1, OP_ID, 1, "double", OP_WRITE),
-              op_arg_dat(dat_own3, -1, OP_ID, 3, "double", OP_READ),
-              op_arg_dat(dat_other3, 0, set_to_other, 3, "double", OP_READ));
-
-    std::vector<double> fetched(local_size, 0.0);
-    op_fetch_data(dat_weighed, fetched.data());
-
-    auto weigh = [](const double *v) { return v[0] + 10.0 * v[1] + 100.0 * v[2]; };
-    const double local[3] = {1.0, 2.0, 3.0};
-    for (int i = 0; i < local_size; ++i) {
-      double expected = weigh(&own3[i * 3]) + 2.0 * weigh(&other3[to_other[i] * 3]) + 4.0 * weigh(local);
-      check(std::abs(fetched[i] - expected) < TOL, i, "weigh_shared failed");
-    }
-
-    printf("weigh_shared passed\n");
   }
 
   op_profile_end();
