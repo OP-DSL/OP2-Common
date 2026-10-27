@@ -3,7 +3,6 @@
 #include <extern/rapidhash.h>
 #include <loop/autotune.h>
 #include <loop/jit.h>
-#include <loop/select.h>
 #include <op_env.h>
 
 #include <algorithm>
@@ -182,9 +181,30 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
 
 // --- Strategies ---------------------------------------------------------------
 
-std::string_view Strategy::family() const {
-    auto text = name();
-    return text.substr(0, text.find('='));
+Prepared Strategy::prepare(const Configuration& configuration, Urgency urgency) {
+    auto kind = [&] {
+        const auto& policy = jit_policy();
+        if (!policy.enabled())
+            return KernelKind::offline;
+        auto jit = estimate(configuration, KernelKind::jit);
+        if (!jit.available)
+            return KernelKind::offline;
+        auto offline = estimate(configuration, KernelKind::offline);
+        if (!offline.available || policy.force)
+            return KernelKind::jit;
+        if (jit.time && offline.time && *jit.time < *offline.time)
+            return KernelKind::jit;
+        return KernelKind::offline;
+    }();
+    return prepare_kind(configuration, urgency, kind);
+}
+
+// --- Variants -----------------------------------------------------------------
+
+int Point::value(std::string_view key) const {
+    auto found = std::find(keys.begin(), keys.end(), key);
+    assert(found != keys.end());
+    return values[static_cast<std::size_t>(found - keys.begin())];
 }
 
 namespace {
@@ -280,9 +300,10 @@ std::vector<Point> points(std::string_view family, std::span<const Axis> axes,
     std::vector<Point> out;
     std::vector<std::size_t> index(axes.size(), 0);
     while (true) {
-        Point point{std::string{family} + "=on", {}};
+        Point point{std::string{family} + "=on", {}, {}};
         for (std::size_t i = 0; i < axes.size(); ++i) {
             int value = values[i][index[i]];
+            point.keys.push_back(axes[i].key);
             point.values.push_back(value);
             point.name += ";" + std::string{axes[i].key} + "=" +
                           (axes[i].binary ? (value != 0 ? "on" : "off")
@@ -346,12 +367,12 @@ void Ladder::add(std::string_view family, const Make& make) {
 
     auto all = points(family, settings.axes, settings.values);
     for (std::size_t i = 1; i < all.size(); ++i)
-        add_entry(make(all[i]), false, false, off, settings.rank);
-    add_entry(make(all[0]), true, enabled, off, settings.rank);
+        add_entry(make(all[i]), family, false, false, off, settings.rank);
+    add_entry(make(all[0]), family, true, enabled, off, settings.rank);
 }
 
-void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
-                       bool enabled, bool off, std::size_t rank) {
+void Ladder::add_entry(std::unique_ptr<Strategy> strategy, std::string_view family,
+                       bool runs, bool enabled, bool off, std::size_t rank) {
     assert(strategy != nullptr);
     for (const auto& entry : m_entries)
         if (entry.strategy->name() == strategy->name()) {
@@ -369,11 +390,11 @@ void Ladder::add_entry(std::unique_ptr<Strategy> strategy, bool runs,
     if (m_forced && *m_forced >= position)
         ++*m_forced;
 
-    Entry entry{std::move(strategy), runs, enabled, off, rank};
+    Entry entry{std::move(strategy), std::string{family}, runs, enabled, off, rank};
     if (runs)
         for (std::size_t forced = 0;
              forced < std::min(m_forced_rank, m_forced_names.size()); ++forced)
-            if (m_forced_names[forced] == entry.strategy->family()) {
+            if (m_forced_names[forced] == entry.family) {
                 m_forced = position;
                 m_forced_rank = forced;
                 break;
@@ -401,8 +422,7 @@ Prepared Ladder::select(const Configuration& configuration) {
         }
         // The run asked for the forced strategy, so its kernel is waited for.
         selection = entry.strategy->prepare(configuration,
-                                            forced ? Urgency::wait : Urgency::later,
-                                            choose_kernel(*entry.strategy, configuration));
+                                            forced ? Urgency::wait : Urgency::later);
         assert(selection.strategy == entry.strategy.get());
         if (selection.status == Status::ready) {
             report(selection, {m_reasons.data(), index});
@@ -416,8 +436,7 @@ Prepared Ladder::select(const Configuration& configuration) {
     // The floor must run, so wait for its kernel; without one the loop
     // cannot run at all.
     auto& floor = m_entries.back();
-    selection = floor.strategy->prepare(configuration, Urgency::wait,
-                                        choose_kernel(*floor.strategy, configuration));
+    selection = floor.strategy->prepare(configuration, Urgency::wait);
     assert(selection.strategy == floor.strategy.get());
     if (selection.status != Status::ready) {
         std::fprintf(stderr, "error: %s has nothing to run: %s is %s\n",

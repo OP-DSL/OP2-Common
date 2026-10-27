@@ -135,8 +135,8 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop);
 enum class Status {
     ready,        // a kernel is ready for the configuration
     pending,      // its kernel is still being built
-    unavailable,  // it never has a kernel for it
-    rejected,     // the configuration does not suit it
+    unavailable,  // it does not run the configuration: no kernel, or a plan
+                  // the configuration does not suit (the reason says which)
 };
 
 class Strategy;
@@ -197,10 +197,17 @@ public:
     }
 
     // Resolve the configuration: build or find its plan, and find or request
-    // its kernel of the kind the selection chose, as urgency asks.  Blocks
-    // only for Urgency::wait, or when the backend builds synchronously.
-    virtual Prepared prepare(const Configuration& configuration, Urgency urgency,
-                             KernelKind kind) = 0;
+    // its kernel, as urgency asks.  Blocks only for Urgency::wait, or when the
+    // backend builds synchronously.  The kernel is a specialised one when the
+    // JIT is on and one can run, and the offline one cannot, OP_JIT_FORCE is
+    // set, or the estimates expect it faster; else the offline one.  A tie
+    // or a missing estimate keeps the offline kernel, as a specialised one
+    // costs a build.
+    Prepared prepare(const Configuration& configuration, Urgency urgency);
+
+    // prepare with a kernel of kind.
+    virtual Prepared prepare_kind(const Configuration& configuration, Urgency urgency,
+                                  KernelKind kind) = 0;
 
     // Run what prepare returned; microseconds when the launch is timed.  A
     // run always follows this strategy's prepare for the same call, so the
@@ -215,9 +222,6 @@ public:
         (void)prepared;
         return {};
     }
-
-    // The family: the name up to its first '='.
-    std::string_view family() const;
 };
 
 // --- Variants -----------------------------------------------------------------
@@ -234,10 +238,14 @@ struct Axis {
     std::vector<int> defaults;
 };
 
-// A strategy's place on its family's axes: its name and a value per axis.
+// A strategy's place on its family's axes: its name and a value per axis,
+// under the axis's key.
 struct Point {
     std::string name;
+    std::vector<std::string_view> keys;
     std::vector<int> values;
+
+    int value(std::string_view key) const;
 };
 
 // A strategy family a backend offers, under the name the generated code
@@ -267,6 +275,7 @@ class Ladder {
 private:
     struct Entry {
         std::unique_ptr<Strategy> strategy;
+        std::string family;
         // The family's point of first values, which the ladder may run.
         bool runs;
         bool enabled;
@@ -290,8 +299,8 @@ private:
     // Why the forced strategy was passed over, each warned about once.
     std::vector<std::string> m_warned;
 
-    void add_entry(std::unique_ptr<Strategy> strategy, bool runs, bool enabled,
-                   bool off, std::size_t rank);
+    void add_entry(std::unique_ptr<Strategy> strategy, std::string_view family,
+                   bool runs, bool enabled, bool off, std::size_t rank);
     void warn_forced(std::string_view reason);
     void report(const Prepared& selection,
                 std::span<const std::string_view> reasons);

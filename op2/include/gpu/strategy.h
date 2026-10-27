@@ -192,7 +192,7 @@ public:
            Binder bind)
         : StrategyBase{loop, point, source, bind} {}
 
-    op::loop::Prepared prepare(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override {
         begin(configuration);
@@ -222,7 +222,7 @@ public:
               Binder bind)
         : StrategyBase{loop, point, source, bind} {}
 
-    op::loop::Prepared prepare(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -251,7 +251,7 @@ protected:
     ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured,
               KernelSource source, Binder bind, op::plan::ArgGroups groups)
         : StrategyBase{loop, point, source, bind}, m_coloured{coloured},
-          m_groups{groups}, m_chunk_size{point.values[1]} {}
+          m_groups{groups}, m_chunk_size{point.value("chunk_size")} {}
 
     // The block size, the chunk size, a block multiple of 128 elements by
     // default, and the strategy's switch.
@@ -265,7 +265,7 @@ protected:
     int batch_blocks(const ChunkPlan& plan, int begin, int end) const;
 
 public:
-    op::loop::Prepared prepare(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -283,7 +283,7 @@ public:
     ChunkAtomics(Loop& loop, const op::loop::Point& point, KernelSource source,
                  Binder bind, op::plan::ArgGroups groups)
         : ChunkBase{loop, point, false, source, bind, groups} {
-        m_unstaged_singles = point.values[2] != 0;
+        m_unstaged_singles = point.value("singles") != 0;
     }
 
     // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
@@ -309,7 +309,7 @@ public:
     ChunkColouring(Loop& loop, const op::loop::Point& point, KernelSource source,
                    Binder bind, op::plan::ArgGroups groups)
         : ChunkBase{loop, point, true, source, bind, groups} {
-        m_wavefront = point.values[2] != 0;
+        m_wavefront = point.value("wavefront") != 0;
     }
 
     // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken

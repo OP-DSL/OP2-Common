@@ -15,10 +15,12 @@ op_rt_support.h (includes: op_lib_core.h)
 ```
 loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
                         objects the ladder asks to prepare and run a
-                        configuration, the axes a family's variants vary
-                        along, the families a backend declares, the
-                        run-wide variables op_init reads, the sections an
-                        indirect loop runs, and the teardown registry)
+                        configuration, each choosing its kernel kind from
+                        its backend's estimates, the axes a family's
+                        variants vary along, the families a backend
+                        declares, the run-wide variables op_init reads, the
+                        sections an indirect loop runs, and the teardown
+                        registry)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
                         every candidate strategy per configuration)
 loop/jit.h             (includes: loop/strategy.h; the JIT's policy, read by
@@ -27,10 +29,6 @@ loop/jit.h             (includes: loop/strategy.h; the JIT's policy, read by
                         between baked in and run time, and a strategy's
                         cache of built kernels; a backend supplies the
                         mechanism)
-loop/select.h          (includes: loop/strategy.h; the selection: the
-                        kernel kind each strategy runs, decided from the
-                        backends' estimates; the ladder and the tuner ask
-                        here)
 loop/loop.h            (includes: loop/autotune.h, loop/jit.h; the base of
                         every backend's loop: its ladder, tuner and JIT
                         parameters, and the steps of a call every backend

@@ -76,12 +76,12 @@ void Param::settle(std::string_view loop, bool runtime, const JitPolicy& policy)
             op_printf("warning: %s's kernels cannot have %s at run time, from "
                       "OP_JIT_RUNTIME_PARAMS\n",
                       std::string{loop}.c_str(), m_name.c_str());
-    } else if (runtime && m_class == ParamClass::constant) {
+    } else if (runtime && m_source == ParamSource::external) {
         if (bytes() > static_cast<std::size_t>(policy.max_const_bytes))
             m_initial = ParamMode::runtime;
         else
             m_fixed = false;
-    } else if (runtime && m_class == ParamClass::global) {
+    } else if (runtime && global()) {
         // An array_arg's size is each call's, so its cap is checked per call.
         m_initial = ParamMode::runtime;
         m_fixed = policy.level < 2 ||
@@ -199,7 +199,7 @@ bool ParamSet::History::observe(const Param& param, const JitPolicy& run) {
         return true;
     }
 
-    if (demoted || promoted || param.param_class() != ParamClass::global)
+    if (demoted || promoted || !param.global())
         return false;
     if (hash == candidate)
         ++hits;

@@ -5,7 +5,6 @@
 #include <kernel/jit_embed.h>
 
 #include <gpu/loop.h>
-#include <loop/select.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -97,14 +96,12 @@ int main(int argc, char **argv) {
             passed &= check(run(loop, set, args, call) == call, "result");
 
         op::loop::Configuration configuration{&set, args, set.size};
-        auto broken = loop.ladder()[0].prepare(
-            configuration, op::loop::Urgency::now,
-            op::loop::choose_kernel(loop.ladder()[0], configuration));
+        auto broken = loop.ladder()[0].prepare(configuration, op::loop::Urgency::now);
         passed &= check(broken.status == op::loop::Status::unavailable,
                         "the broken strategy is available");
         passed &= check(broken.reason == "build_failed", "the broken strategy's reason");
         auto selection = loop.ladder().select(configuration);
-        passed &= check(selection.strategy->family() == "plain" &&
+        passed &= check(selection.strategy->name().starts_with("plain=") &&
                             selection.kernel == nullptr,
                         "the floor runs its offline kernel");
     }

@@ -3,7 +3,6 @@
 // keys and C++ constants, and the modes and statistics that move them.
 
 #include <loop/jit.h>
-#include <loop/select.h>
 
 #include <array>
 #include <atomic>
@@ -180,11 +179,12 @@ void test_build_slots() {
     }
 }
 
-// A strategy with the estimates it is given, for the selection to choose
-// between.
+// A strategy with the estimates it is given, for prepare to choose between,
+// keeping the kind it chose.
 struct Estimates : loop::Strategy {
     loop::Estimate offline;
     loop::Estimate jit;
+    loop::KernelKind chosen = loop::KernelKind::offline;
 
     Estimates(loop::Estimate offline_, loop::Estimate jit_)
         : offline{offline_}, jit{jit_} {}
@@ -193,8 +193,9 @@ struct Estimates : loop::Strategy {
                             loop::KernelKind kind) const override {
         return kind == loop::KernelKind::offline ? offline : jit;
     }
-    loop::Prepared prepare(const loop::Configuration&, loop::Urgency,
-                           loop::KernelKind) override {
+    loop::Prepared prepare_kind(const loop::Configuration&, loop::Urgency,
+                                loop::KernelKind kind) override {
+        chosen = kind;
         return {};
     }
     std::optional<float> run(const loop::Prepared&, const loop::Launch&) override {
@@ -210,7 +211,8 @@ void test_choose_kernel() {
     loop::Configuration configuration{&set, {}, 0};
     auto choose = [&](loop::Estimate offline, loop::Estimate jit) {
         Estimates strategy{offline, jit};
-        return loop::choose_kernel(strategy, configuration);
+        strategy.prepare(configuration, loop::Urgency::later);
+        return strategy.chosen;
     };
     constexpr auto offline = loop::KernelKind::offline;
     constexpr auto jit = loop::KernelKind::jit;

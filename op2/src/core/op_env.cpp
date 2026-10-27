@@ -35,14 +35,14 @@ void ignore(const char *variable, const char *text, const std::string& expected)
          expected + "\n");
 }
 
-} // namespace
-
 std::string lower(std::string_view text) {
     std::string out{text};
     std::transform(out.begin(), out.end(), out.begin(),
                    [](unsigned char c) { return std::tolower(c); });
     return out;
 }
+
+} // namespace
 
 std::optional<bool> switch_value(std::string_view text) {
     auto lowered = lower(text);

@@ -191,7 +191,7 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 
 // --- Colouring ---
 
-inline op::loop::Prepared Colouring::prepare(
+inline op::loop::Prepared Colouring::prepare_kind(
     const op::loop::Configuration& configuration, op::loop::Urgency,
     op::loop::KernelKind) {
     auto key = configuration.key();
@@ -261,12 +261,12 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     return m_entries.emplace(key, std::move(entry)).first->second;
 }
 
-inline op::loop::Prepared ChunkBase::prepare(
+inline op::loop::Prepared ChunkBase::prepare_kind(
     const op::loop::Configuration& configuration, op::loop::Urgency,
     op::loop::KernelKind) {
     auto& entry = entry_for(configuration);
     if (!entry.rejected.empty())
-        return prepared(op::loop::Status::rejected, &entry, entry.rejected);
+        return prepared(op::loop::Status::unavailable, &entry, entry.rejected);
     return prepared(op::loop::Status::ready, &entry);
 }
 

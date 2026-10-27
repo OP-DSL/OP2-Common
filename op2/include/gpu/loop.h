@@ -269,7 +269,7 @@ public:
 inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
                                   KernelSource source, Binder bind)
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
-      m_block_size{point.values[0]}, m_offline{source.offline},
+      m_block_size{point.value("block_size")}, m_offline{source.offline},
       m_cache{source.name, config().build_threads} {}
 
 inline void StrategyBase::begin(const op::loop::Configuration& configuration) {
@@ -403,7 +403,7 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 
 // --- Colouring ---
 
-inline op::loop::Prepared Colouring::prepare(
+inline op::loop::Prepared Colouring::prepare_kind(
     const op::loop::Configuration& configuration, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
     if (never_available(kind))
@@ -522,7 +522,7 @@ inline void ChunkBase::report(const ChunkResult& result) const {
                     plan.staging.unstaged_singles, plan.compression);
 }
 
-inline op::loop::Prepared ChunkBase::prepare(
+inline op::loop::Prepared ChunkBase::prepare_kind(
     const op::loop::Configuration& configuration, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
     if (never_available(kind))
@@ -532,7 +532,7 @@ inline op::loop::Prepared ChunkBase::prepare(
     if (!entry->rejected.empty()) {
         op::loop::Prepared prepared;
         prepared.strategy = this;
-        prepared.status = op::loop::Status::rejected;
+        prepared.status = op::loop::Status::unavailable;
         prepared.reason = entry->rejected;
         prepared.entry = entry;
         return prepared;

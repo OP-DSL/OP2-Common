@@ -15,8 +15,6 @@
 
 namespace op::env {
 
-std::string lower(std::string_view text);
-
 // A switch's text, on or off (also 1/0, yes/no, true/false); none for
 // anything else.
 std::optional<bool> switch_value(std::string_view text);

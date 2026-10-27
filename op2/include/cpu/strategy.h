@@ -225,7 +225,7 @@ public:
     Simple(Loop& loop, const op::loop::Point& point, Body body)
         : StrategyBase{loop, point, body} {}
 
-    op::loop::Prepared prepare(const op::loop::Configuration&, op::loop::Urgency,
+    op::loop::Prepared prepare_kind(const op::loop::Configuration&, op::loop::Urgency,
                                op::loop::KernelKind) override {
         return prepared(op::loop::Status::ready, nullptr);
     }
@@ -245,7 +245,7 @@ public:
     Colouring(Loop& loop, const op::loop::Point& point, Body body)
         : StrategyBase{loop, point, body} {}
 
-    op::loop::Prepared prepare(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -275,7 +275,7 @@ protected:
     ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured, Body body,
               op::plan::ArgGroups groups)
         : StrategyBase{loop, point, body}, m_coloured{coloured}, m_groups{groups},
-          m_chunk_size{point.values[0]} {}
+          m_chunk_size{point.value("chunk_size")} {}
 
     Entry& entry_for(const op::loop::Configuration& configuration);
 
@@ -284,7 +284,7 @@ public:
         return {op::plan::chunk_size_axis(default_chunk_size)};
     }
 
-    op::loop::Prepared prepare(const op::loop::Configuration& configuration,
+    op::loop::Prepared prepare_kind(const op::loop::Configuration& configuration,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,

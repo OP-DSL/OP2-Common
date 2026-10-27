@@ -51,7 +51,6 @@ set(_op2_loop_srcs
     "${_src}/loop/op_loop_strategy.cpp"
     "${_src}/loop/op_loop_autotune.cpp"
     "${_src}/loop/op_loop_jit.cpp"
-    "${_src}/loop/op_loop_select.cpp"
     "${_src}/plan/op_plan_colouring.cpp"
     "${_src}/plan/op_plan_chunks.cpp"
     "${_src}/plan/op_plan_staging.cpp"

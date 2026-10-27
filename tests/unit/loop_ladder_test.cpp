@@ -46,7 +46,7 @@ struct Fake : loop::Strategy {
         return asked == loop::KernelKind::offline ? offline_estimate : jit_estimate;
     }
 
-    loop::Prepared prepare(const loop::Configuration&, loop::Urgency urgency,
+    loop::Prepared prepare_kind(const loop::Configuration&, loop::Urgency urgency,
                            loop::KernelKind asked) override {
         ++prepares;
         kind = asked;
@@ -227,7 +227,7 @@ void test_defaults() {
     CHECK(fixture.ladder.size() == 3);
     CHECK(!fixture.ladder.enabled(0) && fixture.ladder.explorable(0));
     CHECK(fixture.ladder.enabled(1) && fixture.ladder.enabled(2));
-    CHECK(fixture.chunk_atomics->family() == "chunk_atomics");
+    CHECK(fixture.chunk_atomics->name().starts_with("chunk_atomics="));
 
     // The first enabled strategy that is ready runs; a disabled one is
     // never asked.
@@ -238,7 +238,7 @@ void test_defaults() {
     CHECK(fixture.colouring->prepares == 0);
 
     // Pending or rejected, the ladder moves on.
-    fixture.atomics->statuses = {loop::Status::pending, loop::Status::rejected};
+    fixture.atomics->statuses = {loop::Status::pending, loop::Status::unavailable};
     selection = fixture.ladder.select(configuration());
     CHECK(selection.strategy == fixture.colouring);
     selection = fixture.ladder.select(configuration());
@@ -259,9 +259,9 @@ void test_defaults() {
     loop::Launch launch{args.data(), 1, true};
     CHECK(fixture.atomics->run(selection.strategy == fixture.atomics
                                    ? selection
-                                   : fixture.atomics->prepare(configuration(),
-                                                              loop::Urgency::later,
-                                                              loop::KernelKind::offline),
+                                   : fixture.atomics->prepare_kind(configuration(),
+                                                                   loop::Urgency::later,
+                                                                   loop::KernelKind::offline),
                                launch) == 1.0f);
 }
 
@@ -328,7 +328,7 @@ void test_variables() {
         CHECK(selection.strategy->name() == "atomics=on");
         CHECK(atomics.waits == atomics.prepares);
 
-        atomics.statuses = {loop::Status::rejected};
+        atomics.statuses = {loop::Status::unavailable};
         selection = ladder.select(configuration());
         CHECK(selection.strategy->name() == "plain=on");
         CHECK(static_cast<Fake&>(ladder[0]).prepares == 0);
@@ -409,10 +409,10 @@ void test_axes() {
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
             CHECK(!ladder.enabled(i) && ladder.explorable(i));
         CHECK(ladder.enabled(3) && ladder.enabled(6));
-        CHECK(ladder[0].family() == "chunk_atomics");
+        CHECK(ladder[0].name().starts_with("chunk_atomics="));
 
         // A tuner's variant is never asked by the ladder.
-        static_cast<Fake&>(ladder[3]).statuses = {loop::Status::rejected};
+        static_cast<Fake&>(ladder[3]).statuses = {loop::Status::unavailable};
         CHECK(ladder.select(configuration()).strategy == &ladder[6]);
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
             CHECK(static_cast<Fake&>(ladder[i]).prepares == 0);
@@ -447,7 +447,7 @@ void test_long_ladder() {
     std::vector<Fake *> fakes;
     for (int i = 0; i < 40; ++i) {
         auto *fake = add(ladder, "fake_" + std::to_string(i), i % 2 == 0);
-        fake->statuses.assign(4, loop::Status::rejected);
+        fake->statuses.assign(4, loop::Status::unavailable);
         fakes.push_back(fake);
     }
     fakes.back()->statuses.clear();

@@ -9,7 +9,6 @@
 
 #include <gpu/loop.h>
 #include <loop/jit.h>
-#include <loop/select.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -205,16 +204,15 @@ struct Outcome {
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
     op::loop::Configuration configuration{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
-    auto chunk = loop.ladder()[0].prepare(
-        configuration, op::loop::Urgency::later,
-        op::loop::choose_kernel(loop.ladder()[0], configuration));
+    auto chunk = loop.ladder()[0].prepare(configuration, op::loop::Urgency::later);
     auto selection = loop.ladder().select(configuration);
     loop.invoke(&fixture.source, fixture.args.data(),
                 static_cast<int>(fixture.args.size()));
     GPU_CHECK(gpuDeviceSynchronize());
     GPU_CHECK(gpuMemcpy(output.data(), output_d, sizeof(output),
                         gpuMemcpyDeviceToHost));
-    return {std::string{selection.strategy->family()}, std::string{chunk.reason},
+    auto name = selection.strategy->name();
+    return {std::string{name.substr(0, name.find('='))}, std::string{chunk.reason},
             selection.kernel != nullptr,
             static_cast<gpu::StrategyBase *>(selection.strategy)->call().max_blocks};
 }

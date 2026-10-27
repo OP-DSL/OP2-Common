@@ -99,13 +99,6 @@ enum class ParamSource {
     strategy,    // a value the strategy fixes, in its backend's slot
 };
 
-// What a parameter is to the policy.
-enum class ParamClass {
-    structural,  // strides, dimensions and the strategy's values: always baked
-    constant,    // an application constant
-    global,      // a READ global argument
-};
-
 // How a specialised kernel has a parameter: compiled in, or given at run
 // time.
 enum class ParamMode {
@@ -126,7 +119,6 @@ private:
     bool m_array;
     ParamType m_type;
     ParamSource m_source;
-    ParamClass m_class;
     // The mode before any statistics, whether they may move it, and the
     // call's.
     ParamMode m_initial = ParamMode::baked;
@@ -136,15 +128,6 @@ private:
     int m_index;
     std::uint64_t m_hash = 0;
 
-    static ParamClass class_of(ParamSource source) {
-        switch (source) {
-        case ParamSource::external:   return ParamClass::constant;
-        case ParamSource::scalar_arg: return ParamClass::global;
-        case ParamSource::array_arg:  return ParamClass::global;
-        default:                      return ParamClass::structural;
-        }
-    }
-
 public:
     // A parameter of elems elements, read from data; an array_arg's data
     // and elements are each call's.
@@ -153,12 +136,17 @@ public:
           ParamSource source, int index)
         : m_name{name}, m_data{data}, m_elems{elems}, m_elem_size{sizeof(T)},
           m_array{array}, m_type{ParamTypes<T>::value}, m_source{source},
-          m_class{class_of(source)}, m_index{index} {}
+          m_index{index} {}
 
     const std::string& name() const { return m_name; }
     ParamType type() const { return m_type; }
     ParamSource source() const { return m_source; }
-    ParamClass param_class() const { return m_class; }
+    // A READ global argument, which the policy may give at run time or bake
+    // in by its statistics; constants and the structural sources (strides,
+    // dimensions, the strategy's values) are baked unless named otherwise.
+    bool global() const {
+        return m_source == ParamSource::scalar_arg || m_source == ParamSource::array_arg;
+    }
     ParamMode initial() const { return m_initial; }
     bool fixed() const { return m_fixed; }
     ParamMode mode() const { return m_mode; }
