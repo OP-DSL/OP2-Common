@@ -4,7 +4,7 @@
 
 {%- set strategies = config.strategies -%}
 {#- The chunked strategies are built only as JIT kernels, which know every
-    setting as a constant; offline builds hold the rest. -#}
+    dimension and setting as a constant; offline builds hold the rest. -#}
 {%- set chunk_strategies = ["chunk_atomics", "chunk_colouring"] -%}
 {%- set offline_strategies = strategies|reject("in", chunk_strategies)|list -%}
 
@@ -34,6 +34,10 @@
 {%- set chunk_params = {"chunk_atomics": staging_params + range_params,
                         "chunk_colouring": staging_params + colouring_params + range_params} -%}
 
+{%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
+{%- if config.gbl_inc_atomic -%}
+    {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
+{%- endif -%}
 {#- READ globals of a literal dimension passed by value, as the scalars are,
     so no kernel reads a device copy of them: up to 256 bytes each and 1 KB
     in all, well within the kernel argument buffer. -#}
@@ -46,10 +50,6 @@
     {%- endif -%}
 {%- endfor -%}
 {%- set gbls_by_value = by_value.args -%}
-{%- set args_gbl_per_thread = lh.args|gbl|select2("reduction", "work")|list -%}
-{%- if config.gbl_inc_atomic -%}
-    {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
-{%- endif -%}
 
 {#- Argument groups for the chunked strategies (strategy.py ChunkStrategies):
     the arguments each plan follows and their dats in first-use order, one
@@ -149,11 +149,10 @@ op::kernel::Ptr{gbl{{arg.id}}}
 {%- macro stage_slot(arg, strategy) -%}
     {%- set group = groups[strategy].group(arg) -%}
     {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
-    {%- set slot = "op2_stage%d + %s * %s" % (group, word, dat_dim_w(lh.dat(arg))) -%}
     {%- if strategy == "chunk_atomics" -%}
-((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} })
+((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
     {%- else -%}
-op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
+op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -161,7 +160,7 @@ op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{ {{-slot-}} }
     slots; local points the indirect increments at per-thread registers. -#}
 {%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
     {%- if local and arg in groups.chunk_atomics.args -%}
-op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{op2_local{{arg.id}}}
+op::kernel::Ptr{op2_local{{arg.id}}}
     {%- elif staged is not none and arg in groups[staged].args -%}
 {{stage_slot(arg, staged)}}
     {%- else -%}
@@ -172,15 +171,14 @@ op::kernel::Ptr<{{lh.dat(arg).typ.c()}}>{op2_local{{arg.id}}}
 {#- An argument's global data for element n, as an op::kernel::Ptr, whose
     stride carries the layout. -#}
 {%- macro arg_global_pointer(arg) -%}
-    {%- set dat = lh.dat(arg) -%}
-    {%- if arg is direct and dat is not soa -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(dat)}}}
+    {%- if arg is direct and lh.dat(arg) is soa -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + n, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
-    {%- elif dat is soa -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
+op::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
+    {%- elif lh.dat(arg) is soa -%}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(dat)}}}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -201,12 +199,19 @@ op2_s_{{strategy}}::{{lh.kernel}}(
 
 namespace op2_m_{{lh.name}}{{variant}} {
 
-    {% for dat in lh.dats|soa %}
-int op2_{{lh.kernel}}_dat{{dat.id}}_stride = -1;{{"\n" if loop.last}}
-    {% endfor %}
-    {% for dat in lh.dats|soa %}
-__constant__ int op2_{{lh.kernel}}_dat{{dat.id}}_stride_d;
-    {% endfor %}
+{% if lh.args|direct(lh)|soa(lh)|length > 0 %}
+int op2_stride_direct;
+__constant__ int op2_stride_direct_d;
+{% endif %}
+
+{% for dat in lh.dats|soa if dat is mapped(lh) %}
+int op2_stride_dat{{dat.id}};
+__constant__ int op2_stride_dat{{dat.id}}_d;
+{% endfor %}
+
+{% for dat in lh.dats if dat.dim is none %}
+int op2_dim_dat{{dat.id}};
+{% endfor %}
     {% if args_gbl_per_thread|length > 0 %}
 
 __constant__ int op2_{{lh.kernel}}_gbl_stride_d;
@@ -234,9 +239,9 @@ true
     the staging helpers need no AoS/SoA variants. -#}
 {%- macro stage_global(arg, dat) -%}
     {%- if dat is soa -%}
-op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target, op2_{{lh.kernel}}_dat{{arg.dat_id}}_stride_d}
+op::kernel::Ptr{dat{{arg.dat_id}} + target, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
-op::kernel::Ptr<{{dat.typ.c()}}>{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
+op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -397,10 +402,12 @@ __launch_bounds__({{"op2_block_size_d" if jit else "128"}})
 {%- endmacro -%}
 
 {#- The JIT wrapper takes the offline wrapper's parameters, so both launch
-    from one argument list.  The scalar globals come last, read through
-    op::kernel::param_value as their baked values or the arguments. -#}
+    from one argument list.  Those the JIT kernel may have as constants come
+    last: a scalar global, read through op::kernel::param_value as its baked value
+    or the argument, and a dimension, unnamed there. -#}
 {% macro kernel_wrapper(strategy, jit = false) %}
 {% set scalar_gbls = lh.args|gbl|read|scalar|list %}
+{% set runtime_dims = lh.dats|selectattr("dim", "none")|reject("soa")|list %}
 extern "C" __global__ {{launch_bounds(jit)}}
 void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for dat in lh.dats %}
@@ -415,9 +422,6 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},
     {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-    const int dat{{dat.id}}_dim,
-    {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
     const int arg{{arg.id}}_idx,
     {% endfor %}
@@ -429,12 +433,15 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride{{"," if strategy in chunk_strategies or scalar_gbls or gbls_by_value}}
+    const int stride{{"," if strategy in chunk_strategies or scalar_gbls or runtime_dims or gbls_by_value}}
     {% for ctype, name, expr in chunk_params.get(strategy, []) %}
-    {{ctype}} {{name}}{{"," if not loop.last or scalar_gbls or gbls_by_value}}
+    {{ctype}} {{name}}{{"," if not loop.last or scalar_gbls or runtime_dims or gbls_by_value}}
     {% endfor %}
     {% for arg in scalar_gbls %}
-    const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last or gbls_by_value}}
+    const {{arg.typ.c()}} gbl{{arg.id}}{{"," if not loop.last or runtime_dims or gbls_by_value}}
+    {% endfor %}
+    {% for dat in runtime_dims %}
+    const int {{("/*dat%s_dim*/" if jit else "dat%s_dim") % dat.id}}{{"," if not loop.last or gbls_by_value}}
     {% endfor %}
     {% for arg in gbls_by_value %}
     const op::kernel::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
@@ -442,6 +449,11 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    {% if jit %}
+        {% for dat in lh.dats if dat.dim is none %}
+    [[maybe_unused]] constexpr int dat{{dat.id}}_dim = op2_dim_dat{{dat.id}}_d;
+        {% endfor %}
+    {% endif %}
     {% if strategy in chunk_strategies %}
     [[maybe_unused]] constexpr bool op2_unstaged_singles = op2_unstaged_singles_d != 0;
     [[maybe_unused]] constexpr bool op2_wavefront = op2_wavefront_d != 0;
@@ -473,6 +485,8 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
 
 const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
 namespace op2_m_{{lh.name}}{{variant}} {
+
+using int64_t = long long int;
 {{kernel_namespaces([strategy])}}
 }
 
@@ -480,8 +494,8 @@ namespace op2_m_{{lh.name}}{{variant}} {
 )_op2_k";
 
 {% endfor %}
-{# An inactive optional global may have no data, so its by-value argument
-   is read from the JIT's copy. #}
+{#- An inactive optional scalar global may have no data, so its by-value
+    argument is read from the JIT's copy. -#}
 {% macro kernel_arguments(strategy) %}
     {% for dat in lh.dats %}
         (void *)&args[{{dat.arg_id}}].data_d,
@@ -494,9 +508,6 @@ namespace op2_m_{{lh.name}}{{variant}} {
     {% endfor %}
     {% for arg in lh.args|info %}
         (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for dat in lh.dats if dat.dim is none and dat is not soa %}
-        (void *)&args[{{dat.arg_id}}].dim,
     {% endfor %}
     {% for arg in lh.args|runtime_map_idx %}
         (void *)&args[{{arg.id}}].idx,
@@ -520,6 +531,9 @@ namespace op2_m_{{lh.name}}{{variant}} {
         {% else %}
         (void *)args[{{arg.id}}].data,
         {% endif %}
+    {% endfor %}
+    {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
+        (void *)&args[{{dat.arg_id}}].dim,
     {% endfor %}
     {% for arg in gbls_by_value %}
         (void *)args[{{arg.id}}].data,
@@ -550,11 +564,16 @@ static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
 static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     namespace kernel = op2_m_{{lh.name}}{{variant}};
 
-{% for dat in lh.dats|soa %}
-    loop.add_dat_stride_param(
-        "op2_{{lh.kernel}}_dat{{dat.id}}_stride_d",
-        &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride, {{dat.arg_id}},
-        &kernel::op2_{{lh.kernel}}_dat{{dat.id}}_stride_d);
+{% if lh.args|direct(lh)|soa(lh)|length > 0 %}
+    loop.add_dat_stride_param("op2_stride_direct_d",
+        &kernel::op2_stride_direct,
+        {{lh.args|direct(lh)|soa(lh)|first|attr("id")}},
+        &kernel::op2_stride_direct_d);
+{% endif %}
+{% for dat in lh.dats|soa if dat is mapped(lh) %}
+    loop.add_dat_stride_param("op2_stride_dat{{dat.id}}_d",
+        &kernel::op2_stride_dat{{dat.id}}, {{dat.arg_id}},
+        &kernel::op2_stride_dat{{dat.id}}_d);
 {% endfor %}
 {% for const in lh.consts %}
     {% if const.dim == 1 %}
@@ -565,6 +584,10 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
         sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]),
         op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
     {% endif %}
+{% endfor %}
+{% for dat in lh.dats if dat.dim is none %}
+    loop.add_dat_dim_param("op2_dim_dat{{dat.id}}_d",
+        &kernel::op2_dim_dat{{dat.id}}, {{dat.arg_id}});
 {% endfor %}
 {% for arg in lh.args|gbl|read|scalar %}
     loop.add_scalar_arg_param("op2_gbl{{arg.id}}_d",

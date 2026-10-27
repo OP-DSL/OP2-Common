@@ -175,7 +175,8 @@ op::kernel::Ptr{op2_local{{arg.id}}}
     {%- endif -%}
 {%- endmacro -%}
 
-{#- An argument's global data for element n. -#}
+{#- An argument's global data for element n, as an op::kernel::Ptr, whose
+    stride carries the layout. -#}
 {%- macro arg_global_pointer(arg) -%}
     {%- if arg is direct and lh.dat(arg) is soa -%}
 op::kernel::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
@@ -205,12 +206,12 @@ op2_s_{{strategy}}::{{lh.kernel}}(
 
 namespace op2_m_{{lh.name}}{{variant}} {
 
-{% if lh.dats|direct(lh)|soa|length > 0 %}
+{% if lh.args|direct(lh)|soa(lh)|length > 0 %}
 int op2_stride_direct;
 __constant__ int op2_stride_direct_d;
 {% endif %}
 
-{% for dat in lh.dats|indirect(lh)|soa %}
+{% for dat in lh.dats|soa if dat is mapped(lh) %}
 int op2_stride_dat{{dat.id}};
 __constant__ int op2_stride_dat{{dat.id}}_d;
 {% endfor %}
@@ -506,6 +507,8 @@ using int64_t = long long int;
 )_op2_k";
 
 {% endfor %}
+{#- An inactive optional scalar global may have no data, so its by-value
+    argument is read from the JIT's copy. -#}
 {% macro kernel_arguments(strategy) %}
     {% for dat in lh.dats %}
         (void *)&args[{{dat.arg_id}}].data_d,
@@ -538,7 +541,12 @@ using int64_t = long long int;
         (void *)&{{expr}},
     {% endfor %}
     {% for arg in lh.args|gbl|read|scalar %}
+        {% if arg is opt %}
+        args[{{arg.id}}].opt ? (void *)args[{{arg.id}}].data
+                    : (void *)&op2_m_{{lh.name}}{{variant}}::op2_gbl{{arg.id}},
+        {% else %}
         (void *)args[{{arg.id}}].data,
+        {% endif %}
     {% endfor %}
     {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
         (void *)&args[{{dat.arg_id}}].dim,
@@ -572,13 +580,13 @@ static void op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}(
 static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     namespace kernel = op2_m_{{lh.name}}{{variant}};
 
-{% if lh.dats|direct(lh)|soa|length > 0 %}
+{% if lh.args|direct(lh)|soa(lh)|length > 0 %}
     loop.add_dat_stride_param("op2_stride_direct_d",
         &kernel::op2_stride_direct,
         {{lh.args|direct(lh)|soa(lh)|first|attr("id")}},
         &kernel::op2_stride_direct_d);
 {% endif %}
-{% for dat in lh.dats|indirect(lh)|soa %}
+{% for dat in lh.dats|soa if dat is mapped(lh) %}
     loop.add_dat_stride_param("op2_stride_dat{{dat.id}}_d",
         &kernel::op2_stride_dat{{dat.id}}, {{dat.arg_id}},
         &kernel::op2_stride_dat{{dat.id}}_d);

@@ -145,6 +145,10 @@ def read_in(dat: OP.Dat, loop: OP.Loop) -> bool:
 
 
 env.tests["read_in"] = read_in
+# A dat some argument of the loop reaches through a map.
+env.tests["mapped"] = lambda dat, loop: any(
+    isinstance(arg, OP.ArgDat) and arg.dat_id == dat.id and arg.map_id is not None for arg in loop.args
+)
 env.tests["instance"] = lambda x, c: isinstance(x, c)
 
 
