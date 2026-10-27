@@ -117,7 +117,9 @@ When building an application, each parallelisation variant is a Make target ``<a
    * - ``genseq``
      - Code-generated sequential build (translator-v2 ``seq`` target). Recommended over ``seq`` for performance measurement.
    * - ``openmp``
-     - Multi-threaded CPU build using OpenMP.
+     - Multi-threaded CPU build over OpenMP threads (translator-v2 ``openmp`` target), choosing each loop's execution strategy at run time.
+   * - ``openmp_legacy``
+     - Multi-threaded CPU build from the legacy templates (translator-v2 ``openmp_legacy`` target).
    * - ``cuda``
      - NVIDIA GPU build using CUDA with JIT compilation (translator-v2 ``cuda`` target). Device kernels are compiled at application start-up using NVRTC, enabling runtime specialisation.
    * - ``hip``
@@ -158,6 +160,8 @@ Fortran application variants are Make targets ``<app>_<variant>`` too:
      - Native CUDA Fortran build from the legacy templates. Requires a CUDA Fortran-capable compiler (NVHPC).
    * - ``seq_f2c``
      - Fortran interop with sequential C++ kernels.
+   * - ``openmp_f2c``
+     - Fortran interop with C++ kernels over OpenMP threads, choosing each loop's execution strategy at run time.
    * - ``cuda_f2c``
      - Fortran interop with JIT CUDA kernels (recommended GPU target for Fortran).
    * - ``hip_f2c``

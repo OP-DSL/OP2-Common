@@ -9,7 +9,7 @@ APP_SRC_OP := $(APP_SRC_OP:%.cpp=generated/$(APP_NAME)/%.cpp)
 
 APP_INC ?= -I.
 
-BASE_VARIANTS := seq genseq openmp cuda_legacy hip_legacy cuda hip
+BASE_VARIANTS := seq genseq openmp openmp_legacy cuda_legacy hip_legacy cuda hip
 
 ALL_VARIANTS := $(BASE_VARIANTS)
 ALL_VARIANTS += $(foreach variant,$(ALL_VARIANTS),mpi_$(variant))
@@ -20,7 +20,7 @@ ifeq ($(HAVE_C),true)
   BUILDABLE_VARIANTS += seq genseq
 
   ifeq ($(CPP_HAS_OMP),true)
-    BUILDABLE_VARIANTS += openmp
+    BUILDABLE_VARIANTS += openmp openmp_legacy
   endif
 
   ifeq ($(HAVE_CUDA),true)
@@ -90,6 +90,7 @@ SEQ_SRC := $(APP_SRC)
 
 GENSEQ_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/seq/op2_kernels.cpp
 OPENMP_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp/op2_kernels.cpp
+OPENMP_LEGACY_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/openmp_legacy/op2_kernels.cpp
 CUDA_LEGACY_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/cuda_legacy/op2_kernels.o
 HIP_LEGACY_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/hip_legacy/op2_kernels.o
 CUDA_SRC := $(APP_SRC_OP) generated/$(APP_NAME)/cuda/op2_kernels.o
@@ -117,6 +118,7 @@ endef
 $(eval $(call RULE_template, seq,,                      SEQ,     MPI))
 $(eval $(call RULE_template, genseq,,                   SEQ,     MPI))
 $(eval $(call RULE_template, openmp,   $(OMP_CXXFLAGS), OPENMP,  MPI))
+$(eval $(call RULE_template, openmp_legacy, $(OMP_CXXFLAGS), OPENMP, MPI))
 $(eval $(call RULE_template, cuda_legacy,,              CUDA,    MPI_CUDA))
 $(eval $(call RULE_template, hip_legacy,,               HIP,     MPI_HIP))
 $(eval $(call RULE_template, cuda,,                     CUDA,    MPI_CUDA))

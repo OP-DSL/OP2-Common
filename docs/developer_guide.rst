@@ -39,7 +39,7 @@ An alternative **two-level colouring** strategy (``color2`` mode) is also availa
 
 The strategy is selected at code-generation time; the default is ``atomics=True, color2=False``.
 
-The JIT GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``) and ``openmp_f2c`` instead generate a kernel for every strategy a loop can run and choose among them at run time, as the next section describes.
+The JIT GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``) and the OpenMP ones (``openmp``, ``openmp_f2c``) instead generate a kernel for every strategy a loop can run and choose among them at run time, as the next section describes.
 
 Renumbering
 ~~~~~~~~~~~
@@ -49,7 +49,7 @@ Breaking the execution set into contiguous blocks is good for direct datasets (t
 Loop Strategies
 ---------------
 
-The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c`` and ``openmp_f2c`` targets run each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
+The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`` and ``openmp_f2c`` targets run each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
 
 ``loop/``
     Backend-neutral control.  A loop's *ladder* holds its strategies in order, runs the first that is enabled and ready for a call's *configuration* (its set, run size and arguments), and falls back to the last.  The *autotuner* times every candidate for a configuration under ``OP_AUTOTUNE``.  The JIT's policy decides when a kernel is specialised on the values a loop's parameters take and which stay at run time, and caches the built kernels.  Each strategy gives the ladder a cost estimate for its offline and JIT kernels, and ``loop/select.h`` chooses from those alone: hardware facts stay in the backends.

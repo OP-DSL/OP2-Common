@@ -61,6 +61,10 @@ class FortranOpenMP(Scheme):
     loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
     master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
 
+    # Fortran's openmp is the legacy templates', with C++'s openmp_legacy settings.
+    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
+        return Target.get("openmp_legacy").defaultConfig()
+
     # SIMD lanes sharing a read-write target would lose updates, and an inactive
     # optional argument has no data to copy.
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:

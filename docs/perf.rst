@@ -56,7 +56,7 @@ This is equivalent to manually calling ``numactl`` per rank but works portably a
 Execution Strategies
 --------------------
 
-A loop generated for the ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c`` or ``openmp_f2c`` target carries a kernel for each way it can be run, and OP2 picks one for every call.  The strategies:
+A loop generated for the ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`` or ``openmp_f2c`` target carries a kernel for each way it can be run, and OP2 picks one for every call.  The strategies:
 
 .. list-table::
    :header-rows: 1
@@ -89,7 +89,7 @@ Each loop keeps its strategies in a ladder, ``chunk_atomics``, ``atomics``, ``ch
      - ``plain``, ``atomics``, ``colouring``
    * - HIP (``hip``, ``hip_f2c``)
      - ``plain``, ``atomics``, ``colouring``, ``chunk_atomics``
-   * - OpenMP (``openmp_f2c``)
+   * - OpenMP (``openmp``, ``openmp_f2c``)
      - ``plain``, ``chunk_colouring``, ``colouring``
 
 Environment variables (read by ``op_init``):

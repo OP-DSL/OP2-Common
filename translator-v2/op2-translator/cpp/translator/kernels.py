@@ -1,3 +1,5 @@
+import itertools
+
 from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 from clang.cindex import Cursor, CursorKind, SourceRange, Token, TypeKind
@@ -38,6 +40,12 @@ def updateFunctionTypes(entities: List[Tuple[Entity, Rewriter]], replacement: Ca
     for entity, rewriter in filter(lambda e: isinstance(e[0], Function), entities):
         function_type_span = extentToSpan(next(entity.ast.get_tokens()).extent)
         rewriter.update(function_type_span, lambda s, entity=entity: replacement(s, entity))
+
+
+# Whether func is declared inline.
+def declaredInline(func: Function) -> bool:
+    specifiers = itertools.takewhile(lambda t: t.spelling != func.name, func.ast.get_tokens())
+    return any(t.spelling == "inline" for t in specifiers)
 
 
 def renameConsts(

@@ -95,6 +95,11 @@ class OpenMPF2C(Target):
 
 class OpenMP(Target):
     name = "openmp"
+    kernel_translation = True
+
+
+class OpenMPLegacy(Target):
+    name = "openmp_legacy"
     kernel_translation = False
 
     def defaultConfig(self) -> Dict[str, Any]:
@@ -115,6 +120,7 @@ Target.register(CudaF2C)
 Target.register(HipF2C)
 Target.register(OpenMPF2C)
 Target.register(OpenMP)
+Target.register(OpenMPLegacy)
 
 # The names the targets had before, each with what replaced it.
 renamed = {

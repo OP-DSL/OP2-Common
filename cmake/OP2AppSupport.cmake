@@ -33,7 +33,7 @@ include(GNUInstallDirs)
 # otherwise see none of it.
 # ---------------------------------------------------------------------------
 
-set(_op2_variants_cpp seq genseq openmp cuda_legacy hip_legacy cuda hip CACHE INTERNAL "")
+set(_op2_variants_cpp seq genseq openmp openmp_legacy cuda_legacy hip_legacy cuda hip CACHE INTERNAL "")
 set(_op2_variants_fortran seq genseq openmp cuda_legacy seq_f2c openmp_f2c cuda_f2c hip_f2c CACHE INTERNAL "")
 
 macro(_op2_defvariant lang var needs xt lib mpilib msrc mlang extra)
@@ -49,6 +49,7 @@ endmacro()
 _op2_defvariant(cpp     seq     ""               ""       "op2::op2_seq"         "op2::op2_mpi"          ""                ""          "")
 _op2_defvariant(cpp     genseq  ""               "seq"    "op2::op2_seq"         "op2::op2_mpi"          "op2_kernels.cpp" "CXX"       "")
 _op2_defvariant(cpp     openmp  "openmp_cxx"     "openmp" "op2::op2_openmp"      "op2::op2_mpi"          "op2_kernels.cpp" "CXX"       "")
+_op2_defvariant(cpp     openmp_legacy "openmp_cxx" "openmp_legacy" "op2::op2_openmp" "op2::op2_mpi"      "op2_kernels.cpp" "CXX"       "")
 _op2_defvariant(cpp     cuda_legacy "cuda"       "cuda_legacy" "op2::op2_cuda"   "op2::op2_mpi_cuda"     "op2_kernels.cu"  "CUDA"      "")
 _op2_defvariant(cpp     hip_legacy "hip"         "hip_legacy" "op2::op2_hip"     "op2::op2_mpi_hip"      "op2_kernels.cpp" "HIP"       "")
 _op2_defvariant(cpp     cuda    "cuda"           "cuda"   "op2::op2_cuda"        "op2::op2_mpi_cuda"     "op2_kernels.cu"  "CUDA"      "")
@@ -620,7 +621,7 @@ function(_op2_add_variant_executable)
 
     # op2_openmp propagates OpenMP publicly, but the MPI backends are CPU-only
     # and do not, so mpi_openmp needs it named explicitly.
-    if(_base STREQUAL "openmp")
+    if(_base MATCHES "^openmp(_legacy)?$")
         if(_A_LANGUAGE STREQUAL "cpp" AND TARGET OpenMP::OpenMP_CXX)
             target_link_libraries(${_tgt} PRIVATE OpenMP::OpenMP_CXX)
         elseif(_A_LANGUAGE STREQUAL "fortran" AND TARGET OpenMP::OpenMP_Fortran)

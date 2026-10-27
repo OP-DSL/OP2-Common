@@ -90,7 +90,10 @@ The following code-generation targets are available for C/C++ applications (``.c
      - Code-generated sequential CPU implementation. Produces a single ``op2_kernels.cpp``. Preferable to the development sequential build for accurate benchmarking.
    * - ``openmp``
      - ``openmp``
-     - Multi-threaded CPU implementation using OpenMP. Produces ``op2_kernels.cpp`` with OpenMP pragmas. Set ``OMP_NUM_THREADS`` at runtime to control thread count.
+     - Multi-threaded CPU implementation over OpenMP host threads. Produces ``op2_kernels.cpp``. Each loop carries a body for every execution strategy it can run (plain, atomics, colouring, chunked atomics, chunked colouring), chosen at run time. Set ``OMP_NUM_THREADS`` at runtime to control thread count.
+   * - ``openmp_legacy``
+     - ``openmp_legacy``
+     - Multi-threaded CPU implementation from the legacy templates, using OpenMP pragmas, ``op_plan`` colouring and optional SIMD vectorisation.
    * - ``cuda_legacy``
      - ``cuda_legacy``
      - Ahead-of-time compiled NVIDIA GPU implementation from the legacy templates. Produces ``op2_kernels.cu`` compiled offline by ``nvcc`` during the application build. Requires ``CUDA_INSTALL_PATH`` and ``NV_ARCH`` to be set.
@@ -112,7 +115,7 @@ All targets have a corresponding distributed-memory MPI variant built automatica
 Fortran Targets
 ^^^^^^^^^^^^^^^
 
-The language is detected automatically from the file extension (``.F90`` or ``.f90``). ``seq`` and ``openmp`` are shared with C/C++; the targets that translate Fortran kernels to C end in ``_f2c``.
+The language is detected automatically from the file extension (``.F90`` or ``.f90``). The targets that translate Fortran kernels to C++ end in ``_f2c``; Fortran's ``openmp`` is the legacy Fortran implementation, and ``openmp_f2c`` runs the same strategies as C++'s ``openmp``.
 
 Example — generate Fortran OpenMP and CUDA (Fortran-to-C) variants:
 
@@ -137,7 +140,7 @@ The following targets are available for Fortran applications:
    * - ``seq_f2c``
      - Fortran interop with C sequential kernels. Generates both a Fortran host file (``.F90``) and a C kernel file (``.cpp``). Useful for transitioning Fortran applications to portable C kernel implementations.
    * - ``openmp_f2c``
-     - Fortran interop with C++ kernels over OpenMP host threads, running every valid execution strategy (plain, atomics, colouring, chunked atomics). Generates Fortran host code (``.F90``) and C++ kernels (``.cpp``).
+     - Fortran interop with C++ kernels over OpenMP host threads, running every valid execution strategy, as C++'s ``openmp`` does from the same template. Generates Fortran host code (``.F90``) and C++ kernels (``.cpp``).
    * - ``cuda_f2c``
      - Fortran interop with CUDA kernels using JIT compilation via NVRTC. Generates Fortran host code (``.F90``) and CUDA device kernel source (``.cu``). Device kernels are compiled at application start-up. This is the primary recommended GPU target for Fortran applications.
    * - ``hip_f2c``

@@ -1,14 +1,10 @@
-{% extends "cpp/master_kernel.cpp.jinja" %}
+{% import "cpp/abi.jinja" as abi with context %}
+{% for const in app.consts() %}
+extern {{const.typ}} {{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+{% endfor %}
 
-{% block includes %}
-#ifdef _OPENMP
-#include <omp.h>
-#endif
+{% if user_types is not none %}
+{{user_types}}
 
-{{super()}}
-
-template<typename T, unsigned A = OP2_ALIGNMENT>
-inline T *assume_aligned(T *p) {
-    return reinterpret_cast<T *>(__builtin_assume_aligned(p, A));
-}
-{% endblock %}
+{% endif %}
+{% include "cpu/master_kernel.jinja" %}

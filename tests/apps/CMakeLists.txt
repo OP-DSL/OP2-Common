@@ -84,7 +84,7 @@ function(_op2_app_tests name)
                     "-DCOMMAND=${_cmd}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/run_app.cmake")
             set(_env "")
-            if(_variant MATCHES "^openmp(_f2c)?$")
+            if(_variant MATCHES "^openmp(_f2c|_legacy)?$")
                 set(_env "OMP_NUM_THREADS=${_op2_app_omp_num_threads}")
             endif()
             set_tests_properties(${_test} PROPERTIES

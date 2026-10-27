@@ -23,10 +23,10 @@
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
 #     [STRATEGIES <s...>]          # also run each strategy-capable variant
-#                                  # (cuda/hip, _f2c, openmp_f2c) once per
-#                                  # strategy, forced, as <target>_<strategy>,
-#                                  # and once exploring them all, as
-#                                  # <target>_autotune
+#                                  # (cuda/hip and their _f2c, C++ openmp,
+#                                  # openmp_f2c) once per strategy, forced,
+#                                  # as <target>_<strategy>, and once
+#                                  # exploring them all, as <target>_autotune
 # )
 #
 # A JIT variant's test runs its offline kernels; each of its loops' JIT
@@ -218,8 +218,14 @@ function(op2_add_functional_tests)
         endif()
 
         set(_base_env "")
-        if(_v MATCHES "^(mpi_)?openmp(_f2c)?$")
+        if(_v MATCHES "^(mpi_)?openmp(_f2c|_legacy)?$")
             set(_base_env "OMP_NUM_THREADS=${_OP2_TEST_OMP_NUM_THREADS}")
+        endif()
+        # The OpenMP variants on op::cpu: C++'s openmp and openmp_f2c.
+        set(_cpu OFF)
+        if(_v MATCHES "^(mpi_)?openmp_f2c$" OR
+                (_A_LANGUAGE STREQUAL "cpp" AND _v MATCHES "^(mpi_)?openmp$"))
+            set(_cpu ON)
         endif()
         set(_jit OFF)
         if(_v MATCHES "^(mpi_)?(cuda|hip)(_f2c)?$")
@@ -235,7 +241,7 @@ function(op2_add_functional_tests)
             _op2_variant_test(${_tgt} ${_base_env})
         endif()
 
-        if(NOT _A_STRATEGIES OR NOT (_jit OR _v MATCHES "^(mpi_)?openmp_f2c$"))
+        if(NOT _A_STRATEGIES OR NOT (_jit OR _cpu))
             continue()
         endif()
 
