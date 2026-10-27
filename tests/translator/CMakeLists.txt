@@ -1,6 +1,6 @@
 # The translator's refusals: each case of rejects.cpp (chosen by -D) is a
-# loop the C++ cuda target rejects, and rejects.F90 one cuda_f2c rejects;
-# a test passes on the message.
+# loop the C++ cuda target rejects, and rejects.F90 one cuda_f2c warns about
+# and falls back to seq for; a test passes on the message.
 
 function(_op2_translator_rejects name target source pattern)
     set(_out "${CMAKE_CURRENT_BINARY_DIR}/${name}")
@@ -22,4 +22,4 @@ _op2_translator_rejects(library_call cuda rejects.cpp "${_indexed} a call takes 
 _op2_translator_rejects(null_test cuda rejects.cpp "${_indexed} it is used as a pointer: if" -D NULL_TEST)
 _op2_translator_rejects(inc_assigned cuda rejects.cpp "OP_INC argument p may only be incremented, but it is assigned" -D INC_ASSIGNED)
 _op2_translator_rejects(inc_read cuda rejects.cpp "OP_INC argument p may only be incremented, but it is read" -D INC_READ)
-_op2_translator_rejects(fortran_inc_assigned cuda_f2c rejects.F90 "OP_INC argument x may only be incremented, but it is assigned")
+_op2_translator_rejects(fortran_inc_assigned cuda_f2c rejects.F90 "arg 1 \\(x\\) of assign_k marked OP_INC but not incremented")

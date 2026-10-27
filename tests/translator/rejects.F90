@@ -1,5 +1,5 @@
-! A loop the cuda_f2c target refuses to translate: an OP_INC argument
-! assigned rather than incremented.
+! A loop the cuda_f2c target warns about and runs through its seq fallback:
+! an OP_INC argument assigned rather than incremented.
 program rejects
     use OP2_FORTRAN_DECLARATIONS
     use OP2_FORTRAN_REFERENCE
