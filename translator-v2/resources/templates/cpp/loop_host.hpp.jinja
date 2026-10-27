@@ -54,7 +54,7 @@ void op_par_loop_{{lh.name}}(
 
     op_timers_core(&cpu_start, &wall_start);
 
-    op_profile_enter_kernel(name, "{{config.target}}", "{{"Direct" if lh is direct else "Indirect"}}");
+    op_profile_enter_kernel(name, "{{target.name}}", "{{"Direct" if lh is direct else "Indirect"}}");
     op_profile_enter("MPI Exchanges");
 
     if (OP_diags > 2)
