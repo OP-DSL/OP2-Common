@@ -155,9 +155,11 @@ public:
     }
 
     // A value each strategy decides, given to every acquire and upload.
-    void add_launch_param(std::string_view name, LaunchValue value) {
-        m_params.add(name, static_cast<int *>(nullptr), op::loop::ParamSource::strategy,
-                     static_cast<int>(value));
+    void add_launch_param(std::string_view name, LaunchValue value,
+                          const int *symbol = nullptr) {
+        bind(m_params.add(name, static_cast<int *>(nullptr),
+                          op::loop::ParamSource::strategy, static_cast<int>(value)),
+             symbol, nullptr);
     }
 
     // --- For the strategies ---

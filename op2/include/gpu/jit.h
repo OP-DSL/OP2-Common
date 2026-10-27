@@ -148,6 +148,7 @@ struct KernelSource {
 
 // Each value a strategy fixes for its kernel, by its slot.
 enum class LaunchValue {
+    global_stride,
     block_size,
     unstaged_singles,
     wavefront,
@@ -156,13 +157,14 @@ enum class LaunchValue {
 // What a strategy fixes for its kernel: the launch, and its variant's
 // switches.  Passed to each acquire and upload, never kept between them.
 struct LaunchValues {
+    int global_stride = 0;
     int block_size = 0;
     bool unstaged_singles = false;
     bool wavefront = false;
 
     // The values by slot.
-    std::array<int, 3> slots() const {
-        return {block_size, unstaged_singles, wavefront};
+    std::array<int, 4> slots() const {
+        return {global_stride, block_size, unstaged_singles, wavefront};
     }
 };
 

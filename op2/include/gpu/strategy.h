@@ -108,7 +108,7 @@ protected:
 
     // This strategy's values for its kernel, from the call being prepared.
     LaunchValues launch_values() const {
-        return {m_block_size, m_unstaged_singles, m_wavefront};
+        return {m_call.global_stride, m_block_size, m_unstaged_singles, m_wavefront};
     }
 
     // Blocks of a grid-stride launch over elements.

@@ -38,6 +38,8 @@
 {%- if config.gbl_inc_atomic -%}
     {%- set args_gbl_per_thread = args_gbl_per_thread|reject("inc")|list -%}
 {%- endif -%}
+{#- Whether the call's per-thread copies need their stride. -#}
+{%- set per_thread = (args_gbl_per_thread + lh.args|info|list)|length > 0 -%}
 {#- READ globals of a literal dimension passed by value, as the scalars are,
     so no kernel reads a device copy of them: up to 256 bytes each and 1 KB
     in all, well within the kernel argument buffer. -#}
@@ -127,9 +129,9 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 
 {%- macro arg_to_pointer3(arg, jit, staged = none, local = false) -%}
     {%- if arg is info -%}
-op::kernel::Ptr{info{{arg.id}} + thread_id, stride_gbl}
+op::kernel::Ptr{info{{arg.id}} + thread_id, op2_stride_gbl_d}
     {%- elif arg in args_gbl_per_thread -%}
-op::kernel::Ptr{gbl{{arg.id}} + thread_id, stride_gbl}
+op::kernel::Ptr{gbl{{arg.id}} + thread_id, op2_stride_gbl_d}
     {%- elif jit and arg in gbls_by_value -%}
 op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)}
     {%- elif arg in gbls_by_value -%}
@@ -208,6 +210,10 @@ __constant__ int op2_stride_direct_d;
 int op2_stride_dat{{dat.id}};
 __constant__ int op2_stride_dat{{dat.id}}_d;
 {% endfor %}
+
+{% if per_thread %}
+__constant__ int op2_stride_gbl_d;
+{% endif %}
 
 {% for dat in lh.dats if dat.dim is none %}
 int op2_dim_dat{{dat.id}};
@@ -425,9 +431,6 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% if strategy == "colouring" %}
     const int *__restrict col_reord,
     {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-    const int stride_gbl,
-    {% endif %}
     {% if lh.args|opt|length > 0 %}
     const unsigned opt_flags,
     {% endif %}
@@ -516,9 +519,6 @@ using int64_t = long long int;
     {% if strategy == "colouring" %}
         (void *)&launch.colour_order,
     {% endif %}
-    {% if args_gbl_per_thread|length > 0 %}
-        (void *)&launch.global_stride,
-    {% endif %}
     {% if lh.args|opt|length > 0 %}
         (void *)&launch.opt_flags,
     {% endif %}
@@ -592,6 +592,10 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::gpu::Loop& loop) {
     loop.add_global_param<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}{{", true" if arg in gbls_by_value}});
 {% endfor %}
     loop.add_launch_param("op2_block_size_d", op::gpu::LaunchValue::block_size);
+{% if per_thread %}
+    loop.add_launch_param("op2_stride_gbl_d", op::gpu::LaunchValue::global_stride,
+                          &kernel::op2_stride_gbl_d);
+{% endif %}
 {% if strategies|select("in", chunk_strategies)|list %}
     loop.add_launch_param("op2_unstaged_singles_d", op::gpu::LaunchValue::unstaged_singles);
     loop.add_launch_param("op2_wavefront_d", op::gpu::LaunchValue::wavefront);
