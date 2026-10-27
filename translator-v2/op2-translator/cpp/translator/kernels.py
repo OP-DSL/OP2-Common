@@ -37,7 +37,7 @@ def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[
 def updateFunctionTypes(entities: List[Tuple[Entity, Rewriter]], replacement: Callable[[str, Entity], str]) -> None:
     for entity, rewriter in filter(lambda e: isinstance(e[0], Function), entities):
         function_type_span = extentToSpan(next(entity.ast.get_tokens()).extent)
-        rewriter.update(function_type_span, lambda s: replacement(s, entity))
+        rewriter.update(function_type_span, lambda s, entity=entity: replacement(s, entity))
 
 
 def renameConsts(
@@ -51,7 +51,7 @@ def renameConsts(
                 continue
 
             if node.spelling in const_ptrs:
-                rewriter.update(extentToSpan(node.extent), lambda s: replacement(s, entity))
+                rewriter.update(extentToSpan(node.extent), lambda s, entity=entity: replacement(s, entity))
 
 
 def mapParam(
