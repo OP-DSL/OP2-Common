@@ -117,6 +117,8 @@ _op2_app_tests(aero_hdf5 LANGUAGE cpp PASS "${_cpp_passed}"
 if(CMAKE_Fortran_COMPILER)
     _op2_app_tests(airfoil_plain_fortran LANGUAGE fortran PASS "Test PASSED"
         SERIAL airfoil_plain MESHES new_grid.dat)
+    _op2_app_tests(airfoil_arg_ptrs_fortran LANGUAGE fortran PASS "Test PASSED"
+        SERIAL airfoil_arg_ptrs MESHES new_grid.dat)
     _op2_app_tests(airfoil_hdf5_fortran LANGUAGE fortran PASS "Test PASSED"
         SERIAL airfoil_hdf5 MPI airfoil_hdf5 MESHES new_grid_dp.h5@new_grid.h5)
 endif()
