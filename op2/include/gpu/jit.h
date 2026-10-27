@@ -256,10 +256,12 @@ struct JitHeaders {
 };
 
 // How a strategy compiles its specialised kernels beyond the parameters'
-// values: with its block size as launch bounds, and spilling registers to
-// shared memory (kernel/strategy.h's OP2_JIT_* macros).
+// values: with its block size as launch bounds, their second argument when
+// not 1, and spilling registers to shared memory (kernel/strategy.h's
+// OP2_JIT_* macros).
 struct CompileSwitches {
     bool launch_bounds = false;
+    int min_blocks = 1;
     bool smem_spilling = false;
 };
 
@@ -321,8 +323,11 @@ private:
             "-munsafe-fp-atomics"
         };
 #endif
+        std::string min_blocks = "-DOP2_MIN_BLOCKS=" + std::to_string(switches.min_blocks);
         if (switches.launch_bounds)
             opts.push_back("-DOP2_LAUNCH_BOUNDS");
+        if (switches.min_blocks != 1)
+            opts.push_back(min_blocks.c_str());
         if (switches.smem_spilling)
             opts.push_back("-DOP2_SMEM_SPILLING");
         auto success =

@@ -279,7 +279,8 @@ inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
                                   KernelSource source, Binder bind)
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
       m_block_size{point.value("block_size")},
-      m_switches{point.value("launch_bounds") != 0, point.value("smem_spilling", 0) != 0},
+      m_switches{point.value("launch_bounds") != 0, point.value("min_blocks"),
+                 point.value("smem_spilling", 0) != 0},
       m_offline{source.offline}, m_cache{source.name, options().build_threads} {}
 
 inline void StrategyBase::begin(const op::loop::Call& call) {
@@ -304,7 +305,8 @@ inline op::loop::Prepared StrategyBase::acquire(
             prepared.reason = "kernel_unavailable";
         return prepared;
     }
-    if (m_switches.smem_spilling && !m_switches.launch_bounds) {
+    if ((m_switches.smem_spilling || m_switches.min_blocks != 1) &&
+        !m_switches.launch_bounds) {
         prepared.reason = "needs_launch_bounds";
         return prepared;
     }

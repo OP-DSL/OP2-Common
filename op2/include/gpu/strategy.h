@@ -87,6 +87,15 @@ inline op::loop::Axis launch_bounds_axis() {
     return {"LAUNCH_BOUNDS", "launch_bounds", true, {offline_launch_bounds}};
 }
 
+// OP_<FAMILY>_MIN_BLOCKS, else OP_MIN_BLOCKS: the launch bounds' second
+// argument, which caps the specialised kernel's registers so that many can
+// be resident: blocks per multiprocessor under CUDA, warps per execution
+// unit under HIP.  1, the default, leaves it out; any other value needs
+// launch bounds.
+inline op::loop::Axis min_blocks_axis() {
+    return {"MIN_BLOCKS", "min_blocks", false, {1}};
+}
+
 // OP_<FAMILY>_SMEM_SPILLING, else OP_SMEM_SPILLING (CUDA 13 and later, off
 // by default): the specialised kernel spills registers to shared memory
 // before local memory.  It needs launch bounds, which size the shared memory
@@ -158,7 +167,7 @@ protected:
     bool offline_usable() const {
         return m_offline.usable(m_block_size) &&
                m_switches.launch_bounds == offline_launch_bounds &&
-               !m_switches.smem_spilling;
+               m_switches.min_blocks == 1 && !m_switches.smem_spilling;
     }
 
     // Whether no kernel of kind can come about: the offline kind with no
@@ -197,7 +206,8 @@ protected:
 
 public:
     static std::vector<op::loop::Axis> axes() {
-        std::vector<op::loop::Axis> out{block_size_axis(), launch_bounds_axis()};
+        std::vector<op::loop::Axis> out{block_size_axis(), launch_bounds_axis(),
+                                        min_blocks_axis()};
         if (smem_spilling_supported)
             out.push_back(smem_spilling_axis());
         return out;
@@ -305,7 +315,7 @@ protected:
     // The block size, launch bounds, the chunk size, a block multiple of 128
     // elements by default, and the strategy's switch.
     static std::vector<op::loop::Axis> chunk_axes(op::loop::Axis variant) {
-        return {block_size_axis(), launch_bounds_axis(),
+        return {block_size_axis(), launch_bounds_axis(), min_blocks_axis(),
                 op::plan::chunk_size_axis(default_block_size), std::move(variant)};
     }
 

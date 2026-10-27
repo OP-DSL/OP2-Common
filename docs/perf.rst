@@ -108,6 +108,8 @@ Environment variables (read by ``op_init``):
      - GPU thread-block size, default 128.
    * - ``OP_LAUNCH_BOUNDS``
      - ``on`` or ``off`` (GPU, JIT kernels): the kernel declares its block size as launch bounds, which the compiler also takes as an occupancy target and may cut registers for.  On under HIP and off under CUDA, as the offline kernels are built; a strategy at the other value has only its JIT kernel.
+   * - ``OP_MIN_BLOCKS``
+     - Positive integer (GPU, JIT kernels, default 1): the launch bounds' second argument, which caps the kernel's registers so that many can be resident: blocks per multiprocessor under CUDA, warps per execution unit under HIP.  1 leaves it out; any other value needs ``OP_LAUNCH_BOUNDS=on`` (else ``needs_launch_bounds``).
    * - ``OP_SMEM_SPILLING``
      - ``on`` or ``off`` (CUDA 13 and later, JIT kernels of ``plain``, ``atomics`` and ``colouring``, default off): the compiler spills registers to shared memory before local memory.  It needs ``OP_LAUNCH_BOUNDS=on``, which sizes that shared memory; without it the kernel is unavailable (``needs_launch_bounds``).
    * - ``OP_CHUNK_SIZES``
@@ -121,7 +123,7 @@ Environment variables (read by ``op_init``):
    * - ``OP_CHUNK_ATOMICS_MIN_COMPRESSION``
      - Default 1.5: ``chunk_atomics`` declines a call whose chunks average fewer references per staged target; 0 accepts every call.  Ignored with unstaged singles.
 
-``OP_BLOCK_SIZES``, ``OP_LAUNCH_BOUNDS``, ``OP_SMEM_SPILLING``, ``OP_CHUNK_SIZES``, ``OP_CHUNK_ATOMICS_UNSTAGED_SINGLES`` and ``OP_CHUNK_COLOURING_WAVEFRONT`` are each a strategy's *axis*: ``OP_<STRATEGY>_<AXIS>`` (e.g. ``OP_CHUNK_ATOMICS_BLOCK_SIZES``) sets it for one strategy, and every axis takes one value or a comma-separated list, of which the first runs and the rest are only tried by the autotuner.
+``OP_BLOCK_SIZES``, ``OP_LAUNCH_BOUNDS``, ``OP_MIN_BLOCKS``, ``OP_SMEM_SPILLING``, ``OP_CHUNK_SIZES``, ``OP_CHUNK_ATOMICS_UNSTAGED_SINGLES`` and ``OP_CHUNK_COLOURING_WAVEFRONT`` are each a strategy's *axis*: ``OP_<STRATEGY>_<AXIS>`` (e.g. ``OP_CHUNK_ATOMICS_BLOCK_SIZES``) sets it for one strategy, and every axis takes one value or a comma-separated list, of which the first runs and the rest are only tried by the autotuner.
 
 Autotuning
 ----------

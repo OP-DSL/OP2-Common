@@ -1,8 +1,9 @@
 // A kernel with more registers than a 1024-thread block leaves: compiled
 // without launch bounds its specialised kernel cannot launch that block and
-// is unavailable (thread_limit); with them it runs, and with them and
-// shared-memory spilling (CUDA 13) it runs too, while spilling without launch
-// bounds is unavailable (needs_launch_bounds).
+// is unavailable (thread_limit); with them it runs, with two blocks a
+// multiprocessor its registers are capped to fit both, and with
+// shared-memory spilling (CUDA 13) it runs too, while a minimum of blocks or
+// spilling without launch bounds is unavailable (needs_launch_bounds).
 
 #define OP_KERNEL_JIT_TAG jit_thread_limit_test
 #include <kernel/jit_embed.h>
@@ -90,8 +91,10 @@ void expect(bool condition, const std::string& what) {
 }
 
 // Declare plain at one value of each switch, and read the JIT variables.
-void declare(const char *launch_bounds, const char *smem_spilling) {
+void declare(const char *launch_bounds, const char *smem_spilling,
+             const char *min_blocks = "1") {
     setenv("OP_LAUNCH_BOUNDS", launch_bounds, 1);
+    setenv("OP_MIN_BLOCKS", min_blocks, 1);
     if (gpu::smem_spilling_supported)
         setenv("OP_SMEM_SPILLING", smem_spilling, 1);
     loop::init();
@@ -167,6 +170,24 @@ int main(int argc, char **argv) {
         gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
         make(jit_loop);
         runs(jit_loop, "launch bounds");
+    }
+    {
+        declare("off", "off", "2");
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+        make(jit_loop);
+        auto prepared = prepare(jit_loop);
+        expect(prepared.status == loop::Status::unavailable &&
+                   prepared.reason == "needs_launch_bounds",
+               "a minimum of blocks without launch bounds: needs_launch_bounds");
+    }
+    {
+        // Two blocks of 1024 threads leave each thread 32 registers.
+        declare("on", "off", "2");
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+        make(jit_loop);
+        auto statistics = runs(jit_loop, "launch bounds for two blocks");
+        expect(std::atoi(statistics.c_str() + statistics.find(", ") + 2) <= 32,
+               "two blocks cap the registers at 32");
     }
     if (gpu::smem_spilling_supported) {
         {

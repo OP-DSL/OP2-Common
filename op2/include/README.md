@@ -110,7 +110,8 @@ gpu/strategy.h         (includes: gpu/chunk_encode.h, gpu/chunk_plan.h,
                         gpu/jit.h, loop/strategy.h, op_lib_cpp.h,
                         plan/colouring.h, plan/options.h; the plain, atomics,
                         colouring and chunked strategies, and their axes:
-                        block size, launch bounds, shared-memory spilling,
+                        block size, launch bounds and their minimum
+                        blocks, shared-memory spilling,
                         unstaged singles, wavefront)
 gpu/loop.h             (includes: gpu/check.h, gpu/jit.h, gpu/strategy.h,
                         loop/loop.h, loop/strategy.h, op_cuda_rt_support.h,
