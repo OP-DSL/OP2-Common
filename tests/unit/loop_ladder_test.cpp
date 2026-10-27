@@ -161,6 +161,19 @@ void test_configuration() {
     CHECK(loop::Configuration(&elsewhere, args, all).key() != key);
     CHECK(loop::Configuration(&source, args, source.size).key() != key);
 
+    // Another dat in its place keeps the key, as a temporary declared again
+    // does; which arguments share a dat changes it.
+    op_dat_core again = dat;
+    again.index = 9;
+    other = args;
+    other[0].dat = &again;
+    CHECK(loop::Configuration(&source, other, all).key() == key);
+    std::array<op_arg, 2> pair{args[0], args[0]};
+    pair[1].idx = 1;
+    auto shared = loop::Configuration(&source, pair, all).key();
+    pair[1].dat = &again;
+    CHECK(loop::Configuration(&source, pair, all).key() != shared);
+
     std::array<op_arg, 2> reduction{args[0], op_arg{}};
     reduction[1].opt = 1;
     reduction[1].argtype = OP_ARG_GBL;

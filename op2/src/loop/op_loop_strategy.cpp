@@ -38,14 +38,21 @@ std::uint64_t Configuration::key() const {
 
     // The words that shape the call, hashed a buffer at a time: per
     // argument its activity, kind, access and map index in one word, then
-    // its dat, map and dimension.
+    // the first argument on its dat, its map and dimension.
     constexpr std::size_t arg_words = 4;
     std::array<std::int32_t, 2 + 32 * arg_words> words;
     std::size_t count = 0;
     std::uint64_t hash = RAPID_SEED;
     words[count++] = set->index;
     words[count++] = run_size;
-    for (const op_arg& arg : args) {
+    auto first_on_dat = [&](std::size_t i) {
+        for (std::size_t j = 0; j < i; ++j)
+            if (args[j].opt != 0 && args[j].dat == args[i].dat)
+                return static_cast<std::int32_t>(j);
+        return static_cast<std::int32_t>(i);
+    };
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        const op_arg& arg = args[i];
         if (count + arg_words > words.size()) {
             hash = rapidhash_withSeed(words.data(), count * sizeof(words[0]), hash);
             count = 0;
@@ -55,7 +62,7 @@ std::uint64_t Configuration::key() const {
             continue;
         }
         words[count++] = 1 | arg.argtype << 1 | arg.acc << 4 | (arg.idx & 0xffff) << 16;
-        words[count++] = arg.dat != nullptr ? arg.dat->index : -1;
+        words[count++] = arg.dat != nullptr ? first_on_dat(i) : -1;
         words[count++] = arg.map != nullptr ? arg.map->index : -1;
         words[count++] = arg.dim;
     }

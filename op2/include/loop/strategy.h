@@ -46,8 +46,10 @@ public:
     // Any active global argument reduced across the set.
     bool global_reduction() const;
 
-    // The set index, the run size and, per argument, its activity, kind, dat
-    // and map indices, map component, access and dimension.
+    // The set index, the run size and, per argument, its activity, kind, the
+    // first argument on its dat, its map index, map component, access and
+    // dimension: which arguments share a dat, not which dat, so a temporary
+    // dat declared again keeps its plans.
     std::uint64_t key() const;
 
     // "edges (3.1M) via edge_nodes, reduction"; for reports only.
