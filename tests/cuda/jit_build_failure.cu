@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
                         "the broken strategy is available");
         passed &= check(broken.reason == "build_failed", "the broken strategy's reason");
         auto selection = loop.ladder().select(call);
-        passed &= check(selection.strategy->name().starts_with("plain=") &&
+        passed &= check(selection.candidate->name.starts_with("plain=") &&
                             selection.kernel == nullptr,
                         "the floor runs its offline kernel");
     }

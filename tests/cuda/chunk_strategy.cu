@@ -211,10 +211,12 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuDeviceSynchronize());
     GPU_CHECK(gpuMemcpy(output.data(), output_d, sizeof(output),
                         gpuMemcpyDeviceToHost));
-    auto name = selection.strategy->name();
-    return {std::string{name.substr(0, name.find('='))}, std::string{chunk.reason},
+    const auto& name = selection.candidate->name;
+    return {name.substr(0, name.find('=')), std::string{chunk.reason},
             selection.kernel != nullptr,
-            static_cast<gpu::StrategyBase *>(selection.strategy)->call_state().max_blocks};
+            static_cast<gpu::StrategyBase *>(selection.candidate->strategy)
+                ->call_state()
+                .max_blocks};
 }
 
 } // namespace
@@ -239,7 +241,7 @@ int main(int argc, char **argv) {
         auto outcome = run(dormant, fixture);
         CHECK(outcome.strategy == "atomics");
         CHECK(output[0] == -1);
-        CHECK(static_cast<gpu::ChunkBase&>(dormant.ladder()[0]).entries() == 1);
+        CHECK(static_cast<gpu::ChunkBase&>(*dormant.ladder()[0].strategy).entries() == 1);
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
@@ -249,7 +251,7 @@ int main(int argc, char **argv) {
         gpu::Loop loop("chunk_strategy", "cuda", "Indirect", {false},
                        headers());
         add_strategies(loop, fixture);
-        auto& chunk = static_cast<gpu::ChunkBase&>(loop.ladder()[0]);
+        auto& chunk = static_cast<gpu::ChunkBase&>(*loop.ladder()[0].strategy);
 
         Outcome outcome{};
         for (int invocation = 0; invocation < 10; ++invocation) {

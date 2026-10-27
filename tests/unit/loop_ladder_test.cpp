@@ -1,6 +1,7 @@
 // The strategy ladder without a backend: fake strategies answer ready,
-// pending, unavailable or rejected as scripted.
+// pending or unavailable as scripted, for each of their kernels.
 
+#include <loop/jit.h>
 #include <loop/strategy.h>
 
 #include <array>
@@ -23,8 +24,9 @@ struct Fake : loop::Strategy {
     std::string fake_name;
     std::vector<int> values;
     // Statuses answered in turn, pending becoming ready when waited for;
-    // ready once exhausted.
+    // ready once exhausted.  jit_statuses for its specialised kernel.
     std::deque<loop::Status> statuses;
+    std::deque<loop::Status> jit_statuses;
     std::string_view reason = "scripted";
     int prepares = 0;
     int waits = 0;
@@ -35,25 +37,24 @@ struct Fake : loop::Strategy {
     loop::Estimate jit_estimate;
     loop::KernelKind kind = loop::KernelKind::offline;
 
-    explicit Fake(std::string name) : fake_name{std::move(name)} {}
     explicit Fake(const loop::Point& point)
         : fake_name{point.name}, values{point.values} {}
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Estimate estimate(const loop::Call&,
-                            loop::KernelKind asked) const override {
+    loop::Estimate estimate(loop::KernelKind asked) const override {
         return asked == loop::KernelKind::offline ? offline_estimate : jit_estimate;
     }
 
-    loop::Prepared prepare_kind(const loop::Call&, loop::Urgency urgency,
+    loop::Prepared prepare(const loop::Call&, loop::Urgency urgency,
                            loop::KernelKind asked) override {
         ++prepares;
         kind = asked;
+        auto& script = asked == loop::KernelKind::jit ? jit_statuses : statuses;
         loop::Status status = loop::Status::ready;
-        if (!statuses.empty()) {
-            status = statuses.front();
-            statuses.pop_front();
+        if (!script.empty()) {
+            status = script.front();
+            script.pop_front();
         }
         if (urgency == loop::Urgency::wait) {
             ++waits;
@@ -61,7 +62,6 @@ struct Fake : loop::Strategy {
                 status = loop::Status::ready;
         }
         loop::Prepared prepared;
-        prepared.strategy = this;
         prepared.status = status;
         prepared.reason = status == loop::Status::ready ? "" : reason;
         prepared.entry = this;
@@ -70,7 +70,7 @@ struct Fake : loop::Strategy {
 
     std::optional<float> run(const loop::Prepared& prepared,
                              const loop::Launch& launch) override {
-        CHECK(prepared.strategy == this);
+        CHECK(prepared.candidate->strategy == this);
         ++runs;
         if (launch.timed)
             return time;
@@ -225,14 +225,15 @@ void test_call() {
 void test_defaults() {
     Fixture fixture;
     CHECK(fixture.ladder.size() == 3);
-    CHECK(!fixture.ladder.enabled(0) && fixture.ladder.explorable(0));
-    CHECK(fixture.ladder.enabled(1) && fixture.ladder.enabled(2));
-    CHECK(fixture.chunk_atomics->name().starts_with("chunk_atomics="));
+    CHECK(!fixture.ladder[0].enabled && !fixture.ladder[0].off);
+    CHECK(fixture.ladder[1].enabled && fixture.ladder[2].enabled);
+    CHECK(fixture.ladder[0].name == "chunk_atomics=on" &&
+          fixture.ladder[0].kind == loop::KernelKind::offline);
 
     // The first enabled strategy that is ready runs; a disabled one is
     // never asked.
     auto selection = fixture.ladder.select(indirect_call());
-    CHECK(selection.strategy == fixture.atomics);
+    CHECK(selection.candidate->strategy == fixture.atomics);
     CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.chunk_atomics->prepares == 0);
     CHECK(fixture.colouring->prepares == 0);
@@ -240,11 +241,11 @@ void test_defaults() {
     // Pending or rejected, the ladder moves on.
     fixture.atomics->statuses = {loop::Status::pending, loop::Status::unavailable};
     selection = fixture.ladder.select(indirect_call());
-    CHECK(selection.strategy == fixture.colouring);
+    CHECK(selection.candidate->strategy == fixture.colouring);
     selection = fixture.ladder.select(indirect_call());
-    CHECK(selection.strategy == fixture.colouring);
+    CHECK(selection.candidate->strategy == fixture.colouring);
     selection = fixture.ladder.select(indirect_call());
-    CHECK(selection.strategy == fixture.atomics);
+    CHECK(selection.candidate->strategy == fixture.atomics);
 
     // With nothing ready the floor is waited for, so a selection is always
     // ready.
@@ -252,16 +253,13 @@ void test_defaults() {
     fixture.colouring->statuses = {loop::Status::pending, loop::Status::pending};
     int before = fixture.colouring->prepares;
     selection = fixture.ladder.select(indirect_call());
-    CHECK(selection.strategy == fixture.colouring);
+    CHECK(selection.candidate->strategy == fixture.colouring);
     CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
 
     loop::Launch launch{args.data(), 1, true};
-    CHECK(fixture.atomics->run(selection.strategy == fixture.atomics
-                                   ? selection
-                                   : fixture.atomics->prepare_kind(indirect_call(),
-                                                                   loop::Urgency::later,
-                                                                   loop::KernelKind::offline),
+    CHECK(fixture.atomics->run(fixture.ladder[1].prepare(indirect_call(),
+                                                         loop::Urgency::later),
                                launch) == 1.0f);
 }
 
@@ -274,10 +272,10 @@ void test_variables() {
         add(ladder, "chunk_atomics", false);
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
-        CHECK(ladder.enabled(0));
-        CHECK(!ladder.enabled(1) && !ladder.explorable(1));
-        CHECK(ladder.enabled(2));
-        CHECK(ladder.select(indirect_call()).strategy->name() == "chunk_atomics=on");
+        CHECK(ladder[0].enabled);
+        CHECK(!ladder[1].enabled && !!ladder[1].off);
+        CHECK(ladder[2].enabled);
+        CHECK(ladder.select(indirect_call()).candidate->name == "chunk_atomics=on");
     }
     unsetenv("OP_CHUNK_ATOMICS");
     unsetenv("OP_ATOMICS");
@@ -289,8 +287,8 @@ void test_variables() {
         loop::Ladder ladder{"test_loop"};
         add(ladder, "chunk_atomics", false);
         add(ladder, "atomics", true);
-        CHECK(!ladder.enabled(0) && ladder.explorable(0));
-        CHECK(ladder.enabled(1) && ladder.explorable(1));
+        CHECK(!ladder[0].enabled && !ladder[0].off);
+        CHECK(ladder[1].enabled && !ladder[1].off);
     }
     unsetenv("OP_CHUNK_ATOMICS");
     unsetenv("OP_ATOMICS");
@@ -304,7 +302,7 @@ void test_variables() {
         loop::Ladder ladder{"test_loop"};
         ladder.add("atomics",
                    [](const loop::Point& point) { return std::make_unique<Fake>(point); });
-        CHECK(!ladder.enabled(0) && !ladder.explorable(0));
+        CHECK(!ladder[0].enabled && !!ladder[0].off);
     }
 
     // OP_STRATEGY forces a family for every loop, or for a named loop, even
@@ -320,25 +318,25 @@ void test_variables() {
         add(ladder, "colouring", true);
         CHECK(ladder.forced() == 1);
         auto selection = ladder.select(indirect_call());
-        CHECK(selection.strategy->name() == "atomics=on");
+        CHECK(selection.candidate->name == "atomics=on");
 
-        auto& atomics = static_cast<Fake&>(ladder[1]);
+        auto& atomics = static_cast<Fake&>(*ladder[1].strategy);
         atomics.statuses = {loop::Status::pending};
         selection = ladder.select(indirect_call());
-        CHECK(selection.strategy->name() == "atomics=on");
+        CHECK(selection.candidate->name == "atomics=on");
         CHECK(atomics.waits == atomics.prepares);
 
         atomics.statuses = {loop::Status::unavailable};
         selection = ladder.select(indirect_call());
-        CHECK(selection.strategy->name() == "plain=on");
-        CHECK(static_cast<Fake&>(ladder[0]).prepares == 0);
+        CHECK(selection.candidate->name == "plain=on");
+        CHECK(static_cast<Fake&>(*ladder[0].strategy).prepares == 0);
     }
     {
         loop::Ladder ladder{"other"};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
         CHECK(ladder.forced() == 1);
-        CHECK(ladder.select(indirect_call()).strategy->name() == "colouring=on");
+        CHECK(ladder.select(indirect_call()).candidate->name == "colouring=on");
     }
     {
         loop::Ladder ladder{"third"};
@@ -379,8 +377,8 @@ void test_axes() {
         loop::Ladder ladder{"test_loop"};
         ladder.add("chunk_atomics", make);
         CHECK(ladder.size() == 1 &&
-              ladder[0].name() == "chunk_atomics=on;block_size=128;singles=on");
-        CHECK((static_cast<Fake&>(ladder[0]).values == std::vector<int>{128, 1}));
+              ladder[0].name == "chunk_atomics=on;block_size=128;singles=on");
+        CHECK((static_cast<Fake&>(*ladder[0].strategy).values == std::vector<int>{128, 1}));
     }
 
     // Lists, without repeats or unusable items; the family's own variable
@@ -397,7 +395,7 @@ void test_axes() {
         ladder.add("chunk_atomics", make);
         std::vector<std::string> names;
         for (std::size_t i = 0; i < ladder.size(); ++i)
-            names.emplace_back(ladder[i].name());
+            names.emplace_back(ladder[i].name);
         CHECK((names == std::vector<std::string>{
                             "chunk_atomics=on;block_size=64;singles=on",
                             "chunk_atomics=on;block_size=128;singles=off",
@@ -407,15 +405,15 @@ void test_axes() {
                             "colouring=on;block_size=64",
                             "colouring=on;block_size=128"}));
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
-            CHECK(!ladder.enabled(i) && ladder.explorable(i));
-        CHECK(ladder.enabled(3) && ladder.enabled(6));
-        CHECK(ladder[0].name().starts_with("chunk_atomics="));
+            CHECK(!ladder[i].enabled && !ladder[i].off);
+        CHECK(ladder[3].enabled && ladder[6].enabled);
+        CHECK(ladder[0].name.starts_with("chunk_atomics="));
 
         // A tuner's variant is never asked by the ladder.
-        static_cast<Fake&>(ladder[3]).statuses = {loop::Status::unavailable};
-        CHECK(ladder.select(indirect_call()).strategy == &ladder[6]);
+        static_cast<Fake&>(*ladder[3].strategy).statuses = {loop::Status::unavailable};
+        CHECK(ladder.select(indirect_call()).candidate == &ladder[6]);
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
-            CHECK(static_cast<Fake&>(ladder[i]).prepares == 0);
+            CHECK(static_cast<Fake&>(*ladder[i].strategy).prepares == 0);
     }
     unsetenv("OP_ATOMICS_BLOCK_SIZES");
 
@@ -430,8 +428,8 @@ void test_axes() {
         ladder.add("colouring", make);
         ladder.add("chunk_atomics", make);
         CHECK(ladder.forced() == 3);
-        CHECK(ladder.select(indirect_call()).strategy == &ladder[3]);
-        CHECK(!ladder.explorable(4) && !ladder.explorable(5));
+        CHECK(ladder.select(indirect_call()).candidate == &ladder[3]);
+        CHECK(!!ladder[4].off && !!ladder[5].off);
     }
     unsetenv("OP_STRATEGY");
     unsetenv("OP_COLOURING");
@@ -453,36 +451,74 @@ void test_long_ladder() {
     fakes.back()->statuses.clear();
     for (int repeat = 0; repeat < 2; ++repeat) {
         auto selection = ladder.select(indirect_call());
-        CHECK(selection.strategy == fakes.back());
+        CHECK(selection.candidate->strategy == fakes.back());
         CHECK(selection.status == loop::Status::ready);
     }
     CHECK(fakes[0]->prepares == 2 && fakes[1]->prepares == 0);
 }
 
-// The ladder prepares each strategy with the kind the selection chose from
-// its estimates: the floor with no offline kernel a specialised one.
+// A strategy has a candidate per kernel, the specialised one first when it
+// is expected faster or under OP_JIT_FORCE, and an unavailable offline one
+// when it has neither; with the JIT off it has no specialised one.
 void test_kernel_kinds() {
+    using loop::KernelKind;
+    using Kinds = std::vector<KernelKind>;
+    auto kinds = [](loop::Estimate offline, loop::Estimate jit) {
+        declare({{"colouring", {}}});
+        loop::Ladder ladder{"test_loop"};
+        ladder.add("colouring", [&](const loop::Point& point) {
+            auto made = std::make_unique<Fake>(point);
+            made->offline_estimate = offline;
+            made->jit_estimate = jit;
+            return made;
+        });
+        Kinds out;
+        for (std::size_t i = 0; i < ladder.size(); ++i)
+            out.push_back(ladder[i].kind);
+        return out;
+    };
+    const auto offline = KernelKind::offline;
+    const auto jit = KernelKind::jit;
+    const loop::Estimate none{};
+    const loop::Estimate unknown{true, std::nullopt};
+
     loop::init();
-    Fixture fixture;
-    fixture.atomics->statuses = {loop::Status::unavailable};
-    fixture.colouring->offline_estimate = {};
-    fixture.colouring->jit_estimate = {true, 1.0f};
-    fixture.ladder.select(indirect_call());
-    CHECK(fixture.atomics->kind == loop::KernelKind::offline);
-    CHECK(fixture.colouring->kind == loop::KernelKind::jit);
-}
+    CHECK(kinds({true, 1.0f}, {true, 0.9f}) == (Kinds{jit, offline}));
+    CHECK(kinds({true, 1.0f}, {true, 1.0f}) == (Kinds{offline, jit}));
+    CHECK(kinds({true, 1.0f}, {true, 1.1f}) == (Kinds{offline, jit}));
+    CHECK(kinds({true, 1.0f}, unknown) == (Kinds{offline, jit}));
+    CHECK(kinds(unknown, {true, 0.9f}) == (Kinds{offline, jit}));
+    CHECK(kinds(none, {true, 1.1f}) == (Kinds{jit}));
+    CHECK(kinds({true, 1.0f}, none) == (Kinds{offline}));
+    CHECK(kinds(none, none) == (Kinds{offline}));
+    setenv("OP_JIT_FORCE", "1", 1);
+    loop::init();
+    CHECK(kinds({true, 1.0f}, {true, 1.1f}) == (Kinds{jit, offline}));
+    CHECK(kinds({true, 1.0f}, none) == (Kinds{offline}));
+    setenv("OP_JIT_LEVEL", "0", 1);
+    loop::init();
+    CHECK(kinds(none, {true, 0.9f}) == (Kinds{offline}));
+    unsetenv("OP_JIT_LEVEL");
+    unsetenv("OP_JIT_FORCE");
+    loop::init();
 
-void test_release_registry() {
-    int releases = 0;
-    auto release = [](void *owner) { ++*static_cast<int *>(owner); };
-
-    loop::register_release(&releases, release);
-    loop::release_all();
-    CHECK(releases == 1);
-
-    loop::unregister_release(&releases);
-    loop::release_all();
-    CHECK(releases == 1);
+    // A specialised kernel still building is passed over for the same
+    // strategy's offline one, here the floor.
+    declare({{"colouring", {}}});
+    loop::Ladder ladder{"test_loop"};
+    Fake *fake = nullptr;
+    ladder.add("colouring", [&](const loop::Point& point) {
+        auto made = std::make_unique<Fake>(point);
+        made->jit_estimate = {true, 0.9f};
+        fake = made.get();
+        return made;
+    });
+    CHECK(ladder.size() == 2 && ladder[0].name == "colouring=on;kernel=jit");
+    fake->jit_statuses = {loop::Status::pending};
+    auto selection = ladder.select(indirect_call());
+    CHECK(selection.candidate == &ladder[1] && fake->kind == offline);
+    selection = ladder.select(indirect_call());
+    CHECK(selection.candidate == &ladder[0] && fake->kind == jit);
 }
 
 } // namespace
@@ -495,7 +531,6 @@ int main() {
         test_axes();
         test_long_ladder();
         test_kernel_kinds();
-        test_release_registry();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

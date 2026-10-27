@@ -14,7 +14,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <map>
-#include <mutex>
+#include <numeric>
 #include <utility>
 
 namespace op::loop {
@@ -181,22 +181,10 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
 
 // --- Strategies ---------------------------------------------------------------
 
-Prepared Strategy::prepare(const Call& call, Urgency urgency) {
-    auto kind = [&] {
-        const auto& options = jit_options();
-        if (!options.enabled())
-            return KernelKind::offline;
-        auto jit = estimate(call, KernelKind::jit);
-        if (!jit.available)
-            return KernelKind::offline;
-        auto offline = estimate(call, KernelKind::offline);
-        if (!offline.available || options.force)
-            return KernelKind::jit;
-        if (jit.time && offline.time && *jit.time < *offline.time)
-            return KernelKind::jit;
-        return KernelKind::offline;
-    }();
-    return prepare_kind(call, urgency, kind);
+Prepared Candidate::prepare(const Call& call, Urgency urgency) const {
+    auto prepared = strategy->prepare(call, urgency, kind);
+    prepared.candidate = this;
+    return prepared;
 }
 
 // --- Variants -----------------------------------------------------------------
@@ -364,87 +352,106 @@ void Ladder::add(std::string_view family, const Make& make) {
     const auto& settings = found->second;
     bool enabled = settings.enabled.value_or(settings.enabled_by_default);
     bool off = !enabled && settings.enabled.has_value();
+    const auto& options = jit_options();
 
+    // The family's other points ahead of its point of first values.
     auto all = points(family, settings.axes, settings.values);
-    for (std::size_t i = 1; i < all.size(); ++i)
-        add_entry(make(all[i]), family, false, false, off, settings.rank);
-    add_entry(make(all[0]), family, true, enabled, off, settings.rank);
+    std::rotate(all.begin(), all.begin() + 1, all.end());
+    for (std::size_t i = 0; i < all.size(); ++i) {
+        auto& strategy = *m_strategies.emplace_back(make(all[i]));
+        for (const auto& other : m_strategies)
+            if (other.get() != &strategy && other->name() == strategy.name()) {
+                std::fprintf(stderr, "error: strategy %s registered twice (in %s)\n",
+                             std::string{strategy.name()}.c_str(), m_name.c_str());
+                std::exit(1);
+            }
+
+        bool member = i + 1 == all.size();
+        auto add = [&](KernelKind kind) {
+            std::string name{strategy.name()};
+            if (kind == KernelKind::jit)
+                name += ";kernel=jit";
+            m_candidates.push_back({&strategy, kind, std::move(name), std::string{family},
+                                    settings.rank, member, member && enabled, off});
+        };
+        auto offline = strategy.estimate(KernelKind::offline);
+        auto jit = options.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};
+        bool jit_first = jit.available &&
+                         (!offline.available || options.force ||
+                          (jit.time && offline.time && *jit.time < *offline.time));
+        if (jit_first)
+            add(KernelKind::jit);
+        if (offline.available || !jit.available)
+            add(KernelKind::offline);
+        if (jit.available && !jit_first)
+            add(KernelKind::jit);
+    }
+    order();
 }
 
-void Ladder::add_entry(std::unique_ptr<Strategy> strategy, std::string_view family,
-                       bool runs, bool enabled, bool off, std::size_t rank) {
-    assert(strategy != nullptr);
-    for (const auto& entry : m_entries)
-        if (entry.strategy->name() == strategy->name()) {
-            std::fprintf(stderr, "error: strategy %s registered twice (in %s)\n",
-                         std::string{strategy->name()}.c_str(), m_name.c_str());
-            std::exit(1);
-        }
+// Ladder order, stable within a family, and the forced family's members.
+void Ladder::order() {
+    m_order.resize(m_candidates.size());
+    std::iota(m_order.begin(), m_order.end(), std::size_t{0});
+    std::stable_sort(m_order.begin(), m_order.end(), [&](std::size_t a, std::size_t b) {
+        return m_candidates[a].rank < m_candidates[b].rank;
+    });
+    m_reasons.assign(m_order.size(), std::string_view{});
 
-    // After its family's earlier strategies and those of every family
-    // declared before it.
-    auto position = static_cast<std::size_t>(
-        std::find_if(m_entries.begin(), m_entries.end(),
-                     [&](const Entry& entry) { return entry.rank > rank; }) -
-        m_entries.begin());
-    if (m_forced && *m_forced >= position)
-        ++*m_forced;
-
-    Entry entry{std::move(strategy), std::string{family}, runs, enabled, off, rank};
-    if (runs)
-        for (std::size_t forced = 0;
-             forced < std::min(m_forced_rank, m_forced_names.size()); ++forced)
-            if (m_forced_names[forced] == entry.family) {
-                m_forced = position;
-                m_forced_rank = forced;
-                break;
+    m_forced.reset();
+    for (const auto& family : m_forced_names) {
+        for (std::size_t index = 0; index < size(); ++index)
+            if ((*this)[index].member && (*this)[index].family == family) {
+                if (!m_forced)
+                    m_forced = index;
+                m_forced_last = index;
             }
-    m_entries.insert(m_entries.begin() + static_cast<std::ptrdiff_t>(position),
-                     std::move(entry));
-    m_reasons.insert(m_reasons.begin() + static_cast<std::ptrdiff_t>(position),
-                     std::string_view{});
+        if (m_forced)
+            return;
+    }
 }
 
 Prepared Ladder::select(const Call& call) {
-    assert(!m_entries.empty());
+    assert(size() > 0);
     std::fill(m_reasons.begin(), m_reasons.end(), std::string_view{});
 
     Prepared selection;
-    std::size_t index = m_forced.value_or(0);
-    for (; index < m_entries.size(); ++index) {
-        auto& entry = m_entries[index];
-        bool forced = index == m_forced;
-        if (!entry.enabled && !forced) {
-            // The tuner's variants are no part of the ladder.
-            if (entry.runs)
-                m_reasons[index] = "disabled";
+    for (std::size_t index = m_forced.value_or(0); index < size(); ++index) {
+        const auto& candidate = (*this)[index];
+        // The tuner's other points are no part of the ladder.
+        if (!candidate.member)
+            continue;
+        bool forced = m_forced && candidate.family == (*this)[*m_forced].family;
+        if (!candidate.enabled && !forced) {
+            m_reasons[index] = "disabled";
             continue;
         }
-        // The run asked for the forced strategy, so its kernel is waited for.
-        selection = entry.strategy->prepare(call,
-                                            forced ? Urgency::wait : Urgency::later);
-        assert(selection.strategy == entry.strategy.get());
+        // The run asked for the forced family, so its kernels' builds start
+        // at once and its last kernel is waited for.
+        bool wait = forced && index == m_forced_last;
+        selection = candidate.prepare(call, wait     ? Urgency::wait
+                                            : forced ? Urgency::now
+                                                     : Urgency::later);
         if (selection.status == Status::ready) {
             report(selection, {m_reasons.data(), index});
             return selection;
         }
         m_reasons[index] = selection.reason;
-        if (forced)
+        if (wait)
             warn_forced(selection.reason);
     }
 
     // The floor must run, so wait for its kernel; without one the loop
     // cannot run at all.
-    auto& floor = m_entries.back();
-    selection = floor.strategy->prepare(call, Urgency::wait);
-    assert(selection.strategy == floor.strategy.get());
+    const auto& floor = (*this)[size() - 1];
+    selection = floor.prepare(call, Urgency::wait);
     if (selection.status != Status::ready) {
         std::fprintf(stderr, "error: %s has nothing to run: %s is %s\n",
-                     m_name.c_str(), std::string{floor.strategy->name()}.c_str(),
+                     m_name.c_str(), floor.name.c_str(),
                      std::string{selection.reason}.c_str());
         std::exit(1);
     }
-    report(selection, {m_reasons.data(), m_entries.size() - 1});
+    report(selection, {m_reasons.data(), size() - 1});
     return selection;
 }
 
@@ -454,7 +461,7 @@ void Ladder::warn_forced(std::string_view reason) {
 
     m_warned.emplace_back(reason);
     env::warn("warning: " + m_name + " passes over its forced strategy " +
-              std::string{(*this)[*m_forced].name()} + ": " + m_warned.back() + "\n");
+              (*this)[m_forced_last].name + ": " + m_warned.back() + "\n");
 }
 
 void Ladder::report(const Prepared& selection,
@@ -467,56 +474,19 @@ void Ladder::report(const Prepared& selection,
         if (reasons[i].empty())
             continue;
         passed += passed.empty() ? " (" : ", ";
-        passed += m_entries[i].strategy->name();
+        passed += (*this)[i].name;
         passed += ": ";
         passed += reasons[i];
     }
     if (!passed.empty())
         passed += ")";
-    std::string outcome = std::string{selection.strategy->name()} + passed;
+    std::string outcome = selection.candidate->name + passed;
     if (std::find(m_reported.begin(), m_reported.end(), outcome) !=
         m_reported.end())
         return;
 
     m_reported.push_back(outcome);
     op_printf("strategy: %s runs %s\n", m_name.c_str(), outcome.c_str());
-}
-
-// --- Teardown -----------------------------------------------------------------
-
-namespace {
-
-struct Owner {
-    void *owner;
-    void (*release)(void *owner);
-};
-
-std::mutex owners_mutex;
-std::vector<Owner> owners;
-
-} // namespace
-
-void register_release(void *owner, void (*release)(void *owner)) {
-    assert(owner != nullptr && release != nullptr);
-    std::scoped_lock lock(owners_mutex);
-    assert(std::none_of(owners.begin(), owners.end(),
-                        [owner](const Owner& item) { return item.owner == owner; }));
-    owners.push_back({owner, release});
-}
-
-void unregister_release(void *owner) {
-    std::scoped_lock lock(owners_mutex);
-    std::erase_if(owners, [owner](const Owner& item) { return item.owner == owner; });
-}
-
-void release_all() {
-    std::vector<Owner> current;
-    {
-        std::scoped_lock lock(owners_mutex);
-        current = owners;
-    }
-    for (const auto& item : current)
-        item.release(item.owner);
 }
 
 } // namespace op::loop

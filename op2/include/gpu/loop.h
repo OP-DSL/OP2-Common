@@ -227,7 +227,8 @@ public:
         op::loop::Call call{
             set, {args, static_cast<std::size_t>(nargs)}, n_exec};
         auto decision = decide(call, args, nargs);
-        const auto& state = static_cast<StrategyBase *>(decision.prepared.strategy)->call_state();
+        const auto& state =
+            static_cast<StrategyBase *>(decision.prepared.candidate->strategy)->call_state();
         op_profile_exit();
 
         op_profile_enter("Prepare GBLs");
@@ -256,8 +257,8 @@ public:
     // compiles, and free every strategy's device state.
     void release() override {
         op::loop::Loop::release();
-        for (std::size_t i = 0; i < m_ladder.size(); ++i)
-            static_cast<StrategyBase&>(m_ladder[i]).release();
+        for (const auto& strategy : m_ladder.strategies())
+            static_cast<StrategyBase&>(*strategy).release();
         for (auto event : m_events)
             GPU_CHECK(gpuEventDestroy(event));
         m_events.clear();
@@ -285,12 +286,10 @@ inline op::loop::Prepared StrategyBase::acquire(
     op::loop::KernelKind kind, const void *entry) {
     m_call_state.global_stride = m_block_size * m_call_state.max_blocks;
     op::loop::Prepared prepared;
-    prepared.strategy = this;
     prepared.entry = entry;
 
-    bool offline = m_offline.usable(m_block_size);
     if (kind == op::loop::KernelKind::offline) {
-        if (offline)
+        if (m_offline.usable(m_block_size))
             prepared.status = op::loop::Status::ready;
         else
             prepared.reason = "kernel_unavailable";
@@ -299,7 +298,7 @@ inline op::loop::Prepared StrategyBase::acquire(
 
     auto& params = m_loop.params();
     auto key = params.key(call, launch_values().slots());
-    auto acquired = m_cache.acquire(key, urgency, offline, [&] {
+    auto acquired = m_cache.acquire(key, urgency, [&] {
         return m_loop.compiler().job(params, m_source);
     });
     prepared.status = acquired.status;
@@ -331,7 +330,7 @@ std::optional<float> StrategyBase::run_phases(
     const op::loop::Prepared& prepared, const op::loop::Launch& launch,
     int phases, int wait_before, int globals_after, Launches&& launches,
     Fill&& fill) {
-    assert(prepared.strategy == this);
+    assert(prepared.candidate->strategy == this);
     // An offline kernel reads the call's and this strategy's values from
     // device symbols.
     if (prepared.kernel == nullptr)
@@ -403,7 +402,7 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 
 // --- Colouring ---
 
-inline op::loop::Prepared Colouring::prepare_kind(
+inline op::loop::Prepared Colouring::prepare(
     const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
     if (never_available(kind))
@@ -521,7 +520,7 @@ inline void ChunkBase::report(const ChunkResult& result) const {
                     plan.staging.unstaged_singles, plan.compression);
 }
 
-inline op::loop::Prepared ChunkBase::prepare_kind(
+inline op::loop::Prepared ChunkBase::prepare(
     const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
     if (never_available(kind))
@@ -530,7 +529,6 @@ inline op::loop::Prepared ChunkBase::prepare_kind(
     auto *entry = &entry_for(call);
     if (!entry->rejected.empty()) {
         op::loop::Prepared prepared;
-        prepared.strategy = this;
         prepared.status = op::loop::Status::unavailable;
         prepared.reason = entry->rejected;
         prepared.entry = entry;

@@ -135,14 +135,14 @@ void ParamSet::update(op_arg *args, int nargs) {
         param.update(args, nargs);
 }
 
-std::vector<ParamSet::History> *ParamSet::histories(std::uint64_t call) {
+ParamSet::Histories *ParamSet::histories(std::uint64_t call) {
     if (m_history != nullptr && call == m_history_key)
         return m_history;
     auto found = m_histories.find(call);
     if (found == m_histories.end()) {
         if (m_histories.size() >= max_histories)
             return nullptr;
-        found = m_histories.emplace(call, std::vector<History>(m_params.size()))
+        found = m_histories.emplace(call, Histories{std::vector<History>(m_params.size())})
                     .first;
     }
     m_history_key = call;
@@ -150,9 +150,21 @@ std::vector<ParamSet::History> *ParamSet::histories(std::uint64_t call) {
     return m_history;
 }
 
+bool ParamSet::settled(const Call& call) const {
+    if (!m_moving || !jit_options().enabled())
+        return true;
+    auto found = m_histories.find(call.key());
+    // Past max_histories a configuration keeps the initial modes.
+    if (found == m_histories.end())
+        return m_histories.size() >= max_histories;
+    return found->second.calls >= statistics_window;
+}
+
 void ParamSet::observe(const Call& call) {
     const auto& options = jit_options();
     auto *history = m_moving ? histories(call.key()) : nullptr;
+    if (history != nullptr)
+        ++history->calls;
     for (std::size_t i = 0; i < m_params.size(); ++i) {
         auto& param = m_params[i];
         if (param.source() == ParamSource::strategy)
@@ -166,7 +178,7 @@ void ParamSet::observe(const Call& call) {
             param.set_mode(param.initial());
             continue;
         }
-        auto& entry = (*history)[i];
+        auto& entry = history->params[i];
         if (entry.observe(param, options) && options.debug)
             op_printf("jit: %s %s %s for %s\n", m_loop.c_str(),
                         entry.mode == ParamMode::baked ? "bakes in" : "moves to run time",
@@ -209,7 +221,7 @@ bool ParamSet::History::observe(const Param& param, const JitOptions& options) {
         total = 0;
     }
     ++total;
-    if (total < 32 || 5 * hits < 4 * total || changed > options.varying)
+    if (total < statistics_window || 5 * hits < 4 * total || changed > options.varying)
         return false;
     mode = ParamMode::baked;
     promoted = true;

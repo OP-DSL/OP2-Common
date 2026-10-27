@@ -52,7 +52,7 @@ Loop Strategies
 The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`` and ``openmp_f2c`` targets run each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
 
 ``loop/``
-    Backend-neutral control.  A loop's *ladder* holds its strategies in order, runs the first that is enabled and ready for a call's *configuration* (its set, run size and arguments), and falls back to the last.  The *autotuner* times every candidate for a configuration under ``OP_AUTOTUNE``.  The JIT's policy decides when a kernel is specialised on the values a loop's parameters take and which stay at run time, and caches the built kernels.  Each strategy's backend estimates the cost of its offline and JIT kernels, and the strategy's ``prepare`` chooses between them from those estimates alone: hardware facts stay in the backends.
+    Backend-neutral control.  A loop's *ladder* holds its strategies in order, runs the first that is enabled and ready for a call's *configuration* (its set, run size and arguments), and falls back to the last.  The *autotuner* times every candidate for a configuration under ``OP_AUTOTUNE``.  The JIT's policy decides when a kernel is specialised on the values a loop's parameters take and which stay at run time, and caches the built kernels.  A strategy's offline and JIT kernels are two *candidates*: its backend estimates their cost, and the ladder orders them from those estimates alone, so hardware facts stay in the backends; a JIT kernel still building passes the call to the next candidate.  The tuner times every candidate once the JIT's parameter modes for the configuration have settled.
 
 ``plan/``
     Algorithms with no device knowledge: the set colouring, the chunks of a call's sections and their targets, coloured batches and the wavefront order, and the staging of a chunk's targets in scratch slots.
@@ -68,7 +68,7 @@ The translator emits, per loop, the translated kernel once per strategy namespac
 Terms that mean more than one thing elsewhere:
 
 * **backend**: in this layer, the device code under ``gpu/`` or ``cpu/``; the halo exchanges' *transport* (MPI with host staging or GPU-direct) is separate.
-* **variant**: a build of an application for one target (``airfoil_cuda``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy at one value of each of its axes.
+* **variant**: a build of an application for one target (``airfoil_cuda``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy (one value of each of its family's axes) with one of its kernels.
 * **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;block_size=64;chunk_size=128;singles=off``).
 
 Plan Construction (``op_plan_core``)

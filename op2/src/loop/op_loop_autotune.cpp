@@ -1,4 +1,5 @@
 #include <loop/autotune.h>
+#include <loop/loop.h>
 #include <op_env.h>
 #include <op_lib_c.h>
 
@@ -11,18 +12,28 @@
 
 namespace op::loop {
 
-// --- Report -----------------------------------------------------------------------
+// --- Every loop, and the report -------------------------------------------------------
 
 namespace {
 
-std::mutex tuners_mutex;
-std::vector<const Autotuner *> tuners;
+std::mutex loops_mutex;
+std::vector<Loop *> loops;
 
 constexpr const char *header =
     "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
     "fastest,speedup,selected,state,statistics";
 
 } // namespace
+
+void register_loop(Loop *loop) {
+    std::scoped_lock lock(loops_mutex);
+    loops.push_back(loop);
+}
+
+void unregister_loop(Loop *loop) {
+    std::scoped_lock lock(loops_mutex);
+    std::erase(loops, loop);
+}
 
 void autotune_write_report(int rank, int ranks) {
     const auto& path = autotune_options().report_file;
@@ -31,9 +42,10 @@ void autotune_write_report(int rank, int ranks) {
 
     std::vector<std::string> rows;
     {
-        std::scoped_lock lock(tuners_mutex);
-        for (const auto *tuner : tuners)
-            tuner->rows(rows);
+        std::scoped_lock lock(loops_mutex);
+        for (const auto *loop : loops)
+            if (const auto *tuner = loop->tuner())
+                tuner->rows(rows);
     }
     if (rows.empty())
         return;
@@ -57,7 +69,13 @@ void autotune_write_report(int rank, int ranks) {
 
 void finalise(int rank, int ranks) {
     autotune_write_report(rank, ranks);
-    release_all();
+    std::vector<Loop *> current;
+    {
+        std::scoped_lock lock(loops_mutex);
+        current = loops;
+    }
+    for (auto *loop : current)
+        loop->release();
 }
 
 // --- Options -------------------------------------------------------------------
@@ -107,7 +125,7 @@ std::string quoted(std::string_view text) {
 } // namespace
 
 bool Autotuner::Trial::done() const {
-    return !candidate ||
+    return !live ||
            (warmups >= options.warmup &&
             static_cast<int>(samples.size()) >= options.samples);
 }
@@ -121,18 +139,8 @@ bool Autotuner::State::explored() const {
     return any;
 }
 
-Autotuner::Autotuner(const Ladder& ladder) : m_ladder{ladder} {
-    std::scoped_lock lock(tuners_mutex);
-    tuners.push_back(this);
-}
-
-Autotuner::~Autotuner() {
-    std::scoped_lock lock(tuners_mutex);
-    std::erase(tuners, this);
-}
-
 Autotuner::Decision Autotuner::choose(const Call& call,
-                                      const Prepared& selection) {
+                                      const Prepared& selection, bool settled) {
     Decision ladder{selection};
     auto key = call.key();
     auto found = m_states.find(key);
@@ -148,8 +156,8 @@ Autotuner::Decision Autotuner::choose(const Call& call,
     ++state.calls;
     if (state.reported)
         return run_selected(state, call, ladder);
-    state.ladder = selection.strategy;
-    if (state.calls < static_cast<std::size_t>(options.min_calls))
+    state.ladder = selection.candidate;
+    if (state.calls < static_cast<std::size_t>(options.min_calls) || !settled)
         return ladder;
     if (state.trials.empty()) {
         add_trials(state, call, selection);
@@ -165,13 +173,13 @@ Autotuner::Decision Autotuner::choose(const Call& call,
         if (trial.done())
             continue;
 
-        Prepared prepared = trial.strategy == selection.strategy
+        Prepared prepared = trial.candidate == selection.candidate
                                 ? selection
-                                : trial.strategy->prepare(call, Urgency::now);
+                                : trial.candidate->prepare(call, Urgency::now);
         if (prepared.status == Status::pending)
             continue;
         if (prepared.status != Status::ready) {
-            trial.candidate = false;
+            trial.live = false;
             trial.reason = prepared.reason;
             continue;
         }
@@ -195,25 +203,25 @@ Autotuner::Decision Autotuner::choose(const Call& call,
     return run_selected(state, call, ladder);
 }
 
-// Every strategy not turned off is a trial: the ladder's choice, and every
+// Every candidate not turned off is a trial: the ladder's choice, and every
 // other whose prepare is ready or pending; the rest are retired with their
-// reasons.  Trivial when the ladder's choice is the only candidate.
+// reasons.  Trivial when the ladder's choice is the only one live.
 void Autotuner::add_trials(State& state, const Call& call,
                            const Prepared& selection) {
     state.description = call.describe();
     int others = 0;
     for (std::size_t i = 0; i < m_ladder.size(); ++i) {
         Trial trial;
-        trial.strategy = const_cast<Strategy *>(&m_ladder[i]);
-        if (!m_ladder.explorable(i)) {
+        trial.candidate = &m_ladder[i];
+        if (trial.candidate->off) {
             trial.off = true;
-        } else if (trial.strategy == selection.strategy) {
-            trial.candidate = true;
+        } else if (trial.candidate == selection.candidate) {
+            trial.live = true;
         } else {
-            auto prepared = trial.strategy->prepare(call, Urgency::later);
-            trial.candidate = prepared.status == Status::ready ||
-                              prepared.status == Status::pending;
-            if (!trial.candidate)
+            auto prepared = trial.candidate->prepare(call, Urgency::later);
+            trial.live = prepared.status == Status::ready ||
+                         prepared.status == Status::pending;
+            if (!trial.live)
                 trial.reason = prepared.reason;
             else
                 ++others;
@@ -223,12 +231,12 @@ void Autotuner::add_trials(State& state, const Call& call,
     state.trivial = others == 0;
 }
 
-// What an explored configuration runs: its selected strategy when that is
+// What an explored configuration runs: its selected candidate when that is
 // ready, else the ladder's choice.
 Autotuner::Decision Autotuner::run_selected(const State& state,
                                             const Call& call,
                                             const Decision& ladder) {
-    if (state.selected == nullptr || state.selected == ladder.prepared.strategy)
+    if (state.selected == nullptr || state.selected == ladder.prepared.candidate)
         return ladder;
     auto prepared = state.selected->prepare(call, Urgency::later);
     if (prepared.status != Status::ready)
@@ -241,7 +249,7 @@ Autotuner::Summary Autotuner::summarise(const State& state) const {
     float fastest = 0.0f;
     for (const auto& trial : state.trials) {
         summary.complete &= trial.done();
-        if (trial.strategy == state.ladder)
+        if (trial.candidate == state.ladder)
             summary.ladder = &trial;
         if (trial.samples.empty())
             continue;
@@ -257,12 +265,12 @@ Autotuner::Summary Autotuner::summarise(const State& state) const {
     return summary;
 }
 
-// The fastest strategy when it beats the ladder's choice by the margin;
+// The fastest candidate when it beats the ladder's choice by the margin;
 // none, so the ladder's choice runs, otherwise.
-Strategy *Autotuner::winner(const Summary& summary) const {
+const Candidate *Autotuner::winner(const Summary& summary) const {
     if (summary.fastest == nullptr || summary.fastest == summary.ladder)
         return nullptr;
-    return summary.speedup * (1.0 - options.margin) > 1.0 ? summary.fastest->strategy
+    return summary.speedup * (1.0 - options.margin) > 1.0 ? summary.fastest->candidate
                                                           : nullptr;
 }
 
@@ -272,13 +280,13 @@ void Autotuner::sample(const Decision& decision, float microseconds) {
         return;
     trial->samples.push_back(microseconds);
     if (trial->done())
-        trial->statistics = trial->strategy->statistics(decision.prepared);
+        trial->statistics = trial->candidate->strategy->statistics(decision.prepared);
 }
 
-// One strategy's report row for a configuration.
+// One candidate's report row for a configuration.
 std::string Autotuner::row(const State& state, const Summary& summary,
                            const Trial& trial) const {
-    std::string status = trial.candidate
+    std::string status = trial.live
                              ? (trial.samples.empty() ? "pending" : "timed")
                              : std::string{trial.reason};
     char median_text[32] = "";
@@ -287,25 +295,24 @@ std::string Autotuner::row(const State& state, const Summary& summary,
                       median(trial.samples));
     char speedup_text[32];
     std::snprintf(speedup_text, sizeof(speedup_text), "%.3f", summary.speedup);
-    Strategy *selected = state.selected != nullptr ? state.selected : state.ladder;
+    const Candidate *selected = state.selected != nullptr ? state.selected : state.ladder;
 
     std::string text = m_ladder.name();
     for (const auto& column : {
              quoted(state.description), std::to_string(state.calls),
-             std::string{trial.strategy->name()}, status,
+             trial.candidate->name, status,
              std::string{median_text}, std::to_string(trial.samples.size()),
-             std::string{state.ladder->name()},
-             summary.fastest != nullptr ? std::string{summary.fastest->strategy->name()}
-                                        : std::string{},
-             std::string{speedup_text}, std::string{selected->name()},
+             state.ladder->name,
+             summary.fastest != nullptr ? summary.fastest->candidate->name : std::string{},
+             std::string{speedup_text}, selected->name,
              std::string{summary.complete ? "complete" : "partial"},
              quoted(trial.statistics)})
         text += "," + column;
     return text;
 }
 
-// The printed line: each strategy's median time, or why it was not a
-// candidate, against the ladder's choice.
+// The printed line: each candidate's median time, or why it was not live,
+// against the ladder's choice.
 std::string Autotuner::line(const State& state) const {
     std::string times;
     for (const auto& trial : state.trials) {
@@ -313,8 +320,8 @@ std::string Autotuner::line(const State& state) const {
             continue;
 
         times += times.empty() ? "" : ", ";
-        times += std::string{trial.strategy->name()} + " ";
-        if (!trial.candidate) {
+        times += trial.candidate->name + " ";
+        if (!trial.live) {
             times += trial.reason;
         } else if (trial.samples.empty()) {
             times += "pending";
@@ -330,15 +337,14 @@ std::string Autotuner::line(const State& state) const {
     auto summary = summarise(state);
     char tail[160];
     std::snprintf(tail, sizeof(tail), "; ladder %s, fastest %s (%.2fx)%s",
-                  std::string{state.ladder->name()}.c_str(),
-                  summary.fastest != nullptr
-                      ? std::string{summary.fastest->strategy->name()}.c_str()
-                      : "none",
+                  state.ladder->name.c_str(),
+                  summary.fastest != nullptr ? summary.fastest->candidate->name.c_str()
+                                             : "none",
                   summary.speedup, summary.complete ? "" : ", partial");
     std::string text = "autotune: " + m_ladder.name() + " on " +
                        state.description + ": " + times + tail;
     if (state.selected != nullptr)
-        text += ", selected " + std::string{state.selected->name()};
+        text += ", selected " + state.selected->name;
     return text;
 }
 

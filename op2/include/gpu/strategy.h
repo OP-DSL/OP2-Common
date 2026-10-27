@@ -128,14 +128,14 @@ protected:
 
     op::loop::Prepared unavailable() {
         op::loop::Prepared prepared;
-        prepared.strategy = this;
         prepared.status = op::loop::Status::unavailable;
         prepared.reason = "kernel_unavailable";
         return prepared;
     }
 
     // Finish a call: the launch parameters and the kernel of kind, as a
-    // Prepared value over entry.
+    // Prepared value over entry; a specialised kernel is pending while it
+    // builds.
     op::loop::Prepared acquire(const op::loop::Call& call,
                                op::loop::Urgency urgency, op::loop::KernelKind kind,
                                const void *entry);
@@ -163,9 +163,7 @@ public:
     // specialised one when there is source, expected faster when the offline
     // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
     // tenth, until timings calibrate it).
-    op::loop::Estimate estimate(const op::loop::Call& call,
-                                op::loop::KernelKind kind) const override {
-        (void)call;
+    op::loop::Estimate estimate(op::loop::KernelKind kind) const override {
         if (kind == op::loop::KernelKind::offline)
             return {m_offline.usable(m_block_size), 1.0f};
         bool prior = m_offline.registers() > options().min_registers;
@@ -192,7 +190,7 @@ public:
            Binder bind)
         : StrategyBase{loop, point, source, bind} {}
 
-    op::loop::Prepared prepare_kind(const op::loop::Call& call,
+    op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override {
         begin(call);
@@ -222,7 +220,7 @@ public:
               Binder bind)
         : StrategyBase{loop, point, source, bind} {}
 
-    op::loop::Prepared prepare_kind(const op::loop::Call& call,
+    op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -265,7 +263,7 @@ protected:
     int batch_blocks(const ChunkPlan& plan, int begin, int end) const;
 
 public:
-    op::loop::Prepared prepare_kind(const op::loop::Call& call,
+    op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,

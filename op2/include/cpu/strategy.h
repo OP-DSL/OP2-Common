@@ -192,7 +192,6 @@ protected:
     op::loop::Prepared prepared(op::loop::Status status, const void *entry,
                                 std::string_view reason = {}) {
         op::loop::Prepared result;
-        result.strategy = this;
         result.status = status;
         result.entry = entry;
         result.reason = reason;
@@ -225,7 +224,7 @@ public:
     Simple(Loop& loop, const op::loop::Point& point, Body body)
         : StrategyBase{loop, point, body} {}
 
-    op::loop::Prepared prepare_kind(const op::loop::Call&, op::loop::Urgency,
+    op::loop::Prepared prepare(const op::loop::Call&, op::loop::Urgency,
                                op::loop::KernelKind) override {
         return prepared(op::loop::Status::ready, nullptr);
     }
@@ -245,7 +244,7 @@ public:
     Colouring(Loop& loop, const op::loop::Point& point, Body body)
         : StrategyBase{loop, point, body} {}
 
-    op::loop::Prepared prepare_kind(const op::loop::Call& call,
+    op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,
@@ -284,7 +283,7 @@ public:
         return {op::plan::chunk_size_axis(default_chunk_size)};
     }
 
-    op::loop::Prepared prepare_kind(const op::loop::Call& call,
+    op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override;
     std::optional<float> run(const op::loop::Prepared& prepared,

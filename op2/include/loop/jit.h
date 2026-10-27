@@ -201,6 +201,9 @@ public:
     std::uint64_t last_hash() const { return m_hash; }
 };
 
+// The calls the statistics look back over.
+constexpr std::uint64_t statistics_window = 32;
+
 // A loop's parameters, in the order its generated code registers them,
 // and per configuration of the loop the statistics of those whose mode may
 // move: a baked value that changes more than OP_JIT_VARYING times in its
@@ -230,6 +233,12 @@ private:
         bool observe(const Param& param, const JitOptions& options);
     };
 
+    // A configuration's statistics, and the calls observed.
+    struct Histories {
+        std::vector<History> params;
+        std::uint64_t calls = 0;
+    };
+
     // Past this many configurations a new one keeps the initial modes.
     static constexpr std::size_t max_histories = 4096;
 
@@ -240,11 +249,11 @@ private:
     std::uint64_t m_observed = ~std::uint64_t{0};
     // Whether any parameter's mode may move.
     bool m_moving = false;
-    std::unordered_map<std::uint64_t, std::vector<History>> m_histories;
+    std::unordered_map<std::uint64_t, Histories> m_histories;
     std::uint64_t m_history_key = 0;
-    std::vector<History> *m_history = nullptr;
+    Histories *m_history = nullptr;
 
-    std::vector<History> *histories(std::uint64_t call);
+    Histories *histories(std::uint64_t call);
     void observe(const Call& call);
 
     std::size_t insert(Param param, bool runtime) {
@@ -283,6 +292,11 @@ public:
 
     // Whether any parameter's mode may move, so its statistics matter.
     bool moving() const { return m_moving; }
+
+    // Whether call's configuration has its modes: none can move, or the
+    // statistics have seen a window of its calls.  A mode may still move
+    // later, when a value starts or stops changing.
+    bool settled(const Call& call) const;
 
     // Record the call's values in the configuration's statistics and take
     // the modes they give, once per call.
@@ -422,16 +436,13 @@ public:
 
     // The kernel for key once built.  Its build starts once key is asked for
     // OP_JIT_MIN_CALLS times, at once for Urgency::now and wait, while a
-    // build slot is free; it runs here when urgency is wait and no offline
-    // kernel can run meanwhile, or under OP_JIT_SEQ_COMPILE, else on a
-    // thread.  Without the kernel: ready with none when offline (the offline
-    // kernel is usable), else pending until it is built, unavailable once
-    // its build failed.  make_job() is called here when a build starts, and
-    // returns the job the build runs: it returns the kernel, or none when
-    // the build failed.
+    // build slot is free; it runs here for wait or under OP_JIT_SEQ_COMPILE,
+    // else on a thread.  Without the kernel: pending until it is built,
+    // unavailable once its build failed.  make_job() is called here when a
+    // build starts, and returns the job the build runs: it returns the
+    // kernel, or none when the build failed.
     template<typename MakeJob>
-    Acquired acquire(std::uint64_t key, Urgency urgency, bool offline,
-                     MakeJob&& make_job) {
+    Acquired acquire(std::uint64_t key, Urgency urgency, MakeJob&& make_job) {
         auto found = m_entries.find(key);
         if (found != m_entries.end() &&
             found->second.state.load(std::memory_order_acquire) == BuildState::ready)
@@ -440,8 +451,7 @@ public:
         auto& entry = entry_for(key);
         ++entry.calls;
         const auto& options = jit_options();
-        // Waiting is for a strategy with nothing else to run.
-        bool here = (urgency == Urgency::wait && !offline) || options.seq_compile;
+        bool here = urgency == Urgency::wait || options.seq_compile;
         bool due = urgency != Urgency::later ||
                    entry.calls >= static_cast<std::size_t>(options.min_calls);
         if (due && entry.state.load(std::memory_order_relaxed) == BuildState::seen &&
@@ -467,11 +477,9 @@ public:
         case BuildState::ready:
             return {Status::ready, entry.kernel.get(), {}};
         case BuildState::failed:
-            return offline ? Acquired{Status::ready, nullptr, {}}
-                           : Acquired{Status::unavailable, nullptr, "build_failed"};
+            return {Status::unavailable, nullptr, "build_failed"};
         default:
-            return offline ? Acquired{Status::ready, nullptr, {}}
-                           : Acquired{Status::pending, nullptr, "compiling"};
+            return {Status::pending, nullptr, "compiling"};
         }
     }
 

@@ -1,14 +1,16 @@
 #pragma once
 
 // A par_loop's execution strategies.  A strategy is a self-contained way of
-// executing one loop; the ladder asks every strategy the same two questions
-// and picks one per call.  Nothing here knows about kernels, devices or any
-// one strategy family.
+// executing one loop, with an offline kernel, a specialised one, or both; a
+// candidate is a strategy with one of its kernels, and the ladder picks a
+// candidate per call.  Nothing here knows about devices or any one strategy
+// family.
 
 #include <op_lib_core.h>
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -133,13 +135,14 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop);
 // --- Strategies ---------------------------------------------------------------
 
 enum class Status {
-    ready,        // a kernel is ready for the configuration
+    ready,        // its kernel is ready for the configuration
     pending,      // its kernel is still being built
     unavailable,  // it does not run the configuration: no kernel, or a plan
                   // the configuration does not suit (the reason says which)
 };
 
 class Strategy;
+struct Candidate;
 
 // How soon a prepare needs its kernel: when the backend's policy gets to
 // it, started now, or built before prepare returns.
@@ -156,25 +159,27 @@ enum class KernelKind {
     jit,
 };
 
-// A backend's estimate of one kind of a strategy's kernel for a
-// configuration: whether it can run, and its expected time in the backend's
-// own units, comparable only with the backend's other estimates for the
-// configuration; none when the backend cannot say.
+// A backend's estimate of one kind of a strategy's kernel: whether the
+// strategy has it, and its expected time in the backend's own units,
+// comparable only with the backend's other estimates for the loop; none when
+// the backend cannot say.
 struct Estimate {
     bool available = false;
     std::optional<float> time;
 };
 
-// A strategy's answer for one configuration.  Opaque to everything but the
+// A candidate's answer for one configuration.  Opaque to everything but the
 // strategy that produced it; carries no ownership.
 struct Prepared {
-    // The strategy that prepared it, which runs it.
-    Strategy *strategy = nullptr;
+    // The candidate prepared, whose strategy runs it; set by
+    // Candidate::prepare.
+    const Candidate *candidate = nullptr;
     Status status = Status::unavailable;
     // A fixed identifier when not ready: "low_compression", "compiling",
     // "kernel_unavailable", ...
     std::string_view reason;
-    // The strategy's cached entry and kernel for the configuration.
+    // The strategy's cached entry for the configuration, and its specialised
+    // kernel; none for an offline one.
     const void *entry = nullptr;
     void *kernel = nullptr;
 };
@@ -187,32 +192,25 @@ public:
     // chunk_size=128;singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
-    // Estimate its kernel of kind for call: an offline one at a nominal 1
-    // and no specialised one, unless the backend says otherwise.
-    virtual Estimate estimate(const Call& call, KernelKind kind) const {
-        (void)call;
+    // Its kernel of kind: an offline one at a nominal 1 and no specialised
+    // one, unless the backend says otherwise.  Fixed once the strategy is
+    // built.
+    virtual Estimate estimate(KernelKind kind) const {
         if (kind == KernelKind::offline)
             return {true, 1.0f};
         return {};
     }
 
-    // Resolve call: build or find its configuration's plan, and find or
-    // request its kernel, as urgency asks.  Blocks only for Urgency::wait, or when the
-    // backend builds synchronously.  The kernel is a specialised one when the
-    // JIT is on and one can run, and the offline one cannot, OP_JIT_FORCE is
-    // set, or the estimates expect it faster; else the offline one.  A tie
-    // or a missing estimate keeps the offline kernel, as a specialised one
-    // costs a build.
-    Prepared prepare(const Call& call, Urgency urgency);
-
-    // prepare with a kernel of kind.
-    virtual Prepared prepare_kind(const Call& call, Urgency urgency,
-                                  KernelKind kind) = 0;
+    // Resolve call for its kernel of kind: build or find the configuration's
+    // plan, and find or request the kernel, as urgency asks.  Blocks only for
+    // Urgency::wait, or when the backend builds synchronously.
+    virtual Prepared prepare(const Call& call, Urgency urgency, KernelKind kind) = 0;
 
     // Run what prepare returned; microseconds when the launch is timed.  A
     // run always follows this strategy's prepare for the same call, so the
-    // strategy may keep per-call state from it; other strategies of the loop
-    // may be prepared in between, so state they share must not carry it.
+    // strategy may keep per-call state from it.  Its other kernel's prepare
+    // and other strategies' may come in between, so that state must not
+    // depend on the kind, and state strategies share must not carry it.
     virtual std::optional<float> run(const Prepared& prepared,
                                      const Launch& launch) = 0;
 
@@ -261,46 +259,60 @@ struct Family {
 // their settings and order from here.
 void declare_families(std::span<const Family> families);
 
-// A loop's strategies in ladder order, their families' as declared,
-// whatever order the loop adds them in.  The last one is the floor: it is
-// selected when no other is ready, enabled or not, whatever its own status.
-// A family adds a strategy per point of its axes; the point of every axis's
-// first value is the one the ladder runs and OP_STRATEGY forces, the others
-// only the tuner tries.  OP_<FAMILY>=on/off, read when the family is
-// declared, wins over the default, and off turns all of the family off;
-// OP_STRATEGY, read by init, is <family> or <loop>:<family> (a
-// comma-separated list of either), a loop's own item winning over a family
-// for every loop.
+// A strategy with one of its kernels: what the ladder runs and the tuner
+// times.  A strategy has a candidate per kernel it has, and an offline one
+// that is unavailable when it has none.
+struct Candidate {
+    Strategy *strategy;
+    KernelKind kind;
+    // The strategy's name, ";kernel=jit" added for a specialised kernel.
+    std::string name;
+    std::string family;
+    // Its family's place in ladder order.
+    std::size_t rank;
+    // Of its family's point of first values, which the ladder may run.
+    bool member;
+    // A member of a family on by default or by its variable.
+    bool enabled;
+    // Turned off by its variable: never run or explored.
+    bool off;
+
+    Prepared prepare(const Call& call, Urgency urgency) const;
+};
+
+// A loop's candidates in ladder order: its families' as declared, whatever
+// order the loop adds them in, a family's other points ahead of the one the
+// ladder runs, and a strategy's kernels in the order of their estimates (the
+// specialised one first when it is expected faster, or under
+// OP_JIT_FORCE).  The last candidate is the floor: it is selected when no
+// other is ready, enabled or not, whatever its own status.  A family adds a
+// strategy per point of its axes; the point of every axis's first value is
+// the one the ladder runs and OP_STRATEGY forces, the others only the tuner
+// tries.  OP_<FAMILY>=on/off, read when the family is declared, wins over the
+// default, and off turns all of the family off; OP_STRATEGY, read by init, is
+// <family> or <loop>:<family> (a comma-separated list of either), a loop's
+// own item winning over a family for every loop.
 class Ladder {
 private:
-    struct Entry {
-        std::unique_ptr<Strategy> strategy;
-        std::string family;
-        // The family's point of first values, which the ladder may run.
-        bool runs;
-        bool enabled;
-        // Turned off by its variable: never run and never explored.
-        bool off;
-        // Its family's place in ladder order.
-        std::size_t rank;
-    };
-
     std::string m_name;
-    // OP_STRATEGY's families for this loop, most specific first, and the
-    // rank of the one forced.
+    // OP_STRATEGY's families for this loop, most specific first.
     std::vector<std::string> m_forced_names;
-    std::size_t m_forced_rank = SIZE_MAX;
-    std::vector<Entry> m_entries;
+    std::vector<std::unique_ptr<Strategy>> m_strategies;
+    // In the order added, which references stay valid through; m_order holds
+    // ladder order.
+    std::deque<Candidate> m_candidates;
+    std::vector<std::size_t> m_order;
+    // The forced family's first and last member, in ladder order.
     std::optional<std::size_t> m_forced;
-    // Why select passed over each strategy, sized as they are added so a
+    std::size_t m_forced_last = 0;
+    // Why select passed over each candidate, sized as they are added so a
     // select allocates nothing.
     std::vector<std::string_view> m_reasons;
     std::vector<std::string> m_reported;
-    // Why the forced strategy was passed over, each warned about once.
+    // Why the forced family was passed over, each warned about once.
     std::vector<std::string> m_warned;
 
-    void add_entry(std::unique_ptr<Strategy> strategy, std::string_view family,
-                   bool runs, bool enabled, bool off, std::size_t rank);
+    void order();
     void warn_forced(std::string_view reason);
     void report(const Prepared& selection,
                 std::span<const std::string_view> reasons);
@@ -314,35 +326,28 @@ public:
     const std::string& name() const { return m_name; }
 
     // A declared family: make builds its strategy for each point of its
-    // axes, the tuner's ahead of the one that runs, so a family's last
-    // strategy is the one that runs.
+    // axes, and the strategy's candidates follow from its estimates.
     void add(std::string_view family, const Make& make);
 
-    // First enabled strategy, from the forced one if any, whose prepare is
+    // First enabled member, from the forced family if any, whose prepare is
     // ready; else the floor, waited for, so the selection is always ready: a
-    // floor that cannot run stops the program.  The forced strategy is
-    // waited for too, and each reason it is still passed over is warned
-    // about once.  At diagnostic verbosity each distinct outcome (what ran,
-    // and why each earlier strategy did not) is printed once per loop.
+    // floor that cannot run stops the program.  The forced family's members
+    // start their builds at once and its last is waited for, and each reason
+    // the family is still passed over is warned about once.  At diagnostic
+    // verbosity each distinct outcome (what ran, and why each earlier
+    // candidate did not) is printed once per loop.
     Prepared select(const Call& call);
 
-    std::size_t size() const { return m_entries.size(); }
-    Strategy& operator[](std::size_t index) { return *m_entries[index].strategy; }
-    const Strategy& operator[](std::size_t index) const {
-        return *m_entries[index].strategy;
+    const std::vector<std::unique_ptr<Strategy>>& strategies() const {
+        return m_strategies;
     }
-    bool enabled(std::size_t index) const { return m_entries[index].enabled; }
-    // Not turned off by its variable: the tuner explores these.
-    bool explorable(std::size_t index) const { return !m_entries[index].off; }
+
+    // The candidates in ladder order.
+    std::size_t size() const { return m_order.size(); }
+    const Candidate& operator[](std::size_t index) const {
+        return m_candidates[m_order[index]];
+    }
     std::optional<std::size_t> forced() const { return m_forced; }
 };
-
-// --- Teardown -----------------------------------------------------------------
-
-// Owners of device state register a release callback, which finalise
-// (loop/autotune.h) runs at op_exit, before the device is torn down.
-void register_release(void *owner, void (*release)(void *owner));
-void unregister_release(void *owner);
-void release_all();
 
 } // namespace op::loop

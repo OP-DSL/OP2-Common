@@ -1,6 +1,6 @@
 // The JIT's backend-neutral half on the host: the build cache's policy over
-// fake kernels and jobs, the decision to specialise, the parameters' values,
-// keys and C++ constants, and the modes and statistics that move them.
+// fake kernels and jobs, the parameters' values, keys and C++ constants, and
+// the modes and statistics that move them.
 
 #include <loop/jit.h>
 
@@ -70,69 +70,58 @@ void policy(std::initializer_list<std::pair<const char *, const char *>> variabl
     loop::init_jit_options();
 }
 
-// A key builds once asked for OP_JIT_MIN_CALLS times; until then the
-// offline kernel runs, or nothing does.
+// A key builds once asked for OP_JIT_MIN_CALLS times, pending until then.
 void test_min_calls() {
     policy({{"OP_JIT_MIN_CALLS", "3"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
     Cache cache{"kernel", 4};
     for (int call = 0; call < 2; ++call) {
-        auto offline = cache.acquire(1, later, true, builds.job(1));
-        CHECK(offline.status == ready && offline.kernel == nullptr);
-        auto pending = cache.acquire(2, later, false, builds.job(2));
+        auto pending = cache.acquire(1, later, builds.job(1));
         CHECK(pending.status == loop::Status::pending && pending.reason == "compiling");
     }
     CHECK(builds.started == 0 && cache.state(1) == loop::BuildState::seen);
 
-    auto first = cache.acquire(1, later, true, builds.job(1));
+    auto first = cache.acquire(1, later, builds.job(1));
     CHECK(first.status == ready && first.kernel != nullptr && first.kernel->id == 1);
-    auto second = cache.acquire(2, later, false, builds.job(2));
-    CHECK(second.status == ready && second.kernel->id == 2);
-    CHECK(cache.acquire(1, later, true, builds.job(1)).kernel == first.kernel);
-    CHECK(builds.started == 2);
+    CHECK(cache.acquire(1, later, builds.job(1)).kernel == first.kernel);
+    CHECK(builds.started == 1);
 }
 
-// now starts a build on a thread at once, the offline kernel running
-// meanwhile; wait builds here when nothing else can run, and joins a build
-// already running.
+// now starts a build on a thread at once, pending meanwhile; wait builds
+// here, and joins a build already running.
 void test_urgency() {
     policy({{"OP_JIT_MIN_CALLS", "100"}});
     Builds builds;
     Cache cache{"kernel", 4};
     builds.open = false;
-    auto acquired = cache.acquire(1, now, true, builds.job(1));
-    CHECK(acquired.status == ready && acquired.kernel == nullptr);
+    auto acquired = cache.acquire(1, now, builds.job(1));
+    CHECK(acquired.status == loop::Status::pending);
     CHECK(cache.state(1) == loop::BuildState::building && builds.started == 1);
-    acquired = cache.acquire(1, wait, true, builds.job(1));
-    CHECK(acquired.status == ready && acquired.kernel == nullptr);
-    acquired = cache.acquire(3, now, false, builds.job(3));
+    acquired = cache.acquire(3, now, builds.job(3));
     CHECK(acquired.status == loop::Status::pending);
 
     builds.open = true;
-    acquired = cache.acquire(1, wait, false, builds.job(1));
+    acquired = cache.acquire(1, wait, builds.job(1));
     CHECK(acquired.status == ready && acquired.kernel->id == 1);
-    acquired = cache.acquire(2, wait, false, builds.job(2));
+    acquired = cache.acquire(2, wait, builds.job(2));
     CHECK(acquired.status == ready && acquired.kernel->id == 2);
     CHECK(builds.started == 3);
 
     cache.join();
     CHECK(cache.state(3) == loop::BuildState::ready);
-    CHECK(cache.acquire(3, later, false, builds.job(3)).kernel->id == 3);
+    CHECK(cache.acquire(3, later, builds.job(3)).kernel->id == 3);
     CHECK(builds.started == 3);
 }
 
-// A failed build is never retried: the offline kernel runs, else the
-// strategy is unavailable.
+// A failed build is never retried: its kernel is unavailable.
 void test_failed_build() {
     policy({{"OP_JIT_MIN_CALLS", "1"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
     Cache cache{"kernel", 4};
-    for (int call = 0; call < 2; ++call) {
-        auto failed = cache.acquire(1, later, false, builds.job(1, true));
+    for (auto urgency : {later, later, wait}) {
+        auto failed = cache.acquire(1, urgency, builds.job(1, true));
         CHECK(failed.status == loop::Status::unavailable && failed.reason == "build_failed");
     }
-    auto offline = cache.acquire(1, wait, true, builds.job(1, true));
-    CHECK(offline.status == ready && offline.kernel == nullptr);
     CHECK(builds.started == 1 && cache.state(1) == loop::BuildState::failed);
 }
 
@@ -142,9 +131,9 @@ void test_eviction() {
     policy({{"OP_JIT_MIN_CALLS", "1000"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
     Cache cache{"kernel", 4};
-    CHECK(cache.acquire(1000, now, false, builds.job(1000)).kernel != nullptr);
+    CHECK(cache.acquire(1000, now, builds.job(1000)).kernel != nullptr);
     for (std::uint64_t key = 1; key <= 300; ++key)
-        cache.acquire(key, later, true, builds.job(1));
+        cache.acquire(key, later, builds.job(1));
     CHECK(builds.started == 1);
     CHECK(cache.state(1) == loop::BuildState::unseen);
     CHECK(cache.state(300) == loop::BuildState::seen);
@@ -163,76 +152,20 @@ void test_build_slots() {
         Builds builds;
         Cache cache{"kernel", variable ? 8 : 1};
         builds.open = false;
-        cache.acquire(1, now, true, builds.job(1));
-        cache.acquire(2, now, true, builds.job(2));
+        cache.acquire(1, now, builds.job(1));
+        cache.acquire(2, now, builds.job(2));
         CHECK(cache.state(1) == loop::BuildState::building);
         CHECK(cache.state(2) == loop::BuildState::seen && builds.started == 1);
 
         Builds waited;
-        CHECK(cache.acquire(3, wait, false, waited.job(3)).kernel->id == 3);
+        CHECK(cache.acquire(3, wait, waited.job(3)).kernel->id == 3);
 
         builds.open = true;
         cache.join();
-        cache.acquire(2, now, true, builds.job(2));
+        cache.acquire(2, now, builds.job(2));
         cache.join();
         CHECK(cache.state(2) == loop::BuildState::ready && builds.started == 2);
     }
-}
-
-// A strategy with the estimates it is given, for prepare to choose between,
-// keeping the kind it chose.
-struct Estimates : loop::Strategy {
-    loop::Estimate offline;
-    loop::Estimate jit;
-    loop::KernelKind chosen = loop::KernelKind::offline;
-
-    Estimates(loop::Estimate offline_, loop::Estimate jit_)
-        : offline{offline_}, jit{jit_} {}
-    std::string_view name() const override { return "estimates"; }
-    loop::Estimate estimate(const loop::Call&,
-                            loop::KernelKind kind) const override {
-        return kind == loop::KernelKind::offline ? offline : jit;
-    }
-    loop::Prepared prepare_kind(const loop::Call&, loop::Urgency,
-                                loop::KernelKind kind) override {
-        chosen = kind;
-        return {};
-    }
-    std::optional<float> run(const loop::Prepared&, const loop::Launch&) override {
-        return std::nullopt;
-    }
-};
-
-// A specialised kernel when the JIT is on and one can run, and the offline
-// one cannot, OP_JIT_FORCE is set, or the backend expects it to be faster;
-// a tie or a missing estimate keeps the offline kernel.
-void test_choose_kernel() {
-    op_set_core set{};
-    loop::Call call{&set, {}, 0};
-    auto choose = [&](loop::Estimate offline, loop::Estimate jit) {
-        Estimates strategy{offline, jit};
-        strategy.prepare(call, loop::Urgency::later);
-        return strategy.chosen;
-    };
-    constexpr auto offline = loop::KernelKind::offline;
-    constexpr auto jit = loop::KernelKind::jit;
-    const loop::Estimate none{};
-    const loop::Estimate unknown{true, std::nullopt};
-
-    policy({});
-    CHECK(choose({true, 1.0f}, {true, 0.9f}) == jit);
-    CHECK(choose({true, 1.0f}, {true, 1.0f}) == offline);
-    CHECK(choose({true, 1.0f}, {true, 1.1f}) == offline);
-    CHECK(choose({true, 1.0f}, unknown) == offline);
-    CHECK(choose(unknown, {true, 0.9f}) == offline);
-    CHECK(choose(none, {true, 1.1f}) == jit);
-    CHECK(choose({true, 1.0f}, none) == offline);
-    CHECK(choose(none, none) == offline);
-    policy({{"OP_JIT_FORCE", "1"}});
-    CHECK(choose({true, 1.0f}, {true, 1.1f}) == jit);
-    CHECK(choose({true, 1.0f}, none) == offline);
-    policy({{"OP_JIT_LEVEL", "0"}, {"OP_JIT_FORCE", "1"}});
-    CHECK(choose(none, {true, 0.9f}) == offline);
 }
 
 // The parameters take the call's and the strategy's values, key a build by
@@ -568,6 +501,44 @@ void test_observe_every_call() {
     CHECK(params[0].mode() == baked && params.key(call, {}) == key);
 }
 
+// A configuration's modes are settled once the statistics have seen a window
+// of its calls; at once with nothing that can move, or with the JIT off.
+void test_settled() {
+    policy({});
+    op_set_core set{};
+    set.size = 10;
+    set.core_size = 10;
+    double value = 5.0;
+    op_arg args[1]{};
+    args[0].opt = 1;
+    args[0].argtype = OP_ARG_GBL;
+    args[0].acc = OP_READ;
+    args[0].dim = 1;
+    args[0].data = reinterpret_cast<char *>(&value);
+    loop::Call call{&set, {args, 1}, 10};
+
+    double global = 0.0;
+    loop::ParamSet params{"flux"};
+    params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+    for (std::uint64_t i = 0; i < loop::statistics_window; ++i) {
+        CHECK(!params.settled(call));
+        params.update(args, 1);
+        params.observe_call(call);
+    }
+    CHECK(params.settled(call));
+
+    int stride = 0;
+    loop::ParamSet fixed{"flux"};
+    fixed.add("stride", &stride, loop::ParamSource::dat_stride, 0, true);
+    CHECK(!fixed.moving() && fixed.settled(call));
+
+    loop::ParamSet unobserved{"flux"};
+    unobserved.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+    policy({{"OP_JIT_LEVEL", "0"}});
+    CHECK(unobserved.settled(call));
+    policy({});
+}
+
 } // namespace
 
 int main() {
@@ -577,13 +548,13 @@ int main() {
         test_failed_build();
         test_eviction();
         test_build_slots();
-        test_choose_kernel();
         test_params();
         test_key_words();
         test_modes();
         test_statistics();
         test_array_globals();
         test_observe_every_call();
+        test_settled();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

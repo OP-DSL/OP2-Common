@@ -180,7 +180,7 @@ std::optional<float> StrategyBase::run_phases(const op::loop::Launch& launch,
 
 inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
                                         const op::loop::Launch& launch) {
-    assert(prepared.strategy == this);
+    assert(prepared.candidate->strategy == this);
     const auto& sections = m_loop.call_sections();
     return run_phases(launch, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {
@@ -191,7 +191,7 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 
 // --- Colouring ---
 
-inline op::loop::Prepared Colouring::prepare_kind(
+inline op::loop::Prepared Colouring::prepare(
     const op::loop::Call& call, op::loop::Urgency,
     op::loop::KernelKind) {
     auto key = call.key();
@@ -261,7 +261,7 @@ inline ChunkBase::Entry& ChunkBase::entry_for(
     return m_entries.emplace(key, std::move(entry)).first->second;
 }
 
-inline op::loop::Prepared ChunkBase::prepare_kind(
+inline op::loop::Prepared ChunkBase::prepare(
     const op::loop::Call& call, op::loop::Urgency,
     op::loop::KernelKind) {
     auto& entry = entry_for(call);

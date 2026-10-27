@@ -23,15 +23,16 @@ SafeLong.h      (a long long whose lossy conversions and division by zero
 
 #### par_loop support, backend neutral (sources under src/loop)
 ```
-loop/strategy.h        (includes: op_lib_core.h; a loop's strategies as
-                        objects the ladder asks to prepare and run a call,
-                        each choosing its kernel kind from its backend's
-                        estimates, the axes a family's variants vary along,
-                        the families a backend declares, the run-wide
-                        variables op_init reads, the sections an indirect
-                        loop runs, and the teardown registry)
+loop/strategy.h        (includes: op_lib_core.h; a loop's strategies, each
+                        with its kernels, and the candidates the ladder runs
+                        and the tuner times, a strategy with one kernel
+                        each, in an order from the backend's estimates; the
+                        axes a family's variants vary along, the families a
+                        backend declares, the run-wide variables op_init
+                        reads, and the sections an indirect loop runs)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
-                        every candidate strategy per configuration)
+                        every candidate per configuration once its JIT modes
+                        have settled, and op_exit's report and release)
 loop/jit.h             (includes: extern/rapidhash.h, loop/strategy.h,
                         op_lib_core.h; the JIT's options, read by op_init,
                         the parameters a loop's kernels are specialised on
@@ -41,8 +42,9 @@ loop/jit.h             (includes: extern/rapidhash.h, loop/strategy.h,
 loop/loop.h            (includes: loop/autotune.h, loop/jit.h,
                         loop/strategy.h, op_lib_core.h; the base of every
                         backend's loop: its ladder, tuner and JIT
-                        parameters, and the steps of a call every backend
-                        shares)
+                        parameters, the steps of a call every backend
+                        shares, and the registry op_exit reports and
+                        releases)
 ```
 
 #### Planning building blocks, backend neutral (sources under src/plan)

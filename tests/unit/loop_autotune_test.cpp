@@ -1,7 +1,9 @@
 // The autotuner on the host: fake strategies with scripted statuses and
-// timings, explored per configuration and selected by the margin.
+// timings for each of their kernels, explored per configuration and
+// selected by the margin.
 
 #include <loop/autotune.h>
+#include <loop/loop.h>
 
 #include <array>
 #include <cstdio>
@@ -22,25 +24,37 @@ namespace {
 
 struct Fake : loop::Strategy {
     std::string fake_name;
+    // Statuses answered in turn, ready once exhausted; jit_statuses for its
+    // specialised kernel, which it has when jit_time is set.
     std::deque<loop::Status> statuses;
+    std::deque<loop::Status> jit_statuses;
     std::string_view reason = "scripted";
     float time;
+    std::optional<float> jit_time;
     int runs = 0;
     int timed_runs = 0;
+    int timed_jit_runs = 0;
 
-    Fake(std::string name, float time_) : fake_name{std::move(name)}, time{time_} {}
+    Fake(std::string name, float time_, std::optional<float> jit_time_ = {})
+        : fake_name{std::move(name)}, time{time_}, jit_time{jit_time_} {}
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Prepared prepare_kind(const loop::Call&, loop::Urgency,
-                           loop::KernelKind) override {
+    loop::Estimate estimate(loop::KernelKind kind) const override {
+        if (kind == loop::KernelKind::offline)
+            return {true, 1.0f};
+        return {jit_time.has_value(), 0.9f};
+    }
+
+    loop::Prepared prepare(const loop::Call&, loop::Urgency,
+                           loop::KernelKind kind) override {
+        auto& script = kind == loop::KernelKind::jit ? jit_statuses : statuses;
         loop::Status status = loop::Status::ready;
-        if (!statuses.empty()) {
-            status = statuses.front();
-            statuses.pop_front();
+        if (!script.empty()) {
+            status = script.front();
+            script.pop_front();
         }
         loop::Prepared prepared;
-        prepared.strategy = this;
         prepared.status = status;
         prepared.reason = status == loop::Status::ready ? "" : reason;
         return prepared;
@@ -48,60 +62,74 @@ struct Fake : loop::Strategy {
 
     std::optional<float> run(const loop::Prepared& prepared,
                              const loop::Launch& launch) override {
-        CHECK(prepared.strategy == this);
+        CHECK(prepared.candidate->strategy == this);
         ++runs;
         if (!launch.timed)
             return std::nullopt;
+        if (prepared.candidate->kind == loop::KernelKind::jit) {
+            ++timed_jit_runs;
+            return *jit_time;
+        }
         ++timed_runs;
         return time;
     }
 
-    std::string statistics(const loop::Prepared&) const override {
-        return "jit";
+    std::string statistics(const loop::Prepared& prepared) const override {
+        return prepared.candidate->kind == loop::KernelKind::jit ? "jit" : "offline";
     }
 };
 
-struct Fixture {
-    loop::Ladder ladder{"flux"};
+// A loop of fakes, tuned as OP_AUTOTUNE says when it is built.
+struct Fixture : loop::Loop {
     Fake *chunk_atomics;
     Fake *atomics;
     Fake *chunk_colouring;
     Fake *colouring;
-    loop::Autotuner tuner{ladder};
+    // Whether the configurations' JIT modes have settled.
+    bool settled = true;
 
     // A family without axes, declared now, its one strategy a Fake taking
-    // time.
-    Fake *add(std::string_view family, bool enabled, float time) {
+    // time, and jit_time with its specialised kernel.
+    Fake *add(std::string_view family, bool enabled, float time,
+              std::optional<float> jit_time = {}) {
         const loop::Family declared[] = {{family, {}, enabled}};
         loop::declare_families(declared);
         Fake *fake = nullptr;
-        ladder.add(family, [&](const loop::Point& point) {
-            auto made = std::make_unique<Fake>(point.name, time);
+        m_ladder.add(family, [&](const loop::Point& point) {
+            auto made = std::make_unique<Fake>(point.name, time, jit_time);
             fake = made.get();
             return made;
         });
         return fake;
     }
 
-    explicit Fixture(bool chunk_atomics_enabled = false, float chunk_atomics_time = 4.0f) {
+    explicit Fixture(bool chunk_atomics_enabled = false, float chunk_atomics_time = 4.0f,
+                     std::optional<float> atomics_jit_time = {})
+        : loop::Loop{"flux", "test", "Indirect", false} {
         chunk_atomics = add("chunk_atomics", chunk_atomics_enabled, chunk_atomics_time);
-        atomics = add("atomics", true, 10.0f);
+        atomics = add("atomics", true, 10.0f, atomics_jit_time);
         chunk_colouring = add("chunk_colouring", false, 8.0f);
         colouring = add("colouring", true, 20.0f);
     }
 
+    // The candidate the latest call ran.
+    const loop::Candidate *last = nullptr;
+
     // One call: select, let the tuner decide, run, sample.
     Fake *invoke(const loop::Call& call) {
-        auto selection = ladder.select(call);
-        auto decision = tuner.choose(call, selection);
+        auto selection = m_ladder.select(call);
+        auto decision = m_tuner->choose(call, selection, settled);
         loop::Launch launch{const_cast<op_arg *>(call.args.data()),
                             static_cast<int>(call.args.size()),
                             decision.timed != nullptr};
-        auto us = decision.prepared.strategy->run(decision.prepared, launch);
+        auto us = decision.prepared.candidate->strategy->run(decision.prepared, launch);
         if (us)
-            tuner.sample(decision, *us);
-        return static_cast<Fake *>(decision.prepared.strategy);
+            m_tuner->sample(decision, *us);
+        last = decision.prepared.candidate;
+        return static_cast<Fake *>(decision.prepared.candidate->strategy);
     }
+
+    void flush() { m_tuner->flush(); }
 };
 
 op_set_core edges{};
@@ -184,7 +212,7 @@ void test_exploration() {
     CHECK(retired == 1);
     std::remove(path.c_str());
 
-    fixture.tuner.flush();
+    fixture.flush();
 }
 
 // The ladder's choice changes while a configuration is explored, once
@@ -213,7 +241,77 @@ void test_ladder_changes() {
     // which the ladder now runs.
     for (int i = 0; i < 3; ++i)
         CHECK(fixture.invoke(call) == fixture.chunk_atomics);
-    fixture.tuner.flush();
+    fixture.flush();
+}
+
+// A strategy's two kernels are two candidates, each timed on its own: the
+// specialised one is deferred while it builds, never timed on the offline
+// kernel, and select can settle on either.  Nothing is explored before the
+// configuration's JIT modes have settled.
+void test_kernels() {
+    setenv("OP_AUTOTUNE", "select", 1);
+    setenv("OP_AUTOTUNE_MARGIN", "0", 1);
+    setenv("OP_AUTOTUNE_WARMUP", "1", 1);
+    setenv("OP_AUTOTUNE_SAMPLES", "2", 1);
+    setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
+    setenv("OP_CHUNK_COLOURING", "0", 1);
+    unsetenv("OP_AUTOTUNE_REPORT");
+    loop::init();
+
+    // atomics' specialised kernel, expected faster, comes first in the
+    // ladder and takes 3 to atomics' offline 10.
+    Fixture fixture(false, 40.0f, 3.0f);
+    CHECK(fixture.ladder()[1].name == "atomics=on;kernel=jit");
+    CHECK(fixture.ladder()[2].name == "atomics=on");
+    loop::Call call{&edges, args, edges.size + edges.exec_size};
+
+    // Unsettled, the ladder's choice runs untimed: the offline kernel while
+    // the specialised one builds.
+    fixture.settled = false;
+    fixture.atomics->jit_statuses.assign(100, loop::Status::pending);
+    for (int i = 0; i < 4; ++i)
+        CHECK(fixture.invoke(call) == fixture.atomics &&
+              fixture.last->kind == loop::KernelKind::offline);
+    CHECK(fixture.atomics->timed_runs == 0 && fixture.atomics->timed_jit_runs == 0);
+
+    // Settled, every other candidate takes its warm-up and two samples while
+    // the specialised kernel is still pending, and that trial waits for it.
+    fixture.settled = true;
+    for (int i = 0; i < 9; ++i)
+        fixture.invoke(call);
+    CHECK(fixture.atomics->timed_runs == 2 && fixture.colouring->timed_runs == 2);
+    CHECK(fixture.chunk_atomics->timed_runs == 2);
+    CHECK(fixture.atomics->timed_jit_runs == 0);
+
+    fixture.atomics->jit_statuses.clear();
+    for (int i = 0; i < 3; ++i)
+        fixture.invoke(call);
+    CHECK(fixture.atomics->timed_jit_runs == 2);
+    for (int i = 0; i < 2; ++i)
+        CHECK(fixture.invoke(call) == fixture.atomics &&
+              fixture.last->kind == loop::KernelKind::jit);
+    fixture.flush();
+}
+
+// Every loop is in the registry while it lives, and op_exit's finalise
+// releases it.
+void test_loop_registry() {
+    struct Counted : loop::Loop {
+        int releases = 0;
+        Counted() : loop::Loop{"counted", "test", "Direct", true} {}
+        void release() override {
+            ++releases;
+            loop::Loop::release();
+        }
+    };
+    unsetenv("OP_AUTOTUNE_REPORT");
+    loop::init();
+    {
+        Counted counted;
+        loop::finalise(0, 1);
+        CHECK(counted.releases == 1);
+    }
+    loop::finalise(0, 1);
 }
 
 } // namespace
@@ -233,6 +331,8 @@ int main() {
     try {
         test_exploration();
         test_ladder_changes();
+        test_kernels();
+        test_loop_registry();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

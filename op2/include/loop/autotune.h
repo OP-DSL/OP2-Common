@@ -14,9 +14,9 @@
 
 namespace op::loop {
 
-// OP_AUTOTUNE=report times every candidate strategy for each loop
-// configuration and reports how they compare with the ladder's choice, which
-// still runs once a configuration has been explored.
+// OP_AUTOTUNE=report times every candidate for each loop configuration and
+// reports how they compare with the ladder's choice, which still runs once a
+// configuration has been explored.
 struct AutotuneOptions {
     bool report = false;
     // OP_AUTOTUNE=select also reports, and once a configuration is explored
@@ -41,17 +41,18 @@ const AutotuneOptions& autotune_options();
 // Read by init.
 void init_autotune_options();
 
-// A loop's tuning: the timings of each candidate strategy for every
-// configuration of the loop seen often enough, and what to run from them.
+// A loop's tuning: the timings of each candidate for every configuration of
+// the loop seen often enough, and what to run from them.
 class Autotuner {
 private:
-    // One strategy's exploration for a configuration.
+    // One candidate's exploration for a configuration.
     struct Trial {
-        Strategy *strategy = nullptr;
-        bool candidate = false;
+        const Candidate *candidate = nullptr;
+        // Ready or pending when added, and not retired since.
+        bool live = false;
         // Turned off by its variable: never explored or reported.
         bool off = false;
-        // Why it is not a candidate, or was retired.
+        // Why it is not live.
         std::string_view reason;
         int warmups = 0;
         std::vector<float> samples;
@@ -66,14 +67,14 @@ private:
         std::string description;
         std::vector<Trial> trials;
         // The ladder's choice, as of the latest call while exploring.
-        Strategy *ladder = nullptr;
+        const Candidate *ladder = nullptr;
         // What OP_AUTOTUNE=select runs once the configuration is explored;
         // none to follow the ladder.
-        Strategy *selected = nullptr;
+        const Candidate *selected = nullptr;
         std::size_t calls = 0;
         std::size_t cursor = 0;
         bool reported = false;
-        // No candidate beyond the ladder's choice: nothing to explore.
+        // Nothing live beyond the ladder's choice: nothing to explore.
         bool trivial = false;
 
         bool explored() const;
@@ -109,25 +110,25 @@ private:
     Decision run_selected(const State& state, const Call& call,
                           const Decision& ladder);
     Summary summarise(const State& state) const;
-    Strategy *winner(const Summary& summary) const;
+    const Candidate *winner(const Summary& summary) const;
     std::string row(const State& state, const Summary& summary,
                     const Trial& trial) const;
     std::string line(const State& state) const;
     void report(State& state);
 
 public:
-    explicit Autotuner(const Ladder& ladder);
-    ~Autotuner();
+    explicit Autotuner(const Ladder& ladder) : m_ladder{ladder} {}
     Autotuner(const Autotuner&) = delete;
 
     // The ladder's selection, unless the configuration is being explored:
-    // once seen min_calls times, each candidate (every strategy not turned
-    // off by its variable whose prepare is ready or pending) runs in turn for
-    // its warm-ups and samples.  Pending defers a trial, unavailable or
-    // rejected retires it with its reason.  When every trial is done the
-    // configuration is reported and, under select, its fastest strategy runs
-    // from then on if it beats the ladder's current choice by the margin.
-    Decision choose(const Call& call, const Prepared& selection);
+    // once seen min_calls times and settled (its JIT modes have had their
+    // window), each candidate not turned off by its variable whose prepare
+    // is ready or pending runs in turn for its warm-ups and samples.  Pending
+    // defers a trial, its build started now; unavailable retires it with its
+    // reason.  When every trial is done the configuration is reported and,
+    // under select, its fastest candidate runs from then on if it beats the
+    // ladder's current choice by the margin.
+    Decision choose(const Call& call, const Prepared& selection, bool settled);
 
     // Record one timed run.
     void sample(const Decision& decision, float microseconds);
@@ -146,8 +147,8 @@ public:
 // applications that never call op_exit still get a report.
 void autotune_write_report(int rank, int ranks);
 
-// At op_exit: write the report, then release every loop's strategies, which
-// flushes the tuners the report reads.
+// At op_exit, while the device is still up: write the report, then release
+// every loop, which flushes the tuners the report reads.
 void finalise(int rank, int ranks);
 
 } // namespace op::loop

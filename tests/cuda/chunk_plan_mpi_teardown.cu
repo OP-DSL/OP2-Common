@@ -1,8 +1,9 @@
 // A device plan under the MPI CUDA library is released by op_exit through
-// the teardown registry, while the device is still up.
+// its loop's release, while the device is still up.
 
 #include <gpu/chunk_encode.h>
 #include <gpu/shims.h>
+#include <loop/loop.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -14,9 +15,18 @@
 
 namespace {
 
-void release_plan(void *owner) {
-    static_cast<op::gpu::DevicePlan *>(owner)->release();
-}
+// A loop whose release frees a device plan.
+struct PlanOwner : op::loop::Loop {
+    op::gpu::DevicePlan& plan;
+
+    explicit PlanOwner(op::gpu::DevicePlan& plan_)
+        : op::loop::Loop{"teardown", "cuda", "Direct", true}, plan{plan_} {}
+
+    void release() override {
+        op::loop::Loop::release();
+        plan.release();
+    }
+};
 
 } // namespace
 
@@ -77,11 +87,11 @@ int main(int argc, char **argv) {
 
     op::gpu::DevicePlan plan(*result.plan);
     CHECK(plan.source_offsets != nullptr && plan.stage_words != nullptr);
-    op::loop::register_release(&plan, release_plan);
-
-    op_exit();
-    CHECK(plan.source_offsets == nullptr && plan.stage_words == nullptr);
-    op::loop::unregister_release(&plan);
+    {
+        PlanOwner owner{plan};
+        op_exit();
+        CHECK(plan.source_offsets == nullptr && plan.stage_words == nullptr);
+    }
 
     std::printf("MPI chunk plan teardown test passed\n");
     return EXIT_SUCCESS;
