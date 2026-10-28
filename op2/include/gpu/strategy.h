@@ -69,8 +69,13 @@ struct LoopDescription {
 constexpr int default_block_size = 128;
 
 // Every strategy's first axis: OP_<FAMILY>_BLOCK_SIZES, else OP_BLOCK_SIZES.
+// The tuner also tries 256 under HIP, and 64 and 256 under CUDA.
 inline op::loop::Axis block_size_axis() {
-    return {"BLOCK_SIZES", "block_size", false, {default_block_size}};
+#ifdef OP2_HIP
+    return {"BLOCK_SIZES", "block_size", false, {default_block_size, 256}};
+#else
+    return {"BLOCK_SIZES", "block_size", false, {default_block_size, 64, 256}};
+#endif
 }
 
 // OP_<FAMILY>_SMEM_SPILLING, else OP_SMEM_SPILLING (CUDA 13 and later, off
@@ -338,14 +343,14 @@ public:
     // global atomic.  On by default under HIP, where shared and global fp64
     // atomics are both native; under CUDA a pointer that may be either makes
     // every increment a generic atomic, and shared fp64 adds are
-    // compare-and-swap loops.
+    // compare-and-swap loops.  The HIP tuner also tries it off, which some
+    // loops are faster with.
     static std::vector<op::loop::Axis> axes() {
 #ifdef OP2_HIP
-        constexpr int unstaged_singles = 1;
+        return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {1, 0}});
 #else
-        constexpr int unstaged_singles = 0;
+        return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {0}});
 #endif
-        return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {unstaged_singles}});
     }
 };
 

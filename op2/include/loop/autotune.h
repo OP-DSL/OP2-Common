@@ -29,7 +29,7 @@ struct AutotuneOptions {
     // OP_AUTOTUNE_WARMUP untimed, then OP_AUTOTUNE_SAMPLES timed, runs of
     // each candidate.
     int warmup = 1;
-    int samples = 3;
+    int samples = 5;
     // OP_AUTOTUNE_MIN_CALLS: calls a configuration must see before it is
     // explored, so configurations seen once are never explored.
     int min_calls = 2;
