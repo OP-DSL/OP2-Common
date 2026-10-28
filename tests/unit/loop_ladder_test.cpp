@@ -540,7 +540,7 @@ void test_kernel_less_points() {
             auto made = std::make_unique<Fake>(point);
             if (point.value("switch") == 0) {
                 made->offline_estimate = {false, {}, "kernel_unavailable"};
-                made->jit_estimate = {false, {}, "needs_launch_bounds"};
+                made->jit_estimate = {false, {}, "build_failed"};
             }
             fakes.push_back(made.get());
             return made;
@@ -568,10 +568,10 @@ void test_kernel_less_points() {
         build(ladder, fakes);
         CHECK(ladder.size() == 2 && !ladder[0].member && ladder[1].member);
         CHECK(ladder[1].kind == loop::KernelKind::offline &&
-              ladder[1].refused == "needs_launch_bounds");
+              ladder[1].refused == "build_failed");
         auto prepared = ladder[1].prepare(indirect_call(), loop::Urgency::later);
         CHECK(prepared.status == loop::Status::unavailable &&
-              prepared.reason == "needs_launch_bounds" && prepared.candidate == &ladder[1]);
+              prepared.reason == "build_failed" && prepared.candidate == &ladder[1]);
         CHECK(fakes[1]->prepares == 0);
     }
     unsetenv("OP_COLOURING_SWITCHES");

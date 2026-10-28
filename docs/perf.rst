@@ -107,15 +107,11 @@ Environment variables (read by ``op_init``):
    * - ``OP_STRATEGY``
      - ``<strategy>`` or ``<loop>:<strategy>``, a comma-separated list: forces the strategy (a loop's own item wins).  A loop that cannot run it warns ``<loop> passes over its forced strategy <strategy>: <reason>``.
    * - ``OP_BLOCK_SIZES``
-     - GPU thread-block size, default 128.
-   * - ``OP_LAUNCH_BOUNDS``
-     - ``on`` or ``off`` (GPU, JIT kernels): the kernel declares its block size as launch bounds, which the compiler also takes as an occupancy target and may cut registers for.  On under HIP and off under CUDA, as the offline kernels are built; a strategy at the other value has only its JIT kernel.
-   * - ``OP_MIN_BLOCKS``
-     - Positive integer (GPU, JIT kernels, default 1): the launch bounds' second argument, which caps the kernel's registers so that many can be resident: blocks per multiprocessor under CUDA, warps per execution unit under HIP.  1 leaves it out; any other value needs ``OP_LAUNCH_BOUNDS=on``, so the autotuner leaves out the variants without it, and a strategy that runs that way is unavailable (``needs_launch_bounds``).
+     - GPU thread-block size, default 128.  Every kernel declares its block size as launch bounds, which the compiler also takes as an occupancy target: the offline kernels 128, so a larger block size runs only a JIT kernel, built for it.
    * - ``OP_SMEM_SPILLING``
-     - ``on`` or ``off`` (CUDA 13 and later, JIT kernels of ``plain``, ``atomics`` and ``colouring``, default off): the compiler spills registers to shared memory before local memory.  It needs ``OP_LAUNCH_BOUNDS=on``, which sizes that shared memory, so the autotuner leaves out the variants without it, and a strategy that runs that way is unavailable (``needs_launch_bounds``).
+     - ``on`` or ``off`` (CUDA 13 and later, JIT kernels of ``plain``, ``atomics`` and ``colouring``, default off): the compiler spills registers to shared memory before local memory, as much as the kernel's launch bounds leave.
    * - ``OP_CHUNK_SIZES``
-     - Elements per chunk of the chunked strategies, default 128 on the GPU and 256 on the host.
+     - Elements per chunk of the host's chunked strategies, default 256.  On the GPU a chunk is a block's elements.
    * - ``OP_CHUNK_ATOMICS_UNSTAGED_SINGLES``
      - ``on`` or ``off`` (GPU): ``chunk_atomics`` leaves a target only one of a chunk's elements references in global memory, adding to it directly.  On under HIP, off under CUDA.
    * - ``OP_CHUNK_COLOURING_WAVEFRONT``
@@ -125,16 +121,16 @@ Environment variables (read by ``op_init``):
    * - ``OP_CHUNK_ATOMICS_MIN_COMPRESSION``
      - Default 1.5: ``chunk_atomics`` declines a call whose chunks average fewer references per staged target; 0 accepts every call.  Ignored with unstaged singles.
 
-``OP_BLOCK_SIZES``, ``OP_LAUNCH_BOUNDS``, ``OP_MIN_BLOCKS``, ``OP_SMEM_SPILLING``, ``OP_CHUNK_SIZES``, ``OP_CHUNK_ATOMICS_UNSTAGED_SINGLES`` and ``OP_CHUNK_COLOURING_WAVEFRONT`` are each a strategy's *axis*: ``OP_<STRATEGY>_<AXIS>`` (e.g. ``OP_CHUNK_ATOMICS_BLOCK_SIZES``) sets it for one strategy, and every axis takes one value or a comma-separated list, of which the first runs and the rest are only tried by the autotuner.
+``OP_BLOCK_SIZES``, ``OP_SMEM_SPILLING``, ``OP_CHUNK_SIZES``, ``OP_CHUNK_ATOMICS_UNSTAGED_SINGLES`` and ``OP_CHUNK_COLOURING_WAVEFRONT`` are each a strategy's *axis*: ``OP_<STRATEGY>_<AXIS>`` (e.g. ``OP_CHUNK_ATOMICS_BLOCK_SIZES``) sets it for one strategy, and every axis takes one value or a comma-separated list, of which the first runs and the rest are only tried by the autotuner.
 
 Autotuning
 ----------
 
 ``OP_AUTOTUNE=report`` times every candidate (each strategy at each combination of its axes' values, with each of its kernels: offline, and on the GPU specialised, named ``...;kernel=jit``) for each configuration of a loop (its set, run size and arguments) once that configuration has been seen ``OP_AUTOTUNE_MIN_CALLS`` times (default 2) and its JIT parameters have settled (32 calls of the configuration, when any can move), with ``OP_AUTOTUNE_WARMUP`` untimed runs (default 1) and ``OP_AUTOTUNE_SAMPLES`` timed ones (default 3), and still runs the ladder's choice.  A specialised kernel's trial waits for its build, which it starts at once.  The space explored is what the variables above allow: the strategies not turned off, the values each axis lists, and with ``OP_JIT_LEVEL=0`` no specialised kernels.  ``OP_AUTOTUNE=select`` also runs a configuration's fastest candidate once it is explored, when that beats the ladder's choice by more than ``OP_AUTOTUNE_MARGIN`` (default 0.03, a fraction of the ladder's time).  Either mode writes a CSV report to ``OP_AUTOTUNE_REPORT`` (``.<rank>`` appended under MPI) with the columns ``loop``, ``configuration``, ``calls``, ``strategy``, ``status``, ``median_us``, ``samples``, ``ladder``, ``fastest``, ``speedup``, ``selected``, ``state`` and ``statistics`` (the kernel kind, its registers, local and shared memory, and the strategy's plan figures).
 
-Strategies whose plans for a configuration would be the same share one, planned and uploaded once: those that differ only in ``OP_LAUNCH_BOUNDS``, ``OP_MIN_BLOCKS`` or ``OP_SMEM_SPILLING``, and every ``colouring`` strategy whatever its block size.  Once a configuration is explored, the strategies that neither the ladder nor the selection runs drop their plans for it.
+Strategies whose plans for a configuration would be the same share one, planned and uploaded once: those that differ only in ``OP_SMEM_SPILLING``, and every ``colouring`` strategy whatever its block size.  Once a configuration is explored, the strategies that neither the ladder nor the selection runs drop their plans for it.
 
-At ``op_profile_output``, or at ``op_exit`` when nothing called it, rank 0 prints a summary of its own loops: the configurations explored and those not, the time over their calls at the ladder's choices and at the fastest candidates, and the loops where a candidate beat the ladder's choice by more than 0.5%, most time saved first, each with its ladder's and fastest candidates.  A candidate shows as its strategy, the axis values that differ from the ladder's, and ``jit`` for a specialised kernel: ``chunk_atomics (chunk_size=256) jit``.  The CSV report has every configuration.
+At ``op_profile_output``, or at ``op_exit`` when nothing called it, rank 0 prints a summary of its own loops: the configurations explored and those not, the time over their calls at the ladder's choices and at the fastest candidates, and the loops where a candidate beat the ladder's choice by more than 0.5%, most time saved first, each with its ladder's and fastest candidates.  A candidate shows as its strategy, the axis values that differ from the ladder's, and ``jit`` for a specialised kernel: ``chunk_atomics (block_size=256) jit``.  The CSV report has every configuration.
 
 JIT Kernels
 -----------

@@ -279,8 +279,7 @@ inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
                                   KernelSource source, Binder bind)
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
       m_block_size{point.value("block_size")},
-      m_switches{point.value("launch_bounds") != 0, point.value("min_blocks"),
-                 point.value("smem_spilling", 0) != 0},
+      m_switches{point.value("smem_spilling", 0) != 0},
       m_offline{source.offline}, m_cache{source.name, options().build_threads} {}
 
 inline void StrategyBase::begin(const op::loop::Call& call) {
@@ -308,7 +307,7 @@ inline op::loop::Prepared StrategyBase::acquire(
     auto acquired = m_cache.acquire(key, urgency, [&] {
         return m_loop.compiler().job(params, m_source, m_switches);
     });
-    // Without launch bounds its registers may leave too few for its block.
+    // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::loop::Status::ready &&
         acquired.kernel->figures().max_threads < m_block_size) {
         prepared.reason = "thread_limit";
@@ -479,13 +478,14 @@ inline void Colouring::release() {
 // --- The chunked strategies ---
 
 // The configuration's plan, the shared one when another strategy holds the
-// same: the same planner, call shape, groups, chunk size, block and variant.
+// same: the same planner, call shape, groups, block size and variant; a
+// chunk is a block's elements.
 inline const ChunkEntry& ChunkBase::entry_for(const op::loop::Call& call) {
     return m_plans.get(call, [&] {
         ChunkLimits limits{m_block_size, device().shared_bytes};
         const auto& chunk_options = op::plan::chunk_options();
         op::plan::PlanKey key{m_coloured ? "chunk_colouring" : "chunk_atomics", call};
-        key.add(m_groups).add(m_chunk_size).add(limits.block_size).add(limits.shared_bytes);
+        key.add(m_groups).add(limits.block_size).add(limits.shared_bytes);
         if (m_coloured)
             key.add(m_wavefront).add(options().window);
         else
@@ -494,10 +494,10 @@ inline const ChunkEntry& ChunkBase::entry_for(const op::loop::Call& call) {
             auto result =
                 m_coloured
                     ? plan_chunk_colouring(call.args, m_call_state.sections, m_groups,
-                                           m_chunk_size, limits, m_wavefront,
+                                           m_block_size, limits, m_wavefront,
                                            options().window)
                     : plan_chunk_atomics(call.args, m_call_state.sections, m_groups,
-                                         m_chunk_size, limits, m_unstaged_singles,
+                                         m_block_size, limits, m_unstaged_singles,
                                          chunk_options.min_compression);
             report(result);
             auto entry = std::make_shared<ChunkEntry>();

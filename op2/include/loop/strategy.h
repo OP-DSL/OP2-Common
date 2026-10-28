@@ -162,8 +162,7 @@ enum class KernelKind {
 // A backend's estimate of one kind of a strategy's kernel: whether the
 // strategy has it, and its expected time in the backend's own units,
 // comparable only with the backend's other estimates for the loop, none when
-// the backend cannot say; when it has none, why ("kernel_unavailable",
-// "needs_launch_bounds").
+// the backend cannot say; when it has none, why ("kernel_unavailable").
 struct Estimate {
     bool available = false;
     std::optional<float> time;
@@ -191,8 +190,7 @@ public:
     virtual ~Strategy() = default;
 
     // The family and each axis's value, "chunk_atomics=on;block_size=64;
-    // launch_bounds=off;min_blocks=1;chunk_size=128;singles=on"; the report
-    // column.
+    // singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
     // Its kernel of kind: an offline one at a nominal 1 and no specialised

@@ -226,8 +226,8 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
 } // namespace
 
 int main(int argc, char **argv) {
-    // Every source in one chunk.
-    setenv("OP_CHUNK_ATOMICS_CHUNK_SIZES", "256", 1);
+    // Every source in one chunk: a block's elements.
+    setenv("OP_CHUNK_ATOMICS_BLOCK_SIZES", "256", 1);
     op_init(argc, argv, 2);
     const bool expect_jit = op::loop::jit_options().level > 0;
 
@@ -368,46 +368,29 @@ int main(int argc, char **argv) {
             }
         }
 
-        // Two chunk_atomics strategies that differ only in launch bounds plan
-        // alike: one plan, made and uploaded once, which stays while either
-        // holds it.  Without the JIT the bounded one has no kernel, so it has
-        // no candidate.
+        // Two loops whose calls have the same shape plan chunk_atomics alike:
+        // one plan, made and uploaded once, which stays while either holds it.
         {
-            setenv("OP_LAUNCH_BOUNDS", "off,on", 1);
-            op::loop::init();
-            op::gpu::init();
             Fixture alike;
-            gpu::Loop alike_loop("chunk_strategy_alike", "cuda", "Indirect", {false, false},
-                                 headers());
-            add_strategies(alike_loop, alike);
-            const op::loop::Candidate *bounded = nullptr;
-            const op::loop::Candidate *unbounded = nullptr;
-            auto kind = expect_jit ? op::loop::KernelKind::jit : op::loop::KernelKind::offline;
-            for (std::size_t i = 0; i < alike_loop.ladder().size(); ++i) {
-                const auto& candidate = alike_loop.ladder()[i];
-                if (candidate.family != "chunk_atomics" || candidate.kind != kind)
-                    continue;
-                (candidate.name.find("launch_bounds=on") != std::string::npos ? bounded
-                                                                              : unbounded) =
-                    &candidate;
-            }
-            CHECK(unbounded != nullptr && (bounded != nullptr) == expect_jit);
-            if (expect_jit) {
-                auto& bounded_strategy = static_cast<gpu::ChunkBase&>(*bounded->strategy);
-                auto& unbounded_strategy =
-                    static_cast<gpu::ChunkBase&>(*unbounded->strategy);
-                op::loop::Call call{&alike.source, alike.args,
-                                    alike.source.size + alike.source.exec_size};
-                auto first = unbounded->prepare(call, op::loop::Urgency::later);
-                auto second = bounded->prepare(call, op::loop::Urgency::later);
-                CHECK(first.entry != nullptr && first.entry == second.entry);
-                CHECK(unbounded_strategy.entries() == 1 && bounded_strategy.entries() == 1);
-                bounded_strategy.forget(call.key());
-                CHECK(bounded_strategy.entries() == 0);
-                auto again = unbounded->prepare(call, op::loop::Urgency::later);
-                CHECK(again.entry == first.entry);
-            }
-            unsetenv("OP_LAUNCH_BOUNDS");
+            gpu::Loop first_loop("chunk_strategy_alike_first", "cuda", "Indirect",
+                                 {false, false}, headers());
+            gpu::Loop second_loop("chunk_strategy_alike_second", "cuda", "Indirect",
+                                  {false, false}, headers());
+            add_strategies(first_loop, alike);
+            add_strategies(second_loop, alike);
+            auto& first_chunk = static_cast<gpu::ChunkBase&>(*first_loop.ladder()[0].strategy);
+            auto& second_chunk =
+                static_cast<gpu::ChunkBase&>(*second_loop.ladder()[0].strategy);
+            op::loop::Call call{&alike.source, alike.args,
+                                alike.source.size + alike.source.exec_size};
+            auto first = first_loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+            auto second = second_loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+            CHECK(first.entry != nullptr && first.entry == second.entry);
+            CHECK(first_chunk.entries() == 1 && second_chunk.entries() == 1);
+            second_chunk.forget(call.key());
+            CHECK(second_chunk.entries() == 0);
+            auto again = first_loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+            CHECK(again.entry == first.entry);
         }
 
         GPU_CHECK(gpuFree(output_d));

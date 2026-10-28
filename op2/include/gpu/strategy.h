@@ -64,7 +64,8 @@ struct LoopDescription {
 // --- Variants -------------------------------------------------------------------
 
 // The block size a strategy runs unless OP_BLOCK_SIZES says otherwise, and
-// the HIP offline kernels' launch bound.
+// the offline kernels' launch bounds; a specialised kernel has its own block
+// size as launch bounds.
 constexpr int default_block_size = 128;
 
 // Every strategy's first axis: OP_<FAMILY>_BLOCK_SIZES, else OP_BLOCK_SIZES.
@@ -72,36 +73,11 @@ inline op::loop::Axis block_size_axis() {
     return {"BLOCK_SIZES", "block_size", false, {default_block_size}};
 }
 
-// Whether the offline kernels have launch bounds: under HIP, whose compiler
-// otherwise allows for 1024 threads a block.
-#ifdef OP2_HIP
-constexpr bool offline_launch_bounds = true;
-#else
-constexpr bool offline_launch_bounds = false;
-#endif
-
-// OP_<FAMILY>_LAUNCH_BOUNDS, else OP_LAUNCH_BOUNDS: the specialised kernel
-// has its block size as launch bounds, which the compiler also takes as an
-// occupancy target and may cut registers for.  As the offline kernels by
-// default.
-inline op::loop::Axis launch_bounds_axis() {
-    return {"LAUNCH_BOUNDS", "launch_bounds", true, {offline_launch_bounds}};
-}
-
-// OP_<FAMILY>_MIN_BLOCKS, else OP_MIN_BLOCKS: the launch bounds' second
-// argument, which caps the specialised kernel's registers so that many can
-// be resident: blocks per multiprocessor under CUDA, warps per execution
-// unit under HIP.  1, the default, leaves it out; any other value needs
-// launch bounds.
-inline op::loop::Axis min_blocks_axis() {
-    return {"MIN_BLOCKS", "min_blocks", false, {1}};
-}
-
 // OP_<FAMILY>_SMEM_SPILLING, else OP_SMEM_SPILLING (CUDA 13 and later, off
 // by default): the specialised kernel spills registers to shared memory
-// before local memory.  It needs launch bounds, which size the shared memory
-// it takes, and a kernel without dynamic shared memory, so the chunked
-// strategies have no such axis.
+// before local memory, as much as its launch bounds leave.  It needs a
+// kernel without dynamic shared memory, so the chunked strategies have no
+// such axis.
 #if defined(OP2_CUDA) && CUDART_VERSION >= 13000
 constexpr bool smem_spilling_supported = true;
 #else
@@ -201,9 +177,7 @@ protected:
     // Whether its offline kernel launches its block size and stands for it:
     // compiled with its switches.
     bool offline_usable() const {
-        return m_offline.usable(m_block_size) &&
-               m_switches.launch_bounds == offline_launch_bounds &&
-               m_switches.min_blocks == 1 && !m_switches.smem_spilling;
+        return m_offline.usable(m_block_size) && !m_switches.smem_spilling;
     }
 
     // Finish a call: the launch parameters and the kernel of kind, as a
@@ -229,8 +203,7 @@ protected:
 
 public:
     static std::vector<op::loop::Axis> axes() {
-        std::vector<op::loop::Axis> out{block_size_axis(), launch_bounds_axis(),
-                                        min_blocks_axis()};
+        std::vector<op::loop::Axis> out{block_size_axis()};
         if (smem_spilling_supported)
             out.push_back(smem_spilling_axis());
         return out;
@@ -239,20 +212,15 @@ public:
     std::string_view name() const override { return m_name; }
 
     // The offline kernel at a nominal 1 when it can launch the block size
-    // and has the switches; a specialised one when there is source and its
-    // switches have the launch bounds a minimum of blocks or shared-memory
-    // spilling needs, expected faster when the offline kernel uses more than
-    // OP_JIT_MIN_REGISTERS registers (by an arbitrary tenth, until timings
-    // calibrate it).
+    // and has the switches; a specialised one when there is source, expected
+    // faster when the offline kernel uses more than OP_JIT_MIN_REGISTERS
+    // registers (by an arbitrary tenth, until timings calibrate it).
     op::loop::Estimate estimate(op::loop::KernelKind kind) const override {
         if (kind == op::loop::KernelKind::offline)
             return offline_usable() ? op::loop::Estimate{true, 1.0f}
                                     : op::loop::Estimate{false, {}, "kernel_unavailable"};
         if (m_source.source.empty())
             return {false, {}, "kernel_unavailable"};
-        if ((m_switches.smem_spilling || m_switches.min_blocks != 1) &&
-            !m_switches.launch_bounds)
-            return {false, {}, "needs_launch_bounds"};
         bool prior = m_offline.registers() > options().min_registers;
         return {true, prior ? 0.9f : 1.0f};
     }
@@ -325,19 +293,17 @@ class ChunkBase : public StrategyBase {
 protected:
     bool m_coloured;
     op::plan::ArgGroups m_groups;
-    int m_chunk_size;
     op::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured,
               KernelSource source, Binder bind, op::plan::ArgGroups groups)
         : StrategyBase{loop, point, source, bind}, m_coloured{coloured},
-          m_groups{groups}, m_chunk_size{point.value("chunk_size")} {}
+          m_groups{groups} {}
 
-    // The block size, launch bounds, the chunk size, a block multiple of 128
-    // elements by default, and the strategy's switch.
+    // The block size, which is also the chunk size, and the strategy's
+    // switch.
     static std::vector<op::loop::Axis> chunk_axes(op::loop::Axis variant) {
-        return {block_size_axis(), launch_bounds_axis(), min_blocks_axis(),
-                op::plan::chunk_size_axis(default_block_size), std::move(variant)};
+        return {block_size_axis(), std::move(variant)};
     }
 
     const ChunkEntry& entry_for(const op::loop::Call& call);

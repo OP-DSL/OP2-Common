@@ -1,9 +1,7 @@
-// A kernel with more registers than a 1024-thread block leaves: compiled
-// without launch bounds its specialised kernel cannot launch that block and
-// is unavailable (thread_limit); with them it runs, with two blocks a
-// multiprocessor its registers are capped to fit both, and with
-// shared-memory spilling (CUDA 13) it runs too, while a minimum of blocks or
-// spilling without launch bounds is unavailable (needs_launch_bounds).
+// A kernel with more registers than a 1024-thread block leaves: without
+// launch bounds its specialised kernel cannot launch that block and is
+// unavailable (thread_limit); with them, as every generated kernel has, it
+// runs, and with shared-memory spilling (CUDA 13) too.
 
 #define OP_KERNEL_JIT_TAG jit_thread_limit_test
 #include <kernel/jit_embed.h>
@@ -27,8 +25,8 @@ namespace loop = op::loop;
 constexpr int width = 64;
 constexpr int elements = 4096;
 
-constexpr char source[] = R"op2(
-extern "C" __global__ OP2_JIT_LAUNCH_BOUNDS
+// The kernel after its declaration, with or without launch bounds.
+#define KERNEL_BODY R"op2(
 void thread_limit_kernel(double *out, const double *in, int start, int end) {
     OP2_JIT_SMEM_SPILLING
     for (int e = start + threadIdx.x + blockIdx.x * blockDim.x; e < end;
@@ -50,7 +48,11 @@ void thread_limit_kernel(double *out, const double *in, int start, int end) {
         out[e] = s;
     }
 }
-)op2";
+)op2"
+
+constexpr char unbounded[] = "extern \"C\" __global__" KERNEL_BODY;
+constexpr char bounded[] =
+    "extern \"C\" __global__ __launch_bounds__(op2_block_size_d)" KERNEL_BODY;
 
 double *out_d = nullptr;
 double *in_d = nullptr;
@@ -90,11 +92,9 @@ void expect(bool condition, const std::string& what) {
     passed &= condition;
 }
 
-// Declare plain at one value of each switch, and read the JIT variables.
-void declare(const char *launch_bounds, const char *smem_spilling,
-             const char *min_blocks = "1") {
-    setenv("OP_LAUNCH_BOUNDS", launch_bounds, 1);
-    setenv("OP_MIN_BLOCKS", min_blocks, 1);
+// Declare plain with or without shared-memory spilling, and read the JIT
+// variables.
+void declare(const char *smem_spilling) {
     if (gpu::smem_spilling_supported)
         setenv("OP_SMEM_SPILLING", smem_spilling, 1);
     loop::init();
@@ -148,64 +148,34 @@ int main(int argc, char **argv) {
         expect(error < 1e-9, what + " computes the result");
         return statistics;
     };
-    auto make = [&](gpu::Loop& jit_loop) {
+    auto make = [&](gpu::Loop& jit_loop, const char *source) {
         jit_loop.add_launch_param("op2_block_size_d", gpu::LaunchValue::block_size);
         jit_loop.add<gpu::Simple>(
             "plain", gpu::KernelSource{"thread_limit_kernel", nullptr, source}, &bind);
     };
 
     {
-        declare("off", "off");
+        declare("off");
         gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
-        make(jit_loop);
+        make(jit_loop, unbounded);
         auto prepared = prepare(jit_loop);
         expect(prepared.status == loop::Status::unavailable &&
-                         prepared.reason == "thread_limit",
-                     "without launch bounds: thread_limit, not " +
-                         std::string{prepared.reason});
+                   prepared.reason == "thread_limit",
+               "without launch bounds: thread_limit, not " + std::string{prepared.reason});
     }
     {
-        declare("on", "off");
+        declare("off");
         gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
-        make(jit_loop);
+        make(jit_loop, bounded);
         runs(jit_loop, "launch bounds");
     }
-    {
-        declare("off", "off", "2");
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
-        make(jit_loop);
-        auto prepared = prepare(jit_loop);
-        expect(prepared.status == loop::Status::unavailable &&
-                   prepared.reason == "needs_launch_bounds",
-               "a minimum of blocks without launch bounds: needs_launch_bounds");
-    }
-    {
-        // Two blocks of 1024 threads leave each thread 32 registers.
-        declare("on", "off", "2");
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
-        make(jit_loop);
-        auto statistics = runs(jit_loop, "launch bounds for two blocks");
-        expect(std::atoi(statistics.c_str() + statistics.find(", ") + 2) <= 32,
-               "two blocks cap the registers at 32");
-    }
     if (gpu::smem_spilling_supported) {
-        {
-            declare("off", "on");
-            gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
-            make(jit_loop);
-            auto prepared = prepare(jit_loop);
-            expect(prepared.status == loop::Status::unavailable &&
-                             prepared.reason == "needs_launch_bounds",
-                         "spilling without launch bounds: needs_launch_bounds");
-        }
-        {
-            declare("on", "on");
-            gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
-            make(jit_loop);
-            auto statistics = runs(jit_loop, "launch bounds and shared-memory spilling");
-            expect(statistics.find(" B shared") != std::string::npos,
-                         "shared-memory spilling takes shared memory");
-        }
+        declare("on");
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
+        make(jit_loop, bounded);
+        auto statistics = runs(jit_loop, "launch bounds and shared-memory spilling");
+        expect(statistics.find(" B shared") != std::string::npos,
+               "shared-memory spilling takes shared memory");
     }
 
     GPU_CHECK(gpuFree(in_d));
