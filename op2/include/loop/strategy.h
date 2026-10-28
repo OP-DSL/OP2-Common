@@ -167,7 +167,7 @@ enum class KernelKind {
 struct Estimate {
     bool available = false;
     std::optional<float> time;
-    std::string_view reason;
+    std::string_view reason{};
 };
 
 // A candidate's answer for one configuration.  Opaque to everything but the

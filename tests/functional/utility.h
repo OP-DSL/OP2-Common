@@ -30,7 +30,8 @@ inline int get_local_start(int global_size, int mpi_comm_size, int mpi_rank) {
   return mpi_rank * base + std::min(mpi_rank, remainder);
 }
 
-inline void get_rank_and_size(int &mpi_rank, int &mpi_comm_size) {
+inline void get_rank_and_size([[maybe_unused]] int &mpi_rank,
+                              [[maybe_unused]] int &mpi_comm_size) {
 #ifdef USE_MPI
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_comm_size);
@@ -39,8 +40,9 @@ inline void get_rank_and_size(int &mpi_rank, int &mpi_comm_size) {
 }
 
 template <typename T>
-void scatter_array(const std::vector<T>& g_array, std::vector<T>& l_array, int mpi_comm_size, 
-                    int g_size, int l_size, int dim) {
+void scatter_array(const std::vector<T>& g_array, std::vector<T>& l_array,
+                   [[maybe_unused]] int mpi_comm_size, [[maybe_unused]] int g_size,
+                   [[maybe_unused]] int l_size, [[maybe_unused]] int dim) {
 #ifdef USE_MPI
   std::vector<int> sendcnts(mpi_comm_size), displs(mpi_comm_size);
 

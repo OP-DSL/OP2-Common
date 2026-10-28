@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
     bool passed = true;
     {
         // A strategy with only the broken source, then a working floor.
-        gpu::Loop loop("build_failure", "cuda", "Direct", {true}, headers());
+        gpu::Loop loop("build_failure", "cuda", "Direct", {true, false}, headers());
         loop.add<gpu::Simple>("broken",
                               gpu::KernelSource{"build_failure_offline", nullptr,
                                                 broken_source},

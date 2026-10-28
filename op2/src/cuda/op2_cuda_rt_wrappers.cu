@@ -159,13 +159,13 @@ static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_thr
     device_result.ensure_capacity(arg->dim * sizeof(T));
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems);
+    cutilSafeCall(op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems));
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < arg->dim; ++d)
-        op(device_temp_storage.data, device_temp_storage.size,
-            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems);
+        cutilSafeCall(op(device_temp_storage.data, device_temp_storage.size,
+            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems));
 
     std::vector<T> result(arg->dim);
 
@@ -183,14 +183,14 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
     device_result.ensure_capacity(required_result_size);
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) args[index].data_d,
-       (cub::KeyValuePair<int, T> *) device_result.data, nelems);
+    cutilSafeCall(op(NULL, required_temp_storage_size, (T *) args[index].data_d,
+       (cub::KeyValuePair<int, T> *) device_result.data, nelems));
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < args[index].dim; ++d)
-        op(device_temp_storage.data, device_temp_storage.size, (T *) args[index].data_d + d * max_threads,
-           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems);
+        cutilSafeCall(op(device_temp_storage.data, device_temp_storage.size, (T *) args[index].data_d + d * max_threads,
+           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems));
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
     cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, required_result_size, gpuMemcpyDeviceToHost, gpu_stream));

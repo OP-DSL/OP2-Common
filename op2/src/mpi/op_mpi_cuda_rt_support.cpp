@@ -102,7 +102,7 @@ void cutilDeviceInit(int argc, char **argv) {
     // shared memory (one block per SM on an H100).
 
     int deviceId = -1;
-    gpuGetDevice(&deviceId);
+    cutilSafeCall(gpuGetDevice(&deviceId));
     gpuDeviceProp_t deviceProp;
     cutilSafeCall(gpuGetDeviceProperties(&deviceProp, deviceId));
     printf("\n Using CUDA device: %d %s on rank %d\n", deviceId,

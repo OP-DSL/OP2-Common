@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 
     {
         declare("off", "off");
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
         make(jit_loop);
         auto prepared = prepare(jit_loop);
         expect(prepared.status == loop::Status::unavailable &&
@@ -166,13 +166,13 @@ int main(int argc, char **argv) {
     }
     {
         declare("on", "off");
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
         make(jit_loop);
         runs(jit_loop, "launch bounds");
     }
     {
         declare("off", "off", "2");
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
         make(jit_loop);
         auto prepared = prepare(jit_loop);
         expect(prepared.status == loop::Status::unavailable &&
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
     {
         // Two blocks of 1024 threads leave each thread 32 registers.
         declare("on", "off", "2");
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
         make(jit_loop);
         auto statistics = runs(jit_loop, "launch bounds for two blocks");
         expect(std::atoi(statistics.c_str() + statistics.find(", ") + 2) <= 32,
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
     if (gpu::smem_spilling_supported) {
         {
             declare("off", "on");
-            gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+            gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
             make(jit_loop);
             auto prepared = prepare(jit_loop);
             expect(prepared.status == loop::Status::unavailable &&
@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
         }
         {
             declare("on", "on");
-            gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true}, headers());
+            gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
             make(jit_loop);
             auto statistics = runs(jit_loop, "launch bounds and shared-memory spilling");
             expect(statistics.find(" B shared") != std::string::npos,

@@ -51,7 +51,7 @@ void op_par_loop_{{lh.name}}(
 
 {%- macro master_extras() %}
 
-void op_decl_const_char(int dim, const char *type, int size, char *dat, const char *name) {
+void op_decl_const_char(int, const char *, int, char *, const char *) {
     // Unused with JIT
 }
 {% endmacro -%}

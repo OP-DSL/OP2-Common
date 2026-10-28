@@ -76,7 +76,7 @@ void {{lh.name}}_wrapper(
         {% endfor %}
 
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
-            int n = block + lane;
+            [[maybe_unused]] int n = block + lane;
 
             {% for arg in lh.args_expanded|dat|read_write %}
             for (int d = 0; d < {{lh.dat(arg).dim}}; ++d) {
@@ -92,7 +92,7 @@ void {{lh.name}}_wrapper(
 
         #pragma omp simd
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
-            int n = block + lane;
+            [[maybe_unused]] int n = block + lane;
 
         {% for arg in lh.args|vec %}
             {{"const " if arg is read}}{{lh.dat(arg).typ}} *arg{{arg.id}}_vec[] = {
@@ -114,7 +114,7 @@ void {{lh.name}}_wrapper(
         }
 
         for (int lane = 0; lane < SIMD_LEN; ++lane) {
-            int n = block + lane;
+            [[maybe_unused]] int n = block + lane;
         {% for arg in lh.args_expanded|dat if arg is not read %}
 
             for (int d = 0; d < {{lh.dat(arg).dim}}; ++d) {

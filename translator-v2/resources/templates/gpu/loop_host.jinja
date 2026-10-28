@@ -439,7 +439,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endif %}
     const int start,
     const int end,
-    const int stride{{"," if strategy in chunk_strategies or scalar_gbls or runtime_dims or gbls_by_value}}
+    [[maybe_unused]] const int stride{{"," if strategy in chunk_strategies or scalar_gbls or runtime_dims or gbls_by_value}}
     {% for ctype, name, expr in chunk_params.get(strategy, []) %}
     {{ctype}} {{name}}{{"," if not loop.last or scalar_gbls or runtime_dims or gbls_by_value}}
     {% endfor %}

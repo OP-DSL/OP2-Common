@@ -178,7 +178,7 @@ std::optional<float> StrategyBase::run_phases(const op::loop::Launch& launch,
 
 // --- Plain and atomics ---
 
-inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
+inline std::optional<float> Simple::run([[maybe_unused]] const op::loop::Prepared& prepared,
                                         const op::loop::Launch& launch) {
     assert(prepared.candidate->strategy == this);
     const auto& sections = m_loop.call_sections();

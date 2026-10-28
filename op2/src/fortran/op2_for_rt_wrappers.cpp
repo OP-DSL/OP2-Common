@@ -138,8 +138,7 @@ op_plan * FortranPlanCaller (char name[], op_set set,
      strings */
   int nameLen = strlen (name)+1;
   char * heapName = (char *) calloc (nameLen, sizeof(char));
-  strncpy (heapName, name, nameLen-1);
-  heapName[nameLen-1] = '\0';
+  strcpy (heapName, name);
 
   /* call the C OP2 function */
   generatedPlan = op_plan_get_stage (heapName, set, partitionSize,

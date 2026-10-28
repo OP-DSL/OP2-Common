@@ -331,14 +331,14 @@ void cutilDeviceInit(int argc, char **argv) {
     OP_hybrid_gpu = 1;
   }
   if (OP_hybrid_gpu) {
-    gpuFree(test);
+    cutilSafeCall(gpuFree(test));
 
     // No gpuDeviceSetCacheConfig(gpuFuncCachePreferL1): it overrides the
     // driver's per-launch L1/shared split and starves kernels that stage in
     // shared memory (one block per SM on an H100).
 
     int deviceId = -1;
-    gpuGetDevice(&deviceId);
+    cutilSafeCall(gpuGetDevice(&deviceId));
     gpuDeviceProp_t deviceProp;
     cutilSafeCall(gpuGetDeviceProperties(&deviceProp, deviceId));
     printf("\n Using CUDA device: %d %s\n", deviceId, deviceProp.name);

@@ -7,7 +7,6 @@
 #include "op_lib_cpp.h"
 #include <utility>
 
-static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
 #if __cplusplus >= 201402L

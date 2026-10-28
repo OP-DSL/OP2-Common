@@ -25,7 +25,6 @@ top =  """
 
 #include "op_lib_cpp.h"
 
-static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
 // scratch space to use for double counting in indirect reduction

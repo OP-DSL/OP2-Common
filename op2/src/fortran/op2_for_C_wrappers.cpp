@@ -144,9 +144,9 @@ op_dat op_decl_gbl_f ( char ** dataIn, int dim, int size, const char * type )
 {
   op_dat_core * dataOut = (op_dat_core *) calloc ( 1, sizeof ( op_dat_core ) );
 
-  char * typeName = (char *) calloc ( strlen ( type ), sizeof ( char ) );
+  char * typeName = (char *) calloc ( strlen ( type ) + 1, sizeof ( char ) );
 
-  strncpy ( typeName, type, strlen ( type ) );
+  strcpy ( typeName, type );
 
   dataOut->index = -1;
   dataOut->set = NULL;
@@ -309,7 +309,7 @@ op_arg_gbl_copy ( char * data, int dim, const char * typ, int size, op_access ac
   int len = strlen (typ);
   char * heapType = (char *) calloc (len + 1, sizeof (char));
 
-  strncpy (heapType, typ, len);
+  strcpy (heapType, typ);
 
   return op_arg_gbl_char (data, dim, heapType, size, acc);
 }
@@ -320,7 +320,7 @@ op_arg_info_copy ( char * data, int dim, const char * typ, int size, int ref ) {
   int len = strlen (typ);
   char * heapType = (char *) calloc (len + 1, sizeof (char));
 #warning TODO: fix leaking here by doing a map
-  strncpy (heapType, typ, len);
+  strcpy (heapType, typ);
 
   return op_arg_info_char (data, dim, heapType, size, ref);
 }
@@ -331,7 +331,7 @@ op_arg op_opt_arg_gbl_copy(int opt, char *data, int dim, const char *typ,
   int len = strlen(typ);
   char *heapType = (char *)calloc(len + 1, sizeof(char));
 
-  strncpy(heapType, typ, len);
+  strcpy(heapType, typ);
 
   return op_opt_arg_gbl_char(opt, data, dim, heapType, size, acc);
 }
@@ -517,11 +517,11 @@ void op_mpi_free_data(op_dat dat) {
   op_free(dat);
 }
 
-unsigned long op_get_g_index(op_set set) {
+unsigned long op_get_g_index(op_set) {
   return (unsigned long) NULL;
 }
 
-void op_mpi_probe_halo_index(op_set set, int in, int *rank, int *out) {
+void op_mpi_probe_halo_index(op_set, int, int *, int *) {
   return;
 }
 
@@ -553,8 +553,7 @@ void setKernelTime (int id, char name[], double kernelTime, float transfer, floa
   if ( OP_kernels[id].count == 0 ) {
     nameLen = strlen (name);
     heapName = (char *)calloc(nameLen + 1, sizeof(char));
-    strncpy (heapName, name, nameLen);
-    heapName[nameLen] = '\0';
+    strcpy (heapName, name);
     OP_kernels[id].name = heapName;
   }
 

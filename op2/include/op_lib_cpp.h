@@ -196,7 +196,7 @@ op_arg op_opt_arg_gbl(int opt, T *data, int dim, char const *type,
 // temporary dats
 //
 template <class T>
-op_dat op_decl_dat_temp(op_set set, int dim, char const *type, T *data,
+op_dat op_decl_dat_temp(op_set set, int dim, char const *type, T *,
                         char const *name) {
   return op_decl_dat_temp_char(set, dim, type, sizeof(T), name);
 }
@@ -232,6 +232,6 @@ inline void op_mpi_reduce(op_arg *args, int *data) {
 }
 
 // needed as a dummy, "do nothing" routine for the non-mpi backends
-template <class T> void op_mpi_reduce(op_arg *args, T *data) {}
+template <class T> void op_mpi_reduce(op_arg *, T *) {}
 
 #endif /* __OP_LIB_CPP_H */

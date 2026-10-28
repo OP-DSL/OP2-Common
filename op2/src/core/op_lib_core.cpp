@@ -1110,7 +1110,7 @@ void op_diagnostic_output() {
     printf("\n       set       size\n");
     printf("  -------------------\n");
     for (int n = 0; n < OP_set_index; n++) {
-      printf("%10s %10lld\n", OP_set_list[n]->name, OP_set_list[n]->size);
+      printf("%10s %10lld\n", OP_set_list[n]->name, (long long)OP_set_list[n]->size);
     }
 
     printf("\n       map        dim       from         to\n");
@@ -1351,7 +1351,7 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
     exit(2);
   }
 
-  if (fprintf(fp, "%lld %d\n", dat->set->size, dat->dim) < 0) {
+  if (fprintf(fp, "%lld %d\n", (long long)dat->set->size, dat->dim) < 0) {
     printf("error writing to %s\n", file_name);
     exit(2);
   }

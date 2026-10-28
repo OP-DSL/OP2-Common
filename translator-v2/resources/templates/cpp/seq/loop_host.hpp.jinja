@@ -77,7 +77,7 @@ namespace op2_m_{{lh.name}}{{variant}} {
 
 
 void op_par_loop_{{lh.name}}(
-    const char* name,
+    const char* /*name*/,
     op_set set,
 {% for arg in lh.args %}
     op_arg arg{{arg.id}}{{"," if not loop.last}}

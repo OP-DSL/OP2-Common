@@ -167,11 +167,11 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
-    op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
+    cutilSafeCall(op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size)));
+    cutilSafeCall(op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size)));
   } else {
-    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size);
-    op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size);
+    cutilSafeCall(op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size));
+    cutilSafeCall(op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size));
   }
 
   return dat;

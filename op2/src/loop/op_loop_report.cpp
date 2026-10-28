@@ -125,8 +125,8 @@ struct LoopTuning {
     std::size_t selected = 0;
     double ladder_ms = 0.0;
     double fastest_ms = 0.0;
-    Tally ladder;
-    Tally fastest;
+    Tally ladder{};
+    Tally fastest{};
 
     double saved_ms() const { return ladder_ms - fastest_ms; }
     // Beaten by more than a half percent.
@@ -249,7 +249,7 @@ struct LoopJit {
     BuildCounts builds;
     std::size_t configurations = 0;
     std::size_t settled = 0;
-    std::vector<Counts> params;
+    std::vector<Counts> params{};
 
     // Something to list: a parameter at run time or moved, or a failed
     // build.

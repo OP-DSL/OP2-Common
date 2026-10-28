@@ -557,8 +557,9 @@ void check_colouring(const gpu::ChunkPlan& chunk_plan,
           static_cast<int>(num_chunks(chunk_plan)));
     CHECK(chunk_plan.batches.order.size() == num_chunks(chunk_plan));
     CHECK(chunk_plan.chunk_thread_colours.size() == num_chunks(chunk_plan));
-    CHECK(chunk_plan.batches.count() + 1 == chunk_plan.batches.batch_offsets.size());
-    CHECK(chunk_plan.batch_scratch_bytes.size() == chunk_plan.batches.count());
+    CHECK(chunk_plan.batches.count() + 1 ==
+          static_cast<int>(chunk_plan.batches.batch_offsets.size()));
+    CHECK(static_cast<int>(chunk_plan.batch_scratch_bytes.size()) == chunk_plan.batches.count());
 
     auto targets = [&](int source) {
         std::vector<std::pair<int, int>> out;
