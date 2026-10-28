@@ -75,6 +75,8 @@ A loop generated for the ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`
    * - ``chunk_colouring``
      - Chunks coloured so that no two running together share a target; each chunk's targets are staged, updated by its elements one thread colour at a time, and stored back.
 
+Under MPI every strategy runs a loop's core elements, which need no halo data, while the halo exchange is under way, and the rest once it has arrived: ``colouring`` colours the core apart and runs its colours first, and the chunked strategies never let a chunk span the two.
+
 A loop with an indirect ``OP_RW`` or ``OP_WRITE`` argument never runs the atomic strategies.  On the GPU the chunked strategies exist only as JIT kernels, so a call waits for (or, until it is built, passes over) their kernel.
 
 Each loop keeps its strategies in a ladder, ``chunk_atomics``, ``atomics``, ``chunk_colouring``, ``colouring`` (or ``plain`` alone), and a call runs the first that is enabled and ready for it; a chunked strategy may decline a call, for instance when its chunks share too few targets to be worth staging (``low_compression``).  The last strategy runs when none is.  Enabled by default:

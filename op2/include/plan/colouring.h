@@ -13,18 +13,20 @@
 namespace op::plan {
 
 // order lists the elements colour by colour, offsets where each colour's run
-// starts, and the colours below owned_colours hold owned elements only, so a
-// global reduction can be processed after them.
+// starts.  The colours below core_colours hold the elements before the halo
+// wait only, so they run while the halo arrives, and those below
+// owned_colours the elements up to the end of the section the globals
+// follow, so a global reduction can be processed after them.
 struct SetColouring {
     int colours = 0;
+    int core_colours = 0;
     int owned_colours = 0;
     std::vector<int> offsets;
     std::vector<int> order;
 };
 
-// Colour the elements the sections run greedily in element order: those up
-// to the end of the section the globals follow first, as the owned colours,
-// then the rest.
+// Colour each section's elements apart, greedily in element order, a
+// section's colours after the earlier sections'.
 SetColouring colour_set(std::span<const op_arg> args, const op::loop::Sections& sections);
 
 } // namespace op::plan

@@ -1,6 +1,6 @@
 // The set colouring: every colour's elements update distinct targets, the
-// owned elements take the first colours when asked, and only the owned
-// elements run when nothing updates the halo.
+// core elements take the first colours, the owned ones the next when asked,
+// and only the owned elements run when nothing updates the halo.
 
 #include <plan/colouring.h>
 
@@ -74,6 +74,8 @@ void test_set_colouring() {
                 CHECK(seen[static_cast<std::size_t>(element)]++ == 0);
                 if (separate_owned && colour < colouring.owned_colours)
                     CHECK(element < source.size);
+                // The core's colours run while the halo arrives.
+                CHECK((colour < colouring.core_colours) == (element < source.core_size));
                 // No two elements of a colour update one target.
                 for (int j = begin; j < i; ++j) {
                     int other = colouring.order[static_cast<std::size_t>(j)];
@@ -88,12 +90,14 @@ void test_set_colouring() {
 
     auto whole = check(false, 10);
     CHECK(whole.owned_colours == whole.colours);
+    CHECK(whole.core_colours > 0 && whole.core_colours < whole.colours);
 
     auto owned_first = check(true, 10);
     CHECK(owned_first.owned_colours < owned_first.colours);
 
     // Only reads reach the halo, so the exchange runs the owned elements
-    // alone, and only they are coloured.
+    // alone, and only they are coloured: a colour for the core and one for
+    // the rest.
     for (auto& arg : args)
         arg.acc = OP_READ;
     args[0].acc = OP_INC;
@@ -101,7 +105,7 @@ void test_set_colouring() {
     args[0].idx = -1;
     args[0].map_data = nullptr;
     auto owned_only = check(false, 8);
-    CHECK(owned_only.colours == 1);
+    CHECK(owned_only.colours == 2 && owned_only.core_colours == 1);
 }
 
 } // namespace

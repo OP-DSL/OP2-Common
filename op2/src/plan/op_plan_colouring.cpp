@@ -12,9 +12,8 @@ namespace op::plan {
 SetColouring colour_set(std::span<const op_arg> args, const op::loop::Sections& sections) {
     assert(sections.size() > 0);
 
-    // The elements the sections run, and the end of those the globals follow.
+    // The elements the sections run.
     const int exec_length = sections[sections.size() - 1].end;
-    const int owned = sections[sections.globals_index()].end;
 
     // The updated targets, one mask vector per updated dat.
     std::vector<std::pair<const op_arg *, std::size_t>> updates;
@@ -61,15 +60,17 @@ SetColouring colour_set(std::span<const op_arg> args, const op::loop::Sections& 
         return count;
     };
 
-    if (owned < exec_length) {
-        colouring.owned_colours = colour_range(0, owned, 0);
-        colouring.colours =
-            colouring.owned_colours +
-            colour_range(owned, exec_length, colouring.owned_colours);
-    } else {
-        colouring.colours = colour_range(0, exec_length, 0);
-        colouring.owned_colours = colouring.colours;
+    // A section at a time, so no colour holds elements of two.
+    for (int section = 0; section < sections.size(); ++section) {
+        if (section == sections.wait_index())
+            colouring.core_colours = colouring.colours;
+        colouring.colours += colour_range(sections[section].begin, sections[section].end,
+                                          colouring.colours);
+        if (section == sections.globals_index())
+            colouring.owned_colours = colouring.colours;
     }
+    if (sections.wait_index() >= sections.size())
+        colouring.core_colours = colouring.colours;
 
     // Each colour's elements, in element order.
     colouring.offsets.assign(static_cast<std::size_t>(colouring.colours) + 1, 0);

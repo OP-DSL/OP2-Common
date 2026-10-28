@@ -454,10 +454,10 @@ inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
     const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     const auto& colouring = entry.colouring;
-    // Every colour can hold halo-dependent elements, as op_plan's OP_COLOR2
-    // colouring's could, so the wait comes first.
+    // The core's colours come first, and run while the halo arrives.
     return run_phases(
-        prepared, launch, colouring.colours, 0, colouring.owned_colours - 1,
+        prepared, launch, colouring.colours, colouring.core_colours,
+        colouring.owned_colours - 1,
         [](int) { return 1; },
         [&](int colour, int, LaunchContext& context) {
             context.start = colouring.offsets[static_cast<std::size_t>(colour)];
