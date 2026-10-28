@@ -92,7 +92,7 @@ Autotuner::Decision Autotuner::choose(const Call& call,
     if (state.trials.empty()) {
         add_trials(state, call, selection);
         if (state.trivial) {
-            state.finished = true;
+            finish(state, call);
             return ladder;
         }
     }
@@ -129,8 +129,33 @@ Autotuner::Decision Autotuner::choose(const Call& call,
 
     if (options.select)
         state.selected = winner(summarise(state));
-    state.finished = true;
+    finish(state, call);
     return run_selected(state, call, ladder);
+}
+
+// An explored configuration: every strategy that ran or planned for it and
+// that neither the ladder nor the selection can run again forgets it, so
+// its plans go once no other strategy holds them.
+void Autotuner::finish(State& state, const Call& call) {
+    state.finished = true;
+    auto kept = [&](const Strategy *strategy) {
+        for (std::size_t i = 0; i < m_ladder.size(); ++i) {
+            const auto& candidate = m_ladder[i];
+            if (candidate.strategy == strategy &&
+                (m_ladder.runs(candidate) || &candidate == state.selected))
+                return true;
+        }
+        return false;
+    };
+    std::vector<Strategy *> forgotten;
+    for (const auto& trial : state.trials) {
+        auto *strategy = trial.candidate->strategy;
+        if (trial.off || kept(strategy) ||
+            std::find(forgotten.begin(), forgotten.end(), strategy) != forgotten.end())
+            continue;
+        strategy->forget(call.key());
+        forgotten.push_back(strategy);
+    }
 }
 
 // Every candidate not turned off is a trial: the ladder's choice, and every

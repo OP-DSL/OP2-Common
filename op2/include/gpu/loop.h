@@ -299,15 +299,7 @@ inline op::loop::Prepared StrategyBase::acquire(
     prepared.entry = entry;
 
     if (kind == op::loop::KernelKind::offline) {
-        if (offline_usable())
-            prepared.status = op::loop::Status::ready;
-        else
-            prepared.reason = "kernel_unavailable";
-        return prepared;
-    }
-    if ((m_switches.smem_spilling || m_switches.min_blocks != 1) &&
-        !m_switches.launch_bounds) {
-        prepared.reason = "needs_launch_bounds";
+        prepared.status = op::loop::Status::ready;
         return prepared;
     }
 
@@ -426,41 +418,41 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 inline op::loop::Prepared Colouring::prepare(
     const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
-    if (never_available(kind))
-        return unavailable();
+    if (auto reason = refusal(kind); !reason.empty())
+        return unavailable(reason);
     begin(call);
-    auto key = call.key();
-    auto found = m_entries.find(key);
-    if (found == m_entries.end()) {
-        Entry entry;
-        entry.colouring = op::plan::colour_set(call.args, m_call_state.sections);
-        const auto& order = entry.colouring.order;
-        if (!order.empty()) {
-            GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&entry.order_d),
-                                order.size() * sizeof(int)));
-            GPU_CHECK(gpuMemcpy(entry.order_d, order.data(),
-                                order.size() * sizeof(int), gpuMemcpyHostToDevice));
-        }
-        if (OP_diags > 3)
-            op_printf("colouring: %s %d colours, %d over owned elements\n",
-                        m_loop.name().c_str(), entry.colouring.colours,
-                        entry.colouring.owned_colours);
-        found = m_entries.emplace(key, std::move(entry)).first;
-    }
-    auto *entry = &found->second;
+    const auto& entry = m_plans.get(call, [&] {
+        op::plan::PlanKey key{"colouring", call};
+        return colouring_plans().get(key, [&] {
+            auto plan = std::make_shared<ColouringPlan>();
+            plan->colouring = op::plan::colour_set(call.args, m_call_state.sections);
+            const auto& order = plan->colouring.order;
+            if (!order.empty()) {
+                GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&plan->order_d),
+                                    order.size() * sizeof(int)));
+                GPU_CHECK(gpuMemcpy(plan->order_d, order.data(),
+                                    order.size() * sizeof(int), gpuMemcpyHostToDevice));
+            }
+            if (OP_diags > 3)
+                op_printf("colouring: %s %d colours, %d over owned elements\n",
+                            m_loop.name().c_str(), plan->colouring.colours,
+                            plan->colouring.owned_colours);
+            return plan;
+        });
+    });
 
-    const auto& colouring = entry->colouring;
+    const auto& colouring = entry.colouring;
     for (int colour = 0; colour < colouring.colours; ++colour)
         m_call_state.max_blocks = std::max(
             m_call_state.max_blocks,
             grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
                  colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(call, urgency, kind, entry);
+    return acquire(call, urgency, kind, &entry);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
-    const auto& entry = *static_cast<const Entry *>(prepared.entry);
+    const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     const auto& colouring = entry.colouring;
     // Every colour can hold halo-dependent elements, as op_plan's OP_COLOR2
     // colouring's could, so the wait comes first.
@@ -476,45 +468,50 @@ inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
 }
 
 inline std::string Colouring::statistics(const op::loop::Prepared& prepared) const {
-    const auto& entry = *static_cast<const Entry *>(prepared.entry);
+    const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     return StrategyBase::statistics(prepared) + ", " +
            std::to_string(entry.colouring.colours) + " colours";
 }
 
 inline void Colouring::release() {
     StrategyBase::release();
-    for (auto& [key, entry] : m_entries)
-        if (entry.order_d != nullptr)
-            GPU_CHECK(gpuFree(entry.order_d));
-    m_entries.clear();
+    m_plans.clear();
 }
 
 // --- The chunked strategies ---
 
-inline ChunkBase::Entry& ChunkBase::entry_for(
-    const op::loop::Call& call) {
-    auto key = call.key();
-    auto found = m_entries.find(key);
-    if (found != m_entries.end())
-        return found->second;
-
-    ChunkLimits limits{m_block_size, device().shared_bytes};
-    auto result =
-        m_coloured
-            ? plan_chunk_colouring(call.args, m_call_state.sections, m_groups,
-                                   m_chunk_size, limits, m_wavefront, options().window)
-            : plan_chunk_atomics(call.args, m_call_state.sections, m_groups,
-                                 m_chunk_size, limits, m_unstaged_singles,
-                                 op::plan::chunk_options().min_compression);
-    report(result);
-    Entry entry;
-    entry.rejected = result.rejected;
-    entry.plan = std::move(result.plan);
-    if (entry.rejected.empty()) {
-        entry.device = DevicePlan(*entry.plan);
-        entry.plan->release_uploaded();
-    }
-    return m_entries.emplace(key, std::move(entry)).first->second;
+// The configuration's plan, the shared one when another strategy holds the
+// same: the same planner, call shape, groups, chunk size, block and variant.
+inline const ChunkEntry& ChunkBase::entry_for(const op::loop::Call& call) {
+    return m_plans.get(call, [&] {
+        ChunkLimits limits{m_block_size, device().shared_bytes};
+        const auto& chunk_options = op::plan::chunk_options();
+        op::plan::PlanKey key{m_coloured ? "chunk_colouring" : "chunk_atomics", call};
+        key.add(m_groups).add(m_chunk_size).add(limits.block_size).add(limits.shared_bytes);
+        if (m_coloured)
+            key.add(m_wavefront).add(options().window);
+        else
+            key.add(m_unstaged_singles).add(chunk_options.min_compression);
+        return chunk_plans().get(key, [&] {
+            auto result =
+                m_coloured
+                    ? plan_chunk_colouring(call.args, m_call_state.sections, m_groups,
+                                           m_chunk_size, limits, m_wavefront,
+                                           options().window)
+                    : plan_chunk_atomics(call.args, m_call_state.sections, m_groups,
+                                         m_chunk_size, limits, m_unstaged_singles,
+                                         chunk_options.min_compression);
+            report(result);
+            auto entry = std::make_shared<ChunkEntry>();
+            entry->rejected = result.rejected;
+            entry->plan = std::move(result.plan);
+            if (entry->rejected.empty()) {
+                entry->device = DevicePlan(*entry->plan);
+                entry->plan->release_uploaded();
+            }
+            return entry;
+        });
+    });
 }
 
 inline void ChunkBase::report(const ChunkResult& result) const {
@@ -544,10 +541,10 @@ inline void ChunkBase::report(const ChunkResult& result) const {
 inline op::loop::Prepared ChunkBase::prepare(
     const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
-    if (never_available(kind))
-        return unavailable();
+    if (auto reason = refusal(kind); !reason.empty())
+        return unavailable(reason);
     begin(call);
-    auto *entry = &entry_for(call);
+    const auto *entry = &entry_for(call);
     if (!entry->rejected.empty()) {
         op::loop::Prepared prepared;
         prepared.status = op::loop::Status::unavailable;
@@ -580,7 +577,7 @@ inline int ChunkBase::batch_blocks(const ChunkPlan& plan, int begin, int end) co
 
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
-    const auto& entry = *static_cast<const Entry *>(prepared.entry);
+    const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = m_call_state.sections;
 
@@ -616,7 +613,7 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
 }
 
 inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) const {
-    const auto& entry = *static_cast<const Entry *>(prepared.entry);
+    const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     if (entry.plan == nullptr)
         return std::string{entry.rejected};
     const auto& plan = *entry.plan;
@@ -632,7 +629,7 @@ inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) con
 
 inline void ChunkBase::release() {
     StrategyBase::release();
-    m_entries.clear();
+    m_plans.clear();
 }
 
 } // namespace op::gpu

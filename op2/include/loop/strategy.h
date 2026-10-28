@@ -221,6 +221,11 @@ public:
         (void)prepared;
         return {};
     }
+
+    // Drop its plans for the configuration whose key is call: the tuner has
+    // explored it, and nothing will run this strategy on it again.  A later
+    // prepare plans it anew.
+    virtual void forget(std::uint64_t call) { (void)call; }
 };
 
 // --- Variants -----------------------------------------------------------------
@@ -347,6 +352,10 @@ public:
     const std::vector<std::unique_ptr<Strategy>>& strategies() const {
         return m_strategies;
     }
+
+    // Whether select may run candidate: a member of an enabled or the forced
+    // family, or the floor.
+    bool runs(const Candidate& candidate) const;
 
     // The candidates in ladder order.
     std::size_t size() const { return m_order.size(); }

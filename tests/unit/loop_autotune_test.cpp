@@ -34,6 +34,7 @@ struct Fake : loop::Strategy {
     int runs = 0;
     int timed_runs = 0;
     int timed_jit_runs = 0;
+    int forgets = 0;
 
     Fake(std::string name, float time_, std::optional<float> jit_time_ = {})
         : fake_name{std::move(name)}, time{time_}, jit_time{jit_time_} {}
@@ -77,6 +78,8 @@ struct Fake : loop::Strategy {
     std::string statistics(const loop::Prepared& prepared) const override {
         return prepared.candidate->kind == loop::KernelKind::jit ? "jit" : "offline";
     }
+
+    void forget(std::uint64_t) override { ++forgets; }
 };
 
 // A loop of fakes, tuned as OP_AUTOTUNE says when it is built.
@@ -191,6 +194,13 @@ void test_exploration() {
     CHECK(fixture.chunk_atomics->timed_runs == 2);
     for (int i = 0; i < 2; ++i)
         CHECK(fixture.invoke(other) == fixture.atomics);
+
+    // Once each configuration is explored, a strategy that neither the
+    // ladder nor the selection runs forgets it: chunk_atomics on cells,
+    // which it lost; on edges it was selected.
+    CHECK(fixture.chunk_atomics->forgets == 1);
+    CHECK(fixture.atomics->forgets == 0 && fixture.colouring->forgets == 0 &&
+          fixture.chunk_colouring->forgets == 0);
 
     // The report: a row per configuration and strategy.
     loop::write_reports(0, 1);

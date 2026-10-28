@@ -486,6 +486,12 @@ Prepared Ladder::select(const Call& call) {
     return selection;
 }
 
+bool Ladder::runs(const Candidate& candidate) const {
+    bool forced = m_forced && candidate.family == (*this)[*m_forced].family;
+    return (candidate.member && (candidate.enabled || forced)) ||
+           &candidate == &(*this)[size() - 1];
+}
+
 void Ladder::warn_forced(std::string_view reason) {
     if (std::find(m_warned.begin(), m_warned.end(), reason) != m_warned.end())
         return;

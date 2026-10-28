@@ -70,6 +70,12 @@ plan/staging_layout.h  (the staging layout both the host and a staged kernel
 plan/options.h         (includes: loop/strategy.h; the chunked strategies'
                         run-wide options, read by op_init, and their chunk
                         size axis)
+plan/cache.h           (includes: extern/rapidhash.h, loop/strategy.h,
+                        plan/staging.h; the plans strategies share, of any
+                        loop: a planner's key over what it plans from, the
+                        live plans by key, and each strategy's by
+                        configuration, which the tuner has it forget once
+                        explored)
 plan/greedy_colour.h   (includes: op_lib_core.h; internal to the planners:
                         the greedy colouring they share)
 ```

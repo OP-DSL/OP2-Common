@@ -114,6 +114,9 @@ private:
 
     void add_trials(State& state, const Call& call,
                     const Prepared& selection);
+    // Mark the configuration explored, and have the strategies nothing
+    // will run on it again forget it.
+    void finish(State& state, const Call& call);
     Decision run_selected(const State& state, const Call& call,
                           const Decision& ladder);
     Summary summarise(const State& state) const;

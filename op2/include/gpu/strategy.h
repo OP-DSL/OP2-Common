@@ -9,6 +9,7 @@
 #include <gpu/jit.h>
 #include <loop/strategy.h>
 #include <op_lib_cpp.h>
+#include <plan/cache.h>
 #include <plan/colouring.h>
 #include <plan/options.h>
 
@@ -111,6 +112,41 @@ inline op::loop::Axis smem_spilling_axis() {
     return {"SMEM_SPILLING", "smem_spilling", true, {0}};
 }
 
+// --- Plans ------------------------------------------------------------------------
+
+// A set colouring and its element order on the device, freed with it.
+struct ColouringPlan {
+    op::plan::SetColouring colouring;
+    int *order_d = nullptr;
+
+    ColouringPlan() = default;
+    ColouringPlan(const ColouringPlan&) = delete;
+    ColouringPlan& operator=(const ColouringPlan&) = delete;
+    ~ColouringPlan() {
+        if (order_d != nullptr)
+            GPU_CHECK(gpuFree(order_d));
+    }
+};
+
+// A chunk plan, or why the call does not suit it, and the plan as uploaded.
+struct ChunkEntry {
+    std::string_view rejected;
+    std::unique_ptr<ChunkPlan> plan;
+    DevicePlan device;
+};
+
+// The live plans of each kind, which every strategy that would build the
+// same one shares.
+inline op::plan::SharedPlans<ColouringPlan>& colouring_plans() {
+    static op::plan::SharedPlans<ColouringPlan> plans;
+    return plans;
+}
+
+inline op::plan::SharedPlans<ChunkEntry>& chunk_plans() {
+    static op::plan::SharedPlans<ChunkEntry> plans;
+    return plans;
+}
+
 // --- The base of every GPU strategy ------------------------------------------------
 
 class StrategyBase : public op::loop::Strategy {
@@ -170,16 +206,24 @@ protected:
                m_switches.min_blocks == 1 && !m_switches.smem_spilling;
     }
 
-    // Whether no kernel of kind can come about: the offline kind with no
-    // usable offline kernel.  A strategy that plans checks this first.
-    bool never_available(op::loop::KernelKind kind) const {
-        return kind == op::loop::KernelKind::offline && !offline_usable();
+    // Why no kernel of kind can come about, whatever the call: an offline
+    // one without a usable offline kernel (kernel_unavailable), or a
+    // specialised one whose switches need launch bounds it lacks
+    // (needs_launch_bounds); empty when one can.  Every prepare checks this
+    // before it plans.
+    std::string_view refusal(op::loop::KernelKind kind) const {
+        if (kind == op::loop::KernelKind::offline)
+            return offline_usable() ? std::string_view{} : "kernel_unavailable";
+        if ((m_switches.smem_spilling || m_switches.min_blocks != 1) &&
+            !m_switches.launch_bounds)
+            return "needs_launch_bounds";
+        return {};
     }
 
-    op::loop::Prepared unavailable() {
+    op::loop::Prepared unavailable(std::string_view reason) {
         op::loop::Prepared prepared;
         prepared.status = op::loop::Status::unavailable;
-        prepared.reason = "kernel_unavailable";
+        prepared.reason = reason;
         return prepared;
     }
 
@@ -254,6 +298,8 @@ public:
     op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override {
+        if (auto reason = refusal(kind); !reason.empty())
+            return unavailable(reason);
         begin(call);
         for (const auto& section : m_call_state.sections.span())
             m_call_state.max_blocks = std::max(m_call_state.max_blocks, grid(section.size()));
@@ -269,12 +315,7 @@ public:
 // One launch per colour of a set colouring, as op_plan did under OP_COLOR2.
 class Colouring : public StrategyBase {
 private:
-    struct Entry {
-        op::plan::SetColouring colouring;
-        int *order_d = nullptr;
-    };
-
-    std::unordered_map<std::uint64_t, Entry> m_entries;
+    op::plan::PlanSlots<ColouringPlan> m_plans;
 
 public:
     Colouring(Loop& loop, const op::loop::Point& point, KernelSource source,
@@ -287,6 +328,7 @@ public:
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
+    void forget(std::uint64_t call) override { m_plans.forget(call); }
     void release() override;
 };
 
@@ -296,16 +338,10 @@ public:
 // batch of chunks, each block taking chunks in turn.
 class ChunkBase : public StrategyBase {
 protected:
-    struct Entry {
-        std::string_view rejected;
-        std::unique_ptr<ChunkPlan> plan;
-        DevicePlan device;
-    };
-
     bool m_coloured;
     op::plan::ArgGroups m_groups;
     int m_chunk_size;
-    std::unordered_map<std::uint64_t, Entry> m_entries;
+    op::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured,
               KernelSource source, Binder bind, op::plan::ArgGroups groups)
@@ -319,7 +355,7 @@ protected:
                 op::plan::chunk_size_axis(default_block_size), std::move(variant)};
     }
 
-    Entry& entry_for(const op::loop::Call& call);
+    const ChunkEntry& entry_for(const op::loop::Call& call);
     void report(const ChunkResult& result) const;
     int batch_blocks(const ChunkPlan& plan, int begin, int end) const;
 
@@ -330,10 +366,11 @@ public:
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
+    void forget(std::uint64_t call) override { m_plans.forget(call); }
     void release() override;
 
-    // Configurations planned so far, accepted or rejected.
-    std::size_t entries() const { return m_entries.size(); }
+    // Configurations it holds plans of, accepted or rejected.
+    std::size_t entries() const { return m_plans.size(); }
 };
 
 // Increments staged in shared memory and flushed with global atomics.

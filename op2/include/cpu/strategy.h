@@ -8,6 +8,7 @@
 #include <cpu/chunk_plan.h>
 #include <loop/strategy.h>
 #include <op_lib_core.h>
+#include <plan/cache.h>
 #include <plan/colouring.h>
 #include <plan/options.h>
 
@@ -178,6 +179,26 @@ public:
     }
 };
 
+// --- Plans ------------------------------------------------------------------------
+
+// A chunk plan, or why the call does not suit it.
+struct ChunkEntry {
+    std::string_view rejected;
+    std::unique_ptr<ChunkPlan> plan;
+};
+
+// The live plans of each kind, which every strategy that would build the
+// same one shares.
+inline op::plan::SharedPlans<op::plan::SetColouring>& colouring_plans() {
+    static op::plan::SharedPlans<op::plan::SetColouring> plans;
+    return plans;
+}
+
+inline op::plan::SharedPlans<ChunkEntry>& chunk_plans() {
+    static op::plan::SharedPlans<ChunkEntry> plans;
+    return plans;
+}
+
 // --- The base of every OpenMP strategy ----------------------------------------------
 
 class StrategyBase : public op::loop::Strategy {
@@ -238,7 +259,7 @@ public:
 // Each colour of a set colouring split over the threads.
 class Colouring : public StrategyBase {
 private:
-    std::unordered_map<std::uint64_t, op::plan::SetColouring> m_entries;
+    op::plan::PlanSlots<op::plan::SetColouring> m_plans;
 
 public:
     Colouring(Loop& loop, const op::loop::Point& point, Body body)
@@ -250,6 +271,7 @@ public:
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
+    void forget(std::uint64_t call) override { m_plans.forget(call); }
 };
 
 // --- The chunked strategies -------------------------------------------------------
@@ -261,22 +283,17 @@ public:
 // with atomics.
 class ChunkBase : public StrategyBase {
 protected:
-    struct Entry {
-        std::string_view rejected;
-        std::unique_ptr<ChunkPlan> plan;
-    };
-
     bool m_coloured;
     op::plan::ArgGroups m_groups;
     int m_chunk_size;
-    std::unordered_map<std::uint64_t, Entry> m_entries;
+    op::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Loop& loop, const op::loop::Point& point, bool coloured, Body body,
               op::plan::ArgGroups groups)
         : StrategyBase{loop, point, body}, m_coloured{coloured}, m_groups{groups},
           m_chunk_size{point.value("chunk_size")} {}
 
-    Entry& entry_for(const op::loop::Call& call);
+    const ChunkEntry& entry_for(const op::loop::Call& call);
 
 public:
     static std::vector<op::loop::Axis> axes() {
@@ -289,6 +306,7 @@ public:
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
+    void forget(std::uint64_t call) override { m_plans.forget(call); }
 };
 
 class ChunkAtomics : public ChunkBase {

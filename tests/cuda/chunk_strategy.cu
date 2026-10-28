@@ -106,6 +106,10 @@ void bind_staged(gpu::LaunchContext& launch, op_arg *,
 
 // 256 sources, each pair reaching one of 4 targets of a dim-1 double dat,
 // with a second, inactive argument on the same dat.
+// Sets and maps numbered across fixtures, as OP2 numbers them, since plans
+// are shared between loops by the shapes of their calls.
+int next_index = 0;
+
 struct Fixture {
     op_set_core source{};
     op_set_core target{};
@@ -117,12 +121,12 @@ struct Fixture {
     std::array<op::plan::ArgGroup, 1> group_args{{{0, 0}}};
 
     Fixture() : map_values(256) {
-        source.index = 0;
+        source.index = next_index++;
         source.size = 256;
         source.core_size = 256;
         source.name = "source";
 
-        target.index = 1;
+        target.index = next_index++;
         target.size = 4;
         target.core_size = 4;
         target.name = "target";
@@ -141,7 +145,7 @@ struct Fixture {
         wide_dat.type = "double";
         wide_dat.name = "wide_dat";
 
-        map.index = 0;
+        map.index = next_index++;
         map.from = &source;
         map.to = &target;
         map.dim = 1;
@@ -362,6 +366,52 @@ int main(int argc, char **argv) {
                 CHECK(large_outcome.max_blocks == 1);
                 CHECK(output[8] == 42);
             }
+        }
+
+        // Two chunk_atomics strategies that differ only in launch bounds plan
+        // alike: one plan, made and uploaded once, which stays while either
+        // holds it.  Without the JIT the bounded one has no kernel, so it
+        // refuses before planning.
+        {
+            setenv("OP_LAUNCH_BOUNDS", "off,on", 1);
+            op::loop::init();
+            op::gpu::init();
+            Fixture alike;
+            gpu::Loop alike_loop("chunk_strategy_alike", "cuda", "Indirect", {false},
+                                 headers());
+            add_strategies(alike_loop, alike);
+            const op::loop::Candidate *bounded = nullptr;
+            const op::loop::Candidate *unbounded = nullptr;
+            auto kind = expect_jit ? op::loop::KernelKind::jit : op::loop::KernelKind::offline;
+            for (std::size_t i = 0; i < alike_loop.ladder().size(); ++i) {
+                const auto& candidate = alike_loop.ladder()[i];
+                if (candidate.family != "chunk_atomics" || candidate.kind != kind)
+                    continue;
+                (candidate.name.find("launch_bounds=on") != std::string::npos ? bounded
+                                                                              : unbounded) =
+                    &candidate;
+            }
+            CHECK(bounded != nullptr && unbounded != nullptr);
+            auto& bounded_strategy = static_cast<gpu::ChunkBase&>(*bounded->strategy);
+            auto& unbounded_strategy = static_cast<gpu::ChunkBase&>(*unbounded->strategy);
+
+            op::loop::Call call{&alike.source, alike.args,
+                                alike.source.size + alike.source.exec_size};
+            auto first = unbounded->prepare(call, op::loop::Urgency::later);
+            auto second = bounded->prepare(call, op::loop::Urgency::later);
+            if (expect_jit) {
+                CHECK(first.entry != nullptr && first.entry == second.entry);
+                CHECK(unbounded_strategy.entries() == 1 && bounded_strategy.entries() == 1);
+                bounded_strategy.forget(call.key());
+                CHECK(bounded_strategy.entries() == 0);
+                auto again = unbounded->prepare(call, op::loop::Urgency::later);
+                CHECK(again.entry == first.entry);
+            } else {
+                CHECK(second.status == op::loop::Status::unavailable &&
+                      second.reason == "kernel_unavailable");
+                CHECK(bounded_strategy.entries() == 0 && unbounded_strategy.entries() == 1);
+            }
+            unsetenv("OP_LAUNCH_BOUNDS");
         }
 
         GPU_CHECK(gpuFree(output_d));

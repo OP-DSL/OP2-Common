@@ -194,18 +194,19 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 inline op::loop::Prepared Colouring::prepare(
     const op::loop::Call& call, op::loop::Urgency,
     op::loop::KernelKind) {
-    auto key = call.key();
-    auto found = m_entries.find(key);
-    if (found == m_entries.end()) {
-        auto colouring = op::plan::colour_set(call.args,
-                                              m_loop.sections(call));
-        if (OP_diags > 3)
-            op_printf("%s: %s %d colours, %d over owned elements\n",
-                        m_name.c_str(), m_loop.name().c_str(), colouring.colours,
-                        colouring.owned_colours);
-        found = m_entries.emplace(key, std::move(colouring)).first;
-    }
-    return prepared(op::loop::Status::ready, &found->second);
+    const auto& colouring = m_plans.get(call, [&] {
+        op::plan::PlanKey key{"colouring", call};
+        return colouring_plans().get(key, [&] {
+            auto plan = std::make_shared<op::plan::SetColouring>(
+                op::plan::colour_set(call.args, m_loop.sections(call)));
+            if (OP_diags > 3)
+                op_printf("%s: %s %d colours, %d over owned elements\n",
+                            m_name.c_str(), m_loop.name().c_str(), plan->colours,
+                            plan->owned_colours);
+            return plan;
+        });
+    });
+    return prepared(op::loop::Status::ready, &colouring);
 }
 
 inline std::optional<float> Colouring::run(const op::loop::Prepared& prepared,
@@ -229,42 +230,47 @@ inline std::string Colouring::statistics(const op::loop::Prepared& prepared) con
 
 // --- The chunked strategies ---
 
-inline ChunkBase::Entry& ChunkBase::entry_for(
-    const op::loop::Call& call) {
-    auto key = call.key();
-    auto found = m_entries.find(key);
-    if (found != m_entries.end())
-        return found->second;
+// The configuration's plan, the shared one when another strategy holds the
+// same: the same planner, call shape, groups and chunk size.
+inline const ChunkEntry& ChunkBase::entry_for(const op::loop::Call& call) {
+    return m_plans.get(call, [&] {
+        double min_compression = op::plan::chunk_options().min_compression;
+        op::plan::PlanKey key{m_coloured ? "chunk_colouring" : "chunk_atomics", call};
+        key.add(m_chunk_size);
+        if (!m_coloured)
+            key.add(m_groups).add(min_compression);
+        return chunk_plans().get(key, [&] {
+            auto sections = m_loop.sections(call);
+            auto result =
+                m_coloured
+                    ? plan_chunk_colouring(call.args, sections, m_chunk_size)
+                    : plan_chunk_atomics(call.args, sections, m_groups, m_chunk_size,
+                                         min_compression);
+            auto entry = std::make_shared<ChunkEntry>();
+            entry->rejected = result.rejected;
+            entry->plan = std::move(result.plan);
 
-    auto sections = m_loop.sections(call);
-    auto result =
-        m_coloured
-            ? plan_chunk_colouring(call.args, sections, m_chunk_size)
-            : plan_chunk_atomics(call.args, sections, m_groups, m_chunk_size,
-                                 op::plan::chunk_options().min_compression);
-    Entry entry;
-    entry.rejected = result.rejected;
-    entry.plan = std::move(result.plan);
-
-    if (OP_diags > 3) {
-        if (entry.plan == nullptr)
-            op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
-                        m_loop.name().c_str(), std::string{entry.rejected}.c_str(),
-                        result.compression);
-        else
-            op_printf("%s: %s chunk %d, %d chunks, %d batches, "
-                        "compression %.2fx\n",
-                        m_name.c_str(), m_loop.name().c_str(),
-                        entry.plan->chunks.size, entry.plan->chunks.count(),
-                        entry.plan->batches.count(), entry.plan->compression);
-    }
-    return m_entries.emplace(key, std::move(entry)).first->second;
+            if (OP_diags > 3) {
+                if (entry->plan == nullptr)
+                    op_printf("%s: %s rejected (%s, compression %.2fx)\n",
+                                m_name.c_str(), m_loop.name().c_str(),
+                                std::string{entry->rejected}.c_str(), result.compression);
+                else
+                    op_printf("%s: %s chunk %d, %d chunks, %d batches, "
+                                "compression %.2fx\n",
+                                m_name.c_str(), m_loop.name().c_str(),
+                                entry->plan->chunks.size, entry->plan->chunks.count(),
+                                entry->plan->batches.count(), entry->plan->compression);
+            }
+            return entry;
+        });
+    });
 }
 
 inline op::loop::Prepared ChunkBase::prepare(
     const op::loop::Call& call, op::loop::Urgency,
     op::loop::KernelKind) {
-    auto& entry = entry_for(call);
+    const auto& entry = entry_for(call);
     if (!entry.rejected.empty())
         return prepared(op::loop::Status::unavailable, &entry, entry.rejected);
     return prepared(op::loop::Status::ready, &entry);
@@ -272,7 +278,7 @@ inline op::loop::Prepared ChunkBase::prepare(
 
 inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
                                            const op::loop::Launch& launch) {
-    const auto& entry = *static_cast<const Entry *>(prepared.entry);
+    const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = m_loop.call_sections();
     m_loop.reserve_scratch(plan.max_scratch_bytes);
@@ -306,7 +312,7 @@ inline std::optional<float> ChunkBase::run(const op::loop::Prepared& prepared,
 }
 
 inline std::string ChunkBase::statistics(const op::loop::Prepared& prepared) const {
-    const auto& entry = *static_cast<const Entry *>(prepared.entry);
+    const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     if (entry.plan == nullptr)
         return std::string{entry.rejected};
     const auto& plan = *entry.plan;
