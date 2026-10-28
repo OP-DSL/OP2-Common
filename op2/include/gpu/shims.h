@@ -203,7 +203,9 @@
 #define gpuDrvModuleLoadData hipModuleLoadData
 #define gpuDrvModuleGetFunction hipModuleGetFunction
 #define gpuDrvModuleGetGlobal hipModuleGetGlobal
-#define gpuDrvMemcpyHtoDAsync hipMemcpyHtoDAsync
+// Before ROCm 7 the source is a non-const pointer, only read.
+#define gpuDrvMemcpyHtoDAsync(dst, src, bytes, stream) \
+    hipMemcpyHtoDAsync(dst, const_cast<void *>(src), bytes, stream)
 #define gpuDrvOccupancyMaxPotentialBlockSize hipOccupancyMaxPotentialBlockSize
 #define gpuDrvLaunchKernel hipModuleLaunchKernel
 
@@ -212,7 +214,10 @@
 #define gpuRtcProgram_t hiprtcProgram
 
 #define gpuRtcGetErrorString hiprtcGetErrorString
-#define gpuRtcCreateProgram hiprtcCreateProgram
+// Before ROCm 7 the headers and their names are non-const, only read.
+#define gpuRtcCreateProgram(prog, src, name, count, headers, names) \
+    hiprtcCreateProgram(prog, src, name, count, const_cast<const char **>(headers), \
+                        const_cast<const char **>(names))
 #define gpuRtcCompileProgram hiprtcCompileProgram
 #define gpuRtcGetProgramLogSize hiprtcGetProgramLogSize
 #define gpuRtcGetProgramLog hiprtcGetProgramLog
