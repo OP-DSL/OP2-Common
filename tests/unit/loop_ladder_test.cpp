@@ -528,6 +528,56 @@ void test_kernel_kinds() {
     CHECK(selection.candidate == &ladder[0] && fake->kind == jit);
 }
 
+// A point with no kernel of either kind has no candidate, so nothing
+// prepares, times or reports it; the ladder's point of the family keeps an
+// offline candidate, refused with the estimates' reason, its strategy never
+// asked.
+void test_kernel_less_points() {
+    const loop::Axis axis{"SWITCHES", "switch", true, {1}};
+    auto build = [&](loop::Ladder& ladder, std::vector<Fake *>& fakes) {
+        declare({{"colouring", {axis}}});
+        ladder.add("colouring", [&](const loop::Point& point) {
+            auto made = std::make_unique<Fake>(point);
+            if (point.value("switch") == 0) {
+                made->offline_estimate = {false, {}, "kernel_unavailable"};
+                made->jit_estimate = {false, {}, "needs_launch_bounds"};
+            }
+            fakes.push_back(made.get());
+            return made;
+        });
+    };
+
+    // The tuner's point is the one without a kernel: it has no candidate.
+    setenv("OP_COLOURING_SWITCHES", "on,off", 1);
+    loop::init();
+    {
+        loop::Ladder ladder{"test_loop"};
+        std::vector<Fake *> fakes;
+        build(ladder, fakes);
+        CHECK(fakes.size() == 2 && ladder.size() == 1);
+        CHECK(ladder[0].member && ladder[0].refused.empty());
+    }
+
+    // The ladder's point is: it keeps a candidate, refused with the
+    // specialised kernel's reason, and its strategy is never asked.
+    setenv("OP_COLOURING_SWITCHES", "off,on", 1);
+    loop::init();
+    {
+        loop::Ladder ladder{"test_loop"};
+        std::vector<Fake *> fakes;
+        build(ladder, fakes);
+        CHECK(ladder.size() == 2 && !ladder[0].member && ladder[1].member);
+        CHECK(ladder[1].kind == loop::KernelKind::offline &&
+              ladder[1].refused == "needs_launch_bounds");
+        auto prepared = ladder[1].prepare(indirect_call(), loop::Urgency::later);
+        CHECK(prepared.status == loop::Status::unavailable &&
+              prepared.reason == "needs_launch_bounds" && prepared.candidate == &ladder[1]);
+        CHECK(fakes[1]->prepares == 0);
+    }
+    unsetenv("OP_COLOURING_SWITCHES");
+    loop::init();
+}
+
 } // namespace
 
 int main() {
@@ -538,6 +588,7 @@ int main() {
         test_axes();
         test_long_ladder();
         test_kernel_kinds();
+        test_kernel_less_points();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return EXIT_FAILURE;

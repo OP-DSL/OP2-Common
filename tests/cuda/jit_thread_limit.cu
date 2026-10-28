@@ -126,11 +126,10 @@ int main(int argc, char **argv) {
     args[0].argtype = OP_ARG_GBL;
     loop::Call call{&set, args, set.size};
 
-    // The loop's one candidate, its specialised kernel, as prepared.
+    // The loop's one candidate, as prepared: its specialised kernel, or the
+    // offline candidate kept to refuse a point with no kernel.
     auto prepare = [&](gpu::Loop& jit_loop) {
-        expect(jit_loop.ladder().size() == 1 &&
-                         jit_loop.ladder()[0].kind == loop::KernelKind::jit,
-                     "one specialised candidate");
+        expect(jit_loop.ladder().size() == 1, "one candidate");
         return jit_loop.ladder()[0].prepare(call, loop::Urgency::wait);
     };
     // A call of the loop, compared with the host.

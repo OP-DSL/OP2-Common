@@ -206,27 +206,6 @@ protected:
                m_switches.min_blocks == 1 && !m_switches.smem_spilling;
     }
 
-    // Why no kernel of kind can come about, whatever the call: an offline
-    // one without a usable offline kernel (kernel_unavailable), or a
-    // specialised one whose switches need launch bounds it lacks
-    // (needs_launch_bounds); empty when one can.  Every prepare checks this
-    // before it plans.
-    std::string_view refusal(op::loop::KernelKind kind) const {
-        if (kind == op::loop::KernelKind::offline)
-            return offline_usable() ? std::string_view{} : "kernel_unavailable";
-        if ((m_switches.smem_spilling || m_switches.min_blocks != 1) &&
-            !m_switches.launch_bounds)
-            return "needs_launch_bounds";
-        return {};
-    }
-
-    op::loop::Prepared unavailable(std::string_view reason) {
-        op::loop::Prepared prepared;
-        prepared.status = op::loop::Status::unavailable;
-        prepared.reason = reason;
-        return prepared;
-    }
-
     // Finish a call: the launch parameters and the kernel of kind, as a
     // Prepared value over entry; a specialised kernel is pending while it
     // builds.
@@ -260,14 +239,22 @@ public:
     std::string_view name() const override { return m_name; }
 
     // The offline kernel at a nominal 1 when it can launch the block size
-    // and has the switches; a specialised one when there is source, expected
-    // faster when the offline kernel uses more than OP_JIT_MIN_REGISTERS
-    // registers (by an arbitrary tenth, until timings calibrate it).
+    // and has the switches; a specialised one when there is source and its
+    // switches have the launch bounds a minimum of blocks or shared-memory
+    // spilling needs, expected faster when the offline kernel uses more than
+    // OP_JIT_MIN_REGISTERS registers (by an arbitrary tenth, until timings
+    // calibrate it).
     op::loop::Estimate estimate(op::loop::KernelKind kind) const override {
         if (kind == op::loop::KernelKind::offline)
-            return {offline_usable(), 1.0f};
+            return offline_usable() ? op::loop::Estimate{true, 1.0f}
+                                    : op::loop::Estimate{false, {}, "kernel_unavailable"};
+        if (m_source.source.empty())
+            return {false, {}, "kernel_unavailable"};
+        if ((m_switches.smem_spilling || m_switches.min_blocks != 1) &&
+            !m_switches.launch_bounds)
+            return {false, {}, "needs_launch_bounds"};
         bool prior = m_offline.registers() > options().min_registers;
-        return {!m_source.source.empty(), prior ? 0.9f : 1.0f};
+        return {true, prior ? 0.9f : 1.0f};
     }
 
     // The kernel kind and its registers, local and shared memory.
@@ -298,8 +285,6 @@ public:
     op::loop::Prepared prepare(const op::loop::Call& call,
                                op::loop::Urgency urgency,
                                op::loop::KernelKind kind) override {
-        if (auto reason = refusal(kind); !reason.empty())
-            return unavailable(reason);
         begin(call);
         for (const auto& section : m_call_state.sections.span())
             m_call_state.max_blocks = std::max(m_call_state.max_blocks, grid(section.size()));

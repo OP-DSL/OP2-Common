@@ -418,8 +418,6 @@ inline std::optional<float> Simple::run(const op::loop::Prepared& prepared,
 inline op::loop::Prepared Colouring::prepare(
     const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
-    if (auto reason = refusal(kind); !reason.empty())
-        return unavailable(reason);
     begin(call);
     const auto& entry = m_plans.get(call, [&] {
         op::plan::PlanKey key{"colouring", call};
@@ -541,8 +539,6 @@ inline void ChunkBase::report(const ChunkResult& result) const {
 inline op::loop::Prepared ChunkBase::prepare(
     const op::loop::Call& call, op::loop::Urgency urgency,
     op::loop::KernelKind kind) {
-    if (auto reason = refusal(kind); !reason.empty())
-        return unavailable(reason);
     begin(call);
     const auto *entry = &entry_for(call);
     if (!entry->rejected.empty()) {

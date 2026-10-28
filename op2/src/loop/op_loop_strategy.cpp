@@ -188,7 +188,11 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
 // --- Strategies ---------------------------------------------------------------
 
 Prepared Candidate::prepare(const Call& call, Urgency urgency) const {
-    auto prepared = strategy->prepare(call, urgency, kind);
+    Prepared prepared;
+    if (!refused.empty())
+        prepared.reason = refused;
+    else
+        prepared = strategy->prepare(call, urgency, kind);
     prepared.candidate = this;
     return prepared;
 }
@@ -394,7 +398,7 @@ void Ladder::add(std::string_view family, const Make& make) {
             }
 
         bool member = i + 1 == all.size();
-        auto add = [&](KernelKind kind) {
+        auto add = [&](KernelKind kind, std::string_view refused = {}) {
             std::string name{strategy.name()};
             std::string short_name = label(family, all[i], all.back());
             if (kind == KernelKind::jit) {
@@ -403,7 +407,7 @@ void Ladder::add(std::string_view family, const Make& make) {
             }
             m_candidates.push_back({&strategy, kind, std::move(name), std::move(short_name),
                                     std::string{family}, settings.rank, member,
-                                    member && enabled, off});
+                                    member && enabled, off, refused});
         };
         auto offline = strategy.estimate(KernelKind::offline);
         auto jit = options.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};
@@ -412,10 +416,17 @@ void Ladder::add(std::string_view family, const Make& make) {
                           (jit.time && offline.time && *jit.time < *offline.time));
         if (jit_first)
             add(KernelKind::jit);
-        if (offline.available || !jit.available)
+        if (offline.available)
             add(KernelKind::offline);
         if (jit.available && !jit_first)
             add(KernelKind::jit);
+        // With neither kernel, only the ladder's point keeps a candidate,
+        // refused, to say why.
+        if (!offline.available && !jit.available && member)
+            add(KernelKind::offline,
+                !jit.reason.empty()       ? jit.reason
+                : !offline.reason.empty() ? offline.reason
+                                          : std::string_view{"kernel_unavailable"});
     }
     order();
 }

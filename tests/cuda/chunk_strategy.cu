@@ -370,8 +370,8 @@ int main(int argc, char **argv) {
 
         // Two chunk_atomics strategies that differ only in launch bounds plan
         // alike: one plan, made and uploaded once, which stays while either
-        // holds it.  Without the JIT the bounded one has no kernel, so it
-        // refuses before planning.
+        // holds it.  Without the JIT the bounded one has no kernel, so it has
+        // no candidate.
         {
             setenv("OP_LAUNCH_BOUNDS", "off,on", 1);
             op::loop::init();
@@ -391,25 +391,21 @@ int main(int argc, char **argv) {
                                                                               : unbounded) =
                     &candidate;
             }
-            CHECK(bounded != nullptr && unbounded != nullptr);
-            auto& bounded_strategy = static_cast<gpu::ChunkBase&>(*bounded->strategy);
-            auto& unbounded_strategy = static_cast<gpu::ChunkBase&>(*unbounded->strategy);
-
-            op::loop::Call call{&alike.source, alike.args,
-                                alike.source.size + alike.source.exec_size};
-            auto first = unbounded->prepare(call, op::loop::Urgency::later);
-            auto second = bounded->prepare(call, op::loop::Urgency::later);
+            CHECK(unbounded != nullptr && (bounded != nullptr) == expect_jit);
             if (expect_jit) {
+                auto& bounded_strategy = static_cast<gpu::ChunkBase&>(*bounded->strategy);
+                auto& unbounded_strategy =
+                    static_cast<gpu::ChunkBase&>(*unbounded->strategy);
+                op::loop::Call call{&alike.source, alike.args,
+                                    alike.source.size + alike.source.exec_size};
+                auto first = unbounded->prepare(call, op::loop::Urgency::later);
+                auto second = bounded->prepare(call, op::loop::Urgency::later);
                 CHECK(first.entry != nullptr && first.entry == second.entry);
                 CHECK(unbounded_strategy.entries() == 1 && bounded_strategy.entries() == 1);
                 bounded_strategy.forget(call.key());
                 CHECK(bounded_strategy.entries() == 0);
                 auto again = unbounded->prepare(call, op::loop::Urgency::later);
                 CHECK(again.entry == first.entry);
-            } else {
-                CHECK(second.status == op::loop::Status::unavailable &&
-                      second.reason == "kernel_unavailable");
-                CHECK(bounded_strategy.entries() == 0 && unbounded_strategy.entries() == 1);
             }
             unsetenv("OP_LAUNCH_BOUNDS");
         }

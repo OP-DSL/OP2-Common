@@ -161,11 +161,13 @@ enum class KernelKind {
 
 // A backend's estimate of one kind of a strategy's kernel: whether the
 // strategy has it, and its expected time in the backend's own units,
-// comparable only with the backend's other estimates for the loop; none when
-// the backend cannot say.
+// comparable only with the backend's other estimates for the loop, none when
+// the backend cannot say; when it has none, why ("kernel_unavailable",
+// "needs_launch_bounds").
 struct Estimate {
     bool available = false;
     std::optional<float> time;
+    std::string_view reason;
 };
 
 // A candidate's answer for one configuration.  Opaque to everything but the
@@ -195,7 +197,8 @@ public:
 
     // Its kernel of kind: an offline one at a nominal 1 and no specialised
     // one, unless the backend says otherwise.  Fixed once the strategy is
-    // built.
+    // built, and independent of any call: a kind it does not have is never
+    // prepared.
     virtual Estimate estimate(KernelKind kind) const {
         if (kind == KernelKind::offline)
             return {true, 1.0f};
@@ -268,8 +271,9 @@ struct Family {
 void declare_families(std::span<const Family> families);
 
 // A strategy with one of its kernels: what the ladder runs and the tuner
-// times.  A strategy has a candidate per kernel it has, and an offline one
-// that is unavailable when it has none.
+// times.  A strategy has a candidate per kernel it has, and one with neither
+// none, unless it is the ladder's point of its family: that keeps an offline
+// candidate, refused with the estimates' reason.
 struct Candidate {
     Strategy *strategy;
     KernelKind kind;
@@ -287,6 +291,9 @@ struct Candidate {
     bool enabled;
     // Turned off by its variable: never run or explored.
     bool off;
+    // Why its strategy has no kernel at all; such a candidate is
+    // unavailable, its strategy never asked.
+    std::string_view refused;
 
     Prepared prepare(const Call& call, Urgency urgency) const;
 };
