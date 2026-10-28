@@ -17,15 +17,6 @@
 #include <atomic>
 #endif
 
-// A specialised wrapper's first statement, which lets the compiler spill
-// registers to shared memory when its strategy compiles it with
-// OP2_SMEM_SPILLING defined (gpu/jit.h), else nothing.
-#ifdef OP2_SMEM_SPILLING
-#define OP2_JIT_SMEM_SPILLING asm volatile(".pragma \"enable_smem_spilling\";");
-#else
-#define OP2_JIT_SMEM_SPILLING
-#endif
-
 namespace op::kernel {
 
 /* Scratch staging helpers.

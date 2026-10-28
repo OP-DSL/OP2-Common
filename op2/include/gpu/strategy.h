@@ -78,21 +78,6 @@ inline op::loop::Axis block_size_axis() {
 #endif
 }
 
-// OP_<FAMILY>_SMEM_SPILLING, else OP_SMEM_SPILLING (CUDA 13 and later, off
-// by default): the specialised kernel spills registers to shared memory
-// before local memory, as much as its launch bounds leave.  It needs a
-// kernel without dynamic shared memory, so the chunked strategies have no
-// such axis.
-#if defined(OP2_CUDA) && CUDART_VERSION >= 13000
-constexpr bool smem_spilling_supported = true;
-#else
-constexpr bool smem_spilling_supported = false;
-#endif
-
-inline op::loop::Axis smem_spilling_axis() {
-    return {"SMEM_SPILLING", "smem_spilling", true, {0}};
-}
-
 // --- Plans ------------------------------------------------------------------------
 
 // A set colouring and its element order on the device, freed with it.
@@ -152,8 +137,6 @@ protected:
     KernelSource m_source;
     Binder m_bind;
     int m_block_size;
-    // How its specialised kernel is compiled.
-    CompileSwitches m_switches;
     // The chunked strategies' switches, constants to every kernel of the
     // loop.
     bool m_unstaged_singles = false;
@@ -179,11 +162,8 @@ protected:
     // Begin a call: its sections and the blocks the reduction scratch allows.
     void begin(const op::loop::Call& call);
 
-    // Whether its offline kernel launches its block size and stands for it:
-    // compiled with its switches.
-    bool offline_usable() const {
-        return m_offline.usable(m_block_size) && !m_switches.smem_spilling;
-    }
+    // Whether its offline kernel launches its block size.
+    bool offline_usable() const { return m_offline.usable(m_block_size); }
 
     // Finish a call: the launch parameters and the kernel of kind, as a
     // Prepared value over entry; a specialised kernel is pending while it
@@ -207,17 +187,12 @@ protected:
                                     Launches&& launches, Fill&& fill);
 
 public:
-    static std::vector<op::loop::Axis> axes() {
-        std::vector<op::loop::Axis> out{block_size_axis()};
-        if (smem_spilling_supported)
-            out.push_back(smem_spilling_axis());
-        return out;
-    }
+    static std::vector<op::loop::Axis> axes() { return {block_size_axis()}; }
 
     std::string_view name() const override { return m_name; }
 
-    // The offline kernel at a nominal 1 when it can launch the block size
-    // and has the switches; a specialised one when there is source, expected
+    // The offline kernel at a nominal 1 when it can launch the block size; a
+    // specialised one when there is source, expected
     // faster when the offline kernel uses more than OP_JIT_MIN_REGISTERS
     // registers (by an arbitrary tenth, until timings calibrate it).
     op::loop::Estimate estimate(op::loop::KernelKind kind) const override {

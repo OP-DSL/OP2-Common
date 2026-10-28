@@ -279,7 +279,6 @@ inline StrategyBase::StrategyBase(Loop& loop, const op::loop::Point& point,
                                   KernelSource source, Binder bind)
     : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
       m_block_size{point.value("block_size")},
-      m_switches{point.value("smem_spilling", 0) != 0},
       m_offline{source.offline}, m_cache{source.name, options().build_threads} {}
 
 inline void StrategyBase::begin(const op::loop::Call& call) {
@@ -305,7 +304,7 @@ inline op::loop::Prepared StrategyBase::acquire(
     auto& params = m_loop.params();
     auto key = params.key(call, launch_values().slots());
     auto acquired = m_cache.acquire(key, urgency, [&] {
-        return m_loop.compiler().job(params, m_source, m_switches);
+        return m_loop.compiler().job(params, m_source);
     });
     // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::loop::Status::ready &&

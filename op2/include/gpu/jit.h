@@ -255,13 +255,6 @@ struct JitHeaders {
     bool params = false;
 };
 
-// How a strategy compiles its specialised kernels beyond the parameters'
-// values: spilling registers to shared memory (kernel/strategy.h's
-// OP2_JIT_SMEM_SPILLING).
-struct CompileSwitches {
-    bool smem_spilling = false;
-};
-
 // Builds a loop's specialised kernels through NVRTC or hipRTC.
 class Compiler {
 private:
@@ -295,7 +288,6 @@ private:
     }
 
     std::unique_ptr<JitKernel> compile(const std::string& text, const std::string& name,
-                                       CompileSwitches switches,
                                        std::vector<RuntimeSymbol> symbols,
                                        std::vector<int> baked_globals) const {
         gpuRtcProgram_t prog;
@@ -305,7 +297,7 @@ private:
             m_headers.names.data()));
 
 #ifdef OP2_CUDA
-        std::vector<const char *> opts = {
+        const char *opts[] = {
             device().arch.c_str(),
             "--std=c++20",
 #if __CUDACC_VER_MAJOR__ > 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ >= 4)
@@ -314,16 +306,14 @@ private:
             "--device-as-default-execution-space"
         };
 #else // OP2_HIP
-        std::vector<const char *> opts = {
+        const char *opts[] = {
             "--std=c++20",
             "-O3",
             "-munsafe-fp-atomics"
         };
 #endif
-        if (switches.smem_spilling)
-            opts.push_back("-DOP2_SMEM_SPILLING");
-        auto success =
-            gpuRtcCompileProgram(prog, static_cast<int>(opts.size()), opts.data());
+        auto success = gpuRtcCompileProgram(
+            prog, static_cast<int>(sizeof(opts) / sizeof(opts[0])), opts);
         if (success != GPURTC_SUCCESS) {
             size_t log_size;
             GPU_RTC_CHECK(gpuRtcGetProgramLogSize(prog, &log_size));
@@ -352,10 +342,9 @@ public:
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
     // The job that builds source's kernel with the parameters' current
-    // values baked in, or at run time as their modes say, under switches; it
-    // prints the compiler's log and returns none when the compile fails.
-    auto job(const op::loop::ParamSet& params, const KernelSource& source,
-             CompileSwitches switches) const {
+    // values baked in, or at run time as their modes say; it prints the
+    // compiler's log and returns none when the compile fails.
+    auto job(const op::loop::ParamSet& params, const KernelSource& source) const {
         std::vector<RuntimeSymbol> symbols;
         std::vector<int> baked_globals;
         for (std::size_t i = 0; i < params.size(); ++i)
@@ -369,11 +358,10 @@ public:
                            op::loop::format_cxx(params) +
                            runtime_declarations(params, symbols) +
                            std::string{source.source};
-        return [this, text = std::move(text), name = std::string{source.name}, switches,
+        return [this, text = std::move(text), name = std::string{source.name},
                 symbols = std::move(symbols),
                 baked_globals = std::move(baked_globals)]() mutable {
-            return compile(text, name, switches, std::move(symbols),
-                           std::move(baked_globals));
+            return compile(text, name, std::move(symbols), std::move(baked_globals));
         };
     }
 };

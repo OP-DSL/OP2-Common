@@ -452,9 +452,6 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     const op::kernel::Array<{{arg.typ.c()}}, {{arg.dim}}> gbl{{arg.id}}{{"," if not loop.last}}
     {% endfor %}
 ) {
-    {% if jit and strategy not in chunk_strategies %}
-    OP2_JIT_SMEM_SPILLING
-    {% endif %}
     using namespace op2_m_{{lh.name}}{{variant}};
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     {% if jit %}
