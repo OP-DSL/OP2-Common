@@ -208,6 +208,9 @@ class Application:
                 if isinstance(arg, OP.ArgGbl):
                     self.validateArgGbl(arg, loop, lang)
 
+                if isinstance(arg, OP.ArgInfo):
+                    self.validateArgInfo(arg, loop, lang)
+
             # self.validateKernel(loop, program, lang) TODO
 
     def validateArgDat(self, arg: OP.ArgDat, loop: OP.Loop, lang: Lang) -> None:
@@ -237,3 +240,14 @@ class Application:
 
         if arg.dim is not None and arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
+
+    def validateArgInfo(self, arg: OP.ArgInfo, loop: OP.Loop, lang: Lang) -> None:
+        reduction = loop.args[arg.ref] if 0 <= arg.ref < len(loop.args) else None
+        if not isinstance(reduction, OP.ArgGbl) or reduction.access_type not in [OP.AccessType.MIN, OP.AccessType.MAX]:
+            raise OpError("info argument must refer to a gbl min or max argument", arg.loc)
+
+        # Only literal dims are known here: a runtime one parses as None, or as 0 in C++.
+        if arg.dim and reduction.dim and arg.dim != reduction.dim:
+            raise OpError(
+                f"info argument has dimension {arg.dim}, but the reduction it refers to has {reduction.dim}", arg.loc
+            )

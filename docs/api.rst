@@ -352,9 +352,9 @@ Parallel Loops
    This is a C++ template function; the element size is deduced automatically from the type ``T``.
 
    :param data: The data to be associated with the index returned by the argmin/argmax operation.
-   :param dim: The number of data elements.
+   :param dim: The number of data elements, equal to the referenced minimum or maximum's dimension: element *i* is returned from where component *i* is found, so a kernel writes it only when it takes a new value for that component.
    :param type: The datatype, specified as a string, as with :c:func:`op_decl_const()`.
-   :param ref: Reference index.
+   :param ref: The position of that minimum or maximum's :c:func:`op_arg_gbl()` among the loop's arguments, counting from 0 (from 1 in Fortran).
 
    .. warning::
       This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types.

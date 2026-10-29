@@ -216,6 +216,7 @@ class ArgInfo(Arg):
     dim: Optional[int]
     typ: Type
 
+    # The index of its min or max argument, from 0.
     ref: int
 
     def __str__(self) -> str:

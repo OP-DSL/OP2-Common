@@ -297,7 +297,8 @@ def parseArgInfo(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: 
     ref = parseIntLiteral(args.items[3], loc)
     assert ref is not None
 
-    loop.addArgInfo(loc, ptr, dim, typ, ref)
+    # Fortran counts ref from 1.
+    loop.addArgInfo(loc, ptr, dim, typ, ref - 1)
 
 
 def parseIdentifier(node: Any, loc: Location) -> str:

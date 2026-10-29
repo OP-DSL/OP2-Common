@@ -23,3 +23,7 @@ _op2_translator_rejects(null_test cuda rejects.cpp "${_indexed} it is used as a 
 _op2_translator_rejects(inc_assigned cuda rejects.cpp "OP_INC argument p may only be incremented, but it is assigned" -D INC_ASSIGNED)
 _op2_translator_rejects(inc_read cuda rejects.cpp "OP_INC argument p may only be incremented, but it is read" -D INC_READ)
 _op2_translator_rejects(fortran_inc_assigned cuda_f2c rejects.F90 "arg 1 \\(x\\) of assign_k marked OP_INC but not incremented")
+set(_info "info argument has dimension 1, but the reduction it refers to has 2")
+_op2_translator_rejects(info_dim cuda rejects.cpp "${_info}" -D INFO_DIM)
+_op2_translator_rejects(info_ref cuda rejects.cpp "info argument must refer to a gbl min or max argument" -D INFO_REF)
+_op2_translator_rejects(fortran_info_dim cuda_f2c rejects.F90 "${_info}" -D INFO_DIM)
