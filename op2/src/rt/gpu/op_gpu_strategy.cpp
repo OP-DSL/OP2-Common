@@ -416,11 +416,11 @@ std::span<const StrategyFamily> strategy_families() {
     constexpr bool chunk_atomics = false;
 #endif
     static const std::vector<StrategyFamily> families{
-        {{"plain", Simple::axes()}, false, &make<Simple>},
-        {{"chunk_atomics", ChunkAtomics::axes(), chunk_atomics}, true, &make<ChunkAtomics>},
-        {{"atomics", Simple::axes()}, false, &make<Simple>},
-        {{"chunk_colouring", ChunkColouring::axes(), false}, true, &make<ChunkColouring>},
-        {{"colouring", Colouring::axes()}, false, &make<Colouring>},
+        {{"plain", Simple::axes()}, &make<Simple>},
+        {{"chunk_atomics", ChunkAtomics::axes(), chunk_atomics}, &make<ChunkAtomics>},
+        {{"atomics", Simple::axes()}, &make<Simple>},
+        {{"chunk_colouring", ChunkColouring::axes(), false}, &make<ChunkColouring>},
+        {{"colouring", Colouring::axes()}, &make<Colouring>},
     };
     return families;
 }

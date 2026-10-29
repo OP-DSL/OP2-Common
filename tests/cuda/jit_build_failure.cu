@@ -85,8 +85,10 @@ int main(int argc, char **argv) {
             {{"plain", {}}, "build_failure_offline",
              reinterpret_cast<const void *>(build_failure_offline), broken_source},
         };
+        const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
+            "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
         op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
-                                          false, {}, kernels, &bind,
+                                          params, kernels, &bind,
                                           &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
         gpu::Loop loop(descriptor);
 

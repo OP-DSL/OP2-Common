@@ -505,12 +505,18 @@ static void op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
 {% for arg in lh.args|gbl|read|reject("scalar") %}
     op::rt::abi::gpu::global<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}, {{"true" if arg in gbls_by_value else "false"}}),
 {% endfor %}
+    op::rt::abi::gpu::launch_value("op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size),
+{% if per_thread %}
+    op::rt::abi::gpu::launch_value("op2_stride_gbl_d", op::rt::abi::gpu::LaunchValue::global_stride),
+{% endif %}
+{% if strategies|select("in", chunk_strategies)|list %}
+    op::rt::abi::gpu::launch_value("op2_unstaged_singles_d", op::rt::abi::gpu::LaunchValue::unstaged_singles),
+    op::rt::abi::gpu::launch_value("op2_wavefront_d", op::rt::abi::gpu::LaunchValue::wavefront),
+{% endif %}
 {% endset %}
-{% if params_rows|trim %}
 static const op::rt::abi::gpu::Param op2_k_{{lh.name}}{{variant}}_params[] = {
 {{params_rows}}};
 
-{% endif %}
 {% for strategy in strategies if strategy in chunk_strategies %}
 static constexpr std::array<op::rt::abi::ArgGroup, {{groups[strategy].args|length}}> op2_k_{{lh.name}}{{variant}}_{{strategy}}_groups = {{"{{"}}
     {% for arg in groups[strategy].args %}
@@ -530,8 +536,8 @@ static const op::rt::abi::gpu::Family op2_k_{{lh.name}}{{variant}}_families[] = 
 
 static op::rt::abi::gpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
     {"{{lh.name}}", "{{target.name}}", "{{variant_str()}}", {{"true" if lh is direct else "false"}}},
-    {{"true" if config.gbl_inc_atomic else "false"}}, {{"true" if per_thread else "false"}},
-    {{"op2_k_%s%s_params" % (lh.name, variant) if params_rows|trim else "{}"}},
+    {{"true" if config.gbl_inc_atomic else "false"}},
+    op2_k_{{lh.name}}{{variant}}_params,
     op2_k_{{lh.name}}{{variant}}_families,
     &op2_k_{{lh.name}}{{variant}}_bind,
     &op::rt::kernel::gpu::calls,

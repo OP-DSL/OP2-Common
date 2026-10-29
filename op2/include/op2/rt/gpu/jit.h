@@ -96,16 +96,6 @@ public:
 
 // --- Parameters ---------------------------------------------------------------------
 
-// Each value a strategy fixes for its kernel, by its slot: a specialised
-// kernel's constants op2_stride_gbl_d, op2_block_size_d,
-// op2_unstaged_singles_d and op2_wavefront_d.
-enum class LaunchValue {
-    global_stride,
-    block_size,
-    unstaged_singles,
-    wavefront,
-};
-
 // What a strategy fixes for its kernel: the launch, and its variant's
 // switches.  Passed to each acquire and upload, never kept between them.
 struct LaunchValues {
@@ -114,9 +104,15 @@ struct LaunchValues {
     bool unstaged_singles = false;
     bool wavefront = false;
 
-    // The values by slot.
-    std::array<int, 4> slots() const {
-        return {global_stride, block_size, unstaged_singles, wavefront};
+    // The values by slot (abi::gpu::LaunchValue).
+    std::array<int, abi::gpu::launch_values> slots() const {
+        using abi::gpu::LaunchValue;
+        std::array<int, abi::gpu::launch_values> out{};
+        out[static_cast<std::size_t>(LaunchValue::global_stride)] = global_stride;
+        out[static_cast<std::size_t>(LaunchValue::block_size)] = block_size;
+        out[static_cast<std::size_t>(LaunchValue::unstaged_singles)] = unstaged_singles;
+        out[static_cast<std::size_t>(LaunchValue::wavefront)] = wavefront;
+        return out;
     }
 };
 

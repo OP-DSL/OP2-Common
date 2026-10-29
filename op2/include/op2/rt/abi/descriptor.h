@@ -128,4 +128,10 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
             false};
 }
 
+// A value the strategy fixes, from its slot among the backend's.
+constexpr Param strategy_value(const char *name, int slot) {
+    return {name, ElementType::i32, sizeof(int), ParamSource::strategy, nullptr, 1, false,
+            slot, false};
+}
+
 } // namespace op::rt::abi

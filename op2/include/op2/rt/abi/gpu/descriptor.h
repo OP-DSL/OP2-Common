@@ -60,6 +60,24 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {abi::dat_dim(name, data, arg), nullptr, nullptr, false};
 }
 
+// Each value a strategy fixes for its kernels, by its slot, which the
+// generated code declares as a row under the name its kernels read it by:
+// op2_stride_gbl_d when a kernel keeps a copy per thread of some global,
+// op2_block_size_d always, and op2_unstaged_singles_d and op2_wavefront_d
+// when the loop has a chunked family.
+enum class LaunchValue {
+    global_stride,
+    block_size,
+    unstaged_singles,
+    wavefront,
+};
+
+constexpr int launch_values = 4;
+
+constexpr Param launch_value(const char *name, LaunchValue value) {
+    return {abi::strategy_value(name, static_cast<int>(value)), nullptr, nullptr, false};
+}
+
 // A kernel's resources as its compiler left them: registers and local
 // memory per thread, static shared memory per block, and the most threads a
 // block can have with them.
@@ -106,9 +124,6 @@ struct Loop : abi::Loop {
     // A global OP_INC is incremented atomically, in place, rather than
     // reduced from a copy per thread.
     bool gbl_inc_atomic;
-    // Whether the kernels keep a copy per thread of some global, so they read
-    // the global stride.
-    bool per_thread_globals;
     std::span<const Param> params;
     std::span<const Family> families;
     Binder bind;

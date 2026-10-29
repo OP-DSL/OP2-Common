@@ -66,6 +66,10 @@ void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
 
 // A loop of plain alone, its kernel built from source, with the descriptor it
 // is built from, which outlives it.
+// The block size a bounded kernel reads.
+const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
+    "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
+
 struct Described {
     op::rt::abi::gpu::Family family;
     op::rt::abi::gpu::Loop descriptor;
@@ -73,7 +77,7 @@ struct Described {
 
     explicit Described(const char *source)
         : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
-          descriptor{{"thread_limit", "cuda", "Direct", true}, false, false, {},
+          descriptor{{"thread_limit", "cuda", "Direct", true}, false, params,
                      {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
           loop{descriptor} {}

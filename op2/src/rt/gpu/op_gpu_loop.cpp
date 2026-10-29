@@ -23,24 +23,6 @@ Loop::Loop(const abi::gpu::Loop& descriptor)
     for (const auto& param : descriptor.params)
         add_param(param);
 
-    // The strategies' values, each a constant of a specialised kernel: the
-    // global stride when a kernel keeps a copy per thread of some global, and
-    // the chunked strategies' switches when the loop has one.
-    auto strategy_param = [&](const char *name, LaunchValue value) {
-        m_params.add(name, static_cast<int *>(nullptr), abi::ParamSource::strategy,
-                     static_cast<int>(value));
-    };
-    strategy_param("op2_block_size_d", LaunchValue::block_size);
-    if (descriptor.per_thread_globals)
-        strategy_param("op2_stride_gbl_d", LaunchValue::global_stride);
-    bool chunked = false;
-    for (const auto& family : descriptor.families)
-        chunked |= strategy_family(family.name, descriptor.name).chunked;
-    if (chunked) {
-        strategy_param("op2_unstaged_singles_d", LaunchValue::unstaged_singles);
-        strategy_param("op2_wavefront_d", LaunchValue::wavefront);
-    }
-
     for (const auto& family : descriptor.families) {
         auto make = strategy_family(family.name, descriptor.name).make;
         m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {

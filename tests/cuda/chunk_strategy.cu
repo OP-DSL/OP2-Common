@@ -164,6 +164,15 @@ struct Fixture {
 
 // A loop of chunk_atomics and atomics over fixture's groups, with the
 // descriptor it is built from, which outlives it.
+// The values the chunked strategies fix for their kernels.
+const op::rt::abi::gpu::Param params[] = {
+    op::rt::abi::gpu::launch_value("op2_block_size_d",
+                                   op::rt::abi::gpu::LaunchValue::block_size),
+    op::rt::abi::gpu::launch_value("op2_unstaged_singles_d",
+                                   op::rt::abi::gpu::LaunchValue::unstaged_singles),
+    op::rt::abi::gpu::launch_value("op2_wavefront_d", op::rt::abi::gpu::LaunchValue::wavefront),
+};
+
 struct Described {
     std::array<op::rt::abi::gpu::Family, 2> families;
     op::rt::abi::gpu::Loop descriptor;
@@ -175,7 +184,7 @@ struct Described {
                     {{"atomics", {}}, "chunk_strategy_baseline",
                      reinterpret_cast<const void *>(chunk_strategy_baseline),
                      baseline_source}}},
-          descriptor{{name, "cuda", "Indirect", false}, false, false, {}, families, &bind,
+          descriptor{{name, "cuda", "Indirect", false}, false, params, families, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
           loop{descriptor} {}
 };

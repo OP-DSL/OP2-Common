@@ -77,10 +77,6 @@ protected:
     std::string m_name;
     const abi::gpu::Family& m_family;
     int m_block_size;
-    // The chunked strategies' switches, constants to every kernel of the
-    // loop.
-    bool m_unstaged_singles = false;
-    bool m_wavefront = false;
     OfflineKernel m_offline;
     op::rt::jit::Cache<JitKernel> m_cache;
     CallState m_call_state;
@@ -88,9 +84,10 @@ protected:
     StrategyBase(Loop& loop, const op::rt::loop::Point& point,
                  const abi::gpu::Family& family);
 
-    // This strategy's values for its kernel, from the call being prepared.
-    LaunchValues launch_values() const {
-        return {m_call_state.global_stride, m_block_size, m_unstaged_singles, m_wavefront};
+    // This strategy's values for its kernel, from the call being prepared;
+    // a chunked variant adds its switch.
+    virtual LaunchValues launch_values() const {
+        return {m_call_state.global_stride, m_block_size, false, false};
     }
 
     // Blocks of a grid-stride launch over elements.
@@ -235,15 +232,20 @@ public:
 // Increments staged in shared memory and flushed with global atomics.
 class ChunkAtomics : public ChunkBase {
 protected:
+    bool m_unstaged_singles;
+
+    LaunchValues launch_values() const override {
+        auto values = ChunkBase::launch_values();
+        values.unstaged_singles = m_unstaged_singles;
+        return values;
+    }
     ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
     void add_key(op::rt::plan::PlanKey& key) const override;
     std::string figures(const ChunkPlan& plan) const override;
 
 public:
     ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : ChunkBase{loop, point, family} {
-        m_unstaged_singles = point.value("singles") != 0;
-    }
+        : ChunkBase{loop, point, family}, m_unstaged_singles{point.value("singles") != 0} {}
 
     // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
     // target increments global memory directly, as staging it would save no
@@ -259,6 +261,13 @@ public:
 // seeded and stored with plain loads and stores.
 class ChunkColouring : public ChunkBase {
 protected:
+    bool m_wavefront;
+
+    LaunchValues launch_values() const override {
+        auto values = ChunkBase::launch_values();
+        values.wavefront = m_wavefront;
+        return values;
+    }
     ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
     void add_key(op::rt::plan::PlanKey& key) const override;
     std::string figures(const ChunkPlan& plan) const override;
@@ -266,9 +275,7 @@ protected:
 public:
     ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
                    const abi::gpu::Family& family)
-        : ChunkBase{loop, point, family} {
-        m_wavefront = point.value("wavefront") != 0;
-    }
+        : ChunkBase{loop, point, family}, m_wavefront{point.value("wavefront") != 0} {}
 
     // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
     // in an order that keeps them after every earlier chunk sharing a target.
@@ -280,10 +287,8 @@ public:
 // --- Families -------------------------------------------------------------------
 
 // A strategy family as the GPU backend offers it: as the ladder declares it,
-// whether its kernels read the chunked strategies' switches, and the
-// strategy it makes at each point.
+// and the strategy it makes at each point.
 struct StrategyFamily : op::rt::loop::Family {
-    bool chunked = false;
     std::unique_ptr<op::rt::loop::Strategy> (*make)(Loop& loop, const abi::gpu::Family& family,
                                                     const op::rt::loop::Point& point) = nullptr;
 };
