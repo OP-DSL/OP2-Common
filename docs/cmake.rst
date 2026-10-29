@@ -233,8 +233,9 @@ which produces:
 
    /opt/op2/
        bin/op2-translator          standalone translator wrapper
-       include/op2/                headers, the flat ones and the op2/ tree's,
-                                   with fortran/<variant>/ module files
+       include/op2/                headers, as op2/include holds them (the flat
+                                   ones and the op2/ tree), with
+                                   fortran/<variant>/ module files
        lib/                        libop2_*.a or .so
        lib/cmake/op2/              OP2Config.cmake and friends
        libexec/op2/translator/     translator payload and requirements.txt
@@ -499,10 +500,8 @@ Read-only variables OP2's CMake sets, useful downstream via
      - Two-element list ``[Python3_EXECUTABLE; pkg-dir]`` - pass unquoted to
        ``add_custom_command(COMMAND ...)``
    * - ``OP2_INCLUDE_DIR``
-     - Plain paths to OP2's C/C++ headers: the in-tree source dir, or
-       installed ``<prefix>/include/op2`` for the flat headers
-       (``<op_seq.h>``) and ``<prefix>/include`` for the ``op2/`` tree's
-       (``<op2/rt/gpu/loop.h>``), which generated code includes
+     - Plain path to OP2's C/C++ headers (in-tree source dir vs installed
+       ``<prefix>/include/op2``)
    * - ``OP2_HDF5_LIBRARIES``
      - The HDF5 targets OP2 linked, for an app that calls the HDF5 API itself -
        OP2 links HDF5 ``PRIVATE``, so it passes on no HDF5 include directory

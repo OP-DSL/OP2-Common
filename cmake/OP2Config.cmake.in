@@ -172,10 +172,8 @@ set(_op2_translator_pkg_dir "@PACKAGE_OP2_INSTALL_TRANSLATORDIR@/pkg")
 set(_op2_translator_reqs_file "@PACKAGE_OP2_INSTALL_TRANSLATORDIR@/requirements.txt")
 include("${CMAKE_CURRENT_LIST_DIR}/OP2TranslatorProbe.cmake")
 
-# Plain paths, not genexes: the translator consumes them at configure time.
-# include/op2 holds the flat headers (<op_seq.h>), include the op2/ tree's
-# (<op2/rt/gpu/loop.h>).
-set(OP2_INCLUDE_DIR "@PACKAGE_OP2_INSTALL_INCLUDEDIR@;@PACKAGE_OP2_INSTALL_INCLUDEROOT@" CACHE INTERNAL "")
+# Plain path, not a genex: the translator consumes it at configure time.
+set(OP2_INCLUDE_DIR "@PACKAGE_OP2_INSTALL_INCLUDEDIR@" CACHE INTERNAL "")
 
 include("${CMAKE_CURRENT_LIST_DIR}/OP2AppSupport.cmake")
 

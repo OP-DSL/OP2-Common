@@ -100,8 +100,8 @@ OP2-Common/
 The flat headers below are the long-standing API, included by name
 (`<op_seq.h>`). Newer headers live in the `op2/` tree and are included by
 path (`<op2/rt/gpu/loop.h>`); a header's path below `op2/` is its namespace
-below `op::`. Both install under `include/op2`, and the package exports
-`include/op2` and `include`.
+below `op::`. This directory installs as `include/op2`, the package's one
+include directory, so both spellings work in the source tree and installed.
 
 | Header | Purpose |
 |---|---|

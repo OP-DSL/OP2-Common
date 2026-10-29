@@ -10,8 +10,9 @@ lives under `src/`.  Two kinds sit side by side:
   declares into `op::rt::gpu`, and a namespace with one header may be that
   file (`op2/env.h` is `op::env`, `op2/rt/lifecycle.h` is `op::rt`).
 
-Both install under `include/op2`; the package exports `include/op2` for the
-flat headers and `include` for the `op2/` tree.  `op2/rt/` is the loop
+This directory installs as `include/op2`, the package's one include
+directory, so both spellings work the same in the source tree and once
+installed (the `op2/` tree as `include/op2/op2/`).  `op2/rt/` is the loop
 runtime, what generated code compiles against and calls to run its loops,
 with its sources under `src/rt/`.  The rest of the library includes from it
 only `op2/rt/lifecycle.h` (`scripts/check_rt_layering.sh`, the `rt_layering`

@@ -180,12 +180,9 @@ endmacro()
 # from seeing flags it can't parse.
 
 function(_op2_configure_target tgt)
-    # The flat headers as <op_seq.h>, the op2/ tree's as <op2/rt/gpu/loop.h>;
-    # both install under include/op2.
     target_include_directories(${tgt} PUBLIC
         "$<BUILD_INTERFACE:${_inc}>"
-        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/op2>"
-        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/op2>")
     target_compile_features(${tgt} PUBLIC cxx_std_20)
 
     # IMPORTED_NO_SYSTEM: no build effect here, but install(EXPORT) carries
@@ -621,15 +618,9 @@ foreach(_t IN LISTS _op2_targets_for)
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2/fortran/${_t}")
 endforeach()
 
-# The flat headers and the op2/ tree both land in include/op2, so that
-# include/op2 finds <op_seq.h> and include finds <op2/rt/gpu/loop.h>.
+# include/op2 mirrors op2/include, so one include directory serves the flat
+# headers (<op_seq.h>) and the op2/ tree (<op2/rt/gpu/loop.h>) alike.
 install(DIRECTORY "${_inc}/"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
-    FILES_MATCHING
-        PATTERN "*.h"
-        PATTERN "*.hpp"
-        PATTERN "op2" EXCLUDE)
-install(DIRECTORY "${_inc}/op2/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
     FILES_MATCHING
         PATTERN "*.h"

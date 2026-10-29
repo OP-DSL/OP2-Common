@@ -448,14 +448,14 @@ function(op2_add_app_variants)
     _op2_summary_track(${_A_SUMMARY_BUCKET} "${_A_NAME}" ${_n_variants})
 
     # 2. Shared-flags target, carrying everything both the translator and the
-    # variants' compile lines need.  OP2_INCLUDE_DIR holds plain paths, not
-    # genexes, so the translator can consume them at configure time.
+    # variants' compile lines need.  OP2_INCLUDE_DIR is a plain path, not a
+    # genex, so the translator can consume it at configure time.
     set(_props "${_A_NAME}_app_props")
     if(NOT TARGET ${_props})
         add_library(${_props} INTERFACE)
         target_include_directories(${_props} INTERFACE
             "${CMAKE_CURRENT_SOURCE_DIR}"
-            ${OP2_INCLUDE_DIR})
+            "${OP2_INCLUDE_DIR}")
     endif()
     if(_A_COMPILE_DEFINITIONS)
         target_compile_definitions(${_props} INTERFACE ${_A_COMPILE_DEFINITIONS})
