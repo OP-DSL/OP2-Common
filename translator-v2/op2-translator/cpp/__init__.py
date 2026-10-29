@@ -53,7 +53,12 @@ class Cpp(Lang):
         pass
 
     def validate(self, app: Application) -> None:
-        pass
+        import cpp.parser
+
+        # The consts a loop reads may be declared in any of the app's files.
+        consts = {const.ptr: const for const in app.consts()}
+        for program in app.programs:
+            cpp.parser.findLoopConsts(program, consts)
 
     @lru_cache(maxsize=None)
     def parseFile(
@@ -136,8 +141,6 @@ class Cpp(Lang):
         cpp.parser.parseLoops(ast, program)
         cpp.parser.parseMeta(ast_pp.cursor, program)
 
-        cpp.parser.findLoopConsts(program)
-        
         return program
 
     def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
