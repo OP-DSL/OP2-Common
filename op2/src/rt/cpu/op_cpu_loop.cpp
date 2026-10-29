@@ -120,7 +120,7 @@ void Globals::combine(op_arg *args, const char *loop) const {
 Loop::Loop(const abi::cpu::Loop& descriptor)
     : op::rt::loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
                          descriptor.direct},
-      m_max_threads{descriptor.max_threads}, m_globals{std::make_unique<Globals>()} {
+      m_max_threads{descriptor.max_threads} {
     for (const auto& family : descriptor.families) {
         auto make = strategy_family(family.name, descriptor.name).make;
         m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {
@@ -134,16 +134,16 @@ Loop::~Loop() = default;
 abi::cpu::Range Loop::range() const {
     abi::cpu::Range range;
     range.threads = m_threads;
-    range.globals = m_globals->pointers();
-    range.nargs = m_globals->nargs();
+    range.globals = m_globals.pointers();
+    range.nargs = m_globals.nargs();
     return range;
 }
 
 abi::cpu::Chunk Loop::chunks() const {
     abi::cpu::Chunk chunks;
     chunks.threads = m_threads;
-    chunks.globals = m_globals->pointers();
-    chunks.nargs = m_globals->nargs();
+    chunks.globals = m_globals.pointers();
+    chunks.nargs = m_globals.nargs();
     chunks.scratch = m_scratch_lines.data();
     return chunks;
 }
@@ -165,10 +165,10 @@ void Loop::reserve_scratch(std::size_t bytes) {
 
 void Loop::begin_call(const op::rt::loop::Call&, op_arg *args, int nargs) {
     m_threads = m_max_threads();
-    m_globals->prepare(args, nargs, m_threads);
+    m_globals.prepare(args, nargs, m_threads);
 }
 
-void Loop::combine_globals(op_arg *args, int) { m_globals->combine(args, m_name.c_str()); }
+void Loop::combine_globals(op_arg *args, int) { m_globals.combine(args, m_name.c_str()); }
 
 } // namespace op::rt::cpu
 

@@ -1,7 +1,9 @@
 #pragma once
 
 // The strategy families a backend declares, the axes their strategies vary
-// along, and OP_STRATEGY, which forces a family.
+// along, and OP_STRATEGY, which forces a family.  Defined in
+// src/rt/loop/op_loop_ladder.cpp, whose ladders take the declared families'
+// settings.
 
 #include <span>
 #include <string>

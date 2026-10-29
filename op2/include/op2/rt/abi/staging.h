@@ -1,8 +1,8 @@
 #pragma once
 
-// The staging layout the host planner writes (op2/rt/plan/staging.h) and a
-// staged kernel reads.  Compiled on the host and for the device, by NVRTC
-// too, so it includes nothing.
+// The stage word a staged kernel reads a slot as, which each backend encodes
+// its plan's slots as (op2/rt/plan/staging.h).  Compiled on the host and for
+// the device, by NVRTC too, so it includes nothing.
 
 namespace op::rt::abi {
 

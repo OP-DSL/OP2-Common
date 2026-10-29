@@ -68,7 +68,7 @@ void JitKernel::launch(int num_blocks, int block_size, void **args, int shared_b
     GPU_DRV_CHECK(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1,
                                      shared_bytes, NULL, args, 0));
     GPU_CHECK(gpuPeekAtLastError());
-    if (op::rt::jit::options().debug)
+    if (options().sync_launches)
         GPU_CHECK(gpuStreamSynchronize(0));
 }
 
@@ -85,7 +85,7 @@ void OfflineKernel::launch(int num_blocks, int block_size, void **args, int shar
         m_max_dynamic_shared_bytes = shared_bytes;
     }
     m_calls->launch(m_function, num_blocks, block_size, args, shared_bytes);
-    if (op::rt::jit::options().debug)
+    if (options().sync_launches)
         GPU_CHECK(gpuStreamSynchronize(0));
 }
 

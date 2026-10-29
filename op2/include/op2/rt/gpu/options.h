@@ -17,6 +17,10 @@ struct Options {
     // OP_CHUNK_COLOURING_WINDOW: chunks a wavefront colours at a time; 0
     // colours a section at once.
     int window = 4096;
+
+    // OP_JIT_DEBUG: also synchronise after every launch, offline ones too,
+    // so a fault names its kernel.
+    bool sync_launches = false;
 };
 
 struct Device {

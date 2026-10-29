@@ -4,8 +4,7 @@
 // in phases, each a record its family's run is given, which runs it in the
 // generated code's OpenMP region (op2/rt/kernel/cpu/range.h,
 // op2/rt/kernel/cpu/chunk.h), compiled with the loop's kernel so the element
-// loop inlines.  Defined in src/rt/cpu/op_cpu_strategy.cpp; the per-thread
-// globals in src/rt/cpu/op_cpu_loop.cpp.
+// loop inlines.  Defined in src/rt/cpu/op_cpu_strategy.cpp.
 
 #include <op2/rt/cpu/chunk_plan.h>
 #include <op2/rt/cpu/loop.h>
@@ -25,38 +24,6 @@
 
 namespace op::rt::cpu {
 
-// --- Per-thread globals ------------------------------------------------------------
-
-// A copy per thread of each argument a loop reduces (OP_INC, OP_MIN,
-// OP_MAX), uses as scratch (OP_WORK) or carries with a reduction
-// (op_arg_info), combined into the arguments once the owned elements ran.
-class Globals {
-private:
-    int m_nargs = 0;
-    int m_threads = 0;
-    std::size_t m_stride = 0;
-    std::vector<std::size_t> m_offsets;
-    std::unique_ptr<char[]> m_storage;
-    std::size_t m_capacity = 0;
-    std::vector<char *> m_pointers;
-
-    template<typename T>
-    void combine(op_arg *args, int index) const;
-
-public:
-    // Lay out and initialise every thread's copies: increments from zero,
-    // the rest from the argument's value.
-    void prepare(op_arg *args, int nargs, int threads);
-
-    // Per thread its copy of each argument, nargs apart; null for an
-    // argument not kept per thread.
-    char *const *pointers() const { return m_pointers.data(); }
-    int nargs() const { return m_nargs; }
-
-    // Combine every thread's reductions into the arguments, in thread order.
-    void combine(op_arg *args, const char *loop) const;
-};
-
 // --- The base of every OpenMP strategy ----------------------------------------------
 
 class StrategyBase : public op::rt::loop::Strategy {
@@ -68,7 +35,7 @@ protected:
     StrategyBase(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
         : m_loop{loop}, m_name{point.name}, m_family{family} {}
 
-    // Split [begin, end) over the threads, a body call each.
+    // Run [begin, end), or the positions of order, over the threads.
     void split(int begin, int end, const int *order, op_arg *args);
 
     // Run the phases of a call through the loop's, phase(index) running one

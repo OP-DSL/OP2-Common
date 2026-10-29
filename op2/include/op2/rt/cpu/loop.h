@@ -18,14 +18,42 @@
 
 namespace op::rt::cpu {
 
-class Globals;
+// A copy per thread of each argument a loop reduces (OP_INC, OP_MIN,
+// OP_MAX), uses as scratch (OP_WORK) or carries with a reduction
+// (op_arg_info), combined into the arguments once the owned elements ran.
+class Globals {
+private:
+    int m_nargs = 0;
+    int m_threads = 0;
+    std::size_t m_stride = 0;
+    std::vector<std::size_t> m_offsets;
+    std::unique_ptr<char[]> m_storage;
+    std::size_t m_capacity = 0;
+    std::vector<char *> m_pointers;
+
+    template<typename T>
+    void combine(op_arg *args, int index) const;
+
+public:
+    // Lay out and initialise every thread's copies: increments from zero,
+    // the rest from the argument's value.
+    void prepare(op_arg *args, int nargs, int threads);
+
+    // Per thread its copy of each argument, nargs apart; null for an
+    // argument not kept per thread.
+    char *const *pointers() const { return m_pointers.data(); }
+    int nargs() const { return m_nargs; }
+
+    // Combine every thread's reductions into the arguments, in thread order.
+    void combine(op_arg *args, const char *loop) const;
+};
 
 class Loop : public op::rt::loop::Loop {
 private:
     int (*m_max_threads)();
     // The call under way: its threads, their globals and chunk scratch.
     int m_threads = 1;
-    std::unique_ptr<Globals> m_globals;
+    Globals m_globals;
     std::vector<std::unique_ptr<char[]>> m_scratch;
     std::vector<char *> m_scratch_lines;
     std::size_t m_scratch_capacity = 0;
