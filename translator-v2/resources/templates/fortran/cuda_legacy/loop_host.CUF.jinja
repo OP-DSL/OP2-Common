@@ -260,6 +260,13 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
     ! locals
     type(op_arg), dimension({{lh.args|length}}) :: args
 
+    ! Per argument, 1 where the kernel has it from the host by value
+    integer(c_signed_char), dimension({{lh.args|length}}), parameter :: on_host = [ &
+{% for arg in lh.args %}
+        {{"1" if arg is gbl and arg is read and arg is scalar else "0"}}_c_signed_char{{", &" if not loop.last else " &"}}
+{% endfor %}
+    ]
+
     integer(4) :: n_exec, col, block, round, dim, err, d
 
 {% for dat in lh.dats %}
@@ -395,7 +402,7 @@ subroutine op2_k_{{lh.name}}{{variant}}( &
 {% endif %}
 
     call op_profile_enter("Prepare GBLs")
-    call prepareDeviceGbls(args, size(args), block_size * max_blocks)
+    call prepareDeviceGbls(args, size(args), block_size * max_blocks, on_host)
     call op_profile_exit()
 
 {% for arg in lh.args %}

@@ -371,14 +371,10 @@ void op_put_all_cuda(int nargs, op_arg *args) {
   }
 }
 
-// on_host: per argument, whether the kernel has it from the host side; when
-// none is given, a READ global of dimension 1 is taken to come by value.
+// on_host: per argument, whether the kernel has it from the host side.
 void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
                                  bool use_gbl_inc_atomics,
                                  const unsigned char *on_host) {
-    auto host_side = [&](int i) {
-        return on_host != nullptr ? on_host[i] != 0 : args[i].dim == 1;
-    };
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
@@ -389,7 +385,7 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
             required_size += align(args[i].size * max_threads * sizeof(char));
             if (starts_from_host(args[i]))
                 required_size += align(args[i].size * sizeof(char));
-        } else if (needs_device_storage(args[i], host_side(i))) {
+        } else if (needs_device_storage(args[i], on_host[i] != 0)) {
             required_size += align(args[i].size * sizeof(char));
         }
     }
@@ -413,7 +409,7 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
                 allocated += align(args[i].size * sizeof(char));
             }
             init_per_thread(args[i], value, max_threads);
-        } else if (needs_device_storage(args[i], host_side(i))) {
+        } else if (needs_device_storage(args[i], on_host[i] != 0)) {
             args[i].data_d = allocated;
             allocated += align(args[i].size * sizeof(char));
 
@@ -457,8 +453,9 @@ bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,
     return needs_red_sync || needs_rw_sync;
 }
 
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
-    prepareDeviceGblsWithPolicy(args, nargs, max_threads, gbl_inc_atomic, nullptr);
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads,
+                       const unsigned char *on_host) {
+    prepareDeviceGblsWithPolicy(args, nargs, max_threads, gbl_inc_atomic, on_host);
 }
 
 int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
