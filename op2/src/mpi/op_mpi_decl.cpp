@@ -75,6 +75,7 @@ void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
   op_renumber_init();
   op::rt::init_cpu();
+  op_mpi_halo_exchanges_init();
   op::env::finish();
 }
 
@@ -99,6 +100,7 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
   op_init_core(argc, argv, diags);
   op_renumber_init();
   op::rt::init_cpu();
+  op_mpi_halo_exchanges_init();
   op::env::finish();
 }
 

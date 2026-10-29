@@ -84,6 +84,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   cutilDeviceInit(argc, argv);
   op::rt::init_gpu();
   op_gpu_direct_init();
+  op_mpi_halo_exchanges_init();
   op::env::finish();
 }
 
@@ -110,6 +111,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   cutilDeviceInit(argc, argv);
   op::rt::init_gpu();
   op_gpu_direct_init();
+  op_mpi_halo_exchanges_init();
   op::env::finish();
 }
 

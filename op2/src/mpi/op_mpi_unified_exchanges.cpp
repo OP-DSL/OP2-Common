@@ -14,15 +14,6 @@
 
 namespace op::mpi {
 
-Backend &backend_for(int device) {
-    Backend *backend = (device == 2) ? device_backend() : host_backend();
-
-    if (backend == nullptr)
-        op::mpi::fail("op_mpi_halo_exchanges: no exchange backend for device %d in this library\n", device);
-
-    return *backend;
-}
-
 struct ExchangeSpec {
     op_dat dat;
 
@@ -143,6 +134,12 @@ struct ExchangeContext {
     std::vector<MPI_Request> send_reqs;
     std::vector<MPI_Request> recv_reqs;
 
+    // Made by op_mpi_halo_exchanges_init; no device one in a library without an
+    // accelerator backend.
+    std::unique_ptr<Backend> host_backend;
+    std::unique_ptr<Backend> device_backend;
+
+    // The current exchange's.
     Backend *backend = nullptr;
 
     // Spec counts, not map sizes: the maps keep their keys between exchanges so
@@ -151,7 +148,9 @@ struct ExchangeContext {
     size_t n_scatter_specs = 0;
 
     void reset(int device, bool exec) {
-        backend = &backend_for(device);
+        backend = device == 2 ? device_backend.get() : host_backend.get();
+        if (backend == nullptr)
+            op::mpi::fail("op_mpi_halo_exchanges: no exchange backend for device %d in this library\n", device);
 
         this->device = device;
         this->exec = exec;
@@ -461,15 +460,17 @@ void op_mpi_test_all(int, op_arg *) {
     ctx.test();
 }
 
+void op_mpi_halo_exchanges_init() {
+    ctx.host_backend = make_host_backend();
+    ctx.device_backend = make_device_backend();
+}
+
 void op_mpi_halo_exchanges_exit() {
     if (ctx.unwaited != nullptr)
         unpaired(std::string("op_exit with the halo exchange on set '") + ctx.unwaited->name + "' never waited for");
     // Each exchange completes the previous one's sends; nothing follows the last.
     if (!ctx.send_reqs.empty()) {
         MPI_Waitall(ctx.send_reqs.size(), ctx.send_reqs.data(), MPI_STATUSES_IGNORE);
-        ctx.send_reqs.clear();
     }
-    host_backend()->forget_dats();
-    if (Backend *device = device_backend())
-        device->forget_dats();
+    ctx = {};
 }

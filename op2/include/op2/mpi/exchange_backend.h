@@ -2,6 +2,7 @@
 
 #include <op2/mpi/exchange.h>
 
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -60,18 +61,12 @@ public:
 
     virtual void wait_gathers() = 0;
     virtual void wait_scatters() = 0;
-
-    // Called by op_exit: forget anything cached about the run's dats.
-    virtual void forget_dats() {}
 };
 
 // Always available: the host backend has no accelerator dependency.
-Backend *host_backend();
+std::unique_ptr<Backend> make_host_backend();
 
 // Null in a library variant built without an accelerator backend.
-Backend *device_backend();
-
-// Selects from the device argument, aborting if that backend is unavailable.
-Backend &backend_for(int device);
+std::unique_ptr<Backend> make_device_backend();
 
 }

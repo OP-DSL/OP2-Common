@@ -68,5 +68,5 @@ void deviceSync() {}
 #include <op2/mpi/exchange_backend.h>
 
 namespace op::mpi {
-Backend *device_backend() { return nullptr; }
+std::unique_ptr<Backend> make_device_backend() { return nullptr; }
 }

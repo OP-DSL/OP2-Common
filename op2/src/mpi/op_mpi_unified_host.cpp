@@ -11,6 +11,7 @@ class HostBackend final : public Backend {
 public:
     // The gather is a plain loop, so it has finished by the time it returns.
     HostBackend() : Backend{true} {}
+    ~HostBackend() override;
 
     DatPlacement placement(op_dat dat, op_map partial_map) const override;
 
@@ -129,9 +130,11 @@ void HostBackend::initiate_scatters(const SpecsByNeighbour<ScatterSpec> &scatter
             scatter(spec);
 }
 
-Backend *host_backend() {
-    static HostBackend backend;
-    return &backend;
+HostBackend::~HostBackend() {
+    free(gather_buf);
+    free(scatter_buf);
 }
+
+std::unique_ptr<Backend> make_host_backend() { return std::make_unique<HostBackend>(); }
 
 }

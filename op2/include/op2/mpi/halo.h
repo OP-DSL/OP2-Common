@@ -245,8 +245,11 @@ extern "C" {
    does. The layout is unchanged. Collective over OP_MPI_WORLD. */
 void op_halo_refresh_imports();
 
-/* Stops the job if a halo exchange is still waiting for its wait, and completes
-   the last exchange's sends. */
+/* Makes the halo exchanges' backends, from op_init. */
+void op_mpi_halo_exchanges_init();
+
+/* Stops the job if a halo exchange is still waiting for its wait, completes
+   the last exchange's sends, and releases the backends. */
 void op_mpi_halo_exchanges_exit();
 
 /* Resolve OP_gpu_direct, once, from op_init. Defined only in a library with a

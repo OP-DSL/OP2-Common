@@ -39,6 +39,7 @@ class CudaBackend final : public Backend {
 public:
     // The gather and scatter kernels are asynchronous.
     CudaBackend() : Backend{false} {}
+    ~CudaBackend() override;
 
     DatPlacement placement(op_dat dat, op_map partial_map) const override;
 
@@ -49,8 +50,6 @@ public:
 
     void wait_gathers() override;
     void wait_scatters() override;
-
-    void forget_dats() override { soa_cache.clear(); }
 
 private:
     bool is_soa(op_dat dat) const;
@@ -122,10 +121,7 @@ DatPlacement CudaBackend::placement(op_dat dat, op_map partial_map) const {
     return placement;
 }
 
-Backend *device_backend() {
-    static CudaBackend backend;
-    return &backend;
-}
+std::unique_ptr<Backend> make_device_backend() { return std::make_unique<CudaBackend>(); }
 
 static void ensure_capacity(void **buffer, size_t *size, size_t capacity, bool async = true) {
     if (capacity <= *size) {
@@ -324,6 +320,21 @@ void CudaBackend::wait_scatters() {
     }
 
     cutilSafeCall(gpuEventSynchronize(scatter_event));
+}
+
+CudaBackend::~CudaBackend() {
+    cutilSafeCall(gpuFree(gather_buf));
+    cutilSafeCall(gpuFree(scatter_buf));
+    cutilSafeCall(gpuHostFree(gather_host));
+    cutilSafeCall(gpuHostFree(scatter_host));
+    for (void *specs : {(void *) gathers_d, (void *) gather_disps_d, (void *) scatters_d,
+                        (void *) scatter_disps_d})
+        if (specs != nullptr)
+            cutilSafeCall(gpuFreeAsync(specs, 0));
+    if (gather_event_initialised)
+        cutilSafeCall(gpuEventDestroy(gather_event));
+    if (scatter_event_initialised)
+        cutilSafeCall(gpuEventDestroy(scatter_event));
 }
 
 }
