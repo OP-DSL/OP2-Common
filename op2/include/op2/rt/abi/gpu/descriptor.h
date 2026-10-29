@@ -60,10 +60,20 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {abi::dat_dim(name, data, arg), nullptr, nullptr, false};
 }
 
+// A kernel's resources as its compiler left them: registers and local
+// memory per thread, static shared memory per block, and the most threads a
+// block can have with them.
+struct KernelResources {
+    int registers = 0;
+    int local_bytes = 0;
+    int shared_bytes = 0;
+    int max_threads = 0;
+};
+
 // The calls on a kernel or symbol compiled with the application, which
 // op2_kernels makes with the runtime that registered it.
 struct OfflineCalls {
-    KernelFigures (*figures)(const void *function);
+    KernelResources (*resources)(const void *function);
     // Let a launch have up to bytes of dynamic shared memory.
     void (*allow_shared)(const void *function, int bytes);
     void (*launch)(const void *function, int blocks, int block_size, void **args,

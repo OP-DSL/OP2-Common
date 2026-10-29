@@ -5,7 +5,6 @@
 // candidate is a strategy with one of its kernels (op2/rt/loop/ladder.h).
 // Nothing here knows about devices or any one strategy family.
 
-#include <op2/rt/abi/descriptor.h>
 #include <op2/rt/loop/call.h>
 
 #include <cstddef>
@@ -74,19 +73,16 @@ struct BuildCounts {
     }
 };
 
-// What a backend knows of one kind of a strategy's kernel before it runs:
-// whether the strategy has it, why not ("kernel_unavailable"), and its
-// compiler's figures once known.
-struct KernelFacts {
+// A backend's estimate of one kind of a strategy's kernel before anything is
+// timed: whether the strategy has it, why not ("kernel_unavailable"), and
+// its cost, dimensionless and comparable only with the loop's other
+// estimates, none when the backend cannot say.  The ladder orders a
+// strategy's kernels by it, and the tuner's timings overrule it once a
+// configuration is explored.
+struct Estimate {
     bool available = false;
-    std::string_view reason;
-    std::optional<abi::KernelFigures> figures;
-};
-
-// A strategy's facts, which the heuristics weigh.
-struct Facts {
-    KernelFacts offline;
-    KernelFacts jit;
+    std::string_view reason{};
+    std::optional<float> cost;
 };
 
 class Strategy {
@@ -97,12 +93,13 @@ public:
     // singles=on"; the report column.
     virtual std::string_view name() const = 0;
 
-    // What it knows of its kernels before any call, which the heuristics
-    // (op2/rt/tune/heuristics.h) estimate them from: an offline one with no
-    // figures and no specialised one, unless the backend says otherwise.
-    // Fixed once the strategy is built: a kind it does not have is never
-    // prepared.
-    virtual Facts facts() const { return {{true, {}, {}}, {}}; }
+    // Its kernel of kind as its backend's heuristics estimate it before any
+    // call: an offline one at a nominal 1 and no specialised one, unless the
+    // backend says otherwise.  Fixed once the strategy is built: a kind it
+    // does not have is never prepared.
+    virtual Estimate estimate(KernelKind kind) const {
+        return kind == KernelKind::offline ? Estimate{true, {}, 1.0f} : Estimate{};
+    }
 
     // Resolve call for its kernel of kind: build or find the configuration's
     // plan, and find or request the kernel, as urgency asks.  Blocks only for

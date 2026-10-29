@@ -1,8 +1,8 @@
 #pragma once
 
 // What the generated code tells the library about a loop, whatever the
-// backend: the arguments a staged kernel groups, the parameters its kernels
-// may be specialised on, and a compiled kernel's figures.
+// backend: the arguments a staged kernel groups, and the parameters its
+// kernels may be specialised on.
 
 #include <cstddef>
 #include <cstdint>
@@ -108,15 +108,5 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {name, ParamType::i32, sizeof(int), ParamSource::dat_dim, data, 1, false, arg,
             false};
 }
-
-// A kernel's resources as its compiler left them: registers and local
-// memory per thread, static shared memory per block, and the most threads a
-// block can have with them.
-struct KernelFigures {
-    int registers = 0;
-    int local_bytes = 0;
-    int shared_bytes = 0;
-    int max_threads = 0;
-};
 
 } // namespace op::rt::abi

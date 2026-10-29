@@ -14,7 +14,7 @@ namespace op::rt::kernel::gpu {
 
 namespace detail {
 
-inline op::rt::abi::KernelFigures figures(const void *function) {
+inline op::rt::abi::gpu::KernelResources resources(const void *function) {
     gpuFuncAttributes_t attributes{};
     GPU_CHECK(gpuFuncGetAttributes(&attributes, function));
     return {attributes.numRegs, static_cast<int>(attributes.localSizeBytes),
@@ -40,7 +40,7 @@ inline void *symbol(const void *symbol) {
 
 } // namespace detail
 
-inline constexpr op::rt::abi::gpu::OfflineCalls calls{&detail::figures, &detail::allow_shared,
+inline constexpr op::rt::abi::gpu::OfflineCalls calls{&detail::resources, &detail::allow_shared,
                                                       &detail::launch, &detail::symbol};
 
 } // namespace op::rt::kernel::gpu

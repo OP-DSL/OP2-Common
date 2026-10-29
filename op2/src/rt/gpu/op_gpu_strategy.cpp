@@ -1,5 +1,7 @@
 #include <op2/rt/gpu/strategy.h>
 
+#include <op2/rt/gpu/heuristics.h>
+
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
 #include <op2/rt/plan/options.h>
@@ -43,20 +45,18 @@ StrategyBase::StrategyBase(Loop& loop, const op::rt::loop::Point& point,
       m_block_size{point.value("block_size")}, m_offline{family.offline, loop.calls()},
       m_cache{family.kernel, options().build_threads} {}
 
-op::rt::loop::Facts StrategyBase::facts() const {
-    op::rt::loop::Facts facts;
-    facts.offline.available = offline_usable();
-    facts.offline.reason = facts.offline.available ? "" : "kernel_unavailable";
-    facts.offline.figures = m_offline.figures();
-    facts.jit.available = m_family.source != nullptr && m_family.source[0] != '\0';
-    facts.jit.reason = facts.jit.available ? "" : "kernel_unavailable";
-    return facts;
+op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
+    KernelFacts facts;
+    facts.offline = offline_usable();
+    facts.resources = m_offline.resources();
+    facts.jit = m_family.source != nullptr && m_family.source[0] != '\0';
+    return gpu::estimate(facts, kind);
 }
 
 std::string StrategyBase::statistics(const op::rt::loop::Prepared& prepared) const {
     if (prepared.kernel != nullptr)
-        return "jit, " + describe(static_cast<JitKernel *>(prepared.kernel)->figures());
-    return "offline, " + describe(m_offline.figures());
+        return "jit, " + describe(static_cast<JitKernel *>(prepared.kernel)->resources());
+    return "offline, " + describe(m_offline.resources());
 }
 
 void StrategyBase::begin(const op::rt::loop::Call& call) {
@@ -86,7 +86,7 @@ op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
         m_cache.acquire(key, urgency, [&] { return m_loop.compiler().job(params, m_family); });
     // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::rt::loop::Status::ready &&
-        acquired.kernel->figures().max_threads < m_block_size) {
+        acquired.kernel->resources().max_threads < m_block_size) {
         prepared.reason = "thread_limit";
         return prepared;
     }

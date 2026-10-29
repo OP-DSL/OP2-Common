@@ -1,7 +1,6 @@
 // The strategy ladder without a backend: fake strategies answer ready,
 // pending or unavailable as scripted, for each of their kernels.
 
-#include <op2/rt/abi/descriptor.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/loop/ladder.h>
 #include <op2/rt/loop/strategy.h>
@@ -12,6 +11,7 @@
 #include <deque>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -34,8 +34,10 @@ struct Fake : loop::Strategy {
     int waits = 0;
     int runs = 0;
     float time = 1.0f;
-    // The facts it reports, and the kind its latest prepare was asked for.
-    loop::Facts fake_facts{{true, {}, {}}, {}};
+    // The estimates it reports, and the kind its latest prepare was asked
+    // for.
+    loop::Estimate offline_estimate{true, {}, 1.0f};
+    loop::Estimate jit_estimate{};
     loop::KernelKind kind = loop::KernelKind::offline;
 
     explicit Fake(const loop::Point& point)
@@ -43,7 +45,9 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Facts facts() const override { return fake_facts; }
+    loop::Estimate estimate(loop::KernelKind asked) const override {
+        return asked == loop::KernelKind::jit ? jit_estimate : offline_estimate;
+    }
 
     loop::Prepared prepare(const loop::Call&, loop::Urgency urgency,
                            loop::KernelKind asked) override {
@@ -463,20 +467,29 @@ void test_long_ladder() {
     CHECK(fakes[0]->prepares == 2 && fakes[1]->prepares == 0);
 }
 
-// A strategy has a candidate per kernel, the specialised one first when the
-// heuristics expect it faster (its offline kernel uses more than
-// OP_JIT_MIN_REGISTERS registers) or under OP_JIT_FORCE, and an unavailable
+// A strategy has a candidate per kernel, the specialised one first when its
+// backend estimates it cheaper or under OP_JIT_FORCE, and an unavailable
 // offline one when it has neither; with the JIT off it has no specialised
 // one.
 void test_kernel_kinds() {
     using loop::KernelKind;
     using Kinds = std::vector<KernelKind>;
-    auto kinds = [](loop::Facts facts) {
+    // An offline kernel of cost offline, or none when negative, and a
+    // specialised one of cost jit, or none when negative; a cost of 0 is
+    // none known.
+    auto kinds = [](float offline_cost, float jit_cost) {
+        auto estimate = [](float cost) {
+            if (cost < 0)
+                return loop::Estimate{false, "kernel_unavailable", {}};
+            return loop::Estimate{true, {}, cost > 0 ? std::optional<float>{cost}
+                                                     : std::optional<float>{}};
+        };
         declare({{"colouring", {}}});
         loop::Ladder ladder{"test_loop"};
         ladder.add("colouring", [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point);
-            made->fake_facts = facts;
+            made->offline_estimate = estimate(offline_cost);
+            made->jit_estimate = estimate(jit_cost);
             return made;
         });
         Kinds out;
@@ -486,39 +499,22 @@ void test_kernel_kinds() {
     };
     const auto offline = KernelKind::offline;
     const auto jit = KernelKind::jit;
-    // An offline kernel of registers registers, or none when negative, and
-    // a specialised kernel when jit_source.
-    auto facts = [](int registers, bool jit_source) {
-        loop::Facts out;
-        if (registers >= 0)
-            out.offline = {true, {}, op::rt::abi::KernelFigures{registers, 0, 0, 1024}};
-        else
-            out.offline = {false, "kernel_unavailable", {}};
-        if (jit_source)
-            out.jit = {true, {}, {}};
-        return out;
-    };
-    loop::Facts unknown{{true, {}, {}}, {true, {}, {}}};
 
     op::rt::init();
-    CHECK(kinds(facts(64, true)) == (Kinds{jit, offline}));
-    CHECK(kinds(facts(32, true)) == (Kinds{offline, jit}));
-    CHECK(kinds(unknown) == (Kinds{offline, jit}));
-    CHECK(kinds(facts(-1, true)) == (Kinds{jit}));
-    CHECK(kinds(facts(64, false)) == (Kinds{offline}));
-    CHECK(kinds(facts(-1, false)) == (Kinds{offline}));
-    setenv("OP_JIT_MIN_REGISTERS", "64", 1);
-    op::rt::init();
-    CHECK(kinds(facts(64, true)) == (Kinds{offline, jit}));
-    CHECK(kinds(facts(65, true)) == (Kinds{jit, offline}));
-    unsetenv("OP_JIT_MIN_REGISTERS");
+    CHECK(kinds(1.0f, 0.9f) == (Kinds{jit, offline}));
+    CHECK(kinds(1.0f, 1.0f) == (Kinds{offline, jit}));
+    CHECK(kinds(1.0f, 1.1f) == (Kinds{offline, jit}));
+    CHECK(kinds(0, 0) == (Kinds{offline, jit}));
+    CHECK(kinds(-1, 1.0f) == (Kinds{jit}));
+    CHECK(kinds(1.0f, -1) == (Kinds{offline}));
+    CHECK(kinds(-1, -1) == (Kinds{offline}));
     setenv("OP_JIT_FORCE", "1", 1);
     op::rt::init();
-    CHECK(kinds(facts(0, true)) == (Kinds{jit, offline}));
-    CHECK(kinds(facts(0, false)) == (Kinds{offline}));
+    CHECK(kinds(1.0f, 1.1f) == (Kinds{jit, offline}));
+    CHECK(kinds(1.0f, -1) == (Kinds{offline}));
     setenv("OP_JIT_LEVEL", "0", 1);
     op::rt::init();
-    CHECK(kinds(facts(-1, true)) == (Kinds{offline}));
+    CHECK(kinds(-1, 1.0f) == (Kinds{offline}));
     unsetenv("OP_JIT_LEVEL");
     unsetenv("OP_JIT_FORCE");
     op::rt::init();
@@ -530,8 +526,7 @@ void test_kernel_kinds() {
     Fake *fake = nullptr;
     ladder.add("colouring", [&](const loop::Point& point) {
         auto made = std::make_unique<Fake>(point);
-        made->fake_facts = {{true, {}, op::rt::abi::KernelFigures{64, 0, 0, 1024}},
-                            {true, {}, {}}};
+        made->jit_estimate = {true, {}, 0.9f};
         fake = made.get();
         return made;
     });
@@ -554,8 +549,8 @@ void test_kernel_less_points() {
         ladder.add("colouring", [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point);
             if (point.value("switch") == 0) {
-                made->fake_facts = {{false, "kernel_unavailable", {}},
-                                    {false, "build_failed", {}}};
+                made->offline_estimate = {false, "kernel_unavailable", {}};
+                made->jit_estimate = {false, "build_failed", {}};
             }
             fakes.push_back(made.get());
             return made;

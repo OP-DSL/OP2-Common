@@ -2,7 +2,6 @@
 
 #include <op2/env.h>
 #include <op2/rt/jit/options.h>
-#include <op2/rt/tune/heuristics.h>
 #include <op_lib_core.h>
 
 #include <algorithm>
@@ -232,12 +231,11 @@ void Ladder::add(std::string_view family, const Make& make) {
                                     std::string{family}, settings.rank, member,
                                     member && enabled, off, refused});
         };
-        auto facts = strategy.facts();
-        auto offline = tune::estimate(facts, KernelKind::offline);
-        auto jit = options.enabled() ? tune::estimate(facts, KernelKind::jit) : tune::Estimate{};
+        auto offline = strategy.estimate(KernelKind::offline);
+        auto jit = options.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};
         bool jit_first = jit.available &&
                          (!offline.available || options.force ||
-                          (jit.time && offline.time && *jit.time < *offline.time));
+                          (jit.cost && offline.cost && *jit.cost < *offline.cost));
         if (jit_first)
             add(KernelKind::jit);
         if (offline.available)

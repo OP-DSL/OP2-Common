@@ -44,11 +44,12 @@ struct Fake : loop::Strategy {
     std::string_view name() const override { return fake_name; }
 
     // A specialised kernel when it has a jit_time, expected faster.
-    loop::Facts facts() const override {
-        loop::Facts facts{{true, {}, op::rt::abi::KernelFigures{64, 0, 0, 1024}}, {}};
+    loop::Estimate estimate(loop::KernelKind kind) const override {
+        if (kind == loop::KernelKind::offline)
+            return {true, {}, 1.0f};
         if (jit_time)
-            facts.jit = {true, {}, {}};
-        return facts;
+            return {true, {}, 0.9f};
+        return {};
     }
 
     loop::Prepared prepare(const loop::Call&, loop::Urgency,

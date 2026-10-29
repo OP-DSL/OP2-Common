@@ -158,11 +158,10 @@ Includes nothing else of `op2/rt/`; what a kernel reads compiles for the
 device, under NVRTC and hipRTC too.
 ```
 op2/rt/abi/descriptor.h      (what any backend's descriptor holds: the
-                              arguments a staged kernel groups, the
+                              arguments a staged kernel groups, and the
                               parameters a loop's kernels may be specialised
-                              on, as rows the generated code builds with
-                              constant, scalar_global, global, dat_stride and
-                              dat_dim, and a compiled kernel's figures)
+                              on, as the JIT takes them, built with constant,
+                              scalar_global, global, dat_stride and dat_dim)
 op2/rt/abi/staging.h         (the staging layout the host planner writes and
                               a staged kernel reads: stage words, the slot
                               limit, the unstaged word; no includes)
@@ -176,11 +175,13 @@ op2/rt/abi/gpu/descriptor.h  (includes: op_lib_core.h,
                               op2/rt/abi/descriptor.h,
                               op2/rt/abi/gpu/launch.h; a loop as the CUDA and
                               HIP code describes it: its families' offline
-                              kernels and JIT sources, its parameters, the
-                              binder of its arguments, the calls on what the
-                              application compiled and the embedded JIT
-                              headers; invoke, from
-                              src/rt/gpu/op_gpu_loop.cpp)
+                              kernels and JIT sources, its parameters with
+                              their device side (a __constant__ symbol, its
+                              shared hash, by value), the binder of its
+                              arguments, the calls on what the application
+                              compiled, an offline kernel's resources among
+                              them, and the embedded JIT headers; invoke,
+                              from src/rt/gpu/op_gpu_loop.cpp)
 op2/rt/abi/cpu/launch.h      (includes: op2/rt/abi/staging.h; the OpenMP
                               records, a range's and a chunk batch's, and a
                               thread's own part: its globals and scratch)
@@ -253,10 +254,10 @@ op2/rt/loop/call.h      (includes: op_lib_core.h; one call: its set and
                          runs in, a phase's arguments, and the reduction of
                          its globals across the ranks; from
                          src/rt/loop/op_loop_call.cpp)
-op2/rt/loop/strategy.h  (includes: op2/rt/abi/descriptor.h,
-                         op2/rt/loop/call.h; a strategy, with an offline
-                         kernel, a specialised one or both, and the facts it
-                         reports of each for the heuristics)
+op2/rt/loop/strategy.h  (includes: op2/rt/loop/call.h; a strategy, with an
+                         offline kernel, a specialised one or both, and its
+                         backend's estimate of each: available or why not,
+                         and a dimensionless cost the ladder orders them by)
 op2/rt/loop/family.h    (the families a backend declares, the axes their
                          strategies vary along, and OP_STRATEGY, read by
                          op_init)
@@ -297,12 +298,6 @@ op2/rt/jit/cache.h    (includes: op_lib_core.h, op2/rt/jit/options.h,
 
 #### Choosing a strategy (op::rt::tune, sources under src/rt/tune)
 ```
-op2/rt/tune/heuristics.h  (includes: op2/rt/loop/strategy.h; what is
-                           expected to run fastest before anything is timed,
-                           over the facts the strategies report: the ladder
-                           orders a strategy's candidates by it, and every
-                           model of what pays belongs here, the register rule
-                           first; OP_JIT_MIN_REGISTERS, read by op_init)
 op2/rt/tune/autotune.h    (includes: op2/rt/loop/call.h,
                            op2/rt/loop/ladder.h, op2/rt/loop/strategy.h; the
                            autotuner, which times every candidate per
@@ -350,6 +345,12 @@ op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's and the
                             wavefront window, and the device's facts; read by
                             op_init, which declares the GPU families, from
                             src/rt/gpu/op_gpu_options.cpp)
+op2/rt/gpu/heuristics.h    (includes: op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/loop/strategy.h; the models of what pays
+                            on the device, which turn what the backend knows
+                            of a strategy's kernels into its estimates, the
+                            register rule first; OP_JIT_MIN_REGISTERS, read
+                            by op_init; from src/rt/gpu/op_gpu_heuristics.cpp)
 op2/rt/gpu/loop.h          (includes: op_lib_core.h, op2/gpu/shims.h,
                             op2/rt/abi/descriptor.h,
                             op2/rt/abi/gpu/descriptor.h,

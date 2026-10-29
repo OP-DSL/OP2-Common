@@ -10,12 +10,12 @@
 
 namespace op::rt::gpu {
 
-std::string describe(const op::rt::abi::KernelFigures& figures) {
-    std::string out = std::to_string(figures.registers) + " regs";
-    if (figures.local_bytes > 0)
-        out += ", " + std::to_string(figures.local_bytes) + " B local";
-    if (figures.shared_bytes > 0)
-        out += ", " + std::to_string(figures.shared_bytes) + " B shared";
+std::string describe(const op::rt::abi::gpu::KernelResources& resources) {
+    std::string out = std::to_string(resources.registers) + " regs";
+    if (resources.local_bytes > 0)
+        out += ", " + std::to_string(resources.local_bytes) + " B local";
+    if (resources.shared_bytes > 0)
+        out += ", " + std::to_string(resources.shared_bytes) + " B shared";
     return out;
 }
 
@@ -31,10 +31,10 @@ void JitKernel::ensure_loaded() {
         GPU_DRV_CHECK(gpuDrvFuncGetAttribute(&value, which, m_kernel));
         return value;
     };
-    m_figures = {attribute(gpuDrvFuncAttributeNumRegs),
-                 attribute(gpuDrvFuncAttributeLocalSizeBytes),
-                 attribute(gpuDrvFuncAttributeSharedSizeBytes),
-                 attribute(gpuDrvFuncAttributeMaxThreadsPerBlock)};
+    m_resources = {attribute(gpuDrvFuncAttributeNumRegs),
+                   attribute(gpuDrvFuncAttributeLocalSizeBytes),
+                   attribute(gpuDrvFuncAttributeSharedSizeBytes),
+                   attribute(gpuDrvFuncAttributeMaxThreadsPerBlock)};
     for (auto& symbol : m_symbols) {
         std::size_t bytes = 0;
         GPU_DRV_CHECK(
@@ -45,9 +45,9 @@ void JitKernel::ensure_loaded() {
     m_cubin = nullptr;
 }
 
-const op::rt::abi::KernelFigures& JitKernel::figures() {
+const op::rt::abi::gpu::KernelResources& JitKernel::resources() {
     ensure_loaded();
-    return m_figures;
+    return m_resources;
 }
 
 void JitKernel::launch(int num_blocks, int block_size, void **args, int shared_bytes,
@@ -75,7 +75,7 @@ void JitKernel::launch(int num_blocks, int block_size, void **args, int shared_b
 OfflineKernel::OfflineKernel(const void *function, const abi::gpu::OfflineCalls *calls)
     : m_function{function}, m_calls{calls} {
     if (function != nullptr)
-        m_figures = calls->figures(function);
+        m_resources = calls->resources(function);
 }
 
 void OfflineKernel::launch(int num_blocks, int block_size, void **args, int shared_bytes) {

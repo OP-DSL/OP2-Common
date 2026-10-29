@@ -132,9 +132,10 @@ public:
 
     std::string_view name() const override { return m_name; }
 
-    // The offline kernel when it can launch the block size, with its figures;
-    // a specialised one when there is source.
-    op::rt::loop::Facts facts() const override;
+    // Its kernels as the backend's heuristics estimate them
+    // (op2/rt/gpu/heuristics.h): the offline one when it can launch the block
+    // size, and a specialised one when there is source.
+    op::rt::loop::Estimate estimate(op::rt::loop::KernelKind kind) const override;
 
     // The kernel kind and its registers, local and shared memory.
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;

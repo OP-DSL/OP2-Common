@@ -46,7 +46,7 @@ _op2_preprocess_fortran(
 
 # The loop runtime (src/rt), backend neutral: its start, reports and release,
 # a call's model and the strategy ladder, the JIT's policy, parameters and
-# build cache, the tuner and the heuristics, their reports, and the planning
+# build cache, the tuner, their reports, and the planning
 # building blocks the backends' strategies compose.
 set(_op2_rt_srcs
     "${_src}/rt/op_rt_lifecycle.cpp"
@@ -58,7 +58,6 @@ set(_op2_rt_srcs
     "${_src}/rt/jit/op_jit_params.cpp"
     "${_src}/rt/jit/op_jit_cache.cpp"
     "${_src}/rt/tune/op_tune_autotune.cpp"
-    "${_src}/rt/tune/op_tune_heuristics.cpp"
     "${_src}/rt/plan/op_plan_colouring.cpp"
     "${_src}/rt/plan/op_plan_chunks.cpp"
     "${_src}/rt/plan/op_plan_staging.cpp"
@@ -76,12 +75,14 @@ set(_op2_rt_cpu_srcs
 )
 
 # The CUDA and HIP backend's runtime (src/rt/gpu): its options, loop,
-# strategies, JIT mechanism and chunk plans.  What touches the application's
-# kernels and symbols is the generated code's (op2/rt/kernel/gpu/offline.h).
+# strategies, heuristics, JIT mechanism and chunk plans.  What touches the
+# application's kernels and symbols is the generated code's
+# (op2/rt/kernel/gpu/offline.h).
 set(_op2_rt_gpu_srcs
     "${_src}/rt/gpu/op_gpu_options.cpp"
     "${_src}/rt/gpu/op_gpu_loop.cpp"
     "${_src}/rt/gpu/op_gpu_strategy.cpp"
+    "${_src}/rt/gpu/op_gpu_heuristics.cpp"
     "${_src}/rt/gpu/op_gpu_jit.cpp"
     "${_src}/rt/gpu/op_gpu_chunk_plan.cpp"
     "${_src}/rt/gpu/op_gpu_chunk_encode.cpp"

@@ -62,7 +62,7 @@ clean:
 
 # The loop runtime (src/rt), backend neutral: its start, reports and release,
 # a call's model and the strategy ladder, the JIT's policy, parameters and
-# build cache, the tuner and the heuristics, their reports, and the planning
+# build cache, the tuner, their reports, and the planning
 # building blocks the backends' strategies compose
 OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(addprefix $(OBJ)/rt/loop/,\
 	op_loop.o \
@@ -72,8 +72,7 @@ OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(addprefix $(OBJ)/rt/loop/,\
 	op_jit_options.o \
 	op_jit_params.o \
 	op_jit_cache.o) $(addprefix $(OBJ)/rt/tune/,\
-	op_tune_autotune.o \
-	op_tune_heuristics.o) $(addprefix $(OBJ)/rt/plan/,\
+	op_tune_autotune.o) $(addprefix $(OBJ)/rt/plan/,\
 	op_plan_colouring.o \
 	op_plan_chunks.o \
 	op_plan_staging.o \
@@ -136,6 +135,7 @@ OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+cuda.o \
 	rt/gpu/op_gpu_loop+cuda.o \
 	rt/gpu/op_gpu_strategy+cuda.o \
+	rt/gpu/op_gpu_heuristics+cuda.o \
 	rt/gpu/op_gpu_jit+cuda.o \
 	rt/gpu/op_gpu_chunk_plan+cuda.o \
 	rt/gpu/op_gpu_chunk_encode+cuda.o \
@@ -148,6 +148,7 @@ OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+hip.o \
 	rt/gpu/op_gpu_loop+hip.o \
 	rt/gpu/op_gpu_strategy+hip.o \
+	rt/gpu/op_gpu_heuristics+hip.o \
 	rt/gpu/op_gpu_jit+hip.o \
 	rt/gpu/op_gpu_chunk_plan+hip.o \
 	rt/gpu/op_gpu_chunk_encode+hip.o \
@@ -198,6 +199,7 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+cuda.o \
 	rt/gpu/op_gpu_loop+cuda.o \
 	rt/gpu/op_gpu_strategy+cuda.o \
+	rt/gpu/op_gpu_heuristics+cuda.o \
 	rt/gpu/op_gpu_jit+cuda.o \
 	rt/gpu/op_gpu_chunk_plan+cuda.o \
 	rt/gpu/op_gpu_chunk_encode+cuda.o \
@@ -220,6 +222,7 @@ OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+hip.o \
 	rt/gpu/op_gpu_loop+hip.o \
 	rt/gpu/op_gpu_strategy+hip.o \
+	rt/gpu/op_gpu_heuristics+hip.o \
 	rt/gpu/op_gpu_jit+hip.o \
 	rt/gpu/op_gpu_chunk_plan+hip.o \
 	rt/gpu/op_gpu_chunk_encode+hip.o \

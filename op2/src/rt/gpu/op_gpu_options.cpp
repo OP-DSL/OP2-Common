@@ -1,5 +1,7 @@
 #include <op2/rt/gpu/options.h>
 
+#include <op2/rt/gpu/heuristics.h>
+
 #include <op2/env.h>
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
@@ -38,6 +40,7 @@ void init() {
 #endif
 
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", options.window);
+    init_heuristics();
 
     int id;
     GPU_CHECK(gpuGetDevice(&id));

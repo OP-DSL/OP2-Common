@@ -25,7 +25,7 @@ namespace op::rt::gpu {
 // --- Kernels --------------------------------------------------------------------------
 
 // "64 regs", with the local and shared memory when there is any.
-std::string describe(const op::rt::abi::KernelFigures& figures);
+std::string describe(const op::rt::abi::gpu::KernelResources& resources);
 
 // A run-time parameter a built kernel reads from a symbol of its module,
 // uploaded when the parameter's value changes.
@@ -37,8 +37,8 @@ struct RuntimeSymbol {
     std::uint64_t uploaded = 0;
 };
 
-// A kernel built at run time, loaded on its first launch or when its figures
-// are read.
+// A kernel built at run time, loaded on its first launch or when its
+// resources are read.
 class JitKernel {
 private:
     std::string m_name;
@@ -48,7 +48,7 @@ private:
     std::vector<int> m_baked_globals;
     bool m_loaded = false;
     int m_max_dynamic_shared_bytes = 0;
-    op::rt::abi::KernelFigures m_figures;
+    op::rt::abi::gpu::KernelResources m_resources;
     char *m_cubin;
     gpuDrvModule_t m_module;
     gpuDrvFunction_t m_kernel;
@@ -65,7 +65,7 @@ public:
 
     const std::vector<int>& baked_globals() const { return m_baked_globals; }
 
-    const op::rt::abi::KernelFigures& figures();
+    const op::rt::abi::gpu::KernelResources& resources();
 
     // Launch, its module's symbols first given the call's values of params.
     void launch(int num_blocks, int block_size, void **args, int shared_bytes,
@@ -78,7 +78,7 @@ class OfflineKernel {
 private:
     const void *m_function;
     const abi::gpu::OfflineCalls *m_calls;
-    op::rt::abi::KernelFigures m_figures;
+    op::rt::abi::gpu::KernelResources m_resources;
     int m_max_dynamic_shared_bytes = 0;
 
 public:
@@ -86,11 +86,10 @@ public:
 
     // Whether it exists and can launch block_size threads.
     bool usable(int block_size) const {
-        return m_function != nullptr && block_size <= m_figures.max_threads;
+        return m_function != nullptr && block_size <= m_resources.max_threads;
     }
 
-    int registers() const { return m_figures.registers; }
-    const op::rt::abi::KernelFigures& figures() const { return m_figures; }
+    const op::rt::abi::gpu::KernelResources& resources() const { return m_resources; }
 
     void launch(int num_blocks, int block_size, void **args, int shared_bytes);
 };

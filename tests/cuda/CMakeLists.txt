@@ -43,6 +43,13 @@ target_compile_definitions(chunk_encode PRIVATE OP2_CUDA)
 add_test(NAME chunk_encode COMMAND chunk_encode)
 set_tests_properties(chunk_encode PROPERTIES LABELS "cuda;unit")
 
+# The heuristics' estimates of a strategy's kernels.
+add_executable(heuristics heuristics.cu)
+target_link_libraries(heuristics PRIVATE op2_cuda)
+target_compile_definitions(heuristics PRIVATE OP2_CUDA)
+add_test(NAME heuristics COMMAND heuristics)
+set_tests_properties(heuristics PROPERTIES LABELS "cuda;unit")
+
 if(TARGET op2_mpi_cuda AND MPIEXEC_EXECUTABLE)
     add_executable(chunk_plan_mpi_teardown chunk_plan_mpi_teardown.cu)
     target_link_libraries(chunk_plan_mpi_teardown PRIVATE op2_mpi_cuda)
