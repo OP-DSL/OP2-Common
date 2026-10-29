@@ -177,6 +177,15 @@ void test_call() {
     pair[1].dat = &again;
     CHECK(loop::Call(&source, pair, all, false).key() != shared);
 
+    // A map is listed once, and so is one whose name is part of another's.
+    CHECK(loop::Call(&source, pair, all, false).describe() == "edges (128) via edge_nodes");
+    op_map_core nodes = map;
+    nodes.index = 4;
+    nodes.name = "nodes";
+    pair[1].map = &nodes;
+    CHECK(loop::Call(&source, pair, all, false).describe() ==
+          "edges (128) via edge_nodes, nodes");
+
     std::array<op_arg, 2> reduction{args[0], op_arg{}};
     reduction[1].opt = 1;
     reduction[1].argtype = OP_ARG_GBL;

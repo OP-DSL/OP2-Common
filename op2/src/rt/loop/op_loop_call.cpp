@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace op::rt::loop {
 
@@ -86,6 +87,7 @@ std::string Call::describe() const {
     text += " (" + std::to_string(set->size) + ")";
 
     std::string maps;
+    std::vector<int> listed;
     std::string inactive;
     for (std::size_t i = 0; i < args.size(); ++i) {
         const op_arg& arg = args[i];
@@ -93,11 +95,11 @@ std::string Call::describe() const {
             inactive += (inactive.empty() ? "" : " ") + std::to_string(i);
             continue;
         }
-        if (arg.map == nullptr || arg.map->name == nullptr)
+        if (arg.map == nullptr || arg.map->name == nullptr ||
+            std::find(listed.begin(), listed.end(), arg.map->index) != listed.end())
             continue;
-        std::string name = trimmed(arg.map->name);
-        if (maps.find(name) == std::string::npos)
-            maps += (maps.empty() ? "" : ", ") + name;
+        listed.push_back(arg.map->index);
+        maps += (maps.empty() ? "" : ", ") + trimmed(arg.map->name);
     }
     if (!maps.empty())
         text += " via " + maps;
