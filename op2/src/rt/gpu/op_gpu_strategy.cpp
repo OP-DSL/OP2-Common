@@ -72,13 +72,10 @@ op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
                                              op::rt::loop::KernelKind kind,
                                              const void *entry) {
     m_call_state.global_stride = m_block_size * m_call_state.max_blocks;
+    if (kind == op::rt::loop::KernelKind::offline)
+        return op::rt::loop::Prepared::ready(entry);
     op::rt::loop::Prepared prepared;
     prepared.entry = entry;
-
-    if (kind == op::rt::loop::KernelKind::offline) {
-        prepared.status = op::rt::loop::Status::ready;
-        return prepared;
-    }
 
     auto& params = m_loop.params();
     auto key = params.key(call, launch_values().slots());
@@ -244,6 +241,38 @@ void Colouring::release() {
 
 // --- The chunked strategies ---
 
+ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call,
+                                    const ChunkSpec& spec) const {
+    return plan_chunk_atomics(call.args, call.sections, m_groups, spec, m_unstaged_singles,
+                              op::rt::plan::chunk_options().min_compression);
+}
+
+void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
+    key.add(m_unstaged_singles).add(op::rt::plan::chunk_options().min_compression);
+}
+
+std::string ChunkAtomics::figures(const ChunkPlan& plan) const {
+    char text[96];
+    std::snprintf(text, sizeof(text), "%zu refs, %zu targets (%zu unstaged)", plan.references,
+                  plan.distinct_targets, plan.staging.unstaged_singles);
+    return text;
+}
+
+ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call,
+                                      const ChunkSpec& spec) const {
+    return plan_chunk_colouring(call.args, call.sections, m_groups, spec, m_wavefront,
+                                options().window);
+}
+
+void ChunkColouring::add_key(op::rt::plan::PlanKey& key) const {
+    key.add(m_wavefront).add(options().window);
+}
+
+std::string ChunkColouring::figures(const ChunkPlan& plan) const {
+    return std::to_string(plan.batches.count()) + " batches, up to " +
+           std::to_string(plan.max_thread_colours) + " thread colours";
+}
+
 std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
 #ifdef OP2_HIP
     return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {1, 0}});
@@ -253,30 +282,20 @@ std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
 }
 
 // The configuration's plan, the shared one when another strategy holds the
-// same: the same planner, call shape, groups, block size and variant; a
-// chunk is a block's elements.
+// same: the same planner, call shape, groups, block size, stride and
+// variant; a chunk is a block's elements.
 const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
     return m_plans.get(call, [&] {
         ChunkSpec spec{m_block_size, device().shared_bytes, m_call_state.stride};
-        const auto& chunk_options = op::rt::plan::chunk_options();
-        op::rt::plan::PlanKey key{m_coloured ? "chunk_colouring" : "chunk_atomics", call};
+        op::rt::plan::PlanKey key{m_family.name, call};
         key.add(m_groups).add(spec.block_size).add(spec.shared_bytes).add(spec.stride);
-        if (m_coloured)
-            key.add(m_wavefront).add(options().window);
-        else
-            key.add(m_unstaged_singles).add(chunk_options.min_compression);
+        add_key(key);
         return chunk_plans.get(key, [&] {
-            auto result = m_coloured
-                              ? plan_chunk_colouring(call.args, call.sections, m_groups,
-                                                     spec, m_wavefront, options().window)
-                              : plan_chunk_atomics(call.args, call.sections, m_groups, spec,
-                                                   m_unstaged_singles,
-                                                   chunk_options.min_compression);
+            auto result = make_plan(call, spec);
             report(result);
             auto entry = std::make_shared<ChunkEntry>();
-            entry->rejected = result.rejected;
-            entry->plan = std::move(result.plan);
-            if (entry->rejected.empty()) {
+            static_cast<ChunkResult&>(*entry) = std::move(result);
+            if (*entry) {
                 entry->device = DevicePlan(*entry->plan);
                 entry->plan->release_uploaded();
             }
@@ -288,25 +307,16 @@ const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
 void ChunkBase::report(const ChunkResult& result) const {
     if (OP_diags <= 3)
         return;
-    if (result.plan == nullptr) {
+    if (!result) {
         op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
                   m_loop.name().c_str(), std::string{result.rejected}.c_str(),
                   result.compression);
         return;
     }
     const auto& plan = *result.plan;
-    if (m_coloured)
-        op_printf("%s: %s chunk %d, %d chunks, %d batches, up to %d thread "
-                  "colours, compression %.2fx\n",
-                  m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
-                  plan.chunks.count(), plan.batches.count(), plan.max_thread_colours,
-                  plan.compression);
-    else
-        op_printf("%s: %s chunk %d, %d chunks, %zu refs, %zu targets "
-                  "(%zu unstaged), compression %.2fx\n",
-                  m_name.c_str(), m_loop.name().c_str(), plan.chunks.size,
-                  plan.chunks.count(), plan.references, plan.distinct_targets,
-                  plan.staging.unstaged_singles, plan.compression);
+    op_printf("%s: %s chunk %d, %d chunks, %s, compression %.2fx\n", m_name.c_str(),
+              m_loop.name().c_str(), plan.chunks.size, plan.chunks.count(),
+              figures(plan).c_str(), plan.compression);
 }
 
 op::rt::loop::Prepared ChunkBase::prepare(const op::rt::loop::Call& call,
@@ -314,13 +324,8 @@ op::rt::loop::Prepared ChunkBase::prepare(const op::rt::loop::Call& call,
                                           op::rt::loop::KernelKind kind) {
     begin(call);
     const auto *entry = &entry_for(call);
-    if (!entry->rejected.empty()) {
-        op::rt::loop::Prepared prepared;
-        prepared.status = op::rt::loop::Status::unavailable;
-        prepared.reason = entry->rejected;
-        prepared.entry = entry;
-        return prepared;
-    }
+    if (!*entry)
+        return op::rt::loop::Prepared::unavailable(entry->rejected, entry);
 
     // Reduction scratch uses the capped physical grid.  A wavefront batch's
     // blocks take chunks in turn, so it needs no more of them than the
@@ -382,13 +387,9 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
         return std::string{entry.rejected};
     const auto& plan = *entry.plan;
     char text[96];
-    std::snprintf(text, sizeof(text), ", chunk %d, %d chunks, compression %.2f",
+    std::snprintf(text, sizeof(text), ", chunk %d, %d chunks, compression %.2f, ",
                   plan.chunks.size, plan.chunks.count(), plan.compression);
-    std::string out = StrategyBase::statistics(prepared) + text;
-    if (m_coloured)
-        out += ", " + std::to_string(plan.batches.count()) + " batches, " +
-               std::to_string(plan.max_thread_colours) + " thread colours";
-    return out;
+    return StrategyBase::statistics(prepared) + text + figures(plan);
 }
 
 void ChunkBase::release() {
@@ -398,19 +399,39 @@ void ChunkBase::release() {
 
 // --- Families ---
 
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::gpu::Family& family,
-                                                      const op::rt::loop::Point& point) {
-    std::string_view name = family.name;
-    if (name == "plain" || name == "atomics")
-        return std::make_unique<Simple>(loop, point, family);
-    if (name == "colouring")
-        return std::make_unique<Colouring>(loop, point, family);
-    if (name == "chunk_atomics")
-        return std::make_unique<ChunkAtomics>(loop, point, family);
-    if (name == "chunk_colouring")
-        return std::make_unique<ChunkColouring>(loop, point, family);
-    std::fprintf(stderr, "error: %s registers family %s, which the GPU backend lacks\n",
-                 loop.name().c_str(), family.name);
+namespace {
+
+template<typename S>
+std::unique_ptr<op::rt::loop::Strategy> make(Loop& loop, const abi::gpu::Family& family,
+                                             const op::rt::loop::Point& point) {
+    return std::make_unique<S>(loop, point, family);
+}
+
+} // namespace
+
+std::span<const StrategyFamily> strategy_families() {
+#ifdef OP2_HIP
+    constexpr bool chunk_atomics = true;
+#else
+    constexpr bool chunk_atomics = false;
+#endif
+    static const std::vector<StrategyFamily> families{
+        {{"plain", Simple::axes()}, false, &make<Simple>},
+        {{"chunk_atomics", ChunkAtomics::axes(), chunk_atomics}, true, &make<ChunkAtomics>},
+        {{"atomics", Simple::axes()}, false, &make<Simple>},
+        {{"chunk_colouring", ChunkColouring::axes(), false}, true, &make<ChunkColouring>},
+        {{"colouring", Colouring::axes()}, false, &make<Colouring>},
+    };
+    return families;
+}
+
+const StrategyFamily& strategy_family(std::string_view name, std::string_view loop) {
+    for (const auto& family : strategy_families())
+        if (family.name == name)
+            return family;
+    std::fprintf(stderr, "error: %.*s registers family %.*s, which the GPU backend lacks\n",
+                 static_cast<int>(loop.size()), loop.data(), static_cast<int>(name.size()),
+                 name.data());
     std::exit(1);
 }
 

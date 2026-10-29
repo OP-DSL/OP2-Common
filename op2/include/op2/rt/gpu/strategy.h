@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,9 +50,7 @@ struct ColouringPlan {
 };
 
 // A chunk plan, or why the call does not suit it, and the plan as uploaded.
-struct ChunkEntry {
-    std::string_view rejected;
-    std::unique_ptr<ChunkPlan> plan;
+struct ChunkEntry : ChunkResult {
     DevicePlan device;
 };
 
@@ -197,13 +196,17 @@ public:
 // batch of chunks, each block taking chunks in turn.
 class ChunkBase : public StrategyBase {
 protected:
-    bool m_coloured;
     op::rt::abi::ArgGroups m_groups;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured,
-              const abi::gpu::Family& family)
-        : StrategyBase{loop, point, family}, m_coloured{coloured}, m_groups{family.groups} {}
+    ChunkBase(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : StrategyBase{loop, point, family}, m_groups{family.groups} {}
+
+    // The variant's plan of the call under spec, its inputs to the plan's key
+    // beyond the shared ones, and its own figures of a plan.
+    virtual ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const = 0;
+    virtual void add_key(op::rt::plan::PlanKey& key) const = 0;
+    virtual std::string figures(const ChunkPlan& plan) const = 0;
 
     // The block size, which is also the chunk size, and the strategy's
     // switch.
@@ -231,9 +234,14 @@ public:
 
 // Increments staged in shared memory and flushed with global atomics.
 class ChunkAtomics : public ChunkBase {
+protected:
+    ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
+    void add_key(op::rt::plan::PlanKey& key) const override;
+    std::string figures(const ChunkPlan& plan) const override;
+
 public:
     ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : ChunkBase{loop, point, false, family} {
+        : ChunkBase{loop, point, family} {
         m_unstaged_singles = point.value("singles") != 0;
     }
 
@@ -250,10 +258,15 @@ public:
 // Coloured chunks, then coloured elements within each, so every slot is
 // seeded and stored with plain loads and stores.
 class ChunkColouring : public ChunkBase {
+protected:
+    ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
+    void add_key(op::rt::plan::PlanKey& key) const override;
+    std::string figures(const ChunkPlan& plan) const override;
+
 public:
     ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
                    const abi::gpu::Family& family)
-        : ChunkBase{loop, point, true, family} {
+        : ChunkBase{loop, point, family} {
         m_wavefront = point.value("wavefront") != 0;
     }
 
@@ -264,8 +277,23 @@ public:
     }
 };
 
-// A strategy of family at point.
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::gpu::Family& family,
-                                                      const op::rt::loop::Point& point);
+// --- Families -------------------------------------------------------------------
+
+// A strategy family as the GPU backend offers it: as the ladder declares it,
+// whether its kernels read the chunked strategies' switches, and the
+// strategy it makes at each point.
+struct StrategyFamily : op::rt::loop::Family {
+    bool chunked = false;
+    std::unique_ptr<op::rt::loop::Strategy> (*make)(Loop& loop, const abi::gpu::Family& family,
+                                                    const op::rt::loop::Point& point) = nullptr;
+};
+
+// The families in ladder order: plain, chunk_atomics (on by default under
+// HIP, where its unstaged singles are native atomics), atomics,
+// chunk_colouring and colouring.
+std::span<const StrategyFamily> strategy_families();
+
+// The family loop registers as name; one the backend lacks stops the run.
+const StrategyFamily& strategy_family(std::string_view name, std::string_view loop);
 
 } // namespace op::rt::gpu

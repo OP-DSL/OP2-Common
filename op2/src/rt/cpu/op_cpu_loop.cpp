@@ -121,10 +121,12 @@ Loop::Loop(const abi::cpu::Loop& descriptor)
     : op::rt::loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
                          descriptor.direct},
       m_max_threads{descriptor.max_threads}, m_globals{std::make_unique<Globals>()} {
-    for (const auto& family : descriptor.families)
+    for (const auto& family : descriptor.families) {
+        auto make = strategy_family(family.name, descriptor.name).make;
         m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {
-            return make_strategy(*this, family, point);
+            return make(*this, family, point);
         });
+    }
 }
 
 Loop::~Loop() = default;

@@ -33,16 +33,18 @@ Loop::Loop(const abi::gpu::Loop& descriptor)
         strategy_param("op2_stride_gbl_d", LaunchValue::global_stride);
     bool chunked = false;
     for (const auto& family : descriptor.families)
-        chunked |= std::string_view{family.name}.starts_with("chunk_");
+        chunked |= strategy_family(family.name, descriptor.name).chunked;
     if (chunked) {
         strategy_param("op2_unstaged_singles_d", LaunchValue::unstaged_singles);
         strategy_param("op2_wavefront_d", LaunchValue::wavefront);
     }
 
-    for (const auto& family : descriptor.families)
+    for (const auto& family : descriptor.families) {
+        auto make = strategy_family(family.name, descriptor.name).make;
         m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {
-            return make_strategy(*this, family, point);
+            return make(*this, family, point);
         });
+    }
 }
 
 Loop::~Loop() { release(); }

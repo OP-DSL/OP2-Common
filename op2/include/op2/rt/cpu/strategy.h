@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -54,14 +55,6 @@ public:
 
     // Combine every thread's reductions into the arguments, in thread order.
     void combine(op_arg *args, const char *loop) const;
-};
-
-// --- Plans ------------------------------------------------------------------------
-
-// A chunk plan, or why the call does not suit it.
-struct ChunkEntry {
-    std::string_view rejected;
-    std::unique_ptr<ChunkPlan> plan;
 };
 
 // --- The base of every OpenMP strategy ----------------------------------------------
@@ -135,17 +128,20 @@ public:
 // with atomics.
 class ChunkBase : public StrategyBase {
 protected:
-    bool m_coloured;
     op::rt::abi::ArgGroups m_groups;
     int m_chunk_size;
-    op::rt::plan::PlanSlots<ChunkEntry> m_plans;
+    op::rt::plan::PlanSlots<ChunkResult> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured,
-              const abi::cpu::Family& family)
-        : StrategyBase{loop, point, family}, m_coloured{coloured}, m_groups{family.groups},
+    ChunkBase(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : StrategyBase{loop, point, family}, m_groups{family.groups},
           m_chunk_size{point.value("chunk_size")} {}
 
-    const ChunkEntry& entry_for(const op::rt::loop::Call& call);
+    // The variant's plan of the call, and its inputs to the plan's key beyond
+    // the shared ones.
+    virtual ChunkResult make_plan(const op::rt::loop::Call& call) const = 0;
+    virtual void add_key(op::rt::plan::PlanKey& key) const = 0;
+
+    const ChunkResult& entry_for(const op::rt::loop::Call& call);
 
 public:
     // Elements per chunk: OP_<FAMILY>_CHUNK_SIZES, else OP_CHUNK_SIZES.
@@ -163,22 +159,44 @@ public:
 };
 
 class ChunkAtomics : public ChunkBase {
+protected:
+    ChunkResult make_plan(const op::rt::loop::Call& call) const override;
+    void add_key(op::rt::plan::PlanKey& key) const override;
+
 public:
     ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : ChunkBase{loop, point, false, family} {}
+        : ChunkBase{loop, point, family} {}
 };
 
 // Conflicts come from the call's updated dats, so it needs no groups.
 class ChunkColouring : public ChunkBase {
+protected:
+    ChunkResult make_plan(const op::rt::loop::Call& call) const override;
+    void add_key(op::rt::plan::PlanKey&) const override {}
+
 public:
     ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
                    const abi::cpu::Family& family)
-        : ChunkBase{loop, point, true, family} {}
+        : ChunkBase{loop, point, family} {}
 };
 
-// A strategy of family at point.
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::cpu::Family& family,
-                                                      const op::rt::loop::Point& point);
+// --- Families -------------------------------------------------------------------
+
+// A strategy family as the OpenMP backend offers it: as the ladder declares
+// it, and the strategy it makes at each point.
+struct StrategyFamily : op::rt::loop::Family {
+    std::unique_ptr<op::rt::loop::Strategy> (*make)(Loop& loop, const abi::cpu::Family& family,
+                                                    const op::rt::loop::Point& point) = nullptr;
+};
+
+// The families in ladder order: plain, chunk_atomics, atomics,
+// chunk_colouring and colouring, the atomic ones off by default (an atomic
+// increment is a compare-and-swap loop on most CPUs), so chunk colouring runs
+// over the set colouring floor.
+std::span<const StrategyFamily> strategy_families();
+
+// The family loop registers as name; one the backend lacks stops the run.
+const StrategyFamily& strategy_family(std::string_view name, std::string_view loop);
 
 // Declare the families the generated code registers, in ladder order; the
 // CPU libraries' op_init calls it.

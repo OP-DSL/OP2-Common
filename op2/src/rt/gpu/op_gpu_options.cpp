@@ -13,6 +13,7 @@
 #include <op_lib_core.h>
 
 #include <string>
+#include <vector>
 
 namespace op::rt::gpu {
 
@@ -64,21 +65,8 @@ void init() {
         op_printf("JIT arch flag: %s\n", device.arch.c_str());
 #endif
 
-    // The families the generated code registers, each a strategy class, in
-    // ladder order.  chunk_atomics runs by default on AMD, where its unstaged
-    // singles are native atomics.
-#ifdef OP2_HIP
-    const bool chunk_atomics = true;
-#else
-    const bool chunk_atomics = false;
-#endif
-    const op::rt::loop::Family families[] = {
-        {"plain", Simple::axes()},
-        {"chunk_atomics", ChunkAtomics::axes(), chunk_atomics},
-        {"atomics", Simple::axes()},
-        {"chunk_colouring", ChunkColouring::axes(), false},
-        {"colouring", Colouring::axes()},
-    };
+    auto offered = strategy_families();
+    std::vector<op::rt::loop::Family> families(offered.begin(), offered.end());
     op::rt::loop::declare_families(families);
 }
 

@@ -54,6 +54,20 @@ struct Prepared {
     // kernel; none for an offline one.
     const void *entry = nullptr;
     void *kernel = nullptr;
+
+    static Prepared ready(const void *entry = nullptr) {
+        Prepared prepared;
+        prepared.status = Status::ready;
+        prepared.entry = entry;
+        return prepared;
+    }
+
+    static Prepared unavailable(std::string_view reason, const void *entry = nullptr) {
+        Prepared prepared;
+        prepared.reason = reason;
+        prepared.entry = entry;
+        return prepared;
+    }
 };
 
 // A cache's builds by where they stand: built, failed, under way, and keys

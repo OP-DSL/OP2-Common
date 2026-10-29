@@ -16,16 +16,7 @@ namespace {
 // The live plans of each kind, which every strategy that would build the
 // same one shares.
 op::rt::plan::SharedPlans<op::rt::plan::SetColouring> colouring_plans;
-op::rt::plan::SharedPlans<ChunkEntry> chunk_plans;
-
-op::rt::loop::Prepared prepared(op::rt::loop::Status status, const void *entry,
-                                std::string_view reason = {}) {
-    op::rt::loop::Prepared result;
-    result.status = status;
-    result.entry = entry;
-    result.reason = reason;
-    return result;
-}
+op::rt::plan::SharedPlans<ChunkResult> chunk_plans;
 
 } // namespace
 
@@ -61,7 +52,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::RunArgs& run, 
 
 op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call&, op::rt::loop::Urgency,
                                        op::rt::loop::KernelKind) {
-    return prepared(op::rt::loop::Status::ready, nullptr);
+    return op::rt::loop::Prepared::ready();
 }
 
 std::optional<float> Simple::run([[maybe_unused]] const op::rt::loop::Prepared& prepared,
@@ -90,7 +81,7 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
             return plan;
         });
     });
-    return prepared(op::rt::loop::Status::ready, &colouring);
+    return op::rt::loop::Prepared::ready(&colouring);
 }
 
 std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
@@ -113,28 +104,19 @@ std::string Colouring::statistics(const op::rt::loop::Prepared& prepared) const 
 // --- The chunked strategies ---
 
 // The configuration's plan, the shared one when another strategy holds the
-// same: the same planner, call shape, groups and chunk size.
-const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
+// same: the same planner, call shape, chunk size and variant.
+const ChunkResult& ChunkBase::entry_for(const op::rt::loop::Call& call) {
     return m_plans.get(call, [&] {
-        double min_compression = op::rt::plan::chunk_options().min_compression;
-        op::rt::plan::PlanKey key{m_coloured ? "chunk_colouring" : "chunk_atomics", call};
+        op::rt::plan::PlanKey key{m_family.name, call};
         key.add(m_chunk_size);
-        if (!m_coloured)
-            key.add(m_groups).add(min_compression);
+        add_key(key);
         return chunk_plans.get(key, [&] {
-            auto result = m_coloured
-                              ? plan_chunk_colouring(call.args, call.sections, m_chunk_size)
-                              : plan_chunk_atomics(call.args, call.sections, m_groups,
-                                                   m_chunk_size, min_compression);
-            auto entry = std::make_shared<ChunkEntry>();
-            entry->rejected = result.rejected;
-            entry->plan = std::move(result.plan);
-
+            auto entry = std::make_shared<ChunkResult>(make_plan(call));
             if (OP_diags > 3) {
-                if (entry->plan == nullptr)
+                if (!*entry)
                     op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
                               m_loop.name().c_str(), std::string{entry->rejected}.c_str(),
-                              result.compression);
+                              entry->compression);
                 else
                     op_printf("%s: %s chunk %d, %d chunks, %d batches, "
                               "compression %.2fx\n",
@@ -150,14 +132,14 @@ const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
 op::rt::loop::Prepared ChunkBase::prepare(const op::rt::loop::Call& call,
                                           op::rt::loop::Urgency, op::rt::loop::KernelKind) {
     const auto& entry = entry_for(call);
-    if (!entry.rejected.empty())
-        return prepared(op::rt::loop::Status::unavailable, &entry, entry.rejected);
-    return prepared(op::rt::loop::Status::ready, &entry);
+    if (!entry)
+        return op::rt::loop::Prepared::unavailable(entry.rejected, &entry);
+    return op::rt::loop::Prepared::ready(&entry);
 }
 
 std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::RunArgs& run) {
-    const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
+    const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = run.call.sections;
     m_loop.reserve_scratch(plan.max_scratch_bytes);
@@ -180,8 +162,21 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
                       });
 }
 
+ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call) const {
+    return plan_chunk_atomics(call.args, call.sections, m_groups, m_chunk_size,
+                              op::rt::plan::chunk_options().min_compression);
+}
+
+void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
+    key.add(m_groups).add(op::rt::plan::chunk_options().min_compression);
+}
+
+ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call) const {
+    return plan_chunk_colouring(call.args, call.sections, m_chunk_size);
+}
+
 std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const {
-    const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
+    const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
     if (entry.plan == nullptr)
         return std::string{entry.rejected};
     const auto& plan = *entry.plan;
@@ -194,19 +189,35 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
 
 // --- Families ---
 
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::cpu::Family& family,
-                                                      const op::rt::loop::Point& point) {
-    std::string_view name = family.name;
-    if (name == "plain" || name == "atomics")
-        return std::make_unique<Simple>(loop, point, family);
-    if (name == "colouring")
-        return std::make_unique<Colouring>(loop, point, family);
-    if (name == "chunk_atomics")
-        return std::make_unique<ChunkAtomics>(loop, point, family);
-    if (name == "chunk_colouring")
-        return std::make_unique<ChunkColouring>(loop, point, family);
-    std::fprintf(stderr, "error: %s registers family %s, which the OpenMP backend lacks\n",
-                 loop.name().c_str(), family.name);
+namespace {
+
+template<typename S>
+std::unique_ptr<op::rt::loop::Strategy> make(Loop& loop, const abi::cpu::Family& family,
+                                             const op::rt::loop::Point& point) {
+    return std::make_unique<S>(loop, point, family);
+}
+
+} // namespace
+
+std::span<const StrategyFamily> strategy_families() {
+    static const std::vector<StrategyFamily> families{
+        {{"plain", Simple::axes()}, &make<Simple>},
+        {{"chunk_atomics", ChunkAtomics::axes(), false}, &make<ChunkAtomics>},
+        {{"atomics", Simple::axes(), false}, &make<Simple>},
+        {{"chunk_colouring", ChunkColouring::axes()}, &make<ChunkColouring>},
+        {{"colouring", Colouring::axes()}, &make<Colouring>},
+    };
+    return families;
+}
+
+const StrategyFamily& strategy_family(std::string_view name, std::string_view loop) {
+    for (const auto& family : strategy_families())
+        if (family.name == name)
+            return family;
+    std::fprintf(stderr,
+                 "error: %.*s registers family %.*s, which the OpenMP backend lacks\n",
+                 static_cast<int>(loop.size()), loop.data(), static_cast<int>(name.size()),
+                 name.data());
     std::exit(1);
 }
 
