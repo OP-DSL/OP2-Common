@@ -20,7 +20,7 @@ struct PlanOwner : op::rt::loop::Loop {
     op::rt::gpu::DevicePlan& plan;
 
     explicit PlanOwner(op::rt::gpu::DevicePlan& plan_)
-        : op::rt::loop::Loop{"teardown", "cuda", "Direct", true}, plan{plan_} {}
+        : op::rt::loop::Loop{"teardown", "cuda", "Direct", true, true}, plan{plan_} {}
 
     void release() override {
         op::rt::loop::Loop::release();

@@ -2,8 +2,8 @@
 
 // The CUDA and HIP backend's loop: the object the generated code builds per
 // par_loop, from plain data, adding to the base loop the parameters' device
-// symbols, the compiler of its specialised kernels and the launches, and
-// running one call through them.
+// symbols, the compiler of its specialised kernels, the launches and the
+// call's device globals.
 
 #include <op2/gpu/check.h>
 #include <op2/rt/gpu/jit.h>
@@ -87,7 +87,7 @@ public:
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, LoopDescription description,
          JitHeaders headers)
-        : op::rt::loop::Loop{name, profile_target, profile_variant, description.direct},
+        : op::rt::loop::Loop{name, profile_target, profile_variant, description.direct, true},
           m_gbl_inc_atomic{description.gbl_inc_atomic},
           m_compiler{name, std::move(headers)} {}
 
@@ -203,54 +203,20 @@ public:
 
     // --- Per call ---
 
-    // Run the loop.
-    void invoke(op_set set, op_arg *args, int nargs) {
-        op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
-                                m_profile_variant.c_str());
-        op_profile_enter("Init");
-
-        // The exchange decides what the call runs, so it comes first, and
-        // the planning overlaps it.
-        op_profile_enter("MPI Exchanges");
-        int n_exec = op_mpi_halo_exchanges(set, nargs, args, 2);
-        if (n_exec == 0) {
-            op_profile_exit();
-            op_profile_exit();
-            op_mpi_wait_all(nargs, args);
-            op::rt::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
-            op_mpi_set_dirtybit_cuda(nargs, args);
-            op_profile_exit();
-            return;
-        }
-
-        op_profile_next("Get Kernel");
-        op::rt::loop::Call call{
-            set, {args, static_cast<std::size_t>(nargs)}, n_exec};
-        auto decision = decide(call, args, nargs);
+    // The device copies of the globals, the strategy's stride apart.
+    void begin_call(const op::rt::loop::Call&, const op::rt::loop::Autotuner::Decision& decision,
+                    op_arg *args, int nargs) override {
         const auto& state =
             static_cast<StrategyBase *>(decision.prepared.candidate->strategy)->call_state();
-        op_profile_exit();
-
-        op_profile_enter("Prepare GBLs");
         m_global_output = has_global_output(args, nargs);
         m_exit_sync = false;
         prepareDeviceGblsWithPolicy(args, nargs, state.global_stride, m_gbl_inc_atomic,
                                     on_host(decision.prepared, nargs));
-        op_profile_exit();
+    }
 
-        op_profile_next("Computation");
-        op_profile_enter("Kernel");
-        run(decision, args, nargs);
-        op_profile_exit();
-        op_profile_exit();
-
-        op_profile_enter("Finalise");
+    void end_call() override {
         if (m_exit_sync)
             GPU_CHECK(gpuStreamSynchronize(0));
-        op::rt::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
-        op_mpi_set_dirtybit_cuda(nargs, args);
-        op_profile_exit();
-        op_profile_exit();
     }
 
     op::rt::loop::BuildCounts builds() const override {

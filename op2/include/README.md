@@ -157,10 +157,11 @@ op2/rt/loop/jit.h       (includes: extern/rapidhash.h, op_lib_core.h,
 op2/rt/loop/loop.h      (includes: op_lib_core.h, op2/rt/loop/autotune.h,
                          op2/rt/loop/jit.h, op2/rt/loop/strategy.h; the base
                          of every backend's loop: its ladder, tuner and JIT
-                         parameters, the steps of a call every backend
-                         shares, and the registry of every loop, which
-                         op_profile_output and op_exit report on and op_exit
-                         releases; the reports from
+                         parameters, a call's steps and profile scopes, with
+                         hooks for the backend's globals, and the registry
+                         of every loop, which op_profile_output and op_exit
+                         report on and op_exit releases; the call from
+                         src/rt/loop/op_loop_call.cpp, the reports from
                          src/rt/loop/op_loop_report.cpp)
 ```
 

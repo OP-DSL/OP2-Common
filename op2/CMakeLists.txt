@@ -50,6 +50,7 @@ _op2_preprocess_fortran(
 # compose.
 set(_op2_rt_srcs
     "${_src}/rt/op_rt_lifecycle.cpp"
+    "${_src}/rt/loop/op_loop_call.cpp"
     "${_src}/rt/loop/op_loop_strategy.cpp"
     "${_src}/rt/loop/op_loop_autotune.cpp"
     "${_src}/rt/loop/op_loop_jit.cpp"

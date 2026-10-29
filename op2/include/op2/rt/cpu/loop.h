@@ -2,7 +2,7 @@
 
 // The OpenMP backend's loop: the object the generated code builds per
 // par_loop, adding to the base loop the call's sections, threads, globals and
-// chunk scratch, and running one call through them over the host threads.
+// chunk scratch over the host threads.
 
 #include <op2/rt/cpu/strategy.h>
 #include <op2/rt/loop/loop.h>
@@ -36,7 +36,7 @@ private:
 public:
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, LoopDescription description)
-        : op::rt::loop::Loop{name, profile_target, profile_variant, description.direct} {}
+        : op::rt::loop::Loop{name, profile_target, profile_variant, description.direct, false} {}
 
     // --- Registration, by the generated code ---
 
@@ -59,7 +59,7 @@ public:
     void process_globals(op_arg *args) {
         op_profile_next("Process GBLs");
         m_globals.combine(args, m_name.c_str());
-        op_profile_next("Computation");
+        op_profile_next("Kernel");
     }
 
     // Give every thread bytes of chunk scratch, aligned to a cache line.
@@ -83,42 +83,12 @@ public:
 
     // --- Per call ---
 
-    // Run the loop.
-    void invoke(op_set set, op_arg *args, int nargs) {
-        op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
-                                m_profile_variant.c_str());
-        // The exchange decides what the call runs, so it comes first, and
-        // the planning overlaps it.
-        op_profile_enter("MPI Exchanges");
-        int n_exec = op_mpi_halo_exchanges(set, nargs, args, 1);
-        if (n_exec == 0) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all(nargs, args);
-            op::rt::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
-            op_mpi_set_dirtybit(nargs, args);
-            op_profile_exit();
-            op_profile_exit();
-            return;
-        }
-
-        op_profile_next("Init");
-        op::rt::loop::Call call{
-            set, {args, static_cast<std::size_t>(nargs)}, n_exec};
-        auto decision = decide(call, args, nargs);
-
-        op_profile_next("Prepare GBLs");
+    // The call's sections, and each thread's copy of the globals.
+    void begin_call(const op::rt::loop::Call& call, const op::rt::loop::Autotuner::Decision&,
+                    op_arg *args, int nargs) override {
         m_sections = sections(call);
         m_threads = omp_get_max_threads();
         m_globals.prepare(args, nargs, m_threads);
-
-        op_profile_next("Computation");
-        run(decision, args, nargs);
-
-        op_profile_next("MPI Reduce");
-        op::rt::loop::reduce_mpi_globals(args, nargs, m_name.c_str());
-        op_mpi_set_dirtybit(nargs, args);
-        op_profile_exit();
-        op_profile_exit();
     }
 };
 
@@ -154,7 +124,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Launch& launch
         if (index == wait_before) {
             op_profile_next("MPI Wait");
             op_mpi_wait_all(launch.nargs, launch.args);
-            op_profile_next("Computation");
+            op_profile_next("Kernel");
         }
 
         auto start = clock::now();
@@ -168,7 +138,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Launch& launch
     if (phases == wait_before) {
         op_profile_next("MPI Wait");
         op_mpi_wait_all(launch.nargs, launch.args);
-        op_profile_next("Computation");
+        op_profile_next("Kernel");
     }
 
     if (!launch.timed)

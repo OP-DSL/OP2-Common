@@ -1,9 +1,9 @@
 #pragma once
 
 // The base of every backend's loop, the object the generated code builds per
-// par_loop: its ladder, its tuner and its JIT parameters, and the steps of a
-// call that are the same on every backend.  A backend derives its loop and
-// runs the exchange, the globals and its profile scopes around those steps.
+// par_loop: its ladder, its tuner and its JIT parameters, and a call's steps
+// and profile scopes, from src/rt/loop/op_loop_call.cpp.  A backend derives
+// its loop and prepares and finishes the call's globals around its run.
 
 #include <op2/rt/loop/autotune.h>
 #include <op2/rt/loop/jit.h>
@@ -39,46 +39,41 @@ void finalise(int rank, int ranks);
 std::string summaries(int ranks);
 
 class Loop {
-protected:
-    std::string m_name;
-    std::string m_profile_target;
-    std::string m_profile_variant;
-    bool m_direct;
-    Ladder m_ladder;
-    std::optional<Autotuner> m_tuner;
-    ParamSet m_params;
-
+private:
     // A call's decision: the parameters take its values, the ladder selects,
     // and the tuner, while it explores the configuration, may choose another
     // candidate.  Every call counts in the parameters' statistics, whichever
     // candidate runs, so a specialised kernel meets settled modes, and the
     // tuner waits for them.
-    Autotuner::Decision decide(const Call& call, op_arg *args,
-                               int nargs) {
-        m_params.update(args, nargs);
-        if (m_params.moving() && jit_options().enabled())
-            m_params.observe_call(call);
-        auto selection = m_ladder.select(call);
-        return m_tuner ? m_tuner->choose(call, selection, m_params.settled(call))
-                       : Autotuner::Decision{selection};
-    }
+    Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);
 
     // Run a decision, its time a sample for the tuner when it is timed.
-    void run(const Autotuner::Decision& decision, op_arg *args, int nargs) {
-        Launch launch{args, nargs, decision.timed != nullptr};
-        auto microseconds =
-            decision.prepared.candidate->strategy->run(decision.prepared, launch);
-        if (microseconds && m_tuner)
-            m_tuner->sample(decision, *microseconds);
-    }
+    void run(const Autotuner::Decision& decision, op_arg *args, int nargs);
+
+protected:
+    std::string m_name;
+    std::string m_profile_target;
+    std::string m_profile_variant;
+    bool m_direct;
+    // Whether the data is on the device, for the exchange and the dirty bits.
+    bool m_device;
+    Ladder m_ladder;
+    std::optional<Autotuner> m_tuner;
+    ParamSet m_params;
+
+    // Prepare the call's globals for the decision's run.
+    virtual void begin_call(const Call&, const Autotuner::Decision&, op_arg *, int) {}
+
+    // Finish the run's globals before the host reduces them.
+    virtual void end_call() {}
 
 public:
     // profile_target and profile_variant name the loop to the profiler.
     Loop(std::string_view name, std::string_view profile_target,
-         std::string_view profile_variant, bool direct)
+         std::string_view profile_variant, bool direct, bool device)
         : m_name{name}, m_profile_target{profile_target},
-          m_profile_variant{profile_variant}, m_direct{direct}, m_ladder{name},
-          m_params{name} {
+          m_profile_variant{profile_variant}, m_direct{direct}, m_device{device},
+          m_ladder{name}, m_params{name} {
         if (autotune_options().report)
             m_tuner.emplace(m_ladder);
         register_loop(this);
@@ -101,6 +96,13 @@ public:
     Sections sections(const Call& call) const {
         return Sections::of(call, m_direct);
     }
+
+    // Run one call: start the halo exchange, which decides what the call runs
+    // and which the planning overlaps; decide; prepare the globals; run; and
+    // finish, reduce and mark the globals and dats.  Inside "Computation" a
+    // strategy names its own scopes ("MPI Wait", "Process GBLs") at the level
+    // of "Kernel".
+    void invoke(op_set set, op_arg *args, int nargs);
 
     // At op_exit, while the device is still up, once the reports are
     // written: forget the tuner's configurations.  A backend also frees its
