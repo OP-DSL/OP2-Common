@@ -50,6 +50,7 @@ _op2_preprocess_fortran(
 # building blocks the backends' strategies compose.
 set(_op2_rt_srcs
     "${_src}/rt/op_rt_lifecycle.cpp"
+    "${_src}/rt/op_rt_report.cpp"
     "${_src}/rt/loop/op_loop.cpp"
     "${_src}/rt/loop/op_loop_call.cpp"
     "${_src}/rt/loop/op_loop_ladder.cpp"
@@ -57,7 +58,9 @@ set(_op2_rt_srcs
     "${_src}/rt/jit/op_jit_options.cpp"
     "${_src}/rt/jit/op_jit_params.cpp"
     "${_src}/rt/jit/op_jit_cache.cpp"
+    "${_src}/rt/jit/op_jit_report.cpp"
     "${_src}/rt/tune/op_tune_autotune.cpp"
+    "${_src}/rt/tune/op_tune_report.cpp"
     "${_src}/rt/plan/op_plan_colouring.cpp"
     "${_src}/rt/plan/op_plan_chunks.cpp"
     "${_src}/rt/plan/op_plan_staging.cpp"

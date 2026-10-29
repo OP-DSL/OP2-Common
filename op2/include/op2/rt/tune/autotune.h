@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -169,5 +170,14 @@ public:
     // Forget every configuration.
     void clear();
 };
+
+// A loop as the summary reads it: its tuner, none when it has none.
+struct TunedLoop {
+    std::string_view name;
+    const Autotuner *tuner;
+};
+
+// The summary of the loops' tuning, empty when none was tuned.
+std::string summary(std::span<const TunedLoop> loops, int ranks);
 
 } // namespace op::rt::tune

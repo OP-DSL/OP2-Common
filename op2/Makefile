@@ -64,15 +64,17 @@ clean:
 # a call's model and the strategy ladder, the JIT's policy, parameters and
 # build cache, the tuner, their reports, and the planning
 # building blocks the backends' strategies compose
-OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(addprefix $(OBJ)/rt/loop/,\
+OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(OBJ)/rt/op_rt_report.o $(addprefix $(OBJ)/rt/loop/,\
 	op_loop.o \
 	op_loop_call.o \
 	op_loop_ladder.o \
 	op_loop_report.o) $(addprefix $(OBJ)/rt/jit/,\
 	op_jit_options.o \
 	op_jit_params.o \
-	op_jit_cache.o) $(addprefix $(OBJ)/rt/tune/,\
-	op_tune_autotune.o) $(addprefix $(OBJ)/rt/plan/,\
+	op_jit_cache.o \
+	op_jit_report.o) $(addprefix $(OBJ)/rt/tune/,\
+	op_tune_autotune.o \
+	op_tune_report.o) $(addprefix $(OBJ)/rt/plan/,\
 	op_plan_colouring.o \
 	op_plan_chunks.o \
 	op_plan_staging.o \
