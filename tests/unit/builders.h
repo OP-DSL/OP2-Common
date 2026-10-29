@@ -1,7 +1,7 @@
 #pragma once
 
 // Sets, dats, maps and arguments filled in by hand, as the plans and
-// strategies read them, with no op_decl_* calls.
+// strategies read them, with no op_decl_* calls; named, as op_decl_* names them.
 
 #include <op_lib_core.h>
 
@@ -14,6 +14,7 @@ namespace op::test {
 inline void initialize_set(op_set_core& set, int size, int core_size = -1,
                            int exec_size = 0, int nonexec_size = 0) {
     set = {};
+    set.name = "set";
     set.size = size;
     set.core_size = core_size < 0 ? size : core_size;
     set.exec_size = exec_size;
@@ -23,6 +24,7 @@ inline void initialize_set(op_set_core& set, int size, int core_size = -1,
 inline void initialize_dat(op_dat_core& dat, op_set set, int dim, int scalar_size,
                            const char *type) {
     dat = {};
+    dat.name = "dat";
     dat.set = set;
     dat.dim = dim;
     dat.size = dim * scalar_size;
@@ -32,6 +34,7 @@ inline void initialize_dat(op_dat_core& dat, op_set set, int dim, int scalar_siz
 inline void initialize_map(op_map_core& map, op_set from, op_set to,
                            std::vector<int>& values, int dim = 1) {
     map = {};
+    map.name = "map";
     map.from = from;
     map.to = to;
     map.dim = dim;
@@ -73,6 +76,9 @@ struct Chain {
             map_values.push_back(i + 1);
         }
         initialize_map(map, &edges, &nodes, map_values, 2);
+        edges.name = "edges";
+        nodes.name = "nodes";
+        map.name = "edge_nodes";
     }
 };
 

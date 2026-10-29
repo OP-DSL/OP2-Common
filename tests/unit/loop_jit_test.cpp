@@ -180,6 +180,7 @@ void test_build_slots() {
 void test_params() {
     policy({});
     op_set_core set{};
+    set.name = "set";
     set.size = 100;
     op_dat_core dat{};
     dat.set = &set;
@@ -253,6 +254,7 @@ void test_params() {
 // parameters than it hashes at a time.
 void test_key_words() {
     op_set_core set{};
+    set.name = "set";
     loop::Call call{&set, {}, 0, false};
     std::array<double, 70> constants{};
     auto key = [&](const char *runtime) {
@@ -317,6 +319,7 @@ void test_statistics() {
     policy({});
     std::array<op_set_core, 5> sets{};
     for (int i = 0; i < 5; ++i) {
+        sets[i].name = "set";
         sets[i].index = i;
         sets[i].size = 10 * (i + 1);
         sets[i].core_size = sets[i].size;
@@ -434,6 +437,7 @@ void test_statistics() {
 void test_array_globals() {
     policy({});
     op_set_core set{};
+    set.name = "set";
     set.size = 10;
     set.core_size = 10;
     double g5[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
@@ -502,6 +506,7 @@ void test_array_globals() {
 void test_observe_every_call() {
     policy({});
     op_set_core set{};
+    set.name = "set";
     set.size = 10;
     set.core_size = 10;
     double value = 5.0;
@@ -533,6 +538,7 @@ void test_observe_every_call() {
 void test_settled() {
     policy({});
     op_set_core set{};
+    set.name = "set";
     set.size = 10;
     set.core_size = 10;
     double value = 5.0;

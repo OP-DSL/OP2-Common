@@ -136,6 +136,7 @@ struct Fixture {
         wide_dat.name = "wide_dat";
 
         map.index = next_index++;
+        map.name = "map";
         map.from = &source;
         map.to = &target;
         map.dim = 1;

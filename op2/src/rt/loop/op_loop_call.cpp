@@ -79,7 +79,7 @@ std::uint64_t Call::key() const {
 std::string Call::describe() const {
     // Fortran pads names with spaces.
     auto trimmed = [](const char *name) {
-        std::string text = name != nullptr ? name : "?";
+        std::string text = name;
         text.erase(text.find_last_not_of(' ') + 1);
         return text;
     };
@@ -95,7 +95,7 @@ std::string Call::describe() const {
             inactive += (inactive.empty() ? "" : " ") + std::to_string(i);
             continue;
         }
-        if (arg.map == nullptr || arg.map->name == nullptr ||
+        if (arg.map == nullptr ||
             std::find(listed.begin(), listed.end(), arg.map->index) != listed.end())
             continue;
         listed.push_back(arg.map->index);

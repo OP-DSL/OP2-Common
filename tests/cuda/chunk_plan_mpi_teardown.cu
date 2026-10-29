@@ -35,16 +35,19 @@ int main(int argc, char **argv) {
     op_init(argc, argv, 2);
 
     op_set_core source{};
+    source.name = "source";
     source.index = 0;
     source.size = 128;
     source.core_size = 128;
 
     op_set_core target{};
+    target.name = "target";
     target.index = 1;
     target.size = 4;
     target.core_size = 4;
 
     op_dat_core dat{};
+    dat.name = "dat";
     dat.index = 0;
     dat.set = &target;
     dat.dim = 1;
@@ -56,6 +59,7 @@ int main(int argc, char **argv) {
         map_values[static_cast<std::size_t>(i)] = (i / 2) % target.size;
 
     op_map_core map{};
+    map.name = "map";
     map.index = 0;
     map.from = &source;
     map.to = &target;
