@@ -6,17 +6,17 @@
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define OP_KERNEL_DEVICE __device__
-
-#define H_MIN ::min
-#define H_MAX ::max
 #else
 #include <cmath>
 #include <cassert>
 
 #define OP_KERNEL_DEVICE
+#endif
 
-#define H_MIN std::min
-#define H_MAX std::max
+#if defined(__CUDACC_RTC__) || defined(__HIPCC_RTC__)
+using int64_t = long long; // NVRTC and hipRTC have no <cstdint>
+#else
+#include <cstdint>
 #endif
 
 namespace op::rt::kernel {
@@ -30,7 +30,6 @@ OP_KERNEL_DEVICE inline void trap() {
 }
 
 /* Span (+ extent) raw pointer wrappers with Fortran-style indexing */
-using int64_t = long long int;
 using IndexType = int;
 
 // Avoids <type_traits> (not reliably available under NVRTC JIT compilation)
@@ -42,7 +41,8 @@ template<typename A> struct is_same_type<A, A> { static constexpr bool value = t
 
 template<typename U> struct is_integer_type { static constexpr bool value = false; };
 template<> struct is_integer_type<int> { static constexpr bool value = true; };
-template<> struct is_integer_type<int64_t> { static constexpr bool value = true; };
+template<> struct is_integer_type<long> { static constexpr bool value = true; };
+template<> struct is_integer_type<long long> { static constexpr bool value = true; };
 
 template<bool B, typename R = void> struct enable_if {};
 template<typename R> struct enable_if<true, R> { using type = R; };
@@ -196,31 +196,21 @@ inline constexpr double pow(double x, float e) { return ::pow(x, (double) e); }
 inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
 
-OP_KERNEL_DEVICE inline int abs(int x) { return ::abs(x); }
-OP_KERNEL_DEVICE inline int64_t abs(int64_t x) { return x < 0 ? -x : x; }
+// An integer intrinsic is a template, so it takes whichever type int64_t is;
+// a float or double argument picks the non-template overload.
+template<typename T> OP_KERNEL_DEVICE inline T abs(T x) { return x < 0 ? -x : x; }
 inline constexpr float abs(float x) { return fabsf(x); }
 inline constexpr double abs(double x) { return fabs(x); }
 
-inline constexpr double dble(int x) { return (double)x; }
-inline constexpr double dble(int64_t x) { return (double)x; }
-inline constexpr double dble(float x) { return (double)x; }
-inline constexpr double dble(double x) { return x; }
+template<typename T> inline constexpr double dble(T x) { return static_cast<double>(x); }
 
-inline constexpr int int_(int x) { return x; }
-inline constexpr int int_(int64_t x) { return (int)x; }
-inline constexpr int int_(float x) { return (int)x; }
-inline constexpr int int_(double x) { return (int)x; }
+template<typename T> inline constexpr int int_(T x) { return static_cast<int>(x); }
 
 inline constexpr float aint(float x) { return truncf(x); }
 inline constexpr double aint(double x) { return ::trunc(x); }
 
-OP_KERNEL_DEVICE inline int min(int x0, int x1) { return H_MIN(x0, x1); }
-OP_KERNEL_DEVICE inline int min(int x0, int x1, int x2) { return H_MIN(H_MIN(x0, x1), x2); }
-OP_KERNEL_DEVICE inline int min(int x0, int x1, int x2, int x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
-
-OP_KERNEL_DEVICE inline int64_t min(int64_t x0, int64_t x1) { return H_MIN(x0, x1); }
-OP_KERNEL_DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return H_MIN(H_MIN(x0, x1), x2); }
-OP_KERNEL_DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
+template<typename T> OP_KERNEL_DEVICE inline T min(T x0, T x1) { return x1 < x0 ? x1 : x0; }
+template<typename T> OP_KERNEL_DEVICE inline T max(T x0, T x1) { return x1 > x0 ? x1 : x0; }
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
 inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
@@ -237,34 +227,30 @@ inline constexpr float max(float x0, float x1) { return ((x1 > x0) | (x0 != x0))
 inline constexpr double max(double x0, double x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
 #endif
 
-inline constexpr float min(float x0, float x1, float x2) { return min(min(x0, x1), x2); }
-inline constexpr float min(float x0, float x1, float x2, float x3) { return min(min(min(x0, x1), x2), x3); }
-inline constexpr double min(double x0, double x1, double x2) { return min(min(x0, x1), x2); }
-inline constexpr double min(double x0, double x1, double x2, double x3) { return min(min(min(x0, x1), x2), x3); }
+// A float and a double compare as doubles, as Fortran's mixed kinds do.
+inline constexpr double min(float x0, double x1) { return min(static_cast<double>(x0), x1); }
+inline constexpr double min(double x0, float x1) { return min(x0, static_cast<double>(x1)); }
+inline constexpr double max(float x0, double x1) { return max(static_cast<double>(x0), x1); }
+inline constexpr double max(double x0, float x1) { return max(x0, static_cast<double>(x1)); }
 
-OP_KERNEL_DEVICE inline int max(int x0, int x1) { return H_MAX(x0, x1); }
-OP_KERNEL_DEVICE inline int max(int x0, int x1, int x2) { return H_MAX(H_MAX(x0, x1), x2); }
-OP_KERNEL_DEVICE inline int max(int x0, int x1, int x2, int x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
+// Fortran's MIN and MAX take any number of arguments.
+template<typename T0, typename T1, typename T2, typename... Ts>
+OP_KERNEL_DEVICE inline constexpr auto min(T0 x0, T1 x1, T2 x2, Ts... xs) {
+    return min(min(x0, x1), x2, xs...);
+}
+template<typename T0, typename T1, typename T2, typename... Ts>
+OP_KERNEL_DEVICE inline constexpr auto max(T0 x0, T1 x1, T2 x2, Ts... xs) {
+    return max(max(x0, x1), x2, xs...);
+}
 
-OP_KERNEL_DEVICE inline int64_t max(int64_t x0, int64_t x1) { return H_MAX(x0, x1); }
-OP_KERNEL_DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return H_MAX(H_MAX(x0, x1), x2); }
-OP_KERNEL_DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
-
-inline constexpr float max(float x0, float x1, float x2) { return max(max(x0, x1), x2); }
-inline constexpr float max(float x0, float x1, float x2, float x3) { return max(max(max(x0, x1), x2), x3); }
-inline constexpr double max(double x0, double x1, double x2) { return max(max(x0, x1), x2); }
-inline constexpr double max(double x0, double x1, double x2, double x3) { return max(max(max(x0, x1), x2), x3); }
-
-inline constexpr int mod(int a, int p) { return a % p; }
-inline constexpr int64_t mod(int64_t a, int64_t p) { return a % p; }
+template<typename T> inline constexpr T mod(T a, T p) { return a % p; }
 inline constexpr float mod(float a, float p) { return fmodf(a, p); }
 inline constexpr double mod(double a, double p) { return fmod(a, p); }
 
 inline constexpr int nint(float x) { return lroundf(x); }
 inline constexpr int nint(double x) { return lround(x); }
 
-OP_KERNEL_DEVICE inline int copysign(int x, int y) { return y >= 0 ? abs(x) : -abs(x); }
-OP_KERNEL_DEVICE inline int64_t copysign(int64_t x, int64_t y) { return y >= 0 ? abs(x) : -abs(x); }
+template<typename T> OP_KERNEL_DEVICE inline T copysign(T x, T y) { return y >= 0 ? abs(x) : -abs(x); }
 inline constexpr float copysign(float x, float y) { return copysignf(x, y); }
 inline constexpr double copysign(double x, double y) { return ::copysign(x, y); }
 
@@ -313,6 +299,3 @@ inline constexpr float tanh(float x) { return tanhf(x); }
 inline constexpr double tanh(double x) { return ::tanh(x); }
 
 } // namespace op::rt::kernel
-
-#undef H_MIN
-#undef H_MAX

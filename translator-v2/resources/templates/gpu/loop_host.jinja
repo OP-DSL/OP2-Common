@@ -416,7 +416,6 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
 const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
 namespace op2_m_{{lh.name}}{{variant}} {
 
-using int64_t = long long int;
 {{kernel_namespaces([strategy])}}
 }
 

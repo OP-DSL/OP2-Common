@@ -43,6 +43,13 @@ target_compile_definitions(chunk_encode PRIVATE OP2_CUDA)
 add_test(NAME chunk_encode COMMAND chunk_encode)
 set_tests_properties(chunk_encode PROPERTIES LABELS "cuda;unit")
 
+# The kernels' integer intrinsics and atomic increment for a 64-bit integer.
+add_executable(kernel_prelude kernel_prelude.cu)
+target_link_libraries(kernel_prelude PRIVATE op2_cuda)
+target_compile_definitions(kernel_prelude PRIVATE OP2_CUDA)
+add_test(NAME kernel_prelude COMMAND kernel_prelude)
+set_tests_properties(kernel_prelude PROPERTIES LABELS "cuda;unit")
+
 # The heuristics' estimates of a strategy's kernels.
 add_executable(heuristics heuristics.cu)
 target_link_libraries(heuristics PRIVATE op2_cuda)

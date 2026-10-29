@@ -48,7 +48,12 @@ OP_KERNEL_DEVICE inline void atomic_inc(T& target, U value) {
                                static_cast<T>(value), __ATOMIC_RELAXED,
                                __HIP_MEMORY_SCOPE_AGENT);
 #else
-    atomicAdd(&target, static_cast<T>(value));
+    // CUDA's atomicAdd has no signed 64-bit form: add the two's-complement bits.
+    if constexpr (sizeof(T) == 8 && is_integer_type<T>::value)
+        atomicAdd(reinterpret_cast<unsigned long long *>(&target),
+                  static_cast<unsigned long long>(static_cast<T>(value)));
+    else
+        atomicAdd(&target, static_cast<T>(value));
 #endif
 }
 
