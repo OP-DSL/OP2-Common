@@ -80,6 +80,7 @@ private:
     std::vector<std::string> m_warned;
 
     void order();
+    bool of_forced_family(const Candidate& candidate) const;
     void warn_forced(std::string_view reason);
     void report(const Prepared& selection,
                 std::span<const std::string_view> reasons);

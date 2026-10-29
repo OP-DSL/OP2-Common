@@ -292,7 +292,7 @@ Prepared Ladder::select(const Call& call) {
         // The tuner's other points are no part of the ladder.
         if (!candidate.member)
             continue;
-        bool forced = m_forced && candidate.family == (*this)[*m_forced].family;
+        bool forced = of_forced_family(candidate);
         if (!candidate.enabled && !forced) {
             m_reasons[index] = "disabled";
             continue;
@@ -326,9 +326,13 @@ Prepared Ladder::select(const Call& call) {
     return selection;
 }
 
+// A family's rank is its ID in the run.
+bool Ladder::of_forced_family(const Candidate& candidate) const {
+    return m_forced && candidate.rank == (*this)[*m_forced].rank;
+}
+
 bool Ladder::runs(const Candidate& candidate) const {
-    bool forced = m_forced && candidate.family == (*this)[*m_forced].family;
-    return (candidate.member && (candidate.enabled || forced)) ||
+    return (candidate.member && (candidate.enabled || of_forced_family(candidate))) ||
            &candidate == &(*this)[size() - 1];
 }
 
