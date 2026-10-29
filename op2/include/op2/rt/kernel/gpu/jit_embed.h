@@ -48,15 +48,24 @@ OP_KERNEL_JIT_EMBED(op_kernel_chunk_, "op2/rt/kernel/gpu/chunk.h");
         "op2/rt/kernel/gpu/params.h", "op2/rt/kernel/gpu/wavefront.h", \
         "op2/rt/kernel/gpu/range.h", "op2/rt/kernel/gpu/chunk.h"
 
+[[maybe_unused]] static const char *const OP_KERNEL_JIT_CAT(op_kernel_jit_data_,
+                                                           OP_KERNEL_JIT_TAG)[] = {
+    OP_KERNEL_JIT_KERNEL_DATA,
 #ifdef OP_KERNEL_PARAMS
-#define OP_KERNEL_JIT_HEADERS                                                      \
-    ::op::rt::abi::gpu::JitHeaders {                                               \
-        {OP_KERNEL_JIT_KERNEL_DATA, OP_KERNEL_PARAMS_DATA},                        \
-        {OP_KERNEL_JIT_KERNEL_NAMES, "op_f2c_params.h"}                            \
-    }
-#else
-#define OP_KERNEL_JIT_HEADERS                                                      \
-    ::op::rt::abi::gpu::JitHeaders {                                               \
-        {OP_KERNEL_JIT_KERNEL_DATA}, {OP_KERNEL_JIT_KERNEL_NAMES}                  \
-    }
+    OP_KERNEL_PARAMS_DATA,
 #endif
+};
+
+[[maybe_unused]] static const char *const OP_KERNEL_JIT_CAT(op_kernel_jit_names_,
+                                                           OP_KERNEL_JIT_TAG)[] = {
+    OP_KERNEL_JIT_KERNEL_NAMES,
+#ifdef OP_KERNEL_PARAMS
+    "op_f2c_params.h",
+#endif
+};
+
+#define OP_KERNEL_JIT_HEADERS                                                      \
+    ::op::rt::abi::gpu::JitHeaders {                                               \
+        OP_KERNEL_JIT_CAT(op_kernel_jit_data_, OP_KERNEL_JIT_TAG),                 \
+            OP_KERNEL_JIT_CAT(op_kernel_jit_names_, OP_KERNEL_JIT_TAG)             \
+    }

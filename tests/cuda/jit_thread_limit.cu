@@ -72,8 +72,8 @@ struct Described {
     gpu::Loop loop;
 
     explicit Described(const char *source)
-        : family{"plain", "thread_limit_kernel", nullptr, source, {}},
-          descriptor{"thread_limit", "cuda", "Direct", true, false, false, {},
+        : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
+          descriptor{{"thread_limit", "cuda", "Direct", true}, false, false, {},
                      {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
           loop{descriptor} {}

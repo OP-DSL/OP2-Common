@@ -253,19 +253,18 @@ static constexpr std::array<op::rt::abi::ArgGroup, {{groups.chunk_atomics.args|l
 static const op::rt::abi::cpu::Family op2_k_{{lh.name}}{{variant}}_families[] = {
 {% for strategy in strategies %}
     {% if strategy.startswith("chunk_") %}
-    {"{{strategy}}", nullptr, &op2_k_{{lh.name}}{{variant}}_{{strategy}},
-     {{"op::rt::abi::ArgGroups{op2_k_%s%s_chunk_atomics_groups, %d}" % (lh.name, variant, groups.chunk_atomics.dats|length) if strategy == "chunk_atomics" else "{}"}}},
+    {{"{{"}}"{{strategy}}", {{"op::rt::abi::ArgGroups{op2_k_%s%s_chunk_atomics_groups, %d}" % (lh.name, variant, groups.chunk_atomics.dats|length) if strategy == "chunk_atomics" else "{}"}}},
+     nullptr, &op2_k_{{lh.name}}{{variant}}_{{strategy}}},
     {% else %}
-    {"{{strategy}}",
+    {{"{{"}}"{{strategy}}", {}},
      &op2_k_{{lh.name}}{{variant}}_range_{{"atomic" if strategy == "atomics" else "plain"}}<{{"true" if strategy == "colouring" else "false"}}>,
-     nullptr, {}},
+     nullptr},
     {% endif %}
 {% endfor %}
 };
 
 static op::rt::abi::cpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
-    "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
-    {{"true" if lh is direct else "false"}},
+    {"{{lh.name}}", "{{target.name}}", "{{variant_str()}}", {{"true" if lh is direct else "false"}}},
     op2_k_{{lh.name}}{{variant}}_families,
     &op::rt::kernel::cpu::max_threads};
 

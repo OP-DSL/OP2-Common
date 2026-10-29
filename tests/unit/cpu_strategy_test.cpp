@@ -188,12 +188,12 @@ void run(const char *strategy) {
     args[5].acc = 4;
 
     const op::rt::abi::cpu::Family families[] = {
-        {"chunk_atomics", nullptr, &staged_run, op::rt::abi::ArgGroups{groups, 1}},
-        {"atomics", &range_run<true, false>, nullptr, {}},
-        {"chunk_colouring", nullptr, &colouring_run, {}},
-        {"colouring", &range_run<false, true>, nullptr, {}},
+        {{"chunk_atomics", op::rt::abi::ArgGroups{groups, 1}}, nullptr, &staged_run},
+        {{"atomics", {}}, &range_run<true, false>, nullptr},
+        {{"chunk_colouring", {}}, nullptr, &colouring_run},
+        {{"colouring", {}}, &range_run<false, true>, nullptr},
     };
-    cpu::Loop loop(op::rt::abi::cpu::Loop{"test_loop", "openmp_f2c", "Indirect", false,
+    cpu::Loop loop(op::rt::abi::cpu::Loop{{"test_loop", "openmp_f2c", "Indirect", false},
                                           families, &op::rt::kernel::cpu::max_threads});
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();

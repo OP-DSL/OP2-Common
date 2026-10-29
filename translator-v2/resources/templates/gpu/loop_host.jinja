@@ -521,16 +521,16 @@ static constexpr std::array<op::rt::abi::ArgGroup, {{groups[strategy].args|lengt
 {% endfor %}
 static const op::rt::abi::gpu::Family op2_k_{{lh.name}}{{variant}}_families[] = {
 {% for strategy in strategies %}
-    {"{{strategy}}", "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
+    {{"{{"}}"{{strategy}}", {{"op::rt::abi::ArgGroups{op2_k_%s%s_%s_groups, %d}" % (lh.name, variant, strategy, groups[strategy].dats|length) if strategy in chunk_strategies else "{}"}}},
+     "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
      {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
-     op2_k_{{lh.name}}{{variant}}_{{strategy}}_src,
-     {{"op::rt::abi::ArgGroups{op2_k_%s%s_%s_groups, %d}" % (lh.name, variant, strategy, groups[strategy].dats|length) if strategy in chunk_strategies else "{}"}}},
+     op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
 {% endfor %}
 };
 
 static op::rt::abi::gpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
-    "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
-    {{"true" if lh is direct else "false"}}, {{"true" if config.gbl_inc_atomic else "false"}}, {{"true" if per_thread else "false"}},
+    {"{{lh.name}}", "{{target.name}}", "{{variant_str()}}", {{"true" if lh is direct else "false"}}},
+    {{"true" if config.gbl_inc_atomic else "false"}}, {{"true" if per_thread else "false"}},
     {{"op2_k_%s%s_params" % (lh.name, variant) if params_rows|trim else "{}"}},
     op2_k_{{lh.name}}{{variant}}_families,
     &op2_k_{{lh.name}}{{variant}}_bind,

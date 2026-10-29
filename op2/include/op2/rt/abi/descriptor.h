@@ -1,8 +1,10 @@
 #pragma once
 
 // What the generated code tells the library about a loop, whatever the
-// backend: the arguments a staged kernel groups, and the parameters its
-// kernels may be specialised on.
+// backend: the loop and its strategy families, which each backend's
+// descriptor extends (op2/rt/abi/cpu/descriptor.h,
+// op2/rt/abi/gpu/descriptor.h), the arguments a staged kernel groups, and
+// the parameters its kernels may be specialised on.
 
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +22,23 @@ struct ArgGroup {
 struct ArgGroups {
     std::span<const ArgGroup> args;
     int groups = 0;
+};
+
+// A strategy family the generated code built for: its name, and for a
+// staged family the arguments it stages.
+struct Family {
+    const char *name;
+    ArgGroups groups;
+};
+
+// A loop: its name, how the profiler names it, whether it is direct, and
+// the library's loop, made on its first call.
+struct Loop {
+    const char *name;
+    const char *target;
+    const char *variant;
+    bool direct;
+    void *runtime = nullptr;
 };
 
 // A value's element type: a parameter's, or a global argument's.

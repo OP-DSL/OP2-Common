@@ -170,13 +170,12 @@ struct Described {
     gpu::Loop loop;
 
     Described(const char *name, const Fixture& fixture)
-        : families{{{"chunk_atomics", "chunk_strategy_staged",
-                     reinterpret_cast<const void *>(chunk_strategy_staged), staged_source,
-                     fixture.groups()},
-                    {"atomics", "chunk_strategy_baseline",
+        : families{{{{"chunk_atomics", fixture.groups()}, "chunk_strategy_staged",
+                     reinterpret_cast<const void *>(chunk_strategy_staged), staged_source},
+                    {{"atomics", {}}, "chunk_strategy_baseline",
                      reinterpret_cast<const void *>(chunk_strategy_baseline),
-                     baseline_source, {}}}},
-          descriptor{name, "cuda", "Indirect", false, false, false, {}, families, &bind,
+                     baseline_source}}},
+          descriptor{{name, "cuda", "Indirect", false}, false, false, {}, families, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
           loop{descriptor} {}
 };

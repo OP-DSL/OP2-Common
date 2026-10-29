@@ -18,25 +18,16 @@ using ChunkRun = void (*)(const Chunk& chunks, op_arg *args);
 
 // A strategy family the generated code built a region for: the plain,
 // atomics and colouring families' over a range, the chunked families' over
-// chunks, the other null; chunk_atomics' groups are the arguments it stages.
-struct Family {
-    const char *name;
+// chunks, the other null.
+struct Family : abi::Family {
     RangeRun range;
     ChunkRun chunks;
-    ArgGroups groups;
 };
 
-struct Loop {
-    const char *name;
-    // The loop to the profiler.
-    const char *target;
-    const char *variant;
-    bool direct;
+struct Loop : abi::Loop {
     std::span<const Family> families;
     // The generated code's omp_get_max_threads.
     int (*max_threads)();
-    // The library's loop, made on the first call.
-    void *runtime = nullptr;
 };
 
 // Run one call of loop.

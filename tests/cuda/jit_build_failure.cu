@@ -81,11 +81,11 @@ int main(int argc, char **argv) {
     {
         // A strategy with only the broken source, then a working floor.
         const op::rt::abi::gpu::Family kernels[] = {
-            {"atomics", "build_failure_offline", nullptr, broken_source, {}},
-            {"plain", "build_failure_offline",
-             reinterpret_cast<const void *>(build_failure_offline), broken_source, {}},
+            {{"atomics", {}}, "build_failure_offline", nullptr, broken_source},
+            {{"plain", {}}, "build_failure_offline",
+             reinterpret_cast<const void *>(build_failure_offline), broken_source},
         };
-        op::rt::abi::gpu::Loop descriptor{"build_failure", "cuda", "Direct", true, false,
+        op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
                                           false, {}, kernels, &bind,
                                           &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
         gpu::Loop loop(descriptor);

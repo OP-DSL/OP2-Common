@@ -90,27 +90,19 @@ using Binder = void (*)(op_arg *args, unsigned& opt_flags, std::vector<void *>& 
 // The headers a specialised kernel's source includes, in order, embedded in
 // the translation unit (op2/rt/kernel/gpu/jit_embed.h).
 struct JitHeaders {
-    std::vector<const char *> data;
-    std::vector<const char *> names;
+    std::span<const char *const> data;
+    std::span<const char *const> names;
 };
 
 // A strategy family the generated code built a kernel for: the kernel's
-// name, its offline build if any, and the source of a specialised one; the
-// chunked families' groups are the arguments they stage.
-struct Family {
-    const char *name;
+// name, its offline build if any, and the source of a specialised one.
+struct Family : abi::Family {
     const char *kernel;
     const void *offline;
     const char *source;
-    ArgGroups groups;
 };
 
-struct Loop {
-    const char *name;
-    // The loop to the profiler.
-    const char *target;
-    const char *variant;
-    bool direct;
+struct Loop : abi::Loop {
     // A global OP_INC is incremented atomically, in place, rather than
     // reduced from a copy per thread.
     bool gbl_inc_atomic;
@@ -122,8 +114,6 @@ struct Loop {
     Binder bind;
     const OfflineCalls *calls;
     JitHeaders headers;
-    // The library's loop, made on the first call.
-    void *runtime = nullptr;
 };
 
 // Run one call of loop.
