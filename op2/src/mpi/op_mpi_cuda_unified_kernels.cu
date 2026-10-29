@@ -50,7 +50,14 @@ public:
     void wait_gathers() override;
     void wait_scatters() override;
 
+    void forget_dats() override { soa_cache.clear(); }
+
 private:
+    bool is_soa(op_dat dat) const;
+
+    // Per dat index: unknown (-1), AoS (0) or SoA (1).
+    mutable std::vector<signed char> soa_cache;
+
     void *gather_buf = nullptr;
     size_t gather_buf_size = 0;
 
@@ -87,9 +94,7 @@ private:
 
 // The soa flag depends only on the dat's type string and dim, so compute the
 // strstr once per dat rather than on every exchange.
-static std::vector<signed char> soa_cache;
-
-static bool dat_is_soa(op_dat dat) {
+bool CudaBackend::is_soa(op_dat dat) const {
     if ((std::size_t) dat->index >= soa_cache.size()) soa_cache.resize(dat->index + 1, -1);
     if (soa_cache[dat->index] < 0)
         soa_cache[dat->index] =
@@ -104,7 +109,7 @@ DatPlacement CudaBackend::placement(op_dat dat, op_map partial_map) const {
 
     DatPlacement placement;
     placement.dat = DatAccessor((void *) dat->data_d, dat->dim, stride, dat->size / dat->dim,
-                                dat_is_soa(dat));
+                                is_soa(dat));
 
     if (partial_map != nullptr) {
         placement.nonexec_export_permap = OP_map_halos_d[partial_map->index].export_nonexec.get();

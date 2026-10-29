@@ -469,4 +469,7 @@ void op_mpi_halo_exchanges_exit() {
         MPI_Waitall(ctx.send_reqs.size(), ctx.send_reqs.data(), MPI_STATUSES_IGNORE);
         ctx.send_reqs.clear();
     }
+    host_backend()->forget_dats();
+    if (Backend *device = device_backend())
+        device->forget_dats();
 }

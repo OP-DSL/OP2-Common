@@ -60,6 +60,9 @@ public:
 
     virtual void wait_gathers() = 0;
     virtual void wait_scatters() = 0;
+
+    // Called by op_exit: forget anything cached about the run's dats.
+    virtual void forget_dats() {}
 };
 
 // Always available: the host backend has no accelerator dependency.
