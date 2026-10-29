@@ -14,6 +14,7 @@
 #include <op2/rt/jit/options.h>
 #include <op_lib_c.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -46,6 +47,7 @@ extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_
         result[6] = chunk_end;
         result[7] = stride;
         result[8] = scratch[last_shared_byte];
+        result[9] = global_stride;
     }
 }
 
@@ -80,6 +82,7 @@ extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_
         result[6] = chunk_end;
         result[7] = stride;
         result[8] = scratch[last_shared_byte];
+        result[9] = global_stride;
     }
 }
 )op2";
@@ -189,11 +192,14 @@ struct Described {
           loop{descriptor} {}
 };
 
-std::array<int, 9> output{};
+std::array<int, 10> output{};
 
-// Select, run and read back; what ran and why chunk_atomics was passed over.
+// Select, run and read back: what ran, chunk_atomics' plan entry and why it
+// was passed over, and the blocks the reduction scratch was sized for (the
+// record's global stride over the 256-thread block).
 struct Outcome {
     std::string strategy;
+    const void *chunk_entry;
     std::string chunk_reason;
     bool jit;
     int max_blocks;
@@ -211,11 +217,8 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemcpy(output.data(), output_d, sizeof(output),
                         gpuMemcpyDeviceToHost));
     const auto& name = selection.candidate->name;
-    return {name.substr(0, name.find('=')), std::string{chunk.reason},
-            selection.kernel != nullptr,
-            static_cast<gpu::StrategyBase *>(selection.candidate->strategy)
-                ->call_state()
-                .max_blocks};
+    return {name.substr(0, name.find('=')), chunk.entry, std::string{chunk.reason},
+            selection.kernel != nullptr, output[9] / 256};
 }
 
 } // namespace
@@ -239,7 +242,7 @@ int main(int argc, char **argv) {
         auto outcome = run(dormant, fixture);
         CHECK(outcome.strategy == "atomics");
         CHECK(output[0] == -1);
-        CHECK(static_cast<gpu::ChunkBase&>(*dormant.ladder()[0].strategy).entries() == 1);
+        CHECK(outcome.chunk_entry != nullptr);
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
@@ -248,15 +251,24 @@ int main(int argc, char **argv) {
     {
         Described loop_described{"chunk_strategy", fixture};
         auto& loop = loop_described.loop;
-        auto& chunk = static_cast<gpu::ChunkBase&>(*loop.ladder()[0].strategy);
 
+        // Each configuration's plan entry, kept across its calls.
+        std::vector<const void *> entries;
         Outcome outcome{};
         for (int invocation = 0; invocation < 10; ++invocation) {
             outcome = run(loop, fixture);
+            if (invocation == 0)
+                entries.push_back(outcome.chunk_entry);
             CHECK(outcome.strategy == "chunk_atomics");
+            CHECK(outcome.chunk_entry == entries[0]);
             CHECK(outcome.max_blocks == 1);
             saw_jit |= outcome.jit;
         }
+        auto new_entry = [&](const void *entry) {
+            bool fresh = std::find(entries.begin(), entries.end(), entry) == entries.end();
+            entries.push_back(entry);
+            return entry != nullptr && fresh;
+        };
         CHECK(output[0] == 0);
         CHECK(output[1] == 256);
         CHECK(output[2] == 4);
@@ -267,7 +279,6 @@ int main(int argc, char **argv) {
         CHECK(output[6] == 1);
         CHECK(output[7] == 256);
         CHECK(output[8] == 42);
-        CHECK(chunk.entries() == 1);
 
         // The inactive argument: nothing to stage, and a second entry.
         fixture.args[0].opt = 0;
@@ -275,7 +286,7 @@ int main(int argc, char **argv) {
         CHECK(outcome.strategy == "atomics");
         CHECK(outcome.chunk_reason == "no_active_argument");
         CHECK(output[0] == -1);
-        CHECK(chunk.entries() == 2);
+        CHECK(new_entry(outcome.chunk_entry));
 
         // A wider dat: a third entry with its own staging.
         fixture.args[0].opt = 1;
@@ -285,14 +296,14 @@ int main(int argc, char **argv) {
         outcome = run(loop, fixture);
         CHECK(outcome.strategy == "chunk_atomics");
         CHECK(output[8] == 42);
-        CHECK(chunk.entries() == 3);
+        CHECK(new_entry(outcome.chunk_entry));
 
         // Two active arguments on one dat, one of them ungrouped.
         fixture.args[1].opt = 1;
         outcome = run(loop, fixture);
         CHECK(outcome.strategy == "atomics");
         CHECK(outcome.chunk_reason == "incompatible_argument");
-        CHECK(chunk.entries() == 4);
+        CHECK(new_entry(outcome.chunk_entry));
 
         // Reduction scratch is sized from the largest capped grid of any one
         // section: with two sections of one chunk each, max_blocks stays 1.
@@ -366,25 +377,21 @@ int main(int argc, char **argv) {
             Described second_described{"chunk_strategy_alike_second", alike};
             auto& first_loop = first_described.loop;
             auto& second_loop = second_described.loop;
-            auto& first_chunk = static_cast<gpu::ChunkBase&>(*first_loop.ladder()[0].strategy);
-            auto& second_chunk =
-                static_cast<gpu::ChunkBase&>(*second_loop.ladder()[0].strategy);
             op::rt::loop::Call call{&alike.source, alike.args,
                                     alike.source.size + alike.source.exec_size, false};
             auto first = first_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             auto second = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(first.entry != nullptr && first.entry == second.entry);
-            CHECK(first_chunk.entries() == 1 && second_chunk.entries() == 1);
-            second_chunk.forget(call.key());
-            CHECK(second_chunk.entries() == 0);
-            auto again = first_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
+            // The second forgets it; the first still holds it, so the second
+            // finds it again rather than planning anew.
+            second_loop.ladder()[0].strategy->forget(call.key());
+            auto again = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(again.entry == first.entry);
         }
 
         GPU_CHECK(gpuFree(output_d));
         output_d = nullptr;
         op_exit();
-        CHECK(chunk.entries() == 0);
     }
 
     CHECK(saw_jit == expect_jit);

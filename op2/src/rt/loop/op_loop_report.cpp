@@ -81,8 +81,6 @@ void print(const std::vector<Loop *>& current, int rank, int ranks) {
 
 } // namespace
 
-std::string summaries(int ranks) { return text(current_loops(), ranks); }
-
 void write_reports(int rank, int ranks) {
     auto current = current_loops();
     write_files(current, rank, ranks);

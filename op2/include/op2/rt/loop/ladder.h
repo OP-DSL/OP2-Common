@@ -118,7 +118,6 @@ public:
     const Candidate& operator[](std::size_t index) const {
         return m_candidates[m_order[index]];
     }
-    std::optional<std::size_t> forced() const { return m_forced; }
 };
 
 } // namespace op::rt::loop

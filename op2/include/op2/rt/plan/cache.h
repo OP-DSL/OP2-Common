@@ -88,14 +88,6 @@ public:
         }
         return plan;
     }
-
-    // The plans some strategy still holds.
-    std::size_t live() const {
-        std::size_t count = 0;
-        for (const auto& [key, plan] : m_plans)
-            count += !plan.expired();
-        return count;
-    }
 };
 
 // A strategy's plans by configuration (loop::Call::key): a lookup per call,
@@ -120,7 +112,6 @@ public:
     // it.
     void forget(std::uint64_t key) { m_slots.erase(key); }
     void clear() { m_slots.clear(); }
-    std::size_t size() const { return m_slots.size(); }
 };
 
 } // namespace op::rt::plan

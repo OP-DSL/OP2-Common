@@ -3,6 +3,7 @@
 // selected by the margin.
 
 #include <op2/rt/abi/descriptor.h>
+#include <op2/rt/jit/report.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/loop/loop.h>
 #include <op2/rt/tune/autotune.h>
@@ -37,6 +38,8 @@ struct Fake : loop::Strategy {
     int timed_runs = 0;
     int timed_jit_runs = 0;
     int forgets = 0;
+    // Its specialised kernels' builds, as it reports them.
+    loop::BuildCounts fake_builds{};
 
     Fake(std::string name, float time_, std::optional<float> jit_time_ = {})
         : fake_name{std::move(name)}, time{time_}, jit_time{jit_time_} {}
@@ -85,6 +88,8 @@ struct Fake : loop::Strategy {
     }
 
     void forget(std::uint64_t) override { ++forgets; }
+
+    loop::BuildCounts builds() const override { return fake_builds; }
 };
 
 // A loop of fakes, tuned as OP_AUTOTUNE says when it is built.
@@ -229,7 +234,8 @@ void test_exploration() {
     // The summary: on edges chunk_atomics takes 4 to atomics' 10 over 13
     // calls, on cells atomics is fastest, so the loop takes 0.152 ms to the
     // ladder's 0.23.
-    auto summary = loop::summaries(1);
+    const op::rt::tune::TunedLoop tuned[] = {{fixture.name(), fixture.tuner()}};
+    auto summary = op::rt::tune::summary(tuned, 1);
     CHECK(summary.rfind("autotune summary:\n", 0) == 0);
     CHECK(summary.find("2 configurations of 1 loop explored; 0 not explored") !=
           std::string::npos);
@@ -332,8 +338,15 @@ void test_jit_report() {
         double constant = 0.0;
         Jitted() : loop::Loop{"flux_jit", "test", "Indirect", false} {
             m_params.add("op2_const_c_d", &constant, op::rt::abi::ParamSource::external, -1, true);
+            // One strategy, whose builds the loop's are.
+            const loop::Family declared[] = {{"atomics", {}}};
+            loop::declare_families(declared);
+            m_ladder.add("atomics", [](const loop::Point& point) {
+                auto made = std::make_unique<Fake>(point.name, 1.0f, 1.0f);
+                made->fake_builds = {3, 1, 0, 2};
+                return made;
+            });
         }
-        loop::BuildCounts builds() const override { return {3, 1, 0, 2}; }
         void observe(const loop::Call& call) {
             m_params.update(nullptr, 0);
             m_params.observe_call(call);
@@ -355,7 +368,12 @@ void test_jit_report() {
     for (int i = 0; i < 10; ++i)
         jitted.observe(on_cells);
 
-    auto summary = loop::summaries(1);
+    auto jit_summary = [&] {
+        const op::rt::jit::JitLoop loops[] = {
+            {jitted.name(), jitted.builds(), &jitted.params()}};
+        return op::rt::jit::summary(loops, 1);
+    };
+    auto summary = jit_summary();
     CHECK(summary.rfind("JIT summary:\n", 0) == 0);
     CHECK(summary.find("3 kernels built for 1 loop, 1 failed, 2 not built (asked for "
                        "fewer than 9 times)\n") != std::string::npos);
@@ -381,7 +399,7 @@ void test_jit_report() {
 
     unsetenv("OP_JIT_REPORT");
     op::rt::init();
-    CHECK(loop::summaries(1).empty());
+    CHECK(jit_summary().empty());
 }
 
 // Every loop is in the registry while it lives, and op_exit's finalise

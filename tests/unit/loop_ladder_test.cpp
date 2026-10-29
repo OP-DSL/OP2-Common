@@ -318,7 +318,6 @@ void test_variables() {
         add(ladder, "atomics", false);
         add(ladder, "plain", true);
         add(ladder, "colouring", true);
-        CHECK(ladder.forced() == 1);
         auto selection = ladder.select(indirect_call());
         CHECK(selection.candidate->name == "atomics=on");
 
@@ -337,14 +336,15 @@ void test_variables() {
         loop::Ladder ladder{"other"};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
-        CHECK(ladder.forced() == 1);
         CHECK(ladder.select(indirect_call()).candidate->name == "colouring=on");
     }
     {
         loop::Ladder ladder{"third"};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
-        CHECK(!ladder.forced().has_value());
+        // Not forced: its first member runs, not waited for.
+        CHECK(ladder.select(indirect_call()).candidate->name == "atomics=on");
+        CHECK(static_cast<Fake&>(*ladder[0].strategy).waits == 0);
     }
 
     // A bare family forces every loop that has it; a loop's own item wins.
@@ -354,7 +354,11 @@ void test_variables() {
         loop::Ladder ladder{name};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
-        CHECK(ladder.forced() == (std::string_view{name} == "other" ? 1u : 0u));
+        // The forced family runs, its kernel waited for.
+        auto selection = ladder.select(indirect_call());
+        bool other = std::string_view{name} == "other";
+        CHECK(selection.candidate->name == (other ? "colouring=on" : "atomics=on"));
+        CHECK(static_cast<Fake&>(*selection.candidate->strategy).waits == 1);
     }
     unsetenv("OP_STRATEGY");
     op::rt::init();
@@ -436,7 +440,6 @@ void test_axes() {
         loop::Ladder ladder{"test_loop"};
         ladder.add("colouring", make);
         ladder.add("chunk_atomics", make);
-        CHECK(ladder.forced() == 3);
         CHECK(ladder.select(indirect_call()).candidate == &ladder[3]);
         CHECK(!!ladder[4].off && !!ladder[5].off);
     }

@@ -137,8 +137,6 @@ public:
     // The kernel kind and its registers, local and shared memory.
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
 
-    const CallState& call_state() const { return m_call_state; }
-
     // The device copies of the call's globals, a copy per launched thread.
     void begin_call(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs) override {
         m_loop.prepare_globals(prepared, args, nargs, m_call_state.global_stride);
@@ -225,8 +223,6 @@ public:
     void forget(std::uint64_t key) override { m_plans.forget(key); }
     void release() override;
 
-    // Configurations it holds plans of, accepted or rejected.
-    std::size_t entries() const { return m_plans.size(); }
 };
 
 // Increments staged in shared memory and flushed with global atomics.

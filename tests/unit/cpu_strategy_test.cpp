@@ -197,11 +197,10 @@ void run(const char *strategy) {
     cpu::Loop loop(op::rt::abi::cpu::Loop{{"test_loop", "openmp_f2c", "Indirect", false},
                                           families, &op::rt::kernel::cpu::max_threads});
     // The forced strategy itself runs, not one the ladder falls through to.
-    auto forced = loop.ladder().forced();
-    CHECK(forced.has_value());
     op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};
-    CHECK(loop.ladder()[*forced].prepare(call, op::rt::loop::Urgency::now).status ==
-          op::rt::loop::Status::ready);
+    auto selection = loop.ladder().select(call);
+    CHECK(selection.status == op::rt::loop::Status::ready &&
+          selection.candidate->family == strategy);
 
     // Twice, so the second call reuses the cached plan.
     std::vector<double> expected(x);

@@ -39,10 +39,6 @@ void write_reports(int rank, int ranks);
 // every loop.
 void finalise(int rank, int ranks);
 
-// The summaries write_reports prints: the tuner's when it is on, the JIT's
-// under OP_JIT_REPORT when it built or observed anything; empty otherwise.
-std::string summaries(int ranks);
-
 // The library's loop for a descriptor, a Backend made from it on its first
 // call: each backend's invoke runs it.  The loops live as long as the
 // program, released by finalise.
@@ -133,7 +129,7 @@ public:
     const tune::Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
 
     // Its specialised kernels' builds, by where they stand.
-    virtual BuildCounts builds() const {
+    BuildCounts builds() const {
         BuildCounts counts;
         for (const auto& strategy : m_ladder.strategies())
             counts += strategy->builds();
