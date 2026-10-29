@@ -18,8 +18,7 @@ namespace op::rt::abi::gpu {
 
 // A parameter as the CUDA and HIP code registers it: what the JIT
 // specialises on, and its device side.
-struct Param {
-    abi::Param param;
+struct Param : abi::Param {
     // The copy an offline kernel reads, a __constant__ symbol, if any, and
     // the hash of the value there, shared by every loop that reads it.
     const void *symbol = nullptr;
@@ -31,13 +30,13 @@ struct Param {
 template<typename T>
 constexpr Param constant(const char *name, T *data, const void *symbol,
                          std::uint64_t *shared_hash) {
-    return {abi::constant(name, data), symbol, shared_hash};
+    return {abi::constant(name, data), symbol, shared_hash, false};
 }
 
 template<typename T>
 constexpr Param constant(const char *name, T *data, std::size_t elems, const void *symbol,
                          std::uint64_t *shared_hash) {
-    return {abi::constant(name, data, elems), symbol, shared_hash};
+    return {abi::constant(name, data, elems), symbol, shared_hash, false};
 }
 
 // Every kernel has a scalar READ global by value.
@@ -54,11 +53,11 @@ constexpr Param global(const char *name, int arg, bool by_value) {
 }
 
 constexpr Param dat_stride(const char *name, int *data, int arg, const void *symbol) {
-    return {abi::dat_stride(name, data, arg), symbol};
+    return {abi::dat_stride(name, data, arg), symbol, nullptr, false};
 }
 
 constexpr Param dat_dim(const char *name, int *data, int arg) {
-    return {abi::dat_dim(name, data, arg)};
+    return {abi::dat_dim(name, data, arg), nullptr, nullptr, false};
 }
 
 // The calls on a kernel or symbol compiled with the application, which
