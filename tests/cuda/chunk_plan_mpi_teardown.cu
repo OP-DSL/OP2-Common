@@ -74,14 +74,14 @@ int main(int argc, char **argv) {
     arg.acc = OP_INC;
 
     std::array args{arg};
-    std::array groups{op::rt::plan::ArgGroup{0, 0}};
+    std::array groups{op::rt::abi::ArgGroup{0, 0}};
 
     int device = -1;
     gpuDeviceProp_t properties{};
     CHECK(gpuGetDevice(&device) == gpuSuccess);
     CHECK(gpuGetDeviceProperties(&properties, device) == gpuSuccess);
     auto result = op::rt::gpu::plan_chunk_atomics(
-        args, op::rt::loop::Sections::direct(&source), op::rt::plan::ArgGroups{groups, 1},
+        args, op::rt::loop::Sections::direct(&source), op::rt::abi::ArgGroups{groups, 1},
         op::rt::gpu::ChunkLimits{128, properties.sharedMemPerBlock}, false, 1.5);
     CHECK(result);
 

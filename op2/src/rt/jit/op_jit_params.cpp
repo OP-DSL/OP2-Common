@@ -1,6 +1,7 @@
-#include <op2/rt/loop/jit.h>
+#include <op2/rt/jit/params.h>
 
 #include <op2/env.h>
+#include <op_lib_core.h>
 #include <op_rt_support.h>
 
 #include <algorithm>
@@ -9,55 +10,9 @@
 #include <cstring>
 #include <sstream>
 
-namespace op::rt::loop {
+namespace op::rt::jit {
 
-// --- Policy -------------------------------------------------------------------
-
-namespace {
-
-JitOptions run_options;
-std::atomic_int builds_in_flight = 0;
-
-} // namespace
-
-const JitOptions& jit_options() { return run_options; }
-
-void init_jit_options() {
-    run_options = {};
-    env::retired("OP_JIT_ENABLE", "OP_JIT_LEVEL=0 turns the JIT off");
-    env::parse_number("OP_JIT_LEVEL", run_options.level, 0, 2);
-    if (!run_options.enabled())
-        op_printf("Disabling JIT compilation\n");
-    env::parse_bool("OP_JIT_DEBUG", run_options.debug);
-    if (run_options.debug)
-        op_printf("Enabling JIT debug\n");
-    env::parse_bool("OP_JIT_SEQ_COMPILE", run_options.seq_compile);
-    env::parse_bool("OP_JIT_FORCE", run_options.force);
-    if (run_options.force)
-        op_printf("Forcing JIT compilation of every kernel\n");
-    env::parse_number("OP_JIT_MIN_CALLS", run_options.min_calls);
-    env::parse_number("OP_JIT_MAX_THREADS", run_options.max_threads, 1);
-    env::parse_number("OP_JIT_VARYING", run_options.varying);
-    env::parse_number("OP_JIT_MAX_GBL_BYTES", run_options.max_gbl_bytes);
-    env::parse_number("OP_JIT_MAX_CONST_BYTES", run_options.max_const_bytes);
-    env::parse_list("OP_JIT_RUNTIME_PARAMS", run_options.runtime_params);
-    env::parse_list("OP_JIT_CONSTANT_PARAMS", run_options.constant_params);
-    env::parse_text("OP_JIT_REPORT", run_options.report_file);
-}
-
-bool take_build_slot(int limit) {
-    int count = builds_in_flight.load();
-    while (count < limit)
-        if (builds_in_flight.compare_exchange_weak(count, count + 1))
-            return true;
-    return false;
-}
-
-void release_build_slot() { --builds_in_flight; }
-
-// --- Parameters ---------------------------------------------------------------
-
-void Param::settle(std::string_view loop, bool runtime, const JitOptions& options) {
+void Param::settle(std::string_view loop, bool runtime, const Options& options) {
     auto named = [&](const std::vector<std::string>& names) {
         return std::any_of(names.begin(), names.end(), [&](std::string_view item) {
             if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
@@ -76,7 +31,7 @@ void Param::settle(std::string_view loop, bool runtime, const JitOptions& option
         else
             env::warn("warning: " + std::string{loop} + "'s kernels cannot have " + m_name +
                       " at run time, from OP_JIT_RUNTIME_PARAMS\n");
-    } else if (runtime && m_source == ParamSource::external) {
+    } else if (runtime && m_source == abi::ParamSource::external) {
         if (bytes() > static_cast<std::size_t>(options.max_const_bytes))
             m_initial = ParamMode::runtime;
         else
@@ -85,7 +40,7 @@ void Param::settle(std::string_view loop, bool runtime, const JitOptions& option
         // An array_arg's size is each call's, so its cap is checked per call.
         m_initial = ParamMode::runtime;
         m_fixed = options.level < 2 ||
-                  (m_source == ParamSource::scalar_arg &&
+                  (m_source == abi::ParamSource::scalar_arg &&
                    bytes() > static_cast<std::size_t>(options.max_gbl_bytes));
     }
     m_mode = m_initial;
@@ -93,7 +48,7 @@ void Param::settle(std::string_view loop, bool runtime, const JitOptions& option
 
 void Param::update(op_arg *args, int nargs) {
     switch (m_source) {
-    case ParamSource::scalar_arg:
+    case abi::ParamSource::scalar_arg:
         assert(m_index >= 0 && m_index < nargs);
         // An inactive optional global's kernel never reads it.
         if (args[m_index].opt == 0)
@@ -101,7 +56,7 @@ void Param::update(op_arg *args, int nargs) {
         assert(args[m_index].data != nullptr);
         std::memcpy(m_data, args[m_index].data, m_elem_size);
         return;
-    case ParamSource::array_arg:
+    case abi::ParamSource::array_arg:
         assert(m_index >= 0 && m_index < nargs);
         if (args[m_index].opt == 0) {
             m_data = nullptr;
@@ -111,14 +66,14 @@ void Param::update(op_arg *args, int nargs) {
         m_data = args[m_index].data;
         m_elems = static_cast<std::size_t>(args[m_index].dim);
         return;
-    case ParamSource::dat_stride: {
+    case abi::ParamSource::dat_stride: {
         assert(m_index >= 0 && m_index < nargs);
         assert(m_elem_size == sizeof(int) && m_elems == 1);
         int size = getSetSizeFromOpArg(&args[m_index]);
         *static_cast<int *>(m_data) = (size + 31) & ~31;
         return;
     }
-    case ParamSource::dat_dim:
+    case abi::ParamSource::dat_dim:
         assert(m_index >= 0 && m_index < nargs);
         assert(m_elem_size == sizeof(int) && m_elems == 1);
         *static_cast<int *>(m_data) = args[m_index].dim;
@@ -135,7 +90,7 @@ void ParamSet::update(op_arg *args, int nargs) {
         param.update(args, nargs);
 }
 
-ParamSet::Histories *ParamSet::histories(const Call& call) {
+ParamSet::Histories *ParamSet::histories(const loop::Call& call) {
     auto key = call.key();
     if (m_history != nullptr && key == m_history_key)
         return m_history;
@@ -153,8 +108,8 @@ ParamSet::Histories *ParamSet::histories(const Call& call) {
     return m_history;
 }
 
-bool ParamSet::settled(const Call& call) const {
-    if (!m_moving || !jit_options().enabled())
+bool ParamSet::settled(const loop::Call& call) const {
+    if (!m_moving || !jit::options().enabled())
         return true;
     auto found = m_histories.find(call.key());
     // Past max_histories a configuration keeps the initial modes.
@@ -178,14 +133,14 @@ std::vector<ParamSet::ConfigurationModes> ParamSet::configurations() const {
     return out;
 }
 
-void ParamSet::observe(const Call& call) {
-    const auto& options = jit_options();
+void ParamSet::observe(const loop::Call& call) {
+    const auto& options = jit::options();
     auto *history = m_moving ? histories(call) : nullptr;
     if (history != nullptr)
         ++history->calls;
     for (std::size_t i = 0; i < m_params.size(); ++i) {
         auto& param = m_params[i];
-        if (param.source() == ParamSource::strategy)
+        if (param.source() == abi::ParamSource::strategy)
             continue;
         if (param.sized_out(options)) {
             param.set_mode(ParamMode::runtime);
@@ -205,7 +160,7 @@ void ParamSet::observe(const Call& call) {
     }
 }
 
-bool ParamSet::History::observe(const Param& param, const JitOptions& options) {
+bool ParamSet::History::observe(const Param& param, const Options& options) {
     std::uint64_t hash = param.last_hash();
     if (!seen) {
         seen = true;
@@ -248,13 +203,13 @@ bool ParamSet::History::observe(const Param& param, const JitOptions& options) {
     return true;
 }
 
-const char *cxx_type(ParamType type) {
+const char *cxx_type(abi::ParamType type) {
     switch (type) {
-    case ParamType::i32:     return "int";
-    case ParamType::i64:     return "int64_t";
-    case ParamType::f32:     return "float";
-    case ParamType::f64:     return "double";
-    case ParamType::logical: return "bool";
+    case abi::ParamType::i32:     return "int";
+    case abi::ParamType::i64:     return "int64_t";
+    case abi::ParamType::f32:     return "float";
+    case abi::ParamType::f64:     return "double";
+    case abi::ParamType::logical: return "bool";
     }
     __builtin_unreachable();
 }
@@ -283,15 +238,15 @@ std::string format_value(const Param& param) {
     for (std::size_t i = 0; i < param.elems(); ++i) {
         const char *elem = static_cast<const char *>(param.data()) + elem_size * i;
         switch (param.type()) {
-        case ParamType::i32:     os << *((const int *)elem); break;
-        case ParamType::i64:     os << *((const int64_t *)elem); break;
-        case ParamType::f32:
+        case abi::ParamType::i32:     os << *((const int *)elem); break;
+        case abi::ParamType::i64:     os << *((const int64_t *)elem); break;
+        case abi::ParamType::f32:
             format_float<uint32_t>(os, *((const float *)elem), "float", "u");
             break;
-        case ParamType::f64:
+        case abi::ParamType::f64:
             format_float<uint64_t>(os, *((const double *)elem), "double", "ull");
             break;
-        case ParamType::logical: os << std::boolalpha << *((const bool *)elem); break;
+        case abi::ParamType::logical: os << std::boolalpha << *((const bool *)elem); break;
         }
         if (param.array() && i < param.elems() - 1)
             os << ", ";
@@ -319,4 +274,4 @@ std::string format_cxx(const ParamSet& params) {
     return out;
 }
 
-} // namespace op::rt::loop
+} // namespace op::rt::jit

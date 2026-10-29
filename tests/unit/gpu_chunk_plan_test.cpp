@@ -3,7 +3,7 @@
 // wavefront, and the rejections.
 
 #include <op2/rt/gpu/chunk_plan.h>
-#include <op2/rt/kernel/strategy.h>
+#include <op2/rt/kernel/staging.h>
 
 #include <algorithm>
 #include <array>
@@ -19,6 +19,7 @@
 #include "builders.h"
 
 namespace gpu = op::rt::gpu;
+namespace abi = op::rt::abi;
 namespace plan = op::rt::plan;
 using op::rt::loop::Sections;
 using op::test::dat_arg;
@@ -31,7 +32,7 @@ namespace {
 // chunk_atomics with no compression floor, so small fixtures are never
 // rejected for it.
 gpu::ChunkResult atomics(std::span<const op_arg> args, const Sections& sections,
-                         const plan::ArgGroups& groups, int block_size,
+                         const abi::ArgGroups& groups, int block_size,
                          std::size_t shared_bytes, bool unstaged_singles = false,
                          double min_compression = 0.0) {
     return gpu::plan_chunk_atomics(args, sections, groups,
@@ -40,7 +41,7 @@ gpu::ChunkResult atomics(std::span<const op_arg> args, const Sections& sections,
 }
 
 gpu::ChunkResult colouring(std::span<const op_arg> args, const Sections& sections,
-                           const plan::ArgGroups& groups, int block_size,
+                           const abi::ArgGroups& groups, int block_size,
                            std::size_t shared_bytes, bool wavefront = false,
                            int window = 0) {
     return gpu::plan_chunk_colouring(args, sections, groups,
@@ -71,7 +72,7 @@ struct MixedFixture {
     op_map_core map_c{};
 
     std::vector<op_arg> args;
-    std::array<plan::ArgGroup, 4> group_args{{{0, 0}, {1, 0}, {2, 1}, {3, 2}}};
+    std::array<abi::ArgGroup, 4> group_args{{{0, 0}, {1, 0}, {2, 1}, {3, 2}}};
 
     MixedFixture() {
         initialize_set(source, 6, 2);
@@ -96,7 +97,7 @@ struct MixedFixture {
         args.back().opt = 0;
     }
 
-    plan::ArgGroups groups() const { return {group_args, 3}; }
+    abi::ArgGroups groups() const { return {group_args, 3}; }
     Sections sections() { return Sections::indirect(&source, false, source.size + source.exec_size); }
 
     gpu::ChunkResult build(bool coloured = false) {
@@ -113,7 +114,7 @@ struct ChunkFixture {
     std::vector<int> map_values;
     op_map_core map{};
     std::array<op_arg, 1> args{};
-    std::array<plan::ArgGroup, 1> group_args{{{0, 0}}};
+    std::array<abi::ArgGroup, 1> group_args{{{0, 0}}};
 
     ChunkFixture() : map_values(1024) {
         initialize_set(source, 1024);
@@ -125,7 +126,7 @@ struct ChunkFixture {
         args[0] = dat_arg(&dat, &map, 0, OP_INC);
     }
 
-    plan::ArgGroups groups() const { return {group_args, 1}; }
+    abi::ArgGroups groups() const { return {group_args, 1}; }
 
     gpu::ChunkResult build(int block_size, std::size_t scratch) {
         return atomics(args, Sections::direct(&source), groups(), block_size, scratch);
@@ -151,7 +152,7 @@ std::size_t max_chunk_scratch_bytes(const gpu::ChunkPlan& chunk_plan, int begin,
     return bytes;
 }
 
-plan::StageWord stage_word(const gpu::ChunkPlan& chunk_plan,
+abi::StageWord stage_word(const gpu::ChunkPlan& chunk_plan,
                             std::size_t staged_arg, int source_element) {
     return chunk_plan.staging.stage_words[
         staged_arg * static_cast<std::size_t>(chunk_plan.staging.stride) +
@@ -178,7 +179,7 @@ int stage_count(const gpu::ChunkPlan& chunk_plan, std::size_t ndats,
 // reference's word names its target's slot.
 void check_slot_lists(const gpu::ChunkPlan& chunk_plan,
                       std::span<const op_arg> args,
-                      const plan::ArgGroups& groups) {
+                      const abi::ArgGroups& groups) {
     const auto& staging = chunk_plan.staging;
     const auto ndats = static_cast<std::size_t>(groups.groups);
     CHECK(staging.slot_offsets.size() == num_chunks(chunk_plan) * ndats + 1);
@@ -210,7 +211,7 @@ void check_slot_lists(const gpu::ChunkPlan& chunk_plan,
 
                 auto region = chunk * ndats + static_cast<std::size_t>(group.group);
                 int slot = stage_word(chunk_plan, i, source);
-                if (slot == plan::unstaged_word)
+                if (slot == abi::unstaged_word)
                     continue;
                 CHECK(slot < staging.slot_offsets[region + 1] - staging.slot_offsets[region]);
                 CHECK(staging.slot_targets[static_cast<std::size_t>(
@@ -332,9 +333,9 @@ void test_optional_and_alignment() {
     // A float region before a double one pads the double region's start.
     fixture.args[1].opt = 0;
     fixture.args[2].opt = 0;
-    std::array<plan::ArgGroup, 2> group_args{{{3, 0}, {0, 1}}};
+    std::array<abi::ArgGroup, 2> group_args{{{3, 0}, {0, 1}}};
     auto aligned = atomics(fixture.args, fixture.sections(),
-                           plan::ArgGroups{group_args, 2}, 4, 1024);
+                           abi::ArgGroups{group_args, 2}, 4, 1024);
     CHECK(aligned);
     CHECK((aligned.plan->batch_scratch_bytes ==
            std::vector<std::size_t>{24, 40}));
@@ -348,9 +349,9 @@ void test_region_walk() {
     fixture.args[0].opt = 0;
     fixture.args[1].opt = 0;
     fixture.args[3].opt = 1;
-    std::array<plan::ArgGroup, 4> group_args{{{3, 0}, {0, 1}, {1, 1}, {2, 2}}};
+    std::array<abi::ArgGroup, 4> group_args{{{3, 0}, {0, 1}, {1, 1}, {2, 2}}};
     auto result = atomics(fixture.args, fixture.sections(),
-                          plan::ArgGroups{group_args, 3}, 4, 1024);
+                          abi::ArgGroups{group_args, 3}, 4, 1024);
     CHECK(result);
     const auto& staging = result.plan->staging;
     const auto all_counts = slot_counts(staging);
@@ -390,7 +391,7 @@ void test_block_chunks() {
 struct ChainFixture : op::test::Chain {
     op_dat_core dat{};
     std::vector<op_arg> args;
-    std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
+    std::array<abi::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
 
     explicit ChainFixture(int size, int core = -1, int exec = 0)
         : op::test::Chain(size, core, exec) {
@@ -399,7 +400,7 @@ struct ChainFixture : op::test::Chain {
             args.push_back(dat_arg(&dat, &map, idx, OP_RW));
     }
 
-    plan::ArgGroups groups() const { return {group_args, 1}; }
+    abi::ArgGroups groups() const { return {group_args, 1}; }
 
     gpu::ChunkResult build(const Sections& sections, int block_size,
                            std::size_t scratch = 1 << 16) {
@@ -422,9 +423,9 @@ void test_runtime_rejections() {
     {
         // Two groups resolving to one dat.
         MixedFixture fixture;
-        std::array<plan::ArgGroup, 4> group_args{{{0, 0}, {1, 1}, {2, 2}, {3, 3}}};
+        std::array<abi::ArgGroup, 4> group_args{{{0, 0}, {1, 1}, {2, 2}, {3, 3}}};
         auto result = atomics(fixture.args, fixture.sections(),
-                              plan::ArgGroups{group_args, 4}, 4, 1024);
+                              abi::ArgGroups{group_args, 4}, 4, 1024);
         expect_rejected(result, "incompatible_argument");
     }
     {
@@ -437,9 +438,9 @@ void test_runtime_rejections() {
     {
         // Two groups resolving to one dat would be coloured independently.
         ChainFixture fixture(8);
-        std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 1}}};
+        std::array<abi::ArgGroup, 2> group_args{{{0, 0}, {1, 1}}};
         auto result = colouring(fixture.args, Sections::direct(&fixture.edges),
-                                plan::ArgGroups{group_args, 2}, 4, 1 << 16);
+                                abi::ArgGroups{group_args, 2}, 4, 1 << 16);
         expect_rejected(result, "incompatible_argument");
     }
 }
@@ -456,7 +457,7 @@ struct OrderFixture {
     std::vector<int> map_values{3, 1, 3, 0, 2, 1, 2, 0};
     op_map_core map{};
     std::array<op_arg, 1> args{};
-    std::array<plan::ArgGroup, 1> group_args{{{0, 0}}};
+    std::array<abi::ArgGroup, 1> group_args{{{0, 0}}};
 
     OrderFixture() {
         initialize_set(source, 8);
@@ -467,7 +468,7 @@ struct OrderFixture {
     }
 
     gpu::ChunkResult build(bool unstaged_singles = false) {
-        return atomics(args, Sections::direct(&source), plan::ArgGroups{group_args, 1},
+        return atomics(args, Sections::direct(&source), abi::ArgGroups{group_args, 1},
                        4, 1024, unstaged_singles);
     }
 };
@@ -490,7 +491,7 @@ void test_slots_in_target_order() {
     CHECK((words_of(chunk_plan, 8) == std::vector<int>{2, 1, 2, 0, 2, 1, 2, 0}));
     CHECK(chunk_plan.references == 8);
     CHECK(chunk_plan.distinct_targets == 6);
-    check_slot_lists(chunk_plan, fixture.args, plan::ArgGroups{fixture.group_args, 1});
+    check_slot_lists(chunk_plan, fixture.args, abi::ArgGroups{fixture.group_args, 1});
 }
 
 // Targets 1 and 0 of the first chunk, and 1 and 0 of the second, are
@@ -500,14 +501,14 @@ void test_unstaged_singles() {
     auto result = fixture.build(true);
     CHECK(result);
     const auto& chunk_plan = *result.plan;
-    constexpr int u = plan::unstaged_word;
+    constexpr int u = abi::unstaged_word;
     CHECK((slot_counts(chunk_plan.staging) == std::vector<int>{1, 1}));
     CHECK((chunk_plan.staging.slot_targets == std::vector<int>{3, 2}));
     CHECK((words_of(chunk_plan, 8) == std::vector<int>{0, u, 0, u, 0, u, 0, u}));
     CHECK(chunk_plan.references == 8);
     CHECK(chunk_plan.distinct_targets == 6);
     CHECK(chunk_plan.staging.unstaged_singles == 4);
-    check_slot_lists(chunk_plan, fixture.args, plan::ArgGroups{fixture.group_args, 1});
+    check_slot_lists(chunk_plan, fixture.args, abi::ArgGroups{fixture.group_args, 1});
 }
 
 // Check every colouring invariant the kernel relies on: batches divide
@@ -515,7 +516,7 @@ void test_unstaged_singles() {
 // distinct targets, and chunks of one batch reach distinct targets.
 void check_colouring(const gpu::ChunkPlan& chunk_plan,
                      std::span<const op_arg> args,
-                     const plan::ArgGroups& groups, const Sections& sections) {
+                     const abi::ArgGroups& groups, const Sections& sections) {
     CHECK(!chunk_plan.batches.order.empty());
     check_slot_lists(chunk_plan, args, groups);
     check_chunks_within_sections(chunk_plan, sections);
@@ -692,10 +693,10 @@ void test_colour_rounds_and_limit() {
         initialize_dat(dat, &target, 1, sizeof(double), "real(8)");
         initialize_map(map, &source, &target, map_values);
         std::array<op_arg, 1> args{dat_arg(&dat, &map, 0, OP_INC)};
-        std::array<plan::ArgGroup, 1> group_args{{{0, 0}}};
+        std::array<abi::ArgGroup, 1> group_args{{{0, 0}}};
 
         auto result = colouring(args, Sections::direct(&source),
-                                plan::ArgGroups{group_args, 1}, size, 1 << 20);
+                                abi::ArgGroups{group_args, 1}, size, 1 << 20);
         if (size > 255) {
             expect_rejected(result, "too_many_colours");
             continue;
@@ -706,7 +707,7 @@ void test_colour_rounds_and_limit() {
         for (int i = 0; i < size; ++i)
             CHECK(result.plan->thread_colours[
                       static_cast<std::size_t>(i)] == i);
-        check_colouring(*result.plan, args, plan::ArgGroups{group_args, 1},
+        check_colouring(*result.plan, args, abi::ArgGroups{group_args, 1},
                         Sections::direct(&source));
     }
 }
@@ -740,8 +741,8 @@ void test_colour_random() {
         dat_arg(&dat_a, &maps[1], 0, OP_READ),
         dat_arg(&dat_b, &maps[2], 0, OP_INC),
     };
-    std::array<plan::ArgGroup, 3> group_args{{{0, 0}, {1, 0}, {2, 1}}};
-    plan::ArgGroups groups{group_args, 2};
+    std::array<abi::ArgGroup, 3> group_args{{{0, 0}, {1, 0}, {2, 1}}};
+    abi::ArgGroups groups{group_args, 2};
     auto sections = Sections::indirect(&source, true, source.size + source.exec_size);
 
     auto result = colouring(args, sections, groups, 64, 1 << 20);

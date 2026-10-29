@@ -5,8 +5,9 @@
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
+#include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
-#include <op2/rt/kernel/gpu/launch.h>
+#include <op2/rt/kernel/gpu/offline.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -37,11 +38,7 @@ void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
     arguments = {&output_d, &value};
 }
 
-gpu::JitHeaders headers() {
-    return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",
-             "op2/rt/kernel/strategy.h"}};
-}
+gpu::JitHeaders headers() { return OP_KERNEL_JIT_HEADERS; }
 
 // The kernel's result after one call of loop.
 int run(gpu::Loop& loop, op_set_core& set, std::array<op_arg, 1>& args, int call) {
@@ -63,7 +60,7 @@ bool check(bool condition, const char *what) {
 int main(int argc, char **argv) {
     op_init(argc, argv, 2);
     setenv("OP_JIT_MIN_CALLS", "1", 1);
-    op::rt::loop::init();
+    op::rt::init();
     op::rt::gpu::init();
     // A broken family, atomics' plain strategy, ahead of the working plain one.
     const op::rt::loop::Family families[] = {{"atomics", gpu::Simple::axes()},

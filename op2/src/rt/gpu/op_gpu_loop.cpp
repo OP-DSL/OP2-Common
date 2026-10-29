@@ -32,7 +32,7 @@ void Loop::mark_by_value(int arg_index) {
 }
 
 void Loop::add(std::string_view family, KernelSource source, Binder bind,
-               op::rt::plan::ArgGroups groups) {
+               op::rt::abi::ArgGroups groups) {
     m_ladder.add(family, [&](const op::rt::loop::Point& point) {
         return make_strategy(*this, family, point, source, bind, groups);
     });
@@ -40,16 +40,16 @@ void Loop::add(std::string_view family, KernelSource source, Binder bind,
 
 void Loop::add_dat_stride_param(std::string_view name, int *data, int arg_index,
                                 void *symbol_d) {
-    bind(m_params.add(name, data, op::rt::loop::ParamSource::dat_stride, arg_index, true),
+    bind(m_params.add(name, data, op::rt::abi::ParamSource::dat_stride, arg_index, true),
          symbol_d, nullptr);
 }
 
 void Loop::add_dat_dim_param(std::string_view name, int *data, int arg_index) {
-    m_params.add(name, data, op::rt::loop::ParamSource::dat_dim, arg_index);
+    m_params.add(name, data, op::rt::abi::ParamSource::dat_dim, arg_index);
 }
 
 void Loop::add_launch_param(std::string_view name, LaunchValue value, void *symbol_d) {
-    bind(m_params.add(name, static_cast<int *>(nullptr), op::rt::loop::ParamSource::strategy,
+    bind(m_params.add(name, static_cast<int *>(nullptr), op::rt::abi::ParamSource::strategy,
                       static_cast<int>(value)),
          symbol_d, nullptr);
 }
@@ -93,7 +93,7 @@ const unsigned char *Loop::on_host(const op::rt::loop::Prepared& prepared, int n
 }
 
 void Loop::begin_call(const op::rt::loop::Call&,
-                      const op::rt::loop::Autotuner::Decision& decision, op_arg *args,
+                      const op::rt::tune::Autotuner::Decision& decision, op_arg *args,
                       int nargs) {
     const auto& state =
         static_cast<StrategyBase *>(decision.prepared.candidate->strategy)->call_state();

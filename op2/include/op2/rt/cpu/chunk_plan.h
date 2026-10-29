@@ -39,7 +39,7 @@ using ChunkResult = plan::PlanResult<ChunkPlan>;
 // barely combines references is rejected.
 ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const op::rt::loop::Sections& sections,
-                               const plan::ArgGroups& groups, int size,
+                               const abi::ArgGroups& groups, int size,
                                double min_compression);
 
 // chunk_colouring: the chunks of a batch share no target, so a chunk runs

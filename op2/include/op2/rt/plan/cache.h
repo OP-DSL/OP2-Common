@@ -7,8 +7,8 @@
 // strategy holds it.
 
 #include <extern/rapidhash.h>
-#include <op2/rt/loop/strategy.h>
-#include <op2/rt/plan/staging.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/loop/call.h>
 
 #include <algorithm>
 #include <concepts>
@@ -54,7 +54,7 @@ public:
         return add(bits);
     }
 
-    PlanKey& add(const ArgGroups& groups) {
+    PlanKey& add(const abi::ArgGroups& groups) {
         add(groups.groups);
         for (const auto& group : groups.args)
             add(std::int64_t{group.arg} << 32 | static_cast<std::uint32_t>(group.group));

@@ -85,7 +85,7 @@ int staged_chunk_size(const References& references, int size, int lanes,
     auto counts = references_per_group(references);
     int per_group = std::max(*std::max_element(counts.begin(), counts.end()), 1);
     auto capacity = std::min(static_cast<long long>(limit / per_element),
-                             static_cast<long long>(max_slots / per_group));
+                             static_cast<long long>(abi::max_slots / per_group));
     long long multiples = capacity / lanes;
     if (multiples < 1)
         return 0;
@@ -122,7 +122,7 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                 int target = targets.targets[static_cast<std::size_t>(entry)];
                 int& slot = slots[group][static_cast<std::size_t>(target)];
                 if (unstaged_singles && targets.references[static_cast<std::size_t>(entry)] == 1) {
-                    slot = unstaged_word;
+                    slot = abi::unstaged_word;
                     ++staging.unstaged_singles;
                     continue;
                 }
@@ -140,7 +140,7 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                 int target = arg_target(*reference.arg, element);
                 staging.stage_words[index * static_cast<std::size_t>(stride) +
                                     static_cast<std::size_t>(element)] =
-                    static_cast<StageWord>(
+                    static_cast<abi::StageWord>(
                         slots[static_cast<std::size_t>(reference.group)]
                              [static_cast<std::size_t>(target)]);
             }
@@ -159,7 +159,7 @@ bool indirect_update(const op_arg& arg, bool read_write) {
 // The groups' arguments as references, or why the call does not suit them
 // (stage_chunks' reasons but insufficient_scratch).
 std::string_view grouped_references(std::span<const op_arg> args,
-                                    const ArgGroups& groups, bool read_write,
+                                    const abi::ArgGroups& groups, bool read_write,
                                     References& references) {
     // The groups are generated alongside the kernel they describe, so their
     // shape is an internal invariant rather than a runtime condition.
@@ -170,7 +170,7 @@ std::string_view grouped_references(std::span<const op_arg> args,
     references.groups.assign(static_cast<std::size_t>(groups.groups), {});
     std::vector<bool> grouped(args.size(), false);
     bool any_active = false;
-    for (const ArgGroup& group : groups.args) {
+    for (const abi::ArgGroup& group : groups.args) {
         assert(group.arg >= 0 && group.group >= 0);
         const auto arg_index = static_cast<std::size_t>(group.arg);
         const auto group_index = static_cast<std::size_t>(group.group);
@@ -229,7 +229,7 @@ std::string_view grouped_references(std::span<const op_arg> args,
 
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::rt::loop::Sections& sections,
-                              const ArgGroups& groups, bool read_write, int size,
+                              const abi::ArgGroups& groups, bool read_write, int size,
                               int lanes, std::size_t scratch_limit,
                               bool unstaged_singles, StagedChunks& out) {
     auto reason = grouped_references(args, groups, read_write, out.references);

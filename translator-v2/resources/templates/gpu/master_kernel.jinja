@@ -4,9 +4,11 @@
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
-#include <op2/rt/kernel/gpu/launch.h>
+#include <op2/rt/kernel/gpu/offline.h>
+#include <op2/rt/kernel/gpu/wavefront.h>
+#include <op2/rt/kernel/inc.h>
 #include <op2/rt/kernel/prelude.h>
-#include <op2/rt/kernel/strategy.h>
+#include <op2/rt/kernel/staging.h>
 
 #include <op_lib_cpp.h>
 #include <op_profile.h>

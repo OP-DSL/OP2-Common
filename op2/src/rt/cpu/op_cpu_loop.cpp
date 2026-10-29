@@ -119,7 +119,7 @@ Loop::Loop(std::string_view name, std::string_view profile_target,
 
 Loop::~Loop() = default;
 
-void Loop::add(std::string_view family, Run run, op::rt::plan::ArgGroups groups) {
+void Loop::add(std::string_view family, Run run, op::rt::abi::ArgGroups groups) {
     m_ladder.add(family, [&](const op::rt::loop::Point& point) {
         return make_strategy(*this, family, point, run, groups);
     });
@@ -148,7 +148,7 @@ void Loop::reserve_scratch(std::size_t bytes) {
     }
 }
 
-void Loop::begin_call(const op::rt::loop::Call& call, const op::rt::loop::Autotuner::Decision&,
+void Loop::begin_call(const op::rt::loop::Call& call, const op::rt::tune::Autotuner::Decision&,
                       op_arg *args, int nargs) {
     m_sections = sections(call);
     m_threads = m_max_threads();

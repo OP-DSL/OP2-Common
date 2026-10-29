@@ -80,7 +80,7 @@ using ChunkResult = plan::PlanResult<ChunkPlan>;
 // it costs little more than global atomics, since those are its singles.
 ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const op::rt::loop::Sections& sections,
-                               const plan::ArgGroups& groups, const ChunkLimits& limits,
+                               const abi::ArgGroups& groups, const ChunkLimits& limits,
                                bool unstaged_singles, double min_compression);
 
 // chunk_colouring: the chunks of a batch share no target, and a chunk's
@@ -89,7 +89,7 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
 // time (0: a section at once) and runs each section as one batch.
 ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                  const op::rt::loop::Sections& sections,
-                                 const plan::ArgGroups& groups, const ChunkLimits& limits,
+                                 const abi::ArgGroups& groups, const ChunkLimits& limits,
                                  bool wavefront, int window);
 
 } // namespace op::rt::gpu

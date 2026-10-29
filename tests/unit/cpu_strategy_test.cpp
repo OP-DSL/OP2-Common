@@ -6,8 +6,9 @@
 
 #include <op2/rt/cpu/loop.h>
 #include <op2/rt/cpu/strategy.h>
+#include <op2/rt/lifecycle.h>
 #include <op2/rt/kernel/cpu/launch.h>
-#include <op2/rt/kernel/strategy.h>
+#include <op2/rt/kernel/staging.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
 
@@ -98,11 +99,11 @@ void staged_body(const cpu::Work& work, op_arg *args) {
     }
 }
 
-constexpr std::array<op::rt::plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+constexpr std::array<op::rt::abi::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
 
 void run(const char *strategy) {
     setenv("OP_STRATEGY", strategy, 1);
-    op::rt::loop::init();
+    op::rt::init();
     cpu::init();
 
     op_set_core source{};
@@ -164,7 +165,7 @@ void run(const char *strategy) {
 
     cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", false,
                    &op::rt::kernel::cpu::max_threads);
-    op::rt::plan::ArgGroups arg_groups{groups, 1};
+    op::rt::abi::ArgGroups arg_groups{groups, 1};
     loop.add("chunk_atomics", op::rt::kernel::cpu::chunks<&staged_body>, arg_groups);
     loop.add("atomics", op::rt::kernel::cpu::split<&range_body<true, false>>);
     loop.add("chunk_colouring", op::rt::kernel::cpu::chunks<&range_body<false, false>>);

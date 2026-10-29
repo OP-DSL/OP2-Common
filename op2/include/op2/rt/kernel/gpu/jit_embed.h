@@ -1,8 +1,8 @@
 #pragma once
 
 // Embed, as text, the headers a JIT compile of this translation unit's loops
-// needs.  Define OP_KERNEL_JIT_TAG to a token unique to the unit first; the
-// JIT compile reads the OP_*_DATA macros.
+// includes.  Define OP_KERNEL_JIT_TAG to a token unique to the unit first;
+// OP_KERNEL_JIT_HEADERS is them as the backend's JIT compiler takes them.
 
 #ifndef OP_KERNEL_JIT_TAG
 #error "define OP_KERNEL_JIT_TAG before including op2/rt/kernel/gpu/jit_embed.h"
@@ -17,36 +17,37 @@
 #define OP_KERNEL_JIT_CAT2(a, b) a##b
 #define OP_KERNEL_JIT_CAT(a, b) OP_KERNEL_JIT_CAT2(a, b)
 
-#define OP_KERNEL_PRELUDE OP_KERNEL_JIT_CAT(op_kernel_prelude_, OP_KERNEL_JIT_TAG)
-#define OP_KERNEL_PRELUDE_DATA OP_KERNEL_JIT_CAT(OP_KERNEL_PRELUDE, _data)
-INCTXT(OP_KERNEL_PRELUDE, "op2/rt/kernel/prelude.h");
+#define OP_KERNEL_JIT_EMBED(name, path)                                            \
+    INCTXT(OP_KERNEL_JIT_CAT(name, OP_KERNEL_JIT_TAG), path)
 
-#define OP_STAGING_LAYOUT OP_KERNEL_JIT_CAT(op_staging_layout_, OP_KERNEL_JIT_TAG)
-#define OP_STAGING_LAYOUT_DATA OP_KERNEL_JIT_CAT(OP_STAGING_LAYOUT, _data)
-INCTXT(OP_STAGING_LAYOUT, "op2/rt/plan/staging_layout.h");
+OP_KERNEL_JIT_EMBED(op_kernel_prelude_, "op2/rt/kernel/prelude.h");
+OP_KERNEL_JIT_EMBED(op_abi_staging_, "op2/rt/abi/staging.h");
+OP_KERNEL_JIT_EMBED(op_kernel_inc_, "op2/rt/kernel/inc.h");
+OP_KERNEL_JIT_EMBED(op_kernel_staging_, "op2/rt/kernel/staging.h");
+OP_KERNEL_JIT_EMBED(op_kernel_wavefront_, "op2/rt/kernel/gpu/wavefront.h");
 
-#define OP_STRATEGY_KERNEL OP_KERNEL_JIT_CAT(op_strategy_kernel_, OP_KERNEL_JIT_TAG)
-#define OP_STRATEGY_KERNEL_DATA OP_KERNEL_JIT_CAT(OP_STRATEGY_KERNEL, _data)
-INCTXT(OP_STRATEGY_KERNEL, "op2/rt/kernel/strategy.h");
+#define OP_KERNEL_JIT_DATA(name) OP_KERNEL_JIT_CAT(OP_KERNEL_JIT_CAT(name, OP_KERNEL_JIT_TAG), _data)
 
-// The embedded headers as the backend's JIT compiler takes them; the
-// application's constants header when the unit embedded one as
-// OP_KERNEL_PARAMS.
+// The headers a specialised kernel's source includes, in order, as the
+// backend's JIT compiler takes them: the application's constants header last
+// when the unit embedded one as OP_KERNEL_PARAMS.
+#define OP_KERNEL_JIT_KERNEL_DATA                                                  \
+    OP_KERNEL_JIT_DATA(op_kernel_prelude_), OP_KERNEL_JIT_DATA(op_abi_staging_),   \
+        OP_KERNEL_JIT_DATA(op_kernel_inc_), OP_KERNEL_JIT_DATA(op_kernel_staging_), \
+        OP_KERNEL_JIT_DATA(op_kernel_wavefront_)
+#define OP_KERNEL_JIT_KERNEL_NAMES                                                 \
+    "op2/rt/kernel/prelude.h", "op2/rt/abi/staging.h", "op2/rt/kernel/inc.h",     \
+        "op2/rt/kernel/staging.h", "op2/rt/kernel/gpu/wavefront.h"
+
 #ifdef OP_KERNEL_PARAMS
 #define OP_KERNEL_JIT_HEADERS                                                      \
     ::op::rt::gpu::JitHeaders {                                                    \
-        {OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA,  \
-         OP_KERNEL_PARAMS_DATA},                                                   \
-        {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",                \
-         "op2/rt/kernel/strategy.h", "op_f2c_params.h"},                           \
-        true                                                                       \
+        {OP_KERNEL_JIT_KERNEL_DATA, OP_KERNEL_PARAMS_DATA},                        \
+        {OP_KERNEL_JIT_KERNEL_NAMES, "op_f2c_params.h"}                            \
     }
 #else
 #define OP_KERNEL_JIT_HEADERS                                                      \
     ::op::rt::gpu::JitHeaders {                                                    \
-        {OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA}, \
-        {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",                \
-         "op2/rt/kernel/strategy.h"},                                              \
-        false                                                                      \
+        {OP_KERNEL_JIT_KERNEL_DATA}, {OP_KERNEL_JIT_KERNEL_NAMES}                  \
     }
 #endif

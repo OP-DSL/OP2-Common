@@ -2,7 +2,11 @@
 // fake kernels and jobs, the parameters' values, keys and C++ constants, and
 // the modes and statistics that move them.
 
-#include <op2/rt/loop/jit.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/jit/cache.h>
+#include <op2/rt/jit/options.h>
+#include <op2/rt/jit/params.h>
+#include <op2/rt/loop/call.h>
 
 #include <array>
 #include <atomic>
@@ -20,6 +24,8 @@
 
 #include "../test_support.h"
 
+namespace abi = op::rt::abi;
+namespace jit = op::rt::jit;
 namespace loop = op::rt::loop;
 
 namespace {
@@ -28,14 +34,14 @@ constexpr auto later = loop::Urgency::later;
 constexpr auto now = loop::Urgency::now;
 constexpr auto wait = loop::Urgency::wait;
 constexpr auto ready = loop::Status::ready;
-constexpr auto baked = loop::ParamMode::baked;
-constexpr auto runtime = loop::ParamMode::runtime;
+constexpr auto baked = jit::ParamMode::baked;
+constexpr auto runtime = jit::ParamMode::runtime;
 
 struct FakeKernel {
     int id;
 };
 
-using Cache = loop::JitCache<FakeKernel>;
+using Cache = jit::Cache<FakeKernel>;
 
 // The builds started, and a gate each build waits at while it is closed.
 struct Builds {
@@ -67,7 +73,7 @@ void policy(std::initializer_list<std::pair<const char *, const char *>> variabl
         unsetenv(name);
     for (const auto& [name, value] : variables)
         setenv(name, value, 1);
-    loop::init_jit_options();
+    jit::init();
 }
 
 // A key builds once asked for OP_JIT_MIN_CALLS times, pending until then.
@@ -79,7 +85,7 @@ void test_min_calls() {
         auto pending = cache.acquire(1, later, builds.job(1));
         CHECK(pending.status == loop::Status::pending && pending.reason == "compiling");
     }
-    CHECK(builds.started == 0 && cache.state(1) == loop::BuildState::seen);
+    CHECK(builds.started == 0 && cache.state(1) == jit::BuildState::seen);
 
     auto first = cache.acquire(1, later, builds.job(1));
     CHECK(first.status == ready && first.kernel != nullptr && first.kernel->id == 1);
@@ -96,7 +102,7 @@ void test_urgency() {
     builds.open = false;
     auto acquired = cache.acquire(1, now, builds.job(1));
     CHECK(acquired.status == loop::Status::pending);
-    CHECK(cache.state(1) == loop::BuildState::building && builds.started == 1);
+    CHECK(cache.state(1) == jit::BuildState::building && builds.started == 1);
     acquired = cache.acquire(3, now, builds.job(3));
     CHECK(acquired.status == loop::Status::pending);
 
@@ -108,7 +114,7 @@ void test_urgency() {
     CHECK(builds.started == 3);
 
     cache.join();
-    CHECK(cache.state(3) == loop::BuildState::ready);
+    CHECK(cache.state(3) == jit::BuildState::ready);
     CHECK(cache.acquire(3, later, builds.job(3)).kernel->id == 3);
     CHECK(builds.started == 3);
 }
@@ -122,7 +128,7 @@ void test_failed_build() {
         auto failed = cache.acquire(1, urgency, builds.job(1, true));
         CHECK(failed.status == loop::Status::unavailable && failed.reason == "build_failed");
     }
-    CHECK(builds.started == 1 && cache.state(1) == loop::BuildState::failed);
+    CHECK(builds.started == 1 && cache.state(1) == jit::BuildState::failed);
 }
 
 // Past 256 keys the least recently asked-for half of those not started go;
@@ -135,10 +141,10 @@ void test_eviction() {
     for (std::uint64_t key = 1; key <= 300; ++key)
         cache.acquire(key, later, builds.job(1));
     CHECK(builds.started == 1);
-    CHECK(cache.state(1) == loop::BuildState::unseen);
-    CHECK(cache.state(300) == loop::BuildState::seen);
-    CHECK(cache.state(1000) == loop::BuildState::ready);
-    CHECK(cache.state(5000) == loop::BuildState::unseen);
+    CHECK(cache.state(1) == jit::BuildState::unseen);
+    CHECK(cache.state(300) == jit::BuildState::seen);
+    CHECK(cache.state(1000) == jit::BuildState::ready);
+    CHECK(cache.state(5000) == jit::BuildState::unseen);
 }
 
 // Builds on threads share OP_JIT_MAX_THREADS slots, the cache's default
@@ -154,8 +160,8 @@ void test_build_slots() {
         builds.open = false;
         cache.acquire(1, now, builds.job(1));
         cache.acquire(2, now, builds.job(2));
-        CHECK(cache.state(1) == loop::BuildState::building);
-        CHECK(cache.state(2) == loop::BuildState::seen && builds.started == 1);
+        CHECK(cache.state(1) == jit::BuildState::building);
+        CHECK(cache.state(2) == jit::BuildState::seen && builds.started == 1);
 
         Builds waited;
         CHECK(cache.acquire(3, wait, waited.job(3)).kernel->id == 3);
@@ -164,7 +170,7 @@ void test_build_slots() {
         cache.join();
         cache.acquire(2, now, builds.job(2));
         cache.join();
-        CHECK(cache.state(2) == loop::BuildState::ready && builds.started == 2);
+        CHECK(cache.state(2) == jit::BuildState::ready && builds.started == 2);
     }
 }
 
@@ -198,16 +204,16 @@ void test_params() {
     bool flag = true;
     int64_t big = int64_t{1} << 40;
 
-    loop::ParamSet params;
-    params.add("c", &constant, loop::ParamSource::external);
-    params.add_array("table", table, 3, loop::ParamSource::external);
-    params.add("g0", &gbl0, loop::ParamSource::scalar_arg, 0);
-    params.add("g2", &gbl2, loop::ParamSource::scalar_arg, 2);
-    params.add("stride", &stride, loop::ParamSource::dat_stride, 1);
-    params.add("dim", &dim, loop::ParamSource::dat_dim, 1);
-    params.add("block", static_cast<int *>(nullptr), loop::ParamSource::strategy, 1);
-    params.add("flag", &flag, loop::ParamSource::external);
-    params.add("big", &big, loop::ParamSource::external);
+    jit::ParamSet params;
+    params.add("c", &constant, abi::ParamSource::external);
+    params.add_array("table", table, 3, abi::ParamSource::external);
+    params.add("g0", &gbl0, abi::ParamSource::scalar_arg, 0);
+    params.add("g2", &gbl2, abi::ParamSource::scalar_arg, 2);
+    params.add("stride", &stride, abi::ParamSource::dat_stride, 1);
+    params.add("dim", &dim, abi::ParamSource::dat_dim, 1);
+    params.add("block", static_cast<int *>(nullptr), abi::ParamSource::strategy, 1);
+    params.add("flag", &flag, abi::ParamSource::external);
+    params.add("big", &big, abi::ParamSource::external);
 
     loop::Call call{&set, {args, 3}, 100};
     params.update(args, 3);
@@ -227,7 +233,7 @@ void test_params() {
     slots[1] = 64;
     CHECK(params.key(call, slots) == key);
 
-    CHECK(loop::format_cxx(params) ==
+    CHECK(jit::format_cxx(params) ==
           "static constexpr double c = 0x1p+0;\n"
           "static constexpr double table[3] = { 0x1p+0, "
           "__builtin_bit_cast(double, 0x7ff8000000000000ull), "
@@ -252,9 +258,9 @@ void test_key_words() {
             policy({{"OP_JIT_RUNTIME_PARAMS", runtime}});
         else
             policy({});
-        loop::ParamSet params{"flux"};
+        jit::ParamSet params{"flux"};
         for (std::size_t i = 0; i < constants.size(); ++i)
-            params.add("c" + std::to_string(i), &constants[i], loop::ParamSource::external,
+            params.add("c" + std::to_string(i), &constants[i], abi::ParamSource::external,
                        -1, true);
         return params.key(call, {});
     };
@@ -277,12 +283,12 @@ void test_modes() {
     double global = 0.0;
     int stride = 0;
     auto modes = [&] {
-        loop::ParamSet params{"flux"};
-        params.add("c", &constant, loop::ParamSource::external, -1, true);
-        params.add_array("table", table, 3, loop::ParamSource::external, -1, true);
-        params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
-        params.add("stride", &stride, loop::ParamSource::dat_stride, 1, true);
-        params.add("fixed", &constant, loop::ParamSource::external);
+        jit::ParamSet params{"flux"};
+        params.add("c", &constant, abi::ParamSource::external, -1, true);
+        params.add_array("table", table, 3, abi::ParamSource::external, -1, true);
+        params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
+        params.add("stride", &stride, abi::ParamSource::dat_stride, 1, true);
+        params.add("fixed", &constant, abi::ParamSource::external);
         std::string out;
         for (std::size_t i = 0; i < params.size(); ++i) {
             out += params[i].initial() == baked ? "b" : "r";
@@ -323,9 +329,9 @@ void test_statistics() {
 
     double constant = 0.0;
     double global = 0.0;
-    loop::ParamSet params{"flux"};
-    params.add("c", &constant, loop::ParamSource::external, -1, true);
-    params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+    jit::ParamSet params{"flux"};
+    params.add("c", &constant, abi::ParamSource::external, -1, true);
+    params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     auto next = [&](int set) {
         params.update(args, 1);
         loop::Call call{&sets[set], {args, 1}, sets[set].size};
@@ -445,11 +451,11 @@ void test_array_globals() {
     args[3].data = reinterpret_cast<char *>(big.data());
     args[3].dim = 1000;
 
-    loop::ParamSet params{"flux"};
+    jit::ParamSet params{"flux"};
     for (int i = 0; i < 4; ++i)
         params.add_array(std::string{"g"} + std::to_string(i),
                          static_cast<double *>(nullptr), 0,
-                         loop::ParamSource::array_arg, i, true);
+                         abi::ParamSource::array_arg, i, true);
     loop::Call call{&set, {args, 4}, 10};
     auto next = [&] {
         params.update(args, 4);
@@ -473,14 +479,14 @@ void test_array_globals() {
     key = next();
     g5[1] = 20.0;
     CHECK(next() != key);
-    CHECK(loop::format_cxx(params) ==
+    CHECK(jit::format_cxx(params) ==
           "static constexpr double g0[5] = { 0x1.4p+3, 0x1.4p+4, 0x1.8p+1, 0x1p+2, 0x1.4p+2 };\n"
           "static constexpr double g2[1] = { 0x1p+0 };\n");
 
     policy({{"OP_JIT_MAX_GBL_BYTES", "16"}});
-    loop::ParamSet capped{"flux"};
+    jit::ParamSet capped{"flux"};
     capped.add_array("g0", static_cast<double *>(nullptr), 0,
-                     loop::ParamSource::array_arg, 0, true);
+                     abi::ParamSource::array_arg, 0, true);
     for (int i = 0; i < 40; ++i) {
         capped.update(args, 4);
         capped.key(call, {});
@@ -504,8 +510,8 @@ void test_observe_every_call() {
     args[0].dim = 1;
     args[0].data = reinterpret_cast<char *>(&value);
     double global = 0.0;
-    loop::ParamSet params{"flux"};
-    params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+    jit::ParamSet params{"flux"};
+    params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     CHECK(params.moving());
 
     loop::Call call{&set, {args, 1}, 10};
@@ -537,9 +543,9 @@ void test_settled() {
     loop::Call call{&set, {args, 1}, 10};
 
     double global = 0.0;
-    loop::ParamSet params{"flux"};
-    params.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
-    for (std::uint64_t i = 0; i < loop::statistics_window; ++i) {
+    jit::ParamSet params{"flux"};
+    params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
+    for (std::uint64_t i = 0; i < jit::statistics_window; ++i) {
         CHECK(!params.settled(call));
         params.update(args, 1);
         params.observe_call(call);
@@ -547,12 +553,12 @@ void test_settled() {
     CHECK(params.settled(call));
 
     int stride = 0;
-    loop::ParamSet fixed{"flux"};
-    fixed.add("stride", &stride, loop::ParamSource::dat_stride, 0, true);
+    jit::ParamSet fixed{"flux"};
+    fixed.add("stride", &stride, abi::ParamSource::dat_stride, 0, true);
     CHECK(!fixed.moving() && fixed.settled(call));
 
-    loop::ParamSet unobserved{"flux"};
-    unobserved.add("g", &global, loop::ParamSource::scalar_arg, 0, true);
+    jit::ParamSet unobserved{"flux"};
+    unobserved.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     policy({{"OP_JIT_LEVEL", "0"}});
     CHECK(unobserved.settled(call));
     policy({});

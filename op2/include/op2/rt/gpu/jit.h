@@ -8,7 +8,8 @@
 
 #include <op2/gpu/shims.h>
 #include <op2/rt/gpu/loop.h>
-#include <op2/rt/loop/jit.h>
+#include <op2/rt/jit/cache.h>
+#include <op2/rt/jit/params.h>
 
 #include <array>
 #include <cstddef>
@@ -21,6 +22,9 @@
 namespace op::rt::gpu {
 
 // --- Kernels --------------------------------------------------------------------------
+
+// "64 regs", with the local and shared memory when there is any.
+std::string describe(const op::rt::abi::KernelFigures& figures);
 
 // A run-time parameter a built kernel reads from a symbol of its module,
 // uploaded when the parameter's value changes.
@@ -43,7 +47,7 @@ private:
     std::vector<int> m_baked_globals;
     bool m_loaded = false;
     int m_max_dynamic_shared_bytes = 0;
-    KernelFigures m_figures;
+    op::rt::abi::KernelFigures m_figures;
     char *m_cubin;
     gpuDrvModule_t m_module;
     gpuDrvFunction_t m_kernel;
@@ -60,11 +64,11 @@ public:
 
     const std::vector<int>& baked_globals() const { return m_baked_globals; }
 
-    const KernelFigures& figures();
+    const op::rt::abi::KernelFigures& figures();
 
     // Launch, its module's symbols first given the call's values of params.
     void launch(int num_blocks, int block_size, void **args, int shared_bytes,
-                const op::rt::loop::ParamSet& params);
+                const op::rt::jit::ParamSet& params);
 };
 
 // A strategy's kernel compiled with the application, if any, its attributes
@@ -72,7 +76,7 @@ public:
 class OfflineKernel {
 private:
     OfflineFunction m_function;
-    KernelFigures m_figures;
+    op::rt::abi::KernelFigures m_figures;
     int m_max_dynamic_shared_bytes = 0;
 
 public:
@@ -84,7 +88,7 @@ public:
     }
 
     int registers() const { return m_figures.registers; }
-    const KernelFigures& figures() const { return m_figures; }
+    const op::rt::abi::KernelFigures& figures() const { return m_figures; }
 
     void launch(int num_blocks, int block_size, void **args, int shared_bytes);
 };
@@ -125,7 +129,7 @@ public:
         m_bindings.push_back({param, data_d, shared_hash});
     }
 
-    void upload(op::rt::loop::ParamSet& params);
+    void upload(op::rt::jit::ParamSet& params);
 };
 
 // --- Builds -------------------------------------------------------------------------
@@ -154,7 +158,7 @@ public:
 
     // The job that builds source's kernel with the parameters' current
     // values baked in, or at run time as their modes say.
-    Job job(const op::rt::loop::ParamSet& params, const KernelSource& source) const;
+    Job job(const op::rt::jit::ParamSet& params, const KernelSource& source) const;
 };
 
 } // namespace op::rt::gpu

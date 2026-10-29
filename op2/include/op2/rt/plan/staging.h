@@ -1,13 +1,15 @@
 #pragma once
 
 // The staged kernels' scratch, the layout every backend's staged kernels
-// read (op2/rt/plan/staging_layout.h): a slot per distinct target of each chunk's
+// read (op2/rt/abi/staging.h): a slot per distinct target of each chunk's
 // region, numbered in target order, and a stage word per staged reference
 // and element naming its slot.  stage_chunks runs the whole pipeline under a
 // backend's lanes and scratch budget.
 
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/abi/staging.h>
+#include <op2/rt/loop/call.h>
 #include <op2/rt/plan/chunks.h>
-#include <op2/rt/plan/staging_layout.h>
 
 #include <cstddef>
 #include <span>
@@ -16,22 +18,10 @@
 
 namespace op::rt::plan {
 
-// The indirect arguments a staged kernel stages, grouped by dat as it lays
-// its regions out.  Generated with the kernel they describe.
-struct ArgGroup {
-    int arg;
-    int group;
-};
-
-struct ArgGroups {
-    std::span<const ArgGroup> args;
-    int groups = 0;
-};
-
 struct Staging {
     // Per reference and element, stage_words[reference * stride + element].
     int stride = 0;
-    std::vector<StageWord> stage_words;
+    std::vector<abi::StageWord> stage_words;
     // Per region its first slot in slot_targets, then the slot count.
     std::vector<int> slot_offsets;
     std::vector<int> slot_targets;
@@ -61,7 +51,7 @@ struct StagedChunks {
 // indirect read-write); insufficient_scratch.
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::rt::loop::Sections& sections,
-                              const ArgGroups& groups, bool read_write, int size,
+                              const abi::ArgGroups& groups, bool read_write, int size,
                               int lanes, std::size_t scratch_limit,
                               bool unstaged_singles, StagedChunks& out);
 

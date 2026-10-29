@@ -8,7 +8,7 @@ namespace op::rt::cpu {
 
 ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const op::rt::loop::Sections& sections,
-                               const plan::ArgGroups& groups, int size,
+                               const abi::ArgGroups& groups, int size,
                                double min_compression) {
     plan::StagedChunks staged;
     auto reason = plan::stage_chunks(args, sections, groups, false, size, 1,

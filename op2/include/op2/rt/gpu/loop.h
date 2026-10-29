@@ -9,9 +9,10 @@
 // in src/rt/gpu.
 
 #include <op2/gpu/shims.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/abi/staging.h>
+#include <op2/rt/loop/call.h>
 #include <op2/rt/loop/loop.h>
-#include <op2/rt/loop/strategy.h>
-#include <op2/rt/plan/staging.h>
 #include <op_lib_core.h>
 
 #include <cstddef>
@@ -35,7 +36,7 @@ constexpr int default_block_size = 128;
 // A chunk plan's arrays on the device, as a staged kernel reads them.
 struct ChunkArrays {
     int *source_offsets = nullptr;
-    op::rt::plan::StageWord *stage_words = nullptr;
+    op::rt::abi::StageWord *stage_words = nullptr;
     // Each region's slot count, from the plan's offsets: a kernel reads its
     // counts up front and its offsets only when it flushes, so no offset
     // stays in a register through the user kernel.
@@ -79,23 +80,10 @@ struct LaunchContext {
 using Binder = void (*)(LaunchContext& launch, op_arg *args,
                         std::vector<void *>& arguments);
 
-// A kernel's resources as its compiler left them: registers and local
-// memory per thread, static shared memory per block, and the most threads a
-// block can have with them.
-struct KernelFigures {
-    int registers = 0;
-    int local_bytes = 0;
-    int shared_bytes = 0;
-    int max_threads = 0;
-
-    // "64 regs", with the local and shared memory when there is any.
-    std::string text() const;
-};
-
 // The calls on a kernel compiled with the application, which op2_kernels
 // makes with the runtime that registered it.
 struct OfflineCalls {
-    KernelFigures (*figures)(const void *function);
+    op::rt::abi::KernelFigures (*figures)(const void *function);
     // Let a launch have up to bytes of dynamic shared memory.
     void (*allow_shared)(const void *function, int bytes);
     void (*launch)(const void *function, int blocks, int block_size, void **args,
@@ -124,12 +112,11 @@ enum class LaunchValue {
     wavefront,
 };
 
-// The headers a compile includes, embedded in the translation unit.
+// The headers a specialised kernel's source includes, in order, embedded in
+// the translation unit (op2/rt/kernel/gpu/jit_embed.h).
 struct JitHeaders {
     std::vector<const char *> data;
     std::vector<const char *> names;
-    // Whether op_f2c_params.h, the application's constants, is among them.
-    bool params = false;
 };
 
 class Loop : public op::rt::loop::Loop {
@@ -175,7 +162,7 @@ public:
     // Add a family, its strategies running source's kernels with arguments
     // from bind; the chunked families' groups are the arguments they stage.
     void add(std::string_view family, KernelSource source, Binder bind,
-             op::rt::plan::ArgGroups groups = {});
+             op::rt::abi::ArgGroups groups = {});
 
     // The parameters the kernels are specialised on.  symbol_d is the device
     // address of the copy an offline kernel reads, if any
@@ -187,14 +174,14 @@ public:
     template<typename T>
     void add_param(std::string_view name, T *data, void *symbol_d = nullptr,
                    std::uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, op::rt::loop::ParamSource::external, -1, true),
+        bind(m_params.add(name, data, op::rt::abi::ParamSource::external, -1, true),
              symbol_d, hash_device_ptr);
     }
 
     template<typename T>
     void add_param(std::string_view name, T *data, std::size_t len,
                    void *symbol_d = nullptr, std::uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add_array(name, data, len, op::rt::loop::ParamSource::external, -1,
+        bind(m_params.add_array(name, data, len, op::rt::abi::ParamSource::external, -1,
                                 true),
              symbol_d, hash_device_ptr);
     }
@@ -202,7 +189,7 @@ public:
     // A scalar READ global, which every kernel has by value.
     template<typename T>
     void add_scalar_arg_param(std::string_view name, T *data, int arg_index) {
-        m_params.add(name, data, op::rt::loop::ParamSource::scalar_arg, arg_index, true);
+        m_params.add(name, data, op::rt::abi::ParamSource::scalar_arg, arg_index, true);
         mark_by_value(arg_index);
     }
 
@@ -211,7 +198,7 @@ public:
     template<typename T>
     void add_global_param(std::string_view name, int arg_index, bool by_value = false) {
         m_params.add_array(name, static_cast<T *>(nullptr), 0,
-                           op::rt::loop::ParamSource::array_arg, arg_index, true);
+                           op::rt::abi::ParamSource::array_arg, arg_index, true);
         if (by_value)
             mark_by_value(arg_index);
     }
@@ -250,7 +237,7 @@ protected:
 
     // The device copies of the globals, the strategy's stride apart.
     void begin_call(const op::rt::loop::Call& call,
-                    const op::rt::loop::Autotuner::Decision& decision, op_arg *args,
+                    const op::rt::tune::Autotuner::Decision& decision, op_arg *args,
                     int nargs) override;
 
     void combine_globals(op_arg *args, int nargs) override;

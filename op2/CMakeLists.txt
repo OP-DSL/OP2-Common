@@ -45,16 +45,20 @@ _op2_preprocess_fortran(
 # --- C/C++ groups --------------------------------------------------------
 
 # The loop runtime (src/rt), backend neutral: its start, reports and release,
-# the strategy ladder and tuner, the JIT's policy, parameters and build cache,
-# their reports, and the planning building blocks the backends' strategies
-# compose.
+# a call's model and the strategy ladder, the JIT's policy, parameters and
+# build cache, the tuner and the heuristics, their reports, and the planning
+# building blocks the backends' strategies compose.
 set(_op2_rt_srcs
     "${_src}/rt/op_rt_lifecycle.cpp"
     "${_src}/rt/loop/op_loop.cpp"
-    "${_src}/rt/loop/op_loop_strategy.cpp"
-    "${_src}/rt/loop/op_loop_autotune.cpp"
-    "${_src}/rt/loop/op_loop_jit.cpp"
+    "${_src}/rt/loop/op_loop_call.cpp"
+    "${_src}/rt/loop/op_loop_ladder.cpp"
     "${_src}/rt/loop/op_loop_report.cpp"
+    "${_src}/rt/jit/op_jit_options.cpp"
+    "${_src}/rt/jit/op_jit_params.cpp"
+    "${_src}/rt/jit/op_jit_cache.cpp"
+    "${_src}/rt/tune/op_tune_autotune.cpp"
+    "${_src}/rt/tune/op_tune_heuristics.cpp"
     "${_src}/rt/plan/op_plan_colouring.cpp"
     "${_src}/rt/plan/op_plan_chunks.cpp"
     "${_src}/rt/plan/op_plan_staging.cpp"

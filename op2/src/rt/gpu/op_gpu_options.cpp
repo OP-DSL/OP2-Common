@@ -5,7 +5,8 @@
 #include <op2/gpu/shims.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/lifecycle.h>
-#include <op2/rt/loop/jit.h>
+#include <op2/rt/jit/cache.h>
+#include <op2/rt/jit/params.h>
 #include <op2/rt/loop/strategy.h>
 #include <op_lib_core.h>
 
@@ -35,7 +36,6 @@ void init() {
 #if defined(OP2_CUDA) && CUDART_VERSION >= 12030
     options.build_threads = 16;
 #endif
-    env::parse_number("OP_JIT_MIN_REGISTERS", options.min_registers);
 
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", options.window);
 
@@ -57,7 +57,7 @@ void init() {
 
 #ifdef OP2_CUDA
     device.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);
-    if (op::rt::loop::jit_options().debug)
+    if (op::rt::jit::options().debug)
         op_printf("JIT arch flag: %s\n", device.arch.c_str());
 #endif
 

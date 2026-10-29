@@ -135,7 +135,7 @@ struct LoopTuning {
 
 std::string tuner_summary(const std::vector<Loop *>& current, int ranks) {
     std::vector<LoopTuning> tunings;
-    std::vector<Autotuner::Outcome> outcomes;
+    std::vector<tune::Autotuner::Outcome> outcomes;
     std::size_t tuned = 0;
     std::size_t unexplored = 0;
     for (const auto *loop : current) {
@@ -188,13 +188,13 @@ std::string tuner_summary(const std::vector<Loop *>& current, int ranks) {
     if (partial > 0)
         appendf(out, " (%zu partly: a candidate was still pending)", partial);
     appendf(out, "; %zu not explored (seen fewer than %d times, or not settled)\n",
-            unexplored, autotune_options().min_calls);
+            unexplored, tune::autotune_options().min_calls);
     if (configurations == 0)
         return out;
     appendf(out, "  over their calls: %.1f ms at the ladder's choices, %.1f ms at the "
                  "fastest (%.3fx)\n",
             ladder_ms, fastest_ms, fastest_ms > 0.0 ? ladder_ms / fastest_ms : 0.0);
-    if (autotune_options().select)
+    if (tune::autotune_options().select)
         appendf(out, "  select runs a candidate other than the ladder's choice in %s\n",
                 counted(selected, "configuration").c_str());
 
@@ -239,7 +239,7 @@ std::string tuner_summary(const std::vector<Loop *>& current, int ranks) {
 // run time, and moved.
 struct LoopJit {
     struct Counts {
-        const Param *param;
+        const jit::Param *param;
         std::size_t baked = 0;
         std::size_t runtime = 0;
         std::size_t moved = 0;
@@ -266,7 +266,7 @@ LoopJit loop_jit(const Loop& loop) {
     LoopJit jit{&loop, loop.builds()};
     for (const auto& configuration : loop.params().configurations()) {
         ++jit.configurations;
-        jit.settled += configuration.calls >= statistics_window;
+        jit.settled += configuration.calls >= jit::statistics_window;
         for (const auto& outcome : configuration.params) {
             auto found = std::find_if(jit.params.begin(), jit.params.end(),
                                       [&](const auto& counts) {
@@ -274,7 +274,7 @@ LoopJit loop_jit(const Loop& loop) {
                                       });
             if (found == jit.params.end())
                 found = jit.params.insert(found, LoopJit::Counts{outcome.param});
-            ++(outcome.mode == ParamMode::baked ? found->baked : found->runtime);
+            ++(outcome.mode == jit::ParamMode::baked ? found->baked : found->runtime);
             found->moved += outcome.moved;
         }
     }
@@ -282,7 +282,7 @@ LoopJit loop_jit(const Loop& loop) {
 }
 
 std::string jit_summary(const std::vector<Loop *>& current, int ranks) {
-    if (!jit_options().enabled() || jit_options().report_file.empty())
+    if (!jit::options().enabled() || jit::options().report_file.empty())
         return {};
     std::vector<LoopJit> jits;
     BuildCounts builds;
@@ -314,7 +314,7 @@ std::string jit_summary(const std::vector<Loop *>& current, int ranks) {
         appendf(out, ", %zu still building", builds.building);
     if (builds.waiting > 0)
         appendf(out, ", %zu not built (asked for fewer than %d times)", builds.waiting,
-                jit_options().min_calls);
+                jit::options().min_calls);
     out += "\n";
     if (moving == 0)
         return out;
@@ -322,7 +322,7 @@ std::string jit_summary(const std::vector<Loop *>& current, int ranks) {
                  "%llu calls)\n",
             counted(moving, "loop").c_str(),
             counted(configurations, "configuration").c_str(), settled,
-            static_cast<unsigned long long>(statistics_window));
+            static_cast<unsigned long long>(jit::statistics_window));
 
     auto end = std::partition(jits.begin(), jits.end(),
                               [](const auto& jit) { return jit.notable(); });
@@ -394,14 +394,14 @@ void jit_rows(const Loop& loop, std::vector<std::string>& out) {
     for (const auto& configuration : loop.params().configurations()) {
         std::string baked, runtime, moved;
         for (const auto& outcome : configuration.params) {
-            auto& list = outcome.mode == ParamMode::baked ? baked : runtime;
+            auto& list = outcome.mode == jit::ParamMode::baked ? baked : runtime;
             list += (list.empty() ? "" : ";") + outcome.param->name();
             if (outcome.moved)
                 moved += (moved.empty() ? "" : ";") + outcome.param->name();
         }
         out.push_back(loop.name() + "," + quoted(configuration.description) + "," +
                       std::to_string(configuration.calls) + "," +
-                      (configuration.calls >= statistics_window ? "yes" : "no") + "," +
+                      (configuration.calls >= jit::statistics_window ? "yes" : "no") + "," +
                       baked + "," + runtime + "," + moved);
     }
 }
@@ -411,12 +411,13 @@ void write_files(const std::vector<Loop *>& current, int rank, int ranks) {
     for (const auto *loop : current)
         if (const auto *tuner = loop->tuner())
             tuner->rows(rows);
-    write_csv(autotune_options().report_file, rank, ranks, Autotuner::report_header, rows);
+    write_csv(tune::autotune_options().report_file, rank, ranks,
+              tune::Autotuner::report_header, rows);
 
     rows.clear();
     for (const auto *loop : current)
         jit_rows(*loop, rows);
-    write_csv(jit_options().report_file, rank, ranks,
+    write_csv(jit::options().report_file, rank, ranks,
               "loop,configuration,calls,settled,baked,run_time,moved", rows);
 }
 

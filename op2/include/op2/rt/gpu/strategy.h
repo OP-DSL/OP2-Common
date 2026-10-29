@@ -81,7 +81,7 @@ protected:
     bool m_unstaged_singles = false;
     bool m_wavefront = false;
     OfflineKernel m_offline;
-    op::rt::loop::JitCache<JitKernel> m_cache;
+    op::rt::jit::Cache<JitKernel> m_cache;
     CallState m_call_state;
 
     StrategyBase(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
@@ -120,7 +120,7 @@ protected:
     // launch count, fill(phase, launch, context) the context and geometry.
     template<typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::Launch& launch, int phases,
+                                    const op::rt::loop::RunArgs& run, int phases,
                                     int wait_before, int globals_after,
                                     Launches&& launches, Fill&& fill);
 
@@ -129,11 +129,9 @@ public:
 
     std::string_view name() const override { return m_name; }
 
-    // The offline kernel at a nominal 1 when it can launch the block size; a
-    // specialised one when there is source, expected faster when the offline
-    // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
-    // tenth, until timings calibrate it).
-    op::rt::loop::Estimate estimate(op::rt::loop::KernelKind kind) const override;
+    // The offline kernel when it can launch the block size, with its figures;
+    // a specialised one when there is source.
+    op::rt::loop::Facts facts() const override;
 
     // The kernel kind and its registers, local and shared memory.
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
@@ -160,7 +158,7 @@ public:
                                op::rt::loop::KernelKind kind) override;
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::Launch& launch) override;
+                             const op::rt::loop::RunArgs& run) override;
 };
 
 // --- Colouring -----------------------------------------------------------------------
@@ -179,7 +177,7 @@ public:
                                op::rt::loop::Urgency urgency,
                                op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::Launch& launch) override;
+                             const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
     void release() override;
@@ -192,11 +190,11 @@ public:
 class ChunkBase : public StrategyBase {
 protected:
     bool m_coloured;
-    op::rt::plan::ArgGroups m_groups;
+    op::rt::abi::ArgGroups m_groups;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured,
-              KernelSource source, Binder bind, op::rt::plan::ArgGroups groups)
+              KernelSource source, Binder bind, op::rt::abi::ArgGroups groups)
         : StrategyBase{loop, point, source, bind}, m_coloured{coloured},
           m_groups{groups} {}
 
@@ -215,7 +213,7 @@ public:
                                op::rt::loop::Urgency urgency,
                                op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::Launch& launch) override;
+                             const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
     void release() override;
@@ -228,7 +226,7 @@ public:
 class ChunkAtomics : public ChunkBase {
 public:
     ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-                 Binder bind, op::rt::plan::ArgGroups groups)
+                 Binder bind, op::rt::abi::ArgGroups groups)
         : ChunkBase{loop, point, false, source, bind, groups} {
         m_unstaged_singles = point.value("singles") != 0;
     }
@@ -248,7 +246,7 @@ public:
 class ChunkColouring : public ChunkBase {
 public:
     ChunkColouring(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-                   Binder bind, op::rt::plan::ArgGroups groups)
+                   Binder bind, op::rt::abi::ArgGroups groups)
         : ChunkBase{loop, point, true, source, bind, groups} {
         m_wavefront = point.value("wavefront") != 0;
     }
@@ -265,6 +263,6 @@ public:
 std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
                                                       const op::rt::loop::Point& point,
                                                       const KernelSource& source, Binder bind,
-                                                      op::rt::plan::ArgGroups groups);
+                                                      op::rt::abi::ArgGroups groups);
 
 } // namespace op::rt::gpu

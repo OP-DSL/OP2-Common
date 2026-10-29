@@ -20,34 +20,33 @@ bool has_global_output(op_arg *args, int nargs) {
 
 } // namespace
 
-Autotuner::Decision Loop::decide(const Call& call, op_arg *args, int nargs) {
+tune::Autotuner::Decision Loop::decide(const Call& call, op_arg *args, int nargs) {
     m_params.update(args, nargs);
-    if (m_params.moving() && jit_options().enabled())
+    if (m_params.moving() && jit::options().enabled())
         m_params.observe_call(call);
     auto selection = m_ladder.select(call);
     return m_tuner ? m_tuner->choose(call, selection, m_params.settled(call))
-                   : Autotuner::Decision{selection};
+                   : tune::Autotuner::Decision{selection};
 }
 
-void Loop::run(const Autotuner::Decision& decision, op_arg *args, int nargs) {
-    Launch launch{args, nargs, decision.timed != nullptr};
-    auto microseconds =
-        decision.prepared.candidate->strategy->run(decision.prepared, launch);
+void Loop::run(const tune::Autotuner::Decision& decision, op_arg *args, int nargs) {
+    RunArgs run{args, nargs, decision.timed != nullptr};
+    auto microseconds = decision.prepared.candidate->strategy->run(decision.prepared, run);
     if (microseconds && m_tuner)
         m_tuner->sample(decision, *microseconds);
 }
 
-void Loop::wait_halos(const Launch& launch) {
+void Loop::wait_halos(const RunArgs& run) {
     op_profile_next("MPI Wait");
-    op_mpi_wait_all(launch.nargs, launch.args);
+    op_mpi_wait_all(run.nargs, run.args);
     op_profile_next("Kernel");
 }
 
-void Loop::process_globals(const Launch& launch) {
+void Loop::process_globals(const RunArgs& run) {
     if (!m_global_output)
         return;
     op_profile_next("Process GBLs");
-    combine_globals(launch.args, launch.nargs);
+    combine_globals(run.args, run.nargs);
     op_profile_next("Kernel");
 }
 

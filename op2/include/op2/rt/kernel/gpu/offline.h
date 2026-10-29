@@ -14,7 +14,7 @@ namespace op::rt::kernel::gpu {
 
 namespace detail {
 
-inline op::rt::gpu::KernelFigures figures(const void *function) {
+inline op::rt::abi::KernelFigures figures(const void *function) {
     gpuFuncAttributes_t attributes{};
     GPU_CHECK(gpuFuncGetAttributes(&attributes, function));
     return {attributes.numRegs, static_cast<int>(attributes.localSizeBytes),

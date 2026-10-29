@@ -1,9 +1,11 @@
 #pragma once
 
 // Strategy autotuning: each loop times its candidates per configuration;
-// op2/rt/loop/loop.h's write_reports summarises every loop's results and writes
-// them out at op_profile_output and op_exit.
+// op2/rt/loop/loop.h's write_reports summarises every loop's results and
+// writes them out at op_profile_output and op_exit.
 
+#include <op2/rt/loop/call.h>
+#include <op2/rt/loop/ladder.h>
 #include <op2/rt/loop/strategy.h>
 
 #include <cstdint>
@@ -13,7 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace op::rt::loop {
+namespace op::rt::tune {
 
 // OP_AUTOTUNE=report times every candidate for each loop configuration and
 // reports how they compare with the ladder's choice, which still runs once a
@@ -39,8 +41,9 @@ struct AutotuneOptions {
 };
 
 const AutotuneOptions& autotune_options();
-// Read by init.
-void init_autotune_options();
+
+// Read the tuner's variables; op_init calls it through op::rt::init.
+void init_autotune();
 
 // A loop's tuning: the timings of each candidate for every configuration of
 // the loop seen often enough, and what to run from them.
@@ -48,7 +51,7 @@ class Autotuner {
 private:
     // One candidate's exploration for a configuration.
     struct Trial {
-        const Candidate *candidate = nullptr;
+        const loop::Candidate *candidate = nullptr;
         // Ready or pending when added, and not retired since.
         bool live = false;
         // Turned off by its variable: never explored or in the report.
@@ -68,10 +71,10 @@ private:
         std::string description;
         std::vector<Trial> trials;
         // The ladder's choice, as of the latest call while exploring.
-        const Candidate *ladder = nullptr;
+        const loop::Candidate *ladder = nullptr;
         // What OP_AUTOTUNE=select runs once the configuration is explored;
         // none to follow the ladder.
-        const Candidate *selected = nullptr;
+        const loop::Candidate *selected = nullptr;
         std::size_t calls = 0;
         std::size_t cursor = 0;
         // Every trial is done.
@@ -100,32 +103,32 @@ public:
     // What one call runs, and the trial its run is a timed sample of while
     // the configuration is explored; none for an untimed run.
     struct Decision {
-        Prepared prepared;
+        loop::Prepared prepared;
         Trial *timed = nullptr;
     };
 
 private:
-    const Ladder& m_ladder;
+    const loop::Ladder& m_ladder;
     // Once this many configurations have state a new one gets none; those
     // dropped and those never explored are counted per loop.
     static constexpr std::size_t max_keys = 4096;
     std::unordered_map<std::uint64_t, State> m_states;
     std::size_t m_dropped = 0;
 
-    void add_trials(State& state, const Call& call,
-                    const Prepared& selection);
+    void add_trials(State& state, const loop::Call& call,
+                    const loop::Prepared& selection);
     // Mark the configuration explored, and have the strategies nothing
     // will run on it again forget it.
-    void finish(State& state, const Call& call);
-    Decision run_selected(const State& state, const Call& call,
+    void finish(State& state, const loop::Call& call);
+    Decision run_selected(const State& state, const loop::Call& call,
                           const Decision& ladder);
     Summary summarise(const State& state) const;
-    const Candidate *winner(const Summary& summary) const;
+    const loop::Candidate *winner(const Summary& summary) const;
     std::string row(const State& state, const Summary& summary,
                     const Trial& trial) const;
 
 public:
-    explicit Autotuner(const Ladder& ladder) : m_ladder{ladder} {}
+    explicit Autotuner(const loop::Ladder& ladder) : m_ladder{ladder} {}
     Autotuner(const Autotuner&) = delete;
 
     // The ladder's selection, unless the configuration is being explored:
@@ -136,7 +139,7 @@ public:
     // reason.  When every trial is done, under select, its fastest
     // candidate runs from then on if it beats the ladder's current choice by
     // the margin.
-    Decision choose(const Call& call, const Prepared& selection, bool settled);
+    Decision choose(const loop::Call& call, const loop::Prepared& selection, bool settled);
 
     // Record one timed run.
     void sample(const Decision& decision, float microseconds);
@@ -146,9 +149,9 @@ public:
     struct Outcome {
         std::string_view description;
         std::size_t calls;
-        const Candidate *ladder;
-        const Candidate *fastest;
-        const Candidate *selected;
+        const loop::Candidate *ladder;
+        const loop::Candidate *fastest;
+        const loop::Candidate *selected;
         std::optional<float> ladder_us;
         std::optional<float> fastest_us;
         bool complete;
@@ -167,4 +170,4 @@ public:
     void clear();
 };
 
-} // namespace op::rt::loop
+} // namespace op::rt::tune

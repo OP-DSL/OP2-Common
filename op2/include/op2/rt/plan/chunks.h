@@ -6,7 +6,7 @@
 // elements, and the result a backend's plan comes back in.  Host algorithms
 // with no device limits, which a backend composes into its own plans.
 
-#include <op2/rt/loop/strategy.h>
+#include <op2/rt/loop/call.h>
 
 #include <cstddef>
 #include <memory>

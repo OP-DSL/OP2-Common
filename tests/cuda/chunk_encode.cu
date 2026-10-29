@@ -14,6 +14,7 @@
 
 #include "../test_support.h"
 
+namespace abi = op::rt::abi;
 namespace plan = op::rt::plan;
 
 namespace {
@@ -69,12 +70,12 @@ void test_encode() {
         args[idx].type = "int";
         args[idx].acc = OP_RW;
     }
-    std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
+    std::array<abi::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
     auto sections = op::rt::loop::Sections::direct(&edges);
     op::rt::gpu::ChunkLimits limits{4, 1 << 16};
 
     auto result = op::rt::gpu::plan_chunk_colouring(
-        args, sections, plan::ArgGroups{group_args, 1}, limits, true, 2);
+        args, sections, abi::ArgGroups{group_args, 1}, limits, true, 2);
     CHECK(result);
     const auto& chunk_plan = *result.plan;
     CHECK(chunk_plan.wavefront);
@@ -109,7 +110,7 @@ void test_encode() {
     for (auto& arg : args)
         arg.acc = OP_INC;
     auto staged = op::rt::gpu::plan_chunk_atomics(
-        args, sections, plan::ArgGroups{group_args, 1}, limits, false, 0.0);
+        args, sections, abi::ArgGroups{group_args, 1}, limits, false, 0.0);
     CHECK(staged);
     {
         op::rt::gpu::DevicePlan plan(*staged.plan);

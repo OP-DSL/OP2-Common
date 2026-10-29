@@ -7,8 +7,9 @@
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
+#include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
-#include <op2/rt/kernel/gpu/launch.h>
+#include <op2/rt/kernel/gpu/offline.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -62,11 +63,7 @@ void bind(gpu::LaunchContext& context, op_arg *, std::vector<void *>& arguments)
     arguments = {&out_d, &in_d, &context.start, &context.end};
 }
 
-gpu::JitHeaders headers() {
-    return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",
-             "op2/rt/kernel/strategy.h"}};
-}
+gpu::JitHeaders headers() { return OP_KERNEL_JIT_HEADERS; }
 
 std::vector<double> reference(const std::vector<double>& in) {
     std::vector<double> out(elements);
@@ -96,7 +93,7 @@ void expect(bool condition, const std::string& what) {
 
 // Declare plain, and read the JIT variables.
 void declare() {
-    loop::init();
+    op::rt::init();
     gpu::init();
     const loop::Family families[] = {{"plain", gpu::Simple::axes()}};
     loop::declare_families(families);

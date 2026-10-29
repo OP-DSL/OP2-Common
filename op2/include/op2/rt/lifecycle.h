@@ -7,9 +7,9 @@
 
 namespace op::rt {
 
-// Read the run-wide variables: the ladder's, the tuner's, the JIT's and the
-// chunked strategies'; op_init_core calls it before the backend declares its
-// families.
+// Read the run-wide variables: the ladder's, the JIT's, the tuner's, the
+// heuristics' and the chunked strategies'; op_init_core calls it before the
+// backend declares its families.
 void init();
 
 // Declare the CPU families; the CPU libraries' op_init calls it.

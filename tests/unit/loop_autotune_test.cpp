@@ -2,8 +2,10 @@
 // timings for each of their kernels, explored per configuration and
 // selected by the margin.
 
-#include <op2/rt/loop/autotune.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/lifecycle.h>
 #include <op2/rt/loop/loop.h>
+#include <op2/rt/tune/autotune.h>
 
 #include <array>
 #include <cstdio>
@@ -41,10 +43,12 @@ struct Fake : loop::Strategy {
 
     std::string_view name() const override { return fake_name; }
 
-    loop::Estimate estimate(loop::KernelKind kind) const override {
-        if (kind == loop::KernelKind::offline)
-            return {true, 1.0f};
-        return {jit_time.has_value(), 0.9f};
+    // A specialised kernel when it has a jit_time, expected faster.
+    loop::Facts facts() const override {
+        loop::Facts facts{{true, {}, op::rt::abi::KernelFigures{64, 0, 0, 1024}}, {}};
+        if (jit_time)
+            facts.jit = {true, {}, {}};
+        return facts;
     }
 
     loop::Prepared prepare(const loop::Call&, loop::Urgency,
@@ -62,10 +66,10 @@ struct Fake : loop::Strategy {
     }
 
     std::optional<float> run(const loop::Prepared& prepared,
-                             const loop::Launch& launch) override {
+                             const loop::RunArgs& run) override {
         CHECK(prepared.candidate->strategy == this);
         ++runs;
-        if (!launch.timed)
+        if (!run.timed)
             return std::nullopt;
         if (prepared.candidate->kind == loop::KernelKind::jit) {
             ++timed_jit_runs;
@@ -122,10 +126,9 @@ struct Fixture : loop::Loop {
     Fake *invoke(const loop::Call& call) {
         auto selection = m_ladder.select(call);
         auto decision = m_tuner->choose(call, selection, settled);
-        loop::Launch launch{const_cast<op_arg *>(call.args.data()),
-                            static_cast<int>(call.args.size()),
-                            decision.timed != nullptr};
-        auto us = decision.prepared.candidate->strategy->run(decision.prepared, launch);
+        loop::RunArgs run{const_cast<op_arg *>(call.args.data()),
+                          static_cast<int>(call.args.size()), decision.timed != nullptr};
+        auto us = decision.prepared.candidate->strategy->run(decision.prepared, run);
         if (us)
             m_tuner->sample(decision, *us);
         last = decision.prepared.candidate;
@@ -148,8 +151,8 @@ void test_exploration() {
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
     setenv("OP_AUTOTUNE_REPORT", path.c_str(), 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
-    loop::init();
-    CHECK(loop::autotune_options().select);
+    op::rt::init();
+    CHECK(op::rt::tune::autotune_options().select);
 
     Fixture fixture;
     loop::Call call{&edges, args, edges.size + edges.exec_size};
@@ -253,7 +256,7 @@ void test_ladder_changes() {
     setenv("OP_AUTOTUNE_SAMPLES", "2", 1);
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
-    loop::init();
+    op::rt::init();
 
     Fixture fixture(true, 10.2f);
     loop::Call call{&edges, args, edges.size + edges.exec_size};
@@ -283,7 +286,7 @@ void test_kernels() {
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
     unsetenv("OP_AUTOTUNE_REPORT");
-    loop::init();
+    op::rt::init();
 
     // atomics' specialised kernel, expected faster, comes first in the
     // ladder and takes 3 to atomics' offline 10.
@@ -327,7 +330,7 @@ void test_jit_report() {
     struct Jitted : loop::Loop {
         double constant = 0.0;
         Jitted() : loop::Loop{"flux_jit", "test", "Indirect", false, false} {
-            m_params.add("op2_const_c_d", &constant, loop::ParamSource::external, -1, true);
+            m_params.add("op2_const_c_d", &constant, op::rt::abi::ParamSource::external, -1, true);
         }
         loop::BuildCounts builds() const override { return {3, 1, 0, 2}; }
         void observe(const loop::Call& call) {
@@ -339,7 +342,7 @@ void test_jit_report() {
     unsetenv("OP_AUTOTUNE");
     unsetenv("OP_AUTOTUNE_REPORT");
     setenv("OP_JIT_REPORT", path.c_str(), 1);
-    loop::init();
+    op::rt::init();
 
     Jitted jitted;
     loop::Call on_edges{&edges, args, edges.size + edges.exec_size};
@@ -376,7 +379,7 @@ void test_jit_report() {
     std::remove(path.c_str());
 
     unsetenv("OP_JIT_REPORT");
-    loop::init();
+    op::rt::init();
     CHECK(loop::summaries(1).empty());
 }
 
@@ -392,7 +395,7 @@ void test_loop_registry() {
         }
     };
     unsetenv("OP_AUTOTUNE_REPORT");
-    loop::init();
+    op::rt::init();
     {
         Counted counted;
         loop::finalise(0, 1);

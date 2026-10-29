@@ -42,17 +42,17 @@ void StrategyBase::split(int begin, int end, const int *order, op_arg *args) {
 }
 
 template<typename F>
-std::optional<float> StrategyBase::run_phases(const op::rt::loop::Launch& launch, int phases,
+std::optional<float> StrategyBase::run_phases(const op::rt::loop::RunArgs& run, int phases,
                                               int wait_before, int globals_after, F&& phase) {
     using clock = std::chrono::steady_clock;
     clock::duration elapsed{};
-    m_loop.run_phases(launch, phases, wait_before, globals_after, [&](int index) {
+    m_loop.run_phases(run, phases, wait_before, globals_after, [&](int index) {
         auto start = clock::now();
         phase(index);
         elapsed += clock::now() - start;
     });
 
-    if (!launch.timed)
+    if (!run.timed)
         return std::nullopt;
     return static_cast<float>(std::chrono::duration<double, std::micro>(elapsed).count());
 }
@@ -65,13 +65,13 @@ op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call&, op::rt::loop::
 }
 
 std::optional<float> Simple::run([[maybe_unused]] const op::rt::loop::Prepared& prepared,
-                                 const op::rt::loop::Launch& launch) {
+                                 const op::rt::loop::RunArgs& run) {
     assert(prepared.candidate->strategy == this);
     const auto& sections = m_loop.call_sections();
-    return run_phases(launch, sections.size(), sections.wait_index(),
+    return run_phases(run, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {
                           split(sections[section].begin, sections[section].end, nullptr,
-                                launch.args);
+                                run.args);
                       });
 }
 
@@ -94,14 +94,14 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
 }
 
 std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::Launch& launch) {
+                                    const op::rt::loop::RunArgs& run) {
     const auto& colouring = *static_cast<const op::rt::plan::SetColouring *>(prepared.entry);
     // The core's colours come first, and run while the halo arrives.
-    return run_phases(launch, colouring.colours, colouring.core_colours,
+    return run_phases(run, colouring.colours, colouring.core_colours,
                       colouring.owned_colours - 1, [&](int colour) {
                           split(colouring.offsets[static_cast<std::size_t>(colour)],
                                 colouring.offsets[static_cast<std::size_t>(colour) + 1],
-                                colouring.order.data(), launch.args);
+                                colouring.order.data(), run.args);
                       });
 }
 
@@ -157,7 +157,7 @@ op::rt::loop::Prepared ChunkBase::prepare(const op::rt::loop::Call& call,
 }
 
 std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::Launch& launch) {
+                                    const op::rt::loop::RunArgs& run) {
     const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = m_loop.call_sections();
@@ -170,7 +170,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     phase.staging = {plan.staging.stride, plan.staging.stage_words.data(),
                      plan.staging.slot_offsets.data(), plan.staging.slot_targets.data()};
 
-    return run_phases(launch, sections.size(), sections.wait_index(),
+    return run_phases(run, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {
                           phase.batches = plan.batches.batches(section);
                           if (phase.batches == 0)
@@ -178,7 +178,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
                           phase.batch_offsets =
                               plan.batches.batch_offsets.data() +
                               plan.batches.section_batches[static_cast<std::size_t>(section)];
-                          m_run(phase, launch.args);
+                          m_run(phase, run.args);
                       });
 }
 
@@ -199,7 +199,7 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
 std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
                                                       const op::rt::loop::Point& point,
                                                       Run run,
-                                                      op::rt::plan::ArgGroups groups) {
+                                                      op::rt::abi::ArgGroups groups) {
     if (family == "plain" || family == "atomics")
         return std::make_unique<Simple>(loop, point, run);
     if (family == "colouring")

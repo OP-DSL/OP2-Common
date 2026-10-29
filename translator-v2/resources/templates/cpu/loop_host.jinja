@@ -160,7 +160,7 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::cpu::Work& work,
 {{prologue()}}
     const auto& staging = work.staging;
     const int stride = staging.stride;
-    const op::rt::plan::StageWord *const stage_words = staging.stage_words;
+    const op::rt::abi::StageWord *const stage_words = staging.stage_words;
     // A region's slots run from its offset to the next region's.
     const int *const op2_slots =
         staging.slot_offsets + work.chunk * {{groups.chunk_atomics.dats|length}};
@@ -203,12 +203,12 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::cpu::Work& work,
 static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::cpu::Loop& loop) {
 {% for strategy in strategies %}
     {% if strategy == "chunk_atomics" %}
-    static constexpr std::array<op::rt::plan::ArgGroup, {{groups.chunk_atomics.args|length}}> chunk_atomics_groups = {{"{{"}}
+    static constexpr std::array<op::rt::abi::ArgGroup, {{groups.chunk_atomics.args|length}}> chunk_atomics_groups = {{"{{"}}
         {% for arg in groups.chunk_atomics.args %}
-        op::rt::plan::ArgGroup{ {{arg.id}}, {{groups.chunk_atomics.group(arg)}} },
+        op::rt::abi::ArgGroup{ {{arg.id}}, {{groups.chunk_atomics.group(arg)}} },
         {% endfor %}
     {{"}}"}};
-    {% set tail = ", op::rt::plan::ArgGroups{ chunk_atomics_groups, %d }" % groups.chunk_atomics.dats|length %}
+    {% set tail = ", op::rt::abi::ArgGroups{ chunk_atomics_groups, %d }" % groups.chunk_atomics.dats|length %}
     {% else %}
     {% set tail = "" %}
     {% endif %}

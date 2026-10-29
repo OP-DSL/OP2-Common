@@ -4,7 +4,7 @@
 // of any indirect argument, as op_plan did under OP_COLOR2.  Host code with
 // no device knowledge; a strategy runs one phase per colour.
 
-#include <op2/rt/loop/strategy.h>
+#include <op2/rt/loop/call.h>
 #include <op_lib_core.h>
 
 #include <span>

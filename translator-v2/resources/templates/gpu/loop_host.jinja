@@ -12,7 +12,7 @@
     field that binds it. -#}
 {%- set staging_params = [
     ("const int *__restrict", "source_offsets", "launch.chunk.plan->source_offsets"),
-    ("const op::rt::plan::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
+    ("const op::rt::abi::StageWord *__restrict", "stage_words", "launch.chunk.plan->stage_words"),
     ("const int *__restrict", "stage_counts", "launch.chunk.plan->stage_counts"),
     ("const int *__restrict", "slot_offsets", "launch.chunk.plan->slot_offsets"),
     ("const int *__restrict", "slot_targets", "launch.chunk.plan->slot_targets"),
@@ -158,7 +158,7 @@ op::rt::kernel::Ptr{gbl{{arg.id}}}
     {%- set group = groups[strategy].group(arg) -%}
     {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
     {%- if strategy == "chunk_atomics" -%}
-((op2_unstaged_singles && {{word}} == op::rt::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::rt::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}})
+((op2_unstaged_singles && {{word}} == op::rt::abi::unstaged_word) ? {{arg_global_pointer(arg)}} : op::rt::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}})
     {%- else -%}
 op::rt::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}}
     {%- endif -%}
@@ -610,9 +610,9 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::gpu::Loop& loop) {
 {% endif %}
 {% for strategy in strategies %}
     {% if strategy in chunk_strategies %}
-    static constexpr std::array<op::rt::plan::ArgGroup, {{groups[strategy].args|length}}> {{strategy}}_groups = {{"{{"}}
+    static constexpr std::array<op::rt::abi::ArgGroup, {{groups[strategy].args|length}}> {{strategy}}_groups = {{"{{"}}
         {% for arg in groups[strategy].args %}
-        op::rt::plan::ArgGroup{ {{arg.id}}, {{groups[strategy].group(arg)}} },
+        op::rt::abi::ArgGroup{ {{arg.id}}, {{groups[strategy].group(arg)}} },
         {% endfor %}
     {{"}}"}};
     {% endif %}
@@ -624,7 +624,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::gpu::Loop& loop) {
             op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
         &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
     {% if strategy in chunk_strategies %}
-        op::rt::plan::ArgGroups{ {{strategy}}_groups, {{groups[strategy].dats|length}} });
+        op::rt::abi::ArgGroups{ {{strategy}}_groups, {{groups[strategy].dats|length}} });
     {% endif %}
 {% endfor %}
     return true;

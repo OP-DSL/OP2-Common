@@ -38,7 +38,7 @@ void size_batches(ChunkPlan& out) {
 
 ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const op::rt::loop::Sections& sections,
-                               const plan::ArgGroups& groups, const ChunkLimits& limits,
+                               const abi::ArgGroups& groups, const ChunkLimits& limits,
                                bool unstaged_singles, double min_compression) {
     plan::StagedChunks staged;
     auto reason = plan::stage_chunks(args, sections, groups, false, limits.block_size,
@@ -57,7 +57,7 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
 
 ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                  const op::rt::loop::Sections& sections,
-                                 const plan::ArgGroups& groups, const ChunkLimits& limits,
+                                 const abi::ArgGroups& groups, const ChunkLimits& limits,
                                  bool wavefront, int window) {
     plan::StagedChunks staged;
     auto reason = plan::stage_chunks(args, sections, groups, true, limits.block_size,

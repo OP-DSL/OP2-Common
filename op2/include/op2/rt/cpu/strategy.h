@@ -82,7 +82,7 @@ protected:
     // Run the phases of a call through the loop's, phase(index) running one
     // phase over the threads; the phases' own time when timed.
     template<typename F>
-    std::optional<float> run_phases(const op::rt::loop::Launch& launch, int phases,
+    std::optional<float> run_phases(const op::rt::loop::RunArgs& run, int phases,
                                     int wait_before, int globals_after, F&& phase);
 
 public:
@@ -104,7 +104,7 @@ public:
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::Launch& launch) override;
+                             const op::rt::loop::RunArgs& run) override;
 };
 
 // --- Colouring -----------------------------------------------------------------------
@@ -122,7 +122,7 @@ public:
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::Launch& launch) override;
+                             const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
@@ -137,12 +137,12 @@ public:
 class ChunkBase : public StrategyBase {
 protected:
     bool m_coloured;
-    op::rt::plan::ArgGroups m_groups;
+    op::rt::abi::ArgGroups m_groups;
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured, Run run,
-              op::rt::plan::ArgGroups groups)
+              op::rt::abi::ArgGroups groups)
         : StrategyBase{loop, point, run}, m_coloured{coloured}, m_groups{groups},
           m_chunk_size{point.value("chunk_size")} {}
 
@@ -158,7 +158,7 @@ public:
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::Launch& launch) override;
+                             const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
@@ -166,7 +166,7 @@ public:
 class ChunkAtomics : public ChunkBase {
 public:
     ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, Run run,
-                 op::rt::plan::ArgGroups groups)
+                 op::rt::abi::ArgGroups groups)
         : ChunkBase{loop, point, false, run, groups} {}
 };
 
@@ -181,7 +181,7 @@ public:
 std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
                                                       const op::rt::loop::Point& point,
                                                       Run run,
-                                                      op::rt::plan::ArgGroups groups);
+                                                      op::rt::abi::ArgGroups groups);
 
 // Declare the families the generated code registers, in ladder order; the
 // CPU libraries' op_init calls it.

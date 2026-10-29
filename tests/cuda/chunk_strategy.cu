@@ -8,9 +8,10 @@
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
+#include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
-#include <op2/rt/kernel/gpu/launch.h>
-#include <op2/rt/loop/jit.h>
+#include <op2/rt/kernel/gpu/offline.h>
+#include <op2/rt/jit/options.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -120,7 +121,7 @@ struct Fixture {
     op_map_core map{};
     std::vector<int> map_values;
     std::array<op_arg, 2> args{};
-    std::array<op::rt::plan::ArgGroup, 1> group_args{{{0, 0}}};
+    std::array<op::rt::abi::ArgGroup, 1> group_args{{{0, 0}}};
 
     Fixture() : map_values(256) {
         source.index = next_index++;
@@ -170,18 +171,14 @@ struct Fixture {
         args[1].opt = 0;
     }
 
-    op::rt::plan::ArgGroups groups() const { return {group_args, 1}; }
+    op::rt::abi::ArgGroups groups() const { return {group_args, 1}; }
 
     int shared_bytes() const {
         return target.size * args[0].dim * static_cast<int>(sizeof(double));
     }
 };
 
-gpu::JitHeaders headers() {
-    return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",
-             "op2/rt/kernel/strategy.h"}};
-}
+gpu::JitHeaders headers() { return OP_KERNEL_JIT_HEADERS; }
 
 void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
     loop.add("chunk_atomics",
@@ -232,7 +229,7 @@ int main(int argc, char **argv) {
     // Every source in one chunk: a block's elements.
     setenv("OP_CHUNK_ATOMICS_BLOCK_SIZES", "256", 1);
     op_init(argc, argv, 2);
-    const bool expect_jit = op::rt::loop::jit_options().level > 0;
+    const bool expect_jit = op::rt::jit::options().level > 0;
 
     Fixture fixture;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
@@ -252,7 +249,7 @@ int main(int argc, char **argv) {
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
-    op::rt::loop::init();
+    op::rt::init();
     op::rt::gpu::init();
     {
         gpu::Loop loop("chunk_strategy", "cuda", "Indirect", false, false,

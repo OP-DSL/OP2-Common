@@ -43,20 +43,20 @@ StrategyBase::StrategyBase(Loop& loop, const op::rt::loop::Point& point, KernelS
       m_block_size{point.value("block_size")}, m_offline{source.offline},
       m_cache{source.name, options().build_threads} {}
 
-op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
-    if (kind == op::rt::loop::KernelKind::offline)
-        return offline_usable() ? op::rt::loop::Estimate{true, 1.0f}
-                                : op::rt::loop::Estimate{false, {}, "kernel_unavailable"};
-    if (m_source.source.empty())
-        return {false, {}, "kernel_unavailable"};
-    bool prior = m_offline.registers() > options().min_registers;
-    return {true, prior ? 0.9f : 1.0f};
+op::rt::loop::Facts StrategyBase::facts() const {
+    op::rt::loop::Facts facts;
+    facts.offline.available = offline_usable();
+    facts.offline.reason = facts.offline.available ? "" : "kernel_unavailable";
+    facts.offline.figures = m_offline.figures();
+    facts.jit.available = !m_source.source.empty();
+    facts.jit.reason = facts.jit.available ? "" : "kernel_unavailable";
+    return facts;
 }
 
 std::string StrategyBase::statistics(const op::rt::loop::Prepared& prepared) const {
     if (prepared.kernel != nullptr)
-        return "jit, " + static_cast<JitKernel *>(prepared.kernel)->figures().text();
-    return "offline, " + m_offline.figures().text();
+        return "jit, " + describe(static_cast<JitKernel *>(prepared.kernel)->figures());
+    return "offline, " + describe(m_offline.figures());
 }
 
 void StrategyBase::begin(const op::rt::loop::Call& call) {
@@ -114,7 +114,7 @@ void StrategyBase::launch(const op::rt::loop::Prepared& prepared, LaunchContext&
 
 template<typename Launches, typename Fill>
 std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prepared,
-                                              const op::rt::loop::Launch& launch, int phases,
+                                              const op::rt::loop::RunArgs& run, int phases,
                                               int wait_before, int globals_after,
                                               Launches&& launches, Fill&& fill) {
     assert(prepared.candidate->strategy == this);
@@ -123,9 +123,9 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
     if (prepared.kernel == nullptr)
         m_loop.upload(launch_values());
     int timed_pairs = 0;
-    m_loop.run_phases(launch, phases, wait_before, globals_after, [&](int phase) {
+    m_loop.run_phases(run, phases, wait_before, globals_after, [&](int phase) {
         int count = launches(phase);
-        bool timing = launch.timed && count > 0;
+        bool timing = run.timed && count > 0;
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs), 0));
 
@@ -135,14 +135,14 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
             context.set_stride = m_call_state.sections.set_stride();
             Geometry geometry = fill(phase, index, context);
             if (geometry.blocks > 0)
-                this->launch(prepared, context, launch.args, geometry);
+                this->launch(prepared, context, run.args, geometry);
         }
 
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
     });
 
-    if (!launch.timed)
+    if (!run.timed)
         return std::nullopt;
     if (timed_pairs == 0)
         return 0.0f;
@@ -168,10 +168,10 @@ op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call& call,
 }
 
 std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
-                                 const op::rt::loop::Launch& launch) {
+                                 const op::rt::loop::RunArgs& run) {
     const auto& sections = m_call_state.sections;
     return run_phases(
-        prepared, launch, sections.size(), sections.wait_index(), sections.globals_index(),
+        prepared, run, sections.size(), sections.wait_index(), sections.globals_index(),
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
         [&](int phase, int, LaunchContext& context) {
             context.start = sections[phase].begin;
@@ -216,12 +216,12 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
 }
 
 std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::Launch& launch) {
+                                    const op::rt::loop::RunArgs& run) {
     const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     const auto& colouring = entry.colouring;
     // The core's colours come first, and run while the halo arrives.
     return run_phases(
-        prepared, launch, colouring.colours, colouring.core_colours,
+        prepared, run, colouring.colours, colouring.core_colours,
         colouring.owned_colours - 1, [](int) { return 1; },
         [&](int colour, int, LaunchContext& context) {
             context.start = colouring.offsets[static_cast<std::size_t>(colour)];
@@ -346,7 +346,7 @@ int ChunkBase::batch_blocks(const ChunkPlan& plan, int begin, int end) const {
 }
 
 std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::Launch& launch) {
+                                    const op::rt::loop::RunArgs& run) {
     const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = m_call_state.sections;
@@ -360,7 +360,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     }
 
     return run_phases(
-        prepared, launch, sections.size(), sections.wait_index(), sections.globals_index(),
+        prepared, run, sections.size(), sections.wait_index(), sections.globals_index(),
         [&](int section) { return plan.batches.batches(section); },
         [&](int section, int batch, LaunchContext& context) {
             auto [begin, end] = plan.batches.positions(section, batch);
@@ -404,7 +404,7 @@ void ChunkBase::release() {
 std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
                                                       const op::rt::loop::Point& point,
                                                       const KernelSource& source, Binder bind,
-                                                      op::rt::plan::ArgGroups groups) {
+                                                      op::rt::abi::ArgGroups groups) {
     if (family == "plain" || family == "atomics")
         return std::make_unique<Simple>(loop, point, source, bind);
     if (family == "colouring")

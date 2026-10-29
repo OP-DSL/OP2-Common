@@ -23,6 +23,7 @@
 #include "../test_support.h"
 #include "builders.h"
 
+namespace abi = op::rt::abi;
 namespace plan = op::rt::plan;
 using op::rt::loop::Sections;
 using op::test::dat_arg;
@@ -200,10 +201,10 @@ void test_colouring() {
 void test_staged_chunk_sizes() {
     Chain chain(1 << 17);
     chain.args.resize(2);
-    std::array<plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+    std::array<abi::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
     auto stage = [&](int size, std::size_t scratch, plan::StagedChunks& staged) {
         return plan::stage_chunks(chain.args, Sections::direct(&chain.edges),
-                                  plan::ArgGroups{groups, 1}, false, size, 1, scratch,
+                                  abi::ArgGroups{groups, 1}, false, size, 1, scratch,
                                   false, staged);
     };
     auto size_for = [&](int size, std::size_t scratch) {
@@ -214,9 +215,9 @@ void test_staged_chunk_sizes() {
 
     CHECK(size_for(100, 1 << 20) == 100);
     CHECK(size_for(512, 2048) == 2048 / 16);
-    CHECK(size_for(INT_MAX, std::size_t{1} << 30) == plan::max_slots / 2);
-    static_assert(plan::max_slots - 1 <=
-                  std::numeric_limits<plan::StageWord>::max());
+    CHECK(size_for(INT_MAX, std::size_t{1} << 30) == abi::max_slots / 2);
+    static_assert(abi::max_slots - 1 <=
+                  std::numeric_limits<abi::StageWord>::max());
 
     plan::StagedChunks staged;
     CHECK(stage(512, 15, staged) == "insufficient_scratch");
@@ -237,10 +238,10 @@ void test_cpu_plans() {
     CHECK(plan::updated_references(chain.args, references).empty());
     check_batches(colouring.batches, colouring.chunks, references);
 
-    std::array<plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+    std::array<abi::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
     chain.args.resize(2);
     auto staged = op::rt::cpu::plan_chunk_atomics(chain.args, sections,
-                                              plan::ArgGroups{groups, 1}, 100, 0.0);
+                                              abi::ArgGroups{groups, 1}, 100, 0.0);
     CHECK(staged);
     const auto& atomics = *staged.plan;
     CHECK(atomics.chunks.size == 100 && atomics.batches.order.empty());
@@ -250,7 +251,7 @@ void test_cpu_plans() {
     CHECK(atomics.compression > 1.9);
 
     auto rejected = op::rt::cpu::plan_chunk_atomics(chain.args, sections,
-                                                plan::ArgGroups{groups, 1}, 100, 2.5);
+                                                abi::ArgGroups{groups, 1}, 100, 2.5);
     CHECK(!rejected && rejected.rejected == "low_compression" && rejected.plan == nullptr);
     CHECK(rejected.compression > 1.9 && rejected.compression < 2.5);
 
@@ -264,7 +265,7 @@ void test_cpu_plans() {
     auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     CHECK(split.size() == 3 && split[1].size() == 0);
     auto sectioned = op::rt::cpu::plan_chunk_atomics(halo.args, split,
-                                                 plan::ArgGroups{groups, 1}, 4, 0.0);
+                                                 abi::ArgGroups{groups, 1}, 4, 0.0);
     CHECK(sectioned);
     CHECK((sectioned.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
     CHECK(op::rt::cpu::plan_chunk_colouring(halo.args, split, 4).plan->batches.batches(1) == 0);
@@ -274,7 +275,7 @@ void test_cpu_plans() {
     auto none = Sections::direct(&empty.edges);
     auto coloured_empty = op::rt::cpu::plan_chunk_colouring(empty.args, none, 4);
     auto staged_empty = op::rt::cpu::plan_chunk_atomics(empty.args, none,
-                                                    plan::ArgGroups{groups, 1}, 4, 0.0);
+                                                    abi::ArgGroups{groups, 1}, 4, 0.0);
     CHECK(coloured_empty && coloured_empty.plan->batches.count() == 0);
     CHECK(staged_empty && staged_empty.plan->batches.count() == 0);
 }

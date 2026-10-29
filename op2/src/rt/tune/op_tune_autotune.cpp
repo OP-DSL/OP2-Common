@@ -1,4 +1,5 @@
-#include <op2/rt/loop/autotune.h>
+#include <op2/rt/tune/autotune.h>
+
 #include <op2/env.h>
 
 #include <algorithm>
@@ -6,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace op::rt::loop {
+namespace op::rt::tune {
 
 // --- Options -------------------------------------------------------------------
 
@@ -18,7 +19,7 @@ AutotuneOptions options;
 
 const AutotuneOptions& autotune_options() { return options; }
 
-void init_autotune_options() {
+void init_autotune() {
     options = {};
     constexpr env::Choice modes[] = {{"off", 0}, {"0", 0},      {"no", 0},
                                      {"false", 0}, {"report", 1}, {"select", 2}};
@@ -69,8 +70,8 @@ bool Autotuner::State::explored() const {
     return any;
 }
 
-Autotuner::Decision Autotuner::choose(const Call& call,
-                                      const Prepared& selection, bool settled) {
+Autotuner::Decision Autotuner::choose(const loop::Call& call,
+                                      const loop::Prepared& selection, bool settled) {
     Decision ladder{selection};
     auto key = call.key();
     auto found = m_states.find(key);
@@ -103,12 +104,12 @@ Autotuner::Decision Autotuner::choose(const Call& call,
         if (trial.done())
             continue;
 
-        Prepared prepared = trial.candidate == selection.candidate
+        loop::Prepared prepared = trial.candidate == selection.candidate
                                 ? selection
-                                : trial.candidate->prepare(call, Urgency::now);
-        if (prepared.status == Status::pending)
+                                : trial.candidate->prepare(call, loop::Urgency::now);
+        if (prepared.status == loop::Status::pending)
             continue;
-        if (prepared.status != Status::ready) {
+        if (prepared.status != loop::Status::ready) {
             trial.live = false;
             trial.reason = prepared.reason;
             continue;
@@ -136,9 +137,9 @@ Autotuner::Decision Autotuner::choose(const Call& call,
 // An explored configuration: every strategy that ran or planned for it and
 // that neither the ladder nor the selection can run again forgets it, so
 // its plans go once no other strategy holds them.
-void Autotuner::finish(State& state, const Call& call) {
+void Autotuner::finish(State& state, const loop::Call& call) {
     state.finished = true;
-    auto kept = [&](const Strategy *strategy) {
+    auto kept = [&](const loop::Strategy *strategy) {
         for (std::size_t i = 0; i < m_ladder.size(); ++i) {
             const auto& candidate = m_ladder[i];
             if (candidate.strategy == strategy &&
@@ -147,7 +148,7 @@ void Autotuner::finish(State& state, const Call& call) {
         }
         return false;
     };
-    std::vector<Strategy *> forgotten;
+    std::vector<loop::Strategy *> forgotten;
     for (const auto& trial : state.trials) {
         auto *strategy = trial.candidate->strategy;
         if (trial.off || kept(strategy) ||
@@ -161,8 +162,8 @@ void Autotuner::finish(State& state, const Call& call) {
 // Every candidate not turned off is a trial: the ladder's choice, and every
 // other whose prepare is ready or pending; the rest are retired with their
 // reasons.  Trivial when the ladder's choice is the only one live.
-void Autotuner::add_trials(State& state, const Call& call,
-                           const Prepared& selection) {
+void Autotuner::add_trials(State& state, const loop::Call& call,
+                           const loop::Prepared& selection) {
     state.description = call.describe();
     int others = 0;
     for (std::size_t i = 0; i < m_ladder.size(); ++i) {
@@ -173,9 +174,9 @@ void Autotuner::add_trials(State& state, const Call& call,
         } else if (trial.candidate == selection.candidate) {
             trial.live = true;
         } else {
-            auto prepared = trial.candidate->prepare(call, Urgency::later);
-            trial.live = prepared.status == Status::ready ||
-                         prepared.status == Status::pending;
+            auto prepared = trial.candidate->prepare(call, loop::Urgency::later);
+            trial.live = prepared.status == loop::Status::ready ||
+                         prepared.status == loop::Status::pending;
             if (!trial.live)
                 trial.reason = prepared.reason;
             else
@@ -189,12 +190,12 @@ void Autotuner::add_trials(State& state, const Call& call,
 // What an explored configuration runs: its selected candidate when that is
 // ready, else the ladder's choice.
 Autotuner::Decision Autotuner::run_selected(const State& state,
-                                            const Call& call,
+                                            const loop::Call& call,
                                             const Decision& ladder) {
     if (state.selected == nullptr || state.selected == ladder.prepared.candidate)
         return ladder;
-    auto prepared = state.selected->prepare(call, Urgency::later);
-    if (prepared.status != Status::ready)
+    auto prepared = state.selected->prepare(call, loop::Urgency::later);
+    if (prepared.status != loop::Status::ready)
         return ladder;
     return {prepared};
 }
@@ -222,7 +223,7 @@ Autotuner::Summary Autotuner::summarise(const State& state) const {
 
 // The fastest candidate when it beats the ladder's choice by the margin;
 // none, so the ladder's choice runs, otherwise.
-const Candidate *Autotuner::winner(const Summary& summary) const {
+const loop::Candidate *Autotuner::winner(const Summary& summary) const {
     if (summary.fastest == nullptr || summary.fastest == summary.ladder)
         return nullptr;
     return summary.speedup * (1.0 - options.margin) > 1.0 ? summary.fastest->candidate
@@ -250,7 +251,7 @@ std::string Autotuner::row(const State& state, const Summary& summary,
                       median(trial.samples));
     char speedup_text[32];
     std::snprintf(speedup_text, sizeof(speedup_text), "%.3f", summary.speedup);
-    const Candidate *selected = state.selected != nullptr ? state.selected : state.ladder;
+    const loop::Candidate *selected = state.selected != nullptr ? state.selected : state.ladder;
 
     std::string text = m_ladder.name();
     for (const auto& column : {
@@ -306,4 +307,4 @@ void Autotuner::clear() {
     m_dropped = 0;
 }
 
-} // namespace op::rt::loop
+} // namespace op::rt::tune

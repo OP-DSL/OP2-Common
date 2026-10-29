@@ -6,9 +6,11 @@
 // derives its loop, prepares, combines and finishes the call's globals, and
 // times its strategies' phases.
 
-#include <op2/rt/loop/autotune.h>
-#include <op2/rt/loop/jit.h>
+#include <op2/rt/jit/params.h>
+#include <op2/rt/loop/call.h>
+#include <op2/rt/loop/ladder.h>
 #include <op2/rt/loop/strategy.h>
+#include <op2/rt/tune/autotune.h>
 #include <op_lib_core.h>
 
 #include <optional>
@@ -46,19 +48,19 @@ private:
     // candidate.  Every call counts in the parameters' statistics, whichever
     // candidate runs, so a specialised kernel meets settled modes, and the
     // tuner waits for them.
-    Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);
+    tune::Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);
 
     // Run a decision, its time a sample for the tuner when it is timed.
-    void run(const Autotuner::Decision& decision, op_arg *args, int nargs);
+    void run(const tune::Autotuner::Decision& decision, op_arg *args, int nargs);
 
     // Whether the call under way writes a global.
     bool m_global_output = false;
 
     // Wait for the call's halo exchanges.
-    void wait_halos(const Launch& launch);
+    void wait_halos(const RunArgs& run);
 
     // Combine the call's global reductions, if it writes any.
-    void process_globals(const Launch& launch);
+    void process_globals(const RunArgs& run);
 
 protected:
     std::string m_name;
@@ -68,11 +70,11 @@ protected:
     // Whether the data is on the device, for the exchange and the dirty bits.
     bool m_device;
     Ladder m_ladder;
-    std::optional<Autotuner> m_tuner;
-    ParamSet m_params;
+    std::optional<tune::Autotuner> m_tuner;
+    jit::ParamSet m_params;
 
     // Prepare the call's globals for the decision's run.
-    virtual void begin_call(const Call&, const Autotuner::Decision&, op_arg *, int) {}
+    virtual void begin_call(const Call&, const tune::Autotuner::Decision&, op_arg *, int) {}
 
     // Combine the run's partial reductions into the arguments, once the
     // elements they cover have run.
@@ -88,7 +90,7 @@ public:
         : m_name{name}, m_profile_target{profile_target},
           m_profile_variant{profile_variant}, m_direct{direct}, m_device{device},
           m_ladder{name}, m_params{name} {
-        if (autotune_options().report)
+        if (tune::autotune_options().report)
             m_tuner.emplace(m_ladder);
         register_loop(this);
     }
@@ -99,9 +101,9 @@ public:
     const std::string& name() const { return m_name; }
     Ladder& ladder() { return m_ladder; }
     const Ladder& ladder() const { return m_ladder; }
-    ParamSet& params() { return m_params; }
-    const ParamSet& params() const { return m_params; }
-    const Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
+    jit::ParamSet& params() { return m_params; }
+    const jit::ParamSet& params() const { return m_params; }
+    const tune::Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
 
     // Its specialised kernels' builds, by where they stand.
     virtual BuildCounts builds() const {
@@ -124,17 +126,17 @@ public:
     // wait_before, or after the last when it is phases, and the globals'
     // combine after phase globals_after.
     template<typename Phase>
-    void run_phases(const Launch& launch, int phases, int wait_before, int globals_after,
+    void run_phases(const RunArgs& run, int phases, int wait_before, int globals_after,
                     Phase&& phase) {
         for (int index = 0; index < phases; ++index) {
             if (index == wait_before)
-                wait_halos(launch);
+                wait_halos(run);
             phase(index);
             if (index == globals_after)
-                process_globals(launch);
+                process_globals(run);
         }
         if (phases == wait_before)
-            wait_halos(launch);
+            wait_halos(run);
     }
 
     // At op_exit, while the device is still up, once the reports are
