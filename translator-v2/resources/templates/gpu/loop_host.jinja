@@ -488,26 +488,26 @@ static void op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
 {% set m = "op2_m_%s%s" % (lh.name, variant) %}
 {% set params_rows %}
 {% if lh.args|direct(lh)|soa(lh)|length > 0 %}
-    op::rt::abi::dat_stride("op2_stride_direct_d", &{{m}}::op2_stride_direct,
+    op::rt::abi::gpu::dat_stride("op2_stride_direct_d", &{{m}}::op2_stride_direct,
         {{lh.args|direct(lh)|soa(lh)|first|attr("id")}}, &{{m}}::op2_stride_direct_d),
 {% endif %}
 {% for dat in lh.dats|soa if dat is mapped(lh) %}
-    op::rt::abi::dat_stride("op2_stride_dat{{dat.id}}_d", &{{m}}::op2_stride_dat{{dat.id}},
+    op::rt::abi::gpu::dat_stride("op2_stride_dat{{dat.id}}_d", &{{m}}::op2_stride_dat{{dat.id}},
         {{dat.arg_id}}, &{{m}}::op2_stride_dat{{dat.id}}_d),
 {% endfor %}
 {{abi.register_consts()}}
 {% for dat in lh.dats if dat.dim is none %}
-    op::rt::abi::dat_dim("op2_dim_dat{{dat.id}}_d", &{{m}}::op2_dim_dat{{dat.id}}, {{dat.arg_id}}),
+    op::rt::abi::gpu::dat_dim("op2_dim_dat{{dat.id}}_d", &{{m}}::op2_dim_dat{{dat.id}}, {{dat.arg_id}}),
 {% endfor %}
 {% for arg in lh.args|gbl|read|scalar %}
-    op::rt::abi::scalar_global("op2_gbl{{arg.id}}_d", &{{m}}::op2_gbl{{arg.id}}, {{arg.id}}),
+    op::rt::abi::gpu::scalar_global("op2_gbl{{arg.id}}_d", &{{m}}::op2_gbl{{arg.id}}, {{arg.id}}),
 {% endfor %}
 {% for arg in lh.args|gbl|read|reject("scalar") %}
-    op::rt::abi::global<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}, {{"true" if arg in gbls_by_value else "false"}}),
+    op::rt::abi::gpu::global<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}, {{"true" if arg in gbls_by_value else "false"}}),
 {% endfor %}
 {% endset %}
 {% if params_rows|trim %}
-static const op::rt::abi::Param op2_k_{{lh.name}}{{variant}}_params[] = {
+static const op::rt::abi::gpu::Param op2_k_{{lh.name}}{{variant}}_params[] = {
 {{params_rows}}};
 
 {% endif %}

@@ -9,10 +9,57 @@
 #include <op2/rt/abi/gpu/launch.h>
 #include <op_lib_core.h>
 
+#include <cstddef>
+#include <cstdint>
 #include <span>
 #include <vector>
 
 namespace op::rt::abi::gpu {
+
+// A parameter as the CUDA and HIP code registers it: what the JIT
+// specialises on, and its device side.
+struct Param {
+    abi::Param param;
+    // The copy an offline kernel reads, a __constant__ symbol, if any, and
+    // the hash of the value there, shared by every loop that reads it.
+    const void *symbol = nullptr;
+    std::uint64_t *shared_hash = nullptr;
+    // Whether every kernel has the argument by value, needing no device copy.
+    bool by_value = false;
+};
+
+template<typename T>
+constexpr Param constant(const char *name, T *data, const void *symbol,
+                         std::uint64_t *shared_hash) {
+    return {abi::constant(name, data), symbol, shared_hash};
+}
+
+template<typename T>
+constexpr Param constant(const char *name, T *data, std::size_t elems, const void *symbol,
+                         std::uint64_t *shared_hash) {
+    return {abi::constant(name, data, elems), symbol, shared_hash};
+}
+
+// Every kernel has a scalar READ global by value.
+template<typename T>
+constexpr Param scalar_global(const char *name, T *data, int arg) {
+    return {abi::scalar_global(name, data, arg), nullptr, nullptr, true};
+}
+
+// Any other READ global argument: by value, or else read by an offline
+// kernel from its device copy.
+template<typename T>
+constexpr Param global(const char *name, int arg, bool by_value) {
+    return {abi::global<T>(name, arg), nullptr, nullptr, by_value};
+}
+
+constexpr Param dat_stride(const char *name, int *data, int arg, const void *symbol) {
+    return {abi::dat_stride(name, data, arg), symbol};
+}
+
+constexpr Param dat_dim(const char *name, int *data, int arg) {
+    return {abi::dat_dim(name, data, arg)};
+}
 
 // The calls on a kernel or symbol compiled with the application, which
 // op2_kernels makes with the runtime that registered it.

@@ -31,10 +31,10 @@ op::rt::kernel::Ptr<{{(lh.dat(arg) if arg is dat else arg).typ.c()}}>{nullptr}
 {%- macro register_consts() -%}
 {% for const in lh.consts %}
     {% if const.dim == 1 %}
-    op::rt::abi::constant("op2_const_{{const.ptr}}_d", &{{const.ptr}},
+    op::rt::abi::gpu::constant("op2_const_{{const.ptr}}_d", &{{const.ptr}},
         &op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash),
     {% else %}
-    op::rt::abi::constant("op2_const_{{const.ptr}}_d", {{const.ptr}},
+    op::rt::abi::gpu::constant("op2_const_{{const.ptr}}_d", {{const.ptr}},
         sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]),
         op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash),
     {% endif %}

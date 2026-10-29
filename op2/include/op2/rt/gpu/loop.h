@@ -46,7 +46,7 @@ private:
 
     // Register a parameter, bound to the device copy an offline kernel reads
     // it from when it has one.
-    void add_param(const abi::Param& param);
+    void add_param(const abi::gpu::Param& param);
 
     // Per argument, whether the kernel that runs has it from the host side
     // and so needs no device copy of it.

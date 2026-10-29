@@ -47,12 +47,12 @@ Loop::Loop(const abi::gpu::Loop& descriptor)
 
 Loop::~Loop() { release(); }
 
-void Loop::add_param(const abi::Param& param) {
-    auto index = m_params.add(param);
+void Loop::add_param(const abi::gpu::Param& param) {
+    auto index = m_params.add(param.param);
     if (param.symbol != nullptr)
         m_symbols->bind(index, m_calls->symbol(param.symbol), param.shared_hash);
     if (param.by_value) {
-        auto arg = static_cast<std::size_t>(param.index);
+        auto arg = static_cast<std::size_t>(param.param.index);
         if (m_by_value.size() <= arg)
             m_by_value.resize(arg + 1, 0);
         m_by_value[arg] = 1;

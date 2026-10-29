@@ -50,8 +50,9 @@ template<> struct ParamTypes<float> { static constexpr ParamType value = ParamTy
 template<> struct ParamTypes<double> { static constexpr ParamType value = ParamType::f64; };
 template<> struct ParamTypes<bool> { static constexpr ParamType value = ParamType::logical; };
 
-// A parameter a loop's kernels may be specialised on, as the generated code
-// registers it: built by the functions below, one per source.
+// A parameter a loop's kernels may be specialised on, as the JIT takes it
+// (op2/rt/jit/params.h): built by the functions below, one per source, and
+// extended by a backend with its own side (op2/rt/abi/gpu/descriptor.h).
 struct Param {
     const char *name;
     ParamType type;
@@ -67,55 +68,45 @@ struct Param {
     int index;
     // Whether a specialised kernel can have it at run time.
     bool runtime;
-    // Whether every kernel has the argument by value, needing no device copy.
-    bool by_value;
-    // The copy an offline kernel reads, a __constant__ symbol, if any, and
-    // the hash of the value there, shared by every loop that reads it.
-    const void *symbol;
-    std::uint64_t *shared_hash;
 };
 
 // A constant the application sets, of elems elements when an array.
 template<typename T>
-constexpr Param constant(const char *name, T *data, const void *symbol,
-                         std::uint64_t *shared_hash) {
+constexpr Param constant(const char *name, T *data) {
     return {name, ParamTypes<T>::value, sizeof(T), ParamSource::external, data, 1, false,
-            -1, true, false, symbol, shared_hash};
+            -1, true};
 }
 
 template<typename T>
-constexpr Param constant(const char *name, T *data, std::size_t elems,
-                         const void *symbol, std::uint64_t *shared_hash) {
+constexpr Param constant(const char *name, T *data, std::size_t elems) {
     return {name, ParamTypes<T>::value, sizeof(T), ParamSource::external, data, elems,
-            true, -1, true, false, symbol, shared_hash};
+            true, -1, true};
 }
 
-// A scalar READ global argument, which every kernel has by value; data is
-// the generated code's copy of it.
+// A scalar READ global argument; data is the generated code's copy of it.
 template<typename T>
 constexpr Param scalar_global(const char *name, T *data, int arg) {
     return {name, ParamTypes<T>::value, sizeof(T), ParamSource::scalar_arg, data, 1,
-            false, arg, true, true, nullptr, nullptr};
+            false, arg, true};
 }
 
-// Any other READ global argument: by value, or else read by an offline
-// kernel from its device copy.
+// Any other READ global argument.
 template<typename T>
-constexpr Param global(const char *name, int arg, bool by_value) {
+constexpr Param global(const char *name, int arg) {
     return {name, ParamTypes<T>::value, sizeof(T), ParamSource::array_arg, nullptr, 0,
-            true, arg, true, by_value, nullptr, nullptr};
+            true, arg, true};
 }
 
 // A dat's SoA stride, through the argument arg that reaches it.
-constexpr Param dat_stride(const char *name, int *data, int arg, const void *symbol) {
+constexpr Param dat_stride(const char *name, int *data, int arg) {
     return {name, ParamType::i32, sizeof(int), ParamSource::dat_stride, data, 1, false, arg,
-            true, false, symbol, nullptr};
+            true};
 }
 
 // A dat's run-time dimension, which a specialised kernel always bakes in.
 constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {name, ParamType::i32, sizeof(int), ParamSource::dat_dim, data, 1, false, arg,
-            false, false, nullptr, nullptr};
+            false};
 }
 
 // A kernel's resources as its compiler left them: registers and local
