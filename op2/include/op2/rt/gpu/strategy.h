@@ -2,73 +2,35 @@
 
 // The CUDA and HIP strategies: each pairs a kernel with the planner it
 // needs and maps its phases onto launches.  The generated code binds each
-// launch's kernel arguments through a function it supplies.
+// launch's kernel arguments through a function it supplies, and launches an
+// offline kernel through the calls it supplies.  Defined in
+// src/rt/gpu/op_gpu_strategy.cpp.
 
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/chunk_plan.h>
 #include <op2/rt/gpu/jit.h>
+#include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/options.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/cache.h>
 #include <op2/rt/plan/colouring.h>
-#include <op_lib_cpp.h>
+#include <op_lib_core.h>
 
 #include <algorithm>
-#include <cassert>
-#include <cstdio>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace op::rt::gpu {
 
-class Loop;
-
-// What the generated bindings bind a launch's kernel arguments to.
-struct LaunchContext {
-    int global_stride = 0;
-    unsigned opt_flags = 0;
-    int start = 0;
-    int end = 0;
-    int set_stride = 0;
-    // A set colouring's elements, colour by colour.
-    const int *colour_order = nullptr;
-
-    struct {
-        const DevicePlan *plan = nullptr;
-        int chunk_begin = 0;
-        int chunk_end = 0;
-        // This section's position counter under a wavefront partition.
-        int *wave_ticket = nullptr;
-        int wave_epoch = 0;
-    } chunk;
-};
-
-// Fill a launch's kernel arguments, one list for its offline and JIT
-// kernels alike, from the context.
-using Binder = void (*)(LaunchContext& launch, op_arg *args,
-                        std::vector<void *>& arguments);
-
-
 // --- Variants -------------------------------------------------------------------
-
-// The block size a strategy runs unless OP_BLOCK_SIZES says otherwise, and
-// the offline kernels' launch bounds; a specialised kernel has its own block
-// size as launch bounds.
-constexpr int default_block_size = 128;
 
 // Every strategy's first axis: OP_<FAMILY>_BLOCK_SIZES, else OP_BLOCK_SIZES.
 // The tuner also tries 256 under HIP, and 64 and 256 under CUDA.
-inline op::rt::loop::Axis block_size_axis() {
-#ifdef OP2_HIP
-    return {"BLOCK_SIZES", "block_size", false, {default_block_size, 256}};
-#else
-    return {"BLOCK_SIZES", "block_size", false, {default_block_size, 64, 256}};
-#endif
-}
+op::rt::loop::Axis block_size_axis();
 
 // --- Plans ------------------------------------------------------------------------
 
@@ -80,10 +42,7 @@ struct ColouringPlan {
     ColouringPlan() = default;
     ColouringPlan(const ColouringPlan&) = delete;
     ColouringPlan& operator=(const ColouringPlan&) = delete;
-    ~ColouringPlan() {
-        if (order_d != nullptr)
-            GPU_CHECK(gpuFree(order_d));
-    }
+    ~ColouringPlan();
 };
 
 // A chunk plan, or why the call does not suit it, and the plan as uploaded.
@@ -92,18 +51,6 @@ struct ChunkEntry {
     std::unique_ptr<ChunkPlan> plan;
     DevicePlan device;
 };
-
-// The live plans of each kind, which every strategy that would build the
-// same one shares.
-inline op::rt::plan::SharedPlans<ColouringPlan>& colouring_plans() {
-    static op::rt::plan::SharedPlans<ColouringPlan> plans;
-    return plans;
-}
-
-inline op::rt::plan::SharedPlans<ChunkEntry>& chunk_plans() {
-    static op::rt::plan::SharedPlans<ChunkEntry> plans;
-    return plans;
-}
 
 // --- The base of every GPU strategy ------------------------------------------------
 
@@ -186,22 +133,10 @@ public:
     // specialised one when there is source, expected faster when the offline
     // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
     // tenth, until timings calibrate it).
-    op::rt::loop::Estimate estimate(op::rt::loop::KernelKind kind) const override {
-        if (kind == op::rt::loop::KernelKind::offline)
-            return offline_usable() ? op::rt::loop::Estimate{true, 1.0f}
-                                    : op::rt::loop::Estimate{false, {}, "kernel_unavailable"};
-        if (m_source.source.empty())
-            return {false, {}, "kernel_unavailable"};
-        bool prior = m_offline.registers() > options().min_registers;
-        return {true, prior ? 0.9f : 1.0f};
-    }
+    op::rt::loop::Estimate estimate(op::rt::loop::KernelKind kind) const override;
 
     // The kernel kind and its registers, local and shared memory.
-    std::string statistics(const op::rt::loop::Prepared& prepared) const override {
-        if (prepared.kernel != nullptr)
-            return "jit, " + static_cast<JitKernel *>(prepared.kernel)->figures().text();
-        return "offline, " + m_offline.figures().text();
-    }
+    std::string statistics(const op::rt::loop::Prepared& prepared) const override;
 
     const CallState& call_state() const { return m_call_state; }
 
@@ -222,12 +157,7 @@ public:
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                op::rt::loop::Urgency urgency,
-                               op::rt::loop::KernelKind kind) override {
-        begin(call);
-        for (const auto& section : m_call_state.sections.span())
-            m_call_state.max_blocks = std::max(m_call_state.max_blocks, grid(section.size()));
-        return acquire(call, urgency, kind, nullptr);
-    }
+                               op::rt::loop::KernelKind kind) override;
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::Launch& launch) override;
@@ -310,13 +240,7 @@ public:
     // every increment a generic atomic, and shared fp64 adds are
     // compare-and-swap loops.  The HIP tuner also tries it off, which some
     // loops are faster with.
-    static std::vector<op::rt::loop::Axis> axes() {
-#ifdef OP2_HIP
-        return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {1, 0}});
-#else
-        return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {0}});
-#endif
-    }
+    static std::vector<op::rt::loop::Axis> axes();
 };
 
 // Coloured chunks, then coloured elements within each, so every slot is
@@ -335,5 +259,12 @@ public:
         return chunk_axes({"WAVEFRONT", "wavefront", true, {0}});
     }
 };
+
+// A strategy of family at point, running source's kernels with arguments
+// from bind.
+std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
+                                                      const op::rt::loop::Point& point,
+                                                      const KernelSource& source, Binder bind,
+                                                      op::rt::plan::ArgGroups groups);
 
 } // namespace op::rt::gpu

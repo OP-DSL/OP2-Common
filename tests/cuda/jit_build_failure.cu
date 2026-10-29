@@ -2,9 +2,11 @@
 // the ladder runs the next, its offline kernel, and the run goes on.
 
 #define OP_KERNEL_JIT_TAG jit_build_failure_test
-#include <op2/rt/gpu/jit_embed.h>
+#include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/strategy.h>
+#include <op2/rt/kernel/gpu/launch.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -63,8 +65,8 @@ int main(int argc, char **argv) {
     setenv("OP_JIT_MIN_CALLS", "1", 1);
     op::rt::loop::init();
     op::rt::gpu::init();
-    // A broken family ahead of the working plain one.
-    const op::rt::loop::Family families[] = {{"broken", gpu::Simple::axes()},
+    // A broken family, atomics' plain strategy, ahead of the working plain one.
+    const op::rt::loop::Family families[] = {{"atomics", gpu::Simple::axes()},
                                          {"plain", gpu::Simple::axes()}};
     op::rt::loop::declare_families(families);
 
@@ -82,16 +84,14 @@ int main(int argc, char **argv) {
     {
         // A strategy with only the broken source, then a working floor.
         gpu::Loop loop("build_failure", "cuda", "Direct", true, false, headers());
-        loop.add<gpu::Simple>("broken",
-                              gpu::KernelSource{"build_failure_offline", nullptr,
-                                                broken_source},
-                              &bind);
-        loop.add<gpu::Simple>(
-            "plain",
-            gpu::KernelSource{"build_failure_offline",
-                              reinterpret_cast<const void *>(build_failure_offline),
-                              broken_source},
-            &bind);
+        loop.add("atomics", gpu::KernelSource{"build_failure_offline", {}, broken_source},
+                 &bind);
+        loop.add("plain",
+                 gpu::KernelSource{"build_failure_offline",
+                                   op::rt::kernel::gpu::offline(
+                                       reinterpret_cast<const void *>(build_failure_offline)),
+                                   broken_source},
+                 &bind);
 
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");

@@ -14,9 +14,19 @@ This directory installs as `include/op2`, the package's one include
 directory, so both spellings work the same in the source tree and once
 installed (the `op2/` tree as `include/op2/op2/`).  `op2/rt/` is the loop
 runtime, what generated code compiles against and calls to run its loops,
-with its sources under `src/rt/`.  The rest of the library includes from it
-only `op2/rt/lifecycle.h` (`scripts/check_rt_layering.sh`, the `rt_layering`
-test, checks it).
+and is split by where it is compiled:
+
+- `op2/rt/kernel/` is compiled into op2_kernels, the generated code, and
+  never into a library: the device code, and the calls on what the
+  application compiled, its offline kernels' launches, its `__constant__`
+  symbols and the OpenMP regions its bodies run in;
+- the rest of `op2/rt/` is the library's: declarations, templates and
+  one-line accessors, defined under `src/rt/`.  The generated code includes
+  from it only the backends' interfaces, `op2/rt/cpu/loop.h` and
+  `op2/rt/gpu/loop.h`.
+
+The rest of the library includes from `op2/rt/` only `op2/rt/lifecycle.h`.
+`scripts/check_rt_layering.sh`, the `rt_layering` test, checks all three.
 
 A header is header-only unless its entry names where its definitions are.
 `includes:` lists a header's direct includes from this directory.
@@ -201,13 +211,27 @@ op2/rt/plan/greedy_colour.h   (includes: op_lib_core.h; internal to the
                                planners: the greedy colouring they share)
 ```
 
-#### Translated kernels (op::rt::kernel; C++ cuda, hip and openmp, Fortran's _f2c targets)
+#### Compiled into op2_kernels (op::rt::kernel; C++ cuda, hip and openmp, Fortran's _f2c targets)
 ```
-op2/rt/kernel/prelude.h   (what a translated kernel compiles against: Ptr,
-                           Span, the Fortran intrinsics; no includes)
-op2/rt/kernel/strategy.h  (includes: op2/rt/kernel/prelude.h,
-                           op2/rt/plan/staging_layout.h; the increment hooks
-                           and the chunked strategies' device helpers)
+op2/rt/kernel/prelude.h        (what a translated kernel compiles against:
+                                Ptr, Span, the Fortran intrinsics; no
+                                includes)
+op2/rt/kernel/strategy.h       (includes: op2/rt/kernel/prelude.h,
+                                op2/rt/plan/staging_layout.h; the increment
+                                hooks and the chunked strategies' device
+                                helpers)
+op2/rt/kernel/gpu/launch.h     (includes: op2/gpu/check.h, op2/gpu/shims.h,
+                                op2/rt/gpu/loop.h; an offline kernel's
+                                attributes and launches, and the device
+                                addresses of the application's symbols, made
+                                with the runtime that registered them)
+op2/rt/kernel/gpu/jit_embed.h  (includes: extern/incbin.h; embeds the three
+                                kernel headers as text for NVRTC; define
+                                OP_KERNEL_JIT_TAG first)
+op2/rt/kernel/cpu/launch.h     (includes: op_lib_core.h, op2/rt/cpu/loop.h;
+                                the OpenMP regions a phase runs in, the body
+                                inlined: a split over the threads, or batches
+                                of chunks shared out)
 ```
 
 #### CUDA and HIP backend of the translated kernels (op::rt::gpu, sources under src/rt/gpu)
@@ -216,51 +240,61 @@ op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's and the
                             wavefront window, and the device's facts; read by
                             op_init, which declares the GPU families, from
                             src/rt/gpu/op_gpu_options.cpp)
-op2/rt/gpu/jit.h           (includes: op2/gpu/check.h, op2/gpu/shims.h,
-                            op_lib_core.h, op2/rt/gpu/options.h,
+op2/rt/gpu/loop.h          (includes: op_lib_core.h, op2/gpu/shims.h,
+                            op2/rt/loop/loop.h, op2/rt/loop/strategy.h,
+                            op2/rt/plan/staging.h; the backend's interface:
+                            the loop the generated code builds, registers its
+                            kernels, bindings and parameters on and invokes,
+                            the launch context its bindings read, and an
+                            offline kernel's calls; from
+                            src/rt/gpu/op_gpu_loop.cpp)
+op2/rt/gpu/jit.h           (includes: op2/gpu/shims.h, op2/rt/gpu/loop.h,
                             op2/rt/loop/jit.h; the JIT mechanism, whose
                             sources include op2/rt/kernel/prelude.h and
-                            op2/rt/kernel/strategy.h: offline kernels and
-                            their symbols, NVRTC or hipRTC compiles, run-time
-                            parameters as wrapper arguments or module
-                            symbols, launches)
-op2/rt/gpu/jit_embed.h     (includes: extern/incbin.h; embeds the three
-                            kernel headers as text for NVRTC; define
-                            OP_KERNEL_JIT_TAG first)
+                            op2/rt/kernel/strategy.h: offline kernels, the
+                            symbols they read, NVRTC or hipRTC compiles,
+                            run-time parameters as wrapper arguments or
+                            module symbols, launches; from
+                            src/rt/gpu/op_gpu_jit.cpp)
 op2/rt/gpu/chunk_plan.h    (includes: op2/rt/plan/chunks.h,
                             op2/rt/plan/staging.h; the chunk plans under the
                             device's limits: a block's elements, shared
-                            memory, 16-bit stage words, 8-bit colours)
-op2/rt/gpu/chunk_encode.h  (includes: op2/gpu/check.h, op2/gpu/shims.h,
-                            op2/rt/gpu/chunk_plan.h; a chunk plan uploaded as
-                            the kernels read it)
-op2/rt/gpu/strategy.h      (includes: op_lib_cpp.h, op2/rt/gpu/chunk_encode.h,
+                            memory, 16-bit stage words, 8-bit colours; from
+                            src/rt/gpu/op_gpu_chunk_plan.cpp)
+op2/rt/gpu/chunk_encode.h  (includes: op2/rt/gpu/chunk_plan.h,
+                            op2/rt/gpu/loop.h; a chunk plan uploaded as the
+                            kernels read it; from
+                            src/rt/gpu/op_gpu_chunk_encode.cpp)
+op2/rt/gpu/strategy.h      (includes: op_lib_core.h, op2/rt/gpu/chunk_encode.h,
                             op2/rt/gpu/chunk_plan.h, op2/rt/gpu/jit.h,
+                            op2/rt/gpu/loop.h, op2/rt/gpu/options.h,
                             op2/rt/loop/strategy.h, op2/rt/plan/cache.h,
                             op2/rt/plan/colouring.h; the plain, atomics,
                             colouring and chunked strategies, and their axes:
-                            block size, unstaged singles, wavefront)
-op2/rt/gpu/loop.h          (includes: op2/gpu/check.h, op_cuda_rt_support.h,
-                            op_lib_cpp.h, op_profile.h, op2/rt/gpu/jit.h,
-                            op2/rt/gpu/strategy.h, op2/rt/loop/loop.h,
-                            op2/rt/loop/strategy.h, op2/rt/plan/options.h;
-                            the loop the generated code builds, registers its
-                            parameters on and invokes)
+                            block size, unstaged singles, wavefront; from
+                            src/rt/gpu/op_gpu_strategy.cpp)
 ```
 
-#### OpenMP backend of the translated kernels (op::rt::cpu)
+#### OpenMP backend of the translated kernels (op::rt::cpu, sources under src/rt/cpu)
 ```
+op2/rt/cpu/loop.h        (includes: op_lib_core.h, op2/rt/loop/loop.h,
+                          op2/rt/loop/strategy.h, op2/rt/plan/staging.h; the
+                          backend's interface: the loop the generated code
+                          builds, registers its bodies on and invokes, what
+                          a body reads of its share, and the phase the
+                          OpenMP region runs; from
+                          src/rt/cpu/op_cpu_loop.cpp)
 op2/rt/cpu/chunk_plan.h  (includes: op2/rt/plan/chunks.h,
                           op2/rt/plan/staging.h; the chunk plans a host
-                          thread runs a chunk of on its own)
+                          thread runs a chunk of on its own; from
+                          src/rt/cpu/op_cpu_chunk_plan.cpp)
 op2/rt/cpu/strategy.h    (includes: op_lib_core.h, op2/rt/cpu/chunk_plan.h,
-                          op2/rt/loop/strategy.h, op2/rt/plan/cache.h,
-                          op2/rt/plan/colouring.h; the plain, atomics,
-                          colouring and chunked strategies over host
-                          threads, the per-thread globals, and the families
-                          the CPU libraries' op_init declares)
-op2/rt/cpu/loop.h        (includes: op2/rt/cpu/strategy.h,
-                          op2/rt/loop/loop.h, op2/rt/loop/strategy.h,
-                          op2/rt/plan/options.h; the loop the generated code
-                          builds and invokes)
+                          op2/rt/cpu/loop.h, op2/rt/loop/strategy.h,
+                          op2/rt/plan/cache.h, op2/rt/plan/colouring.h; the
+                          plain, atomics, colouring and chunked strategies
+                          over host threads, the per-thread globals, and the
+                          families the CPU libraries' op_init declares; from
+                          src/rt/cpu/op_cpu_strategy.cpp, the globals from
+                          src/rt/cpu/op_cpu_loop.cpp, the families from
+                          src/rt/cpu/op_cpu_init.cpp)
 ```

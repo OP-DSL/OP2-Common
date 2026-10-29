@@ -580,12 +580,12 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::gpu::Loop& loop) {
     loop.add_dat_stride_param("op2_stride_direct_d",
         &kernel::op2_stride_direct,
         {{lh.args|direct(lh)|soa(lh)|first|attr("id")}},
-        &kernel::op2_stride_direct_d);
+        op::rt::kernel::gpu::symbol(&kernel::op2_stride_direct_d));
 {% endif %}
 {% for dat in lh.dats|soa if dat is mapped(lh) %}
     loop.add_dat_stride_param("op2_stride_dat{{dat.id}}_d",
         &kernel::op2_stride_dat{{dat.id}}, {{dat.arg_id}},
-        &kernel::op2_stride_dat{{dat.id}}_d);
+        op::rt::kernel::gpu::symbol(&kernel::op2_stride_dat{{dat.id}}_d));
 {% endfor %}
 {{abi.register_consts()}}
 {% for dat in lh.dats if dat.dim is none %}
@@ -602,7 +602,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::gpu::Loop& loop) {
     loop.add_launch_param("op2_block_size_d", op::rt::gpu::LaunchValue::block_size);
 {% if per_thread %}
     loop.add_launch_param("op2_stride_gbl_d", op::rt::gpu::LaunchValue::global_stride,
-                          &kernel::op2_stride_gbl_d);
+                          op::rt::kernel::gpu::symbol(&kernel::op2_stride_gbl_d));
 {% endif %}
 {% if strategies|select("in", chunk_strategies)|list %}
     loop.add_launch_param("op2_unstaged_singles_d", op::rt::gpu::LaunchValue::unstaged_singles);
@@ -616,11 +616,11 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::gpu::Loop& loop) {
         {% endfor %}
     {{"}}"}};
     {% endif %}
-    loop.add<op::rt::gpu::{{"ChunkAtomics" if strategy == "chunk_atomics" else "ChunkColouring" if strategy == "chunk_colouring" else "Colouring" if strategy == "colouring" else "Simple"}}>(
+    loop.add(
         "{{strategy}}",
         op::rt::gpu::KernelSource{
             "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
-            {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
+            {{"op::rt::kernel::gpu::offline((const void *)op2_k_%s%s_%s_wrapper)" % (lh.name, variant, strategy) if strategy in offline_strategies else "{}"}},
             op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
         &op2_k_{{lh.name}}{{variant}}_bind_{{strategy}}{{"," if strategy in chunk_strategies else ");"}}
     {% if strategy in chunk_strategies %}

@@ -158,12 +158,12 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::cpu::Work& work,
                                          op_arg *args) {
     namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
 {{prologue()}}
-    const auto& staging = work.plan->staging;
+    const auto& staging = work.staging;
     const int stride = staging.stride;
-    const op::rt::plan::StageWord *const stage_words = staging.stage_words.data();
+    const op::rt::plan::StageWord *const stage_words = staging.stage_words;
     // A region's slots run from its offset to the next region's.
     const int *const op2_slots =
-        staging.slot_offsets.data() + work.chunk * {{groups.chunk_atomics.dats|length}};
+        staging.slot_offsets + work.chunk * {{groups.chunk_atomics.dats|length}};
 
     char *op2_cursor = work.scratch;
     {% for dat_id in groups.chunk_atomics.dats %}
@@ -190,11 +190,6 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::cpu::Work& work,
 }
 
 {% endif %}
-{%- macro strategy_class(strategy) -%}
-{{ {"plain": "Simple", "atomics": "Simple", "colouring": "Colouring",
-    "chunk_atomics": "ChunkAtomics", "chunk_colouring": "ChunkColouring"}[strategy] }}
-{%- endmacro -%}
-
 {%- macro body(strategy) -%}
     {%- set hook = "atomic" if strategy == "atomics" else "plain" -%}
     {%- set ordered = "true" if strategy == "colouring" else "false" -%}
@@ -217,8 +212,8 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::cpu::Loop& loop) {
     {% else %}
     {% set tail = "" %}
     {% endif %}
-    loop.add<op::rt::cpu::{{strategy_class(strategy)}}>(
-        "{{strategy}}", {{body(strategy)}}{{tail}});
+    loop.add("{{strategy}}",
+        op::rt::kernel::cpu::{{"chunks" if strategy.startswith("chunk_") else "split"}}<{{body(strategy)}}>{{tail}});
 {% endfor %}
     return true;
 }
@@ -226,7 +221,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::cpu::Loop& loop) {
 static op::rt::cpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
     static op::rt::cpu::Loop loop(
         "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
-        {{"true" if lh is direct else "false"}});
+        {{"true" if lh is direct else "false"}}, &op::rt::kernel::cpu::max_threads);
     static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
     (void)registered;
     return loop;

@@ -4,9 +4,11 @@
 // runs.
 
 #define OP_KERNEL_JIT_TAG jit_thread_limit_test
-#include <op2/rt/gpu/jit_embed.h>
+#include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/strategy.h>
+#include <op2/rt/kernel/gpu/launch.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -147,8 +149,7 @@ int main(int argc, char **argv) {
     };
     auto make = [&](gpu::Loop& jit_loop, const char *source) {
         jit_loop.add_launch_param("op2_block_size_d", gpu::LaunchValue::block_size);
-        jit_loop.add<gpu::Simple>(
-            "plain", gpu::KernelSource{"thread_limit_kernel", nullptr, source}, &bind);
+        jit_loop.add("plain", gpu::KernelSource{"thread_limit_kernel", {}, source}, &bind);
     };
 
     {

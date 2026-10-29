@@ -130,6 +130,11 @@ OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 
 OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+cuda.o \
+	rt/gpu/op_gpu_loop+cuda.o \
+	rt/gpu/op_gpu_strategy+cuda.o \
+	rt/gpu/op_gpu_jit+cuda.o \
+	rt/gpu/op_gpu_chunk_plan+cuda.o \
+	rt/gpu/op_gpu_chunk_encode+cuda.o \
 	cuda/op_cuda_decl+cuda.o \
 	cuda/op_cuda_rt_support+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
@@ -137,6 +142,11 @@ OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 
 OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+hip.o \
+	rt/gpu/op_gpu_loop+hip.o \
+	rt/gpu/op_gpu_strategy+hip.o \
+	rt/gpu/op_gpu_jit+hip.o \
+	rt/gpu/op_gpu_chunk_plan+hip.o \
+	rt/gpu/op_gpu_chunk_encode+hip.o \
 	cuda/op_cuda_decl+hip.o \
 	cuda/op_cuda_rt_support+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
@@ -152,6 +162,9 @@ OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	openmp/op_openmp_decl.o \
 	rt/cpu/op_cpu_init.o \
+	rt/cpu/op_cpu_loop.o \
+	rt/cpu/op_cpu_strategy.o \
+	rt/cpu/op_cpu_chunk_plan.o \
 	externlib/op_profile.o)
 
 OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
@@ -163,6 +176,9 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_decl.o \
 	mpi/op_mpi_rt_support.o \
 	rt/cpu/op_cpu_init.o \
+	rt/cpu/op_cpu_loop.o \
+	rt/cpu/op_cpu_strategy.o \
+	rt/cpu/op_cpu_chunk_plan.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
 	mpi/op_mpi_unified_exchanges.o \
@@ -176,6 +192,11 @@ OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 
 OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+cuda.o \
+	rt/gpu/op_gpu_loop+cuda.o \
+	rt/gpu/op_gpu_strategy+cuda.o \
+	rt/gpu/op_gpu_jit+cuda.o \
+	rt/gpu/op_gpu_chunk_plan+cuda.o \
+	rt/gpu/op_gpu_chunk_encode+cuda.o \
 	cuda/op_cuda_rt_support+mpi+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
 	mpi/op_mpi_core.o \
@@ -193,6 +214,11 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 
 OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_options+hip.o \
+	rt/gpu/op_gpu_loop+hip.o \
+	rt/gpu/op_gpu_strategy+hip.o \
+	rt/gpu/op_gpu_jit+hip.o \
+	rt/gpu/op_gpu_chunk_plan+hip.o \
+	rt/gpu/op_gpu_chunk_encode+hip.o \
 	cuda/op_cuda_rt_support+mpi+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
 	mpi/op_mpi_core.o \

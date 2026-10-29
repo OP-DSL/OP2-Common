@@ -61,6 +61,28 @@ set(_op2_rt_srcs
     "${_src}/rt/plan/op_plan_options.cpp"
 )
 
+# The OpenMP backend's runtime (src/rt/cpu): its loop, strategies and chunk
+# plans.  Built without OpenMP: the regions are the generated code's
+# (op2/rt/kernel/cpu/launch.h).
+set(_op2_rt_cpu_srcs
+    "${_src}/rt/cpu/op_cpu_init.cpp"
+    "${_src}/rt/cpu/op_cpu_loop.cpp"
+    "${_src}/rt/cpu/op_cpu_strategy.cpp"
+    "${_src}/rt/cpu/op_cpu_chunk_plan.cpp"
+)
+
+# The CUDA and HIP backend's runtime (src/rt/gpu): its options, loop,
+# strategies, JIT mechanism and chunk plans.  What touches the application's
+# kernels and symbols is the generated code's (op2/rt/kernel/gpu/launch.h).
+set(_op2_rt_gpu_srcs
+    "${_src}/rt/gpu/op_gpu_options.cpp"
+    "${_src}/rt/gpu/op_gpu_loop.cpp"
+    "${_src}/rt/gpu/op_gpu_strategy.cpp"
+    "${_src}/rt/gpu/op_gpu_jit.cpp"
+    "${_src}/rt/gpu/op_gpu_chunk_plan.cpp"
+    "${_src}/rt/gpu/op_gpu_chunk_encode.cpp"
+)
+
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
 set(_op2_core_srcs
@@ -81,13 +103,13 @@ set(_op2_backend_seq_srcs
 set(_op2_backend_openmp_srcs
     "${_src}/core/op_dummy_singlenode.cpp"
     "${_src}/openmp/op_openmp_decl.cpp"
-    "${_src}/rt/cpu/op_cpu_init.cpp"
+    ${_op2_rt_cpu_srcs}
 )
 
 # Single-node CUDA backend, shared verbatim by CUDA and HIP (HIP promotes the
 # .cu to LANGUAGE HIP via _op2_mark_cu_as_hip() and defines OP2_HIP).
 set(_op2_backend_cuda_srcs
-    "${_src}/rt/gpu/op_gpu_options.cpp"
+    ${_op2_rt_gpu_srcs}
     "${_src}/cuda/op_cuda_decl.cpp"
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
@@ -117,11 +139,11 @@ set(_op2_backend_mpi_backbone_srcs
 set(_op2_backend_mpi_cpu_overlay_srcs
     "${_src}/mpi/op_mpi_decl.cpp"
     "${_src}/mpi/op_mpi_rt_support.cpp"
-    "${_src}/rt/cpu/op_cpu_init.cpp"
+    ${_op2_rt_cpu_srcs}
 )
 
 set(_op2_backend_mpi_cuda_overlay_srcs
-    "${_src}/rt/gpu/op_gpu_options.cpp"
+    ${_op2_rt_gpu_srcs}
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
@@ -216,15 +238,22 @@ endfunction()
 
 # Generated kernels call constexpr host helpers from __global__ functions,
 # which nvcc rejects without --expt-relaxed-constexpr.
+# The JIT (src/rt/gpu/op_gpu_jit.cpp) builds through NVRTC and loads and
+# launches what it built through the driver API.
 function(_op2_configure_cuda_target tgt)
     target_compile_features(${tgt} PUBLIC cuda_std_20)
     target_compile_options(${tgt} PUBLIC
         $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:--expt-relaxed-constexpr>)
+    target_link_libraries(${tgt} PRIVATE CUDA::nvrtc CUDA::cuda_driver)
 endfunction()
 
-# HIP dialect - same C++ standard requirement, no extra flags.
+# HIP dialect - same C++ standard requirement, no extra flags.  The JIT builds
+# through hipRTC, whose module API is in the HIP runtime.
 function(_op2_configure_hip_target tgt)
     target_compile_features(${tgt} PUBLIC hip_std_20)
+    if(TARGET hip::hiprtc)
+        target_link_libraries(${tgt} PRIVATE hip::hiprtc)
+    endif()
 endfunction()
 
 function(_op2_configure_fortran_target tgt)

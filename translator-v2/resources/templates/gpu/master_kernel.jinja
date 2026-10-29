@@ -1,11 +1,12 @@
 {#- The tail of a GPU master kernel: the headers its JIT compiles embed, the
     runtime, and the loops' hosts. -#}
 #define OP_KERNEL_JIT_TAG {{tag}}
-#include <op2/rt/gpu/jit_embed.h>
+#include <op2/rt/kernel/gpu/jit_embed.h>
 
+#include <op2/rt/gpu/loop.h>
+#include <op2/rt/kernel/gpu/launch.h>
 #include <op2/rt/kernel/prelude.h>
 #include <op2/rt/kernel/strategy.h>
-#include <op2/rt/gpu/loop.h>
 
 #include <op_lib_cpp.h>
 #include <op_profile.h>

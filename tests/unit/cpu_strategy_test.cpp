@@ -5,6 +5,8 @@
 // MPI functional tests run the exec halo.
 
 #include <op2/rt/cpu/loop.h>
+#include <op2/rt/cpu/strategy.h>
+#include <op2/rt/kernel/cpu/launch.h>
 #include <op2/rt/kernel/strategy.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
@@ -72,7 +74,7 @@ void range_body(const cpu::Work& work, op_arg *args) {
 
 // A chunk accumulates into its staged slots and flushes them atomically.
 void staged_body(const cpu::Work& work, op_arg *args) {
-    const auto& staging = work.plan->staging;
+    const auto& staging = work.staging;
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
@@ -160,12 +162,13 @@ void run(const char *strategy) {
     args[5].argtype = OP_ARG_INFO;
     args[5].acc = 4;
 
-    cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", false);
+    cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", false,
+                   &op::rt::kernel::cpu::max_threads);
     op::rt::plan::ArgGroups arg_groups{groups, 1};
-    loop.add<cpu::ChunkAtomics>("chunk_atomics", &staged_body, arg_groups);
-    loop.add<cpu::Simple>("atomics", &range_body<true, false>);
-    loop.add<cpu::ChunkColouring>("chunk_colouring", &range_body<false, false>);
-    loop.add<cpu::Colouring>("colouring", &range_body<false, true>);
+    loop.add("chunk_atomics", op::rt::kernel::cpu::chunks<&staged_body>, arg_groups);
+    loop.add("atomics", op::rt::kernel::cpu::split<&range_body<true, false>>);
+    loop.add("chunk_colouring", op::rt::kernel::cpu::chunks<&range_body<false, false>>);
+    loop.add("colouring", op::rt::kernel::cpu::split<&range_body<false, true>>);
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());

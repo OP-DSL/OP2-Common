@@ -31,11 +31,11 @@ op::rt::kernel::Ptr<{{(lh.dat(arg) if arg is dat else arg).typ.c()}}>{nullptr}
 {% for const in lh.consts %}
     {% if const.dim == 1 %}
     loop.add_param("op2_const_{{const.ptr}}_d", &{{const.ptr}},
-        &op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
+        op::rt::kernel::gpu::symbol(&op2_const_{{const.ptr}}_d), &op2_const_{{const.ptr}}_hash);
     {% else %}
     loop.add_param("op2_const_{{const.ptr}}_d", {{const.ptr}},
         sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]),
-        op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash);
+        op::rt::kernel::gpu::symbol(op2_const_{{const.ptr}}_d), &op2_const_{{const.ptr}}_hash);
     {% endif %}
 {% endfor %}
 {%- endmacro -%}

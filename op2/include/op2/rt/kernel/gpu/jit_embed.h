@@ -5,7 +5,7 @@
 // JIT compile reads the OP_*_DATA macros.
 
 #ifndef OP_KERNEL_JIT_TAG
-#error "define OP_KERNEL_JIT_TAG before including op2/rt/gpu/jit_embed.h"
+#error "define OP_KERNEL_JIT_TAG before including op2/rt/kernel/gpu/jit_embed.h"
 #endif
 
 #ifndef INCBIN_STYLE

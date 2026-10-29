@@ -1,6 +1,8 @@
 // The device plan: every array a staged kernel reads is uploaded, the
 // wavefront state is zeroed, and release frees it.
 
+#include <op2/gpu/check.h>
+#include <op2/gpu/shims.h>
 #include <op2/rt/gpu/chunk_encode.h>
 
 #include <array>

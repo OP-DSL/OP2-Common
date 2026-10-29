@@ -4,17 +4,15 @@
 // device's limits: a chunk is a block's elements, its staging fits the
 // shared memory a block may use and the 16-bit stage word, and a thread
 // colour fits a byte.  Host code with no device calls; DevicePlan
-// (op2/rt/gpu/chunk_encode.h) uploads a plan as the kernels read it.
+// (op2/rt/gpu/chunk_encode.h) uploads a plan as the kernels read it.  The
+// planners are defined in src/rt/gpu/op_gpu_chunk_plan.cpp.
 
 #include <op2/rt/plan/chunks.h>
 #include <op2/rt/plan/staging.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <span>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -76,97 +74,22 @@ struct ChunkPlan {
 // too_many_colours.
 using ChunkResult = plan::PlanResult<ChunkPlan>;
 
-namespace detail {
-
-// A plan holding the staged chunks and their figures; the references and
-// targets stay in staged for the batching.
-inline std::unique_ptr<ChunkPlan> staged_plan(plan::StagedChunks& staged) {
-    auto out = std::make_unique<ChunkPlan>();
-    out->chunks = std::move(staged.chunks);
-    out->staging = std::move(staged.staging);
-    out->references = staged.targets.total_references;
-    out->distinct_targets = staged.targets.targets.size();
-    out->compression = staged.targets.compression();
-    return out;
-}
-
-// Size every batch's shared memory by its largest chunk.
-inline void size_batches(ChunkPlan& out) {
-    out.batch_scratch_bytes.clear();
-    for (int batch = 0; batch < out.batches.count(); ++batch) {
-        std::size_t bytes = 0;
-        for (int position = out.batches.batch_offsets[static_cast<std::size_t>(batch)];
-             position < out.batches.batch_offsets[static_cast<std::size_t>(batch) + 1];
-             ++position)
-            bytes = std::max(bytes, out.staging.chunk_scratch_bytes[
-                                        static_cast<std::size_t>(out.batches.chunk(position))]);
-        out.batch_scratch_bytes.push_back(bytes);
-    }
-}
-
-} // namespace detail
-
 // chunk_atomics: a section's chunks run at once and may share targets, so
 // every slot flushes with a global atomic.  A plan that barely combines
 // references is rejected, unless its single references stay unstaged: then
 // it costs little more than global atomics, since those are its singles.
-inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
-                                      const op::rt::loop::Sections& sections,
-                                      const plan::ArgGroups& groups,
-                                      const ChunkLimits& limits, bool unstaged_singles,
-                                      double min_compression) {
-    plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, false, limits.block_size,
-                                     limits.block_size, limits.shared_bytes,
-                                     unstaged_singles, staged);
-    if (!reason.empty())
-        return {reason, nullptr};
-    auto out = detail::staged_plan(staged);
-    if (!unstaged_singles && out->compression < min_compression)
-        return {"low_compression", nullptr, out->compression};
-
-    out->batches = plan::section_batches(out->chunks);
-    detail::size_batches(*out);
-    return {{}, std::move(out)};
-}
+ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
+                               const op::rt::loop::Sections& sections,
+                               const plan::ArgGroups& groups, const ChunkLimits& limits,
+                               bool unstaged_singles, double min_compression);
 
 // chunk_colouring: the chunks of a batch share no target, and a chunk's
 // elements of one thread colour neither, so every slot is seeded and stored
 // with plain loads and stores.  A wavefront plan colours window chunks at a
 // time (0: a section at once) and runs each section as one batch.
-inline ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
-                                        const op::rt::loop::Sections& sections,
-                                        const plan::ArgGroups& groups,
-                                        const ChunkLimits& limits, bool wavefront,
-                                        int window) {
-    plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, true, limits.block_size,
-                                     limits.block_size, limits.shared_bytes, false, staged);
-    if (!reason.empty())
-        return {reason, nullptr};
-    auto out = detail::staged_plan(staged);
-
-    auto colours = plan::colour_elements(out->chunks, staged.references);
-    if (colours.max > 255)
-        return {"too_many_colours", nullptr};
-    out->thread_colours.assign(static_cast<std::size_t>(sections.set_stride()), 0);
-    std::copy(colours.colours.begin(), colours.colours.end(), out->thread_colours.begin());
-    out->chunk_thread_colours = std::move(colours.counts);
-    out->max_thread_colours = colours.max;
-
-    if (wavefront) {
-        auto wave = plan::wavefront(
-            plan::colour_chunks(out->chunks, staged.targets, window),
-            staged.targets);
-        out->batches = std::move(wave.batches);
-        out->wavefront = true;
-        out->wave_pred_offsets = std::move(wave.pred_offsets);
-        out->wave_preds = std::move(wave.preds);
-    } else {
-        out->batches = plan::colour_chunks(out->chunks, staged.targets);
-    }
-    detail::size_batches(*out);
-    return {{}, std::move(out)};
-}
+ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
+                                 const op::rt::loop::Sections& sections,
+                                 const plan::ArgGroups& groups, const ChunkLimits& limits,
+                                 bool wavefront, int window);
 
 } // namespace op::rt::gpu

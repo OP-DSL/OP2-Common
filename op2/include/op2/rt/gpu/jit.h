@@ -1,25 +1,21 @@
 #pragma once
 
-// The CUDA and HIP JIT mechanism: the offline kernels and the device symbols
-// they read their parameters from, the kernels built through NVRTC or
-// hipRTC, how those have their run-time parameters, and their launches.  The
-// policy, the parameters and the build cache are op2/rt/loop/jit.h's.
+// The CUDA and HIP JIT mechanism: the device symbols the offline kernels read
+// their parameters from, the kernels built through NVRTC or hipRTC, how those
+// have their run-time parameters, and their launches.  The policy, the
+// parameters and the build cache are op2/rt/loop/jit.h's.  Defined in
+// src/rt/gpu/op_gpu_jit.cpp.
 
-#include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
-#include <op2/rt/gpu/options.h>
+#include <op2/rt/gpu/loop.h>
 #include <op2/rt/loop/jit.h>
-#include <op_lib_core.h>
 
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 namespace op::rt::gpu {
@@ -34,26 +30,6 @@ struct RuntimeSymbol {
     gpuDrvDevicePtr_t address{};
     // The uploaded value's hash; at first 0, which the zeroed symbol matches.
     std::uint64_t uploaded = 0;
-};
-
-// A kernel's resources as its compiler left them: registers and local
-// memory per thread, static shared memory per block, and the most threads a
-// block can have with them.
-struct KernelFigures {
-    int registers = 0;
-    int local_bytes = 0;
-    int shared_bytes = 0;
-    int max_threads = 0;
-
-    // "64 regs", with the local and shared memory when there is any.
-    std::string text() const {
-        std::string out = std::to_string(registers) + " regs";
-        if (local_bytes > 0)
-            out += ", " + std::to_string(local_bytes) + " B local";
-        if (shared_bytes > 0)
-            out += ", " + std::to_string(shared_bytes) + " B shared";
-        return out;
-    }
 };
 
 // A kernel built at run time, loaded on its first launch or when its figures
@@ -72,29 +48,7 @@ private:
     gpuDrvModule_t m_module;
     gpuDrvFunction_t m_kernel;
 
-    void ensure_loaded() {
-        if (m_loaded)
-            return;
-        GPU_DRV_CHECK(gpuDrvModuleLoadData(&m_module, m_cubin));
-        GPU_DRV_CHECK(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
-        auto attribute = [&](gpuDrvFuncAttribute_t which) {
-            int value = 0;
-            GPU_DRV_CHECK(gpuDrvFuncGetAttribute(&value, which, m_kernel));
-            return value;
-        };
-        m_figures = {attribute(gpuDrvFuncAttributeNumRegs),
-                     attribute(gpuDrvFuncAttributeLocalSizeBytes),
-                     attribute(gpuDrvFuncAttributeSharedSizeBytes),
-                     attribute(gpuDrvFuncAttributeMaxThreadsPerBlock)};
-        for (auto& symbol : m_symbols) {
-            std::size_t bytes = 0;
-            GPU_DRV_CHECK(gpuDrvModuleGetGlobal(&symbol.address, &bytes, m_module,
-                                                symbol.name.c_str()));
-        }
-        m_loaded = true;
-        delete[] m_cubin;
-        m_cubin = nullptr;
-    }
+    void ensure_loaded();
 
 public:
     JitKernel(const JitKernel&) = delete;
@@ -106,95 +60,36 @@ public:
 
     const std::vector<int>& baked_globals() const { return m_baked_globals; }
 
-    const KernelFigures& figures() {
-        ensure_loaded();
-        return m_figures;
-    }
+    const KernelFigures& figures();
 
     // Launch, its module's symbols first given the call's values of params.
     void launch(int num_blocks, int block_size, void **args, int shared_bytes,
-                const op::rt::loop::ParamSet& params) {
-        ensure_loaded();
-        for (auto& symbol : m_symbols) {
-            const auto& param = params[symbol.param];
-            if (param.last_hash() == symbol.uploaded)
-                continue;
-            GPU_DRV_CHECK(gpuDrvMemcpyHtoDAsync(symbol.address, param.data(),
-                                                param.bytes(), 0));
-            symbol.uploaded = param.last_hash();
-        }
-        if (shared_bytes > m_max_dynamic_shared_bytes) {
-            GPU_DRV_CHECK(gpuDrvFuncSetAttribute(
-                m_kernel, gpuDrvFuncAttributeMaxDynamicSharedMemorySize,
-                shared_bytes));
-            m_max_dynamic_shared_bytes = shared_bytes;
-        }
-        GPU_DRV_CHECK(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1,
-                                         1, shared_bytes, NULL, args, 0));
-        GPU_CHECK(gpuPeekAtLastError());
-        if (op::rt::loop::jit_options().debug)
-            GPU_CHECK(gpuStreamSynchronize(0));
-    }
+                const op::rt::loop::ParamSet& params);
 };
 
-// A strategy's kernel compiled with the application, if any.
+// A strategy's kernel compiled with the application, if any, its attributes
+// read and its launches made by op2_kernels.
 class OfflineKernel {
 private:
-    const void *m_function;
-    gpuFuncAttributes_t m_attributes{};
+    OfflineFunction m_function;
+    KernelFigures m_figures;
     int m_max_dynamic_shared_bytes = 0;
 
 public:
-    explicit OfflineKernel(const void *function) : m_function{function} {
-        if (function != nullptr)
-            GPU_CHECK(gpuFuncGetAttributes(&m_attributes, function));
-    }
+    explicit OfflineKernel(OfflineFunction function);
 
     // Whether it exists and can launch block_size threads.
     bool usable(int block_size) const {
-        return m_function != nullptr && block_size <= m_attributes.maxThreadsPerBlock;
+        return m_function.function != nullptr && block_size <= m_figures.max_threads;
     }
 
-    int registers() const { return m_attributes.numRegs; }
+    int registers() const { return m_figures.registers; }
+    const KernelFigures& figures() const { return m_figures; }
 
-    KernelFigures figures() const {
-        return {m_attributes.numRegs, static_cast<int>(m_attributes.localSizeBytes),
-                static_cast<int>(m_attributes.sharedSizeBytes),
-                m_attributes.maxThreadsPerBlock};
-    }
-
-    void launch(int num_blocks, int block_size, void **args, int shared_bytes) {
-        assert(m_function != nullptr);
-        if (shared_bytes > m_max_dynamic_shared_bytes) {
-            GPU_CHECK(gpuFuncSetAttribute(
-                m_function, gpuFuncAttributeMaxDynamicSharedMemorySize, shared_bytes));
-            m_max_dynamic_shared_bytes = shared_bytes;
-        }
-        GPU_CHECK(gpuLaunchKernel(m_function, num_blocks, block_size, args,
-                                  shared_bytes, 0));
-        GPU_CHECK(gpuPeekAtLastError());
-        if (op::rt::loop::jit_options().debug)
-            GPU_CHECK(gpuStreamSynchronize(0));
-    }
-};
-
-// What a strategy's kernel is built from: the offline function, if any, and
-// the source a specialised one is compiled from.
-struct KernelSource {
-    std::string_view name;
-    const void *offline = nullptr;
-    std::string_view source;
+    void launch(int num_blocks, int block_size, void **args, int shared_bytes);
 };
 
 // --- Parameters ---------------------------------------------------------------------
-
-// Each value a strategy fixes for its kernel, by its slot.
-enum class LaunchValue {
-    global_stride,
-    block_size,
-    unstaged_singles,
-    wavefront,
-};
 
 // What a strategy fixes for its kernel: the launch, and its variant's
 // switches.  Passed to each acquire and upload, never kept between them.
@@ -230,30 +125,10 @@ public:
         m_bindings.push_back({param, data_d, shared_hash});
     }
 
-    void upload(op::rt::loop::ParamSet& params) {
-        for (auto& binding : m_bindings) {
-            auto& param = params[binding.param];
-            auto& uploaded =
-                binding.shared_hash != nullptr ? *binding.shared_hash : binding.hash;
-            auto hash = param.hash();
-            if (hash == uploaded)
-                continue;
-            GPU_CHECK(gpuMemcpyAsync(binding.data_d, param.data(), param.bytes(),
-                                     gpuMemcpyHostToDevice));
-            uploaded = hash;
-        }
-    }
+    void upload(op::rt::loop::ParamSet& params);
 };
 
 // --- Builds -------------------------------------------------------------------------
-
-// The headers a compile includes, embedded in the translation unit.
-struct JitHeaders {
-    std::vector<const char *> data;
-    std::vector<const char *> names;
-    // Whether op_f2c_params.h, the application's constants, is among them.
-    bool params = false;
-};
 
 // Builds a loop's specialised kernels through NVRTC or hipRTC.
 class Compiler {
@@ -261,109 +136,25 @@ private:
     std::string m_loop;
     JitHeaders m_headers;
 
-    // The run-time parameters as a built kernel has them: a global as its
-    // wrapper's argument, which the source reads through op::rt::kernel::param_value;
-    // any other as a symbol of its module, added to symbols.
-    static std::string runtime_declarations(const op::rt::loop::ParamSet& params,
-                                            std::vector<RuntimeSymbol>& symbols) {
-        std::string out;
-        for (std::size_t i = 0; i < params.size(); ++i) {
-            const auto& param = params[i];
-            if (param.mode() != op::rt::loop::ParamMode::runtime)
-                continue;
-            if (param.source() == op::rt::loop::ParamSource::scalar_arg ||
-                param.source() == op::rt::loop::ParamSource::array_arg) {
-                out += "static constexpr op::rt::kernel::RuntimeParam " + param.name() + "{};\n";
-                continue;
-            }
-            out += "__constant__ ";
-            out += op::rt::loop::cxx_type(param.type());
-            out += " " + param.name();
-            if (param.array())
-                out += "[" + std::to_string(param.elems()) + "]";
-            out += ";\n";
-            symbols.push_back({i, param.name()});
-        }
-        return out;
-    }
-
-    std::unique_ptr<JitKernel> compile(const std::string& text, const std::string& name,
-                                       std::vector<RuntimeSymbol> symbols,
-                                       std::vector<int> baked_globals) const {
-        gpuRtcProgram_t prog;
-        GPU_RTC_CHECK(gpuRtcCreateProgram(
-            &prog, text.c_str(), name.c_str(),
-            static_cast<int>(m_headers.data.size()), m_headers.data.data(),
-            m_headers.names.data()));
-
-#ifdef OP2_CUDA
-        const char *opts[] = {
-            device().arch.c_str(),
-            "--std=c++20",
-#if __CUDACC_VER_MAJOR__ > 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ >= 4)
-            "--minimal",
-#endif
-            "--device-as-default-execution-space"
-        };
-#else // OP2_HIP
-        const char *opts[] = {
-            "--std=c++20",
-            "-O3",
-            "-munsafe-fp-atomics"
-        };
-#endif
-        auto success = gpuRtcCompileProgram(
-            prog, static_cast<int>(sizeof(opts) / sizeof(opts[0])), opts);
-        if (success != GPURTC_SUCCESS) {
-            size_t log_size;
-            GPU_RTC_CHECK(gpuRtcGetProgramLogSize(prog, &log_size));
-            if (log_size > 1) {
-                std::string log(log_size, '\0');
-                GPU_RTC_CHECK(gpuRtcGetProgramLog(prog, log.data()));
-                std::printf("%s\n", log.c_str());
-            }
-            std::fprintf(stderr, "error: JIT compile of %s failed (in %s)\n",
-                         name.c_str(), m_loop.c_str());
-            GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
-            return nullptr;
-        }
-
-        size_t cubin_size;
-        GPU_RTC_CHECK(gpuRtcGetCodeSize(prog, &cubin_size));
-        char *cubin = new char[cubin_size];
-        GPU_RTC_CHECK(gpuRtcGetCode(prog, cubin));
-        GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
-        return std::make_unique<JitKernel>(cubin, name, std::move(symbols),
-                                           std::move(baked_globals));
-    }
-
 public:
+    // A build of one kernel, which returns it, or none when the compile
+    // failed after printing the compiler's log.
+    struct Job {
+        const Compiler *compiler;
+        std::string text;
+        std::string name;
+        std::vector<RuntimeSymbol> symbols;
+        std::vector<int> baked_globals;
+
+        std::unique_ptr<JitKernel> operator()();
+    };
+
     Compiler(std::string_view loop, JitHeaders headers)
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
     // The job that builds source's kernel with the parameters' current
-    // values baked in, or at run time as their modes say; it prints the
-    // compiler's log and returns none when the compile fails.
-    auto job(const op::rt::loop::ParamSet& params, const KernelSource& source) const {
-        std::vector<RuntimeSymbol> symbols;
-        std::vector<int> baked_globals;
-        for (std::size_t i = 0; i < params.size(); ++i)
-            if (params[i].source() == op::rt::loop::ParamSource::array_arg &&
-                params[i].mode() == op::rt::loop::ParamMode::baked)
-                baked_globals.push_back(params[i].index());
-        std::string text = std::string("#include <op2/rt/kernel/prelude.h>\n"
-                                       "#include <op2/rt/kernel/strategy.h>\n") +
-                           (m_headers.params ? "#include <op_f2c_params.h>\n" : "") +
-                           "\n" +
-                           op::rt::loop::format_cxx(params) +
-                           runtime_declarations(params, symbols) +
-                           std::string{source.source};
-        return [this, text = std::move(text), name = std::string{source.name},
-                symbols = std::move(symbols),
-                baked_globals = std::move(baked_globals)]() mutable {
-            return compile(text, name, std::move(symbols), std::move(baked_globals));
-        };
-    }
+    // values baked in, or at run time as their modes say.
+    Job job(const op::rt::loop::ParamSet& params, const KernelSource& source) const;
 };
 
 } // namespace op::rt::gpu

@@ -18,10 +18,14 @@ foreach(_test env_test set_colouring_test plan_chunks_test plan_cache_test gpu_c
     set_tests_properties(${_test} PROPERTIES LABELS "unit")
 endforeach()
 
-# The OpenMP strategies, header-only over the same library.
-if(TARGET OpenMP::OpenMP_CXX)
+# The backends' chunk plans, host code their libraries build.
+target_sources(plan_chunks_test PRIVATE "${PROJECT_SOURCE_DIR}/op2/src/rt/cpu/op_cpu_chunk_plan.cpp")
+target_sources(gpu_chunk_plan_test PRIVATE "${PROJECT_SOURCE_DIR}/op2/src/rt/gpu/op_gpu_chunk_plan.cpp")
+
+# The OpenMP strategies, as the generated code runs them.
+if(TARGET op2_openmp)
     add_executable(cpu_strategy_test cpu_strategy_test.cpp)
-    target_link_libraries(cpu_strategy_test PRIVATE op2_seq OpenMP::OpenMP_CXX)
+    target_link_libraries(cpu_strategy_test PRIVATE op2_openmp)
     add_test(NAME cpu_strategy_test COMMAND cpu_strategy_test)
     set_tests_properties(cpu_strategy_test PROPERTIES LABELS "unit")
 endif()

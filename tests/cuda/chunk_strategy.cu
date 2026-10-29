@@ -5,9 +5,11 @@
 // opting in.  Run offline (OP_JIT_LEVEL=0) and with every kernel compiled.
 
 #define OP_KERNEL_JIT_TAG chunk_strategy_test
-#include <op2/rt/gpu/jit_embed.h>
+#include <op2/rt/kernel/gpu/jit_embed.h>
 
 #include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/strategy.h>
+#include <op2/rt/kernel/gpu/launch.h>
 #include <op2/rt/loop/jit.h>
 #include <op_lib_c.h>
 
@@ -182,18 +184,18 @@ gpu::JitHeaders headers() {
 }
 
 void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
-    loop.add<gpu::ChunkAtomics>(
-        "chunk_atomics",
-        gpu::KernelSource{"chunk_strategy_staged",
-                          reinterpret_cast<const void *>(chunk_strategy_staged),
-                          staged_source},
-        &bind_staged, fixture.groups());
-    loop.add<gpu::Simple>(
-        "atomics",
-        gpu::KernelSource{"chunk_strategy_baseline",
-                          reinterpret_cast<const void *>(chunk_strategy_baseline),
-                          baseline_source},
-        &bind_baseline);
+    loop.add("chunk_atomics",
+             gpu::KernelSource{"chunk_strategy_staged",
+                               op::rt::kernel::gpu::offline(
+                                   reinterpret_cast<const void *>(chunk_strategy_staged)),
+                               staged_source},
+             &bind_staged, fixture.groups());
+    loop.add("atomics",
+             gpu::KernelSource{"chunk_strategy_baseline",
+                               op::rt::kernel::gpu::offline(
+                                   reinterpret_cast<const void *>(chunk_strategy_baseline)),
+                               baseline_source},
+             &bind_baseline);
 }
 
 std::array<int, 9> output{};

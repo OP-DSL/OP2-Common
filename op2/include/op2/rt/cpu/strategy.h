@@ -1,57 +1,29 @@
 #pragma once
 
 // The OpenMP strategies: each schedules a loop's elements over host threads
-// and calls a body the generated code supplies for one thread's share of a
-// phase.  A body runs the translated kernel over its elements on the calling
-// thread, so the element loop is visible to the compiler.
+// in phases, which the generated code's OpenMP region runs
+// (op2/rt/kernel/cpu/launch.h), a call of its body per thread's share or per
+// chunk.  A body runs the translated kernel over its elements on the calling
+// thread, so the element loop is visible to the compiler.  Defined in
+// src/rt/cpu/op_cpu_strategy.cpp; the per-thread globals in
+// src/rt/cpu/op_cpu_loop.cpp.
 
 #include <op2/rt/cpu/chunk_plan.h>
+#include <op2/rt/cpu/loop.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/cache.h>
 #include <op2/rt/plan/colouring.h>
 #include <op_lib_core.h>
 
-#include <algorithm>
-#include <cassert>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace op::rt::cpu {
-
-class Loop;
-
-// One thread's share of a phase, as a generated body reads it.
-struct Work {
-    // The elements, or under a set colouring the positions of order.
-    int begin = 0;
-    int end = 0;
-    const int *order = nullptr;
-    // The calling thread's copy of each argument kept per thread, by
-    // argument index; null for the others.
-    char *const *globals = nullptr;
-    // chunk_atomics: the plan, the chunk and the thread's scratch.
-    const ChunkPlan *plan = nullptr;
-    int chunk = 0;
-    char *scratch = nullptr;
-
-    template<typename T>
-    T *global(int arg) const {
-        return reinterpret_cast<T *>(globals[arg]);
-    }
-};
-
-// Run one thread's share of a phase.
-using Body = void (*)(const Work& work, op_arg *args);
-
 
 // --- Per-thread globals ------------------------------------------------------------
 
@@ -60,8 +32,6 @@ using Body = void (*)(const Work& work, op_arg *args);
 // (op_arg_info), combined into the arguments once the owned elements ran.
 class Globals {
 private:
-    static constexpr std::size_t line = 64;
-
     int m_nargs = 0;
     int m_threads = 0;
     std::size_t m_stride = 0;
@@ -70,108 +40,21 @@ private:
     std::size_t m_capacity = 0;
     std::vector<char *> m_pointers;
 
-    static bool per_thread(const op_arg& arg, const op_arg *args) {
-        if (arg.argtype == OP_ARG_INFO)
-            return args[arg.acc].opt != 0;
-        return arg.opt != 0 && arg.argtype == OP_ARG_GBL &&
-               (arg.acc == OP_INC || arg.acc == OP_MIN || arg.acc == OP_MAX ||
-                arg.acc == OP_WORK);
-    }
-
     template<typename T>
-    void combine(op_arg *args, int index) const {
-        auto& arg = args[index];
-        T *result = reinterpret_cast<T *>(arg.data);
-        for (int thread = 0; thread < m_threads; ++thread) {
-            const T *value = reinterpret_cast<const T *>(
-                m_pointers[static_cast<std::size_t>(thread * m_nargs + index)]);
-            for (int d = 0; d < arg.dim; ++d) {
-                if (arg.acc == OP_INC) {
-                    result[d] += value[d];
-                    continue;
-                }
-                bool better = arg.acc == OP_MIN ? value[d] < result[d]
-                                                : value[d] > result[d];
-                if (!better)
-                    continue;
-                result[d] = value[d];
-                // The payloads travel with the thread whose value won.
-                for (int i = 0; i < m_nargs; ++i)
-                    if (args[i].argtype == OP_ARG_INFO && args[i].acc == index &&
-                        m_offsets[static_cast<std::size_t>(i)] != SIZE_MAX)
-                        std::memcpy(args[i].data,
-                                    m_pointers[static_cast<std::size_t>(
-                                        thread * m_nargs + i)],
-                                    static_cast<std::size_t>(args[i].size));
-            }
-        }
-    }
+    void combine(op_arg *args, int index) const;
 
 public:
     // Lay out and initialise every thread's copies: increments from zero,
     // the rest from the argument's value.
-    void prepare(op_arg *args, int nargs, int threads) {
-        m_nargs = nargs;
-        m_threads = threads;
-        m_offsets.assign(static_cast<std::size_t>(nargs), SIZE_MAX);
-        m_stride = 0;
-        for (int i = 0; i < nargs; ++i)
-            if (per_thread(args[i], args)) {
-                m_offsets[static_cast<std::size_t>(i)] = m_stride;
-                m_stride += (static_cast<std::size_t>(args[i].size) + line - 1) /
-                            line * line;
-            }
+    void prepare(op_arg *args, int nargs, int threads);
 
-        m_pointers.assign(static_cast<std::size_t>(threads * nargs), nullptr);
-        if (m_stride == 0)
-            return;
-
-        std::size_t bytes = m_stride * static_cast<std::size_t>(threads) + line;
-        if (m_capacity < bytes) {
-            m_storage = std::make_unique<char[]>(bytes);
-            m_capacity = bytes;
-        }
-        auto base = reinterpret_cast<std::uintptr_t>(m_storage.get());
-        char *aligned = m_storage.get() + ((line - base % line) % line);
-
-        for (int thread = 0; thread < threads; ++thread)
-            for (int i = 0; i < nargs; ++i) {
-                auto offset = m_offsets[static_cast<std::size_t>(i)];
-                if (offset == SIZE_MAX)
-                    continue;
-                char *copy = aligned + m_stride * static_cast<std::size_t>(thread) +
-                             offset;
-                auto size = static_cast<std::size_t>(args[i].size);
-                if (args[i].argtype == OP_ARG_GBL && args[i].acc == OP_INC)
-                    std::memset(copy, 0, size);
-                else
-                    std::memcpy(copy, args[i].data, size);
-                m_pointers[static_cast<std::size_t>(thread * nargs + i)] = copy;
-            }
-    }
-
-    char *const *thread(int thread) const {
-        return m_pointers.data() + static_cast<std::size_t>(thread * m_nargs);
-    }
+    // Per thread its copy of each argument, nargs apart; null for an
+    // argument not kept per thread.
+    char *const *pointers() const { return m_pointers.data(); }
+    int nargs() const { return m_nargs; }
 
     // Combine every thread's reductions into the arguments, in thread order.
-    void combine(op_arg *args, const char *loop) const {
-        for (int i = 0; i < m_nargs; ++i) {
-            const auto& arg = args[i];
-            if (m_offsets[static_cast<std::size_t>(i)] == SIZE_MAX ||
-                arg.argtype != OP_ARG_GBL || arg.acc == OP_WORK)
-                continue;
-            switch (op::rt::loop::scalar_type(arg.type)) {
-            case op::rt::loop::ScalarType::f64: combine<double>(args, i); break;
-            case op::rt::loop::ScalarType::f32: combine<float>(args, i); break;
-            case op::rt::loop::ScalarType::i32: combine<int>(args, i); break;
-            default:
-                std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n",
-                             arg.type, loop);
-                std::exit(1);
-            }
-        }
-    }
+    void combine(op_arg *args, const char *loop) const;
 };
 
 // --- Plans ------------------------------------------------------------------------
@@ -182,47 +65,25 @@ struct ChunkEntry {
     std::unique_ptr<ChunkPlan> plan;
 };
 
-// The live plans of each kind, which every strategy that would build the
-// same one shares.
-inline op::rt::plan::SharedPlans<op::rt::plan::SetColouring>& colouring_plans() {
-    static op::rt::plan::SharedPlans<op::rt::plan::SetColouring> plans;
-    return plans;
-}
-
-inline op::rt::plan::SharedPlans<ChunkEntry>& chunk_plans() {
-    static op::rt::plan::SharedPlans<ChunkEntry> plans;
-    return plans;
-}
-
 // --- The base of every OpenMP strategy ----------------------------------------------
 
 class StrategyBase : public op::rt::loop::Strategy {
 protected:
     Loop& m_loop;
     std::string m_name;
-    Body m_body;
+    Run m_run;
 
-    StrategyBase(Loop& loop, const op::rt::loop::Point& point, Body body)
-        : m_loop{loop}, m_name{point.name}, m_body{body} {}
-
-    op::rt::loop::Prepared prepared(op::rt::loop::Status status, const void *entry,
-                                std::string_view reason = {}) {
-        op::rt::loop::Prepared result;
-        result.status = status;
-        result.entry = entry;
-        result.reason = reason;
-        return result;
-    }
+    StrategyBase(Loop& loop, const op::rt::loop::Point& point, Run run)
+        : m_loop{loop}, m_name{point.name}, m_run{run} {}
 
     // Split [begin, end) over the threads, a body call each.
     void split(int begin, int end, const int *order, op_arg *args);
 
     // Run the phases of a call through the loop's, phase(index) running one
     // phase over the threads; the phases' own time when timed.
-    template<typename Phase>
+    template<typename F>
     std::optional<float> run_phases(const op::rt::loop::Launch& launch, int phases,
-                                    int wait_before, int globals_after,
-                                    Phase&& phase);
+                                    int wait_before, int globals_after, F&& phase);
 
 public:
     static std::vector<op::rt::loop::Axis> axes() { return {}; }
@@ -236,14 +97,12 @@ public:
 // for plain, atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, const op::rt::loop::Point& point, Body body)
-        : StrategyBase{loop, point, body} {}
+    Simple(Loop& loop, const op::rt::loop::Point& point, Run run)
+        : StrategyBase{loop, point, run} {}
 
-    op::rt::loop::Prepared prepare(const op::rt::loop::Call&, op::rt::loop::Urgency,
-                               op::rt::loop::KernelKind) override {
-        return prepared(op::rt::loop::Status::ready, nullptr);
-    }
-
+    op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
+                                   op::rt::loop::Urgency urgency,
+                                   op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::Launch& launch) override;
 };
@@ -256,12 +115,12 @@ private:
     op::rt::plan::PlanSlots<op::rt::plan::SetColouring> m_plans;
 
 public:
-    Colouring(Loop& loop, const op::rt::loop::Point& point, Body body)
-        : StrategyBase{loop, point, body} {}
+    Colouring(Loop& loop, const op::rt::loop::Point& point, Run run)
+        : StrategyBase{loop, point, run} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
-                               op::rt::loop::Urgency urgency,
-                               op::rt::loop::KernelKind kind) override;
+                                   op::rt::loop::Urgency urgency,
+                                   op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::Launch& launch) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
@@ -270,8 +129,8 @@ public:
 
 // --- The chunked strategies -------------------------------------------------------
 
-// A chunk plan (op2/rt/cpu/chunk_plan.h): each batch's chunks shared out over the
-// threads, a body call per chunk.  chunk_colouring's batches share no
+// A chunk plan (op2/rt/cpu/chunk_plan.h): each batch's chunks shared out over
+// the threads, a body call per chunk.  chunk_colouring's batches share no
 // target, so its chunks run the plain body over their elements;
 // chunk_atomics' chunks accumulate into the thread's scratch and flush it
 // with atomics.
@@ -282,9 +141,9 @@ protected:
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured, Body body,
+    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured, Run run,
               op::rt::plan::ArgGroups groups)
-        : StrategyBase{loop, point, body}, m_coloured{coloured}, m_groups{groups},
+        : StrategyBase{loop, point, run}, m_coloured{coloured}, m_groups{groups},
           m_chunk_size{point.value("chunk_size")} {}
 
     const ChunkEntry& entry_for(const op::rt::loop::Call& call);
@@ -296,8 +155,8 @@ public:
     }
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
-                               op::rt::loop::Urgency urgency,
-                               op::rt::loop::KernelKind kind) override;
+                                   op::rt::loop::Urgency urgency,
+                                   op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::Launch& launch) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
@@ -306,31 +165,26 @@ public:
 
 class ChunkAtomics : public ChunkBase {
 public:
-    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, Body body,
+    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, Run run,
                  op::rt::plan::ArgGroups groups)
-        : ChunkBase{loop, point, false, body, groups} {}
+        : ChunkBase{loop, point, false, run, groups} {}
 };
 
 // Conflicts come from the call's updated dats, so it needs no groups.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, const op::rt::loop::Point& point, Body body)
-        : ChunkBase{loop, point, true, body, {}} {}
+    ChunkColouring(Loop& loop, const op::rt::loop::Point& point, Run run)
+        : ChunkBase{loop, point, true, run, {}} {}
 };
 
-// Declare the families the generated code registers, each a strategy class,
-// in ladder order; the CPU libraries' op_init calls it.  An atomic increment
-// is a compare-and-swap loop on most CPUs, so chunk colouring runs over the
-// set colouring floor by default.
-inline void init() {
-    const op::rt::loop::Family families[] = {
-        {"plain", Simple::axes()},
-        {"chunk_atomics", ChunkAtomics::axes(), false},
-        {"atomics", Simple::axes(), false},
-        {"chunk_colouring", ChunkColouring::axes()},
-        {"colouring", Colouring::axes()},
-    };
-    op::rt::loop::declare_families(families);
-}
+// A strategy of family at point, running its phases through run.
+std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
+                                                      const op::rt::loop::Point& point,
+                                                      Run run,
+                                                      op::rt::plan::ArgGroups groups);
+
+// Declare the families the generated code registers, in ladder order; the
+// CPU libraries' op_init calls it.
+void init();
 
 } // namespace op::rt::cpu
