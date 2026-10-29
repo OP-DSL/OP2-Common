@@ -1,11 +1,14 @@
 #pragma once
 
-// The CUDA and HIP strategies: each pairs a kernel with the planner it
-// needs and maps its phases onto launches.  The generated code binds each
-// launch's kernel arguments through a function it supplies, and launches an
-// offline kernel through the calls it supplies.  Defined in
+// The CUDA and HIP strategies: each pairs a family's kernel with the planner
+// it needs and maps its phases onto launches, each given a launch record
+// (op2/rt/abi/gpu/launch.h).  The generated code binds the loop's arguments
+// through a function it supplies, and launches an offline kernel through the
+// calls it supplies.  Defined in
 // src/rt/gpu/op_gpu_strategy.cpp.
 
+#include <op2/rt/abi/gpu/descriptor.h>
+#include <op2/rt/abi/gpu/launch.h>
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/chunk_plan.h>
 #include <op2/rt/gpu/jit.h>
@@ -73,8 +76,7 @@ protected:
 
     Loop& m_loop;
     std::string m_name;
-    KernelSource m_source;
-    Binder m_bind;
+    const abi::gpu::Family& m_family;
     int m_block_size;
     // The chunked strategies' switches, constants to every kernel of the
     // loop.
@@ -84,8 +86,8 @@ protected:
     op::rt::jit::Cache<JitKernel> m_cache;
     CallState m_call_state;
 
-    StrategyBase(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-                 Binder bind);
+    StrategyBase(Loop& loop, const op::rt::loop::Point& point,
+                 const abi::gpu::Family& family);
 
     // This strategy's values for its kernel, from the call being prepared.
     LaunchValues launch_values() const {
@@ -111,14 +113,16 @@ protected:
                                op::rt::loop::Urgency urgency, op::rt::loop::KernelKind kind,
                                const void *entry);
 
-    // Bind and launch one kernel.
-    void launch(const op::rt::loop::Prepared& prepared, LaunchContext& context,
-                op_arg *args, Geometry geometry);
+    // Launch one kernel with record.
+    template<typename Record>
+    void launch(const op::rt::loop::Prepared& prepared, Record& record, op_arg *args,
+                Geometry geometry);
 
     // Run the phases of a call through the loop's, each phase's launches
     // bracketed by an event pair when timed.  launches(phase) gives the
-    // launch count, fill(phase, launch, context) the context and geometry.
-    template<typename Launches, typename Fill>
+    // launch count, fill(phase, launch, record) the launch's record of type
+    // Record past its strides, and its geometry.
+    template<typename Record, typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::RunArgs& run, int phases,
                                     int wait_before, int globals_after,
@@ -149,9 +153,8 @@ public:
 // increments: none for plain, global atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-           Binder bind)
-        : StrategyBase{loop, point, source, bind} {}
+    Simple(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : StrategyBase{loop, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                op::rt::loop::Urgency urgency,
@@ -169,9 +172,8 @@ private:
     op::rt::plan::PlanSlots<ColouringPlan> m_plans;
 
 public:
-    Colouring(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-              Binder bind)
-        : StrategyBase{loop, point, source, bind} {}
+    Colouring(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : StrategyBase{loop, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                op::rt::loop::Urgency urgency,
@@ -194,9 +196,8 @@ protected:
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured,
-              KernelSource source, Binder bind, op::rt::abi::ArgGroups groups)
-        : StrategyBase{loop, point, source, bind}, m_coloured{coloured},
-          m_groups{groups} {}
+              const abi::gpu::Family& family)
+        : StrategyBase{loop, point, family}, m_coloured{coloured}, m_groups{family.groups} {}
 
     // The block size, which is also the chunk size, and the strategy's
     // switch.
@@ -225,9 +226,8 @@ public:
 // Increments staged in shared memory and flushed with global atomics.
 class ChunkAtomics : public ChunkBase {
 public:
-    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-                 Binder bind, op::rt::abi::ArgGroups groups)
-        : ChunkBase{loop, point, false, source, bind, groups} {
+    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : ChunkBase{loop, point, false, family} {
         m_unstaged_singles = point.value("singles") != 0;
     }
 
@@ -245,9 +245,9 @@ public:
 // seeded and stored with plain loads and stores.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-                   Binder bind, op::rt::abi::ArgGroups groups)
-        : ChunkBase{loop, point, true, source, bind, groups} {
+    ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
+                   const abi::gpu::Family& family)
+        : ChunkBase{loop, point, true, family} {
         m_wavefront = point.value("wavefront") != 0;
     }
 
@@ -258,11 +258,8 @@ public:
     }
 };
 
-// A strategy of family at point, running source's kernels with arguments
-// from bind.
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
-                                                      const op::rt::loop::Point& point,
-                                                      const KernelSource& source, Binder bind,
-                                                      op::rt::abi::ArgGroups groups);
+// A strategy of family at point.
+std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::gpu::Family& family,
+                                                      const op::rt::loop::Point& point);
 
 } // namespace op::rt::gpu

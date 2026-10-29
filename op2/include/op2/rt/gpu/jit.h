@@ -7,7 +7,8 @@
 // src/rt/gpu/op_gpu_jit.cpp.
 
 #include <op2/gpu/shims.h>
-#include <op2/rt/gpu/loop.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/abi/gpu/descriptor.h>
 #include <op2/rt/jit/cache.h>
 #include <op2/rt/jit/params.h>
 
@@ -75,16 +76,17 @@ public:
 // read and its launches made by op2_kernels.
 class OfflineKernel {
 private:
-    OfflineFunction m_function;
+    const void *m_function;
+    const abi::gpu::OfflineCalls *m_calls;
     op::rt::abi::KernelFigures m_figures;
     int m_max_dynamic_shared_bytes = 0;
 
 public:
-    explicit OfflineKernel(OfflineFunction function);
+    OfflineKernel(const void *function, const abi::gpu::OfflineCalls *calls);
 
     // Whether it exists and can launch block_size threads.
     bool usable(int block_size) const {
-        return m_function.function != nullptr && block_size <= m_figures.max_threads;
+        return m_function != nullptr && block_size <= m_figures.max_threads;
     }
 
     int registers() const { return m_figures.registers; }
@@ -94,6 +96,16 @@ public:
 };
 
 // --- Parameters ---------------------------------------------------------------------
+
+// Each value a strategy fixes for its kernel, by its slot: a specialised
+// kernel's constants op2_stride_gbl_d, op2_block_size_d,
+// op2_unstaged_singles_d and op2_wavefront_d.
+enum class LaunchValue {
+    global_stride,
+    block_size,
+    unstaged_singles,
+    wavefront,
+};
 
 // What a strategy fixes for its kernel: the launch, and its variant's
 // switches.  Passed to each acquire and upload, never kept between them.
@@ -138,7 +150,7 @@ public:
 class Compiler {
 private:
     std::string m_loop;
-    JitHeaders m_headers;
+    abi::gpu::JitHeaders m_headers;
 
 public:
     // A build of one kernel, which returns it, or none when the compile
@@ -153,12 +165,12 @@ public:
         std::unique_ptr<JitKernel> operator()();
     };
 
-    Compiler(std::string_view loop, JitHeaders headers)
+    Compiler(std::string_view loop, abi::gpu::JitHeaders headers)
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
-    // The job that builds source's kernel with the parameters' current
-    // values baked in, or at run time as their modes say.
-    Job job(const op::rt::jit::ParamSet& params, const KernelSource& source) const;
+    // The job that builds family's kernel with the parameters' current values
+    // baked in, or at run time as their modes say.
+    Job job(const op::rt::jit::ParamSet& params, const abi::gpu::Family& family) const;
 };
 
 } // namespace op::rt::gpu

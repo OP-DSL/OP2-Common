@@ -10,13 +10,11 @@
 #    itself;
 #  - the generated code includes from op2/rt only op2/rt/abi and
 #    op2/rt/kernel.
-# Until the generated code describes its loops, it and op2/rt/kernel also
-# include the backends' loops (op2/rt/{cpu,gpu}/loop.h).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 include='^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/rt/'
-contract='[<"]op2/rt/(abi|kernel)/|[<"]op2/rt/(cpu|gpu)/loop\.h[>"]'
+contract='[<"]op2/rt/(abi|kernel)/'
 status=0
 
 report() {

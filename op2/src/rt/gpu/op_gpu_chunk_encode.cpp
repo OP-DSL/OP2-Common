@@ -42,6 +42,20 @@ void release(T *&pointer) {
 
 } // namespace
 
+void DevicePlan::fill(abi::gpu::Chunk& record) const {
+    record.source_offsets = source_offsets;
+    record.stage_words = stage_words;
+    record.stage_counts = stage_counts;
+    record.slot_offsets = slot_offsets;
+    record.slot_targets = slot_targets;
+    record.chunk_order = chunk_order;
+    record.thread_colours = thread_colours;
+    record.chunk_thread_colours = chunk_thread_colours;
+    record.wave_pred_offsets = wave_pred_offsets;
+    record.wave_preds = wave_preds;
+    record.wave_done = wave_done;
+}
+
 DevicePlan& DevicePlan::operator=(DevicePlan&& other) noexcept {
     if (this != &other) {
         release();

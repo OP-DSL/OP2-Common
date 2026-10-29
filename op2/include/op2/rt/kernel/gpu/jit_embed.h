@@ -22,6 +22,7 @@
 
 OP_KERNEL_JIT_EMBED(op_kernel_prelude_, "op2/rt/kernel/prelude.h");
 OP_KERNEL_JIT_EMBED(op_abi_staging_, "op2/rt/abi/staging.h");
+OP_KERNEL_JIT_EMBED(op_abi_launch_, "op2/rt/abi/gpu/launch.h");
 OP_KERNEL_JIT_EMBED(op_kernel_inc_, "op2/rt/kernel/inc.h");
 OP_KERNEL_JIT_EMBED(op_kernel_staging_, "op2/rt/kernel/staging.h");
 OP_KERNEL_JIT_EMBED(op_kernel_wavefront_, "op2/rt/kernel/gpu/wavefront.h");
@@ -33,21 +34,21 @@ OP_KERNEL_JIT_EMBED(op_kernel_wavefront_, "op2/rt/kernel/gpu/wavefront.h");
 // when the unit embedded one as OP_KERNEL_PARAMS.
 #define OP_KERNEL_JIT_KERNEL_DATA                                                  \
     OP_KERNEL_JIT_DATA(op_kernel_prelude_), OP_KERNEL_JIT_DATA(op_abi_staging_),   \
-        OP_KERNEL_JIT_DATA(op_kernel_inc_), OP_KERNEL_JIT_DATA(op_kernel_staging_), \
-        OP_KERNEL_JIT_DATA(op_kernel_wavefront_)
+        OP_KERNEL_JIT_DATA(op_abi_launch_), OP_KERNEL_JIT_DATA(op_kernel_inc_),     \
+        OP_KERNEL_JIT_DATA(op_kernel_staging_), OP_KERNEL_JIT_DATA(op_kernel_wavefront_)
 #define OP_KERNEL_JIT_KERNEL_NAMES                                                 \
-    "op2/rt/kernel/prelude.h", "op2/rt/abi/staging.h", "op2/rt/kernel/inc.h",     \
-        "op2/rt/kernel/staging.h", "op2/rt/kernel/gpu/wavefront.h"
+    "op2/rt/kernel/prelude.h", "op2/rt/abi/staging.h", "op2/rt/abi/gpu/launch.h", \
+        "op2/rt/kernel/inc.h", "op2/rt/kernel/staging.h", "op2/rt/kernel/gpu/wavefront.h"
 
 #ifdef OP_KERNEL_PARAMS
 #define OP_KERNEL_JIT_HEADERS                                                      \
-    ::op::rt::gpu::JitHeaders {                                                    \
+    ::op::rt::abi::gpu::JitHeaders {                                               \
         {OP_KERNEL_JIT_KERNEL_DATA, OP_KERNEL_PARAMS_DATA},                        \
         {OP_KERNEL_JIT_KERNEL_NAMES, "op_f2c_params.h"}                            \
     }
 #else
 #define OP_KERNEL_JIT_HEADERS                                                      \
-    ::op::rt::gpu::JitHeaders {                                                    \
+    ::op::rt::abi::gpu::JitHeaders {                                               \
         {OP_KERNEL_JIT_KERNEL_DATA}, {OP_KERNEL_JIT_KERNEL_NAMES}                  \
     }
 #endif

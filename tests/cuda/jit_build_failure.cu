@@ -16,7 +16,8 @@
 #include <string>
 #include <vector>
 
-extern "C" __global__ void build_failure_offline(int *result, int value) {
+extern "C" __global__ void build_failure_offline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM)
+                                                 int *result, int value) {
     if (threadIdx.x == 0 && blockIdx.x == 0)
         result[0] = value;
 }
@@ -26,7 +27,8 @@ namespace {
 namespace gpu = op::rt::gpu;
 
 constexpr char broken_source[] = R"op2(
-extern "C" __global__ void build_failure_offline(int *result, int value) {
+extern "C" __global__ void build_failure_offline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM)
+                                                 int *result, int value) {
     this does not compile;
 }
 )op2";
@@ -34,11 +36,9 @@ extern "C" __global__ void build_failure_offline(int *result, int value) {
 int *output_d = nullptr;
 int value = 0;
 
-void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
-    arguments = {&output_d, &value};
+void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
+    arguments.insert(arguments.end(), {(void *)&output_d, (void *)&value});
 }
-
-gpu::JitHeaders headers() { return OP_KERNEL_JIT_HEADERS; }
 
 // The kernel's result after one call of loop.
 int run(gpu::Loop& loop, op_set_core& set, std::array<op_arg, 1>& args, int call) {
@@ -80,15 +80,15 @@ int main(int argc, char **argv) {
     bool passed = true;
     {
         // A strategy with only the broken source, then a working floor.
-        gpu::Loop loop("build_failure", "cuda", "Direct", true, false, headers());
-        loop.add("atomics", gpu::KernelSource{"build_failure_offline", {}, broken_source},
-                 &bind);
-        loop.add("plain",
-                 gpu::KernelSource{"build_failure_offline",
-                                   op::rt::kernel::gpu::offline(
-                                       reinterpret_cast<const void *>(build_failure_offline)),
-                                   broken_source},
-                 &bind);
+        const op::rt::abi::gpu::Family kernels[] = {
+            {"atomics", "build_failure_offline", nullptr, broken_source, {}},
+            {"plain", "build_failure_offline",
+             reinterpret_cast<const void *>(build_failure_offline), broken_source, {}},
+        };
+        op::rt::abi::gpu::Loop descriptor{"build_failure", "cuda", "Direct", true, false,
+                                          false, {}, kernels, &bind,
+                                          &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
+        gpu::Loop loop(descriptor);
 
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");

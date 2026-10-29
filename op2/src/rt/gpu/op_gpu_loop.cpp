@@ -5,65 +5,85 @@
 #include <op2/rt/gpu/strategy.h>
 #include <op_cuda_rt_support.h>
 
+#include <memory>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace op::rt::gpu {
 
-Loop::Loop(std::string_view name, std::string_view profile_target,
-           std::string_view profile_variant, bool direct, bool gbl_inc_atomic,
-           JitHeaders headers)
-    : op::rt::loop::Loop{name, profile_target, profile_variant, direct, true},
-      m_gbl_inc_atomic{gbl_inc_atomic}, m_symbols{std::make_unique<SymbolBindings>()},
-      m_compiler{std::make_unique<Compiler>(name, std::move(headers))} {}
+Loop::Loop(const abi::gpu::Loop& descriptor)
+    : op::rt::loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
+                         descriptor.direct, true},
+      m_gbl_inc_atomic{descriptor.gbl_inc_atomic}, m_bind{descriptor.bind},
+      m_calls{descriptor.calls}, m_symbols{std::make_unique<SymbolBindings>()},
+      m_compiler{std::make_unique<Compiler>(descriptor.name, descriptor.headers)} {
+    for (const auto& param : descriptor.params)
+        add_param(param);
+
+    // The strategies' values, each a constant of a specialised kernel: the
+    // global stride when a kernel keeps a copy per thread of some global, and
+    // the chunked strategies' switches when the loop has one.
+    auto strategy_param = [&](const char *name, LaunchValue value) {
+        m_params.add(name, static_cast<int *>(nullptr), abi::ParamSource::strategy,
+                     static_cast<int>(value));
+    };
+    strategy_param("op2_block_size_d", LaunchValue::block_size);
+    if (descriptor.per_thread_globals)
+        strategy_param("op2_stride_gbl_d", LaunchValue::global_stride);
+    bool chunked = false;
+    for (const auto& family : descriptor.families)
+        chunked |= std::string_view{family.name}.starts_with("chunk_");
+    if (chunked) {
+        strategy_param("op2_unstaged_singles_d", LaunchValue::unstaged_singles);
+        strategy_param("op2_wavefront_d", LaunchValue::wavefront);
+    }
+
+    for (const auto& family : descriptor.families)
+        m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {
+            return make_strategy(*this, family, point);
+        });
+}
 
 Loop::~Loop() { release(); }
 
-// --- Registration ---
-
-void Loop::bind(std::size_t param, void *symbol_d, std::uint64_t *shared_hash) {
-    if (symbol_d != nullptr)
-        m_symbols->bind(param, symbol_d, shared_hash);
-}
-
-void Loop::mark_by_value(int arg_index) {
-    if (m_by_value.size() <= static_cast<std::size_t>(arg_index))
-        m_by_value.resize(static_cast<std::size_t>(arg_index) + 1, 0);
-    m_by_value[static_cast<std::size_t>(arg_index)] = 1;
-}
-
-void Loop::add(std::string_view family, KernelSource source, Binder bind,
-               op::rt::abi::ArgGroups groups) {
-    m_ladder.add(family, [&](const op::rt::loop::Point& point) {
-        return make_strategy(*this, family, point, source, bind, groups);
-    });
-}
-
-void Loop::add_dat_stride_param(std::string_view name, int *data, int arg_index,
-                                void *symbol_d) {
-    bind(m_params.add(name, data, op::rt::abi::ParamSource::dat_stride, arg_index, true),
-         symbol_d, nullptr);
-}
-
-void Loop::add_dat_dim_param(std::string_view name, int *data, int arg_index) {
-    m_params.add(name, data, op::rt::abi::ParamSource::dat_dim, arg_index);
-}
-
-void Loop::add_launch_param(std::string_view name, LaunchValue value, void *symbol_d) {
-    bind(m_params.add(name, static_cast<int *>(nullptr), op::rt::abi::ParamSource::strategy,
-                      static_cast<int>(value)),
-         symbol_d, nullptr);
+void Loop::add_param(const abi::Param& param) {
+    auto index = m_params.add(param);
+    if (param.symbol != nullptr)
+        m_symbols->bind(index, m_calls->symbol(param.symbol), param.shared_hash);
+    if (param.by_value) {
+        auto arg = static_cast<std::size_t>(param.index);
+        if (m_by_value.size() <= arg)
+            m_by_value.resize(arg + 1, 0);
+        m_by_value[arg] = 1;
+    }
 }
 
 // --- For the strategies ---
 
-void Loop::upload(const LaunchValues& launch) {
-    m_params.apply(launch.slots());
-    m_symbols->upload(m_params);
-}
+void Loop::upload() { m_symbols->upload(m_params); }
 
 int Loop::block_limit(op_arg *args, int nargs, int block_size) const {
     return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(), m_gbl_inc_atomic);
 }
+
+#define OP_GPU_ARGUMENT(type, name, qualifier) m_arguments.push_back(&record.name);
+
+void **Loop::arguments(abi::gpu::Range& record, op_arg *args) {
+    m_arguments.clear();
+    OP_ABI_GPU_RANGE_FIELDS(OP_GPU_ARGUMENT)
+    m_bind(args, record.opt_flags, m_arguments);
+    return m_arguments.data();
+}
+
+void **Loop::arguments(abi::gpu::Chunk& record, op_arg *args) {
+    m_arguments.clear();
+    OP_ABI_GPU_CHUNK_FIELDS(OP_GPU_ARGUMENT)
+    m_bind(args, record.opt_flags, m_arguments);
+    return m_arguments.data();
+}
+
+#undef OP_GPU_ARGUMENT
 
 gpuEvent_t Loop::event(std::size_t index) {
     while (m_events.size() <= index) {
@@ -114,3 +134,26 @@ void Loop::end_call() {
 }
 
 } // namespace op::rt::gpu
+
+namespace op::rt::abi::gpu {
+
+namespace {
+
+// The loops made, which live as long as the program.
+std::vector<std::unique_ptr<op::rt::gpu::Loop>>& loops() {
+    static std::vector<std::unique_ptr<op::rt::gpu::Loop>> made;
+    return made;
+}
+
+} // namespace
+
+void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
+    auto *runtime = static_cast<op::rt::gpu::Loop *>(loop.runtime);
+    if (runtime == nullptr) {
+        runtime = loops().emplace_back(std::make_unique<op::rt::gpu::Loop>(loop)).get();
+        loop.runtime = runtime;
+    }
+    runtime->invoke(set, args, nargs);
+}
+
+} // namespace op::rt::abi::gpu

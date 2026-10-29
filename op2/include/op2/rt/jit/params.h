@@ -23,14 +23,6 @@
 
 namespace op::rt::jit {
 
-// A parameter element type's ParamType.
-template<typename T> struct ParamTypes {};
-template<> struct ParamTypes<int>     { static const abi::ParamType value = abi::ParamType::i32; };
-template<> struct ParamTypes<int64_t> { static const abi::ParamType value = abi::ParamType::i64; };
-template<> struct ParamTypes<float>   { static const abi::ParamType value = abi::ParamType::f32; };
-template<> struct ParamTypes<double>  { static const abi::ParamType value = abi::ParamType::f64; };
-template<> struct ParamTypes<bool>    { static const abi::ParamType value = abi::ParamType::logical; };
-
 // How a specialised kernel has a parameter: compiled in, or given at run
 // time.
 enum class ParamMode {
@@ -61,14 +53,12 @@ private:
     std::uint64_t m_hash = 0;
 
 public:
-    // A parameter of elems elements, read from data; an array_arg's data
-    // and elements are each call's.
-    template<typename T>
-    Param(std::string_view name, T *data, std::size_t elems, bool array,
-          abi::ParamSource source, int index)
-        : m_name{name}, m_data{data}, m_elems{elems}, m_elem_size{sizeof(T)},
-          m_array{array}, m_type{ParamTypes<T>::value}, m_source{source},
-          m_index{index} {}
+    // A parameter of elems elements of type, each elem_size bytes, read from
+    // data; an array_arg's data and elements are each call's.
+    Param(std::string_view name, abi::ParamType type, std::size_t elem_size, void *data,
+          std::size_t elems, bool array, abi::ParamSource source, int index)
+        : m_name{name}, m_data{data}, m_elems{elems}, m_elem_size{elem_size},
+          m_array{array}, m_type{type}, m_source{source}, m_index{index} {}
 
     const std::string& name() const { return m_name; }
     abi::ParamType type() const { return m_type; }
@@ -200,12 +190,22 @@ public:
     explicit ParamSet(std::string_view loop = {}) : m_loop{loop} {}
     ParamSet(const ParamSet&) = delete;
 
-    // Add a scalar parameter, its mode settled by the policy; runtime is
-    // whether the mechanism can give it at run time.  Its index.
+    // Add a parameter as the generated code describes it, its mode settled
+    // by the policy.  Its index.
+    std::size_t add(const abi::Param& param) {
+        return insert(Param{param.name, param.type, param.elem_size, param.data, param.elems,
+                            param.array, param.source, param.index},
+                      param.runtime);
+    }
+
+    // Add a scalar parameter; runtime is whether the mechanism can give it at
+    // run time.
     template<typename T>
     std::size_t add(std::string_view name, T *data, abi::ParamSource source,
                     int index = -1, bool runtime = false) {
-        return insert(Param{name, data, 1, false, source, index}, runtime);
+        return insert(Param{name, abi::ParamTypes<T>::value, sizeof(T), data, 1, false,
+                            source, index},
+                      runtime);
     }
 
     // Add an array of elems elements, or of the call's dimension for an
@@ -213,7 +213,9 @@ public:
     template<typename T>
     std::size_t add_array(std::string_view name, T *data, std::size_t elems,
                           abi::ParamSource source, int index = -1, bool runtime = false) {
-        return insert(Param{name, data, elems, true, source, index}, runtime);
+        return insert(Param{name, abi::ParamTypes<T>::value, sizeof(T), data, elems, true,
+                            source, index},
+                      runtime);
     }
 
     std::size_t size() const { return m_params.size(); }

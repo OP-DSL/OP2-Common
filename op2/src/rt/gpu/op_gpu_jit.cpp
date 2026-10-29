@@ -72,19 +72,19 @@ void JitKernel::launch(int num_blocks, int block_size, void **args, int shared_b
         GPU_CHECK(gpuStreamSynchronize(0));
 }
 
-OfflineKernel::OfflineKernel(OfflineFunction function) : m_function{function} {
-    if (function.function != nullptr)
-        m_figures = function.calls->figures(function.function);
+OfflineKernel::OfflineKernel(const void *function, const abi::gpu::OfflineCalls *calls)
+    : m_function{function}, m_calls{calls} {
+    if (function != nullptr)
+        m_figures = calls->figures(function);
 }
 
 void OfflineKernel::launch(int num_blocks, int block_size, void **args, int shared_bytes) {
-    assert(m_function.function != nullptr);
+    assert(m_function != nullptr);
     if (shared_bytes > m_max_dynamic_shared_bytes) {
-        m_function.calls->allow_shared(m_function.function, shared_bytes);
+        m_calls->allow_shared(m_function, shared_bytes);
         m_max_dynamic_shared_bytes = shared_bytes;
     }
-    m_function.calls->launch(m_function.function, num_blocks, block_size, args,
-                             shared_bytes);
+    m_calls->launch(m_function, num_blocks, block_size, args, shared_bytes);
     if (op::rt::jit::options().debug)
         GPU_CHECK(gpuStreamSynchronize(0));
 }
@@ -138,7 +138,7 @@ std::string runtime_declarations(const op::rt::jit::ParamSet& params,
 } // namespace
 
 Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params,
-                            const KernelSource& source) const {
+                            const abi::gpu::Family& family) const {
     std::vector<RuntimeSymbol> symbols;
     std::vector<int> baked_globals;
     for (std::size_t i = 0; i < params.size(); ++i)
@@ -149,8 +149,8 @@ Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params,
     for (const char *name : m_headers.names)
         text += std::string{"#include <"} + name + ">\n";
     text += "\n" + op::rt::jit::format_cxx(params) + runtime_declarations(params, symbols) +
-            std::string{source.source};
-    return {this, std::move(text), std::string{source.name}, std::move(symbols),
+            std::string{family.source};
+    return {this, std::move(text), std::string{family.kernel}, std::move(symbols),
             std::move(baked_globals)};
 }
 

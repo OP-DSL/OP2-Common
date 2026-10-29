@@ -2,10 +2,10 @@
 
 // The OpenMP regions the strategies' phases run in, compiled into op2_kernels
 // with the body each runs, which so inlines into it.  The generated code
-// registers split<body> or chunks<body> as a family's run
-// (op2/rt/cpu/loop.h), and max_threads with its loop.
+// describes split<body> or chunks<body> as a family's run, and max_threads
+// as its loop's (op2/rt/abi/cpu/descriptor.h).
 
-#include <op2/rt/cpu/loop.h>
+#include <op2/rt/abi/cpu/launch.h>
 #include <op_lib_core.h>
 
 #include <omp.h>
@@ -15,13 +15,13 @@ namespace op::rt::kernel::cpu {
 // [phase.begin, phase.end) in a contiguous share per thread, a body call
 // each.
 template<auto body>
-void split(const op::rt::cpu::Phase& phase, op_arg *args) {
+void split(const op::rt::abi::cpu::Phase& phase, op_arg *args) {
     const long long size = static_cast<long long>(phase.end) - phase.begin;
 #pragma omp parallel num_threads(phase.threads)
     {
         const long long thread = omp_get_thread_num();
         const long long count = omp_get_num_threads();
-        op::rt::cpu::Work work;
+        op::rt::abi::cpu::Work work;
         work.begin = static_cast<int>(phase.begin + size * thread / count);
         work.end = static_cast<int>(phase.begin + size * (thread + 1) / count);
         work.order = phase.order;
@@ -34,11 +34,11 @@ void split(const op::rt::cpu::Phase& phase, op_arg *args) {
 // Each batch's chunks shared out over the threads, a body call per chunk;
 // a batch starts once the one before is done.
 template<auto body>
-void chunks(const op::rt::cpu::Phase& phase, op_arg *args) {
+void chunks(const op::rt::abi::cpu::Phase& phase, op_arg *args) {
 #pragma omp parallel num_threads(phase.threads)
     {
         const int thread = omp_get_thread_num();
-        op::rt::cpu::Work work;
+        op::rt::abi::cpu::Work work;
         work.globals = phase.globals + thread * phase.nargs;
         work.scratch = phase.scratch != nullptr ? phase.scratch[thread] : nullptr;
         work.staging = phase.staging;

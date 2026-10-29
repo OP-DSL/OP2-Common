@@ -24,9 +24,9 @@ op::rt::plan::SharedPlans<ChunkEntry> chunk_plans;
 
 op::rt::loop::Axis block_size_axis() {
 #ifdef OP2_HIP
-    return {"BLOCK_SIZES", "block_size", false, {default_block_size, 256}};
+    return {"BLOCK_SIZES", "block_size", false, {abi::gpu::default_block_size, 256}};
 #else
-    return {"BLOCK_SIZES", "block_size", false, {default_block_size, 64, 256}};
+    return {"BLOCK_SIZES", "block_size", false, {abi::gpu::default_block_size, 64, 256}};
 #endif
 }
 
@@ -37,18 +37,18 @@ ColouringPlan::~ColouringPlan() {
 
 // --- The base of every GPU strategy ------------------------------------------------
 
-StrategyBase::StrategyBase(Loop& loop, const op::rt::loop::Point& point, KernelSource source,
-                           Binder bind)
-    : m_loop{loop}, m_name{point.name}, m_source{source}, m_bind{bind},
-      m_block_size{point.value("block_size")}, m_offline{source.offline},
-      m_cache{source.name, options().build_threads} {}
+StrategyBase::StrategyBase(Loop& loop, const op::rt::loop::Point& point,
+                           const abi::gpu::Family& family)
+    : m_loop{loop}, m_name{point.name}, m_family{family},
+      m_block_size{point.value("block_size")}, m_offline{family.offline, loop.calls()},
+      m_cache{family.kernel, options().build_threads} {}
 
 op::rt::loop::Facts StrategyBase::facts() const {
     op::rt::loop::Facts facts;
     facts.offline.available = offline_usable();
     facts.offline.reason = facts.offline.available ? "" : "kernel_unavailable";
     facts.offline.figures = m_offline.figures();
-    facts.jit.available = !m_source.source.empty();
+    facts.jit.available = m_family.source != nullptr && m_family.source[0] != '\0';
     facts.jit.reason = facts.jit.available ? "" : "kernel_unavailable";
     return facts;
 }
@@ -83,7 +83,7 @@ op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
     auto& params = m_loop.params();
     auto key = params.key(call, launch_values().slots());
     auto acquired =
-        m_cache.acquire(key, urgency, [&] { return m_loop.compiler().job(params, m_source); });
+        m_cache.acquire(key, urgency, [&] { return m_loop.compiler().job(params, m_family); });
     // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::rt::loop::Status::ready &&
         acquired.kernel->figures().max_threads < m_block_size) {
@@ -96,32 +96,32 @@ op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
     return prepared;
 }
 
-void StrategyBase::launch(const op::rt::loop::Prepared& prepared, LaunchContext& context,
-                          op_arg *args, Geometry geometry) {
-    auto& arguments = m_loop.arguments();
-    m_bind(context, args, arguments);
+template<typename Record>
+void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record, op_arg *args,
+                          Geometry geometry) {
+    void **arguments = m_loop.arguments(record, args);
     if (prepared.kernel != nullptr) {
         op_profile_next("JIT Kernel");
         static_cast<JitKernel *>(prepared.kernel)
-            ->launch(geometry.blocks, m_block_size, arguments.data(), geometry.shared_bytes,
+            ->launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes,
                      m_loop.params());
         return;
     }
 
     op_profile_next("Offline Kernel");
-    m_offline.launch(geometry.blocks, m_block_size, arguments.data(), geometry.shared_bytes);
+    m_offline.launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes);
 }
 
-template<typename Launches, typename Fill>
+template<typename Record, typename Launches, typename Fill>
 std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prepared,
                                               const op::rt::loop::RunArgs& run, int phases,
                                               int wait_before, int globals_after,
                                               Launches&& launches, Fill&& fill) {
     assert(prepared.candidate->strategy == this);
-    // An offline kernel reads the call's and this strategy's values from
-    // device symbols.
+    // An offline kernel reads the call's constants and strides from device
+    // symbols.
     if (prepared.kernel == nullptr)
-        m_loop.upload(launch_values());
+        m_loop.upload();
     int timed_pairs = 0;
     m_loop.run_phases(run, phases, wait_before, globals_after, [&](int phase) {
         int count = launches(phase);
@@ -130,12 +130,12 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs), 0));
 
         for (int index = 0; index < count; ++index) {
-            LaunchContext context;
-            context.global_stride = m_call_state.global_stride;
-            context.set_stride = m_call_state.sections.set_stride();
-            Geometry geometry = fill(phase, index, context);
+            Record record;
+            record.stride = m_call_state.sections.set_stride();
+            record.global_stride = m_call_state.global_stride;
+            Geometry geometry = fill(phase, index, record);
             if (geometry.blocks > 0)
-                this->launch(prepared, context, run.args, geometry);
+                launch(prepared, record, run.args, geometry);
         }
 
         if (timing)
@@ -170,12 +170,12 @@ op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call& call,
 std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
                                  const op::rt::loop::RunArgs& run) {
     const auto& sections = m_call_state.sections;
-    return run_phases(
+    return run_phases<abi::gpu::Range>(
         prepared, run, sections.size(), sections.wait_index(), sections.globals_index(),
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
-        [&](int phase, int, LaunchContext& context) {
-            context.start = sections[phase].begin;
-            context.end = sections[phase].end;
+        [&](int phase, int, abi::gpu::Range& record) {
+            record.start = sections[phase].begin;
+            record.end = sections[phase].end;
             return Geometry{grid(sections[phase].size()), 0};
         });
 }
@@ -220,14 +220,14 @@ std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
     const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     const auto& colouring = entry.colouring;
     // The core's colours come first, and run while the halo arrives.
-    return run_phases(
+    return run_phases<abi::gpu::Range>(
         prepared, run, colouring.colours, colouring.core_colours,
         colouring.owned_colours - 1, [](int) { return 1; },
-        [&](int colour, int, LaunchContext& context) {
-            context.start = colouring.offsets[static_cast<std::size_t>(colour)];
-            context.end = colouring.offsets[static_cast<std::size_t>(colour) + 1];
-            context.colour_order = entry.order_d;
-            return Geometry{grid(context.end - context.start), 0};
+        [&](int colour, int, abi::gpu::Range& record) {
+            record.start = colouring.offsets[static_cast<std::size_t>(colour)];
+            record.end = colouring.offsets[static_cast<std::size_t>(colour) + 1];
+            record.order = entry.order_d;
+            return Geometry{grid(record.end - record.start), 0};
         });
 }
 
@@ -359,19 +359,17 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
                                  static_cast<std::size_t>(sections.size()) * sizeof(int), 0));
     }
 
-    return run_phases(
+    return run_phases<abi::gpu::Chunk>(
         prepared, run, sections.size(), sections.wait_index(), sections.globals_index(),
         [&](int section) { return plan.batches.batches(section); },
-        [&](int section, int batch, LaunchContext& context) {
+        [&](int section, int batch, abi::gpu::Chunk& record) {
             auto [begin, end] = plan.batches.positions(section, batch);
-            context.start = sections[section].begin;
-            context.end = sections[section].end;
-            context.chunk.plan = &entry.device;
-            context.chunk.chunk_begin = begin;
-            context.chunk.chunk_end = end;
+            entry.device.fill(record);
+            record.chunk_begin = begin;
+            record.chunk_end = end;
             if (plan.wavefront) {
-                context.chunk.wave_ticket = entry.device.wave_tickets + section;
-                context.chunk.wave_epoch = epoch;
+                record.wave_ticket = entry.device.wave_tickets + section;
+                record.wave_epoch = epoch;
             }
             auto bytes = plan.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
@@ -401,20 +399,19 @@ void ChunkBase::release() {
 
 // --- Families ---
 
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
-                                                      const op::rt::loop::Point& point,
-                                                      const KernelSource& source, Binder bind,
-                                                      op::rt::abi::ArgGroups groups) {
-    if (family == "plain" || family == "atomics")
-        return std::make_unique<Simple>(loop, point, source, bind);
-    if (family == "colouring")
-        return std::make_unique<Colouring>(loop, point, source, bind);
-    if (family == "chunk_atomics")
-        return std::make_unique<ChunkAtomics>(loop, point, source, bind, groups);
-    if (family == "chunk_colouring")
-        return std::make_unique<ChunkColouring>(loop, point, source, bind, groups);
+std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::gpu::Family& family,
+                                                      const op::rt::loop::Point& point) {
+    std::string_view name = family.name;
+    if (name == "plain" || name == "atomics")
+        return std::make_unique<Simple>(loop, point, family);
+    if (name == "colouring")
+        return std::make_unique<Colouring>(loop, point, family);
+    if (name == "chunk_atomics")
+        return std::make_unique<ChunkAtomics>(loop, point, family);
+    if (name == "chunk_colouring")
+        return std::make_unique<ChunkColouring>(loop, point, family);
     std::fprintf(stderr, "error: %s registers family %s, which the GPU backend lacks\n",
-                 loop.name().c_str(), std::string{family}.c_str());
+                 loop.name().c_str(), family.name);
     std::exit(1);
 }
 

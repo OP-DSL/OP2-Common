@@ -57,7 +57,7 @@ void element(int n, double *x, const int *map, const double *w, double *sum,
 }
 
 template<bool atomic, bool ordered>
-void range_body(const cpu::Work& work, op_arg *args) {
+void range_body(const op::rt::abi::cpu::Work& work, op_arg *args) {
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
@@ -74,7 +74,7 @@ void range_body(const cpu::Work& work, op_arg *args) {
 }
 
 // A chunk accumulates into its staged slots and flushes them atomically.
-void staged_body(const cpu::Work& work, op_arg *args) {
+void staged_body(const op::rt::abi::cpu::Work& work, op_arg *args) {
     const auto& staging = work.staging;
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
@@ -163,13 +163,15 @@ void run(const char *strategy) {
     args[5].argtype = OP_ARG_INFO;
     args[5].acc = 4;
 
-    cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", false,
-                   &op::rt::kernel::cpu::max_threads);
-    op::rt::abi::ArgGroups arg_groups{groups, 1};
-    loop.add("chunk_atomics", op::rt::kernel::cpu::chunks<&staged_body>, arg_groups);
-    loop.add("atomics", op::rt::kernel::cpu::split<&range_body<true, false>>);
-    loop.add("chunk_colouring", op::rt::kernel::cpu::chunks<&range_body<false, false>>);
-    loop.add("colouring", op::rt::kernel::cpu::split<&range_body<false, true>>);
+    const op::rt::abi::cpu::Family families[] = {
+        {"chunk_atomics", op::rt::kernel::cpu::chunks<&staged_body>,
+         op::rt::abi::ArgGroups{groups, 1}},
+        {"atomics", op::rt::kernel::cpu::split<&range_body<true, false>>, {}},
+        {"chunk_colouring", op::rt::kernel::cpu::chunks<&range_body<false, false>>, {}},
+        {"colouring", op::rt::kernel::cpu::split<&range_body<false, true>>, {}},
+    };
+    cpu::Loop loop(op::rt::abi::cpu::Loop{"test_loop", "openmp_f2c", "Indirect", false,
+                                          families, &op::rt::kernel::cpu::max_threads});
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());

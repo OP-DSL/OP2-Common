@@ -1,129 +1,33 @@
 #pragma once
 
-// The CUDA and HIP backend as op2_kernels sees it: the loop the generated
-// code builds per par_loop and registers its kernels, bindings and
-// parameters on, and what a binding and an offline kernel's calls
-// (op2/rt/kernel/gpu/launch.h) are given.  The loop adds to the base loop the
-// parameters' device symbols, the compiler of its specialised kernels, the
-// launches and the call's device globals; it and its strategies are defined
-// in src/rt/gpu.
+// The CUDA and HIP backend's loop, built from the generated code's
+// descriptor (op2/rt/abi/gpu/descriptor.h) on its first call: the base loop,
+// plus the parameters' device symbols, the compiler of its specialised
+// kernels, the launches' arguments and the call's device globals.  Defined
+// in src/rt/gpu/op_gpu_loop.cpp.
 
 #include <op2/gpu/shims.h>
 #include <op2/rt/abi/descriptor.h>
-#include <op2/rt/abi/staging.h>
+#include <op2/rt/abi/gpu/descriptor.h>
+#include <op2/rt/abi/gpu/launch.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/loop.h>
 #include <op_lib_core.h>
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
-#include <string>
-#include <string_view>
 #include <vector>
 
 namespace op::rt::gpu {
 
 class Compiler;
 class SymbolBindings;
-struct LaunchValues;
-
-// The block size a strategy runs unless OP_BLOCK_SIZES says otherwise, and
-// the offline kernels' launch bounds; a specialised kernel has its own block
-// size as launch bounds.
-constexpr int default_block_size = 128;
-
-// A chunk plan's arrays on the device, as a staged kernel reads them.
-struct ChunkArrays {
-    int *source_offsets = nullptr;
-    op::rt::abi::StageWord *stage_words = nullptr;
-    // Each region's slot count, from the plan's offsets: a kernel reads its
-    // counts up front and its offsets only when it flushes, so no offset
-    // stays in a register through the user kernel.
-    int *stage_counts = nullptr;
-    int *slot_offsets = nullptr;
-    int *slot_targets = nullptr;
-    int *chunk_order = nullptr;
-    std::uint8_t *thread_colours = nullptr;
-    int *chunk_thread_colours = nullptr;
-
-    // Wavefront plans: predecessors, a done flag per position holding the
-    // epoch of the call that last ran it, and a counter per section.
-    int *wave_pred_offsets = nullptr;
-    int *wave_preds = nullptr;
-    int *wave_done = nullptr;
-    int *wave_tickets = nullptr;
-};
-
-// What the generated bindings bind a launch's kernel arguments to.
-struct LaunchContext {
-    int global_stride = 0;
-    unsigned opt_flags = 0;
-    int start = 0;
-    int end = 0;
-    int set_stride = 0;
-    // A set colouring's elements, colour by colour.
-    const int *colour_order = nullptr;
-
-    struct {
-        const ChunkArrays *plan = nullptr;
-        int chunk_begin = 0;
-        int chunk_end = 0;
-        // This section's position counter under a wavefront partition.
-        int *wave_ticket = nullptr;
-        int wave_epoch = 0;
-    } chunk;
-};
-
-// Fill a launch's kernel arguments, one list for its offline and JIT
-// kernels alike, from the context.
-using Binder = void (*)(LaunchContext& launch, op_arg *args,
-                        std::vector<void *>& arguments);
-
-// The calls on a kernel compiled with the application, which op2_kernels
-// makes with the runtime that registered it.
-struct OfflineCalls {
-    op::rt::abi::KernelFigures (*figures)(const void *function);
-    // Let a launch have up to bytes of dynamic shared memory.
-    void (*allow_shared)(const void *function, int bytes);
-    void (*launch)(const void *function, int blocks, int block_size, void **args,
-                   int shared_bytes);
-};
-
-// A kernel compiled with the application, if any, and its calls.
-struct OfflineFunction {
-    const void *function = nullptr;
-    const OfflineCalls *calls = nullptr;
-};
-
-// What a strategy's kernel is built from: the offline function, if any, and
-// the source a specialised one is compiled from.
-struct KernelSource {
-    std::string_view name;
-    OfflineFunction offline;
-    std::string_view source;
-};
-
-// Each value a strategy fixes for its kernel, by its slot.
-enum class LaunchValue {
-    global_stride,
-    block_size,
-    unstaged_singles,
-    wavefront,
-};
-
-// The headers a specialised kernel's source includes, in order, embedded in
-// the translation unit (op2/rt/kernel/gpu/jit_embed.h).
-struct JitHeaders {
-    std::vector<const char *> data;
-    std::vector<const char *> names;
-};
 
 class Loop : public op::rt::loop::Loop {
 private:
-    // A global OP_INC is incremented atomically, in place, rather than
-    // reduced from a copy per thread.
     bool m_gbl_inc_atomic;
+    abi::gpu::Binder m_bind;
+    const abi::gpu::OfflineCalls *m_calls;
     std::unique_ptr<SymbolBindings> m_symbols;
     std::unique_ptr<Compiler> m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
@@ -132,7 +36,7 @@ private:
     std::vector<unsigned char> m_on_host;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
-    // A launch's kernel arguments, filled by the binders.
+    // A launch's kernel arguments: its record's, then the loop's.
     std::vector<void *> m_arguments;
     // The call under way: its strategy's stride between the blocks' global
     // copies, and whether their processing needs a synchronisation before
@@ -140,91 +44,34 @@ private:
     int m_global_stride = 0;
     bool m_exit_sync = false;
 
-    // Bind a parameter to the device symbol an offline kernel reads it from,
-    // if there is one.
-    void bind(std::size_t param, void *symbol_d, std::uint64_t *shared_hash);
-
-    void mark_by_value(int arg_index);
+    // Register a parameter, bound to the device copy an offline kernel reads
+    // it from when it has one.
+    void add_param(const abi::Param& param);
 
     // Per argument, whether the kernel that runs has it from the host side
     // and so needs no device copy of it.
     const unsigned char *on_host(const op::rt::loop::Prepared& prepared, int nargs);
 
 public:
-    // profile_target and profile_variant name the loop to the profiler.
-    Loop(std::string_view name, std::string_view profile_target,
-         std::string_view profile_variant, bool direct, bool gbl_inc_atomic,
-         JitHeaders headers);
+    explicit Loop(const abi::gpu::Loop& descriptor);
     ~Loop() override;
-
-    // --- Registration, by the generated code ---
-
-    // Add a family, its strategies running source's kernels with arguments
-    // from bind; the chunked families' groups are the arguments they stage.
-    void add(std::string_view family, KernelSource source, Binder bind,
-             op::rt::abi::ArgGroups groups = {});
-
-    // The parameters the kernels are specialised on.  symbol_d is the device
-    // address of the copy an offline kernel reads, if any
-    // (op::rt::kernel::gpu::symbol), and hash_device_ptr the hash of its
-    // value there, shared by every loop that reads it.  A built kernel can
-    // have each at run time but a dat's dimension and a strategy's value,
-    // which its source needs as constants.
-
-    template<typename T>
-    void add_param(std::string_view name, T *data, void *symbol_d = nullptr,
-                   std::uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add(name, data, op::rt::abi::ParamSource::external, -1, true),
-             symbol_d, hash_device_ptr);
-    }
-
-    template<typename T>
-    void add_param(std::string_view name, T *data, std::size_t len,
-                   void *symbol_d = nullptr, std::uint64_t *hash_device_ptr = nullptr) {
-        bind(m_params.add_array(name, data, len, op::rt::abi::ParamSource::external, -1,
-                                true),
-             symbol_d, hash_device_ptr);
-    }
-
-    // A scalar READ global, which every kernel has by value.
-    template<typename T>
-    void add_scalar_arg_param(std::string_view name, T *data, int arg_index) {
-        m_params.add(name, data, op::rt::abi::ParamSource::scalar_arg, arg_index, true);
-        mark_by_value(arg_index);
-    }
-
-    // Any other READ global: by value, or else read by an offline kernel
-    // from its device copy.
-    template<typename T>
-    void add_global_param(std::string_view name, int arg_index, bool by_value = false) {
-        m_params.add_array(name, static_cast<T *>(nullptr), 0,
-                           op::rt::abi::ParamSource::array_arg, arg_index, true);
-        if (by_value)
-            mark_by_value(arg_index);
-    }
-
-    void add_dat_stride_param(std::string_view name, int *data, int arg_index,
-                              void *symbol_d);
-
-    void add_dat_dim_param(std::string_view name, int *data, int arg_index);
-
-    // A value each strategy decides, given to every acquire and upload.
-    void add_launch_param(std::string_view name, LaunchValue value,
-                          void *symbol_d = nullptr);
 
     // --- For the strategies ---
 
     const Compiler& compiler() const { return *m_compiler; }
+    const abi::gpu::OfflineCalls *calls() const { return m_calls; }
 
-    // Upload the changed values an offline kernel reads, under a strategy's
-    // launch values.
-    void upload(const LaunchValues& launch);
+    // Upload the changed values an offline kernel reads from device symbols.
+    void upload();
 
     // The most blocks a launch may use: as many as the reduction scratch
     // allows.
     int block_limit(op_arg *args, int nargs, int block_size) const;
 
-    std::vector<void *>& arguments() { return m_arguments; }
+    // A launch's kernel arguments: its record's fields, then the loop's
+    // arguments, the active optional ones marked in the record.
+    void **arguments(abi::gpu::Range& record, op_arg *args);
+    void **arguments(abi::gpu::Chunk& record, op_arg *args);
 
     gpuEvent_t event(std::size_t index);
 

@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <vector>
 
 namespace op::rt::cpu {
 
@@ -112,21 +114,20 @@ void Globals::combine(op_arg *args, const char *loop) const {
 
 // --- The loop ---------------------------------------------------------------------
 
-Loop::Loop(std::string_view name, std::string_view profile_target,
-           std::string_view profile_variant, bool direct, int (*max_threads)())
-    : op::rt::loop::Loop{name, profile_target, profile_variant, direct, false},
-      m_max_threads{max_threads}, m_globals{std::make_unique<Globals>()} {}
+Loop::Loop(const abi::cpu::Loop& descriptor)
+    : op::rt::loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
+                         descriptor.direct, false},
+      m_max_threads{descriptor.max_threads}, m_globals{std::make_unique<Globals>()} {
+    for (const auto& family : descriptor.families)
+        m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {
+            return make_strategy(*this, family, point);
+        });
+}
 
 Loop::~Loop() = default;
 
-void Loop::add(std::string_view family, Run run, op::rt::abi::ArgGroups groups) {
-    m_ladder.add(family, [&](const op::rt::loop::Point& point) {
-        return make_strategy(*this, family, point, run, groups);
-    });
-}
-
-Phase Loop::phase() const {
-    Phase phase;
+abi::cpu::Phase Loop::phase() const {
+    abi::cpu::Phase phase;
     phase.threads = m_threads;
     phase.globals = m_globals->pointers();
     phase.nargs = m_globals->nargs();
@@ -158,3 +159,26 @@ void Loop::begin_call(const op::rt::loop::Call& call, const op::rt::tune::Autotu
 void Loop::combine_globals(op_arg *args, int) { m_globals->combine(args, m_name.c_str()); }
 
 } // namespace op::rt::cpu
+
+namespace op::rt::abi::cpu {
+
+namespace {
+
+// The loops made, which live as long as the program.
+std::vector<std::unique_ptr<op::rt::cpu::Loop>>& loops() {
+    static std::vector<std::unique_ptr<op::rt::cpu::Loop>> made;
+    return made;
+}
+
+} // namespace
+
+void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
+    auto *runtime = static_cast<op::rt::cpu::Loop *>(loop.runtime);
+    if (runtime == nullptr) {
+        runtime = loops().emplace_back(std::make_unique<op::rt::cpu::Loop>(loop)).get();
+        loop.runtime = runtime;
+    }
+    runtime->invoke(set, args, nargs);
+}
+
+} // namespace op::rt::abi::cpu

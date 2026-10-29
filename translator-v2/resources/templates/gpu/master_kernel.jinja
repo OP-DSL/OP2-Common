@@ -3,7 +3,9 @@
 #define OP_KERNEL_JIT_TAG {{tag}}
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
-#include <op2/rt/gpu/loop.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/abi/gpu/descriptor.h>
+#include <op2/rt/abi/gpu/launch.h>
 #include <op2/rt/kernel/gpu/offline.h>
 #include <op2/rt/kernel/gpu/wavefront.h>
 #include <op2/rt/kernel/inc.h>

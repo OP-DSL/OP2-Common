@@ -139,7 +139,7 @@ static inline void op2_inc(T& target, U value) {
 {# A thread's share of elements, or of a set colouring's positions. #}
 {% for hook in hooks %}
 template<bool op2_ordered>
-static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::rt::cpu::Work& work,
+static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::rt::abi::cpu::Work& work,
                                                 op_arg *args) {
     namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_{{hook}};
 {{prologue()}}
@@ -154,7 +154,7 @@ static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::rt::cpu::Work&
 {#- One chunk of chunk_atomics: its increments accumulate in place in the
     thread's scratch, then each slot is added to its target atomically, as
     other threads' chunks may share it. -#}
-static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::cpu::Work& work,
+static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::abi::cpu::Work& work,
                                          op_arg *args) {
     namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
 {{prologue()}}
@@ -200,32 +200,29 @@ static void op2_k_{{lh.name}}{{variant}}_staged(const op::rt::cpu::Work& work,
     {%- endif -%}
 {%- endmacro -%}
 
-static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::cpu::Loop& loop) {
-{% for strategy in strategies %}
-    {% if strategy == "chunk_atomics" %}
-    static constexpr std::array<op::rt::abi::ArgGroup, {{groups.chunk_atomics.args|length}}> chunk_atomics_groups = {{"{{"}}
-        {% for arg in groups.chunk_atomics.args %}
-        op::rt::abi::ArgGroup{ {{arg.id}}, {{groups.chunk_atomics.group(arg)}} },
-        {% endfor %}
-    {{"}}"}};
-    {% set tail = ", op::rt::abi::ArgGroups{ chunk_atomics_groups, %d }" % groups.chunk_atomics.dats|length %}
-    {% else %}
-    {% set tail = "" %}
-    {% endif %}
-    loop.add("{{strategy}}",
-        op::rt::kernel::cpu::{{"chunks" if strategy.startswith("chunk_") else "split"}}<{{body(strategy)}}>{{tail}});
-{% endfor %}
-    return true;
-}
+{% for strategy in strategies if strategy == "chunk_atomics" %}
+static constexpr std::array<op::rt::abi::ArgGroup, {{groups.chunk_atomics.args|length}}> op2_k_{{lh.name}}{{variant}}_chunk_atomics_groups = {{"{{"}}
+    {% for arg in groups.chunk_atomics.args %}
+    op::rt::abi::ArgGroup{ {{arg.id}}, {{groups.chunk_atomics.group(arg)}} },
+    {% endfor %}
+{{"}}"}};
 
-static op::rt::cpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
-    static op::rt::cpu::Loop loop(
-        "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
-        {{"true" if lh is direct else "false"}}, &op::rt::kernel::cpu::max_threads);
-    static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
-    (void)registered;
-    return loop;
-}
+{% endfor %}
+{#- The loop as the library builds it: each family's OpenMP region over its
+    body. -#}
+static const op::rt::abi::cpu::Family op2_k_{{lh.name}}{{variant}}_families[] = {
+{% for strategy in strategies %}
+    {"{{strategy}}",
+     op::rt::kernel::cpu::{{"chunks" if strategy.startswith("chunk_") else "split"}}<{{body(strategy)}}>,
+     {{"op::rt::abi::ArgGroups{op2_k_%s%s_chunk_atomics_groups, %d}" % (lh.name, variant, groups.chunk_atomics.dats|length) if strategy == "chunk_atomics" else "{}"}}},
+{% endfor %}
+};
+
+static op::rt::abi::cpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
+    "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
+    {{"true" if lh is direct else "false"}},
+    op2_k_{{lh.name}}{{variant}}_families,
+    &op::rt::kernel::cpu::max_threads};
 
 {{abi.entry()}}
     op_set set,
@@ -240,5 +237,5 @@ static op::rt::cpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
 {% endfor %}
     };
 
-    op2_k_{{lh.name}}{{variant}}_loop().invoke(set, args, {{lh.args|length}});
+    op::rt::abi::cpu::invoke(op2_k_{{lh.name}}{{variant}}_loop, set, args, {{lh.args|length}});
 }

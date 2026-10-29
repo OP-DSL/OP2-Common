@@ -34,7 +34,7 @@ op::rt::loop::Prepared prepared(op::rt::loop::Status status, const void *entry,
 void StrategyBase::split(int begin, int end, const int *order, op_arg *args) {
     if (end <= begin)
         return;
-    Phase phase = m_loop.phase();
+    abi::cpu::Phase phase = m_loop.phase();
     phase.begin = begin;
     phase.end = end;
     phase.order = order;
@@ -163,7 +163,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     const auto& sections = m_loop.call_sections();
     m_loop.reserve_scratch(plan.max_scratch_bytes);
 
-    Phase phase = m_loop.phase();
+    abi::cpu::Phase phase = m_loop.phase();
     phase.chunk_order = plan.batches.order.empty() ? nullptr : plan.batches.order.data();
     phase.chunk_offsets = plan.chunks.offsets.data();
     phase.scratch = m_loop.scratch();
@@ -196,20 +196,19 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
 
 // --- Families ---
 
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
-                                                      const op::rt::loop::Point& point,
-                                                      Run run,
-                                                      op::rt::abi::ArgGroups groups) {
-    if (family == "plain" || family == "atomics")
-        return std::make_unique<Simple>(loop, point, run);
-    if (family == "colouring")
-        return std::make_unique<Colouring>(loop, point, run);
-    if (family == "chunk_atomics")
-        return std::make_unique<ChunkAtomics>(loop, point, run, groups);
-    if (family == "chunk_colouring")
-        return std::make_unique<ChunkColouring>(loop, point, run);
+std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::cpu::Family& family,
+                                                      const op::rt::loop::Point& point) {
+    std::string_view name = family.name;
+    if (name == "plain" || name == "atomics")
+        return std::make_unique<Simple>(loop, point, family.run);
+    if (name == "colouring")
+        return std::make_unique<Colouring>(loop, point, family.run);
+    if (name == "chunk_atomics")
+        return std::make_unique<ChunkAtomics>(loop, point, family.run, family.groups);
+    if (name == "chunk_colouring")
+        return std::make_unique<ChunkColouring>(loop, point, family.run);
     std::fprintf(stderr, "error: %s registers family %s, which the OpenMP backend lacks\n",
-                 loop.name().c_str(), std::string{family}.c_str());
+                 loop.name().c_str(), family.name);
     std::exit(1);
 }
 

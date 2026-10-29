@@ -22,15 +22,14 @@
 
 #include "../test_support.h"
 
-extern "C" __global__ void chunk_strategy_baseline(int *result) {
+extern "C" __global__ void chunk_strategy_baseline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM)
+                                                   int *result, int) {
     if (blockIdx.x == 0 && threadIdx.x == 0)
         result[0] = -1;
 }
 
-extern "C" __global__ void chunk_strategy_staged(
-    int *result, const int *source_offsets, const unsigned short *stage_words,
-    const int *stage_counts, int chunk_begin, int chunk_end, int set_stride,
-    int last_shared_byte) {
+extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM)
+                                                 int *result, int last_shared_byte) {
     extern __shared__ unsigned char scratch[];
 
     if (blockIdx.x == 0 && threadIdx.x == 0)
@@ -45,7 +44,7 @@ extern "C" __global__ void chunk_strategy_staged(
         result[4] = static_cast<int>(stage_words[1]);
         result[5] = chunk_begin;
         result[6] = chunk_end;
-        result[7] = set_stride;
+        result[7] = stride;
         result[8] = scratch[last_shared_byte];
     }
 }
@@ -55,17 +54,16 @@ namespace {
 namespace gpu = op::rt::gpu;
 
 constexpr char baseline_source[] = R"op2(
-extern "C" __global__ void chunk_strategy_baseline(int *result) {
+extern "C" __global__ void chunk_strategy_baseline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM)
+                                                   int *result, int) {
     if (blockIdx.x == 0 && threadIdx.x == 0)
         result[0] = -1;
 }
 )op2";
 
 constexpr char staged_source[] = R"op2(
-extern "C" __global__ void chunk_strategy_staged(
-    int *result, const int *source_offsets, const unsigned short *stage_words,
-    const int *stage_counts, int chunk_begin, int chunk_end, int set_stride,
-    int last_shared_byte) {
+extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM)
+                                                 int *result, int last_shared_byte) {
     extern __shared__ unsigned char scratch[];
 
     if (blockIdx.x == 0 && threadIdx.x == 0)
@@ -80,7 +78,7 @@ extern "C" __global__ void chunk_strategy_staged(
         result[4] = static_cast<int>(stage_words[1]);
         result[5] = chunk_begin;
         result[6] = chunk_end;
-        result[7] = set_stride;
+        result[7] = stride;
         result[8] = scratch[last_shared_byte];
     }
 }
@@ -89,22 +87,8 @@ extern "C" __global__ void chunk_strategy_staged(
 int *output_d = nullptr;
 int last_shared_byte = 0;
 
-void bind_baseline(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
-    arguments = {&output_d};
-}
-
-void bind_staged(gpu::LaunchContext& launch, op_arg *,
-                 std::vector<void *>& arguments) {
-    arguments = {
-        (void *)&output_d,
-        (void *)&launch.chunk.plan->source_offsets,
-        (void *)&launch.chunk.plan->stage_words,
-        (void *)&launch.chunk.plan->stage_counts,
-        (void *)&launch.chunk.chunk_begin,
-        (void *)&launch.chunk.chunk_end,
-        (void *)&launch.set_stride,
-        (void *)&last_shared_byte,
-    };
+void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
+    arguments.insert(arguments.end(), {(void *)&output_d, (void *)&last_shared_byte});
 }
 
 // 256 sources, each pair reaching one of 4 targets of a dim-1 double dat,
@@ -178,22 +162,24 @@ struct Fixture {
     }
 };
 
-gpu::JitHeaders headers() { return OP_KERNEL_JIT_HEADERS; }
+// A loop of chunk_atomics and atomics over fixture's groups, with the
+// descriptor it is built from, which outlives it.
+struct Described {
+    std::array<op::rt::abi::gpu::Family, 2> families;
+    op::rt::abi::gpu::Loop descriptor;
+    gpu::Loop loop;
 
-void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
-    loop.add("chunk_atomics",
-             gpu::KernelSource{"chunk_strategy_staged",
-                               op::rt::kernel::gpu::offline(
-                                   reinterpret_cast<const void *>(chunk_strategy_staged)),
-                               staged_source},
-             &bind_staged, fixture.groups());
-    loop.add("atomics",
-             gpu::KernelSource{"chunk_strategy_baseline",
-                               op::rt::kernel::gpu::offline(
-                                   reinterpret_cast<const void *>(chunk_strategy_baseline)),
-                               baseline_source},
-             &bind_baseline);
-}
+    Described(const char *name, const Fixture& fixture)
+        : families{{{"chunk_atomics", "chunk_strategy_staged",
+                     reinterpret_cast<const void *>(chunk_strategy_staged), staged_source,
+                     fixture.groups()},
+                    {"atomics", "chunk_strategy_baseline",
+                     reinterpret_cast<const void *>(chunk_strategy_baseline),
+                     baseline_source, {}}}},
+          descriptor{name, "cuda", "Indirect", false, false, false, {}, families, &bind,
+                     &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
+          loop{descriptor} {}
+};
 
 std::array<int, 9> output{};
 
@@ -239,9 +225,8 @@ int main(int argc, char **argv) {
     {
         // Disabled by default: atomics runs, and the one plan is the one
         // run() prepares itself.
-        gpu::Loop dormant("chunk_strategy", "cuda", "Indirect", false, false,
-                          headers());
-        add_strategies(dormant, fixture);
+        Described dormant_described{"chunk_strategy", fixture};
+        auto& dormant = dormant_described.loop;
         auto outcome = run(dormant, fixture);
         CHECK(outcome.strategy == "atomics");
         CHECK(output[0] == -1);
@@ -252,9 +237,8 @@ int main(int argc, char **argv) {
     op::rt::init();
     op::rt::gpu::init();
     {
-        gpu::Loop loop("chunk_strategy", "cuda", "Indirect", false, false,
-                       headers());
-        add_strategies(loop, fixture);
+        Described loop_described{"chunk_strategy", fixture};
+        auto& loop = loop_described.loop;
         auto& chunk = static_cast<gpu::ChunkBase&>(*loop.ladder()[0].strategy);
 
         Outcome outcome{};
@@ -306,9 +290,8 @@ int main(int argc, char **argv) {
         {
             Fixture split;
             split.source.core_size = 128;
-            gpu::Loop split_loop("chunk_strategy_split", "cuda", "Indirect",
-                                 false, false, headers());
-            add_strategies(split_loop, split);
+            Described split_loop_described{"chunk_strategy_split", split};
+            auto& split_loop = split_loop_described.loop;
             auto split_outcome = run(split_loop, split);
             CHECK(split_outcome.strategy == "chunk_atomics");
             // The last launch is the second section: chunk 1 of 2.
@@ -326,9 +309,8 @@ int main(int argc, char **argv) {
             spread.target.core_size = 256;
             for (std::size_t i = 0; i < spread.map_values.size(); ++i)
                 spread.map_values[i] = static_cast<int>(i);
-            gpu::Loop spread_loop("chunk_strategy_spread", "cuda", "Indirect",
-                                  false, false, headers());
-            add_strategies(spread_loop, spread);
+            Described spread_loop_described{"chunk_strategy_spread", spread};
+            auto& spread_loop = spread_loop_described.loop;
             auto spread_outcome = run(spread_loop, spread);
             CHECK(spread_outcome.strategy == "atomics");
             CHECK(spread_outcome.chunk_reason == "low_compression");
@@ -358,9 +340,8 @@ int main(int argc, char **argv) {
                             large.shared_bytes());
             } else {
                 last_shared_byte = large.shared_bytes() - 1;
-                gpu::Loop large_loop("chunk_strategy_large", "cuda", "Indirect",
-                                     false, false, headers());
-                add_strategies(large_loop, large);
+                Described large_loop_described{"chunk_strategy_large", large};
+                auto& large_loop = large_loop_described.loop;
                 auto large_outcome = run(large_loop, large);
                 CHECK(large_outcome.strategy == "chunk_atomics");
                 CHECK(large_outcome.max_blocks == 1);
@@ -372,12 +353,10 @@ int main(int argc, char **argv) {
         // one plan, made and uploaded once, which stays while either holds it.
         {
             Fixture alike;
-            gpu::Loop first_loop("chunk_strategy_alike_first", "cuda", "Indirect",
-                                 false, false, headers());
-            gpu::Loop second_loop("chunk_strategy_alike_second", "cuda", "Indirect",
-                                  false, false, headers());
-            add_strategies(first_loop, alike);
-            add_strategies(second_loop, alike);
+            Described first_described{"chunk_strategy_alike_first", alike};
+            Described second_described{"chunk_strategy_alike_second", alike};
+            auto& first_loop = first_described.loop;
+            auto& second_loop = second_described.loop;
             auto& first_chunk = static_cast<gpu::ChunkBase&>(*first_loop.ladder()[0].strategy);
             auto& second_chunk =
                 static_cast<gpu::ChunkBase&>(*second_loop.ladder()[0].strategy);

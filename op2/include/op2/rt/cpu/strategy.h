@@ -71,9 +71,9 @@ class StrategyBase : public op::rt::loop::Strategy {
 protected:
     Loop& m_loop;
     std::string m_name;
-    Run m_run;
+    abi::cpu::Run m_run;
 
-    StrategyBase(Loop& loop, const op::rt::loop::Point& point, Run run)
+    StrategyBase(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
         : m_loop{loop}, m_name{point.name}, m_run{run} {}
 
     // Split [begin, end) over the threads, a body call each.
@@ -97,7 +97,7 @@ public:
 // for plain, atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, const op::rt::loop::Point& point, Run run)
+    Simple(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
         : StrategyBase{loop, point, run} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
@@ -115,7 +115,7 @@ private:
     op::rt::plan::PlanSlots<op::rt::plan::SetColouring> m_plans;
 
 public:
-    Colouring(Loop& loop, const op::rt::loop::Point& point, Run run)
+    Colouring(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
         : StrategyBase{loop, point, run} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
@@ -141,7 +141,7 @@ protected:
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured, Run run,
+    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured, abi::cpu::Run run,
               op::rt::abi::ArgGroups groups)
         : StrategyBase{loop, point, run}, m_coloured{coloured}, m_groups{groups},
           m_chunk_size{point.value("chunk_size")} {}
@@ -165,7 +165,7 @@ public:
 
 class ChunkAtomics : public ChunkBase {
 public:
-    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, Run run,
+    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run,
                  op::rt::abi::ArgGroups groups)
         : ChunkBase{loop, point, false, run, groups} {}
 };
@@ -173,15 +173,13 @@ public:
 // Conflicts come from the call's updated dats, so it needs no groups.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, const op::rt::loop::Point& point, Run run)
+    ChunkColouring(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
         : ChunkBase{loop, point, true, run, {}} {}
 };
 
-// A strategy of family at point, running its phases through run.
-std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, std::string_view family,
-                                                      const op::rt::loop::Point& point,
-                                                      Run run,
-                                                      op::rt::abi::ArgGroups groups);
+// A strategy of family at point.
+std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::cpu::Family& family,
+                                                      const op::rt::loop::Point& point);
 
 // Declare the families the generated code registers, in ladder order; the
 // CPU libraries' op_init calls it.

@@ -30,7 +30,8 @@ constexpr int elements = 4096;
 
 // The kernel after its declaration, with or without launch bounds.
 #define KERNEL_BODY R"op2(
-void thread_limit_kernel(double *out, const double *in, int start, int end) {
+void thread_limit_kernel(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM) double *out,
+                         const double *in) {
     for (int e = start + threadIdx.x + blockIdx.x * blockDim.x; e < end;
          e += blockDim.x * gridDim.x) {
         double a[64];
@@ -59,11 +60,24 @@ constexpr char bounded[] =
 double *out_d = nullptr;
 double *in_d = nullptr;
 
-void bind(gpu::LaunchContext& context, op_arg *, std::vector<void *>& arguments) {
-    arguments = {&out_d, &in_d, &context.start, &context.end};
+void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
+    arguments.insert(arguments.end(), {(void *)&out_d, (void *)&in_d});
 }
 
-gpu::JitHeaders headers() { return OP_KERNEL_JIT_HEADERS; }
+// A loop of plain alone, its kernel built from source, with the descriptor it
+// is built from, which outlives it.
+struct Described {
+    op::rt::abi::gpu::Family family;
+    op::rt::abi::gpu::Loop descriptor;
+    gpu::Loop loop;
+
+    explicit Described(const char *source)
+        : family{"plain", "thread_limit_kernel", nullptr, source, {}},
+          descriptor{"thread_limit", "cuda", "Direct", true, false, false, {},
+                     {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
+                     OP_KERNEL_JIT_HEADERS},
+          loop{descriptor} {}
+};
 
 std::vector<double> reference(const std::vector<double>& in) {
     std::vector<double> out(elements);
@@ -144,25 +158,18 @@ int main(int argc, char **argv) {
         expect(error < 1e-9, what + " computes the result");
         return statistics;
     };
-    auto make = [&](gpu::Loop& jit_loop, const char *source) {
-        jit_loop.add_launch_param("op2_block_size_d", gpu::LaunchValue::block_size);
-        jit_loop.add("plain", gpu::KernelSource{"thread_limit_kernel", {}, source}, &bind);
-    };
-
     {
         declare();
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", true, false, headers());
-        make(jit_loop, unbounded);
-        auto prepared = prepare(jit_loop);
+        Described described{unbounded};
+        auto prepared = prepare(described.loop);
         expect(prepared.status == loop::Status::unavailable &&
                    prepared.reason == "thread_limit",
                "without launch bounds: thread_limit, not " + std::string{prepared.reason});
     }
     {
         declare();
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", true, false, headers());
-        make(jit_loop, bounded);
-        runs(jit_loop, "launch bounds");
+        Described described{bounded};
+        runs(described.loop, "launch bounds");
     }
 
     GPU_CHECK(gpuFree(in_d));
