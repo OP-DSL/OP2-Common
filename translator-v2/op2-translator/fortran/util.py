@@ -182,6 +182,24 @@ def parseDimensions(func: Function, param: str) -> Optional[List[Tuple[str, str]
     return None
 
 
+def hasTarget(func: Function, param: str) -> bool:
+    spec = fpu.get_child(func.ast, f2003.Specification_Part)
+    param = param.lower()
+
+    for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
+        names = [fpu.get_child(e, f2003.Name).string.lower() for e in fpu.walk(type_decl, f2003.Entity_Decl)]
+        attrs = [str(a).upper() for a in fpu.walk(type_decl, f2003.Attr_Spec)]
+
+        if param in names and "TARGET" in attrs:
+            return True
+
+    for target_stmt in fpu.walk(spec, f2003.Target_Stmt):
+        if param in [n.string.lower() for n in fpu.walk(target_stmt, f2003.Name)]:
+            return True
+
+    return False
+
+
 def eraseDimensions(func: Function, param: str) -> None:
     spec = fpu.get_child(func.ast, f2003.Specification_Part)
 

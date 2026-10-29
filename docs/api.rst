@@ -731,6 +731,11 @@ Example from the Fortran Airfoil benchmark:
 .. note::
    ``op_par_loop_N`` is defined for each value of N used in the application. The OP2 Fortran library provides pre-built stubs for common arities, but the code translator generates the correct loop host for each kernel.
 
+.. note::
+   A loop can hand the kernel one element of a dat through two arguments, at least one of them modified: the same ``op_dat`` twice through the same map and index, or through two maps (or one direct and one indirect) that can meet.  The ``seq`` and ``genseq`` targets call the kernel with references straight into the dat, and Fortran lets a compiler assume that dummy arguments it modifies do not overlap, so an update can be lost, depending on the compiler and its optimisation.  Declare such dummies with the ``target`` attribute: the standard permits the overlap for ``target`` scalars and assumed-shape arrays, and gfortran keeps their accesses in order.  nvfortran (26.9) at ``-O2`` and above still reorders them unless built with ``-Mnovect``.  The other targets translate the kernel to C++, where arguments may overlap, or give each argument its own copy.  One map at two indices, as ``p_res`` through ``pecell`` above, reaches one element only where the map repeats an entry in a row, as degenerate elements do (a prism stored as a hexahedron with repeated nodes).
+
+   The translator warns about every such pair of dummies without ``target``.  ``--alias-warnings except-map-indices`` leaves out the one-map-at-two-indices pairs, for meshes with no repeated entries, and ``--alias-warnings none`` turns the warning off.
+
 Mesh Partitioning
 ^^^^^^^^^^^^^^^^^
 

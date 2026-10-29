@@ -1,3 +1,4 @@
+import itertools
 import logging
 from collections import Counter
 from fractions import Fraction
@@ -16,7 +17,7 @@ from util import find, safeFind
 logger = logging.getLogger(__name__)
 
 
-def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
+def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnings: str = "all") -> None:
     kernel_entities = app.findEntities(loop.kernel, program, [])
 
     if len(kernel_entities) == 0:
@@ -179,6 +180,48 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
             printViolations(loop, f"kernel parameter shape mismatch (op_arg dim={arg_dim}, expected {expected})",
                             violations, (idx, param_name))
             loop.fallback = True
+
+    # Check that dummies which may receive one element of a dat, at least
+    # once to modify it, have the target attribute: seq and genseq pass both
+    # as references into the dat, and Fortran lets a compiler assume that
+    # modified dummies do not overlap.  One map at different indices reaches
+    # one element only where the map repeats an entry in a row, which
+    # alias_warnings except-map-indices leaves out.
+    violations = []
+    for i, j in itertools.combinations(range(len(loop.args)), 2):
+        if alias_warnings == "none":
+            break
+
+        first, second = loop.args[i], loop.args[j]
+
+        if not isinstance(first, OP.ArgDat) or not isinstance(second, OP.ArgDat) or first.dat_id != second.dat_id:
+            continue
+
+        if first.access_type == OP.AccessType.READ and second.access_type == OP.AccessType.READ:
+            continue
+
+        map_indices = first.map_id is not None and first.map_id == second.map_id and first.map_idx != second.map_idx
+        if map_indices and alias_warnings == "except-map-indices":
+            continue
+
+        params = [kernel_entities[0].parameters[i], kernel_entities[0].parameters[j]]
+        missing = [p for p in params if not fu.hasTarget(kernel_entities[0], p)]
+
+        if len(missing) == 0:
+            continue
+
+        dat = loop.dat(first).ptr
+        if map_indices:
+            meet = f"share an element of {dat} where {loop.map(first).ptr} repeats an entry in a row"
+        else:
+            meet = f"may share an element of {dat}"
+
+        violations.append(
+            f"args {i + 1} ({params[0]}) and {j + 1} ({params[1]}) {meet}: declare {', '.join(missing)} with target"
+        )
+
+    if len(violations) > 0:
+        printViolations(loop, "may receive one element through two dummies, one modified, without target", violations)
 
     # Check for runtime-dimension stack arrays (very slow for GPU)
     violations = []

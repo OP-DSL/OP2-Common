@@ -8,9 +8,10 @@ contains
   ! Count each edge at both of its nodes and at its hub, through read-write
   ! arguments on one dat, so a lost update shows up exactly.
   subroutine rw_count(c0, c1, ch)
-    integer(4), intent(inout) :: c0
-    integer(4), intent(inout) :: c1
-    integer(4), intent(inout) :: ch
+    ! The hub map can repeat an end of the edge: target lets them alias.
+    integer(4), intent(inout), target :: c0
+    integer(4), intent(inout), target :: c1
+    integer(4), intent(inout), target :: ch
 
     c0 = c0 + 1
     c1 = c1 + 1
@@ -22,9 +23,10 @@ contains
   ! result does not depend on the order conflicting edges run in.  The
   ! optional increment is touched only when use_d says it is active.
   subroutine rw_mixed(a0, a1, a_far, b0, b1, dh, er, use_d, total)
-    real(8), dimension(2), intent(inout) :: a0
-    real(8), dimension(2), intent(inout) :: a1
-    real(8), dimension(2), intent(in)    :: a_far
+    ! The far map can repeat an end of the edge: target lets them alias.
+    real(8), dimension(2), intent(inout), target :: a0
+    real(8), dimension(2), intent(inout), target :: a1
+    real(8), dimension(2), intent(in), target    :: a_far
     real(8), intent(inout) :: b0
     real(8), intent(inout) :: b1
     real(8), intent(inout) :: dh

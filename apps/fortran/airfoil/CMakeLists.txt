@@ -8,8 +8,11 @@ set(_airfoil_srcs
     airfoil_kernels.F90
     airfoil.F90)
 
+# No airfoil edge repeats a cell, so res_calc's two pecell increments never
+# meet.
 set(_airfoil_translator_args
-    --consts-module "${CMAKE_CURRENT_SOURCE_DIR}/airfoil_constants.F90")
+    --consts-module "${CMAKE_CURRENT_SOURCE_DIR}/airfoil_constants.F90"
+    --alias-warnings except-map-indices)
 
 op2_add_app_variants(
     NAME     airfoil_plain

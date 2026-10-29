@@ -218,11 +218,14 @@ contains
     subroutine resk(a1, u1, u2, b1, b2, c1, d1, e1, f1, g1, r1, o1, oscale, beta_value)
         implicit none
 
-        real(8) :: a1, u1, d1, f1, beta_value
+        ! b1 and g1, d1 and f1 receive the same elements: target lets them
+        ! alias, as seq and genseq pass them.
+        real(8) :: a1, u1, beta_value
+        real(8), target :: d1, f1
         real(4) :: b2, o1
         integer(4) :: oscale
         real(4), dimension(2) :: u2, e1
-        real(8), dimension(2) :: b1, g1
+        real(8), dimension(2), target :: b1, g1
         integer(4), dimension(3) :: c1
         real(8), dimension(4) :: r1
 

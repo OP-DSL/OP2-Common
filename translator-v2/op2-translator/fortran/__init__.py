@@ -184,6 +184,7 @@ class Fortran(Lang):
     extra_consts_list = None
     user_consts_module = None
     use_regex_translator = False
+    alias_warnings = "all"
 
     parser = None
     fpp = None
@@ -199,6 +200,14 @@ class Fortran(Lang):
         parser.add_argument("--user-consts-module", help="(Fortran) Use a custom consts module", default=None)
         parser.add_argument(
             "--regex-program-translator", help="(Fortran) Use the regex-based program translator", action="store_true"
+        )
+        parser.add_argument(
+            "--alias-warnings",
+            help="(Fortran) Warn about kernel dummies without target that may receive one element twice, one "
+            "modified: all, except-map-indices (not one map at two indices, which meet only where the map "
+            "repeats an entry in a row) or none",
+            choices=["all", "except-map-indices", "none"],
+            default="all",
         )
 
     def parseArgs(self, args: Namespace) -> None:
@@ -217,6 +226,8 @@ class Fortran(Lang):
         if args.regex_program_translator:
             self.use_regex_translator = True
             logger.debug("Using regex program translator")
+
+        self.alias_warnings = args.alias_warnings
 
         # fpp is a bundled binary, not a Python package - locate it relative
         # to this file's own install location (translator-v2/fpp/fpp
@@ -238,7 +249,7 @@ class Fortran(Lang):
             fortran.parser.parseFunctionDependencies(program, app)
 
         for loop, program in app.loops():
-            fortran.validator.validateLoop(loop, program, app)
+            fortran.validator.validateLoop(loop, program, app, self.alias_warnings)
 
     def fppIncludes(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Set[Path]:
         # A second fpp pass: -M reports the files it read but suppresses the

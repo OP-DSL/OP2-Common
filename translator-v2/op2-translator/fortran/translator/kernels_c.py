@@ -336,7 +336,7 @@ def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, F
             for attr_spec in attr_spec_list.items:
                 if isinstance(attr_spec, f2003.Dimension_Attr_Spec):
                     dimension_attr_spec = attr_spec
-                elif attr_spec.string == "PARAMETER" or isinstance(attr_spec, f2003.Intent_Attr_Spec):
+                elif attr_spec.string in ("PARAMETER", "TARGET") or isinstance(attr_spec, f2003.Intent_Attr_Spec):
                     continue
                 elif isinstance(attr_spec, f2003.Language_Binding_Spec):
                     continue
@@ -685,6 +685,10 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
 
         if isinstance(node, f2003.Data_Stmt):
             init_src += translateDataStmt(node, ctx)
+            continue
+
+        # C++ lets references alias anyway.
+        if isinstance(node, f2003.Target_Stmt):
             continue
 
         ctx.error(f"Unsupported specification statement", node)
