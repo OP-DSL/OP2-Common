@@ -5,7 +5,7 @@
 // function for each, through order under a set colouring.  Device code; the
 // generated wrapper passes its record's fields and its element function.
 
-#include <op2/rt/kernel/gpu/block.h>
+#include <op2/rt/kernel/gpu/device.h>
 #include <op2/rt/kernel/prelude.h>
 
 namespace op::rt::kernel::gpu {

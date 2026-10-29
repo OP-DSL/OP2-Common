@@ -110,7 +110,7 @@ namespace {
 
 // The run-time parameters as a built kernel has them: a global as its
 // wrapper's argument, which the source reads through
-// op::rt::kernel::param_value; any other as a symbol of its module, added to
+// op::rt::kernel::gpu::param_value; any other as a symbol of its module, added to
 // symbols.
 std::string runtime_declarations(const op::rt::jit::ParamSet& params,
                                  std::vector<RuntimeSymbol>& symbols) {
@@ -121,7 +121,7 @@ std::string runtime_declarations(const op::rt::jit::ParamSet& params,
             continue;
         if (param.source() == op::rt::abi::ParamSource::scalar_arg ||
             param.source() == op::rt::abi::ParamSource::array_arg) {
-            out += "static constexpr op::rt::kernel::RuntimeParam " + param.name() + "{};\n";
+            out += "static constexpr op::rt::kernel::gpu::RuntimeParam " + param.name() + "{};\n";
             continue;
         }
         out += "__constant__ ";

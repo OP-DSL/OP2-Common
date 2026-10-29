@@ -97,7 +97,7 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
     element. -#}
 {%- macro arg_element(arg, jit, staged = none, local = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
-{{abi.value("op::rt::kernel::param_value(op2_gbl%d_d, gbl%d)" % (arg.id, arg.id))}}
+{{abi.value("op::rt::kernel::gpu::param_value(op2_gbl%d_d, gbl%d)" % (arg.id, arg.id))}}
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 {{abi.value("gbl%d" % arg.id)}}
     {%- else -%}
@@ -113,11 +113,11 @@ op::rt::kernel::Ptr{info{{arg.id}} + thread_id, op2_stride_gbl}
     {%- elif arg in args_gbl_per_thread -%}
 op::rt::kernel::Ptr{gbl{{arg.id}} + thread_id, op2_stride_gbl}
     {%- elif jit and arg in gbls_by_value -%}
-op::rt::kernel::Ptr{op::rt::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)}
+op::rt::kernel::Ptr{op::rt::kernel::gpu::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}}.data)}
     {%- elif arg in gbls_by_value -%}
 op::rt::kernel::Ptr{gbl{{arg.id}}.data}
     {%- elif jit and arg is gbl and arg is read -%}
-op::rt::kernel::Ptr{op::rt::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
+op::rt::kernel::Ptr{op::rt::kernel::gpu::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
     {%- elif arg is gbl -%}
 op::rt::kernel::Ptr{gbl{{arg.id}}}
     {%- else -%}
@@ -193,7 +193,7 @@ __constant__ int op2_stride_dat{{dat.id}}_d;
 
 {% if per_thread %}
 // An offline kernel has the global stride from its launch record.
-constexpr op::rt::kernel::RuntimeParam op2_stride_gbl_d{};
+constexpr op::rt::kernel::gpu::RuntimeParam op2_stride_gbl_d{};
 {% endif %}
 
 {% for dat in lh.dats if dat.dim is none %}
@@ -345,7 +345,7 @@ __launch_bounds__(op::rt::abi::gpu::default_block_size)
 
 {#- The JIT wrapper takes the offline wrapper's parameters, so both launch
     from one argument list.  Those the JIT kernel may have as constants come
-    last: a scalar global, read through op::rt::kernel::param_value as its baked value
+    last: a scalar global, read through op::rt::kernel::gpu::param_value as its baked value
     or the argument, and a dimension, unnamed there. -#}
 {% macro kernel_wrapper(strategy, jit = false) %}
 {% set record = "CHUNK" if strategy in chunk_strategies else "RANGE" %}
@@ -372,7 +372,7 @@ __launch_bounds__(op::rt::abi::gpu::default_block_size)
     {% set p.items = p.items + ["const int " ~ (("/*dat%s_dim*/" if jit else "dat%s_dim") % dat.id)] %}
 {% endfor %}
 {% for arg in gbls_by_value %}
-    {% set p.items = p.items + ["const op::rt::kernel::Array<%s, %s> gbl%s" % (arg.typ.c(), arg.dim, arg.id)] %}
+    {% set p.items = p.items + ["const op::rt::kernel::gpu::Array<%s, %s> gbl%s" % (arg.typ.c(), arg.dim, arg.id)] %}
 {% endfor %}
 {% if not p.items %}
     {% set p.items = ["[[maybe_unused]] const void *op2_no_arguments"] %}
@@ -385,7 +385,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     using namespace op2_m_{{lh.name}}{{variant}};
     {% if per_thread %}
     const int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-    const int op2_stride_gbl = op::rt::kernel::param_value(op2_stride_gbl_d, global_stride);
+    const int op2_stride_gbl = op::rt::kernel::gpu::param_value(op2_stride_gbl_d, global_stride);
     {% endif %}
     {% if jit %}
         {% for dat in lh.dats if dat.dim is none %}

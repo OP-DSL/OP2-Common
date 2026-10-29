@@ -13,9 +13,8 @@
 // the chunk: a hook reading the record's arrays itself has them, under HIP,
 // as generic pointers, and slots derived at the write cost CUDA registers.
 
-#include <op2/rt/kernel/gpu/block.h>
+#include <op2/rt/kernel/gpu/device.h>
 #include <op2/rt/kernel/gpu/wavefront.h>
-#include <op2/rt/kernel/inc.h>
 #include <op2/rt/kernel/prelude.h>
 
 namespace op::rt::kernel::gpu {

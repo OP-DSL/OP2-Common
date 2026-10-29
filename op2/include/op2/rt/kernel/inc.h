@@ -1,8 +1,7 @@
 #pragma once
 
 // The increment hooks a translated kernel's op2_inc is defined as, on the
-// host and on the device: in place, or atomically.  And opaque, which hides a
-// value from the optimiser.
+// host and on the device: in place, or atomically.
 
 #include <op2/rt/kernel/prelude.h>
 
@@ -24,16 +23,6 @@ namespace op::rt::kernel {
 template<typename T, typename U>
 OP_KERNEL_DEVICE inline void plain_inc(T& target, U value) {
     target = static_cast<T>(target + value);
-}
-
-// Return x unchanged, but opaque to the optimiser.
-OP_KERNEL_DEVICE inline int opaque(int x) {
-#if defined(__CUDA_ARCH__)
-    asm volatile("" : "+r"(x));
-#elif defined(__HIP_DEVICE_COMPILE__)
-    asm volatile("" : "+v"(x));
-#endif
-    return x;
 }
 
 #if !defined(__CUDACC__) && !defined(__HIPCC__)

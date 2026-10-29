@@ -1,6 +1,6 @@
 #pragma once
 
-// The block a GPU kernel runs as.  Device code.
+// The device helpers the GPU skeletons and their hooks share.  Device code.
 
 #include <op2/rt/kernel/prelude.h>
 
@@ -23,6 +23,16 @@ __device__ __forceinline__ unsigned block_size() {
 #else
     return blockDim.x;
 #endif
+}
+
+// Return x unchanged, but opaque to the optimiser.
+__device__ __forceinline__ int opaque(int x) {
+#if defined(__CUDA_ARCH__)
+    asm volatile("" : "+r"(x));
+#elif defined(__HIP_DEVICE_COMPILE__)
+    asm volatile("" : "+v"(x));
+#endif
+    return x;
 }
 
 } // namespace op::rt::kernel::gpu
