@@ -11,9 +11,9 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const abi::ArgGroups& groups, int size,
                                double min_compression) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(
-        args, sections, groups, {size, 1, chunk_scratch_limit, sections.elements(), false, false},
-        staged);
+    plan::StagingSpec spec{size, 1, chunk_scratch_limit, abi::max_slots,
+                           sections.elements(), false, false};
+    auto reason = plan::stage_chunks(args, sections, groups, spec, staged);
     if (!reason.empty())
         return {reason, nullptr};
     double compression = staged.targets.compression();
@@ -23,6 +23,9 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
     auto out = std::make_unique<ChunkPlan>();
     out->chunks = std::move(staged.chunks);
     out->staging = std::move(staged.staging);
+    out->stage_words = plan::stage_words(std::span<const int>{out->staging.slots},
+                                         abi::unstaged_word);
+    out->staging.slots = {};
     out->batches = plan::section_batches(out->chunks);
     for (auto bytes : out->staging.chunk_scratch_bytes)
         out->max_scratch_bytes = std::max(out->max_scratch_bytes, bytes);

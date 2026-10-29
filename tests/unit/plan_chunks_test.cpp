@@ -4,6 +4,7 @@
 // colours, and the size a host chunk shrinks to for its staging.  The rest of
 // the staging pipeline is tested through the GPU plans.
 
+#include <op2/rt/abi/staging.h>
 #include <op2/rt/cpu/chunk_plan.h>
 #include <op2/rt/plan/chunks.h>
 #include <op2/rt/plan/staging.h>
@@ -205,7 +206,9 @@ void test_staged_chunk_sizes() {
     auto stage = [&](int size, std::size_t scratch, plan::StagedChunks& staged) {
         auto sections = Sections::direct(&chain.edges);
         return plan::stage_chunks(chain.args, sections, abi::ArgGroups{groups, 1},
-                                  {size, 1, scratch, sections.elements(), false, false}, staged);
+                                  {size, 1, scratch, abi::max_slots, sections.elements(), false,
+                                   false},
+                                  staged);
     };
     auto size_for = [&](int size, std::size_t scratch) {
         plan::StagedChunks staged;
@@ -233,7 +236,7 @@ void test_cpu_plans() {
     CHECK(coloured);
     const auto& colouring = *coloured.plan;
     CHECK(colouring.chunks.size == 16);
-    CHECK(colouring.staging.stage_words.empty());
+    CHECK(colouring.stage_words.empty());
     plan::References references;
     CHECK(plan::updated_references(chain.args, references).empty());
     check_batches(colouring.batches, colouring.chunks, references);

@@ -165,7 +165,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     abi::cpu::Chunk chunks = m_loop.chunks();
     chunks.chunk_order = plan.batches.order.empty() ? nullptr : plan.batches.order.data();
     chunks.chunk_offsets = plan.chunks.offsets.data();
-    chunks.staging = {plan.staging.stride, plan.staging.stage_words.data(),
+    chunks.staging = {plan.staging.stride, plan.stage_words.data(),
                      plan.staging.slot_offsets.data(), plan.staging.slot_targets.data()};
 
     return run_phases(run, sections.size(), sections.wait_index(),

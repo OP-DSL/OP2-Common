@@ -67,7 +67,7 @@ DevicePlan& DevicePlan::operator=(DevicePlan&& other) noexcept {
 
 DevicePlan::DevicePlan(const ChunkPlan& plan) {
     upload(plan.chunks.offsets, source_offsets);
-    upload(plan.staging.stage_words, stage_words);
+    upload(plan.stage_words, stage_words);
     upload(slot_counts(plan.staging), stage_counts);
     upload(plan.staging.slot_offsets, slot_offsets);
     upload(plan.staging.slot_targets, slot_targets);

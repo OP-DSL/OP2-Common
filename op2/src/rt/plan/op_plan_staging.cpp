@@ -65,9 +65,9 @@ std::size_t region_bytes(const References& references, std::span<const int> coun
 }
 
 // The largest multiple of lanes up to size, itself one, whose chunks'
-// worst-case staging fits scratch_limit and the stage word; 0 if none does.
+// worst-case staging fits scratch_limit and max_slots; 0 if none does.
 int staged_chunk_size(const References& references, int size, int lanes,
-                      std::size_t scratch_limit) {
+                      std::size_t scratch_limit, int max_slots) {
     assert(size > 0 && lanes > 0 && size % lanes == 0);
 
     // A chunk's distinct targets cannot outnumber its source references, so
@@ -81,11 +81,11 @@ int staged_chunk_size(const References& references, int size, int lanes,
     std::size_t per_element = bytes_per_source_element(references);
     assert(per_element > 0);
 
-    // A region's slots must also fit the stage word.
+    // A region's slots must also fit the slot limit.
     auto counts = references_per_group(references);
     int per_group = std::max(*std::max_element(counts.begin(), counts.end()), 1);
     auto capacity = std::min(static_cast<long long>(limit / per_element),
-                             static_cast<long long>(abi::max_slots / per_group));
+                             static_cast<long long>(max_slots / per_group));
     long long multiples = capacity / lanes;
     if (multiples < 1)
         return 0;
@@ -98,7 +98,7 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
     Staging staging;
     staging.stride = stride;
     const std::size_t groups = references.groups.size();
-    staging.stage_words.assign(references.items.size() * static_cast<std::size_t>(stride), 0);
+    staging.slots.assign(references.items.size() * static_cast<std::size_t>(stride), 0);
     staging.slot_offsets.reserve(static_cast<std::size_t>(chunks.count()) * groups + 1);
     staging.chunk_scratch_bytes.reserve(static_cast<std::size_t>(chunks.count()));
 
@@ -122,7 +122,7 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                 int target = targets.targets[static_cast<std::size_t>(entry)];
                 int& slot = slots[group][static_cast<std::size_t>(target)];
                 if (unstaged_singles && targets.references[static_cast<std::size_t>(entry)] == 1) {
-                    slot = abi::unstaged_word;
+                    slot = unstaged_slot;
                     ++staging.unstaged_singles;
                     continue;
                 }
@@ -138,11 +138,10 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                 if (reference.arg->opt == 0)
                     continue;
                 int target = arg_target(*reference.arg, element);
-                staging.stage_words[index * static_cast<std::size_t>(stride) +
-                                    static_cast<std::size_t>(element)] =
-                    static_cast<abi::StageWord>(
-                        slots[static_cast<std::size_t>(reference.group)]
-                             [static_cast<std::size_t>(target)]);
+                staging.slots[index * static_cast<std::size_t>(stride) +
+                              static_cast<std::size_t>(element)] =
+                    slots[static_cast<std::size_t>(reference.group)]
+                         [static_cast<std::size_t>(target)];
             }
 
         staging.chunk_scratch_bytes.push_back(region_bytes(references, counts));
@@ -234,8 +233,8 @@ std::string_view stage_chunks(std::span<const op_arg> args,
     auto reason = grouped_references(args, groups, spec.read_write, out.references);
     if (!reason.empty())
         return reason;
-    int chunk_size =
-        staged_chunk_size(out.references, spec.size, spec.lanes, spec.scratch_limit);
+    int chunk_size = staged_chunk_size(out.references, spec.size, spec.lanes,
+                                       spec.scratch_limit, spec.max_slots);
     if (chunk_size == 0)
         return "insufficient_scratch";
 

@@ -2,11 +2,12 @@
 
 // The GPU's chunk plans, built from the plan building blocks under the
 // device's limits: a chunk is a block's elements, its staging fits the
-// shared memory a block may use and the 16-bit stage word, and a thread
-// colour fits a byte.  Host code with no device calls; DevicePlan
+// shared memory a block may use and the 16-bit stage word it encodes its
+// slots as, and a thread colour fits a byte.  Host code with no device calls; DevicePlan
 // (op2/rt/gpu/chunk_encode.h) uploads a plan as the kernels read it.  The
 // planners are defined in src/rt/gpu/op_gpu_chunk_plan.cpp.
 
+#include <op2/rt/abi/staging.h>
 #include <op2/rt/plan/chunks.h>
 #include <op2/rt/plan/staging.h>
 
@@ -31,7 +32,10 @@ struct ChunkSpec {
 // accumulating into its targets' slots in shared memory.
 struct ChunkPlan {
     plan::Chunks chunks;
+    // The staging, its slots as the kernels read them: a 16-bit stage word
+    // each, unstaged_word for a reference left in global memory.
     plan::Staging staging;
+    std::vector<abi::StageWord> stage_words;
     plan::ChunkBatches batches;
 
     // chunk_colouring: per element its thread colour within its chunk, per
@@ -65,6 +69,7 @@ struct ChunkPlan {
         kept.stride = staging.stride;
         kept.unstaged_singles = staging.unstaged_singles;
         staging = std::move(kept);
+        stage_words = {};
         thread_colours = {};
         chunk_thread_colours = {};
         wave_pred_offsets = {};

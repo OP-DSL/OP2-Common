@@ -14,6 +14,9 @@ std::unique_ptr<ChunkPlan> staged_plan(plan::StagedChunks& staged) {
     auto out = std::make_unique<ChunkPlan>();
     out->chunks = std::move(staged.chunks);
     out->staging = std::move(staged.staging);
+    out->stage_words = plan::stage_words(std::span<const int>{out->staging.slots},
+                                         abi::unstaged_word);
+    out->staging.slots = {};
     out->references = staged.targets.total_references;
     out->distinct_targets = staged.targets.targets.size();
     out->compression = staged.targets.compression();
@@ -43,8 +46,8 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
     plan::StagedChunks staged;
     auto reason = plan::stage_chunks(
         args, sections, groups,
-        {spec.block_size, spec.block_size, spec.shared_bytes, spec.stride, false,
-         unstaged_singles},
+        {spec.block_size, spec.block_size, spec.shared_bytes, abi::max_slots, spec.stride,
+         false, unstaged_singles},
         staged);
     if (!reason.empty())
         return {reason, nullptr};
@@ -64,7 +67,8 @@ ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
     plan::StagedChunks staged;
     auto reason = plan::stage_chunks(
         args, sections, groups,
-        {spec.block_size, spec.block_size, spec.shared_bytes, spec.stride, true, false},
+        {spec.block_size, spec.block_size, spec.shared_bytes, abi::max_slots, spec.stride,
+         true, false},
         staged);
     if (!reason.empty())
         return {reason, nullptr};

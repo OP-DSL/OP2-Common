@@ -5,11 +5,13 @@
 // chunk's scratch is bounded only so its slots stay in the caches.  The
 // planners are defined in src/rt/cpu/op_cpu_chunk_plan.cpp.
 
+#include <op2/rt/abi/staging.h>
 #include <op2/rt/plan/chunks.h>
 #include <op2/rt/plan/staging.h>
 
 #include <cstddef>
 #include <span>
+#include <vector>
 
 namespace op::rt::cpu {
 
@@ -23,9 +25,11 @@ constexpr std::size_t chunk_scratch_limit = std::size_t{1} << 20;
 struct ChunkPlan {
     plan::Chunks chunks;
     plan::ChunkBatches batches;
-    // chunk_atomics: each chunk's slots in its thread's scratch, and the
-    // most bytes a chunk needs.
+    // chunk_atomics: each chunk's slots in its thread's scratch, a 16-bit
+    // stage word each as the region reads them, and the most bytes a chunk
+    // needs.
     plan::Staging staging;
+    std::vector<abi::StageWord> stage_words;
     std::size_t max_scratch_bytes = 0;
     double compression = 0.0;
 };

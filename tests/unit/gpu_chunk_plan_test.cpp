@@ -160,7 +160,7 @@ std::size_t max_chunk_scratch_bytes(const gpu::ChunkPlan& chunk_plan, int begin,
 
 abi::StageWord stage_word(const gpu::ChunkPlan& chunk_plan,
                             std::size_t staged_arg, int source_element) {
-    return chunk_plan.staging.stage_words[
+    return chunk_plan.stage_words[
         staged_arg * static_cast<std::size_t>(chunk_plan.staging.stride) +
         static_cast<std::size_t>(source_element)];
 }
