@@ -108,7 +108,7 @@ gpu/jit.h              (includes: gpu/check.h, gpu/options.h, gpu/shims.h,
                         parameters as wrapper arguments or module symbols,
                         launches)
 gpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
-                        plans under the device's limits: block multiples,
+                        plans under the device's limits: a block's elements,
                         shared memory, 16-bit stage words, 8-bit colours)
 gpu/chunk_encode.h     (includes: gpu/check.h, gpu/chunk_plan.h, gpu/shims.h;
                         a chunk plan uploaded as the kernels read it)

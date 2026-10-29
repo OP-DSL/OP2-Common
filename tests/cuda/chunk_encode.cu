@@ -72,7 +72,7 @@ void test_encode() {
     op::gpu::ChunkLimits limits{4, 1 << 16};
 
     auto result = op::gpu::plan_chunk_colouring(
-        args, sections, plan::ArgGroups{group_args, 1}, 4, limits, true, 2);
+        args, sections, plan::ArgGroups{group_args, 1}, limits, true, 2);
     CHECK(result);
     const auto& chunk_plan = *result.plan;
     CHECK(chunk_plan.wavefront);
@@ -107,7 +107,7 @@ void test_encode() {
     for (auto& arg : args)
         arg.acc = OP_INC;
     auto staged = op::gpu::plan_chunk_atomics(
-        args, sections, plan::ArgGroups{group_args, 1}, 4, limits, false, 0.0);
+        args, sections, plan::ArgGroups{group_args, 1}, limits, false, 0.0);
     CHECK(staged);
     {
         op::gpu::DevicePlan plan(*staged.plan);

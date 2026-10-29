@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
     CHECK(gpuGetDevice(&device) == gpuSuccess);
     CHECK(gpuGetDeviceProperties(&properties, device) == gpuSuccess);
     auto result = op::gpu::plan_chunk_atomics(
-        args, op::loop::Sections::direct(&source), op::plan::ArgGroups{groups, 1}, 128,
+        args, op::loop::Sections::direct(&source), op::plan::ArgGroups{groups, 1},
         op::gpu::ChunkLimits{128, properties.sharedMemPerBlock}, false, 1.5);
     CHECK(result);
 

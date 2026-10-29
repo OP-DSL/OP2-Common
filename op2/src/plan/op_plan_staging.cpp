@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <limits>
 #include <unordered_map>
 
 namespace op::plan {
@@ -67,20 +66,11 @@ std::size_t region_bytes(const References& references, std::span<const int> coun
     return bytes;
 }
 
-// The largest multiple of lanes, up to size rounded up to lanes, whose
-// chunks' worst-case staging fits scratch_limit and the stage word; 0 if
-// none does.
+// The largest multiple of lanes up to size, itself one, whose chunks'
+// worst-case staging fits scratch_limit and the stage word; 0 if none does.
 int staged_chunk_size(const References& references, int size, int lanes,
                       std::size_t scratch_limit) {
-    assert(size > 0 && lanes > 0);
-
-    // Round the requested size up to a lanes multiple, clamped so the result
-    // stays an int.
-    long long requested = (static_cast<long long>(size) + lanes - 1) / lanes;
-    requested = std::max(1LL, std::min(requested,
-                                       static_cast<long long>(
-                                           std::numeric_limits<int>::max() / lanes)));
-    requested *= lanes;
+    assert(size > 0 && lanes > 0 && size % lanes == 0);
 
     // A chunk's distinct targets cannot outnumber its source references, so
     // the exact staging is bounded by size * bytes_per_source_element.
@@ -101,7 +91,7 @@ int staged_chunk_size(const References& references, int size, int lanes,
     long long multiples = capacity / lanes;
     if (multiples < 1)
         return 0;
-    return static_cast<int>(std::min(requested, multiples * lanes));
+    return static_cast<int>(std::min(static_cast<long long>(size), multiples * lanes));
 }
 
 // Stage every active reference of each chunk.

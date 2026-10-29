@@ -47,24 +47,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <algorithm>
-
 #include <op_lib_core.h>
 #include <op_util.h>
-
-/*******************************************************************************
-* compute local size from global size
-*******************************************************************************/
-
-int compute_local_size(int global_size, int mpi_comm_size, int mpi_rank) {
-  int local_size = global_size / mpi_comm_size;
-  int remainder = (int)fmod(global_size, mpi_comm_size);
-
-  if (mpi_rank < remainder) {
-    local_size = local_size + 1;
-  }
-  return local_size;
-}
 
 /*******************************************************************************
 * Wrapper for malloc from www.gnu.org/
@@ -125,22 +109,6 @@ int min(int array[], int size) {
   }
   return index;
 }
-
-/*******************************************************************************
-* Binary search an array for a given value
-*******************************************************************************/
-
-template <typename T, typename U>
-idx_l_t binary_search(T a[], U value, int low, int high) {
-  auto lb = std::lower_bound(a + low, a + high + 1, value);
-  if (lb == a + high + 1 || *lb != value) return -1;
-  return (int) (lb - a);
-}
-
-template idx_l_t binary_search<idx_g_t, idx_g_t>(idx_g_t a[], idx_g_t value, int low, int high);
-template idx_l_t binary_search<idx_g_t, idx_l_t>(idx_g_t a[], idx_l_t value, int low, int high);
-template idx_l_t binary_search<idx_l_t, idx_l_t>(idx_l_t a[], idx_l_t value, int low, int high);
-template idx_l_t binary_search<const idx_l_t, idx_l_t>(const idx_l_t a[], idx_l_t value, int low, int high);
 
 /*******************************************************************************
 * Linear search an array for a given value

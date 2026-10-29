@@ -1,8 +1,8 @@
 #pragma once
 
 // The GPU's chunk plans, built from the plan building blocks under the
-// device's limits: a chunk is a multiple of the block and its staging fits
-// the shared memory a block may use and the 16-bit stage word, and a thread
+// device's limits: a chunk is a block's elements, its staging fits the
+// shared memory a block may use and the 16-bit stage word, and a thread
 // colour fits a byte.  Host code with no device calls; DevicePlan
 // (gpu/chunk_encode.h) uploads a plan as the kernels read it.
 
@@ -20,8 +20,8 @@
 
 namespace op::gpu {
 
-// What a chunk may use: chunks are multiples of the block, and a chunk's
-// staging fits the shared memory.
+// What a chunk may use: a block's elements, and staging that fits the
+// shared memory.
 struct ChunkLimits {
     int block_size = 0;
     std::size_t shared_bytes = 0;
@@ -112,12 +112,13 @@ inline void size_batches(ChunkPlan& out) {
 // it costs little more than global atomics, since those are its singles.
 inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                       const op::loop::Sections& sections,
-                                      const plan::ArgGroups& groups, int size,
+                                      const plan::ArgGroups& groups,
                                       const ChunkLimits& limits, bool unstaged_singles,
                                       double min_compression) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, false, size, limits.block_size,
-                                     limits.shared_bytes, unstaged_singles, staged);
+    auto reason = plan::stage_chunks(args, sections, groups, false, limits.block_size,
+                                     limits.block_size, limits.shared_bytes,
+                                     unstaged_singles, staged);
     if (!reason.empty())
         return {reason, nullptr};
     auto out = detail::staged_plan(staged);
@@ -135,12 +136,12 @@ inline ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
 // time (0: a section at once) and runs each section as one batch.
 inline ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                         const op::loop::Sections& sections,
-                                        const plan::ArgGroups& groups, int size,
+                                        const plan::ArgGroups& groups,
                                         const ChunkLimits& limits, bool wavefront,
                                         int window) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, true, size, limits.block_size,
-                                     limits.shared_bytes, false, staged);
+    auto reason = plan::stage_chunks(args, sections, groups, true, limits.block_size,
+                                     limits.block_size, limits.shared_bytes, false, staged);
     if (!reason.empty())
         return {reason, nullptr};
     auto out = detail::staged_plan(staged);

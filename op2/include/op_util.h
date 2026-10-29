@@ -45,14 +45,9 @@
 * MPI utility function prototypes
 *******************************************************************************/
 
-template <typename T, typename U>
-int binary_search(T a[], U value, int low, int high); 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-int compute_local_size(int global_size, int mpi_comm_size, int mpi_rank);
 
 void *xmalloc(size_t size);
 

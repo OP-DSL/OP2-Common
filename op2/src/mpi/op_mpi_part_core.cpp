@@ -97,10 +97,6 @@ using op::mpi::PartRange;
 // double min/max
 #include <float.h>
 
-extern int *OP_map_partial_exchange; // flag for each map ..
-// used for checking if partial halo exchanges
-// are to be performed
-
 #ifdef HAVE_PARMETIS
 static void partition_graph_parmetis(op_map primary_map);
 static void partition_geomkway(op_map primary_map, op_dat coords);
@@ -307,21 +303,12 @@ static int partition_from_set(op_map map, int my_rank, const std::vector<PartRan
 
       if (part == my_rank)
         found_parts[j] = p_set->elem_part[local_index];
-      else // get partition information from imported data
-      {
-        int r = binary_search(pi_list.ranks.data(), part, 0, pi_list.ranks_size() - 1);
-        if (r >= 0) {
-          int elem = binary_search(&pi_list.list[pi_list.disps[r]],
-                                   local_index, 0, pi_list.sizes[r] - 1);
-          if (elem >= 0)
-            found_parts[j] = imp_part[pi_list.disps[r] + elem];
-          else {
-            fail("Element %d not found in partition import list\n",
-                 local_index);
-          }
-        } else {
-          fail("Rank %d not found in partition import list\n", part);
-        }
+      else { // get partition information from imported data
+        int at = pi_list.position_of(part, local_index);
+        if (at < 0)
+          fail("Element %d of rank %d not found in partition import list\n", local_index,
+               part);
+        found_parts[j] = imp_part[at];
       }
     }
     partition[i] = find_mode(found_parts.data(), map->dim);

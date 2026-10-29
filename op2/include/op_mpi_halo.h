@@ -86,6 +86,13 @@ struct HaloList {
      and unique, sizes[i] > 0 entries of list for ranks[i], in that order. */
   static HaloList from_groups(op_set set, std::vector<int> ranks, std::vector<idx_l_t> sizes,
                               std::unique_ptr<idx_l_t[]> list);
+
+  /* Where rank sits in ranks, or -1. */
+  int rank_slot(int rank) const;
+
+  /* Where the list names element index of rank, as a position in list, or -1.
+     Needs each rank's block sorted, as from_pairs builds them. */
+  int position_of(int rank, int index) const;
 };
 
 /* A set's four halo lists. Each dat on the set holds its halo after its owned

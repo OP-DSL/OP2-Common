@@ -1,7 +1,8 @@
 // The chunk building blocks on their own, with no device limits, and the
 // OpenMP backend's plans over them: references, chunks within sections,
-// each chunk's targets, coloured batches and their wavefront, and element
-// colours.  The staging pipeline is tested through the GPU plans.
+// each chunk's targets, coloured batches and their wavefront, element
+// colours, and the size a host chunk shrinks to for its staging.  The rest of
+// the staging pipeline is tested through the GPU plans.
 
 #include <cpu/chunk_plan.h>
 #include <plan/chunks.h>
@@ -9,8 +10,10 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -192,6 +195,33 @@ void test_colouring() {
         CHECK(colours.colours[static_cast<std::size_t>(element)] == element % 2);
 }
 
+// A host chunk (one lane) shrinks until its worst case, two doubles an edge,
+// fits the scratch, and a region's slots fit the 16-bit stage word.
+void test_staged_chunk_sizes() {
+    Chain chain(1 << 17);
+    chain.args.resize(2);
+    std::array<plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+    auto stage = [&](int size, std::size_t scratch, plan::StagedChunks& staged) {
+        return plan::stage_chunks(chain.args, Sections::direct(&chain.edges),
+                                  plan::ArgGroups{groups, 1}, false, size, 1, scratch,
+                                  false, staged);
+    };
+    auto size_for = [&](int size, std::size_t scratch) {
+        plan::StagedChunks staged;
+        CHECK(stage(size, scratch, staged).empty());
+        return staged.chunks.size;
+    };
+
+    CHECK(size_for(100, 1 << 20) == 100);
+    CHECK(size_for(512, 2048) == 2048 / 16);
+    CHECK(size_for(INT_MAX, std::size_t{1} << 30) == plan::max_slots / 2);
+    static_assert(plan::max_slots - 1 <=
+                  std::numeric_limits<plan::StageWord>::max());
+
+    plan::StagedChunks staged;
+    CHECK(stage(512, 15, staged) == "insufficient_scratch");
+}
+
 // The OpenMP plans: chunk_colouring needs no groups, chunk_atomics stages
 // the grouped increments.
 void test_cpu_plans() {
@@ -256,6 +286,7 @@ int main() {
         test_references();
         test_chunks_and_targets();
         test_colouring();
+        test_staged_chunk_sizes();
         test_cpu_plans();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "plan chunks test failed: %s\n", error.what());

@@ -263,6 +263,20 @@ HaloList HaloList::from_pairs(op_set set, const int *pairs, int n_ints) {
   return from_groups(set, std::move(ranks), std::move(sizes), std::move(list));
 }
 
+int HaloList::rank_slot(int rank) const {
+  auto it = std::lower_bound(ranks.begin(), ranks.end(), rank);
+  return it != ranks.end() && *it == rank ? (int)(it - ranks.begin()) : -1;
+}
+
+int HaloList::position_of(int rank, int index) const {
+  const int r = rank_slot(rank);
+  if (r < 0)
+    return -1;
+  const idx_l_t *begin = list.get() + disps[r], *end = begin + sizes[r];
+  const idx_l_t *at = std::lower_bound(begin, end, index);
+  return at != end && *at == index ? (int)(at - list.get()) : -1;
+}
+
 /* A halo list from what an exchange delivered: one entry per sending rank,
    ranks ascending, each holding what that rank sent. Takes the exchange's
    buffers over rather than copying them. */
@@ -394,23 +408,6 @@ int is_onto_map(op_map map) {
  * Main MPI halo creation routine
  *******************************************************************************/
 
-/* Where rank sits in a list's ranks, or -1. */
-static int rank_slot(const HaloList &h, int rank) {
-  auto it = std::lower_bound(h.ranks.begin(), h.ranks.end(), rank);
-  return it != h.ranks.end() && *it == rank ? (int)(it - h.ranks.begin()) : -1;
-}
-
-/* Where a halo list names element `index` of rank `rank`, as a position in its
-   list, or -1. Needs each rank's block sorted, as halo creation builds them. */
-static int position_of(const HaloList &h, int rank, int index) {
-  const int r = rank_slot(h, rank);
-  if (r < 0)
-    return -1;
-  const idx_l_t *begin = h.list.get() + h.disps[r], *end = begin + h.sizes[r];
-  const idx_l_t *at = std::lower_bound(begin, end, index);
-  return at != end && *at == index ? (int)(at - h.list.get()) : -1;
-}
-
 /* Print, on the root, the average, minimum and maximum over the ranks of a
    per-rank count. */
 static void print_spread(const char *label, idx_g_t n, int width) {
@@ -503,7 +500,7 @@ void op_halo_create() {
       for (size_t k = 0; k < n; k++) {
         int local_index;
         const int part = part_range[set->index].owner(map->map_gbl[k], &local_index);
-        if (part != my_rank && position_of(exec, part, local_index) < 0)
+        if (part != my_rank && exec.position_of(part, local_index) < 0)
           pairs.insert(pairs.end(), {part, local_index});
       }
     }
@@ -553,9 +550,9 @@ void op_halo_create() {
       const int part = part_range[set->index].owner(map->map_gbl[k], &local_index);
       if (part == my_rank)
         map->map[k] = local_index;
-      else if ((at = position_of(halo.import_exec, part, local_index)) >= 0)
+      else if ((at = halo.import_exec.position_of(part, local_index)) >= 0)
         map->map[k] = set->size + at;
-      else if ((at = position_of(halo.import_nonexec, part, local_index)) >= 0)
+      else if ((at = halo.import_nonexec.position_of(part, local_index)) >= 0)
         map->map[k] = set->size + halo.import_exec.size() + at;
       else
         fail("Error: element %d of set %s, held by rank %d, is not in rank %d's halo (map %s)\n", local_index,
@@ -881,8 +878,8 @@ void op_halo_permap_create() {
     /* As an owner: turn each requested position into the element's local index. */
     op::mpi::Received<int> wanted = op::mpi::sparse::exchange(OP_MPI_WORLD, messages);
     for (std::size_t g = 0; g < wanted.ranks.size(); g++) {
-      const int be = rank_slot(*exp[0], wanted.ranks[g]);
-      const int bn = rank_slot(*exp[1], wanted.ranks[g]);
+      const int be = exp[0]->rank_slot(wanted.ranks[g]);
+      const int bn = exp[1]->rank_slot(wanted.ranks[g]);
       const idx_l_t exec_to = be < 0 ? 0 : exp[0]->sizes[be];
       for (int k = 0; k < wanted.counts[g]; k++) {
         int &p = wanted.data[wanted.disps[g] + k];

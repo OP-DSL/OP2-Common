@@ -493,10 +493,9 @@ inline const ChunkEntry& ChunkBase::entry_for(const op::loop::Call& call) {
             auto result =
                 m_coloured
                     ? plan_chunk_colouring(call.args, m_call_state.sections, m_groups,
-                                           m_block_size, limits, m_wavefront,
-                                           options().window)
+                                           limits, m_wavefront, options().window)
                     : plan_chunk_atomics(call.args, m_call_state.sections, m_groups,
-                                         m_block_size, limits, m_unstaged_singles,
+                                         limits, m_unstaged_singles,
                                          chunk_options.min_compression);
             report(result);
             auto entry = std::make_shared<ChunkEntry>();

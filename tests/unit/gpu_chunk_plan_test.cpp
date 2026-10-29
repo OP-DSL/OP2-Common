@@ -7,11 +7,9 @@
 
 #include <algorithm>
 #include <array>
-#include <climits>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -33,20 +31,20 @@ namespace {
 // chunk_atomics with no compression floor, so small fixtures are never
 // rejected for it.
 gpu::ChunkResult atomics(std::span<const op_arg> args, const Sections& sections,
-                         const plan::ArgGroups& groups, int lanes, int size,
+                         const plan::ArgGroups& groups, int block_size,
                          std::size_t shared_bytes, bool unstaged_singles = false,
                          double min_compression = 0.0) {
-    return gpu::plan_chunk_atomics(args, sections, groups, size,
-                                   gpu::ChunkLimits{lanes, shared_bytes},
+    return gpu::plan_chunk_atomics(args, sections, groups,
+                                   gpu::ChunkLimits{block_size, shared_bytes},
                                    unstaged_singles, min_compression);
 }
 
 gpu::ChunkResult colouring(std::span<const op_arg> args, const Sections& sections,
-                           const plan::ArgGroups& groups, int lanes, int size,
+                           const plan::ArgGroups& groups, int block_size,
                            std::size_t shared_bytes, bool wavefront = false,
                            int window = 0) {
-    return gpu::plan_chunk_colouring(args, sections, groups, size,
-                                     gpu::ChunkLimits{lanes, shared_bytes},
+    return gpu::plan_chunk_colouring(args, sections, groups,
+                                     gpu::ChunkLimits{block_size, shared_bytes},
                                      wavefront, window);
 }
 
@@ -102,8 +100,8 @@ struct MixedFixture {
     Sections sections() { return Sections::indirect(&source, false, source.size + source.exec_size); }
 
     gpu::ChunkResult build(bool coloured = false) {
-        return coloured ? colouring(args, sections(), groups(), 2, 4, 1024)
-                        : atomics(args, sections(), groups(), 2, 4, 1024);
+        return coloured ? colouring(args, sections(), groups(), 4, 1024)
+                        : atomics(args, sections(), groups(), 4, 1024);
     }
 };
 
@@ -129,9 +127,8 @@ struct ChunkFixture {
 
     plan::ArgGroups groups() const { return {group_args, 1}; }
 
-    gpu::ChunkResult build(int requested, std::size_t scratch, int lanes = 128) {
-        return atomics(args, Sections::direct(&source), groups(), lanes, requested,
-                       scratch);
+    gpu::ChunkResult build(int block_size, std::size_t scratch) {
+        return atomics(args, Sections::direct(&source), groups(), block_size, scratch);
     }
 };
 
@@ -306,14 +303,14 @@ void test_mixed_plan() {
     check_chunks_within_sections(chunk_plan, fixture.sections());
 
     // The default floor rejects a plan below 1.5x compression.
-    auto rejected = atomics(fixture.args, fixture.sections(), fixture.groups(), 2, 4,
-                            1024, false, 1.5);
+    auto rejected = atomics(fixture.args, fixture.sections(), fixture.groups(), 4, 1024,
+                            false, 1.5);
     CHECK(rejected);
     fixture.map_a0_values = {0, 1, 0, 1, 2, 3};
     fixture.map_a1_values = {2, 3, 1, 2, 3, 0};
     fixture.map_b_values = {0, 1, 0, 1, 2, 0};
-    rejected = atomics(fixture.args, fixture.sections(), fixture.groups(), 2, 4, 1024,
-                       false, 1.5);
+    rejected = atomics(fixture.args, fixture.sections(), fixture.groups(), 4, 1024, false,
+                       1.5);
     expect_rejected(rejected, "low_compression");
     CHECK(rejected.plan == nullptr && rejected.compression > 0.0 &&
           rejected.compression < 1.5);
@@ -337,7 +334,7 @@ void test_optional_and_alignment() {
     fixture.args[2].opt = 0;
     std::array<plan::ArgGroup, 2> group_args{{{3, 0}, {0, 1}}};
     auto aligned = atomics(fixture.args, fixture.sections(),
-                           plan::ArgGroups{group_args, 2}, 2, 4, 1024);
+                           plan::ArgGroups{group_args, 2}, 4, 1024);
     CHECK(aligned);
     CHECK((aligned.plan->batch_scratch_bytes ==
            std::vector<std::size_t>{24, 40}));
@@ -353,7 +350,7 @@ void test_region_walk() {
     fixture.args[3].opt = 1;
     std::array<plan::ArgGroup, 4> group_args{{{3, 0}, {0, 1}, {1, 1}, {2, 2}}};
     auto result = atomics(fixture.args, fixture.sections(),
-                          plan::ArgGroups{group_args, 3}, 2, 4, 1024);
+                          plan::ArgGroups{group_args, 3}, 4, 1024);
     CHECK(result);
     const auto& staging = result.plan->staging;
     const auto all_counts = slot_counts(staging);
@@ -369,48 +366,23 @@ void test_region_walk() {
     }
 }
 
-void test_chunk_sizes_and_clamping() {
+// A chunk is a block's elements, refused when its staging does not fit the
+// shared memory.
+void test_block_chunks() {
     ChunkFixture fixture;
-    for (int chunk_size : {128, 256, 512}) {
-        auto result = fixture.build(chunk_size, 1024 * sizeof(double));
+    for (int block_size : {128, 256, 512}) {
+        auto result = fixture.build(block_size, 1024 * sizeof(double));
         CHECK(result);
-        CHECK(result.plan->chunks.size == chunk_size);
+        CHECK(result.plan->chunks.size == block_size);
         CHECK(num_chunks(*result.plan) ==
-              static_cast<std::size_t>(1024 / chunk_size));
+              static_cast<std::size_t>(1024 / block_size));
         CHECK(result.plan->chunks.offsets.front() == 0);
         CHECK(result.plan->chunks.offsets.back() == 1024);
         CHECK(result.plan->batch_scratch_bytes[0] ==
-              static_cast<std::size_t>(chunk_size) * sizeof(double));
+              static_cast<std::size_t>(block_size) * sizeof(double));
     }
 
-    // A size that is not a lane multiple rounds up to one: 100 with 48
-    // lanes stages chunks of 144, the last of them short.
-    auto rounded = fixture.build(100, 1024 * sizeof(double), 48);
-    CHECK(rounded);
-    CHECK(rounded.plan->chunks.size == 144);
-    CHECK(num_chunks(*rounded.plan) == 8);
-    CHECK(rounded.plan->chunks.offsets.back() == 1024);
-    CHECK(rounded.plan->batch_scratch_bytes[0] == 144 * sizeof(double));
-
-    // A request beyond the scratch clamps to what fits.
-    auto clamped = fixture.build(512, 2048);
-    CHECK(clamped);
-    CHECK(clamped.plan->chunks.size == 256);
-    CHECK(num_chunks(*clamped.plan) == 4);
-
-    auto saturated = fixture.build(INT_MAX, 1024 * sizeof(double));
-    CHECK(saturated);
-    CHECK(saturated.plan->chunks.size == 1024);
-
-    expect_rejected(fixture.build(512, 1023), "insufficient_scratch");
-
-    // A region's slots must fit a 16-bit stage word, however much scratch
-    // there is.
-    auto bounded = fixture.build(INT_MAX, std::size_t{1} << 20);
-    CHECK(bounded);
-    CHECK(bounded.plan->chunks.size == plan::max_slots / 128 * 128);
-    static_assert(plan::max_slots - 1 <=
-                  std::numeric_limits<plan::StageWord>::max());
+    expect_rejected(fixture.build(512, 2048), "insufficient_scratch");
 }
 
 // A chain's nodes updated through both components, so neighbouring chunks
@@ -429,9 +401,9 @@ struct ChainFixture : op::test::Chain {
 
     plan::ArgGroups groups() const { return {group_args, 1}; }
 
-    gpu::ChunkResult build(const Sections& sections, int lanes,
-                        std::size_t scratch = 1 << 16) {
-        return colouring(args, sections, groups(), lanes, lanes, scratch);
+    gpu::ChunkResult build(const Sections& sections, int block_size,
+                           std::size_t scratch = 1 << 16) {
+        return colouring(args, sections, groups(), block_size, scratch);
     }
 };
 
@@ -452,7 +424,7 @@ void test_runtime_rejections() {
         MixedFixture fixture;
         std::array<plan::ArgGroup, 4> group_args{{{0, 0}, {1, 1}, {2, 2}, {3, 3}}};
         auto result = atomics(fixture.args, fixture.sections(),
-                              plan::ArgGroups{group_args, 4}, 2, 4, 1024);
+                              plan::ArgGroups{group_args, 4}, 4, 1024);
         expect_rejected(result, "incompatible_argument");
     }
     {
@@ -467,7 +439,7 @@ void test_runtime_rejections() {
         ChainFixture fixture(8);
         std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 1}}};
         auto result = colouring(fixture.args, Sections::direct(&fixture.edges),
-                                plan::ArgGroups{group_args, 2}, 4, 4, 1 << 16);
+                                plan::ArgGroups{group_args, 2}, 4, 1 << 16);
         expect_rejected(result, "incompatible_argument");
     }
 }
@@ -496,7 +468,7 @@ struct OrderFixture {
 
     gpu::ChunkResult build(bool unstaged_singles = false) {
         return atomics(args, Sections::direct(&source), plan::ArgGroups{group_args, 1},
-                       4, 4, 1024, unstaged_singles);
+                       4, 1024, unstaged_singles);
     }
 };
 
@@ -682,13 +654,13 @@ void test_empty_sections() {
            std::vector<int>{0, 2, 2, 4}));
     check_colouring(*sectioned.plan, halo.args, halo.groups(), split);
 
-    auto waves = colouring(halo.args, split, halo.groups(), 4, 4, 1 << 16, true);
+    auto waves = colouring(halo.args, split, halo.groups(), 4, 1 << 16, true);
     CHECK(waves && waves.plan->wavefront);
     CHECK((waves.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
 
     for (auto& arg : halo.args)
         arg.acc = OP_INC;
-    auto staged = atomics(halo.args, split, halo.groups(), 4, 4, 1 << 16);
+    auto staged = atomics(halo.args, split, halo.groups(), 4, 1 << 16);
     CHECK(staged);
     CHECK((staged.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
     CHECK((staged.plan->batch_scratch_bytes.size() == 2));
@@ -696,13 +668,13 @@ void test_empty_sections() {
     ChainFixture empty(0);
     auto none = Sections::direct(&empty.edges);
     for (bool wavefront : {false, true}) {
-        auto result = colouring(empty.args, none, empty.groups(), 4, 4, 1 << 16, wavefront);
+        auto result = colouring(empty.args, none, empty.groups(), 4, 1 << 16, wavefront);
         CHECK(result && result.plan->chunks.count() == 0);
         CHECK(result.plan->batches.count() == 0 && result.plan->batches.batches(0) == 0);
     }
     for (auto& arg : empty.args)
         arg.acc = OP_INC;
-    auto result = atomics(empty.args, none, empty.groups(), 4, 4, 1 << 16);
+    auto result = atomics(empty.args, none, empty.groups(), 4, 1 << 16);
     CHECK(result && result.plan->chunks.count() == 0);
     CHECK(result.plan->batches.count() == 0 && result.plan->batches.batches(0) == 0);
 }
@@ -723,7 +695,7 @@ void test_colour_rounds_and_limit() {
         std::array<plan::ArgGroup, 1> group_args{{{0, 0}}};
 
         auto result = colouring(args, Sections::direct(&source),
-                                plan::ArgGroups{group_args, 1}, size, size, 1 << 20);
+                                plan::ArgGroups{group_args, 1}, size, 1 << 20);
         if (size > 255) {
             expect_rejected(result, "too_many_colours");
             continue;
@@ -772,14 +744,14 @@ void test_colour_random() {
     plan::ArgGroups groups{group_args, 2};
     auto sections = Sections::indirect(&source, true, source.size + source.exec_size);
 
-    auto result = colouring(args, sections, groups, 32, 64, 1 << 20);
+    auto result = colouring(args, sections, groups, 64, 1 << 20);
     CHECK(result);
     CHECK(result.plan->batches.count() > sections.size());
     check_colouring(*result.plan, args, groups, sections);
 
     // A wavefront plan runs each section as one batch, each position after
     // the latest earlier position of its section sharing one of its targets.
-    auto wave = colouring(args, sections, groups, 32, 64, 1 << 20, true, 4);
+    auto wave = colouring(args, sections, groups, 64, 1 << 20, true, 4);
     CHECK(wave);
     const auto& chunk_plan = *wave.plan;
     check_slot_lists(chunk_plan, args, groups);
@@ -832,7 +804,7 @@ int main() {
         test_mixed_plan();
         test_optional_and_alignment();
         test_region_walk();
-        test_chunk_sizes_and_clamping();
+        test_block_chunks();
         test_runtime_rejections();
         test_slots_in_target_order();
         test_unstaged_singles();
