@@ -9,6 +9,7 @@
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/kernel/cpu/chunk.h>
 #include <op2/rt/kernel/cpu/range.h>
+#include <op2/rt/kernel/cpu/threads.h>
 #include <op2/rt/kernel/staging.h>
 #include <op_lib_c.h>
 #include <op_profile.h>

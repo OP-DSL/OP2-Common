@@ -1,6 +1,7 @@
 #include <op2/rt/tune/autotune.h>
 
 #include <op2/env.h>
+#include <op2/rt/report.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -44,13 +45,6 @@ float median(std::vector<float> values) {
     return values.size() % 2 != 0
                ? values[middle]
                : 0.5f * (values[middle - 1] + values[middle]);
-}
-
-std::string quoted(std::string_view text) {
-    std::string out = "\"";
-    for (char c : text)
-        out += c == '"' ? "\"\"" : std::string{c};
-    return out + "\"";
 }
 
 } // namespace
@@ -255,14 +249,14 @@ std::string Autotuner::row(const State& state, const Summary& summary,
 
     std::string text = m_ladder.name();
     for (const auto& column : {
-             quoted(state.description), std::to_string(state.calls),
+             report::quoted(state.description), std::to_string(state.calls),
              trial.candidate->name, status,
              std::string{median_text}, std::to_string(trial.samples.size()),
              state.ladder->name,
              summary.fastest != nullptr ? summary.fastest->candidate->name : std::string{},
              std::string{speedup_text}, selected->name,
              std::string{summary.complete ? "complete" : "partial"},
-             quoted(trial.statistics)})
+             report::quoted(trial.statistics)})
         text += "," + column;
     return text;
 }

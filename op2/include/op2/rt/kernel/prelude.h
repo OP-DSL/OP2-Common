@@ -21,9 +21,6 @@
 
 namespace op::rt::kernel {
 
-constexpr int round32(int x) { return (x + 31) & ~31; }
-constexpr size_t round32(size_t x) { return (x + 31) & ~31; }
-
 OP_KERNEL_DEVICE inline void trap() {
 #if defined(__CUDA_ARCH__)
     __trap();

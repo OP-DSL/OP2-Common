@@ -166,8 +166,8 @@ op2/rt/abi/descriptor.h      (what any backend's descriptor holds: the loop
                               kernel groups, the element types, and the
                               parameters a loop's kernels may be specialised
                               on, as the JIT takes them, built with
-                              constant, scalar_global, global, dat_stride and
-                              dat_dim)
+                              constant, scalar_global, global, dat_stride,
+                              dat_dim and strategy_value)
 op2/rt/abi/staging.h         (the 16-bit stage word both backends' staged
                               kernels read a slot as: the slot limit and the
                               unstaged word; no includes)
@@ -183,7 +183,9 @@ op2/rt/abi/gpu/descriptor.h  (includes: op_lib_core.h,
                               HIP code describes it: its families' offline
                               kernels and JIT sources, its parameters with
                               their device side (a __constant__ symbol, its
-                              shared hash, by value), the binder of its
+                              shared hash, by value) and the values a
+                              strategy fixes, by launch-value slot, the
+                              binder of its
                               arguments, the calls on what the application
                               compiled, an offline kernel's resources among
                               them, and the embedded JIT headers; invoke,
@@ -255,6 +257,9 @@ op2/rt/kernel/cpu/range.h      (includes: op2/rt/abi/cpu/launch.h; the
 op2/rt/kernel/cpu/chunk.h      (includes: op2/rt/abi/cpu/launch.h; the
                                 OpenMP region over batches of chunks, each
                                 batch's shared out over the threads)
+op2/rt/kernel/cpu/threads.h    (the host's threads as the generated code's
+                                OpenMP sees them, for the library, which is
+                                built without OpenMP)
 ```
 
 #### A par_loop, backend neutral (op::rt::loop, sources under src/rt/loop)
@@ -272,8 +277,9 @@ op2/rt/loop/strategy.h  (includes: op2/rt/loop/call.h; a strategy, with an
                          its answer for a call, and its own setup of the
                          call's globals)
 op2/rt/loop/family.h    (the families a backend declares, the axes their
-                         strategies vary along, and OP_STRATEGY, read by
-                         op_init; from src/rt/loop/op_loop_ladder.cpp)
+                         strategies vary along, the lookup of the family a
+                         loop registers, and OP_STRATEGY, read by op_init;
+                         from src/rt/loop/op_loop_ladder.cpp)
 op2/rt/loop/ladder.h    (includes: op2/rt/loop/call.h, op2/rt/loop/family.h,
                          op2/rt/loop/strategy.h; a loop's candidates, a
                          strategy with one of its kernels each, in ladder
@@ -285,8 +291,9 @@ op2/rt/loop/loop.h      (includes: op_lib_core.h, op2/rt/jit/params.h,
                          base of every backend's loop: its ladder, tuner and
                          JIT parameters, a call's steps, phases and profile
                          scopes, with hooks for the backend's halo
-                         exchanges, dirty bits and globals, and the registry
-                         of every loop, whose reports op_profile_output and
+                         exchanges, dirty bits and globals, the loop a
+                         descriptor's invoke runs, and the registry of
+                         every loop, whose reports op_profile_output and
                          op_exit write and which op_exit releases; from
                          src/rt/loop/op_loop.cpp, the registry and files from
                          src/rt/loop/op_loop_report.cpp)
@@ -302,9 +309,10 @@ op2/rt/jit/options.h  (the JIT's policy as OP_JIT_* sets it, read by op_init:
 op2/rt/jit/params.h   (includes: extern/rapidhash.h, op_lib_core.h,
                        op2/rt/abi/descriptor.h, op2/rt/jit/options.h,
                        op2/rt/loop/call.h; the parameters a loop's kernels
-                       are specialised on, from its descriptor's rows and the
-                       backend's, and the statistics that move each between
-                       baked in and given at run time)
+                       are specialised on, from its descriptor's rows, a
+                       dat's stride as the backend lays the dat out, and the
+                       statistics that move each between baked in and given
+                       at run time)
 op2/rt/jit/cache.h    (includes: op_lib_core.h, op2/rt/jit/options.h,
                        op2/rt/loop/strategy.h; a strategy's built kernels by
                        key, and when each is built)
@@ -367,9 +375,13 @@ op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's, the
                             the device's facts; read by op_init, which
                             declares the GPU families, from
                             src/rt/gpu/op_gpu_options.cpp)
-op2/rt/gpu/layout.h        (includes: op_lib_core.h; the device data layout
-                            the kernels index by: the stride of a loop's
-                            per-element arrays)
+op2/rt/gpu/layout.h        (includes: op_lib_core.h, op_rt_support.h; the
+                            device data layout the kernels index by: the
+                            warp pitch, a loop's per-element arrays' stride
+                            and a SoA dat's)
+op2/rt/gpu/upload.h        (includes: op2/gpu/check.h, op2/gpu/shims.h; a
+                            plan's host arrays copied to the device and freed
+                            there)
 op2/rt/gpu/heuristics.h    (includes: op2/rt/abi/gpu/descriptor.h,
                             op2/rt/loop/strategy.h; the models of what pays
                             on the device, which turn what the backend knows

@@ -28,7 +28,4 @@ void range(const op::rt::abi::cpu::Range& range, Make&& make) {
     }
 }
 
-// The threads a phase may use.
-inline int max_threads() { return omp_get_max_threads(); }
-
 } // namespace op::rt::kernel::cpu
