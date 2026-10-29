@@ -40,14 +40,14 @@ public:
 
     const op::rt::loop::Sections& call_sections() const { return m_sections; }
 
-    // A phase over the call's threads and their globals.
-    abi::cpu::Phase phase() const;
+    // A range and a chunk phase over the call's threads and their globals,
+    // the chunk phase's with their scratch.
+    abi::cpu::Range range() const;
+    abi::cpu::Chunk chunks() const;
 
     // Give every thread bytes of chunk scratch, aligned to a cache line.
     void reserve_scratch(std::size_t bytes);
 
-    // Per thread its scratch.
-    char *const *scratch() const { return m_scratch_lines.data(); }
 
 protected:
     // --- Per call ---

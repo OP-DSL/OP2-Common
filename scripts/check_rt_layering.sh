@@ -6,8 +6,8 @@
 #  - op2/rt/abi, the contract between the library and op2_kernels, includes
 #    nothing else of op2/rt;
 #  - op2/rt/kernel is compiled into op2_kernels alone, never into a library,
-#    so no library source includes it, and it includes only op2/rt/abi and
-#    itself;
+#    so no library source or header includes it, and it includes only
+#    op2/rt/abi and itself;
 #  - the generated code includes from op2/rt only op2/rt/abi and
 #    op2/rt/kernel.
 set -euo pipefail
@@ -35,6 +35,10 @@ report "op2/rt/abi includes the loop runtime beyond op2/rt/abi" \
 
 report "library sources include op2/rt/kernel, which only op2_kernels compiles" \
     "$(grep -rnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/rt/kernel/' op2/src || true)"
+
+report "library headers include op2/rt/kernel, which only op2_kernels compiles" \
+    "$(grep -rnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/rt/kernel/' op2/include/op2/rt |
+        grep -vE '^op2/include/op2/rt/kernel/' || true)"
 
 report "op2/rt/kernel includes the loop runtime beyond op2/rt/abi and op2/rt/kernel" \
     "$(grep -rnE "$include" op2/include/op2/rt/kernel | grep -vE "$contract" || true)"

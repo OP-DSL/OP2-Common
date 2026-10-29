@@ -14,19 +14,24 @@ This directory installs as `include/op2`, the package's one include
 directory, so both spellings work the same in the source tree and once
 installed (the `op2/` tree as `include/op2/op2/`).  `op2/rt/` is the loop
 runtime, what generated code compiles against and calls to run its loops,
-and is split by where it is compiled:
+and is layered by where it is compiled:
 
+- `op2/rt/abi/` is the contract between the generated code and the
+  library: the descriptors a loop describes itself with, the records a
+  launch or an OpenMP region is given, and the entry points.  It includes
+  nothing else of `op2/rt/`;
 - `op2/rt/kernel/` is compiled into op2_kernels, the generated code, and
-  never into a library: the device code, and the calls on what the
-  application compiled, its offline kernels' launches, its `__constant__`
-  symbols and the OpenMP regions its bodies run in;
+  never into a library: the skeletons each strategy family runs, filled with
+  the generated hooks, the helpers they share, and the calls on what the
+  application compiled, its offline kernels' launches and its `__constant__`
+  symbols.  It includes only `op2/rt/abi/` and itself;
 - the rest of `op2/rt/` is the library's: declarations, templates and
-  one-line accessors, defined under `src/rt/`.  The generated code includes
-  from it only the backends' interfaces, `op2/rt/cpu/loop.h` and
-  `op2/rt/gpu/loop.h`.
+  one-line accessors, defined under `src/rt/`, which never include
+  `op2/rt/kernel/`.  The generated code includes from `op2/rt/` only
+  `op2/rt/abi/` and `op2/rt/kernel/`.
 
 The rest of the library includes from `op2/rt/` only `op2/rt/lifecycle.h`.
-`scripts/check_rt_layering.sh`, the `rt_layering` test, checks all three.
+`scripts/check_rt_layering.sh`, the `rt_layering` test, checks each rule.
 
 A header is header-only unless its entry names where its definitions are.
 `includes:` lists a header's direct includes from this directory.
@@ -144,35 +149,165 @@ op2/rt/lifecycle.h  (op::rt: the runtime's start, reports and release,
                      src/rt/gpu/op_gpu_options.cpp)
 ```
 
-#### par_loop support, backend neutral (op::rt::loop, sources under src/rt/loop)
+#### The contract with the generated code (op::rt::abi)
+What the generated code and the library agree on: plain types, constants and
+entry points, with no behaviour behind them.  A loop describes itself to the
+library once, as a static descriptor, and runs each call through its
+backend's invoke; the library hands each launch or OpenMP region a record.
+Includes nothing else of `op2/rt/`; what a kernel reads compiles for the
+device, under NVRTC and hipRTC too.
 ```
-op2/rt/loop/strategy.h  (includes: op_lib_core.h; a loop's strategies, each
-                         with its kernels, and the candidates the ladder
-                         runs and the tuner times, a strategy with one
-                         kernel each, in an order from the backend's
-                         estimates; the axes a family's strategies vary
-                         along, the families a backend declares, the
-                         run-wide variables op_init reads, and the sections
-                         an indirect loop runs)
-op2/rt/loop/autotune.h  (includes: op2/rt/loop/strategy.h; the autotuner
-                         that times every candidate per configuration once
-                         its JIT modes have settled)
-op2/rt/loop/jit.h       (includes: extern/rapidhash.h, op_lib_core.h,
-                         op2/rt/loop/strategy.h; the JIT's options, read by
-                         op_init, the parameters a loop's kernels are
-                         specialised on and the statistics that move them
-                         between baked in and run time, and a strategy's
-                         cache of built kernels; a backend supplies the
-                         mechanism)
-op2/rt/loop/loop.h      (includes: op_lib_core.h, op2/rt/loop/autotune.h,
-                         op2/rt/loop/jit.h, op2/rt/loop/strategy.h; the base
-                         of every backend's loop: its ladder, tuner and JIT
-                         parameters, a call's steps, phases and profile
+op2/rt/abi/descriptor.h      (what any backend's descriptor holds: the
+                              arguments a staged kernel groups, the
+                              parameters a loop's kernels may be specialised
+                              on, as rows the generated code builds with
+                              constant, scalar_global, global, dat_stride and
+                              dat_dim, and a compiled kernel's figures)
+op2/rt/abi/staging.h         (the staging layout the host planner writes and
+                              a staged kernel reads: stage words, the slot
+                              limit, the unstaged word; no includes)
+op2/rt/abi/gpu/launch.h      (includes: op2/rt/abi/staging.h; the CUDA and
+                              HIP launch records, a range's and a chunk
+                              batch's, as X-macro field lists: the library
+                              fills a record and pushes its fields, a kernel
+                              takes them as its first parameters
+                              (OP_ABI_GPU_PARAM); the default block size)
+op2/rt/abi/gpu/descriptor.h  (includes: op_lib_core.h,
+                              op2/rt/abi/descriptor.h,
+                              op2/rt/abi/gpu/launch.h; a loop as the CUDA and
+                              HIP code describes it: its families' offline
+                              kernels and JIT sources, its parameters, the
+                              binder of its arguments, the calls on what the
+                              application compiled and the embedded JIT
+                              headers; invoke, from
+                              src/rt/gpu/op_gpu_loop.cpp)
+op2/rt/abi/cpu/launch.h      (includes: op2/rt/abi/staging.h; the OpenMP
+                              records, a range's and a chunk batch's, and a
+                              thread's own part: its globals and scratch)
+op2/rt/abi/cpu/descriptor.h  (includes: op_lib_core.h,
+                              op2/rt/abi/cpu/launch.h,
+                              op2/rt/abi/descriptor.h; a loop as the OpenMP
+                              code describes it: each family's run over a
+                              range or over chunks, the host's thread count;
+                              invoke, from src/rt/cpu/op_cpu_loop.cpp)
+```
+
+#### Compiled into op2_kernels (op::rt::kernel; C++ cuda, hip and openmp, Fortran's _f2c targets)
+Never compiled into a library.  The skeletons each strategy family runs,
+which the generated code fills with its hooks, the element function first,
+so a loop's code inlines into them; the device helpers its kernels share;
+and the calls on what the application compiled.  Includes only
+`op2/rt/abi/` and `op2/rt/kernel/`, and the JIT compiles the device headers
+again from the embedded text.
+```
+op2/rt/kernel/prelude.h        (what a translated kernel compiles against:
+                                Ptr, Span, the Fortran intrinsics, the
+                                parameters a JIT kernel may bake in; no
+                                includes)
+op2/rt/kernel/inc.h            (includes: op2/rt/kernel/prelude.h; the
+                                increment hooks, in place or atomic, and
+                                opaque)
+op2/rt/kernel/staging.h        (includes: op2/rt/abi/staging.h,
+                                op2/rt/kernel/inc.h,
+                                op2/rt/kernel/prelude.h; a chunk's regions
+                                carved, cleared or seeded, and stored or
+                                flushed to their targets, on the host and the
+                                device)
+op2/rt/kernel/gpu/block.h      (includes: op2/rt/kernel/prelude.h; the block's
+                                thread count as a skeleton or hook reads it)
+op2/rt/kernel/gpu/range.h      (includes: op2/rt/kernel/gpu/block.h,
+                                op2/rt/kernel/prelude.h; the plain, atomics
+                                and colouring kernels' grid-stride walk of a
+                                range, with the element hook)
+op2/rt/kernel/gpu/chunk.h      (includes: op2/rt/kernel/gpu/block.h,
+                                op2/rt/kernel/gpu/wavefront.h,
+                                op2/rt/kernel/inc.h,
+                                op2/rt/kernel/prelude.h; chunk_atomics,
+                                chunk_colouring and its parallel variant over
+                                a batch of chunks, with the stage, element and
+                                write hooks)
+op2/rt/kernel/gpu/wavefront.h  (includes: op2/rt/kernel/gpu/block.h,
+                                op2/rt/kernel/prelude.h; chunk_colouring's
+                                wavefront primitives)
+op2/rt/kernel/gpu/offline.h    (includes: op2/gpu/check.h, op2/gpu/shims.h,
+                                op2/rt/abi/descriptor.h,
+                                op2/rt/abi/gpu/descriptor.h; an offline
+                                kernel's figures and launches and the device
+                                addresses of the application's symbols, made
+                                with the runtime that registered them)
+op2/rt/kernel/gpu/jit_embed.h  (includes: extern/incbin.h; embeds the device
+                                headers as text for the JIT, in include
+                                order; define OP_KERNEL_JIT_TAG first)
+op2/rt/kernel/cpu/range.h      (includes: op2/rt/abi/cpu/launch.h; the
+                                OpenMP region over a range, a contiguous
+                                share per thread)
+op2/rt/kernel/cpu/chunk.h      (includes: op2/rt/abi/cpu/launch.h; the
+                                OpenMP region over batches of chunks, each
+                                batch's shared out over the threads)
+```
+
+#### A par_loop, backend neutral (op::rt::loop, sources under src/rt/loop)
+```
+op2/rt/loop/call.h      (includes: op_lib_core.h; one call: its set and
+                         arguments, its configuration's key, the sections it
+                         runs in, a phase's arguments, and the reduction of
+                         its globals across the ranks; from
+                         src/rt/loop/op_loop_call.cpp)
+op2/rt/loop/strategy.h  (includes: op2/rt/abi/descriptor.h,
+                         op2/rt/loop/call.h; a strategy, with an offline
+                         kernel, a specialised one or both, and the facts it
+                         reports of each for the heuristics)
+op2/rt/loop/family.h    (the families a backend declares, the axes their
+                         strategies vary along, and OP_STRATEGY, read by
+                         op_init)
+op2/rt/loop/ladder.h    (includes: op2/rt/loop/call.h, op2/rt/loop/family.h,
+                         op2/rt/loop/strategy.h; a loop's candidates, a
+                         strategy with one of its kernels each, in ladder
+                         order, and the one each call runs; from
+                         src/rt/loop/op_loop_ladder.cpp)
+op2/rt/loop/loop.h      (includes: op_lib_core.h, op2/rt/jit/params.h,
+                         op2/rt/loop/call.h, op2/rt/loop/ladder.h,
+                         op2/rt/loop/strategy.h, op2/rt/tune/autotune.h; the
+                         base of every backend's loop: its ladder, tuner and
+                         JIT parameters, a call's steps, phases and profile
                          scopes, with hooks for the backend's globals, and
                          the registry of every loop, which op_profile_output
-                         and op_exit report on and op_exit releases; the
-                         call from src/rt/loop/op_loop.cpp, the reports from
+                         and op_exit report on and op_exit releases; from
+                         src/rt/loop/op_loop.cpp, the reports from
                          src/rt/loop/op_loop_report.cpp)
+```
+
+#### Specialised kernels, backend neutral (op::rt::jit, sources under src/rt/jit)
+The policy, the parameters and the build cache; a backend supplies the
+compiler.
+```
+op2/rt/jit/options.h  (the JIT's policy as OP_JIT_* sets it, read by op_init:
+                       whether and when kernels are specialised, what they
+                       bake in, and its report)
+op2/rt/jit/params.h   (includes: extern/rapidhash.h, op_lib_core.h,
+                       op2/rt/abi/descriptor.h, op2/rt/jit/options.h,
+                       op2/rt/loop/call.h; the parameters a loop's kernels
+                       are specialised on, from its descriptor's rows and the
+                       backend's, and the statistics that move each between
+                       baked in and given at run time)
+op2/rt/jit/cache.h    (includes: op_lib_core.h, op2/rt/jit/options.h,
+                       op2/rt/loop/strategy.h; a strategy's built kernels by
+                       key, and when each is built)
+```
+
+#### Choosing a strategy (op::rt::tune, sources under src/rt/tune)
+```
+op2/rt/tune/heuristics.h  (includes: op2/rt/loop/strategy.h; what is
+                           expected to run fastest before anything is timed,
+                           over the facts the strategies report: the ladder
+                           orders a strategy's candidates by it, and every
+                           model of what pays belongs here, the register rule
+                           first; OP_JIT_MIN_REGISTERS, read by op_init)
+op2/rt/tune/autotune.h    (includes: op2/rt/loop/call.h,
+                           op2/rt/loop/ladder.h, op2/rt/loop/strategy.h; the
+                           autotuner, which times every candidate per
+                           configuration once its JIT modes have settled, and
+                           its options, read by op_init)
 ```
 
 #### Planning building blocks, backend neutral (op::rt::plan, sources under src/rt/plan)
@@ -180,110 +315,94 @@ Algorithms with no device knowledge and no device limits, which each
 backend composes into its own plans (op2/rt/gpu/chunk_plan.h,
 op2/rt/cpu/chunk_plan.h).
 ```
-op2/rt/plan/colouring.h       (includes: op_lib_core.h,
-                               op2/rt/loop/strategy.h; the set colouring of a
-                               call's sections, as op_plan's OP_COLOR2)
-op2/rt/plan/chunks.h          (includes: op2/rt/loop/strategy.h; the
-                               references a planner follows, chunks within
-                               sections, each chunk's targets, coloured
-                               batches, the wavefront order, element
-                               colours, and the result a backend's plan comes
-                               back in)
-op2/rt/plan/staging.h         (includes: op2/rt/plan/chunks.h,
-                               op2/rt/plan/staging_layout.h; the staged
-                               kernels' argument groups, scratch slots and
-                               stage words, and the pipeline staging a call's
-                               chunks under a backend's lanes and scratch
-                               limit)
-op2/rt/plan/staging_layout.h  (the staging layout both the host and a staged
-                               kernel read; no includes, so NVRTC compiles it
-                               too)
-op2/rt/plan/options.h         (the chunked strategies' run-wide options, read
-                               by op_init)
-op2/rt/plan/cache.h           (includes: extern/rapidhash.h,
-                               op2/rt/loop/strategy.h, op2/rt/plan/staging.h;
-                               the plans strategies share, of any loop: a
-                               planner's key over what it plans from, the
-                               live plans by key, and each strategy's by
-                               configuration, which the tuner has it forget
-                               once explored)
-op2/rt/plan/greedy_colour.h   (includes: op_lib_core.h; internal to the
-                               planners: the greedy colouring they share)
+op2/rt/plan/colouring.h      (includes: op_lib_core.h, op2/rt/loop/call.h;
+                              the set colouring of a call's sections, as
+                              op_plan's OP_COLOR2)
+op2/rt/plan/chunks.h         (includes: op2/rt/loop/call.h; the references a
+                              planner follows, chunks within sections, each
+                              chunk's targets, coloured batches, the
+                              wavefront order, element colours, and the
+                              result a backend's plan comes back in)
+op2/rt/plan/staging.h        (includes: op2/rt/abi/descriptor.h,
+                              op2/rt/abi/staging.h, op2/rt/loop/call.h,
+                              op2/rt/plan/chunks.h; the staged kernels'
+                              scratch slots and stage words, and the pipeline
+                              staging a call's chunks under a backend's lanes
+                              and scratch limit)
+op2/rt/plan/options.h        (the chunked strategies' run-wide options, read
+                              by op_init)
+op2/rt/plan/cache.h          (includes: extern/rapidhash.h,
+                              op2/rt/abi/descriptor.h, op2/rt/loop/call.h;
+                              the plans strategies share, of any loop: a
+                              planner's key over what it plans from, the live
+                              plans by key, and each strategy's by
+                              configuration, which the tuner has it forget
+                              once explored)
+op2/rt/plan/greedy_colour.h  (includes: op_lib_core.h; internal to the
+                              planners: the greedy colouring they share)
 ```
 
-#### Compiled into op2_kernels (op::rt::kernel; C++ cuda, hip and openmp, Fortran's _f2c targets)
-```
-op2/rt/kernel/prelude.h        (what a translated kernel compiles against:
-                                Ptr, Span, the Fortran intrinsics; no
-                                includes)
-op2/rt/kernel/strategy.h       (includes: op2/rt/kernel/prelude.h,
-                                op2/rt/plan/staging_layout.h; the increment
-                                hooks and the chunked strategies' device
-                                helpers)
-op2/rt/kernel/gpu/launch.h     (includes: op2/gpu/check.h, op2/gpu/shims.h,
-                                op2/rt/gpu/loop.h; an offline kernel's
-                                attributes and launches, and the device
-                                addresses of the application's symbols, made
-                                with the runtime that registered them)
-op2/rt/kernel/gpu/jit_embed.h  (includes: extern/incbin.h; embeds the three
-                                kernel headers as text for NVRTC; define
-                                OP_KERNEL_JIT_TAG first)
-op2/rt/kernel/cpu/launch.h     (includes: op_lib_core.h, op2/rt/cpu/loop.h;
-                                the OpenMP regions a phase runs in, the body
-                                inlined: a split over the threads, or batches
-                                of chunks shared out)
-```
-
-#### CUDA and HIP backend of the translated kernels (op::rt::gpu, sources under src/rt/gpu)
+#### CUDA and HIP backend (op::rt::gpu, sources under src/rt/gpu)
+Internal to the library: the generated code reaches it through
+`op2/rt/abi/gpu/descriptor.h`.
 ```
 op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's and the
                             wavefront window, and the device's facts; read by
                             op_init, which declares the GPU families, from
                             src/rt/gpu/op_gpu_options.cpp)
 op2/rt/gpu/loop.h          (includes: op_lib_core.h, op2/gpu/shims.h,
-                            op2/rt/loop/loop.h, op2/rt/loop/strategy.h,
-                            op2/rt/plan/staging.h; the backend's interface:
-                            the loop the generated code builds, registers its
-                            kernels, bindings and parameters on and invokes,
-                            the launch context its bindings read, and an
-                            offline kernel's calls; from
-                            src/rt/gpu/op_gpu_loop.cpp)
-op2/rt/gpu/jit.h           (includes: op2/gpu/shims.h, op2/rt/gpu/loop.h,
-                            op2/rt/loop/jit.h; the JIT mechanism, whose
-                            sources include op2/rt/kernel/prelude.h and
-                            op2/rt/kernel/strategy.h: offline kernels, the
-                            symbols they read, NVRTC or hipRTC compiles,
-                            run-time parameters as wrapper arguments or
-                            module symbols, launches; from
+                            op2/rt/abi/descriptor.h,
+                            op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/abi/gpu/launch.h, op2/rt/loop/call.h,
+                            op2/rt/loop/loop.h; the loop built from a
+                            descriptor: its parameters' device symbols, its
+                            compiler, a launch's arguments, a record's
+                            fields then the loop's, and the call's device
+                            globals; from src/rt/gpu/op_gpu_loop.cpp)
+op2/rt/gpu/jit.h           (includes: op2/gpu/shims.h,
+                            op2/rt/abi/descriptor.h,
+                            op2/rt/abi/gpu/descriptor.h, op2/rt/jit/cache.h,
+                            op2/rt/jit/params.h; the JIT mechanism: offline
+                            kernels and the symbols they read, NVRTC or
+                            hipRTC compiles of a family's source after the
+                            embedded headers, run-time parameters as wrapper
+                            arguments or module symbols, launches; from
                             src/rt/gpu/op_gpu_jit.cpp)
 op2/rt/gpu/chunk_plan.h    (includes: op2/rt/plan/chunks.h,
                             op2/rt/plan/staging.h; the chunk plans under the
                             device's limits: a block's elements, shared
                             memory, 16-bit stage words, 8-bit colours; from
                             src/rt/gpu/op_gpu_chunk_plan.cpp)
-op2/rt/gpu/chunk_encode.h  (includes: op2/rt/gpu/chunk_plan.h,
-                            op2/rt/gpu/loop.h; a chunk plan uploaded as the
-                            kernels read it; from
+op2/rt/gpu/chunk_encode.h  (includes: op2/rt/abi/gpu/launch.h,
+                            op2/rt/abi/staging.h, op2/rt/gpu/chunk_plan.h; a
+                            chunk plan uploaded as the kernels read it, which
+                            fills a chunk launch's record; from
                             src/rt/gpu/op_gpu_chunk_encode.cpp)
-op2/rt/gpu/strategy.h      (includes: op_lib_core.h, op2/rt/gpu/chunk_encode.h,
+op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
+                            op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/abi/gpu/launch.h,
+                            op2/rt/gpu/chunk_encode.h,
                             op2/rt/gpu/chunk_plan.h, op2/rt/gpu/jit.h,
                             op2/rt/gpu/loop.h, op2/rt/gpu/options.h,
                             op2/rt/loop/strategy.h, op2/rt/plan/cache.h,
                             op2/rt/plan/colouring.h; the plain, atomics,
-                            colouring and chunked strategies, and their axes:
-                            block size, unstaged singles, wavefront; from
+                            colouring and chunked strategies, their axes,
+                            block size, unstaged singles and wavefront, and
+                            their phases' launches; from
                             src/rt/gpu/op_gpu_strategy.cpp)
 ```
 
-#### OpenMP backend of the translated kernels (op::rt::cpu, sources under src/rt/cpu)
+#### OpenMP backend (op::rt::cpu, sources under src/rt/cpu)
+Internal to the library: the generated code reaches it through
+`op2/rt/abi/cpu/descriptor.h`.
 ```
-op2/rt/cpu/loop.h        (includes: op_lib_core.h, op2/rt/loop/loop.h,
-                          op2/rt/loop/strategy.h, op2/rt/plan/staging.h; the
-                          backend's interface: the loop the generated code
-                          builds, registers its bodies on and invokes, what
-                          a body reads of its share, and the phase the
-                          OpenMP region runs; from
-                          src/rt/cpu/op_cpu_loop.cpp)
+op2/rt/cpu/loop.h        (includes: op_lib_core.h,
+                          op2/rt/abi/cpu/descriptor.h,
+                          op2/rt/abi/cpu/launch.h, op2/rt/loop/call.h,
+                          op2/rt/loop/loop.h; the loop built from a
+                          descriptor: the call's threads, per-thread globals
+                          and chunk scratch, and the records its phases run
+                          with; from src/rt/cpu/op_cpu_loop.cpp)
 op2/rt/cpu/chunk_plan.h  (includes: op2/rt/plan/chunks.h,
                           op2/rt/plan/staging.h; the chunk plans a host
                           thread runs a chunk of on its own; from
@@ -292,9 +411,9 @@ op2/rt/cpu/strategy.h    (includes: op_lib_core.h, op2/rt/cpu/chunk_plan.h,
                           op2/rt/cpu/loop.h, op2/rt/loop/strategy.h,
                           op2/rt/plan/cache.h, op2/rt/plan/colouring.h; the
                           plain, atomics, colouring and chunked strategies
-                          over host threads, the per-thread globals, and the
-                          families the CPU libraries' op_init declares; from
-                          src/rt/cpu/op_cpu_strategy.cpp, the globals from
-                          src/rt/cpu/op_cpu_loop.cpp, the families from
+                          over host threads, each phase a record its
+                          family's run is given, and the families the CPU
+                          libraries' op_init declares; from
+                          src/rt/cpu/op_cpu_strategy.cpp, the families from
                           src/rt/cpu/op_cpu_init.cpp)
 ```

@@ -142,7 +142,7 @@ op::rt::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}}
     slots; local points the indirect increments at per-thread registers. -#}
 {%- macro dat_ptr(arg, staged = none, local = false) -%}
     {%- if local and arg in groups.chunk_atomics.args -%}
-op::rt::kernel::Ptr{op2_local{{arg.id}}}
+op::rt::kernel::Ptr{op2_l.op2_local{{arg.id}}}
     {%- elif staged is not none and arg in groups[staged].args -%}
 {{stage_slot(arg, staged)}}
     {%- else -%}
@@ -235,63 +235,12 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
 {% macro stage_slots(strategy, action) %}
 {% for arg in groups[strategy].leaders() %}
     {% set dat = lh.dat(arg) %}
-        for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += blockDim.x) {
+        for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += op::rt::kernel::gpu::block_size()) {
             const int target = slot_targets[op2_chunk_slots[{{loop.index0}}] + s];
             op::rt::kernel::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim(dat)}});
         }
 {% endfor %}
 {% endmacro %}
-
-{#- Apply a chunk's elements to their staged slots one thread colour at a
-    time.  In the parallel shape every element computes at once into
-    per-thread increments, and only applying them is coloured. -#}
-{%- macro chunk_colour_passes() %}
-        const int op2_colours = chunk_thread_colours[chunk];
-        for (int op2_base = op2_source_begin; op2_base < op2_source_end;
-             op2_base += blockDim.x) {
-            const int n = op2_base + threadIdx.x;
-            const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
-    {% if chunk_colouring_parallel %}
-        {% for arg in groups.chunk_atomics.args %}
-            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim(lh.dat(arg))}}] = {};
-        {% endfor %}
-
-            if (op2_colour >= 0) {
-                {{kernel_call(true, "chunk_colouring", "chunk_colouring", true)|indent(16)}}
-            }
-
-            // Every staged read completes before any slot changes.
-            __syncthreads();
-
-            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
-                if (op2_colour == op2_pass) {
-        {% for arg in groups.chunk_atomics.args %}
-            {% if arg is opt %}
-                    if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
-                        op::rt::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
-            {% else %}
-                    op::rt::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
-            {% endif %}
-        {% endfor %}
-                }
-
-                __syncthreads();
-            }
-    {% else %}
-            const int op2_n = n;
-            for (int op2_pass = 0; op2_pass < op2_colours; ++op2_pass) {
-                if (op2_colour == op2_pass) {
-                    // Opaque, so this element's address arithmetic is not
-                    // hoisted out of the pass loop and kept live through it.
-                    const int n = op::rt::kernel::opaque(op2_n);
-                    {{kernel_call(true, "chunk_colouring", "chunk_colouring")|indent(20)}}
-                }
-
-                __syncthreads();
-            }
-    {% endif %}
-        }
-{%- endmacro %}
 
 {#- Stage a chunk's grouped targets in shared memory, apply its elements to
     them, then write each target once.  chunk_atomics clears its slots,
@@ -304,77 +253,84 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
     extern __shared__ char op2_stage_smem[];
 
     {% for dat_id in dats %}
+        {% set dat = lh.dat(dat_id) %}
     const bool op2_stage{{loop.index0}}_active = {{stage_group_active(strategy, dat_id)}};
+    {{dat.typ.c()}} *op2_stage{{loop.index0}} = nullptr;
+    int op2_stage{{loop.index0}}_count = 0;
     {% endfor %}
 
-    {% if strategy == "chunk_colouring" %}
-    // Physical blocks grid-stride over this batch's chunks, which share no
-    // target of any group.  A wavefront batch covers a section instead: its
-    // blocks take positions in turn, each once the earlier positions sharing
-    // one of its targets are done.
-    __shared__ int op2_taken;
-    for (int op2_i = op2_wavefront ? op::rt::kernel::wave_take(wave_ticket, chunk_begin, op2_taken)
-                                   : chunk_begin + blockIdx.x;
-         op2_i < chunk_end;
-         op2_i = op2_wavefront ? op::rt::kernel::wave_take(wave_ticket, chunk_begin, op2_taken)
-                               : op2_i + gridDim.x) {
-        if (op2_wavefront)
-            op::rt::kernel::wave_wait(wave_pred_offsets, wave_preds, wave_done, op2_i, wave_epoch);
-        const int chunk = chunk_order[op2_i];
+    // Lay out the chunk's regions as the host planner sized them, and clear
+    // them for chunk_atomics' increments, or seed them from their targets for
+    // chunk_colouring's elements to read and update.  Counts up front, slot
+    // offsets only when the slots are seeded or written, so no offset stays
+    // in a register through the user kernel.
+    {% if strategy == "chunk_atomics" %}
+    auto op2_stage = [&](const int *op2_chunk_counts, const int *) {
     {% else %}
-    // Physical blocks grid-stride over this section's chunks; the partition
-    // guarantees no chunk spans a section boundary.
-    for (int chunk = chunk_begin + blockIdx.x; chunk < chunk_end;
-         chunk += gridDim.x) {
+    auto op2_stage = [&](const int *op2_chunk_counts, const int *op2_chunk_slots) {
     {% endif %}
-        const int op2_source_begin = source_offsets[chunk];
-        const int op2_source_end = source_offsets[chunk + 1];
-        {# Counts up front, slot offsets only at the flush, so no offset
-           stays in a register through the user kernel. #}
-        const int *op2_chunk_counts =
-            stage_counts + chunk * {{dats|length}};
-        const int *op2_chunk_slots = slot_offsets + chunk * {{dats|length}};
-
-        // Walk the same region layout the host planner sized this chunk for.
         char *op2_stage_cursor = op2_stage_smem;
     {% for dat_id in dats %}
         {% set dat = lh.dat(dat_id) %}
-        const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
-        {{dat.typ.c()}} *op2_stage{{loop.index0}} = op::rt::kernel::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim(dat)}});
+        op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
+        op2_stage{{loop.index0}} = op::rt::kernel::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim(dat)}});
     {% endfor %}
+    {% if strategy == "chunk_atomics" %}
+        {% for dat_id in dats %}
+        op::rt::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(lh.dat(dat_id))}}, threadIdx.x, op::rt::kernel::gpu::block_size());
+        {% endfor %}
+    {% else %}
+{{stage_slots(strategy, "seed")}}
+    {% endif %}
+    };
+
+    // Write each slot back to its target: a global atomic for chunk_atomics,
+    // whose batch's chunks may share it, a store for chunk_colouring's.
+    auto op2_write = [&](const int *op2_chunk_slots) {
+{{stage_slots(strategy, "store" if strategy == "chunk_colouring" else "flush")}}
+    };
 
     {% if strategy == "chunk_atomics" %}
-        // Clear every region before accumulating into it.
-        {% for dat_id in dats %}
-        op::rt::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
-        {% endfor %}
-        __syncthreads();
-
-        for (int n = op2_source_begin + threadIdx.x; n < op2_source_end;
-             n += blockDim.x) {
+    op::rt::kernel::gpu::chunk_atomics(chunk_begin, chunk_end, {{dats|length}}, source_offsets,
+        stage_counts, slot_offsets, op2_stage,
+        [&](int n) {
             {{kernel_call(true, strategy, strategy)|indent(12)}}
-        }
+        },
+        op2_write);
+    {% elif chunk_colouring_parallel %}
+    struct op2_locals {
+        {% for arg in groups.chunk_atomics.args %}
+        {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim(lh.dat(arg))}}];
+        {% endfor %}
+    };
+    op::rt::kernel::gpu::chunk_colouring_parallel<op2_wavefront, op2_locals>(
+        chunk_begin, chunk_end, {{dats|length}}, chunk_order, source_offsets, stage_counts,
+        slot_offsets, thread_colours, chunk_thread_colours, wave_pred_offsets, wave_preds,
+        wave_done, wave_ticket, wave_epoch, op2_stage,
+        [&](int n, op2_locals& op2_l) {
+            {{kernel_call(true, "chunk_colouring", "chunk_colouring", true)|indent(12)}}
+        },
+        [&](int n, op2_locals& op2_l) {
+        {% for arg in groups.chunk_atomics.args %}
+            {% if arg is opt %}
+            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
+                op::rt::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_l.op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
+            {% else %}
+            op::rt::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_l.op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
+            {% endif %}
+        {% endfor %}
+        },
+        op2_write);
     {% else %}
-        // Seed every slot from its target, so the elements read and update
-        // the targets' current values.
-{{stage_slots(strategy, "seed")}}
-        __syncthreads();
-{{chunk_colour_passes()}}
+    op::rt::kernel::gpu::chunk_colouring<op2_wavefront>(
+        chunk_begin, chunk_end, {{dats|length}}, chunk_order, source_offsets, stage_counts,
+        slot_offsets, thread_colours, chunk_thread_colours, wave_pred_offsets, wave_preds,
+        wave_done, wave_ticket, wave_epoch, op2_stage,
+        [&](int n) {
+            {{kernel_call(true, strategy, strategy)|indent(12)}}
+        },
+        op2_write);
     {% endif %}
-
-        __syncthreads();
-
-        // One write per distinct target reaches global memory.
-{{stage_slots(strategy, "store" if strategy == "chunk_colouring" else "flush")}}
-
-        // Keep the next iteration from reusing memory a warp is still
-        // flushing.
-        __syncthreads();
-    {% if strategy == "chunk_colouring" %}
-        if (op2_wavefront)
-            op::rt::kernel::wave_signal(wave_done, op2_i, wave_epoch);
-    {% endif %}
-    }
 {%- endmacro %}
 
 {#- Launch bounds: the offline wrappers' are the default block size, and a
@@ -427,8 +383,8 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {{p.items|join(",\n    ")}}
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
-    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     {% if per_thread %}
+    const int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     const int op2_stride_gbl = op::rt::kernel::param_value(op2_stride_gbl_d, global_stride);
     {% endif %}
     {% if jit %}
@@ -442,19 +398,12 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endif %}
 {{abi.wrapper_locals()}}
     {% if strategy in chunk_strategies %}
-    (void)thread_id;
 {{chunk_body(strategy)}}
 }
     {% else %}
-    for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
-    {% if strategy == "colouring" %}
-        int n = order[i];
-    {% else %}
-        int n = i;
-    {% endif %}
-
+    op::rt::kernel::gpu::range<{{"true" if strategy == "colouring" else "false"}}>(start, end, order, [&](int n) {
         {{kernel_call(jit, strategy)|indent(8)}}
-    }
+    });
 }
     {% endif %}
 {% endmacro %}

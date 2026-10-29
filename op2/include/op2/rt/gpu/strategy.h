@@ -4,8 +4,7 @@
 // it needs and maps its phases onto launches, each given a launch record
 // (op2/rt/abi/gpu/launch.h).  The generated code binds the loop's arguments
 // through a function it supplies, and launches an offline kernel through the
-// calls it supplies.  Defined in
-// src/rt/gpu/op_gpu_strategy.cpp.
+// calls it supplies.  Defined in src/rt/gpu/op_gpu_strategy.cpp.
 
 #include <op2/rt/abi/gpu/descriptor.h>
 #include <op2/rt/abi/gpu/launch.h>

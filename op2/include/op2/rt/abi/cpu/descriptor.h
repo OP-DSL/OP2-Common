@@ -12,11 +12,17 @@
 
 namespace op::rt::abi::cpu {
 
-// A strategy family the generated code built a body for, run through its
-// OpenMP region; chunk_atomics' groups are the arguments it stages.
+// Run a phase of a loop in the generated code's OpenMP region.
+using RangeRun = void (*)(const Range& range, op_arg *args);
+using ChunkRun = void (*)(const Chunk& chunks, op_arg *args);
+
+// A strategy family the generated code built a region for: the plain,
+// atomics and colouring families' over a range, the chunked families' over
+// chunks, the other null; chunk_atomics' groups are the arguments it stages.
 struct Family {
     const char *name;
-    Run run;
+    RangeRun range;
+    ChunkRun chunks;
     ArgGroups groups;
 };
 

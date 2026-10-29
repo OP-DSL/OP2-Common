@@ -126,12 +126,21 @@ Loop::Loop(const abi::cpu::Loop& descriptor)
 
 Loop::~Loop() = default;
 
-abi::cpu::Phase Loop::phase() const {
-    abi::cpu::Phase phase;
-    phase.threads = m_threads;
-    phase.globals = m_globals->pointers();
-    phase.nargs = m_globals->nargs();
-    return phase;
+abi::cpu::Range Loop::range() const {
+    abi::cpu::Range range;
+    range.threads = m_threads;
+    range.globals = m_globals->pointers();
+    range.nargs = m_globals->nargs();
+    return range;
+}
+
+abi::cpu::Chunk Loop::chunks() const {
+    abi::cpu::Chunk chunks;
+    chunks.threads = m_threads;
+    chunks.globals = m_globals->pointers();
+    chunks.nargs = m_globals->nargs();
+    chunks.scratch = m_scratch_lines.data();
+    return chunks;
 }
 
 void Loop::reserve_scratch(std::size_t bytes) {

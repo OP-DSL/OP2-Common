@@ -34,11 +34,11 @@ op::rt::loop::Prepared prepared(op::rt::loop::Status status, const void *entry,
 void StrategyBase::split(int begin, int end, const int *order, op_arg *args) {
     if (end <= begin)
         return;
-    abi::cpu::Phase phase = m_loop.phase();
-    phase.begin = begin;
-    phase.end = end;
-    phase.order = order;
-    m_run(phase, args);
+    abi::cpu::Range range = m_loop.range();
+    range.begin = begin;
+    range.end = end;
+    range.order = order;
+    m_family.range(range, args);
 }
 
 template<typename F>
@@ -163,22 +163,21 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     const auto& sections = m_loop.call_sections();
     m_loop.reserve_scratch(plan.max_scratch_bytes);
 
-    abi::cpu::Phase phase = m_loop.phase();
-    phase.chunk_order = plan.batches.order.empty() ? nullptr : plan.batches.order.data();
-    phase.chunk_offsets = plan.chunks.offsets.data();
-    phase.scratch = m_loop.scratch();
-    phase.staging = {plan.staging.stride, plan.staging.stage_words.data(),
+    abi::cpu::Chunk chunks = m_loop.chunks();
+    chunks.chunk_order = plan.batches.order.empty() ? nullptr : plan.batches.order.data();
+    chunks.chunk_offsets = plan.chunks.offsets.data();
+    chunks.staging = {plan.staging.stride, plan.staging.stage_words.data(),
                      plan.staging.slot_offsets.data(), plan.staging.slot_targets.data()};
 
     return run_phases(run, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {
-                          phase.batches = plan.batches.batches(section);
-                          if (phase.batches == 0)
+                          chunks.batches = plan.batches.batches(section);
+                          if (chunks.batches == 0)
                               return;
-                          phase.batch_offsets =
+                          chunks.batch_offsets =
                               plan.batches.batch_offsets.data() +
                               plan.batches.section_batches[static_cast<std::size_t>(section)];
-                          m_run(phase, run.args);
+                          m_family.chunks(chunks, run.args);
                       });
 }
 
@@ -200,13 +199,13 @@ std::unique_ptr<op::rt::loop::Strategy> make_strategy(Loop& loop, const abi::cpu
                                                       const op::rt::loop::Point& point) {
     std::string_view name = family.name;
     if (name == "plain" || name == "atomics")
-        return std::make_unique<Simple>(loop, point, family.run);
+        return std::make_unique<Simple>(loop, point, family);
     if (name == "colouring")
-        return std::make_unique<Colouring>(loop, point, family.run);
+        return std::make_unique<Colouring>(loop, point, family);
     if (name == "chunk_atomics")
-        return std::make_unique<ChunkAtomics>(loop, point, family.run, family.groups);
+        return std::make_unique<ChunkAtomics>(loop, point, family);
     if (name == "chunk_colouring")
-        return std::make_unique<ChunkColouring>(loop, point, family.run);
+        return std::make_unique<ChunkColouring>(loop, point, family);
     std::fprintf(stderr, "error: %s registers family %s, which the OpenMP backend lacks\n",
                  loop.name().c_str(), family.name);
     std::exit(1);

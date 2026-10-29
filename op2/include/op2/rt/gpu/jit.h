@@ -3,7 +3,7 @@
 // The CUDA and HIP JIT mechanism: the device symbols the offline kernels read
 // their parameters from, the kernels built through NVRTC or hipRTC, how those
 // have their run-time parameters, and their launches.  The policy, the
-// parameters and the build cache are op2/rt/loop/jit.h's.  Defined in
+// parameters and the build cache are op2/rt/jit's.  Defined in
 // src/rt/gpu/op_gpu_jit.cpp.
 
 #include <op2/gpu/shims.h>

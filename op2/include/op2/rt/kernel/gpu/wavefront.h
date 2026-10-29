@@ -3,6 +3,7 @@
 // The wavefront primitives of chunk_colouring's wavefront variant: device
 // code only.
 
+#include <op2/rt/kernel/gpu/block.h>
 #include <op2/rt/kernel/prelude.h>
 
 // Declares atomicAdd under offline HIP.
@@ -73,7 +74,7 @@ OP_KERNEL_DEVICE inline void wave_wait(const int *pred_offsets, const int *preds
                              const int *done, int position, int epoch) {
     bool waited = false;
     for (int p = pred_offsets[position] + (int)threadIdx.x;
-         p < pred_offsets[position + 1]; p += blockDim.x) {
+         p < pred_offsets[position + 1]; p += gpu::block_size()) {
         while (wave_poll(done + preds[p]) < epoch)
             wave_pause();
         waited = true;

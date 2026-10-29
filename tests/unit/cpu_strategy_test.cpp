@@ -7,7 +7,8 @@
 #include <op2/rt/cpu/loop.h>
 #include <op2/rt/cpu/strategy.h>
 #include <op2/rt/lifecycle.h>
-#include <op2/rt/kernel/cpu/launch.h>
+#include <op2/rt/kernel/cpu/chunk.h>
+#include <op2/rt/kernel/cpu/range.h>
 #include <op2/rt/kernel/staging.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
@@ -56,47 +57,70 @@ void element(int n, double *x, const int *map, const double *w, double *sum,
     }
 }
 
+template<bool atomic>
+auto inc() {
+    return [](double& t, double v) {
+        if constexpr (atomic)
+            op::rt::kernel::atomic_inc(t, v);
+        else
+            op::rt::kernel::plain_inc(t, v);
+    };
+}
+
 template<bool atomic, bool ordered>
-void range_body(const op::rt::abi::cpu::Work& work, op_arg *args) {
+void range_run(const op::rt::abi::cpu::Range& range, op_arg *args) {
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
-    for (int i = work.begin; i < work.end; ++i) {
-        int n = ordered ? work.order[i] : i;
-        element(n, x, map, w, work.global<double>(3), work.global<double>(4),
-                work.global<int>(5), [](double& t, double v) {
-                    if constexpr (atomic)
-                        op::rt::kernel::atomic_inc(t, v);
-                    else
-                        op::rt::kernel::plain_inc(t, v);
-                });
-    }
+    op::rt::kernel::cpu::range<ordered>(range, [&](const op::rt::abi::cpu::Thread& thread) {
+        return [=](int n) {
+            element(n, x, map, w, thread.global<double>(3), thread.global<double>(4),
+                    thread.global<int>(5), inc<atomic>());
+        };
+    });
+}
+
+void colouring_run(const op::rt::abi::cpu::Chunk& chunks, op_arg *args) {
+    auto *x = reinterpret_cast<double *>(args[0].data);
+    const int *map = args[0].map_data;
+    auto *w = reinterpret_cast<const double *>(args[2].data);
+    op::rt::kernel::cpu::chunks(chunks, [&](const op::rt::abi::cpu::Thread& thread) {
+        return [=](int, int begin, int end) {
+            for (int n = begin; n < end; ++n)
+                element(n, x, map, w, thread.global<double>(3), thread.global<double>(4),
+                        thread.global<int>(5), inc<false>());
+        };
+    });
 }
 
 // A chunk accumulates into its staged slots and flushes them atomically.
-void staged_body(const op::rt::abi::cpu::Work& work, op_arg *args) {
-    const auto& staging = work.staging;
+void staged_run(const op::rt::abi::cpu::Chunk& chunks, op_arg *args) {
+    const auto& staging = chunks.staging;
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
+    op::rt::kernel::cpu::chunks(chunks, [&](const op::rt::abi::cpu::Thread& thread) {
+        return [&, thread](int chunk, int begin, int end) {
+            char *cursor = thread.scratch;
+            const int first = staging.slot_offsets[static_cast<std::size_t>(chunk)];
+            const int count = staging.slot_offsets[static_cast<std::size_t>(chunk) + 1] - first;
+            double *stage = op::rt::kernel::stage_region<double>(cursor, count, 2);
+            op::rt::kernel::stage_clear(stage, count * 2, 0, 1);
 
-    char *cursor = work.scratch;
-    const int first = staging.slot_offsets[static_cast<std::size_t>(work.chunk)];
-    const int count = staging.slot_offsets[static_cast<std::size_t>(work.chunk) + 1] - first;
-    double *stage = op::rt::kernel::stage_region<double>(cursor, count, 2);
-    op::rt::kernel::stage_clear(stage, count * 2, 0, 1);
+            const auto stride = static_cast<std::size_t>(staging.stride);
+            for (int n = begin; n < end; ++n)
+                element(n, x, map, w, thread.global<double>(3), thread.global<double>(4),
+                        thread.global<int>(5), inc<false>(),
+                        stage + 2 * staging.stage_words[static_cast<std::size_t>(n)],
+                        stage + 2 * staging.stage_words[stride + static_cast<std::size_t>(n)]);
 
-    const auto stride = static_cast<std::size_t>(staging.stride);
-    for (int n = work.begin; n < work.end; ++n)
-        element(n, x, map, w, work.global<double>(3), work.global<double>(4),
-                work.global<int>(5), [](double& t, double v) { t += v; },
-                stage + 2 * staging.stage_words[static_cast<std::size_t>(n)],
-                stage + 2 * staging.stage_words[stride + static_cast<std::size_t>(n)]);
-
-    for (int s = 0; s < count; ++s) {
-        int target = staging.slot_targets[static_cast<std::size_t>(first + s)];
-        op::rt::kernel::stage_flush(op::rt::kernel::Ptr<double>{x + 2 * target}, stage, s, 2);
-    }
+            for (int s = 0; s < count; ++s) {
+                int target = staging.slot_targets[static_cast<std::size_t>(first + s)];
+                op::rt::kernel::stage_flush(op::rt::kernel::Ptr<double>{x + 2 * target}, stage, s,
+                                            2);
+            }
+        };
+    });
 }
 
 constexpr std::array<op::rt::abi::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
@@ -164,11 +188,10 @@ void run(const char *strategy) {
     args[5].acc = 4;
 
     const op::rt::abi::cpu::Family families[] = {
-        {"chunk_atomics", op::rt::kernel::cpu::chunks<&staged_body>,
-         op::rt::abi::ArgGroups{groups, 1}},
-        {"atomics", op::rt::kernel::cpu::split<&range_body<true, false>>, {}},
-        {"chunk_colouring", op::rt::kernel::cpu::chunks<&range_body<false, false>>, {}},
-        {"colouring", op::rt::kernel::cpu::split<&range_body<false, true>>, {}},
+        {"chunk_atomics", nullptr, &staged_run, op::rt::abi::ArgGroups{groups, 1}},
+        {"atomics", &range_run<true, false>, nullptr, {}},
+        {"chunk_colouring", nullptr, &colouring_run, {}},
+        {"colouring", &range_run<false, true>, nullptr, {}},
     };
     cpu::Loop loop(op::rt::abi::cpu::Loop{"test_loop", "openmp_f2c", "Indirect", false,
                                           families, &op::rt::kernel::cpu::max_threads});

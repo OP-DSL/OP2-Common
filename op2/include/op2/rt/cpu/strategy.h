@@ -1,12 +1,11 @@
 #pragma once
 
 // The OpenMP strategies: each schedules a loop's elements over host threads
-// in phases, which the generated code's OpenMP region runs
-// (op2/rt/kernel/cpu/launch.h), a call of its body per thread's share or per
-// chunk.  A body runs the translated kernel over its elements on the calling
-// thread, so the element loop is visible to the compiler.  Defined in
-// src/rt/cpu/op_cpu_strategy.cpp; the per-thread globals in
-// src/rt/cpu/op_cpu_loop.cpp.
+// in phases, each a record its family's run is given, which runs it in the
+// generated code's OpenMP region (op2/rt/kernel/cpu/range.h,
+// op2/rt/kernel/cpu/chunk.h), compiled with the loop's kernel so the element
+// loop inlines.  Defined in src/rt/cpu/op_cpu_strategy.cpp; the per-thread
+// globals in src/rt/cpu/op_cpu_loop.cpp.
 
 #include <op2/rt/cpu/chunk_plan.h>
 #include <op2/rt/cpu/loop.h>
@@ -71,10 +70,10 @@ class StrategyBase : public op::rt::loop::Strategy {
 protected:
     Loop& m_loop;
     std::string m_name;
-    abi::cpu::Run m_run;
+    const abi::cpu::Family& m_family;
 
-    StrategyBase(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
-        : m_loop{loop}, m_name{point.name}, m_run{run} {}
+    StrategyBase(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : m_loop{loop}, m_name{point.name}, m_family{family} {}
 
     // Split [begin, end) over the threads, a body call each.
     void split(int begin, int end, const int *order, op_arg *args);
@@ -97,8 +96,8 @@ public:
 // for plain, atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
-        : StrategyBase{loop, point, run} {}
+    Simple(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : StrategyBase{loop, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                    op::rt::loop::Urgency urgency,
@@ -115,8 +114,8 @@ private:
     op::rt::plan::PlanSlots<op::rt::plan::SetColouring> m_plans;
 
 public:
-    Colouring(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
-        : StrategyBase{loop, point, run} {}
+    Colouring(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : StrategyBase{loop, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                    op::rt::loop::Urgency urgency,
@@ -141,9 +140,9 @@ protected:
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured, abi::cpu::Run run,
-              op::rt::abi::ArgGroups groups)
-        : StrategyBase{loop, point, run}, m_coloured{coloured}, m_groups{groups},
+    ChunkBase(Loop& loop, const op::rt::loop::Point& point, bool coloured,
+              const abi::cpu::Family& family)
+        : StrategyBase{loop, point, family}, m_coloured{coloured}, m_groups{family.groups},
           m_chunk_size{point.value("chunk_size")} {}
 
     const ChunkEntry& entry_for(const op::rt::loop::Call& call);
@@ -165,16 +164,16 @@ public:
 
 class ChunkAtomics : public ChunkBase {
 public:
-    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run,
-                 op::rt::abi::ArgGroups groups)
-        : ChunkBase{loop, point, false, run, groups} {}
+    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : ChunkBase{loop, point, false, family} {}
 };
 
 // Conflicts come from the call's updated dats, so it needs no groups.
 class ChunkColouring : public ChunkBase {
 public:
-    ChunkColouring(Loop& loop, const op::rt::loop::Point& point, abi::cpu::Run run)
-        : ChunkBase{loop, point, true, run, {}} {}
+    ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
+                   const abi::cpu::Family& family)
+        : ChunkBase{loop, point, true, family} {}
 };
 
 // A strategy of family at point.

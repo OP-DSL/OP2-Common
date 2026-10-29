@@ -25,7 +25,10 @@ OP_KERNEL_JIT_EMBED(op_abi_staging_, "op2/rt/abi/staging.h");
 OP_KERNEL_JIT_EMBED(op_abi_launch_, "op2/rt/abi/gpu/launch.h");
 OP_KERNEL_JIT_EMBED(op_kernel_inc_, "op2/rt/kernel/inc.h");
 OP_KERNEL_JIT_EMBED(op_kernel_staging_, "op2/rt/kernel/staging.h");
+OP_KERNEL_JIT_EMBED(op_kernel_block_, "op2/rt/kernel/gpu/block.h");
 OP_KERNEL_JIT_EMBED(op_kernel_wavefront_, "op2/rt/kernel/gpu/wavefront.h");
+OP_KERNEL_JIT_EMBED(op_kernel_range_, "op2/rt/kernel/gpu/range.h");
+OP_KERNEL_JIT_EMBED(op_kernel_chunk_, "op2/rt/kernel/gpu/chunk.h");
 
 #define OP_KERNEL_JIT_DATA(name) OP_KERNEL_JIT_CAT(OP_KERNEL_JIT_CAT(name, OP_KERNEL_JIT_TAG), _data)
 
@@ -35,10 +38,13 @@ OP_KERNEL_JIT_EMBED(op_kernel_wavefront_, "op2/rt/kernel/gpu/wavefront.h");
 #define OP_KERNEL_JIT_KERNEL_DATA                                                  \
     OP_KERNEL_JIT_DATA(op_kernel_prelude_), OP_KERNEL_JIT_DATA(op_abi_staging_),   \
         OP_KERNEL_JIT_DATA(op_abi_launch_), OP_KERNEL_JIT_DATA(op_kernel_inc_),     \
-        OP_KERNEL_JIT_DATA(op_kernel_staging_), OP_KERNEL_JIT_DATA(op_kernel_wavefront_)
+        OP_KERNEL_JIT_DATA(op_kernel_staging_), OP_KERNEL_JIT_DATA(op_kernel_block_), \
+        OP_KERNEL_JIT_DATA(op_kernel_wavefront_), OP_KERNEL_JIT_DATA(op_kernel_range_), \
+        OP_KERNEL_JIT_DATA(op_kernel_chunk_)
 #define OP_KERNEL_JIT_KERNEL_NAMES                                                 \
     "op2/rt/kernel/prelude.h", "op2/rt/abi/staging.h", "op2/rt/abi/gpu/launch.h", \
-        "op2/rt/kernel/inc.h", "op2/rt/kernel/staging.h", "op2/rt/kernel/gpu/wavefront.h"
+        "op2/rt/kernel/inc.h", "op2/rt/kernel/staging.h", "op2/rt/kernel/gpu/block.h", \
+        "op2/rt/kernel/gpu/wavefront.h", "op2/rt/kernel/gpu/range.h", "op2/rt/kernel/gpu/chunk.h"
 
 #ifdef OP_KERNEL_PARAMS
 #define OP_KERNEL_JIT_HEADERS                                                      \
