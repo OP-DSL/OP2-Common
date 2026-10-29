@@ -1,6 +1,6 @@
 {#- How a C++ kernel translated from Fortran takes its arguments, for the
     shared loop hosts: indices from 1, every data argument an
-    op::kernel::Ptr but a one-component one, which it takes as its element,
+    op::rt::kernel::Ptr but a one-component one, which it takes as its element,
     and a scalar global by value; an inactive optional one-component
     argument a zero of its type; the loop entered through bind(C). -#}
 {%- set index_base = 1 -%}

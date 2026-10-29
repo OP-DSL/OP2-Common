@@ -2,7 +2,7 @@
 // one plan per key while any strategy holds it, and its release once every
 // strategy has forgotten the configuration.
 
-#include <plan/cache.h>
+#include <op2/rt/plan/cache.h>
 
 #include <array>
 #include <cstdio>
@@ -13,8 +13,8 @@
 #include "../test_support.h"
 #include "builders.h"
 
-namespace plan = op::plan;
-namespace loop = op::loop;
+namespace plan = op::rt::plan;
+namespace loop = op::rt::loop;
 using op::test::dat_arg;
 using op::test::initialize_dat;
 using op::test::initialize_map;

@@ -36,17 +36,16 @@
 
 #include <mpi.h>
 
-#include <gpu/options.h>
-#include <gpu/shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
-#include <loop/loop.h>
-#include <op_env.h>
+#include <op2/rt/lifecycle.h>
+#include <op2/env.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
+#include <op2/mpi/halo.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
-#include <op_mpi_halo.h>
 
 using op::mpi::DeviceList;
 using op::mpi::DeviceMapHalo;
@@ -83,7 +82,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   op_renumber_init();
 
   cutilDeviceInit(argc, argv);
-  op::gpu::init();
+  op::rt::init_gpu();
   op_gpu_direct_init();
   op::env::finish();
 }
@@ -109,7 +108,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   op_renumber_init();
 
   cutilDeviceInit(argc, argv);
-  op::gpu::init();
+  op::rt::init_gpu();
   op_gpu_direct_init();
   op::env::finish();
 }
@@ -276,7 +275,7 @@ void op_exit() {
     int rank = 0, ranks = 1;
     MPI_Comm_rank(OP_MPI_WORLD, &rank);
     MPI_Comm_size(OP_MPI_WORLD, &ranks);
-    op::loop::finalise(rank, ranks);
+    op::rt::finalise(rank, ranks);
   }
 
   // free the device halo lists, while the device is still up

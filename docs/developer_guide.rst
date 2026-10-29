@@ -58,7 +58,7 @@ The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`` and ``openmp_f2c`` 
     Algorithms with no device knowledge: the set colouring, the chunks of a call's sections and their targets, coloured batches and the wavefront order, and the staging of a chunk's targets in scratch slots.
 
 ``gpu/``, ``cpu/``
-    The *backends*: each composes the planning blocks under its own limits and encodings (``gpu/chunk_plan.h``, ``cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and launches the kernels, compiling JIT ones with NVRTC or hipRTC (GPU) or running host threads (CPU).
+    The *backends*: each composes the planning blocks under its own limits and encodings (``op2/rt/gpu/chunk_plan.h``, ``op2/rt/cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and launches the kernels, compiling JIT ones with NVRTC or hipRTC (GPU) or running host threads (CPU).
 
 ``kernel/``
     What a translated kernel compiles against, offline or JIT: ``prelude.h`` (the pointer and array wrappers and the Fortran intrinsics) and ``strategy.h`` (the increment hooks ``op2_inc`` resolves to and the chunked strategies' staging helpers).
@@ -310,7 +310,7 @@ A halo list (``op::mpi::HaloList``, ``op2/include/op_mpi_halo.h``) holds one con
 
 It is a value that owns its arrays.  Lists are built with ``HaloList::from_pairs()`` or ``HaloList::from_groups()``, and ``op::mpi::transpose()`` turns an export list into the matching import list or the reverse.  A set's four lists live in ``OP_set_halos[set->index]`` (``op::mpi::SetHalo``: ``export_exec``, ``import_exec``, ``export_nonexec``, ``import_nonexec``), and a map's partial-exchange lists in ``OP_map_halos[map->index]`` (``op::mpi::MapHalo``).
 
-An export list holds local indices of owned elements.  An import list holds, for each halo element, its current local index on its owner; ``op_mpi_probe_halo_index()`` returns that index with the owner's rank.  Halo creation (putting each set's core first) and ``op_renumber()`` both move a rank's owned elements with ``op::mpi::move_owned()`` (``op_mpi_halo.h``), which takes their dat rows, map rows and map entries, export lists - the partial-exchange ones too - and ``g_index`` with them.  It rewrites only the moving rank's export lists, so the import lists everywhere are then refilled from them with ``op_halo_refresh_imports()``, once every rank has moved what it will.
+An export list holds local indices of owned elements.  An import list holds, for each halo element, its current local index on its owner; ``op_mpi_probe_halo_index()`` returns that index with the owner's rank.  Halo creation (putting each set's core first) and ``op_renumber()`` both move a rank's owned elements with ``op::mpi::move_owned()`` (``op2/mpi/halo.h``), which takes their dat rows, map rows and map entries, export lists - the partial-exchange ones too - and ``g_index`` with them.  It rewrites only the moving rank's export lists, so the import lists everywhere are then refilled from them with ``op_halo_refresh_imports()``, once every rank has moved what it will.
 
 Halo creation in ``op_halo_create()`` proceeds in 11 steps:
 

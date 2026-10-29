@@ -59,18 +59,18 @@
  *
  * The ordering algorithms themselves live in header-only modules:
  *
- *     renumber/rcm.h          - RCM + shared graph utilities
- *     renumber/sloan.h        - Sloan (depends on renumber/rcm.h)
- *     renumber/hilbert_sfc.h  - Hilbert SFC (standalone, geometric)
+ *     op2/renumber/rcm.h          - RCM + shared graph utilities
+ *     op2/renumber/sloan.h        - Sloan (depends on op2/renumber/rcm.h)
+ *     op2/renumber/hilbert_sfc.h  - Hilbert SFC (standalone, geometric)
  */
 
-#include <op_env.h>
+#include <op2/env.h>
+#include <op2/mpi/halo.h>
+#include <op2/renumber/hilbert_sfc.h>
+#include <op2/renumber/rcm.h>
+#include <op2/renumber/sloan.h>
 #include <op_lib_c.h>
 #include <op_mpi_core.h>
-#include <op_mpi_halo.h>
-#include <renumber/hilbert_sfc.h>
-#include <renumber/rcm.h>
-#include <renumber/sloan.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -259,8 +259,8 @@ static void propagate_reordering(op_set from, op_set to,
         bool ordered_via_centroid = false;
         if (pctx.method == PropagateMethod::Centroid && compute_centroids_to_from(map, pctx)) {
           std::vector<int> perm;
-          op_renumber_impl::hilbert_sfc_stats stats{};
-          op_renumber_impl::hilbert_sfc_order(
+          op::renumber::hilbert_sfc_stats stats{};
+          op::renumber::hilbert_sfc_order(
               pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm, &stats);
           pctx.keys[to->index] = {stats.num_verts, stats.distinct_points, stats.distinct_indices};
           for (int i = 0; i < n; i++)
@@ -578,8 +578,8 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
     random_order(num_verts, permutation);
 
   } else if (method == ReorderMethod::Hilbert) {
-    op_renumber_impl::hilbert_sfc_stats hstats{};
-    op_renumber_impl::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
+    op::renumber::hilbert_sfc_stats hstats{};
+    op::renumber::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
     keys[base->to->index] = {hstats.num_verts, hstats.distinct_points, hstats.distinct_indices};
 
     // On rank 0; report_hilbert_keys warns about merged keys on any rank.
@@ -602,9 +602,9 @@ static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method
     }
 
     if (method == ReorderMethod::RCM) {
-      op_renumber_impl::rcm_order(row_offsets, col_indices, num_verts, permutation);
+      op::renumber::rcm_order(row_offsets, col_indices, num_verts, permutation);
     } else { // Sloan
-      op_renumber_impl::sloan_order(row_offsets, col_indices, num_verts, permutation);
+      op::renumber::sloan_order(row_offsets, col_indices, num_verts, permutation);
     }
   }
 

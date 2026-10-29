@@ -4,9 +4,9 @@
 // colours, and the size a host chunk shrinks to for its staging.  The rest of
 // the staging pipeline is tested through the GPU plans.
 
-#include <cpu/chunk_plan.h>
-#include <plan/chunks.h>
-#include <plan/staging.h>
+#include <op2/rt/cpu/chunk_plan.h>
+#include <op2/rt/plan/chunks.h>
+#include <op2/rt/plan/staging.h>
 
 #include <algorithm>
 #include <array>
@@ -23,8 +23,8 @@
 #include "../test_support.h"
 #include "builders.h"
 
-namespace plan = op::plan;
-using op::loop::Sections;
+namespace plan = op::rt::plan;
+using op::rt::loop::Sections;
 using op::test::dat_arg;
 using op::test::initialize_dat;
 
@@ -228,7 +228,7 @@ void test_cpu_plans() {
     Chain chain(1000, 600, 100);
     auto sections = Sections::indirect(&chain.edges, false, chain.edges.size + chain.edges.exec_size);
 
-    auto coloured = op::cpu::plan_chunk_colouring(chain.args, sections, 16);
+    auto coloured = op::rt::cpu::plan_chunk_colouring(chain.args, sections, 16);
     CHECK(coloured);
     const auto& colouring = *coloured.plan;
     CHECK(colouring.chunks.size == 16);
@@ -239,7 +239,7 @@ void test_cpu_plans() {
 
     std::array<plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
     chain.args.resize(2);
-    auto staged = op::cpu::plan_chunk_atomics(chain.args, sections,
+    auto staged = op::rt::cpu::plan_chunk_atomics(chain.args, sections,
                                               plan::ArgGroups{groups, 1}, 100, 0.0);
     CHECK(staged);
     const auto& atomics = *staged.plan;
@@ -249,13 +249,13 @@ void test_cpu_plans() {
     CHECK(atomics.max_scratch_bytes == 101 * sizeof(double));
     CHECK(atomics.compression > 1.9);
 
-    auto rejected = op::cpu::plan_chunk_atomics(chain.args, sections,
+    auto rejected = op::rt::cpu::plan_chunk_atomics(chain.args, sections,
                                                 plan::ArgGroups{groups, 1}, 100, 2.5);
     CHECK(!rejected && rejected.rejected == "low_compression" && rejected.plan == nullptr);
     CHECK(rejected.compression > 1.9 && rejected.compression < 2.5);
 
     chain.args[0].opt = chain.args[1].opt = 0;
-    CHECK(op::cpu::plan_chunk_colouring(chain.args, sections, 16).rejected ==
+    CHECK(op::rt::cpu::plan_chunk_colouring(chain.args, sections, 16).rejected ==
           "no_active_argument");
 
     // An empty section has no batches, and an empty set none at all.
@@ -263,17 +263,17 @@ void test_cpu_plans() {
     halo.args.resize(2);
     auto split = Sections::indirect(&halo.edges, true, halo.edges.size + halo.edges.exec_size);
     CHECK(split.size() == 3 && split[1].size() == 0);
-    auto sectioned = op::cpu::plan_chunk_atomics(halo.args, split,
+    auto sectioned = op::rt::cpu::plan_chunk_atomics(halo.args, split,
                                                  plan::ArgGroups{groups, 1}, 4, 0.0);
     CHECK(sectioned);
     CHECK((sectioned.plan->batches.section_batches == std::vector<int>{0, 1, 1, 2}));
-    CHECK(op::cpu::plan_chunk_colouring(halo.args, split, 4).plan->batches.batches(1) == 0);
+    CHECK(op::rt::cpu::plan_chunk_colouring(halo.args, split, 4).plan->batches.batches(1) == 0);
 
     Chain empty(0);
     empty.args.resize(2);
     auto none = Sections::direct(&empty.edges);
-    auto coloured_empty = op::cpu::plan_chunk_colouring(empty.args, none, 4);
-    auto staged_empty = op::cpu::plan_chunk_atomics(empty.args, none,
+    auto coloured_empty = op::rt::cpu::plan_chunk_colouring(empty.args, none, 4);
+    auto staged_empty = op::rt::cpu::plan_chunk_atomics(empty.args, none,
                                                     plan::ArgGroups{groups, 1}, 4, 0.0);
     CHECK(coloured_empty && coloured_empty.plan->batches.count() == 0);
     CHECK(staged_empty && staged_empty.plan->batches.count() == 0);

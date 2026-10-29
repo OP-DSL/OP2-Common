@@ -1,5 +1,5 @@
 {#- How a translated C++ kernel takes its arguments, for the shared loop
-    hosts: indices from 0, every data argument an op::kernel::Ptr (a scalar
+    hosts: indices from 0, every data argument an op::rt::kernel::Ptr (a scalar
     global through its address), an inactive optional argument a null Ptr;
     the loop entered as op_par_loop_<name>. -#}
 {%- set index_base = 0 -%}
@@ -9,7 +9,7 @@
 {%- endmacro -%}
 
 {%- macro value(expr) -%}
-op::kernel::Ptr{&{{expr}}}
+op::rt::kernel::Ptr{&{{expr}}}
 {%- endmacro -%}
 
 {%- macro element(arg, expr) -%}
@@ -21,7 +21,7 @@ op::kernel::Ptr{&{{expr}}}
 {%- endmacro -%}
 
 {%- macro inactive(arg) -%}
-op::kernel::Ptr<{{(lh.dat(arg) if arg is dat else arg).typ.c()}}>{nullptr}
+op::rt::kernel::Ptr<{{(lh.dat(arg) if arg is dat else arg).typ.c()}}>{nullptr}
 {%- endmacro -%}
 
 {%- macro wrapper_locals() -%}

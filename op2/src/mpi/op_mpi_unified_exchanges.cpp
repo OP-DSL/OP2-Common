@@ -1,9 +1,9 @@
-#include <op_mpi_unified_exchanges.h>
-#include <op_mpi_unified_backend.h>
+#include <op2/mpi/exchange.h>
+#include <op2/mpi/exchange_backend.h>
 
+#include <op2/mpi/comm.h>
+#include <op2/mpi/halo.h>
 #include <op_lib_mpi.h>
-#include <op_mpi_comm.h>
-#include <op_mpi_halo.h>
 
 #include <vector>
 #include <unordered_map>
@@ -12,7 +12,7 @@
 #include <cstdlib>
 #include <string>
 
-namespace op::unified_exchanges {
+namespace op::mpi {
 
 Backend &backend_for(int device) {
     Backend *backend = (device == 2) ? device_backend() : host_backend();
@@ -373,9 +373,9 @@ ExchangeContext ctx;
                   "exactly one wait (op_mpi_wait_all) before the next exchange.\n", problem.c_str());
 }
 
-}  // namespace op::unified_exchanges
+}  // namespace op::mpi
 
-using namespace op::unified_exchanges;
+using namespace op::mpi;
 
 // MPI time is charged to the kernel being run, and the args are checked under
 // OP_diags.

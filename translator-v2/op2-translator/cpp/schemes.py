@@ -236,7 +236,7 @@ class CppCuda(Scheme):
         def atomic_gbl_inc(arg: OP.Arg) -> bool:
             return config["gbl_inc_atomic"] and isinstance(arg, OP.ArgGbl) and arg.access_type == OP.AccessType.INC
 
-        # Every other dat, global and info argument is an op::kernel::Ptr too,
+        # Every other dat, global and info argument is an op::rt::kernel::Ptr too,
         # whose stride carries its layout and its thread's copy.
         def ptr_arg(arg: OP.Arg) -> bool:
             return (
@@ -247,7 +247,7 @@ class CppCuda(Scheme):
 
         for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
             ctk.insertIncrements(entity, loop, extracted_entities, indirect_inc)
-            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::kernel::atomic_inc")
+            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::rt::kernel::atomic_inc")
             ctk.insertPtrs(entity, loop, extracted_entities, ptr_arg)
 
         ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
@@ -309,7 +309,7 @@ class CppOpenMP(Scheme):
         def indirect_inc(arg: OP.Arg) -> bool:
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC
 
-        # Every other dat, global and info argument is an op::kernel::Ptr too.
+        # Every other dat, global and info argument is an op::rt::kernel::Ptr too.
         def ptr_arg(arg: OP.Arg) -> bool:
             return isinstance(arg, (OP.ArgDat, OP.ArgGbl, OP.ArgInfo)) and not indirect_inc(arg)
 

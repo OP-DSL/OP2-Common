@@ -1,11 +1,11 @@
-#include <op_mpi_unified_backend.h>
-#include <op_mpi_halo.h>
+#include <op2/mpi/exchange_backend.h>
+#include <op2/mpi/halo.h>
 
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-namespace op::unified_exchanges {
+namespace op::mpi {
 
 class HostBackend final : public Backend {
 public:

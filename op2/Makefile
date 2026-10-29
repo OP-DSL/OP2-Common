@@ -60,14 +60,15 @@ clean:
 	-rm -rf $(LIB)
 	-rm -rf $(MOD)
 
-# Backend-neutral par_loop support: the strategy ladder and tuner, the JIT's
-# policy, parameters and build cache, their reports, and the planning
-# building blocks the backends' strategies compose
-OP2_LOOP := $(addprefix $(OBJ)/loop/,\
+# The loop runtime (src/rt), backend neutral: its start, reports and release,
+# the strategy ladder and tuner, the JIT's policy, parameters and build cache,
+# their reports, and the planning building blocks the backends' strategies
+# compose
+OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(addprefix $(OBJ)/rt/loop/,\
 	op_loop_strategy.o \
 	op_loop_autotune.o \
 	op_loop_jit.o \
-	op_loop_report.o) $(addprefix $(OBJ)/plan/,\
+	op_loop_report.o) $(addprefix $(OBJ)/rt/plan/,\
 	op_plan_colouring.o \
 	op_plan_chunks.o \
 	op_plan_staging.o \
@@ -78,7 +79,7 @@ OP2_BASE := $(addprefix $(OBJ)/core/,\
 	op_env.o \
 	op_lib_core.o \
 	op_rt_support.o \
-	SafeLong.o) $(OP2_LOOP)
+	SafeLong.o) $(OP2_RT)
 
 OP2_FOR_BASE := $(addprefix $(OBJ)/fortran/,\
 	op2_for_declarations+cpp.o \
@@ -127,14 +128,14 @@ OP2_FOR_SEQ := $(OP2_SEQ) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers.o)
 
 OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	gpu/op_gpu_options+cuda.o \
+	rt/gpu/op_gpu_options+cuda.o \
 	cuda/op_cuda_decl+cuda.o \
 	cuda/op_cuda_rt_support+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
 	externlib/op_profile.o)
 
 OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	gpu/op_gpu_options+hip.o \
+	rt/gpu/op_gpu_options+hip.o \
 	cuda/op_cuda_decl+hip.o \
 	cuda/op_cuda_rt_support+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
@@ -149,6 +150,7 @@ OP2_FOR_HIP := $(OP2_HIP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	openmp/op_openmp_decl.o \
+	rt/cpu/op_cpu_init.o \
 	externlib/op_profile.o)
 
 OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
@@ -159,6 +161,7 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_decl.o \
 	mpi/op_mpi_rt_support.o \
+	rt/cpu/op_cpu_init.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
 	mpi/op_mpi_unified_exchanges.o \
@@ -171,7 +174,7 @@ OP2_FOR_MPI := $(OP2_MPI) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran/,\
 	op_dummy_wrappers+mpi.o)
 
 OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	gpu/op_gpu_options+cuda.o \
+	rt/gpu/op_gpu_options+cuda.o \
 	cuda/op_cuda_rt_support+mpi+cuda.o \
 	cuda/op2_cuda_rt_wrappers+cuda.o \
 	mpi/op_mpi_core.o \
@@ -188,7 +191,7 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	externlib/op_profile+mpi.o)
 
 OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
-	gpu/op_gpu_options+hip.o \
+	rt/gpu/op_gpu_options+hip.o \
 	cuda/op_cuda_rt_support+mpi+hip.o \
 	cuda/op2_cuda_rt_wrappers+hip.o \
 	mpi/op_mpi_core.o \
@@ -213,8 +216,7 @@ OP2_FOR_MPI_HIP := $(OP2_MPI_HIP) $(OP2_FOR_BASE_MPI) $(addprefix $(OBJ)/fortran
 # Directory rules
 $(OBJ):
 	@mkdir -p $@
-	@mkdir -p $(foreach dir,$(shell find src -maxdepth 1 -mindepth 1 \
-		-exec basename {} \;),$@/$(dir))
+	@mkdir -p $(foreach dir,$(patsubst src/%,%,$(shell find src -mindepth 1 -type d)),$@/$(dir))
 
 $(LIB):
 	@mkdir -p $@

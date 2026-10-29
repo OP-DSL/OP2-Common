@@ -36,10 +36,9 @@
  */
 
 #include "op_lib_core.h"
-#include <loop/strategy.h>
-#include <op_env.h>
+#include <op2/env.h>
+#include <op2/rt/lifecycle.h>
 #include <op_profile.h>
-#include <plan/options.h>
 #include <malloc.h>
 #include <string.h>
 #include <sys/time.h>
@@ -382,8 +381,7 @@ void op_init_core(int argc, char **argv, int diags) {
   TAILQ_INIT(&OP_dat_list);
 
   // The par_loop strategies' run-wide variables.
-  op::loop::init();
-  op::plan::init_chunk_options();
+  op::rt::init();
 }
 
 op_set op_decl_set_core(idx_l_t size, char const *name) {

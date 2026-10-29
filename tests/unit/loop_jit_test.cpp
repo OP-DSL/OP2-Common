@@ -2,7 +2,7 @@
 // fake kernels and jobs, the parameters' values, keys and C++ constants, and
 // the modes and statistics that move them.
 
-#include <loop/jit.h>
+#include <op2/rt/loop/jit.h>
 
 #include <array>
 #include <atomic>
@@ -20,7 +20,7 @@
 
 #include "../test_support.h"
 
-namespace loop = op::loop;
+namespace loop = op::rt::loop;
 
 namespace {
 

@@ -77,7 +77,7 @@
 #include <mpi.h>
 #include <op_mpi_core.h>
 #include <op_lib_mpi.h>
-#include <op_mpi_halo.h>
+#include <op2/mpi/halo.h>
 
 using op::mpi::HaloList;
 #endif

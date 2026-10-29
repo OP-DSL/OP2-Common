@@ -36,7 +36,7 @@
 #include <op_lib_mpi.h>
 #include <op_util.h>
 
-#include <op_mpi_halo.h>
+#include <op2/mpi/halo.h>
 
 #include <algorithm>
 #include <cstdio>

@@ -1,11 +1,11 @@
 #define OP_MPI_CORE_NOMPI
 
-#include <op_mpi_unified_backend.h>
+#include <op2/mpi/exchange_backend.h>
 
 #include <op_lib_mpi.h>
-#include <op_mpi_halo.h>
+#include <op2/mpi/halo.h>
 #include <op_cuda_rt_support.h>
-#include <gpu/shims.h>
+#include <op2/gpu/shims.h>
 
 #include <array>
 #include <cstdio>
@@ -22,7 +22,7 @@ namespace cub = hipcub;
 #define __grid_constant__
 #endif
 
-namespace op::unified_exchanges {
+namespace op::mpi {
 
 constexpr int BLOCK_SIZE = 128;
 

@@ -4,8 +4,8 @@
 // The edges split into core and owned sections, as a partition's do; the
 // MPI functional tests run the exec halo.
 
-#include <cpu/loop.h>
-#include <kernel/strategy.h>
+#include <op2/rt/cpu/loop.h>
+#include <op2/rt/kernel/strategy.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
 
@@ -22,7 +22,7 @@
 #include "../test_support.h"
 #include "builders.h"
 
-namespace cpu = op::cpu;
+namespace cpu = op::rt::cpu;
 using op::test::dat_arg;
 using op::test::initialize_dat;
 using op::test::initialize_map;
@@ -63,9 +63,9 @@ void range_body(const cpu::Work& work, op_arg *args) {
         element(n, x, map, w, work.global<double>(3), work.global<double>(4),
                 work.global<int>(5), [](double& t, double v) {
                     if constexpr (atomic)
-                        op::kernel::atomic_inc(t, v);
+                        op::rt::kernel::atomic_inc(t, v);
                     else
-                        op::kernel::plain_inc(t, v);
+                        op::rt::kernel::plain_inc(t, v);
                 });
     }
 }
@@ -80,8 +80,8 @@ void staged_body(const cpu::Work& work, op_arg *args) {
     char *cursor = work.scratch;
     const int first = staging.slot_offsets[static_cast<std::size_t>(work.chunk)];
     const int count = staging.slot_offsets[static_cast<std::size_t>(work.chunk) + 1] - first;
-    double *stage = op::kernel::stage_region<double>(cursor, count, 2);
-    op::kernel::stage_clear(stage, count * 2, 0, 1);
+    double *stage = op::rt::kernel::stage_region<double>(cursor, count, 2);
+    op::rt::kernel::stage_clear(stage, count * 2, 0, 1);
 
     const auto stride = static_cast<std::size_t>(staging.stride);
     for (int n = work.begin; n < work.end; ++n)
@@ -92,15 +92,15 @@ void staged_body(const cpu::Work& work, op_arg *args) {
 
     for (int s = 0; s < count; ++s) {
         int target = staging.slot_targets[static_cast<std::size_t>(first + s)];
-        op::kernel::stage_flush(op::kernel::Ptr<double>{x + 2 * target}, stage, s, 2);
+        op::rt::kernel::stage_flush(op::rt::kernel::Ptr<double>{x + 2 * target}, stage, s, 2);
     }
 }
 
-constexpr std::array<op::plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
+constexpr std::array<op::rt::plan::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
 
 void run(const char *strategy) {
     setenv("OP_STRATEGY", strategy, 1);
-    op::loop::init();
+    op::rt::loop::init();
     cpu::init();
 
     op_set_core source{};
@@ -161,7 +161,7 @@ void run(const char *strategy) {
     args[5].acc = 4;
 
     cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", cpu::LoopDescription{false});
-    op::plan::ArgGroups arg_groups{groups, 1};
+    op::rt::plan::ArgGroups arg_groups{groups, 1};
     loop.add<cpu::ChunkAtomics>("chunk_atomics", &staged_body, arg_groups);
     loop.add<cpu::Simple>("atomics", &range_body<true, false>);
     loop.add<cpu::ChunkColouring>("chunk_colouring", &range_body<false, false>);
@@ -169,9 +169,9 @@ void run(const char *strategy) {
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());
-    op::loop::Call call{&source, args, source.size + source.exec_size};
-    CHECK(loop.ladder()[*forced].prepare(call, op::loop::Urgency::now).status ==
-          op::loop::Status::ready);
+    op::rt::loop::Call call{&source, args, source.size + source.exec_size};
+    CHECK(loop.ladder()[*forced].prepare(call, op::rt::loop::Urgency::now).status ==
+          op::rt::loop::Status::ready);
 
     // Twice, so the second call reuses the cached plan.
     std::vector<double> expected(x);

@@ -1,5 +1,5 @@
 // A loop the cuda target refuses to translate, the case chosen by -D: each
-// misuses a kernel argument, which the target passes as an op::kernel::Ptr
+// misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
 // (an OP_INC one only to increment).
 
 #include <cstring>

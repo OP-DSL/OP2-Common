@@ -2,9 +2,9 @@
 // the ladder runs the next, its offline kernel, and the run goes on.
 
 #define OP_KERNEL_JIT_TAG jit_build_failure_test
-#include <kernel/jit_embed.h>
+#include <op2/rt/gpu/jit_embed.h>
 
-#include <gpu/loop.h>
+#include <op2/rt/gpu/loop.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -20,7 +20,7 @@ extern "C" __global__ void build_failure_offline(int *result, int value) {
 
 namespace {
 
-namespace gpu = op::gpu;
+namespace gpu = op::rt::gpu;
 
 constexpr char broken_source[] = R"op2(
 extern "C" __global__ void build_failure_offline(int *result, int value) {
@@ -37,7 +37,8 @@ void bind(gpu::LaunchContext&, op_arg *, std::vector<void *>& arguments) {
 
 gpu::JitHeaders headers() {
     return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"}};
+            {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",
+             "op2/rt/kernel/strategy.h"}};
 }
 
 // The kernel's result after one call of loop.
@@ -60,12 +61,12 @@ bool check(bool condition, const char *what) {
 int main(int argc, char **argv) {
     op_init(argc, argv, 2);
     setenv("OP_JIT_MIN_CALLS", "1", 1);
-    op::loop::init();
-    op::gpu::init();
+    op::rt::loop::init();
+    op::rt::gpu::init();
     // A broken family ahead of the working plain one.
-    const op::loop::Family families[] = {{"broken", gpu::Simple::axes()},
+    const op::rt::loop::Family families[] = {{"broken", gpu::Simple::axes()},
                                          {"plain", gpu::Simple::axes()}};
-    op::loop::declare_families(families);
+    op::rt::loop::declare_families(families);
 
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(int)));
 
@@ -95,9 +96,9 @@ int main(int argc, char **argv) {
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");
 
-        op::loop::Call call{&set, args, set.size};
-        auto broken = loop.ladder()[0].prepare(call, op::loop::Urgency::now);
-        passed &= check(broken.status == op::loop::Status::unavailable,
+        op::rt::loop::Call call{&set, args, set.size};
+        auto broken = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::now);
+        passed &= check(broken.status == op::rt::loop::Status::unavailable,
                         "the broken strategy is available");
         passed &= check(broken.reason == "build_failed", "the broken strategy's reason");
         auto selection = loop.ladder().select(call);

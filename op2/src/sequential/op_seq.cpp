@@ -30,8 +30,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <loop/loop.h>
-#include <op_env.h>
+#include <op2/rt/lifecycle.h>
+#include <op2/env.h>
 #include <op_lib_c.h>
 
 /*
@@ -226,7 +226,7 @@ void op_print(const char *line) { printf("%s\n", line); }
 void op_timers(double *cpu, double *et) { op_timers_core(cpu, et); }
 
 void op_exit() {
-  op::loop::finalise(0, 1);
+  op::rt::finalise(0, 1);
   op_exit_core();
 }
 

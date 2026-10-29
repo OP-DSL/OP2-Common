@@ -57,9 +57,9 @@
 
 
 
+#include <op2/mpi/comm.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
-#include <op_mpi_comm.h>
 #include <op_util.h>
 #include <limits.h>
 
@@ -85,8 +85,8 @@ typedef int idx_t;
 typedef float real_t;
 #endif
 
+#include <op2/mpi/halo.h>
 #include <op_lib_mpi.h>
-#include <op_mpi_halo.h>
 
 using op::mpi::exchange_rows;
 using op::mpi::fail;

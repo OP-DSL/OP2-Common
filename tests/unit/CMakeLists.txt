@@ -1,3 +1,7 @@
+# The core includes from the loop runtime only its lifecycle header.
+add_test(NAME rt_layering COMMAND "${PROJECT_SOURCE_DIR}/scripts/check_rt_layering.sh")
+set_tests_properties(rt_layering PROPERTIES LABELS "unit")
+
 if(NOT TARGET op2_seq)
     return()
 endif()

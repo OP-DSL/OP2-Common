@@ -4,9 +4,9 @@
 // runs.
 
 #define OP_KERNEL_JIT_TAG jit_thread_limit_test
-#include <kernel/jit_embed.h>
+#include <op2/rt/gpu/jit_embed.h>
 
-#include <gpu/loop.h>
+#include <op2/rt/gpu/loop.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -19,8 +19,8 @@
 
 namespace {
 
-namespace gpu = op::gpu;
-namespace loop = op::loop;
+namespace gpu = op::rt::gpu;
+namespace loop = op::rt::loop;
 
 constexpr int width = 64;
 constexpr int elements = 4096;
@@ -62,7 +62,8 @@ void bind(gpu::LaunchContext& context, op_arg *, std::vector<void *>& arguments)
 
 gpu::JitHeaders headers() {
     return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"}};
+            {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",
+             "op2/rt/kernel/strategy.h"}};
 }
 
 std::vector<double> reference(const std::vector<double>& in) {

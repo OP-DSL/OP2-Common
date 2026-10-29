@@ -1,7 +1,7 @@
 // The device plan: every array a staged kernel reads is uploaded, the
 // wavefront state is zeroed, and release frees it.
 
-#include <gpu/chunk_encode.h>
+#include <op2/rt/gpu/chunk_encode.h>
 
 #include <array>
 #include <cstdio>
@@ -12,7 +12,7 @@
 
 #include "../test_support.h"
 
-namespace plan = op::plan;
+namespace plan = op::rt::plan;
 
 namespace {
 
@@ -68,17 +68,17 @@ void test_encode() {
         args[idx].acc = OP_RW;
     }
     std::array<plan::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
-    auto sections = op::loop::Sections::direct(&edges);
-    op::gpu::ChunkLimits limits{4, 1 << 16};
+    auto sections = op::rt::loop::Sections::direct(&edges);
+    op::rt::gpu::ChunkLimits limits{4, 1 << 16};
 
-    auto result = op::gpu::plan_chunk_colouring(
+    auto result = op::rt::gpu::plan_chunk_colouring(
         args, sections, plan::ArgGroups{group_args, 1}, limits, true, 2);
     CHECK(result);
     const auto& chunk_plan = *result.plan;
     CHECK(chunk_plan.wavefront);
 
     {
-        op::gpu::DevicePlan plan(chunk_plan);
+        op::rt::gpu::DevicePlan plan(chunk_plan);
         CHECK(same(plan.source_offsets, chunk_plan.chunks.offsets));
         CHECK(same(plan.stage_words, chunk_plan.staging.stage_words));
         const auto& offsets = chunk_plan.staging.slot_offsets;
@@ -99,18 +99,18 @@ void test_encode() {
         CHECK(download(plan.wave_tickets, 1) == std::vector<int>{0});
         CHECK(plan.next_wave_epoch() == 1 && plan.next_wave_epoch() == 2);
 
-        op::gpu::DevicePlan moved(std::move(plan));
+        op::rt::gpu::DevicePlan moved(std::move(plan));
         CHECK(plan.source_offsets == nullptr && moved.source_offsets != nullptr);
     }
 
     // A chunk_atomics plan uploads no colour or wavefront arrays.
     for (auto& arg : args)
         arg.acc = OP_INC;
-    auto staged = op::gpu::plan_chunk_atomics(
+    auto staged = op::rt::gpu::plan_chunk_atomics(
         args, sections, plan::ArgGroups{group_args, 1}, limits, false, 0.0);
     CHECK(staged);
     {
-        op::gpu::DevicePlan plan(*staged.plan);
+        op::rt::gpu::DevicePlan plan(*staged.plan);
         CHECK(same(plan.stage_words, staged.plan->staging.stage_words));
         CHECK(plan.thread_colours == nullptr && plan.wave_tickets == nullptr);
         plan.release();

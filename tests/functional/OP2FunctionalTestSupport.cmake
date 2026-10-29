@@ -217,7 +217,7 @@ function(op2_add_functional_tests)
         if(_v MATCHES "^(mpi_)?openmp(_f2c|_legacy)?$")
             set(_base_env "OMP_NUM_THREADS=${_OP2_TEST_OMP_NUM_THREADS}")
         endif()
-        # The OpenMP variants on op::cpu: C++'s openmp and openmp_f2c.
+        # The OpenMP variants on op::rt::cpu: C++'s openmp and openmp_f2c.
         set(_cpu OFF)
         if(_v MATCHES "^(mpi_)?openmp_f2c$" OR
                 (_A_LANGUAGE STREQUAL "cpp" AND _v MATCHES "^(mpi_)?openmp$"))

@@ -45,15 +45,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <gpu/shims.h>
+#include <op2/env.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
-#include <op_env.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
+#include <op2/mpi/halo.h>
 #include <op_lib_mpi.h>
-#include <op_mpi_halo.h>
 #include <op_util.h>
 
 //

@@ -5,10 +5,10 @@
 // opting in.  Run offline (OP_JIT_LEVEL=0) and with every kernel compiled.
 
 #define OP_KERNEL_JIT_TAG chunk_strategy_test
-#include <kernel/jit_embed.h>
+#include <op2/rt/gpu/jit_embed.h>
 
-#include <gpu/loop.h>
-#include <loop/jit.h>
+#include <op2/rt/gpu/loop.h>
+#include <op2/rt/loop/jit.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -49,7 +49,7 @@ extern "C" __global__ void chunk_strategy_staged(
 
 namespace {
 
-namespace gpu = op::gpu;
+namespace gpu = op::rt::gpu;
 
 constexpr char baseline_source[] = R"op2(
 extern "C" __global__ void chunk_strategy_baseline(int *result) {
@@ -118,7 +118,7 @@ struct Fixture {
     op_map_core map{};
     std::vector<int> map_values;
     std::array<op_arg, 2> args{};
-    std::array<op::plan::ArgGroup, 1> group_args{{{0, 0}}};
+    std::array<op::rt::plan::ArgGroup, 1> group_args{{{0, 0}}};
 
     Fixture() : map_values(256) {
         source.index = next_index++;
@@ -168,7 +168,7 @@ struct Fixture {
         args[1].opt = 0;
     }
 
-    op::plan::ArgGroups groups() const { return {group_args, 1}; }
+    op::rt::plan::ArgGroups groups() const { return {group_args, 1}; }
 
     int shared_bytes() const {
         return target.size * args[0].dim * static_cast<int>(sizeof(double));
@@ -177,7 +177,8 @@ struct Fixture {
 
 gpu::JitHeaders headers() {
     return {{OP_KERNEL_PRELUDE_DATA, OP_STAGING_LAYOUT_DATA, OP_STRATEGY_KERNEL_DATA},
-            {"kernel/prelude.h", "plan/staging_layout.h", "kernel/strategy.h"}};
+            {"op2/rt/kernel/prelude.h", "op2/rt/plan/staging_layout.h",
+             "op2/rt/kernel/strategy.h"}};
 }
 
 void add_strategies(gpu::Loop& loop, const Fixture& fixture) {
@@ -207,8 +208,8 @@ struct Outcome {
 
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
-    op::loop::Call call{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
-    auto chunk = loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+    op::rt::loop::Call call{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
+    auto chunk = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
     auto selection = loop.ladder().select(call);
     loop.invoke(&fixture.source, fixture.args.data(),
                 static_cast<int>(fixture.args.size()));
@@ -229,7 +230,7 @@ int main(int argc, char **argv) {
     // Every source in one chunk: a block's elements.
     setenv("OP_CHUNK_ATOMICS_BLOCK_SIZES", "256", 1);
     op_init(argc, argv, 2);
-    const bool expect_jit = op::loop::jit_options().level > 0;
+    const bool expect_jit = op::rt::loop::jit_options().level > 0;
 
     Fixture fixture;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
@@ -249,8 +250,8 @@ int main(int argc, char **argv) {
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
-    op::loop::init();
-    op::gpu::init();
+    op::rt::loop::init();
+    op::rt::gpu::init();
     {
         gpu::Loop loop("chunk_strategy", "cuda", "Indirect", {false, false},
                        headers());
@@ -381,15 +382,15 @@ int main(int argc, char **argv) {
             auto& first_chunk = static_cast<gpu::ChunkBase&>(*first_loop.ladder()[0].strategy);
             auto& second_chunk =
                 static_cast<gpu::ChunkBase&>(*second_loop.ladder()[0].strategy);
-            op::loop::Call call{&alike.source, alike.args,
+            op::rt::loop::Call call{&alike.source, alike.args,
                                 alike.source.size + alike.source.exec_size};
-            auto first = first_loop.ladder()[0].prepare(call, op::loop::Urgency::later);
-            auto second = second_loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+            auto first = first_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
+            auto second = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(first.entry != nullptr && first.entry == second.entry);
             CHECK(first_chunk.entries() == 1 && second_chunk.entries() == 1);
             second_chunk.forget(call.key());
             CHECK(second_chunk.entries() == 0);
-            auto again = first_loop.ladder()[0].prepare(call, op::loop::Urgency::later);
+            auto again = first_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(again.entry == first.entry);
         }
 

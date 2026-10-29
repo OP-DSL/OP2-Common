@@ -35,15 +35,14 @@
  * of the mpi back-end
  */
 
-#include <cpu/strategy.h>
-#include <loop/loop.h>
+#include <op2/rt/lifecycle.h>
 #include <mpi.h>
-#include <op_env.h>
+#include <op2/env.h>
+#include <op2/mpi/halo.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_lib_mpi.h>
 #include <op_mpi_core.h>
-#include <op_mpi_halo.h>
 #include <op_rt_support.h>
 #include <op_util.h>
 #include <vector>
@@ -75,7 +74,7 @@ void op_init(int argc, char **argv, int diags) {
   OP_MPI_GLOBAL = MPI_COMM_WORLD;
   op_init_core(argc, argv, diags);
   op_renumber_init();
-  op::cpu::init();
+  op::rt::init_cpu();
   op::env::finish();
 }
 
@@ -99,7 +98,7 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
 
   op_init_core(argc, argv, diags);
   op_renumber_init();
-  op::cpu::init();
+  op::rt::init_cpu();
   op::env::finish();
 }
 
@@ -243,7 +242,7 @@ void op_exit() {
     int rank = 0, ranks = 1;
     MPI_Comm_rank(OP_MPI_WORLD, &rank);
     MPI_Comm_size(OP_MPI_WORLD, &ranks);
-    op::loop::finalise(rank, ranks);
+    op::rt::finalise(rank, ranks);
   }
 
   op_mpi_exit();

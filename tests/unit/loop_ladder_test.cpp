@@ -1,8 +1,8 @@
 // The strategy ladder without a backend: fake strategies answer ready,
 // pending or unavailable as scripted, for each of their kernels.
 
-#include <loop/jit.h>
-#include <loop/strategy.h>
+#include <op2/rt/loop/jit.h>
+#include <op2/rt/loop/strategy.h>
 
 #include <array>
 #include <cstdio>
@@ -16,7 +16,7 @@
 
 #include "../test_support.h"
 
-namespace loop = op::loop;
+namespace loop = op::rt::loop;
 
 namespace {
 

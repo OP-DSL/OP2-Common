@@ -209,7 +209,7 @@ def insertStrides(
 
 # Route each increment of a matched argument through call(target, value),
 # by default op2_inc, which each strategy's generated code defines, and pass
-# the argument as an op::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
+# the argument as an op::rt::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
 # ++p[i], p[i]--, p[i] = p[i] + e - f (a chain of + and - led by p[i]) or
 # p[i] = e + p[i] (*p for p[0]) as a statement of its own; the argument may
 # also be passed to a helper function under the same rules.  Any other use of
@@ -251,7 +251,7 @@ def insertIncrements(
                     )
 
 
-# Pass each matched argument as an op::kernel::Ptr, which carries its stride,
+# Pass each matched argument as an op::rt::kernel::Ptr, which carries its stride,
 # through every helper it reaches.  A use is p[i], *p, or a pass to a helper
 # whose parameter is a Ptr there, which may take a raw pointer (a local
 # array, at stride 1) at another call; any other use of it is an error.
@@ -293,7 +293,7 @@ def argumentTargets(
     return targets
 
 
-# Retype param, a pointer, to an op::kernel::Ptr of its element type, and
+# Retype param, a pointer, to an op::rt::kernel::Ptr of its element type, and
 # yield each use of it as an element, as (subscript or dereference, its
 # ancestors, its index among them, whether a dereference).  A pass to a
 # helper whose parameter is in targets is skipped; any other use fails, and
@@ -315,7 +315,7 @@ def ptrUses(
         fail(param, "it is not a pointer")
 
     name = param.spelling
-    rewriter.update(extentToSpan(param.extent), lambda _: f"op::kernel::Ptr<{element.spelling}> {name}")
+    rewriter.update(extentToSpan(param.extent), lambda _: f"op::rt::kernel::Ptr<{element.spelling}> {name}")
 
     for node, parents in walkWithParents(func.ast):
         if node.kind != CursorKind.DECL_REF_EXPR or node.hash in skip:

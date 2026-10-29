@@ -60,7 +60,7 @@ class FArray(FType):
     def spanBounds(self) -> str:
         bounds = []
         for lb, ub in self.shape:
-            bounds.append(f"op::kernel::Extent{{{lb}, {ub}}}")
+            bounds.append(f"op::rt::kernel::Extent{{{lb}, {ub}}}")
 
         return ", ".join(bounds)
 
@@ -69,7 +69,7 @@ class FArray(FType):
         if const:
             const_str = "const "
 
-        return f"op::kernel::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
+        return f"op::rt::kernel::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
 
 
 @dataclass(frozen=True)
@@ -603,7 +603,7 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
             if param.is_const:
                 const = "const "
 
-            param_decls.append(f"op::kernel::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
+            param_decls.append(f"op::rt::kernel::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
 
     return_type = "void"
 
@@ -713,7 +713,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             src += f"{type_.asLocal(name)};\n"
         else:
             src += f"{type_.asLocal('_f2c_arr_' + name)};\n"
-            src += f"const {type_.asSpan('op::kernel::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
+            src += f"const {type_.asSpan('op::rt::kernel::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
 
     return src + "\n" + init_src
 
@@ -789,7 +789,7 @@ def translateReturnStmt(return_stmt: f2003.Return_Stmt, ctx: Context) -> str:
 
 
 def translateStopStmt(stop_stmt: f2003.Stop_Stmt, ctx: Context) -> str:
-    src = "op::kernel::trap();"
+    src = "op::rt::kernel::trap();"
     return src
 
 
@@ -1005,7 +1005,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
         for shape, child in zip(array_type.shape, subscript_list.children):
             if not isinstance(child, f2003.Subscript_Triplet):
                 idx = translateGeneric(child, ctx)
-                extents.append(f"op::kernel::Extent{{{idx}, {idx}}}")
+                extents.append(f"op::rt::kernel::Extent{{{idx}, {idx}}}")
                 continue
 
             if child.items[2] is not None:
@@ -1023,7 +1023,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
             else:
                 ub = shape[1]
 
-            extents.append(f"op::kernel::Extent{{{lb}, {ub}}}")
+            extents.append(f"op::rt::kernel::Extent{{{lb}, {ub}}}")
 
         return f"{name}.slice({', '.join(extents)})"
 
@@ -1048,45 +1048,45 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
 
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
     intrinsic_funcs = {
-        "abs":   "op::kernel::abs",
-        "aint":  "op::kernel::aint",
-        "dble":  "op::kernel::dble",
-        "int":   "op::kernel::int_",
-        "min":   "op::kernel::min",
-        "max":   "op::kernel::max",
-        "mod":   "op::kernel::mod",
-        "nint":  "op::kernel::nint",
-        "sign":  "op::kernel::copysign",
+        "abs":   "op::rt::kernel::abs",
+        "aint":  "op::rt::kernel::aint",
+        "dble":  "op::rt::kernel::dble",
+        "int":   "op::rt::kernel::int_",
+        "min":   "op::rt::kernel::min",
+        "max":   "op::rt::kernel::max",
+        "mod":   "op::rt::kernel::mod",
+        "nint":  "op::rt::kernel::nint",
+        "sign":  "op::rt::kernel::copysign",
 
-        "acos":  "op::kernel::acos",
-        "asin":  "op::kernel::asin",
-        "atan":  "op::kernel::atan",
-        "atan2": "op::kernel::atan2",
-        "cos":   "op::kernel::cos",
-        "cosh":  "op::kernel::cosh",
-        "exp":   "op::kernel::exp",
-        "log":   "op::kernel::log",
-        "log10": "op::kernel::log10",
-        "sin":   "op::kernel::sin",
-        "sinh":  "op::kernel::sinh",
-        "sqrt":  "op::kernel::sqrt",
-        "tan":   "op::kernel::tan",
-        "tanh":  "op::kernel::tanh",
+        "acos":  "op::rt::kernel::acos",
+        "asin":  "op::rt::kernel::asin",
+        "atan":  "op::rt::kernel::atan",
+        "atan2": "op::rt::kernel::atan2",
+        "cos":   "op::rt::kernel::cos",
+        "cosh":  "op::rt::kernel::cosh",
+        "exp":   "op::rt::kernel::exp",
+        "log":   "op::rt::kernel::log",
+        "log10": "op::rt::kernel::log10",
+        "sin":   "op::rt::kernel::sin",
+        "sinh":  "op::rt::kernel::sinh",
+        "sqrt":  "op::rt::kernel::sqrt",
+        "tan":   "op::rt::kernel::tan",
+        "tanh":  "op::rt::kernel::tanh",
 
-        "dabs":  "op::kernel::abs",
-        "dacos": "op::kernel::acos",
-        "dasin": "op::kernel::asin",
-        "datan": "op::kernel::atan",
-        "dcos":  "op::kernel::cos",
-        "dcosh": "op::kernel::cosh",
-        "dexp":  "op::kernel::exp",
-        "dint":  "op::kernel::aint",
-        "dsign": "op::kernel::copysign",
-        "dsin":  "op::kernel::sin",
-        "dsinh": "op::kernel::sinh",
-        "dsqrt": "op::kernel::sqrt",
-        "dtan":  "op::kernel::tan",
-        "dtanh": "op::kernel::tanh",
+        "dabs":  "op::rt::kernel::abs",
+        "dacos": "op::rt::kernel::acos",
+        "dasin": "op::rt::kernel::asin",
+        "datan": "op::rt::kernel::atan",
+        "dcos":  "op::rt::kernel::cos",
+        "dcosh": "op::rt::kernel::cosh",
+        "dexp":  "op::rt::kernel::exp",
+        "dint":  "op::rt::kernel::aint",
+        "dsign": "op::rt::kernel::copysign",
+        "dsin":  "op::rt::kernel::sin",
+        "dsinh": "op::rt::kernel::sinh",
+        "dsqrt": "op::rt::kernel::sqrt",
+        "dtan":  "op::rt::kernel::tan",
+        "dtanh": "op::rt::kernel::tanh",
     }
 
     items = intrinsic_function_reference.items
@@ -1159,7 +1159,7 @@ def translateParenthesis(parenthesis: f2003.Parenthesis, ctx: Context) -> str:
 
 def translateMultOperand(mult_operand: f2003.Mult_Operand, ctx: Context) -> str:
     items = mult_operand.items
-    return f"op::kernel::pow({translateGeneric(items[0], ctx)}, {translateGeneric(items[2], ctx)})"
+    return f"op::rt::kernel::pow({translateGeneric(items[0], ctx)}, {translateGeneric(items[2], ctx)})"
 
 
 def translateAddOperand(add_operand: f2003.Add_Operand, ctx: Context) -> str:

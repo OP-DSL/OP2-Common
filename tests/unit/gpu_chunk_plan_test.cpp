@@ -2,8 +2,8 @@
 // shared memory and the stage word, chunk_colouring's invariants and its
 // wavefront, and the rejections.
 
-#include <gpu/chunk_plan.h>
-#include <kernel/strategy.h>
+#include <op2/rt/gpu/chunk_plan.h>
+#include <op2/rt/kernel/strategy.h>
 
 #include <algorithm>
 #include <array>
@@ -18,9 +18,9 @@
 #include "../test_support.h"
 #include "builders.h"
 
-namespace gpu = op::gpu;
-namespace plan = op::plan;
-using op::loop::Sections;
+namespace gpu = op::rt::gpu;
+namespace plan = op::rt::plan;
+using op::rt::loop::Sections;
 using op::test::dat_arg;
 using op::test::initialize_dat;
 using op::test::initialize_map;
@@ -358,9 +358,9 @@ void test_region_walk() {
     for (int chunk = 0; chunk < result.plan->chunks.count(); ++chunk) {
         const int *counts = &all_counts[static_cast<std::size_t>(chunk) * 3];
         char *cursor = base;
-        op::kernel::stage_region<float>(cursor, counts[0], 1);
-        op::kernel::stage_region<double>(cursor, counts[1], 2);
-        op::kernel::stage_region<int>(cursor, counts[2], 3);
+        op::rt::kernel::stage_region<float>(cursor, counts[0], 1);
+        op::rt::kernel::stage_region<double>(cursor, counts[1], 2);
+        op::rt::kernel::stage_region<int>(cursor, counts[2], 3);
         CHECK(static_cast<std::size_t>(cursor - base) <=
               staging.chunk_scratch_bytes[static_cast<std::size_t>(chunk)]);
     }

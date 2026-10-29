@@ -2,8 +2,8 @@
 // timings for each of their kernels, explored per configuration and
 // selected by the margin.
 
-#include <loop/autotune.h>
-#include <loop/loop.h>
+#include <op2/rt/loop/autotune.h>
+#include <op2/rt/loop/loop.h>
 
 #include <array>
 #include <cstdio>
@@ -18,7 +18,7 @@
 
 #include "../test_support.h"
 
-namespace loop = op::loop;
+namespace loop = op::rt::loop;
 
 namespace {
 

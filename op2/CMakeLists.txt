@@ -44,18 +44,20 @@ _op2_preprocess_fortran(
 
 # --- C/C++ groups --------------------------------------------------------
 
-# Backend-neutral par_loop support: the strategy ladder and tuner, the JIT's
-# policy, parameters and build cache, their reports, and the planning
-# building blocks the backends' strategies compose.
-set(_op2_loop_srcs
-    "${_src}/loop/op_loop_strategy.cpp"
-    "${_src}/loop/op_loop_autotune.cpp"
-    "${_src}/loop/op_loop_jit.cpp"
-    "${_src}/loop/op_loop_report.cpp"
-    "${_src}/plan/op_plan_colouring.cpp"
-    "${_src}/plan/op_plan_chunks.cpp"
-    "${_src}/plan/op_plan_staging.cpp"
-    "${_src}/plan/op_plan_options.cpp"
+# The loop runtime (src/rt), backend neutral: its start, reports and release,
+# the strategy ladder and tuner, the JIT's policy, parameters and build cache,
+# their reports, and the planning building blocks the backends' strategies
+# compose.
+set(_op2_rt_srcs
+    "${_src}/rt/op_rt_lifecycle.cpp"
+    "${_src}/rt/loop/op_loop_strategy.cpp"
+    "${_src}/rt/loop/op_loop_autotune.cpp"
+    "${_src}/rt/loop/op_loop_jit.cpp"
+    "${_src}/rt/loop/op_loop_report.cpp"
+    "${_src}/rt/plan/op_plan_colouring.cpp"
+    "${_src}/rt/plan/op_plan_chunks.cpp"
+    "${_src}/rt/plan/op_plan_staging.cpp"
+    "${_src}/rt/plan/op_plan_options.cpp"
 )
 
 # Core sources for every library with a backend; op_profile is here because
@@ -66,7 +68,7 @@ set(_op2_core_srcs
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"
     "${_src}/externlib/op_profile.cpp"
-    ${_op2_loop_srcs}
+    ${_op2_rt_srcs}
 )
 
 # Backend-specific groups for single-node variants.
@@ -78,12 +80,13 @@ set(_op2_backend_seq_srcs
 set(_op2_backend_openmp_srcs
     "${_src}/core/op_dummy_singlenode.cpp"
     "${_src}/openmp/op_openmp_decl.cpp"
+    "${_src}/rt/cpu/op_cpu_init.cpp"
 )
 
 # Single-node CUDA backend, shared verbatim by CUDA and HIP (HIP promotes the
 # .cu to LANGUAGE HIP via _op2_mark_cu_as_hip() and defines OP2_HIP).
 set(_op2_backend_cuda_srcs
-    "${_src}/gpu/op_gpu_options.cpp"
+    "${_src}/rt/gpu/op_gpu_options.cpp"
     "${_src}/cuda/op_cuda_decl.cpp"
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
@@ -113,10 +116,11 @@ set(_op2_backend_mpi_backbone_srcs
 set(_op2_backend_mpi_cpu_overlay_srcs
     "${_src}/mpi/op_mpi_decl.cpp"
     "${_src}/mpi/op_mpi_rt_support.cpp"
+    "${_src}/rt/cpu/op_cpu_init.cpp"
 )
 
 set(_op2_backend_mpi_cuda_overlay_srcs
-    "${_src}/gpu/op_gpu_options.cpp"
+    "${_src}/rt/gpu/op_gpu_options.cpp"
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
@@ -176,9 +180,12 @@ endmacro()
 # from seeing flags it can't parse.
 
 function(_op2_configure_target tgt)
+    # The flat headers as <op_seq.h>, the op2/ tree's as <op2/rt/gpu/loop.h>;
+    # both install under include/op2.
     target_include_directories(${tgt} PUBLIC
         "$<BUILD_INTERFACE:${_inc}>"
-        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/op2>")
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/op2>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
     target_compile_features(${tgt} PUBLIC cxx_std_20)
 
     # IMPORTED_NO_SYSTEM: no build effect here, but install(EXPORT) carries
@@ -614,7 +621,15 @@ foreach(_t IN LISTS _op2_targets_for)
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2/fortran/${_t}")
 endforeach()
 
+# The flat headers and the op2/ tree both land in include/op2, so that
+# include/op2 finds <op_seq.h> and include finds <op2/rt/gpu/loop.h>.
 install(DIRECTORY "${_inc}/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
+    FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+        PATTERN "op2" EXCLUDE)
+install(DIRECTORY "${_inc}/op2/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
     FILES_MATCHING
         PATTERN "*.h"

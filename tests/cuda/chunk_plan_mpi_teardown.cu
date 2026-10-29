@@ -1,9 +1,9 @@
 // A device plan under the MPI CUDA library is released by op_exit through
 // its loop's release, while the device is still up.
 
-#include <gpu/chunk_encode.h>
-#include <gpu/shims.h>
-#include <loop/loop.h>
+#include <op2/rt/gpu/chunk_encode.h>
+#include <op2/gpu/shims.h>
+#include <op2/rt/loop/loop.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -16,14 +16,14 @@
 namespace {
 
 // A loop whose release frees a device plan.
-struct PlanOwner : op::loop::Loop {
-    op::gpu::DevicePlan& plan;
+struct PlanOwner : op::rt::loop::Loop {
+    op::rt::gpu::DevicePlan& plan;
 
-    explicit PlanOwner(op::gpu::DevicePlan& plan_)
-        : op::loop::Loop{"teardown", "cuda", "Direct", true}, plan{plan_} {}
+    explicit PlanOwner(op::rt::gpu::DevicePlan& plan_)
+        : op::rt::loop::Loop{"teardown", "cuda", "Direct", true}, plan{plan_} {}
 
     void release() override {
-        op::loop::Loop::release();
+        op::rt::loop::Loop::release();
         plan.release();
     }
 };
@@ -74,18 +74,18 @@ int main(int argc, char **argv) {
     arg.acc = OP_INC;
 
     std::array args{arg};
-    std::array groups{op::plan::ArgGroup{0, 0}};
+    std::array groups{op::rt::plan::ArgGroup{0, 0}};
 
     int device = -1;
     gpuDeviceProp_t properties{};
     CHECK(gpuGetDevice(&device) == gpuSuccess);
     CHECK(gpuGetDeviceProperties(&properties, device) == gpuSuccess);
-    auto result = op::gpu::plan_chunk_atomics(
-        args, op::loop::Sections::direct(&source), op::plan::ArgGroups{groups, 1},
-        op::gpu::ChunkLimits{128, properties.sharedMemPerBlock}, false, 1.5);
+    auto result = op::rt::gpu::plan_chunk_atomics(
+        args, op::rt::loop::Sections::direct(&source), op::rt::plan::ArgGroups{groups, 1},
+        op::rt::gpu::ChunkLimits{128, properties.sharedMemPerBlock}, false, 1.5);
     CHECK(result);
 
-    op::gpu::DevicePlan plan(*result.plan);
+    op::rt::gpu::DevicePlan plan(*result.plan);
     CHECK(plan.source_offsets != nullptr && plan.stage_words != nullptr);
     {
         PlanOwner owner{plan};

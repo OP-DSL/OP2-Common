@@ -34,11 +34,10 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
-#include <gpu/options.h>
-#include <gpu/shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
-#include <loop/loop.h>
-#include <op_env.h>
+#include <op2/rt/lifecycle.h>
+#include <op2/env.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
@@ -58,14 +57,14 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
-  op::gpu::init();
+  op::rt::init_gpu();
   op::env::finish();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int, int) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
-  op::gpu::init();
+  op::rt::init_gpu();
   op::env::finish();
 }
 
@@ -258,7 +257,7 @@ void op_renumber_ptr(int *ptr) {
 int getHybridGPU() { return OP_hybrid_gpu; }
 
 void op_exit() {
-  op::loop::finalise(0, 1);
+  op::rt::finalise(0, 1);
   op_cuda_exit(); // frees dat_d memory
   op_rt_exit();   // frees plan memory
   op_exit_core(); // frees lib core variables

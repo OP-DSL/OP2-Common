@@ -65,8 +65,8 @@ void deviceSync() {}
 
 // This library variant has no accelerator backend, so unified exchanges only
 // ever run on the host one.
-#include <op_mpi_unified_backend.h>
+#include <op2/mpi/exchange_backend.h>
 
-namespace op::unified_exchanges {
+namespace op::mpi {
 Backend *device_backend() { return nullptr; }
 }

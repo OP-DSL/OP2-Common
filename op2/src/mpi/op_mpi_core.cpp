@@ -47,7 +47,7 @@
 #include <memory>
 #include <span>
 
-#include <op_mpi_comm.h>
+#include <op2/mpi/comm.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 #include <op_util.h>
@@ -60,8 +60,8 @@
 #include <cstdlib>
 #include <numeric>
 
+#include <op2/mpi/halo.h>
 #include <op_mpi_core.h>
-#include <op_mpi_halo.h>
 
 using op::mpi::exchange_rows;
 using op::mpi::fail;
@@ -205,7 +205,7 @@ void decl_partition(op_set set, idx_g_t *g_index, int *partition) {
 }
 
 /*******************************************************************************
- * Halo list constructors (op_mpi_halo.h)
+ * Halo list constructors (op2/mpi/halo.h)
  *
  * C++ linkage, unlike the rest of this file: they take and return C++ types.
  *******************************************************************************/

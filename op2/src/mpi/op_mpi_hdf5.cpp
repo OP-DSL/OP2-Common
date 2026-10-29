@@ -57,9 +57,9 @@
 #include <hdf5.h>
 
 #include <H5FDmpio.h>
+#include <op2/mpi/halo.h>
 #include <op_hdf5.h>
 #include <op_lib_mpi.h>
-#include <op_mpi_halo.h>
 
 #include "../externlib/op_hdf5_common.cpp"
 

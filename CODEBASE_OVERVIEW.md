@@ -12,6 +12,7 @@
 3. [Core Runtime Library](#3-core-runtime-library)
    - [Public Headers](#31-public-headers)
    - [Backend Sources](#32-backend-sources)
+   - [Loop Runtime](#33-loop-runtime)
 4. [Public API Reference](#4-public-api-reference)
 5. [Build System](#5-build-system)
    - [Environment Variables](#51-environment-variables)
@@ -56,9 +57,10 @@ OP2 targets production-grade CFD/scientific computing applications such as [Roll
 ```
 OP2-Common/
 ├── op2/                    # Core runtime library
-│   ├── include/            # Public headers (API)
+│   ├── include/            # Flat headers (the C API); op2/ the newer tree, rt/ in it the loop runtime
 │   └── src/                # Runtime source code (all backends)
 │       ├── core/           # Global state, set/map/dat management, execution plans
+│       ├── rt/             # The loop runtime: loop, plan, gpu, cpu
 │       ├── sequential/     # Sequential backend
 │       ├── openmp/         # OpenMP backend
 │       ├── cuda/           # CUDA backend
@@ -95,6 +97,12 @@ OP2-Common/
 
 ### 3.1 Public Headers (`op2/include/`)
 
+The flat headers below are the long-standing API, included by name
+(`<op_seq.h>`). Newer headers live in the `op2/` tree and are included by
+path (`<op2/rt/gpu/loop.h>`); a header's path below `op2/` is its namespace
+below `op::`. Both install under `include/op2`, and the package exports
+`include/op2` and `include`.
+
 | Header | Purpose |
 |---|---|
 | `op_lib_core.h` | Core types: `op_set`, `op_map`, `op_dat`, `op_arg`, `op_plan`, `op_access`, … |
@@ -104,18 +112,21 @@ OP2-Common/
 | `op_rt_support.h` | Runtime plan data structures and low-level plan API |
 | `op_cuda_rt_support.h` | CUDA runtime functions (device init, memory allocation/transfer) |
 | `op_cuda_reduction.h` | GPU reduction templates using shared memory (INC, MAX, MIN, WRITE) |
-| `op_gpu_shims.h` | Unified GPU shim layer mapping `gpu*` macros to CUDA or HIP |
 | `op_lib_mpi.h` | MPI-only application API (HDF5 declarations); includes `op_mpi_core.h` |
 | `op_mpi_core.h` | MPI library entry points: halo creation, partitioning, `op_mpi_get_data`/`put_data`, timing |
-| `op_mpi_halo.h` | Internal to the MPI libraries: halo lists (`op::mpi::HaloList`, `SetHalo`, `MapHalo`), partition tables, `exchange_rows`/`migrate_rows` |
-| `op_mpi_comm.h` | Internal: the sparse data exchange (`op::mpi::sparse::exchange`, NBX) the MPI layer builds its lists with |
-| `op_mpi_unified_exchanges.h` | Internal: the halo exchange's gather/scatter specs, shared by the host and device backends |
+| `op2/env.h` | `op::env`: the environment variables' parser every layer reads its own through |
+| `op2/gpu/shims.h`, `op2/gpu/check.h` | Unified GPU shim layer mapping `gpu*` macros to CUDA or HIP; `GPU_CHECK` |
+| `op2/mpi/halo.h` | Internal to the MPI libraries: halo lists (`op::mpi::HaloList`, `SetHalo`, `MapHalo`), partition tables, `exchange_rows`/`migrate_rows` |
+| `op2/mpi/comm.h` | Internal: the sparse data exchange (`op::mpi::sparse::exchange`, NBX) the MPI layer builds its lists with |
+| `op2/mpi/exchange.h`, `exchange_backend.h` | Internal (`op::mpi`): the halo exchange's gather/scatter specs, shared by the host and device backends |
+| `op2/renumber/` | `op::renumber`: RCM, Sloan and Hilbert-curve orderings for `op_renumber` |
+| `op2/rt/` | The loop runtime the generated code builds on (3.3) |
 | `op_hdf5.h` | Parallel HDF5 I/O API |
 | `op_profile.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
 | `op_util.h` | Utility functions |
 | `SafeLong.h` | Debug wrapper type `SafeLong` for `idx_g_t` — detects integer overflow/underflow at runtime (enabled via `-DUSE_SAFELONG`) |
 | `fortran/` | Fortran C-interop headers |
-| `extern/` | Bundled external headers (`json.hpp`, `uthash.h`) |
+| `extern/` | Bundled external headers (`json.hpp`, `incbin.h`, `rapidhash.h`) |
 
 ### 3.2 Backend Sources (`op2/src/`)
 
@@ -137,6 +148,23 @@ OP2-Common/
 | `mpi/op_mpi_cuda_unified_kernels.cu` | Device gather/scatter for the halo exchange: one kernel each per exchange |
 | `externlib/` | Bundled external libraries |
 | `fortran/` | Fortran interop wrapper layers |
+| `rt/` | The loop runtime (3.3) |
+
+### 3.3 Loop Runtime (`op2/include/op2/rt/`, `op2/src/rt/`)
+
+What generated code compiles against and calls to run its loops, in
+`op::rt`. It depends on the rest of the library; the rest includes only
+`op2/rt/lifecycle.h` from it, to start it in `op_init`, release it in
+`op_exit` and write its reports in `op_profile_output`
+(`scripts/check_rt_layering.sh` checks this).
+
+| Directory | Namespace | Description |
+|---|---|---|
+| `rt/kernel/` | `op::rt::kernel` | What a translated kernel compiles against (`Ptr`, `Span`, the Fortran intrinsics, the increment hooks, the staging helpers), also embedded as text for the JIT |
+| `rt/loop/` | `op::rt::loop` | Backend neutral: a loop's strategies, the ladder and autotuner, the JIT's policy, parameters and build cache, the reports |
+| `rt/plan/` | `op::rt::plan` | Hardware-free planning building blocks: set colouring, chunks, staging |
+| `rt/gpu/` | `op::rt::gpu` | The CUDA and HIP backend: strategies, the JIT compiler, chunk plans and their encoding, the loop generated code builds |
+| `rt/cpu/` | `op::rt::cpu` | The OpenMP backend: strategies, chunk plans, the loop generated code builds |
 
 ---
 
@@ -336,11 +364,12 @@ Requires CUDA 11.8+. Uses `nvcc` or `nvc++` (NVHPC).
 - Device initialization and memory management: `op2/src/cuda/op_cuda_rt_support.cpp`
 - Reductions via shared-memory templates in `op_cuda_reduction.h`
 - Architecture targets: Pascal, Volta, Turing, Ampere, Hopper (set via `NV_ARCH`)
-- GPU-unified shim layer: `op_gpu_shims.h` (maps `gpu*` → CUDA or HIP symbols)
+- GPU-unified shim layer: `op2/gpu/shims.h` (maps `gpu*` → CUDA or HIP symbols)
+- The loop runtime's GPU backend: `op2/include/op2/rt/gpu/`, `op2/src/rt/gpu/`
 
 ### HIP (AMD GPU)
 Parallel to CUDA, targeting AMD ROCm. Enable by setting `HIP_INSTALL_PATH`.
-- Define `OP2_HIP` to activate HIP shims in `op_gpu_shims.h`.
+- Define `OP2_HIP` to activate HIP shims in `op2/gpu/shims.h`.
 - Target architectures set via `HIP_ARCH` (e.g. `gfx90a`).
 
 ### MPI (Distributed Memory)
