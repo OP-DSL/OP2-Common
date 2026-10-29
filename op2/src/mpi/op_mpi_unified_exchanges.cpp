@@ -195,6 +195,12 @@ struct ExchangeContext {
             }
         }
 
+        // The halo copies move components of 1, 2, 4 or 8 bytes.
+        int width = arg.dat->size / arg.dat->dim;
+        if (width != 1 && width != 2 && width != 4 && width != 8)
+            op::mpi::fail("op_mpi_halo_exchanges: dat %s has %d-byte components; halo exchanges "
+                          "support 1, 2, 4 or 8\n", arg.dat->name, width);
+
         auto& exchange = exchanges.emplace_back(arg.dat);
 
         // Do partial exchange if available
