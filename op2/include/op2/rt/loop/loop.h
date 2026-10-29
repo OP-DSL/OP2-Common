@@ -68,11 +68,19 @@ protected:
     std::string m_profile_target;
     std::string m_profile_variant;
     bool m_direct;
-    // Whether the data is on the device, for the exchange and the dirty bits.
-    bool m_device;
     Ladder m_ladder;
     std::optional<tune::Autotuner> m_tuner;
     jit::ParamSet m_params;
+
+    // Exchange the call's halos where the backend keeps its data, the host's
+    // unless it says otherwise; the elements the call runs.
+    virtual int exchange_halos(op_set set, op_arg *args, int nargs) {
+        return op_mpi_halo_exchanges(set, nargs, args, 1);
+    }
+
+    // Mark the halos of the dats the call wrote out of date, where the
+    // backend keeps them.
+    virtual void mark_dirty(op_arg *args, int nargs) { op_mpi_set_dirtybit(nargs, args); }
 
     // Prepare the call's globals for the decision's run.
     virtual void begin_call(const Call&, const tune::Autotuner::Decision&, op_arg *, int) {}
@@ -87,10 +95,10 @@ protected:
 public:
     // profile_target and profile_variant name the loop to the profiler.
     Loop(std::string_view name, std::string_view profile_target,
-         std::string_view profile_variant, bool direct, bool device)
+         std::string_view profile_variant, bool direct)
         : m_name{name}, m_profile_target{profile_target},
-          m_profile_variant{profile_variant}, m_direct{direct}, m_device{device},
-          m_ladder{name}, m_params{name} {
+          m_profile_variant{profile_variant}, m_direct{direct}, m_ladder{name},
+          m_params{name} {
         if (tune::autotune_options().report)
             m_tuner.emplace(m_ladder);
         register_loop(this);

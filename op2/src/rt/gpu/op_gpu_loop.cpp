@@ -14,7 +14,7 @@ namespace op::rt::gpu {
 
 Loop::Loop(const abi::gpu::Loop& descriptor)
     : op::rt::loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
-                         descriptor.direct, true},
+                         descriptor.direct},
       m_gbl_inc_atomic{descriptor.gbl_inc_atomic}, m_bind{descriptor.bind},
       m_calls{descriptor.calls}, m_symbols{std::make_unique<SymbolBindings>()},
       m_compiler{std::make_unique<Compiler>(descriptor.name, descriptor.headers)} {
@@ -122,6 +122,12 @@ void Loop::begin_call(const op::rt::loop::Call&,
     prepareDeviceGblsWithPolicy(args, nargs, m_global_stride, m_gbl_inc_atomic,
                                 on_host(decision.prepared, nargs));
 }
+
+int Loop::exchange_halos(op_set set, op_arg *args, int nargs) {
+    return op_mpi_halo_exchanges(set, nargs, args, 2);
+}
+
+void Loop::mark_dirty(op_arg *args, int nargs) { op_mpi_set_dirtybit_cuda(nargs, args); }
 
 void Loop::combine_globals(op_arg *args, int nargs) {
     m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, m_global_stride, m_global_stride,

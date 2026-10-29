@@ -40,7 +40,7 @@ void Loop::invoke(op_set set, op_arg *args, int nargs) {
     op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                             m_profile_variant.c_str());
     op_profile_enter("MPI Exchanges");
-    int n_exec = op_mpi_halo_exchanges(set, nargs, args, m_device ? 2 : 1);
+    int n_exec = exchange_halos(set, args, nargs);
 
     if (n_exec > 0) {
         op_profile_next("Init");
@@ -63,10 +63,7 @@ void Loop::invoke(op_set set, op_arg *args, int nargs) {
 
     op_profile_next("MPI Reduce");
     reduce_mpi_globals(args, nargs, m_name.c_str());
-    if (m_device)
-        op_mpi_set_dirtybit_cuda(nargs, args);
-    else
-        op_mpi_set_dirtybit(nargs, args);
+    mark_dirty(args, nargs);
     op_profile_exit();
     op_profile_exit();
 }

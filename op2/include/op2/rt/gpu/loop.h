@@ -82,6 +82,10 @@ public:
 protected:
     // --- Per call ---
 
+    // The data lives on the device.
+    int exchange_halos(op_set set, op_arg *args, int nargs) override;
+    void mark_dirty(op_arg *args, int nargs) override;
+
     // The device copies of the globals, the strategy's stride apart.
     void begin_call(const op::rt::loop::Call& call,
                     const op::rt::tune::Autotuner::Decision& decision, op_arg *args,

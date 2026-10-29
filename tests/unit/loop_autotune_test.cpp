@@ -113,7 +113,7 @@ struct Fixture : loop::Loop {
 
     explicit Fixture(bool chunk_atomics_enabled = false, float chunk_atomics_time = 4.0f,
                      std::optional<float> atomics_jit_time = {})
-        : loop::Loop{"flux", "test", "Indirect", false, false} {
+        : loop::Loop{"flux", "test", "Indirect", false} {
         chunk_atomics = add("chunk_atomics", chunk_atomics_enabled, chunk_atomics_time);
         atomics = add("atomics", true, 10.0f, atomics_jit_time);
         chunk_colouring = add("chunk_colouring", false, 8.0f);
@@ -330,7 +330,7 @@ void test_kernels() {
 void test_jit_report() {
     struct Jitted : loop::Loop {
         double constant = 0.0;
-        Jitted() : loop::Loop{"flux_jit", "test", "Indirect", false, false} {
+        Jitted() : loop::Loop{"flux_jit", "test", "Indirect", false} {
             m_params.add("op2_const_c_d", &constant, op::rt::abi::ParamSource::external, -1, true);
         }
         loop::BuildCounts builds() const override { return {3, 1, 0, 2}; }
@@ -389,7 +389,7 @@ void test_jit_report() {
 void test_loop_registry() {
     struct Counted : loop::Loop {
         int releases = 0;
-        Counted() : loop::Loop{"counted", "test", "Direct", true, false} {}
+        Counted() : loop::Loop{"counted", "test", "Direct", true} {}
         void release() override {
             ++releases;
             loop::Loop::release();
