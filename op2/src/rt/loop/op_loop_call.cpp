@@ -160,26 +160,18 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
             continue;
 
         auto type = element_type(arg.type);
-        if (!type) {
+        if (type == abi::ElementType::f64) {
+            op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
+        } else if (type == abi::ElementType::f32) {
+            op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
+        } else if (type == abi::ElementType::i32) {
+            op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
+        } else if (type == abi::ElementType::logical) {
+            op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
+        } else {
             std::fprintf(stderr, "error: unsupported MPI reduction type '%s' (in %s)\n",
                          arg.type == nullptr ? "<null>" : arg.type, loop);
             std::exit(1);
-        }
-        switch (*type) {
-        case abi::ElementType::f64:
-            op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
-            break;
-        case abi::ElementType::f32:
-            op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
-            break;
-        case abi::ElementType::i32:
-            op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
-            break;
-        case abi::ElementType::logical:
-            op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
-            break;
-        case abi::ElementType::i64:
-            break;
         }
     }
 }
