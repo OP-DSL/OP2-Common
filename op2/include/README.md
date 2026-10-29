@@ -157,11 +157,11 @@ op2/rt/loop/jit.h       (includes: extern/rapidhash.h, op_lib_core.h,
 op2/rt/loop/loop.h      (includes: op_lib_core.h, op2/rt/loop/autotune.h,
                          op2/rt/loop/jit.h, op2/rt/loop/strategy.h; the base
                          of every backend's loop: its ladder, tuner and JIT
-                         parameters, a call's steps and profile scopes, with
-                         hooks for the backend's globals, and the registry
-                         of every loop, which op_profile_output and op_exit
-                         report on and op_exit releases; the call from
-                         src/rt/loop/op_loop_call.cpp, the reports from
+                         parameters, a call's steps, phases and profile
+                         scopes, with hooks for the backend's globals, and
+                         the registry of every loop, which op_profile_output
+                         and op_exit report on and op_exit releases; the
+                         call from src/rt/loop/op_loop.cpp, the reports from
                          src/rt/loop/op_loop_report.cpp)
 ```
 
@@ -259,8 +259,8 @@ op2/rt/cpu/strategy.h    (includes: op_lib_core.h, op2/rt/cpu/chunk_plan.h,
                           colouring and chunked strategies over host
                           threads, the per-thread globals, and the families
                           the CPU libraries' op_init declares)
-op2/rt/cpu/loop.h        (includes: op_lib_c.h, op_profile.h,
-                          op2/rt/cpu/strategy.h, op2/rt/loop/loop.h,
-                          op2/rt/loop/strategy.h, op2/rt/plan/options.h; the
-                          loop the generated code builds and invokes)
+op2/rt/cpu/loop.h        (includes: op2/rt/cpu/strategy.h,
+                          op2/rt/loop/loop.h, op2/rt/loop/strategy.h,
+                          op2/rt/plan/options.h; the loop the generated code
+                          builds and invokes)
 ```

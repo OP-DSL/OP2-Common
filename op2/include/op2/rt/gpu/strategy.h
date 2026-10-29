@@ -175,8 +175,7 @@ protected:
     void launch(const op::rt::loop::Prepared& prepared, LaunchContext& context,
                 op_arg *args, Geometry geometry);
 
-    // Run the phases of a call: before phase wait_before the halo wait, after
-    // phase globals_after the global processing, each phase's launches
+    // Run the phases of a call through the loop's, each phase's launches
     // bracketed by an event pair when timed.  launches(phase) gives the
     // launch count, fill(phase, launch, context) the context and geometry.
     template<typename Launches, typename Fill>
@@ -213,10 +212,9 @@ public:
 
     const CallState& call_state() const { return m_call_state; }
 
-    op::rt::loop::BuildCounts builds() const { return m_cache.counts(); }
+    op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
 
-    // Free device state while the device is up.
-    virtual void release() { m_cache.join(); }
+    void release() override { m_cache.join(); }
 };
 
 // --- Plain and atomics ------------------------------------------------------------

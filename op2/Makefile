@@ -65,7 +65,7 @@ clean:
 # their reports, and the planning building blocks the backends' strategies
 # compose
 OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(addprefix $(OBJ)/rt/loop/,\
-	op_loop_call.o \
+	op_loop.o \
 	op_loop_strategy.o \
 	op_loop_autotune.o \
 	op_loop_jit.o \

@@ -185,6 +185,23 @@ struct Prepared {
     void *kernel = nullptr;
 };
 
+// A cache's builds by where they stand: built, failed, under way, and keys
+// asked for whose builds have not started.
+struct BuildCounts {
+    std::size_t built = 0;
+    std::size_t failed = 0;
+    std::size_t building = 0;
+    std::size_t waiting = 0;
+
+    BuildCounts& operator+=(const BuildCounts& other) {
+        built += other.built;
+        failed += other.failed;
+        building += other.building;
+        waiting += other.waiting;
+        return *this;
+    }
+};
+
 class Strategy {
 public:
     virtual ~Strategy() = default;
@@ -227,6 +244,13 @@ public:
     // explored it, and nothing will run this strategy on it again.  A later
     // prepare plans it anew.
     virtual void forget(std::uint64_t key) { (void)key; }
+
+    // Its specialised kernels' builds, by where they stand; none without a
+    // JIT.
+    virtual BuildCounts builds() const { return {}; }
+
+    // At op_exit, while the device is still up: free its device state.
+    virtual void release() {}
 };
 
 // --- Variants -----------------------------------------------------------------

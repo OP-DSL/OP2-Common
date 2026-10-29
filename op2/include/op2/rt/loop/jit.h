@@ -377,23 +377,6 @@ const char *cxx_type(ParamType type);
 
 // --- Builds -------------------------------------------------------------------
 
-// A cache's builds by where they stand: built, failed, under way, and keys
-// asked for whose builds have not started.
-struct BuildCounts {
-    std::size_t built = 0;
-    std::size_t failed = 0;
-    std::size_t building = 0;
-    std::size_t waiting = 0;
-
-    BuildCounts& operator+=(const BuildCounts& other) {
-        built += other.built;
-        failed += other.failed;
-        building += other.building;
-        waiting += other.waiting;
-        return *this;
-    }
-};
-
 // Where a key's build stands.
 enum class BuildState {
     unseen,  // never asked for, or evicted before its build started

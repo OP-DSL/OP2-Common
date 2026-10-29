@@ -1,9 +1,10 @@
 #pragma once
 
 // The base of every backend's loop, the object the generated code builds per
-// par_loop: its ladder, its tuner and its JIT parameters, and a call's steps
-// and profile scopes, from src/rt/loop/op_loop_call.cpp.  A backend derives
-// its loop and prepares and finishes the call's globals around its run.
+// par_loop: its ladder, its tuner and its JIT parameters, and a call's steps,
+// phases and profile scopes, from src/rt/loop/op_loop.cpp.  A backend
+// derives its loop, prepares, combines and finishes the call's globals, and
+// times its strategies' phases.
 
 #include <op2/rt/loop/autotune.h>
 #include <op2/rt/loop/jit.h>
@@ -50,6 +51,15 @@ private:
     // Run a decision, its time a sample for the tuner when it is timed.
     void run(const Autotuner::Decision& decision, op_arg *args, int nargs);
 
+    // Whether the call under way writes a global.
+    bool m_global_output = false;
+
+    // Wait for the call's halo exchanges.
+    void wait_halos(const Launch& launch);
+
+    // Combine the call's global reductions, if it writes any.
+    void process_globals(const Launch& launch);
+
 protected:
     std::string m_name;
     std::string m_profile_target;
@@ -63,6 +73,10 @@ protected:
 
     // Prepare the call's globals for the decision's run.
     virtual void begin_call(const Call&, const Autotuner::Decision&, op_arg *, int) {}
+
+    // Combine the run's partial reductions into the arguments, once the
+    // elements they cover have run.
+    virtual void combine_globals(op_arg *, int) {}
 
     // Finish the run's globals before the host reduces them.
     virtual void end_call() {}
@@ -89,9 +103,13 @@ public:
     const ParamSet& params() const { return m_params; }
     const Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
 
-    // Its specialised kernels' builds, by where they stand; none without a
-    // JIT.
-    virtual BuildCounts builds() const { return {}; }
+    // Its specialised kernels' builds, by where they stand.
+    virtual BuildCounts builds() const {
+        BuildCounts counts;
+        for (const auto& strategy : m_ladder.strategies())
+            counts += strategy->builds();
+        return counts;
+    }
 
     Sections sections(const Call& call) const {
         return Sections::of(call, m_direct);
@@ -99,17 +117,34 @@ public:
 
     // Run one call: start the halo exchange, which decides what the call runs
     // and which the planning overlaps; decide; prepare the globals; run; and
-    // finish, reduce and mark the globals and dats.  Inside "Computation" a
-    // strategy names its own scopes ("MPI Wait", "Process GBLs") at the level
-    // of "Kernel".
+    // finish, reduce and mark the globals and dats.
     void invoke(op_set set, op_arg *args, int nargs);
 
+    // Run a strategy's phases, phase(index) each: the halo wait before phase
+    // wait_before, or after the last when it is phases, and the globals'
+    // combine after phase globals_after.
+    template<typename Phase>
+    void run_phases(const Launch& launch, int phases, int wait_before, int globals_after,
+                    Phase&& phase) {
+        for (int index = 0; index < phases; ++index) {
+            if (index == wait_before)
+                wait_halos(launch);
+            phase(index);
+            if (index == globals_after)
+                process_globals(launch);
+        }
+        if (phases == wait_before)
+            wait_halos(launch);
+    }
+
     // At op_exit, while the device is still up, once the reports are
-    // written: forget the tuner's configurations.  A backend also frees its
-    // device state.
+    // written: forget the tuner's configurations and release the strategies.
+    // A backend also frees its own device state.
     virtual void release() {
         if (m_tuner)
             m_tuner->clear();
+        for (const auto& strategy : m_ladder.strategies())
+            strategy->release();
     }
 };
 

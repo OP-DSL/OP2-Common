@@ -8,8 +8,6 @@
 #include <op2/rt/loop/loop.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/options.h>
-#include <op_lib_c.h>
-#include <op_profile.h>
 
 #include <omp.h>
 
@@ -55,13 +53,6 @@ public:
     int threads() const { return m_threads; }
     const Globals& globals() const { return m_globals; }
 
-    // Combine the threads' copies of the global reductions into the arguments.
-    void process_globals(op_arg *args) {
-        op_profile_next("Process GBLs");
-        m_globals.combine(args, m_name.c_str());
-        op_profile_next("Kernel");
-    }
-
     // Give every thread bytes of chunk scratch, aligned to a cache line.
     void reserve_scratch(std::size_t bytes) {
         if (bytes <= m_scratch_capacity &&
@@ -81,6 +72,7 @@ public:
         return base + ((64 - address % 64) % 64);
     }
 
+protected:
     // --- Per call ---
 
     // The call's sections, and each thread's copy of the globals.
@@ -90,6 +82,9 @@ public:
         m_threads = omp_get_max_threads();
         m_globals.prepare(args, nargs, m_threads);
     }
+
+    // Combine the threads' copies into the arguments.
+    void combine_globals(op_arg *args, int) override { m_globals.combine(args, m_name.c_str()); }
 };
 
 // --- The strategies' definitions that need the loop ---------------------------------
@@ -120,26 +115,11 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Launch& launch
                                               int globals_after, Phase&& phase) {
     using clock = std::chrono::steady_clock;
     clock::duration elapsed{};
-    for (int index = 0; index < phases; ++index) {
-        if (index == wait_before) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all(launch.nargs, launch.args);
-            op_profile_next("Kernel");
-        }
-
+    m_loop.run_phases(launch, phases, wait_before, globals_after, [&](int index) {
         auto start = clock::now();
         phase(index);
         elapsed += clock::now() - start;
-
-        if (index == globals_after)
-            m_loop.process_globals(launch.args);
-    }
-
-    if (phases == wait_before) {
-        op_profile_next("MPI Wait");
-        op_mpi_wait_all(launch.nargs, launch.args);
-        op_profile_next("Kernel");
-    }
+    });
 
     if (!launch.timed)
         return std::nullopt;

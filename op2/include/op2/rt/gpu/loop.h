@@ -37,22 +37,11 @@ private:
     std::vector<gpuEvent_t> m_events;
     // A launch's kernel arguments, filled by the binders.
     std::vector<void *> m_arguments;
-    // The call under way: whether any global is written, and whether its
-    // processing needs a synchronisation before the host reads.
-    bool m_global_output = false;
+    // The call under way: its strategy's stride between the blocks' global
+    // copies, and whether their processing needs a synchronisation before
+    // the host reads.
+    int m_global_stride = 0;
     bool m_exit_sync = false;
-
-    static bool has_global_output(op_arg *args, int nargs) {
-        for (int i = 0; i < nargs; ++i) {
-            if (args[i].opt == 0 || args[i].argtype != OP_ARG_GBL)
-                continue;
-            if (args[i].acc == OP_INC || args[i].acc == OP_MIN ||
-                args[i].acc == OP_MAX || args[i].acc == OP_RW ||
-                args[i].acc == OP_WRITE)
-                return true;
-        }
-        return false;
-    }
 
     // Bind a parameter to the device symbol an offline kernel reads it from,
     // if there is one.
@@ -191,16 +180,16 @@ public:
         return m_events[index];
     }
 
-    // Process the global reductions after the elements they cover have run.
-    void process_globals(op_arg *args, int nargs, int global_stride) {
-        if (!m_global_output)
-            return;
-        op_profile_next("Process GBLs");
-        m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, global_stride,
-                                                   global_stride, m_gbl_inc_atomic);
-        op_profile_next("Kernel");
+    // At op_exit, while the device is still up, once the strategies are
+    // released: free the timing events.
+    void release() override {
+        op::rt::loop::Loop::release();
+        for (auto event : m_events)
+            GPU_CHECK(gpuEventDestroy(event));
+        m_events.clear();
     }
 
+protected:
     // --- Per call ---
 
     // The device copies of the globals, the strategy's stride apart.
@@ -208,34 +197,20 @@ public:
                     op_arg *args, int nargs) override {
         const auto& state =
             static_cast<StrategyBase *>(decision.prepared.candidate->strategy)->call_state();
-        m_global_output = has_global_output(args, nargs);
+        m_global_stride = state.global_stride;
         m_exit_sync = false;
-        prepareDeviceGblsWithPolicy(args, nargs, state.global_stride, m_gbl_inc_atomic,
+        prepareDeviceGblsWithPolicy(args, nargs, m_global_stride, m_gbl_inc_atomic,
                                     on_host(decision.prepared, nargs));
+    }
+
+    void combine_globals(op_arg *args, int nargs) override {
+        m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, m_global_stride,
+                                                   m_global_stride, m_gbl_inc_atomic);
     }
 
     void end_call() override {
         if (m_exit_sync)
             GPU_CHECK(gpuStreamSynchronize(0));
-    }
-
-    op::rt::loop::BuildCounts builds() const override {
-        op::rt::loop::BuildCounts counts;
-        for (const auto& strategy : m_ladder.strategies())
-            counts += static_cast<const StrategyBase&>(*strategy).builds();
-        return counts;
-    }
-
-    // At op_exit, while the device is still up: forget the tuner's
-    // configurations, join the compiles, and free every strategy's device
-    // state.
-    void release() override {
-        op::rt::loop::Loop::release();
-        for (const auto& strategy : m_ladder.strategies())
-            static_cast<StrategyBase&>(*strategy).release();
-        for (auto event : m_events)
-            GPU_CHECK(gpuEventDestroy(event));
-        m_events.clear();
     }
 };
 
@@ -313,13 +288,7 @@ std::optional<float> StrategyBase::run_phases(
     if (prepared.kernel == nullptr)
         m_loop.upload(launch_values());
     int timed_pairs = 0;
-    for (int phase = 0; phase < phases; ++phase) {
-        if (phase == wait_before) {
-            op_profile_next("MPI Wait");
-            op_mpi_wait_all(launch.nargs, launch.args);
-            op_profile_next("Kernel");
-        }
-
+    m_loop.run_phases(launch, phases, wait_before, globals_after, [&](int phase) {
         int count = launches(phase);
         bool timing = launch.timed && count > 0;
         if (timing)
@@ -336,15 +305,7 @@ std::optional<float> StrategyBase::run_phases(
 
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
-        if (phase == globals_after)
-            m_loop.process_globals(launch.args, launch.nargs, m_call_state.global_stride);
-    }
-
-    if (phases == wait_before) {
-        op_profile_next("MPI Wait");
-        op_mpi_wait_all(launch.nargs, launch.args);
-        op_profile_next("Kernel");
-    }
+    });
 
     if (!launch.timed)
         return std::nullopt;

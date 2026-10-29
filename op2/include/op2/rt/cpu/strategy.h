@@ -221,8 +221,7 @@ protected:
     // Split [begin, end) over the threads, a body call each.
     void split(int begin, int end, const int *order, op_arg *args);
 
-    // Run the phases of a call: the halo wait before phase wait_before, the
-    // global combine after phase globals_after, phase(index) running one
+    // Run the phases of a call through the loop's, phase(index) running one
     // phase over the threads; the phases' own time when timed.
     template<typename Phase>
     std::optional<float> run_phases(const op::rt::loop::Launch& launch, int phases,
