@@ -1,6 +1,7 @@
 // The OpenMP strategies against a serial reference, with hand-written
 // bodies: every strategy increments a node dat through a two-component map
-// and reduces a sum and a maximum, the maximum's element carried as info.
+// and reduces a sum and a two-component maximum, each component's element
+// carried as info.
 // The edges split into core and owned sections, as a partition's do; the
 // MPI functional tests run the exec halo.
 
@@ -39,8 +40,9 @@ constexpr int edges = 20000;
 constexpr int core_edges = 12345;
 constexpr int nodes = 3000;
 
-// One element: both targets get the edge's weight and a count, and the
-// reductions see the weight.
+// One element: both targets get the edge's weight and a count, the sum sees
+// the weight, and the maximum the weight and its negation, each component
+// taking the element as info only when it takes the value.
 template<typename Inc>
 void element(int n, double *x, const int *map, const double *w, double *sum,
              double *max, int *loc, Inc&& inc, double *slot0 = nullptr,
@@ -52,10 +54,12 @@ void element(int n, double *x, const int *map, const double *w, double *sum,
     inc(b[0], 2.0 * w[n]);
     inc(b[1], 1.0);
     *sum += w[n];
-    if (w[n] > *max) {
-        *max = w[n];
-        *loc = n;
-    }
+    const double value[2] = {w[n], -w[n]};
+    for (int d = 0; d < 2; ++d)
+        if (value[d] > max[d]) {
+            max[d] = value[d];
+            loc[d] = n;
+        }
 }
 
 template<bool atomic>
@@ -151,6 +155,9 @@ void run(const char *strategy) {
         w[static_cast<std::size_t>(n)] =
             static_cast<double>(random() % 1000) / 7.0 + 1e-6 * n;
     }
+    // The extremes at either end, so different threads win the two components.
+    w.front() = 1000.0;
+    w.back() = -1.0;
     op_map_core map{};
     initialize_map(map, &source, &target, map_values, 2);
 
@@ -163,15 +170,15 @@ void run(const char *strategy) {
     x_dat.data = reinterpret_cast<char *>(x.data());
     w_dat.data = reinterpret_cast<char *>(w.data());
     double sum = 0.5;
-    double max = -1.0;
-    int loc = -1;
+    std::array<double, 2> max{-1e30, -1e30};
+    std::array<int, 2> loc{-1, -1};
 
-    auto gbl_arg = [](void *data, const char *type, int size, op_access access) {
+    auto gbl_arg = [](void *data, const char *type, int dim, int size, op_access access) {
         op_arg arg{};
         arg.opt = 1;
         arg.argtype = OP_ARG_GBL;
-        arg.dim = 1;
-        arg.size = size;
+        arg.dim = dim;
+        arg.size = dim * size;
         arg.data = static_cast<char *>(data);
         arg.type = type;
         arg.acc = access;
@@ -181,9 +188,9 @@ void run(const char *strategy) {
         dat_arg(&x_dat, &map, 0, OP_INC),
         dat_arg(&x_dat, &map, 1, OP_INC),
         dat_arg(&w_dat, nullptr, -1, OP_READ),
-        gbl_arg(&sum, "double", sizeof(double), OP_INC),
-        gbl_arg(&max, "double", sizeof(double), OP_MAX),
-        gbl_arg(&loc, "int", sizeof(int), OP_READ),
+        gbl_arg(&sum, "double", 1, sizeof(double), OP_INC),
+        gbl_arg(max.data(), "double", 2, sizeof(double), OP_MAX),
+        gbl_arg(loc.data(), "int", 2, sizeof(int), OP_READ),
     };
     args[5].argtype = OP_ARG_INFO;
     args[5].acc = 4;
@@ -205,12 +212,13 @@ void run(const char *strategy) {
     // Twice, so the second call reuses the cached plan.
     std::vector<double> expected(x);
     double expected_sum = sum;
-    double expected_max = max;
-    int expected_loc = loc;
+    auto expected_max = max;
+    auto expected_loc = loc;
     for (int repeat = 0; repeat < 2; ++repeat) {
         for (int n = 0; n < edges; ++n)
             element(n, expected.data(), map_values.data(), w.data(), &expected_sum,
-                    &expected_max, &expected_loc, [](double& t, double v) { t += v; });
+                    expected_max.data(), expected_loc.data(),
+                    [](double& t, double v) { t += v; });
         loop.invoke(&source, args.data(), static_cast<int>(args.size()));
     }
 

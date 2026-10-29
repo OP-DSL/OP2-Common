@@ -45,13 +45,16 @@ void Globals::combine(op_arg *args, int index) const {
             if (!better)
                 continue;
             result[d] = value[d];
-            // The payloads travel with the thread whose value won.
+            // Each payload's component d travels with the thread whose value won it.
             for (int i = 0; i < m_nargs; ++i)
                 if (args[i].argtype == OP_ARG_INFO && args[i].acc == index &&
-                    m_offsets[static_cast<std::size_t>(i)] != SIZE_MAX)
-                    std::memcpy(args[i].data,
-                                m_pointers[static_cast<std::size_t>(thread * m_nargs + i)],
-                                static_cast<std::size_t>(args[i].size));
+                    m_offsets[static_cast<std::size_t>(i)] != SIZE_MAX) {
+                    auto bytes = static_cast<std::size_t>(args[i].size / args[i].dim);
+                    std::memcpy(args[i].data + d * bytes,
+                                m_pointers[static_cast<std::size_t>(thread * m_nargs + i)] +
+                                    d * bytes,
+                                bytes);
+                }
         }
     }
 }
