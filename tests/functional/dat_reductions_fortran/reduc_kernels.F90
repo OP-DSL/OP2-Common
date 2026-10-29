@@ -7,8 +7,9 @@ module reduc_kernels
 
 contains
   subroutine indirect_dat1_inc(n0i, n1i, er)
-    real(4), intent(inout) :: n0i
-    real(4), intent(inout) :: n1i
+    ! target: n0i and n1i are one node where m_e2n repeats an entry.
+    real(4), intent(inout), target :: n0i
+    real(4), intent(inout), target :: n1i
     real(4), intent(in)    :: er
 
     n0i = n0i + er
@@ -19,8 +20,9 @@ contains
   ! what makes the atomics schedule split owned work out from the exec halo,
   ! so this is the loop that exercises all three execution sections.
   subroutine indirect_inc_reduce(n0i, n1i, er, total)
-    real(4), intent(inout) :: n0i
-    real(4), intent(inout) :: n1i
+    ! target: n0i and n1i are one node where m_e2n repeats an entry.
+    real(4), intent(inout), target :: n0i
+    real(4), intent(inout), target :: n1i
     real(4), intent(in)    :: er
     real(8), intent(inout) :: total
 
@@ -30,8 +32,9 @@ contains
   end subroutine indirect_inc_reduce
 
   subroutine indirect_dat3_inc(n0i, n1i, er)
-    real(4), dimension(3), intent(inout) :: n0i
-    real(4), dimension(3), intent(inout) :: n1i
+    ! target: n0i and n1i are one node where m_e2n repeats an entry.
+    real(4), dimension(3), intent(inout), target :: n0i
+    real(4), dimension(3), intent(inout), target :: n1i
     real(4), dimension(4), intent(in)    :: er
     integer :: d
 

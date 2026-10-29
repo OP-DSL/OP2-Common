@@ -67,10 +67,6 @@ function(op2_add_functional_tests)
     if(NOT _A_FAMILIES)
         set(_A_FAMILIES serial)
     endif()
-
-    # No test mesh repeats a map entry in a row, so one map at two indices
-    # never meets.
-    list(APPEND _A_TRANSLATOR_ARGS --alias-warnings except-map-indices)
     foreach(_family IN LISTS _A_FAMILIES)
         if(NOT _family MATCHES "^(serial|mpi|soa|soa_mpi)$")
             message(FATAL_ERROR "unknown test family '${_family}'")
