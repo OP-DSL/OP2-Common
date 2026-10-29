@@ -32,6 +32,10 @@ enum class ParamMode {
 
 constexpr std::uint64_t hash_seed = RAPID_SEED;
 
+// A backend's layout of a dat it keeps as SoA: the stride between its
+// components, from an argument on it.
+using DatStride = int (*)(const op_arg& arg);
+
 class Param {
 private:
     std::string m_name;
@@ -90,8 +94,9 @@ public:
     // whether the mechanism can give the parameter at run time.
     void settle(std::string_view loop, bool runtime, const Options& options);
 
-    // The call's value, from its arguments.
-    void update(op_arg *args, int nargs);
+    // The call's value, from its arguments; a dat's stride as the backend
+    // lays the dat out.
+    void update(op_arg *args, int nargs, DatStride dat_stride);
 
     // The strategy's value, from its slots.
     void apply(std::span<const int> values) {
@@ -167,6 +172,7 @@ private:
 
     std::string m_loop;
     std::vector<Param> m_params;
+    DatStride m_dat_stride = nullptr;
     // Calls so far, and the one whose values were last observed.
     std::uint64_t m_calls = 0;
     std::uint64_t m_observed = ~std::uint64_t{0};
@@ -217,6 +223,9 @@ public:
                             source, index},
                       runtime);
     }
+
+    // How the backend lays out the dats a dat_stride parameter reads.
+    void set_dat_stride(DatStride stride) { m_dat_stride = stride; }
 
     std::size_t size() const { return m_params.size(); }
     Param& operator[](std::size_t index) { return m_params[index]; }

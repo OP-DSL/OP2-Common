@@ -2,6 +2,7 @@
 
 #include <op2/gpu/check.h>
 #include <op2/rt/gpu/jit.h>
+#include <op2/rt/gpu/layout.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op_cuda_rt_support.h>
 
@@ -18,6 +19,7 @@ Loop::Loop(const abi::gpu::Loop& descriptor)
       m_gbl_inc_atomic{descriptor.gbl_inc_atomic}, m_bind{descriptor.bind},
       m_calls{descriptor.calls}, m_symbols{std::make_unique<SymbolBindings>()},
       m_compiler{std::make_unique<Compiler>(descriptor.name, descriptor.headers)} {
+    m_params.set_dat_stride(&dat_stride);
     for (const auto& param : descriptor.params)
         add_param(param);
 

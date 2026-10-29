@@ -2,7 +2,6 @@
 
 #include <op2/env.h>
 #include <op_lib_core.h>
-#include <op_rt_support.h>
 
 #include <algorithm>
 #include <cmath>
@@ -46,7 +45,7 @@ void Param::settle(std::string_view loop, bool runtime, const Options& options) 
     m_mode = m_initial;
 }
 
-void Param::update(op_arg *args, int nargs) {
+void Param::update(op_arg *args, int nargs, DatStride dat_stride) {
     switch (m_source) {
     case abi::ParamSource::scalar_arg:
         assert(m_index >= 0 && m_index < nargs);
@@ -66,13 +65,11 @@ void Param::update(op_arg *args, int nargs) {
         m_data = args[m_index].data;
         m_elems = static_cast<std::size_t>(args[m_index].dim);
         return;
-    case abi::ParamSource::dat_stride: {
+    case abi::ParamSource::dat_stride:
         assert(m_index >= 0 && m_index < nargs);
-        assert(m_elem_size == sizeof(int) && m_elems == 1);
-        int size = getSetSizeFromOpArg(&args[m_index]);
-        *static_cast<int *>(m_data) = (size + 31) & ~31;
+        assert(m_elem_size == sizeof(int) && m_elems == 1 && dat_stride != nullptr);
+        *static_cast<int *>(m_data) = dat_stride(args[m_index]);
         return;
-    }
     case abi::ParamSource::dat_dim:
         assert(m_index >= 0 && m_index < nargs);
         assert(m_elem_size == sizeof(int) && m_elems == 1);
@@ -87,7 +84,7 @@ void Param::update(op_arg *args, int nargs) {
 void ParamSet::update(op_arg *args, int nargs) {
     ++m_calls;
     for (auto& param : m_params)
-        param.update(args, nargs);
+        param.update(args, nargs, m_dat_stride);
 }
 
 ParamSet::Histories *ParamSet::histories(const loop::Call& call) {

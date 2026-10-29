@@ -3,6 +3,7 @@
 // the modes and statistics that move them.
 
 #include <op2/rt/abi/descriptor.h>
+#include <op2/rt/gpu/layout.h>
 #include <op2/rt/jit/cache.h>
 #include <op2/rt/jit/options.h>
 #include <op2/rt/jit/params.h>
@@ -205,6 +206,7 @@ void test_params() {
     int64_t big = int64_t{1} << 40;
 
     jit::ParamSet params;
+    params.set_dat_stride(&op::rt::gpu::dat_stride);
     params.add("c", &constant, abi::ParamSource::external);
     params.add_array("table", table, 3, abi::ParamSource::external);
     params.add("g0", &gbl0, abi::ParamSource::scalar_arg, 0);
