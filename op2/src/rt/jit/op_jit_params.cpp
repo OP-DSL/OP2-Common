@@ -203,13 +203,13 @@ bool ParamSet::History::observe(const Param& param, const Options& options) {
     return true;
 }
 
-const char *cxx_type(abi::ParamType type) {
+const char *cxx_type(abi::ElementType type) {
     switch (type) {
-    case abi::ParamType::i32:     return "int";
-    case abi::ParamType::i64:     return "int64_t";
-    case abi::ParamType::f32:     return "float";
-    case abi::ParamType::f64:     return "double";
-    case abi::ParamType::logical: return "bool";
+    case abi::ElementType::i32:     return "int";
+    case abi::ElementType::i64:     return "int64_t";
+    case abi::ElementType::f32:     return "float";
+    case abi::ElementType::f64:     return "double";
+    case abi::ElementType::logical: return "bool";
     }
     __builtin_unreachable();
 }
@@ -238,15 +238,15 @@ std::string format_value(const Param& param) {
     for (std::size_t i = 0; i < param.elems(); ++i) {
         const char *elem = static_cast<const char *>(param.data()) + elem_size * i;
         switch (param.type()) {
-        case abi::ParamType::i32:     os << *((const int *)elem); break;
-        case abi::ParamType::i64:     os << *((const int64_t *)elem); break;
-        case abi::ParamType::f32:
+        case abi::ElementType::i32:     os << *((const int *)elem); break;
+        case abi::ElementType::i64:     os << *((const int64_t *)elem); break;
+        case abi::ElementType::f32:
             format_float<uint32_t>(os, *((const float *)elem), "float", "u");
             break;
-        case abi::ParamType::f64:
+        case abi::ElementType::f64:
             format_float<uint64_t>(os, *((const double *)elem), "double", "ull");
             break;
-        case abi::ParamType::logical: os << std::boolalpha << *((const bool *)elem); break;
+        case abi::ElementType::logical: os << std::boolalpha << *((const bool *)elem); break;
         }
         if (param.array() && i < param.elems() - 1)
             os << ", ";

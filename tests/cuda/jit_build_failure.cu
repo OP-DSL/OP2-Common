@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");
 
-        op::rt::loop::Call call{&set, args, set.size};
+        op::rt::loop::Call call{&set, args, set.size, true};
         auto broken = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::now);
         passed &= check(broken.status == op::rt::loop::Status::unavailable,
                         "the broken strategy is available");

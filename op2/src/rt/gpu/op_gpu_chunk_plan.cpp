@@ -38,12 +38,14 @@ void size_batches(ChunkPlan& out) {
 
 ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const op::rt::loop::Sections& sections,
-                               const abi::ArgGroups& groups, const ChunkLimits& limits,
+                               const abi::ArgGroups& groups, const ChunkSpec& spec,
                                bool unstaged_singles, double min_compression) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, false, limits.block_size,
-                                     limits.block_size, limits.shared_bytes,
-                                     unstaged_singles, staged);
+    auto reason = plan::stage_chunks(
+        args, sections, groups,
+        {spec.block_size, spec.block_size, spec.shared_bytes, spec.stride, false,
+         unstaged_singles},
+        staged);
     if (!reason.empty())
         return {reason, nullptr};
     auto out = staged_plan(staged);
@@ -57,11 +59,13 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
 
 ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                  const op::rt::loop::Sections& sections,
-                                 const abi::ArgGroups& groups, const ChunkLimits& limits,
+                                 const abi::ArgGroups& groups, const ChunkSpec& spec,
                                  bool wavefront, int window) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, true, limits.block_size,
-                                     limits.block_size, limits.shared_bytes, false, staged);
+    auto reason = plan::stage_chunks(
+        args, sections, groups,
+        {spec.block_size, spec.block_size, spec.shared_bytes, spec.stride, true, false},
+        staged);
     if (!reason.empty())
         return {reason, nullptr};
     auto out = staged_plan(staged);
@@ -69,7 +73,7 @@ ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
     auto colours = plan::colour_elements(out->chunks, staged.references);
     if (colours.max > 255)
         return {"too_many_colours", nullptr};
-    out->thread_colours.assign(static_cast<std::size_t>(sections.set_stride()), 0);
+    out->thread_colours.assign(static_cast<std::size_t>(spec.stride), 0);
     std::copy(colours.colours.begin(), colours.colours.end(), out->thread_colours.begin());
     out->chunk_thread_colours = std::move(colours.counts);
     out->max_thread_colours = colours.max;

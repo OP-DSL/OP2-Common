@@ -5,21 +5,6 @@
 
 namespace op::rt::loop {
 
-namespace {
-
-bool has_global_output(op_arg *args, int nargs) {
-    for (int i = 0; i < nargs; ++i) {
-        if (args[i].opt == 0 || args[i].argtype != OP_ARG_GBL)
-            continue;
-        if (args[i].acc == OP_INC || args[i].acc == OP_MIN || args[i].acc == OP_MAX ||
-            args[i].acc == OP_RW || args[i].acc == OP_WRITE)
-            return true;
-    }
-    return false;
-}
-
-} // namespace
-
 tune::Autotuner::Decision Loop::decide(const Call& call, op_arg *args, int nargs) {
     m_params.update(args, nargs);
     if (m_params.moving() && jit::options().enabled())
@@ -29,8 +14,9 @@ tune::Autotuner::Decision Loop::decide(const Call& call, op_arg *args, int nargs
                    : tune::Autotuner::Decision{selection};
 }
 
-void Loop::run(const tune::Autotuner::Decision& decision, op_arg *args, int nargs) {
-    RunArgs run{args, nargs, decision.timed != nullptr};
+void Loop::run(const tune::Autotuner::Decision& decision, const Call& call, op_arg *args,
+               int nargs) {
+    RunArgs run{call, args, nargs, decision.timed != nullptr};
     auto microseconds = decision.prepared.candidate->strategy->run(decision.prepared, run);
     if (microseconds && m_tuner)
         m_tuner->sample(decision, *microseconds);
@@ -58,16 +44,16 @@ void Loop::invoke(op_set set, op_arg *args, int nargs) {
 
     if (n_exec > 0) {
         op_profile_next("Init");
-        Call call{set, {args, static_cast<std::size_t>(nargs)}, n_exec};
+        Call call{set, {args, static_cast<std::size_t>(nargs)}, n_exec, m_direct};
         auto decision = decide(call, args, nargs);
 
         op_profile_next("Prepare GBLs");
-        m_global_output = has_global_output(args, nargs);
+        m_global_output = call.writes_globals();
         begin_call(call, decision, args, nargs);
 
         op_profile_next("Computation");
         op_profile_enter("Kernel");
-        run(decision, args, nargs);
+        run(decision, call, args, nargs);
         op_profile_exit();
         end_call();
     } else {

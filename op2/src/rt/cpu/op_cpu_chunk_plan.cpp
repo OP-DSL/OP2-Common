@@ -11,8 +11,9 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const abi::ArgGroups& groups, int size,
                                double min_compression) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(args, sections, groups, false, size, 1,
-                                     chunk_scratch_limit, false, staged);
+    auto reason = plan::stage_chunks(
+        args, sections, groups, {size, 1, chunk_scratch_limit, sections.elements(), false, false},
+        staged);
     if (!reason.empty())
         return {reason, nullptr};
     double compression = staged.targets.compression();

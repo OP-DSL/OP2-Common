@@ -24,6 +24,17 @@ bool Call::global_reduction() const {
     return false;
 }
 
+bool Call::writes_globals() const {
+    for (const op_arg& arg : args) {
+        if (arg.opt == 0 || arg.argtype != OP_ARG_GBL)
+            continue;
+        if (arg.acc == OP_INC || arg.acc == OP_MIN || arg.acc == OP_MAX ||
+            arg.acc == OP_RW || arg.acc == OP_WRITE)
+            return true;
+    }
+    return false;
+}
+
 std::uint64_t Call::key() const {
     if (m_keyed)
         return m_key;
@@ -101,7 +112,6 @@ Sections Sections::direct(op_set set) {
     Sections sections;
     sections.m_sections[0] = {0, static_cast<int>(set->size)};
     sections.m_count = 1;
-    sections.m_set_stride = (set->size + 31) & ~31;
     return sections;
 }
 
@@ -121,18 +131,10 @@ Sections Sections::indirect(op_set set, bool separate_owned, int run_size) {
     }
     sections.m_wait_before = 1;
     sections.m_globals_after = 1;
-    sections.m_set_stride = indirect_set_stride(set);
     return sections;
 }
 
-Sections Sections::of(const Call& call, bool direct) {
-    if (direct)
-        return Sections::direct(call.set);
-    return Sections::indirect(call.set, call.global_reduction(),
-                              call.run_size);
-}
-
-ScalarType scalar_type(const char *type) {
+std::optional<abi::ElementType> element_type(const char *type) {
     auto is = [type](std::initializer_list<const char *> names) {
         return type != nullptr &&
                std::any_of(names.begin(), names.end(), [type](const char *name) {
@@ -140,14 +142,14 @@ ScalarType scalar_type(const char *type) {
                });
     };
     if (is({"double", "r8", "real*8", "real(8)"}))
-        return ScalarType::f64;
+        return abi::ElementType::f64;
     if (is({"float", "r4", "real*4", "real(4)"}))
-        return ScalarType::f32;
+        return abi::ElementType::f32;
     if (is({"int", "i4", "integer*4", "integer(4)"}))
-        return ScalarType::i32;
+        return abi::ElementType::i32;
     if (is({"bool", "logical"}))
-        return ScalarType::logical;
-    return ScalarType::unknown;
+        return abi::ElementType::logical;
+    return std::nullopt;
 }
 
 void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
@@ -157,23 +159,27 @@ void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
             (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
             continue;
 
-        switch (scalar_type(arg.type)) {
-        case ScalarType::f64:
-            op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
-            break;
-        case ScalarType::f32:
-            op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
-            break;
-        case ScalarType::i32:
-            op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
-            break;
-        case ScalarType::logical:
-            op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
-            break;
-        case ScalarType::unknown:
+        auto type = element_type(arg.type);
+        if (!type) {
             std::fprintf(stderr, "error: unsupported MPI reduction type '%s' (in %s)\n",
                          arg.type == nullptr ? "<null>" : arg.type, loop);
             std::exit(1);
+        }
+        switch (*type) {
+        case abi::ElementType::f64:
+            op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
+            break;
+        case abi::ElementType::f32:
+            op_mpi_reduce_float(&arg, reinterpret_cast<float *>(arg.data));
+            break;
+        case abi::ElementType::i32:
+            op_mpi_reduce_int(&arg, reinterpret_cast<int *>(arg.data));
+            break;
+        case abi::ElementType::logical:
+            op_mpi_reduce_bool(&arg, reinterpret_cast<bool *>(arg.data));
+            break;
+        case abi::ElementType::i64:
+            break;
         }
     }
 }

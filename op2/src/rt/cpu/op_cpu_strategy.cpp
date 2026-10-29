@@ -67,7 +67,7 @@ op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call&, op::rt::loop::
 std::optional<float> Simple::run([[maybe_unused]] const op::rt::loop::Prepared& prepared,
                                  const op::rt::loop::RunArgs& run) {
     assert(prepared.candidate->strategy == this);
-    const auto& sections = m_loop.call_sections();
+    const auto& sections = run.call.sections;
     return run_phases(run, sections.size(), sections.wait_index(),
                       sections.globals_index(), [&](int section) {
                           split(sections[section].begin, sections[section].end, nullptr,
@@ -83,7 +83,7 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
         op::rt::plan::PlanKey key{"colouring", call};
         return colouring_plans.get(key, [&] {
             auto plan = std::make_shared<op::rt::plan::SetColouring>(
-                op::rt::plan::colour_set(call.args, m_loop.sections(call)));
+                op::rt::plan::colour_set(call.args, call.sections));
             if (OP_diags > 3)
                 op_printf("%s: %s %d colours, %d over owned elements\n", m_name.c_str(),
                           m_loop.name().c_str(), plan->colours, plan->owned_colours);
@@ -122,10 +122,9 @@ const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
         if (!m_coloured)
             key.add(m_groups).add(min_compression);
         return chunk_plans.get(key, [&] {
-            auto sections = m_loop.sections(call);
             auto result = m_coloured
-                              ? plan_chunk_colouring(call.args, sections, m_chunk_size)
-                              : plan_chunk_atomics(call.args, sections, m_groups,
+                              ? plan_chunk_colouring(call.args, call.sections, m_chunk_size)
+                              : plan_chunk_atomics(call.args, call.sections, m_groups,
                                                    m_chunk_size, min_compression);
             auto entry = std::make_shared<ChunkEntry>();
             entry->rejected = result.rejected;
@@ -160,7 +159,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::RunArgs& run) {
     const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
-    const auto& sections = m_loop.call_sections();
+    const auto& sections = run.call.sections;
     m_loop.reserve_scratch(plan.max_scratch_bytes);
 
     abi::cpu::Chunk chunks = m_loop.chunks();

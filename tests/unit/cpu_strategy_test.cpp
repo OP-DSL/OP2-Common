@@ -198,7 +198,7 @@ void run(const char *strategy) {
     // The forced strategy itself runs, not one the ladder falls through to.
     auto forced = loop.ladder().forced();
     CHECK(forced.has_value());
-    op::rt::loop::Call call{&source, args, source.size + source.exec_size};
+    op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};
     CHECK(loop.ladder()[*forced].prepare(call, op::rt::loop::Urgency::now).status ==
           op::rt::loop::Status::ready);
 

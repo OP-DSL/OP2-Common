@@ -41,7 +41,7 @@ op_map_core edge_nodes{};
 std::vector<int> map_values(8, 0);
 
 loop::Call call_of(std::array<op_arg, 1>& args) {
-    return {&edges, args, edges.size};
+    return {&edges, args, edges.size, false};
 }
 
 // The planner's name, the call's shape, each argument's bytes and the

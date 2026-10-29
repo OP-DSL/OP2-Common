@@ -215,7 +215,7 @@ void test_params() {
     params.add("flag", &flag, abi::ParamSource::external);
     params.add("big", &big, abi::ParamSource::external);
 
-    loop::Call call{&set, {args, 3}, 100};
+    loop::Call call{&set, {args, 3}, 100, false};
     params.update(args, 3);
     CHECK(gbl0 == 2.5 && gbl2 == 7.0 && stride == 128 && dim == 3);
     std::array<int, 2> slots{0, 64};
@@ -251,7 +251,7 @@ void test_params() {
 // parameters than it hashes at a time.
 void test_key_words() {
     op_set_core set{};
-    loop::Call call{&set, {}, 0};
+    loop::Call call{&set, {}, 0, false};
     std::array<double, 70> constants{};
     auto key = [&](const char *runtime) {
         if (runtime != nullptr)
@@ -334,7 +334,7 @@ void test_statistics() {
     params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     auto next = [&](int set) {
         params.update(args, 1);
-        loop::Call call{&sets[set], {args, 1}, sets[set].size};
+        loop::Call call{&sets[set], {args, 1}, sets[set].size, false};
         return params.key(call, {});
     };
 
@@ -456,7 +456,7 @@ void test_array_globals() {
         params.add_array(std::string{"g"} + std::to_string(i),
                          static_cast<double *>(nullptr), 0,
                          abi::ParamSource::array_arg, i, true);
-    loop::Call call{&set, {args, 4}, 10};
+    loop::Call call{&set, {args, 4}, 10, false};
     auto next = [&] {
         params.update(args, 4);
         return params.key(call, {});
@@ -514,7 +514,7 @@ void test_observe_every_call() {
     params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     CHECK(params.moving());
 
-    loop::Call call{&set, {args, 1}, 10};
+    loop::Call call{&set, {args, 1}, 10, false};
     for (int i = 0; i < 31; ++i) {
         params.update(args, 1);
         params.observe_call(call);
@@ -540,7 +540,7 @@ void test_settled() {
     args[0].acc = OP_READ;
     args[0].dim = 1;
     args[0].data = reinterpret_cast<char *>(&value);
-    loop::Call call{&set, {args, 1}, 10};
+    loop::Call call{&set, {args, 1}, 10, false};
 
     double global = 0.0;
     jit::ParamSet params{"flux"};

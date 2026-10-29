@@ -115,7 +115,7 @@ std::array<op_arg, 1> args{};
 
 // An indirect increment: the call runs the exec halo.
 loop::Call indirect_call() {
-    return {&source, args, source.size + source.exec_size};
+    return {&source, args, source.size + source.exec_size, false};
 }
 
 void test_call() {
@@ -153,16 +153,16 @@ void test_call() {
     const int all = source.size + source.exec_size;
     std::array<op_arg, 1> other = args;
     other[0].acc = OP_RW;
-    CHECK(loop::Call(&source, other, all).key() != key);
+    CHECK(loop::Call(&source, other, all, false).key() != key);
     other[0].acc = OP_INC;
     other[0].opt = 0;
-    CHECK(loop::Call(&source, other, all).key() != key);
-    CHECK(loop::Call(&source, other, all).describe() ==
+    CHECK(loop::Call(&source, other, all, false).key() != key);
+    CHECK(loop::Call(&source, other, all, false).describe() ==
           "edges (128), inactive args 0");
     op_set_core elsewhere = source;
     elsewhere.index = 7;
-    CHECK(loop::Call(&elsewhere, args, all).key() != key);
-    CHECK(loop::Call(&source, args, source.size).key() != key);
+    CHECK(loop::Call(&elsewhere, args, all, false).key() != key);
+    CHECK(loop::Call(&source, args, source.size, false).key() != key);
 
     // Another dat in its place keeps the key, as a temporary declared again
     // does; which arguments share a dat changes it.
@@ -170,18 +170,18 @@ void test_call() {
     again.index = 9;
     other = args;
     other[0].dat = &again;
-    CHECK(loop::Call(&source, other, all).key() == key);
+    CHECK(loop::Call(&source, other, all, false).key() == key);
     std::array<op_arg, 2> pair{args[0], args[0]};
     pair[1].idx = 1;
-    auto shared = loop::Call(&source, pair, all).key();
+    auto shared = loop::Call(&source, pair, all, false).key();
     pair[1].dat = &again;
-    CHECK(loop::Call(&source, pair, all).key() != shared);
+    CHECK(loop::Call(&source, pair, all, false).key() != shared);
 
     std::array<op_arg, 2> reduction{args[0], op_arg{}};
     reduction[1].opt = 1;
     reduction[1].argtype = OP_ARG_GBL;
     reduction[1].acc = OP_INC;
-    loop::Call reduced{&source, reduction, all};
+    loop::Call reduced{&source, reduction, all, false};
     CHECK(reduced.global_reduction());
     CHECK(reduced.describe() == "edges (128) via edge_nodes, reduction");
 
@@ -191,13 +191,13 @@ void test_call() {
     auto direct = loop::Sections::direct(&source);
     CHECK(direct.size() == 1 && direct[0].begin == 0 && direct[0].end == 128);
     CHECK(direct.wait_index() == 0 && direct.globals_index() == 0);
-    CHECK(direct.set_stride() == 128);
+    CHECK(direct.elements() == 128);
 
     auto indirect = loop::Sections::indirect(&source, false, all);
     CHECK(indirect.size() == 2);
     CHECK(indirect[0].end == 100 && indirect[1].begin == 100 && indirect[1].end == 136);
     CHECK(indirect.wait_index() == 1 && indirect.globals_index() == 1);
-    CHECK(indirect.set_stride() == 160);
+    CHECK(indirect.elements() == 136);
 
     auto separate = loop::Sections::indirect(&source, true, all);
     CHECK(separate.size() == 3);
@@ -206,23 +206,22 @@ void test_call() {
 
     // A call's own: the owned elements apart only when it reduces, the exec
     // halo only when the exchange runs it.
-    CHECK(loop::Sections::of(one, true).size() == 1);
-    CHECK(loop::Sections::of(one, false).size() == 2);
-    CHECK(loop::Sections::of(reduced, false).size() == 3);
-    auto owned = loop::Sections::of(loop::Call(&source, args, source.size), false);
+    CHECK(loop::Call(&source, args, all, true).sections.size() == 1);
+    CHECK(one.sections.size() == 2);
+    CHECK(reduced.sections.size() == 3);
+    auto owned = loop::Call(&source, args, source.size, false).sections;
     CHECK(owned.size() == 2 && owned[1].end == 128);
-    auto owned_reduced =
-        loop::Sections::of(loop::Call(&source, reduction, source.size), false);
+    auto owned_reduced = loop::Call(&source, reduction, source.size, false).sections;
     CHECK(owned_reduced.size() == 3 && owned_reduced[2].size() == 0);
 
     // Element types in either language's spelling.
-    CHECK(loop::scalar_type("double") == loop::ScalarType::f64);
-    CHECK(loop::scalar_type("real(8)") == loop::ScalarType::f64);
-    CHECK(loop::scalar_type("r4") == loop::ScalarType::f32);
-    CHECK(loop::scalar_type("integer(4)") == loop::ScalarType::i32);
-    CHECK(loop::scalar_type("logical") == loop::ScalarType::logical);
-    CHECK(loop::scalar_type("char") == loop::ScalarType::unknown);
-    CHECK(loop::scalar_type(nullptr) == loop::ScalarType::unknown);
+    CHECK(loop::element_type("double") == op::rt::abi::ElementType::f64);
+    CHECK(loop::element_type("real(8)") == op::rt::abi::ElementType::f64);
+    CHECK(loop::element_type("r4") == op::rt::abi::ElementType::f32);
+    CHECK(loop::element_type("integer(4)") == op::rt::abi::ElementType::i32);
+    CHECK(loop::element_type("logical") == op::rt::abi::ElementType::logical);
+    CHECK(!loop::element_type("char"));
+    CHECK(!loop::element_type(nullptr));
 }
 
 void test_defaults() {
@@ -260,10 +259,10 @@ void test_defaults() {
     CHECK(selection.status == loop::Status::ready);
     CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
 
-    loop::RunArgs run{args.data(), 1, true};
-    CHECK(fixture.atomics->run(fixture.ladder[1].prepare(indirect_call(),
-                                                         loop::Urgency::later),
-                               run) == 1.0f);
+    auto call = indirect_call();
+    loop::RunArgs run{call, args.data(), 1, true};
+    CHECK(fixture.atomics->run(fixture.ladder[1].prepare(call, loop::Urgency::later), run) ==
+          1.0f);
 }
 
 void test_variables() {

@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
     std::array<op_arg, 1> args{};
     args[0].opt = 0;
     args[0].argtype = OP_ARG_GBL;
-    loop::Call call{&set, args, set.size};
+    loop::Call call{&set, args, set.size, true};
 
     // The loop's one candidate, as prepared: its specialised kernel, or the
     // offline candidate kept to refuse a point with no kernel.

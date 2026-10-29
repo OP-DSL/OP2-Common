@@ -41,7 +41,7 @@ private:
     std::size_t m_elems;
     std::size_t m_elem_size;
     bool m_array;
-    abi::ParamType m_type;
+    abi::ElementType m_type;
     abi::ParamSource m_source;
     // The mode before any statistics, whether they may move it, and the
     // call's.
@@ -55,13 +55,13 @@ private:
 public:
     // A parameter of elems elements of type, each elem_size bytes, read from
     // data; an array_arg's data and elements are each call's.
-    Param(std::string_view name, abi::ParamType type, std::size_t elem_size, void *data,
+    Param(std::string_view name, abi::ElementType type, std::size_t elem_size, void *data,
           std::size_t elems, bool array, abi::ParamSource source, int index)
         : m_name{name}, m_data{data}, m_elems{elems}, m_elem_size{elem_size},
           m_array{array}, m_type{type}, m_source{source}, m_index{index} {}
 
     const std::string& name() const { return m_name; }
-    abi::ParamType type() const { return m_type; }
+    abi::ElementType type() const { return m_type; }
     abi::ParamSource source() const { return m_source; }
     // A READ global argument, which the policy may give at run time or bake
     // in by its statistics; constants and the structural sources (strides,
@@ -203,7 +203,7 @@ public:
     template<typename T>
     std::size_t add(std::string_view name, T *data, abi::ParamSource source,
                     int index = -1, bool runtime = false) {
-        return insert(Param{name, abi::ParamTypes<T>::value, sizeof(T), data, 1, false,
+        return insert(Param{name, abi::ElementTypes<T>::value, sizeof(T), data, 1, false,
                             source, index},
                       runtime);
     }
@@ -213,7 +213,7 @@ public:
     template<typename T>
     std::size_t add_array(std::string_view name, T *data, std::size_t elems,
                           abi::ParamSource source, int index = -1, bool runtime = false) {
-        return insert(Param{name, abi::ParamTypes<T>::value, sizeof(T), data, elems, true,
+        return insert(Param{name, abi::ElementTypes<T>::value, sizeof(T), data, elems, true,
                             source, index},
                       runtime);
     }
@@ -304,6 +304,6 @@ public:
 std::string format_cxx(const ParamSet& params);
 
 // A parameter's element type in C++: "double".
-const char *cxx_type(abi::ParamType type);
+const char *cxx_type(abi::ElementType type);
 
 } // namespace op::rt::jit

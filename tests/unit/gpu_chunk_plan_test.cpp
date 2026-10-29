@@ -29,6 +29,12 @@ using op::test::initialize_set;
 
 namespace {
 
+// The device's stride for the elements the sections cover, as
+// gpu::element_stride gives a set of them.
+gpu::ChunkSpec spec(const Sections& sections, int block_size, std::size_t shared_bytes) {
+    return {block_size, shared_bytes, (sections.elements() + 31) & ~31};
+}
+
 // chunk_atomics with no compression floor, so small fixtures are never
 // rejected for it.
 gpu::ChunkResult atomics(std::span<const op_arg> args, const Sections& sections,
@@ -36,8 +42,8 @@ gpu::ChunkResult atomics(std::span<const op_arg> args, const Sections& sections,
                          std::size_t shared_bytes, bool unstaged_singles = false,
                          double min_compression = 0.0) {
     return gpu::plan_chunk_atomics(args, sections, groups,
-                                   gpu::ChunkLimits{block_size, shared_bytes},
-                                   unstaged_singles, min_compression);
+                                   spec(sections, block_size, shared_bytes), unstaged_singles,
+                                   min_compression);
 }
 
 gpu::ChunkResult colouring(std::span<const op_arg> args, const Sections& sections,
@@ -45,8 +51,8 @@ gpu::ChunkResult colouring(std::span<const op_arg> args, const Sections& section
                            std::size_t shared_bytes, bool wavefront = false,
                            int window = 0) {
     return gpu::plan_chunk_colouring(args, sections, groups,
-                                     gpu::ChunkLimits{block_size, shared_bytes},
-                                     wavefront, window);
+                                     spec(sections, block_size, shared_bytes), wavefront,
+                                     window);
 }
 
 // Three dats of different scalar types over a set of 6 elements, 2 core:

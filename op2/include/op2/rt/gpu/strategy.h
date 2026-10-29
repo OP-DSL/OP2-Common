@@ -11,6 +11,7 @@
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/chunk_plan.h>
 #include <op2/rt/gpu/jit.h>
+#include <op2/rt/gpu/layout.h>
 #include <op2/rt/gpu/loop.h>
 #include <op2/rt/gpu/options.h>
 #include <op2/rt/loop/strategy.h>
@@ -64,10 +65,10 @@ protected:
         int shared_bytes;
     };
 
-    // The call being prepared: how the sections run, the most blocks a
-    // launch may use, and the largest launch.
+    // The call being prepared: its per-element arrays' stride, the most
+    // blocks a launch may use, and the largest launch.
     struct CallState {
-        op::rt::loop::Sections sections;
+        int stride = 0;
         int block_limit = 0;
         int max_blocks = 0;
         int global_stride = 0;
@@ -99,7 +100,7 @@ protected:
         return std::min(blocks, m_call_state.block_limit);
     }
 
-    // Begin a call: its sections and the blocks the reduction scratch allows.
+    // Begin a call: its stride and the blocks the reduction scratch allows.
     void begin(const op::rt::loop::Call& call);
 
     // Whether its offline kernel launches its block size.

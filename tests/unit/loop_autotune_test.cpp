@@ -127,7 +127,7 @@ struct Fixture : loop::Loop {
     Fake *invoke(const loop::Call& call) {
         auto selection = m_ladder.select(call);
         auto decision = m_tuner->choose(call, selection, settled);
-        loop::RunArgs run{const_cast<op_arg *>(call.args.data()),
+        loop::RunArgs run{call, const_cast<op_arg *>(call.args.data()),
                           static_cast<int>(call.args.size()), decision.timed != nullptr};
         auto us = decision.prepared.candidate->strategy->run(decision.prepared, run);
         if (us)
@@ -156,7 +156,7 @@ void test_exploration() {
     CHECK(op::rt::tune::autotune_options().select);
 
     Fixture fixture;
-    loop::Call call{&edges, args, edges.size + edges.exec_size};
+    loop::Call call{&edges, args, edges.size + edges.exec_size, false};
 
     // chunk_atomics compiles for two calls, chunk_colouring is turned off
     // and never asked.
@@ -188,7 +188,7 @@ void test_exploration() {
 
     // A configuration on another set is explored on its own; there a
     // candidate that turns out unavailable is retired.
-    loop::Call other{&cells, args, cells.size + cells.exec_size};
+    loop::Call other{&cells, args, cells.size + cells.exec_size, false};
     fixture.chunk_atomics->statuses = {loop::Status::unavailable};
     fixture.chunk_atomics->reason = "no_kernel";
     before = fixture.atomics->timed_runs;
@@ -260,7 +260,7 @@ void test_ladder_changes() {
     op::rt::init();
 
     Fixture fixture(true, 10.2f);
-    loop::Call call{&edges, args, edges.size + edges.exec_size};
+    loop::Call call{&edges, args, edges.size + edges.exec_size, false};
     fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending,
                                        loop::Status::pending};
     CHECK(fixture.invoke(call) == fixture.atomics);
@@ -294,7 +294,7 @@ void test_kernels() {
     Fixture fixture(false, 40.0f, 3.0f);
     CHECK(fixture.ladder()[1].name == "atomics=on;kernel=jit");
     CHECK(fixture.ladder()[2].name == "atomics=on");
-    loop::Call call{&edges, args, edges.size + edges.exec_size};
+    loop::Call call{&edges, args, edges.size + edges.exec_size, false};
 
     // Unsettled, the ladder's choice runs untimed: the offline kernel while
     // the specialised one builds.
@@ -346,8 +346,8 @@ void test_jit_report() {
     op::rt::init();
 
     Jitted jitted;
-    loop::Call on_edges{&edges, args, edges.size + edges.exec_size};
-    loop::Call on_cells{&cells, args, cells.size + cells.exec_size};
+    loop::Call on_edges{&edges, args, edges.size + edges.exec_size, false};
+    loop::Call on_cells{&cells, args, cells.size + cells.exec_size, false};
     for (int i = 0; i < 40; ++i) {
         jitted.constant = i;
         jitted.observe(on_edges);

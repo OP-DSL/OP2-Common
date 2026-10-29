@@ -41,18 +41,30 @@ struct StagedChunks {
     Staging staging;
 };
 
+// How a backend stages a call's chunks: up to size elements a chunk, a
+// multiple of lanes; within scratch_limit bytes a chunk; the stage words
+// stride apart, the backend's per-element arrays' stride; with read_write
+// the groups also order indirect read-writes; under unstaged_singles a
+// target a chunk references once stays in global memory.
+struct StagingSpec {
+    int size = 0;
+    int lanes = 1;
+    std::size_t scratch_limit = 0;
+    int stride = 0;
+    bool read_write = false;
+    bool unstaged_singles = false;
+};
+
 // Chunk the sections at the largest multiple of lanes up to size, itself
-// one, whose staging fits scratch_limit and the stage word, and stage them,
-// each active reference of a chunk to a slot of its region (unstaged_singles
-// leaves a target the chunk references once in global memory).  Or why not:
-// no_active_argument; incompatible_argument when two groups reach one dat,
-// or an argument outside the groups reaches a grouped dat or makes an update
-// the groups would not order (an indirect increment, or with read_write an
-// indirect read-write); insufficient_scratch.
+// one, whose staging fits the scratch limit and the stage word, and stage
+// them, each active reference of a chunk to a slot of its region.  Or why
+// not: no_active_argument; incompatible_argument when two groups reach one
+// dat, or an argument outside the groups reaches a grouped dat or makes an
+// update the groups would not order (an indirect increment, or with
+// read_write an indirect read-write); insufficient_scratch.
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::rt::loop::Sections& sections,
-                              const abi::ArgGroups& groups, bool read_write, int size,
-                              int lanes, std::size_t scratch_limit,
-                              bool unstaged_singles, StagedChunks& out);
+                              const abi::ArgGroups& groups, const StagingSpec& spec,
+                              StagedChunks& out);
 
 } // namespace op::rt::plan

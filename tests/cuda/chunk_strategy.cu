@@ -193,7 +193,8 @@ struct Outcome {
 
 Outcome run(gpu::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
-    op::rt::loop::Call call{&fixture.source, fixture.args, fixture.source.size + fixture.source.exec_size};
+    op::rt::loop::Call call{&fixture.source, fixture.args,
+                            fixture.source.size + fixture.source.exec_size, false};
     auto chunk = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
     auto selection = loop.ladder().select(call);
     loop.invoke(&fixture.source, fixture.args.data(),
@@ -361,7 +362,7 @@ int main(int argc, char **argv) {
             auto& second_chunk =
                 static_cast<gpu::ChunkBase&>(*second_loop.ladder()[0].strategy);
             op::rt::loop::Call call{&alike.source, alike.args,
-                                alike.source.size + alike.source.exec_size};
+                                    alike.source.size + alike.source.exec_size, false};
             auto first = first_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             auto second = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(first.entry != nullptr && first.entry == second.entry);

@@ -100,11 +100,14 @@ void Globals::combine(op_arg *args, const char *loop) const {
         if (m_offsets[static_cast<std::size_t>(i)] == SIZE_MAX ||
             arg.argtype != OP_ARG_GBL || arg.acc == OP_WORK)
             continue;
-        switch (op::rt::loop::scalar_type(arg.type)) {
-        case op::rt::loop::ScalarType::f64: combine<double>(args, i); break;
-        case op::rt::loop::ScalarType::f32: combine<float>(args, i); break;
-        case op::rt::loop::ScalarType::i32: combine<int>(args, i); break;
-        default:
+        auto type = op::rt::loop::element_type(arg.type);
+        if (type == abi::ElementType::f64) {
+            combine<double>(args, i);
+        } else if (type == abi::ElementType::f32) {
+            combine<float>(args, i);
+        } else if (type == abi::ElementType::i32) {
+            combine<int>(args, i);
+        } else {
             std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n",
                          arg.type, loop);
             std::exit(1);
@@ -158,9 +161,8 @@ void Loop::reserve_scratch(std::size_t bytes) {
     }
 }
 
-void Loop::begin_call(const op::rt::loop::Call& call, const op::rt::tune::Autotuner::Decision&,
+void Loop::begin_call(const op::rt::loop::Call&, const op::rt::tune::Autotuner::Decision&,
                       op_arg *args, int nargs) {
-    m_sections = sections(call);
     m_threads = m_max_threads();
     m_globals->prepare(args, nargs, m_threads);
 }

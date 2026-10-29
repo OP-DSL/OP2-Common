@@ -18,11 +18,13 @@
 
 namespace op::rt::gpu {
 
-// What a chunk may use: a block's elements, and staging that fits the
-// shared memory.
-struct ChunkLimits {
+// What a chunk plan is built for: a chunk is a block's elements, its
+// staging fits the shared memory a block may use, and its per-element arrays
+// have the device's stride (op2/rt/gpu/layout.h).
+struct ChunkSpec {
     int block_size = 0;
     std::size_t shared_bytes = 0;
+    int stride = 0;
 };
 
 // Each launch runs a batch of chunks, a block per chunk, each chunk
@@ -80,7 +82,7 @@ using ChunkResult = plan::PlanResult<ChunkPlan>;
 // it costs little more than global atomics, since those are its singles.
 ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const op::rt::loop::Sections& sections,
-                               const abi::ArgGroups& groups, const ChunkLimits& limits,
+                               const abi::ArgGroups& groups, const ChunkSpec& spec,
                                bool unstaged_singles, double min_compression);
 
 // chunk_colouring: the chunks of a batch share no target, and a chunk's
@@ -89,7 +91,7 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
 // time (0: a section at once) and runs each section as one batch.
 ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                  const op::rt::loop::Sections& sections,
-                                 const abi::ArgGroups& groups, const ChunkLimits& limits,
+                                 const abi::ArgGroups& groups, const ChunkSpec& spec,
                                  bool wavefront, int window);
 
 } // namespace op::rt::gpu

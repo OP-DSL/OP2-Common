@@ -2,6 +2,7 @@
 // its loop's release, while the device is still up.
 
 #include <op2/rt/gpu/chunk_encode.h>
+#include <op2/rt/gpu/layout.h>
 #include <op2/gpu/shims.h>
 #include <op2/rt/loop/loop.h>
 #include <op_lib_c.h>
@@ -82,7 +83,9 @@ int main(int argc, char **argv) {
     CHECK(gpuGetDeviceProperties(&properties, device) == gpuSuccess);
     auto result = op::rt::gpu::plan_chunk_atomics(
         args, op::rt::loop::Sections::direct(&source), op::rt::abi::ArgGroups{groups, 1},
-        op::rt::gpu::ChunkLimits{128, properties.sharedMemPerBlock}, false, 1.5);
+        op::rt::gpu::ChunkSpec{128, properties.sharedMemPerBlock,
+                               op::rt::gpu::element_stride(&source, true)},
+        false, 1.5);
     CHECK(result);
 
     op::rt::gpu::DevicePlan plan(*result.plan);

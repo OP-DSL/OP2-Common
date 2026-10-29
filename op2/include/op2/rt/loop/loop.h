@@ -51,7 +51,8 @@ private:
     tune::Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);
 
     // Run a decision, its time a sample for the tuner when it is timed.
-    void run(const tune::Autotuner::Decision& decision, op_arg *args, int nargs);
+    void run(const tune::Autotuner::Decision& decision, const Call& call, op_arg *args,
+             int nargs);
 
     // Whether the call under way writes a global.
     bool m_global_output = false;
@@ -99,6 +100,7 @@ public:
     Loop(const Loop&) = delete;
 
     const std::string& name() const { return m_name; }
+    bool direct() const { return m_direct; }
     Ladder& ladder() { return m_ladder; }
     const Ladder& ladder() const { return m_ladder; }
     jit::ParamSet& params() { return m_params; }
@@ -111,10 +113,6 @@ public:
         for (const auto& strategy : m_ladder.strategies())
             counts += strategy->builds();
         return counts;
-    }
-
-    Sections sections(const Call& call) const {
-        return Sections::of(call, m_direct);
     }
 
     // Run one call: start the halo exchange, which decides what the call runs

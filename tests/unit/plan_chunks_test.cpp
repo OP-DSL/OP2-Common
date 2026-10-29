@@ -203,9 +203,9 @@ void test_staged_chunk_sizes() {
     chain.args.resize(2);
     std::array<abi::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
     auto stage = [&](int size, std::size_t scratch, plan::StagedChunks& staged) {
-        return plan::stage_chunks(chain.args, Sections::direct(&chain.edges),
-                                  abi::ArgGroups{groups, 1}, false, size, 1, scratch,
-                                  false, staged);
+        auto sections = Sections::direct(&chain.edges);
+        return plan::stage_chunks(chain.args, sections, abi::ArgGroups{groups, 1},
+                                  {size, 1, scratch, sections.elements(), false, false}, staged);
     };
     auto size_for = [&](int size, std::size_t scratch) {
         plan::StagedChunks staged;
@@ -245,7 +245,7 @@ void test_cpu_plans() {
     CHECK(staged);
     const auto& atomics = *staged.plan;
     CHECK(atomics.chunks.size == 100 && atomics.batches.order.empty());
-    CHECK(atomics.staging.stride == sections.set_stride());
+    CHECK(atomics.staging.stride == sections.elements());
     // A chunk of 100 edges reaches 101 nodes.
     CHECK(atomics.max_scratch_bytes == 101 * sizeof(double));
     CHECK(atomics.compression > 1.9);

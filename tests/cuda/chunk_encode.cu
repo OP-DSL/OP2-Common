@@ -4,6 +4,7 @@
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
 #include <op2/rt/gpu/chunk_encode.h>
+#include <op2/rt/gpu/layout.h>
 
 #include <array>
 #include <cstdio>
@@ -72,10 +73,10 @@ void test_encode() {
     }
     std::array<abi::ArgGroup, 2> group_args{{{0, 0}, {1, 0}}};
     auto sections = op::rt::loop::Sections::direct(&edges);
-    op::rt::gpu::ChunkLimits limits{4, 1 << 16};
+    op::rt::gpu::ChunkSpec spec{4, 1 << 16, op::rt::gpu::element_stride(&edges, true)};
 
     auto result = op::rt::gpu::plan_chunk_colouring(
-        args, sections, abi::ArgGroups{group_args, 1}, limits, true, 2);
+        args, sections, abi::ArgGroups{group_args, 1}, spec, true, 2);
     CHECK(result);
     const auto& chunk_plan = *result.plan;
     CHECK(chunk_plan.wavefront);
@@ -110,7 +111,7 @@ void test_encode() {
     for (auto& arg : args)
         arg.acc = OP_INC;
     auto staged = op::rt::gpu::plan_chunk_atomics(
-        args, sections, abi::ArgGroups{group_args, 1}, limits, false, 0.0);
+        args, sections, abi::ArgGroups{group_args, 1}, spec, false, 0.0);
     CHECK(staged);
     {
         op::rt::gpu::DevicePlan plan(*staged.plan);

@@ -229,20 +229,20 @@ std::string_view grouped_references(std::span<const op_arg> args,
 
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::rt::loop::Sections& sections,
-                              const abi::ArgGroups& groups, bool read_write, int size,
-                              int lanes, std::size_t scratch_limit,
-                              bool unstaged_singles, StagedChunks& out) {
-    auto reason = grouped_references(args, groups, read_write, out.references);
+                              const abi::ArgGroups& groups, const StagingSpec& spec,
+                              StagedChunks& out) {
+    auto reason = grouped_references(args, groups, spec.read_write, out.references);
     if (!reason.empty())
         return reason;
-    int chunk_size = staged_chunk_size(out.references, size, lanes, scratch_limit);
+    int chunk_size =
+        staged_chunk_size(out.references, spec.size, spec.lanes, spec.scratch_limit);
     if (chunk_size == 0)
         return "insufficient_scratch";
 
     out.chunks = chunk_sections(sections, chunk_size);
     out.targets = chunk_targets(out.chunks, out.references);
-    out.staging = stage(out.chunks, out.targets, out.references, sections.set_stride(),
-                        unstaged_singles);
+    out.staging = stage(out.chunks, out.targets, out.references, spec.stride,
+                        spec.unstaged_singles);
     return {};
 }
 
