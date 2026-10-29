@@ -68,6 +68,12 @@ public:
     // allows.
     int block_limit(op_arg *args, int nargs, int block_size) const;
 
+    // The call's device copies of the globals, global_stride apart as the
+    // selected strategy launches its blocks; those its kernel has from the
+    // host need none.
+    void prepare_globals(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs,
+                         int global_stride);
+
     // A launch's kernel arguments: its record's fields, then the loop's
     // arguments, the active optional ones marked in the record.
     void **arguments(abi::gpu::Range& record, op_arg *args);
@@ -85,11 +91,6 @@ protected:
     // The data lives on the device.
     int exchange_halos(op_set set, op_arg *args, int nargs) override;
     void mark_dirty(op_arg *args, int nargs) override;
-
-    // The device copies of the globals, the strategy's stride apart.
-    void begin_call(const op::rt::loop::Call& call,
-                    const op::rt::tune::Autotuner::Decision& decision, op_arg *args,
-                    int nargs) override;
 
     void combine_globals(op_arg *args, int nargs) override;
 

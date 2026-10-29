@@ -49,7 +49,8 @@ void Loop::invoke(op_set set, op_arg *args, int nargs) {
 
         op_profile_next("Prepare GBLs");
         m_global_output = call.writes_globals();
-        begin_call(call, decision, args, nargs);
+        begin_call(call, args, nargs);
+        decision.prepared.candidate->strategy->begin_call(decision.prepared, args, nargs);
 
         op_profile_next("Computation");
         op_profile_enter("Kernel");

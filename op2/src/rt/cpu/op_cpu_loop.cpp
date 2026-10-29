@@ -161,8 +161,7 @@ void Loop::reserve_scratch(std::size_t bytes) {
     }
 }
 
-void Loop::begin_call(const op::rt::loop::Call&, const op::rt::tune::Autotuner::Decision&,
-                      op_arg *args, int nargs) {
+void Loop::begin_call(const op::rt::loop::Call&, op_arg *args, int nargs) {
     m_threads = m_max_threads();
     m_globals->prepare(args, nargs, m_threads);
 }

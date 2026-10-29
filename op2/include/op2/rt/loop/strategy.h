@@ -106,6 +106,15 @@ public:
     // Urgency::wait, or when the backend builds synchronously.
     virtual Prepared prepare(const Call& call, Urgency urgency, KernelKind kind) = 0;
 
+    // Once its candidate is selected for the call, before the run: set up
+    // what the run needs of the call's globals.  The loop's own setup comes
+    // first.
+    virtual void begin_call(const Prepared& prepared, op_arg *args, int nargs) {
+        (void)prepared;
+        (void)args;
+        (void)nargs;
+    }
+
     // Run what prepare returned; microseconds when the launch is timed.  A
     // run always follows this strategy's prepare for the same call, so the
     // strategy may keep per-call state from it.  Its other kernel's prepare

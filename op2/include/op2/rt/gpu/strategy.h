@@ -143,6 +143,11 @@ public:
 
     const CallState& call_state() const { return m_call_state; }
 
+    // The device copies of the call's globals, a copy per launched thread.
+    void begin_call(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs) override {
+        m_loop.prepare_globals(prepared, args, nargs, m_call_state.global_stride);
+    }
+
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
 
     void release() override { m_cache.join(); }

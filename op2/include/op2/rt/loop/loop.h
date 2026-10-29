@@ -82,8 +82,9 @@ protected:
     // backend keeps them.
     virtual void mark_dirty(op_arg *args, int nargs) { op_mpi_set_dirtybit(nargs, args); }
 
-    // Prepare the call's globals for the decision's run.
-    virtual void begin_call(const Call&, const tune::Autotuner::Decision&, op_arg *, int) {}
+    // Prepare the call's globals for whichever candidate runs; the selected
+    // strategy's own setup follows (Strategy::begin_call).
+    virtual void begin_call(const Call&, op_arg *, int) {}
 
     // Combine the run's partial reductions into the arguments, once the
     // elements they cover have run.

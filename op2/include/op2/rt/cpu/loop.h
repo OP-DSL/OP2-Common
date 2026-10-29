@@ -49,8 +49,7 @@ protected:
     // --- Per call ---
 
     // The call's threads, and each one's copy of the globals.
-    void begin_call(const op::rt::loop::Call& call, const op::rt::tune::Autotuner::Decision&,
-                    op_arg *args, int nargs) override;
+    void begin_call(const op::rt::loop::Call& call, op_arg *args, int nargs) override;
 
     // Combine the threads' copies into the arguments.
     void combine_globals(op_arg *args, int nargs) override;

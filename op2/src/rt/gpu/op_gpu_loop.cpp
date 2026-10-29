@@ -112,15 +112,12 @@ const unsigned char *Loop::on_host(const op::rt::loop::Prepared& prepared, int n
     return m_on_host.data();
 }
 
-void Loop::begin_call(const op::rt::loop::Call&,
-                      const op::rt::tune::Autotuner::Decision& decision, op_arg *args,
-                      int nargs) {
-    const auto& state =
-        static_cast<StrategyBase *>(decision.prepared.candidate->strategy)->call_state();
-    m_global_stride = state.global_stride;
+void Loop::prepare_globals(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs,
+                           int global_stride) {
+    m_global_stride = global_stride;
     m_exit_sync = false;
     prepareDeviceGblsWithPolicy(args, nargs, m_global_stride, m_gbl_inc_atomic,
-                                on_host(decision.prepared, nargs));
+                                on_host(prepared, nargs));
 }
 
 int Loop::exchange_halos(op_set set, op_arg *args, int nargs) {
