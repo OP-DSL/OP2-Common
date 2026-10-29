@@ -55,7 +55,8 @@ public:
     int threads() const { return m_threads; }
     const Globals& globals() const { return m_globals; }
 
-    void combine_globals(op_arg *args) {
+    // Combine the threads' copies of the global reductions into the arguments.
+    void process_globals(op_arg *args) {
         op_profile_next("Process GBLs");
         m_globals.combine(args, m_name.c_str());
         op_profile_next("Computation");
@@ -161,7 +162,7 @@ std::optional<float> StrategyBase::run_phases(const op::loop::Launch& launch,
         elapsed += clock::now() - start;
 
         if (index == globals_after)
-            m_loop.combine_globals(launch.args);
+            m_loop.process_globals(launch.args);
     }
 
     if (phases == wait_before) {

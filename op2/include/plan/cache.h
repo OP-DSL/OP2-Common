@@ -116,8 +116,9 @@ public:
         return *found->second;
     }
 
-    // Drop a configuration's plan; it goes once no strategy holds it.
-    void forget(std::uint64_t call) { m_slots.erase(call); }
+    // Drop the plan of the configuration key; it goes once no strategy holds
+    // it.
+    void forget(std::uint64_t key) { m_slots.erase(key); }
     void clear() { m_slots.clear(); }
     std::size_t size() const { return m_slots.size(); }
 };

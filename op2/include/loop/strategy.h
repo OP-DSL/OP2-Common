@@ -223,10 +223,10 @@ public:
         return {};
     }
 
-    // Drop its plans for the configuration whose key is call: the tuner has
+    // Drop its plans for the configuration key (Call::key): the tuner has
     // explored it, and nothing will run this strategy on it again.  A later
     // prepare plans it anew.
-    virtual void forget(std::uint64_t call) { (void)call; }
+    virtual void forget(std::uint64_t key) { (void)key; }
 };
 
 // --- Variants -----------------------------------------------------------------

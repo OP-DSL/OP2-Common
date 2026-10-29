@@ -270,7 +270,7 @@ public:
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
-    void forget(std::uint64_t call) override { m_plans.forget(call); }
+    void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
 
 // --- The chunked strategies -------------------------------------------------------
@@ -306,7 +306,7 @@ public:
     std::optional<float> run(const op::loop::Prepared& prepared,
                              const op::loop::Launch& launch) override;
     std::string statistics(const op::loop::Prepared& prepared) const override;
-    void forget(std::uint64_t call) override { m_plans.forget(call); }
+    void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
 
 class ChunkAtomics : public ChunkBase {

@@ -85,7 +85,7 @@ namespace op2_s_{{strategy}} {
     {% endfor -%}
 {%- endmacro -%}
 
-{%- macro dat_dim_w(dat) -%}
+{%- macro dat_dim(dat) -%}
     {%- if dat.dim is not none -%}
 {{dat.dim}}
     {%- else -%}
@@ -105,29 +105,35 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
-{%- macro arg_to_pointer_cuda(arg, jit = false, staged = none, local = false) %}
+{#- An argument as the kernel sees it: an index, or its element, an inactive
+    optional's placeholder when guarded. -#}
+{%- macro arg_value(arg, jit = false, staged = none, local = false) %}
     {%- if arg is idx and arg is indirect -%}
 {{abi.idx_arg("idx%d" % arg.id)}}
     {%- elif arg is idx -%}
 {{abi.idx_arg("idx")}}
     {%- elif arg is opt and abi.guarded(arg) -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_to_pointer2(arg, jit, staged, local)}} : {{abi.inactive(arg)}}
+(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_element(arg, jit, staged, local)}} : {{abi.inactive(arg)}}
     {%- else -%}
-{{arg_to_pointer2(arg, jit, staged, local)}}
+{{arg_element(arg, jit, staged, local)}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer2(arg, jit, staged = none, local = false) -%}
+{#- A scalar READ global by value, any other argument as its pointer's
+    element. -#}
+{%- macro arg_element(arg, jit, staged = none, local = false) -%}
     {%- if jit and arg is gbl and arg is read and arg is scalar -%}
 {{abi.value("op::kernel::param_value(op2_gbl%d_d, gbl%d)" % (arg.id, arg.id))}}
     {%- elif arg is gbl and arg is read and arg is scalar -%}
 {{abi.value("gbl%d" % arg.id)}}
     {%- else -%}
-{{abi.element(arg, arg_to_pointer3(arg, jit, staged, local))}}
+{{abi.element(arg, arg_ptr(arg, jit, staged, local))}}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro arg_to_pointer3(arg, jit, staged = none, local = false) -%}
+{#- An argument's pointer: a global's or an info's, per thread, by value or
+    baked in, else its dat's. -#}
+{%- macro arg_ptr(arg, jit, staged = none, local = false) -%}
     {%- if arg is info -%}
 op::kernel::Ptr{info{{arg.id}} + thread_id, op2_stride_gbl_d}
     {%- elif arg in args_gbl_per_thread -%}
@@ -141,7 +147,7 @@ op::kernel::Ptr{op::kernel::param_value(op2_gbl{{arg.id}}_d, gbl{{arg.id}})}
     {%- elif arg is gbl -%}
 op::kernel::Ptr{gbl{{arg.id}}}
     {%- else -%}
-{{arg_to_pointer4(arg, staged, local)}}
+{{dat_ptr(arg, staged, local)}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -152,15 +158,15 @@ op::kernel::Ptr{gbl{{arg.id}}}
     {%- set group = groups[strategy].group(arg) -%}
     {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
     {%- if strategy == "chunk_atomics" -%}
-((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}})
+((op2_unstaged_singles && {{word}} == op::plan::unstaged_word) ? {{arg_global_pointer(arg)}} : op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}})
     {%- else -%}
-op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim_w(lh.dat(arg))}}}
+op::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
 {#- staged names the strategy whose group arguments point at their staged
     slots; local points the indirect increments at per-thread registers. -#}
-{%- macro arg_to_pointer4(arg, staged = none, local = false) -%}
+{%- macro dat_ptr(arg, staged = none, local = false) -%}
     {%- if local and arg in groups.chunk_atomics.args -%}
 op::kernel::Ptr{op2_local{{arg.id}}}
     {%- elif staged is not none and arg in groups[staged].args -%}
@@ -176,11 +182,11 @@ op::kernel::Ptr{op2_local{{arg.id}}}
     {%- if arg is direct and lh.dat(arg) is soa -%}
 op::kernel::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim_w(lh.dat(arg))}}}
+op::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim(lh.dat(arg))}}}
     {%- elif lh.dat(arg) is soa -%}
 op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}}, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim_w(lh.dat(arg))}}}
+op::kernel::Ptr{dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim(lh.dat(arg))}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -194,7 +200,7 @@ int idx{{arg.id}} = {{map_lookup(arg)}}{{" + 1" if abi.index_base}};
 {% endfor %}
 op2_s_{{strategy}}::{{lh.kernel}}(
 {% for arg in lh.args %}
-    {{arg_to_pointer_cuda(arg, jit, staged, local)}}{{"," if not loop.last}}
+    {{arg_value(arg, jit, staged, local)}}{{"," if not loop.last}}
 {% endfor %}
 );
 {%- endmacro -%}
@@ -244,7 +250,7 @@ true
     {%- if dat is soa -%}
 op::kernel::Ptr{dat{{arg.dat_id}} + target, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
-op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
+op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
     {%- endif -%}
 {%- endmacro -%}
 
@@ -256,7 +262,7 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% set dat = lh.dat(arg) %}
         for (int s = threadIdx.x; s < op2_stage{{loop.index0}}_count; s += blockDim.x) {
             const int target = slot_targets[op2_chunk_slots[{{loop.index0}}] + s];
-            op::kernel::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim_w(dat)}});
+            op::kernel::stage_{{action}}({{stage_global(arg, dat)}}, op2_stage{{loop.index0}}, s, {{dat_dim(dat)}});
         }
 {% endfor %}
 {% endmacro %}
@@ -272,7 +278,7 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
             const int op2_colour = n < op2_source_end ? thread_colours[n] : -1;
     {% if chunk_colouring_parallel %}
         {% for arg in groups.chunk_atomics.args %}
-            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim_w(lh.dat(arg))}}] = {};
+            {{lh.dat(arg).typ.c()}} op2_local{{arg.id}}[{{dat_dim(lh.dat(arg))}}] = {};
         {% endfor %}
 
             if (op2_colour >= 0) {
@@ -287,9 +293,9 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
         {% for arg in groups.chunk_atomics.args %}
             {% if arg is opt %}
                     if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
-                        op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+                        op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
             {% else %}
-                    op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim_w(lh.dat(arg))}});
+                    op::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
             {% endif %}
         {% endfor %}
                 }
@@ -359,13 +365,13 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     {% for dat_id in dats %}
         {% set dat = lh.dat(dat_id) %}
         const int op2_stage{{loop.index0}}_count = op2_stage{{loop.index0}}_active ? op2_chunk_counts[{{loop.index0}}] : 0;
-        {{dat.typ.c()}} *op2_stage{{loop.index0}} = op::kernel::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim_w(dat)}});
+        {{dat.typ.c()}} *op2_stage{{loop.index0}} = op::kernel::stage_region<{{dat.typ.c()}}>(op2_stage_cursor, op2_stage{{loop.index0}}_count, {{dat_dim(dat)}});
     {% endfor %}
 
     {% if strategy == "chunk_atomics" %}
         // Clear every region before accumulating into it.
         {% for dat_id in dats %}
-        op::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim_w(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
+        op::kernel::stage_clear(op2_stage{{loop.index0}}, op2_stage{{loop.index0}}_count * {{dat_dim(lh.dat(dat_id))}}, threadIdx.x, blockDim.x);
         {% endfor %}
         __syncthreads();
 
@@ -431,7 +437,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     const int arg{{arg.id}}_idx,
     {% endfor %}
     {% if strategy == "colouring" %}
-    const int *__restrict col_reord,
+    const int *__restrict colour_order,
     {% endif %}
     {% if lh.args|opt|length > 0 %}
     const unsigned opt_flags,
@@ -473,7 +479,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% else %}
     for (int i = thread_id + start; i < end; i += blockDim.x * gridDim.x) {
     {% if strategy == "colouring" %}
-        int n = col_reord[i];
+        int n = colour_order[i];
     {% else %}
         int n = i;
     {% endif %}
