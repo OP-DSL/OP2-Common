@@ -633,8 +633,7 @@ static bool op2_k_{{lh.name}}{{variant}}_register(op::rt::gpu::Loop& loop) {
 static op::rt::gpu::Loop& op2_k_{{lh.name}}{{variant}}_loop() {
     static op::rt::gpu::Loop loop(
         "{{lh.name}}", "{{target.name}}", "{{variant_str()}}",
-        op::rt::gpu::LoopDescription{ {{"true" if lh is direct else "false"}},
-                                  {{"true" if config.gbl_inc_atomic else "false"}} },
+        {{"true" if lh is direct else "false"}}, {{"true" if config.gbl_inc_atomic else "false"}},
         OP_KERNEL_JIT_HEADERS);
     static const bool registered = op2_k_{{lh.name}}{{variant}}_register(loop);
     (void)registered;

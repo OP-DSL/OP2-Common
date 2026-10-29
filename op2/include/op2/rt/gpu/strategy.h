@@ -52,13 +52,6 @@ struct LaunchContext {
 using Binder = void (*)(LaunchContext& launch, op_arg *args,
                         std::vector<void *>& arguments);
 
-// Facts about a loop that every strategy reads.
-struct LoopDescription {
-    bool direct;
-    // A global OP_INC is incremented atomically, in place, rather than
-    // reduced from a copy per thread.
-    bool gbl_inc_atomic;
-};
 
 // --- Variants -------------------------------------------------------------------
 

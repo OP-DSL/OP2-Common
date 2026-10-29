@@ -160,7 +160,7 @@ void run(const char *strategy) {
     args[5].argtype = OP_ARG_INFO;
     args[5].acc = 4;
 
-    cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", cpu::LoopDescription{false});
+    cpu::Loop loop("test_loop", "openmp_f2c", "Indirect", false);
     op::rt::plan::ArgGroups arg_groups{groups, 1};
     loop.add<cpu::ChunkAtomics>("chunk_atomics", &staged_body, arg_groups);
     loop.add<cpu::Simple>("atomics", &range_body<true, false>);

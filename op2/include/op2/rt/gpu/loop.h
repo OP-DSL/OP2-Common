@@ -26,6 +26,8 @@ namespace op::rt::gpu {
 
 class Loop : public op::rt::loop::Loop {
 private:
+    // A global OP_INC is incremented atomically, in place, rather than
+    // reduced from a copy per thread.
     bool m_gbl_inc_atomic;
     SymbolBindings m_symbols;
     Compiler m_compiler;
@@ -74,10 +76,10 @@ private:
 public:
     // profile_target and profile_variant name the loop to the profiler.
     Loop(std::string_view name, std::string_view profile_target,
-         std::string_view profile_variant, LoopDescription description,
+         std::string_view profile_variant, bool direct, bool gbl_inc_atomic,
          JitHeaders headers)
-        : op::rt::loop::Loop{name, profile_target, profile_variant, description.direct, true},
-          m_gbl_inc_atomic{description.gbl_inc_atomic},
+        : op::rt::loop::Loop{name, profile_target, profile_variant, direct, true},
+          m_gbl_inc_atomic{gbl_inc_atomic},
           m_compiler{name, std::move(headers)} {}
 
     ~Loop() override { release(); }

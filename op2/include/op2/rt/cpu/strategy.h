@@ -52,10 +52,6 @@ struct Work {
 // Run one thread's share of a phase.
 using Body = void (*)(const Work& work, op_arg *args);
 
-// Facts about a loop that every strategy reads.
-struct LoopDescription {
-    bool direct;
-};
 
 // --- Per-thread globals ------------------------------------------------------------
 

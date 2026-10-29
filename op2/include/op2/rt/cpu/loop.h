@@ -33,8 +33,8 @@ private:
 
 public:
     Loop(std::string_view name, std::string_view profile_target,
-         std::string_view profile_variant, LoopDescription description)
-        : op::rt::loop::Loop{name, profile_target, profile_variant, description.direct, false} {}
+         std::string_view profile_variant, bool direct)
+        : op::rt::loop::Loop{name, profile_target, profile_variant, direct, false} {}
 
     // --- Registration, by the generated code ---
 

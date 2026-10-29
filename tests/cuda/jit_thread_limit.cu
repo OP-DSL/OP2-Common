@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
 
     {
         declare();
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", true, false, headers());
         make(jit_loop, unbounded);
         auto prepared = prepare(jit_loop);
         expect(prepared.status == loop::Status::unavailable &&
@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
     }
     {
         declare();
-        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", {true, false}, headers());
+        gpu::Loop jit_loop("thread_limit", "cuda", "Direct", true, false, headers());
         make(jit_loop, bounded);
         runs(jit_loop, "launch bounds");
     }
