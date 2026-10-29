@@ -591,10 +591,12 @@ The following environment variables can be set at run time to control OP2 behavi
      - JIT-compiled (``cuda`` / ``hip``, ``cuda_f2c`` / ``hip_f2c``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that keeps changing moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that four in five calls agree on. Replaces ``OP_JIT_ENABLE``.
    * - ``OP_JIT_FORCE``
      - Set to ``1`` to specialise every kernel; by default only those whose offline kernel uses more registers than ``OP_JIT_MIN_REGISTERS`` (32), or that have no offline kernel.
+   * - ``OP_JIT_MIN_REGISTERS``
+     - Integer, default 32. A kernel whose offline version uses more registers than this has its specialised kernel offered first.
    * - ``OP_JIT_MIN_CALLS``
      - Integer, default 9. Calls with the same baked values before their kernel's build starts.
    * - ``OP_JIT_MAX_THREADS``
-     - Integer. Kernel builds running at once on background threads; 16 with CUDA 12.3 or later, else 4.
+     - Integer. Kernel builds running at once on background threads; 16 with CUDA 12.3 or later, else 4.  hipRTC builds one kernel at a time per process whatever this is.
    * - ``OP_JIT_SEQ_COMPILE``
      - Set to ``1`` to build each kernel on the calling thread when it is due, so it runs from that call on.
    * - ``OP_JIT_DEBUG``

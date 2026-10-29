@@ -497,7 +497,6 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
     code('call op_timers_core(startTime)')
     code('')
     #mpi halo exchange call
-    #code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,1)')
     code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,1)')
     # A direct loop reads no halo: its exchange only brings the dats to this
     # device. Every exchange needs its wait, so it waits at once.
@@ -605,7 +604,6 @@ def op2_gen_openmp3(master, date, consts, kernels, hydra,bookleaf):
       DO('i1','0','actualPlan_'+name+'%ncolors')
 
       IF('i1 .EQ. actualPlan_'+name+'%ncolors_core')
-      #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
       code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
       ENDIF()
       code('')

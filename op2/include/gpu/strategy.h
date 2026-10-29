@@ -11,7 +11,6 @@
 #include <op_lib_cpp.h>
 #include <plan/cache.h>
 #include <plan/colouring.h>
-#include <plan/options.h>
 
 #include <algorithm>
 #include <cassert>
@@ -192,9 +191,9 @@ public:
     std::string_view name() const override { return m_name; }
 
     // The offline kernel at a nominal 1 when it can launch the block size; a
-    // specialised one when there is source, expected
-    // faster when the offline kernel uses more than OP_JIT_MIN_REGISTERS
-    // registers (by an arbitrary tenth, until timings calibrate it).
+    // specialised one when there is source, expected faster when the offline
+    // kernel uses more than OP_JIT_MIN_REGISTERS registers (by an arbitrary
+    // tenth, until timings calibrate it).
     op::loop::Estimate estimate(op::loop::KernelKind kind) const override {
         if (kind == op::loop::KernelKind::offline)
             return offline_usable() ? op::loop::Estimate{true, 1.0f}

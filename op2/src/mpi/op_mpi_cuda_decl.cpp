@@ -271,12 +271,6 @@ void op_timers(double *cpu, double *et) {
   op_timers_core(cpu, et);
 }
 
-//
-// This function is defined in the generated master kernel file
-// so that it is possible to check on the runtime size of the
-// data in cases where it is not known at compile time
-//
-
 void op_exit() {
   {
     int rank = 0, ranks = 1;

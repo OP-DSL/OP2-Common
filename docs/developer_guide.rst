@@ -351,7 +351,7 @@ Every exchange must be followed by exactly one wait before the next exchange, in
 
 During step 2, ``op_mpi_test_all()`` progresses the outstanding messages without blocking.
 
-These are the only exchange entry points, for translator v1 and v2 alike: the older ``_cuda``, ``_grouped`` and ``_unified`` variants are gone, and the device is an argument.
+These are the only exchange entry points, for translator v1 and v2 alike, and the device is an argument.
 
 This maximises overlap of computation with communication.
 

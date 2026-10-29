@@ -1319,7 +1319,6 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
   OP_is_partitioned = 1;
 }
 
-extern int **OP_map_ptr_list;
 /* Called from Fortran by its C name; declared in no header. */
 extern "C" void op_partition_ptr(const char *lib_name, const char *lib_routine, op_set prime_set, int *prime_map,
                                  double *coords) {

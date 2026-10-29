@@ -18,10 +18,8 @@
 #define gpuFuncAttributes_t cudaFuncAttributes
 
 #define gpuSuccess cudaSuccess
-#define gpuFuncCachePreferL1 cudaFuncCachePreferL1
 #define gpuStreamNonBlocking cudaStreamNonBlocking
 #define gpuEventDisableTiming cudaEventDisableTiming
-#define gpuHostRegisterDefault cudaHostRegisterDefault
 
 #define gpuGetLastError cudaGetLastError
 #define gpuGetErrorString cudaGetErrorString
@@ -41,32 +39,25 @@
 
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
-#define gpuMemcpyDefault cudaMemcpyDefault
 
 #define gpuHostMalloc cudaMallocHost
 #define gpuHostFree cudaFreeHost
-#define gpuHostRegister cudaHostRegister
-#define gpuHostUnregister cudaHostUnregister
 
 #define gpuDeviceSynchronize cudaDeviceSynchronize
 #define gpuStreamSynchronize cudaStreamSynchronize
 
-#define gpuStreamCreateWithFlags cudaStreamCreateWithFlags
 #define gpuEventCreateWithFlags cudaEventCreateWithFlags
 #define gpuEventCreate cudaEventCreate
 #define gpuEventDestroy cudaEventDestroy
 #define gpuEventElapsedTime cudaEventElapsedTime
 #define gpuEventRecord cudaEventRecord
 #define gpuEventSynchronize cudaEventSynchronize
-#define gpuStreamWaitEvent cudaStreamWaitEvent
 
-#define gpuMemcpyToSymbol cudaMemcpyToSymbol
 #define gpuGetSymbolAddress cudaGetSymbolAddress
 
 #define gpuGetDeviceCount cudaGetDeviceCount
 #define gpuGetDevice cudaGetDevice
 #define gpuSetDevice cudaSetDevice
-#define gpuDeviceSetCacheConfig cudaDeviceSetCacheConfig
 #define gpuGetDeviceProperties cudaGetDeviceProperties
 
 #define gpuFuncGetAttributes cudaFuncGetAttributes
@@ -93,7 +84,6 @@
 #define gpuDrvModuleGetFunction cuModuleGetFunction
 #define gpuDrvModuleGetGlobal cuModuleGetGlobal
 #define gpuDrvMemcpyHtoDAsync cuMemcpyHtoDAsync
-#define gpuDrvOccupancyMaxPotentialBlockSize cuOccupancyMaxPotentialBlockSize
 #define gpuDrvLaunchKernel cuLaunchKernel
 
 // RTC API
@@ -128,10 +118,8 @@
 #define gpuFuncAttributes_t hipFuncAttributes
 
 #define gpuSuccess hipSuccess
-#define gpuFuncCachePreferL1 hipFuncCachePreferL1
 #define gpuStreamNonBlocking hipStreamNonBlocking
 #define gpuEventDisableTiming hipEventDisableTiming
-#define gpuHostRegisterDefault hipHostRegisterDefault
 
 #define gpuGetLastError hipGetLastError
 #define gpuGetErrorString hipGetErrorString
@@ -151,32 +139,25 @@
 
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
-#define gpuMemcpyDefault hipMemcpyDefault
 
 #define gpuHostMalloc hipHostMalloc
 #define gpuHostFree hipHostFree
-#define gpuHostRegister hipHostRegister
-#define gpuHostUnregister hipHostUnregister
 
 #define gpuDeviceSynchronize hipDeviceSynchronize
 #define gpuStreamSynchronize hipStreamSynchronize
 
-#define gpuStreamCreateWithFlags hipStreamCreateWithFlags
 #define gpuEventCreateWithFlags hipEventCreateWithFlags
 #define gpuEventCreate hipEventCreate
 #define gpuEventDestroy hipEventDestroy
 #define gpuEventElapsedTime hipEventElapsedTime
 #define gpuEventRecord hipEventRecord
 #define gpuEventSynchronize hipEventSynchronize
-#define gpuStreamWaitEvent hipStreamWaitEvent
 
-#define gpuMemcpyToSymbol hipMemcpyToSymbol
 #define gpuGetSymbolAddress hipGetSymbolAddress
 
 #define gpuGetDeviceCount hipGetDeviceCount
 #define gpuGetDevice hipGetDevice
 #define gpuSetDevice hipSetDevice
-#define gpuDeviceSetCacheConfig hipDeviceSetCacheConfig
 #define gpuGetDeviceProperties hipGetDeviceProperties
 
 #define gpuFuncGetAttributes hipFuncGetAttributes
@@ -206,7 +187,6 @@
 // Before ROCm 7 the source is a non-const pointer, only read.
 #define gpuDrvMemcpyHtoDAsync(dst, src, bytes, stream) \
     hipMemcpyHtoDAsync(dst, const_cast<void *>(src), bytes, stream)
-#define gpuDrvOccupancyMaxPotentialBlockSize hipOccupancyMaxPotentialBlockSize
 #define gpuDrvLaunchKernel hipModuleLaunchKernel
 
 // RTC API

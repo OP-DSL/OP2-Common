@@ -282,8 +282,8 @@ configure to disable.
      - Skip building the example apps under ``apps/``.
    * - ``OP2_ENABLE_TESTS``
      - ``OFF``
-     - Skip the functional tests under ``tests/`` and their ``ctest``
-       registration.
+     - Skip the tests under ``tests/`` (unit, CUDA, translator and
+       functional) and their ``ctest`` registration.
    * - ``OP2_ENABLE_APP_TESTS``
      - ``OFF``
      - Also run the example apps (needs ``OP2_ENABLE_APPS``) to their own

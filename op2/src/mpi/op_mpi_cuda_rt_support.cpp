@@ -97,9 +97,7 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     cutilSafeCall(gpuFree(test));
 
-    // No gpuDeviceSetCacheConfig(gpuFuncCachePreferL1): it overrides the
-    // driver's per-launch L1/shared split and starves kernels that stage in
-    // shared memory (one block per SM on an H100).
+    // No L1-preferring cache config: it starves kernels staging in shared memory.
 
     int deviceId = -1;
     cutilSafeCall(gpuGetDevice(&deviceId));
@@ -174,10 +172,6 @@ void op_download_dat(op_dat dat) {
 // Called once from op_init, after MPI is up, because the capability queries need
 // it. OP_GPU_DIRECT overrides the detection in either direction.
 void op_gpu_direct_init() {
-    static bool resolved = false;
-    if (resolved) return;
-    resolved = true;
-
     const char *reason;
     std::optional<bool> forced;
     op::env::parse_bool("OP_GPU_DIRECT", forced);
@@ -206,9 +200,8 @@ void op_gpu_direct_init() {
             static const char *hints[] = {"MPICH_GPU_SUPPORT_ENABLED", "I_MPI_OFFLOAD",
                                           "MV2_USE_CUDA"};
             for (const char *hint : hints) {
-                const char *value = getenv(hint);
-
-                if (value != NULL && atoi(value) != 0) {
+                int value = 0;
+                if (op::env::parse_number(hint, value) && value != 0) {
                     OP_gpu_direct = 1;
                     reason = hint;
                     break;

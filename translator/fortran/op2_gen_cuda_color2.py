@@ -1243,7 +1243,6 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
 
     code('call op_timers_core(startTime)')
     code('')
-    #code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,2)')
     code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray,2)')
     # A direct loop reads no halo: its exchange only brings the dats to this
     # device. Every exchange needs its wait, so it waits at once.
@@ -1385,7 +1384,6 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
       if not atomics:
         DO('i2','0','actualPlan_'+name+'%ncolors')
         IF('i2 .EQ. actualPlan_'+name+'%ncolors_core')
-        #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
         code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
         ENDIF()
         code('')
@@ -1395,7 +1393,6 @@ def op2_gen_cuda_color2(master, date, consts, kernels, hydra, bookleaf):
         IF('i2 .EQ. 1')
         code('itstart = set%setPtr%core_size')
         code('itend = n_upper')
-        #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
         code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
         ELSE()
         code('itstart = 0')

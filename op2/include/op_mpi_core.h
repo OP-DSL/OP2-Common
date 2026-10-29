@@ -55,10 +55,6 @@ extern MPI_Comm OP_MPI_WORLD;
 extern MPI_Comm OP_MPI_GLOBAL;
 
 #endif /* OP_MPI_CORE_NOMPI */
-// Structs that don't need the MPI include
-
-/** external variables **/
-
 
 // Structs and functions that use MPI definitions
 #ifndef OP_MPI_CORE_NOMPI
@@ -126,10 +122,8 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
 void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
                      MPI_Fint local, int soa);
 
-/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
+/* Defined in op_mpi_cuda_decl.cpp */
 size_t op_mv_halo_device(op_set set, op_dat dat);
-
-/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 size_t op_mv_halo_list_device();
 
 void partition(const char *lib_name, const char *lib_routine, op_set prime_set,

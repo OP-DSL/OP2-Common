@@ -99,15 +99,14 @@ public:
 };
 
 // A strategy's plans by configuration (loop::Call::key): a lookup per call,
-// and the loop's shared plans when a configuration is new.
+// and the backend's shared plans when a configuration is new.
 template<typename Plan>
 class PlanSlots {
 private:
     std::unordered_map<std::uint64_t, std::shared_ptr<const Plan>> m_slots;
 
 public:
-    // The configuration's plan, else the one make() returns, a
-    // std::shared_ptr to it.
+    // The configuration's plan, else the one make() returns.
     template<typename Make>
     const Plan& get(const loop::Call& call, Make&& make) {
         auto key = call.key();

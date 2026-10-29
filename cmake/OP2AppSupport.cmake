@@ -583,7 +583,7 @@ function(_op2_add_variant_executable)
         endif()
     endif()
 
-    # gpu/shims.h / op_f2c_helpers.h gate their gpu* aliases on these.
+    # gpu/shims.h gates its gpu* aliases on these.
     if(_base MATCHES "^cuda(_legacy|_f2c)?$")
         target_compile_definitions(${_tgt} PRIVATE OP2_CUDA)
     elseif(_base MATCHES "^hip(_legacy|_f2c)?$")

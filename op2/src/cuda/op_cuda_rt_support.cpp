@@ -333,9 +333,7 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     cutilSafeCall(gpuFree(test));
 
-    // No gpuDeviceSetCacheConfig(gpuFuncCachePreferL1): it overrides the
-    // driver's per-launch L1/shared split and starves kernels that stage in
-    // shared memory (one block per SM on an H100).
+    // No L1-preferring cache config: it starves kernels staging in shared memory.
 
     int deviceId = -1;
     cutilSafeCall(gpuGetDevice(&deviceId));

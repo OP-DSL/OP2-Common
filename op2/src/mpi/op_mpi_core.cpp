@@ -33,8 +33,8 @@
 /*
  * op_mpi_core.c
  *
- * Implements the OP2 Distributed memory (MPI) halo creation, halo exchange and
- * support utility routines/functions
+ * Implements the OP2 Distributed memory (MPI) halo creation and support
+ * utility routines/functions
  *
  * written by: Gihan R. Mudalige, (Started 01-03-2011)
  */
@@ -1105,10 +1105,6 @@ void op_mpi_put_data(op_dat dat, void *ptr, size_t local_size) {
   dat->dirtybit = 1;
   dat->dirty_hd = 1;
 }
-
-/*******************************************************************************
- * Debug/Diagnostics Routine to initialise import halo data to NaN
- *******************************************************************************/
 
 void op_compute_moment(double t, double *first, double *second) {
   double times[2];

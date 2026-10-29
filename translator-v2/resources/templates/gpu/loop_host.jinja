@@ -396,13 +396,13 @@ op::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim_w(dat)}}}
     }
 {%- endmacro %}
 
-{#- Launch bounds: the offline wrappers' are the default block size
-    (gpu/strategy.h), and a JIT wrapper's its own block size. -#}
+{#- Launch bounds: the offline wrappers' are the default block size, and a
+    JIT wrapper's its own block size. -#}
 {%- macro launch_bounds(jit) -%}
     {%- if jit -%}
 __launch_bounds__(op2_block_size_d)
     {%- else -%}
-__launch_bounds__(128)
+__launch_bounds__(op::gpu::default_block_size)
     {%- endif -%}
 {%- endmacro -%}
 

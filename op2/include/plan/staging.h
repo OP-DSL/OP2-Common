@@ -51,14 +51,14 @@ struct StagedChunks {
     Staging staging;
 };
 
-// Chunk the sections at the largest multiple of lanes up to size whose
-// staging fits scratch_limit and the stage word, and stage them, each
-// active reference of a chunk to a slot of its region (unstaged_singles
-// leaves a target the chunk references once in global memory).  Or why
-// not: no_active_argument; incompatible_argument when two groups reach one
-// dat, or an argument outside the groups reaches a grouped dat or makes an
-// update the groups would not order (an indirect increment, or with
-// read_write an indirect read-write); insufficient_scratch.
+// Chunk the sections at the largest multiple of lanes, up to size rounded up
+// to lanes, whose staging fits scratch_limit and the stage word, and stage
+// them, each active reference of a chunk to a slot of its region
+// (unstaged_singles leaves a target the chunk references once in global
+// memory).  Or why not: no_active_argument; incompatible_argument when two
+// groups reach one dat, or an argument outside the groups reaches a grouped
+// dat or makes an update the groups would not order (an indirect increment,
+// or with read_write an indirect read-write); insufficient_scratch.
 std::string_view stage_chunks(std::span<const op_arg> args,
                               const op::loop::Sections& sections,
                               const ArgGroups& groups, bool read_write, int size,

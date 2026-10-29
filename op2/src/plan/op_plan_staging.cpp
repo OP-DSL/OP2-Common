@@ -98,10 +98,10 @@ int staged_chunk_size(const References& references, int size, int lanes,
     int per_group = std::max(*std::max_element(counts.begin(), counts.end()), 1);
     auto capacity = std::min(static_cast<long long>(limit / per_element),
                              static_cast<long long>(max_slots / per_group));
-    long long blocks = capacity / lanes;
-    if (blocks < 1)
+    long long multiples = capacity / lanes;
+    if (multiples < 1)
         return 0;
-    return static_cast<int>(std::min(requested, blocks * lanes));
+    return static_cast<int>(std::min(requested, multiples * lanes));
 }
 
 // Stage every active reference of each chunk.

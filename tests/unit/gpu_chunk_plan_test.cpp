@@ -842,10 +842,10 @@ int main() {
         test_colour_rounds_and_limit();
         test_colour_random();
     } catch (const std::exception& error) {
-        std::fprintf(stderr, "chunk chunk_plan test failed: %s\n", error.what());
+        std::fprintf(stderr, "GPU chunk plan test failed: %s\n", error.what());
         return EXIT_FAILURE;
     }
 
-    std::printf("chunk chunk_plan tests passed\n");
+    std::printf("GPU chunk plan tests passed\n");
     return EXIT_SUCCESS;
 }

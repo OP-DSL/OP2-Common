@@ -29,17 +29,13 @@
 #                                  # exploring them all, as <target>_autotune
 # )
 #
-# A JIT variant's test runs its offline kernels; each of its loops' JIT
-# kernels runs, asked for from the first call, under a forced strategy, built
-# by the call, or, in a directory with no STRATEGIES, as <target>_jit, built
-# on threads as a run's are by default, a call waiting for its floor's.  Strategies run on the mpi
+# A JIT variant's <target> test runs its offline kernels.  Its loops' JIT
+# kernels run under a forced strategy in <target>_<strategy>, each asked for
+# from the first call and built by it, or, in a directory with no
+# STRATEGIES, in <target>_jit, built on threads as a run builds them by
+# default, a call waiting for its floor's kernel.  Strategies run on the mpi
 # family when there is one (the same kernels, with halo sections) and on
 # soa; the autotuner on the first of those.
-#
-# NAME is not a parameter - it's always derived from the calling directory's
-# name (e.g. tests/functional/dat_reductions/ produces dat_reductions_seq,
-# dat_reductions_par_mpi_seq, ...), so a directory can't drift onto some
-# other naming convention.
 # ---------------------------------------------------------------------------
 set(_OP2_TEST_MPI_RANKS_LOWCOST 8)
 set(_OP2_TEST_MPI_RANKS_GPU 4)

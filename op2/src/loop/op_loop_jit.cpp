@@ -34,7 +34,7 @@ void init_jit_options() {
     env::parse_bool("OP_JIT_SEQ_COMPILE", run_options.seq_compile);
     env::parse_bool("OP_JIT_FORCE", run_options.force);
     if (run_options.force)
-        op_printf("Forcing JIT compilation regardless of register count\n");
+        op_printf("Forcing JIT compilation of every kernel\n");
     env::parse_number("OP_JIT_MIN_CALLS", run_options.min_calls);
     env::parse_number("OP_JIT_MAX_THREADS", run_options.max_threads, 1);
     env::parse_number("OP_JIT_VARYING", run_options.varying);
@@ -74,9 +74,8 @@ void Param::settle(std::string_view loop, bool runtime, const JitOptions& option
         if (runtime)
             m_initial = ParamMode::runtime;
         else
-            op_printf("warning: %s's kernels cannot have %s at run time, from "
-                      "OP_JIT_RUNTIME_PARAMS\n",
-                      std::string{loop}.c_str(), m_name.c_str());
+            env::warn("warning: " + std::string{loop} + "'s kernels cannot have " + m_name +
+                      " at run time, from OP_JIT_RUNTIME_PARAMS\n");
     } else if (runtime && m_source == ParamSource::external) {
         if (bytes() > static_cast<std::size_t>(options.max_const_bytes))
             m_initial = ParamMode::runtime;

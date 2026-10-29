@@ -337,9 +337,7 @@ struct ExchangeContext {
 
             // The scatter wrote into this backend's copy, so that copy is now the
             // current one: dirty_hd 1 means the host copy is newer, 2 the device
-            // copy. A constant 2 made a host exchange in an MPI+CUDA build claim
-            // the device was current, and the next host loop then downloaded the
-            // stale device copy over the halo it had just received.
+            // copy.
             exchange.dat->dirtybit = 0;
             exchange.dat->dirty_hd = device;
         }
@@ -380,7 +378,7 @@ ExchangeContext ctx;
 using namespace op::unified_exchanges;
 
 // MPI time is charged to the kernel being run, and the args are checked under
-// OP_diags, as the older per-dat and grouped exchanges did.
+// OP_diags.
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
     if (OP_diags > 0) {
         int dummy;

@@ -251,8 +251,6 @@ struct Point {
     std::vector<int> values;
 
     int value(std::string_view key) const;
-    // Or otherwise, when its family has no such axis.
-    int value(std::string_view key, int otherwise) const;
 };
 
 // A strategy family a backend offers, under the name the generated code

@@ -7,7 +7,6 @@ from util import Findable
 
 class Target(Findable["Target"]):
     name: str
-    kernel_translation: bool
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {}
@@ -27,14 +26,12 @@ class Target(Findable["Target"]):
 
 class Seq(Target):
     name = "seq"
-    kernel_translation = False
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {"device": 1}
 
 class SeqF2C(Target):
     name = "seq_f2c"
-    kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {"device": 1}
@@ -42,38 +39,28 @@ class SeqF2C(Target):
 
 class CudaLegacy(Target):
     name = "cuda_legacy"
-    kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
 
 class HipLegacy(Target):
     name = "hip_legacy"
-    kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
 
 class Cuda(Target):
     name = "cuda"
-    kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {
             "gbl_inc_atomic": False,
             "func_prefix": "__device__",
-            "hip": False
         }
 
 
 class Hip(Cuda):
     name = "hip"
-
-    def defaultConfig(self) -> Dict[str, Any]:
-        config = super().defaultConfig()
-        config["hip"] = True
-
-        return config
 
 
 class CudaF2C(Cuda):
@@ -86,7 +73,6 @@ class HipF2C(Hip):
 
 class OpenMPF2C(Target):
     name = "openmp_f2c"
-    kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
         # Kernels inlined into each body that calls them.
@@ -95,18 +81,15 @@ class OpenMPF2C(Target):
 
 class OpenMP(Target):
     name = "openmp"
-    kernel_translation = True
 
 
 class OpenMPLegacy(Target):
     name = "openmp_legacy"
-    kernel_translation = False
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {
             "vectorise": {"enable": True, "simd_len": 8, "blacklist": []},
             "device": 1,
-            "thread_timing": False,
         }
 
 

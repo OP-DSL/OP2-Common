@@ -27,7 +27,7 @@ loop/strategy.h        (includes: op_lib_core.h; a loop's strategies, each
                         with its kernels, and the candidates the ladder runs
                         and the tuner times, a strategy with one kernel
                         each, in an order from the backend's estimates; the
-                        axes a family's variants vary along, the families a
+                        axes a family's strategies vary along, the families a
                         backend declares, the run-wide variables op_init
                         reads, and the sections an indirect loop runs)
 loop/autotune.h        (includes: loop/strategy.h; the autotuner that times
@@ -67,9 +67,8 @@ plan/staging.h         (includes: plan/chunks.h, plan/staging_layout.h; the
                         chunks under a backend's lanes and scratch limit)
 plan/staging_layout.h  (the staging layout both the host and a staged kernel
                         read; no includes, so NVRTC compiles it too)
-plan/options.h         (includes: loop/strategy.h; the chunked strategies'
-                        run-wide options, read by op_init, and their chunk
-                        size axis)
+plan/options.h         (the chunked strategies' run-wide options, read by
+                        op_init)
 plan/cache.h           (includes: extern/rapidhash.h, loop/strategy.h,
                         plan/staging.h; the plans strategies share, of any
                         loop: a planner's key over what it plans from, the
@@ -102,8 +101,9 @@ gpu/options.h          (the run-wide options, the JIT mechanism's and the
                         op_init, which declares the GPU families, from
                         src/gpu)
 gpu/jit.h              (includes: gpu/check.h, gpu/options.h, gpu/shims.h,
-                        kernel/prelude.h, kernel/strategy.h, loop/jit.h,
-                        op_lib_core.h; the JIT mechanism: offline kernels and
+                        loop/jit.h, op_lib_core.h; the JIT mechanism, whose
+                        sources include kernel/prelude.h and
+                        kernel/strategy.h: offline kernels and
                         their symbols, NVRTC or hipRTC compiles, run-time
                         parameters as wrapper arguments or module symbols,
                         launches)
@@ -114,11 +114,9 @@ gpu/chunk_encode.h     (includes: gpu/check.h, gpu/chunk_plan.h, gpu/shims.h;
                         a chunk plan uploaded as the kernels read it)
 gpu/strategy.h         (includes: gpu/chunk_encode.h, gpu/chunk_plan.h,
                         gpu/jit.h, loop/strategy.h, op_lib_cpp.h,
-                        plan/colouring.h, plan/options.h; the plain, atomics,
+                        plan/cache.h, plan/colouring.h; the plain, atomics,
                         colouring and chunked strategies, and their axes:
-                        block size, launch bounds and their minimum
-                        blocks, shared-memory spilling,
-                        unstaged singles, wavefront)
+                        block size, unstaged singles, wavefront)
 gpu/loop.h             (includes: gpu/check.h, gpu/jit.h, gpu/strategy.h,
                         loop/loop.h, loop/strategy.h, op_cuda_rt_support.h,
                         op_lib_cpp.h, op_profile.h, plan/options.h; the loop
@@ -131,7 +129,7 @@ gpu/loop.h             (includes: gpu/check.h, gpu/jit.h, gpu/strategy.h,
 cpu/chunk_plan.h       (includes: plan/chunks.h, plan/staging.h; the chunk
                         plans a host thread runs a chunk of on its own)
 cpu/strategy.h         (includes: cpu/chunk_plan.h, loop/strategy.h,
-                        op_lib_core.h, plan/colouring.h, plan/options.h; the
+                        op_lib_core.h, plan/cache.h, plan/colouring.h; the
                         plain, atomics, colouring and chunked strategies over
                         host threads, the per-thread globals, and the
                         families the CPU libraries' op_init declares)

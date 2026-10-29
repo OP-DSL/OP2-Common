@@ -159,7 +159,6 @@ public:
 
   /* Enter a timing section, starting the timer for the section. Sync controls if deviceSync() will be called */
   void enter(std::string_view name, bool sync = true);
-  void enter2(std::string_view name, bool sync = true);
 
   /* Enter a kernel section - called by translator-generated kernels, don't call manually */
   void enter_kernel(std::string_view name, std::string_view target, std::string_view variant);
@@ -169,7 +168,6 @@ public:
 
   /* Finish a kernel section, recording elapsed time. Sync controls if deviceSync() will be called */
   void exit(bool sync = true);
-  void exit2(bool sync = true);
 
   /* End timing, closing all remaining open sections. */
   void finish();

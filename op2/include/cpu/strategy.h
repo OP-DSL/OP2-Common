@@ -10,7 +10,6 @@
 #include <op_lib_core.h>
 #include <plan/cache.h>
 #include <plan/colouring.h>
-#include <plan/options.h>
 
 #include <algorithm>
 #include <cassert>
@@ -296,8 +295,9 @@ protected:
     const ChunkEntry& entry_for(const op::loop::Call& call);
 
 public:
+    // Elements per chunk: OP_<FAMILY>_CHUNK_SIZES, else OP_CHUNK_SIZES.
     static std::vector<op::loop::Axis> axes() {
-        return {op::plan::chunk_size_axis(default_chunk_size)};
+        return {{"CHUNK_SIZES", "chunk_size", false, {default_chunk_size}}};
     }
 
     op::loop::Prepared prepare(const op::loop::Call& call,
