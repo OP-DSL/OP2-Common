@@ -1,6 +1,7 @@
 #include <op2/rt/gpu/strategy.h>
 
 #include <op2/rt/gpu/heuristics.h>
+#include <op2/rt/gpu/upload.h>
 
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
@@ -32,10 +33,7 @@ op::rt::loop::Axis block_size_axis() {
 #endif
 }
 
-ColouringPlan::~ColouringPlan() {
-    if (order_d != nullptr)
-        GPU_CHECK(gpuFree(order_d));
-}
+ColouringPlan::~ColouringPlan() { release(order_d); }
 
 // --- The base of every GPU strategy ------------------------------------------------
 
@@ -188,13 +186,7 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
         return colouring_plans.get(key, [&] {
             auto plan = std::make_shared<ColouringPlan>();
             plan->colouring = op::rt::plan::colour_set(call.args, call.sections);
-            const auto& order = plan->colouring.order;
-            if (!order.empty()) {
-                GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&plan->order_d),
-                                    order.size() * sizeof(int)));
-                GPU_CHECK(gpuMemcpy(plan->order_d, order.data(), order.size() * sizeof(int),
-                                    gpuMemcpyHostToDevice));
-            }
+            upload(plan->colouring.order, plan->order_d);
             if (OP_diags > 3)
                 op_printf("colouring: %s %d colours, %d over owned elements\n",
                           m_loop.name().c_str(), plan->colouring.colours,
@@ -426,13 +418,7 @@ std::span<const StrategyFamily> strategy_families() {
 }
 
 const StrategyFamily& strategy_family(std::string_view name, std::string_view loop) {
-    for (const auto& family : strategy_families())
-        if (family.name == name)
-            return family;
-    std::fprintf(stderr, "error: %.*s registers family %.*s, which the GPU backend lacks\n",
-                 static_cast<int>(loop.size()), loop.data(), static_cast<int>(name.size()),
-                 name.data());
-    std::exit(1);
+    return op::rt::loop::offered_family(strategy_families(), name, loop, "GPU");
 }
 
 } // namespace op::rt::gpu

@@ -126,23 +126,8 @@ void Loop::end_call() {
 
 namespace op::rt::abi::gpu {
 
-namespace {
-
-// The loops made, which live as long as the program.
-std::vector<std::unique_ptr<op::rt::gpu::Loop>>& loops() {
-    static std::vector<std::unique_ptr<op::rt::gpu::Loop>> made;
-    return made;
-}
-
-} // namespace
-
 void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
-    auto *runtime = static_cast<op::rt::gpu::Loop *>(loop.runtime);
-    if (runtime == nullptr) {
-        runtime = loops().emplace_back(std::make_unique<op::rt::gpu::Loop>(loop)).get();
-        loop.runtime = runtime;
-    }
-    runtime->invoke(set, args, nargs);
+    op::rt::loop::runtime<op::rt::gpu::Loop>(loop).invoke(set, args, nargs);
 }
 
 } // namespace op::rt::abi::gpu

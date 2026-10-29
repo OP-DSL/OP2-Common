@@ -211,14 +211,7 @@ std::span<const StrategyFamily> strategy_families() {
 }
 
 const StrategyFamily& strategy_family(std::string_view name, std::string_view loop) {
-    for (const auto& family : strategy_families())
-        if (family.name == name)
-            return family;
-    std::fprintf(stderr,
-                 "error: %.*s registers family %.*s, which the OpenMP backend lacks\n",
-                 static_cast<int>(loop.size()), loop.data(), static_cast<int>(name.size()),
-                 name.data());
-    std::exit(1);
+    return op::rt::loop::offered_family(strategy_families(), name, loop, "OpenMP");
 }
 
 } // namespace op::rt::cpu

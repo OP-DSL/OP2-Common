@@ -52,4 +52,18 @@ struct Family {
 // their settings and order from here.
 void declare_families(std::span<const Family> families);
 
+// Stop the run: loop registers a family the backend lacks.
+[[noreturn]] void missing_family(std::string_view name, std::string_view loop,
+                                 std::string_view backend);
+
+// The family named name among those a backend offers, which loop registers.
+template<typename Offered>
+const Offered& offered_family(std::span<const Offered> offered, std::string_view name,
+                              std::string_view loop, std::string_view backend) {
+    for (const auto& family : offered)
+        if (family.name == name)
+            return family;
+    missing_family(name, loop, backend);
+}
+
 } // namespace op::rt::loop

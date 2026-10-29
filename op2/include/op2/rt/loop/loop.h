@@ -13,9 +13,11 @@
 #include <op2/rt/tune/autotune.h>
 #include <op_lib_core.h>
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace op::rt::loop {
 
@@ -40,6 +42,20 @@ void finalise(int rank, int ranks);
 // The summaries write_reports prints: the tuner's when it is on, the JIT's
 // under OP_JIT_REPORT when it built or observed anything; empty otherwise.
 std::string summaries(int ranks);
+
+// The library's loop for a descriptor, a Backend made from it on its first
+// call: each backend's invoke runs it.  The loops live as long as the
+// program, released by finalise.
+template<typename Backend, typename Descriptor>
+Backend& runtime(Descriptor& descriptor) {
+    static std::vector<std::unique_ptr<Backend>> made;
+    auto *loop = static_cast<Backend *>(descriptor.runtime);
+    if (loop == nullptr) {
+        loop = made.emplace_back(std::make_unique<Backend>(descriptor)).get();
+        descriptor.runtime = loop;
+    }
+    return *loop;
+}
 
 class Loop {
 private:

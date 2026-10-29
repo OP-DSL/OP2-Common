@@ -192,6 +192,13 @@ void declare_families(std::span<const Family> families) {
     }
 }
 
+void missing_family(std::string_view name, std::string_view loop, std::string_view backend) {
+    std::fprintf(stderr, "error: %.*s registers family %.*s, which the %.*s backend lacks\n",
+                 static_cast<int>(loop.size()), loop.data(), static_cast<int>(name.size()),
+                 name.data(), static_cast<int>(backend.size()), backend.data());
+    std::exit(1);
+}
+
 Ladder::Ladder(std::string_view loop_name)
     : m_name{loop_name}, m_forced_names{forced_for(loop_name)} {}
 

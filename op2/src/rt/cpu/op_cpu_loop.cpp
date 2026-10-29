@@ -174,23 +174,8 @@ void Loop::combine_globals(op_arg *args, int) { m_globals.combine(args, m_name.c
 
 namespace op::rt::abi::cpu {
 
-namespace {
-
-// The loops made, which live as long as the program.
-std::vector<std::unique_ptr<op::rt::cpu::Loop>>& loops() {
-    static std::vector<std::unique_ptr<op::rt::cpu::Loop>> made;
-    return made;
-}
-
-} // namespace
-
 void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
-    auto *runtime = static_cast<op::rt::cpu::Loop *>(loop.runtime);
-    if (runtime == nullptr) {
-        runtime = loops().emplace_back(std::make_unique<op::rt::cpu::Loop>(loop)).get();
-        loop.runtime = runtime;
-    }
-    runtime->invoke(set, args, nargs);
+    op::rt::loop::runtime<op::rt::cpu::Loop>(loop).invoke(set, args, nargs);
 }
 
 } // namespace op::rt::abi::cpu

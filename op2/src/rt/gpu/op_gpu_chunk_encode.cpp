@@ -2,6 +2,7 @@
 
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
+#include <op2/rt/gpu/upload.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -11,15 +12,6 @@
 namespace op::rt::gpu {
 
 namespace {
-
-template<typename T>
-void upload(const std::vector<T>& source, T *&destination) {
-    if (source.empty())
-        return;
-    GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&destination), source.size() * sizeof(T)));
-    GPU_CHECK(gpuMemcpy(destination, source.data(), source.size() * sizeof(T),
-                        gpuMemcpyHostToDevice));
-}
 
 std::vector<int> slot_counts(const plan::Staging& staging) {
     std::vector<int> counts;
@@ -31,13 +23,6 @@ std::vector<int> slot_counts(const plan::Staging& staging) {
 void allocate_zeroed(std::size_t count, int *&destination) {
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&destination), count * sizeof(int)));
     GPU_CHECK(gpuMemset(destination, 0, count * sizeof(int)));
-}
-
-template<typename T>
-void release(T *&pointer) {
-    if (pointer != nullptr)
-        GPU_CHECK(gpuFree(pointer));
-    pointer = nullptr;
 }
 
 } // namespace
