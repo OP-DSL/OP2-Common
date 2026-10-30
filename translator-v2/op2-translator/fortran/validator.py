@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnings: str = "all") -> None:
+    # No Fortran target, the seq fallback included, indexes a vector map.
+    if any(isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1 for arg in loop.args):
+        raise OpError(f"{loop.kernel}: vector map arguments are not supported in Fortran", loop.loc)
+
     kernel_entities = app.findEntities(loop.kernel, program, [])
 
     if len(kernel_entities) == 0:
