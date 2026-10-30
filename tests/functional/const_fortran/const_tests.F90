@@ -73,6 +73,19 @@ program const_tests_fortran
   end do
   write(*,*) "consts4 passed"
 
+  ! --- DO loops with negative steps ---
+  call op_par_loop_1(reverse4, set, &
+    op_arg_dat(dat4, -1, OP_ID, 4, "real(8)", OP_RW))
+
+  call op_fetch_data(dat4, fetched4)
+  do i = 1, size
+    call check(abs(fetched4((i - 1) * 4 + 1) - my_const4(4)) < tol .and. &
+               abs(fetched4((i - 1) * 4 + 2) + my_const4(3)) < tol .and. &
+               abs(fetched4((i - 1) * 4 + 3) - my_const4(2)) < tol .and. &
+               abs(fetched4((i - 1) * 4 + 4) + my_const4(1)) < tol, i - 1, "reverse4 failed")
+  end do
+  write(*,*) "reverse4 passed"
+
   call op_profile_end()
   
   if (op_is_root() == 1) print *

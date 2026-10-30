@@ -835,7 +835,14 @@ def translateBlockNonlabelDoConstruct(block_nonlabel_do_construct: f2003.Block_N
                 src += f"for ({control_var} = {lb}; {control_var} <= {ub}; ++{control_var})" + " {\n"
             else:
                 step = translateGeneric(bounds[2], ctx)
-                src += f"for ({control_var} = {lb}; {control_var} <= {ub}; {control_var} += {step})" + " {\n"
+
+                # The loop runs until the variable passes ub in the step's direction.
+                try:
+                    cond = f"{control_var} {'>=' if int(step) < 0 else '<='} {ub}"
+                except ValueError:
+                    cond = f"(({step}) > 0 ? {control_var} <= {ub} : {control_var} >= {ub})"
+
+                src += f"for ({control_var} = {lb}; {cond}; {control_var} += {step})" + " {\n"
 
         elif isinstance(child, f2003.End_Do_Stmt):
             src += "}\n"

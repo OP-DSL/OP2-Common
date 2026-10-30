@@ -4,7 +4,7 @@ module const_kernels
     implicit none
     private
 
-    public :: consts1, consts4
+    public :: consts1, consts4, reverse4
 
 contains
   subroutine consts1(dat)
@@ -21,4 +21,23 @@ contains
       dat(d) = my_const4(d)
     end do
   end subroutine consts4
+
+  ! Reverse the components with a literal negative step, then negate every
+  ! other one from the last with a negative step known only at run time.
+  subroutine reverse4(dat)
+    real(8), dimension(4), intent(inout) :: dat
+    real(8) :: swap
+    integer :: d, step
+
+    do d = 4, 3, -1
+      swap = dat(d)
+      dat(d) = dat(5 - d)
+      dat(5 - d) = swap
+    end do
+
+    step = -2
+    do d = 4, 1, step
+      dat(d) = -dat(d)
+    end do
+  end subroutine reverse4
 end module
