@@ -29,4 +29,5 @@ _op2_translator_rejects(info_ref cuda rejects.cpp "info argument must refer to a
 _op2_translator_rejects(fortran_info_dim cuda_f2c rejects.F90 "${_info}" -D INFO_DIM)
 _op2_translator_rejects(runtime_index cuda_legacy rejects.cpp "kernel: runtime map indices and dims are not supported by cuda_legacy" -D RUNTIME_INDEX)
 _op2_translator_rejects(const_dim cuda rejects.cpp "expected a constant int expression" -D CONST_DIM)
+_op2_translator_rejects(recursion cuda rejects.cpp "recursive kernel functions or types are not supported: fact" -D RECURSION)
 _op2_translator_rejects(fortran_vector_map cuda_f2c rejects.F90 "assign_k: vector map arguments are not supported in Fortran" -D VECTOR_MAP)

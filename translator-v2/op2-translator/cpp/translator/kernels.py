@@ -35,7 +35,8 @@ def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[
         if safeFind(extracted_entities, lambda e: e[0] == entity):
             continue
 
-        for dependency in entity.depends:
+        # In name order: a set's order changes from run to run.
+        for dependency in sorted(entity.depends):
             dependency_entities = app.findEntities(dependency, entity.program)
             unprocessed_entities.extend(dependency_entities)
 
@@ -579,5 +580,8 @@ def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
                     source = source + ";"
 
                 break
+        else:
+            names = ", ".join(entity.name for entity, _ in entities)
+            raise OP.OpError(f"recursive kernel functions or types are not supported: {names}")
 
     return source

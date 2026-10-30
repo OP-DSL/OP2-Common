@@ -1,14 +1,18 @@
 // A loop the cuda target refuses to translate, the case chosen by -D: each
 // misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
 // (an OP_INC one only to increment), an info argument that doesn't match its
-// maximum, a map index a legacy target needs as a constant, or a non-constant
-// const dim.
+// maximum, a map index a legacy target needs as a constant, a non-constant
+// const dim, or a recursive helper.
 
 #include <cstring>
 
 #include "op_seq.h"
 
 inline void take(const double *v, double *r) { r[0] = v[0]; }
+
+#if defined(RECURSION)
+inline double fact(double x) { return x <= 1.0 ? 1.0 : x * fact(x - 1.0); }
+#endif
 
 void kernel(const double *q, double *r, double *p) {
 #if defined(POINTER_ARITHMETIC)
@@ -28,6 +32,8 @@ void kernel(const double *q, double *r, double *p) {
     p[0] = q[0];
 #elif defined(INC_READ)
     r[0] = p[0];
+#elif defined(RECURSION)
+    r[0] = fact(q[0]);
 #endif
 }
 
