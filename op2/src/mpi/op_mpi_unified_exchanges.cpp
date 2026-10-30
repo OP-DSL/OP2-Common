@@ -8,8 +8,8 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
-#include <cassert>
 #include <cstdlib>
+#include <limits>
 #include <string>
 
 namespace op::mpi {
@@ -90,13 +90,17 @@ struct Block {
     size_t size;
 
     void send(int neighbour, MPI_Request *request, int tag, MPI_Comm comm) {
-        int err = MPI_Isend(data, size, MPI_CHAR, neighbour, tag, comm, request);
-        assert(err == MPI_SUCCESS);
+        if (size > static_cast<size_t>(std::numeric_limits<int>::max()))
+            op::mpi::fail("op_mpi_halo_exchanges: a halo message to rank %d is %zu bytes, "
+                          "more than an MPI count holds\n", neighbour, size);
+        MPI_Isend(data, static_cast<int>(size), MPI_BYTE, neighbour, tag, comm, request);
     }
 
     void recv(int neighbour, MPI_Request *request, int tag, MPI_Comm comm) {
-        int err = MPI_Irecv(data, size, MPI_CHAR, neighbour, tag, comm, request);
-        assert(err == MPI_SUCCESS);
+        if (size > static_cast<size_t>(std::numeric_limits<int>::max()))
+            op::mpi::fail("op_mpi_halo_exchanges: a halo message from rank %d is %zu bytes, "
+                          "more than an MPI count holds\n", neighbour, size);
+        MPI_Irecv(data, static_cast<int>(size), MPI_BYTE, neighbour, tag, comm, request);
     }
 };
 
