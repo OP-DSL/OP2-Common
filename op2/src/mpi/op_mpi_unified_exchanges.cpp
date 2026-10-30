@@ -93,6 +93,7 @@ struct Block {
         if (size > static_cast<size_t>(std::numeric_limits<int>::max()))
             op::mpi::fail("op_mpi_halo_exchanges: a halo message to rank %d is %zu bytes, "
                           "more than an MPI count holds\n", neighbour, size);
+
         MPI_Isend(data, static_cast<int>(size), MPI_BYTE, neighbour, tag, comm, request);
     }
 
@@ -100,6 +101,7 @@ struct Block {
         if (size > static_cast<size_t>(std::numeric_limits<int>::max()))
             op::mpi::fail("op_mpi_halo_exchanges: a halo message from rank %d is %zu bytes, "
                           "more than an MPI count holds\n", neighbour, size);
+
         MPI_Irecv(data, static_cast<int>(size), MPI_BYTE, neighbour, tag, comm, request);
     }
 };
