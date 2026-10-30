@@ -352,14 +352,20 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     FORTRAN_COMPILE_EXTENSIONS = {".F90", ".CUF", ".inc"}
     PER_LOOP_HEADER_EXTENSIONS = {".hpp", ".h", ".cuh", ".hip.h", ".mod"}
 
+    failed = False
     for i, (loop, program) in enumerate(app.loops(), 1):
         force_generate = scheme.target == Target.find("seq")
 
         # Generate loop host source
-        res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
+        try:
+            res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
+        except (OpError, ParseError) as e:
+            logger.error(str(e))
+            res = None
 
         if res is None:
-            logger.warning(f"unable to generate loop host {i}")
+            logger.error(f"unable to generate loop host {i} ({loop.name}) for {scheme}")
+            failed = True
             continue
 
         files, fallback = res
@@ -384,6 +390,10 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         if fallback:
             fallback_loops[loop.name] = True
             logger.warning(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
+
+    # A master kernel would include the missing loops' hosts.
+    if failed:
+        sys.exit(1)
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:

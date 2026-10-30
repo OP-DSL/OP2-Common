@@ -80,6 +80,10 @@ class Scheme(Findable["Scheme"]):
             if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
                 main_args["kernel_func"] = self.translateKernel(loop, program, app, main_args["config"], kernel_idx)
         except Exception as e:
+            # Without a fallback, a loop that does not translate is an error.
+            if self.fallback is None:
+                raise
+
             logger.warning(
                 f"kernel translation for kernel {kernel_idx} ({loop.name}) failed ({self}):\n"
                 f"  fallback: {loop.fallback}, can generate: {self.canGenLoopHost(loop)}, force_generate: {force_generate}\n"
