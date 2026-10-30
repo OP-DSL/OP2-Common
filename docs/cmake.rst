@@ -653,7 +653,10 @@ A Fortran application is the same call with ``LANGUAGE fortran``, plus
            --consts-module "${CMAKE_CURRENT_SOURCE_DIR}/my_consts.F90")
 
 ``TRANSLATOR_ONLY_ARGS`` reaches the translator without affecting compilation,
-which is what you want for flags like that one and ``--force_soa``.
+which is what you want for flags like that one and ``--force_soa``. The
+translator knows literal kinds and the standard named ones (``real64``,
+``c_int``, ...); name each kind your application defines with
+``--kind NAME=VALUE``, such as ``--kind rk=8``.
 
 Building and running is then ordinary CMake:
 

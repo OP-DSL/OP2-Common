@@ -34,7 +34,7 @@ int main() {
     CHECK(k::abs(a) == 5 && k::abs(c) == 7 && k::abs(-3) == 3 && k::abs(-2.5) == 2.5);
     CHECK(k::min(a, b) == -5 && k::max(a, b) == 3);
     CHECK(k::mod(a, b) == -2 && k::copysign(b, a) == -3);
-    CHECK(k::dble(a) == -5.0 && k::int_(a) == -5 && k::int_(2.9) == 2);
+    CHECK(k::dble(a) == -5.0);
     CHECK(k::pow(a, 2) == 25 && k::pow(int64_t{2}, -1) == 0);
     CHECK(k::min(5, 4, 3, 2, 1) == 1 && k::max(1.0, 5.0, 2.0, 4.0, 3.0) == 5.0);
     CHECK(k::min(2.0f, 1.0, 3.0f) == 1.0 && k::max(2.0, 4.0f) == 4.0);

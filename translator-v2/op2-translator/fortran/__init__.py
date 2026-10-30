@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import subprocess
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Set, Tuple
 
@@ -17,6 +17,7 @@ from fparser.two.utils import Base, _set_parent
 
 import fortran.parser
 import fortran.translator.program
+import fortran.util
 import fortran.validator
 import op as OP
 from language import Lang
@@ -83,12 +84,13 @@ def base_getnewargsex(self):
 Base.__getnewargs_ex__ = base_getnewargsex
 
 
-kind_selector_aliases = {"*PS": "*8"}
-
-
+# fparser takes a star kind as a number only (real*8): give it the number of a
+# named one (Hydra's real*PS).
 def kind_selector_match(string):
-    if string in kind_selector_aliases:
-        string = kind_selector_aliases[string]
+    if string.startswith("*"):
+        kind = fortran.util.kindValue(string[1:])
+        if kind is not None:
+            string = f"*{kind}"
 
     return f2003.Kind_Selector.match_(string)  # type: ignore
 
@@ -167,6 +169,13 @@ class Preprocessor(pcpp.Preprocessor):
         super(Preprocessor, self).on_include_not_found(is_malformed, is_system_include, curdir, includepath)
 
 
+def kindArg(text: str) -> Tuple[str, int]:
+    name, sep, value = text.partition("=")
+    if not sep or not name.strip() or not value.strip().isdigit():
+        raise ArgumentTypeError(f"expected NAME=VALUE with a kind number, got {text}")
+    return name.strip().lower(), int(value)
+
+
 class Fortran(Lang):
     name = "Fortran"
 
@@ -202,6 +211,14 @@ class Fortran(Lang):
             "--regex-program-translator", help="(Fortran) Use the regex-based program translator", action="store_true"
         )
         parser.add_argument(
+            "--kind",
+            help="(Fortran) A kind name the application defines and its kind number, NAME=VALUE; repeatable",
+            type=kindArg,
+            action="append",
+            default=[],
+            metavar="NAME=VALUE",
+        )
+        parser.add_argument(
             "--alias-warnings",
             help="(Fortran) Warn about kernel dummies without target that may receive one element twice, one "
             "modified: all, except-map-indices (not one map at two indices, which meet only where the map "
@@ -211,6 +228,9 @@ class Fortran(Lang):
         )
 
     def parseArgs(self, args: Namespace) -> None:
+        for name, value in args.kind:
+            fortran.util.kinds[name] = value
+
         if args.consts_module is not None:
             self.consts_module = args.consts_module
             logger.debug(f"Using consts module: {self.consts_module}")

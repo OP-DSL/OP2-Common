@@ -1,11 +1,61 @@
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import copy
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
+import op as OP
 from store import Function
 from util import find, safeFind
+
+
+# The kind names the translator knows, by lower-case name, each its kind
+# number: the standard ones here, an application's own (--kind) added at
+# startup.  Fortran names are case-insensitive, so every lookup lowers them.
+kinds: Dict[str, int] = {
+    "int8": 1,
+    "int16": 2,
+    "int32": 4,
+    "int64": 8,
+    "real32": 4,
+    "real64": 8,
+    "c_bool": 1,
+    "c_int": 4,
+    "c_int32_t": 4,
+    "c_int64_t": 8,
+    "c_long": 8,
+    "c_long_long": 8,
+    "c_float": 4,
+    "c_double": 8,
+}
+
+
+# The intrinsic types the translator supports, by lower-case type name and
+# kind number.
+intrinsic_types: Dict[Tuple[str, int], OP.Type] = {
+    ("integer", 4): OP.Int(True, 32),
+    ("integer", 8): OP.Int(True, 64),
+    ("real", 4): OP.Float(32),
+    ("real", 8): OP.Float(64),
+    ("logical", 1): OP.Bool(),
+    ("logical", 2): OP.Bool(),
+    ("logical", 4): OP.Bool(),
+}
+
+
+# A kind's number, from a literal or a known name, as text or a parse node: 4,
+# the default, for no kind and None for an unknown name.
+def kindValue(kind: Any) -> Optional[int]:
+    if kind is None:
+        return 4
+
+    text = str(kind).strip().lower()
+    return int(text) if text.isdigit() else kinds.get(text)
+
+
+# An intrinsic type by name and kind (as kindValue takes it); None if unsupported.
+def intrinsicType(name: str, kind: Any) -> Optional[OP.Type]:
+    return intrinsic_types.get((name.lower(), kindValue(kind)))
 
 
 def isRef(node: Any, name: str) -> bool:

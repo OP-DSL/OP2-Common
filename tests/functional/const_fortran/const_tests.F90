@@ -108,6 +108,19 @@ program const_tests_fortran
   end do
   write(*,*) "twice4 passed"
 
+  ! --- Kinds by number and by name ---
+  call op_par_loop_1(kinds4, set, &
+    op_arg_dat(dat4, -1, OP_ID, 4, "real(8)", OP_RW))
+
+  call op_fetch_data(dat4, fetched4)
+  do i = 1, size
+    call check(abs(fetched4((i - 1) * 4 + 1) - my_const4(4)) < tol .and. &
+               fetched4((i - 1) * 4 + 2) == 120.0d0 .and. &
+               fetched4((i - 1) * 4 + 3) == 125.0d0 .and. &
+               fetched4((i - 1) * 4 + 4) == 6.0d0, i - 1, "kinds4 failed")
+  end do
+  write(*,*) "kinds4 passed"
+
   call op_profile_end()
   
   if (op_is_root() == 1) print *

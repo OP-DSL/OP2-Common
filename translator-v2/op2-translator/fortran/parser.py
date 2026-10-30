@@ -8,6 +8,7 @@ import fparser.two.utils as fpu
 import op as OP
 from store import Application, Function, Location, ParseError, Program
 from util import safeFind
+import fortran.util as fu
 
 TN = TypeVar("TN")
 
@@ -385,44 +386,16 @@ def parseType(typ: str, loc: Location, include_custom: bool = False) -> Tuple[OP
     typ_clean = re.sub(r"\s*:soa\s*", "", typ_clean)
     typ_clean = re.sub(r"\s*", "", typ_clean)
 
-    def mk_type_regex(t, k):
-        return rf"{t}(?:\((?:kind=)?{k}\)|\*{k})?$"
+    aliases = {"i4": "integer(4)", "i8": "integer(8)", "r4": "real(4)", "r8": "real(8)", "doubleprecision": "real(8)"}
+    typ_clean = aliases.get(typ_clean, typ_clean)
 
-    aliases = {
-        "i4": OP.Int(True, 32),
-        "i8": OP.Int(True, 64),
-        "r4": OP.Float(32),
-        "r8": OP.Float(64),
-    }
-
-    if typ_clean in aliases:
-        return aliases[typ_clean], soa
-
-    integer_match = re.match(mk_type_regex("integer", "(?:ik)?(4|8)"), typ_clean)
-    if integer_match is not None:
-        size = 32
-
-        groups = integer_match.groups()
-        size_match = groups[0] or groups[1]
-        if size_match is not None:
-            size = int(size_match) * 8
-
-        return OP.Int(True, size), soa
-
-    real_match = re.match(mk_type_regex("real", "(?:rk)?(4|8)"), typ_clean)
-    if real_match is not None:
-        size = 32
-
-        groups = real_match.groups()
-        size_match = groups[0] or groups[1]
-        if size_match is not None:
-            size = int(size_match) * 8
-
-        return OP.Float(size), soa
-
-    logical_match = re.match(mk_type_regex("logical", "(?:lk)?(1|2|4)?"), typ_clean)
-    if logical_match is not None:
-        return OP.Bool(), soa
+    # A type and a kind, a number or a name the kind table knows: integer(8),
+    # real*8, real(rk8).
+    match = re.fullmatch(r"(integer|real|logical)(?:\((.+)\)|\*(.+))?", typ_clean)
+    if match is not None:
+        intrinsic = fu.intrinsicType(match.group(1), match.group(2) or match.group(3))
+        if intrinsic is not None:
+            return intrinsic, soa
 
     if include_custom:
         return OP.Custom(typ_clean), soa

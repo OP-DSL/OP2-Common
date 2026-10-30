@@ -73,35 +73,11 @@ class FArray(FType):
 
 
 @dataclass(frozen=True)
-class FInteger(FPrimitive):
-    kind: int
+class FScalar(FPrimitive):
+    typ: OP.Type
 
     def asC(self) -> str:
-        if self.kind == 4:
-            return "int"
-        elif self.kind == 8:
-            return "int64_t"
-        else:
-            raise OpError(f"FInteger unknown kind: {self.kind}")
-
-
-@dataclass(frozen=True)
-class FReal(FPrimitive):
-    kind: int
-
-    def asC(self) -> str:
-        if self.kind == 4:
-            return "float"
-        elif self.kind == 8:
-            return "double"
-        else:
-            raise OpError(f"FReal unknown kind: {self.kind}")
-
-
-@dataclass(frozen=True)
-class FLogical(FPrimitive):
-    def asC(self) -> str:
-        return "bool"
+        return self.typ.c()
 
 
 @dataclass(frozen=True)
@@ -363,35 +339,17 @@ def parseIntrinsicType(intrinsic_type_spec: f2003.Intrinsic_Type_Spec, ctx: Cont
     type_name = intrinsic_type_spec.items[0]
 
     kind = None
-    if intrinsic_type_spec.items[1] is not None:
-        ks = intrinsic_type_spec.items[1]
+    if isinstance(intrinsic_type_spec.items[1], f2003.Kind_Selector):
+        kind = intrinsic_type_spec.items[1].items[1]
 
-        if isinstance(ks, f2003.Kind_Selector):
-            val = ks.items[1]
+    if type_name == "DOUBLE PRECISION":
+        type_name, kind = "REAL", 8
 
-            if isinstance(val, f2003.Int_Literal_Constant):
-                kind = val.items[0]
+    intrinsic = fu.intrinsicType(type_name, kind)
+    if intrinsic is not None:
+        return FScalar(intrinsic)
 
-            elif isinstance(val, f2003.Name):
-                kind = val.string.upper()
-
-    if type_name == "INTEGER":
-        if kind in [None, "4", "IK", "IK4"]:
-            return FInteger(4)
-        elif kind in ["8", "IK8"]:
-            return FInteger(8)
-
-    elif type_name == "REAL":
-        if kind in [None, "4", "RK4"]:
-            return FReal(4)
-        elif kind in ["8", "RK", "RK8"]:
-            return FReal(8)
-
-    elif type_name ==  "LOGICAL":
-        if kind in [None, "LK"]:
-            return FLogical()
-
-    elif type_name == "CHARACTER":
+    if type_name == "CHARACTER":
         if isinstance(intrinsic_type_spec.items[1], f2003.Char_Selector):
             char_selector = intrinsic_type_spec.items[1]
             return FCharacter(translateGeneric(char_selector.items[0], ctx))
@@ -1059,7 +1017,6 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
         "abs":   "op::rt::kernel::abs",
         "aint":  "op::rt::kernel::aint",
         "dble":  "op::rt::kernel::dble",
-        "int":   "op::rt::kernel::int_",
         "min":   "op::rt::kernel::min",
         "max":   "op::rt::kernel::max",
         "mod":   "op::rt::kernel::mod",
@@ -1100,18 +1057,19 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
     items = intrinsic_function_reference.items
     func_name = translateName(items[0], ctx)
 
-    if func_name == "real":
-        arg_spec_list = items[1]
-        kind = translateGeneric(arg_spec_list.items[1], ctx)
+    # REAL and INT convert to their default kind, or to the one their second
+    # argument names.
+    if func_name in ["real", "int"]:
+        args = items[1].items if isinstance(items[1], f2003.Actual_Arg_Spec_List) else (items[1],)
+        kind = None
+        if len(args) > 1:
+            kind = args[1].items[1] if isinstance(args[1], f2003.Actual_Arg_Spec) else args[1]
 
-        if kind == "rk4":
-            cast = "float"
-        elif kind == "rk8":
-            cast = "double"
-        else:
-            ctx.error(f"Unsupported REAL() kind: {kind}", intrinsic_function_reference)
+        intrinsic = fu.intrinsicType("integer" if func_name == "int" else "real", kind)
+        if intrinsic is None:
+            ctx.error(f"Unsupported {func_name.upper()}() kind", intrinsic_function_reference)
 
-        return f"({cast})({translateGeneric(arg_spec_list.items[0], ctx)})"
+        return f"({intrinsic.c()})({translateGeneric(args[0], ctx)})"
 
     if func_name not in intrinsic_funcs:
         ctx.error(f"Unsupported intrinsic func: {func_name}", intrinsic_function_reference)
@@ -1222,29 +1180,26 @@ def translateEquivOperand(equiv_operand: f2003.Equiv_Operand, ctx: Context) -> s
 
 
 def translateIntLiteralConstant(int_literal_constant: f2003.Int_Literal_Constant, ctx: Context) -> str:
-    if int_literal_constant.items[1] is not None:
-        ctx.error(f"Unsupported int literal kind specifier: {int_literal_constant.items[1]}", int_literal_constant)
+    value, kind_spec = int_literal_constant.items
 
-    return str(int_literal_constant.items[0])
+    intrinsic = fu.intrinsicType("integer", kind_spec)
+    if intrinsic is None:
+        ctx.error(f"Unsupported int literal kind specifier: {kind_spec}", int_literal_constant)
+
+    if intrinsic == OP.Int(True, 32):
+        return str(value)
+
+    return f"{intrinsic.c()}({value})"
 
 
 def translateRealLiteralConstant(real_literal_constant: f2003.Real_Literal_Constant, ctx: Context) -> str:
-    is_float = False
-
     kind_spec = real_literal_constant.items[1]
-    kind_spec_is_float = {
-        None: True,
-        "4": True,
-        "RK4": True,
-        "8": False,
-        "RK": False,
-        "RK8": False
-    }
 
-    if kind_spec not in kind_spec_is_float:
+    intrinsic = fu.intrinsicType("real", kind_spec)
+    if intrinsic is None:
         ctx.error(f"Unsupported real literal kind specifier: {kind_spec}", real_literal_constant)
 
-    is_float = kind_spec_is_float[kind_spec]
+    is_float = intrinsic == OP.Float(32)
     raw = str(real_literal_constant.items[0])
 
     # An E exponent leaves the kind to the suffix: 1.0E-7 is default real,

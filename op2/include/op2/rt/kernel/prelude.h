@@ -204,8 +204,6 @@ inline constexpr double abs(double x) { return fabs(x); }
 
 template<typename T> inline constexpr double dble(T x) { return static_cast<double>(x); }
 
-template<typename T> inline constexpr int int_(T x) { return static_cast<int>(x); }
-
 inline constexpr float aint(float x) { return truncf(x); }
 inline constexpr double aint(double x) { return ::trunc(x); }
 
