@@ -62,7 +62,7 @@ class Cpp(Lang):
 
     @lru_cache(maxsize=None)
     def parseFile(
-        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str], preprocess: bool = False
+        self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str], preprocess: bool = False
     ) -> Tuple[Any, str]:
         import cpp.parser
 
@@ -126,11 +126,11 @@ class Cpp(Lang):
 
         return includes
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
+    def parseProgram(self, path: Path, include_dirs: Tuple[Path, ...], defines: List[str]) -> Program:
         import cpp.parser
 
-        ast, source = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
-        ast_pp, source_pp = self.parseFile(path, frozenset(include_dirs), frozenset(defines), preprocess=True)
+        ast, source = self.parseFile(path, include_dirs, frozenset(defines))
+        ast_pp, source_pp = self.parseFile(path, include_dirs, frozenset(defines), preprocess=True)
 
         program = Program(path, ast_pp, source_pp)
 
@@ -143,7 +143,7 @@ class Cpp(Lang):
 
         return program
 
-    def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
+    def translateProgram(self, program: Program, include_dirs: Tuple[Path, ...], defines: List[str], force_soa: bool) -> str:
         import cpp.translator.program
         return cpp.translator.program.translateProgram(program.path.read_text(), program, force_soa)
 

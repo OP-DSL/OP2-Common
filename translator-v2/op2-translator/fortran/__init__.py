@@ -251,7 +251,7 @@ class Fortran(Lang):
         for loop, program in app.loops():
             fortran.validator.validateLoop(loop, program, app, self.alias_warnings)
 
-    def fppIncludes(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Set[Path]:
+    def fppIncludes(self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]) -> Set[Path]:
         # A second fpp pass: -M reports the files it read but suppresses the
         # preprocessed output, so it cannot be folded into the run that
         # produces the source. Its output is one '<object>: <dependency>' rule
@@ -278,7 +278,7 @@ class Fortran(Lang):
         return includes
 
     def preprocess(
-        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
+        self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]
     ) -> Tuple[str, Set[Path]]:
         if self.fpp:
             args = [self.fpp, "-P", "-free", "-f90"]
@@ -322,7 +322,7 @@ class Fortran(Lang):
         return source, preprocessor.includes
 
     def parseFile(
-        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
+        self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]
     ) -> Tuple[f2003.Program, str, Set[Path]]:
         source, includes = self.preprocess(path, include_dirs, defines)
 
@@ -334,15 +334,15 @@ class Fortran(Lang):
 
         return ast, source, includes
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        ast, source, includes = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
+    def parseProgram(self, path: Path, include_dirs: Tuple[Path, ...], defines: List[str]) -> Program:
+        ast, source, includes = self.parseFile(path, include_dirs, frozenset(defines))
 
         program = fortran.parser.parseProgram(ast, source, path)
         program.includes = includes
 
         return program
 
-    def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
+    def translateProgram(self, program: Program, include_dirs: Tuple[Path, ...], defines: List[str], force_soa: bool) -> str:
         if self.use_regex_translator:
             return fortran.translator.program.translateProgram2(program, force_soa)
 

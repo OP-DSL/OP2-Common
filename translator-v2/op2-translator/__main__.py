@@ -132,7 +132,7 @@ def main(argv=None) -> None:
     if len(args.target) == 0:
         args.target = [[name] for name in lang_targets]
 
-    include_dirs = set([Path(dir) for [dir] in args.I])
+    include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
     defines = [define for [define] in args.D]
 
     try:
@@ -295,7 +295,7 @@ def parse(args: Namespace, lang: Lang) -> Application:
 
 
 def parse_file(i, raw_path, lang, args):
-    include_dirs = set([Path(dir) for [dir] in args.I])
+    include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
     defines = [define for [define] in args.D]
 
     return lang.parseProgram(Path(raw_path), include_dirs, defines)
@@ -319,7 +319,7 @@ def validate(args: Namespace, lang: Lang, app: Application) -> None:
 
 def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
-    include_dirs = set([Path(dir) for [dir] in args.I])
+    include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
     defines = [define for [define] in args.D]
 
     fallback_loops = {}
