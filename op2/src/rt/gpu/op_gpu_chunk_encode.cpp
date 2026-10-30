@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -46,6 +47,7 @@ DevicePlan& DevicePlan::operator=(DevicePlan&& other) noexcept {
         release();
         std::swap(static_cast<ChunkArrays&>(*this), static_cast<ChunkArrays&>(other));
         std::swap(m_wave_epoch, other.m_wave_epoch);
+        std::swap(m_wave_positions, other.m_wave_positions);
     }
     return *this;
 }
@@ -62,9 +64,20 @@ DevicePlan::DevicePlan(const ChunkPlan& plan) {
     if (plan.wavefront) {
         upload(plan.wave_pred_offsets, wave_pred_offsets);
         upload(plan.wave_preds, wave_preds);
-        allocate_zeroed(plan.batches.order.size(), wave_done);
+        m_wave_positions = plan.batches.order.size();
+        allocate_zeroed(m_wave_positions, wave_done);
         allocate_zeroed(plan.batches.section_batches.size() - 1, wave_tickets);
     }
+}
+
+int DevicePlan::next_wave_epoch() const {
+    // The done flags hold earlier calls' epochs: before the epoch overflows,
+    // clear them and count from one again.
+    if (m_wave_epoch == std::numeric_limits<int>::max()) {
+        GPU_CHECK(gpuMemsetAsync(wave_done, 0, m_wave_positions * sizeof(int), 0));
+        m_wave_epoch = 0;
+    }
+    return ++m_wave_epoch;
 }
 
 void DevicePlan::release() {

@@ -8,6 +8,7 @@
 #include <op2/rt/abi/staging.h>
 #include <op2/rt/gpu/chunk_plan.h>
 
+#include <cstddef>
 #include <cstdint>
 
 namespace op::rt::gpu {
@@ -31,6 +32,7 @@ class DevicePlan : public ChunkArrays {
 private:
     // Calls are ordered on one stream, so each needs only a fresh epoch.
     mutable int m_wave_epoch = 0;
+    std::size_t m_wave_positions = 0;
 
 public:
     DevicePlan() = default;
@@ -46,7 +48,7 @@ public:
     ~DevicePlan() { release(); }
 
     // The epoch a wavefront call marks its positions done with.
-    int next_wave_epoch() const { return ++m_wave_epoch; }
+    int next_wave_epoch() const;
 
     // OP2 selects one device at initialisation and never switches, so these
     // free on the device they were allocated on.
