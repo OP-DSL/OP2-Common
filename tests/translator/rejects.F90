@@ -1,7 +1,8 @@
 ! A loop the cuda_f2c target warns about and runs through its seq fallback:
 ! an OP_INC argument assigned rather than incremented; with INFO_DIM, also an
 ! info argument narrower than its maximum, which the translator rejects, and
-! with VECTOR_MAP a vector map argument, which it rejects too.
+! with VECTOR_MAP a vector map argument, which it rejects too; with IMPLIED_SAVE
+! an initialised local, which cuda_f2c leaves to seq.
 program rejects
     use OP2_FORTRAN_DECLARATIONS
     use OP2_FORTRAN_REFERENCE
@@ -33,6 +34,10 @@ program rejects
         op_arg_gbl(mx, 2, "real(8)", OP_MAX), &
         op_arg_info(loc, 1, "integer(4)", 2))
 #endif
+#ifdef IMPLIED_SAVE
+    call op_par_loop_1(save_k, edges, &
+        op_arg_dat(p_w, -1, OP_ID, 1, "real(8)", OP_RW))
+#endif
 #ifdef VECTOR_MAP
     call op_par_loop_2(assign_k, edges, &
         op_arg_dat(p_x, -2, p_edge_nodes, 1, "real(8)", OP_INC), &
@@ -46,6 +51,14 @@ contains
         real(8) :: x, w
         x = w + 1.0_8
     end subroutine assign_k
+#ifdef IMPLIED_SAVE
+
+    subroutine save_k(w)
+        real(8) :: w
+        real(8) :: s = 2.0_8
+        w = w + s
+    end subroutine save_k
+#endif
 #ifdef INFO_DIM
 
     subroutine extreme_k(w, mx, loc)

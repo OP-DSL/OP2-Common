@@ -660,12 +660,21 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             attr_spec_list = node.items[1]
 
             is_parameter = False
+            is_save = False
             if attr_spec_list is not None:
                 for attr_spec in attr_spec_list.items:
                     if attr_spec.string == "PARAMETER":
                         is_parameter = True
+                    elif attr_spec.string == "SAVE":
+                        is_save = True
 
             if not is_parameter:
+                # A C++ local starts afresh on every call, which a SAVE local, or an
+                # initialised one (implied SAVE), does not.
+                for entity_decl in node.items[2].items:
+                    if is_save or entity_decl.items[3] is not None:
+                        name = translateGeneric(entity_decl.items[0], ctx)
+                        ctx.error(f"SAVE local {name} is unsupported (an initialiser implies SAVE)", entity_decl)
                 continue
 
             for entity_decl in node.items[2].items:
