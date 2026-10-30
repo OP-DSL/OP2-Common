@@ -97,6 +97,17 @@ program const_tests_fortran
   end do
   write(*,*) "not_greater4 passed"
 
+  ! --- A function with a result variable ---
+  call op_par_loop_1(twice4, set, &
+    op_arg_dat(dat4, -1, OP_ID, 4, "real(8)", OP_RW))
+
+  call op_fetch_data(dat4, fetched4)
+  do i = 1, size
+    call check(abs(fetched4((i - 1) * 4 + 1) - 2.0d0 * my_const4(4)) < tol .and. &
+               all(fetched4((i - 1) * 4 + 2:(i - 1) * 4 + 4) == 0.0d0), i - 1, "twice4 failed")
+  end do
+  write(*,*) "twice4 passed"
+
   call op_profile_end()
   
   if (op_is_root() == 1) print *

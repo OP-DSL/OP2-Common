@@ -4,7 +4,7 @@ module const_kernels
     implicit none
     private
 
-    public :: consts1, consts4, reverse4, not_greater4
+    public :: consts1, consts4, reverse4, not_greater4, twice4
 
 contains
   subroutine consts1(dat)
@@ -50,4 +50,20 @@ contains
       if (.not. dat(d) > 45.0d0) dat(d) = 0.0d0
     end do
   end subroutine not_greater4
+
+  ! A function that returns through a result variable.
+  real(8) function twice(v) result(r)
+    real(8), intent(in) :: v
+
+    r = 2.0d0 * v
+  end function twice
+
+  subroutine twice4(dat)
+    real(8), dimension(4), intent(inout) :: dat
+    integer :: d
+
+    do d = 1, 4
+      dat(d) = twice(dat(d))
+    end do
+  end subroutine twice4
 end module

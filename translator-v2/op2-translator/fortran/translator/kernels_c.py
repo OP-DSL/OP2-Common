@@ -137,9 +137,6 @@ class SubprogramInfo:
 
     types: Dict[str, FType] = field(default_factory=dict)
 
-    def isSubroutine(self) -> bool:
-        return not self.is_function()
-
     def isFunction(self) -> bool:
         return self.func_return_var is not None
 
@@ -278,7 +275,7 @@ def parseFunctionInfo(entity: Entity) -> SubprogramInfo:
 
     suffix = fpu.get_child(function_stmt, f2003.Suffix)
     if suffix is not None:
-        result_name = fpu.get_child(suffix, f2003.Result_Name)
+        result_name = fpu.get_child(suffix, f2003.Name)
         if result_name is not None:
             sub_info.func_return_var = f"_{translateName(result_name)}"
 
@@ -293,9 +290,6 @@ def parseSubroutineTypeInfo(ctx: Context) -> None:
 def parseFunctionTypeInfo(ctx: Context) -> None:
     spec_part = fpu.get_child(ctx.sub_info.ast, f2003.Specification_Part)
     ctx.sub_info.types = parseTypes(spec_part, ctx)
-
-    if ctx.sub_info.func_return_var[1:] in ctx.sub_info.types:
-        ctx.sub_info.types[ctx.sub_info.func_return_var] = ctx.sub_info.pop(ctx.sub_info.func_return_var[1:])
 
     function_stmt = fpu.get_child(ctx.sub_info.ast, f2003.Function_Stmt)
     prefix = fpu.get_child(function_stmt, f2003.Prefix)
@@ -318,7 +312,7 @@ def parseFunctionTypeInfo(ctx: Context) -> None:
         ctx.error("Could not resolve function type")
 
     if not isinstance(ctx.sub_info.types[ctx.sub_info.func_return_var], FPrimitive):
-        ctx.error(f"Non-primitive function return: {func_type}")
+        ctx.error(f"Non-primitive function return: {ctx.sub_info.functionType()}")
 
 
 def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, FType]:
