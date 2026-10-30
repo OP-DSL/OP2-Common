@@ -218,7 +218,7 @@ def insertStrides(
         mapParam(entity, arg_idx, funcs, applyStride, dat.id, is_vec)
 
 # Route each increment of a matched argument through call(target, value),
-# by default op2_inc, which each strategy's generated code defines, and pass
+# by default op2_dat_inc, which each strategy's generated code defines, and pass
 # the argument as an op::rt::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
 # ++p[i], p[i]--, p[i] = p[i] + e - f (a chain of + and - led by p[i]) or
 # p[i] = e + p[i] (*p for p[0]) as a statement of its own; the argument may
@@ -229,7 +229,7 @@ def insertIncrements(
     loop: OP.Loop,
     entities: List[Tuple[Entity, Rewriter]],
     match: Callable[[OP.Arg], bool],
-    call: str = "op2_inc",
+    call: str = "op2_dat_inc",
 ) -> None:
     funcs = [e for e, _ in entities if isinstance(e, Function)]
     rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}

@@ -1,7 +1,7 @@
 #pragma once
 
-// The increment hooks a translated kernel's op2_inc is defined as, on the
-// host and on the device: in place, or atomically.
+// The increments a translated kernel's op2_dat_inc and op2_gbl_inc hooks are
+// defined as, on the host and on the device: in place, or atomically.
 
 #include <op2/rt/kernel/prelude.h>
 
@@ -16,8 +16,8 @@
 
 namespace op::rt::kernel {
 
-// A translated kernel applies each indirect increment through op2_inc, which
-// every strategy's generated code defines as one of these.  The plain form
+// A translated kernel applies each indirect increment through op2_dat_inc,
+// which every strategy's generated code defines as one of these.  The plain form
 // keeps Fortran's x = x + e conversion; the atomic one converts e first, as
 // atomicAdd's operand type requires.
 template<typename T, typename U>

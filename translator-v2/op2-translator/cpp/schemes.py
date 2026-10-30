@@ -240,8 +240,8 @@ class CppCuda(Scheme):
         def indirect_inc(arg: OP.Arg) -> bool:
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC
 
-        # A global OP_INC incremented in place, which no strategy's op2_inc
-        # covers: every thread adds to the one copy.
+        # A global OP_INC incremented in place through op2_gbl_inc: every thread
+        # adds to the one copy, so it is atomic under any strategy.
         def atomic_gbl_inc(arg: OP.Arg) -> bool:
             return config["gbl_inc_atomic"] and isinstance(arg, OP.ArgGbl) and arg.access_type == OP.AccessType.INC
 
@@ -256,7 +256,7 @@ class CppCuda(Scheme):
 
         for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
             ctk.insertIncrements(entity, loop, extracted_entities, indirect_inc)
-            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::rt::kernel::atomic_inc")
+            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op2_gbl_inc")
             ctk.insertPtrs(entity, loop, extracted_entities, ptr_arg)
 
         ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")

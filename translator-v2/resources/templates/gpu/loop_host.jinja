@@ -38,12 +38,20 @@
     increments in registers until its colour's turn. -#}
 {%- set chunk_colouring_parallel = groups.chunk_colouring.args|reject("inc")|reject("read")|list|length == 0 -%}
 
-{#- How each strategy applies the translated kernel's op2_inc calls. -#}
+{#- How each strategy applies the translated kernel's increments: an indirect
+    dat's through op2_dat_inc, and under gbl_inc_atomic a global's, which every
+    thread adds to the one copy of, through op2_gbl_inc. -#}
 {%- macro inc_hook(strategy) -%}
     {%- if strategy != "plain" %}
 template<typename T, typename U>
-static __device__ inline void op2_inc(T& target, U value) {
+static __device__ inline void op2_dat_inc(T& target, U value) {
     op::rt::kernel::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
+}
+    {% endif -%}
+    {%- if config.gbl_inc_atomic and lh.args|gbl|inc|list %}
+template<typename T, typename U>
+static __device__ inline void op2_gbl_inc(T& target, U value) {
+    op::rt::kernel::atomic_inc(target, value);
 }
     {% endif -%}
 {%- endmacro -%}

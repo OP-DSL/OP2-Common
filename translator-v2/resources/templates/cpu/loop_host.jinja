@@ -13,7 +13,7 @@
     updated dats. -#}
 {%- set groups = config.chunk_groups -%}
 
-{#- The kernel increments through op2_inc: atomically under atomics, in
+{#- The kernel increments through op2_dat_inc: atomically under atomics, in
     place under every other strategy, whose increments reach memory no other
     thread updates meanwhile. -#}
 {%- set hooks = ["plain"] + (["atomic"] if "atomics" in strategies else []) -%}
@@ -133,7 +133,7 @@ namespace op2_m_{{lh.name}}{{variant}} {
 namespace op2_s_{{hook}} {
 
 template<typename T, typename U>
-static inline void op2_inc(T& target, U value) {
+static inline void op2_dat_inc(T& target, U value) {
     op::rt::kernel::{{hook}}_inc(target, value);
 }
 
