@@ -700,6 +700,8 @@ static void report_hilbert_keys(const std::vector<HilbertKeys> &keys) {
 }
 
 void op_renumber(op_map base) {
+  if (OP_part_list == nullptr)
+    op::mpi::fail("op_renumber: call op_partition first\n");
   const ReorderMethod method = get_reorder_method(base->to);
   const PropagateMethod propagate = get_propagate_method(base->to);
   if (method == ReorderMethod::None) {
