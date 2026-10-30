@@ -47,13 +47,11 @@ template<typename T, typename U>
 static __device__ inline void op2_dat_inc(T& target, U value) {
     op::rt::kernel::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
 }
-    {% endif -%}
-    {%- if config.gbl_inc_atomic and lh.args|gbl|inc|list %}
+    {% endif %}
 template<typename T, typename U>
 static __device__ inline void op2_gbl_inc(T& target, U value) {
     op::rt::kernel::atomic_inc(target, value);
 }
-    {% endif -%}
 {%- endmacro -%}
 
 {#- The translated kernel, in a namespace of its own for each strategy
