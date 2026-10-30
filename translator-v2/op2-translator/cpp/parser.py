@@ -34,9 +34,12 @@ if libclang_path is not None:
 # clang_Cursor_Evaluate and segfaults on the subsequent getAsInt call.  Fix by
 # stamping the correct signatures on first import.  Idempotent.
 _clang_lib = clang_internal.lib
+CXEVAL_INT = 1  # CXEvalResultKind's CXEval_Int
 if _clang_lib.clang_Cursor_Evaluate.restype is not c_void_p:
     _clang_lib.clang_Cursor_Evaluate.argtypes = [Cursor]
     _clang_lib.clang_Cursor_Evaluate.restype = c_void_p
+    _clang_lib.clang_EvalResult_getKind.argtypes = [c_void_p]
+    _clang_lib.clang_EvalResult_getKind.restype = c_int
     _clang_lib.clang_EvalResult_getAsInt.argtypes = [c_void_p]
     _clang_lib.clang_EvalResult_getAsInt.restype = c_int
     _clang_lib.clang_EvalResult_dispose.argtypes = [c_void_p]
@@ -173,7 +176,6 @@ def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
     if len(args) != 3:
         raise ParseError("incorrect number of args passed to op_decl_const", loc)
 
-    # TODO dim may not be literal
     dim = parseIntExpression(args[0])
     typ, _ = parseType(parseStringLit(args[1]), loc)
     ptr = parseIdentifier(args[2], raw=False)
@@ -232,10 +234,10 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
 
     dat_ptr = parseIdentifier(args[0])
 
-    map_idx = parseIntExpression(args[1])
+    map_idx = parseIntExpression(args[1], optional=True)
     map_ptr = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
-    dat_dim = parseIntExpression(args[3])
+    dat_dim = parseIntExpression(args[3], optional=True)
     dat_typ, dat_soa = parseType(parseStringLit(args[4]), loc)
 
     access_type = parseAccessType(args[5], loc, macros)
@@ -254,7 +256,7 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
         args = args[1:]
 
     ptr = parseIdentifier(args[0])
-    dim = parseIntExpression(args[1])
+    dim = parseIntExpression(args[1], optional=True)
     typ, _ = parseType(parseStringLit(args[2]), loc)
 
     access_type = parseAccessType(args[3], loc, macros)
@@ -277,7 +279,7 @@ def parseArgInfo(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict
         raise ParseError("incorrect number of arguments for op_arg_info", loc)
 
     ptr = parseIdentifier(args[0])
-    dim = parseIntExpression(args[1])
+    dim = parseIntExpression(args[1], optional=True)
     typ, _ = parseType(parseStringLit(args[2]), loc)
 
     ref = parseIntExpression(args[3])
@@ -310,13 +312,20 @@ def parseIdentifier(node: Cursor, raw: bool = True) -> str:
     return node.spelling
 
 
-def parseIntExpression(node: Cursor) -> int:
+# A constant int expression's value; a runtime one is None where optional.
+def parseIntExpression(node: Cursor, optional: bool = False) -> Optional[int]:
     if node.type.kind != TypeKind.INT:
         raise ParseError("expected int expression", parseLocation(node))
 
     eval_result = clang_internal.lib.clang_Cursor_Evaluate(node)
-    val = clang_internal.lib.clang_EvalResult_getAsInt(eval_result)
-    clang_internal.lib.clang_EvalResult_dispose(eval_result)
+    val = None
+    if eval_result:
+        if clang_internal.lib.clang_EvalResult_getKind(eval_result) == CXEVAL_INT:
+            val = clang_internal.lib.clang_EvalResult_getAsInt(eval_result)
+        clang_internal.lib.clang_EvalResult_dispose(eval_result)
+
+    if val is None and not optional:
+        raise ParseError("expected a constant int expression", parseLocation(node))
 
     return val
 

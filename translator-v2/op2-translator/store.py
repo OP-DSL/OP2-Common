@@ -246,7 +246,7 @@ class Application:
         if not isinstance(reduction, OP.ArgGbl) or reduction.access_type not in [OP.AccessType.MIN, OP.AccessType.MAX]:
             raise OpError("info argument must refer to a gbl min or max argument", arg.loc)
 
-        # Only literal dims are known here: a runtime one parses as None, or as 0 in C++.
+        # Only literal dims are known here: a runtime one parses as None.
         if arg.dim and reduction.dim and arg.dim != reduction.dim:
             raise OpError(
                 f"info argument has dimension {arg.dim}, but the reduction it refers to has {reduction.dim}", arg.loc

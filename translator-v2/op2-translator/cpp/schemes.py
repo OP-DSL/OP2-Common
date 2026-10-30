@@ -75,6 +75,13 @@ class CppOpenMPLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
+        if any(dat.dim is None for dat in loop.dats) or any(
+            (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
+            or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
+            for arg in loop.args
+        ):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
             raise ParseError(f"unable to find kernel: {loop.kernel}")
@@ -110,6 +117,13 @@ class CppCudaLegacy(Scheme):
         kernel_idx: int,
     ) -> str:
         import cpp.translator.kernels as ctk
+
+        if any(dat.dim is None for dat in loop.dats) or any(
+            (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
+            or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
+            for arg in loop.args
+        ):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
@@ -163,6 +177,13 @@ class CppHipLegacy(Scheme):
         kernel_idx: int,
     ) -> str:
         import cpp.translator.kernels as ctk
+
+        if any(dat.dim is None for dat in loop.dats) or any(
+            (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
+            or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
+            for arg in loop.args
+        ):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:

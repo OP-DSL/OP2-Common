@@ -1,7 +1,8 @@
 // A loop the cuda target refuses to translate, the case chosen by -D: each
 // misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
-// (an OP_INC one only to increment), or an info argument that doesn't match its
-// maximum.
+// (an OP_INC one only to increment), an info argument that doesn't match its
+// maximum, a map index a legacy target needs as a constant, or a non-constant
+// const dim.
 
 #include <cstring>
 
@@ -54,6 +55,16 @@ int main(int argc, char **argv) {
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
                 op_arg_dat(r_dat, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_dat, 0, map, 1, "double", OP_INC));
+#if defined(RUNTIME_INDEX)
+    int k = argc - 1;
+    op_par_loop(kernel, "kernel", edges,
+                op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
+                op_arg_dat(r_dat, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(p_dat, k, map, 1, "double", OP_INC));
+#elif defined(CONST_DIM)
+    int n = argc;
+    op_decl_const(n, "double", q);
+#endif
 #if defined(INFO_DIM) || defined(INFO_REF)
     double max[2] = {};
     int loc[2] = {};
