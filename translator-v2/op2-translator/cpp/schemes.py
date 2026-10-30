@@ -75,7 +75,7 @@ class CppOpenMPLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if ctk.hasRuntimeShape(loop):
+        if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -114,7 +114,7 @@ class CppCudaLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if ctk.hasRuntimeShape(loop):
+        if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -170,7 +170,7 @@ class CppHipLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if ctk.hasRuntimeShape(loop):
+        if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)

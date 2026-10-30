@@ -17,7 +17,7 @@ def extentToSpan(extent: SourceRange) -> Span:
 
 
 # Whether a loop has a map index or dim known only at run time.
-def hasRuntimeShape(loop: OP.Loop) -> bool:
+def hasRuntimeDim(loop: OP.Loop) -> bool:
     return any(dat.dim is None for dat in loop.dats) or any(
         (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
         or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
