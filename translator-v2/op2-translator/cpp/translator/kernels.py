@@ -16,6 +16,15 @@ def extentToSpan(extent: SourceRange) -> Span:
     return Span(start, end)
 
 
+# Whether a loop has a map index or dim known only at run time.
+def hasRuntimeShape(loop: OP.Loop) -> bool:
+    return any(dat.dim is None for dat in loop.dats) or any(
+        (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
+        or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
+        for arg in loop.args
+    )
+
+
 def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[Entity, Rewriter]]:
     unprocessed_entities = list(entities)
     extracted_entities = []

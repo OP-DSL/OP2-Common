@@ -75,11 +75,7 @@ class CppOpenMPLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if any(dat.dim is None for dat in loop.dats) or any(
-            (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
-            or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
-            for arg in loop.args
-        ):
+        if ctk.hasRuntimeShape(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -118,11 +114,7 @@ class CppCudaLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if any(dat.dim is None for dat in loop.dats) or any(
-            (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
-            or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
-            for arg in loop.args
-        ):
+        if ctk.hasRuntimeShape(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
@@ -178,11 +170,7 @@ class CppHipLegacy(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if any(dat.dim is None for dat in loop.dats) or any(
-            (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
-            or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
-            for arg in loop.args
-        ):
+        if ctk.hasRuntimeShape(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
