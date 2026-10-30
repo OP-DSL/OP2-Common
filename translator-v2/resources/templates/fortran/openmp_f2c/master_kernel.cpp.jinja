@@ -1,21 +1,11 @@
 {% import "fortran/abi.jinja" as abi with context %}
-{%- macro type_c(arg) -%}
-    {%- if arg.typ is instance(OP.Int) -%}
-        int
-    {%- elif arg.typ is instance(OP.Bool) -%}
-        bool
-    {%- elif arg.typ is instance(OP.Float) and arg.typ.size == 32 -%}
-        float
-    {%- else -%}
-        double
-    {%- endif -%}
-{%- endmacro -%}
+#include <cstdint>
 
 {% if lang.user_consts_module is not none %}
 #include "hydra_const_list_c_seq.h"
 {% else %}
     {% for const in app.consts() %}
-extern {{type_c(const)}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+extern {{const.typ.c()}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
     {% endfor %}
 {% endif %}
 
