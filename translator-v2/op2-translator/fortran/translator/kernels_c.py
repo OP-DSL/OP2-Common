@@ -1208,8 +1208,11 @@ def translateLevel4Expr(level_4_expr: f2003.Level_4_Expr, ctx: Context) -> str:
     return f"{translateGeneric(items[0], ctx)} {op} {translateGeneric(items[2], ctx)}"
 
 
+# fparser names each logical level by the operator above it: And_Operand is
+# .NOT. x, Or_Operand x .AND. y, Equiv_Operand x .OR. y.  .NOT. binds looser
+# than a comparison, which C++'s ! does not.
 def translateAndOperand(and_operand: f2003.And_Operand, ctx: Context) -> str:
-    return f"!{translateGeneric(and_operand.items[1], ctx)}"
+    return f"!({translateGeneric(and_operand.items[1], ctx)})"
 
 
 def translateOrOperand(or_operand: f2003.Or_Operand, ctx: Context) -> str:

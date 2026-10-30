@@ -4,7 +4,7 @@ module const_kernels
     implicit none
     private
 
-    public :: consts1, consts4, reverse4
+    public :: consts1, consts4, reverse4, not_greater4
 
 contains
   subroutine consts1(dat)
@@ -40,4 +40,14 @@ contains
       dat(d) = -dat(d)
     end do
   end subroutine reverse4
+
+  ! .NOT. binds looser than a comparison: zero every component not above 45.
+  subroutine not_greater4(dat)
+    real(8), dimension(4), intent(inout) :: dat
+    integer :: d
+
+    do d = 1, 4
+      if (.not. dat(d) > 45.0d0) dat(d) = 0.0d0
+    end do
+  end subroutine not_greater4
 end module
