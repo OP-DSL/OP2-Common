@@ -2,9 +2,10 @@
 // only by copy, so the loops write a region of OP2's laid out as AmgX takes
 // them, which each assembly hands over (AMGX_matrix_replace_coefficients)
 // before AmgX sets its solver up again.  Formats: "bcsr", d x d blocks row
-// major with global block columns (the default); "bcsr:diag", the diagonal
-// blocks apart (AmgX's external diagonal, on one rank); "csr", the scalar
-// entries.  Device variants only: AmgX solves on the GPU.
+// major with global block columns (the default where AmgX has kernels for
+// the block size, else "csr"); "bcsr:diag", the diagonal blocks apart
+// (AmgX's external diagonal, on one rank); "csr", the scalar entries.
+// Device variants only: AmgX solves on the GPU.
 
 #include <op2/solve/solve.h>
 
@@ -54,9 +55,17 @@ struct Format {
     bool diagonal = false;
 };
 
-Format parse_format(const std::string& text, const std::string& name) {
+// AmgX's own block kernels are for 1x1, 3x3 and 4x4 blocks; its general ones
+// failed to launch at 6x6 on an H100, and the next run hung the GPU.
+bool blocks_taken(int d) { return d == 1 || d == 3 || d == 4; }
+
+Format parse_format(const std::string& text, int d, const std::string& name) {
     Format f;
-    if (text.empty() || text == "bcsr")
+    if (text.empty()) {
+        f.scalar = !blocks_taken(d);
+        return f;
+    }
+    if (text == "bcsr")
         return f;
     if (text == "bcsr:diag")
         f.diagonal = true;
@@ -69,13 +78,16 @@ Format parse_format(const std::string& text, const std::string& name) {
 
 class AmgxMatrix final : public Matrix {
 public:
-    AmgxMatrix(op_mat A, const std::string& format) : m_A{A}, m_format{parse_format(format, A->name)} {
+    AmgxMatrix(op_mat A, const std::string& format) : m_A{A}, m_format{parse_format(format, A->dim, A->name)} {
         if (!on_device)
             fail("AmgX: matrix %s: AmgX solves on the device, in a device variant", A->name.c_str());
         op_sparsity sp = A->sparsity;
         const int d = A->dim, nrows = sp->rows->size, bs = d * d;
         if (sp->rows != sp->cols)
             fail("AmgX: matrix %s is not square", A->name.c_str());
+        if (!m_format.scalar && !blocks_taken(d))
+            fail("AmgX: matrix %s: %d x %d blocks, which AmgX's block kernels do not take: use format csr",
+                 A->name.c_str(), d, d);
 
         // Each row's blocks, the diagonal part's then the off-diagonal
         // part's, columns global: AmgX's upload order, which the layout
