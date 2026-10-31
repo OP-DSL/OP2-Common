@@ -650,6 +650,7 @@ op_arg op_arg_mat(op_mat A, int rowidx, op_map rowmap, int colidx, op_map colmap
 }
 
 void op_mat_zero(op_mat A) {
+    A->lib->zero();
     for (const Region& r : A->regions)
         if (r.data != nullptr)
             zero(r.data, r.bytes);

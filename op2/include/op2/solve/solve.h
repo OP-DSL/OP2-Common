@@ -61,6 +61,9 @@ void read_env();
 class Matrix {
 public:
     virtual ~Matrix() = default;
+    // Before the layer zeroes the storage for loops to write: a library may
+    // check its storage is still where the layout says.
+    virtual void zero() {}
     // The loops have written the storage: the library takes the values.
     virtual void assemble() = 0;
 };

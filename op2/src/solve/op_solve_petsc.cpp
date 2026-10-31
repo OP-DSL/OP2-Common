@@ -10,6 +10,7 @@
 #include <op_lib_c.h>
 
 #include <petscksp.h>
+#include <petsc/private/petscimpl.h>
 
 #if OP2_SOLVE_DEVICE
 #include <op2/gpu/check.h>
@@ -41,8 +42,10 @@ public:
             coo();
         else if (format == "aij:owned")
             owned();
-        else
+        else {
+            m_views = true;
             views();
+        }
     }
 
     ~PetscMatrix() override { MatDestroy(&m_mat); }
@@ -53,9 +56,30 @@ public:
             return;
         }
 #if OP2_SOLVE_DEVICE
-        // The loops wrote PETSc's device arrays: it is told so, and they must
-        // not have moved.
-        for (int p = 0; p < 2; p++) {
+        // The loops wrote PETSc's device arrays: the device copy is the
+        // current one, and the matrix has a new state.  A host assembly would
+        // let PETSc copy its stale host values over them.
+        if (!m_views) {
+            for (int p = 0; p < 2; p++) {
+                if (m_parts[p] == nullptr)
+                    continue;
+                PetscScalar *values;
+                PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(m_parts[p], &values));
+                PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(m_parts[p], &values));
+            }
+            PETSC_CALL(PetscObjectStateIncrease((PetscObject)m_mat));
+            return;
+        }
+#endif
+        // The arrays are PETSc's own: an assembly tells it they changed.
+        PETSC_CALL(MatAssemblyBegin(m_mat, MAT_FINAL_ASSEMBLY));
+        PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
+    }
+
+    // PETSc's own device arrays must not have moved since they were located.
+    void zero() override {
+#if OP2_SOLVE_DEVICE
+        for (int p = 0; p < 2 && !m_views; p++) {
             if (m_parts[p] == nullptr)
                 continue;
             PetscScalar *values;
@@ -65,9 +89,6 @@ public:
                 fail("PETSc: matrix %s: its device values moved", m_A->name.c_str());
         }
 #endif
-        // The arrays are PETSc's own: an assembly tells it they changed.
-        PETSC_CALL(MatAssemblyBegin(m_mat, MAT_FINAL_ASSEMBLY));
-        PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
     }
 
     Mat mat() const { return m_mat; }
@@ -206,7 +227,7 @@ private:
 
     op_mat m_A;
     Mat m_mat = nullptr;
-    bool m_coo = false;
+    bool m_coo = false, m_views = false;
     Mat m_parts[2] = {nullptr, nullptr};
     ScalarCsr m_diag, m_offd;
 };

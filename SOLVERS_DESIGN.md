@@ -1,10 +1,11 @@
 # Linear solvers in OP2: design
 
 Goal: implicit solvers in OP2 applications without exporting the system from
-OP2 data structures into a solver library. Par loops write matrix entries and
-right-hand sides into the memory the solver library reads (on the GPU when the
-loops run there), the library solves, and par loops read the solution in place.
-PETSc first, then hypre and Ginkgo, behind one API.
+OP2 data structures into a solver library. Par loops write matrix entries
+into the solver library's own storage, in its own format (on the GPU when the
+loops run there), the library solves, and par loops read the solution in
+place. PETSc, hypre, Ginkgo, AmgX and rocALUTION behind one API, and a mock
+library that owns its storage as a closed-source one (SPLISS) does.
 
 ## 1. What Hydra does now, and what changes
 
@@ -17,17 +18,17 @@ two vector copies per solve, plus code that knows the library's layout.
 Here the matrix is a first-class OP2 object. A par loop names a matrix block as
 it names a dat: `op_arg_mat(A, 0, edge_nodes, 1, edge_nodes, ...)` is the
 (row node 0, column node 1) block of each edge's contribution. The runtime
-resolves it to the block's place in the matrix storage, so the kernel writes
-`A[r * d + c] += ...` straight into it, with the usual OP2 handling of
-increment conflicts (atomics, colouring, chunked staging). Vectors are op_dats
-the library wraps in place.
+resolves it to the block's place in the matrix's storage, wherever and however
+the library keeps it, so the kernel writes `A[r * d + c] += ...` straight into
+it, with the usual OP2 handling of increment conflicts (atomics, colouring,
+chunked staging). Vectors are op_dats the library wraps in place, or copies.
 
 ## 2. API (C, in `op_solve.h`)
 
 ```c
-/* After op_init (and op_partition, under MPI); lib is "petsc", "hypre" or
-   "ginkgo", or NULL for OP_SOLVE_LIB or the first one built in. argc/argv
-   reach the library's options database (PETSc). */
+/* After op_init (and op_partition, under MPI); lib is "petsc", "hypre",
+   "ginkgo", "amgx", "rocalution" or "mock", or NULL for OP_SOLVE_LIB or the
+   first one built in. argc/argv reach the library's options database (PETSc). */
 void op_solve_init(int argc, char **argv, char const *lib);
 void op_solve_exit(void);
 
@@ -38,20 +39,23 @@ void op_solve_exit(void);
 op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs,
                              op_map *rowmaps, op_map *colmaps, char const *name);
 
-/* dim x dim blocks of `type` ("double" only for now) on the sparsity. */
-op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name);
+/* dim x dim blocks of `type` ("double" only for now) on the sparsity, in the
+   library's storage format (section 4), or NULL for OP_SOLVE_FORMAT or the
+   library's default. */
+op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name,
+                   char const *format);
 
-/* Block (rowmap[e][rowidx], colmap[e][colidx]) of A, dim x dim, row-major:
-   the kernel sees dim * dim values. acc is OP_INC, OP_WRITE (only through
-   OP_ID x OP_ID, a set's own diagonal block) or OP_READ. */
+/* Block (rowmap[e][rowidx], colmap[e][colidx]) of A, dim x dim, row-major as
+   the kernel indexes it. acc is OP_INC or OP_READ. */
 op_arg op_arg_mat(op_mat A, int rowidx, op_map rowmap, int colidx, op_map colmap,
                   int dim, char const *type, op_access acc);
 
 void op_mat_zero(op_mat A);      /* every entry to zero, before an assembly */
-void op_mat_assemble(op_mat A);  /* the entries are final: commit, new state */
+void op_mat_assemble(op_mat A);  /* the entries are final: the library takes them */
 
 /* A solver for A; options are the library-neutral settings below, then the
-   library's own (PETSc's database options with prefix "<name>_"). */
+   library's own (PETSc's database options with prefix "<name>_", an AmgX
+   configuration). */
 op_solver op_decl_solver(op_mat A, char const *name, char const *options);
 /* x is the initial guess; b and x are dim-dim double dats on A's rows/cols. */
 int op_solve(op_solver s, op_dat b, op_dat x);  /* 1 when converged */
@@ -67,17 +71,16 @@ void op_solver_set_operator(op_solver s, op_apply_fn apply, void *ctx);
 Library-neutral options (space separated `key=value`): `method=cg|gmres|
 bicgstab|fgmres`, `pc=none|jacobi|bjacobi|ilu|amg|custom`, `rtol=`, `atol=`,
 `maxit=`, `restart=`, `monitor=0|1`. Anything after `--` goes to the library
-untouched (PETSc options, or `key=value` settings of the hypre/Ginkgo
-backends).
+untouched.
 
-## 3. Sparsity and slots
+## 3. Sparsity, slots and matrix arguments
 
 The sparsity is computed once, per rank, on the host, from the maps:
 
 - Rows are the owned row-set elements [0, rows->size). Each rank owns a
   contiguous range of global rows, offset by the exclusive prefix sum of
   sizes; a halo element's global number is its owner's, found by exchanging a
-  global-id dat once.
+  global-id dat once (64-bit numbers).
 - For each pair, every iteration element OP2 executes in an increment loop
   (owned and exec halo) and every (i, j) gives the block (I, J) with
   I = rowmap[e][i], J = colmap[e][j]. Blocks with an owned row go into the
@@ -87,93 +90,108 @@ The sparsity is computed once, per rank, on the host, from the maps:
   halo elements of dats.
 - Each owned row's blocks split into the diagonal part (owned columns) and the
   off-diagonal part (halo columns, by global number), as PETSc's MPIAIJ,
-  hypre's ParCSR and Ginkgo's distributed matrix all store them.
+  hypre's ParCSR, Ginkgo's distributed matrix, rocALUTION's GlobalMatrix and
+  SPLISS's local and non-local parts all store them.
 - Blocks are numbered ("slots"): the diagonal part's rows in order, then the
   off-diagonal part's, then the scratch slots. Within a row, columns are
   ordered as the library wants (sorted; hypre wants the diagonal first).
 
 The slots become ordinary OP2 objects: an internal set `nnz` (one element per
 slot) and, for each pair k and row index i, an op_map slot_{k,i} from the
-iteration set to `nnz` with arity colmap->dim, so slot_{k,i}[e][j] is the
-slot of block (rowmap[e][i], colmap[e][j]). A matrix's values are an op_dat
-on `nnz` with dim d * d. `op_arg_mat(A, i, rowmap, j, colmap, d, ...)` is then
+iteration set to `nnz`, so slot_{k,i}[e][j] is the slot of block
+(rowmap[e][i], colmap[e][j]). Under MPI they are declared after partitioning,
+with no halos (`op_mpi_local_objects`).
 
-    op_arg_dat(A->values, j, slot_{k,i}, d * d, type, acc)
+`op_arg_mat(A, i, rowmap, j, colmap, d, ...)` is an `OP_ARG_MAT`: an op_arg
+whose map is slot_{k,i} with index j and whose `mat` points at the matrix's
+storage (`op_mat_storage`, `op2/rt/abi/matrix.h`). There is no op_dat: the
+loop runtime (plans, colouring, chunked staging, the MPI exec-halo rule) takes
+a target as a dat or a matrix (`op::rt::loop::target`, `target_set`, the slot
+set), so every strategy assembles, and MPI runs a matrix-incrementing loop
+over the exec halo but never exchanges a matrix. The translator gives each
+matrix argument an `op::rt::kernel::BlockPtr<T, d>` kernel parameter, built by
+`mat_block` from the matrix's regions and layout (section 4); the generated
+stubs bind the storage's regions and layout from `args[i].mat`.
 
-and everything downstream is unchanged: the translator treats it as an
-indirect dat argument, the plans colour by slot (two edges conflict only on a
-shared diagonal block), atomics, colouring and the chunked staging all apply,
-and the JIT specialises as for any loop. Matrices on one sparsity share its
-slot maps.
+## 4. Storage
 
-Under MPI the internal set and maps are declared after partitioning, with no
-halos; the MPI layer gets `op_mpi_declare_local` to give them empty halo
-entries.
+A matrix's values are in up to three regions: say a library's local and
+non-local parts, and OP2's scratch for blocks of halo rows (always region 2).
+Who allocates a region is the backend's choice:
 
-## 4. Storage layouts
+- **lend**: OP2 allocates it (`op::solve::lend`) and the library views it as
+  its own arrays (hypre's ParCSR data; Ginkgo's Csr, Coo, Ell and Fbcsr
+  values; PETSc's host AIJ parts);
+- **borrow**: the library allocates it in its own format and OP2 takes its
+  pointer (`op::solve::borrow`): the mock library, rocALUTION, Ginkgo's
+  Sellp, PETSc's `aij:owned`;
+- **copy**: OP2 lends a region in the order the library takes values in, and
+  hands it over at each assembly: AmgX (`AMGX_matrix_replace_coefficients`),
+  PETSc's `coo` (`MatSetValuesCOO`, PETSc's default on the device).
 
-The kernel sees a block as d * d values indexed `A[r * d + c]`. Where they
-live is the matrix's layout, decided once per matrix:
+The layout holds, per slot, four ints: entry (r, c) of the slot's block is at
+offset + r * row_stride + c * col_stride in region (aux & 3). That covers
+scalar CSR rows (row stride the row's length, column stride 1), contiguous
+blocks row or column major (d, 1 or 1, d), ELL and SELL-P (row stride 1,
+column stride the rows or the slice), and block ELL with its entries
+interleaved across block rows for coalescing (d * rows, rows). A diagonal
+block may move its diagonal entries by a rule in aux: diagonal first in each
+row (hypre), or apart at col_stride + r (MCSR, rocALUTION). Only a diagonal
+argument (the same map and index on both sides) is typed
+`BlockPtr<T, d, true>` and checks the rule, so other blocks pay nothing; a
+format with a rule rejects a sparsity that reaches a diagonal block any other
+way.
 
-| layout | block (I, J) entry (r, c) | used for |
+The backends lay out their formats with the layer's builders
+(`op2/src/solve/op_solve_layout.cpp`), each setting a part's slots' entries
+and returning the format's index arrays: `csr_layout` (with a diagonal rule;
+COO keeps its order), `bcsr_layout` (row or column major, the diagonal blocks
+apart), `ell_layout`, `sell_layout`, `bell_layout` (contiguous or
+interleaved), and `csr_located`, which finds each block in CSR arrays the
+library laid out itself and checks its rows are evenly spaced. A library that
+lays out its matrix by its own rules is checked against them: rocALUTION
+converts the pattern itself and its index arrays must equal the builder's.
+
+| library | formats (default first) | regions |
 |---|---|---|
-| blocked | values[slot * d * d + r * d + c] | untranslated loops; PETSc (COO) |
-| direct | values[off(slot) + r * L(slot) + c], L the row length | hypre, Ginkgo: the values are their scalar CSR |
+| hypre | csr (diagonal first) | lend |
+| Ginkgo | csr[:classical\|cusparse\|merge_path], coo, ell, fbcsr; sellp | lend; borrow |
+| PETSc | aij (host), coo (device default); aij:owned | lend; copy; borrow |
+| AmgX | bcsr, bcsr:diag (diagonal blocks apart), csr | copy |
+| rocALUTION | csr, mcsr, bcsr, coo, ell | borrow |
+| mock | compact[:column], bell[:column][:interleaved] | borrow, local and non-local apart |
 
-For d == 1 the two coincide: every library takes the values as its CSR
-(hypre and Ginkgo as views, PETSc through COO).
+Untranslated loops (op_seq.h) know no layout: they reach a matrix's blocks
+one after another in a buffer the matrix allocates the first time one needs
+it (`op_mat_untranslated`), which `op_mat_assemble` adds into the storage
+through the layout (and fills from it for OP_READ). The staged slots of the
+chunked strategies are contiguous BlockPtrs over shared memory; their flush
+and seed reach the target through the layout, as a possibly diagonal block.
 
-For d > 1 the translator lowers `op_arg_mat` to the values argument plus a
-hidden argument on the matrix's layout dat (an int pair per slot: offset,
-row stride) through the same slot map, and the kernel's parameter becomes
-`op::rt::kernel::BlockPtr<T, d>`, whose `operator[]` finds row r of the block
-at `data + r * stride` (row pointers, so a row's entries are constant offsets
-from it). The generated stub builds the hidden argument with
-`op_arg_mat_layout()`, which is also where the matrix learns that generated
-code writes it: it then takes the direct layout if its library can view one,
-and fills the layout dat for whichever it took. A matrix only ever written by
-untranslated loops (op_seq.h, raw pointers) stays blocked and is permuted
-into the library's arrays at `op_mat_assemble`. `OP_SOLVE_LAYOUT=blocked`
-forces blocked for comparison.
+### Integrating a library that owns its storage (SPLISS)
 
-hypre wants each scalar row's diagonal entry first. With the diagonal block
-first in its block row, only that block's rows are permuted (entry r first,
-then the others in order), which a negative stride marks. Only diagonal
-blocks can be that: the translator types an argument through the same map
-and index on both sides as `BlockPtr<T, d, true>`, which handles it, and the
-sparsity rejects any other index pair that reaches a diagonal block under a
-diagonal-first library. So off-diagonal blocks pay nothing for it.
-
-The staged slots of the chunked strategies are contiguous BlockPtrs over
-shared memory; their flush and seed reach the target through the layout,
-as a possibly diagonal block.
+What the backend needs from the library: the device (or host) pointers to
+each part's values, that they stay put between assembly and solve, and where
+block (I, J) is, by a lookup or index arrays it can read once; a way to tell
+it the values changed; vectors it can wrap or copy into. A format whose blocks
+are not at fixed strides (entries of one block in different, irregularly
+spaced places) would need a new layout rule.
 
 ### Index widths
 
-A rank addresses a matrix's values, its owned blocks' and its scratch slots',
-with 32-bit offsets: in generated code (the layout's offsets, slot * d * d
-when blocked) and in the libraries' local CSR (PETSc's default PetscInt,
-HYPRE_Int, Ginkgo's int32 local index). So a rank holds at most 2^31 values
-of a matrix, which op_decl_mat checks. At d = 6 that is 59.6M blocks and
-16 GiB of values: 8.5M nodes of a hex mesh per rank, 4.0M of a tet mesh.
+Offsets within a region are 32-bit (the layout's ints, and the libraries'
+local CSR: PETSc's default PetscInt, HYPRE_Int, Ginkgo's int32 local index),
+so a region holds at most 2^31 values, which op_decl_mat checks. At d = 6
+that is 59.6M blocks, 16 GiB of values: 8.5M nodes of a hex mesh per rank,
+4.0M of a tet mesh. The kernels compute each block's address from its
+region's base; wider offsets were measured to cost registers (+16 on sm_90 for
+a 64-bit form).
 
-Wider offsets in the kernels were measured and rejected. Every 64-bit form
-raised registers in some matrix kernel (up to +16 on sm_90, +8 VGPRs on
-gfx942). The nearest to neutral, signed 32-bit offsets from a base 2^31
-values in (reaching 2^32), still raised the d = 6 chunk_colouring wavefront
-kernels from 32 to 40 on sm_90. The libraries cap each part at 2^31 anyway,
-so a wider kernel offset would only add a rank's off-diagonal and scratch
-blocks, a few percent with a good partition.
-
-Globally, rows are numbered in 64 bits (OP2's idx_g_t), as Ginkgo's global
-index is. hypre needs HYPRE_ENABLE_MIXEDINT (64-bit HYPRE_BigInt, 32-bit
-HYPRE_Int; its all-64-bit build has no GPU support). PETSc's default 32-bit
-PetscInt caps a matrix at 2^31 global rows, 358M nodes at d = 6 (a
---with-64-bit-indices build would need PetscInt copies of the CSR for the host
-views). The backends check both and say which build is needed.
-
-Untranslated loops (op_seq.h) take 64-bit byte offsets: their 32-bit ones broke
-a dat past 2 GiB, a matrix of 7.5M blocks at d = 6.
+Globally, rows are numbered in 64 bits (OP2's idx_g_t), as Ginkgo's,
+AmgX's and rocALUTION's global indices are. hypre needs HYPRE_ENABLE_MIXEDINT
+(64-bit HYPRE_BigInt, 32-bit HYPRE_Int; its all-64-bit build has no GPU
+support). PETSc's default 32-bit PetscInt caps a matrix at 2^31 global rows,
+358M nodes at d = 6. The backends check both and say which build is needed.
 
 ## 5. Vectors
 
@@ -181,14 +199,18 @@ b and x are op_dats on the row and column sets with dim d (AoS; an SoA dat with
 d > 1 is an error for now). Their owned part, size * d values, in the dat's
 memory space (the device in a GPU build), is the library vector: PETSc
 `VecCreateMPI[CUDA]WithArray`/`VecPlaceArray`, hypre a ParVector over the
-pointer, Ginkgo a Dense view. op_solve brings b and x to the right space as a
+pointer, Ginkgo a Dense view, the mock library the dat's memory itself; AmgX
+and rocALUTION copy into and out of their own vectors, vector-sized copies per
+solve. op_solve brings b and x to the right space as a
 loop does (`op_mpi_halo_exchanges`), solves, and marks x written
 (`op_mpi_set_dirtybit[_cuda]`), so the next loop exchanges its halo.
 
 ## 6. Custom preconditioners
 
-The key question. Four mechanisms, from the libraries' own to fully custom,
-all implemented on all three libraries:
+The key question. Four mechanisms, from the libraries' own to fully custom.
+PETSc, Ginkgo and the mock library take all four; hypre and rocALUTION all but
+the par-loop operator; AmgX only the assembled matrix, A itself (its C API
+takes no callbacks):
 
 1. **An assembled preconditioning matrix**: `op_solver_set_pc_mat(s, P)`,
    where P is another op_mat (say a first-order Jacobian beside a higher-order
@@ -223,19 +245,23 @@ ordinary OP2 code with matrix access, and the library only sees an operator.
 ## 7. Code layout
 
 - `op2/include/op_solve.h`: the C API.
-- `op2/include/op2/solve/`: the objects (`op::solve::Sparsity`, `Matrix`,
-  `Solver`) and the backend interface (`op::solve::Backend`: make a matrix
-  from a Matrix's storage, commit, make a solver, solve; vectors from dats).
-- `op2/src/solve/`: sparsity and slot construction (hardware-free), the API,
-  and one file per library (`petsc.cpp`, `hypre.cpp`, `ginkgo.cpp`), compiled
-  into each C library variant when that library is enabled
-  (`OP2_ENABLE_PETSC`, `OP2_ENABLE_HYPRE`, `OP2_ENABLE_GINKGO`), the memory
-  space following the variant (host, or the device for the GPU variants).
-- Translator: `op_arg_mat` parsed by the C++ front end into an indirect dat
-  argument on the matrix, through a slot map named by (matrix, row map, row
-  index, column map), and for d > 1 a hidden argument on its layout and a
-  `BlockPtr` kernel parameter (seq, openmp, cuda, hip; the legacy targets
-  reject matrix blocks).
+- `op2/include/op2/rt/abi/matrix.h`: a matrix's storage as generated code
+  binds it, and the layout entry's contract; `op2/include/op2/rt/kernel/
+  prelude.h`: `BlockPtr` and `mat_block`; `op2/src/rt/op_rt_matrix.cpp`:
+  untranslated loops' way in.
+- `op2/include/op2/solve/solve.h`: the layer's objects, the backend interface
+  (`Library`, `Matrix`, `Solver`), storage (`lend`, `borrow`) and the layout
+  builders.
+- `op2/src/solve/`: sparsity and slot construction, the API, the builders,
+  and one file per library (`op_solve_petsc.cpp`, `_hypre`, `_ginkgo`,
+  `_amgx`, `_rocalution`, `_mock`), compiled into each C library variant when
+  that library is enabled (`OP2_ENABLE_PETSC`, `_HYPRE`, `_GINKGO`, `_AMGX`,
+  `_ROCALUTION`, `_SOLVE_MOCK`), the memory space following the variant.
+- Translator: `op_arg_mat` parsed by the C++ front end into an argument on the
+  matrix (a `Dat` marked `mat`, never an op_dat at run time) through a slot
+  map named by (matrix, row map, row index, column map), with a `BlockPtr`
+  kernel parameter (seq, openmp, cuda, hip; the legacy targets reject matrix
+  blocks).
 - `apps/c/implicit`: the proxy app (section 8).
 
 ## 8. Proxy app
@@ -260,6 +286,5 @@ in the other rank's columns as in its own, and as many scratch slots.
 
 Rectangular blocks and rectangular matrices (rows != cols sets), single
 precision, Fortran bindings (a thin layer over the C API; Hydra needs it next),
-HIP (the same code with hipsparse PETSc and HIP hypre/Ginkgo builds), matrices
-whose pattern changes after declaration, more than 2^31 values of a matrix on
-a rank (64-bit local indices in the libraries and the kernels).
+HIP runs (the same code with HIP builds of the libraries), matrices whose
+pattern changes after declaration, more than 2^31 values in a region.
