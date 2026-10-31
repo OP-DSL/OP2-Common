@@ -148,6 +148,33 @@ The staged slots of the chunked strategies are contiguous BlockPtrs over
 shared memory; their flush and seed reach the target through the layout,
 as a possibly diagonal block.
 
+### Index widths
+
+A rank addresses a matrix's values, its owned blocks' and its scratch slots',
+with 32-bit offsets: in generated code (the layout's offsets, slot * d * d
+when blocked) and in the libraries' local CSR (PETSc's default PetscInt,
+HYPRE_Int, Ginkgo's int32 local index). So a rank holds at most 2^31 values
+of a matrix, which op_decl_mat checks. At d = 6 that is 59.6M blocks and
+16 GiB of values: 8.5M nodes of a hex mesh per rank, 4.0M of a tet mesh.
+
+Wider offsets in the kernels were measured and rejected. Every 64-bit form
+raised registers in some matrix kernel (up to +16 on sm_90, +8 VGPRs on
+gfx942). The nearest to neutral, signed 32-bit offsets from a base 2^31
+values in (reaching 2^32), still raised the d = 6 chunk_colouring wavefront
+kernels from 32 to 40 on sm_90. The libraries cap each part at 2^31 anyway,
+so a wider kernel offset would only add a rank's off-diagonal and scratch
+blocks, a few percent with a good partition.
+
+Globally, rows are numbered in 64 bits (OP2's idx_g_t), as Ginkgo's global
+index is. hypre needs HYPRE_ENABLE_MIXEDINT (64-bit HYPRE_BigInt, 32-bit
+HYPRE_Int; its all-64-bit build has no GPU support). PETSc's default 32-bit
+PetscInt caps a matrix at 2^31 global rows, 358M nodes at d = 6 (a
+--with-64-bit-indices build would need PetscInt copies of the CSR for the host
+views). The backends check both and say which build is needed.
+
+Untranslated loops (op_seq.h) take 64-bit byte offsets: their 32-bit ones broke
+a dat past 2 GiB, a matrix of 7.5M blocks at d = 6.
+
 ## 5. Vectors
 
 b and x are op_dats on the row and column sets with dim d (AoS; an SoA dat with
@@ -225,10 +252,14 @@ checks the whole pipeline (second order in h). Per step: assemble
 loop, the right-hand side in a node loop, solve, update. Options pick the
 library, method and preconditioner, including a par-loop block-Jacobi
 preconditioner reading the diagonal blocks with op_arg_mat(OP_READ).
+`-partition random` scatters the nodes over the ranks (OP2's random
+partitioner) in place of ParMETIS, so on two ranks a row has as many blocks
+in the other rank's columns as in its own, and as many scratch slots.
 
 ## 9. Out of scope for now
 
 Rectangular blocks and rectangular matrices (rows != cols sets), single
 precision, Fortran bindings (a thin layer over the C API; Hydra needs it next),
 HIP (the same code with hipsparse PETSc and HIP hypre/Ginkgo builds), matrices
-whose pattern changes after declaration.
+whose pattern changes after declaration, more than 2^31 values of a matrix on
+a rank (64-bit local indices in the libraries and the kernels).
