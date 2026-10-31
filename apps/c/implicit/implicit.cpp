@@ -11,7 +11,7 @@
 //
 //   implicit [-n N] [-steps S] [-dt DT] [-pc lib|bjacobi] [-op assembled|matfree]
 //            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"] [-diags N]
-//            [-pc neumann -terms M] [-pmat decoupled] [-timing 1]
+//            [-pc neumann -terms M] [-pmat decoupled] [-timing 1] [-check TOL]
 //
 // -pc neumann preconditions with M Neumann steps after block Jacobi, each a
 // matrix-vector product through the blocks in solver memory; -pmat decoupled
@@ -415,9 +415,18 @@ int main(int argc, char **argv) {
     op_printf("time: total %.4f s, assembly loops %.4f s, commit %.4f s, solve %.4f s\n", end - start, loops_time,
               commit_time, solve_time);
 
+    // -check TOL fails the run on a true residual above TOL, or, from the
+    // mode, an error against the discrete solution above it.
+    const double tolerance = atof(option(argc, argv, "-check", "0"));
+    bool failed = !converged;
+    if (tolerance > 0 && (sqrt(r2 / b2) > tolerance || (init == "mode" && emax > tolerance))) {
+        op_printf("check failed: tolerance %.1e\n", tolerance);
+        failed = true;
+    }
+
     if (atoi(option(argc, argv, "-timing", "0")))
         op_timing_output();
     op_solve_exit();
     op_exit();
-    return converged ? 0 : 1;
+    return failed ? 1 : 0;
 }

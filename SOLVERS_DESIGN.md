@@ -112,28 +112,41 @@ entries.
 
 ## 4. Storage layouts
 
-The kernel always sees a block as d * d values, row-major. Where they live:
+The kernel sees a block as d * d values indexed `A[r * d + c]`. Where they
+live is the matrix's layout, decided once per matrix:
 
 | layout | block (I, J) entry (r, c) | used for |
 |---|---|---|
-| blocked | values[slot * d * d + r * d + c] | v1, every library |
-| row-strided (later) | part[off(slot) + r * L(I) + c], L(I) = d * (blocks in row I) | scalar CSR in place |
+| blocked | values[slot * d * d + r * d + c] | untranslated loops; PETSc (COO) |
+| direct | values[off(slot) + r * L(slot) + c], L the row length | hypre, Ginkgo: the values are their scalar CSR |
 
-Blocked is CSR when d == 1, so a scalar matrix is the library's CSR arrays: a
-zero-copy view where the library takes user arrays (hypre's ParCSR, Ginkgo's
-Csr, PETSc's host AIJ), and one copy into its own arrays where it does not
-(PETSc on the GPU, through its COO assembly, `MatSetValuesCOO` from device
-memory). For d > 1 blocked is not the libraries' scalar CSR (and Ginkgo's Fbcsr
-and PETSc's BAIJ store blocks column-major), so v1 commits it with one
-permuting copy, as Hydra's export does, but generated rather than hand-written.
+For d == 1 the two coincide: every library takes the values as its CSR
+(hypre and Ginkgo as views, PETSc through COO).
 
-The row-strided layout removes that copy: with each block row's scalar rows
-holding the same block columns, entry (r, c) of a block is at a fixed offset
-plus r times the row length, so a Ptr with a row stride addresses it and the
-kernel writes the library's scalar CSR directly, d > 1 included. That needs
-the strided Ptr in the templates (gpu, cpu, seq, and the staging flush), the
-offset and row length beside the slot, and, for hypre, the diagonal block's
-diagonal entry first in each row. It is the second step.
+For d > 1 the translator lowers `op_arg_mat` to the values argument plus a
+hidden argument on the matrix's layout dat (an int pair per slot: offset,
+row stride) through the same slot map, and the kernel's parameter becomes
+`op::rt::kernel::BlockPtr<T, d>`, whose `operator[]` finds row r of the block
+at `data + r * stride` (row pointers, so a row's entries are constant offsets
+from it). The generated stub builds the hidden argument with
+`op_arg_mat_layout()`, which is also where the matrix learns that generated
+code writes it: it then takes the direct layout if its library can view one,
+and fills the layout dat for whichever it took. A matrix only ever written by
+untranslated loops (op_seq.h, raw pointers) stays blocked and is permuted
+into the library's arrays at `op_mat_assemble`. `OP_SOLVE_LAYOUT=blocked`
+forces blocked for comparison.
+
+hypre wants each scalar row's diagonal entry first. With the diagonal block
+first in its block row, only that block's rows are permuted (entry r first,
+then the others in order), which a negative stride marks. Only diagonal
+blocks can be that: the translator types an argument through the same map
+and index on both sides as `BlockPtr<T, d, true>`, which handles it, and the
+sparsity rejects any other index pair that reaches a diagonal block under a
+diagonal-first library. So off-diagonal blocks pay nothing for it.
+
+The staged slots of the chunked strategies are contiguous BlockPtrs over
+shared memory; their flush and seed reach the target through the layout,
+as a possibly diagonal block.
 
 ## 5. Vectors
 
@@ -147,33 +160,33 @@ loop does (`op_mpi_halo_exchanges`), solves, and marks x written
 
 ## 6. Custom preconditioners
 
-The key question. Four mechanisms, from the libraries' own to fully custom:
+The key question. Four mechanisms, from the libraries' own to fully custom,
+all implemented on all three libraries:
 
 1. **An assembled preconditioning matrix**: `op_solver_set_pc_mat(s, P)`,
    where P is another op_mat (say a first-order Jacobian beside a higher-order
    A, or a matrix-free A) assembled by par loops. The library builds its
-   preconditioner (AMG, ILU, block Jacobi) from P. Every library supports
-   (A, P) pairs.
+   preconditioner (AMG, ILU, block Jacobi) from P. The proxy's
+   `-pmat decoupled` drops the components' coupling from P.
 2. **A par-loop preconditioner**: `op_solver_set_pc(s, apply, ctx)`. Each
    application of M^-1, the library calls `apply(r, z, ctx)` with r and z as
-   op_dats on the row set; the user's code is ordinary op_par_loops (and halo
+   op_dats on the row set; the user's code is ordinary op_par_loops (halo
    exchanges, colouring, GPU execution are OP2's as always). PETSc's PCSHELL,
-   hypre's SetPrecond function pointers and a Ginkgo LinOp all take a callback.
+   hypre's SetPrecond function pointers and a Ginkgo LinOp take the callback.
    The library's vectors have no room for OP2's halo, so r and z are OP2 dats
    (with halos) the backend copies the library vectors into and out of: two
-   vector copies per application, negligible beside a preconditioner, and
-   avoidable where the library allows its work vectors to be OP2's (PETSc
-   through MatCreateVecs) - a later optimisation.
+   vector copies per application.
 3. **Reading the matrix in those loops**: `op_arg_mat(..., OP_READ)` gives a
-   par loop the assembled entries in solver memory, through the same maps:
-   block Jacobi (read and invert the diagonal blocks into a dat, then apply),
-   Gauss-Seidel or line-implicit sweeps (edge loops reading off-diagonal
-   blocks), polynomial preconditioners (matrix-vector products as edge loops).
-   This is what makes (2) useful for Hydra's own preconditioners.
+   par loop the assembled entries in solver memory, through the same maps,
+   in whichever layout the library keeps. The proxy's preconditioners: block
+   Jacobi (`-pc bjacobi`: invert the diagonal blocks into a dat, apply them)
+   and a Neumann series (`-pc neumann`: block Jacobi plus m matrix-vector
+   products, each an edge loop reading the off-diagonal blocks and a node
+   loop reading the diagonal ones).
 4. **A par-loop operator**: `op_solver_set_operator(s, apply, ctx)` replaces
    y = A x by par loops (matrix-free or Jacobian-free Newton-Krylov), with the
-   preconditioner from (1) or (2). PETSc MATSHELL, Ginkgo LinOp; hypre's Krylov
-   solvers take a matvec through their generic interface.
+   preconditioner from (1) or (2). PETSc MATSHELL, Ginkgo LinOp; hypre's
+   ParCSR Krylov solvers would need its generic interface (not done).
 
 Callbacks may call op_solve themselves (an AMG solve on a scalar sub-system
 inside a block preconditioner), so field-split and multilevel preconditioners
@@ -193,7 +206,9 @@ ordinary OP2 code with matrix access, and the library only sees an operator.
   space following the variant (host, or the device for the GPU variants).
 - Translator: `op_arg_mat` parsed by the C++ front end into an indirect dat
   argument on the matrix, through a slot map named by (matrix, row map, row
-  index, column map).
+  index, column map), and for d > 1 a hidden argument on its layout and a
+  `BlockPtr` kernel parameter (seq, openmp, cuda, hip; the legacy targets
+  reject matrix blocks).
 - `apps/c/implicit`: the proxy app (section 8).
 
 ## 8. Proxy app

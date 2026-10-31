@@ -8,6 +8,10 @@ if(CMAKE_CUDA_COMPILER)
     add_subdirectory(cuda)
 endif()
 
+if(_op2_solve_srcs AND OP2_ENABLE_APPS)
+    add_subdirectory(solve)
+endif()
+
 if(OP2_ENABLE_APP_TESTS)
     if(NOT OP2_ENABLE_APPS)
         message(FATAL_ERROR "OP2_ENABLE_APP_TESTS needs OP2_ENABLE_APPS")
