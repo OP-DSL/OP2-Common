@@ -21,6 +21,10 @@ namespace {
 
 using vec = gko::matrix::Dense<double>;
 using csr = gko::matrix::Csr<double, int>;
+using coo = gko::matrix::Coo<double, int>;
+using ell = gko::matrix::Ell<double, int>;
+using sellp = gko::matrix::Sellp<double, int>;
+using fbcsr = gko::matrix::Fbcsr<double, int>;
 using dist_mtx = gko::experimental::distributed::Matrix<double, int, gko::int64>;
 using dist_vec = gko::experimental::distributed::Vector<double>;
 using partition = gko::experimental::distributed::Partition<int, gko::int64>;
@@ -71,21 +75,80 @@ public:
         auto recv = to_exec(remote);
         index_map imap(executor, parts, comm.rank(), recv);
 
-        // The local part's values then the non-local part's, in one region
-        // that the Csr parts view.
-        if (!format.empty() && format != "csr")
-            fail("Ginkgo: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
-        const std::size_t nd = (std::size_t)part_blocks(A, Part::diag) * d * d;
-        const std::size_t no = (std::size_t)part_blocks(A, Part::offd) * d * d;
-        double *data = (double *)lend(A, 0, (nd + no) * sizeof(double));
-        const ScalarCsr dsc = csr_layout(A, Part::diag, 0, 0);
-        const ScalarCsr osc = csr_layout(A, Part::offd, 0, (int)nd);
-        auto diag_values = gko::array<double>::view(executor, nd, data);
-        auto offd_values = gko::array<double>::view(executor, no, data + nd);
-        m_local = gko::share(csr::create(executor, gko::dim<2>(n, sp->cols->size * d), std::move(diag_values),
-                                         to_exec(dsc.col), to_exec(dsc.ptr)));
-        m_non_local = gko::share(csr::create(executor, gko::dim<2>(n, remote.size()), std::move(offd_values),
-                                             to_exec(osc.col), to_exec(osc.ptr)));
+        // Each part in the format asked for: views of one region, the local
+        // part's values then the non-local part's (csr, coo, ell, fbcsr), or
+        // Ginkgo's own arrays, borrowed (sellp).
+        std::string kind = format.empty() ? "csr" : format, strategy;
+        if (kind.rfind("csr:", 0) == 0) {
+            strategy = kind.substr(4);
+            kind = "csr";
+        }
+        const gko::dim<2> sizes[2] = {gko::dim<2>(n, sp->cols->size * d), gko::dim<2>(n, remote.size())};
+        const Part which[2] = {Part::diag, Part::offd};
+        std::shared_ptr<gko::LinOp> made[2];
+        if (kind == "sellp") {
+            for (int p = 0; p < 2; p++) {
+                const Sell sell = sell_layout(A, which[p], p, 0, 64, 1, -1);
+                auto m = gko::share(sellp::create(executor, sizes[p], sell.slice, 1, sell.sets.back()));
+                const std::vector<gko::size_type> lengths(sell.lengths.begin(), sell.lengths.end()),
+                    sets(sell.sets.begin(), sell.sets.end());
+                executor->copy_from(executor->get_master(), lengths.size(), lengths.data(), m->get_slice_lengths());
+                executor->copy_from(executor->get_master(), sets.size(), sets.data(), m->get_slice_sets());
+                executor->copy_from(executor->get_master(), sell.col.size(), sell.col.data(), m->get_col_idxs());
+                borrow(A, p, m->get_values(), sell.col.size() * sizeof(double));
+                made[p] = m;
+            }
+        } else {
+            std::size_t counts[2];
+            ScalarCsr scalar[2];
+            BlockCsr blocks[2];
+            Ell padded[2];
+            for (int p = 0; p < 2; p++) {
+                const int offset = p == 0 ? 0 : (int)counts[0];
+                if (kind == "csr" || kind == "coo") {
+                    scalar[p] = csr_layout(A, which[p], 0, offset);
+                    counts[p] = scalar[p].col.size();
+                } else if (kind == "fbcsr") {
+                    blocks[p] = bcsr_layout(A, which[p], 0, offset, Major::column);
+                    counts[p] = blocks[p].col.size() * d * d;
+                } else if (kind == "ell") {
+                    padded[p] = ell_layout(A, which[p], 0, offset, -1);
+                    counts[p] = padded[p].col.size();
+                } else
+                    fail("Ginkgo: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
+            }
+            double *data = (double *)lend(A, 0, (counts[0] + counts[1]) * sizeof(double));
+            for (int p = 0; p < 2; p++) {
+                auto values = gko::array<double>::view(executor, counts[p], data + (p == 0 ? 0 : counts[0]));
+                if (kind == "csr") {
+                    auto m = csr::create(executor, sizes[p], std::move(values), to_exec(scalar[p].col),
+                                         to_exec(scalar[p].ptr));
+                    if (strategy == "cusparse")
+                        m->set_strategy(std::make_shared<csr::sparselib>());
+                    else if (strategy == "classical")
+                        m->set_strategy(std::make_shared<csr::classical>());
+                    else if (strategy == "merge_path")
+                        m->set_strategy(std::make_shared<csr::merge_path>());
+                    else if (!strategy.empty())
+                        fail("Ginkgo: matrix %s: unknown Csr strategy '%s'", A->name.c_str(), strategy.c_str());
+                    made[p] = gko::share(std::move(m));
+                } else if (kind == "coo") {
+                    std::vector<int> rows;
+                    for (std::size_t i = 0; i + 1 < scalar[p].ptr.size(); i++)
+                        rows.insert(rows.end(), scalar[p].ptr[i + 1] - scalar[p].ptr[i], (int)i);
+                    made[p] = gko::share(
+                        coo::create(executor, sizes[p], std::move(values), to_exec(scalar[p].col), to_exec(rows)));
+                } else if (kind == "fbcsr") {
+                    made[p] = gko::share(fbcsr::create(executor, sizes[p], d, std::move(values),
+                                                       to_exec(blocks[p].col), to_exec(blocks[p].ptr)));
+                } else {
+                    made[p] = gko::share(ell::create(executor, sizes[p], std::move(values), to_exec(padded[p].col),
+                                                     (gko::size_type)padded[p].width, (gko::size_type)n));
+                }
+            }
+        }
+        m_local = made[0];
+        m_non_local = made[1];
         m_mat = gko::share(dist_mtx::create(executor, comm, std::move(imap), m_local, m_non_local));
     }
 
@@ -96,7 +159,7 @@ public:
 
 private:
     op_mat m_A;
-    std::shared_ptr<csr> m_local, m_non_local;
+    std::shared_ptr<gko::LinOp> m_local, m_non_local;
     std::shared_ptr<dist_mtx> m_mat;
 };
 

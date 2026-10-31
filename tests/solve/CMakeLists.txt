@@ -17,6 +17,7 @@ endforeach()
 
 set(_formats_mock compact:column bell bell:column bell:interleaved bell:interleaved:column)
 set(_formats_petsc coo aij:owned)
+set(_formats_ginkgo csr:classical coo ell sellp fbcsr)
 set(_formats_rocalution mcsr bcsr coo ell)
 
 set(_format_nvs "")
