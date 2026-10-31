@@ -9,6 +9,7 @@
 #include <HYPRE_parcsr_ls.h>
 #include <_hypre_parcsr_mv.h>
 
+#include <cstdlib>
 #include <vector>
 
 namespace op::solve {
@@ -317,6 +318,11 @@ public:
         HYPRE_CALL(HYPRE_Initialize());
         HYPRE_CALL(HYPRE_SetMemoryLocation(location));
         HYPRE_CALL(HYPRE_SetExecutionPolicy(on_device ? HYPRE_EXEC_DEVICE : HYPRE_EXEC_HOST));
+#ifdef HYPRE_USING_UMPIRE_DEVICE
+        // Umpire reserves 4 GiB up front; OP_SOLVE_HYPRE_POOL (MiB) starts it smaller.
+        if (const char *pool = std::getenv("OP_SOLVE_HYPRE_POOL"))
+            HYPRE_CALL(HYPRE_SetUmpireDevicePoolSize((std::size_t)std::atol(pool) << 20));
+#endif
     }
 
     ~HypreLibrary() override { HYPRE_Finalize(); }
