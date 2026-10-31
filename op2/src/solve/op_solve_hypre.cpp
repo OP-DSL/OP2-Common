@@ -1,7 +1,7 @@
-// The hypre backend: a ParCSR matrix over the op_mat's values (scalar
-// blocks: the values are its diagonal and off-diagonal parts' data, in place;
-// larger blocks: hypre's scalar arrays, filled by a permuting copy), Krylov
-// solvers over ParVectors wrapping the dats.
+// The hypre backend: a ParCSR matrix whose diagonal and off-diagonal parts'
+// data are the op_mat's values, written in place by the loops (or, for blocks
+// written by untranslated loops, a copy permuted from them), Krylov solvers
+// over ParVectors wrapping the dats.
 
 #include <op2/solve/solve.h>
 
@@ -41,31 +41,9 @@ public:
         HYPRE_BigInt cols[2] = {(HYPRE_BigInt)(sp->col_start * d),
                                 (HYPRE_BigInt)((sp->col_start + sp->cols->size) * d)};
 
-        // The scalar pattern: each row's diagonal entry first, then its
-        // blocks' entries in the parts' block order.
-        std::vector<HYPRE_Int> diag_i(nrows * d + 1, 0), diag_j, offd_i(nrows * d + 1, 0), offd_j;
-        std::vector<int> diag_to, offd_to;
-        diag_to.resize((std::size_t)sp->diag_blocks * d * d);
-        offd_to.resize((std::size_t)sp->offd_blocks * d * d);
-        for (int I = 0; I < nrows; I++)
-            for (int r = 0; r < d; r++) {
-                const int row = I * d + r;
-                diag_j.push_back(row);
-                diag_to[((std::size_t)sp->diag_ptr[I] * d + r) * d + r] = (int)diag_j.size() - 1;
-                for (int k = sp->diag_ptr[I]; k < sp->diag_ptr[I + 1]; k++)
-                    for (int c = 0; c < d; c++)
-                        if (sp->diag_col[k] != I || c != r) {
-                            diag_j.push_back(sp->diag_col[k] * d + c);
-                            diag_to[((std::size_t)k * d + r) * d + c] = (int)diag_j.size() - 1;
-                        }
-                for (int k = sp->offd_ptr[I]; k < sp->offd_ptr[I + 1]; k++)
-                    for (int c = 0; c < d; c++) {
-                        offd_j.push_back(sp->offd_col[k] * d + c);
-                        offd_to[((std::size_t)k * d + r) * d + c] = (int)offd_j.size() - 1;
-                    }
-                diag_i[row + 1] = (HYPRE_Int)diag_j.size();
-                offd_i[row + 1] = (HYPRE_Int)offd_j.size();
-            }
+        const Scalar& sc = A->scalar;
+        std::vector<HYPRE_Int> diag_i(sc.diag.ptr.begin(), sc.diag.ptr.end()), diag_j(sc.diag.col.begin(), sc.diag.col.end());
+        std::vector<HYPRE_Int> offd_i(sc.offd.ptr.begin(), sc.offd.ptr.end()), offd_j(sc.offd.col.begin(), sc.offd.col.end());
         std::vector<HYPRE_BigInt> col_map(sp->garray.size() * d);
         for (std::size_t k = 0; k < sp->garray.size(); k++)
             for (int c = 0; c < d; c++)
@@ -84,19 +62,19 @@ public:
         hypre_CSRMatrixJ(diag) = m_diag_j;
         hypre_CSRMatrixJ(offd) = m_offd_j;
 
-        // Scalar blocks are hypre's layout already: its data is the values.
-        double *values = (double *)memory(A->values);
-        if (d == 1) {
-            hypre_CSRMatrixData(diag) = values;
-            hypre_CSRMatrixData(offd) = values + sp->diag_blocks;
-        } else {
-            m_diag_data = hypre_CTAlloc(HYPRE_Complex, diag_j.size() + 1, location);
-            m_offd_data = hypre_CTAlloc(HYPRE_Complex, offd_j.size() + 1, location);
-            hypre_CSRMatrixData(diag) = m_diag_data;
-            hypre_CSRMatrixData(offd) = m_offd_data;
-            m_diag_to = upload(diag_to);
-            m_offd_to = upload(offd_to);
+        // In place, the values are hypre's data; blocked, a copy is.
+        double *data = (double *)memory(A->values);
+        if (A->mode != Mode::direct) {
+            m_staged = hypre_CTAlloc(HYPRE_Complex, diag_j.size() + offd_j.size() + 1, location);
+            data = m_staged;
+            std::vector<int> to((std::size_t)(sp->diag_blocks + sp->offd_blocks) * d * d);
+            for (std::size_t k = 0; k < to.size(); k++)
+                to[k] = position(sc, d, (int)(k / (d * d)), (int)(k % (d * d)));
+            m_to = upload(to);
+            m_entries = to.size();
         }
+        hypre_CSRMatrixData(diag) = data;
+        hypre_CSRMatrixData(offd) = data + diag_j.size();
         hypre_CSRMatrixOwnsData(diag) = 0;
         hypre_CSRMatrixOwnsData(offd) = 0;
 
@@ -116,22 +94,14 @@ public:
         hypre_ParCSRMatrixDestroy(m_par);
         hypre_TFree(m_diag_j, location);
         hypre_TFree(m_offd_j, location);
-        hypre_TFree(m_diag_data, location);
-        hypre_TFree(m_offd_data, location);
-        if (m_diag_to != nullptr) {
-            release(m_diag_to);
-            release(m_offd_to);
-        }
+        hypre_TFree(m_staged, location);
+        if (m_to != nullptr)
+            release(m_to);
     }
 
     void assemble() override {
-        if (m_diag_to == nullptr)
-            return;
-        op_sparsity sp = m_A->sparsity;
-        const std::size_t bs = (std::size_t)m_A->dim * m_A->dim;
-        const double *values = (const double *)memory(m_A->values);
-        scatter(m_diag_data, values, m_diag_to, sp->diag_blocks * bs);
-        scatter(m_offd_data, values + sp->diag_blocks * bs, m_offd_to, sp->offd_blocks * bs);
+        if (m_to != nullptr)
+            scatter(m_staged, (const double *)memory(m_A->values), m_to, m_entries);
     }
 
     hypre_ParCSRMatrix *par() const { return m_par; }
@@ -140,8 +110,9 @@ private:
     op_mat m_A;
     hypre_ParCSRMatrix *m_par = nullptr;
     HYPRE_Int *m_diag_j = nullptr, *m_offd_j = nullptr;
-    HYPRE_Complex *m_diag_data = nullptr, *m_offd_data = nullptr;
-    int *m_diag_to = nullptr, *m_offd_to = nullptr;
+    HYPRE_Complex *m_staged = nullptr;
+    int *m_to = nullptr;
+    std::size_t m_entries = 0;
 };
 
 hypre_ParCSRMatrix *par_of(op_mat A) { return static_cast<HypreMatrix *>(A->lib.get())->par(); }
@@ -328,6 +299,8 @@ public:
     ~HypreLibrary() override { HYPRE_Finalize(); }
 
     Order order() const override { return Order::diagonal_first; }
+
+    bool direct() const override { return true; }
 
     std::unique_ptr<Matrix> matrix(op_mat A) override { return std::make_unique<HypreMatrix>(A); }
 

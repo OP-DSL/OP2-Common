@@ -255,6 +255,8 @@ public:
 
     Order order() const override { return Order::sorted; }
 
+    bool direct() const override { return false; }
+
     std::unique_ptr<Matrix> matrix(op_mat A) override { return std::make_unique<PetscMatrix>(A); }
 
     std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<PetscSolver>(s); }

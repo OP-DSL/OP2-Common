@@ -56,10 +56,41 @@ public:
     double residual = 0.0;
 };
 
+// One part of a matrix as scalar CSR.
+struct ScalarPart {
+    std::vector<int> ptr, col;
+};
+
+// A matrix's scalar rows, its blocks' entries in each in the parts' block
+// order, and where each slot's block is in them: an offset into the values
+// (the diagonal part's, then the off-diagonal part's, then the scratch slots)
+// and the row stride, negative for a diagonal block whose rows hold their
+// diagonal entry first (Order::diagonal_first).
+struct Scalar {
+    ScalarPart diag, offd;
+    std::vector<int> layout;
+};
+
+Scalar expand(op_sparsity sp, int d, Order order);
+
+// Where entry k of slot's block is, as op::rt::kernel::BlockPtr finds it.
+inline int position(const Scalar& scalar, int d, int slot, int k) {
+    const int off = scalar.layout[2 * slot], stride = scalar.layout[2 * slot + 1], r = k / d, c = k % d;
+    if (stride < 0)
+        return off + r * -stride + (c == r ? 0 : c + (c < r));
+    return off + r * stride + c;
+}
+
+// How the values are laid out: blocks one after another, or the library's
+// scalar CSR, which loops write in place (generated code only).
+enum class Mode { undecided, blocked, direct };
+
 class Library {
 public:
     virtual ~Library() = default;
     virtual Order order() const = 0;
+    // Whether the library takes the values as its own scalar CSR.
+    virtual bool direct() const = 0;
     virtual std::unique_ptr<Matrix> matrix(op_mat A) = 0;
     virtual std::unique_ptr<Solver> solver(op_solver s) = 0;
 };
@@ -136,7 +167,10 @@ struct op_mat_core {
     op_sparsity sparsity;
     int dim;
     std::string name;
-    op_dat values;              // on the slots, dim * dim each, row major
+    op_dat values;              // on the slots, dim * dim each
+    op_dat layout = nullptr;    // for dim > 1: each slot's offset and row stride
+    op::solve::Mode mode = op::solve::Mode::undecided;
+    op::solve::Scalar scalar;   // the library's scalar rows
     int state = 0;              // assemblies so far
     std::unique_ptr<op::solve::Matrix> lib;
 };

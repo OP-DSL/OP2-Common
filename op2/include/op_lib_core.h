@@ -399,6 +399,10 @@ void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
 
+/* The layout of a matrix block argument's slots, as generated code reads them
+   (op_solve.h): op_arg_mat's argument becomes this one, on the same slots. */
+op_arg op_arg_mat_layout(op_arg values);
+
 /* Give the sets and maps declared since halo creation (in local numbering,
    with no halo of their own) empty halo lists, so a layer over OP2 can declare
    its own after op_partition. Collective; nothing to do without MPI. */

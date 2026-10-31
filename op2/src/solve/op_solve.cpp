@@ -370,7 +370,61 @@ void build(op_sparsity sp, Order order) {
     report_memory(("sparsity " + sp->name + " slot maps").c_str(), bytes);
 }
 
+// Fill a matrix's layout for its mode, for loops to find its blocks by.
+void decide(op_mat A, Mode mode) {
+    A->mode = mode;
+    if (A->layout == nullptr)
+        return;
+    const int bs = A->dim * A->dim, slots = A->layout->set->size;
+    int *layout = (int *)A->layout->data;
+    for (int s = 0; s < slots; s++) {
+        layout[2 * s] = mode == Mode::direct ? A->scalar.layout[2 * s] : s * bs;
+        layout[2 * s + 1] = mode == Mode::direct ? A->scalar.layout[2 * s + 1] : A->dim;
+    }
+    A->layout->dirty_hd = 1;
+}
+
 } // namespace
+
+Scalar expand(op_sparsity sp, int d, Order order) {
+    Scalar scalar;
+    const int nrows = sp->rows->size, owned = sp->diag_blocks + sp->offd_blocks;
+    scalar.layout.resize(2 * (std::size_t)(owned + sp->scratch_blocks));
+
+    auto part = [&](ScalarPart& out, const std::vector<int>& bptr, const std::vector<int>& bcol, int first,
+                    int base, bool diag) {
+        out.ptr.assign((std::size_t)nrows * d + 1, 0);
+        for (int I = 0; I < nrows; I++) {
+            const int length = (bptr[I + 1] - bptr[I]) * d;
+            for (int r = 0; r < d; r++) {
+                out.ptr[(std::size_t)I * d + r + 1] = out.ptr[(std::size_t)I * d + r] + length;
+                for (int k = bptr[I]; k < bptr[I + 1]; k++) {
+                    const int J = bcol[k];
+                    if (diag && order == Order::diagonal_first && J == I) {
+                        out.col.push_back(J * d + r);
+                        for (int c = 0; c < d; c++)
+                            if (c != r)
+                                out.col.push_back(J * d + c);
+                    } else
+                        for (int c = 0; c < d; c++)
+                            out.col.push_back(J * d + c);
+                }
+            }
+            for (int k = bptr[I]; k < bptr[I + 1]; k++) {
+                const bool head = diag && order == Order::diagonal_first && bcol[k] == I;
+                scalar.layout[2 * (first + k)] = base + out.ptr[(std::size_t)I * d] + (k - bptr[I]) * d;
+                scalar.layout[2 * (first + k) + 1] = head ? -length : length;
+            }
+        }
+    };
+    part(scalar.diag, sp->diag_ptr, sp->diag_col, 0, 0, true);
+    part(scalar.offd, sp->offd_ptr, sp->offd_col, sp->diag_blocks, sp->diag_blocks * d * d, false);
+    for (int s = owned; s < owned + sp->scratch_blocks; s++) {
+        scalar.layout[2 * s] = s * d * d;
+        scalar.layout[2 * s + 1] = d;
+    }
+    return scalar;
+}
 
 } // namespace op::solve
 
@@ -417,6 +471,8 @@ void op_solve_exit(void) {
     for (op_mat A : mats) {
         A->lib.reset();
         op_free_dat_temp_char(A->values);
+        if (A->layout != nullptr)
+            op_free_dat_temp_char(A->layout);
         delete A;
     }
     for (op_sparsity sp : sparsities)
@@ -467,10 +523,14 @@ op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *
     A->name = name;
     A->values = op_decl_dat_temp_char(sparsity->nnz, dim * dim, "double", sizeof(double),
                                       (std::string(name) + "_values").c_str());
+    A->scalar = expand(sparsity, dim, library->order());
+    if (dim > 1)
+        A->layout = op_decl_dat_temp_char(sparsity->nnz, 2, "int", sizeof(int),
+                                          (std::string(name) + "_layout").c_str());
+    else
+        A->mode = library->direct() ? Mode::direct : Mode::blocked;
     report_memory(("matrix " + A->name + " values").c_str(),
-                  (std::size_t)sparsity->nnz->size * A->values->size);
-    A->lib = library->matrix(A);
-    report_memory(("matrix " + A->name + " in the library").c_str());
+                  (std::size_t)sparsity->nnz->size * (A->values->size + (dim > 1 ? 2 * sizeof(int) : 0)));
     mats.push_back(A);
     return A;
 }
@@ -495,6 +555,17 @@ op_arg op_arg_mat(op_mat A, int rowidx, op_map rowmap, int colidx, op_map colmap
          rowmap != nullptr ? rowmap->name : "OP_ID", colmap != nullptr ? colmap->name : "OP_ID");
 }
 
+op_arg op_arg_mat_layout(op_arg values) {
+    for (op_mat A : mats) {
+        if (A->values != values.dat)
+            continue;
+        if (A->mode == Mode::undecided)
+            decide(A, library->direct() ? Mode::direct : Mode::blocked);
+        return op_arg_dat_core(A->layout, values.idx, values.map, 2, "int", OP_READ);
+    }
+    fail("op_arg_mat_layout: no matrix holds dat %s", values.dat->name);
+}
+
 void op_mat_zero(op_mat A) {
     op_arg arg = op_arg_dat_core(A->values, -1, OP_ID, A->values->dim, "double", OP_WRITE);
     enter(A->values->set, &arg, 1);
@@ -505,6 +576,12 @@ void op_mat_zero(op_mat A) {
 void op_mat_assemble(op_mat A) {
     op_arg arg = op_arg_dat_core(A->values, -1, OP_ID, A->values->dim, "double", OP_READ);
     enter(A->values->set, &arg, 1);
+    if (A->mode == Mode::undecided)
+        decide(A, Mode::blocked);
+    if (!A->lib) {
+        A->lib = library->matrix(A);
+        report_memory(("matrix " + A->name + " in the library").c_str());
+    }
     A->lib->assemble();
     if (A->state++ == 0)
         report_memory(("matrix " + A->name + " assembled").c_str());
@@ -558,6 +635,8 @@ int op_solve(op_solver s, op_dat b, op_dat x) {
     if ((OP_auto_soa && b->dim > 1) || std::strstr(b->type, ":soa") || std::strstr(x->type, ":soa"))
         fail("op_solve %s: SoA vectors are not supported", s->name.c_str());
 
+    if (!s->A->lib || (s->P != nullptr && !s->P->lib))
+        fail("op_solve %s: its matrices have not been assembled", s->name.c_str());
     if (!s->lib)
         s->lib = library->solver(s);
     op_arg args[] = {op_arg_dat_core(b, -1, OP_ID, b->dim, "double", OP_READ),
