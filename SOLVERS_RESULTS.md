@@ -7,55 +7,60 @@ Branch `feature/solvers` in `/home/jk-ext/op2-solvers`, on `feature/rt-redesign`
 
 ## What exists
 
-- `op_solve.h`: `op_decl_sparsity`, `op_decl_mat`, `op_arg_mat`, `op_mat_zero`,
-  `op_mat_assemble`, `op_decl_solver`, `op_solve`, `op_solver_stats`, and the
-  custom preconditioning hooks `op_solver_set_pc_mat` (assembled P),
+- `op_solve.h`: `op_decl_sparsity`, `op_decl_mat` (with a storage format, or
+  `OP_SOLVE_FORMAT`), `op_arg_mat`, `op_mat_zero`, `op_mat_assemble`,
+  `op_decl_solver`, `op_solve`, `op_solver_stats`, and the custom
+  preconditioning hooks `op_solver_set_pc_mat` (assembled P),
   `op_solver_set_pc` (par-loop preconditioner) and `op_solver_set_operator`
   (par-loop operator).
-- `op_arg_mat(A, i, rowmap, j, colmap, d, "double", OP_INC|OP_READ)` is an
-  indirect increment (or read) of the matrix's values through a slot map, so
-  every strategy assembles: seq, OpenMP colouring and chunks, CUDA
-  atomics/colouring/chunked staging, the JIT, MPI with the exec halo. The kernel
-  writes `A[r * d + c] += ...`.
-- For d > 1 the loops write the library's own scalar CSR in place: the kernel
-  parameter is an `op::rt::kernel::BlockPtr<T, d>` that finds each block row at
-  an offset and row stride from a layout table (a hidden argument the
-  translator adds). Diagonal blocks under hypre's diagonal-first rows are a
-  compile-time variant, so other blocks pay nothing for it. Loops the
-  translator never saw (op_seq.h) fall back to blocked storage and a permuting
-  commit.
-- Backends, chosen at run time (`OP_SOLVE_LIB`, or `op_solve_init`'s argument):
-  - PETSc 3.26: on the host, AIJ whose parts' arrays are the values (written in
-    place); on the GPU, AIJCUSPARSE through COO assembly from the values in
-    device memory (`MatSetValuesCOO`). KSP over vectors wrapping the dats;
-    PCSHELL and MATSHELL for the callbacks.
-  - hypre 3.2: ParCSR whose diagonal and off-diagonal data are the values
-    (written in place). PCG/GMRES/FlexGMRES/BiCGSTAB with BoomerAMG (systems
-    AMG for d > 1), ILU, Jacobi or the par-loop preconditioner.
-  - Ginkgo 1.11: distributed Matrix whose local and non-local Csr are views of
-    the values, distributed vectors over views of the dats, Schwarz-Jacobi/ILU
-    and Pgm multigrid, callback LinOps for the par-loop preconditioner and
-    operator.
+- `op_arg_mat(A, i, rowmap, j, colmap, d, "double", OP_INC|OP_READ)` is a
+  first-class argument (`OP_ARG_MAT`, its `op_arg.mat` the matrix's
+  `op_mat_storage`, `op2/rt/abi/matrix.h`): no op_dat. Plans, colouring,
+  chunked staging and the MPI exec-halo rule take a matrix as a target, so
+  every strategy assembles. The kernel writes `A[r * d + c] += ...` through an
+  `op::rt::kernel::BlockPtr<T, d>` that `mat_block` builds from the storage.
+- Storage (design, section 4): up to three regions (a library's local and
+  non-local parts, OP2's scratch for blocks of halo rows) that OP2 lends, the
+  library owns and OP2 borrows, or OP2 hands over at assembly; a layout entry
+  per slot (offset, row and column strides, region and diagonal rule); and a
+  form worked out from the layout (contiguous, one region or any region, unit
+  column strides, the one diagonal rule) that JIT kernels bake in, so what a
+  library's layout does not need compiles out. Untranslated loops (op_seq.h)
+  write a blocked buffer that `op_mat_assemble` adds in.
+- Libraries and formats, chosen at run time (`OP_SOLVE_LIB`,
+  `OP_SOLVE_FORMAT`), tested on CPU and the H100:
+
+  | library | formats (default first) | storage | where |
+  |---|---|---|---|
+  | PETSc 3.26 | aij (host), coo (device); aij:owned | lend; copy; borrow | CPU, GPU (aij:owned CPU only) |
+  | hypre 3.2 (mixed int) | csr, diagonal first | lend | CPU, GPU |
+  | Ginkgo 1.11 (patched, below) | csr[:cusparse\|classical\|merge_path], coo, ell, fbcsr; sellp | lend; borrow | CPU, GPU |
+  | AmgX 2.5 | bcsr (d = 1, 3, 4), bcsr:diag (one rank), csr (default past d = 4) | copy | GPU |
+  | rocALUTION 4.0 | csr, mcsr, bcsr, coo, ell | borrow | CPU (host build) |
+  | mock (SPLISS stand-in) | compact[:column], bell[:column][:interleaved] | borrow, local and non-local apart | CPU, GPU |
+
+  Solvers: CG, GMRES, FGMRES, BiCGStab where the library has them, with its
+  Jacobi, ILU and AMG, or a par-loop preconditioner (not AmgX).
 - MPI: global numbering by exchanging global ids once, blocks of halo rows
   (from exec-halo elements) to scratch slots, diagonal/off-diagonal split with
   columns compacted to a global column map; the layer's sets and maps get
   empty halos after partitioning (`op_mpi_local_objects`).
 - `apps/c/implicit`: backward Euler for u_t = div(K grad u) - C u with NV
-  components (`OP2_IMPLICIT_NV`, default 1 and 4) on an n x n grid stored as a
-  randomly renumbered unstructured mesh. Options: the library's
-  preconditioner, a par-loop block Jacobi (`-pc bjacobi`) or Neumann series
-  (`-pc neumann`) preconditioner reading the matrix in solver memory, a
-  decoupled assembled P (`-pmat decoupled`), an assembled or par-loop operator
-  (`-op matfree`), OP2's random partitioner in place of ParMETIS
-  (`-partition random`), `-check TOL`, `-timing 1`.
-- Tests: `ctest -L solve` runs the proxy for every variant and library built
-  (mode start against the discrete solution, bump start by its true residual,
-  the Neumann preconditioner for d > 1, and on two ranks a randomly
-  partitioned mesh, whose rows have as many blocks in the other rank's columns
-  as in their own). 171 pass on CPU (NV 1, 4 and 7; seq, genseq, openmp, and
-  their MPI forms on two ranks); 228 pass on the H100 build (NV 1, 4 and 6,
-  with cuda and mpi_cuda added). The rest of the suite is unchanged (78/78 on
-  CPU).
+  components (`OP2_IMPLICIT_NV`) on an n x n grid stored as a randomly
+  renumbered unstructured mesh. Options: the library's preconditioner, a
+  par-loop block Jacobi (`-pc bjacobi`) or Neumann series (`-pc neumann`)
+  preconditioner reading the matrix in solver memory, a decoupled assembled
+  P (`-pmat decoupled`), an assembled or par-loop operator (`-op matfree`),
+  OP2's random partitioner in place of ParMETIS (`-partition random`),
+  `-check TOL`, `-timing 1`, `-diags N`.
+- Tests: `ctest -L solve` runs the proxy for every variant, library and
+  format built: from the mode against the discrete solution, from the bump by
+  its true residual, under the Neumann preconditioner for d > 1, on two ranks
+  also on a randomly partitioned mesh (as many blocks of a row in the other
+  rank's columns as in its own); each library's other formats at every
+  component count. 765 pass on CPU (NV 1, 4, 7; seq, genseq, openmp and their
+  MPI forms), 802 on the H100 (NV 1, 4, 6, with cuda and mpi_cuda), and the
+  rest of the suite (78/78).
 
 ## Correctness
 
@@ -84,63 +89,89 @@ Branch `feature/solvers` in `/home/jk-ext/op2-solvers`, on `feature/rt-redesign`
 
 NV = 1: n = 2048 (4.2M nodes, 21M values). NV = 4: n = 1024 (1.05M nodes,
 5.2M blocks, 84M values). NV = 6: n = 836 (0.70M nodes, 3.5M blocks, 126M
-values). CG to a true relative residual of 1e-8; solve figures are from step
-9 of 10 (the first carries one-off setup). Rerun on 2026-10-31 after the
-index-width changes below, against a baseline of the previous build in the
-same session: assembly kernels, solve times and memory all agreed (kernels
-within 0.5%). Logs: `logs/bench_base`, `logs/bench_after`.
+values). One rank, driver 615.71.10, CUDA 13.0. Logs:
+`logs/perf_formats.log`, `logs/final_ab.log` (2026-10-31).
 
-### Assembly (per step)
+### Solve by library and format (CG + Jacobi to 1e-8, per iteration)
 
-| | NV = 1 loops + commit | NV = 4 loops + commit | NV = 6 loops + commit |
+| library, format | NV = 1 | NV = 4 | NV = 6 |
 |---|---|---|---|
-| PETSc (GPU: blocked, COO) | 2.6 + 0.4 ms | 4.7 + 1.6 ms (9.9) | 23.1 + 2.4 ms (7.7) |
-| hypre (in place) | 2.7 + 0 ms | 6.0 + 0 ms (8.9) | 21.2 + 0 ms (9.8) |
-| Ginkgo (in place) | 2.6 + 0 ms | 5.8 + 0 ms (8.2) | 18.9 + 0 ms (9.2) |
+| hypre csr | 0.98 ms | 1.42 ms | 1.73 ms |
+| PETSc coo | 0.87 | 2.95 | 3.25 |
+| Ginkgo csr | 1.31 | 1.74 | 2.15 |
+| Ginkgo csr:cusparse | 1.32 | 1.69 | 2.04 |
+| Ginkgo csr:classical | 1.27 | 1.76 | 2.00 |
+| Ginkgo csr:merge_path | 1.76 | 2.85 | 3.89 |
+| Ginkgo coo | 1.31 | 1.91 | 2.37 |
+| Ginkgo ell | 1.20 | 1.65 | 2.02 |
+| Ginkgo sellp | 1.21 | 1.65 | 2.03 |
+| Ginkgo fbcsr | 1.28 (as csr) | 1.51 | 1.95 |
+| AmgX bcsr | 0.82 | 1.04 | no 6 x 6 kernels |
+| AmgX bcsr:diag | 0.90 | 1.06 | no 6 x 6 kernels |
+| AmgX csr | 0.82 | 1.14 | 1.42 |
+| mock compact | 0.90 | 0.93 | 1.14 |
+| mock compact:column | 0.90 | 0.97 | 1.24 |
+| mock bell (any variant) | 0.82 | 0.94-0.95 | 1.13-1.14 |
 
-Steps 1-2, with step 9's loops in brackets. The default edge loop times as
-forced chunk_atomics does, and after a few calls (the JIT off too) both take
-forced atomics' time: slower at d = 4 (5.9 against 8.6-9.0 ms), faster at
-d = 6 (21 against 9.7 ms; forced chunk_colouring 14, colouring 22). That is
-OP2's loop machinery, not the solver layer, and has not been looked into
-further.
+Iterations (step 5) differ with each library's Jacobi and convergence test:
+PETSc and Ginkgo 1147 / 666 / 575, hypre and the mock 1147 / 627 / 539, AmgX
+1379 / 747-798 / 642 (its tolerance is relative to the initial residual,
+which each step's warm start makes small). Per-iteration times for hypre
+and Ginkgo csr match the earlier build's; PETSc's are 5-9% lower at NV > 1.
 
-The in-place layout writes each block row to a different scalar row, so its
-edge kernel is ~15% slower than blocked storage (5.1 against 4.4 ms, nsys), and
-saves the commit (0.9 ms permuting, 1.6 ms COO) and the second copy of the
-values. Before the diagonal-first variant was made compile-time the in-place
-kernel was 3x slower: the per-access sign test cost more than the atomics.
+Block formats pay off in the solve: Ginkgo's fbcsr is the fastest Ginkgo
+format at NV = 4 and 6, AmgX's bcsr beats its csr by 8% at NV = 4, and the
+mock's block CSR and block ELL (the shapes SPLISS stores) are the fastest
+here at NV = 4 and 6, level with AmgX at NV = 1. Ginkgo's merge_path strategy is the slowest throughout.
 
-### Matrix memory on the device
+Device memory in use after the first assembly, NV = 6 (the proxy's own data
+included, the same in each): hypre 2397 MiB, Ginkgo csr 2431, coo 2879, ell
+2399, sellp 2401, fbcsr 1941, AmgX csr 3811 (its copy of the values and its
+own structure), PETSc coo 5229, mock compact 1875, bell 1867.
 
-OP2 holds the values (160 / 640 / 959 MiB), the slot maps (144 / 36 / 24 MiB)
-and for NV > 1 the layout table (40 / 27 MiB). Beyond that, the library's
-matrix:
+### Assembly (loops per step)
 
-| | NV = 1 | NV = 4 | NV = 6 | per value at NV = 6 |
-|---|---|---|---|---|
-| PETSc (its CSR + COO maps) | 582 MiB | 2262 MiB | 3380 MiB | 28.2 B |
-| hypre (index arrays; the values are OP2's) | 148 MiB | 388 MiB | 548 MiB | 4.6 B |
-| Ginkgo (index arrays; the values are OP2's) | 118 MiB | 358 MiB | 514 MiB | 4.3 B |
+Each storage form's kernels, against the last build before first-class matrix
+arguments (6ebd0b26, values as an op_dat), steps 2-7 at the default strategy
+(atomics): offline kernels only (`OP_JIT_LEVEL=0`), and JIT kernels from the
+first call (`OP_JIT_MIN_CALLS=1 OP_JIT_SEQ_COMPILE=1`).
 
-With the staged commit, hypre's and Ginkgo's NV = 4 matrices were 1350 and
-1318 MiB: in place saves ~1 GB per 4.2M unknowns at d = 4, and the saving
-grows as d^2.
+| | NV = 1 | NV = 4 offline | NV = 4 JIT | NV = 6 offline | NV = 6 JIT |
+|---|---|---|---|---|---|
+| Ginkgo csr, before / now | 2.60 / 2.67 ms | 5.81 / 12.27 | 8.32 / 10.14 | 18.84 / 23.71 | 9.14 / 16.07 |
+| hypre, before / now | 2.67 / 2.75 | 5.89 / 13.14 | 8.50 / 8.18 | 21.11 / 25.41 | 9.62 / 9.36 |
+| PETSc coo, before / now | 2.62 / 2.66 | 4.66 / 16.06 | 9.53 / 16.67 | 23.05 / 27.73 | 7.64 / 27.12 |
 
-### Solve (per CG iteration, steady state)
+- At NV = 1 the contiguous form reads no layout and matches the old build.
+  Before the form existed every slot read a 16-byte layout entry and three
+  region bases, and NV = 1 took 4.3 ms.
+- JIT kernels at NV > 1: hypre matches the old build. Ginkgo's and PETSc's
+  kernels are simpler (no rule, contiguous blocks) and their edge kernels
+  take 40-56 registers against the old 128, so three times as many threads
+  run at once, and their scattered d x d atomics overflow the 50 MB L2 (ncu,
+  PETSc NV = 6: L2 hit rate 51% against 91%, 4.5x the DRAM bytes). At n <=
+  256 the old and new kernels time the same for all three. This is launch
+  tuning (occupancy for scattered atomics), not indexing, and is left for
+  later.
+- Offline kernels take the form at run time and branch on it, the same way
+  for every element; at NV = 4 they are 2-3x the old ones. They run until
+  the JIT kernel is built (about ten calls).
+- Across formats (JIT, step 5): NV = 4 hypre 8.0 ms, Ginkgo csr 10.3, fbcsr
+  7.2, ell and sellp 20, mock bell 12.2, bell:column 7.0, interleaved 20.4,
+  compact 16.6, compact:column 7.2, AmgX csr 9.9, bcsr 16.6; NV = 6 between
+  9.3 (hypre) and 32.5 ms (sellp). The spread is the same occupancy effect
+  and the strides of each format; nothing format-specific is tuned.
+- The earlier write-up said the default edge loop first ran as forced
+  chunk_atomics and later as atomics, "the JIT off too". On NVIDIA
+  chunk_atomics is off by default, and forced it is refused here (low
+  compression) and falls through to atomics: what changed after about ten
+  calls was the atomics kernel, offline to JIT, which the ladder prefers on a
+  register prior without timing it (old build, NV = 4: 4.83 ms offline
+  against 7.28 ms JIT). The "JIT off" run had used `OP_JIT_ENABLE`, which is
+  no longer read. `OP_AUTOTUNE=select` finds the offline kernel faster
+  (1.485x) but had not finished exploring after 100 calls.
 
-| | NV=1 Jacobi | NV=1 par-loop bjacobi | NV=4 lib Jacobi | NV=4 par-loop bjacobi | NV=6 lib Jacobi | NV=6 par-loop bjacobi |
-|---|---|---|---|---|---|---|
-| PETSc | 0.87 ms | 0.93 ms | 3.09 ms (PCPBJACOBI) | 1.30 ms | 3.58 ms (PCPBJACOBI) | 1.78 ms |
-| hypre | 0.98 ms | 0.97 ms | 1.42 ms (point) | 1.35 ms | 1.72 ms (point) | 1.83 ms |
-| Ginkgo | 1.31 ms | 1.38 ms | 1.75 ms (block) | 1.86 ms | 2.19 ms (block) | 2.38 ms |
-
-Ginkgo's block Jacobi now skips sorting the local matrix (its columns are
-sorted already); before, it built a sorted copy of the matrix at every setup,
-which cost 1.93 against 1.75 ms per iteration at NV = 4 and ran out of memory
-near the 32-bit limit (below).
-
-### AMG (setup every step)
+### AMG (setup every step; measured on the earlier build, whose solve path is unchanged)
 
 | | NV = 1 | NV = 4 | NV = 6 |
 |---|---|---|---|
@@ -155,32 +186,34 @@ So AMG fills a GPU long before a rank reaches the 32-bit limit below.
 Ginkgo's first solve costs a further 3-26 s (loading its CUDA modules), so its
 figures are steady state.
 
-## Library-owned storage and formats (2026-10-31, in progress)
+## Library-owned storage and formats: findings
 
-Matrix arguments are first-class (`OP_ARG_MAT`, design sections 3-4): the
-kernels write each library's own storage through a per-slot layout (region,
-offset, row and column strides, diagonal rule), whoever allocates it.
-
-| library | formats tested | regions | CPU | H100 |
-|---|---|---|---|---|
-| PETSc | aij, coo, aij:owned | lend, copy, borrow | pass | aij/coo pass; aij:owned not yet |
-| hypre | csr (diagonal first) | lend | pass | pass |
-| Ginkgo | csr, csr:classical, coo, ell, sellp, fbcsr | lend, borrow (sellp) | pass | csr pass; others not yet |
-| rocALUTION | csr, mcsr, bcsr, coo, ell | borrow | pass | host-only build |
-| AmgX | bcsr, bcsr:diag, csr | copy | device only | compiles; not yet run |
-| mock (SPLISS stand-in) | compact[:column], bell[:column][:interleaved] | borrow, two regions | pass | pass |
-
-CPU: 573 solver tests (every variant, d = 1, 4, 7, each library's formats on
-two ranks with ParMETIS and random partitions) and the main suite pass. On
-the H100, before the GPU hung (below), the first-class arguments passed all
-228 earlier solver tests and the mock's 196.
-
-The GPU on demos hung during a run of PETSc's first in-place device path,
-which let PETSc copy stale host values over, or move, the device arrays OP2
-had borrowed; that path is now opt-in (`aij:owned`), keeps the device copy
-current by PETSc's write accessors and a new matrix state instead of a host
-assembly, and checks the arrays have not moved before each assembly's loops.
-Its GPU run, AmgX's and the formats' GPU timings wait on the GPU.
+- Every format of every library runs on every variant and component count
+  (above). A library that lays out its own matrix is checked against the
+  layer's builders: rocALUTION converts the pattern itself and its index
+  arrays must equal the builder's; PETSc's own AIJ arrays are located from
+  its row pointers and columns.
+- Ginkgo 1.11 fails block Jacobi on Ell past 2^21 rows on a rank: its
+  conversion to Csr launches a column reduction with grid y = rows / 32, past
+  CUDA's 65535 (`cudaErrorInvalidDevice` reported later by thrust). Upstream
+  has fixed it (develop clamps grid y and strides); the build here carries
+  that change as `/home/jk-ext/solvers/patches/ginkgo-1.11-col-reduction-grid-y.patch`,
+  which `build_cuda.sh` applies. Ell at NV = 4 now solves at n = 1024.
+- Sellp slices are whole blocks (the multiple of d nearest Ginkgo's 64 rows),
+  since a block's rows must share a slice; 64-row slices refused d = 6 and 7.
+- AmgX has block kernels for 1, 3 and 4 components only; 6 x 6 blocks failed
+  to launch, and the next run hung the GPU (old driver). `bcsr` is refused
+  for other sizes and the default there is `csr`. `bcsr:diag` (the diagonal
+  blocks apart) is AmgX's single-rank upload only.
+- PETSc's `aij:owned` (OP2 writing PETSc's own arrays) works on the host. On
+  the device PETSc moves and refreshes its arrays behind a borrower, and its
+  PBJacobi reads host values: experimental, kept out of the GPU tests.
+- rocALUTION is a host build here; its GPU backend (HIP) is not built.
+- Lending libraries now have one base: a lent region 0 holds the scratch
+  slots after the library's values, so hypre, Ginkgo (but Sellp), PETSc's
+  aij and coo and AmgX keep "one region" under MPI; the mock, rocALUTION,
+  Sellp and `aij:owned` keep their parts apart ("any region") on more than
+  one rank.
 
 ## Index widths and the per-rank limit
 
@@ -242,11 +275,16 @@ Changes behind these figures:
 
 ## Observations
 
-- Assembly into solver memory costs a few milliseconds beside solves of
-  ~0.1-2 s per step here; for Hydra's flux Jacobians the loops are heavier but
-  the commit saved is the same bandwidth-bound pass.
-- Writing in place is where the memory goes: PETSc's COO path holds 3.4x a
-  CSR; hypre and Ginkgo with the values in place hold only their index arrays.
+- Assembly into solver memory costs milliseconds beside solves of ~0.1-2 s
+  per step here; for Hydra's flux Jacobians the loops are heavier but the
+  commit saved is the same bandwidth-bound pass.
+- A library's own layout costs the loops nothing extra to reach: the mock
+  allocates its local and non-local parts apart, in block CSR or block ELL,
+  row or column major, interleaved or not, and the loops write them in place
+  through the same layout as OP2's own regions. That is SPLISS's model.
+- Writing in place is where the memory goes: PETSc's COO path holds 2.2x the
+  device memory of hypre at NV = 6; formats in place hold only their index
+  arrays, and block formats (fbcsr, block ELL) the fewest.
 - Par-loop preconditioners cost two vector copies per application, nothing
   measurable; the par-loop block Jacobi is 2.2x faster than PETSc's own
   PCPBJACOBI on the GPU.
@@ -254,45 +292,45 @@ Changes behind these figures:
   handles the coupled 4-component system. Ginkgo's Pgm works on the decoupled
   P (`-pmat decoupled`: 88 iterations where A gives no convergence), the
   intended use of a separate preconditioning matrix.
-- PETSc GAMG with the decoupled P (explicit zeros inside its blocks) reports
-  an indefinite preconditioner on its first setup only; with P = A it is fine.
 
 ## Custom preconditioners: the answer
 
 op_par_loops plus `op_arg_mat` are enough. The four mechanisms in the design
 (assembled P, par-loop preconditioner callback, `op_arg_mat(OP_READ)` in those
-loops, par-loop operator) are implemented and tested on all three libraries,
-CPU and GPU, with block Jacobi and a Neumann series as working examples.
+loops, par-loop operator) are implemented and tested on PETSc, hypre, Ginkgo,
+rocALUTION and the mock (AmgX takes no callbacks), CPU and GPU, with block Jacobi and a Neumann series as working examples.
 Nothing else was needed: the library sees an operator, and the preconditioner
 is ordinary OP2 code with access to the assembled matrix in the library's own
 storage.
 
 ## Limitations and next steps
 
+- Assembly kernels are not tuned (above): JIT kernels for contiguous and
+  rule-free layouts lose to the old ones at NV > 1 by occupancy, and offline
+  kernels branch on the form. The ladder also swaps a faster offline kernel
+  for its JIT kernel untimed (an rt issue, not the solver layer's).
+- The layout is 16 bytes per slot on the device, twice the values at NV = 1;
+  a contiguous matrix's kernels never read it there and could go without.
 - Fortran: the API is C, so a binding is thin, but the Fortran translator
   needs `op_arg_mat` (the f2c path would reuse the C++ templates' BlockPtr).
-  Hydra needs this next.
-- PETSc on the GPU still commits through COO (one copy of the values plus
-  8-byte maps). In place there needs PETSc's Kokkos backend (AIJKokkos over
-  unmanaged views) or writing into its two CUSPARSE arrays.
+  Hydra needs this next, with SPLISS behind a backend like the mock's.
+- PETSc in place on the device (`aij:owned`) is experimental (above); the
+  device default is COO, one copy of the values plus 8-byte maps.
 - The par-loop operator is not supported by the hypre backend (ParCSR Krylov
-  solvers take a matvec only through hypre's generic interface).
+  solvers take a matvec only through hypre's generic interface), and AmgX
+  takes no par-loop callbacks.
 - Slot maps cost as much as the scalar values: the diagonal blocks of each
   edge could come from the node map, halving them.
 - At most 2^31 values of a matrix per rank (above). Going past needs 64-bit
   local indices in the libraries (Ginkgo int64, PETSc --with-64-bit-indices;
-  hypre has none on the GPU) and kernel offsets that do not cost registers.
-  PETSc's 32-bit build also caps the global size at 2^31 rows.
+  hypre has none on the GPU).
 - Scratch slots are one per (element, block) write to a halo row; deduplicated
-  per block they would shrink with heavy halos (a random partition on two
-  ranks nearly doubles the values).
-- The first commit near the limit takes ~10 s (index arrays built on the host,
-  then copied); building them on the device would cut it.
+  per block they would shrink with heavy halos.
 - Only square matrices on one set, "double", AoS vectors, full (not partial)
-  halo exchanges, CUDA tested (HIP compiles the same code but needs HIP builds
-  of the libraries), the legacy C++ targets reject matrix blocks.
-- Ginkgo's distributed multigrid on coupled systems, and PETSc GAMG's memory
-  on the GPU, are library limits rather than integration ones.
+  halo exchanges; CUDA tested (HIP compiles the same code but needs HIP builds
+  of the libraries); the legacy C++ targets reject matrix blocks.
+- A format whose blocks are not at fixed strides would need a new layout
+  rule; none of the formats here needed one.
 
 ## Building and running
 
@@ -300,21 +338,22 @@ storage.
 # Solver libraries (already built): /home/jk-ext/solvers/{cpu,cuda},
 # PETSc in /home/jk-ext/solvers/src/petsc{,-cuda}/arch-{cpu,cuda}
 cmake -S /home/jk-ext/op2-solvers -B build -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON \
-  -DOP2_ENABLE_PETSC=ON -DPETSC_DIR=... -DPETSC_ARCH=... \
-  -DOP2_ENABLE_HYPRE=ON -DHYPRE_DIR=.../lib/cmake/HYPRE \
-  -DOP2_ENABLE_GINKGO=ON -DGinkgo_DIR=.../lib/cmake/Ginkgo
-OP_SOLVE_LIB=hypre ./build/apps/c/implicit/implicit4_cuda -n 1024 -steps 10 -init bump \
-  -solver "method=cg pc=amg rtol=1e-8"
+  -DOP2_ENABLE_PETSC=ON -DPETSC_DIR=... -DPETSC_ARCH=... -DOP2_ENABLE_HYPRE=ON \
+  -DOP2_ENABLE_GINKGO=ON -DOP2_ENABLE_AMGX=ON -DOP2_ENABLE_ROCALUTION=ON -DOP2_ENABLE_SOLVE_MOCK=ON
+OP_SOLVE_LIB=ginkgo OP_SOLVE_FORMAT=fbcsr ./build/apps/c/implicit/implicit4_cuda -n 1024 -steps 10 \
+  -init bump -solver "method=cg pc=jacobi rtol=1e-8"
 ctest --test-dir build -L solve
 ```
 
 `/home/jk-ext/solvers/scripts/` has the exact configurations: `build_cpu.sh`,
-`build_cuda.sh` (the libraries), `op2_cpu_build.sh`, `gpu_configure.sh` (this
-tree; the GPU one also needs `CMAKE_CUDA_HOST_COMPILER` and
-`CUDA_TOOLKIT_ROOT_DIR` for hypre's Umpire/BLT config), `perf_lib.sh`,
-`assembly.sh`, `nsys_assembly.sh`, `gpu_solve_tests.sh`.
-Variables: `OP_SOLVE_LIB`, `OP_SOLVE_LAYOUT=blocked`, `OP_SOLVE_MEMORY=1`,
-`OP_SOLVE_HYPRE_POOL` (MiB; Umpire reserves 4 GiB by default). The libraries'
-scripts take `ONLY=<library>`; hypre is built with mixed integers.
-`bench_all.sh <tag>` reruns every timing here, `perf_limit.sh` the runs at the
-32-bit limit, `jit_regs_implicit.sh` the JIT kernels' registers.
+`build_cuda.sh`, `build_amgx.sh` (the libraries; `ONLY=<library>`; hypre with
+mixed integers, Ginkgo with the patch above), `op2_cpu_build.sh`,
+`gpu_configure.sh` (this tree; the GPU one also needs
+`CMAKE_CUDA_HOST_COMPILER` and `CUDA_TOOLKIT_ROOT_DIR` for hypre's Umpire/BLT
+config), `gpu_solve_tests.sh`, `perf_formats.sh` (the format table; `NVS`,
+`FORMATS`, stops at the first device error), `perf_limit.sh` (the runs at the
+32-bit limit), `jit_regs_implicit.sh` (the JIT kernels' registers).
+Variables: `OP_SOLVE_LIB`, `OP_SOLVE_FORMAT`, `OP_SOLVE_MEMORY=1` (memory per
+stage and the matrix's storage form), `OP_SOLVE_HYPRE_POOL` (MiB; Umpire
+reserves 4 GiB by default). To time kernels: `OP_JIT_LEVEL=0` for offline
+only, `OP_JIT_MIN_CALLS=1 OP_JIT_SEQ_COMPILE=1` for JIT from the first call.
