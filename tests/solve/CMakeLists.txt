@@ -16,6 +16,7 @@ foreach(_def IN LISTS _op2_solve_defs)
 endforeach()
 
 set(_formats_mock compact:column bell bell:column bell:interleaved bell:interleaved:column)
+set(_formats_petsc coo aij:owned)
 set(_formats_rocalution mcsr bcsr coo ell)
 
 set(_format_nvs "")
@@ -64,6 +65,10 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
                 continue()
             endif()
             foreach(_format IN LISTS _formats_${_lib})
+                # PETSc's device arrays move under a borrower (op_solve_petsc.cpp).
+                if(_format STREQUAL "aij:owned" AND _variant MATCHES "cuda|hip")
+                    continue()
+                endif()
                 string(REPLACE ":" "-" _fname "${_format}")
                 set(_fcases "mode:-init:mode:-dt:0.002")
                 if(_nv GREATER 1)

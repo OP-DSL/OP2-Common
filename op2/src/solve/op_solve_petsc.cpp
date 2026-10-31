@@ -1,13 +1,20 @@
-// The PETSc backend: on the host an AIJ matrix whose parts' arrays are the
-// op_mat's values, written in place by the loops; on the device an
-// AIJCUSPARSE matrix assembled through PETSc's COO interface from the values
-// in place there; KSP over vectors wrapping the dats.
+// The PETSc backend: an AIJ matrix whose parts' values the loops write in
+// place on the host, OP2's region being their arrays; on the device a copy
+// in COO order handed over at each assembly (MatSetValuesCOO), which "coo"
+// asks for on the host too.  "aij:owned" borrows PETSc's own arrays instead
+// (AIJCUSPARSE's on the device, experimental).  KSP over vectors wrapping the
+// dats; PCSHELL and MATSHELL for the callbacks.
 
 #include <op2/solve/solve.h>
 
 #include <op_lib_c.h>
 
 #include <petscksp.h>
+
+#if OP2_SOLVE_DEVICE
+#include <op2/gpu/check.h>
+#include <op2/gpu/shims.h>
+#endif
 
 #include <algorithm>
 #include <sstream>
@@ -26,10 +33,14 @@ public:
         if (global > PETSC_INT_MAX)
             fail("PETSc: matrix %s has %lld global rows or columns, past its %zu-byte PetscInt", A->name.c_str(),
                  (long long)global, sizeof(PetscInt));
-        if (!format.empty() && format != "aij")
+        // On the device PETSc's arrays move under it, so it copies by default.
+        m_coo = format == "coo" || (on_device && (format.empty() || format == "aij"));
+        if (!m_coo && !format.empty() && format != "aij" && format != "aij:owned")
             fail("PETSc: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
-        if (on_device)
+        if (m_coo)
             coo();
+        else if (format == "aij:owned")
+            owned();
         else
             views();
     }
@@ -37,10 +48,23 @@ public:
     ~PetscMatrix() override { MatDestroy(&m_mat); }
 
     void assemble() override {
-        if (on_device) {
+        if (m_coo) {
             PETSC_CALL(MatSetValuesCOO(m_mat, (const PetscScalar *)m_A->regions[0].data, INSERT_VALUES));
             return;
         }
+#if OP2_SOLVE_DEVICE
+        // The loops wrote PETSc's device arrays: it is told so, and they must
+        // not have moved.
+        for (int p = 0; p < 2; p++) {
+            if (m_parts[p] == nullptr)
+                continue;
+            PetscScalar *values;
+            PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(m_parts[p], &values));
+            PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(m_parts[p], &values));
+            if ((char *)values != m_A->regions[p].data)
+                fail("PETSc: matrix %s: its device values moved", m_A->name.c_str());
+        }
+#endif
         // The arrays are PETSc's own: an assembly tells it they changed.
         PETSC_CALL(MatAssemblyBegin(m_mat, MAT_FINAL_ASSEMBLY));
         PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
@@ -75,6 +99,73 @@ private:
         PETSC_CALL(MatCreateMPIAIJWithSeqAIJ(comm(), sp->global_rows * d, sp->global_cols * d, diag, offd, garray,
                                              &m_mat));
         PETSC_CALL(MatSetBlockSize(m_mat, d));
+    }
+
+    // PETSc's own parts on the pattern (AIJCUSPARSE on the device), which the
+    // loops write in place: their values borrowed as regions 0 and 1, each
+    // block found from PETSc's own row pointers and columns.
+    void owned() {
+        op_sparsity sp = m_A->sparsity;
+        const PetscInt d = m_A->dim, nrows = sp->rows->size, m = nrows * d;
+        std::vector<PetscInt> ptr(m + 1, 0), col;
+        std::vector<PetscInt> row;
+        for (int I = 0; I < nrows; I++)
+            for (PetscInt r = 0; r < d; r++) {
+                row.clear();
+                for (int k = sp->diag_ptr[I]; k < sp->diag_ptr[I + 1]; k++)
+                    for (PetscInt c = 0; c < d; c++)
+                        row.push_back((PetscInt)((sp->col_start + sp->diag_col[k]) * d + c));
+                for (int k = sp->offd_ptr[I]; k < sp->offd_ptr[I + 1]; k++)
+                    for (PetscInt c = 0; c < d; c++)
+                        row.push_back((PetscInt)(sp->garray[sp->offd_col[k]] * d + c));
+                std::sort(row.begin(), row.end());
+                col.insert(col.end(), row.begin(), row.end());
+                ptr[I * d + r + 1] = (PetscInt)col.size();
+            }
+        PETSC_CALL(MatCreate(comm(), &m_mat));
+        PETSC_CALL(MatSetSizes(m_mat, m, sp->cols->size * d, sp->global_rows * d, sp->global_cols * d));
+        PETSC_CALL(MatSetType(m_mat, on_device ? MATMPIAIJCUSPARSE : MATMPIAIJ));
+        PETSC_CALL(MatSetBlockSize(m_mat, d));
+        PETSC_CALL(MatMPIAIJSetPreallocationCSR(m_mat, ptr.data(), col.data(), nullptr));
+
+        const PetscInt *colmap;
+        PETSC_CALL(MatMPIAIJGetSeqAIJ(m_mat, &m_parts[0], &m_parts[1], &colmap));
+        for (int p = 0; p < 2; p++) {
+            PetscInt rows, cols;
+            PETSC_CALL(MatGetSize(m_parts[p], &rows, &cols));
+            std::vector<int> hptr(rows + 1), hcol;
+            PetscScalar *values = nullptr;
+#if OP2_SOLVE_DEVICE
+            const PetscInt *dptr, *dcol;
+            PETSC_CALL(MatSeqAIJCUSPARSEGetIJ(m_parts[p], PETSC_FALSE, &dptr, &dcol));
+            GPU_CHECK(gpuMemcpy(hptr.data(), dptr, sizeof(int) * (rows + 1), gpuMemcpyDeviceToHost));
+            hcol.resize(hptr[rows]);
+            GPU_CHECK(gpuMemcpy(hcol.data(), dcol, sizeof(int) * hcol.size(), gpuMemcpyDeviceToHost));
+            PETSC_CALL(MatSeqAIJCUSPARSERestoreIJ(m_parts[p], PETSC_FALSE, &dptr, &dcol));
+            PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(m_parts[p], &values));
+            PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(m_parts[p], &values));
+#else
+            const PetscInt *hi, *hj;
+            PetscMemType type;
+            PETSC_CALL(MatSeqAIJGetCSRAndMemType(m_parts[p], &hi, &hj, &values, &type));
+            std::copy(hi, hi + rows + 1, hptr.begin());
+            hcol.assign(hj, hj + hptr[rows]);
+#endif
+            if (hcol.empty()) {
+                m_parts[p] = nullptr;
+                continue;
+            }
+            // The off-diagonal part's columns into PETSc's colmap, as ours
+            // into the sparsity's garray.
+            if (p == 1)
+                for (int& c : hcol) {
+                    const idx_g_t global = colmap[c];
+                    auto at = std::lower_bound(sp->garray.begin(), sp->garray.end(), global / d);
+                    c = (int)(at - sp->garray.begin()) * d + (int)(global % d);
+                }
+            csr_located(m_A, p == 0 ? Part::diag : Part::offd, p, hptr, hcol);
+            borrow(m_A, p, values, hcol.size() * sizeof(PetscScalar));
+        }
     }
 
     // A region of values in the order of PETSc's COO entries: the diagonal
@@ -115,6 +206,8 @@ private:
 
     op_mat m_A;
     Mat m_mat = nullptr;
+    bool m_coo = false;
+    Mat m_parts[2] = {nullptr, nullptr};
     ScalarCsr m_diag, m_offd;
 };
 
