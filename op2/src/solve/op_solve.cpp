@@ -445,14 +445,23 @@ char *untranslated(op_mat_storage *view, int acc) {
 }
 
 // After the library set up A's owned slots: scratch slots for blocks of halo
-// rows in region 2, one after another, and the layout where loops read it.
+// rows, one after another, after the values of a region 0 the layer lent (so
+// loops have one base) or else in region 2; the layout where loops read it,
+// and the form they find blocks by.
 void finish_storage(op_mat A) {
     op_sparsity sp = A->sparsity;
-    const int bs = A->dim * A->dim, owned = sp->diag_blocks + sp->offd_blocks;
+    const int d = A->dim, bs = d * d, owned = sp->diag_blocks + sp->offd_blocks;
     if (sp->scratch_blocks > 0) {
-        lend(A, 2, (std::size_t)sp->scratch_blocks * bs * sizeof(double));
+        const std::size_t bytes = (std::size_t)sp->scratch_blocks * bs * sizeof(double);
+        Region& first = A->regions[0];
+        const int region = first.owned ? 0 : 2;
+        const long start = first.owned ? (long)(first.bytes / sizeof(double)) : 0;
+        if (first.owned)
+            first.bytes += bytes;
+        else
+            lend(A, 2, bytes);
         for (int k = 0; k < sp->scratch_blocks; k++)
-            A->layout[owned + k] = {k * bs, A->dim, 1, 2};
+            A->layout[owned + k] = {(int)(start + (long)k * bs), d, 1, region};
     }
     for (int r = 0; r < mat::regions; r++)
         if (A->regions[r].bytes > INT_MAX * sizeof(double))
@@ -463,6 +472,28 @@ void finish_storage(op_mat A) {
     for (std::size_t s = 0; s < A->layout.size(); s++)
         std::copy(A->layout[s].begin(), A->layout[s].end(), flat.begin() + s * mat::entry);
     A->view.dim = A->dim;
+    int where = mat::contiguous, rule = mat::plain;
+    bool unit = true;
+    for (std::size_t s = 0; s < A->layout.size(); s++) {
+        const Entry& e = A->layout[s];
+        const int r = e[mat::aux] >> mat::rule_shift;
+        if (r != mat::plain && rule != mat::plain && r != rule)
+            fail("matrix %s: its slots have two diagonal rules", A->name.c_str());
+        rule = r != mat::plain ? r : rule;
+        // A 1 x 1 block never reads its strides, nor a separate diagonal's
+        // its column stride, which is its diagonal's offset.
+        const bool columns = d == 1 || e[mat::col_stride] == 1 ||
+                             e[mat::aux] >> mat::rule_shift == mat::diagonal_separate;
+        unit = unit && columns;
+        // A 1 x 1 block's diagonal first in its row is where it is.
+        const bool moved = r == mat::diagonal_separate || (r == mat::diagonal_first && d > 1);
+        if ((e[mat::aux] & mat::region_mask) != 0)
+            where = mat::any_region;
+        else if (where == mat::contiguous && ((long)e[mat::offset] != (long)s * bs || moved ||
+                                              (d > 1 && (e[mat::row_stride] != d || e[mat::col_stride] != 1))))
+            where = mat::one_region;
+    }
+    A->view.form = where | (unit ? mat::unit_columns : 0) | rule << mat::form_rule_shift;
     A->view.layout = flat.empty() ? nullptr : (const int *)A->layout.data()->data();
     if (on_device) {
         A->layout_d = upload(flat);
@@ -479,11 +510,14 @@ char *lend(op_mat A, int region, std::size_t bytes) {
     Region& r = A->regions[region];
     if (r.data != nullptr)
         fail("matrix %s: region %d set twice", A->name.c_str(), region);
+    // Room after region 0's values for the scratch slots (finish_storage).
+    const std::size_t room =
+        region == 0 ? (std::size_t)A->sparsity->scratch_blocks * A->dim * A->dim * sizeof(double) : 0;
 #if OP2_SOLVE_DEVICE
-    GPU_CHECK(gpuMalloc((void **)&r.data, bytes + 1));
-    GPU_CHECK(gpuMemset(r.data, 0, bytes + 1));
+    GPU_CHECK(gpuMalloc((void **)&r.data, bytes + room + 1));
+    GPU_CHECK(gpuMemset(r.data, 0, bytes + room + 1));
 #else
-    r.data = (char *)std::calloc(bytes + 1, 1);
+    r.data = (char *)std::calloc(bytes + room + 1, 1);
 #endif
     r.bytes = bytes;
     r.owned = true;
@@ -611,7 +645,11 @@ op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *
     std::size_t bytes = A->layout.size() * sizeof(Entry);
     for (const Region& r : A->regions)
         bytes += r.owned ? r.bytes : 0;
-    report_memory(("matrix " + A->name + " storage").c_str(), bytes);
+    const char *forms[] = {"contiguous", "one region", "any region"};
+    report_memory(("matrix " + A->name + " storage, " + forms[A->view.form & mat::where_mask] +
+                   (A->view.form & mat::unit_columns ? "" : ", strided columns"))
+                      .c_str(),
+                  bytes);
     return A;
 }
 

@@ -116,8 +116,9 @@ stubs bind the storage's regions and layout from `args[i].mat`.
 ## 4. Storage
 
 A matrix's values are in up to three regions: say a library's local and
-non-local parts, and OP2's scratch for blocks of halo rows (always region 2).
-Who allocates a region is the backend's choice:
+non-local parts, and OP2's scratch for blocks of halo rows, which follows the
+values of a region 0 OP2 lends and is otherwise region 2. Who allocates a
+region is the backend's choice:
 
 - **lend**: OP2 allocates it (`op::solve::lend`) and the library views it as
   its own arrays (hypre's ParCSR data; Ginkgo's Csr, Coo, Ell and Fbcsr
@@ -141,6 +142,23 @@ argument (the same map and index on both sides) is typed
 `BlockPtr<T, d, true>` and checks the rule, so other blocks pay nothing; a
 format with a rule rejects a sparsity that reaches a diagonal block any other
 way.
+
+Kernels find a slot's block by the least general form its matrix's layout
+fits (`op_mat_storage::form`), which `op_decl_mat` works out from the layout
+once the backend has set it: where the blocks are, **contiguous** (block s
+at s * d * d of region 0, row major: the layout is not read; PETSc's COO
+order, scalar CSR at d = 1), **one region** (through the layout, every slot
+in region 0: every format OP2 lends, its scratch included) or **any region**
+(the slot's own: a library's local and non-local arrays apart, as the mock,
+rocALUTION, Ginkgo's Sellp and PETSc's `aij:owned` have them on more than
+one rank); whether every block's column stride is 1; and the one diagonal
+rule its slots may have. A JIT kernel bakes the form in, as it does a dat's
+run-time dimension (`abi::mat_form`), so what the layout does not need
+compiles out: one base and no region choice for the libraries that need no
+separate parts, constant offsets along rows, no rule tests where there is
+no rule. An offline or CPU kernel takes the form as an argument and
+branches on it, the same way for every element. A new library needs
+nothing for this: its layout determines its form.
 
 The backends lay out their formats with the layer's builders
 (`op2/src/solve/op_solve_layout.cpp`), each setting a part's slots' entries
