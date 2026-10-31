@@ -110,6 +110,14 @@ void copy(void *dst, const void *src, std::size_t bytes) {
 #endif
 }
 
+void download(void *dst, const void *src, std::size_t bytes) {
+#if OP2_SOLVE_DEVICE
+    GPU_CHECK(gpuMemcpy(dst, src, bytes, gpuMemcpyDeviceToHost));
+#else
+    std::memcpy(dst, src, bytes);
+#endif
+}
+
 void zero(void *dst, std::size_t bytes) {
 #if OP2_SOLVE_DEVICE
     GPU_CHECK(gpuMemset(dst, 0, bytes));

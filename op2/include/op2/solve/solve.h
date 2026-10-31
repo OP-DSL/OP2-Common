@@ -101,6 +101,8 @@ MPI_Comm comm();
 char *memory(op_dat dat);
 void copy(void *dst, const void *src, std::size_t bytes);
 void zero(void *dst, std::size_t bytes);
+// From the loops' space to the host.
+void download(void *dst, const void *src, std::size_t bytes);
 
 // An int array in the loops' space, and its release.
 int *upload(const std::vector<int>& values);
