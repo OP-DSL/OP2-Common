@@ -39,7 +39,10 @@ void fail(char const *format, ...) {
     std::vfprintf(stderr, format, args);
     std::fprintf(stderr, "\n");
     va_end(args);
-    MPI_Abort(MPI_COMM_WORLD, 1);
+    int initialised;
+    MPI_Initialized(&initialised);
+    if (initialised)
+        MPI_Abort(MPI_COMM_WORLD, 1);
     std::exit(1);
 }
 
