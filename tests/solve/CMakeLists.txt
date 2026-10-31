@@ -11,7 +11,7 @@ foreach(_def IN LISTS _op2_solve_defs)
     endif()
 endforeach()
 
-foreach(_nv 1 4)
+foreach(_nv IN LISTS OP2_IMPLICIT_NV)
     set(_cases "mode:-init:mode:-dt:0.002" "bump:-init:bump")
     if(_nv GREATER 1)
         list(APPEND _cases "neumann:-init:bump:-pc:neumann")
