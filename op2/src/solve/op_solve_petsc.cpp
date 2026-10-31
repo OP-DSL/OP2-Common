@@ -216,6 +216,7 @@ public:
     bool solve(op_dat b, op_dat x) override {
         place(m_b, b);
         place(m_x, x);
+        PETSC_CALL(VecNorm(m_b, NORM_2, &m_bnorm));
         PETSC_CALL(KSPSolve(m_ksp, m_b, m_x));
         reset(m_b);
         reset(m_x);
@@ -227,7 +228,7 @@ public:
         PETSC_CALL(KSPGetResidualNorm(m_ksp, &norm));
         PETSC_CALL(KSPGetConvergedReason(m_ksp, &reason));
         iterations = (int)its;
-        residual = (double)norm;
+        residual = m_bnorm > 0 ? (double)norm / m_bnorm : (double)norm;
         return reason > 0;
     }
 
@@ -236,6 +237,7 @@ private:
     KSP m_ksp = nullptr;
     Mat m_shell = nullptr;
     Vec m_b = nullptr, m_x = nullptr;
+    PetscReal m_bnorm = 0;
 };
 
 class PetscLibrary final : public Library {
