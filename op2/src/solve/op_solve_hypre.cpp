@@ -9,7 +9,9 @@
 #include <HYPRE_parcsr_ls.h>
 #include <_hypre_parcsr_mv.h>
 
+#include <algorithm>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 
 namespace op::solve {
@@ -37,6 +39,10 @@ public:
     explicit HypreMatrix(op_mat A) : m_A{A} {
         op_sparsity sp = A->sparsity;
         const int d = A->dim, nrows = sp->rows->size;
+        const idx_g_t global = std::max(sp->global_rows, sp->global_cols) * d;
+        if (global > std::numeric_limits<HYPRE_BigInt>::max())
+            fail("hypre: matrix %s has %lld global rows or columns, past its %zu-byte HYPRE_BigInt (build hypre with "
+                 "HYPRE_ENABLE_MIXEDINT)", A->name.c_str(), (long long)global, sizeof(HYPRE_BigInt));
         HYPRE_BigInt rows[2] = {(HYPRE_BigInt)(sp->row_start * d), (HYPRE_BigInt)((sp->row_start + nrows) * d)};
         HYPRE_BigInt cols[2] = {(HYPRE_BigInt)(sp->col_start * d),
                                 (HYPRE_BigInt)((sp->col_start + sp->cols->size) * d)};

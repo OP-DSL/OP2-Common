@@ -148,13 +148,18 @@ private:
     void *m_ctx;
 };
 
+// The parts' columns are sorted, so the factories need not sort a copy.
 std::shared_ptr<gko::LinOpFactory> local_jacobi(int d, int n) {
     if (d == 1)
-        return jacobi::build().with_max_block_size(1u).on(executor);
+        return jacobi::build().with_max_block_size(1u).with_skip_sorting(true).on(executor);
     std::vector<int> blocks(n / d + 1);
     for (std::size_t k = 0; k < blocks.size(); k++)
         blocks[k] = (int)k * d;
-    return jacobi::build().with_max_block_size((gko::uint32)d).with_block_pointers(to_exec(blocks)).on(executor);
+    return jacobi::build()
+        .with_max_block_size((gko::uint32)d)
+        .with_block_pointers(to_exec(blocks))
+        .with_skip_sorting(true)
+        .on(executor);
 }
 
 class GinkgoSolver final : public Solver {
@@ -200,7 +205,7 @@ private:
         else if (o.pc == "ilu")
             pc = gko::share(schwarz::build()
                                 .with_local_solver(gko::preconditioner::Ilu<>::build().with_factorization(
-                                    gko::factorization::ParIlu<double, int>::build()))
+                                    gko::factorization::ParIlu<double, int>::build().with_skip_sorting(true)))
                                 .on(executor)
                                 ->generate(Pm));
         else if (o.pc == "amg") {

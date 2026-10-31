@@ -1,7 +1,9 @@
 # The implicit proxy (apps/c/implicit) with each library built: from the mode,
 # against the discrete solution; from the bump, by its true residual; and with
 # four components under the Neumann preconditioner, which reads the matrix in
-# solver memory.  MPI variants on two ranks.
+# solver memory.  MPI variants on two ranks, and there also from the mode on a
+# randomly partitioned mesh, whose rows have as many blocks in other ranks'
+# columns as in their own.
 
 set(_libs "")
 foreach(_def IN LISTS _op2_solve_defs)
@@ -22,11 +24,13 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
             continue()
         endif()
         set(_cmd "$<TARGET_FILE:${_target}>")
+        set(_variant_cases ${_cases})
         if(_variant MATCHES "^mpi_")
             set(_cmd ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS} "$<TARGET_FILE:${_target}>")
+            list(APPEND _variant_cases "random:-init:mode:-dt:0.002:-partition:random")
         endif()
         foreach(_lib IN LISTS _libs)
-            foreach(_case IN LISTS _cases)
+            foreach(_case IN LISTS _variant_cases)
                 string(REPLACE ":" ";" _args "${_case}")
                 list(POP_FRONT _args _name)
                 set(_solver "method=cg pc=jacobi rtol=1e-12 maxit=5000")

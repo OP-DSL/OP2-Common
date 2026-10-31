@@ -11,7 +11,7 @@
 //
 //   implicit [-n N] [-steps S] [-dt DT] [-pc lib|bjacobi] [-op assembled|matfree]
 //            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"] [-diags N]
-//            [-pc neumann -terms M] [-pmat decoupled] [-timing 1] [-check TOL]
+//            [-pc neumann -terms M] [-pmat decoupled] [-partition kway|random] [-timing 1] [-check TOL]
 //
 // -pc neumann preconditions with M Neumann steps after block Jacobi, each a
 // matrix-vector product through the blocks in solver memory; -pmat decoupled
@@ -20,6 +20,9 @@
 // -init bump starts from Gaussian bumps instead of the mode, for a solve with
 // work in it; the solution is then checked by its true residual, b - A x
 // with A applied by par loops, which checks the assembled matrix too.
+//
+// -partition random scatters the nodes over the ranks, so on two ranks half
+// of each node's neighbours are another rank's.
 
 #include "op_seq.h"
 #include "op_solve.h"
@@ -272,7 +275,10 @@ int main(int argc, char **argv) {
     op_decl_const(NK, "double", Kc);
     op_decl_const(NK, "double", Cc);
 
-    op_partition("PARMETIS", "KWAY", ctx.edges, ctx.edge_nodes, p_xy);
+    if (strcmp(option(argc, argv, "-partition", "kway"), "random") == 0)
+        op_partition("RANDOM", NULL, ctx.nodes, NULL, NULL);
+    else
+        op_partition("PARMETIS", "KWAY", ctx.edges, ctx.edge_nodes, p_xy);
 
     op_solve_init(argc, argv, NULL);
     op_sparsity sp = op_decl_sparsity(ctx.nodes, ctx.nodes, 1, &ctx.edge_nodes, &ctx.edge_nodes, "laplacian");

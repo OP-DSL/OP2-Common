@@ -14,6 +14,7 @@
 #endif
 
 #include <algorithm>
+#include <climits>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -409,6 +410,10 @@ void decide(op_mat A, Mode mode) {
 Scalar expand(op_sparsity sp, int d, Order order) {
     Scalar scalar;
     const int nrows = sp->rows->size, owned = sp->diag_blocks + sp->offd_blocks;
+    const std::size_t values = (std::size_t)(owned + sp->scratch_blocks) * d * d;
+    if (values > INT_MAX)
+        fail("sparsity %s: %zu values on a rank in %d x %d blocks, past the 32-bit offsets loops and solver "
+             "libraries take", sp->name.c_str(), values, d, d);
     scalar.layout.resize(2 * (std::size_t)(owned + sp->scratch_blocks));
 
     auto part = [&](ScalarPart& out, const std::vector<int>& bptr, const std::vector<int>& bcol, int first,

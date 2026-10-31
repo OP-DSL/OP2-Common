@@ -9,6 +9,7 @@
 
 #include <petscksp.h>
 
+#include <algorithm>
 #include <sstream>
 #include <vector>
 
@@ -21,6 +22,10 @@ namespace {
 class PetscMatrix final : public Matrix {
 public:
     explicit PetscMatrix(op_mat A) : m_A{A} {
+        const idx_g_t global = std::max(A->sparsity->global_rows, A->sparsity->global_cols) * A->dim;
+        if (global > PETSC_INT_MAX)
+            fail("PETSc: matrix %s has %lld global rows or columns, past its %zu-byte PetscInt", A->name.c_str(),
+                 (long long)global, sizeof(PetscInt));
         if (on_device)
             coo();
         else
