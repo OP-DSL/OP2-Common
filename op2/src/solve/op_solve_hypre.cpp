@@ -291,8 +291,8 @@ public:
         HYPRE_CALL(HYPRE_SetExecutionPolicy(on_device ? HYPRE_EXEC_DEVICE : HYPRE_EXEC_HOST));
 #ifdef HYPRE_USING_UMPIRE_DEVICE
         // Umpire reserves 4 GiB up front; OP_SOLVE_HYPRE_POOL (MiB) starts it smaller.
-        if (const char *pool = std::getenv("OP_SOLVE_HYPRE_POOL"))
-            HYPRE_CALL(HYPRE_SetUmpireDevicePoolSize((std::size_t)std::atol(pool) << 20));
+        if (settings.hypre_pool > 0)
+            HYPRE_CALL(HYPRE_SetUmpireDevicePoolSize((std::size_t)settings.hypre_pool << 20));
 #endif
     }
 

@@ -56,6 +56,12 @@
  * OP2 global state variables
  */
 
+#ifdef OP2_SOLVE
+namespace op::solve {
+void read_env();
+}
+#endif
+
 int OP_diags = 0, OP_part_size = 0, OP_block_size = 64,
     OP_cache_line_size = 128, OP_gpu_direct = 0;
 
@@ -394,6 +400,9 @@ void op_init_core(int argc, char **argv, int diags) {
 
   // The par_loop strategies' run-wide variables.
   op::rt::init();
+#ifdef OP2_SOLVE
+  op::solve::read_env();
+#endif
 }
 
 op_set op_decl_set_core(idx_l_t size, char const *name) {

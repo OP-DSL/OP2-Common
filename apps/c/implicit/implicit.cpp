@@ -11,7 +11,7 @@
 //
 //   implicit [-n N] [-steps S] [-dt DT] [-pc lib|bjacobi] [-op assembled|matfree]
 //            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"] [-diags N]
-//            [-pc neumann -terms M] [-pmat decoupled]
+//            [-pc neumann -terms M] [-pmat decoupled] [-timing 1]
 //
 // -pc neumann preconditions with M Neumann steps after block Jacobi, each a
 // matrix-vector product through the blocks in solver memory; -pmat decoupled
@@ -415,6 +415,8 @@ int main(int argc, char **argv) {
     op_printf("time: total %.4f s, assembly loops %.4f s, commit %.4f s, solve %.4f s\n", end - start, loops_time,
               commit_time, solve_time);
 
+    if (atoi(option(argc, argv, "-timing", "0")))
+        op_timing_output();
     op_solve_exit();
     op_exit();
     return converged ? 0 : 1;

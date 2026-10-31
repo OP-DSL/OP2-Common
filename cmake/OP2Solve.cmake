@@ -40,6 +40,7 @@ if(OP2_ENABLE_GINKGO)
 endif()
 
 if(_op2_solve_srcs)
+    list(APPEND _op2_solve_defs OP2_SOLVE)
     if(NOT MPI_FOUND)
         message(FATAL_ERROR "OP2: the solver layer needs MPI (the solver libraries are MPI builds)")
     endif()

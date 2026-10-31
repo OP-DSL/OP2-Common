@@ -1,5 +1,6 @@
 #include <op2/solve/solve.h>
 
+#include <op2/env.h>
 #include <op_lib_c.h>
 
 #ifdef OPMPI
@@ -48,6 +49,17 @@ MPI_Comm comm() {
 #else
     return MPI_COMM_SELF;
 #endif
+}
+
+Settings settings;
+
+void read_env() {
+    env::parse_text("OP_SOLVE_LIB", settings.lib);
+    std::string layout = "direct";
+    env::parse_text("OP_SOLVE_LAYOUT", layout);
+    settings.blocked = layout == "blocked";
+    env::parse_bool("OP_SOLVE_MEMORY", settings.memory);
+    env::parse_number("OP_SOLVE_HYPRE_POOL", settings.hypre_pool);
 }
 
 Options parse_options(char const *text) {
@@ -105,8 +117,7 @@ void zero(void *dst, std::size_t bytes) {
 }
 
 void report_memory(char const *stage, std::size_t own) {
-    static const bool on = std::getenv("OP_SOLVE_MEMORY") != nullptr && std::atoi(std::getenv("OP_SOLVE_MEMORY"));
-    if (!on)
+    if (!settings.memory)
         return;
     const double mib = 1024.0 * 1024.0;
 #if OP2_SOLVE_DEVICE
@@ -446,9 +457,7 @@ void op_solve_init(int argc, char **argv, char const *lib) {
         finalise_mpi = true;
     }
 
-    std::string name = lib != nullptr ? lib : "";
-    if (name.empty() && std::getenv("OP_SOLVE_LIB") != nullptr)
-        name = std::getenv("OP_SOLVE_LIB");
+    std::string name = lib != nullptr ? lib : settings.lib;
 #ifdef OP2_SOLVE_PETSC
     if (name.empty() || name == "petsc")
         library = make_petsc(argc, argv);
@@ -566,10 +575,8 @@ op_arg op_arg_mat_layout(op_arg values) {
         if (A->values != values.dat)
             continue;
         // OP_SOLVE_LAYOUT=blocked keeps the blocks apart, as for untranslated loops.
-        static const bool blocked = std::getenv("OP_SOLVE_LAYOUT") != nullptr &&
-                                    std::strcmp(std::getenv("OP_SOLVE_LAYOUT"), "blocked") == 0;
         if (A->mode == Mode::undecided)
-            decide(A, library->direct() && !blocked ? Mode::direct : Mode::blocked);
+            decide(A, library->direct() && !settings.blocked ? Mode::direct : Mode::blocked);
         return op_arg_dat_core(A->layout, values.idx, values.map, 2, "int", OP_READ);
     }
     fail("op_arg_mat_layout: no matrix holds dat %s", values.dat->name);

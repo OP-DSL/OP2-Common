@@ -40,6 +40,17 @@ struct Options {
 
 Options parse_options(char const *text);
 
+// The layer's variables, which op_init reads (read_env) with the rest.
+struct Settings {
+    std::string lib;               // OP_SOLVE_LIB
+    bool blocked = false;          // OP_SOLVE_LAYOUT=blocked
+    bool memory = false;           // OP_SOLVE_MEMORY
+    int hypre_pool = 0;            // OP_SOLVE_HYPRE_POOL, MiB
+};
+
+extern Settings settings;
+void read_env();
+
 // A library's matrix over an op_mat's values.
 class Matrix {
 public:
