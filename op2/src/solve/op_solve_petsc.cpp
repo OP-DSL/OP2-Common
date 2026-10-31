@@ -2,8 +2,9 @@
 // place on the host, OP2's region being their arrays; on the device a copy
 // in COO order handed over at each assembly (MatSetValuesCOO), which "coo"
 // asks for on the host too.  "aij:owned" borrows PETSc's own arrays instead
-// (AIJCUSPARSE's on the device, experimental).  KSP over vectors wrapping the
-// dats; PCSHELL and MATSHELL for the callbacks.
+// (AIJCUSPARSE's on the device, experimental: PETSc's own preconditioners for
+// blocks read the values on the host, which device writes leave stale).  KSP
+// over vectors wrapping the dats; PCSHELL and MATSHELL for the callbacks.
 
 #include <op2/solve/solve.h>
 
@@ -60,13 +61,9 @@ public:
         // current one, and the matrix has a new state.  A host assembly would
         // let PETSc copy its stale host values over them.
         if (!m_views) {
-            for (int p = 0; p < 2; p++) {
-                if (m_parts[p] == nullptr)
-                    continue;
-                PetscScalar *values;
-                PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(m_parts[p], &values));
-                PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(m_parts[p], &values));
-            }
+            for (int p = 0; p < 2; p++)
+                if (m_parts[p] != nullptr)
+                    device_values(m_parts[p]);
             PETSC_CALL(PetscObjectStateIncrease((PetscObject)m_mat));
             return;
         }
@@ -76,24 +73,36 @@ public:
         PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
     }
 
-    // PETSc's own device arrays must not have moved since they were located.
+    // Before the loops write PETSc's own device arrays: a host assembly, which
+    // drops what PETSc caches from the old values (its inverted diagonal
+    // blocks) and may copy its host values over the device ones, harmlessly
+    // now; then the arrays must not have moved since they were located.
     void zero() override {
 #if OP2_SOLVE_DEVICE
-        for (int p = 0; p < 2 && !m_views; p++) {
-            if (m_parts[p] == nullptr)
-                continue;
-            PetscScalar *values;
-            PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(m_parts[p], &values));
-            PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(m_parts[p], &values));
-            if ((char *)values != m_A->regions[p].data)
+        if (m_coo || m_views)
+            return;
+        PETSC_CALL(MatAssemblyBegin(m_mat, MAT_FINAL_ASSEMBLY));
+        PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
+        for (int p = 0; p < 2; p++)
+            if (m_parts[p] != nullptr && (char *)device_values(m_parts[p]) != m_A->regions[p].data)
                 fail("PETSc: matrix %s: its device values moved", m_A->name.c_str());
-        }
 #endif
     }
 
     Mat mat() const { return m_mat; }
 
 private:
+#if OP2_SOLVE_DEVICE
+    // A part's device values, marked current (Restore nulls its argument).
+    static PetscScalar *device_values(Mat part) {
+        PetscScalar *values, *held;
+        PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(part, &values));
+        held = values;
+        PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(part, &values));
+        return held;
+    }
+#endif
+
     // The diagonal and off-diagonal parts' arrays over one region of values,
     // which the loops write in place.
     void views() {
@@ -163,8 +172,7 @@ private:
             hcol.resize(hptr[rows]);
             GPU_CHECK(gpuMemcpy(hcol.data(), dcol, sizeof(int) * hcol.size(), gpuMemcpyDeviceToHost));
             PETSC_CALL(MatSeqAIJCUSPARSERestoreIJ(m_parts[p], PETSC_FALSE, &dptr, &dcol));
-            PETSC_CALL(MatSeqAIJCUSPARSEGetArrayWrite(m_parts[p], &values));
-            PETSC_CALL(MatSeqAIJCUSPARSERestoreArrayWrite(m_parts[p], &values));
+            values = device_values(m_parts[p]);
 #else
             const PetscInt *hi, *hj;
             PetscMemType type;
