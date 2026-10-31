@@ -44,15 +44,15 @@ inline void op_arg_set(int n, op_arg& arg, char **p_arg, int halo) {
       *p_arg = (char*)&arg.map->map[arg.idx + n * arg.map->dim];
   } else {
     if (arg.map == NULL || arg.opt == 0) // identity mapping
-      *p_arg += arg.size * n;
+      *p_arg += (size_t)arg.size * n;
     else // standard pointers
-      *p_arg += arg.size * arg.map->map[arg.idx + n * arg.map->dim];
+      *p_arg += (size_t)arg.size * arg.map->map[arg.idx + n * arg.map->dim];
   }
 }
 
 inline void op_arg_copy_in(int n, op_arg arg, char **p_arg) {
   for (int i = 0; i < -1 * arg.idx; ++i)
-    p_arg[i] = arg.data + arg.map->map[i + n * arg.map->dim] * arg.size;
+    p_arg[i] = arg.data + (size_t)arg.map->map[i + n * arg.map->dim] * arg.size;
 }
 
 inline void op_args_check(op_set set, int nargs, op_arg *args, int *ninds,
