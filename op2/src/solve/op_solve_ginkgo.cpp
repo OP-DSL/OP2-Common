@@ -83,6 +83,10 @@ public:
             strategy = kind.substr(4);
             kind = "csr";
         }
+        // 1 x 1 blocks are scalar entries, which Csr holds (and Fbcsr's
+        // diagonal is not extracted on the device).
+        if (kind == "fbcsr" && d == 1)
+            kind = "csr";
         const gko::dim<2> sizes[2] = {gko::dim<2>(n, sp->cols->size * d), gko::dim<2>(n, remote.size())};
         const Part which[2] = {Part::diag, Part::offd};
         std::shared_ptr<gko::LinOp> made[2];
