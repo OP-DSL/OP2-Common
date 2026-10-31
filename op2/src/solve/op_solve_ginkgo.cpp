@@ -13,6 +13,7 @@
 
 #include <ginkgo/ginkgo.hpp>
 
+#include <algorithm>
 #include <vector>
 
 namespace op::solve {
@@ -91,8 +92,10 @@ public:
         const Part which[2] = {Part::diag, Part::offd};
         std::shared_ptr<gko::LinOp> made[2];
         if (kind == "sellp") {
+            // Slices of whole blocks, near Ginkgo's default of 64 rows.
+            const int slice = std::max(d, 64 / d * d);
             for (int p = 0; p < 2; p++) {
-                const Sell sell = sell_layout(A, which[p], p, 0, 64, 1, -1);
+                const Sell sell = sell_layout(A, which[p], p, 0, slice, 1, -1);
                 auto m = gko::share(sellp::create(executor, sizes[p], sell.slice, 1, sell.sets.back()));
                 const std::vector<gko::size_type> lengths(sell.lengths.begin(), sell.lengths.end()),
                     sets(sell.sets.begin(), sell.sets.end());

@@ -4,8 +4,7 @@
 # solver memory.  MPI variants on two ranks, and there also from the mode on a
 # randomly partitioned mesh, whose rows have as many blocks in other ranks'
 # columns as in their own.  Each library's other storage formats run from the
-# mode, and under the Neumann preconditioner, on every variant at one
-# component and the first larger count.
+# mode, and under the Neumann preconditioner, on every variant and count.
 
 set(_libs "")
 foreach(_def IN LISTS _op2_solve_defs)
@@ -24,17 +23,6 @@ set(_formats_amgx bcsr:diag csr)
 # AmgX solves on the device only, and takes no par-loop preconditioner.
 set(_device_only amgx)
 set(_no_callbacks amgx)
-
-set(_format_nvs "")
-set(_block_nv "")
-foreach(_nv IN LISTS OP2_IMPLICIT_NV)
-    if(_nv EQUAL 1)
-        list(APPEND _format_nvs 1)
-    elseif(_block_nv STREQUAL "")
-        set(_block_nv ${_nv})
-        list(APPEND _format_nvs ${_nv})
-    endif()
-endforeach()
 
 foreach(_nv IN LISTS OP2_IMPLICIT_NV)
     set(_cases "mode:-init:mode:-dt:0.002" "bump:-init:bump")
@@ -73,9 +61,6 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
                 set_tests_properties(${_test} PROPERTIES PROCESSORS ${_procs}
                     LABELS "solve" ENVIRONMENT "OP_SOLVE_LIB=${_lib};OMP_NUM_THREADS=2" TIMEOUT 300)
             endforeach()
-            if(NOT _nv IN_LIST _format_nvs)
-                continue()
-            endif()
             foreach(_format IN LISTS _formats_${_lib})
                 # PETSc's device arrays move under a borrower (op_solve_petsc.cpp).
                 if(_format STREQUAL "aij:owned" AND _variant MATCHES "cuda|hip")
@@ -83,6 +68,10 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
                 endif()
                 # AmgX's distributed upload takes no external diagonal.
                 if(_format STREQUAL "bcsr:diag" AND _variant MATCHES "^mpi_")
+                    continue()
+                endif()
+                # AmgX has block kernels for 1, 3 and 4 components (op_solve_amgx.cpp).
+                if(_lib STREQUAL "amgx" AND _format MATCHES "^bcsr" AND NOT _nv MATCHES "^[134]$")
                     continue()
                 endif()
                 string(REPLACE ":" "-" _fname "${_format}")
