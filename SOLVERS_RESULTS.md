@@ -155,6 +155,33 @@ So AMG fills a GPU long before a rank reaches the 32-bit limit below.
 Ginkgo's first solve costs a further 3-26 s (loading its CUDA modules), so its
 figures are steady state.
 
+## Library-owned storage and formats (2026-10-31, in progress)
+
+Matrix arguments are first-class (`OP_ARG_MAT`, design sections 3-4): the
+kernels write each library's own storage through a per-slot layout (region,
+offset, row and column strides, diagonal rule), whoever allocates it.
+
+| library | formats tested | regions | CPU | H100 |
+|---|---|---|---|---|
+| PETSc | aij, coo, aij:owned | lend, copy, borrow | pass | aij/coo pass; aij:owned not yet |
+| hypre | csr (diagonal first) | lend | pass | pass |
+| Ginkgo | csr, csr:classical, coo, ell, sellp, fbcsr | lend, borrow (sellp) | pass | csr pass; others not yet |
+| rocALUTION | csr, mcsr, bcsr, coo, ell | borrow | pass | host-only build |
+| AmgX | bcsr, bcsr:diag, csr | copy | device only | compiles; not yet run |
+| mock (SPLISS stand-in) | compact[:column], bell[:column][:interleaved] | borrow, two regions | pass | pass |
+
+CPU: 573 solver tests (every variant, d = 1, 4, 7, each library's formats on
+two ranks with ParMETIS and random partitions) and the main suite pass. On
+the H100, before the GPU hung (below), the first-class arguments passed all
+228 earlier solver tests and the mock's 196.
+
+The GPU on demos hung during a run of PETSc's first in-place device path,
+which let PETSc copy stale host values over, or move, the device arrays OP2
+had borrowed; that path is now opt-in (`aij:owned`), keeps the device copy
+current by PETSc's write accessors and a new matrix state instead of a host
+assembly, and checks the arrays have not moved before each assembly's loops.
+Its GPU run, AmgX's and the formats' GPU timings wait on the GPU.
+
 ## Index widths and the per-rank limit
 
 A rank holds at most 2^31 values of a matrix (owned blocks and scratch slots):
