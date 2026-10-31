@@ -225,6 +225,7 @@ int main(int argc, char **argv) {
     op_dat p_u = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "u");
     op_dat p_b = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "b");
     ctx.dinv = op_decl_dat(ctx.nodes, NV * NV, "double", (double *)NULL, "dinv");
+    op_dat p_ax = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "ax");
 
     op_decl_const(1, "double", &h2dt);
     op_decl_const(1, "double", &h2);
@@ -313,7 +314,6 @@ int main(int argc, char **argv) {
     std::vector<double> continuous = mat_vec(expm(generator, steps * dt), std::vector<double>(w, w + NV));
 
     // The last step's true residual, through the matrix-free operator.
-    op_dat p_ax = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "ax");
     matfree(p_u, p_ax, &ctx);
     double r2 = 0, b2 = 0;
     op_par_loop(residual_norms, "residual_norms", ctx.nodes,

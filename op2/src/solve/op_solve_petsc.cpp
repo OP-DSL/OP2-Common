@@ -4,6 +4,8 @@
 
 #include <op2/solve/solve.h>
 
+#include <op_lib_c.h>
+
 #include <petscksp.h>
 
 #include <sstream>
@@ -174,13 +176,17 @@ public:
         } else
             fail("PETSc: unknown pc '%s'", o.pc.c_str());
 
-        // The library options under this solver's prefix.
+        // The solver's own library options under its prefix, the rest as given.
         std::string prefix = s->name + "_";
         PETSC_CALL(KSPSetOptionsPrefix(m_ksp, prefix.c_str()));
         std::istringstream words(o.library);
         std::string word, options;
-        while (words >> word)
-            options += (word[0] == '-' ? "-" + prefix + word.substr(1) : word) + " ";
+        while (words >> word) {
+            bool own = false;
+            for (const char *kind : {"-ksp_", "-pc_", "-mg_", "-sub_"})
+                own |= word.rfind(kind, 0) == 0;
+            options += (own ? "-" + prefix + word.substr(1) : word) + " ";
+        }
         if (o.monitor)
             options += "-" + prefix + "ksp_monitor ";
         PETSC_CALL(PetscOptionsInsertString(nullptr, options.c_str()));
@@ -231,6 +237,8 @@ class PetscLibrary final : public Library {
 public:
     PetscLibrary(int argc, char **argv) {
         PETSC_COMM_WORLD = comm();
+        if (on_device && !OP_gpu_direct)
+            PETSC_CALL(PetscOptionsSetValue(nullptr, "-use_gpu_aware_mpi", "0"));
         PETSC_CALL(PetscInitialize(&argc, &argv, nullptr, nullptr));
         // The command line is the application's too.
         PETSC_CALL(PetscOptionsSetValue(nullptr, "-options_left", "0"));
