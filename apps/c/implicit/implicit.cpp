@@ -256,12 +256,19 @@ int main(int argc, char **argv) {
                     op_arg_gbl(w, NV, "double", OP_READ),
                     op_arg_dat(p_u, -1, OP_ID, NV, "double", OP_WRITE));
 
-    double cpu, start, assemble_time = 0, solve_time = 0, t0, t1;
+    // Device work is asynchronous, so each phase waits for it before its time.
+    auto wall = []() {
+        deviceSync();
+        double cpu, now;
+        op_timers(&cpu, &now);
+        return now;
+    };
+    double loops_time = 0, commit_time = 0, solve_time = 0, t0, t1, t2;
     int iterations = 0, converged = 1;
-    op_timers(&cpu, &start);
+    const double start = wall();
     for (int step = 0; step < steps; step++) {
         if (step == 0 || reassemble) {
-            op_timers(&cpu, &t0);
+            t0 = wall();
             op_mat_zero(A);
             op_par_loop(diag_block, "diag_block", ctx.nodes,
                         op_arg_dat(ctx.nbnd, -1, OP_ID, 1, "int", OP_READ),
@@ -271,21 +278,23 @@ int main(int argc, char **argv) {
                         op_arg_mat(A, 0, ctx.edge_nodes, 1, ctx.edge_nodes, NV, "double", OP_INC),
                         op_arg_mat(A, 1, ctx.edge_nodes, 0, ctx.edge_nodes, NV, "double", OP_INC),
                         op_arg_mat(A, 1, ctx.edge_nodes, 1, ctx.edge_nodes, NV, "double", OP_INC));
+            t1 = wall();
             op_mat_assemble(A);
             if (pc == "bjacobi")
                 op_par_loop(invert_block, "invert_block", ctx.nodes,
                             op_arg_mat(A, -1, OP_ID, -1, OP_ID, NV, "double", OP_READ),
                             op_arg_dat(ctx.dinv, -1, OP_ID, NV * NV, "double", OP_WRITE));
-            op_timers(&cpu, &t1);
-            assemble_time += t1 - t0;
+            t2 = wall();
+            loops_time += t1 - t0;
+            commit_time += t2 - t1;
         }
 
         op_par_loop(rhs, "rhs", ctx.nodes,
                     op_arg_dat(p_u, -1, OP_ID, NV, "double", OP_READ),
                     op_arg_dat(p_b, -1, OP_ID, NV, "double", OP_WRITE));
-        op_timers(&cpu, &t0);
+        t0 = wall();
         converged &= op_solve(solver, p_b, p_u);
-        op_timers(&cpu, &t1);
+        t1 = wall();
         solve_time += t1 - t0;
 
         int its;
@@ -293,10 +302,9 @@ int main(int argc, char **argv) {
         op_solver_stats(solver, &its, &res);
         iterations += its;
         if (step < 3 || step == steps - 1)
-            op_printf("step %4d: %4d iterations, residual %.3e\n", step, its, res);
+            op_printf("step %4d: %4d iterations, residual %.3e, solve %.4f s\n", step, its, res, t1 - t0);
     }
-    double end;
-    op_timers(&cpu, &end);
+    const double end = wall();
 
     // The discrete solution: the mode's amplitude after each step is
     // (I + dt (mu K + C))^-1 times the last, mu the discrete Laplacian's
@@ -343,7 +351,8 @@ int main(int argc, char **argv) {
         op_printf("error vs discrete solution:   max %.3e, rms %.3e\n", emax, sqrt(e2 / (gnodes * NV)));
         op_printf("error vs continuous solution: max %.3e, rms %.3e\n", cmax, sqrt(c2 / (gnodes * NV)));
     }
-    op_printf("time: total %.4f s, assembly %.4f s, solve %.4f s\n", end - start, assemble_time, solve_time);
+    op_printf("time: total %.4f s, assembly loops %.4f s, commit %.4f s, solve %.4f s\n", end - start, loops_time,
+              commit_time, solve_time);
 
     op_solve_exit();
     op_exit();

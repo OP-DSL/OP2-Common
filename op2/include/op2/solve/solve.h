@@ -78,6 +78,15 @@ char *memory(op_dat dat);
 void copy(void *dst, const void *src, std::size_t bytes);
 void zero(void *dst, std::size_t bytes);
 
+// dst[to[k]] = src[k], in the loops' space; and int arrays there.
+void scatter(double *dst, const double *src, const int *to, std::size_t n);
+int *upload(const std::vector<int>& values);
+void release(void *memory);
+
+// With OP_SOLVE_MEMORY=1, what a stage leaves in use: device memory in a GPU
+// variant, and the layer's own arrays.
+void report_memory(char const *stage, std::size_t own = 0);
+
 // Bring direct args on set into the loops' space, as a loop would, and mark
 // the written ones after.
 void enter(op_set set, op_arg *args, int nargs);

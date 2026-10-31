@@ -104,10 +104,15 @@ set(_op2_core_srcs
     ${_op2_rt_srcs}
 )
 
-# The solver layer, when a solver library is enabled (cmake/OP2Solve.cmake).
+
+# The solver layer, when a solver library is enabled (cmake/OP2Solve.cmake);
+# its device side joins the GPU groups below.
 foreach(_s IN LISTS _op2_solve_srcs)
     list(APPEND _op2_core_srcs "${_src}/solve/${_s}")
 endforeach()
+if(_op2_solve_srcs)
+    list(APPEND _op2_rt_gpu_srcs "${_src}/solve/op_solve_device.cu")
+endif()
 
 # Backend-specific groups for single-node variants.
 set(_op2_backend_seq_srcs

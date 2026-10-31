@@ -104,6 +104,37 @@ void zero(void *dst, std::size_t bytes) {
 #endif
 }
 
+void report_memory(char const *stage, std::size_t own) {
+    static const bool on = std::getenv("OP_SOLVE_MEMORY") != nullptr && std::atoi(std::getenv("OP_SOLVE_MEMORY"));
+    if (!on)
+        return;
+    const double mib = 1024.0 * 1024.0;
+#if OP2_SOLVE_DEVICE
+    std::size_t free, total;
+    GPU_CHECK(gpuDeviceSynchronize());
+    GPU_CHECK(gpuMemGetInfo(&free, &total));
+    op_printf("op_solve memory: %-28s %10.1f MiB own, %10.1f MiB device in use\n", stage, own / mib,
+              (total - free) / mib);
+#else
+    op_printf("op_solve memory: %-28s %10.1f MiB own\n", stage, own / mib);
+#endif
+}
+
+#if !OP2_SOLVE_DEVICE
+void scatter(double *dst, const double *src, const int *to, std::size_t n) {
+    for (std::size_t k = 0; k < n; k++)
+        dst[to[k]] = src[k];
+}
+
+int *upload(const std::vector<int>& values) {
+    int *host = (int *)std::malloc(sizeof(int) * values.size() + 1);
+    std::memcpy(host, values.data(), sizeof(int) * values.size());
+    return host;
+}
+
+void release(void *memory) { std::free(memory); }
+#endif
+
 void enter(op_set set, op_arg *args, int nargs) {
     op_mpi_halo_exchanges(set, nargs, args, on_device ? 2 : 1);
     op_mpi_wait_all(nargs, args);
@@ -330,9 +361,13 @@ void build(op_sparsity sp, Order order) {
             pair.slots.push_back(map);
         }
     op_mpi_local_objects();
+    std::size_t bytes = 0;
     for (auto& pair : sp->pairs)
-        for (op_map map : pair.slots)
+        for (op_map map : pair.slots) {
             upload_map(map);
+            bytes += sizeof(int) * (std::size_t)executed(map->from) * map->dim;
+        }
+    report_memory(("sparsity " + sp->name + " slot maps").c_str(), bytes);
 }
 
 } // namespace
@@ -432,7 +467,10 @@ op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *
     A->name = name;
     A->values = op_decl_dat_temp_char(sparsity->nnz, dim * dim, "double", sizeof(double),
                                       (std::string(name) + "_values").c_str());
+    report_memory(("matrix " + A->name + " values").c_str(),
+                  (std::size_t)sparsity->nnz->size * A->values->size);
     A->lib = library->matrix(A);
+    report_memory(("matrix " + A->name + " in the library").c_str());
     mats.push_back(A);
     return A;
 }
@@ -468,7 +506,8 @@ void op_mat_assemble(op_mat A) {
     op_arg arg = op_arg_dat_core(A->values, -1, OP_ID, A->values->dim, "double", OP_READ);
     enter(A->values->set, &arg, 1);
     A->lib->assemble();
-    A->state++;
+    if (A->state++ == 0)
+        report_memory(("matrix " + A->name + " assembled").c_str());
 }
 
 op_solver op_decl_solver(op_mat A, char const *name, char const *options) {
@@ -526,6 +565,10 @@ int op_solve(op_solver s, op_dat b, op_dat x) {
     enter(rows, args, 2);
     bool converged = s->lib->solve(b, x);
     leave(args, 2);
+    static bool first = true;
+    if (first)
+        report_memory(("solver " + s->name + " solved").c_str());
+    first = false;
     return converged ? 1 : 0;
 }
 

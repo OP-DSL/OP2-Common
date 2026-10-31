@@ -154,6 +154,11 @@ public:
         if (o.method == "gmres" || o.method == "fgmres")
             PETSC_CALL(KSPGMRESSetRestart(m_ksp, o.restart));
         PETSC_CALL(KSPSetInitialGuessNonzero(m_ksp, PETSC_TRUE));
+        // Converge on the true residual, ||b - A x|| / ||b||, as every backend does.
+        if (o.method == "cg")
+            PETSC_CALL(KSPSetNormType(m_ksp, KSP_NORM_UNPRECONDITIONED));
+        else
+            PETSC_CALL(KSPSetPCSide(m_ksp, PC_RIGHT));
 
         PC pc;
         PETSC_CALL(KSPGetPC(m_ksp, &pc));
