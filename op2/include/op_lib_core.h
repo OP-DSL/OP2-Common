@@ -118,6 +118,7 @@ extern int OP_is_partitioned;
 #define OP_ARG_DAT 1
 #define OP_ARG_IDX 2
 #define OP_ARG_INFO 3
+#define OP_ARG_MAT 4
 
 #define OP_STAGE_NONE 0
 #define OP_STAGE_INC 1
@@ -126,7 +127,7 @@ extern int OP_is_partitioned;
 #define OP_COLOR2 4
 
 typedef int op_access; // holds OP_READ, OP_WRITE, OP_RW, OP_INC, OP_MIN, OP_MAX, OP_WORK
-typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX, OP_ARG_INFO
+typedef int op_arg_type; // holds OP_ARG_GBL, OP_ARG_DAT, OP_ARG_IDX, OP_ARG_INFO, OP_ARG_MAT
 
 /*
  * structures
@@ -183,6 +184,9 @@ typedef struct op_dat_core {
 
 typedef op_dat_core *op_dat;
 
+/* A matrix's storage as loops reach it (op2/rt/abi/matrix.h). */
+struct op_mat_storage;
+
 typedef struct {
   int index;        /* index */
   op_dat dat;       /* dataset */
@@ -198,6 +202,7 @@ typedef struct {
   op_arg_type argtype;
   int sent; /* unused, always 0; kept so the layout matches the Fortran op_arg */
   int opt;  /* flag to indicate if this argument is in use */
+  struct op_mat_storage *mat; /* an OP_ARG_MAT's matrix, its slots the map's target set */
 } op_arg;
 
 typedef struct {
@@ -399,9 +404,9 @@ void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
 
-/* The layout of a matrix block argument's slots, as generated code reads them
-   (op_solve.h): op_arg_mat's argument becomes this one, on the same slots. */
-op_arg op_arg_mat_layout(op_arg values);
+/* An untranslated loop's (op_seq.h) view of an op_arg_mat: its matrix's
+   blocks one after another, as the loop needs them for arg's access. */
+char *op_mat_untranslated(op_arg *arg);
 
 /* Give the sets and maps declared since halo creation (in local numbering,
    with no halo of their own) empty halo lists, so a layer over OP2 can declare

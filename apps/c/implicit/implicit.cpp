@@ -282,9 +282,9 @@ int main(int argc, char **argv) {
 
     op_solve_init(argc, argv, NULL);
     op_sparsity sp = op_decl_sparsity(ctx.nodes, ctx.nodes, 1, &ctx.edge_nodes, &ctx.edge_nodes, "laplacian");
-    op_mat A = op_decl_mat(sp, NV, "double", "A");
+    op_mat A = op_decl_mat(sp, NV, "double", "A", NULL);
     ctx.A = A;
-    op_mat P = pmat == "decoupled" ? op_decl_mat(sp, NV, "double", "P") : NULL;
+    op_mat P = pmat == "decoupled" ? op_decl_mat(sp, NV, "double", "P", NULL) : NULL;
     op_solver solver = op_decl_solver(A, "heat", solver_options);
     if (pc == "bjacobi")
         op_solver_set_pc(solver, bjacobi, &ctx);

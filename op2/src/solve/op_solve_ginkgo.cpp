@@ -52,7 +52,7 @@ gko::array<T> to_exec(const std::vector<T>& host) {
 
 class GinkgoMatrix final : public Matrix {
 public:
-    explicit GinkgoMatrix(op_mat A) : m_A{A} {
+    GinkgoMatrix(op_mat A, const std::string& format) : m_A{A} {
         op_sparsity sp = A->sparsity;
         const int d = A->dim, n = sp->rows->size * d;
         gko::experimental::mpi::communicator comm{op::solve::comm()};
@@ -71,31 +71,26 @@ public:
         auto recv = to_exec(remote);
         index_map imap(executor, parts, comm.rank(), recv);
 
-        // In place, the values are the matrix's; blocked, a copy is.
-        const Scalar& sc = A->scalar;
-        const std::size_t nd = sc.diag.col.size(), no = sc.offd.col.size();
-        double *data = (double *)memory(A->values);
-        if (A->mode != Mode::direct) {
-            m_staged = gko::array<double>(executor, nd + no);
-            data = m_staged.get_data();
-            std::vector<int> to((std::size_t)(sp->diag_blocks + sp->offd_blocks) * d * d);
-            for (std::size_t k = 0; k < to.size(); k++)
-                to[k] = position(sc, d, (int)(k / (d * d)), (int)(k % (d * d)));
-            m_to = to_exec(to);
-        }
+        // The local part's values then the non-local part's, in one region
+        // that the Csr parts view.
+        if (!format.empty() && format != "csr")
+            fail("Ginkgo: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
+        const std::size_t nd = (std::size_t)part_blocks(A, Part::diag) * d * d;
+        const std::size_t no = (std::size_t)part_blocks(A, Part::offd) * d * d;
+        double *data = (double *)lend(A, 0, (nd + no) * sizeof(double));
+        const ScalarCsr dsc = csr_layout(A, Part::diag, 0, 0);
+        const ScalarCsr osc = csr_layout(A, Part::offd, 0, (int)nd);
         auto diag_values = gko::array<double>::view(executor, nd, data);
         auto offd_values = gko::array<double>::view(executor, no, data + nd);
         m_local = gko::share(csr::create(executor, gko::dim<2>(n, sp->cols->size * d), std::move(diag_values),
-                                         to_exec(sc.diag.col), to_exec(sc.diag.ptr)));
+                                         to_exec(dsc.col), to_exec(dsc.ptr)));
         m_non_local = gko::share(csr::create(executor, gko::dim<2>(n, remote.size()), std::move(offd_values),
-                                             to_exec(sc.offd.col), to_exec(sc.offd.ptr)));
+                                             to_exec(osc.col), to_exec(osc.ptr)));
         m_mat = gko::share(dist_mtx::create(executor, comm, std::move(imap), m_local, m_non_local));
     }
 
-    void assemble() override {
-        if (m_to.get_size() != 0)
-            scatter(m_staged.get_data(), (const double *)memory(m_A->values), m_to.get_const_data(), m_to.get_size());
-    }
+    // The loops wrote the parts' values.
+    void assemble() override {}
 
     std::shared_ptr<dist_mtx> mat() const { return m_mat; }
 
@@ -103,8 +98,6 @@ private:
     op_mat m_A;
     std::shared_ptr<csr> m_local, m_non_local;
     std::shared_ptr<dist_mtx> m_mat;
-    gko::array<double> m_staged;
-    gko::array<int> m_to;
 };
 
 std::shared_ptr<dist_mtx> mat_of(op_mat A) { return static_cast<GinkgoMatrix *>(A->lib.get())->mat(); }
@@ -274,9 +267,9 @@ public:
 
     Order order() const override { return Order::sorted; }
 
-    bool direct() const override { return true; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A) override { return std::make_unique<GinkgoMatrix>(A); }
+    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
+        return std::make_unique<GinkgoMatrix>(A, format);
+    }
 
     std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<GinkgoSolver>(s); }
 };

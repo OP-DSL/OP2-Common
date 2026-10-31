@@ -59,9 +59,7 @@ Settings settings;
 
 void read_env() {
     env::parse_text("OP_SOLVE_LIB", settings.lib);
-    std::string layout = "direct";
-    env::parse_text("OP_SOLVE_LAYOUT", layout);
-    settings.blocked = layout == "blocked";
+    env::parse_text("OP_SOLVE_FORMAT", settings.format);
     env::parse_bool("OP_SOLVE_MEMORY", settings.memory);
     env::parse_number("OP_SOLVE_HYPRE_POOL", settings.hypre_pool);
 }
@@ -136,11 +134,6 @@ void report_memory(char const *stage, std::size_t own) {
 }
 
 #if !OP2_SOLVE_DEVICE
-void scatter(double *dst, const double *src, const int *to, std::size_t n) {
-    for (std::size_t k = 0; k < n; k++)
-        dst[to[k]] = src[k];
-}
-
 int *upload(const std::vector<int>& values) {
     int *host = (int *)std::malloc(sizeof(int) * values.size() + 1);
     std::memcpy(host, values.data(), sizeof(int) * values.size());
@@ -348,10 +341,8 @@ void build(op_sparsity sp, Order order) {
                     int J = col_of(pair, e, j), slot;
                     // Generated code takes a block as diagonal only through the
                     // same map and index on both sides.
-                    if (order == Order::diagonal_first && I < nrows && J == I &&
-                        !(pair.rowmap == pair.colmap && i == j))
-                        fail("sparsity %s: element %d reaches the diagonal block of row %d through indices (%d, %d), "
-                             "which a diagonal-first library cannot take", sp->name.c_str(), e, I, i, j);
+                    if (I < nrows && J == I && !(pair.rowmap == pair.colmap && i == j))
+                        sp->diagonal_elsewhere = true;
                     if (I >= nrows)
                         slot = owned + scratch++;
                     else if (J < nowned)
@@ -391,64 +382,111 @@ void build(op_sparsity sp, Order order) {
     report_memory(("sparsity " + sp->name + " slot maps").c_str(), bytes);
 }
 
-// Fill a matrix's layout for its mode, for loops to find its blocks by.
-void decide(op_mat A, Mode mode) {
-    A->mode = mode;
-    if (A->layout == nullptr)
-        return;
-    const int bs = A->dim * A->dim, slots = A->layout->set->size;
-    int *layout = (int *)A->layout->data;
-    for (int s = 0; s < slots; s++) {
-        layout[2 * s] = mode == Mode::direct ? A->scalar.layout[2 * s] : s * bs;
-        layout[2 * s + 1] = mode == Mode::direct ? A->scalar.layout[2 * s + 1] : A->dim;
+// Whether slot s of A (in the diagonal part, row I) is a diagonal block.
+bool diagonal_slot(op_sparsity sp, int I, int s) {
+    return sp->rows == sp->cols && s < sp->diag_blocks && sp->diag_col[s] == I;
+}
+
+// Each slot's block's values, entry k (row major) of slot s at s * d * d + k
+// of blocked, added into A's storage, or (gather) read from it: what
+// untranslated loops reach, which run on the host.
+template<bool Gather>
+void untranslated_pass(op_mat A, double *blocked) {
+    op_sparsity sp = A->sparsity;
+    const int d = A->dim, bs = d * d, nrows = sp->rows->size;
+    auto pass = [&](int s, bool diagonal) {
+        const Entry& e = A->layout[s];
+        double *region = (double *)A->regions[e[mat::aux] & mat::region_mask].data;
+        for (int r = 0; r < d; r++)
+            for (int c = 0; c < d; c++) {
+                double& value = region[position(e, d, r, c, diagonal)];
+                double& block = blocked[(std::size_t)s * bs + r * d + c];
+                if (Gather)
+                    block = value;
+                else
+                    value += block;
+            }
+    };
+    for (int I = 0; I < nrows; I++) {
+        for (int s = sp->diag_ptr[I]; s < sp->diag_ptr[I + 1]; s++)
+            pass(s, diagonal_slot(sp, I, s));
+        for (int k = sp->offd_ptr[I]; k < sp->offd_ptr[I + 1]; k++)
+            pass(sp->diag_blocks + k, false);
     }
-    A->layout->dirty_hd = 1;
+}
+
+// op_mat_storage::untranslated: the blocks one after another, for a loop the
+// translator never saw (op_seq.h).
+char *untranslated(op_mat_storage *view, int acc) {
+    op_mat A = nullptr;
+    for (op_mat M : mats)
+        if (&M->view == view)
+            A = M;
+    if (on_device)
+        fail("matrix %s: untranslated loops run on the host, its storage is on the device", A->name.c_str());
+    const std::size_t values = (std::size_t)A->sparsity->nnz->size * A->dim * A->dim;
+    if (A->untranslated.size() != values)
+        A->untranslated.assign(values, 0.0);
+    if (acc == OP_READ) {
+        if (A->pending)
+            fail("matrix %s: read by a loop before op_mat_assemble took its increments", A->name.c_str());
+        untranslated_pass<true>(A, A->untranslated.data());
+    } else
+        A->pending = true;
+    return (char *)A->untranslated.data();
+}
+
+// After the library set up A's owned slots: scratch slots for blocks of halo
+// rows in region 2, one after another, and the layout where loops read it.
+void finish_storage(op_mat A) {
+    op_sparsity sp = A->sparsity;
+    const int bs = A->dim * A->dim, owned = sp->diag_blocks + sp->offd_blocks;
+    if (sp->scratch_blocks > 0) {
+        lend(A, 2, (std::size_t)sp->scratch_blocks * bs * sizeof(double));
+        for (int k = 0; k < sp->scratch_blocks; k++)
+            A->layout[owned + k] = {k * bs, A->dim, 1, 2};
+    }
+    for (int r = 0; r < mat::regions; r++)
+        if (A->regions[r].bytes > INT_MAX * sizeof(double))
+            fail("matrix %s: region %d holds %zu values, past the 32-bit offsets loops take", A->name.c_str(), r,
+                 A->regions[r].bytes / sizeof(double));
+
+    std::vector<int> flat(A->layout.size() * mat::entry);
+    for (std::size_t s = 0; s < A->layout.size(); s++)
+        std::copy(A->layout[s].begin(), A->layout[s].end(), flat.begin() + s * mat::entry);
+    A->view.dim = A->dim;
+    A->view.layout = flat.empty() ? nullptr : (const int *)A->layout.data()->data();
+    if (on_device) {
+        A->layout_d = upload(flat);
+        A->view.layout_d = A->layout_d;
+    }
+    for (int r = 0; r < mat::regions; r++)
+        (on_device ? A->view.region_d : A->view.region)[r] = A->regions[r].data;
+    A->view.untranslated = untranslated;
 }
 
 } // namespace
 
-Scalar expand(op_sparsity sp, int d, Order order) {
-    Scalar scalar;
-    const int nrows = sp->rows->size, owned = sp->diag_blocks + sp->offd_blocks;
-    const std::size_t values = (std::size_t)(owned + sp->scratch_blocks) * d * d;
-    if (values > INT_MAX)
-        fail("sparsity %s: %zu values on a rank in %d x %d blocks, past the 32-bit offsets loops and solver "
-             "libraries take", sp->name.c_str(), values, d, d);
-    scalar.layout.resize(2 * (std::size_t)(owned + sp->scratch_blocks));
+char *lend(op_mat A, int region, std::size_t bytes) {
+    Region& r = A->regions[region];
+    if (r.data != nullptr)
+        fail("matrix %s: region %d set twice", A->name.c_str(), region);
+#if OP2_SOLVE_DEVICE
+    GPU_CHECK(gpuMalloc((void **)&r.data, bytes + 1));
+    GPU_CHECK(gpuMemset(r.data, 0, bytes + 1));
+#else
+    r.data = (char *)std::calloc(bytes + 1, 1);
+#endif
+    r.bytes = bytes;
+    r.owned = true;
+    return r.data;
+}
 
-    auto part = [&](ScalarPart& out, const std::vector<int>& bptr, const std::vector<int>& bcol, int first,
-                    int base, bool diag) {
-        out.ptr.assign((std::size_t)nrows * d + 1, 0);
-        for (int I = 0; I < nrows; I++) {
-            const int length = (bptr[I + 1] - bptr[I]) * d;
-            for (int r = 0; r < d; r++) {
-                out.ptr[(std::size_t)I * d + r + 1] = out.ptr[(std::size_t)I * d + r] + length;
-                for (int k = bptr[I]; k < bptr[I + 1]; k++) {
-                    const int J = bcol[k];
-                    if (diag && order == Order::diagonal_first && J == I) {
-                        out.col.push_back(J * d + r);
-                        for (int c = 0; c < d; c++)
-                            if (c != r)
-                                out.col.push_back(J * d + c);
-                    } else
-                        for (int c = 0; c < d; c++)
-                            out.col.push_back(J * d + c);
-                }
-            }
-            for (int k = bptr[I]; k < bptr[I + 1]; k++) {
-                const bool head = diag && order == Order::diagonal_first && bcol[k] == I;
-                scalar.layout[2 * (first + k)] = base + out.ptr[(std::size_t)I * d] + (k - bptr[I]) * d;
-                scalar.layout[2 * (first + k) + 1] = head ? -length : length;
-            }
-        }
-    };
-    part(scalar.diag, sp->diag_ptr, sp->diag_col, 0, 0, true);
-    part(scalar.offd, sp->offd_ptr, sp->offd_col, sp->diag_blocks, sp->diag_blocks * d * d, false);
-    for (int s = owned; s < owned + sp->scratch_blocks; s++) {
-        scalar.layout[2 * s] = s * d * d;
-        scalar.layout[2 * s + 1] = d;
-    }
-    return scalar;
+void borrow(op_mat A, int region, void *data, std::size_t bytes) {
+    Region& r = A->regions[region];
+    if (r.data != nullptr)
+        fail("matrix %s: region %d set twice", A->name.c_str(), region);
+    r = {(char *)data, bytes, false};
 }
 
 } // namespace op::solve
@@ -478,6 +516,18 @@ void op_solve_init(int argc, char **argv, char const *lib) {
     if (!library && (name.empty() || name == "ginkgo"))
         library = make_ginkgo(argc, argv);
 #endif
+#ifdef OP2_SOLVE_AMGX
+    if (!library && (name.empty() || name == "amgx"))
+        library = make_amgx(argc, argv);
+#endif
+#ifdef OP2_SOLVE_ROCALUTION
+    if (!library && (name.empty() || name == "rocalution"))
+        library = make_rocalution(argc, argv);
+#endif
+#ifdef OP2_SOLVE_MOCK
+    if (!library && name == "mock")
+        library = make_mock(argc, argv);
+#endif
     if (!library)
         fail("no solver library '%s' in this build", name.c_str());
 }
@@ -493,9 +543,11 @@ void op_solve_exit(void) {
     }
     for (op_mat A : mats) {
         A->lib.reset();
-        op_free_dat_temp_char(A->values);
-        if (A->layout != nullptr)
-            op_free_dat_temp_char(A->layout);
+        for (Region& r : A->regions)
+            if (r.owned)
+                release(r.data);
+        if (A->layout_d != nullptr)
+            release(A->layout_d);
         delete A;
     }
     for (op_sparsity sp : sparsities)
@@ -534,27 +586,24 @@ op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs, op_map *rowma
     return sp;
 }
 
-op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name) {
+op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name, char const *format) {
     if (std::strcmp(type, "double") != 0)
         fail("matrix %s: type %s, only double is supported", name, type);
-    if (OP_auto_soa && dim > 1)
-        fail("matrix %s: OP_AUTO_SOA would store its blocks transposed", name);
 
     op_mat A = new op_mat_core{};
     A->sparsity = sparsity;
     A->dim = dim;
     A->name = name;
-    A->values = op_decl_dat_temp_char(sparsity->nnz, dim * dim, "double", sizeof(double),
-                                      (std::string(name) + "_values").c_str());
-    A->scalar = expand(sparsity, dim, library->order());
-    if (dim > 1)
-        A->layout = op_decl_dat_temp_char(sparsity->nnz, 2, "int", sizeof(int),
-                                          (std::string(name) + "_layout").c_str());
-    else
-        A->mode = library->direct() ? Mode::direct : Mode::blocked;
-    report_memory(("matrix " + A->name + " values").c_str(),
-                  (std::size_t)sparsity->nnz->size * (A->values->size + (dim > 1 ? 2 * sizeof(int) : 0)));
+    A->format = format != nullptr ? format : settings.format;
+    A->layout.assign(sparsity->nnz->size, Entry{});
     mats.push_back(A);
+
+    A->lib = library->matrix(A, A->format);
+    finish_storage(A);
+    std::size_t bytes = A->layout.size() * sizeof(Entry);
+    for (const Region& r : A->regions)
+        bytes += r.owned ? r.bytes : 0;
+    report_memory(("matrix " + A->name + " storage").c_str(), bytes);
     return A;
 }
 
@@ -572,40 +621,43 @@ op_arg op_arg_mat(op_mat A, int rowidx, op_map rowmap, int colidx, op_map colmap
         int i = rowmap != nullptr ? rowidx : 0, j = colmap != nullptr ? colidx : 0;
         if (i < 0 || i >= pair.rowdim || j < 0 || j >= pair.coldim)
             fail("op_arg_mat on %s: index (%d, %d) outside the maps", A->name.c_str(), rowidx, colidx);
-        return op_arg_dat_core(A->values, j, pair.slots[i], dim * dim, type, acc);
+        op_map slots = pair.slots[i];
+        op_arg arg{};
+        arg.index = -1;
+        arg.map = slots;
+        arg.dim = dim * dim;
+        arg.idx = j;
+        arg.size = dim * dim * (int)sizeof(double);
+        arg.map_data = slots->map;
+        arg.map_data_d = slots->map_d;
+        arg.type = type;
+        arg.acc = acc;
+        arg.argtype = OP_ARG_MAT;
+        arg.opt = 1;
+        arg.mat = &A->view;
+        return arg;
     }
     fail("op_arg_mat on %s: its sparsity has no pair (%s, %s)", A->name.c_str(),
          rowmap != nullptr ? rowmap->name : "OP_ID", colmap != nullptr ? colmap->name : "OP_ID");
 }
 
-op_arg op_arg_mat_layout(op_arg values) {
-    for (op_mat A : mats) {
-        if (A->values != values.dat)
-            continue;
-        // OP_SOLVE_LAYOUT=blocked keeps the blocks apart, as for untranslated loops.
-        if (A->mode == Mode::undecided)
-            decide(A, library->direct() && !settings.blocked ? Mode::direct : Mode::blocked);
-        return op_arg_dat_core(A->layout, values.idx, values.map, 2, "int", OP_READ);
-    }
-    fail("op_arg_mat_layout: no matrix holds dat %s", values.dat->name);
-}
-
 void op_mat_zero(op_mat A) {
-    op_arg arg = op_arg_dat_core(A->values, -1, OP_ID, A->values->dim, "double", OP_WRITE);
-    enter(A->values->set, &arg, 1);
-    zero(memory(A->values), (std::size_t)A->values->set->size * A->values->size);
-    leave(&arg, 1);
+    for (const Region& r : A->regions)
+        if (r.data != nullptr)
+            zero(r.data, r.bytes);
+    std::fill(A->untranslated.begin(), A->untranslated.end(), 0.0);
+    A->pending = false;
 }
 
 void op_mat_assemble(op_mat A) {
-    op_arg arg = op_arg_dat_core(A->values, -1, OP_ID, A->values->dim, "double", OP_READ);
-    enter(A->values->set, &arg, 1);
-    if (A->mode == Mode::undecided)
-        decide(A, Mode::blocked);
-    if (!A->lib) {
-        A->lib = library->matrix(A);
-        report_memory(("matrix " + A->name + " in the library").c_str());
+    if (A->pending) {
+        untranslated_pass<false>(A, A->untranslated.data());
+        std::fill(A->untranslated.begin(), A->untranslated.end(), 0.0);
+        A->pending = false;
     }
+#if OP2_SOLVE_DEVICE
+    GPU_CHECK(gpuDeviceSynchronize());
+#endif
     A->lib->assemble();
     if (A->state++ == 0)
         report_memory(("matrix " + A->name + " assembled").c_str());

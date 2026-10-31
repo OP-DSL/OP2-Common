@@ -44,7 +44,7 @@ if(_op2_solve_srcs)
     if(NOT MPI_FOUND)
         message(FATAL_ERROR "OP2: the solver layer needs MPI (the solver libraries are MPI builds)")
     endif()
-    list(PREPEND _op2_solve_srcs op_solve.cpp)
+    list(PREPEND _op2_solve_srcs op_solve.cpp op_solve_layout.cpp)
 endif()
 
 # The layer and its libraries into one C library target.

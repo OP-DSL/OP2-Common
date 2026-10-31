@@ -162,6 +162,7 @@ module OP2_Fortran_Declarations
     integer(kind=c_int) :: argtype
     integer(kind=c_int) :: sent
     integer(kind=c_int) :: opt
+    type(c_ptr)         :: mat
 
   end type op_arg
 

@@ -50,6 +50,7 @@ _op2_preprocess_fortran(
 # building blocks the backends' strategies compose.
 set(_op2_rt_srcs
     "${_src}/rt/op_rt_lifecycle.cpp"
+    "${_src}/rt/op_rt_matrix.cpp"
     "${_src}/rt/op_rt_report.cpp"
     "${_src}/rt/loop/op_loop.cpp"
     "${_src}/rt/loop/op_loop_call.cpp"

@@ -816,6 +816,11 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
   /* error checking for op_arg_dat */
   if (arg.opt == 0)
     return;
+  if (arg.argtype == OP_ARG_MAT) {
+    if (arg.map == NULL || arg.map->from != set)
+      op_err_print("matrix argument's slot map is not from the loop set", m, name);
+    return;
+  }
   if (arg.argtype == OP_ARG_DAT) {
     if (set == NULL)
       op_err_print("invalid set", m, name);
@@ -891,6 +896,7 @@ void op_arg_check(op_set set, int m, op_arg arg, int *ninds, const char *name) {
 
 op_arg op_arg_idx(int idx, op_map map) {
   op_arg arg;
+  arg.mat = NULL;
   arg.index = -1;
   arg.opt = 1;
   arg.argtype = OP_ARG_IDX;
@@ -926,6 +932,7 @@ op_arg op_arg_idx_ptr(int idx, int *map) {
 op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
                        const char *typ, op_access acc) {
   op_arg arg;
+  arg.mat = NULL;
 
   /* index is not used for now */
   arg.index = -1;
@@ -980,6 +987,7 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
 op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
                            const char *typ, op_access acc) {
   op_arg arg;
+  arg.mat = NULL;
 
   /* index is not used for now */
   arg.index = -1;
@@ -1033,6 +1041,7 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
 
 op_arg op_arg_info_char(char *data, int dim, const char *typ, int size, int ref) {
   op_arg arg;
+  arg.mat = NULL;
   arg.argtype = OP_ARG_INFO;
 
   arg.dat = NULL;
@@ -1080,6 +1089,7 @@ op_arg op_arg_info_char(char *data, int dim, const char *typ, int size, int ref)
 op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
                        op_access acc) {
   op_arg arg;
+  arg.mat = NULL;
 
   arg.argtype = OP_ARG_GBL;
 

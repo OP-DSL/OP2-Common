@@ -343,6 +343,7 @@ op_arg_dat_null (op_dat dat, int idx, op_map map, int dim, const char * typ, op_
   (void)dat; (void)idx; (void)map; (void)dim; (void)typ; (void)acc;
 
   op_arg arg;
+  arg.mat = NULL;
 
   arg.argtype = OP_ARG_NULL;
   arg.dat = NULL;

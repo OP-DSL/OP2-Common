@@ -42,6 +42,12 @@ inline void op_arg_set(int n, op_arg& arg, char **p_arg, int halo) {
       *((int*)*p_arg) = n;
     } else
       *p_arg = (char*)&arg.map->map[arg.idx + n * arg.map->dim];
+  } else if (arg.argtype == OP_ARG_MAT) {
+    // A matrix's blocks one after another in its buffer for untranslated
+    // loops, which the matrix makes the first time this loop needs it.
+    if (arg.data == NULL)
+      arg.data = op_mat_untranslated(&arg);
+    *p_arg = arg.data + (size_t)arg.size * arg.map->map[arg.idx + n * arg.map->dim];
   } else {
     if (arg.map == NULL || arg.opt == 0) // identity mapping
       *p_arg += (size_t)arg.size * n;

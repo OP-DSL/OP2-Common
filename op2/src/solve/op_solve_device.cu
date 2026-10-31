@@ -1,4 +1,4 @@
-// The solver layer's device side: the permuting copy a staged commit runs.
+// The solver layer's device side: int arrays in device memory.
 
 #include <op2/solve/solve.h>
 
@@ -6,24 +6,6 @@
 #include <op2/gpu/shims.h>
 
 namespace op::solve {
-
-namespace {
-
-__global__ void scatter_kernel(double *dst, const double *src, const int *to, std::size_t n) {
-    std::size_t k = (std::size_t)blockIdx.x * blockDim.x + threadIdx.x;
-    if (k < n)
-        dst[to[k]] = src[k];
-}
-
-} // namespace
-
-void scatter(double *dst, const double *src, const int *to, std::size_t n) {
-    if (n == 0)
-        return;
-    const int block = 256;
-    scatter_kernel<<<(unsigned)((n + block - 1) / block), block>>>(dst, src, to, n);
-    GPU_CHECK(gpuGetLastError());
-}
 
 int *upload(const std::vector<int>& values) {
     int *device = nullptr;

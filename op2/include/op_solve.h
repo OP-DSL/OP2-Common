@@ -1,8 +1,9 @@
 #pragma once
 
 // Linear solvers on OP2 data: matrices whose blocks par loops write and read
-// through op_arg_mat, solved by a library (PETSc, hypre or Ginkgo) in the
-// memory the loops run in. See SOLVERS_DESIGN.md.
+// through op_arg_mat, in the solver library's own storage, solved by the
+// library (PETSc, hypre, Ginkgo, AmgX, rocALUTION) in the memory the loops
+// run in. See SOLVERS_DESIGN.md.
 
 #include <op_lib_core.h>
 
@@ -18,9 +19,10 @@ typedef struct op_solver_core *op_solver;
    preconditioner: in and out are dats on the matrix's column and row sets. */
 typedef void (*op_apply_fn)(op_dat in, op_dat out, void *ctx);
 
-/* After op_init, and op_partition under MPI. lib is "petsc", "hypre" or
-   "ginkgo", or NULL for OP_SOLVE_LIB, else the first built in. argc and argv
-   reach the library's own options (PETSc's database). */
+/* After op_init, and op_partition under MPI. lib names a library built in
+   ("petsc", "hypre", "ginkgo", "amgx", "rocalution", "mock"), or is NULL for
+   OP_SOLVE_LIB, else the first built in. argc and argv reach the library's own
+   options (PETSc's database). */
 void op_solve_init(int argc, char **argv, char const *lib);
 void op_solve_exit(void);
 
@@ -31,8 +33,11 @@ void op_solve_exit(void);
 op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs, op_map *rowmaps,
                              op_map *colmaps, char const *name);
 
-/* dim x dim blocks of type ("double") on the pattern, zero. */
-op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name);
+/* dim x dim blocks of type ("double") on the pattern, zero, stored in the
+   library's format (a name it knows, such as "csr", "bcsr" or "ell"), or NULL
+   for OP_SOLVE_FORMAT, else the library's default. */
+op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name,
+                   char const *format);
 
 /* Block (rowmap[e][rowidx], colmap[e][colidx]) of A as dim * dim values, row
    major, in a loop over the maps' set; OP_ID with index -1 for the element

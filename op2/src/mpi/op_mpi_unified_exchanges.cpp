@@ -424,9 +424,12 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
     bool exec = false;
     int size = set->size;
 
+    // An indirect update runs the exec halo too, a matrix's (op_arg_mat) as a
+    // dat's, though a matrix has no halo to exchange.
     for (int n = 0; n < nargs; ++n) {
         if (!args[n].opt) continue;
-        if (args[n].argtype != OP_ARG_DAT || args[n].idx == -1) continue;
+        if (args[n].argtype == OP_ARG_DAT && args[n].idx == -1) continue;
+        if (args[n].argtype != OP_ARG_DAT && args[n].argtype != OP_ARG_MAT) continue;
         if (args[n].acc == OP_READ) continue;
 
         exec = true;
