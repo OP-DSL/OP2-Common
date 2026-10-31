@@ -1,6 +1,7 @@
-// The PETSc backend: an AIJ matrix (AIJCUSPARSE in a GPU variant) assembled
-// through PETSc's COO interface from the op_mat's values, in place on the
-// device, and KSP over vectors wrapping the dats.
+// The PETSc backend: on the host an AIJ matrix whose parts' arrays are the
+// op_mat's values, written in place by the loops; on the device an
+// AIJCUSPARSE matrix assembled through PETSc's COO interface from the values
+// in place there; KSP over vectors wrapping the dats.
 
 #include <op2/solve/solve.h>
 
@@ -20,8 +21,75 @@ namespace {
 class PetscMatrix final : public Matrix {
 public:
     explicit PetscMatrix(op_mat A) : m_A{A} {
-        op_sparsity sp = A->sparsity;
-        const PetscInt d = A->dim;
+        if (on_device)
+            coo();
+        else
+            views();
+    }
+
+    ~PetscMatrix() override {
+        MatDestroy(&m_mat);
+        if (m_to != nullptr) {
+            release(m_to);
+            PetscFree(m_staged);
+        }
+    }
+
+    void assemble() override {
+        if (on_device) {
+            PETSC_CALL(MatSetValuesCOO(m_mat, (const PetscScalar *)memory(m_A->values), INSERT_VALUES));
+            return;
+        }
+        // The arrays are PETSc's own: an assembly tells it they changed.
+        if (m_to != nullptr)
+            scatter(m_staged, (const double *)memory(m_A->values), m_to, m_entries);
+        PETSC_CALL(MatAssemblyBegin(m_mat, MAT_FINAL_ASSEMBLY));
+        PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
+    }
+
+    Mat mat() const { return m_mat; }
+
+private:
+    // The diagonal and off-diagonal parts over the values (or, blocked, a copy
+    // permuted from them), their columns as the layout's scalar CSR has them.
+    void views() {
+        static_assert(sizeof(PetscInt) == sizeof(int), "PETSc's indices must be int");
+        op_sparsity sp = m_A->sparsity;
+        const Scalar& sc = m_A->scalar;
+        const PetscInt d = m_A->dim, m = sp->rows->size * d;
+        const std::size_t nd = sc.diag.col.size(), no = sc.offd.col.size();
+
+        PetscScalar *data = (PetscScalar *)memory(m_A->values);
+        if (m_A->mode != Mode::direct) {
+            PETSC_CALL(PetscMalloc1(nd + no + 1, &m_staged));
+            data = m_staged;
+            std::vector<int> to((std::size_t)(sp->diag_blocks + sp->offd_blocks) * d * d);
+            for (std::size_t k = 0; k < to.size(); k++)
+                to[k] = position(sc, d, (int)(k / (d * d)), (int)(k % (d * d)));
+            m_to = upload(to);
+            m_entries = to.size();
+        }
+
+        PetscInt *garray;
+        PETSC_CALL(PetscMalloc1(sp->garray.size() * d + 1, &garray));
+        for (std::size_t k = 0; k < sp->garray.size(); k++)
+            for (PetscInt c = 0; c < d; c++)
+                garray[k * d + c] = (PetscInt)(sp->garray[k] * d + c);
+
+        Mat diag, offd;
+        PETSC_CALL(MatCreateSeqAIJWithArrays(PETSC_COMM_SELF, m, sp->cols->size * d, (PetscInt *)sc.diag.ptr.data(),
+                                             (PetscInt *)sc.diag.col.data(), data, &diag));
+        PETSC_CALL(MatCreateSeqAIJWithArrays(PETSC_COMM_SELF, m, (PetscInt)sp->garray.size() * d,
+                                             (PetscInt *)sc.offd.ptr.data(), (PetscInt *)sc.offd.col.data(),
+                                             data + nd, &offd));
+        PETSC_CALL(MatCreateMPIAIJWithSeqAIJ(comm(), sp->global_rows * d, sp->global_cols * d, diag, offd, garray,
+                                             &m_mat));
+        PETSC_CALL(MatSetBlockSize(m_mat, d));
+    }
+
+    void coo() {
+        op_sparsity sp = m_A->sparsity;
+        const PetscInt d = m_A->dim;
         PETSC_CALL(MatCreate(comm(), &m_mat));
         PETSC_CALL(MatSetSizes(m_mat, sp->rows->size * d, sp->cols->size * d, sp->global_rows * d,
                                sp->global_cols * d));
@@ -51,17 +119,11 @@ public:
         PETSC_CALL(MatSetPreallocationCOO(m_mat, (PetscCount)entries, rows.data(), cols.data()));
     }
 
-    ~PetscMatrix() override { MatDestroy(&m_mat); }
-
-    void assemble() override {
-        PETSC_CALL(MatSetValuesCOO(m_mat, (const PetscScalar *)memory(m_A->values), INSERT_VALUES));
-    }
-
-    Mat mat() const { return m_mat; }
-
-private:
     op_mat m_A;
     Mat m_mat = nullptr;
+    PetscScalar *m_staged = nullptr;
+    int *m_to = nullptr;
+    std::size_t m_entries = 0;
 };
 
 Mat mat_of(op_mat A) { return static_cast<PetscMatrix *>(A->lib.get())->mat(); }
@@ -255,7 +317,8 @@ public:
 
     Order order() const override { return Order::sorted; }
 
-    bool direct() const override { return false; }
+    // On the host the values are PETSc's arrays; on the device it copies them.
+    bool direct() const override { return !on_device; }
 
     std::unique_ptr<Matrix> matrix(op_mat A) override { return std::make_unique<PetscMatrix>(A); }
 
