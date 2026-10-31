@@ -331,6 +331,12 @@ void build(op_sparsity sp, Order order) {
                 int I = row_of(pair, e, i);
                 for (int j = 0; j < pair.coldim; j++) {
                     int J = col_of(pair, e, j), slot;
+                    // Generated code takes a block as diagonal only through the
+                    // same map and index on both sides.
+                    if (order == Order::diagonal_first && I < nrows && J == I &&
+                        !(pair.rowmap == pair.colmap && i == j))
+                        fail("sparsity %s: element %d reaches the diagonal block of row %d through indices (%d, %d), "
+                             "which a diagonal-first library cannot take", sp->name.c_str(), e, I, i, j);
                     if (I >= nrows)
                         slot = owned + scratch++;
                     else if (J < nowned)
@@ -559,8 +565,11 @@ op_arg op_arg_mat_layout(op_arg values) {
     for (op_mat A : mats) {
         if (A->values != values.dat)
             continue;
+        // OP_SOLVE_LAYOUT=blocked keeps the blocks apart, as for untranslated loops.
+        static const bool blocked = std::getenv("OP_SOLVE_LAYOUT") != nullptr &&
+                                    std::strcmp(std::getenv("OP_SOLVE_LAYOUT"), "blocked") == 0;
         if (A->mode == Mode::undecided)
-            decide(A, library->direct() ? Mode::direct : Mode::blocked);
+            decide(A, library->direct() && !blocked ? Mode::direct : Mode::blocked);
         return op_arg_dat_core(A->layout, values.idx, values.map, 2, "int", OP_READ);
     }
     fail("op_arg_mat_layout: no matrix holds dat %s", values.dat->name);

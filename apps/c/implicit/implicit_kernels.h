@@ -89,6 +89,55 @@ inline void apply_block(const double *Dinv, const double *r, double *z) {
     }
 }
 
+// y = A x through the matrix in solver memory: each node's diagonal block,
+// then each edge's off-diagonal blocks.
+inline void mat_diag(const double *A, const double *x, double *y) {
+    for (int r = 0; r < NV; r++) {
+        double s = 0.0;
+        for (int c = 0; c < NV; c++)
+            s += A[r * NV + c] * x[c];
+        y[r] = s;
+    }
+}
+
+inline void mat_edge(const double *A01, const double *A10, const double *x0, const double *x1, double *y0,
+                     double *y1) {
+    for (int r = 0; r < NV; r++) {
+        double s0 = 0.0, s1 = 0.0;
+        for (int c = 0; c < NV; c++) {
+            s0 += A01[r * NV + c] * x1[c];
+            s1 += A10[r * NV + c] * x0[c];
+        }
+        y0[r] += s0;
+        y1[r] += s1;
+    }
+}
+
+// One Neumann step: z += Dinv (r - y), y = A z.
+inline void neumann_step(const double *Dinv, const double *r, const double *y, double *z) {
+    for (int i = 0; i < NV; i++) {
+        double s = 0.0;
+        for (int j = 0; j < NV; j++)
+            s += Dinv[i * NV + j] * (r[j] - y[j]);
+        z[i] += s;
+    }
+}
+
+// The decoupled operator: each component on its own, K and C's diagonals.
+inline void diag_block_decoupled(const int *nbnd, double *P) {
+    for (int r = 0; r < NV; r++)
+        P[r * NV + r] += h2dt + h2 * Cc[r * NV + r] + nbnd[0] * Kc[r * NV + r];
+}
+
+inline void edge_blocks_decoupled(double *P00, double *P01, double *P10, double *P11) {
+    for (int r = 0; r < NV; r++) {
+        P00[r * NV + r] += Kc[r * NV + r];
+        P01[r * NV + r] -= Kc[r * NV + r];
+        P10[r * NV + r] -= Kc[r * NV + r];
+        P11[r * NV + r] += Kc[r * NV + r];
+    }
+}
+
 // y = A x without the matrix: the node part, then each edge's.
 inline void apply_node(const int *nbnd, const double *x, double *y) {
     for (int r = 0; r < NV; r++) {

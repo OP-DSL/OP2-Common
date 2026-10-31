@@ -10,7 +10,12 @@
 // discretisation.
 //
 //   implicit [-n N] [-steps S] [-dt DT] [-pc lib|bjacobi] [-op assembled|matfree]
-//            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"]
+//            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"] [-diags N]
+//            [-pc neumann -terms M] [-pmat decoupled]
+//
+// -pc neumann preconditions with M Neumann steps after block Jacobi, each a
+// matrix-vector product through the blocks in solver memory; -pmat decoupled
+// builds the library's preconditioner from the components' operators alone.
 //
 // -init bump starts from Gaussian bumps instead of the mode, for a solve with
 // work in it; the solution is then checked by its true residual, b - A x
@@ -46,7 +51,9 @@ double Kc[NK], Cc[NK];
 struct Context {
     op_set nodes, edges;
     op_map edge_nodes;
-    op_dat nbnd, dinv;
+    op_dat nbnd, dinv, y;
+    op_mat A;
+    int terms;
 };
 
 static void bjacobi(op_dat r, op_dat z, void *ctx) {
@@ -55,6 +62,36 @@ static void bjacobi(op_dat r, op_dat z, void *ctx) {
                 op_arg_dat(c->dinv, -1, OP_ID, NV * NV, "double", OP_READ),
                 op_arg_dat(r, -1, OP_ID, NV, "double", OP_READ),
                 op_arg_dat(z, -1, OP_ID, NV, "double", OP_WRITE));
+}
+
+// y = A x through the assembled matrix, read in solver memory.
+static void matvec(Context *c, op_dat x, op_dat y) {
+    op_par_loop(mat_diag, "mat_diag", c->nodes,
+                op_arg_mat(c->A, -1, OP_ID, -1, OP_ID, NV, "double", OP_READ),
+                op_arg_dat(x, -1, OP_ID, NV, "double", OP_READ),
+                op_arg_dat(y, -1, OP_ID, NV, "double", OP_WRITE));
+    op_par_loop(mat_edge, "mat_edge", c->edges,
+                op_arg_mat(c->A, 0, c->edge_nodes, 1, c->edge_nodes, NV, "double", OP_READ),
+                op_arg_mat(c->A, 1, c->edge_nodes, 0, c->edge_nodes, NV, "double", OP_READ),
+                op_arg_dat(x, 0, c->edge_nodes, NV, "double", OP_READ),
+                op_arg_dat(x, 1, c->edge_nodes, NV, "double", OP_READ),
+                op_arg_dat(y, 0, c->edge_nodes, NV, "double", OP_INC),
+                op_arg_dat(y, 1, c->edge_nodes, NV, "double", OP_INC));
+}
+
+// z = sum_{i<=m} (I - Dinv A)^i Dinv r: block Jacobi, then m steps that each
+// apply A through its blocks in solver memory.
+static void neumann(op_dat r, op_dat z, void *ctx) {
+    Context *c = (Context *)ctx;
+    bjacobi(r, z, ctx);
+    for (int i = 0; i < c->terms; i++) {
+        matvec(c, z, c->y);
+        op_par_loop(neumann_step, "neumann_step", c->nodes,
+                    op_arg_dat(c->dinv, -1, OP_ID, NV * NV, "double", OP_READ),
+                    op_arg_dat(r, -1, OP_ID, NV, "double", OP_READ),
+                    op_arg_dat(c->y, -1, OP_ID, NV, "double", OP_READ),
+                    op_arg_dat(z, -1, OP_ID, NV, "double", OP_RW));
+    }
 }
 
 static void matfree(op_dat x, op_dat y, void *ctx) {
@@ -146,7 +183,7 @@ static const char *option(int argc, char **argv, const char *name, const char *f
 }
 
 int main(int argc, char **argv) {
-    op_init(argc, argv, 1);
+    op_init(argc, argv, atoi(option(argc, argv, "-diags", "1")));
 
     const int n = atoi(option(argc, argv, "-n", "64"));
     const int steps = atoi(option(argc, argv, "-steps", "10"));
@@ -156,6 +193,7 @@ int main(int argc, char **argv) {
     const std::string op = option(argc, argv, "-op", "assembled");
     const int reassemble = atoi(option(argc, argv, "-reassemble", "1"));
     const std::string init = option(argc, argv, "-init", "mode");
+    const std::string pmat = option(argc, argv, "-pmat", "A");
     const char *solver_options = option(argc, argv, "-solver", "method=cg pc=jacobi rtol=1e-10");
     h2 = h * h;
     h2dt = h2 / dt;
@@ -226,6 +264,8 @@ int main(int argc, char **argv) {
     op_dat p_b = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "b");
     ctx.dinv = op_decl_dat(ctx.nodes, NV * NV, "double", (double *)NULL, "dinv");
     op_dat p_ax = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "ax");
+    ctx.y = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "y");
+    ctx.terms = atoi(option(argc, argv, "-terms", "2"));
 
     op_decl_const(1, "double", &h2dt);
     op_decl_const(1, "double", &h2);
@@ -237,9 +277,15 @@ int main(int argc, char **argv) {
     op_solve_init(argc, argv, NULL);
     op_sparsity sp = op_decl_sparsity(ctx.nodes, ctx.nodes, 1, &ctx.edge_nodes, &ctx.edge_nodes, "laplacian");
     op_mat A = op_decl_mat(sp, NV, "double", "A");
+    ctx.A = A;
+    op_mat P = pmat == "decoupled" ? op_decl_mat(sp, NV, "double", "P") : NULL;
     op_solver solver = op_decl_solver(A, "heat", solver_options);
     if (pc == "bjacobi")
         op_solver_set_pc(solver, bjacobi, &ctx);
+    if (pc == "neumann")
+        op_solver_set_pc(solver, neumann, &ctx);
+    if (P != NULL)
+        op_solver_set_pc_mat(solver, P);
     if (op == "matfree")
         op_solver_set_operator(solver, matfree, &ctx);
 
@@ -263,7 +309,7 @@ int main(int argc, char **argv) {
         op_timers(&cpu, &now);
         return now;
     };
-    double loops_time = 0, commit_time = 0, solve_time = 0, t0, t1, t2;
+    double loops_time = 0, commit_time = 0, solve_time = 0, t0, t1, t2, step_loops = 0, step_commit = 0;
     int iterations = 0, converged = 1;
     const double start = wall();
     for (int step = 0; step < steps; step++) {
@@ -280,13 +326,27 @@ int main(int argc, char **argv) {
                         op_arg_mat(A, 1, ctx.edge_nodes, 1, ctx.edge_nodes, NV, "double", OP_INC));
             t1 = wall();
             op_mat_assemble(A);
-            if (pc == "bjacobi")
+            if (P != NULL) {
+                op_mat_zero(P);
+                op_par_loop(diag_block_decoupled, "diag_block_decoupled", ctx.nodes,
+                            op_arg_dat(ctx.nbnd, -1, OP_ID, 1, "int", OP_READ),
+                            op_arg_mat(P, -1, OP_ID, -1, OP_ID, NV, "double", OP_INC));
+                op_par_loop(edge_blocks_decoupled, "edge_blocks_decoupled", ctx.edges,
+                            op_arg_mat(P, 0, ctx.edge_nodes, 0, ctx.edge_nodes, NV, "double", OP_INC),
+                            op_arg_mat(P, 0, ctx.edge_nodes, 1, ctx.edge_nodes, NV, "double", OP_INC),
+                            op_arg_mat(P, 1, ctx.edge_nodes, 0, ctx.edge_nodes, NV, "double", OP_INC),
+                            op_arg_mat(P, 1, ctx.edge_nodes, 1, ctx.edge_nodes, NV, "double", OP_INC));
+                op_mat_assemble(P);
+            }
+            if (pc == "bjacobi" || pc == "neumann")
                 op_par_loop(invert_block, "invert_block", ctx.nodes,
                             op_arg_mat(A, -1, OP_ID, -1, OP_ID, NV, "double", OP_READ),
                             op_arg_dat(ctx.dinv, -1, OP_ID, NV * NV, "double", OP_WRITE));
             t2 = wall();
-            loops_time += t1 - t0;
-            commit_time += t2 - t1;
+            step_loops = t1 - t0;
+            step_commit = t2 - t1;
+            loops_time += step_loops;
+            commit_time += step_commit;
         }
 
         op_par_loop(rhs, "rhs", ctx.nodes,
@@ -302,7 +362,8 @@ int main(int argc, char **argv) {
         op_solver_stats(solver, &its, &res);
         iterations += its;
         if (step < 3 || step == steps - 1)
-            op_printf("step %4d: %4d iterations, residual %.3e, solve %.4f s\n", step, its, res, t1 - t0);
+            op_printf("step %4d: %4d iterations, residual %.3e, solve %.4f s, assembly %.2f + %.2f ms\n", step, its,
+                      res, t1 - t0, step_loops * 1e3, step_commit * 1e3);
     }
     const double end = wall();
 
