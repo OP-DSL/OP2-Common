@@ -241,6 +241,9 @@ def parseLoop(program: Program, args: List[Cursor], loc: Location, macros: Dict[
         elif name == "op_arg_info":
             parseArgInfo(loop, arg_args, arg_loc, macros)
 
+        elif name == "op_arg_mat":
+            parseArgMat(loop, arg_args, arg_loc, macros)
+
         else:
             raise ParseError(f"invalid loop argument {name}", parseLocation(node))
 
@@ -268,6 +271,29 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
     access_type = parseAccessType(args[5], loc, macros)
 
     loop.addArgDat(loc, dat_ptr, dat_dim, dat_typ, dat_soa, map_ptr, map_idx, access_type, opt)
+
+
+# A matrix block is its values dat through the slot map of (row map, row
+# index, column map), indexed by the column index, as op_arg_mat builds it.
+def parseArgMat(loop: OP.Loop, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:
+    if len(args) != 8:
+        raise ParseError("incorrect number of args passed to op_arg_mat", loc)
+
+    mat_ptr = parseIdentifier(args[0])
+    row_idx = parseIntExpression(args[1])
+    row_map = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
+    col_idx = parseIntExpression(args[3])
+    col_map = None if macros.get(parseLocation(args[4])) == "OP_ID" else parseIdentifier(args[4])
+
+    dim = parseIntExpression(args[5], optional=True)
+    typ, _ = parseType(parseStringLit(args[6]), loc)
+    access_type = parseAccessType(args[7], loc, macros)
+    if access_type not in (OP.AccessType.INC, OP.AccessType.READ):
+        raise ParseError("op_arg_mat access must be OP_INC or OP_READ", loc)
+
+    slots = f"op_mat_slots({mat_ptr},{row_map or 'OP_ID'},{row_idx if row_map else 0},{col_map or 'OP_ID'})"
+    dat_dim = dim * dim if dim is not None else None
+    loop.addArgDat(loc, mat_ptr, dat_dim, typ, False, slots, col_idx if col_map else 0, access_type)
 
 
 def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:

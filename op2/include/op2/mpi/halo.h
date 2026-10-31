@@ -256,6 +256,10 @@ void op_mpi_halo_exchanges_exit();
    device backend; the CPU-only variants leave OP_gpu_direct at 0. */
 void op_gpu_direct_init();
 
+/* op_mpi_local_objects' device half: the device halo tables to the new
+   counts. A no-op in the CPU-only variants. */
+void op_mpi_local_objects_device();
+
 }
 
 #endif /* __OP_MPI_HALO_H */

@@ -448,6 +448,8 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 
 void op_mpi_barrier() {}
 
+void op_mpi_local_objects(void) {}
+
 void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
   (void)time;

@@ -39,6 +39,7 @@
 
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
+#define gpuMemcpyDeviceToDevice cudaMemcpyDeviceToDevice
 
 #define gpuHostMalloc cudaMallocHost
 #define gpuHostFree cudaFreeHost
@@ -140,6 +141,7 @@
 
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define gpuMemcpyDeviceToDevice hipMemcpyDeviceToDevice
 
 #define gpuHostMalloc hipHostMalloc
 #define gpuHostFree hipHostFree

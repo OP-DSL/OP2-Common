@@ -104,6 +104,11 @@ set(_op2_core_srcs
     ${_op2_rt_srcs}
 )
 
+# The solver layer, when a solver library is enabled (cmake/OP2Solve.cmake).
+foreach(_s IN LISTS _op2_solve_srcs)
+    list(APPEND _op2_core_srcs "${_src}/solve/${_s}")
+endforeach()
+
 # Backend-specific groups for single-node variants.
 set(_op2_backend_seq_srcs
     "${_src}/core/op_dummy_singlenode.cpp"
@@ -614,6 +619,13 @@ if(CMAKE_Fortran_COMPILER)
     endif() # MPI + parallel HDF5
 
 endif() # Fortran compiler
+
+# The solver layer's libraries, into every C target with the core in it.
+foreach(_t IN LISTS _op2_targets_c)
+    if(NOT _t STREQUAL "op2_hdf5")
+        _op2_link_solve(${_t})
+    endif()
+endforeach()
 
 # ===========================================================================
 # Namespaced aliases - mirrors the install-time NAMESPACE op2:: on OP2Targets

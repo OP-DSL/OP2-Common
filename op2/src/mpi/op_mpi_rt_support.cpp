@@ -49,6 +49,7 @@
 #include <op_lib_mpi.h>
 #include <op_mpi_core.h>
 #include <op_rt_support.h>
+#include <op2/mpi/halo.h>
 
 void op_upload_dat(op_dat dat) { (void)dat; }
 
@@ -60,6 +61,8 @@ void op_partition(const char *lib_name, const char *lib_routine,
 }
 
 void op_move_to_device() {}
+
+void op_mpi_local_objects_device() {}
 
 void deviceSync() {}
 

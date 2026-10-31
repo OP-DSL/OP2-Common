@@ -1244,6 +1244,37 @@ void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
 
 void op_mpi_barrier() { MPI_Barrier(OP_MPI_WORLD); }
 
+void op_mpi_local_objects(void) {
+  const int sets = (int)OP_set_halos.size();
+  const int maps = (int)OP_map_halos.size();
+  if (sets == 0)
+    op::mpi::fail("op_mpi_local_objects: called before halo creation\n");
+
+  int my_rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &my_rank);
+  OP_part_list = (part *)xrealloc(OP_part_list, OP_set_index * sizeof(part));
+  for (int s = sets; s < OP_set_index; s++) {
+    op_set set = OP_set_list[s];
+    idx_g_t size = set->size, start = 0;
+    MPI_Exscan(&size, &start, 1, MPI_LONG_LONG, MPI_SUM, OP_MPI_WORLD);
+    idx_g_t *g_index = (idx_g_t *)xmalloc(sizeof(idx_g_t) * set->size);
+    int *partition = (int *)xmalloc(sizeof(int) * set->size);
+    for (int i = 0; i < set->size; i++) {
+      g_index[i] = (my_rank == 0 ? 0 : start) + i;
+      partition[i] = my_rank;
+    }
+    decl_partition(set, g_index, partition);
+  }
+  OP_set_halos.resize(OP_set_index);
+
+  OP_map_partial_exchange = (int *)xrealloc(OP_map_partial_exchange, OP_map_index * sizeof(int));
+  for (int m = maps; m < OP_map_index; m++)
+    OP_map_partial_exchange[m] = 0;
+  OP_map_halos.resize(OP_map_index);
+
+  op_mpi_local_objects_device();
+}
+
 int op_is_root() {
   int my_rank;
   MPI_Comm_rank(OP_MPI_WORLD, &my_rank);

@@ -399,6 +399,11 @@ void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
 
+/* Give the sets and maps declared since halo creation (in local numbering,
+   with no halo of their own) empty halo lists, so a layer over OP2 can declare
+   its own after op_partition. Collective; nothing to do without MPI. */
+void op_mpi_local_objects(void);
+
 /* Exchange the halos of args and wait for them, outside of an op_par_loop.
    device is 1 for host, 2 for device, and says where the data is wanted. */
 void op_trigger_halo_exchanges(int device, const char *name, op_set set, int nargs,

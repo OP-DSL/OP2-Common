@@ -67,6 +67,11 @@ std::vector<op::mpi::DeviceMapHalo> OP_map_halos_d;
    op_exit was never called, is freed after the runtime has begun unloading. */
 void op::mpi::DeviceFree::operator()(idx_l_t *p) const { (void)gpuFree(p); }
 
+void op_mpi_local_objects_device() {
+  OP_set_halos_d.resize(OP_set_index);
+  OP_map_halos_d.resize(OP_map_index);
+}
+
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;

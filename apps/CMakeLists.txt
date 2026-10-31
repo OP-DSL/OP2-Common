@@ -6,6 +6,7 @@ add_subdirectory(c/aero)
 add_subdirectory(c/airfoil)
 add_subdirectory(c/jac1)
 add_subdirectory(c/jac2)
+add_subdirectory(c/implicit)
 add_subdirectory(c/min)
 add_subdirectory(c/reduction)
 
