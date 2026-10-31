@@ -114,6 +114,9 @@ endforeach()
 if(_op2_solve_srcs)
     list(APPEND _op2_rt_gpu_srcs "${_src}/solve/op_solve_device.cu")
 endif()
+if(OP2_ENABLE_SOLVE_MOCK)
+    list(APPEND _op2_rt_gpu_srcs "${_src}/solve/op_solve_mock_device.cu")
+endif()
 
 # Backend-specific groups for single-node variants.
 set(_op2_backend_seq_srcs

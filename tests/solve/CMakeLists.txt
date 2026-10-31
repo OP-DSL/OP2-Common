@@ -3,13 +3,28 @@
 # four components under the Neumann preconditioner, which reads the matrix in
 # solver memory.  MPI variants on two ranks, and there also from the mode on a
 # randomly partitioned mesh, whose rows have as many blocks in other ranks'
-# columns as in their own.
+# columns as in their own.  Each library's other storage formats run from the
+# mode, and under the Neumann preconditioner, on every variant at one
+# component and the first larger count.
 
 set(_libs "")
 foreach(_def IN LISTS _op2_solve_defs)
-    if(_def MATCHES "^OP2_SOLVE_(PETSC|HYPRE|GINKGO)$")
+    if(_def MATCHES "^OP2_SOLVE_(PETSC|HYPRE|GINKGO|AMGX|ROCALUTION|MOCK)$")
         string(TOLOWER "${CMAKE_MATCH_1}" _lib)
         list(APPEND _libs ${_lib})
+    endif()
+endforeach()
+
+set(_formats_mock compact:column bell bell:column bell:interleaved bell:interleaved:column)
+
+set(_format_nvs "")
+set(_block_nv "")
+foreach(_nv IN LISTS OP2_IMPLICIT_NV)
+    if(_nv EQUAL 1)
+        list(APPEND _format_nvs 1)
+    elseif(_block_nv STREQUAL "")
+        set(_block_nv ${_nv})
+        list(APPEND _format_nvs ${_nv})
     endif()
 endforeach()
 
@@ -41,6 +56,28 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
                 add_test(NAME ${_test} COMMAND ${_cmd} -n 24 -steps 3 ${_args} -solver "${_solver}" -check 1e-9)
                 set_tests_properties(${_test} PROPERTIES
                     LABELS "solve" ENVIRONMENT "OP_SOLVE_LIB=${_lib};OMP_NUM_THREADS=2" TIMEOUT 300)
+            endforeach()
+            if(NOT _nv IN_LIST _format_nvs)
+                continue()
+            endif()
+            foreach(_format IN LISTS _formats_${_lib})
+                string(REPLACE ":" "-" _fname "${_format}")
+                set(_fcases "mode:-init:mode:-dt:0.002")
+                if(_nv GREATER 1)
+                    list(APPEND _fcases "neumann:-init:bump:-pc:neumann")
+                endif()
+                foreach(_case IN LISTS _fcases)
+                    string(REPLACE ":" ";" _args "${_case}")
+                    list(POP_FRONT _args _name)
+                    set(_solver "method=cg pc=jacobi rtol=1e-12 maxit=5000")
+                    if(_name STREQUAL "neumann")
+                        set(_solver "method=cg rtol=1e-12 maxit=5000")
+                    endif()
+                    set(_test ${_target}_${_lib}_${_fname}_${_name})
+                    add_test(NAME ${_test} COMMAND ${_cmd} -n 24 -steps 3 ${_args} -solver "${_solver}" -check 1e-9)
+                    set_tests_properties(${_test} PROPERTIES LABELS "solve" TIMEOUT 300
+                        ENVIRONMENT "OP_SOLVE_LIB=${_lib};OP_SOLVE_FORMAT=${_format};OMP_NUM_THREADS=2")
+                endforeach()
             endforeach()
         endforeach()
     endforeach()

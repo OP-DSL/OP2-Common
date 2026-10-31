@@ -6,6 +6,7 @@
 option(OP2_ENABLE_PETSC  "Solver layer: PETSc backend (PETSC_DIR, PETSC_ARCH)" OFF)
 option(OP2_ENABLE_HYPRE  "Solver layer: hypre backend (HYPRE_ROOT)"            OFF)
 option(OP2_ENABLE_GINKGO "Solver layer: Ginkgo backend (Ginkgo_ROOT)"          OFF)
+option(OP2_ENABLE_SOLVE_MOCK "Solver layer: a mock library that owns its storage, for tests" OFF)
 
 set(_op2_solve_defs "")
 set(_op2_solve_libs "")
@@ -37,6 +38,12 @@ if(OP2_ENABLE_GINKGO)
     list(APPEND _op2_solve_defs OP2_SOLVE_GINKGO)
     list(APPEND _op2_solve_libs Ginkgo::ginkgo)
     list(APPEND _op2_solve_srcs op_solve_ginkgo.cpp)
+endif()
+
+if(OP2_ENABLE_SOLVE_MOCK)
+    message(STATUS "OP2: mock solver  = on")
+    list(APPEND _op2_solve_defs OP2_SOLVE_MOCK)
+    list(APPEND _op2_solve_srcs op_solve_mock.cpp)
 endif()
 
 if(_op2_solve_srcs)
