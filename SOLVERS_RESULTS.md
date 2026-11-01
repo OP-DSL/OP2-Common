@@ -52,15 +52,18 @@ Branch `feature/solvers` in `/home/jk-ext/op2-solvers`, on `feature/rt-redesign`
   preconditioner reading the matrix in solver memory, a decoupled assembled
   P (`-pmat decoupled`), an assembled or par-loop operator (`-op matfree`),
   OP2's random partitioner in place of ParMETIS (`-partition random`),
-  `-check TOL`, `-timing 1`, `-diags N`.
+  `op_renumber` after partitioning (`-reorder 1`), an airfoil or MG-CFD
+  mesh (HDF5) in place of the grid (`-mesh FILE`), `-check TOL`,
+  `-timing 1`, `-diags N`.
 - Tests: `ctest -L solve` runs the proxy for every variant, library and
   format built: from the mode against the discrete solution, from the bump by
   its true residual, under the Neumann preconditioner for d > 1, on two ranks
   also on a randomly partitioned mesh (as many blocks of a row in the other
-  rank's columns as in its own); each library's other formats at every
-  component count. 765 pass on CPU (NV 1, 4, 7; seq, genseq, openmp and their
-  MPI forms), 802 on the H100 (NV 1, 4, 6, with cuda and mpi_cuda), and the
-  rest of the suite (78/78).
+  rank's columns as in its own) and from the bump with each rank's nodes and
+  edges reordered (Hilbert); each library's other formats at every component
+  count. 810 pass on CPU (NV 1, 4, 7; seq, genseq, openmp and their MPI
+  forms), 853 on the H100 (NV 1, 4, 6, with cuda and mpi_cuda), and the rest
+  of the suite (78/78).
 
 ## Correctness
 
@@ -152,7 +155,8 @@ first call (`OP_JIT_MIN_CALLS=1 OP_JIT_SEQ_COMPILE=1`).
   PETSc NV = 6: L2 hit rate 51% against 91%, 4.5x the DRAM bytes). At n <=
   256 the old and new kernels time the same for all three. This is launch
   tuning (occupancy for scattered atomics), not indexing, and is left for
-  later.
+  later. It is also the shuffled grid's: on a local ordering (below) every
+  library assembles in 3.0-3.5 ms at NV = 4.
 - Offline kernels take the form at run time and branch on it, the same way
   for every element; at NV = 4 they are 2-3x the old ones. They run until
   the JIT kernel is built (about ten calls).
@@ -170,6 +174,83 @@ first call (`OP_JIT_MIN_CALLS=1 OP_JIT_SEQ_COMPILE=1`).
   against 7.28 ms JIT). The "JIT off" run had used `OP_JIT_ENABLE`, which is
   no longer read. `OP_AUTOTUNE=select` finds the offline kernel faster
   (1.485x) but had not finished exploring after 100 calls.
+
+### Mesh order (op_renumber)
+
+The proxy's grid is shuffled (nodes and edges), and `-mesh` reads real meshes
+instead: airfoil (`new_grid_dp.h5`, 0.72M nodes, 1.44M edges with the
+boundary ones), MG-CFD's Rotor37 1M (1.14M nodes, 3.36M edges) and 8M (8.35M
+nodes, 24.9M edges), each in its file's order, with the same operator on the
+mesh's graph from the bump. `-reorder 1` registers the coordinates and calls
+`op_renumber`: `OP_REORDER=hilbert`, `rcm`, or `random` (random nodes, the
+edges still ordered by their centroids, so not as bad as the grid's shuffle).
+MPI+CUDA variants on one H100 rank, JIT kernels from the first call, CG +
+Jacobi to 1e-8, step 5. Iterations are the same in every order. Logs:
+`logs/perf_reorder.log`, `logs/perf_reorder_sweep.log`.
+
+Grid, n = 1024, NV = 4 (assembly loops per step, solve per iteration):
+
+| | loops: shuffled / Hilbert / RCM | solve: shuffled / Hilbert / RCM |
+|---|---|---|
+| hypre | 8.29 / 3.35 / 3.47 ms | 1.412 / 1.365 / 1.364 ms |
+| Ginkgo csr | 10.06 / 3.39 / 3.48 | 1.620 / 1.509 / 1.518 |
+| PETSc coo | 16.57 / 3.43 / 4.29 | 2.913 / 2.876 / 2.863 |
+| AmgX bcsr | 16.61 / 3.48 / 4.49 | 1.041 / 0.907 / 0.907 |
+| mock bell | 13.01 / 3.03 / 3.12 | 0.942 / 0.803 / 0.801 |
+
+Rotor37 8M, NV = 4 (33.4M unknowns), in the file's order / random /
+Hilbert / RCM:
+
+| | loops | solve per iteration |
+|---|---|---|
+| hypre | 37.2 / 41.8 / 37.4 / 39.2 ms | 12.09 / 14.09 / 12.09 / 12.08 ms |
+| Ginkgo csr | 39.0 / 45.3 / 39.7 / 41.1 | 12.74 / 14.51 / 12.72 / 12.75 |
+| PETSc coo | 36.3 / 52.8 / 36.4 / 48.4 | 25.56 / 26.59 / 24.64 / 24.65 |
+| AmgX bcsr | 36.5 / 53.2 / 36.6 / 47.4 | 8.13 / 10.91 / 7.89 / 8.06 |
+| mock bell | 33.0 / 41.8 / 34.5 / 36.5 | 7.05 / 9.57 / 7.10 / 7.05 |
+| hypre, NV = 1 | 2.24 / 3.30 / 2.33 / 2.41 | 1.64 / 3.30 / 1.64 / 1.64 |
+| Ginkgo, NV = 1 | 2.27 / 3.31 / 2.36 / 2.44 | 1.71 / 3.57 / 1.70 / 1.70 |
+
+- Order matters to both. The shuffled grid's loops take 2.5-4.8x as long as
+  Hilbert's, and its solves up to 17% longer (AmgX and the mock, whose block
+  formats gain most). On Rotor37 8M random nodes double the scalar solve
+  (NV = 1) and add 4-36% at NV = 4 (PETSc least); on airfoil and Rotor37 1M
+  up to 23% (PETSc's not at all), as more of the vectors stay in L2.
+- The meshes come well ordered: airfoil's and MG-CFD's file orders time as
+  Hilbert does within a few percent (Hilbert's PETSc solve is 4-7% faster on
+  Rotor37). Real meshes need little reordering for this, but a
+  partitioner's output does (the shuffle stands for it).
+- RCM solves as fast as Hilbert, but its loops are slower for the formats
+  whose blocks are contiguous in slot order (PETSc coo, AmgX bcsr: 30-45% on
+  Rotor37 and airfoil, 25-30% on the grid); not looked into further.
+- PETSc's and AmgX's loops (contiguous blocks, the leanest kernels) are the
+  most sensitive to order: random nodes add 72-81% on airfoil and Rotor37
+  1M, against 6-15% for hypre, Ginkgo and the mock. On a local order every
+  format assembles at the same speed.
+
+Strategies and chunk compression, Ginkgo csr, NV = 4 (loops per step;
+compression of the matrix edge loop, then of the vector edge loop
+`apply_edge`):
+
+| | atomics | colouring | chunk_atomics | chunk_colouring | compression |
+|---|---|---|---|---|---|
+| grid, shuffled | 10.19 ms | 23.35 | refused | 10.27 | 1.00x, 1.00x |
+| grid, Hilbert | 3.40 | 21.75 | 8.44 | 4.00 | 1.52x, 3.19x |
+| airfoil | 2.35 | 14.29 | refused | 3.06 | 1.33x, 1.98x |
+| airfoil, Hilbert | 2.36 | 14.48 | 5.73 | 2.77 | 1.51x, 3.10x |
+| Rotor37 1M | 5.13 | 36.76 | refused | 7.62 | 1.33x, 2.00x |
+| Rotor37 1M, Hilbert | 5.15 | 36.99 | refused | 7.70 | 1.38x, 2.21x |
+| Rotor37 8M | 39.16 | 289.7 | refused | 53.43 | 1.33x, 1.98x |
+| Rotor37 8M, Hilbert | 39.60 | 294.3 | refused | 52.20 | 1.37x, 2.16x |
+
+A matrix edge loop's off-diagonal blocks are each one edge's, so only the
+diagonal blocks are shared within a chunk: 1.33-1.52x at best, near the
+default `OP_CHUNK_ATOMICS_MIN_COMPRESSION` of 1.5, which refuses chunk_atomics
+everywhere but the Hilbert-ordered 2D meshes. Where it runs it takes 2.4x
+atomics' time; chunk_colouring takes 17-50% longer than atomics on the
+ordered meshes, and colouring 6-7x. Atomics (the NVIDIA default) is the
+right strategy for matrix assembly on the H100 once the mesh is ordered.
+Vector edge loops compress 2-3x.
 
 ### AMG (setup every step; measured on the earlier build, whose solve path is unchanged)
 
@@ -275,6 +356,11 @@ Changes behind these figures:
 
 ## Observations
 
+- Mesh order matters more than storage format: shuffled against Hilbert,
+  2.5-4.8x on the grid's assembly and up to 17% on its solve, and random
+  nodes double Rotor37 8M's scalar solve. Each rank's mesh should be
+  renumbered after partitioning (`op_renumber`, Hilbert given coordinates);
+  with that, atomics assembles every format alike.
 - Assembly into solver memory costs milliseconds beside solves of ~0.1-2 s
   per step here; for Hydra's flux Jacobians the loops are heavier but the
   commit saved is the same bandwidth-bound pass.
@@ -351,8 +437,13 @@ mixed integers, Ginkgo with the patch above), `op2_cpu_build.sh`,
 `gpu_configure.sh` (this tree; the GPU one also needs
 `CMAKE_CUDA_HOST_COMPILER` and `CUDA_TOOLKIT_ROOT_DIR` for hypre's Umpire/BLT
 config), `gpu_solve_tests.sh`, `perf_formats.sh` (the format table; `NVS`,
-`FORMATS`, stops at the first device error), `perf_limit.sh` (the runs at the
-32-bit limit), `jit_regs_implicit.sh` (the JIT kernels' registers).
+`FORMATS`, stops at the first device error), `perf_reorder.sh` (mesh order:
+`MESHES`, `SWEEP_ONLY`), `perf_limit.sh` (the runs at the 32-bit limit),
+`jit_regs_implicit.sh` (the JIT kernels' registers). Meshes:
+`~/mgcfd-meshes/rotor37_{1m,8m}/Rotor37_{1M,8M}/grid.1.hdf`, airfoil
+`~/op2-loop/build-cpu/test-meshes/new_grid_dp.h5`; reordering needs an MPI
+variant (`OP_REORDER`, `mpirun -n 1 ./implicit4_mpi_cuda -mesh FILE -reorder 1
+-init bump -dt 0.01`).
 Variables: `OP_SOLVE_LIB`, `OP_SOLVE_FORMAT`, `OP_SOLVE_MEMORY=1` (memory per
 stage and the matrix's storage form), `OP_SOLVE_HYPRE_POOL` (MiB; Umpire
 reserves 4 GiB by default). To time kernels: `OP_JIT_LEVEL=0` for offline
