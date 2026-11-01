@@ -3,8 +3,10 @@
 # four components under the Neumann preconditioner, which reads the matrix in
 # solver memory.  MPI variants on two ranks, and there also from the mode on a
 # randomly partitioned mesh, whose rows have as many blocks in other ranks'
-# columns as in their own.  Each library's other storage formats run from the
-# mode, and under the Neumann preconditioner, on every variant and count.
+# columns as in their own, and from the bump with each rank's nodes and edges
+# reordered (op_renumber, a Hilbert curve).  Each library's other storage
+# formats run from the mode, and under the Neumann preconditioner, on every
+# variant and count.
 
 set(_libs "")
 foreach(_def IN LISTS _op2_solve_defs)
@@ -40,7 +42,7 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
         if(_variant MATCHES "^mpi_")
             set(_procs 4)
             set(_cmd ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS} "$<TARGET_FILE:${_target}>")
-            list(APPEND _variant_cases "random:-init:mode:-dt:0.002:-partition:random")
+            list(APPEND _variant_cases "random:-init:mode:-dt:0.002:-partition:random" "reorder:-init:bump:-reorder:1")
         endif()
         foreach(_lib IN LISTS _libs)
             if(_lib IN_LIST _device_only AND NOT _variant MATCHES "cuda|hip")

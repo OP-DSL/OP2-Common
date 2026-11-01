@@ -11,8 +11,14 @@ if(_op2_solve_srcs)
             COMPILE_DEFINITIONS NV=${_nv}
             EXCLUDE_VARIANTS *_legacy mpi_*_legacy
             TARGETS_VAR _targets)
+        # The mesh reader (-mesh) is no part of the translation.
         foreach(_t IN LISTS _targets)
             target_link_libraries(${_t} PRIVATE MPI::MPI_CXX)
+            target_sources(${_t} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/implicit_mesh.cpp)
+            if(HDF5_FOUND)
+                target_compile_definitions(${_t} PRIVATE IMPLICIT_HDF5)
+                target_link_libraries(${_t} PRIVATE ${_op2_hdf5_target})
+            endif()
         endforeach()
     endforeach()
 endif()

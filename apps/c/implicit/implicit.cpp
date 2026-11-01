@@ -11,7 +11,8 @@
 //
 //   implicit [-n N] [-steps S] [-dt DT] [-pc lib|bjacobi] [-op assembled|matfree]
 //            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"] [-diags N]
-//            [-pc neumann -terms M] [-pmat decoupled] [-partition kway|random] [-timing 1] [-check TOL]
+//            [-pc neumann -terms M] [-pmat decoupled] [-partition kway|random] [-reorder 1]
+//            [-mesh FILE] [-timing 1] [-check TOL]
 //
 // -pc neumann preconditions with M Neumann steps after block Jacobi, each a
 // matrix-vector product through the blocks in solver memory; -pmat decoupled
@@ -23,9 +24,21 @@
 //
 // -partition random scatters the nodes over the ranks, so on two ranks half
 // of each node's neighbours are another rank's.
+//
+// -reorder 1 renumbers each rank's nodes and edges after partitioning
+// (op_renumber, as OP_REORDER says: a Hilbert curve through the nodes'
+// coordinates by default, or RCM), in place of the random numbering; the MPI
+// variants reorder, the others warn.
+//
+// -mesh FILE takes the nodes and edges of an MG-CFD or airfoil mesh (HDF5)
+// in place of the grid, in the file's order: the same operator on the mesh's
+// graph, with h^2 = 1 / nodes^(2 / dim) and no boundary, from the bump (the
+// bounding box scaled to the unit square or cube).
 
 #include "op_seq.h"
 #include "op_solve.h"
+
+#include "implicit_mesh.h"
 
 #include <mpi.h>
 
@@ -190,7 +203,8 @@ int main(int argc, char **argv) {
 
     const int n = atoi(option(argc, argv, "-n", "64"));
     const int steps = atoi(option(argc, argv, "-steps", "10"));
-    const double h = 1.0 / (n + 1);
+    const char *mesh = option(argc, argv, "-mesh", NULL);
+    double h = 1.0 / (n + 1);
     const double dt = atof(option(argc, argv, "-dt", "0.001"));
     const std::string pc = option(argc, argv, "-pc", "lib");
     const std::string op = option(argc, argv, "-op", "assembled");
@@ -198,8 +212,11 @@ int main(int argc, char **argv) {
     const std::string init = option(argc, argv, "-init", "mode");
     const std::string pmat = option(argc, argv, "-pmat", "A");
     const char *solver_options = option(argc, argv, "-solver", "method=cg pc=jacobi rtol=1e-10");
-    h2 = h * h;
-    h2dt = h2 / dt;
+    if (mesh != NULL && init == "mode") {
+        op_printf("implicit: -mesh starts from the bump (-init bump); the mode is the grid's\n");
+        op_exit();
+        return 1;
+    }
 
     // K and C symmetric and diagonally dominant, so SPD.
     for (int i = 0; i < NV; i++)
@@ -215,53 +232,94 @@ int main(int argc, char **argv) {
         MPI_Comm_size(MPI_COMM_WORLD, &ranks);
     }
 
-    // The global mesh, randomly renumbered; each rank declares its block.
-    const int gnodes = n * n, gedges = 2 * n * (n - 1);
-    std::vector<int> perm(gnodes);
-    for (int i = 0; i < gnodes; i++)
-        perm[i] = i;
-    std::mt19937 rng(12345);
-    std::shuffle(perm.begin(), perm.end(), rng);
-    std::vector<int> gedge_nodes;
-    gedge_nodes.reserve(2 * gedges);
-    for (int j = 0; j < n; j++)
-        for (int i = 0; i < n; i++) {
-            if (i + 1 < n)
-                gedge_nodes.insert(gedge_nodes.end(), {perm[j * n + i], perm[j * n + i + 1]});
-            if (j + 1 < n)
-                gedge_nodes.insert(gedge_nodes.end(), {perm[j * n + i], perm[(j + 1) * n + i]});
+    // Each rank declares its block of the nodes and edges, numbered globally:
+    // its coordinates, scaled to the unit square for the bump (xy), and as
+    // they are for reordering (geometry).
+    int gnodes, n0, n1, e0, e1, dim = 2;
+    std::vector<double> xy, geometry;
+    std::vector<int> nbnd, edge_nodes;
+    if (mesh != NULL) {
+        MeshBlock m = read_mesh(mesh, rank, ranks);
+        gnodes = m.nodes;
+        n0 = m.n0;
+        n1 = m.n1;
+        e0 = m.e0;
+        e1 = m.e1;
+        dim = m.dim;
+        h = pow((double)gnodes, -1.0 / dim);
+        double lo[3] = {1e300, 1e300, 1e300}, hi[3] = {-1e300, -1e300, -1e300};
+        for (int i = 0; i < n1 - n0; i++)
+            for (int d = 0; d < dim; d++) {
+                lo[d] = fmin(lo[d], m.coords[i * dim + d]);
+                hi[d] = fmax(hi[d], m.coords[i * dim + d]);
+            }
+        if (mpi) {
+            MPI_Allreduce(MPI_IN_PLACE, lo, 3, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, hi, 3, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         }
-    std::vector<int> eperm(gedges);
-    for (int e = 0; e < gedges; e++)
-        eperm[e] = e;
-    std::shuffle(eperm.begin(), eperm.end(), rng);
+        xy.resize(2 * (n1 - n0));
+        for (int i = 0; i < n1 - n0; i++)
+            for (int d = 0; d < 2; d++)
+                xy[2 * i + d] = (m.coords[i * dim + d] - lo[d]) / (hi[d] - lo[d]);
+        nbnd.assign(n1 - n0, 0);
+        edge_nodes = std::move(m.edge_nodes);
+        geometry = std::move(m.coords);
+    } else {
+        // The global grid, randomly renumbered; each rank declares its block.
+        gnodes = n * n;
+        const int gedges = 2 * n * (n - 1);
+        std::vector<int> perm(gnodes);
+        for (int i = 0; i < gnodes; i++)
+            perm[i] = i;
+        std::mt19937 rng(12345);
+        std::shuffle(perm.begin(), perm.end(), rng);
+        std::vector<int> gedge_nodes;
+        gedge_nodes.reserve(2 * gedges);
+        for (int j = 0; j < n; j++)
+            for (int i = 0; i < n; i++) {
+                if (i + 1 < n)
+                    gedge_nodes.insert(gedge_nodes.end(), {perm[j * n + i], perm[j * n + i + 1]});
+                if (j + 1 < n)
+                    gedge_nodes.insert(gedge_nodes.end(), {perm[j * n + i], perm[(j + 1) * n + i]});
+            }
+        std::vector<int> eperm(gedges);
+        for (int e = 0; e < gedges; e++)
+            eperm[e] = e;
+        std::shuffle(eperm.begin(), eperm.end(), rng);
 
-    auto block = [&](int total, int r) { return (int)((long long)total * r / ranks); };
-    const int n0 = block(gnodes, rank), n1 = block(gnodes, rank + 1);
-    const int e0 = block(gedges, rank), e1 = block(gedges, rank + 1);
+        auto block = [&](int total, int r) { return (int)((long long)total * r / ranks); };
+        n0 = block(gnodes, rank);
+        n1 = block(gnodes, rank + 1);
+        e0 = block(gedges, rank);
+        e1 = block(gedges, rank + 1);
 
-    std::vector<int> owner(gnodes);
-    for (int i = 0; i < gnodes; i++)
-        owner[perm[i]] = i;
-    std::vector<double> xy(2 * (n1 - n0));
-    std::vector<int> nbnd(n1 - n0);
-    for (int g = n0; g < n1; g++) {
-        int i = owner[g] % n, j = owner[g] / n;
-        xy[2 * (g - n0)] = (i + 1) * h;
-        xy[2 * (g - n0) + 1] = (j + 1) * h;
-        nbnd[g - n0] = (i == 0) + (i == n - 1) + (j == 0) + (j == n - 1);
+        std::vector<int> owner(gnodes);
+        for (int i = 0; i < gnodes; i++)
+            owner[perm[i]] = i;
+        xy.resize(2 * (n1 - n0));
+        nbnd.resize(n1 - n0);
+        for (int g = n0; g < n1; g++) {
+            int i = owner[g] % n, j = owner[g] / n;
+            xy[2 * (g - n0)] = (i + 1) * h;
+            xy[2 * (g - n0) + 1] = (j + 1) * h;
+            nbnd[g - n0] = (i == 0) + (i == n - 1) + (j == 0) + (j == n - 1);
+        }
+        edge_nodes.resize(2 * (e1 - e0));
+        for (int e = e0; e < e1; e++) {
+            edge_nodes[2 * (e - e0)] = gedge_nodes[2 * eperm[e]];
+            edge_nodes[2 * (e - e0) + 1] = gedge_nodes[2 * eperm[e] + 1];
+        }
+        geometry = xy;
     }
-    std::vector<int> edge_nodes(2 * (e1 - e0));
-    for (int e = e0; e < e1; e++) {
-        edge_nodes[2 * (e - e0)] = gedge_nodes[2 * eperm[e]];
-        edge_nodes[2 * (e - e0) + 1] = gedge_nodes[2 * eperm[e] + 1];
-    }
+    h2 = h * h;
+    h2dt = h2 / dt;
 
     Context ctx;
     ctx.nodes = op_decl_set(n1 - n0, "nodes");
     ctx.edges = op_decl_set(e1 - e0, "edges");
     ctx.edge_nodes = op_decl_map(ctx.edges, ctx.nodes, 2, edge_nodes.data(), "edge_nodes");
     op_dat p_xy = op_decl_dat(ctx.nodes, 2, "double", xy.data(), "xy");
+    op_dat p_geometry = op_decl_dat(ctx.nodes, dim, "double", geometry.data(), "geometry");
     ctx.nbnd = op_decl_dat(ctx.nodes, 1, "int", nbnd.data(), "nbnd");
     op_dat p_u = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "u");
     op_dat p_b = op_decl_dat(ctx.nodes, NV, "double", (double *)NULL, "b");
@@ -279,6 +337,10 @@ int main(int argc, char **argv) {
         op_partition("RANDOM", NULL, ctx.nodes, NULL, NULL);
     else
         op_partition("PARMETIS", "KWAY", ctx.edges, ctx.edge_nodes, p_xy);
+    if (atoi(option(argc, argv, "-reorder", "0"))) {
+        op_set_coords(ctx.nodes, p_geometry);
+        op_renumber(ctx.edge_nodes);
+    }
 
     op_solve_init(argc, argv, NULL);
     op_sparsity sp = op_decl_sparsity(ctx.nodes, ctx.nodes, 1, &ctx.edge_nodes, &ctx.edge_nodes, "laplacian");
@@ -411,8 +473,12 @@ int main(int argc, char **argv) {
                 op_arg_gbl(&c2, 1, "double", OP_INC),
                 op_arg_gbl(&cmax, 1, "double", OP_MAX));
 
-    op_printf("n %d, NV %d, unknowns %d, steps %d, dt %g: %d iterations, %s\n", n, NV, gnodes * NV, steps, dt,
-              iterations, converged ? "converged" : "NOT converged");
+    if (mesh != NULL)
+        op_printf("mesh %s, %d nodes, ", mesh, gnodes);
+    else
+        op_printf("n %d, ", n);
+    op_printf("NV %d, unknowns %d, steps %d, dt %g: %d iterations, %s\n", NV, gnodes * NV, steps, dt, iterations,
+              converged ? "converged" : "NOT converged");
     op_printf("true relative residual: %.3e\n", sqrt(r2 / b2));
     if (init == "mode") {
         op_printf("error vs discrete solution:   max %.3e, rms %.3e\n", emax, sqrt(e2 / (gnodes * NV)));
