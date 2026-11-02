@@ -53,15 +53,17 @@ struct Candidate {
 // specialised one first when it is expected faster, or under
 // OP_JIT_FORCE).  The last candidate is the floor: it is selected when no
 // other is ready, enabled or not, whatever its own status.  A family adds a
-// strategy per point of its axes; the point of every axis's first value is
-// the one the ladder runs and OP_STRATEGY forces, the others only the tuner
-// tries.  OP_<FAMILY>=on/off, read when the family is declared, wins over the
+// strategy for the point of every axis's first value, the one the ladder
+// runs and OP_STRATEGY forces, and, in a ladder that explores, one for each
+// other point of its axes, which only the tuner tries.  OP_<FAMILY>=on/off, read when the family is declared, wins over the
 // default, and off turns all of the family off; OP_STRATEGY, read by init, is
 // <family> or <loop>:<family> (a comma-separated list of either), a loop's
 // own item winning over a family for every loop.
 class Ladder {
 private:
     std::string m_name;
+    // Whether the families add their other points, for the tuner.
+    bool m_explore;
     // OP_STRATEGY's families for this loop, most specific first.
     std::vector<std::string> m_forced_names;
     std::vector<std::unique_ptr<Strategy>> m_strategies;
@@ -88,7 +90,7 @@ private:
 public:
     using Make = std::function<std::unique_ptr<Strategy>(const Point& point)>;
 
-    explicit Ladder(std::string_view loop_name);
+    Ladder(std::string_view loop_name, bool explore);
     Ladder(const Ladder&) = delete;
 
     const std::string& name() const { return m_name; }

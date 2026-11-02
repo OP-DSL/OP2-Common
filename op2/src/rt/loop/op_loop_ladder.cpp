@@ -199,8 +199,8 @@ void missing_family(std::string_view name, std::string_view loop, std::string_vi
     std::exit(1);
 }
 
-Ladder::Ladder(std::string_view loop_name)
-    : m_name{loop_name}, m_forced_names{forced_for(loop_name)} {}
+Ladder::Ladder(std::string_view loop_name, bool explore)
+    : m_name{loop_name}, m_explore{explore}, m_forced_names{forced_for(loop_name)} {}
 
 void Ladder::add(std::string_view family, const Make& make) {
     auto found = family_settings.find(family);
@@ -214,8 +214,11 @@ void Ladder::add(std::string_view family, const Make& make) {
     bool off = !enabled && settings.enabled.has_value();
     const auto& options = jit::options();
 
-    // The family's other points ahead of its point of first values.
+    // The family's other points, when the ladder explores, ahead of its point
+    // of first values.
     auto all = points(family, settings.axes, settings.values);
+    if (!m_explore)
+        all.resize(1);
     std::rotate(all.begin(), all.begin() + 1, all.end());
     for (std::size_t i = 0; i < all.size(); ++i) {
         auto& strategy = *m_strategies.emplace_back(make(all[i]));

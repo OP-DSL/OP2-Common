@@ -104,7 +104,7 @@ Fake *add(loop::Ladder& ladder, std::string_view family, bool enabled) {
 
 // A ladder of chunk_atomics (disabled), atomics, colouring (the floor).
 struct Fixture {
-    loop::Ladder ladder{"test_loop"};
+    loop::Ladder ladder{"test_loop", false};
     Fake *chunk_atomics = add(ladder, "chunk_atomics", false);
     Fake *atomics = add(ladder, "atomics", true);
     Fake *colouring = add(ladder, "colouring", true);
@@ -279,7 +279,7 @@ void test_variables() {
     setenv("OP_CHUNK_ATOMICS", "on", 1);
     setenv("OP_ATOMICS", "off", 1);
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", false};
         add(ladder, "chunk_atomics", false);
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
@@ -295,7 +295,7 @@ void test_variables() {
     setenv("OP_CHUNK_ATOMICS", "maybe", 1);
     setenv("OP_ATOMICS", "maybe", 1);
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", false};
         add(ladder, "chunk_atomics", false);
         add(ladder, "atomics", true);
         CHECK(!ladder[0].enabled && !ladder[0].off);
@@ -310,7 +310,7 @@ void test_variables() {
     declare({{"atomics", {}}});
     unsetenv("OP_ATOMICS");
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", false};
         ladder.add("atomics",
                    [](const loop::Point& point) { return std::make_unique<Fake>(point); });
         CHECK(!ladder[0].enabled && !!ladder[0].off);
@@ -322,7 +322,7 @@ void test_variables() {
     setenv("OP_STRATEGY", "other:colouring,test_loop:atomics", 1);
     op::rt::init();
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", false};
         add(ladder, "chunk_atomics", true);
         add(ladder, "atomics", false);
         add(ladder, "plain", true);
@@ -342,13 +342,13 @@ void test_variables() {
         CHECK(static_cast<Fake&>(*ladder[0].strategy).prepares == 0);
     }
     {
-        loop::Ladder ladder{"other"};
+        loop::Ladder ladder{"other", false};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
         CHECK(ladder.select(indirect_call()).candidate->name == "colouring=on");
     }
     {
-        loop::Ladder ladder{"third"};
+        loop::Ladder ladder{"third", false};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
         // Not forced: its first member runs, not waited for.
@@ -360,7 +360,7 @@ void test_variables() {
     setenv("OP_STRATEGY", "atomics,other:colouring", 1);
     op::rt::init();
     for (const char *name : {"test_loop", "other"}) {
-        loop::Ladder ladder{name};
+        loop::Ladder ladder{name, false};
         add(ladder, "atomics", true);
         add(ladder, "colouring", true);
         // The forced family runs, its kernel waited for.
@@ -374,7 +374,8 @@ void test_variables() {
 }
 
 // A family's axes: a strategy per point, named by every axis's value, the
-// one of first values running and the rest left to the tuner.
+// one of first values running and, in a ladder that explores, the rest left to
+// the tuner.
 void test_axes() {
     const std::vector<loop::Axis> axes{
         {"BLOCK_SIZES", "block_size", false, {128}},
@@ -389,7 +390,7 @@ void test_axes() {
 
     declare_all(true);
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", false};
         ladder.add("chunk_atomics", make);
         CHECK(ladder.size() == 1 &&
               ladder[0].name == "chunk_atomics=on;block_size=128;singles=on");
@@ -404,7 +405,7 @@ void test_axes() {
     declare_all(true);
     {
         // In declared order, whatever order the loop adds them in.
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", true};
         ladder.add("colouring", make);
         ladder.add("atomics", make);
         ladder.add("chunk_atomics", make);
@@ -437,6 +438,18 @@ void test_axes() {
         for (std::size_t i : {0u, 1u, 2u, 4u, 5u})
             CHECK(static_cast<Fake&>(*ladder[i].strategy).prepares == 0);
     }
+    {
+        // A ladder that does not explore has the points of first values alone.
+        loop::Ladder ladder{"test_loop", false};
+        ladder.add("colouring", make);
+        ladder.add("atomics", make);
+        ladder.add("chunk_atomics", make);
+        CHECK(ladder.strategies().size() == 3);
+        CHECK(ladder.size() == 3 &&
+              ladder[0].name == "chunk_atomics=on;block_size=128;singles=on" &&
+              ladder[1].name == "atomics=on;block_size=256" &&
+              ladder[2].name == "colouring=on;block_size=128");
+    }
     unsetenv("OP_ATOMICS_BLOCK_SIZES");
 
     // OP_STRATEGY forces a family's running point; a variant's name forces
@@ -446,7 +459,7 @@ void test_axes() {
     op::rt::init();
     declare_all(false);
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", true};
         ladder.add("colouring", make);
         ladder.add("chunk_atomics", make);
         CHECK(ladder.select(indirect_call()).candidate == &ladder[3]);
@@ -462,7 +475,7 @@ void test_axes() {
 // A ladder longer than any fixed bound: every strategy before the last is
 // passed over, disabled or rejected, and the last runs.
 void test_long_ladder() {
-    loop::Ladder ladder{"long_loop"};
+    loop::Ladder ladder{"long_loop", false};
     std::vector<Fake *> fakes;
     for (int i = 0; i < 40; ++i) {
         auto *fake = add(ladder, "fake_" + std::to_string(i), i % 2 == 0);
@@ -496,7 +509,7 @@ void test_kernel_kinds() {
                                                      : std::optional<float>{}};
         };
         declare({{"colouring", {}}});
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", false};
         ladder.add("colouring", [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point);
             made->offline_estimate = estimate(offline_cost);
@@ -533,7 +546,7 @@ void test_kernel_kinds() {
     // A specialised kernel still building is passed over for the same
     // strategy's offline one, here the floor.
     declare({{"colouring", {}}});
-    loop::Ladder ladder{"test_loop"};
+    loop::Ladder ladder{"test_loop", false};
     Fake *fake = nullptr;
     ladder.add("colouring", [&](const loop::Point& point) {
         auto made = std::make_unique<Fake>(point);
@@ -572,7 +585,7 @@ void test_kernel_less_points() {
     setenv("OP_COLOURING_SWITCHES", "on,off", 1);
     op::rt::init();
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", true};
         std::vector<Fake *> fakes;
         build(ladder, fakes);
         CHECK(fakes.size() == 2 && ladder.size() == 1);
@@ -584,7 +597,7 @@ void test_kernel_less_points() {
     setenv("OP_COLOURING_SWITCHES", "off,on", 1);
     op::rt::init();
     {
-        loop::Ladder ladder{"test_loop"};
+        loop::Ladder ladder{"test_loop", true};
         std::vector<Fake *> fakes;
         build(ladder, fakes);
         CHECK(ladder.size() == 2 && !ladder[0].member && ladder[1].member);

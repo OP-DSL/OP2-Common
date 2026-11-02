@@ -109,7 +109,8 @@ public:
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, bool direct)
         : m_name{name}, m_profile_target{profile_target},
-          m_profile_variant{profile_variant}, m_direct{direct}, m_ladder{name},
+          m_profile_variant{profile_variant}, m_direct{direct},
+          m_ladder{name, tune::autotune_options().report},
           m_params{name} {
         if (tune::autotune_options().report)
             m_tuner.emplace(m_ladder);
