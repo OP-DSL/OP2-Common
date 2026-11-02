@@ -46,6 +46,7 @@ program reduc_tests_fortran
   real(4), dimension(:), allocatable :: expected
 
   real(8) :: inc_total, inc_total_expected, inc_total_local
+  real(8) :: rw_total, rw_total_expected
 
   call op_init_base(0, 0)
   call op_profile_start("FortranReductionTests")
@@ -167,6 +168,24 @@ program reduc_tests_fortran
 
   deallocate(fetched)
   deallocate(expected)
+
+  ! --- Indirect loop with an RW global ---
+  ! Each rank's global sums its own edges, not the exec halo edges it also
+  ! executes.
+  rw_total = 1.5_8
+  call op_par_loop_3(indirect_rw_sum, edges, &
+    op_arg_dat(pn_dat1, 1, m_e2n, 1, "real(4)", OP_READ), &
+    op_arg_dat(pe_dat1, -1, OP_ID, 1, "real(4)", OP_READ), &
+    op_arg_gbl(rw_total, 1, "real(8)", OP_RW))
+
+  rw_total_expected = 1.5_8
+  do e = 0, edges%setPtr%size - 1
+    rw_total_expected = rw_total_expected + real(f_n_dat1(1, f_m_e2n(2 * e + 1) + 1), 8) &
+      + real(f_e_dat1(1, e + 1), 8)
+  end do
+
+  call check(abs(rw_total - rw_total_expected) < 1.0d-6, 0, my_rank, "indirect_rw_sum failed")
+  write(*,*) "indirect_rw_sum passed [rank", my_rank, "]"
 
   ! --- Indirect Dat INC DIM=3 ---
   call op_par_loop_3(indirect_dat3_inc, edges, &

@@ -3,7 +3,7 @@ module reduc_kernels
     private
 
     public :: indirect_dat1_inc, indirect_dat3_inc, direct_dat1_inc, direct_dat4_inc
-    public :: indirect_inc_reduce
+    public :: indirect_inc_reduce, indirect_rw_sum
 
 contains
   subroutine indirect_dat1_inc(n0i, n1i, er)
@@ -30,6 +30,15 @@ contains
     n1i = n1i + er
     total = total + 2.0_8 * dble(er)
   end subroutine indirect_inc_reduce
+
+  ! An RW global in an indirect loop: it starts from its value at the call.
+  subroutine indirect_rw_sum(n0r, er, total)
+    real(4), intent(in)    :: n0r
+    real(4), intent(in)    :: er
+    real(8), intent(inout) :: total
+
+    total = total + dble(n0r) + dble(er)
+  end subroutine indirect_rw_sum
 
   subroutine indirect_dat3_inc(n0i, n1i, er)
     ! target: n0i and n1i are one node where m_e2n repeats an entry.
