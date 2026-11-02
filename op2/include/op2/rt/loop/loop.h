@@ -54,9 +54,9 @@ Backend& runtime(Descriptor& descriptor) {
 
 class Loop {
 private:
-    // A call's decision: the parameters take its values, the ladder selects,
-    // and the tuner, while it explores the configuration, may choose another
-    // candidate.  Every call counts in the parameters' statistics, whichever
+    // A call's decision: the parameters take its values, and the ladder
+    // selects, or with a tuner the tuner chooses, asking the ladder when it
+    // needs its selection.  Every call counts in the parameters' statistics, whichever
     // candidate runs, so a specialised kernel meets settled modes, and the
     // tuner waits for them.
     tune::Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);

@@ -109,7 +109,8 @@ public:
     };
 
 private:
-    const loop::Ladder& m_ladder;
+    // Asked for its selection when a call needs it.
+    loop::Ladder& m_ladder;
     // Once this many configurations have state a new one gets none; those
     // dropped and those never explored are counted per loop.
     static constexpr std::size_t max_keys = 4096;
@@ -122,14 +123,14 @@ private:
     // will run on it again forget it.
     void finish(State& state, const loop::Call& call);
     Decision run_selected(const State& state, const loop::Call& call,
-                          const Decision& ladder);
+                          const std::optional<loop::Prepared>& ladder);
     Summary summarise(const State& state) const;
     const loop::Candidate *winner(const Summary& summary) const;
     std::string row(const State& state, const Summary& summary,
                     const Trial& trial) const;
 
 public:
-    explicit Autotuner(const loop::Ladder& ladder) : m_ladder{ladder} {}
+    explicit Autotuner(loop::Ladder& ladder) : m_ladder{ladder} {}
     Autotuner(const Autotuner&) = delete;
 
     // The ladder's selection, unless the configuration is being explored:
@@ -139,8 +140,8 @@ public:
     // defers a trial, its build started now; unavailable retires it with its
     // reason.  When every trial is done, under select, its fastest
     // candidate runs from then on if it beats the ladder's current choice by
-    // the margin.
-    Decision choose(const loop::Call& call, const loop::Prepared& selection, bool settled);
+    // the margin, the ladder not asked while it is ready.
+    Decision choose(const loop::Call& call, bool settled);
 
     // Record one timed run.
     void sample(const Decision& decision, float microseconds);

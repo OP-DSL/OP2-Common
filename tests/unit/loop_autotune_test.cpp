@@ -34,6 +34,7 @@ struct Fake : loop::Strategy {
     std::string_view reason = "scripted";
     float time;
     std::optional<float> jit_time;
+    int prepares = 0;
     int runs = 0;
     int timed_runs = 0;
     int timed_jit_runs = 0;
@@ -57,6 +58,7 @@ struct Fake : loop::Strategy {
 
     loop::Prepared prepare(const loop::Call&, loop::Urgency,
                            loop::KernelKind kind) override {
+        ++prepares;
         auto& script = kind == loop::KernelKind::jit ? jit_statuses : statuses;
         loop::Status status = loop::Status::ready;
         if (!script.empty()) {
@@ -135,10 +137,9 @@ struct Fixture : loop::Loop {
     // The candidate the latest call ran.
     const loop::Candidate *last = nullptr;
 
-    // One call: select, let the tuner decide, run, sample.
+    // One call: let the tuner decide, run, sample.
     Fake *invoke(const loop::Call& call) {
-        auto selection = m_ladder.select(call);
-        auto decision = m_tuner->choose(call, selection, settled);
+        auto decision = m_tuner->choose(call, settled);
         loop::RunArgs run{call, const_cast<op_arg *>(call.args.data()),
                           static_cast<int>(call.args.size()), decision.timed != nullptr};
         auto us = decision.prepared.candidate->strategy->run(decision.prepared, run);
@@ -190,12 +191,16 @@ void test_exploration() {
     CHECK(fixture.colouring->runs == 3);
     CHECK(fixture.atomics->runs == 4);
 
-    // Explored: the fastest runs from now on, untimed.
+    // Explored by the next call: the fastest runs from then on, untimed, and
+    // the ladder no longer prepares its own choice.
     int before = fixture.chunk_atomics->runs;
-    for (int i = 0; i < 3; ++i)
+    CHECK(fixture.invoke(call) == fixture.chunk_atomics);
+    int ladder_prepares = fixture.atomics->prepares;
+    for (int i = 0; i < 2; ++i)
         CHECK(fixture.invoke(call) == fixture.chunk_atomics);
     CHECK(fixture.chunk_atomics->runs == before + 3);
     CHECK(fixture.chunk_atomics->timed_runs == 2);
+    CHECK(fixture.atomics->prepares == ladder_prepares);
 
     // A configuration on another set is explored on its own; there a
     // candidate that turns out unavailable is retired.

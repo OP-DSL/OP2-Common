@@ -9,9 +9,8 @@ tune::Autotuner::Decision Loop::decide(const Call& call, op_arg *args, int nargs
     m_params.update(args, nargs);
     if (m_params.moving() && jit::options().enabled())
         m_params.observe_call(call);
-    auto selection = m_ladder.select(call);
-    return m_tuner ? m_tuner->choose(call, selection, m_params.settled(call))
-                   : tune::Autotuner::Decision{selection};
+    return m_tuner ? m_tuner->choose(call, m_params.settled(call))
+                   : tune::Autotuner::Decision{m_ladder.select(call)};
 }
 
 void Loop::run(const tune::Autotuner::Decision& decision, const Call& call, op_arg *args,

@@ -64,11 +64,16 @@ bool Autotuner::State::explored() const {
     return any;
 }
 
-Autotuner::Decision Autotuner::choose(const loop::Call& call,
-                                      const loop::Prepared& selection, bool settled) {
-    Decision ladder{selection};
+Autotuner::Decision Autotuner::choose(const loop::Call& call, bool settled) {
     auto key = call.key();
     auto found = m_states.find(key);
+    if (found != m_states.end() && found->second.finished) {
+        ++found->second.calls;
+        return run_selected(found->second, call, std::nullopt);
+    }
+
+    auto selection = m_ladder.select(call);
+    Decision ladder{selection};
     if (found == m_states.end()) {
         if (m_states.size() >= max_keys) {
             ++m_dropped;
@@ -79,8 +84,6 @@ Autotuner::Decision Autotuner::choose(const loop::Call& call,
 
     auto& state = found->second;
     ++state.calls;
-    if (state.finished)
-        return run_selected(state, call, ladder);
     state.ladder = selection.candidate;
     if (state.calls < static_cast<std::size_t>(options.min_calls) || !settled)
         return ladder;
@@ -125,7 +128,7 @@ Autotuner::Decision Autotuner::choose(const loop::Call& call,
     if (options.select)
         state.selected = winner(summarise(state));
     finish(state, call);
-    return run_selected(state, call, ladder);
+    return run_selected(state, call, selection);
 }
 
 // An explored configuration: every strategy that ran or planned for it and
@@ -182,16 +185,15 @@ void Autotuner::add_trials(State& state, const loop::Call& call,
 }
 
 // What an explored configuration runs: its selected candidate when that is
-// ready, else the ladder's choice.
-Autotuner::Decision Autotuner::run_selected(const State& state,
-                                            const loop::Call& call,
-                                            const Decision& ladder) {
-    if (state.selected == nullptr || state.selected == ladder.prepared.candidate)
-        return ladder;
-    auto prepared = state.selected->prepare(call, loop::Urgency::later);
-    if (prepared.status != loop::Status::ready)
-        return ladder;
-    return {prepared};
+// ready, else the ladder's choice, asked for unless the call has it.
+Autotuner::Decision Autotuner::run_selected(const State& state, const loop::Call& call,
+                                            const std::optional<loop::Prepared>& ladder) {
+    if (state.selected != nullptr && (!ladder || state.selected != ladder->candidate)) {
+        auto prepared = state.selected->prepare(call, loop::Urgency::later);
+        if (prepared.status == loop::Status::ready)
+            return {prepared};
+    }
+    return {ladder ? *ladder : m_ladder.select(call)};
 }
 
 Autotuner::Summary Autotuner::summarise(const State& state) const {
