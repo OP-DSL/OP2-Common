@@ -4,7 +4,7 @@ module const_kernels
     implicit none
     private
 
-    public :: consts1, consts4, reverse4, not_greater4, twice4, kinds4
+    public :: consts1, consts4, reverse4, not_greater4, twice4, kinds4, halve4
 
 contains
   subroutine consts1(dat)
@@ -87,4 +87,25 @@ contains
     dat(3) = real(big, 8)
     dat(4) = real(three) * 2.0_RK
   end subroutine kinds4
+
+  ! A recursive function, which passes its dummies to itself.
+  recursive real(8) function halved(v, n) result(r)
+    real(8), intent(in) :: v
+    integer, intent(in) :: n
+
+    if (n == 0) then
+      r = v
+    else
+      r = 0.5d0 * halved(v, n - 1)
+    end if
+  end function halved
+
+  subroutine halve4(dat)
+    real(8), dimension(4), intent(inout) :: dat
+    integer :: d
+
+    do d = 1, 4
+      dat(d) = halved(dat(d), 2)
+    end do
+  end subroutine halve4
 end module

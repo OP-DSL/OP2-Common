@@ -121,6 +121,19 @@ program const_tests_fortran
   end do
   write(*,*) "kinds4 passed"
 
+  ! --- A recursive function ---
+  call op_par_loop_1(halve4, set, &
+    op_arg_dat(dat4, -1, OP_ID, 4, "real(8)", OP_RW))
+
+  call op_fetch_data(dat4, fetched4)
+  do i = 1, size
+    call check(abs(fetched4((i - 1) * 4 + 1) - my_const4(4) / 4.0d0) < tol .and. &
+               fetched4((i - 1) * 4 + 2) == 30.0d0 .and. &
+               fetched4((i - 1) * 4 + 3) == 31.25d0 .and. &
+               fetched4((i - 1) * 4 + 4) == 1.5d0, i - 1, "halve4 failed")
+  end do
+  write(*,*) "halve4 passed"
+
   call op_profile_end()
   
   if (op_is_root() == 1) print *

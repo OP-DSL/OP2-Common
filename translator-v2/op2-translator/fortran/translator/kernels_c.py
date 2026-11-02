@@ -396,14 +396,26 @@ def resolveParamAccesses(info: Info) -> None:
     for sub_info in info.subprograms.values():
         resolveParamAccessesLocal(Context(info, sub_info))
 
-    has_unresolved = True
+    params = [param for sub_info in info.subprograms.values() for param in sub_info.params]
 
-    while has_unresolved:
-        has_unresolved = False
+    # A param passed to a non-const one is non-const, a call further up the chain
+    # each pass; the rest, recursion included, are const.  An increment hook only
+    # reads its value; a target is non-const already.
+    changed = True
+    while changed:
+        changed = False
+        for param in params:
+            if param.is_const is None and any(
+                info.subprograms[name].params[idx].is_const is False
+                for name, idx in param.as_arg
+                if name not in increment_hooks
+            ):
+                param.is_const = False
+                changed = True
 
-        for sub_info in info.subprograms.values():
-            unresolved = tryResolveParams(Context(info, sub_info))
-            has_unresolved = has_unresolved or unresolved
+    for param in params:
+        if param.is_const is None:
+            param.is_const = True
 
 
 def resolveParamAccessesLocal(ctx: Context) -> None:
@@ -457,41 +469,6 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
 # The increment hooks insertAtomicIncs inserts, which the generated code
 # defines: op2_dat_inc for each strategy, op2_gbl_inc always atomic.
 increment_hooks = {"op2_dat_inc", "op2_gbl_inc"}
-
-
-def tryResolveParams(ctx: Context) -> bool:
-    has_unresolved = False
-
-    for param in ctx.sub_info.params:
-        if param.is_const is not None:
-            continue
-
-        all_const = True
-        unresolved = False
-
-        for target_name, idx in param.as_arg:
-            # An increment hook only reads its value; a target is non-const already.
-            if target_name in increment_hooks:
-                continue
-
-            target_sub = ctx.info.subprograms[target_name]
-
-            if target_sub.params[idx].is_const is None:
-                unresolved = True
-                continue
-
-            if target_sub.params[idx].is_const == False:
-                all_const = False
-                break
-
-        if not all_const:
-            param.is_const = False
-        elif all_const and not unresolved:
-            param.is_const = True
-        else:
-            has_unresolved = True
-
-    return has_unresolved
 
 
 def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
