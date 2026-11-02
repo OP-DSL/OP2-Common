@@ -1,11 +1,13 @@
 // The mock library: a stand-in for a solver library that allocates and owns
 // its matrix in its own layout, its local and non-local parts apart, as
-// SPLISS does.  Formats: "compact" (block CSR, as CompactBlockStorage) and
-// "bell" (block ELL, as BELLStorage), each with ":column" for column-major
-// blocks, and "bell:interleaved" for each block entry interleaved across the
-// block rows, coalesced for a thread per row.  Loops write its storage in
-// place; it solves with CG (point Jacobi, none, or a par-loop
-// preconditioner), its non-local columns by its own exchange.
+// SPLISS does.  A matrix's "format" is "compact" (block CSR, as
+// CompactBlockStorage) or "bell" (block ELL, as BELLStorage), its blocks'
+// "major" "row" or "column", and a "bell" one may have each block entry
+// "interleaved" across the block rows, coalesced for a thread per row.  Loops
+// write its storage in place; it solves with CG ("solver": "cg", "rtol",
+// "atol", "maxit", "monitor") and a "preconditioner" "jacobi" (point
+// Jacobi), "none", or the par-loop one, its non-local columns by its own
+// exchange.
 
 #include <op2/solve/solve.h>
 
@@ -15,7 +17,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <sstream>
 #include <vector>
 
 namespace op::solve {
@@ -68,30 +69,53 @@ void multiply(int n, const double *a, const double *b, double *y) {
 
 namespace {
 
-mock::Format parse_format(const std::string& text, const std::string& name) {
+mock::Format parse_format(const Config& config, const std::string& name) {
+    Section c(config, "mock: matrix " + name);
     mock::Format f;
-    std::istringstream words(text.empty() ? "compact" : text);
-    std::string word;
-    bool first = true;
-    while (std::getline(words, word, ':')) {
-        if (first && (word == "compact" || word == "bell"))
-            f.ell = word == "bell";
-        else if (!first && word == "column")
-            f.column = true;
-        else if (!first && word == "interleaved")
-            f.interleaved = true;
-        else
-            fail("mock: matrix %s: unknown format '%s'", name.c_str(), text.c_str());
-        first = false;
-    }
+    const std::string format = c.get<std::string>("format", "compact"), major = c.get<std::string>("major", "row");
+    f.interleaved = c.get<bool>("interleaved", false);
+    c.done();
+    if (format != "compact" && format != "bell")
+        fail("%s: format '%s', it has compact and bell", c.where().c_str(), format.c_str());
+    if (major != "row" && major != "column")
+        fail("%s: major '%s', it has row and column", c.where().c_str(), major.c_str());
+    f.ell = format == "bell";
+    f.column = major == "column";
     if (f.interleaved && !f.ell)
-        fail("mock: matrix %s: only block ELL interleaves", name.c_str());
+        fail("%s: only block ELL interleaves", c.where().c_str());
     return f;
+}
+
+// A solver's settings.
+struct Settings {
+    double rtol = 1e-8, atol = 0.0;
+    int maxit = 1000;
+    bool jacobi = true, monitor = false;
+};
+
+Settings parse_settings(op_solver s, const Config& config) {
+    Section c(config, "mock: solver " + s->name);
+    Settings o;
+    const std::string solver = c.get<std::string>("solver", "cg");
+    if (solver != "cg")
+        fail("%s: solver '%s', it has cg", c.where().c_str(), solver.c_str());
+    o.rtol = c.get<double>("rtol", o.rtol);
+    o.atol = c.get<double>("atol", o.atol);
+    o.maxit = c.get<int>("maxit", o.maxit);
+    o.monitor = c.get<bool>("monitor", o.monitor);
+    if (s->pc != nullptr && c.has("preconditioner"))
+        fail("%s: names a preconditioner, and has a par-loop one", c.where().c_str());
+    const std::string pc = c.get<std::string>("preconditioner", "jacobi");
+    if (pc != "jacobi" && pc != "none")
+        fail("%s: preconditioner '%s', it has jacobi and none", c.where().c_str(), pc.c_str());
+    o.jacobi = s->pc == nullptr && pc == "jacobi";
+    c.done();
+    return o;
 }
 
 class MockMatrix final : public Matrix {
 public:
-    MockMatrix(op_mat A, const std::string& format) : m_A{A}, m_format{parse_format(format, A->name)} {
+    MockMatrix(op_mat A, const Config& config) : m_A{A}, m_format{parse_format(config, A->name)} {
         const int d = A->dim, rows = A->sparsity->rows->size;
         const Major major = m_format.column ? Major::column : Major::row;
         for (int p = 0; p < 2; p++) {
@@ -216,12 +240,8 @@ double global_dot(int n, const double *a, const double *b) {
 
 class MockSolver final : public Solver {
 public:
-    explicit MockSolver(op_solver s) : m_s{s}, m_exchange{s->A->sparsity, s->A->dim} {
-        const Options& o = s->options;
-        if (o.method != "cg")
-            fail("mock: solver %s: method '%s', it has cg", s->name.c_str(), o.method.c_str());
-        if (o.pc != "jacobi" && o.pc != "none" && o.pc != "custom")
-            fail("mock: solver %s: pc '%s', it has jacobi, none or a par-loop one", s->name.c_str(), o.pc.c_str());
+    MockSolver(op_solver s, const Config& config)
+        : m_s{s}, m_o{parse_settings(s, config)}, m_exchange{s->A->sparsity, s->A->dim} {
         m_n = s->A->sparsity->rows->size * s->A->dim;
         for (double *&v : m_work)
             v = mock::allocate(m_n);
@@ -237,12 +257,12 @@ public:
     }
 
     bool solve(op_dat b, op_dat x_dat) override {
-        const Options& o = m_s->options;
+        const Settings& o = m_o;
         const double *bv = (const double *)memory(b);
         double *x = (double *)memory(x_dat);
         double *r = m_work[0], *z = m_work[1], *p = m_work[2], *q = m_work[3];
         op_mat P = m_s->P != nullptr ? m_s->P : m_s->A;
-        if (o.pc == "jacobi" && m_pc_state != P->state) {
+        if (o.jacobi && m_pc_state != P->state) {
             const MockMatrix& pm = matrix(P);
             mock::inverse_diagonal(pm.format(), P->dim, m_n, pm.local(), m_inv);
             m_pc_state = P->state;
@@ -292,16 +312,16 @@ private:
     }
 
     void precondition(const double *r, double *z) {
-        const Options& o = m_s->options;
-        if (o.pc == "custom")
+        if (m_s->pc != nullptr)
             apply_through(m_s, m_s->pc, m_s->pc_ctx, r, z);
-        else if (o.pc == "jacobi")
+        else if (m_o.jacobi)
             mock::multiply(m_n, m_inv, r, z);
         else
             copy(z, r, sizeof(double) * m_n);
     }
 
     op_solver m_s;
+    Settings m_o;
     Exchange m_exchange;
     int m_n = 0;
     double *m_work[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -311,17 +331,20 @@ private:
 
 class MockLibrary final : public Library {
 public:
-    Order order() const override { return Order::sorted; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
-        return std::make_unique<MockMatrix>(A, format);
+    std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) override {
+        return std::make_unique<MockMatrix>(A, config);
     }
 
-    std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<MockSolver>(s); }
+    std::unique_ptr<Solver> solver(op_solver s, const Config& config) override {
+        return std::make_unique<MockSolver>(s, config);
+    }
 };
 
 } // namespace
 
-std::unique_ptr<Library> make_mock(int, char **) { return std::make_unique<MockLibrary>(); }
+std::unique_ptr<Library> make_mock(const Config& config) {
+    Section(config, "mock: library").done();
+    return std::make_unique<MockLibrary>();
+}
 
 } // namespace op::solve

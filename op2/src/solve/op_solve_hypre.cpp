@@ -1,7 +1,12 @@
 // The hypre backend: a ParCSR matrix whose diagonal and off-diagonal parts'
-// data are the op_mat's values, written in place by the loops (or, for blocks
-// written by untranslated loops, a copy permuted from them), Krylov solvers
-// over ParVectors wrapping the dats.
+// data are the op_mat's values, written in place by the loops ("format":
+// "csr", each row's diagonal entry first), Krylov solvers over ParVectors
+// wrapping the dats.  Settings are hypre's own setters by name, without
+// their prefix: a solver's "solver" ("PCG", "GMRES", "FlexGMRES",
+// "BiCGSTAB") and its setters ("Tol", "MaxIter", "KDim", ...), "precond"
+// ("BoomerAMG", "ILU", "DiagScale") and an object of its setters under its
+// name; the library's global ones ("UmpireDevicePoolSize", "SpMVUseVendor",
+// ...).
 
 #include <op2/solve/solve.h>
 
@@ -12,6 +17,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <limits>
+#include <span>
 #include <vector>
 
 namespace op::solve {
@@ -36,9 +42,12 @@ T *to_location(const std::vector<T>& host) {
 
 class HypreMatrix final : public Matrix {
 public:
-    HypreMatrix(op_mat A, const std::string& format) : m_A{A} {
-        if (!format.empty() && format != "csr")
-            fail("hypre: matrix %s: format '%s', hypre keeps CSR", A->name.c_str(), format.c_str());
+    HypreMatrix(op_mat A, const Config& config) : m_A{A} {
+        Section c(config, "hypre: matrix " + A->name);
+        const std::string format = c.get<std::string>("format", "csr");
+        c.done();
+        if (format != "csr")
+            fail("%s: format '%s', hypre keeps CSR", c.where().c_str(), format.c_str());
         op_sparsity sp = A->sparsity;
         const int d = A->dim, nrows = sp->rows->size;
         const idx_g_t global = std::max(sp->global_rows, sp->global_cols) * d;
@@ -140,64 +149,126 @@ HYPRE_Int custom_apply(HYPRE_Solver data, HYPRE_ParCSRMatrix, HYPRE_ParVector r,
 
 HYPRE_Int no_setup(HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector) { return 0; }
 
-// One Krylov method's entry points.
+// A setter by its name in hypre (HYPRE_<prefix>Set<name>), of an integer or
+// a real.
+struct Setter {
+    const char *name;
+    HYPRE_Int (*integer)(HYPRE_Solver, HYPRE_Int);
+    HYPRE_Int (*real)(HYPRE_Solver, HYPRE_Real);
+};
+#define HYPRE_INT(prefix, name) {#name, prefix##Set##name, nullptr}
+#define HYPRE_REAL(prefix, name) {#name, nullptr, prefix##Set##name}
+
+// An object's members by the setters of its table, but for those skipped.
+void set(HYPRE_Solver solver, Section& c, std::span<const Setter> setters, std::span<const char *const> skip = {}) {
+    for (const auto& [key, value] : c.config().items()) {
+        if (std::find_if(skip.begin(), skip.end(), [&](const char *k) { return key == k; }) != skip.end())
+            continue;
+        auto setter = std::find_if(setters.begin(), setters.end(), [&](const Setter& s) { return key == s.name; });
+        if (setter == setters.end())
+            fail("%s: unknown member '%s'", c.where().c_str(), key.c_str());
+        if (setter->integer != nullptr)
+            HYPRE_CALL(setter->integer(solver, (HYPRE_Int)c.get<long>(key.c_str())));
+        else
+            HYPRE_CALL(setter->real(solver, (HYPRE_Real)c.get<double>(key.c_str())));
+    }
+}
+
+const Setter boomeramg_setters[] = {
+    HYPRE_INT(HYPRE_BoomerAMG, CoarsenType),     HYPRE_INT(HYPRE_BoomerAMG, InterpType),
+    HYPRE_INT(HYPRE_BoomerAMG, RelaxType),       HYPRE_INT(HYPRE_BoomerAMG, RelaxOrder),
+    HYPRE_INT(HYPRE_BoomerAMG, NumSweeps),       HYPRE_INT(HYPRE_BoomerAMG, MaxLevels),
+    HYPRE_INT(HYPRE_BoomerAMG, MaxCoarseSize),   HYPRE_INT(HYPRE_BoomerAMG, MinCoarseSize),
+    HYPRE_REAL(HYPRE_BoomerAMG, StrongThreshold), HYPRE_REAL(HYPRE_BoomerAMG, MaxRowSum),
+    HYPRE_REAL(HYPRE_BoomerAMG, TruncFactor),    HYPRE_INT(HYPRE_BoomerAMG, PMaxElmts),
+    HYPRE_INT(HYPRE_BoomerAMG, AggNumLevels),    HYPRE_INT(HYPRE_BoomerAMG, AggInterpType),
+    HYPRE_INT(HYPRE_BoomerAMG, AggPMaxElmts),    HYPRE_INT(HYPRE_BoomerAMG, NumPaths),
+    HYPRE_INT(HYPRE_BoomerAMG, NumFunctions),    HYPRE_INT(HYPRE_BoomerAMG, Nodal),
+    HYPRE_INT(HYPRE_BoomerAMG, NodalDiag),       HYPRE_INT(HYPRE_BoomerAMG, KeepTranspose),
+    HYPRE_INT(HYPRE_BoomerAMG, RAP2),            HYPRE_INT(HYPRE_BoomerAMG, ModuleRAP2),
+    HYPRE_INT(HYPRE_BoomerAMG, CycleType),       HYPRE_REAL(HYPRE_BoomerAMG, Tol),
+    HYPRE_INT(HYPRE_BoomerAMG, MaxIter),         HYPRE_INT(HYPRE_BoomerAMG, PrintLevel),
+    HYPRE_INT(HYPRE_BoomerAMG, Logging),         HYPRE_REAL(HYPRE_BoomerAMG, RelaxWt),
+    HYPRE_REAL(HYPRE_BoomerAMG, OuterWt),        HYPRE_INT(HYPRE_BoomerAMG, SmoothType),
+    HYPRE_INT(HYPRE_BoomerAMG, SmoothNumLevels), HYPRE_INT(HYPRE_BoomerAMG, SmoothNumSweeps),
+};
+
+const Setter ilu_setters[] = {
+    HYPRE_INT(HYPRE_ILU, Type),          HYPRE_INT(HYPRE_ILU, LevelOfFill),      HYPRE_INT(HYPRE_ILU, MaxIter),
+    HYPRE_REAL(HYPRE_ILU, Tol),          HYPRE_REAL(HYPRE_ILU, DropThreshold),   HYPRE_INT(HYPRE_ILU, MaxNnzPerRow),
+    HYPRE_INT(HYPRE_ILU, LocalReordering), HYPRE_INT(HYPRE_ILU, TriSolve),       HYPRE_INT(HYPRE_ILU, LowerJacobiIters),
+    HYPRE_INT(HYPRE_ILU, UpperJacobiIters), HYPRE_INT(HYPRE_ILU, PrintLevel),    HYPRE_INT(HYPRE_ILU, Logging),
+};
+
+// A Krylov solver's entry points and setters.
 struct Krylov {
+    const char *name;
     HYPRE_Int (*create)(MPI_Comm, HYPRE_Solver *);
     HYPRE_Int (*destroy)(HYPRE_Solver);
     HYPRE_Int (*setup)(HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector);
     HYPRE_Int (*solve)(HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector);
-    HYPRE_Int (*tol)(HYPRE_Solver, HYPRE_Real);
-    HYPRE_Int (*atol)(HYPRE_Solver, HYPRE_Real);
-    HYPRE_Int (*maxit)(HYPRE_Solver, HYPRE_Int);
     HYPRE_Int (*precond)(HYPRE_Solver, HYPRE_PtrToParSolverFcn, HYPRE_PtrToParSolverFcn, HYPRE_Solver);
     HYPRE_Int (*iterations)(HYPRE_Solver, HYPRE_Int *);
     HYPRE_Int (*residual)(HYPRE_Solver, HYPRE_Real *);
-    HYPRE_Int (*restart)(HYPRE_Solver, HYPRE_Int);
+    std::vector<Setter> setters;
 };
 
-Krylov krylov(const std::string& method) {
-    if (method == "cg")
-        return {HYPRE_ParCSRPCGCreate, HYPRE_ParCSRPCGDestroy, HYPRE_ParCSRPCGSetup, HYPRE_ParCSRPCGSolve,
-                HYPRE_ParCSRPCGSetTol, HYPRE_ParCSRPCGSetAbsoluteTol, HYPRE_ParCSRPCGSetMaxIter,
-                HYPRE_ParCSRPCGSetPrecond, HYPRE_ParCSRPCGGetNumIterations,
-                HYPRE_ParCSRPCGGetFinalRelativeResidualNorm, nullptr};
-    if (method == "gmres")
-        return {HYPRE_ParCSRGMRESCreate, HYPRE_ParCSRGMRESDestroy, HYPRE_ParCSRGMRESSetup, HYPRE_ParCSRGMRESSolve,
-                HYPRE_ParCSRGMRESSetTol, HYPRE_ParCSRGMRESSetAbsoluteTol, HYPRE_ParCSRGMRESSetMaxIter,
-                HYPRE_ParCSRGMRESSetPrecond, HYPRE_ParCSRGMRESGetNumIterations,
-                HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm, HYPRE_ParCSRGMRESSetKDim};
-    if (method == "fgmres")
-        return {HYPRE_ParCSRFlexGMRESCreate, HYPRE_ParCSRFlexGMRESDestroy, HYPRE_ParCSRFlexGMRESSetup,
-                HYPRE_ParCSRFlexGMRESSolve, HYPRE_ParCSRFlexGMRESSetTol, HYPRE_ParCSRFlexGMRESSetAbsoluteTol,
-                HYPRE_ParCSRFlexGMRESSetMaxIter, HYPRE_ParCSRFlexGMRESSetPrecond,
-                HYPRE_ParCSRFlexGMRESGetNumIterations, HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm,
-                HYPRE_ParCSRFlexGMRESSetKDim};
-    if (method == "bicgstab")
-        return {HYPRE_ParCSRBiCGSTABCreate, HYPRE_ParCSRBiCGSTABDestroy, HYPRE_ParCSRBiCGSTABSetup,
-                HYPRE_ParCSRBiCGSTABSolve, HYPRE_ParCSRBiCGSTABSetTol, HYPRE_ParCSRBiCGSTABSetAbsoluteTol,
-                HYPRE_ParCSRBiCGSTABSetMaxIter, HYPRE_ParCSRBiCGSTABSetPrecond,
-                HYPRE_ParCSRBiCGSTABGetNumIterations, HYPRE_ParCSRBiCGSTABGetFinalRelativeResidualNorm,
-                nullptr};
-    fail("hypre: unknown method '%s'", method.c_str());
-}
+#define HYPRE_KRYLOV(name)                                                                               \
+    #name, HYPRE_ParCSR##name##Create, HYPRE_ParCSR##name##Destroy, HYPRE_ParCSR##name##Setup,          \
+        HYPRE_ParCSR##name##Solve, HYPRE_ParCSR##name##SetPrecond, HYPRE_ParCSR##name##GetNumIterations, \
+        HYPRE_ParCSR##name##GetFinalRelativeResidualNorm
+
+const Krylov krylovs[] = {
+    {HYPRE_KRYLOV(PCG),
+     {HYPRE_REAL(HYPRE_ParCSRPCG, Tol), HYPRE_REAL(HYPRE_ParCSRPCG, AbsoluteTol), HYPRE_INT(HYPRE_ParCSRPCG, MaxIter),
+      HYPRE_INT(HYPRE_ParCSRPCG, TwoNorm), HYPRE_INT(HYPRE_ParCSRPCG, RelChange),
+      HYPRE_INT(HYPRE_ParCSRPCG, PrintLevel), HYPRE_INT(HYPRE_ParCSRPCG, Logging)}},
+    {HYPRE_KRYLOV(GMRES),
+     {HYPRE_REAL(HYPRE_ParCSRGMRES, Tol), HYPRE_REAL(HYPRE_ParCSRGMRES, AbsoluteTol),
+      HYPRE_INT(HYPRE_ParCSRGMRES, MaxIter), HYPRE_INT(HYPRE_ParCSRGMRES, MinIter), HYPRE_INT(HYPRE_ParCSRGMRES, KDim),
+      HYPRE_INT(HYPRE_ParCSRGMRES, PrintLevel), HYPRE_INT(HYPRE_ParCSRGMRES, Logging)}},
+    {HYPRE_KRYLOV(FlexGMRES),
+     {HYPRE_REAL(HYPRE_ParCSRFlexGMRES, Tol), HYPRE_REAL(HYPRE_ParCSRFlexGMRES, AbsoluteTol),
+      HYPRE_INT(HYPRE_ParCSRFlexGMRES, MaxIter), HYPRE_INT(HYPRE_ParCSRFlexGMRES, MinIter),
+      HYPRE_INT(HYPRE_ParCSRFlexGMRES, KDim), HYPRE_INT(HYPRE_ParCSRFlexGMRES, PrintLevel),
+      HYPRE_INT(HYPRE_ParCSRFlexGMRES, Logging)}},
+    {HYPRE_KRYLOV(BiCGSTAB),
+     {HYPRE_REAL(HYPRE_ParCSRBiCGSTAB, Tol), HYPRE_REAL(HYPRE_ParCSRBiCGSTAB, AbsoluteTol),
+      HYPRE_INT(HYPRE_ParCSRBiCGSTAB, MaxIter), HYPRE_INT(HYPRE_ParCSRBiCGSTAB, MinIter),
+      HYPRE_INT(HYPRE_ParCSRBiCGSTAB, PrintLevel), HYPRE_INT(HYPRE_ParCSRBiCGSTAB, Logging)}},
+};
+
+// Without a configuration: GMRES and diagonal scaling, hypre's defaults else.
+const Config default_settings = {{"solver", "GMRES"}, {"precond", "DiagScale"}};
 
 class HypreSolver final : public Solver {
 public:
-    explicit HypreSolver(op_solver s) : m_s{s}, m_krylov{krylov(s->options.method)} {
-        const Options& o = s->options;
+    HypreSolver(op_solver s, const Config& config) : m_s{s} {
         if (s->op != nullptr)
             fail("hypre: solver %s: a par-loop operator is not supported", s->name.c_str());
+        Config settings = config.is_null() ? default_settings : config;
+        if (config.is_null() && s->pc != nullptr)
+            settings.erase("precond");
+        Section c(settings, "hypre: solver " + s->name);
 
-        HYPRE_CALL(m_krylov.create(comm(), &m_solver));
-        HYPRE_CALL(m_krylov.tol(m_solver, o.rtol));
-        HYPRE_CALL(m_krylov.atol(m_solver, o.atol));
-        HYPRE_CALL(m_krylov.maxit(m_solver, o.maxit));
-        if (m_krylov.restart != nullptr)
-            HYPRE_CALL(m_krylov.restart(m_solver, o.restart));
-        if (o.method == "cg")
+        const std::string name = c.get<std::string>("solver", "GMRES");
+        auto found = std::find_if(std::begin(krylovs), std::end(krylovs),
+                                  [&](const Krylov& k) { return name == k.name; });
+        if (found == std::end(krylovs))
+            fail("%s: solver '%s', hypre has PCG, GMRES, FlexGMRES and BiCGSTAB", c.where().c_str(), name.c_str());
+        m_krylov = &*found;
+        HYPRE_CALL(m_krylov->create(comm(), &m_solver));
+        if (name == "PCG")
             HYPRE_CALL(HYPRE_ParCSRPCGSetTwoNorm(m_solver, 1));
 
-        if (o.pc == "amg") {
+        if (s->pc != nullptr && c.has("precond"))
+            fail("%s: names a precond, and has a par-loop preconditioner", c.where().c_str());
+        const std::string precond = c.get<std::string>("precond", "");
+        static const char *const own[] = {"solver", "precond", "BoomerAMG", "ILU"};
+        set(m_solver, c, m_krylov->setters, own);
+        if (precond == "BoomerAMG") {
+            // One V-cycle, systems AMG for blocks, coarsening and smoothing the
+            // device takes; then the configuration's.
             HYPRE_CALL(HYPRE_BoomerAMGCreate(&m_pc));
             HYPRE_CALL(HYPRE_BoomerAMGSetMaxIter(m_pc, 1));
             HYPRE_CALL(HYPRE_BoomerAMGSetTol(m_pc, 0.0));
@@ -208,30 +279,39 @@ public:
             m_apply = HYPRE_BoomerAMGSolve;
             m_setup = HYPRE_BoomerAMGSetup;
             m_pc_destroy = HYPRE_BoomerAMGDestroy;
-        } else if (o.pc == "ilu") {
+        } else if (precond == "ILU") {
             HYPRE_CALL(HYPRE_ILUCreate(&m_pc));
             HYPRE_CALL(HYPRE_ILUSetMaxIter(m_pc, 1));
             HYPRE_CALL(HYPRE_ILUSetTol(m_pc, 0.0));
             m_apply = HYPRE_ILUSolve;
             m_setup = HYPRE_ILUSetup;
             m_pc_destroy = HYPRE_ILUDestroy;
-        } else if (o.pc == "jacobi") {
+        } else if (precond == "DiagScale") {
             m_apply = HYPRE_ParCSRDiagScale;
             m_setup = HYPRE_ParCSRDiagScaleSetup;
-        } else if (o.pc == "custom") {
+        } else if (!precond.empty())
+            fail("%s: precond '%s', hypre has BoomerAMG, ILU and DiagScale", c.where().c_str(), precond.c_str());
+        for (const char *sub : {"BoomerAMG", "ILU"})
+            if (c.has(sub)) {
+                if (precond != sub)
+                    fail("%s: settings of %s, which is not its precond", c.where().c_str(), sub);
+                Section pc(c.config()[sub], c.where() + ": " + sub);
+                set(m_pc, pc, sub == std::string("BoomerAMG") ? std::span<const Setter>(boomeramg_setters)
+                                                               : std::span<const Setter>(ilu_setters));
+            }
+        if (s->pc != nullptr) {
             m_apply = custom_apply;
             m_pc = (HYPRE_Solver)s;
-        } else if (o.pc != "none")
-            fail("hypre: unknown pc '%s'", o.pc.c_str());
+        }
         if (m_apply != nullptr)
-            HYPRE_CALL(m_krylov.precond(m_solver, m_apply, no_setup, m_pc));
+            HYPRE_CALL(m_krylov->precond(m_solver, m_apply, no_setup, m_pc));
 
         m_b = wrap(s->A);
         m_x = wrap(s->A);
     }
 
     ~HypreSolver() override {
-        m_krylov.destroy(m_solver);
+        m_krylov->destroy(m_solver);
         if (m_pc_destroy != nullptr)
             m_pc_destroy(m_pc);
         hypre_ParVectorDestroy(m_b);
@@ -248,28 +328,31 @@ public:
         // whenever its matrix has been assembled since.
         op_mat P = m_s->P != nullptr ? m_s->P : m_s->A;
         if (!m_ready) {
-            HYPRE_CALL(m_krylov.setup(m_solver, A, bv, xv));
+            HYPRE_CALL(m_krylov->setup(m_solver, A, bv, xv));
             m_ready = true;
         }
         if (m_setup != nullptr && m_pc_state != P->state) {
             HYPRE_CALL(m_setup(m_pc, (HYPRE_ParCSRMatrix)par_of(P), bv, xv));
             m_pc_state = P->state;
         }
-        HYPRE_CALL(m_krylov.solve(m_solver, A, bv, xv));
+        // Stopping short of the tolerance is an error hypre flags, not a failure.
+        const HYPRE_Int error = m_krylov->solve(m_solver, A, bv, xv);
+        if (error & ~HYPRE_ERROR_CONV)
+            fail("hypre: solver %s: error %d", m_s->name.c_str(), (int)error);
         HYPRE_ClearAllErrors();
 
         HYPRE_Int its;
         HYPRE_Real norm;
-        HYPRE_CALL(m_krylov.iterations(m_solver, &its));
-        HYPRE_CALL(m_krylov.residual(m_solver, &norm));
+        HYPRE_CALL(m_krylov->iterations(m_solver, &its));
+        HYPRE_CALL(m_krylov->residual(m_solver, &norm));
         iterations = (int)its;
         residual = (double)norm;
-        return norm <= m_s->options.rtol || its < m_s->options.maxit;
+        return !(error & HYPRE_ERROR_CONV);
     }
 
 private:
     op_solver m_s;
-    Krylov m_krylov;
+    const Krylov *m_krylov = nullptr;
     HYPRE_Solver m_solver = nullptr, m_pc = nullptr;
     HYPRE_PtrToParSolverFcn m_apply = nullptr, m_setup = nullptr;
     HYPRE_Int (*m_pc_destroy)(HYPRE_Solver) = nullptr;
@@ -278,32 +361,60 @@ private:
     int m_pc_state = -1;
 };
 
+// hypre's global settings, which take sizes and switches.
+struct Global {
+    const char *name;
+    HYPRE_Int (*size)(std::size_t);
+    HYPRE_Int (*integer)(HYPRE_Int);
+};
+
+const Global globals[] = {
+#ifdef HYPRE_USING_UMPIRE
+    {"UmpireDevicePoolSize", HYPRE_SetUmpireDevicePoolSize, nullptr},
+    {"UmpireUMPoolSize", HYPRE_SetUmpireUMPoolSize, nullptr},
+    {"UmpireHostPoolSize", HYPRE_SetUmpireHostPoolSize, nullptr},
+    {"UmpirePinnedPoolSize", HYPRE_SetUmpirePinnedPoolSize, nullptr},
+#endif
+    {"SpMVUseVendor", nullptr, HYPRE_SetSpMVUseVendor},
+    {"SpGemmUseVendor", nullptr, HYPRE_SetSpGemmUseVendor},
+    {"SpTransUseVendor", nullptr, HYPRE_SetSpTransUseVendor},
+    {"UseGpuRand", nullptr, HYPRE_SetUseGpuRand},
+    {"LogLevel", nullptr, HYPRE_SetLogLevel},
+};
+
 class HypreLibrary final : public Library {
 public:
-    HypreLibrary() {
+    explicit HypreLibrary(const Config& config) {
         HYPRE_CALL(HYPRE_Initialize());
         HYPRE_CALL(HYPRE_SetMemoryLocation(location));
         HYPRE_CALL(HYPRE_SetExecutionPolicy(on_device ? HYPRE_EXEC_DEVICE : HYPRE_EXEC_HOST));
-#ifdef HYPRE_USING_UMPIRE_DEVICE
-        // Umpire reserves 4 GiB up front; OP_SOLVE_HYPRE_POOL (MiB) starts it smaller.
-        if (settings.hypre_pool > 0)
-            HYPRE_CALL(HYPRE_SetUmpireDevicePoolSize((std::size_t)settings.hypre_pool << 20));
-#endif
+        Section c(config, "hypre: library");
+        if (config.is_object())
+            for (const auto& [key, value] : config.items()) {
+                auto global = std::find_if(std::begin(globals), std::end(globals),
+                                           [&](const Global& g) { return key == g.name; });
+                if (global == std::end(globals))
+                    fail("%s: unknown member '%s' (or not in this build)", c.where().c_str(), key.c_str());
+                if (global->size != nullptr)
+                    HYPRE_CALL(global->size((std::size_t)c.get<long>(key.c_str())));
+                else
+                    HYPRE_CALL(global->integer((HYPRE_Int)c.get<long>(key.c_str())));
+            }
     }
 
     ~HypreLibrary() override { HYPRE_Finalize(); }
 
-    Order order() const override { return Order::diagonal_first; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
-        return std::make_unique<HypreMatrix>(A, format);
+    std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) override {
+        return std::make_unique<HypreMatrix>(A, config);
     }
 
-    std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<HypreSolver>(s); }
+    std::unique_ptr<Solver> solver(op_solver s, const Config& config) override {
+        return std::make_unique<HypreSolver>(s, config);
+    }
 };
 
 } // namespace
 
-std::unique_ptr<Library> make_hypre(int, char **) { return std::make_unique<HypreLibrary>(); }
+std::unique_ptr<Library> make_hypre(const Config& config) { return std::make_unique<HypreLibrary>(config); }
 
 } // namespace op::solve

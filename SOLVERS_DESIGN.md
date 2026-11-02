@@ -26,11 +26,12 @@ chunked staging). Vectors are op_dats the library wraps in place, or copies.
 ## 2. API (C, in `op_solve.h`)
 
 ```c
-/* After op_init (and op_partition, under MPI); lib is "petsc", "hypre",
-   "ginkgo", "amgx", "rocalution" or "mock", or NULL for OP_SOLVE_LIB or the
-   first one built in. argc/argv reach the library's options database (PETSc). */
-void op_solve_init(int argc, char **argv, char const *lib);
+/* After op_init (and op_partition, under MPI). */
+void op_solve_init(void);
 void op_solve_exit(void);
+
+/* The configuration below: JSON, or a path to a file of it. */
+void op_solve_set_config(char const *config);
 
 /* The block sparsity of a matrix with rows on `rows` and columns on `cols`:
    for each pair k, every (rowmaps[k][e][i], colmaps[k][e][j]) block over the
@@ -40,10 +41,8 @@ op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs,
                              op_map *rowmaps, op_map *colmaps, char const *name);
 
 /* dim x dim blocks of `type` ("double" only for now) on the sparsity, in the
-   library's storage format (section 4), or NULL for OP_SOLVE_FORMAT or the
-   library's default. */
-op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name,
-                   char const *format);
+   library and storage format (section 4) its configuration names. */
+op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name);
 
 /* Block (rowmap[e][rowidx], colmap[e][colidx]) of A, dim x dim, row-major as
    the kernel indexes it. acc is OP_INC or OP_READ. */
@@ -53,10 +52,8 @@ op_arg op_arg_mat(op_mat A, int rowidx, op_map rowmap, int colidx, op_map colmap
 void op_mat_zero(op_mat A);      /* every entry to zero, before an assembly */
 void op_mat_assemble(op_mat A);  /* the entries are final: the library takes them */
 
-/* A solver for A; options are the library-neutral settings below, then the
-   library's own (PETSc's database options with prefix "<name>_", an AmgX
-   configuration). */
-op_solver op_decl_solver(op_mat A, char const *name, char const *options);
+/* A solver for A, in A's library, as its configuration says. */
+op_solver op_decl_solver(op_mat A, char const *name);
 /* x is the initial guess; b and x are dim-dim double dats on A's rows/cols. */
 int op_solve(op_solver s, op_dat b, op_dat x);  /* 1 when converged */
 void op_solver_stats(op_solver s, int *iterations, double *residual);
@@ -68,10 +65,60 @@ void op_solver_set_pc(op_solver s, op_apply_fn apply, void *ctx);
 void op_solver_set_operator(op_solver s, op_apply_fn apply, void *ctx);
 ```
 
-Library-neutral options (space separated `key=value`): `method=cg|gmres|
-bicgstab|fgmres`, `pc=none|jacobi|bjacobi|ilu|amg|custom`, `rtol=`, `atol=`,
-`maxit=`, `restart=`, `monitor=0|1`. Anything after `--` goes to the library
-untouched.
+### Configuration
+
+A JSON configuration names each matrix's library and storage and configures
+each solver, in each library's own terms: OP2 maps no generic settings onto
+the libraries. It comes from `op_solve_set_config` (JSON text, or a path when
+it does not start with `{`) and `OP_SOLVE_CONFIG` (the same two forms), each
+merged over those before it (JSON merge patch, RFC 7386), the variable last
+so a run can override the application. Rank 0 reads files; the layer reads
+the whole at the first `op_decl_mat`, after which it is fixed.
+
+```json
+{
+  "library": "hypre",
+  "libraries": { "hypre": { "UmpireDevicePoolSize": 67108864 } },
+  "matrices": { "A": { "library": "ginkgo", "format": "fbcsr" } },
+  "solvers": {
+    "heat": {
+      "hypre": { "solver": "PCG", "Tol": 1e-8, "precond": "BoomerAMG",
+                 "BoomerAMG": { "CoarsenType": 10, "StrongThreshold": 0.5 } },
+      "ginkgo": { "type": "solver::Cg",
+                  "criteria": { "iteration": 1000, "relative_residual_norm": 1e-8 },
+                  "preconditioner": { "type": "preconditioner::Jacobi" } }
+    }
+  }
+}
+```
+
+- A matrix is in its entry's `library`, else the top-level `library`, else
+  the first library built in (not the mock); the rest of its entry is that
+  library's, its storage. Each library is started the first time a matrix
+  asks for it, with its `libraries` section, so one run can use several.
+- A solver runs in its matrix's library with that library's section of its
+  entry, so one file can hold a setup for each library a solver may run
+  with. A preconditioning matrix must be in the same library.
+- Each backend maps its own sections onto its library behind the same three
+  calls (`make_<library>(config)`, `Library::matrix(A, config)`,
+  `Library::solver(s, config)`) and fails on anything it does not know; PETSc
+  must use every option it is given.
+- What the layer adds is the same for every library: a par-loop
+  preconditioner (`op_solver_set_pc`) replaces the library's, and the
+  solver's section then names none; a solver with no section for its
+  library runs that library's default (GMRES with Jacobi to 1e-8, in its own
+  terms), with a note when the configuration has solvers at all.
+
+| library | matrix | solver | library |
+|---|---|---|---|
+| PETSc | `format`: `aij` (host default) or `coo` (device default); `owned` | PETSc options without `-`, put under the solver's prefix `<name>_` | global options, set before `PetscInitialize` |
+| hypre | `format`: `csr` | `solver` (`PCG`, `GMRES`, `FlexGMRES`, `BiCGSTAB`) and its setters by name (`Tol`, `MaxIter`, `KDim`, ...); `precond` (`BoomerAMG`, `ILU`, `DiagScale`) and an object of its setters under its name | its global setters (`UmpireDevicePoolSize`, `SpMVUseVendor`, ...) |
+| Ginkgo | `format`: `csr` (with a `strategy`: `cusparse`, `classical`, `merge_path`), `coo`, `ell`, `sellp`, `fbcsr` | a Ginkgo file configuration (`gko::config`); a preconditioner built apart (from P, or the par-loop one) is its `generated_preconditioner` | none |
+| AmgX | `format`: `bcsr` (default for 1, 3 and 4 components; `external_diagonal`) or `csr` | an AmgX configuration (`config_version` 2); its outer solver keeps the residual history the layer reports from | `print`, `resources` |
+| rocALUTION | `format`: `csr`, `mcsr`, `bcsr`, `coo`, `ell` | `solver` (`CG`, `BiCGStab`, `GMRES`, `FGMRES`), `Init`'s `abs_tol`, `rel_tol`, `div_tol`, `max_iter`, `basis_size`, `verbose`, `preconditioner` (`Jacobi`, `PairwiseAMG`, `none`) | none |
+| mock | `format`: `compact` or `bell`; `major`: `row` or `column`; `interleaved` | `solver` (`cg`), `rtol`, `atol`, `maxit`, `monitor`, `preconditioner` (`jacobi`, `none`) | none |
+
+`OP_SOLVE_MEMORY=1` reports memory per stage and each matrix's storage form.
 
 ## 3. Sparsity, slots and matrix arguments
 
@@ -94,7 +141,8 @@ The sparsity is computed once, per rank, on the host, from the maps:
   SPLISS's local and non-local parts all store them.
 - Blocks are numbered ("slots"): the diagonal part's rows in order, then the
   off-diagonal part's, then the scratch slots. Within a row, columns are
-  ordered as the library wants (sorted; hypre wants the diagonal first).
+  sorted, whichever library a matrix on the sparsity is in: a format that
+  orders a row otherwise (hypre's diagonal first) says so in its layout.
 
 The slots become ordinary OP2 objects: an internal set `nnz` (one element per
 slot) and, for each pair k and row index i, an op_map slot_{k,i} from the
@@ -125,7 +173,7 @@ region is the backend's choice:
   values; PETSc's host AIJ parts);
 - **borrow**: the library allocates it in its own format and OP2 takes its
   pointer (`op::solve::borrow`): the mock library, rocALUTION, Ginkgo's
-  Sellp, PETSc's `aij:owned`;
+  Sellp, PETSc's owned AIJ;
 - **copy**: OP2 lends a region in the order the library takes values in, and
   hands it over at each assembly: AmgX (`AMGX_matrix_replace_coefficients`),
   PETSc's `coo` (`MatSetValuesCOO`, PETSc's default on the device).
@@ -150,7 +198,7 @@ at s * d * d of region 0, row major: the layout is not read; PETSc's COO
 order, scalar CSR at d = 1), **one region** (through the layout, every slot
 in region 0: every format OP2 lends, its scratch included) or **any region**
 (the slot's own: a library's local and non-local arrays apart, as the mock,
-rocALUTION, Ginkgo's Sellp and PETSc's `aij:owned` have them on more than
+rocALUTION, Ginkgo's Sellp and PETSc's owned AIJ have them on more than
 one rank); whether every block's column stride is 1; and the one diagonal
 rule its slots may have. A JIT kernel bakes the form in, as it does a dat's
 run-time dimension (`abi::mat_form`), so what the layout does not need
@@ -173,11 +221,11 @@ converts the pattern itself and its index arrays must equal the builder's.
 | library | formats (default first) | regions |
 |---|---|---|
 | hypre | csr (diagonal first) | lend |
-| Ginkgo | csr[:classical\|cusparse\|merge_path], coo, ell, fbcsr; sellp | lend; borrow |
-| PETSc | aij (host), coo (device default); aij:owned | lend; copy; borrow |
-| AmgX | bcsr, bcsr:diag (diagonal blocks apart), csr | copy |
+| Ginkgo | csr (with a strategy), coo, ell, fbcsr; sellp | lend; borrow |
+| PETSc | aij (host), coo (device default); owned aij | lend; copy; borrow |
+| AmgX | bcsr (the diagonal blocks apart on one rank), csr | copy |
 | rocALUTION | csr, mcsr, bcsr, coo, ell | borrow |
-| mock | compact[:column], bell[:column][:interleaved] | borrow, local and non-local apart |
+| mock | compact, bell (row or column major, bell interleaved) | borrow, local and non-local apart |
 
 Untranslated loops (op_seq.h) know no layout: they reach a matrix's blocks
 one after another in a buffer the matrix allocates the first time one needs
@@ -268,8 +316,9 @@ ordinary OP2 code with matrix access, and the library only sees an operator.
   prelude.h`: `BlockPtr` and `mat_block`; `op2/src/rt/op_rt_matrix.cpp`:
   untranslated loops' way in.
 - `op2/include/op2/solve/solve.h`: the layer's objects, the backend interface
-  (`Library`, `Matrix`, `Solver`), storage (`lend`, `borrow`) and the layout
-  builders.
+  (`make_<library>`, `Library`, `Matrix`, `Solver`, each taking its part of
+  the configuration; `Section` reads one strictly), storage (`lend`,
+  `borrow`) and the layout builders.
 - `op2/src/solve/`: sparsity and slot construction, the API, the builders,
   and one file per library (`op_solve_petsc.cpp`, `_hypre`, `_ginkgo`,
   `_amgx`, `_rocalution`, `_mock`), compiled into each C library variant when
@@ -293,9 +342,13 @@ u0 = w sin(pi x) sin(pi y) the exact solution is
 exp(-(2 pi^2 K + C) t) w sin(pi x) sin(pi y), so the error at the final time
 checks the whole pipeline (second order in h). Per step: assemble
 (h^2/dt I + h^2 C) diagonal blocks in a node loop and -K / +K blocks in an edge
-loop, the right-hand side in a node loop, solve, update. Options pick the
-library, method and preconditioner, including a par-loop block-Jacobi
-preconditioner reading the diagonal blocks with op_arg_mat(OP_READ).
+loop, the right-hand side in a node loop, solve, update. `-config FILE` is
+its configuration (`op_solve_set_config`): matrices `A` and `P`, the solver
+`heat`, or `heat_bjacobi` and `heat_neumann` under the par-loop
+preconditioners (block Jacobi reading the diagonal blocks with
+op_arg_mat(OP_READ), and a Neumann series). The tests read
+`tests/solve/config.json` and pick the library and storage by
+`OP_SOLVE_CONFIG` over it.
 `-partition random` scatters the nodes over the ranks (OP2's random
 partitioner) in place of ParMETIS, so on two ranks a row has as many blocks
 in the other rank's columns as in its own, and as many scratch slots.

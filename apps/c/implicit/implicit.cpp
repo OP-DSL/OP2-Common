@@ -10,9 +10,13 @@
 // discretisation.
 //
 //   implicit [-n N] [-steps S] [-dt DT] [-pc lib|bjacobi] [-op assembled|matfree]
-//            [-reassemble 0|1] [-init mode|bump] [-solver "<op_solve options>"] [-diags N]
+//            [-reassemble 0|1] [-init mode|bump] [-config FILE] [-diags N]
 //            [-pc neumann -terms M] [-pmat decoupled] [-partition kway|random] [-reorder 1]
 //            [-mesh FILE] [-timing 1] [-check TOL]
+//
+// The solver layer's configuration (op_solve_set_config, then OP_SOLVE_CONFIG
+// over it) comes from -config: matrices A and P, and the solver heat, or
+// heat_bjacobi or heat_neumann under those par-loop preconditioners.
 //
 // -pc neumann preconditions with M Neumann steps after block Jacobi, each a
 // matrix-vector product through the blocks in solver memory; -pmat decoupled
@@ -211,7 +215,7 @@ int main(int argc, char **argv) {
     const int reassemble = atoi(option(argc, argv, "-reassemble", "1"));
     const std::string init = option(argc, argv, "-init", "mode");
     const std::string pmat = option(argc, argv, "-pmat", "A");
-    const char *solver_options = option(argc, argv, "-solver", "method=cg pc=jacobi rtol=1e-10");
+    const char *config = option(argc, argv, "-config", NULL);
     if (mesh != NULL && init == "mode") {
         op_printf("implicit: -mesh starts from the bump (-init bump); the mode is the grid's\n");
         op_exit();
@@ -342,12 +346,14 @@ int main(int argc, char **argv) {
         op_renumber(ctx.edge_nodes);
     }
 
-    op_solve_init(argc, argv, NULL);
+    op_solve_init();
+    if (config != NULL)
+        op_solve_set_config(config);
     op_sparsity sp = op_decl_sparsity(ctx.nodes, ctx.nodes, 1, &ctx.edge_nodes, &ctx.edge_nodes, "laplacian");
-    op_mat A = op_decl_mat(sp, NV, "double", "A", NULL);
+    op_mat A = op_decl_mat(sp, NV, "double", "A");
     ctx.A = A;
-    op_mat P = pmat == "decoupled" ? op_decl_mat(sp, NV, "double", "P", NULL) : NULL;
-    op_solver solver = op_decl_solver(A, "heat", solver_options);
+    op_mat P = pmat == "decoupled" ? op_decl_mat(sp, NV, "double", "P") : NULL;
+    op_solver solver = op_decl_solver(A, (pc == "lib" ? std::string("heat") : "heat_" + pc).c_str());
     if (pc == "bjacobi")
         op_solver_set_pc(solver, bjacobi, &ctx);
     if (pc == "neumann")

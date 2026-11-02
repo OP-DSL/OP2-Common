@@ -19,12 +19,27 @@ typedef struct op_solver_core *op_solver;
    preconditioner: in and out are dats on the matrix's column and row sets. */
 typedef void (*op_apply_fn)(op_dat in, op_dat out, void *ctx);
 
-/* After op_init, and op_partition under MPI. lib names a library built in
-   ("petsc", "hypre", "ginkgo", "amgx", "rocalution", "mock"), or is NULL for
-   OP_SOLVE_LIB, else the first built in. argc and argv reach the library's own
-   options (PETSc's database). */
-void op_solve_init(int argc, char **argv, char const *lib);
+/* After op_init, and op_partition under MPI. */
+void op_solve_init(void);
 void op_solve_exit(void);
+
+/* The configuration: JSON, or the path of a file of it when config does not
+   start with '{'. Each call merges its configuration over the earlier ones
+   (JSON merge patch, RFC 7386), and OP_SOLVE_CONFIG, which takes the same two
+   forms, over them all; before the first op_decl_mat.
+
+     {
+       "library": "hypre",                  the default for matrices
+       "libraries": { "<library>": {...} }, each library's own settings
+       "matrices": { "<matrix>": { "library": "...", <the library's> } },
+       "solvers": { "<solver>": { "<library>": {...}, ... } }
+     }
+
+   Matrices and solvers are found by the names they are declared with. A
+   matrix's library has its own members (its storage format); a solver has a
+   section for each library it may run with, in that library's own terms,
+   and runs with its matrix's. SOLVERS_DESIGN.md lists each library's. */
+void op_solve_set_config(char const *config);
 
 /* The block pattern of a matrix with rows on `rows` and columns on `cols`: for
    each pair k, block (rowmaps[k][e][i], colmaps[k][e][j]) for every element e
@@ -33,11 +48,9 @@ void op_solve_exit(void);
 op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs, op_map *rowmaps,
                              op_map *colmaps, char const *name);
 
-/* dim x dim blocks of type ("double") on the pattern, zero, stored in the
-   library's format (a name it knows, such as "csr", "bcsr" or "ell"), or NULL
-   for OP_SOLVE_FORMAT, else the library's default. */
-op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name,
-                   char const *format);
+/* dim x dim blocks of type ("double") on the pattern, zero, in the library
+   and storage its configuration names. */
+op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name);
 
 /* Block (rowmap[e][rowidx], colmap[e][colidx]) of A as dim * dim values, row
    major, in a loop over the maps' set; OP_ID with index -1 for the element
@@ -51,14 +64,15 @@ void op_mat_zero(op_mat A);
    them (its preconditioner). */
 void op_mat_assemble(op_mat A);
 
-/* A solver for A x = b. options: "key=value" settings (method, pc, rtol, atol,
-   maxit, restart, monitor), then after "--" the library's own; PETSc also
-   reads its database under the prefix "<name>_". */
-op_solver op_decl_solver(op_mat A, char const *name, char const *options);
+/* A solver for A x = b in A's library, configured as its section of the
+   configuration's solver name says. */
+op_solver op_decl_solver(op_mat A, char const *name);
 
 /* Precondition with P (assembled by par loops) instead of A. */
 void op_solver_set_pc_mat(op_solver s, op_mat P);
-/* Precondition with apply(r, z, ctx), par loops computing z = M^-1 r. */
+/* Precondition with apply(r, z, ctx), par loops computing z = M^-1 r, in
+   place of the library's preconditioner: the solver's configuration then
+   names none. */
 void op_solver_set_pc(op_solver s, op_apply_fn apply, void *ctx);
 /* Apply A by apply(x, y, ctx), par loops computing y = A x; the matrix given to
    op_decl_solver then serves only the preconditioner. */

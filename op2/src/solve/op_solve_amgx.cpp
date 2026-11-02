@@ -1,10 +1,12 @@
 // The AmgX backend: AmgX keeps its matrix in its own memory and takes values
 // only by copy, so the loops write a region of OP2's laid out as AmgX takes
 // them, which each assembly hands over (AMGX_matrix_replace_coefficients)
-// before AmgX sets its solver up again.  Formats: "bcsr", d x d blocks row
-// major with global block columns (the default where AmgX has kernels for
-// the block size, else "csr"); "bcsr:diag", the diagonal blocks apart
-// (AmgX's external diagonal, on one rank); "csr", the scalar entries.
+// before AmgX sets its solver up again.  A matrix's "format" is "bcsr", d x d
+// blocks row major with global block columns (the default where AmgX has
+// kernels for the block size), with an "external_diagonal" (the diagonal
+// blocks apart, on one rank), or "csr", the scalar entries.  A solver is an
+// AmgX configuration (config_version 2); the library's settings say whether
+// to "print" AmgX's output and the AmgX configuration of its "resources".
 // Device variants only: AmgX solves on the GPU.
 
 #include <op2/solve/solve.h>
@@ -20,7 +22,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -34,7 +35,7 @@ namespace {
         if (rc_ != AMGX_RC_OK) {                                                                     \
             char message_[256];                                                                      \
             AMGX_get_error_string(rc_, message_, sizeof(message_));                                  \
-            fail("AmgX: %s at %s:%d", message_, __FILE__, __LINE__);                                 \
+            fail("amgx: %s at %s:%d", message_, __FILE__, __LINE__);                                 \
         }                                                                                            \
     } while (0)
 
@@ -59,34 +60,31 @@ struct Format {
 // failed to launch at 6x6 on an H100, and the next run hung the GPU.
 bool blocks_taken(int d) { return d == 1 || d == 3 || d == 4; }
 
-Format parse_format(const std::string& text, int d, const std::string& name) {
+Format parse_format(const Config& config, int d, const std::string& name) {
+    Section c(config, "amgx: matrix " + name);
+    const std::string format = c.get<std::string>("format", blocks_taken(d) ? "bcsr" : "csr");
     Format f;
-    if (text.empty()) {
-        f.scalar = !blocks_taken(d);
-        return f;
-    }
-    if (text == "bcsr")
-        return f;
-    if (text == "bcsr:diag")
-        f.diagonal = true;
-    else if (text == "csr")
-        f.scalar = true;
-    else
-        fail("AmgX: matrix %s: unknown format '%s'", name.c_str(), text.c_str());
+    f.diagonal = c.get<bool>("external_diagonal", false);
+    c.done();
+    if (format != "bcsr" && format != "csr")
+        fail("%s: format '%s', it has bcsr and csr", c.where().c_str(), format.c_str());
+    f.scalar = format == "csr";
+    if (f.diagonal && f.scalar)
+        fail("%s: an external diagonal is bcsr's", c.where().c_str());
     return f;
 }
 
 class AmgxMatrix final : public Matrix {
 public:
-    AmgxMatrix(op_mat A, const std::string& format) : m_A{A}, m_format{parse_format(format, A->dim, A->name)} {
+    AmgxMatrix(op_mat A, const Config& config) : m_A{A}, m_format{parse_format(config, A->dim, A->name)} {
         if (!on_device)
-            fail("AmgX: matrix %s: AmgX solves on the device, in a device variant", A->name.c_str());
+            fail("amgx: matrix %s: AmgX solves on the device, in a device variant", A->name.c_str());
         op_sparsity sp = A->sparsity;
         const int d = A->dim, nrows = sp->rows->size, bs = d * d;
         if (sp->rows != sp->cols)
-            fail("AmgX: matrix %s is not square", A->name.c_str());
+            fail("amgx: matrix %s is not square", A->name.c_str());
         if (!m_format.scalar && !blocks_taken(d))
-            fail("AmgX: matrix %s: %d x %d blocks, which AmgX's block kernels do not take: use format csr",
+            fail("amgx: matrix %s: %d x %d blocks, which AmgX's block kernels do not take: use format csr",
                  A->name.c_str(), d, d);
 
         // Each row's blocks, the diagonal part's then the off-diagonal
@@ -162,7 +160,7 @@ public:
         // AmgX takes an external diagonal only on one GPU, columns local.
         if (m_format.diagonal) {
             if (ranks > 1)
-                fail("AmgX: matrix %s: bcsr:diag needs one rank: AmgX's distributed upload takes no external diagonal",
+                fail("amgx: matrix %s: bcsr:diag needs one rank: AmgX's distributed upload takes no external diagonal",
                      A->name.c_str());
             const std::vector<int> local(m_col.begin(), m_col.end());
             AMGX_CALL(AMGX_matrix_upload_all(m_matrix, m_n, m_nnz, dim, dim, m_ptr.data(), local.data(),
@@ -199,58 +197,33 @@ private:
 
 AmgxMatrix& matrix(op_mat A) { return *static_cast<AmgxMatrix *>(A->lib.get()); }
 
-// An AmgX configuration (config_version 2) for the solver's options, or the
-// library options after "--" as one.
-std::string configuration(const Options& o, int block) {
-    if (!o.library.empty())
-        return o.library;
-    std::string solver;
-    if (o.method == "cg")
-        solver = "PCG";
-    else if (o.method == "gmres")
-        solver = "GMRES";
-    else if (o.method == "fgmres")
-        solver = "FGMRES";
-    else if (o.method == "bicgstab")
-        solver = "PBICGSTAB";
-    else
-        fail("AmgX: unknown method '%s'", o.method.c_str());
+// Without a configuration: GMRES and block Jacobi.
+const Config default_settings = Config::parse(R"({"config_version": 2, "solver": {
+    "solver": "GMRES", "max_iters": 1000, "tolerance": 1e-8, "convergence": "RELATIVE_INI_CORE",
+    "norm": "L2", "gmres_n_restart": 30,
+    "preconditioner": {"solver": "BLOCK_JACOBI", "max_iters": 1, "monitor_residual": 0}}})");
 
-    std::string pc;
-    if (o.pc == "jacobi")
-        pc = R"({"solver": "BLOCK_JACOBI", "max_iters": 1, "relaxation_factor": 1.0, "monitor_residual": 0})";
-    else if (o.pc == "amg")
-        pc = R"({"solver": "AMG", "algorithm": "AGGREGATION", "selector": "SIZE_2", "max_iters": 1,
-                 "cycle": "V", "presweeps": 1, "postsweeps": 1, "max_levels": 50, "min_coarse_rows": 32,
-                 "coarse_solver": "DENSE_LU_SOLVER", "dense_lu_num_rows": 64,
-                 "smoother": {"solver": "BLOCK_JACOBI", "relaxation_factor": 0.8, "monitor_residual": 0},
-                 "monitor_residual": 0})";
-    else if (o.pc == "ilu")
-        pc = R"({"solver": "MULTICOLOR_DILU", "max_iters": 1, "monitor_residual": 0})";
-    else if (o.pc == "none")
-        pc = R"({"solver": "NOSOLVER"})";
-    else
-        fail("AmgX: pc '%s'; AmgX takes no par-loop preconditioner", o.pc.c_str());
-    (void)block;
-
-    std::ostringstream text;
-    text << R"({"config_version": 2, "solver": {"solver": ")" << solver << R"(", "max_iters": )" << o.maxit
-         << R"(, "convergence": "RELATIVE_INI_CORE", "tolerance": )" << o.rtol
-         << R"(, "norm": "L2", "monitor_residual": 1, "store_res_history": 1, "print_solve_stats": )"
-         << (o.monitor ? 1 : 0) << R"(, "gmres_n_restart": )" << o.restart << R"(, "preconditioner": )" << pc
-         << "}}";
-    return text.str();
+// The configuration as AmgX takes it, its outer solver keeping the residual
+// history the layer reports from.
+std::string configuration(op_solver s, const Config& config) {
+    Config settings = config.is_null() ? default_settings : config;
+    if (!settings.is_object() || !settings.contains("solver") || !settings["solver"].is_object())
+        fail("amgx: solver %s: not an AmgX configuration with a solver", s->name.c_str());
+    for (const char *key : {"monitor_residual", "store_res_history"})
+        if (!settings["solver"].contains(key))
+            settings["solver"][key] = 1;
+    return settings.dump();
 }
 
 class AmgxSolver final : public Solver {
 public:
-    explicit AmgxSolver(op_solver s) : m_s{s} {
+    AmgxSolver(op_solver s, const Config& config) : m_s{s} {
         if (s->op != nullptr || s->pc != nullptr)
-            fail("AmgX: solver %s: AmgX takes no par-loop operator or preconditioner", s->name.c_str());
+            fail("amgx: solver %s: AmgX takes no par-loop operator or preconditioner", s->name.c_str());
         const AmgxMatrix& A = matrix(s->A);
         if (s->P != nullptr && s->P != s->A)
-            fail("AmgX: solver %s: AmgX preconditions with its matrix", s->name.c_str());
-        AMGX_CALL(AMGX_config_create(&m_config, configuration(s->options, A.block()).c_str()));
+            fail("amgx: solver %s: AmgX preconditions with its matrix", s->name.c_str());
+        AMGX_CALL(AMGX_config_create(&m_config, configuration(s, config).c_str()));
         AMGX_CALL(AMGX_solver_create(&m_solver, resources, mode, m_config));
         AMGX_CALL(AMGX_vector_create(&m_b, resources, mode));
         AMGX_CALL(AMGX_vector_create(&m_x, resources, mode));
@@ -307,10 +280,15 @@ private:
 
 class AmgxLibrary final : public Library {
 public:
-    AmgxLibrary() {
+    explicit AmgxLibrary(const Config& config) {
+        Section c(config, "amgx: library");
+        verbose = c.get<bool>("print", false);
+        const Config resources_config =
+            c.get<Config>("resources", Config::parse(R"({"config_version": 2, "solver": {"solver": "NOSOLVER"}})"));
+        c.done();
         AMGX_CALL(AMGX_initialize());
         AMGX_CALL(AMGX_register_print_callback(print));
-        AMGX_CALL(AMGX_config_create(&base_config, R"({"config_version": 2, "solver": {"solver": "NOSOLVER"}})"));
+        AMGX_CALL(AMGX_config_create(&base_config, resources_config.dump().c_str()));
         resources_comm = comm();
         int device = 0;
 #if OP2_SOLVE_DEVICE
@@ -325,20 +303,17 @@ public:
         AMGX_finalize();
     }
 
-    Order order() const override { return Order::sorted; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
-        return std::make_unique<AmgxMatrix>(A, format);
+    std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) override {
+        return std::make_unique<AmgxMatrix>(A, config);
     }
 
-    std::unique_ptr<Solver> solver(op_solver s) override {
-        verbose = verbose || s->options.monitor;
-        return std::make_unique<AmgxSolver>(s);
+    std::unique_ptr<Solver> solver(op_solver s, const Config& config) override {
+        return std::make_unique<AmgxSolver>(s, config);
     }
 };
 
 } // namespace
 
-std::unique_ptr<Library> make_amgx(int, char **) { return std::make_unique<AmgxLibrary>(); }
+std::unique_ptr<Library> make_amgx(const Config& config) { return std::make_unique<AmgxLibrary>(config); }
 
 } // namespace op::solve

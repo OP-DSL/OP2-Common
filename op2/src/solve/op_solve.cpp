@@ -19,19 +19,151 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <sstream>
 
 namespace op::solve {
 
 namespace {
 
-std::unique_ptr<Library> library;
 bool finalise_mpi = false;
 std::vector<op_sparsity> sparsities;
 std::vector<op_mat> mats;
 std::vector<op_solver> solvers;
 
+// The libraries built in, the default first, and every library's name, so a
+// name not built in is told from a misspelt one.
+struct Built {
+    const char *name;
+    std::unique_ptr<Library> (*make)(const Config&);
+};
+const Built built[] = {
+#ifdef OP2_SOLVE_PETSC
+    {"petsc", make_petsc},
+#endif
+#ifdef OP2_SOLVE_HYPRE
+    {"hypre", make_hypre},
+#endif
+#ifdef OP2_SOLVE_GINKGO
+    {"ginkgo", make_ginkgo},
+#endif
+#ifdef OP2_SOLVE_AMGX
+    {"amgx", make_amgx},
+#endif
+#ifdef OP2_SOLVE_ROCALUTION
+    {"rocalution", make_rocalution},
+#endif
+#ifdef OP2_SOLVE_MOCK
+    {"mock", make_mock},
+#endif
+};
+const char *const library_names[] = {"petsc", "hypre", "ginkgo", "amgx", "rocalution", "mock"};
+
+// The libraries the run has started, in order.
+std::vector<std::pair<std::string, std::unique_ptr<Library>>> started;
+
+// op_solve_set_config's configurations in order, then OP_SOLVE_CONFIG's, as
+// one, once the first matrix asks.
+std::vector<std::string> given;
+Config resolved;
+bool fixed = false;
+
+bool known(const std::string& name) {
+    return std::find(std::begin(library_names), std::end(library_names), name) != std::end(library_names);
+}
+
+// A configuration as given: JSON, or a file of it, which rank 0 reads.
+Config load(const std::string& given_text, const char *origin) {
+    std::string text = given_text;
+    const std::size_t start = text.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos || text[start] != '{') {
+        int rank;
+        MPI_Comm_rank(comm(), &rank);
+        long size = 0;
+        if (rank == 0) {
+            std::ifstream file(given_text);
+            if (file) {
+                std::ostringstream all;
+                all << file.rdbuf();
+                text = all.str();
+                size = (long)text.size();
+            } else
+                size = -1;
+        }
+        MPI_Bcast(&size, 1, MPI_LONG, 0, comm());
+        if (size < 0)
+            fail("%s: cannot read %s", origin, given_text.c_str());
+        text.resize(size);
+        MPI_Bcast(text.data(), (int)size, MPI_CHAR, 0, comm());
+    }
+    try {
+        return Config::parse(text);
+    } catch (const nlohmann::json::exception& e) {
+        fail("%s: %s", origin, e.what());
+    }
+}
+
+const Config& configuration() {
+    if (fixed)
+        return resolved;
+    resolved = Config::object();
+    for (const std::string& text : given)
+        resolved.merge_patch(load(text, "op_solve_set_config"));
+    if (!settings.config.empty())
+        resolved.merge_patch(load(settings.config, "OP_SOLVE_CONFIG"));
+    if (!resolved.is_object())
+        fail("the configuration is not a JSON object");
+    for (const auto& [key, value] : resolved.items()) {
+        const bool group = key == "libraries" || key == "matrices" || key == "solvers";
+        if (key == "library" ? !value.is_string() : !group || !value.is_object())
+            fail("configuration: '%s' is not a member it has, or not of its kind", key.c_str());
+    }
+    fixed = true;
+    return resolved;
+}
+
+// The member name of the configuration's object group, or null.
+Config entry(const char *group, const std::string& name) {
+    const Config& all = configuration();
+    if (!all.contains(group) || !all[group].contains(name))
+        return nullptr;
+    const Config& found = all[group][name];
+    if (!found.is_object())
+        fail("configuration: %s %s is not an object", group, name.c_str());
+    return found;
+}
+
+// The library named, which the run starts the first time it is asked for.
+Library& library(const std::string& name) {
+    for (auto& [started_name, lib] : started)
+        if (started_name == name)
+            return *lib;
+    for (const Built& b : built)
+        if (name == b.name) {
+            started.emplace_back(name, b.make(entry("libraries", name)));
+            return *started.back().second;
+        }
+    fail(known(name) ? "library %s is not in this build" : "no library is called %s", name.c_str());
+}
+
 } // namespace
+
+Section::Section(const Config& config, std::string where) : m_config(config), m_where{std::move(where)} {
+    if (!m_config.is_null() && !m_config.is_object())
+        fail("%s: not a JSON object", m_where.c_str());
+}
+
+void Section::done() const {
+    if (!m_config.is_object())
+        return;
+    for (const auto& [key, value] : m_config.items())
+        if (std::find(m_read.begin(), m_read.end(), key) == m_read.end())
+            fail("%s: unknown member '%s'", m_where.c_str(), key.c_str());
+}
+
+void Section::fail_member(const char *key, const char *why) const {
+    fail("%s: member '%s': %s", m_where.c_str(), key, why);
+}
 
 void fail(char const *format, ...) {
     va_list args;
@@ -58,46 +190,8 @@ MPI_Comm comm() {
 Settings settings;
 
 void read_env() {
-    env::parse_text("OP_SOLVE_LIB", settings.lib);
-    env::parse_text("OP_SOLVE_FORMAT", settings.format);
+    env::parse_text("OP_SOLVE_CONFIG", settings.config);
     env::parse_bool("OP_SOLVE_MEMORY", settings.memory);
-    env::parse_number("OP_SOLVE_HYPRE_POOL", settings.hypre_pool);
-}
-
-Options parse_options(char const *text) {
-    Options options;
-    std::string all = text != nullptr ? text : "";
-    std::size_t split = all.find("--");
-    if (split != std::string::npos) {
-        options.library = all.substr(split + 2);
-        all.resize(split);
-    }
-
-    std::istringstream words(all);
-    std::string word;
-    while (words >> word) {
-        std::size_t eq = word.find('=');
-        if (eq == std::string::npos)
-            fail("option '%s' is not key=value", word.c_str());
-        std::string key = word.substr(0, eq), value = word.substr(eq + 1);
-        if (key == "method")
-            options.method = value;
-        else if (key == "pc")
-            options.pc = value;
-        else if (key == "rtol")
-            options.rtol = std::atof(value.c_str());
-        else if (key == "atol")
-            options.atol = std::atof(value.c_str());
-        else if (key == "maxit")
-            options.maxit = std::atoi(value.c_str());
-        else if (key == "restart")
-            options.restart = std::atoi(value.c_str());
-        else if (key == "monitor")
-            options.monitor = std::atoi(value.c_str()) != 0;
-        else
-            fail("unknown option '%s'", key.c_str());
-    }
-    return options;
 }
 
 char *memory(op_dat dat) { return on_device ? dat->data_d : dat->data; }
@@ -242,10 +336,9 @@ void upload_map(op_map map) {
 #endif
 }
 
-void build(op_sparsity sp, Order order) {
+void build(op_sparsity sp) {
     op_set rows = sp->rows, cols = sp->cols;
     const int nrows = rows->size, nowned = cols->size;
-    const bool square = rows == cols;
 
     sp->row_start = exclusive_sum(rows->size, &sp->global_rows);
     sp->col_start = exclusive_sum(cols->size, &sp->global_cols);
@@ -304,10 +397,6 @@ void build(op_sparsity sp, Order order) {
         row_diag.erase(std::unique(row_diag.begin(), row_diag.end()), row_diag.end());
         std::sort(row_offd.begin(), row_offd.end());
         row_offd.erase(std::unique(row_offd.begin(), row_offd.end()), row_offd.end());
-        if (order == Order::diagonal_first && square) {
-            auto diag = std::find(row_diag.begin(), row_diag.end(), I);
-            std::rotate(row_diag.begin(), diag, diag + 1);
-        }
         sp->diag_col.insert(sp->diag_col.end(), row_diag.begin(), row_diag.end());
         sp->offd_col.insert(sp->offd_col.end(), row_offd.begin(), row_offd.end());
         sp->diag_ptr[I + 1] = (int)sp->diag_col.size();
@@ -325,17 +414,10 @@ void build(op_sparsity sp, Order order) {
             halo_col[J] = (int)(at - garray.begin());
     }
 
-    auto find = [](const std::vector<int>& v, int begin, int end, int value, bool sorted) {
-        if (!sorted) {
-            for (int k = begin; k < end; k++)
-                if (v[k] == value)
-                    return k;
-            return -1;
-        }
+    auto find = [](const std::vector<int>& v, int begin, int end, int value) {
         auto at = std::lower_bound(v.begin() + begin, v.begin() + end, value);
         return at != v.begin() + end && *at == value ? (int)(at - v.begin()) : -1;
     };
-    const bool sorted = order == Order::sorted;
     const int owned = sp->diag_blocks + sp->offd_blocks;
 
     int scratch = 0;
@@ -354,9 +436,9 @@ void build(op_sparsity sp, Order order) {
                     if (I >= nrows)
                         slot = owned + scratch++;
                     else if (J < nowned)
-                        slot = find(sp->diag_col, sp->diag_ptr[I], sp->diag_ptr[I + 1], J, sorted);
+                        slot = find(sp->diag_col, sp->diag_ptr[I], sp->diag_ptr[I + 1], J);
                     else
-                        slot = find(sp->offd_col, sp->offd_ptr[I], sp->offd_ptr[I + 1], halo_col[J], true);
+                        slot = find(sp->offd_col, sp->offd_ptr[I], sp->offd_ptr[I + 1], halo_col[J]);
                     if (slot < 0)
                         fail("sparsity %s: block (%d, %d) not in the pattern", sp->name.c_str(), I, J);
                     if (I < nrows && J >= nowned)
@@ -537,41 +619,19 @@ using namespace op::solve;
 
 extern "C" {
 
-void op_solve_init(int argc, char **argv, char const *lib) {
+void op_solve_init(void) {
     int initialised;
     MPI_Initialized(&initialised);
     if (!initialised) {
-        MPI_Init(&argc, &argv);
+        MPI_Init(nullptr, nullptr);
         finalise_mpi = true;
     }
+}
 
-    std::string name = lib != nullptr ? lib : settings.lib;
-#ifdef OP2_SOLVE_PETSC
-    if (name.empty() || name == "petsc")
-        library = make_petsc(argc, argv);
-#endif
-#ifdef OP2_SOLVE_HYPRE
-    if (!library && (name.empty() || name == "hypre"))
-        library = make_hypre(argc, argv);
-#endif
-#ifdef OP2_SOLVE_GINKGO
-    if (!library && (name.empty() || name == "ginkgo"))
-        library = make_ginkgo(argc, argv);
-#endif
-#ifdef OP2_SOLVE_AMGX
-    if (!library && (name.empty() || name == "amgx"))
-        library = make_amgx(argc, argv);
-#endif
-#ifdef OP2_SOLVE_ROCALUTION
-    if (!library && (name.empty() || name == "rocalution"))
-        library = make_rocalution(argc, argv);
-#endif
-#ifdef OP2_SOLVE_MOCK
-    if (!library && name == "mock")
-        library = make_mock(argc, argv);
-#endif
-    if (!library)
-        fail("no solver library '%s' in this build", name.c_str());
+void op_solve_set_config(char const *config) {
+    if (fixed)
+        fail("op_solve_set_config after the first op_decl_mat");
+    given.emplace_back(config);
 }
 
 void op_solve_exit(void) {
@@ -597,15 +657,14 @@ void op_solve_exit(void) {
     solvers.clear();
     mats.clear();
     sparsities.clear();
-    library.reset();
+    while (!started.empty())
+        started.pop_back();
     if (finalise_mpi)
         MPI_Finalize();
 }
 
 op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs, op_map *rowmaps, op_map *colmaps,
                              char const *name) {
-    if (!library)
-        fail("op_decl_sparsity before op_solve_init");
     op_sparsity sp = new op_sparsity_core{};
     sp->rows = rows;
     sp->cols = cols;
@@ -623,12 +682,12 @@ op_sparsity op_decl_sparsity(op_set rows, op_set cols, int npairs, op_map *rowma
     auto identity = [](const op_sparsity_core::Pair& p) { return p.rowmap == nullptr && p.colmap == nullptr; };
     if (rows == cols && std::none_of(sp->pairs.begin(), sp->pairs.end(), identity))
         sp->pairs.push_back({nullptr, nullptr, rows, 1, 1, {}});
-    build(sp, library->order());
+    build(sp);
     sparsities.push_back(sp);
     return sp;
 }
 
-op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name, char const *format) {
+op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *name) {
     if (std::strcmp(type, "double") != 0)
         fail("matrix %s: type %s, only double is supported", name, type);
 
@@ -636,11 +695,28 @@ op_mat op_decl_mat(op_sparsity sparsity, int dim, char const *type, char const *
     A->sparsity = sparsity;
     A->dim = dim;
     A->name = name;
-    A->format = format != nullptr ? format : settings.format;
     A->layout.assign(sparsity->nnz->size, Entry{});
     mats.push_back(A);
 
-    A->lib = library->matrix(A, A->format);
+    // Its library's, the configuration's default, or the first built in
+    // but the mock.
+    Config config = entry("matrices", name);
+    const Config& all = configuration();
+    A->library_name = all.value("library", "");
+    if (A->library_name.empty())
+        for (const Built& b : built)
+            if (A->library_name.empty() && std::strcmp(b.name, "mock") != 0)
+                A->library_name = b.name;
+    if (config.contains("library")) {
+        if (!config["library"].is_string())
+            fail("configuration: matrix %s: library is not a name", name);
+        A->library_name = config["library"].get<std::string>();
+        config.erase("library");
+    }
+    if (A->library_name.empty())
+        fail("matrix %s: no library to keep it in", name);
+    A->library = &library(A->library_name);
+    A->lib = A->library->matrix(A, config);
     finish_storage(A);
     std::size_t bytes = A->layout.size() * sizeof(Entry);
     for (const Region& r : A->regions)
@@ -710,7 +786,7 @@ void op_mat_assemble(op_mat A) {
         report_memory(("matrix " + A->name + " assembled").c_str());
 }
 
-op_solver op_decl_solver(op_mat A, char const *name, char const *options) {
+op_solver op_decl_solver(op_mat A, char const *name) {
     op_sparsity sp = A->sparsity;
     if (sp->rows != sp->cols)
         fail("solver %s: matrix %s is not square", name, A->name.c_str());
@@ -718,7 +794,16 @@ op_solver op_decl_solver(op_mat A, char const *name, char const *options) {
     op_solver s = new op_solver_core{};
     s->A = A;
     s->name = name;
-    s->options = parse_options(options);
+    const Config config = entry("solvers", name);
+    if (config.is_object())
+        for (const auto& [lib, section] : config.items())
+            if (!known(lib))
+                fail("configuration: solver %s: '%s' is not a library", name, lib.c_str());
+    if (config.contains(A->library_name))
+        s->config = config[A->library_name];
+    else if (configuration().contains("solvers"))
+        op_printf("op_solve: solver %s has no %s settings in the configuration: %s's defaults\n", name,
+                  A->library_name.c_str(), A->library_name.c_str());
     solvers.push_back(s);
     return s;
 }
@@ -727,6 +812,9 @@ void op_solver_set_pc_mat(op_solver s, op_mat P) {
     if (P->sparsity->rows != s->A->sparsity->rows || P->dim != s->A->dim)
         fail("solver %s: preconditioning matrix %s does not match %s", s->name.c_str(), P->name.c_str(),
              s->A->name.c_str());
+    if (P->library != s->A->library)
+        fail("solver %s: preconditioning matrix %s is in %s, %s in %s", s->name.c_str(), P->name.c_str(),
+             P->library_name.c_str(), s->A->name.c_str(), s->A->library_name.c_str());
     s->P = P;
 }
 
@@ -741,7 +829,6 @@ static void make_callback_dats(op_solver s) {
 void op_solver_set_pc(op_solver s, op_apply_fn apply, void *ctx) {
     s->pc = apply;
     s->pc_ctx = ctx;
-    s->options.pc = "custom";
     make_callback_dats(s);
 }
 
@@ -761,7 +848,7 @@ int op_solve(op_solver s, op_dat b, op_dat x) {
     if (!s->A->lib || (s->P != nullptr && !s->P->lib))
         fail("op_solve %s: its matrices have not been assembled", s->name.c_str());
     if (!s->lib)
-        s->lib = library->solver(s);
+        s->lib = s->A->library->solver(s, s->config);
     op_arg args[] = {op_arg_dat_core(b, -1, OP_ID, b->dim, "double", OP_READ),
                      op_arg_dat_core(x, -1, OP_ID, x->dim, "double", OP_RW)};
     enter(rows, args, 2);

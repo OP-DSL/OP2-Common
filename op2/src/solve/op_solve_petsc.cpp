@@ -1,10 +1,13 @@
-// The PETSc backend: an AIJ matrix whose parts' values the loops write in
-// place on the host, OP2's region being their arrays; on the device a copy
-// in COO order handed over at each assembly (MatSetValuesCOO), which "coo"
-// asks for on the host too.  "aij:owned" borrows PETSc's own arrays instead
-// (AIJCUSPARSE's on the device, experimental: PETSc's own preconditioners for
-// blocks read the values on the host, which device writes leave stale).  KSP
-// over vectors wrapping the dats; PCSHELL and MATSHELL for the callbacks.
+// The PETSc backend: an AIJ matrix ("format": "aij") whose parts' values the
+// loops write in place on the host, OP2's region being their arrays; on the
+// device a copy in COO order handed over at each assembly (MatSetValuesCOO),
+// which "coo" asks for on the host too.  "owned" borrows PETSc's own AIJ
+// arrays instead (AIJCUSPARSE's on the device, experimental: PETSc's own
+// preconditioners for blocks read the values on the host, which device writes
+// leave stale).  A solver's settings are PETSc options, without their "-",
+// under its prefix ("<name>_"), each of which PETSc must use; the library's
+// are global ones.  KSP over vectors wrapping the dats; PCSHELL and MATSHELL
+// for the callbacks.
 
 #include <op2/solve/solve.h>
 
@@ -19,7 +22,6 @@
 #endif
 
 #include <algorithm>
-#include <sstream>
 #include <vector>
 
 namespace op::solve {
@@ -30,18 +32,24 @@ namespace {
 
 class PetscMatrix final : public Matrix {
 public:
-    PetscMatrix(op_mat A, const std::string& format) : m_A{A} {
+    PetscMatrix(op_mat A, const Config& config) : m_A{A} {
         const idx_g_t global = std::max(A->sparsity->global_rows, A->sparsity->global_cols) * A->dim;
         if (global > PETSC_INT_MAX)
-            fail("PETSc: matrix %s has %lld global rows or columns, past its %zu-byte PetscInt", A->name.c_str(),
+            fail("petsc: matrix %s has %lld global rows or columns, past its %zu-byte PetscInt", A->name.c_str(),
                  (long long)global, sizeof(PetscInt));
         // On the device PETSc's arrays move under it, so it copies by default.
-        m_coo = format == "coo" || (on_device && (format.empty() || format == "aij"));
-        if (!m_coo && !format.empty() && format != "aij" && format != "aij:owned")
-            fail("PETSc: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
+        Section c(config, "petsc: matrix " + A->name);
+        const std::string format = c.get<std::string>("format", on_device ? "coo" : "aij");
+        const bool own = c.get<bool>("owned", false);
+        c.done();
+        if (format != "aij" && format != "coo")
+            fail("%s: format '%s', it has aij and coo", c.where().c_str(), format.c_str());
+        if (own && format != "aij")
+            fail("%s: only aij is owned", c.where().c_str());
+        m_coo = format == "coo";
         if (m_coo)
             coo();
-        else if (format == "aij:owned")
+        else if (own)
             owned();
         else {
             m_views = true;
@@ -85,7 +93,7 @@ public:
         PETSC_CALL(MatAssemblyEnd(m_mat, MAT_FINAL_ASSEMBLY));
         for (int p = 0; p < 2; p++)
             if (m_parts[p] != nullptr && (char *)device_values(m_parts[p]) != m_A->regions[p].data)
-                fail("PETSc: matrix %s: its device values moved", m_A->name.c_str());
+                fail("petsc: matrix %s: its device values moved", m_A->name.c_str());
 #endif
     }
 
@@ -296,22 +304,42 @@ PetscErrorCode op_mult(Mat A, Vec x, Vec y) {
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-KSPType ksp_type(const std::string& method) {
-    if (method == "cg")
-        return KSPCG;
-    if (method == "gmres")
-        return KSPGMRES;
-    if (method == "fgmres")
-        return KSPFGMRES;
-    if (method == "bicgstab")
-        return KSPBCGS;
-    fail("PETSc: unknown method '%s'", method.c_str());
+// Options as PETSc takes them: their names, values (none for a flag).
+std::vector<std::pair<std::string, std::string>> options(const Config& config, const std::string& prefix,
+                                                         const std::string& where) {
+    std::vector<std::pair<std::string, std::string>> out;
+    if (config.is_null())
+        return out;
+    if (!config.is_object())
+        fail("%s: not a JSON object", where.c_str());
+    for (const auto& [key, value] : config.items()) {
+        std::string text;
+        if (value.is_string())
+            text = value.get<std::string>();
+        else if (value.is_number() || value.is_boolean())
+            text = value.dump();
+        else if (!value.is_null())
+            fail("%s: option %s is not a string, number, boolean or null", where.c_str(), key.c_str());
+        out.emplace_back("-" + prefix + key, text);
+    }
+    return out;
 }
+
+// Without a configuration: GMRES and Jacobi, point-block for blocks.
+const Config default_settings = {{"ksp_type", "gmres"}, {"pc_type", "jacobi"}, {"ksp_rtol", 1e-8},
+                                 {"ksp_max_it", 1000}};
 
 class PetscSolver final : public Solver {
 public:
-    explicit PetscSolver(op_solver s) : m_s{s} {
-        const Options& o = s->options;
+    PetscSolver(op_solver s, const Config& config) : m_s{s} {
+        Config settings = config.is_null() ? default_settings : config;
+        if (config.is_null() && s->A->dim > 1)
+            settings["pc_type"] = "pbjacobi";
+        if (s->pc != nullptr && settings.is_object() && settings.contains("pc_type")) {
+            if (!config.is_null())
+                fail("petsc: solver %s: names a pc_type, and has a par-loop preconditioner", s->name.c_str());
+            settings.erase("pc_type");
+        }
         op_sparsity sp = s->A->sparsity;
         const PetscInt d = s->A->dim, n = sp->rows->size * d, N = sp->global_rows * d;
         PETSC_CALL(KSPCreate(comm(), &m_ksp));
@@ -325,52 +353,20 @@ public:
             A = m_shell;
         }
         PETSC_CALL(KSPSetOperators(m_ksp, A, P));
-        PETSC_CALL(KSPSetType(m_ksp, ksp_type(o.method)));
-        PETSC_CALL(KSPSetTolerances(m_ksp, o.rtol, o.atol, PETSC_DETERMINE, o.maxit));
-        if (o.method == "gmres" || o.method == "fgmres")
-            PETSC_CALL(KSPGMRESSetRestart(m_ksp, o.restart));
         PETSC_CALL(KSPSetInitialGuessNonzero(m_ksp, PETSC_TRUE));
-        // Converge on the true residual, ||b - A x|| / ||b||, as every backend does.
-        if (o.method == "cg")
-            PETSC_CALL(KSPSetNormType(m_ksp, KSP_NORM_UNPRECONDITIONED));
-        else
-            PETSC_CALL(KSPSetPCSide(m_ksp, PC_RIGHT));
-
-        PC pc;
-        PETSC_CALL(KSPGetPC(m_ksp, &pc));
-        int ranks;
-        MPI_Comm_size(comm(), &ranks);
-        if (o.pc == "none")
-            PETSC_CALL(PCSetType(pc, PCNONE));
-        else if (o.pc == "jacobi")
-            PETSC_CALL(PCSetType(pc, d > 1 ? PCPBJACOBI : PCJACOBI));
-        else if (o.pc == "bjacobi" || (o.pc == "ilu" && ranks > 1))
-            PETSC_CALL(PCSetType(pc, PCBJACOBI));
-        else if (o.pc == "ilu")
-            PETSC_CALL(PCSetType(pc, PCILU));
-        else if (o.pc == "amg")
-            PETSC_CALL(PCSetType(pc, PCGAMG));
-        else if (o.pc == "custom") {
+        if (s->pc != nullptr) {
+            PC pc;
+            PETSC_CALL(KSPGetPC(m_ksp, &pc));
             PETSC_CALL(PCSetType(pc, PCSHELL));
             PETSC_CALL(PCShellSetApply(pc, pc_apply));
             PETSC_CALL(PCShellSetContext(pc, s));
-        } else
-            fail("PETSc: unknown pc '%s'", o.pc.c_str());
-
-        // The solver's own library options under its prefix, the rest as given.
-        std::string prefix = s->name + "_";
-        PETSC_CALL(KSPSetOptionsPrefix(m_ksp, prefix.c_str()));
-        std::istringstream words(o.library);
-        std::string word, options;
-        while (words >> word) {
-            bool own = false;
-            for (const char *kind : {"-ksp_", "-pc_", "-mg_", "-sub_"})
-                own |= word.rfind(kind, 0) == 0;
-            options += (own ? "-" + prefix + word.substr(1) : word) + " ";
         }
-        if (o.monitor)
-            options += "-" + prefix + "ksp_monitor ";
-        PETSC_CALL(PetscOptionsInsertString(nullptr, options.c_str()));
+
+        const std::string prefix = s->name + "_";
+        PETSC_CALL(KSPSetOptionsPrefix(m_ksp, prefix.c_str()));
+        m_options = options(settings, prefix, "petsc: solver " + s->name);
+        for (const auto& [name, value] : m_options)
+            PETSC_CALL(PetscOptionsSetValue(nullptr, name.c_str(), value.empty() ? nullptr : value.c_str()));
         PETSC_CALL(KSPSetFromOptions(m_ksp));
 
         if (on_device) {
@@ -405,11 +401,21 @@ public:
         PETSC_CALL(KSPGetConvergedReason(m_ksp, &reason));
         iterations = (int)its;
         residual = m_bnorm > 0 ? (double)norm / m_bnorm : (double)norm;
+
+        // Once set up and run, PETSc has read every option it uses.
+        for (const auto& [name, value] : m_options) {
+            PetscBool used;
+            PETSC_CALL(PetscOptionsUsed(nullptr, name.c_str() + 1, &used));
+            if (!used)
+                fail("petsc: solver %s: PETSc did not use option %s", m_s->name.c_str(), name.c_str());
+        }
+        m_options.clear();
         return reason > 0;
     }
 
 private:
     op_solver m_s;
+    std::vector<std::pair<std::string, std::string>> m_options;
     KSP m_ksp = nullptr;
     Mat m_shell = nullptr;
     Vec m_b = nullptr, m_x = nullptr;
@@ -418,30 +424,28 @@ private:
 
 class PetscLibrary final : public Library {
 public:
-    PetscLibrary(int argc, char **argv) {
+    explicit PetscLibrary(const Config& config) {
         PETSC_COMM_WORLD = comm();
         if (on_device && !OP_gpu_direct)
             PETSC_CALL(PetscOptionsSetValue(nullptr, "-use_gpu_aware_mpi", "0"));
-        PETSC_CALL(PetscInitialize(&argc, &argv, nullptr, nullptr));
-        // The command line is the application's too.
-        PETSC_CALL(PetscOptionsSetValue(nullptr, "-options_left", "0"));
+        for (const auto& [name, value] : options(config, "", "petsc: library"))
+            PETSC_CALL(PetscOptionsSetValue(nullptr, name.c_str(), value.empty() ? nullptr : value.c_str()));
+        PETSC_CALL(PetscInitialize(nullptr, nullptr, nullptr, nullptr));
     }
 
     ~PetscLibrary() override { PetscFinalize(); }
 
-    Order order() const override { return Order::sorted; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
-        return std::make_unique<PetscMatrix>(A, format);
+    std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) override {
+        return std::make_unique<PetscMatrix>(A, config);
     }
 
-    std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<PetscSolver>(s); }
+    std::unique_ptr<Solver> solver(op_solver s, const Config& config) override {
+        return std::make_unique<PetscSolver>(s, config);
+    }
 };
 
 } // namespace
 
-std::unique_ptr<Library> make_petsc(int argc, char **argv) {
-    return std::make_unique<PetscLibrary>(argc, argv);
-}
+std::unique_ptr<Library> make_petsc(const Config& config) { return std::make_unique<PetscLibrary>(config); }
 
 } // namespace op::solve

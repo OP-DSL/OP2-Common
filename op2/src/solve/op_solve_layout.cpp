@@ -32,15 +32,6 @@ Entry entry(long offset, int rs, int cs, int region, int rule = mat::plain) {
     return {(int)offset, rs, cs, region | rule << mat::rule_shift};
 }
 
-// Whether the sparsity's rows lead with their diagonal block.
-bool diagonal_leads(op_mat A) {
-    op_sparsity sp = A->sparsity;
-    for (int I = 0; I < sp->rows->size; I++)
-        if (sp->diag_ptr[I] == sp->diag_ptr[I + 1] || sp->diag_col[sp->diag_ptr[I]] != I)
-            return false;
-    return true;
-}
-
 void check_diagonal_rule(op_mat A) {
     if (A->sparsity->diagonal_elsewhere)
         fail("matrix %s: a format that moves diagonal entries, but sparsity %s reaches a diagonal block through "
@@ -79,19 +70,26 @@ ScalarCsr csr_layout(op_mat A, Part part, int region, int offset, Diagonal diago
     const Diagonal rule = b.diag && square ? diagonal : Diagonal::none;
     if (rule != Diagonal::none)
         check_diagonal_rule(A);
-    if (rule == Diagonal::first && !diagonal_leads(A))
-        fail("matrix %s: diagonal-first rows need sparsity %s ordered for them", A->name.c_str(), sp->name.c_str());
 
     ScalarCsr out;
     out.ptr.assign((std::size_t)nrows * d + 1, 0);
     out.col.reserve((std::size_t)part_blocks(A, part) * d * d);
+    std::vector<int> row;
     for (int I = 0; I < nrows; I++) {
         const int nb = b.ptr[I + 1] - b.ptr[I];
         const bool apart = rule == Diagonal::separate;
         const int length = nb * d - (apart ? 1 : 0);
+        // The row's blocks in their order in it: a diagonal-first row's
+        // diagonal block leads.
+        row.clear();
+        for (int k = b.ptr[I]; k < b.ptr[I + 1]; k++)
+            if (rule == Diagonal::first && b.col[k] == I)
+                row.insert(row.begin(), k);
+            else
+                row.push_back(k);
         for (int r = 0; r < d; r++) {
             out.ptr[(std::size_t)I * d + r + 1] = out.ptr[(std::size_t)I * d + r] + length;
-            for (int k = b.ptr[I]; k < b.ptr[I + 1]; k++) {
+            for (int k : row) {
                 const int J = b.col[k];
                 if (J == I && rule == Diagonal::first) {
                     out.col.push_back(J * d + r);
@@ -107,7 +105,7 @@ ScalarCsr csr_layout(op_mat A, Part part, int region, int offset, Diagonal diago
         // A row's blocks follow one another, d columns each, one fewer after
         // a diagonal block that keeps its diagonal apart.
         long at = (long)offset + out.ptr[(std::size_t)I * d];
-        for (int k = b.ptr[I]; k < b.ptr[I + 1]; k++) {
+        for (int k : row) {
             const int J = b.col[k];
             if (J == I && rule == Diagonal::first)
                 A->layout[b.first + k] = entry(at, length, 1, region, mat::diagonal_first);

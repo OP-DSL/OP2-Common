@@ -6,7 +6,9 @@
 # columns as in their own, and from the bump with each rank's nodes and edges
 # reordered (op_renumber, a Hilbert curve).  Each library's other storage
 # formats run from the mode, and under the Neumann preconditioner, on every
-# variant and count.
+# variant and count.  Every test reads config.json (-config), each library's
+# settings for the proxy's solvers, and picks its library and matrix storage
+# by OP_SOLVE_CONFIG over it.
 
 set(_libs "")
 foreach(_def IN LISTS _op2_solve_defs)
@@ -16,11 +18,19 @@ foreach(_def IN LISTS _op2_solve_defs)
     endif()
 endforeach()
 
-set(_formats_mock compact:column bell bell:column bell:interleaved bell:interleaved:column)
-set(_formats_petsc coo aij:owned)
-set(_formats_ginkgo csr:classical coo ell sellp fbcsr)
-set(_formats_rocalution mcsr bcsr coo ell)
-set(_formats_amgx bcsr:diag csr)
+# Each library's other storage: a name, and the matrix's configuration.
+set(_formats_mock
+    "compact-column={\"format\":\"compact\",\"major\":\"column\"}" "bell={\"format\":\"bell\"}"
+    "bell-column={\"format\":\"bell\",\"major\":\"column\"}"
+    "bell-interleaved={\"format\":\"bell\",\"interleaved\":true}"
+    "bell-interleaved-column={\"format\":\"bell\",\"interleaved\":true,\"major\":\"column\"}")
+set(_formats_petsc "coo={\"format\":\"coo\"}" "aij-owned={\"format\":\"aij\",\"owned\":true}")
+set(_formats_ginkgo "csr-classical={\"format\":\"csr\",\"strategy\":\"classical\"}" "coo={\"format\":\"coo\"}"
+    "ell={\"format\":\"ell\"}" "sellp={\"format\":\"sellp\"}" "fbcsr={\"format\":\"fbcsr\"}")
+set(_formats_rocalution "mcsr={\"format\":\"mcsr\"}" "bcsr={\"format\":\"bcsr\"}" "coo={\"format\":\"coo\"}"
+    "ell={\"format\":\"ell\"}")
+set(_formats_amgx "bcsr-diag={\"format\":\"bcsr\",\"external_diagonal\":true}" "csr={\"format\":\"csr\"}")
+set(_config ${CMAKE_CURRENT_SOURCE_DIR}/config.json)
 
 # AmgX solves on the device only, and takes no par-loop preconditioner.
 set(_device_only amgx)
@@ -54,29 +64,28 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
                 if(_name STREQUAL "neumann" AND _lib IN_LIST _no_callbacks)
                     continue()
                 endif()
-                set(_solver "method=cg pc=jacobi rtol=1e-12 maxit=5000")
-                if(_name STREQUAL "neumann")
-                    set(_solver "method=cg rtol=1e-12 maxit=5000")
-                endif()
                 set(_test ${_target}_${_lib}_${_name})
-                add_test(NAME ${_test} COMMAND ${_cmd} -n 24 -steps 3 ${_args} -solver "${_solver}" -check 1e-9)
-                set_tests_properties(${_test} PROPERTIES PROCESSORS ${_procs}
-                    LABELS "solve" ENVIRONMENT "OP_SOLVE_LIB=${_lib};OMP_NUM_THREADS=2" TIMEOUT 300)
+                add_test(NAME ${_test} COMMAND ${_cmd} -n 24 -steps 3 ${_args} -config ${_config} -check 1e-9)
+                set_tests_properties(${_test} PROPERTIES PROCESSORS ${_procs} LABELS "solve" TIMEOUT 300
+                    ENVIRONMENT "OP_SOLVE_CONFIG={\"library\":\"${_lib}\"};OMP_NUM_THREADS=2")
             endforeach()
             foreach(_format IN LISTS _formats_${_lib})
+                string(FIND "${_format}" "=" _at)
+                string(SUBSTRING "${_format}" 0 ${_at} _fname)
+                math(EXPR _at "${_at} + 1")
+                string(SUBSTRING "${_format}" ${_at} -1 _matrix)
                 # PETSc's device arrays move under a borrower (op_solve_petsc.cpp).
-                if(_format STREQUAL "aij:owned" AND _variant MATCHES "cuda|hip")
+                if(_fname STREQUAL "aij-owned" AND _variant MATCHES "cuda|hip")
                     continue()
                 endif()
                 # AmgX's distributed upload takes no external diagonal.
-                if(_format STREQUAL "bcsr:diag" AND _variant MATCHES "^mpi_")
+                if(_fname STREQUAL "bcsr-diag" AND _variant MATCHES "^mpi_")
                     continue()
                 endif()
                 # AmgX has block kernels for 1, 3 and 4 components (op_solve_amgx.cpp).
-                if(_lib STREQUAL "amgx" AND _format MATCHES "^bcsr" AND NOT _nv MATCHES "^[134]$")
+                if(_lib STREQUAL "amgx" AND _fname MATCHES "^bcsr" AND NOT _nv MATCHES "^[134]$")
                     continue()
                 endif()
-                string(REPLACE ":" "-" _fname "${_format}")
                 set(_fcases "mode:-init:mode:-dt:0.002")
                 if(_nv GREATER 1 AND _lib IN_LIST _no_callbacks)
                     list(APPEND _fcases "bump:-init:bump")
@@ -86,14 +95,11 @@ foreach(_nv IN LISTS OP2_IMPLICIT_NV)
                 foreach(_case IN LISTS _fcases)
                     string(REPLACE ":" ";" _args "${_case}")
                     list(POP_FRONT _args _name)
-                    set(_solver "method=cg pc=jacobi rtol=1e-12 maxit=5000")
-                    if(_name STREQUAL "neumann")
-                        set(_solver "method=cg rtol=1e-12 maxit=5000")
-                    endif()
                     set(_test ${_target}_${_lib}_${_fname}_${_name})
-                    add_test(NAME ${_test} COMMAND ${_cmd} -n 24 -steps 3 ${_args} -solver "${_solver}" -check 1e-9)
+                    add_test(NAME ${_test} COMMAND ${_cmd} -n 24 -steps 3 ${_args} -config ${_config} -check 1e-9)
                     set_tests_properties(${_test} PROPERTIES PROCESSORS ${_procs} LABELS "solve" TIMEOUT 300
-                        ENVIRONMENT "OP_SOLVE_LIB=${_lib};OP_SOLVE_FORMAT=${_format};OMP_NUM_THREADS=2")
+                        ENVIRONMENT
+                        "OP_SOLVE_CONFIG={\"library\":\"${_lib}\",\"matrices\":{\"A\":${_matrix}}};OMP_NUM_THREADS=2")
                 endforeach()
             endforeach()
         endforeach()

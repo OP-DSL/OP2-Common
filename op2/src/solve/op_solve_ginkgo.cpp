@@ -1,8 +1,11 @@
-// The Ginkgo backend: a distributed matrix whose local and non-local Csr
-// parts are views of the op_mat's values, written in place by the loops (or,
-// for blocks written by untranslated loops, a copy permuted from them),
-// distributed vectors over views of the dats, and callback LinOps for the
-// par-loop preconditioner and operator.
+// The Ginkgo backend: a distributed matrix whose local and non-local parts
+// are views of the op_mat's values, written in place by the loops ("format":
+// "csr", with a "strategy" "cusparse", "classical" or "merge_path", "coo",
+// "ell", "fbcsr"), or Ginkgo's own arrays borrowed ("sellp"); distributed
+// vectors over views of the dats; and callback LinOps for the par-loop
+// preconditioner and operator.  A solver is a Ginkgo configuration (its file
+// configuration, gko::config), which finds a preconditioner built apart from
+// it (from P, or the par-loop one) as "generated_preconditioner".
 
 #include <op2/solve/solve.h>
 
@@ -30,8 +33,6 @@ using dist_mtx = gko::experimental::distributed::Matrix<double, int, gko::int64>
 using dist_vec = gko::experimental::distributed::Vector<double>;
 using partition = gko::experimental::distributed::Partition<int, gko::int64>;
 using index_map = gko::experimental::distributed::index_map<int, gko::int64>;
-using schwarz = gko::experimental::distributed::preconditioner::Schwarz<double, int, gko::int64>;
-using jacobi = gko::preconditioner::Jacobi<double, int>;
 
 std::shared_ptr<gko::Executor> make_executor() {
 #if OP2_SOLVE_DEVICE
@@ -57,7 +58,13 @@ gko::array<T> to_exec(const std::vector<T>& host) {
 
 class GinkgoMatrix final : public Matrix {
 public:
-    GinkgoMatrix(op_mat A, const std::string& format) : m_A{A} {
+    GinkgoMatrix(op_mat A, const Config& config) : m_A{A} {
+        Section c(config, "ginkgo: matrix " + A->name);
+        std::string kind = c.get<std::string>("format", "csr");
+        const std::string strategy = c.get<std::string>("strategy", "");
+        c.done();
+        if (!strategy.empty() && kind != "csr")
+            fail("%s: a strategy is for csr", c.where().c_str());
         op_sparsity sp = A->sparsity;
         const int d = A->dim, n = sp->rows->size * d;
         gko::experimental::mpi::communicator comm{op::solve::comm()};
@@ -78,14 +85,9 @@ public:
 
         // Each part in the format asked for: views of one region, the local
         // part's values then the non-local part's (csr, coo, ell, fbcsr), or
-        // Ginkgo's own arrays, borrowed (sellp).
-        std::string kind = format.empty() ? "csr" : format, strategy;
-        if (kind.rfind("csr:", 0) == 0) {
-            strategy = kind.substr(4);
-            kind = "csr";
-        }
-        // 1 x 1 blocks are scalar entries, which Csr holds (and Fbcsr's
-        // diagonal is not extracted on the device).
+        // Ginkgo's own arrays, borrowed (sellp).  1 x 1 blocks are scalar
+        // entries, which Csr holds (and Fbcsr's diagonal is not extracted on
+        // the device).
         if (kind == "fbcsr" && d == 1)
             kind = "csr";
         const gko::dim<2> sizes[2] = {gko::dim<2>(n, sp->cols->size * d), gko::dim<2>(n, remote.size())};
@@ -122,7 +124,7 @@ public:
                     padded[p] = ell_layout(A, which[p], 0, offset, -1);
                     counts[p] = padded[p].col.size();
                 } else
-                    fail("Ginkgo: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
+                    fail("%s: format '%s', it has csr, coo, ell, sellp and fbcsr", c.where().c_str(), kind.c_str());
             }
             double *data = (double *)lend(A, 0, (counts[0] + counts[1]) * sizeof(double));
             for (int p = 0; p < 2; p++) {
@@ -137,7 +139,8 @@ public:
                     else if (strategy == "merge_path")
                         m->set_strategy(std::make_shared<csr::merge_path>());
                     else if (!strategy.empty())
-                        fail("Ginkgo: matrix %s: unknown Csr strategy '%s'", A->name.c_str(), strategy.c_str());
+                        fail("%s: strategy '%s', it has cusparse, classical and merge_path", c.where().c_str(),
+                             strategy.c_str());
                     made[p] = gko::share(std::move(m));
                 } else if (kind == "coo") {
                     std::vector<int> rows;
@@ -211,23 +214,50 @@ private:
     void *m_ctx;
 };
 
-// The parts' columns are sorted, so the factories need not sort a copy.
-std::shared_ptr<gko::LinOpFactory> local_jacobi(int d, int n) {
-    if (d == 1)
-        return jacobi::build().with_max_block_size(1u).with_skip_sorting(true).on(executor);
-    std::vector<int> blocks(n / d + 1);
-    for (std::size_t k = 0; k < blocks.size(); k++)
-        blocks[k] = (int)k * d;
-    return jacobi::build()
-        .with_max_block_size((gko::uint32)d)
-        .with_block_pointers(to_exec(blocks))
-        .with_skip_sorting(true)
-        .on(executor);
+// A configuration as Ginkgo's property tree.
+gko::config::pnode tree(const Config& c) {
+    if (c.is_object()) {
+        gko::config::pnode::map_type members;
+        for (const auto& [key, value] : c.items())
+            members.emplace(key, tree(value));
+        return gko::config::pnode(members);
+    }
+    if (c.is_array()) {
+        gko::config::pnode::array_type items;
+        for (const Config& value : c)
+            items.push_back(tree(value));
+        return gko::config::pnode(items);
+    }
+    if (c.is_boolean())
+        return gko::config::pnode(c.get<bool>());
+    if (c.is_number_integer())
+        return gko::config::pnode(c.get<long long>());
+    if (c.is_number_float())
+        return gko::config::pnode(c.get<double>());
+    if (c.is_string())
+        return gko::config::pnode(c.get<std::string>());
+    return gko::config::pnode();
 }
+
+// Without a configuration: GMRES, Schwarz with Jacobi on each rank's part
+// (its columns are sorted, so Jacobi need not sort a copy).
+const Config default_settings = Config::parse(R"({
+    "type": "solver::Gmres", "krylov_dim": 30,
+    "criteria": {"iteration": 1000, "relative_residual_norm": 1e-8},
+    "preconditioner": {"type": "preconditioner::Schwarz",
+                       "local_solver": {"type": "preconditioner::Jacobi", "skip_sorting": true}}})");
 
 class GinkgoSolver final : public Solver {
 public:
-    explicit GinkgoSolver(op_solver s) : m_s{s} {}
+    GinkgoSolver(op_solver s, const Config& config) : m_s{s}, m_settings(config.is_null() ? default_settings : config) {
+        if (!m_settings.is_object())
+            fail("ginkgo: solver %s: not a JSON object", s->name.c_str());
+        if (s->pc != nullptr && m_settings.contains("preconditioner")) {
+            if (!config.is_null())
+                fail("ginkgo: solver %s: names a preconditioner, and has a par-loop one", s->name.c_str());
+            m_settings.erase("preconditioner");
+        }
+    }
 
     bool solve(op_dat b, op_dat x) override {
         try {
@@ -246,106 +276,67 @@ public:
             residual = bnorm > 0 ? rnorm->at(0, 0) / bnorm : rnorm->at(0, 0);
             return logger->has_converged();
         } catch (const std::exception& e) {
-            fail("Ginkgo: solver %s: %s", m_s->name.c_str(), e.what());
+            fail("ginkgo: solver %s: %s", m_s->name.c_str(), e.what());
         }
     }
 
 private:
-    // The preconditioner and solver, made again once their matrices have been
-    // assembled since.
+    // The solver, made again once its matrices have been assembled since.  A
+    // preconditioner from P, or from A under a par-loop operator, or the
+    // par-loop one, is made apart and found in the registry.
     void build() {
         op_mat P = m_s->P != nullptr ? m_s->P : m_s->A;
         if (m_solver && m_state == m_s->A->state && m_pc_state == P->state)
             return;
-        const Options& o = m_s->options;
-        const int d = m_s->A->dim, n = m_s->A->sparsity->rows->size * d;
-        const gko::size_type N = (gko::size_type)m_s->A->sparsity->global_rows * d;
-
-        std::shared_ptr<const gko::LinOp> pc;
-        auto Pm = mat_of(P);
-        if (o.pc == "jacobi")
-            pc = gko::share(schwarz::build().with_local_solver(local_jacobi(d, n)).on(executor)->generate(Pm));
-        else if (o.pc == "ilu")
-            pc = gko::share(schwarz::build()
-                                .with_local_solver(gko::preconditioner::Ilu<>::build().with_factorization(
-                                    gko::factorization::ParIlu<double, int>::build().with_skip_sorting(true)))
-                                .on(executor)
-                                ->generate(Pm));
-        else if (o.pc == "amg") {
-            auto smoother = gko::share(gko::solver::build_smoother(
-                gko::share(schwarz::build().with_local_solver(local_jacobi(1, n)).on(executor)), 2u, 0.9));
-            // A stationary coarse solve, so the cycle is a fixed linear
-            // operator, as CG needs of its preconditioner.
-            auto coarsest = gko::share(gko::solver::build_smoother(
-                gko::share(schwarz::build().with_local_solver(local_jacobi(1, n)).on(executor)), 4u, 0.9));
-            pc = gko::share(gko::solver::Multigrid::build()
-                                .with_mg_level(gko::multigrid::Pgm<double, int>::build().with_deterministic(true))
-                                .with_pre_smoother(smoother)
-                                .with_coarsest_solver(coarsest)
-                                .with_criteria(gko::stop::Iteration::build().with_max_iters(1u))
-                                .on(executor)
-                                ->generate(Pm));
-        } else if (o.pc == "custom")
-            pc = gko::share(Callback::create(executor, gko::dim<2>(N, N), m_s, m_s->pc, m_s->pc_ctx));
-        else if (o.pc != "none")
-            fail("Ginkgo: unknown pc '%s'", o.pc.c_str());
-
+        const gko::size_type N = (gko::size_type)m_s->A->sparsity->global_rows * m_s->A->dim;
+        Config settings = m_settings;
+        gko::config::registry registry;
         std::shared_ptr<const gko::LinOp> A = mat_of(m_s->A);
         if (m_s->op != nullptr)
             A = gko::share(Callback::create(executor, gko::dim<2>(N, N), m_s, m_s->op, m_s->op_ctx));
-
-        auto iters = gko::stop::Iteration::build().with_max_iters((gko::size_type)o.maxit);
-        auto norm = gko::stop::ResidualNorm<double>::build()
-                        .with_baseline(gko::stop::mode::rhs_norm)
-                        .with_reduction_factor(o.rtol);
-        if (o.method == "cg")
-            m_solver = gko::solver::Cg<double>::build()
-                           .with_criteria(iters, norm)
-                           .with_generated_preconditioner(pc)
-                           .on(executor)
-                           ->generate(A);
-        else if (o.method == "gmres" || o.method == "fgmres")
-            m_solver = gko::solver::Gmres<double>::build()
-                           .with_criteria(iters, norm)
-                           .with_krylov_dim((gko::size_type)o.restart)
-                           .with_flexible(o.method == "fgmres")
-                           .with_generated_preconditioner(pc)
-                           .on(executor)
-                           ->generate(A);
-        else if (o.method == "bicgstab")
-            m_solver = gko::solver::Bicgstab<double>::build()
-                           .with_criteria(iters, norm)
-                           .with_generated_preconditioner(pc)
-                           .on(executor)
-                           ->generate(A);
-        else
-            fail("Ginkgo: unknown method '%s'", o.method.c_str());
+        std::shared_ptr<gko::LinOp> pc;
+        if (m_s->pc != nullptr)
+            pc = gko::share(Callback::create(executor, gko::dim<2>(N, N), m_s, m_s->pc, m_s->pc_ctx));
+        else if ((m_s->P != nullptr || m_s->op != nullptr) && settings.contains("preconditioner")) {
+            pc = gko::share(
+                gko::config::parse(tree(settings["preconditioner"]), registry).on(executor)->generate(mat_of(P)));
+            settings.erase("preconditioner");
+        }
+        if (pc) {
+            registry.emplace("op2_preconditioner", pc);
+            settings["generated_preconditioner"] = "op2_preconditioner";
+        }
+        m_solver = gko::share(gko::config::parse(tree(settings), registry).on(executor)->generate(A));
         m_state = m_s->A->state;
         m_pc_state = P->state;
     }
 
     op_solver m_s;
+    Config m_settings;
     std::shared_ptr<gko::LinOp> m_solver;
     int m_state = -1, m_pc_state = -1;
 };
 
 class GinkgoLibrary final : public Library {
 public:
-    GinkgoLibrary() { executor = make_executor(); }
+    explicit GinkgoLibrary(const Config& config) {
+        Section(config, "ginkgo: library").done();
+        executor = make_executor();
+    }
 
     ~GinkgoLibrary() override { executor.reset(); }
 
-    Order order() const override { return Order::sorted; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
-        return std::make_unique<GinkgoMatrix>(A, format);
+    std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) override {
+        return std::make_unique<GinkgoMatrix>(A, config);
     }
 
-    std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<GinkgoSolver>(s); }
+    std::unique_ptr<Solver> solver(op_solver s, const Config& config) override {
+        return std::make_unique<GinkgoSolver>(s, config);
+    }
 };
 
 } // namespace
 
-std::unique_ptr<Library> make_ginkgo(int, char **) { return std::make_unique<GinkgoLibrary>(); }
+std::unique_ptr<Library> make_ginkgo(const Config& config) { return std::make_unique<GinkgoLibrary>(config); }
 
 } // namespace op::solve

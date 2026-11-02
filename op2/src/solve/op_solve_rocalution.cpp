@@ -1,10 +1,12 @@
 // The rocALUTION backend: a GlobalMatrix whose interior and ghost parts
-// rocALUTION holds in the format asked for ("csr", "mcsr", "bcsr", "coo",
+// rocALUTION holds in the "format" asked for ("csr", "mcsr", "bcsr", "coo",
 // "ell"), converted by rocALUTION itself from the pattern; the loops write
 // its arrays in place, each part's layout checked against rocALUTION's own
-// index arrays.  CG, BiCGStab, GMRES or FGMRES over GlobalVectors, with
-// Jacobi, pairwise AMG, none or a par-loop preconditioner.  Host variants,
-// and HIP ones in a HIP build of rocALUTION.
+// index arrays.  A solver in rocALUTION's terms: its "solver" class (CG,
+// BiCGStab, GMRES, FGMRES) over GlobalVectors, Init's "abs_tol", "rel_tol",
+// "div_tol" and "max_iter", "basis_size" and "verbose", and a
+// "preconditioner" class (Jacobi, PairwiseAMG, none), or the par-loop one.
+// Host variants, and HIP ones in a HIP build of rocALUTION.
 
 #include <op2/solve/solve.h>
 
@@ -98,11 +100,14 @@ bool same(const int *a, const std::vector<int>& b) { return std::equal(b.begin()
 
 class RocMatrix final : public Matrix {
 public:
-    RocMatrix(op_mat A, const std::string& format) : m_A{A}, m_manager{A->sparsity, A->dim} {
+    RocMatrix(op_mat A, const Config& config) : m_A{A}, m_manager{A->sparsity, A->dim} {
         if (on_device)
-            fail("rocALUTION: matrix %s: a device variant needs a HIP build of rocALUTION", A->name.c_str());
+            fail("rocalution: matrix %s: a device variant needs a HIP build of rocALUTION", A->name.c_str());
         op_sparsity sp = A->sparsity;
         const int d = A->dim;
+        Section c(config, "rocalution: matrix " + A->name);
+        const std::string format = c.get<std::string>("format", "csr");
+        c.done();
         unsigned int target = roc::CSR;
         if (format == "mcsr")
             target = roc::MCSR;
@@ -112,8 +117,8 @@ public:
             target = roc::COO;
         else if (format == "ell")
             target = roc::ELL;
-        else if (!format.empty() && format != "csr")
-            fail("rocALUTION: matrix %s: unknown format '%s'", A->name.c_str(), format.c_str());
+        else if (format != "csr")
+            fail("%s: format '%s', it has csr, mcsr, bcsr, coo and ell", c.where().c_str(), format.c_str());
 
         // The pattern as CSR in rocALUTION's own memory, which it converts.
         const ScalarCsr dsc = csr_layout(A, Part::diag, 0, 0);
@@ -149,7 +154,7 @@ private:
         const int64_t nnz = m.GetNnz();
         const std::string name = m_A->name + (part == Part::diag ? "_interior" : "_ghost");
         auto unexpected = [&](const char *what) {
-            fail("rocALUTION: matrix %s: its %s part's %s is not laid out as expected", m_A->name.c_str(),
+            fail("rocalution: matrix %s: its %s part's %s is not laid out as expected", m_A->name.c_str(),
                  part == Part::diag ? "interior" : "ghost", what);
         };
         switch (m.GetFormat()) {
@@ -221,7 +226,7 @@ private:
             break;
         }
         default:
-            fail("rocALUTION: matrix %s: rocALUTION kept its %s part in a format OP2 does not lay out",
+            fail("rocalution: matrix %s: rocALUTION kept its %s part in a format OP2 does not lay out",
                  m_A->name.c_str(), part == Part::diag ? "interior" : "ghost");
         }
     }
@@ -264,40 +269,48 @@ private:
 
 class RocSolver final : public Solver {
 public:
-    explicit RocSolver(op_solver s) : m_s{s} {
-        const Options& o = s->options;
+    RocSolver(op_solver s, const Config& config) : m_s{s} {
         if (s->op != nullptr)
-            fail("rocALUTION: solver %s: a par-loop operator is not supported", s->name.c_str());
-        if (o.method == "cg")
+            fail("rocalution: solver %s: a par-loop operator is not supported", s->name.c_str());
+        // Without a configuration: GMRES and Jacobi.
+        Section c(config, "rocalution: solver " + s->name);
+        const std::string solver = c.get<std::string>("solver", "GMRES");
+        const int basis = c.get<int>("basis_size", 30);
+        if (solver == "CG")
             m_ls = std::make_unique<roc::CG<matrix_type, vector_type, double>>();
-        else if (o.method == "bicgstab")
+        else if (solver == "BiCGStab")
             m_ls = std::make_unique<roc::BiCGStab<matrix_type, vector_type, double>>();
-        else if (o.method == "gmres") {
+        else if (solver == "GMRES") {
             auto gmres = std::make_unique<roc::GMRES<matrix_type, vector_type, double>>();
-            gmres->SetBasisSize(o.restart);
+            gmres->SetBasisSize(basis);
             m_ls = std::move(gmres);
-        } else if (o.method == "fgmres") {
+        } else if (solver == "FGMRES") {
             auto fgmres = std::make_unique<roc::FGMRES<matrix_type, vector_type, double>>();
-            fgmres->SetBasisSize(o.restart);
+            fgmres->SetBasisSize(basis);
             m_ls = std::move(fgmres);
         } else
-            fail("rocALUTION: unknown method '%s'", o.method.c_str());
+            fail("%s: solver '%s', it has CG, BiCGStab, GMRES and FGMRES", c.where().c_str(), solver.c_str());
 
-        if (o.pc == "jacobi")
-            m_pc = std::make_unique<roc::Jacobi<matrix_type, vector_type, double>>();
-        else if (o.pc == "amg")
-            m_pc = std::make_unique<roc::PairwiseAMG<matrix_type, vector_type, double>>();
-        else if (o.pc == "custom")
+        if (s->pc != nullptr && c.has("preconditioner"))
+            fail("%s: names a preconditioner, and has a par-loop one", c.where().c_str());
+        const std::string pc = c.get<std::string>("preconditioner", s->pc != nullptr ? "" : "Jacobi");
+        if (s->pc != nullptr)
             m_pc = std::make_unique<Callback>(s);
-        else if (o.pc != "none")
-            fail("rocALUTION: unknown pc '%s'", o.pc.c_str());
+        else if (pc == "Jacobi")
+            m_pc = std::make_unique<roc::Jacobi<matrix_type, vector_type, double>>();
+        else if (pc == "PairwiseAMG")
+            m_pc = std::make_unique<roc::PairwiseAMG<matrix_type, vector_type, double>>();
+        else if (pc != "none")
+            fail("%s: preconditioner '%s', it has Jacobi, PairwiseAMG and none", c.where().c_str(), pc.c_str());
 
         RocMatrix& A = roc_matrix(s->P != nullptr ? s->P : s->A);
         m_ls->SetOperator(roc_matrix(s->A).matrix());
         if (m_pc)
             m_ls->SetPreconditioner(*m_pc);
-        m_ls->Init(o.atol, o.rtol, 1e100, o.maxit);
-        m_ls->Verbose(o.monitor ? 2 : 0);
+        m_ls->Init(c.get<double>("abs_tol", 0.0), c.get<double>("rel_tol", 1e-8), c.get<double>("div_tol", 1e100),
+                   c.get<int>("max_iter", 1000));
+        m_ls->Verbose(c.get<int>("verbose", 0));
+        c.done();
         for (vector_type *v : {&m_b, &m_x}) {
             v->SetParallelManager(A.manager());
             v->Allocate(s->name, (int64_t)s->A->sparsity->global_rows * s->A->dim);
@@ -319,7 +332,9 @@ public:
         iterations = m_ls->GetIterationCount();
         const double bnorm = m_b.Norm(), rnorm = m_ls->GetCurrentResidual();
         residual = bnorm > 0 ? rnorm / bnorm : rnorm;
-        return m_ls->GetSolverStatus() != 3 && iterations < m_s->options.maxit;
+        // 1 and 2: the absolute or relative tolerance met.
+        const int status = m_ls->GetSolverStatus();
+        return status == 1 || status == 2;
     }
 
 private:
@@ -334,7 +349,8 @@ private:
 
 class RocLibrary final : public Library {
 public:
-    RocLibrary() {
+    explicit RocLibrary(const Config& config) {
+        Section(config, "rocalution: library").done();
         int rank;
         MPI_Comm_rank(comm(), &rank);
         roc::init_rocalution(rank);
@@ -342,17 +358,17 @@ public:
 
     ~RocLibrary() override { roc::stop_rocalution(); }
 
-    Order order() const override { return Order::sorted; }
-
-    std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) override {
-        return std::make_unique<RocMatrix>(A, format);
+    std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) override {
+        return std::make_unique<RocMatrix>(A, config);
     }
 
-    std::unique_ptr<Solver> solver(op_solver s) override { return std::make_unique<RocSolver>(s); }
+    std::unique_ptr<Solver> solver(op_solver s, const Config& config) override {
+        return std::make_unique<RocSolver>(s, config);
+    }
 };
 
 } // namespace
 
-std::unique_ptr<Library> make_rocalution(int, char **) { return std::make_unique<RocLibrary>(); }
+std::unique_ptr<Library> make_rocalution(const Config& config) { return std::make_unique<RocLibrary>(config); }
 
 } // namespace op::solve

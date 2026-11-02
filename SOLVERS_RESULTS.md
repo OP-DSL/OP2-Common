@@ -7,8 +7,9 @@ Branch `feature/solvers` in `/home/jk-ext/op2-solvers`, on `feature/rt-redesign`
 
 ## What exists
 
-- `op_solve.h`: `op_decl_sparsity`, `op_decl_mat` (with a storage format, or
-  `OP_SOLVE_FORMAT`), `op_arg_mat`, `op_mat_zero`, `op_mat_assemble`,
+- `op_solve.h`: `op_solve_set_config` (with `OP_SOLVE_CONFIG`, a JSON
+  configuration in each library's own terms; design, section 2),
+  `op_decl_sparsity`, `op_decl_mat`, `op_arg_mat`, `op_mat_zero`, `op_mat_assemble`,
   `op_decl_solver`, `op_solve`, `op_solver_stats`, and the custom
   preconditioning hooks `op_solver_set_pc_mat` (assembled P),
   `op_solver_set_pc` (par-loop preconditioner) and `op_solver_set_operator`
@@ -27,17 +28,17 @@ Branch `feature/solvers` in `/home/jk-ext/op2-solvers`, on `feature/rt-redesign`
   column strides, the one diagonal rule) that JIT kernels bake in, so what a
   library's layout does not need compiles out. Untranslated loops (op_seq.h)
   write a blocked buffer that `op_mat_assemble` adds in.
-- Libraries and formats, chosen at run time (`OP_SOLVE_LIB`,
-  `OP_SOLVE_FORMAT`), tested on CPU and the H100:
+- Libraries and formats, chosen per matrix by the configuration (so a run can
+  use several), tested on CPU and the H100:
 
   | library | formats (default first) | storage | where |
   |---|---|---|---|
-  | PETSc 3.26 | aij (host), coo (device); aij:owned | lend; copy; borrow | CPU, GPU (aij:owned CPU only) |
+  | PETSc 3.26 | aij (host), coo (device); owned aij | lend; copy; borrow | CPU, GPU (owned aij CPU only) |
   | hypre 3.2 (mixed int) | csr, diagonal first | lend | CPU, GPU |
-  | Ginkgo 1.11 (patched, below) | csr[:cusparse\|classical\|merge_path], coo, ell, fbcsr; sellp | lend; borrow | CPU, GPU |
-  | AmgX 2.5 | bcsr (d = 1, 3, 4), bcsr:diag (one rank), csr (default past d = 4) | copy | GPU |
+  | Ginkgo 1.11 (patched, below) | csr (strategy cusparse, classical, merge_path), coo, ell, fbcsr; sellp | lend; borrow | CPU, GPU |
+  | AmgX 2.5 | bcsr (d = 1, 3, 4; external diagonal on one rank), csr (default past d = 4) | copy | GPU |
   | rocALUTION 4.0 | csr, mcsr, bcsr, coo, ell | borrow | CPU (host build) |
-  | mock (SPLISS stand-in) | compact[:column], bell[:column][:interleaved] | borrow, local and non-local apart | CPU, GPU |
+  | mock (SPLISS stand-in) | compact, bell (row or column major; bell interleaved) | borrow, local and non-local apart | CPU, GPU |
 
   Solvers: CG, GMRES, FGMRES, BiCGStab where the library has them, with its
   Jacobi, ILU and AMG, or a par-loop preconditioner (not AmgX).
@@ -426,8 +427,8 @@ storage.
 cmake -S /home/jk-ext/op2-solvers -B build -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON \
   -DOP2_ENABLE_PETSC=ON -DPETSC_DIR=... -DPETSC_ARCH=... -DOP2_ENABLE_HYPRE=ON \
   -DOP2_ENABLE_GINKGO=ON -DOP2_ENABLE_AMGX=ON -DOP2_ENABLE_ROCALUTION=ON -DOP2_ENABLE_SOLVE_MOCK=ON
-OP_SOLVE_LIB=ginkgo OP_SOLVE_FORMAT=fbcsr ./build/apps/c/implicit/implicit4_cuda -n 1024 -steps 10 \
-  -init bump -solver "method=cg pc=jacobi rtol=1e-8"
+OP_SOLVE_CONFIG='{"library": "ginkgo", "matrices": {"A": {"format": "fbcsr"}}}' \
+  ./build/apps/c/implicit/implicit4_cuda -n 1024 -steps 10 -init bump -config /home/jk-ext/solvers/configs/bench.json
 ctest --test-dir build -L solve
 ```
 
@@ -444,7 +445,12 @@ config), `gpu_solve_tests.sh`, `perf_formats.sh` (the format table; `NVS`,
 `~/op2-loop/build-cpu/test-meshes/new_grid_dp.h5`; reordering needs an MPI
 variant (`OP_REORDER`, `mpirun -n 1 ./implicit4_mpi_cuda -mesh FILE -reorder 1
 -init bump -dt 0.01`).
-Variables: `OP_SOLVE_LIB`, `OP_SOLVE_FORMAT`, `OP_SOLVE_MEMORY=1` (memory per
-stage and the matrix's storage form), `OP_SOLVE_HYPRE_POOL` (MiB; Umpire
-reserves 4 GiB by default). To time kernels: `OP_JIT_LEVEL=0` for offline
+Variables: `OP_SOLVE_CONFIG` (JSON, or a file of it, over the application's
+configuration), `OP_SOLVE_MEMORY=1` (memory per stage and the matrix's storage
+form). The benchmarks' settings, CG and each library's Jacobi, are
+`/home/jk-ext/solvers/configs/bench.json`, with hypre's Umpire pool at 64 MiB
+(it reserves 4 GiB by default). The figures above were taken with the generic
+options these replace; they are the same settings, but for Ginkgo's Jacobi,
+which now finds its own blocks (up to 32) where the old option gave it blocks
+of d. To time kernels: `OP_JIT_LEVEL=0` for offline
 only, `OP_JIT_MIN_CALLS=1 OP_JIT_SEQ_COMPILE=1` for JIT from the first call.

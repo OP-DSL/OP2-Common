@@ -6,6 +6,7 @@
 
 #include <op_solve.h>
 
+#include <extern/json.hpp>
 #include <op2/rt/abi/matrix.h>
 
 #include <mpi.h>
@@ -30,32 +31,55 @@ inline constexpr bool on_device = OP2_SOLVE_DEVICE;
 
 namespace mat = op::rt::abi::mat;
 
-// How a row's blocks are ordered within each part of the matrix.
-enum class Order { sorted, diagonal_first };
-
-struct Options {
-    std::string method = "gmres";
-    std::string pc = "jacobi";
-    double rtol = 1e-8;
-    double atol = 0.0;
-    int maxit = 1000;
-    int restart = 30;
-    bool monitor = false;
-    std::string library;
-};
-
-Options parse_options(char const *text);
-
 // The layer's variables, which op_init reads (read_env) with the rest.
 struct Settings {
-    std::string lib;               // OP_SOLVE_LIB
-    std::string format;            // OP_SOLVE_FORMAT
+    std::string config;            // OP_SOLVE_CONFIG
     bool memory = false;           // OP_SOLVE_MEMORY
-    int hypre_pool = 0;            // OP_SOLVE_HYPRE_POOL, MiB
 };
 
 extern Settings settings;
 void read_env();
+
+// A part of the configuration (op_solve.h): the library's own settings, a
+// matrix's or a solver's, each in the library's terms.
+using Config = nlohmann::json;
+
+// A configuration object's members as a backend reads them, where says
+// whose (for messages): done() fails on any member it did not read.
+class Section {
+public:
+    Section(const Config& config, std::string where);
+
+    bool has(const char *key) const { return m_config.contains(key); }
+
+    template<typename T>
+    T get(const char *key, const T& fallback) {
+        return has(key) ? get<T>(key) : fallback;
+    }
+
+    template<typename T>
+    T get(const char *key) {
+        m_read.push_back(key);
+        try {
+            return m_config.at(key).get<T>();
+        } catch (const nlohmann::json::exception& e) {
+            fail_member(key, e.what());
+        }
+    }
+
+    // The object, for a backend that hands members on, marking them read.
+    const Config& config() const { return m_config; }
+    void read(const std::string& key) { m_read.push_back(key); }
+    const std::string& where() const { return m_where; }
+    void done() const;
+
+private:
+    [[noreturn]] void fail_member(const char *key, const char *why) const;
+
+    const Config& m_config;
+    std::string m_where;
+    std::vector<std::string> m_read;
+};
 
 // A library's matrix over an op_mat's storage.
 class Matrix {
@@ -77,23 +101,29 @@ public:
     double residual = 0.0;
 };
 
+// A solver library, which a backend implements: each takes its own part of
+// the configuration and fails on what it does not know.
 class Library {
 public:
     virtual ~Library() = default;
-    virtual Order order() const = 0;
-    // The library's matrix in format (its default when empty), over storage
-    // it sets up: the layout of the owned slots, and the regions they are in
-    // (lend, borrow).
-    virtual std::unique_ptr<Matrix> matrix(op_mat A, const std::string& format) = 0;
-    virtual std::unique_ptr<Solver> solver(op_solver s) = 0;
+    // The library's matrix as A's configuration says (its members but
+    // "library"; empty for the library's default), over storage it sets up:
+    // the layout of the owned slots, and the regions they are in (lend,
+    // borrow).
+    virtual std::unique_ptr<Matrix> matrix(op_mat A, const Config& config) = 0;
+    // The library's solver for s as its section of s's configuration says,
+    // or the library's default without one (null); before its first solve,
+    // so with its callbacks set.
+    virtual std::unique_ptr<Solver> solver(op_solver s, const Config& config) = 0;
 };
 
-std::unique_ptr<Library> make_petsc(int argc, char **argv);
-std::unique_ptr<Library> make_hypre(int argc, char **argv);
-std::unique_ptr<Library> make_ginkgo(int argc, char **argv);
-std::unique_ptr<Library> make_amgx(int argc, char **argv);
-std::unique_ptr<Library> make_rocalution(int argc, char **argv);
-std::unique_ptr<Library> make_mock(int argc, char **argv);
+// Each library, from its "libraries" section (null without one).
+std::unique_ptr<Library> make_petsc(const Config& config);
+std::unique_ptr<Library> make_hypre(const Config& config);
+std::unique_ptr<Library> make_ginkgo(const Config& config);
+std::unique_ptr<Library> make_amgx(const Config& config);
+std::unique_ptr<Library> make_rocalution(const Config& config);
+std::unique_ptr<Library> make_mock(const Config& config);
 
 [[noreturn]] void fail(char const *format, ...);
 
@@ -262,7 +292,8 @@ struct op_mat_core {
     op_sparsity sparsity;
     int dim;
     std::string name;
-    std::string format;
+    std::string library_name;   // the library it is in, which
+    op::solve::Library *library = nullptr;
 
     // What loops bind (op2/rt/abi/matrix.h), over the regions and layout.
     op_mat_storage view{};
@@ -283,7 +314,7 @@ struct op_solver_core {
     op_mat A;
     op_mat P = nullptr;
     std::string name;
-    op::solve::Options options;
+    op::solve::Config config;   // its section for A's library, or null
     op_apply_fn pc = nullptr;
     void *pc_ctx = nullptr;
     op_apply_fn op = nullptr;
