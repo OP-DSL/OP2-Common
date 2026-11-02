@@ -5,7 +5,9 @@
 // vectors over views of the dats; and callback LinOps for the par-loop
 // preconditioner and operator.  A solver is a Ginkgo configuration (its file
 // configuration, gko::config), which finds a preconditioner built apart from
-// it (from P, or the par-loop one) as "generated_preconditioner".
+// it (from P, or the par-loop one) as "generated_preconditioner", and Jacobi
+// in blocks of a node's components, which Ginkgo's configuration cannot
+// give it, as the factory "op2_block_jacobi".
 
 #include <op2/solve/solve.h>
 
@@ -33,6 +35,7 @@ using dist_mtx = gko::experimental::distributed::Matrix<double, int, gko::int64>
 using dist_vec = gko::experimental::distributed::Vector<double>;
 using partition = gko::experimental::distributed::Partition<int, gko::int64>;
 using index_map = gko::experimental::distributed::index_map<int, gko::int64>;
+using jacobi = gko::preconditioner::Jacobi<double, int>;
 
 std::shared_ptr<gko::Executor> make_executor() {
 #if OP2_SOLVE_DEVICE
@@ -239,13 +242,12 @@ gko::config::pnode tree(const Config& c) {
     return gko::config::pnode();
 }
 
-// Without a configuration: GMRES, Schwarz with Jacobi on each rank's part
-// (its columns are sorted, so Jacobi need not sort a copy).
+// Without a configuration: GMRES, Schwarz with block Jacobi on each rank's
+// part.
 const Config default_settings = Config::parse(R"({
     "type": "solver::Gmres", "krylov_dim": 30,
     "criteria": {"iteration": 1000, "relative_residual_norm": 1e-8},
-    "preconditioner": {"type": "preconditioner::Schwarz",
-                       "local_solver": {"type": "preconditioner::Jacobi", "skip_sorting": true}}})");
+    "preconditioner": {"type": "preconditioner::Schwarz", "local_solver": "op2_block_jacobi"}})");
 
 class GinkgoSolver final : public Solver {
 public:
@@ -291,6 +293,15 @@ private:
         const gko::size_type N = (gko::size_type)m_s->A->sparsity->global_rows * m_s->A->dim;
         Config settings = m_settings;
         gko::config::registry registry;
+        const int d = m_s->A->dim, n = m_s->A->sparsity->rows->size * d;
+        std::vector<int> blocks(n / d + 1);
+        for (std::size_t k = 0; k < blocks.size(); k++)
+            blocks[k] = (int)k * d;
+        registry.emplace("op2_block_jacobi", gko::share(jacobi::build()
+                                                            .with_max_block_size((gko::uint32)d)
+                                                            .with_block_pointers(to_exec(blocks))
+                                                            .with_skip_sorting(true)
+                                                            .on(executor)));
         std::shared_ptr<const gko::LinOp> A = mat_of(m_s->A);
         if (m_s->op != nullptr)
             A = gko::share(Callback::create(executor, gko::dim<2>(N, N), m_s, m_s->op, m_s->op_ctx));

@@ -7,7 +7,7 @@
       "ginkgo": {"type": "solver::Cg",
                  "criteria": {"iteration": 5000, "relative_residual_norm": 1e-12},
                  "preconditioner": {"type": "preconditioner::Schwarz",
-                                    "local_solver": {"type": "preconditioner::Jacobi", "skip_sorting": true}}},
+                                    "local_solver": "op2_block_jacobi"}},
       "amgx": {"config_version": 2,
                "solver": {"solver": "PCG", "max_iters": 5000, "tolerance": 1e-12, "norm": "L2",
                           "convergence": "RELATIVE_INI_CORE",
