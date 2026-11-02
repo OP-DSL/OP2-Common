@@ -16,12 +16,17 @@
 
 namespace {
 
-// A loop whose release frees a device plan.
+// A loop whose release frees its descriptor's device plan.
+struct Owned : op::rt::abi::Loop {
+    op::rt::gpu::DevicePlan *plan;
+};
+
 struct PlanOwner : op::rt::loop::Loop {
     op::rt::gpu::DevicePlan& plan;
 
-    explicit PlanOwner(op::rt::gpu::DevicePlan& plan_)
-        : op::rt::loop::Loop{"teardown", "cuda", "Direct", true}, plan{plan_} {}
+    explicit PlanOwner(const Owned& owned)
+        : op::rt::loop::Loop{owned.name, owned.target, owned.variant, owned.direct},
+          plan{*owned.plan} {}
 
     void release() override {
         op::rt::loop::Loop::release();
@@ -94,11 +99,11 @@ int main(int argc, char **argv) {
 
     op::rt::gpu::DevicePlan plan(*result.plan);
     CHECK(plan.source_offsets != nullptr && plan.stage_words != nullptr);
-    {
-        PlanOwner owner{plan};
-        op_exit();
-        CHECK(plan.source_offsets == nullptr && plan.stage_words == nullptr);
-    }
+    Owned owned{{"teardown", "cuda", "Direct", true}, &plan};
+    op::rt::loop::runtime<PlanOwner>(owned);
+    op_exit();
+    CHECK(plan.source_offsets == nullptr && plan.stage_words == nullptr);
+    CHECK(owned.runtime == nullptr);
 
     std::printf("MPI chunk plan teardown test passed\n");
     return EXIT_SUCCESS;

@@ -64,23 +64,24 @@ void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
     arguments.insert(arguments.end(), {(void *)&out_d, (void *)&in_d});
 }
 
-// A loop of plain alone, its kernel built from source, with the descriptor it
-// is built from, which outlives it.
 // The block size a bounded kernel reads.
 const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
     "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
 
+// A loop of plain alone, its kernel built from source, which the runtime
+// makes from the descriptor kept here; finalise ends the loop before the
+// descriptor goes.
 struct Described {
     op::rt::abi::gpu::Family family;
     op::rt::abi::gpu::Loop descriptor;
-    gpu::Loop loop;
+    gpu::Loop& loop;
 
     explicit Described(const char *source)
         : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
           descriptor{{"thread_limit", "cuda", "Direct", true}, false, params,
                      {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
-          loop{descriptor} {}
+          loop{op::rt::loop::runtime<gpu::Loop>(descriptor)} {}
 };
 
 std::vector<double> reference(const std::vector<double>& in) {
@@ -169,11 +170,13 @@ int main(int argc, char **argv) {
         expect(prepared.status == loop::Status::unavailable &&
                    prepared.reason == "thread_limit",
                "without launch bounds: thread_limit, not " + std::string{prepared.reason});
+        loop::finalise(0, 1);
     }
     {
         declare();
         Described described{bounded};
         runs(described.loop, "launch bounds");
+        loop::finalise(0, 1);
     }
 
     GPU_CHECK(gpuFree(in_d));

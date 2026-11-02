@@ -6,6 +6,7 @@
 // derives its loop, prepares, combines and finishes the call's globals, and
 // times its strategies' phases.
 
+#include <op2/rt/abi/descriptor.h>
 #include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/ladder.h>
@@ -23,10 +24,9 @@ namespace op::rt::loop {
 
 class Loop;
 
-// Every loop the generated code builds, which the reports read and finalise
-// releases.
-void register_loop(Loop *loop);
-void unregister_loop(Loop *loop);
+// Every loop made for a descriptor, which the reports read: the registry
+// owns it until finalise.
+void register_loop(std::unique_ptr<Loop> loop, abi::Loop& descriptor);
 
 // At op_profile_output and op_exit: write the tuner's and the JIT's reports,
 // OP_AUTOTUNE_REPORT and OP_JIT_REPORT, suffixed with the rank when there
@@ -36,21 +36,20 @@ void unregister_loop(Loop *loop);
 void write_reports(int rank, int ranks);
 
 // At op_exit, while the device is still up: write the reports, then release
-// every loop.
+// and destroy every loop, clearing its descriptor, so a later call makes a
+// new one.
 void finalise(int rank, int ranks);
 
 // The library's loop for a descriptor, a Backend made from it on its first
-// call: each backend's invoke runs it.  The loops live as long as the
-// program, released by finalise.
+// call: each backend's invoke runs it.  It lives until finalise.
 template<typename Backend, typename Descriptor>
 Backend& runtime(Descriptor& descriptor) {
-    static std::vector<std::unique_ptr<Backend>> made;
-    auto *loop = static_cast<Backend *>(descriptor.runtime);
-    if (loop == nullptr) {
-        loop = made.emplace_back(std::make_unique<Backend>(descriptor)).get();
-        descriptor.runtime = loop;
+    if (descriptor.runtime == nullptr) {
+        auto made = std::make_unique<Backend>(descriptor);
+        descriptor.runtime = made.get();
+        register_loop(std::move(made), descriptor);
     }
-    return *loop;
+    return *static_cast<Backend *>(descriptor.runtime);
 }
 
 class Loop {
@@ -114,10 +113,9 @@ public:
           m_params{name} {
         if (tune::autotune_options().report)
             m_tuner.emplace(m_ladder);
-        register_loop(this);
     }
 
-    virtual ~Loop() { unregister_loop(this); }
+    virtual ~Loop() = default;
     Loop(const Loop&) = delete;
 
     const std::string& name() const { return m_name; }
@@ -159,11 +157,9 @@ public:
     }
 
     // At op_exit, while the device is still up, once the reports are
-    // written: forget the tuner's configurations and release the strategies.
-    // A backend also frees its own device state.
+    // written: release the strategies.  A backend also frees its own device
+    // state.
     virtual void release() {
-        if (m_tuner)
-            m_tuner->clear();
         for (const auto& strategy : m_ladder.strategies())
             strategy->release();
     }

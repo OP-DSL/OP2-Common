@@ -31,7 +31,7 @@ Loop::Loop(const abi::gpu::Loop& descriptor)
     }
 }
 
-Loop::~Loop() { release(); }
+Loop::~Loop() = default;
 
 void Loop::add_param(const abi::gpu::Param& param) {
     auto index = m_params.add(param);

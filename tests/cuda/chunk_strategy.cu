@@ -166,8 +166,6 @@ struct Fixture {
     }
 };
 
-// A loop of chunk_atomics and atomics over fixture's groups, with the
-// descriptor it is built from, which outlives it.
 // The values the chunked strategies fix for their kernels.
 const op::rt::abi::gpu::Param params[] = {
     op::rt::abi::gpu::launch_value("op2_block_size_d",
@@ -177,10 +175,13 @@ const op::rt::abi::gpu::Param params[] = {
     op::rt::abi::gpu::launch_value("op2_wavefront_d", op::rt::abi::gpu::LaunchValue::wavefront),
 };
 
+// A loop of chunk_atomics and atomics over fixture's groups, which the
+// runtime makes from the descriptor kept here; finalise ends the loop before
+// the descriptor goes.
 struct Described {
     std::array<op::rt::abi::gpu::Family, 2> families;
     op::rt::abi::gpu::Loop descriptor;
-    gpu::Loop loop;
+    gpu::Loop& loop;
 
     Described(const char *name, const Fixture& fixture)
         : families{{{{"chunk_atomics", fixture.groups()}, "chunk_strategy_staged",
@@ -190,7 +191,7 @@ struct Described {
                      baseline_source}}},
           descriptor{{name, "cuda", "Indirect", false}, false, params, families, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
-          loop{descriptor} {}
+          loop{op::rt::loop::runtime<gpu::Loop>(descriptor)} {}
 };
 
 std::array<int, 10> output{};
@@ -244,6 +245,7 @@ int main(int argc, char **argv) {
         CHECK(outcome.strategy == "atomics");
         CHECK(output[0] == -1);
         CHECK(outcome.chunk_entry != nullptr);
+        op::rt::loop::finalise(0, 1);
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
@@ -319,6 +321,7 @@ int main(int argc, char **argv) {
             CHECK(output[5] == 1);
             CHECK(output[6] == 2);
             CHECK(split_outcome.max_blocks == 1);
+            op::rt::loop::finalise(0, 1);
         }
 
         // Every reference reaches a different target, so staging combines
@@ -336,6 +339,7 @@ int main(int argc, char **argv) {
             CHECK(spread_outcome.strategy == "atomics");
             CHECK(spread_outcome.chunk_reason == "low_compression");
             CHECK(output[0] == -1);
+            op::rt::loop::finalise(0, 1);
         }
 
         // A dim-64 dat whose 128 targets need 64 KB of staging, more than a
@@ -367,6 +371,7 @@ int main(int argc, char **argv) {
                 CHECK(large_outcome.strategy == "chunk_atomics");
                 CHECK(large_outcome.max_blocks == 1);
                 CHECK(output[8] == 42);
+                op::rt::loop::finalise(0, 1);
             }
         }
 
@@ -388,6 +393,7 @@ int main(int argc, char **argv) {
             second_loop.ladder()[0].strategy->forget(call.key());
             auto again = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(again.entry == first.entry);
+            op::rt::loop::finalise(0, 1);
         }
 
         GPU_CHECK(gpuFree(output_d));

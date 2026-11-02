@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
         op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
                                           params, kernels, &bind,
                                           &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
-        gpu::Loop loop(descriptor);
+        auto& loop = op::rt::loop::runtime<gpu::Loop>(descriptor);
 
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");
@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
         passed &= check(selection.candidate->name.starts_with("plain=") &&
                             selection.kernel == nullptr,
                         "the floor runs its offline kernel");
+        op::rt::loop::finalise(0, 1);
     }
 
     GPU_CHECK(gpuFree(output_d));

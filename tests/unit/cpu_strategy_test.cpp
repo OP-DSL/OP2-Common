@@ -201,8 +201,9 @@ void run(const char *strategy) {
         {{"chunk_colouring", {}}, nullptr, &colouring_run},
         {{"colouring", {}}, &range_run<false, true>, nullptr},
     };
-    cpu::Loop loop(op::rt::abi::cpu::Loop{{"test_loop", "openmp_f2c", "Indirect", false},
-                                          families, &op::rt::kernel::cpu::max_threads});
+    op::rt::abi::cpu::Loop descriptor{{"test_loop", "openmp_f2c", "Indirect", false}, families,
+                                      &op::rt::kernel::cpu::max_threads};
+    auto& loop = op::rt::loop::runtime<cpu::Loop>(descriptor);
     // The forced strategy itself runs, not one the ladder falls through to.
     op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};
     auto selection = loop.ladder().select(call);
@@ -226,6 +227,7 @@ void run(const char *strategy) {
         CHECK(std::abs(x[i] - expected[i]) <= 1e-9 * std::abs(expected[i]));
     CHECK(std::abs(sum - expected_sum) <= 1e-9 * expected_sum);
     CHECK(max == expected_max && loc == expected_loc);
+    op::rt::loop::finalise(0, 1);
     std::printf("%s passed\n", strategy);
 }
 

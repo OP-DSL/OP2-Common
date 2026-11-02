@@ -4,7 +4,7 @@
 #include <op2/rt/report.h>
 
 #include <cstdio>
-#include <mutex>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,67 +14,57 @@ namespace op::rt::loop {
 
 namespace {
 
-std::mutex loops_mutex;
-std::vector<Loop *> loops;
+// A loop and the descriptor that points at it.
+struct Registered {
+    std::unique_ptr<Loop> loop;
+    abi::Loop *descriptor;
+};
+
+std::vector<Registered> loops;
 // Whether write_reports printed the summaries since the last finalise.
 bool printed = false;
 
-std::vector<Loop *> current_loops() {
-    std::scoped_lock lock(loops_mutex);
-    return loops;
-}
-
 } // namespace
 
-void register_loop(Loop *loop) {
-    std::scoped_lock lock(loops_mutex);
-    loops.push_back(loop);
-}
-
-void unregister_loop(Loop *loop) {
-    std::scoped_lock lock(loops_mutex);
-    std::erase(loops, loop);
+void register_loop(std::unique_ptr<Loop> loop, abi::Loop& descriptor) {
+    loops.push_back({std::move(loop), &descriptor});
 }
 
 namespace {
 
-std::vector<tune::TunedLoop> tuned(const std::vector<Loop *>& current) {
+std::vector<tune::TunedLoop> tuned() {
     std::vector<tune::TunedLoop> out;
-    for (const auto *loop : current)
-        out.push_back({loop->name(), loop->tuner()});
+    for (const auto& entry : loops)
+        out.push_back({entry.loop->name(), entry.loop->tuner()});
     return out;
 }
 
-std::vector<jit::JitLoop> jitted(const std::vector<Loop *>& current) {
+std::vector<jit::JitLoop> jitted() {
     std::vector<jit::JitLoop> out;
-    for (const auto *loop : current)
-        out.push_back({loop->name(), loop->builds(), &loop->params()});
+    for (const auto& entry : loops)
+        out.push_back({entry.loop->name(), entry.loop->builds(), &entry.loop->params()});
     return out;
 }
 
-std::string text(const std::vector<Loop *>& current, int ranks) {
-    return tune::summary(tuned(current), ranks) + jit::summary(jitted(current), ranks);
-}
-
-void write_files(const std::vector<Loop *>& current, int rank, int ranks) {
+void write_files(int rank, int ranks) {
     std::vector<std::string> rows;
-    for (const auto *loop : current)
-        if (const auto *tuner = loop->tuner())
+    for (const auto& entry : loops)
+        if (const auto *tuner = entry.loop->tuner())
             tuner->rows(rows);
     report::write_csv(tune::autotune_options().report_file, rank, ranks,
                       tune::Autotuner::report_header, rows);
 
     rows.clear();
-    for (const auto& loop : jitted(current))
+    for (const auto& loop : jitted())
         jit::rows(loop, rows);
     report::write_csv(jit::options().report_file, rank, ranks, jit::report_header, rows);
 }
 
-void print(const std::vector<Loop *>& current, int rank, int ranks) {
+void print(int rank, int ranks) {
     printed = true;
     if (rank != 0)
         return;
-    auto summaries = text(current, ranks);
+    auto summaries = tune::summary(tuned(), ranks) + jit::summary(jitted(), ranks);
     std::fputs(summaries.c_str(), stdout);
     std::fflush(stdout);
 }
@@ -82,18 +72,19 @@ void print(const std::vector<Loop *>& current, int rank, int ranks) {
 } // namespace
 
 void write_reports(int rank, int ranks) {
-    auto current = current_loops();
-    write_files(current, rank, ranks);
-    print(current, rank, ranks);
+    write_files(rank, ranks);
+    print(rank, ranks);
 }
 
 void finalise(int rank, int ranks) {
-    auto current = current_loops();
-    write_files(current, rank, ranks);
+    write_files(rank, ranks);
     if (!printed)
-        print(current, rank, ranks);
-    for (auto *loop : current)
-        loop->release();
+        print(rank, ranks);
+    for (auto& entry : loops) {
+        entry.loop->release();
+        entry.descriptor->runtime = nullptr;
+    }
+    loops.clear();
     printed = false;
 }
 

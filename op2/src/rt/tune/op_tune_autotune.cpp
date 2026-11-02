@@ -296,9 +296,4 @@ std::size_t Autotuner::unexplored() const {
     return count;
 }
 
-void Autotuner::clear() {
-    m_states.clear();
-    m_dropped = 0;
-}
-
 } // namespace op::rt::tune

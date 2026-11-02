@@ -166,9 +166,6 @@ public:
     // Append a report row per explored configuration and candidate, as they
     // stand.
     void rows(std::vector<std::string>& out) const;
-
-    // Forget every configuration.
-    void clear();
 };
 
 // A loop as the summary reads it: its tuner, none when it has none.
