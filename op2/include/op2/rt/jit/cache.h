@@ -115,8 +115,12 @@ public:
     Acquired acquire(std::uint64_t key, loop::Urgency urgency, MakeJob&& make_job) {
         auto found = m_entries.find(key);
         if (found != m_entries.end() &&
-            found->second.state.load(std::memory_order_acquire) == BuildState::ready)
+            found->second.state.load(std::memory_order_acquire) == BuildState::ready) {
+            // Its build has finished: free its thread.
+            if (found->second.thread.joinable())
+                found->second.thread.join();
             return {loop::Status::ready, found->second.kernel.get(), {}};
+        }
 
         auto& entry = entry_for(key);
         ++entry.calls;
@@ -140,7 +144,9 @@ public:
                 });
             }
         }
-        if (here && entry.thread.joinable())
+        // Wait for the build here, or free its thread once it has finished.
+        if (entry.thread.joinable() &&
+            (here || entry.state.load(std::memory_order_acquire) != BuildState::building))
             entry.thread.join();
 
         switch (entry.state.load(std::memory_order_acquire)) {
