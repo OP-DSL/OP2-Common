@@ -87,8 +87,10 @@ program gbl_tests_fortran
   call op_partition("", "", dummy_set, dummy_map, dummy_dat)
 
   ! --- READ ---
+  ! A loop call behind an if, its kernel on a continuation line.
   g_read1 = 20.0d0
-  call op_par_loop_2(read1_k, set, &
+  if (local_size >= 0) call op_par_loop_2( &
+    read1_k, set, &
     op_arg_dat(dat1, -1, OP_ID, 1, "real(8)", OP_WRITE), &
     op_arg_gbl(g_read1, 1, "real(8)", OP_READ))
 

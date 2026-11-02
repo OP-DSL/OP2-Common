@@ -271,6 +271,10 @@ class Fortran(Lang):
         for loop, program in app.loops():
             fortran.validator.validateLoop(loop, program, app, self.alias_warnings)
 
+        # The regex program translator leaves op_decl_const alone.
+        if self.use_regex_translator and self.user_consts_module is None and len(app.consts()) > 0:
+            raise OP.OpError("the regex program translator needs --user-consts-module to declare consts")
+
     def fppIncludes(self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]) -> Set[Path]:
         # A second fpp pass: -M reports the files it read but suppresses the
         # preprocessed output, so it cannot be folded into the run that
