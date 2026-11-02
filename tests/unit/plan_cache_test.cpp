@@ -108,8 +108,8 @@ void test_sharing() {
     CHECK(Counted::alive == 1);
     CHECK(get(first, 128).id == 3 && Counted::alive == 2);
 
-    first.clear();
-    wide.clear();
+    first.forget(call.key());
+    wide.forget(call.key());
     CHECK(Counted::alive == 0);
 }
 

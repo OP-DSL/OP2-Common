@@ -420,11 +420,9 @@ void test_jit_report() {
 }
 
 // The registry owns the loop made for a descriptor, and op_exit's finalise
-// releases it once, destroys it and clears the descriptor, so the next call
-// makes another.
+// destroys it and clears the descriptor, so the next call makes another.
 void test_loop_registry() {
     struct Counts : op::rt::abi::Loop {
-        int releases = 0;
         int destroyed = 0;
     };
     struct Counted : loop::Loop {
@@ -433,10 +431,6 @@ void test_loop_registry() {
             : loop::Loop{counts_.name, counts_.target, counts_.variant, counts_.direct},
               counts{counts_} {}
         ~Counted() override { ++counts.destroyed; }
-        void release() override {
-            ++counts.releases;
-            loop::Loop::release();
-        }
     };
     unsetenv("OP_AUTOTUNE_REPORT");
     op::rt::init();
@@ -445,11 +439,11 @@ void test_loop_registry() {
     auto *first = &loop::runtime<Counted>(counts);
     CHECK(&loop::runtime<Counted>(counts) == first);
     loop::finalise(0, 1);
-    CHECK(counts.releases == 1 && counts.destroyed == 1 && counts.runtime == nullptr);
+    CHECK(counts.destroyed == 1 && counts.runtime == nullptr);
 
     loop::runtime<Counted>(counts);
     loop::finalise(0, 1);
-    CHECK(counts.releases == 2 && counts.destroyed == 2 && counts.runtime == nullptr);
+    CHECK(counts.destroyed == 2 && counts.runtime == nullptr);
 }
 
 } // namespace

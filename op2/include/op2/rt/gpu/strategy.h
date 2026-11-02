@@ -143,8 +143,6 @@ public:
     }
 
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
-
-    void release() override { m_cache.join(); }
 };
 
 // --- Plain and atomics ------------------------------------------------------------
@@ -182,7 +180,6 @@ public:
                              const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
-    void release() override;
 };
 
 // --- The chunked strategies -------------------------------------------------------
@@ -221,8 +218,6 @@ public:
                              const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
-    void release() override;
-
 };
 
 // Increments staged in shared memory and flushed with global atomics.

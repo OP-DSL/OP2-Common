@@ -35,13 +35,15 @@ void register_loop(std::unique_ptr<Loop> loop, abi::Loop& descriptor);
 // call op_exit still get them.
 void write_reports(int rank, int ranks);
 
-// At op_exit, while the device is still up: write the reports, then release
-// and destroy every loop, clearing its descriptor, so a later call makes a
-// new one.
+// At op_exit, while the device is still up: write the reports, then destroy
+// every loop, which frees its device state, and clear its descriptor, so a
+// later call makes a new one.
 void finalise(int rank, int ranks);
 
 // The library's loop for a descriptor, a Backend made from it on its first
-// call: each backend's invoke runs it.  It lives until finalise.
+// call: each backend's invoke runs it.  It lives until finalise, which clears
+// the descriptor, so the descriptor must outlive it: the generated code's are
+// static.
 template<typename Backend, typename Descriptor>
 Backend& runtime(Descriptor& descriptor) {
     if (descriptor.runtime == nullptr) {
@@ -56,9 +58,9 @@ class Loop {
 private:
     // A call's decision: the parameters take its values, and the ladder
     // selects, or with a tuner the tuner chooses, asking the ladder when it
-    // needs its selection.  Every call counts in the parameters' statistics, whichever
-    // candidate runs, so a specialised kernel meets settled modes, and the
-    // tuner waits for them.
+    // needs its selection.  Every call counts in the parameters' statistics,
+    // whichever candidate runs, so a specialised kernel meets settled modes,
+    // and the tuner waits for them.
     tune::Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);
 
     // Run a decision, its time a sample for the tuner when it is timed.
@@ -155,14 +157,6 @@ public:
         }
         if (phases == wait_before)
             wait_halos(run);
-    }
-
-    // At op_exit, while the device is still up, once the reports are
-    // written: release the strategies.  A backend also frees its own device
-    // state.
-    virtual void release() {
-        for (const auto& strategy : m_ladder.strategies())
-            strategy->release();
     }
 };
 

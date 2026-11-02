@@ -31,7 +31,10 @@ Loop::Loop(const abi::gpu::Loop& descriptor)
     }
 }
 
-Loop::~Loop() = default;
+Loop::~Loop() {
+    for (auto event : m_events)
+        GPU_CHECK(gpuEventDestroy(event));
+}
 
 void Loop::add_param(const abi::gpu::Param& param) {
     auto index = m_params.add(param);
@@ -78,13 +81,6 @@ gpuEvent_t Loop::event(std::size_t index) {
         m_events.push_back(event);
     }
     return m_events[index];
-}
-
-void Loop::release() {
-    op::rt::loop::Loop::release();
-    for (auto event : m_events)
-        GPU_CHECK(gpuEventDestroy(event));
-    m_events.clear();
 }
 
 // --- Per call ---

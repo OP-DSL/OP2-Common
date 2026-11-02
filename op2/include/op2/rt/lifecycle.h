@@ -22,7 +22,7 @@ void init_gpu();
 // Write the tuner's and the JIT's reports; op_profile_output and op_exit.
 void write_reports(int rank, int ranks);
 
-// Write the reports, then release every loop; op_exit, while the device is
+// Write the reports, then destroy every loop; op_exit, while the device is
 // still up.
 void finalise(int rank, int ranks);
 

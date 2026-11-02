@@ -149,9 +149,11 @@ private:
 
 public:
     // A build of one kernel, which returns it, or none when the compile
-    // failed after printing the compiler's log.
+    // failed after printing the compiler's log.  It holds what it reads, so
+    // its loop's compiler may go before the build is joined.
     struct Job {
-        const Compiler *compiler;
+        std::string loop;
+        abi::gpu::JitHeaders headers;
         std::string text;
         std::string name;
         std::vector<RuntimeSymbol> symbols;

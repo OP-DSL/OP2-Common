@@ -1,5 +1,5 @@
 // A device plan under the MPI CUDA library is released by op_exit through
-// its loop's release, while the device is still up.
+// its loop's destruction, while the device is still up.
 
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/layout.h>
@@ -16,7 +16,7 @@
 
 namespace {
 
-// A loop whose release frees its descriptor's device plan.
+// A loop that frees its descriptor's device plan when it goes.
 struct Owned : op::rt::abi::Loop {
     op::rt::gpu::DevicePlan *plan;
 };
@@ -28,10 +28,7 @@ struct PlanOwner : op::rt::loop::Loop {
         : op::rt::loop::Loop{owned.name, owned.target, owned.variant, owned.direct},
           plan{*owned.plan} {}
 
-    void release() override {
-        op::rt::loop::Loop::release();
-        plan.release();
-    }
+    ~PlanOwner() override { plan.release(); }
 };
 
 } // namespace

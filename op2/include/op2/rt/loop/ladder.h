@@ -55,10 +55,11 @@ struct Candidate {
 // other is ready, enabled or not, whatever its own status.  A family adds a
 // strategy for the point of every axis's first value, the one the ladder
 // runs and OP_STRATEGY forces, and, in a ladder that explores, one for each
-// other point of its axes, which only the tuner tries.  OP_<FAMILY>=on/off, read when the family is declared, wins over the
-// default, and off turns all of the family off; OP_STRATEGY, read by init, is
-// <family> or <loop>:<family> (a comma-separated list of either), a loop's
-// own item winning over a family for every loop.
+// other point of its axes, which only the tuner tries.  OP_<FAMILY>=on/off,
+// read when the family is declared, wins over the default, and off turns all
+// of the family off; OP_STRATEGY, read by init, is <family> or
+// <loop>:<family> (a comma-separated list of either), a loop's own item
+// winning over a family for every loop.
 class Ladder {
 private:
     std::string m_name;

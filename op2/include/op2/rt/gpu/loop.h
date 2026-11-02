@@ -81,10 +81,6 @@ public:
 
     gpuEvent_t event(std::size_t index);
 
-    // At op_exit, while the device is still up, once the strategies are
-    // released: free the timing events.
-    void release() override;
-
 protected:
     // --- Per call ---
 

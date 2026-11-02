@@ -150,12 +150,11 @@ Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params,
         text += std::string{"#include <"} + name + ">\n";
     text += "\n" + op::rt::jit::format_cxx(params) + runtime_declarations(params, symbols) +
             std::string{family.source};
-    return {this, std::move(text), std::string{family.kernel}, std::move(symbols),
-            std::move(baked_globals)};
+    return {m_loop, m_headers, std::move(text), std::string{family.kernel},
+            std::move(symbols), std::move(baked_globals)};
 }
 
 std::unique_ptr<JitKernel> Compiler::Job::operator()() {
-    const auto& headers = compiler->m_headers;
     gpuRtcProgram_t prog;
     GPU_RTC_CHECK(gpuRtcCreateProgram(&prog, text.c_str(), name.c_str(),
                                       static_cast<int>(headers.data.size()),
@@ -188,7 +187,7 @@ std::unique_ptr<JitKernel> Compiler::Job::operator()() {
             std::printf("%s\n", log.c_str());
         }
         std::fprintf(stderr, "error: JIT compile of %s failed (in %s)\n", name.c_str(),
-                     compiler->m_loop.c_str());
+                     loop.c_str());
         GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
         return nullptr;
     }

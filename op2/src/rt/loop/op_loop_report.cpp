@@ -80,10 +80,8 @@ void finalise(int rank, int ranks) {
     write_files(rank, ranks);
     if (!printed)
         print(rank, ranks);
-    for (auto& entry : loops) {
-        entry.loop->release();
+    for (auto& entry : loops)
         entry.descriptor->runtime = nullptr;
-    }
     loops.clear();
     printed = false;
 }

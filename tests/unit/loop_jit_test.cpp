@@ -114,9 +114,8 @@ void test_urgency() {
     CHECK(acquired.status == ready && acquired.kernel->id == 2);
     CHECK(builds.started == 3);
 
-    cache.join();
-    CHECK(cache.state(3) == jit::BuildState::ready);
-    CHECK(cache.acquire(3, later, builds.job(3)).kernel->id == 3);
+    acquired = cache.acquire(3, wait, builds.job(3));
+    CHECK(acquired.status == ready && acquired.kernel->id == 3);
     CHECK(builds.started == 3);
 }
 
@@ -167,11 +166,12 @@ void test_build_slots() {
         Builds waited;
         CHECK(cache.acquire(3, wait, waited.job(3)).kernel->id == 3);
 
+        // Once the running build is joined its slot is free: the next starts.
         builds.open = true;
-        cache.join();
+        CHECK(cache.acquire(1, wait, builds.job(1)).kernel->id == 1);
         cache.acquire(2, now, builds.job(2));
-        cache.join();
-        CHECK(cache.state(2) == jit::BuildState::ready && builds.started == 2);
+        CHECK(builds.started == 2);
+        CHECK(cache.acquire(2, wait, builds.job(2)).kernel->id == 2 && builds.started == 2);
     }
 }
 

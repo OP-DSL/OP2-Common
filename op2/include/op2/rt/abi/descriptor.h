@@ -32,7 +32,7 @@ struct Family {
 };
 
 // A loop: its name, how the profiler names it, whether it is direct, and
-// the library's loop, made on its first call.
+// the library's loop, made on its first call and cleared by op_exit.
 struct Loop {
     const char *name;
     const char *target;

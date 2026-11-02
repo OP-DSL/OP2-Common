@@ -102,7 +102,12 @@ public:
     // OP_JIT_MAX_THREADS.
     Cache(std::string_view name, int threads) : m_name{name}, m_threads{threads} {}
     Cache(const Cache&) = delete;
-    ~Cache() { join(); }
+    // Joins the builds still running.
+    ~Cache() {
+        for (auto& [key, entry] : m_entries)
+            if (entry.thread.joinable())
+                entry.thread.join();
+    }
 
     // The kernel for key once built.  Its build starts once key is asked for
     // OP_JIT_MIN_CALLS times, at once for Urgency::now and wait, while a
@@ -177,13 +182,6 @@ public:
             default:                   ++out.waiting; break;
             }
         return out;
-    }
-
-    // Wait for every build still running.
-    void join() {
-        for (auto& [key, entry] : m_entries)
-            if (entry.thread.joinable())
-                entry.thread.join();
     }
 };
 

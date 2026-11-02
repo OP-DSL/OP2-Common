@@ -152,9 +152,6 @@ public:
     // Its specialised kernels' builds, by where they stand; none without a
     // JIT.
     virtual BuildCounts builds() const { return {}; }
-
-    // At op_exit, while the device is still up: free its device state.
-    virtual void release() {}
 };
 
 } // namespace op::rt::loop

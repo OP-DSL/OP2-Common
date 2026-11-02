@@ -111,7 +111,6 @@ public:
     // Drop the plan of the configuration key; it goes once no strategy holds
     // it.
     void forget(std::uint64_t key) { m_slots.erase(key); }
-    void clear() { m_slots.clear(); }
 };
 
 } // namespace op::rt::plan

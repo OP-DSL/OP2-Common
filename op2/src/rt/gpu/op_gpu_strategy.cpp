@@ -226,11 +226,6 @@ std::string Colouring::statistics(const op::rt::loop::Prepared& prepared) const 
            std::to_string(entry.colouring.colours) + " colours";
 }
 
-void Colouring::release() {
-    StrategyBase::release();
-    m_plans.clear();
-}
-
 // --- The chunked strategies ---
 
 ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call,
@@ -382,11 +377,6 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
     std::snprintf(text, sizeof(text), ", chunk %d, %d chunks, compression %.2f, ",
                   plan.chunks.size, plan.chunks.count(), plan.compression);
     return StrategyBase::statistics(prepared) + text + figures(plan);
-}
-
-void ChunkBase::release() {
-    StrategyBase::release();
-    m_plans.clear();
 }
 
 // --- Families ---
