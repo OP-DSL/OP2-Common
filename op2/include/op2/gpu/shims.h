@@ -81,6 +81,7 @@
 
 #define gpuDrvGetErrorName cuGetErrorName
 #define gpuDrvModuleLoadData cuModuleLoadData
+#define gpuDrvModuleUnload cuModuleUnload
 #define gpuDrvModuleGetFunction cuModuleGetFunction
 #define gpuDrvModuleGetGlobal cuModuleGetGlobal
 #define gpuDrvMemcpyHtoDAsync cuMemcpyHtoDAsync
@@ -182,6 +183,7 @@
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData
+#define gpuDrvModuleUnload hipModuleUnload
 #define gpuDrvModuleGetFunction hipModuleGetFunction
 #define gpuDrvModuleGetGlobal hipModuleGetGlobal
 // Before ROCm 7 the source is a non-const pointer, only read.

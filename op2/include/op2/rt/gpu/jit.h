@@ -38,7 +38,7 @@ struct RuntimeSymbol {
 };
 
 // A kernel built at run time, loaded on its first launch or when its
-// resources are read.
+// resources are read, and unloaded when it goes.
 class JitKernel {
 private:
     std::string m_name;
@@ -61,7 +61,7 @@ public:
               std::vector<int> baked_globals)
         : m_name{name}, m_symbols{std::move(symbols)},
           m_baked_globals{std::move(baked_globals)}, m_cubin{cubin} {}
-    ~JitKernel() { delete[] m_cubin; }
+    ~JitKernel();
 
     const std::vector<int>& baked_globals() const { return m_baked_globals; }
 

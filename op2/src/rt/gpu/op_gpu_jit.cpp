@@ -21,6 +21,12 @@ std::string describe(const op::rt::abi::gpu::KernelResources& resources) {
 
 // --- Kernels --------------------------------------------------------------------------
 
+JitKernel::~JitKernel() {
+    if (m_loaded)
+        GPU_DRV_CHECK(gpuDrvModuleUnload(m_module));
+    delete[] m_cubin;
+}
+
 void JitKernel::ensure_loaded() {
     if (m_loaded)
         return;
