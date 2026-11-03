@@ -197,7 +197,7 @@ StrategyBase::Planned Colouring::plan(const op::rt::loop::Call& call, int) {
                 plan->max_colour =
                     std::max(plan->max_colour, offsets[colour + 1] - offsets[colour]);
             if (OP_diags > 3)
-                op_printf("colouring: %s %d colours, %d over owned elements\n",
+                op_printf("%s: %s %d colours, %d over owned elements\n", m_name.c_str(),
                           m_executor.name(), plan->colouring.colours,
                           plan->colouring.owned_colours);
             return plan;
@@ -236,7 +236,7 @@ std::string Colouring::statistics(const op::rt::loop::Prepared& prepared) const 
 
 ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call,
                                     const ChunkSpec& spec) const {
-    return plan_chunk_atomics(call.args, call.sections, m_groups, spec, m_unstaged_singles,
+    return plan_chunk_atomics(call.args, call.sections, m_family.groups, spec, m_unstaged_singles,
                               op::rt::plan::chunk_options().min_compression);
 }
 
@@ -244,7 +244,7 @@ void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
     key.add(m_unstaged_singles).add(op::rt::plan::chunk_options().min_compression);
 }
 
-std::string ChunkAtomics::figures(const ChunkPlan& plan) const {
+std::string ChunkAtomics::extras(const ChunkPlan& plan) const {
     char text[96];
     std::snprintf(text, sizeof(text), "%zu refs, %zu targets (%zu unstaged)", plan.references,
                   plan.distinct_targets, plan.staging.unstaged_singles);
@@ -253,7 +253,7 @@ std::string ChunkAtomics::figures(const ChunkPlan& plan) const {
 
 ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call,
                                       const ChunkSpec& spec) const {
-    return plan_chunk_colouring(call.args, call.sections, m_groups, spec, m_wavefront,
+    return plan_chunk_colouring(call.args, call.sections, m_family.groups, spec, m_wavefront,
                                 options().window);
 }
 
@@ -261,9 +261,8 @@ void ChunkColouring::add_key(op::rt::plan::PlanKey& key) const {
     key.add(m_wavefront).add(options().window);
 }
 
-std::string ChunkColouring::figures(const ChunkPlan& plan) const {
-    return std::to_string(plan.batches.count()) + " batches, up to " +
-           std::to_string(plan.max_thread_colours) + " thread colours";
+std::string ChunkColouring::extras(const ChunkPlan& plan) const {
+    return "up to " + std::to_string(plan.max_thread_colours) + " thread colours";
 }
 
 std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
@@ -281,7 +280,7 @@ StrategyBase::Planned ChunkBase::plan(const op::rt::loop::Call& call, int stride
     const auto& entry = m_plans.get(call, [&] {
         ChunkSpec spec{m_block_size, device().shared_bytes, stride};
         op::rt::plan::PlanKey key{m_family.name, call};
-        key.add(m_groups).add(spec.block_size).add(spec.shared_bytes).add(spec.stride);
+        key.add(m_family.groups).add(spec.block_size).add(spec.shared_bytes).add(spec.stride);
         add_key(key);
         return chunk_plans.get(key, [&] {
             auto result = make_plan(call, spec);
@@ -314,9 +313,8 @@ void ChunkBase::report(const ChunkResult& result) const {
         return;
     }
     const auto& plan = *result.plan;
-    op_printf("%s: %s chunk %d, %d chunks, %s, compression %.2fx\n", m_name.c_str(),
-              m_executor.name(), plan.chunks.size, plan.chunks.count(),
-              figures(plan).c_str(), plan.compression);
+    op_printf("%s: %s %s, %s\n", m_name.c_str(), m_executor.name(), plan.figures().c_str(),
+              extras(plan).c_str());
 }
 
 // Reduction scratch uses the capped physical grid.  A wavefront batch's
@@ -373,10 +371,7 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
     if (entry.plan == nullptr)
         return std::string{entry.rejected};
     const auto& plan = *entry.plan;
-    char text[96];
-    std::snprintf(text, sizeof(text), ", chunk %d, %d chunks, compression %.2f, ",
-                  plan.chunks.size, plan.chunks.count(), plan.compression);
-    return StrategyBase::statistics(prepared) + text + figures(plan);
+    return StrategyBase::statistics(prepared) + ", " + plan.figures() + ", " + extras(plan);
 }
 
 // --- Families ---

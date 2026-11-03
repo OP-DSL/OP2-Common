@@ -103,13 +103,11 @@ public:
 // with atomics.
 class ChunkBase : public StrategyBase {
 protected:
-    op::rt::abi::ArgGroups m_groups;
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkResult> m_plans;
 
     ChunkBase(Executor& executor, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : StrategyBase{executor, point, family}, m_groups{family.groups},
-          m_chunk_size{point.value("chunk_size")} {}
+        : StrategyBase{executor, point, family}, m_chunk_size{point.value("chunk_size")} {}
 
     // The variant's plan of the call, and its inputs to the plan's key beyond
     // the shared ones.

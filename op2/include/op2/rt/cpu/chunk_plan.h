@@ -21,17 +21,12 @@ constexpr int default_chunk_size = 256;
 // The scratch a staged chunk may use.
 constexpr std::size_t chunk_scratch_limit = std::size_t{1} << 20;
 
-// Each batch's chunks shared out over the threads.
-struct ChunkPlan {
-    plan::Chunks chunks;
-    plan::ChunkBatches batches;
-    // chunk_atomics: each chunk's slots in its thread's scratch, a 16-bit
-    // stage word each as the region reads them, and the most bytes a chunk
-    // needs.
-    plan::Staging staging;
-    std::vector<abi::StageWord> stage_words;
+// Each batch's chunks shared out over the threads.  chunk_atomics stages
+// each chunk's slots in its thread's scratch, a 16-bit stage word each as
+// the region reads them.
+struct ChunkPlan : plan::ChunkPlan<abi::StageWord> {
+    // The most scratch bytes a chunk needs.
     std::size_t max_scratch_bytes = 0;
-    double compression = 0.0;
 };
 
 // A rejection's reason is one of plan::stage_chunks' or

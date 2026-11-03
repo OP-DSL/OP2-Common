@@ -12,14 +12,9 @@ namespace {
 // targets stay in staged for the batching.
 std::unique_ptr<ChunkPlan> staged_plan(plan::StagedChunks& staged) {
     auto out = std::make_unique<ChunkPlan>();
-    out->chunks = std::move(staged.chunks);
-    out->staging = std::move(staged.staging);
-    out->stage_words = plan::stage_words(std::span<const int>{out->staging.slots},
-                                         abi::unstaged_word);
-    out->staging.slots = {};
+    plan::take_staged(staged, abi::unstaged_word, *out);
     out->references = staged.targets.total_references;
     out->distinct_targets = staged.targets.targets.size();
-    out->compression = staged.targets.compression();
     return out;
 }
 

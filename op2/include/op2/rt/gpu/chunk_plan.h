@@ -29,15 +29,10 @@ struct ChunkSpec {
 };
 
 // Each launch runs a batch of chunks, a block per chunk, each chunk
-// accumulating into its targets' slots in shared memory.
-struct ChunkPlan {
-    plan::Chunks chunks;
-    // The staging, its slots as the kernels read them: a 16-bit stage word
-    // each, unstaged_word for a reference left in global memory.
-    plan::Staging staging;
-    std::vector<abi::StageWord> stage_words;
-    plan::ChunkBatches batches;
-
+// accumulating into its targets' slots in shared memory, its slots as the
+// kernels read them: a 16-bit stage word each, unstaged_word for a
+// reference left in global memory.
+struct ChunkPlan : plan::ChunkPlan<abi::StageWord> {
     // chunk_colouring: per element its thread colour within its chunk, per
     // chunk its colour count.
     std::vector<std::uint8_t> thread_colours;
@@ -55,7 +50,6 @@ struct ChunkPlan {
 
     std::size_t references = 0;
     std::size_t distinct_targets = 0;
-    double compression = 0.0;
 
     std::size_t scratch_bytes(int section, int batch) const {
         return batch_scratch_bytes[

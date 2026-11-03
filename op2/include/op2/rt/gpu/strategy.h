@@ -213,17 +213,17 @@ public:
 // batch of chunks, each block taking chunks in turn.
 class ChunkBase : public StrategyBase {
 protected:
-    op::rt::abi::ArgGroups m_groups;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
     ChunkBase(Executor& executor, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : StrategyBase{executor, point, family}, m_groups{family.groups} {}
+        : StrategyBase{executor, point, family} {}
 
     // The variant's plan of the call under spec, its inputs to the plan's key
-    // beyond the shared ones, and its own figures of a plan.
+    // beyond the shared ones, and its figures of a plan beyond the shared
+    // ones.
     virtual ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const = 0;
     virtual void add_key(op::rt::plan::PlanKey& key) const = 0;
-    virtual std::string figures(const ChunkPlan& plan) const = 0;
+    virtual std::string extras(const ChunkPlan& plan) const = 0;
 
     // The block size, which is also the chunk size, and the strategy's
     // switch.
@@ -260,7 +260,7 @@ protected:
     }
     ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
     void add_key(op::rt::plan::PlanKey& key) const override;
-    std::string figures(const ChunkPlan& plan) const override;
+    std::string extras(const ChunkPlan& plan) const override;
 
 public:
     ChunkAtomics(Executor& executor, const op::rt::loop::Point& point,
@@ -290,7 +290,7 @@ protected:
     }
     ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
     void add_key(op::rt::plan::PlanKey& key) const override;
-    std::string figures(const ChunkPlan& plan) const override;
+    std::string extras(const ChunkPlan& plan) const override;
 
 public:
     ChunkColouring(Executor& executor, const op::rt::loop::Point& point,

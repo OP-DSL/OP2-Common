@@ -21,15 +21,10 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
         return {"low_compression", nullptr, compression};
 
     auto out = std::make_unique<ChunkPlan>();
-    out->chunks = std::move(staged.chunks);
-    out->staging = std::move(staged.staging);
-    out->stage_words = plan::stage_words(std::span<const int>{out->staging.slots},
-                                         abi::unstaged_word);
-    out->staging.slots = {};
+    plan::take_staged(staged, abi::unstaged_word, *out);
     out->batches = plan::section_batches(out->chunks);
     for (auto bytes : out->staging.chunk_scratch_bytes)
         out->max_scratch_bytes = std::max(out->max_scratch_bytes, bytes);
-    out->compression = compression;
     return {{}, std::move(out)};
 }
 

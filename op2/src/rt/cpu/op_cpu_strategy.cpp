@@ -116,11 +116,8 @@ const ChunkResult& ChunkBase::entry_for(const op::rt::loop::Call& call) {
                               m_executor.name(), std::string{entry->rejected}.c_str(),
                               entry->compression);
                 else
-                    op_printf("%s: %s chunk %d, %d chunks, %d batches, "
-                              "compression %.2fx\n",
-                              m_name.c_str(), m_executor.name(), entry->plan->chunks.size,
-                              entry->plan->chunks.count(), entry->plan->batches.count(),
-                              entry->plan->compression);
+                    op_printf("%s: %s %s\n", m_name.c_str(), m_executor.name(),
+                              entry->plan->figures().c_str());
             }
             return entry;
         });
@@ -160,12 +157,12 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
 }
 
 ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call) const {
-    return plan_chunk_atomics(call.args, call.sections, m_groups, m_chunk_size,
+    return plan_chunk_atomics(call.args, call.sections, m_family.groups, m_chunk_size,
                               op::rt::plan::chunk_options().min_compression);
 }
 
 void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
-    key.add(m_groups).add(op::rt::plan::chunk_options().min_compression);
+    key.add(m_family.groups).add(op::rt::plan::chunk_options().min_compression);
 }
 
 ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call) const {
@@ -176,12 +173,7 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
     const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
     if (entry.plan == nullptr)
         return std::string{entry.rejected};
-    const auto& plan = *entry.plan;
-    char text[128];
-    std::snprintf(text, sizeof(text), "chunk %d, %d chunks, %d batches, compression %.2f",
-                  plan.chunks.size, plan.chunks.count(), plan.batches.count(),
-                  plan.compression);
-    return text;
+    return entry.plan->figures();
 }
 
 // --- Families ---
