@@ -236,7 +236,7 @@ void test_params() {
     slots[1] = 64;
     CHECK(params.key(call, slots) == key);
 
-    CHECK(jit::format_cxx(params) ==
+    CHECK(jit::format_cxx(params, slots) ==
           "static constexpr double c = 0x1p+0;\n"
           "static constexpr double table[3] = { 0x1p+0, "
           "__builtin_bit_cast(double, 0x7ff8000000000000ull), "
@@ -266,6 +266,7 @@ void test_key_words() {
         for (std::size_t i = 0; i < constants.size(); ++i)
             params.add("c" + std::to_string(i), &constants[i], abi::ParamSource::external,
                        -1, true);
+        params.update({});
         return params.key(call, {});
     };
 
@@ -473,7 +474,7 @@ void test_array_globals() {
     CHECK(params[1].elems() == 0 && params[2].elems() == 1 && params[2].array());
     for (int i = 0; i < 4; ++i)
         CHECK(params[i].mode() == runtime);
-    CHECK(params[0].last_hash() != 0 && params[3].last_hash() == 0);
+    CHECK(params[0].hash() != 0 && params[3].hash() == 0);
     g5[0] = 10.0;
     CHECK(next() == key);
 
@@ -485,7 +486,7 @@ void test_array_globals() {
     key = next();
     g5[1] = 20.0;
     CHECK(next() != key);
-    CHECK(jit::format_cxx(params) ==
+    CHECK(jit::format_cxx(params, {}) ==
           "static constexpr double g0[5] = { 0x1.4p+3, 0x1.4p+4, 0x1.8p+1, 0x1p+2, 0x1.4p+2 };\n"
           "static constexpr double g2[1] = { 0x1p+0 };\n");
 

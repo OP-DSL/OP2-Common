@@ -136,7 +136,7 @@ public:
         m_bindings.push_back({param, data_d, shared_hash});
     }
 
-    void upload(op::rt::jit::ParamSet& params);
+    void upload(const op::rt::jit::ParamSet& params);
 };
 
 // --- Builds -------------------------------------------------------------------------
@@ -166,8 +166,9 @@ public:
         : m_loop{loop}, m_headers{std::move(headers)} {}
 
     // The job that builds family's kernel with the parameters' current values
-    // baked in, or at run time as their modes say.
-    Job job(const op::rt::jit::ParamSet& params, const abi::gpu::Family& family) const;
+    // and the strategy's, by slot, baked in, or at run time as their modes say.
+    Job job(const op::rt::jit::ParamSet& params, std::span<const int> values,
+            const abi::gpu::Family& family) const;
 };
 
 } // namespace op::rt::gpu

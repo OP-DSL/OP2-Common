@@ -74,9 +74,10 @@ op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
     prepared.entry = entry;
 
     auto& params = m_loop.params();
-    auto key = params.key(call, launch_values().slots());
-    auto acquired =
-        m_cache.acquire(key, urgency, [&] { return m_loop.compiler().job(params, m_family); });
+    auto values = launch_values().slots();
+    auto key = params.key(call, values);
+    auto acquired = m_cache.acquire(
+        key, urgency, [&] { return m_loop.compiler().job(params, values, m_family); });
     // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::rt::loop::Status::ready &&
         acquired.kernel->resources().max_threads < m_block_size) {

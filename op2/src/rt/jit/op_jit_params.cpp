@@ -82,8 +82,12 @@ void Param::update(std::span<const op_arg> args, DatStride dat_stride) {
 
 void ParamSet::update(std::span<const op_arg> args) {
     ++m_calls;
-    for (auto& param : m_params)
+    const auto& options = jit::options();
+    for (auto& param : m_params) {
         param.update(args, m_dat_stride);
+        if (param.source() != abi::ParamSource::strategy && !param.sized_out(options))
+            param.rehash();
+    }
 }
 
 ParamSet::Histories *ParamSet::histories(const loop::Call& call) {
@@ -142,7 +146,6 @@ void ParamSet::observe(const loop::Call& call) {
             param.set_mode(ParamMode::runtime);
             continue;
         }
-        param.hash();
         if (param.fixed() || history == nullptr) {
             param.set_mode(param.initial());
             continue;
@@ -157,7 +160,7 @@ void ParamSet::observe(const loop::Call& call) {
 }
 
 bool ParamSet::History::observe(const Param& param, const Options& options) {
-    std::uint64_t hash = param.last_hash();
+    std::uint64_t hash = param.hash();
     if (!seen) {
         seen = true;
         last = hash;
@@ -254,7 +257,7 @@ std::string format_value(const Param& param) {
 
 } // namespace
 
-std::string format_cxx(const ParamSet& params) {
+std::string format_cxx(const ParamSet& params, std::span<const int> values) {
     std::string out;
     for (std::size_t i = 0; i < params.size(); ++i) {
         const auto& param = params[i];
@@ -265,7 +268,11 @@ std::string format_cxx(const ParamSet& params) {
         out += " " + param.name();
         if (param.array())
             out += "[" + std::to_string(param.elems()) + "]";
-        out += " = " + format_value(param) + ";\n";
+        out += " = ";
+        out += param.source() == abi::ParamSource::strategy
+                   ? std::to_string(values[static_cast<std::size_t>(param.index())])
+                   : format_value(param);
+        out += ";\n";
     }
     return out;
 }

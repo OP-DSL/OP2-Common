@@ -61,10 +61,10 @@ void JitKernel::launch(int num_blocks, int block_size, void **args, int shared_b
     ensure_loaded();
     for (auto& symbol : m_symbols) {
         const auto& param = params[symbol.param];
-        if (param.last_hash() == symbol.uploaded)
+        if (param.hash() == symbol.uploaded)
             continue;
         GPU_DRV_CHECK(gpuDrvMemcpyHtoDAsync(symbol.address, param.data(), param.bytes(), 0));
-        symbol.uploaded = param.last_hash();
+        symbol.uploaded = param.hash();
     }
     if (shared_bytes > m_max_dynamic_shared_bytes) {
         GPU_DRV_CHECK(gpuDrvFuncSetAttribute(
@@ -97,9 +97,9 @@ void OfflineKernel::launch(int num_blocks, int block_size, void **args, int shar
 
 // --- Parameters ---------------------------------------------------------------------
 
-void SymbolBindings::upload(op::rt::jit::ParamSet& params) {
+void SymbolBindings::upload(const op::rt::jit::ParamSet& params) {
     for (auto& binding : m_bindings) {
-        auto& param = params[binding.param];
+        const auto& param = params[binding.param];
         auto& uploaded = binding.shared_hash != nullptr ? *binding.shared_hash : binding.hash;
         auto hash = param.hash();
         if (hash == uploaded)
@@ -143,7 +143,7 @@ std::string runtime_declarations(const op::rt::jit::ParamSet& params,
 
 } // namespace
 
-Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params,
+Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params, std::span<const int> values,
                             const abi::gpu::Family& family) const {
     std::vector<RuntimeSymbol> symbols;
     std::vector<int> baked_globals;
@@ -154,7 +154,7 @@ Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params,
     std::string text;
     for (const char *name : m_headers.names)
         text += std::string{"#include <"} + name + ">\n";
-    text += "\n" + op::rt::jit::format_cxx(params) + runtime_declarations(params, symbols) +
+    text += "\n" + op::rt::jit::format_cxx(params, values) + runtime_declarations(params, symbols) +
             std::string{family.source};
     return {m_loop, m_headers, std::move(text), std::string{family.kernel},
             std::move(symbols), std::move(baked_globals)};

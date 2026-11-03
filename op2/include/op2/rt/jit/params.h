@@ -39,9 +39,9 @@ using DatStride = int (*)(const op_arg& arg);
 class Param {
 private:
     std::string m_name;
-    // The value, read in place; a strategy's value is held in m_value.
+    // The value, read in place; none for a strategy's, which comes with
+    // each kernel's key.
     void *m_data;
-    int m_value = 0;
     std::size_t m_elems;
     std::size_t m_elem_size;
     bool m_array;
@@ -81,7 +81,7 @@ public:
     std::size_t elems() const { return m_elems; }
     bool array() const { return m_array; }
     std::size_t bytes() const { return m_elems * m_elem_size; }
-    const void *data() const { return m_data != nullptr ? m_data : &m_value; }
+    const void *data() const { return m_data; }
 
     // Whether an array_arg is at run time this call whatever its statistics:
     // inactive, or above OP_JIT_MAX_GBL_BYTES.  Its value is not hashed then.
@@ -98,20 +98,12 @@ public:
     // lays the dat out.
     void update(std::span<const op_arg> args, DatStride dat_stride);
 
-    // The strategy's value, from its slots.
-    void apply(std::span<const int> values) {
-        if (m_source != abi::ParamSource::strategy)
-            return;
-        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < values.size());
-        m_value = values[static_cast<std::size_t>(m_index)];
-    }
-
-    // The value's hash, kept as last_hash: a scalar's own bits, so a zero
-    // value hashes to 0, else its rapidhash.
-    std::uint64_t hash() {
+    // Hash the call's value, once per call (ParamSet::update): a scalar's own
+    // bits, so a zero value hashes to 0, else its rapidhash.
+    void rehash() {
         if (m_array) {
             m_hash = rapidhash_withSeed(data(), bytes(), hash_seed);
-            return m_hash;
+            return;
         }
         switch (m_elem_size) {
         case 8: std::memcpy(&m_hash, data(), 8); break;
@@ -123,9 +115,10 @@ public:
         }
         default: m_hash = *static_cast<const unsigned char *>(data()); break;
         }
-        return m_hash;
     }
-    std::uint64_t last_hash() const { return m_hash; }
+
+    // The call's hash; a strategy's value is hashed with the key instead.
+    std::uint64_t hash() const { return m_hash; }
 };
 
 // The calls the statistics look back over.
@@ -228,10 +221,9 @@ public:
     void set_dat_stride(DatStride stride) { m_dat_stride = stride; }
 
     std::size_t size() const { return m_params.size(); }
-    Param& operator[](std::size_t index) { return m_params[index]; }
     const Param& operator[](std::size_t index) const { return m_params[index]; }
 
-    // The call's values, at invoke.
+    // The call's values and their hashes, at invoke.
     void update(std::span<const op_arg> args);
 
     // Whether any parameter's mode may move, so its statistics matter.
@@ -268,30 +260,24 @@ public:
         observe(call);
     }
 
-    // A strategy's values, by slot.
-    void apply(std::span<const int> values) {
-        for (auto& param : m_params)
-            param.apply(values);
-    }
-
-    // The key a kernel specialised under a strategy's values is built under:
-    // each baked parameter's value, hashed 64 at a time with a mask of the
-    // run-time ones (a value's hash may be any 64 bits, so no mark could
-    // stand in for it).
+    // The key a kernel specialised under a strategy's values, by slot, is
+    // built under: each baked parameter's value, hashed 64 at a time with a
+    // mask of the run-time ones (a value's hash may be any 64 bits, so no
+    // mark could stand in for it).  A strategy's value hashes to its own
+    // bits.  The call's statistics are observed first.
     std::uint64_t key(const loop::Call& call, std::span<const int> values) {
         observe_call(call);
         std::array<std::uint64_t, 65> words;
         std::size_t count = 0;
         std::uint64_t runtime = 0;
         std::uint64_t key = hash_seed;
-        for (auto& param : m_params) {
+        for (const auto& param : m_params) {
             std::uint64_t value = 0;
             if (param.mode() == ParamMode::baked) {
-                if (param.source() == abi::ParamSource::strategy) {
-                    param.apply(values);
-                    param.hash();
-                }
-                value = param.last_hash();
+                value = param.source() == abi::ParamSource::strategy
+                            ? std::uint64_t{static_cast<std::uint32_t>(
+                                  values[static_cast<std::size_t>(param.index())])}
+                            : param.hash();
             } else {
                 runtime |= std::uint64_t{1} << count;
             }
@@ -309,8 +295,9 @@ public:
 };
 
 // The baked parameters as C++ constants, "static constexpr double name =
-// value;" a line each, for a compiler that takes source.
-std::string format_cxx(const ParamSet& params);
+// value;" a line each, for a compiler that takes source; a strategy's from
+// its values, by slot.
+std::string format_cxx(const ParamSet& params, std::span<const int> values);
 
 // A parameter's element type in C++: "double".
 const char *cxx_type(abi::ElementType type);
