@@ -237,9 +237,16 @@ void Ladder::add(std::string_view family, const Make& make) {
                 name += ";kernel=jit";
                 short_name += " jit";
             }
-            m_candidates.push_back({&strategy, kind, std::move(name), std::move(short_name),
-                                    std::string{family}, settings.rank, member,
-                                    member && enabled, off, refused});
+            m_candidates.push_back({.strategy = &strategy,
+                                    .kind = kind,
+                                    .name = std::move(name),
+                                    .label = std::move(short_name),
+                                    .family = std::string{family},
+                                    .rank = settings.rank,
+                                    .member = member,
+                                    .enabled = member && enabled,
+                                    .off = off,
+                                    .refused = refused});
         };
         auto offline = strategy.estimate(KernelKind::offline);
         auto jit = options.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};

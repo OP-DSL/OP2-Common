@@ -27,9 +27,13 @@ op::rt::plan::SharedPlans<ChunkEntry> chunk_plans;
 
 op::rt::loop::Axis block_size_axis() {
 #ifdef OP2_HIP
-    return {"BLOCK_SIZES", "block_size", false, {abi::gpu::default_block_size, 256}};
+    return {.variable = "BLOCK_SIZES",
+            .key = "block_size",
+            .defaults = {abi::gpu::default_block_size, 256}};
 #else
-    return {"BLOCK_SIZES", "block_size", false, {abi::gpu::default_block_size, 64, 256}};
+    return {.variable = "BLOCK_SIZES",
+            .key = "block_size",
+            .defaults = {abi::gpu::default_block_size, 64, 256}};
 #endif
 }
 
@@ -267,9 +271,11 @@ std::string ChunkColouring::extras(const ChunkPlan& plan) const {
 
 std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
 #ifdef OP2_HIP
-    return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {1, 0}});
+    return chunk_axes(
+        {.variable = "UNSTAGED_SINGLES", .key = "singles", .binary = true, .defaults = {1, 0}});
 #else
-    return chunk_axes({"UNSTAGED_SINGLES", "singles", true, {0}});
+    return chunk_axes(
+        {.variable = "UNSTAGED_SINGLES", .key = "singles", .binary = true, .defaults = {0}});
 #endif
 }
 

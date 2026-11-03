@@ -107,7 +107,7 @@ protected:
     // This strategy's values for its kernel under global_stride; a chunked
     // variant adds its switch.
     virtual LaunchValues launch_values(int global_stride) const {
-        return {global_stride, m_block_size, false, false};
+        return {.global_stride = global_stride, .block_size = m_block_size};
     }
 
     // Blocks of a grid-stride launch over elements, at most block_limit.
@@ -300,7 +300,8 @@ public:
     // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
     // in an order that keeps them after every earlier chunk sharing a target.
     static std::vector<op::rt::loop::Axis> axes() {
-        return chunk_axes({"WAVEFRONT", "wavefront", true, {0}});
+        return chunk_axes(
+            {.variable = "WAVEFRONT", .key = "wavefront", .binary = true, .defaults = {0}});
     }
 };
 

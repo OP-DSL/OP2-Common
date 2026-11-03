@@ -377,8 +377,8 @@ void test_variables() {
 // the tuner.
 void test_axes() {
     const std::vector<loop::Axis> axes{
-        {"BLOCK_SIZES", "block_size", false, {128}},
-        {"UNSTAGED_SINGLES", "singles", true, {1}},
+        {.variable = "BLOCK_SIZES", .key = "block_size", .defaults = {128}},
+        {.variable = "UNSTAGED_SINGLES", .key = "singles", .binary = true, .defaults = {1}},
     };
     auto make = [](const loop::Point& point) { return std::make_unique<Fake>(point); };
     auto declare_all = [&](bool chunk_atomics) {
@@ -503,9 +503,10 @@ void test_kernel_kinds() {
     auto kinds = [](float offline_cost, float jit_cost) {
         auto estimate = [](float cost) {
             if (cost < 0)
-                return loop::Estimate{false, "kernel_unavailable", {}};
-            return loop::Estimate{true, {}, cost > 0 ? std::optional<float>{cost}
-                                                     : std::optional<float>{}};
+                return loop::Estimate{.reason = "kernel_unavailable"};
+            return loop::Estimate{.available = true,
+                                  .cost = cost > 0 ? std::optional<float>{cost}
+                                                   : std::optional<float>{}};
         };
         declare({{"colouring", {}}});
         loop::Ladder ladder{"test_loop", false};
@@ -566,7 +567,7 @@ void test_kernel_kinds() {
 // offline candidate, refused with the estimates' reason, its strategy never
 // asked.
 void test_kernel_less_points() {
-    const loop::Axis axis{"SWITCHES", "switch", true, {1}};
+    const loop::Axis axis{.variable = "SWITCHES", .key = "switch", .binary = true, .defaults = {1}};
     auto build = [&](loop::Ladder& ladder, std::vector<Fake *>& fakes) {
         declare({{"colouring", {axis}}});
         ladder.add("colouring", [&](const loop::Point& point) {

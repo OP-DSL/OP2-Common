@@ -96,7 +96,7 @@ struct BuildCounts {
 struct Estimate {
     bool available = false;
     std::string_view reason{};
-    std::optional<float> cost;
+    std::optional<float> cost{};
 };
 
 class Strategy {
@@ -112,7 +112,8 @@ public:
     // backend says otherwise.  Fixed once the strategy is built: a kind it
     // does not have is never prepared.
     virtual Estimate estimate(KernelKind kind) const {
-        return kind == KernelKind::offline ? Estimate{true, {}, 1.0f} : Estimate{};
+        return kind == KernelKind::offline ? Estimate{.available = true, .cost = 1.0f}
+                                           : Estimate{};
     }
 
     // Resolve call for its kernel of kind: build or find the configuration's

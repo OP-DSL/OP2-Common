@@ -50,9 +50,9 @@ struct Fake : loop::Strategy {
     // A specialised kernel when it has a jit_time, expected faster.
     loop::Estimate estimate(loop::KernelKind kind) const override {
         if (kind == loop::KernelKind::offline)
-            return {true, {}, 1.0f};
+            return {.available = true, .cost = 1.0f};
         if (jit_time)
-            return {true, {}, 0.9f};
+            return {.available = true, .cost = 0.9f};
         return {};
     }
 

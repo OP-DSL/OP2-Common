@@ -39,11 +39,14 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const abi::ArgGroups& groups, const ChunkSpec& spec,
                                bool unstaged_singles, double min_compression) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(
-        args, sections, groups,
-        {spec.block_size, spec.block_size, spec.shared_bytes, abi::max_slots, spec.stride,
-         false, unstaged_singles},
-        staged);
+    auto reason = plan::stage_chunks(args, sections, groups,
+                                     {.size = spec.block_size,
+                                      .lanes = spec.block_size,
+                                      .scratch_limit = spec.shared_bytes,
+                                      .max_slots = abi::max_slots,
+                                      .stride = spec.stride,
+                                      .unstaged_singles = unstaged_singles},
+                                     staged);
     if (!reason.empty())
         return {reason, nullptr};
     auto out = staged_plan(staged);
@@ -60,11 +63,14 @@ ChunkResult plan_chunk_colouring(std::span<const op_arg> args,
                                  const abi::ArgGroups& groups, const ChunkSpec& spec,
                                  bool wavefront, int window) {
     plan::StagedChunks staged;
-    auto reason = plan::stage_chunks(
-        args, sections, groups,
-        {spec.block_size, spec.block_size, spec.shared_bytes, abi::max_slots, spec.stride,
-         true, false},
-        staged);
+    auto reason = plan::stage_chunks(args, sections, groups,
+                                     {.size = spec.block_size,
+                                      .lanes = spec.block_size,
+                                      .scratch_limit = spec.shared_bytes,
+                                      .max_slots = abi::max_slots,
+                                      .stride = spec.stride,
+                                      .read_write = true},
+                                     staged);
     if (!reason.empty())
         return {reason, nullptr};
     auto out = staged_plan(staged);

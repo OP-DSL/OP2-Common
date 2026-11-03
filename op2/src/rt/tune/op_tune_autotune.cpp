@@ -279,8 +279,14 @@ void Autotuner::outcomes(std::vector<Outcome>& out) const {
         if (!state.explored())
             continue;
         auto summary = summarise(state);
-        Outcome outcome{state.description, state.calls, state.ladder, nullptr,
-                        state.selected, std::nullopt, std::nullopt, summary.complete};
+        Outcome outcome{.description = state.description,
+                        .calls = state.calls,
+                        .ladder = state.ladder,
+                        .fastest = nullptr,
+                        .selected = state.selected,
+                        .ladder_us = std::nullopt,
+                        .fastest_us = std::nullopt,
+                        .complete = summary.complete};
         if (summary.ladder != nullptr && !summary.ladder->samples.empty())
             outcome.ladder_us = median(summary.ladder->samples);
         if (summary.fastest != nullptr) {

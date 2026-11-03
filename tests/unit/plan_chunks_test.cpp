@@ -206,8 +206,11 @@ void test_staged_chunk_sizes() {
     auto stage = [&](int size, std::size_t scratch, plan::StagedChunks& staged) {
         auto sections = Sections::direct(&chain.edges);
         return plan::stage_chunks(chain.args, sections, abi::ArgGroups{groups, 1},
-                                  {size, 1, scratch, abi::max_slots, sections.elements(), false,
-                                   false},
+                                  {.size = size,
+                                   .lanes = 1,
+                                   .scratch_limit = scratch,
+                                   .max_slots = abi::max_slots,
+                                   .stride = sections.elements()},
                                   staged);
     };
     auto size_for = [&](int size, std::size_t scratch) {

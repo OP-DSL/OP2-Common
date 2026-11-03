@@ -20,13 +20,13 @@ void init_heuristics() {
 loop::Estimate estimate(const KernelFacts& facts, loop::KernelKind kind) {
     if (kind == loop::KernelKind::offline) {
         if (!facts.offline)
-            return {false, "kernel_unavailable", {}};
-        return {true, {}, 1.0f};
+            return {.reason = "kernel_unavailable"};
+        return {.available = true, .cost = 1.0f};
     }
     if (!facts.jit)
-        return {false, "kernel_unavailable", {}};
+        return {.reason = "kernel_unavailable"};
     bool prior = facts.resources && facts.resources->registers > options.min_registers;
-    return {true, {}, prior ? 0.9f : 1.0f};
+    return {.available = true, .cost = prior ? 0.9f : 1.0f};
 }
 
 } // namespace op::rt::gpu

@@ -92,46 +92,53 @@ struct Param {
 // A constant the application sets, of elems elements when an array.
 template<typename T>
 constexpr Param constant(const char *name, T *data) {
-    return {name, ElementTypes<T>::value, sizeof(T), ParamSource::external, data, 1, false,
-            -1, true};
+    return {.name = name, .type = ElementTypes<T>::value, .elem_size = sizeof(T),
+            .source = ParamSource::external, .data = data, .elems = 1, .array = false,
+            .index = -1, .runtime = true};
 }
 
 template<typename T>
 constexpr Param constant(const char *name, T *data, std::size_t elems) {
-    return {name, ElementTypes<T>::value, sizeof(T), ParamSource::external, data, elems,
-            true, -1, true};
+    return {.name = name, .type = ElementTypes<T>::value, .elem_size = sizeof(T),
+            .source = ParamSource::external, .data = data, .elems = elems, .array = true,
+            .index = -1, .runtime = true};
 }
 
 // A scalar READ global argument; data is the generated code's copy of it.
 template<typename T>
 constexpr Param scalar_global(const char *name, T *data, int arg) {
-    return {name, ElementTypes<T>::value, sizeof(T), ParamSource::scalar_arg, data, 1,
-            false, arg, true};
+    return {.name = name, .type = ElementTypes<T>::value, .elem_size = sizeof(T),
+            .source = ParamSource::scalar_arg, .data = data, .elems = 1, .array = false,
+            .index = arg, .runtime = true};
 }
 
 // Any other READ global argument.
 template<typename T>
 constexpr Param global(const char *name, int arg) {
-    return {name, ElementTypes<T>::value, sizeof(T), ParamSource::array_arg, nullptr, 0,
-            true, arg, true};
+    return {.name = name, .type = ElementTypes<T>::value, .elem_size = sizeof(T),
+            .source = ParamSource::array_arg, .data = nullptr, .elems = 0, .array = true,
+            .index = arg, .runtime = true};
 }
 
 // A dat's SoA stride, through the argument arg that reaches it.
 constexpr Param dat_stride(const char *name, int *data, int arg) {
-    return {name, ElementType::i32, sizeof(int), ParamSource::dat_stride, data, 1, false, arg,
-            true};
+    return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
+            .source = ParamSource::dat_stride, .data = data, .elems = 1, .array = false,
+            .index = arg, .runtime = true};
 }
 
 // A dat's run-time dimension, which a specialised kernel always bakes in.
 constexpr Param dat_dim(const char *name, int *data, int arg) {
-    return {name, ElementType::i32, sizeof(int), ParamSource::dat_dim, data, 1, false, arg,
-            false};
+    return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
+            .source = ParamSource::dat_dim, .data = data, .elems = 1, .array = false,
+            .index = arg, .runtime = false};
 }
 
 // A value the strategy fixes, from its slot among the backend's.
 constexpr Param strategy_value(const char *name, int slot) {
-    return {name, ElementType::i32, sizeof(int), ParamSource::strategy, nullptr, 1, false,
-            slot, false};
+    return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
+            .source = ParamSource::strategy, .data = nullptr, .elems = 1, .array = false,
+            .index = slot, .runtime = false};
 }
 
 } // namespace op::rt::abi

@@ -119,7 +119,7 @@ protected:
 public:
     // Elements per chunk: OP_<FAMILY>_CHUNK_SIZES, else OP_CHUNK_SIZES.
     static std::vector<op::rt::loop::Axis> axes() {
-        return {{"CHUNK_SIZES", "chunk_size", false, {default_chunk_size}}};
+        return {{.variable = "CHUNK_SIZES", .key = "chunk_size", .defaults = {default_chunk_size}}};
     }
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,

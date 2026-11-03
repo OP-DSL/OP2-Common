@@ -11,8 +11,11 @@ ChunkResult plan_chunk_atomics(std::span<const op_arg> args,
                                const abi::ArgGroups& groups, int size,
                                double min_compression) {
     plan::StagedChunks staged;
-    plan::StagingSpec spec{size, 1, chunk_scratch_limit, abi::max_slots,
-                           sections.elements(), false, false};
+    plan::StagingSpec spec{.size = size,
+                           .lanes = 1,
+                           .scratch_limit = chunk_scratch_limit,
+                           .max_slots = abi::max_slots,
+                           .stride = sections.elements()};
     auto reason = plan::stage_chunks(args, sections, groups, spec, staged);
     if (!reason.empty())
         return {reason, nullptr};
