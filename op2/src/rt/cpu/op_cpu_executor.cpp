@@ -1,4 +1,4 @@
-#include <op2/rt/cpu/loop.h>
+#include <op2/rt/cpu/executor.h>
 
 #include <op2/rt/cpu/strategy.h>
 
@@ -119,23 +119,16 @@ void Globals::combine(std::span<op_arg> args, const char *loop) const {
     }
 }
 
-// --- The loop ---------------------------------------------------------------------
+// --- The executor -----------------------------------------------------------------
 
-Loop::Loop(const abi::cpu::Loop& descriptor)
-    : op::rt::loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
-                         descriptor.direct},
-      m_max_threads{descriptor.max_threads} {
-    for (const auto& family : descriptor.families) {
-        auto make = strategy_family(family.name, descriptor.name).make;
-        m_ladder.add(family.name, [&](const op::rt::loop::Point& point) {
-            return make(*this, family, point);
-        });
-    }
+Executor::Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet&)
+    : m_descriptor{descriptor} {}
+
+void Executor::add_strategies(op::rt::loop::Ladder& ladder) {
+    ladder.add_families(m_descriptor.families, strategy_families(), *this, "OpenMP");
 }
 
-Loop::~Loop() = default;
-
-abi::cpu::Range Loop::range() const {
+abi::cpu::Range Executor::range() const {
     abi::cpu::Range range;
     range.threads = m_threads;
     range.globals = m_globals.pointers();
@@ -143,7 +136,7 @@ abi::cpu::Range Loop::range() const {
     return range;
 }
 
-abi::cpu::Chunk Loop::chunks() const {
+abi::cpu::Chunk Executor::chunks() const {
     abi::cpu::Chunk chunks;
     chunks.threads = m_threads;
     chunks.globals = m_globals.pointers();
@@ -152,7 +145,7 @@ abi::cpu::Chunk Loop::chunks() const {
     return chunks;
 }
 
-void Loop::reserve_scratch(std::size_t bytes) {
+void Executor::reserve_scratch(std::size_t bytes) {
     if (bytes <= m_scratch_capacity &&
         m_scratch.size() >= static_cast<std::size_t>(m_threads))
         return;
@@ -167,13 +160,13 @@ void Loop::reserve_scratch(std::size_t bytes) {
     }
 }
 
-void Loop::begin_call(const op::rt::loop::Call& call) {
-    m_threads = m_max_threads();
+void Executor::begin_call(const op::rt::loop::Call& call) {
+    m_threads = m_descriptor.max_threads();
     m_globals.prepare(call.args, m_threads);
 }
 
-void Loop::combine_globals(const op::rt::loop::Call& call) {
-    m_globals.combine(call.args, m_name.c_str());
+void Executor::combine_globals(const op::rt::loop::Call& call) {
+    m_globals.combine(call.args, name());
 }
 
 } // namespace op::rt::cpu
@@ -181,7 +174,7 @@ void Loop::combine_globals(const op::rt::loop::Call& call) {
 namespace op::rt::abi::cpu {
 
 void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
-    op::rt::loop::runtime<op::rt::cpu::Loop>(loop).invoke(
+    op::rt::loop::runtime<op::rt::cpu::Executor>(loop).invoke(
         set, {args, static_cast<std::size_t>(nargs)});
 }
 

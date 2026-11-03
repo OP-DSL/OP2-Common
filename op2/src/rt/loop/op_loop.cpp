@@ -30,7 +30,7 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
     op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                             m_profile_variant.c_str());
     op_profile_enter("MPI Exchanges");
-    int n_exec = exchange_halos(set, args);
+    int n_exec = m_executor->exchange_halos(set, args);
 
     if (n_exec > 0) {
         op_profile_next("Init");
@@ -38,7 +38,6 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
         auto decision = decide(call);
 
         op_profile_next("Prepare GBLs");
-        begin_call(call);
         decision.prepared.candidate->strategy->begin_call(decision.prepared, call);
 
         op_profile_next("Computation");
@@ -52,7 +51,7 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
 
     op_profile_next("MPI Reduce");
     reduce_mpi_globals(args, m_name.c_str());
-    mark_dirty(args);
+    m_executor->mark_dirty(args);
     op_profile_exit();
     op_profile_exit();
 }

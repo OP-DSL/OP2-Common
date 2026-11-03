@@ -16,19 +16,19 @@
 
 namespace {
 
-// A loop that frees its descriptor's device plan when it goes.
+// A loop whose executor frees its descriptor's device plan when it goes.
 struct Owned : op::rt::abi::Loop {
     op::rt::gpu::DevicePlan *plan;
 };
 
-struct PlanOwner : op::rt::loop::Loop {
+struct PlanOwner : op::rt::loop::Executor {
     op::rt::gpu::DevicePlan& plan;
 
-    explicit PlanOwner(const Owned& owned)
-        : op::rt::loop::Loop{owned.name, owned.target, owned.variant, owned.direct},
-          plan{*owned.plan} {}
+    PlanOwner(const Owned& owned, op::rt::jit::ParamSet&) : plan{*owned.plan} {}
 
     ~PlanOwner() override { plan.release(); }
+
+    void add_strategies(op::rt::loop::Ladder&) override {}
 };
 
 } // namespace

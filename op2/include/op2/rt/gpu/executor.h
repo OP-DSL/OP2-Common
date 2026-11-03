@@ -1,16 +1,17 @@
 #pragma once
 
-// The CUDA and HIP backend's loop, built from the generated code's
-// descriptor (op2/rt/abi/gpu/descriptor.h) on its first call: the base loop,
-// plus the parameters' device symbols, the compiler of its specialised
-// kernels, the launches' arguments and the call's device globals.  Defined
-// in src/rt/gpu/op_gpu_loop.cpp.
+// The CUDA and HIP backend's executor, made with its loop from the generated
+// code's descriptor (op2/rt/abi/gpu/descriptor.h): the parameters' device
+// symbols, the compiler of its specialised kernels, the launches' arguments
+// and events, and the call's device globals.  Defined in
+// src/rt/gpu/op_gpu_executor.cpp.
 
 #include <op2/gpu/shims.h>
-#include <op2/rt/abi/descriptor.h>
 #include <op2/rt/abi/gpu/descriptor.h>
 #include <op2/rt/abi/gpu/launch.h>
+#include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
+#include <op2/rt/loop/ladder.h>
 #include <op2/rt/loop/loop.h>
 #include <op_lib_core.h>
 
@@ -24,11 +25,10 @@ namespace op::rt::gpu {
 class Compiler;
 class SymbolBindings;
 
-class Loop : public op::rt::loop::Loop {
+class Executor final : public op::rt::loop::Executor {
 private:
-    bool m_gbl_inc_atomic;
-    abi::gpu::Binder m_bind;
-    const abi::gpu::OfflineCalls *m_calls;
+    const abi::gpu::Loop& m_descriptor;
+    op::rt::jit::ParamSet& m_params;
     std::unique_ptr<SymbolBindings> m_symbols;
     std::unique_ptr<Compiler> m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
@@ -51,13 +51,23 @@ private:
     const unsigned char *on_host(const op::rt::loop::Prepared& prepared, int nargs);
 
 public:
-    explicit Loop(const abi::gpu::Loop& descriptor);
-    ~Loop() override;
+    // The executor of descriptor's loop, its parameters registered in params.
+    Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& params);
+    ~Executor() override;
+
+    void add_strategies(op::rt::loop::Ladder& ladder) override;
+
+    // The data lives on the device.
+    int exchange_halos(op_set set, std::span<op_arg> args) override;
+    void mark_dirty(std::span<op_arg> args) override;
 
     // --- For the strategies ---
 
+    const char *name() const { return m_descriptor.name; }
+    bool direct() const { return m_descriptor.direct; }
+    op::rt::jit::ParamSet& params() { return m_params; }
     const Compiler& compiler() const { return *m_compiler; }
-    const abi::gpu::OfflineCalls *calls() const { return m_calls; }
+    const abi::gpu::OfflineCalls *calls() const { return m_descriptor.calls; }
 
     // Upload the changed values an offline kernel reads from device symbols.
     void upload();
@@ -84,13 +94,6 @@ public:
     void **arguments(abi::gpu::Chunk& record, std::span<op_arg> args);
 
     gpuEvent_t event(std::size_t index);
-
-protected:
-    // --- Per call ---
-
-    // The data lives on the device.
-    int exchange_halos(op_set set, std::span<op_arg> args) override;
-    void mark_dirty(std::span<op_arg> args) override;
 };
 
 } // namespace op::rt::gpu

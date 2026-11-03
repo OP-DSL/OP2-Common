@@ -10,9 +10,9 @@
 #include <op2/rt/abi/gpu/launch.h>
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/chunk_plan.h>
+#include <op2/rt/gpu/executor.h>
 #include <op2/rt/gpu/jit.h>
 #include <op2/rt/gpu/layout.h>
-#include <op2/rt/gpu/loop.h>
 #include <op2/rt/gpu/options.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/cache.h>
@@ -85,14 +85,14 @@ protected:
         std::string_view rejected;
     };
 
-    Loop& m_loop;
+    Executor& m_executor;
     std::string m_name;
     const abi::gpu::Family& m_family;
     int m_block_size;
     OfflineKernel m_offline;
     op::rt::jit::Cache<JitKernel> m_cache;
 
-    StrategyBase(Loop& loop, const op::rt::loop::Point& point,
+    StrategyBase(Executor& executor, const op::rt::loop::Point& point,
                  const abi::gpu::Family& family);
 
     // The configuration's plan for call, its per-element arrays stride
@@ -159,7 +159,7 @@ public:
     // The device copies of the call's globals, a copy per launched thread.
     void begin_call(const op::rt::loop::Prepared& prepared,
                     const op::rt::loop::Call& call) override {
-        m_loop.prepare_globals(prepared, call, shape(call, prepared.entry).global_stride);
+        m_executor.prepare_globals(prepared, call, shape(call, prepared.entry).global_stride);
     }
 
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
@@ -176,8 +176,8 @@ protected:
                    int block_limit) const override;
 
 public:
-    Simple(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : StrategyBase{loop, point, family} {}
+    Simple(Executor& executor, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : StrategyBase{executor, point, family} {}
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::Call& call,
@@ -197,8 +197,8 @@ protected:
                    int block_limit) const override;
 
 public:
-    Colouring(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : StrategyBase{loop, point, family} {}
+    Colouring(Executor& executor, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : StrategyBase{executor, point, family} {}
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::Call& call,
@@ -216,8 +216,8 @@ protected:
     op::rt::abi::ArgGroups m_groups;
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : StrategyBase{loop, point, family}, m_groups{family.groups} {}
+    ChunkBase(Executor& executor, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+        : StrategyBase{executor, point, family}, m_groups{family.groups} {}
 
     // The variant's plan of the call under spec, its inputs to the plan's key
     // beyond the shared ones, and its own figures of a plan.
@@ -263,8 +263,9 @@ protected:
     std::string figures(const ChunkPlan& plan) const override;
 
 public:
-    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
-        : ChunkBase{loop, point, family}, m_unstaged_singles{point.value("singles") != 0} {}
+    ChunkAtomics(Executor& executor, const op::rt::loop::Point& point,
+                 const abi::gpu::Family& family)
+        : ChunkBase{executor, point, family}, m_unstaged_singles{point.value("singles") != 0} {}
 
     // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
     // target increments global memory directly, as staging it would save no
@@ -292,9 +293,9 @@ protected:
     std::string figures(const ChunkPlan& plan) const override;
 
 public:
-    ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
+    ChunkColouring(Executor& executor, const op::rt::loop::Point& point,
                    const abi::gpu::Family& family)
-        : ChunkBase{loop, point, family}, m_wavefront{point.value("wavefront") != 0} {}
+        : ChunkBase{executor, point, family}, m_wavefront{point.value("wavefront") != 0} {}
 
     // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
     // in an order that keeps them after every earlier chunk sharing a target.
@@ -305,19 +306,12 @@ public:
 
 // --- Families -------------------------------------------------------------------
 
-// A strategy family as the GPU backend offers it: as the ladder declares it,
-// and the strategy it makes at each point.
-struct StrategyFamily : op::rt::loop::Family {
-    std::unique_ptr<op::rt::loop::Strategy> (*make)(Loop& loop, const abi::gpu::Family& family,
-                                                    const op::rt::loop::Point& point) = nullptr;
-};
+// A strategy family as the GPU backend offers it.
+using OfferedFamily = op::rt::loop::OfferedFamily<Executor, abi::gpu::Family>;
 
 // The families in ladder order: plain, chunk_atomics (on by default under
 // HIP, where its unstaged singles are native atomics), atomics,
 // chunk_colouring and colouring.
-std::span<const StrategyFamily> strategy_families();
-
-// The family loop registers as name; one the backend lacks stops the run.
-const StrategyFamily& strategy_family(std::string_view name, std::string_view loop);
+std::span<const OfferedFamily> strategy_families();
 
 } // namespace op::rt::gpu

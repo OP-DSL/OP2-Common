@@ -121,8 +121,7 @@ public:
     virtual Prepared prepare(const Call& call, Urgency urgency, KernelKind kind) = 0;
 
     // Once its candidate is selected for the call, before the run: set up
-    // what the run needs of the call's globals.  The loop's own setup comes
-    // first.
+    // what the run needs of the call's globals.
     virtual void begin_call(const Prepared& prepared, const Call& call) {
         (void)prepared;
         (void)call;

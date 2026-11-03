@@ -5,7 +5,7 @@
 // The edges split into core and owned sections, as a partition's do; the
 // MPI functional tests run the exec halo.
 
-#include <op2/rt/cpu/loop.h>
+#include <op2/rt/cpu/executor.h>
 #include <op2/rt/cpu/strategy.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/kernel/cpu/chunk.h>
@@ -203,7 +203,7 @@ void run(const char *strategy) {
     };
     op::rt::abi::cpu::Loop descriptor{{"test_loop", "openmp_f2c", "Indirect", false}, families,
                                       &op::rt::kernel::cpu::max_threads};
-    auto& loop = op::rt::loop::runtime<cpu::Loop>(descriptor);
+    auto& loop = op::rt::loop::runtime<cpu::Executor>(descriptor);
     // The forced strategy itself runs, not one the ladder falls through to.
     op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};
     auto selection = loop.ladder().select(call);

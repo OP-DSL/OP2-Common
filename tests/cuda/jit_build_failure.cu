@@ -4,7 +4,7 @@
 #define OP_KERNEL_JIT_TAG jit_build_failure_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
-#include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/executor.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/kernel/gpu/offline.h>
@@ -41,7 +41,7 @@ void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
 }
 
 // The kernel's result after one call of loop.
-int run(gpu::Loop& loop, op_set_core& set, std::array<op_arg, 1>& args, int call) {
+int run(op::rt::loop::Loop& loop, op_set_core& set, std::array<op_arg, 1>& args, int call) {
     value = call;
     loop.invoke(&set, args);
     int output = -1;
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
         op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
                                           params, kernels, &bind,
                                           &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
-        auto& loop = op::rt::loop::runtime<gpu::Loop>(descriptor);
+        auto& loop = op::rt::loop::runtime<gpu::Executor>(descriptor);
 
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");

@@ -94,15 +94,18 @@ struct Fake : loop::Strategy {
     loop::BuildCounts builds() const override { return fake_builds; }
 };
 
-// A Fixture's descriptor: its loop's name and how its fakes behave.
-struct Settings : op::rt::abi::Loop {
+// How a Fixture's fakes behave.
+struct Settings {
     bool chunk_atomics_enabled = false;
     float chunk_atomics_time = 4.0f;
     std::optional<float> atomics_jit_time = {};
 };
 
-// A loop of fakes, tuned as OP_AUTOTUNE says when it is built.
-struct Fixture : loop::Loop {
+// A ladder of fakes and the tuner over it, as OP_AUTOTUNE says when they
+// are built.
+struct Fixture {
+    loop::Ladder ladder{"flux", true};
+    op::rt::tune::Autotuner tuner{ladder};
     Fake *chunk_atomics;
     Fake *atomics;
     Fake *chunk_colouring;
@@ -117,7 +120,7 @@ struct Fixture : loop::Loop {
         const loop::Family declared[] = {{family, {}, enabled}};
         loop::declare_families(declared);
         Fake *fake = nullptr;
-        m_ladder.add(family, [&](const loop::Point& point) {
+        ladder.add(family, [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point.name, time, jit_time);
             fake = made.get();
             return made;
@@ -125,8 +128,7 @@ struct Fixture : loop::Loop {
         return fake;
     }
 
-    explicit Fixture(const Settings& settings)
-        : loop::Loop{settings.name, settings.target, settings.variant, settings.direct} {
+    explicit Fixture(const Settings& settings) {
         chunk_atomics = add("chunk_atomics", settings.chunk_atomics_enabled,
                             settings.chunk_atomics_time);
         atomics = add("atomics", true, 10.0f, settings.atomics_jit_time);
@@ -139,11 +141,11 @@ struct Fixture : loop::Loop {
 
     // One call: let the tuner decide, run, sample.
     Fake *invoke(const loop::Call& call) {
-        auto decision = m_tuner->choose(call, settled);
+        auto decision = tuner.choose(call, settled);
         auto us = decision.prepared.candidate->strategy->run(decision.prepared, call,
                                                              decision.timed != nullptr);
         if (us)
-            m_tuner->sample(decision, *us);
+            tuner.sample(decision, *us);
         last = decision.prepared.candidate;
         return static_cast<Fake *>(decision.prepared.candidate->strategy);
     }
@@ -154,19 +156,16 @@ op_set_core cells{};
 std::array<op_arg, 1> args{};
 
 void test_exploration() {
-    std::string path = "/tmp/op2_loop_autotune_test_report.csv";
     setenv("OP_AUTOTUNE", "select", 1);
     setenv("OP_AUTOTUNE_MARGIN", "0", 1);
     setenv("OP_AUTOTUNE_WARMUP", "1", 1);
     setenv("OP_AUTOTUNE_SAMPLES", "2", 1);
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
-    setenv("OP_AUTOTUNE_REPORT", path.c_str(), 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
     op::rt::init();
     CHECK(op::rt::tune::autotune_options().select);
 
-    Settings settings{{"flux", "test", "Indirect", false}};
-    auto& fixture = loop::runtime<Fixture>(settings);
+    Fixture fixture{Settings{}};
     loop::Call call{&edges, args, edges.size + edges.exec_size, false};
 
     // chunk_atomics compiles for two calls, chunk_colouring is turned off
@@ -222,16 +221,14 @@ void test_exploration() {
           fixture.chunk_colouring->forgets == 0);
 
     // The report: a row per configuration and strategy.
-    loop::write_reports(0, 1);
-    std::ifstream file(path);
     std::vector<std::string> rows;
-    for (std::string line; std::getline(file, line);)
-        rows.push_back(line);
-    CHECK(rows.size() == 7);
-    CHECK(rows[0].rfind("loop,configuration,calls,strategy,status", 0) == 0);
+    fixture.tuner.rows(rows);
+    CHECK(rows.size() == 6);
+    CHECK(std::string_view{op::rt::tune::Autotuner::report_header}.rfind(
+              "loop,configuration,calls,strategy,status", 0) == 0);
     int selected_chunk = 0;
     int retired = 0;
-    for (std::size_t i = 1; i < rows.size(); ++i) {
+    for (std::size_t i = 0; i < rows.size(); ++i) {
         CHECK(rows[i].rfind("flux,", 0) == 0);
         CHECK(rows[i].find("chunk_colouring") == std::string::npos);
         selected_chunk += rows[i].find(",chunk_atomics=on,complete,") != std::string::npos;
@@ -243,7 +240,7 @@ void test_exploration() {
     // The summary: on edges chunk_atomics takes 4 to atomics' 10 over 13
     // calls, on cells atomics is fastest, so the loop takes 0.152 ms to the
     // ladder's 0.23.
-    const op::rt::tune::TunedLoop tuned[] = {{fixture.name(), fixture.tuner()}};
+    const op::rt::tune::TunedLoop tuned[] = {{"flux", &fixture.tuner}};
     auto summary = op::rt::tune::summary(tuned, 1);
     CHECK(summary.rfind("autotune summary:\n", 0) == 0);
     CHECK(summary.find("2 configurations of 1 loop explored; 0 not explored") !=
@@ -257,9 +254,6 @@ void test_exploration() {
     CHECK(summary.find("1 chunk_atomics") != std::string::npos &&
           summary.find("1 atomics") != std::string::npos);
     CHECK(summary.find("JIT summary") == std::string::npos);
-
-    loop::finalise(0, 1);
-    std::remove(path.c_str());
 }
 
 // The ladder's choice changes while a configuration is explored, once
@@ -275,8 +269,7 @@ void test_ladder_changes() {
     setenv("OP_CHUNK_COLOURING", "0", 1);
     op::rt::init();
 
-    Settings settings{{"flux", "test", "Indirect", false}, true, 10.2f};
-    auto& fixture = loop::runtime<Fixture>(settings);
+    Fixture fixture{{true, 10.2f}};
     loop::Call call{&edges, args, edges.size + edges.exec_size, false};
     fixture.chunk_atomics->statuses = {loop::Status::pending, loop::Status::pending,
                                        loop::Status::pending};
@@ -289,7 +282,6 @@ void test_ladder_changes() {
     // which the ladder now runs.
     for (int i = 0; i < 3; ++i)
         CHECK(fixture.invoke(call) == fixture.chunk_atomics);
-    loop::finalise(0, 1);
 }
 
 // A strategy's two kernels are two candidates, each timed on its own: the
@@ -308,10 +300,9 @@ void test_kernels() {
 
     // atomics' specialised kernel, expected faster, comes first in the
     // ladder and takes 3 to atomics' offline 10.
-    Settings settings{{"flux", "test", "Indirect", false}, false, 40.0f, 3.0f};
-    auto& fixture = loop::runtime<Fixture>(settings);
-    CHECK(fixture.ladder()[1].name == "atomics=on;kernel=jit");
-    CHECK(fixture.ladder()[2].name == "atomics=on");
+    Fixture fixture{{false, 40.0f, 3.0f}};
+    CHECK(fixture.ladder[1].name == "atomics=on;kernel=jit");
+    CHECK(fixture.ladder[2].name == "atomics=on");
     loop::Call call{&edges, args, edges.size + edges.exec_size, false};
 
     // Unsettled, the ladder's choice runs untimed: the offline kernel while
@@ -339,31 +330,33 @@ void test_kernels() {
     for (int i = 0; i < 2; ++i)
         CHECK(fixture.invoke(call) == fixture.atomics &&
               fixture.last->kind == loop::KernelKind::jit);
-    loop::finalise(0, 1);
 }
 
 // A loop's specialised kernels and its configurations' modes, summarised and
 // written to OP_JIT_REPORT, and neither without it: a constant that changes
 // every call moves to run time on edges and stays baked in on cells.
 void test_jit_report() {
-    struct Jitted : loop::Loop {
+    // The loop's descriptor, with the constant its executor registers in the
+    // loop's parameters, and those parameters.
+    struct Probe : op::rt::abi::Loop {
         double constant = 0.0;
-        explicit Jitted(const op::rt::abi::Loop& descriptor)
-            : loop::Loop{descriptor.name, descriptor.target, descriptor.variant,
-                         descriptor.direct} {
-            m_params.add("op2_const_c_d", &constant, op::rt::abi::ParamSource::external, -1, true);
-            // One strategy, whose builds the loop's are.
+        op::rt::jit::ParamSet *params = nullptr;
+    };
+    struct Jitted : loop::Executor {
+        Jitted(Probe& probe, op::rt::jit::ParamSet& params) {
+            params.add("op2_const_c_d", &probe.constant, op::rt::abi::ParamSource::external, -1,
+                       true);
+            probe.params = &params;
             const loop::Family declared[] = {{"atomics", {}}};
             loop::declare_families(declared);
-            m_ladder.add("atomics", [](const loop::Point& point) {
+        }
+        // One strategy, whose builds the loop's are.
+        void add_strategies(loop::Ladder& ladder) override {
+            ladder.add("atomics", [](const loop::Point& point) {
                 auto made = std::make_unique<Fake>(point.name, 1.0f, 1.0f);
                 made->fake_builds = {3, 1, 0, 2};
                 return made;
             });
-        }
-        void observe(const loop::Call& call) {
-            m_params.update({});
-            m_params.observe_call(call);
         }
     };
     std::string path = "/tmp/op2_loop_jit_test_report.csv";
@@ -372,16 +365,20 @@ void test_jit_report() {
     setenv("OP_JIT_REPORT", path.c_str(), 1);
     op::rt::init();
 
-    op::rt::abi::Loop descriptor{"flux_jit", "test", "Indirect", false};
-    auto& jitted = loop::runtime<Jitted>(descriptor);
+    Probe probe{{"flux_jit", "test", "Indirect", false}};
+    auto& jitted = loop::runtime<Jitted>(probe);
+    auto observe = [&](const loop::Call& call) {
+        probe.params->update({});
+        probe.params->observe_call(call);
+    };
     loop::Call on_edges{&edges, args, edges.size + edges.exec_size, false};
     loop::Call on_cells{&cells, args, cells.size + cells.exec_size, false};
     for (int i = 0; i < 40; ++i) {
-        jitted.constant = i;
-        jitted.observe(on_edges);
+        probe.constant = i;
+        observe(on_edges);
     }
     for (int i = 0; i < 10; ++i)
-        jitted.observe(on_cells);
+        observe(on_cells);
 
     auto jit_summary = [&] {
         const op::rt::jit::JitLoop loops[] = {
@@ -424,12 +421,11 @@ void test_loop_registry() {
     struct Counts : op::rt::abi::Loop {
         int destroyed = 0;
     };
-    struct Counted : loop::Loop {
+    struct Counted : loop::Executor {
         Counts& counts;
-        explicit Counted(Counts& counts_)
-            : loop::Loop{counts_.name, counts_.target, counts_.variant, counts_.direct},
-              counts{counts_} {}
+        Counted(Counts& counts_, op::rt::jit::ParamSet&) : counts{counts_} {}
         ~Counted() override { ++counts.destroyed; }
+        void add_strategies(loop::Ladder&) override {}
     };
     unsetenv("OP_AUTOTUNE_REPORT");
     op::rt::init();

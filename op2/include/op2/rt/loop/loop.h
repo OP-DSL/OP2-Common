@@ -1,10 +1,10 @@
 #pragma once
 
-// The base of every backend's loop, the object the generated code builds per
-// par_loop: its ladder, its tuner and its JIT parameters, and a call's steps,
-// phases and profile scopes, from src/rt/loop/op_loop.cpp.  A backend
-// derives its loop and prepares the call's globals; its strategies combine
-// them and time their phases.
+// A par_loop's loop, made from the generated code's descriptor on its first
+// call: its JIT parameters, its backend's executor, its ladder and its
+// tuner, and a call's steps, phases and profile scopes, from
+// src/rt/loop/op_loop.cpp.  The backend's strategies prepare and combine the
+// call's globals and time their phases.
 
 #include <op2/rt/abi/descriptor.h>
 #include <op2/rt/jit/params.h>
@@ -17,9 +17,8 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
-#include <string_view>
-#include <vector>
 
 namespace op::rt::loop {
 
@@ -62,25 +61,37 @@ void run_phases(const Call& call, const Phases& phases, Phase&& phase, Combine&&
         wait_halos(call);
 }
 
-// The library's loop for a descriptor, a Backend made from it on its first
-// call: each backend's invoke runs it.  It lives until finalise, which clears
-// the descriptor, so the descriptor must outlive it: the generated code's are
-// static.
-template<typename Backend, typename Descriptor>
-Backend& runtime(Descriptor& descriptor) {
-    if (descriptor.runtime == nullptr) {
-        auto made = std::make_unique<Backend>(descriptor);
-        descriptor.runtime = made.get();
-        register_loop(std::move(made), descriptor);
-    }
-    return *static_cast<Backend *>(descriptor.runtime);
-}
+// What a loop's strategies share on its backend, such as a compiler or the
+// threads' copies of the globals, and where the loop's data lives.  The loop
+// holds it ahead of its ladder, so it is built before the strategies and
+// destroyed after them.
+class Executor {
+public:
+    virtual ~Executor() = default;
 
-class Loop {
+    // Add the strategies of the families the loop registers.
+    virtual void add_strategies(Ladder& ladder) = 0;
+
+    // Exchange the call's halos where the data lives, the host's unless the
+    // executor says otherwise; the elements the call runs.
+    virtual int exchange_halos(op_set set, std::span<op_arg> args) {
+        return op_mpi_halo_exchanges(set, args, 1);
+    }
+
+    // Mark the halos of the dats the call wrote out of date, where they live.
+    virtual void mark_dirty(std::span<op_arg> args) { op_mpi_set_dirtybit(args); }
+};
+
+class Loop final {
 private:
+    std::string m_name;
     std::string m_profile_target;
     std::string m_profile_variant;
     bool m_direct;
+    jit::ParamSet m_params;
+    std::unique_ptr<Executor> m_executor;
+    Ladder m_ladder;
+    std::optional<tune::Autotuner> m_tuner;
 
     // A call's decision: the parameters take its values, and the ladder
     // selects, or with a tuner the tuner chooses, asking the ladder when it
@@ -92,45 +103,25 @@ private:
     // Run a decision, its time a sample for the tuner when it is timed.
     void run(const tune::Autotuner::Decision& decision, const Call& call);
 
-protected:
-    std::string m_name;
-    Ladder m_ladder;
-    std::optional<tune::Autotuner> m_tuner;
-    jit::ParamSet m_params;
-
-    // Exchange the call's halos where the backend keeps its data, the host's
-    // unless it says otherwise; the elements the call runs.
-    virtual int exchange_halos(op_set set, std::span<op_arg> args) {
-        return op_mpi_halo_exchanges(set, args, 1);
-    }
-
-    // Mark the halos of the dats the call wrote out of date, where the
-    // backend keeps them.
-    virtual void mark_dirty(std::span<op_arg> args) { op_mpi_set_dirtybit(args); }
-
-    // Prepare the call's globals for whichever candidate runs; the selected
-    // strategy's own setup follows (Strategy::begin_call).
-    virtual void begin_call(const Call&) {}
-
 public:
-    // profile_target and profile_variant name the loop to the profiler.
-    Loop(std::string_view name, std::string_view profile_target,
-         std::string_view profile_variant, bool direct)
-        : m_profile_target{profile_target}, m_profile_variant{profile_variant},
-          m_direct{direct}, m_name{name}, m_ladder{name, tune::autotune_options().report},
-          m_params{name} {
+    // The loop of descriptor, which names it to the profiler, and its
+    // executor make(params), which registers the loop's parameters in params.
+    template<typename Make>
+    Loop(const abi::Loop& descriptor, Make&& make)
+        : m_name{descriptor.name}, m_profile_target{descriptor.target},
+          m_profile_variant{descriptor.variant}, m_direct{descriptor.direct},
+          m_params{m_name}, m_executor{make(m_params)},
+          m_ladder{m_name, tune::autotune_options().report} {
+        m_executor->add_strategies(m_ladder);
         if (tune::autotune_options().report)
             m_tuner.emplace(m_ladder);
     }
 
-    virtual ~Loop() = default;
     Loop(const Loop&) = delete;
 
     const std::string& name() const { return m_name; }
-    bool direct() const { return m_direct; }
     Ladder& ladder() { return m_ladder; }
     const Ladder& ladder() const { return m_ladder; }
-    jit::ParamSet& params() { return m_params; }
     const jit::ParamSet& params() const { return m_params; }
     const tune::Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
 
@@ -144,8 +135,25 @@ public:
 
     // Run one call: start the halo exchange, which decides what the call runs
     // and which the planning overlaps; decide; prepare the globals; run; and
-    // finish, reduce and mark the globals and dats.
+    // reduce and mark the globals and dats.
     void invoke(op_set set, std::span<op_arg> args);
 };
+
+// The library's loop for a descriptor, made on its first call with a
+// BackendExecutor from the descriptor and the loop's parameters: each
+// backend's invoke runs it.  It lives until finalise, which clears the
+// descriptor, so the descriptor must outlive it: the generated code's are
+// static.
+template<typename BackendExecutor, typename Descriptor>
+Loop& runtime(Descriptor& descriptor) {
+    if (descriptor.runtime == nullptr) {
+        auto made = std::make_unique<Loop>(descriptor, [&](jit::ParamSet& params) {
+            return std::make_unique<BackendExecutor>(descriptor, params);
+        });
+        descriptor.runtime = made.get();
+        register_loop(std::move(made), descriptor);
+    }
+    return *static_cast<Loop *>(descriptor.runtime);
+}
 
 } // namespace op::rt::loop

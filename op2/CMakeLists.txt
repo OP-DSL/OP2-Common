@@ -72,7 +72,7 @@ set(_op2_rt_srcs
 # (op2/rt/kernel/cpu/range.h, op2/rt/kernel/cpu/chunk.h).
 set(_op2_rt_cpu_srcs
     "${_src}/rt/cpu/op_cpu_init.cpp"
-    "${_src}/rt/cpu/op_cpu_loop.cpp"
+    "${_src}/rt/cpu/op_cpu_executor.cpp"
     "${_src}/rt/cpu/op_cpu_strategy.cpp"
     "${_src}/rt/cpu/op_cpu_chunk_plan.cpp"
 )
@@ -83,7 +83,7 @@ set(_op2_rt_cpu_srcs
 # (op2/rt/kernel/gpu/offline.h).
 set(_op2_rt_gpu_srcs
     "${_src}/rt/gpu/op_gpu_options.cpp"
-    "${_src}/rt/gpu/op_gpu_loop.cpp"
+    "${_src}/rt/gpu/op_gpu_executor.cpp"
     "${_src}/rt/gpu/op_gpu_strategy.cpp"
     "${_src}/rt/gpu/op_gpu_heuristics.cpp"
     "${_src}/rt/gpu/op_gpu_jit.cpp"
@@ -657,7 +657,7 @@ foreach(_t IN LISTS _op2_targets_for)
 endforeach()
 
 # include/op2 mirrors op2/include, so one include directory serves the flat
-# headers (<op_seq.h>) and the op2/ tree (<op2/rt/gpu/loop.h>) alike.
+# headers (<op_seq.h>) and the op2/ tree (<op2/rt/gpu/executor.h>) alike.
 install(DIRECTORY "${_inc}/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
     FILES_MATCHING

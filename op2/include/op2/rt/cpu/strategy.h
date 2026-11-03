@@ -7,7 +7,7 @@
 // loop inlines.  Defined in src/rt/cpu/op_cpu_strategy.cpp.
 
 #include <op2/rt/cpu/chunk_plan.h>
-#include <op2/rt/cpu/loop.h>
+#include <op2/rt/cpu/executor.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/cache.h>
 #include <op2/rt/plan/colouring.h>
@@ -28,12 +28,13 @@ namespace op::rt::cpu {
 
 class StrategyBase : public op::rt::loop::Strategy {
 protected:
-    Loop& m_loop;
+    Executor& m_executor;
     std::string m_name;
     const abi::cpu::Family& m_family;
 
-    StrategyBase(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : m_loop{loop}, m_name{point.name}, m_family{family} {}
+    StrategyBase(Executor& executor, const op::rt::loop::Point& point,
+                 const abi::cpu::Family& family)
+        : m_executor{executor}, m_name{point.name}, m_family{family} {}
 
     // Run [begin, end), or the positions of order, over the threads.
     void split(int begin, int end, const int *order, std::span<op_arg> args);
@@ -48,6 +49,11 @@ public:
     static std::vector<op::rt::loop::Axis> axes() { return {}; }
 
     std::string_view name() const override { return m_name; }
+
+    // The call's threads and their copies of the globals.
+    void begin_call(const op::rt::loop::Prepared&, const op::rt::loop::Call& call) override {
+        m_executor.begin_call(call);
+    }
 };
 
 // --- Plain and atomics ------------------------------------------------------------
@@ -56,8 +62,8 @@ public:
 // for plain, atomics for atomics.
 class Simple : public StrategyBase {
 public:
-    Simple(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : StrategyBase{loop, point, family} {}
+    Simple(Executor& executor, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : StrategyBase{executor, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                    op::rt::loop::Urgency urgency,
@@ -75,8 +81,8 @@ private:
     op::rt::plan::PlanSlots<op::rt::plan::SetColouring> m_plans;
 
 public:
-    Colouring(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : StrategyBase{loop, point, family} {}
+    Colouring(Executor& executor, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : StrategyBase{executor, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                    op::rt::loop::Urgency urgency,
@@ -101,8 +107,8 @@ protected:
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkResult> m_plans;
 
-    ChunkBase(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : StrategyBase{loop, point, family}, m_groups{family.groups},
+    ChunkBase(Executor& executor, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+        : StrategyBase{executor, point, family}, m_groups{family.groups},
           m_chunk_size{point.value("chunk_size")} {}
 
     // The variant's plan of the call, and its inputs to the plan's key beyond
@@ -134,8 +140,9 @@ protected:
     void add_key(op::rt::plan::PlanKey& key) const override;
 
 public:
-    ChunkAtomics(Loop& loop, const op::rt::loop::Point& point, const abi::cpu::Family& family)
-        : ChunkBase{loop, point, family} {}
+    ChunkAtomics(Executor& executor, const op::rt::loop::Point& point,
+                 const abi::cpu::Family& family)
+        : ChunkBase{executor, point, family} {}
 };
 
 // Conflicts come from the call's updated dats, so it needs no groups.
@@ -145,28 +152,21 @@ protected:
     void add_key(op::rt::plan::PlanKey&) const override {}
 
 public:
-    ChunkColouring(Loop& loop, const op::rt::loop::Point& point,
+    ChunkColouring(Executor& executor, const op::rt::loop::Point& point,
                    const abi::cpu::Family& family)
-        : ChunkBase{loop, point, family} {}
+        : ChunkBase{executor, point, family} {}
 };
 
 // --- Families -------------------------------------------------------------------
 
-// A strategy family as the OpenMP backend offers it: as the ladder declares
-// it, and the strategy it makes at each point.
-struct StrategyFamily : op::rt::loop::Family {
-    std::unique_ptr<op::rt::loop::Strategy> (*make)(Loop& loop, const abi::cpu::Family& family,
-                                                    const op::rt::loop::Point& point) = nullptr;
-};
+// A strategy family as the OpenMP backend offers it.
+using OfferedFamily = op::rt::loop::OfferedFamily<Executor, abi::cpu::Family>;
 
 // The families in ladder order: plain, chunk_atomics, atomics,
 // chunk_colouring and colouring, the atomic ones off by default (an atomic
 // increment is a compare-and-swap loop on most CPUs), so chunk colouring runs
 // over the set colouring floor.
-std::span<const StrategyFamily> strategy_families();
-
-// The family loop registers as name; one the backend lacks stops the run.
-const StrategyFamily& strategy_family(std::string_view name, std::string_view loop);
+std::span<const OfferedFamily> strategy_families();
 
 // Declare the families the generated code registers, in ladder order; the
 // CPU libraries' op_init calls it.

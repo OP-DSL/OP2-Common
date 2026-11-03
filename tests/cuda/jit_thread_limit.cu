@@ -6,7 +6,7 @@
 #define OP_KERNEL_JIT_TAG jit_thread_limit_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
-#include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/executor.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/kernel/gpu/offline.h>
@@ -74,14 +74,14 @@ const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
 struct Described {
     op::rt::abi::gpu::Family family;
     op::rt::abi::gpu::Loop descriptor;
-    gpu::Loop& loop;
+    op::rt::loop::Loop& loop;
 
     explicit Described(const char *source)
         : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
           descriptor{{"thread_limit", "cuda", "Direct", true}, false, params,
                      {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
-          loop{op::rt::loop::runtime<gpu::Loop>(descriptor)} {}
+          loop{op::rt::loop::runtime<gpu::Executor>(descriptor)} {}
 };
 
 std::vector<double> reference(const std::vector<double>& in) {
@@ -143,12 +143,12 @@ int main(int argc, char **argv) {
 
     // The loop's one candidate, as prepared: its specialised kernel, or the
     // offline candidate kept to refuse a point with no kernel.
-    auto prepare = [&](gpu::Loop& jit_loop) {
+    auto prepare = [&](op::rt::loop::Loop& jit_loop) {
         expect(jit_loop.ladder().size() == 1, "one candidate");
         return jit_loop.ladder()[0].prepare(call, loop::Urgency::wait);
     };
     // A call of the loop, compared with the host.
-    auto runs = [&](gpu::Loop& jit_loop, const std::string& what) {
+    auto runs = [&](op::rt::loop::Loop& jit_loop, const std::string& what) {
         GPU_CHECK(gpuMemset(out_d, 0, elements * sizeof(double)));
         jit_loop.invoke(&set, args);
         std::vector<double> out(elements);

@@ -25,7 +25,7 @@ op::rt::plan::SharedPlans<ChunkResult> chunk_plans;
 void StrategyBase::split(int begin, int end, const int *order, std::span<op_arg> args) {
     if (end <= begin)
         return;
-    abi::cpu::Range range = m_loop.range();
+    abi::cpu::Range range = m_executor.range();
     range.begin = begin;
     range.end = end;
     range.order = order;
@@ -41,7 +41,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Call& call, bo
         auto start = clock::now();
         phase(index);
         elapsed += clock::now() - start;
-    }, [&] { m_loop.combine_globals(call); });
+    }, [&] { m_executor.combine_globals(call); });
 
     if (!timed)
         return std::nullopt;
@@ -76,7 +76,7 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
                 op::rt::plan::colour_set(call.args, call.sections));
             if (OP_diags > 3)
                 op_printf("%s: %s %d colours, %d over owned elements\n", m_name.c_str(),
-                          m_loop.name().c_str(), plan->colours, plan->owned_colours);
+                          m_executor.name(), plan->colours, plan->owned_colours);
             return plan;
         });
     });
@@ -113,12 +113,12 @@ const ChunkResult& ChunkBase::entry_for(const op::rt::loop::Call& call) {
             if (OP_diags > 3) {
                 if (!*entry)
                     op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
-                              m_loop.name().c_str(), std::string{entry->rejected}.c_str(),
+                              m_executor.name(), std::string{entry->rejected}.c_str(),
                               entry->compression);
                 else
                     op_printf("%s: %s chunk %d, %d chunks, %d batches, "
                               "compression %.2fx\n",
-                              m_name.c_str(), m_loop.name().c_str(), entry->plan->chunks.size,
+                              m_name.c_str(), m_executor.name(), entry->plan->chunks.size,
                               entry->plan->chunks.count(), entry->plan->batches.count(),
                               entry->plan->compression);
             }
@@ -140,9 +140,9 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = call.sections;
-    m_loop.reserve_scratch(plan.max_scratch_bytes);
+    m_executor.reserve_scratch(plan.max_scratch_bytes);
 
-    abi::cpu::Chunk chunks = m_loop.chunks();
+    abi::cpu::Chunk chunks = m_executor.chunks();
     chunks.chunk_order = plan.batches.order.empty() ? nullptr : plan.batches.order.data();
     chunks.chunk_offsets = plan.chunks.offsets.data();
     chunks.staging = {plan.staging.stride, plan.stage_words.data(),
@@ -186,29 +186,15 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
 
 // --- Families ---
 
-namespace {
-
-template<typename S>
-std::unique_ptr<op::rt::loop::Strategy> make(Loop& loop, const abi::cpu::Family& family,
-                                             const op::rt::loop::Point& point) {
-    return std::make_unique<S>(loop, point, family);
-}
-
-} // namespace
-
-std::span<const StrategyFamily> strategy_families() {
-    static const std::vector<StrategyFamily> families{
-        {{"plain", Simple::axes()}, &make<Simple>},
-        {{"chunk_atomics", ChunkAtomics::axes(), false}, &make<ChunkAtomics>},
-        {{"atomics", Simple::axes(), false}, &make<Simple>},
-        {{"chunk_colouring", ChunkColouring::axes()}, &make<ChunkColouring>},
-        {{"colouring", Colouring::axes()}, &make<Colouring>},
+std::span<const OfferedFamily> strategy_families() {
+    static const std::vector<OfferedFamily> families{
+        OfferedFamily::of<Simple>("plain"),
+        OfferedFamily::of<ChunkAtomics>("chunk_atomics", false),
+        OfferedFamily::of<Simple>("atomics", false),
+        OfferedFamily::of<ChunkColouring>("chunk_colouring"),
+        OfferedFamily::of<Colouring>("colouring"),
     };
     return families;
-}
-
-const StrategyFamily& strategy_family(std::string_view name, std::string_view loop) {
-    return op::rt::loop::offered_family(strategy_families(), name, loop, "OpenMP");
 }
 
 } // namespace op::rt::cpu

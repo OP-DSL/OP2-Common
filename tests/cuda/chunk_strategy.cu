@@ -7,7 +7,7 @@
 #define OP_KERNEL_JIT_TAG chunk_strategy_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
-#include <op2/rt/gpu/loop.h>
+#include <op2/rt/gpu/executor.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/kernel/gpu/offline.h>
@@ -181,7 +181,7 @@ const op::rt::abi::gpu::Param params[] = {
 struct Described {
     std::array<op::rt::abi::gpu::Family, 2> families;
     op::rt::abi::gpu::Loop descriptor;
-    gpu::Loop& loop;
+    op::rt::loop::Loop& loop;
 
     Described(const char *name, const Fixture& fixture)
         : families{{{{"chunk_atomics", fixture.groups()}, "chunk_strategy_staged",
@@ -191,7 +191,7 @@ struct Described {
                      baseline_source}}},
           descriptor{{name, "cuda", "Indirect", false}, false, params, families, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
-          loop{op::rt::loop::runtime<gpu::Loop>(descriptor)} {}
+          loop{op::rt::loop::runtime<gpu::Executor>(descriptor)} {}
 };
 
 std::array<int, 10> output{};
@@ -207,7 +207,7 @@ struct Outcome {
     int max_blocks;
 };
 
-Outcome run(gpu::Loop& loop, Fixture& fixture) {
+Outcome run(op::rt::loop::Loop& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
     op::rt::loop::Call call{&fixture.source, fixture.args,
                             fixture.source.size + fixture.source.exec_size, false};

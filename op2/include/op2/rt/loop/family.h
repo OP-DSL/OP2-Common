@@ -5,6 +5,9 @@
 // src/rt/loop/op_loop_ladder.cpp, whose ladders take the declared families'
 // settings.
 
+#include <op2/rt/loop/strategy.h>
+
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -47,23 +50,39 @@ struct Family {
     bool enabled = true;
 };
 
+// A family as a backend offers it: as declared, and the strategy it makes at
+// each point for a loop's BackendExecutor, under the family's settings in
+// the loop's descriptor, an AbiFamily.
+template<typename BackendExecutor, typename AbiFamily>
+struct OfferedFamily : Family {
+    std::unique_ptr<Strategy> (*make)(BackendExecutor& executor, const Point& point,
+                                      const AbiFamily& family) = nullptr;
+
+    // The family name of strategies S, which the ladder runs unless enabled
+    // says otherwise.
+    template<typename S>
+    static OfferedFamily of(std::string_view name, bool enabled = true) {
+        return {{name, S::axes(), enabled},
+                [](BackendExecutor& executor, const Point& point,
+                   const AbiFamily& family) -> std::unique_ptr<Strategy> {
+                    return std::make_unique<S>(executor, point, family);
+                }};
+    }
+};
+
 // Read each family's variables, OP_<FAMILY> and its axes'; the backend
 // declares its families in ladder order as op_init runs, and a ladder takes
 // their settings and order from here.
 void declare_families(std::span<const Family> families);
 
+template<typename BackendExecutor, typename AbiFamily>
+void declare_families(std::span<const OfferedFamily<BackendExecutor, AbiFamily>> offered) {
+    std::vector<Family> families(offered.begin(), offered.end());
+    declare_families(families);
+}
+
 // Stop the run: loop registers a family the backend lacks.
 [[noreturn]] void missing_family(std::string_view name, std::string_view loop,
                                  std::string_view backend);
-
-// The family named name among those a backend offers, which loop registers.
-template<typename Offered>
-const Offered& offered_family(std::span<const Offered> offered, std::string_view name,
-                              std::string_view loop, std::string_view backend) {
-    for (const auto& family : offered)
-        if (family.name == name)
-            return family;
-    missing_family(name, loop, backend);
-}
 
 } // namespace op::rt::loop

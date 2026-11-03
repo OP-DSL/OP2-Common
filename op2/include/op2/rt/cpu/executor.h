@@ -1,13 +1,14 @@
 #pragma once
 
-// The OpenMP backend's loop, built from the generated code's descriptor
-// (op2/rt/abi/cpu/descriptor.h) on its first call: the base loop, plus the
-// call's threads, globals and chunk scratch.  Defined in
-// src/rt/cpu/op_cpu_loop.cpp.
+// The OpenMP backend's executor, made with its loop from the generated
+// code's descriptor (op2/rt/abi/cpu/descriptor.h): the call's threads, their
+// globals and chunk scratch.  Defined in src/rt/cpu/op_cpu_executor.cpp.
 
 #include <op2/rt/abi/cpu/descriptor.h>
 #include <op2/rt/abi/cpu/launch.h>
+#include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
+#include <op2/rt/loop/ladder.h>
 #include <op2/rt/loop/loop.h>
 #include <op_lib_core.h>
 
@@ -49,9 +50,9 @@ public:
     void combine(std::span<op_arg> args, const char *loop) const;
 };
 
-class Loop : public op::rt::loop::Loop {
+class Executor final : public op::rt::loop::Executor {
 private:
-    int (*m_max_threads)();
+    const abi::cpu::Loop& m_descriptor;
     // The call under way: its threads, their globals and chunk scratch.
     int m_threads = 1;
     Globals m_globals;
@@ -60,10 +61,17 @@ private:
     std::size_t m_scratch_capacity = 0;
 
 public:
-    explicit Loop(const abi::cpu::Loop& descriptor);
-    ~Loop() override;
+    // The executor of descriptor's loop, whose kernels take no parameters.
+    Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet& params);
+
+    void add_strategies(op::rt::loop::Ladder& ladder) override;
 
     // --- For the strategies ---
+
+    const char *name() const { return m_descriptor.name; }
+
+    // Start a call: its threads, and each one's copy of the globals.
+    void begin_call(const op::rt::loop::Call& call);
 
     // A range and a chunk phase over the call's threads and their globals,
     // the chunk phase's with their scratch.
@@ -75,12 +83,6 @@ public:
 
     // Combine the threads' copies into the arguments.
     void combine_globals(const op::rt::loop::Call& call);
-
-protected:
-    // --- Per call ---
-
-    // The call's threads, and each one's copy of the globals.
-    void begin_call(const op::rt::loop::Call& call) override;
 };
 
 } // namespace op::rt::cpu

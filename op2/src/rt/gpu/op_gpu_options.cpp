@@ -66,9 +66,7 @@ void init() {
         op_printf("JIT arch flag: %s\n", device.arch.c_str());
 #endif
 
-    auto offered = strategy_families();
-    std::vector<op::rt::loop::Family> families(offered.begin(), offered.end());
-    op::rt::loop::declare_families(families);
+    op::rt::loop::declare_families(strategy_families());
 }
 
 } // namespace op::rt::gpu

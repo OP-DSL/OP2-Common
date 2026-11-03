@@ -7,6 +7,7 @@
 #include <op2/rt/loop/family.h>
 #include <op2/rt/loop/strategy.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <deque>
 #include <functional>
@@ -99,6 +100,22 @@ public:
     // A declared family: make builds its strategy for each point of its
     // axes, and the strategy's candidates follow from its estimates.
     void add(std::string_view family, const Make& make);
+
+    // Each family the loop registers, made for executor as backend offers it;
+    // a family the backend lacks stops the run.
+    template<typename BackendExecutor, typename AbiFamily>
+    void add_families(std::span<const AbiFamily> registered,
+                      std::span<const OfferedFamily<BackendExecutor, AbiFamily>> offered,
+                      BackendExecutor& executor, std::string_view backend) {
+        for (const auto& family : registered) {
+            auto found = std::ranges::find(offered, std::string_view{family.name}, &Family::name);
+            if (found == offered.end())
+                missing_family(family.name, m_name, backend);
+            add(family.name, [&](const Point& point) {
+                return found->make(executor, point, family);
+            });
+        }
+    }
 
     // First enabled member, from the forced family if any, whose prepare is
     // ready; else the floor, waited for, so the selection is always ready: a

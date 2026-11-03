@@ -37,10 +37,10 @@ ColouringPlan::~ColouringPlan() { release(order_d); }
 
 // --- The base of every GPU strategy ------------------------------------------------
 
-StrategyBase::StrategyBase(Loop& loop, const op::rt::loop::Point& point,
+StrategyBase::StrategyBase(Executor& executor, const op::rt::loop::Point& point,
                            const abi::gpu::Family& family)
-    : m_loop{loop}, m_name{point.name}, m_family{family},
-      m_block_size{point.value("block_size")}, m_offline{family.offline, loop.calls()},
+    : m_executor{executor}, m_name{point.name}, m_family{family},
+      m_block_size{point.value("block_size")}, m_offline{family.offline, executor.calls()},
       m_cache{family.kernel, options().build_threads} {}
 
 op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
@@ -60,8 +60,8 @@ std::string StrategyBase::statistics(const op::rt::loop::Prepared& prepared) con
 StrategyBase::Shape StrategyBase::shape(const op::rt::loop::Call& call,
                                         const void *entry) const {
     Shape shape;
-    shape.stride = element_stride(call.set, m_loop.direct());
-    shape.block_limit = m_loop.block_limit(call, m_block_size);
+    shape.stride = element_stride(call.set, m_executor.direct());
+    shape.block_limit = m_executor.block_limit(call, m_block_size);
     shape.global_stride = m_block_size * max_blocks(call, entry, shape.block_limit);
     return shape;
 }
@@ -69,7 +69,7 @@ StrategyBase::Shape StrategyBase::shape(const op::rt::loop::Call& call,
 op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
                                              op::rt::loop::Urgency urgency,
                                              op::rt::loop::KernelKind kind) {
-    auto planned = plan(call, element_stride(call.set, m_loop.direct()));
+    auto planned = plan(call, element_stride(call.set, m_executor.direct()));
     if (!planned.rejected.empty())
         return op::rt::loop::Prepared::unavailable(planned.rejected, planned.entry);
     if (kind == op::rt::loop::KernelKind::offline)
@@ -77,11 +77,11 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
     op::rt::loop::Prepared prepared;
     prepared.entry = planned.entry;
 
-    auto& params = m_loop.params();
+    auto& params = m_executor.params();
     auto values = launch_values(shape(call, planned.entry).global_stride).slots();
     auto key = params.key(call, values);
     auto acquired = m_cache.acquire(
-        key, urgency, [&] { return m_loop.compiler().job(params, values, m_family); });
+        key, urgency, [&] { return m_executor.compiler().job(params, values, m_family); });
     // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::rt::loop::Status::ready &&
         acquired.kernel->resources().max_threads < m_block_size) {
@@ -97,12 +97,12 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
 template<typename Record>
 void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record,
                           std::span<op_arg> args, Geometry geometry) {
-    void **arguments = m_loop.arguments(record, args);
+    void **arguments = m_executor.arguments(record, args);
     if (prepared.kernel != nullptr) {
         op_profile_next("JIT Kernel");
         static_cast<JitKernel *>(prepared.kernel)
             ->launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes,
-                     m_loop.params());
+                     m_executor.params());
         return;
     }
 
@@ -120,14 +120,14 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
     // An offline kernel reads the call's constants and strides from device
     // symbols.
     if (prepared.kernel == nullptr)
-        m_loop.upload();
+        m_executor.upload();
     int timed_pairs = 0;
     bool sync = false;
     op::rt::loop::run_phases(call, phases, [&](int phase) {
         int count = launches(phase);
         bool timing = timed && count > 0;
         if (timing)
-            GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs), 0));
+            GPU_CHECK(gpuEventRecord(m_executor.event(2 * timed_pairs), 0));
 
         for (int index = 0; index < count; ++index) {
             Record record;
@@ -139,8 +139,8 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
         }
 
         if (timing)
-            GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
-    }, [&] { sync |= m_loop.combine_globals(call, shape.global_stride); });
+            GPU_CHECK(gpuEventRecord(m_executor.event(2 * timed_pairs++ + 1), 0));
+    }, [&] { sync |= m_executor.combine_globals(call, shape.global_stride); });
     // The host reads the combined globals next.
     if (sync)
         GPU_CHECK(gpuStreamSynchronize(0));
@@ -149,11 +149,12 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
         return std::nullopt;
     if (timed_pairs == 0)
         return 0.0f;
-    GPU_CHECK(gpuEventSynchronize(m_loop.event(2 * timed_pairs - 1)));
+    GPU_CHECK(gpuEventSynchronize(m_executor.event(2 * timed_pairs - 1)));
     float total = 0.0f;
     for (int pair = 0; pair < timed_pairs; ++pair) {
         float ms = 0.0f;
-        GPU_CHECK(gpuEventElapsedTime(&ms, m_loop.event(2 * pair), m_loop.event(2 * pair + 1)));
+        GPU_CHECK(gpuEventElapsedTime(&ms, m_executor.event(2 * pair),
+                                      m_executor.event(2 * pair + 1)));
         total += ms;
     }
     return total * 1000.0f;
@@ -197,7 +198,7 @@ StrategyBase::Planned Colouring::plan(const op::rt::loop::Call& call, int) {
                     std::max(plan->max_colour, offsets[colour + 1] - offsets[colour]);
             if (OP_diags > 3)
                 op_printf("colouring: %s %d colours, %d over owned elements\n",
-                          m_loop.name().c_str(), plan->colouring.colours,
+                          m_executor.name(), plan->colouring.colours,
                           plan->colouring.owned_colours);
             return plan;
         });
@@ -308,13 +309,13 @@ void ChunkBase::report(const ChunkResult& result) const {
         return;
     if (!result) {
         op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
-                  m_loop.name().c_str(), std::string{result.rejected}.c_str(),
+                  m_executor.name(), std::string{result.rejected}.c_str(),
                   result.compression);
         return;
     }
     const auto& plan = *result.plan;
     op_printf("%s: %s chunk %d, %d chunks, %s, compression %.2fx\n", m_name.c_str(),
-              m_loop.name().c_str(), plan.chunks.size, plan.chunks.count(),
+              m_executor.name(), plan.chunks.size, plan.chunks.count(),
               figures(plan).c_str(), plan.compression);
 }
 
@@ -380,34 +381,20 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
 
 // --- Families ---
 
-namespace {
-
-template<typename S>
-std::unique_ptr<op::rt::loop::Strategy> make(Loop& loop, const abi::gpu::Family& family,
-                                             const op::rt::loop::Point& point) {
-    return std::make_unique<S>(loop, point, family);
-}
-
-} // namespace
-
-std::span<const StrategyFamily> strategy_families() {
+std::span<const OfferedFamily> strategy_families() {
 #ifdef OP2_HIP
     constexpr bool chunk_atomics = true;
 #else
     constexpr bool chunk_atomics = false;
 #endif
-    static const std::vector<StrategyFamily> families{
-        {{"plain", Simple::axes()}, &make<Simple>},
-        {{"chunk_atomics", ChunkAtomics::axes(), chunk_atomics}, &make<ChunkAtomics>},
-        {{"atomics", Simple::axes()}, &make<Simple>},
-        {{"chunk_colouring", ChunkColouring::axes(), false}, &make<ChunkColouring>},
-        {{"colouring", Colouring::axes()}, &make<Colouring>},
+    static const std::vector<OfferedFamily> families{
+        OfferedFamily::of<Simple>("plain"),
+        OfferedFamily::of<ChunkAtomics>("chunk_atomics", chunk_atomics),
+        OfferedFamily::of<Simple>("atomics"),
+        OfferedFamily::of<ChunkColouring>("chunk_colouring", false),
+        OfferedFamily::of<Colouring>("colouring"),
     };
     return families;
-}
-
-const StrategyFamily& strategy_family(std::string_view name, std::string_view loop) {
-    return op::rt::loop::offered_family(strategy_families(), name, loop, "GPU");
 }
 
 } // namespace op::rt::gpu
