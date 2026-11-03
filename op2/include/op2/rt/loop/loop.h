@@ -56,6 +56,10 @@ Backend& runtime(Descriptor& descriptor) {
 
 class Loop {
 private:
+    std::string m_profile_target;
+    std::string m_profile_variant;
+    bool m_direct;
+
     // A call's decision: the parameters take its values, and the ladder
     // selects, or with a tuner the tuner chooses, asking the ladder when it
     // needs its selection.  Every call counts in the parameters' statistics,
@@ -74,9 +78,6 @@ private:
 
 protected:
     std::string m_name;
-    std::string m_profile_target;
-    std::string m_profile_variant;
-    bool m_direct;
     Ladder m_ladder;
     std::optional<tune::Autotuner> m_tuner;
     jit::ParamSet m_params;
@@ -106,9 +107,8 @@ public:
     // profile_target and profile_variant name the loop to the profiler.
     Loop(std::string_view name, std::string_view profile_target,
          std::string_view profile_variant, bool direct)
-        : m_name{name}, m_profile_target{profile_target},
-          m_profile_variant{profile_variant}, m_direct{direct},
-          m_ladder{name, tune::autotune_options().report},
+        : m_profile_target{profile_target}, m_profile_variant{profile_variant},
+          m_direct{direct}, m_name{name}, m_ladder{name, tune::autotune_options().report},
           m_params{name} {
         if (tune::autotune_options().report)
             m_tuner.emplace(m_ladder);

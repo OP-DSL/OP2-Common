@@ -49,6 +49,59 @@ void init_autotune();
 // A loop's tuning: the timings of each candidate for every configuration of
 // the loop seen often enough, and what to run from them.
 class Autotuner {
+    struct Trial;
+
+public:
+    // The report's columns.
+    static constexpr const char *report_header =
+        "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
+        "fastest,speedup,selected,state,statistics";
+
+    // What one call runs, and the trial its run is a timed sample of while
+    // the configuration is explored; none for an untimed run.
+    struct Decision {
+        loop::Prepared prepared;
+        Trial *timed = nullptr;
+    };
+
+    // An explored configuration, for the summary: the ladder's choice and
+    // the fastest candidate with their median times, none until timed.
+    struct Outcome {
+        std::string_view description;
+        std::size_t calls;
+        const loop::Candidate *ladder;
+        const loop::Candidate *fastest;
+        const loop::Candidate *selected;
+        std::optional<float> ladder_us;
+        std::optional<float> fastest_us;
+        bool complete;
+    };
+
+    explicit Autotuner(loop::Ladder& ladder) : m_ladder{ladder} {}
+    Autotuner(const Autotuner&) = delete;
+
+    // The ladder's selection, unless the configuration is being explored:
+    // once seen min_calls times and settled (its JIT modes have had their
+    // window), each candidate not turned off by its variable whose prepare
+    // is ready or pending runs in turn for its warm-ups and samples.  Pending
+    // defers a trial, its build started now; unavailable retires it with its
+    // reason.  When every trial is done, under select, its fastest
+    // candidate runs from then on if it beats the ladder's current choice by
+    // the margin, the ladder not asked while it is ready.
+    Decision choose(const loop::Call& call, bool settled);
+
+    // Record one timed run.
+    void sample(const Decision& decision, float microseconds);
+
+    void outcomes(std::vector<Outcome>& out) const;
+    // Configurations seen with something to explore but not explored,
+    // those past max_keys included.
+    std::size_t unexplored() const;
+
+    // Append a report row per explored configuration and candidate, as they
+    // stand.
+    void rows(std::vector<std::string>& out) const;
+
 private:
     // One candidate's exploration for a configuration.
     struct Trial {
@@ -95,20 +148,6 @@ private:
         float speedup = 0.0f;
     };
 
-public:
-    // The report's columns.
-    static constexpr const char *report_header =
-        "loop,configuration,calls,strategy,status,median_us,samples,ladder,"
-        "fastest,speedup,selected,state,statistics";
-
-    // What one call runs, and the trial its run is a timed sample of while
-    // the configuration is explored; none for an untimed run.
-    struct Decision {
-        loop::Prepared prepared;
-        Trial *timed = nullptr;
-    };
-
-private:
     // Asked for its selection when a call needs it.
     loop::Ladder& m_ladder;
     // Once this many configurations have state a new one gets none; those
@@ -128,45 +167,6 @@ private:
     const loop::Candidate *winner(const Summary& summary) const;
     std::string row(const State& state, const Summary& summary,
                     const Trial& trial) const;
-
-public:
-    explicit Autotuner(loop::Ladder& ladder) : m_ladder{ladder} {}
-    Autotuner(const Autotuner&) = delete;
-
-    // The ladder's selection, unless the configuration is being explored:
-    // once seen min_calls times and settled (its JIT modes have had their
-    // window), each candidate not turned off by its variable whose prepare
-    // is ready or pending runs in turn for its warm-ups and samples.  Pending
-    // defers a trial, its build started now; unavailable retires it with its
-    // reason.  When every trial is done, under select, its fastest
-    // candidate runs from then on if it beats the ladder's current choice by
-    // the margin, the ladder not asked while it is ready.
-    Decision choose(const loop::Call& call, bool settled);
-
-    // Record one timed run.
-    void sample(const Decision& decision, float microseconds);
-
-    // An explored configuration, for the summary: the ladder's choice and
-    // the fastest candidate with their median times, none until timed.
-    struct Outcome {
-        std::string_view description;
-        std::size_t calls;
-        const loop::Candidate *ladder;
-        const loop::Candidate *fastest;
-        const loop::Candidate *selected;
-        std::optional<float> ladder_us;
-        std::optional<float> fastest_us;
-        bool complete;
-    };
-
-    void outcomes(std::vector<Outcome>& out) const;
-    // Configurations seen with something to explore but not explored,
-    // those past max_keys included.
-    std::size_t unexplored() const;
-
-    // Append a report row per explored configuration and candidate, as they
-    // stand.
-    void rows(std::vector<std::string>& out) const;
 };
 
 // A loop as the summary reads it: its tuner, none when it has none.
