@@ -96,7 +96,7 @@ public:
 
     // The call's value, from its arguments; a dat's stride as the backend
     // lays the dat out.
-    void update(op_arg *args, int nargs, DatStride dat_stride);
+    void update(std::span<const op_arg> args, DatStride dat_stride);
 
     // The strategy's value, from its slots.
     void apply(std::span<const int> values) {
@@ -232,7 +232,7 @@ public:
     const Param& operator[](std::size_t index) const { return m_params[index]; }
 
     // The call's values, at invoke.
-    void update(op_arg *args, int nargs);
+    void update(std::span<const op_arg> args);
 
     // Whether any parameter's mode may move, so its statistics matter.
     bool moving() const { return m_moving; }

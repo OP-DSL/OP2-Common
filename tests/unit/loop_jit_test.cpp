@@ -219,17 +219,17 @@ void test_params() {
     params.add("big", &big, abi::ParamSource::external);
 
     loop::Call call{&set, {args, 3}, 100, false};
-    params.update(args, 3);
+    params.update(args);
     CHECK(gbl0 == 2.5 && gbl2 == 7.0 && stride == 128 && dim == 3);
     std::array<int, 2> slots{0, 64};
     auto key = params.key(call, slots);
     CHECK(params.key(call, slots) == key);
 
     global = 3.5;
-    params.update(args, 3);
+    params.update(args);
     CHECK(params.key(call, slots) != key);
     global = 2.5;
-    params.update(args, 3);
+    params.update(args);
     CHECK(params.key(call, slots) == key);
     slots[1] = 128;
     CHECK(params.key(call, slots) != key);
@@ -338,7 +338,7 @@ void test_statistics() {
     params.add("c", &constant, abi::ParamSource::external, -1, true);
     params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     auto next = [&](int set) {
-        params.update(args, 1);
+        params.update(args);
         loop::Call call{&sets[set], {args, 1}, sets[set].size, false};
         return params.key(call, {});
     };
@@ -464,7 +464,7 @@ void test_array_globals() {
                          abi::ParamSource::array_arg, i, true);
     loop::Call call{&set, {args, 4}, 10, false};
     auto next = [&] {
-        params.update(args, 4);
+        params.update(args);
         return params.key(call, {});
     };
 
@@ -494,7 +494,7 @@ void test_array_globals() {
     capped.add_array("g0", static_cast<double *>(nullptr), 0,
                      abi::ParamSource::array_arg, 0, true);
     for (int i = 0; i < 40; ++i) {
-        capped.update(args, 4);
+        capped.update(args);
         capped.key(call, {});
     }
     CHECK(capped[0].mode() == runtime);
@@ -523,11 +523,11 @@ void test_observe_every_call() {
 
     loop::Call call{&set, {args, 1}, 10, false};
     for (int i = 0; i < 31; ++i) {
-        params.update(args, 1);
+        params.update(args);
         params.observe_call(call);
     }
     CHECK(params[0].mode() == runtime);
-    params.update(args, 1);
+    params.update(args);
     params.observe_call(call);
     auto key = params.key(call, {});
     CHECK(params[0].mode() == baked && params.key(call, {}) == key);
@@ -555,7 +555,7 @@ void test_settled() {
     params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
     for (std::uint64_t i = 0; i < jit::statistics_window; ++i) {
         CHECK(!params.settled(call));
-        params.update(args, 1);
+        params.update(args);
         params.observe_call(call);
     }
     CHECK(params.settled(call));

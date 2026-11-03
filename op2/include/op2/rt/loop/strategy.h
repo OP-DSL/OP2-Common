@@ -123,10 +123,9 @@ public:
     // Once its candidate is selected for the call, before the run: set up
     // what the run needs of the call's globals.  The loop's own setup comes
     // first.
-    virtual void begin_call(const Prepared& prepared, op_arg *args, int nargs) {
+    virtual void begin_call(const Prepared& prepared, const Call& call) {
         (void)prepared;
-        (void)args;
-        (void)nargs;
+        (void)call;
     }
 
     // Run what prepare returned; microseconds when the launch is timed.  A

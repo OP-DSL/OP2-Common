@@ -45,10 +45,10 @@ void Param::settle(std::string_view loop, bool runtime, const Options& options) 
     m_mode = m_initial;
 }
 
-void Param::update(op_arg *args, int nargs, DatStride dat_stride) {
+void Param::update(std::span<const op_arg> args, DatStride dat_stride) {
     switch (m_source) {
     case abi::ParamSource::scalar_arg:
-        assert(m_index >= 0 && m_index < nargs);
+        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         // An inactive optional global's kernel never reads it.
         if (args[m_index].opt == 0)
             return;
@@ -56,7 +56,7 @@ void Param::update(op_arg *args, int nargs, DatStride dat_stride) {
         std::memcpy(m_data, args[m_index].data, m_elem_size);
         return;
     case abi::ParamSource::array_arg:
-        assert(m_index >= 0 && m_index < nargs);
+        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         if (args[m_index].opt == 0) {
             m_data = nullptr;
             m_elems = 0;
@@ -66,25 +66,24 @@ void Param::update(op_arg *args, int nargs, DatStride dat_stride) {
         m_elems = static_cast<std::size_t>(args[m_index].dim);
         return;
     case abi::ParamSource::dat_stride:
-        assert(m_index >= 0 && m_index < nargs);
+        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         assert(m_elem_size == sizeof(int) && m_elems == 1 && dat_stride != nullptr);
         *static_cast<int *>(m_data) = dat_stride(args[m_index]);
         return;
     case abi::ParamSource::dat_dim:
-        assert(m_index >= 0 && m_index < nargs);
+        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         assert(m_elem_size == sizeof(int) && m_elems == 1);
         *static_cast<int *>(m_data) = args[m_index].dim;
         return;
     default:
-        (void)nargs;
         return;
     }
 }
 
-void ParamSet::update(op_arg *args, int nargs) {
+void ParamSet::update(std::span<const op_arg> args) {
     ++m_calls;
     for (auto& param : m_params)
-        param.update(args, nargs, m_dat_stride);
+        param.update(args, m_dat_stride);
 }
 
 ParamSet::Histories *ParamSet::histories(const loop::Call& call) {

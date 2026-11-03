@@ -22,14 +22,14 @@ op::rt::plan::SharedPlans<ChunkResult> chunk_plans;
 
 // --- The base of every OpenMP strategy ----------------------------------------------
 
-void StrategyBase::split(int begin, int end, const int *order, op_arg *args) {
+void StrategyBase::split(int begin, int end, const int *order, std::span<op_arg> args) {
     if (end <= begin)
         return;
     abi::cpu::Range range = m_loop.range();
     range.begin = begin;
     range.end = end;
     range.order = order;
-    m_family.range(range, args);
+    m_family.range(range, args.data());
 }
 
 template<typename F>
@@ -61,7 +61,7 @@ std::optional<float> Simple::run([[maybe_unused]] const op::rt::loop::Prepared& 
     const auto& sections = run.call.sections;
     return run_phases(run, sections.phases(), [&](int section) {
                           split(sections[section].begin, sections[section].end, nullptr,
-                                run.args);
+                                run.call.args);
                       });
 }
 
@@ -90,7 +90,7 @@ std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
     return run_phases(run, colouring.phases(), [&](int colour) {
                           split(colouring.offsets[static_cast<std::size_t>(colour)],
                                 colouring.offsets[static_cast<std::size_t>(colour) + 1],
-                                colouring.order.data(), run.args);
+                                colouring.order.data(), run.call.args);
                       });
 }
 
@@ -155,7 +155,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
                           chunks.batch_offsets =
                               plan.batches.batch_offsets.data() +
                               plan.batches.section_batches[static_cast<std::size_t>(section)];
-                          m_family.chunks(chunks, run.args);
+                          m_family.chunks(chunks, run.call.args.data());
                       });
 }
 

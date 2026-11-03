@@ -60,9 +60,7 @@ std::string StrategyBase::statistics(const op::rt::loop::Prepared& prepared) con
 void StrategyBase::begin(const op::rt::loop::Call& call) {
     m_call_state = {};
     m_call_state.stride = element_stride(call.set, m_loop.direct());
-    m_call_state.block_limit =
-        m_loop.block_limit(const_cast<op_arg *>(call.args.data()),
-                           static_cast<int>(call.args.size()), m_block_size);
+    m_call_state.block_limit = m_loop.block_limit(call.args, m_block_size);
 }
 
 op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
@@ -92,8 +90,8 @@ op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
 }
 
 template<typename Record>
-void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record, op_arg *args,
-                          Geometry geometry) {
+void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record,
+                          std::span<op_arg> args, Geometry geometry) {
     void **arguments = m_loop.arguments(record, args);
     if (prepared.kernel != nullptr) {
         op_profile_next("JIT Kernel");
@@ -130,7 +128,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
             record.global_stride = m_call_state.global_stride;
             Geometry geometry = fill(phase, index, record);
             if (geometry.blocks > 0)
-                launch(prepared, record, run.args, geometry);
+                launch(prepared, record, run.call.args, geometry);
         }
 
         if (timing)

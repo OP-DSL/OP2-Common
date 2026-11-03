@@ -64,25 +64,25 @@ public:
     Phases phases() const { return {m_count, m_wait_before, m_globals_after}; }
 };
 
-// One call, as a view: the set, the arguments and the sections they run in.
-// Its configuration, the shape its key identifies, is what plans and the
-// tuner depend on.
+// One call, as a view: the set, the arguments, which its run may write, and
+// the sections they run in.  Its configuration, the shape its key
+// identifies, is what plans and the tuner depend on.
 class Call {
 private:
     mutable std::uint64_t m_key = 0;
     mutable bool m_keyed = false;
 
 public:
-    op_set set;
-    std::span<const op_arg> args;
+    const op_set set;
+    const std::span<op_arg> args;
     // The elements the call runs, as op_mpi_halo_exchanges returned it: the
     // exec halo too when the exchange decided the call runs it.
-    int run_size;
+    const int run_size;
     // Direct, or indirect with the owned elements apart when it reduces a
     // global.
-    Sections sections;
+    const Sections sections;
 
-    Call(op_set set_, std::span<const op_arg> args_, int run_size_, bool direct)
+    Call(op_set set_, std::span<op_arg> args_, int run_size_, bool direct)
         : set{set_}, args{args_}, run_size{run_size_},
           sections{direct ? Sections::direct(set_)
                           : Sections::indirect(set_, global_reduction(), run_size_)} {}
@@ -104,12 +104,10 @@ public:
     std::string describe() const;
 };
 
-// What a strategy's run is given: the call, its arguments as the run may
-// write them, and whether to time its launches.
+// What a strategy's run is given: the call, and whether to time its
+// launches.
 struct RunArgs {
     const Call& call;
-    op_arg *args;
-    int nargs;
     bool timed;
 };
 
@@ -117,9 +115,9 @@ struct RunArgs {
 // does not reduce it.
 std::optional<abi::ElementType> element_type(const char *type);
 
-// Reduce the call's INC, MIN and MAX globals across the ranks once this
-// rank's elements are combined into them; an unsupported type stops the run,
-// naming loop.
-void reduce_mpi_globals(op_arg *args, int nargs, const char *loop);
+// Reduce a call's INC, MIN and MAX globals across the ranks once this rank's
+// elements are combined into them; an unsupported type stops the run, naming
+// loop.
+void reduce_mpi_globals(std::span<op_arg> args, const char *loop);
 
 } // namespace op::rt::loop

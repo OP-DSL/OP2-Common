@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace op::rt::gpu {
@@ -66,18 +67,18 @@ public:
 
     // The most blocks a launch may use: as many as the reduction scratch
     // allows.
-    int block_limit(op_arg *args, int nargs, int block_size) const;
+    int block_limit(std::span<op_arg> args, int block_size) const;
 
     // The call's device copies of the globals, global_stride apart as the
     // selected strategy launches its blocks; those its kernel has from the
     // host need none.
-    void prepare_globals(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs,
+    void prepare_globals(const op::rt::loop::Prepared& prepared, const op::rt::loop::Call& call,
                          int global_stride);
 
     // A launch's kernel arguments: its record's fields, then the loop's
     // arguments, the active optional ones marked in the record.
-    void **arguments(abi::gpu::Range& record, op_arg *args);
-    void **arguments(abi::gpu::Chunk& record, op_arg *args);
+    void **arguments(abi::gpu::Range& record, std::span<op_arg> args);
+    void **arguments(abi::gpu::Chunk& record, std::span<op_arg> args);
 
     gpuEvent_t event(std::size_t index);
 
@@ -85,10 +86,10 @@ protected:
     // --- Per call ---
 
     // The data lives on the device.
-    int exchange_halos(op_set set, op_arg *args, int nargs) override;
-    void mark_dirty(op_arg *args, int nargs) override;
+    int exchange_halos(op_set set, std::span<op_arg> args) override;
+    void mark_dirty(std::span<op_arg> args) override;
 
-    void combine_globals(op_arg *args, int nargs) override;
+    void combine_globals(const op::rt::loop::Call& call) override;
 
     void end_call() override;
 };

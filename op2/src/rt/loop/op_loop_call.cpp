@@ -154,9 +154,8 @@ std::optional<abi::ElementType> element_type(const char *type) {
     return std::nullopt;
 }
 
-void reduce_mpi_globals(op_arg *args, int nargs, const char *loop) {
-    for (int i = 0; i < nargs; ++i) {
-        auto& arg = args[i];
+void reduce_mpi_globals(std::span<op_arg> args, const char *loop) {
+    for (auto& arg : args) {
         if (arg.opt == 0 || arg.argtype != OP_ARG_GBL ||
             (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
             continue;

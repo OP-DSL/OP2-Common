@@ -36,7 +36,7 @@ protected:
         : m_loop{loop}, m_name{point.name}, m_family{family} {}
 
     // Run [begin, end), or the positions of order, over the threads.
-    void split(int begin, int end, const int *order, op_arg *args);
+    void split(int begin, int end, const int *order, std::span<op_arg> args);
 
     // Run the phases of a call through the loop's, phase(index) running one
     // phase over the threads; the phases' own time when timed.

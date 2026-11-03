@@ -77,7 +77,7 @@ class Cpp(Lang):
             output = res.stderr.decode('utf-8').splitlines()
             SYSTEM_INCLUDES = [path[1:] for path in output if path.startswith(" ")]
 
-        args = [f"-isystem{dir}" for dir in SYSTEM_INCLUDES]
+        args = ["-std=c++20"] + [f"-isystem{dir}" for dir in SYSTEM_INCLUDES]
         args = args + [f"-I{dir}" for dir in include_dirs]
         args = args + [f"-D{define}" for define in defines]
 

@@ -52,23 +52,24 @@ void Loop::add_param(const abi::gpu::Param& param) {
 
 void Loop::upload() { m_symbols->upload(m_params); }
 
-int Loop::block_limit(op_arg *args, int nargs, int block_size) const {
-    return getBlockLimitWithPolicy(args, nargs, block_size, m_name.c_str(), m_gbl_inc_atomic);
+int Loop::block_limit(std::span<op_arg> args, int block_size) const {
+    return getBlockLimitWithPolicy(args.data(), static_cast<int>(args.size()), block_size,
+                                   m_name.c_str(), m_gbl_inc_atomic);
 }
 
 #define OP_GPU_ARGUMENT(type, name, qualifier) m_arguments.push_back(&record.name);
 
-void **Loop::arguments(abi::gpu::Range& record, op_arg *args) {
+void **Loop::arguments(abi::gpu::Range& record, std::span<op_arg> args) {
     m_arguments.clear();
     OP_ABI_GPU_RANGE_FIELDS(OP_GPU_ARGUMENT)
-    m_bind(args, record.opt_flags, m_arguments);
+    m_bind(args.data(), record.opt_flags, m_arguments);
     return m_arguments.data();
 }
 
-void **Loop::arguments(abi::gpu::Chunk& record, op_arg *args) {
+void **Loop::arguments(abi::gpu::Chunk& record, std::span<op_arg> args) {
     m_arguments.clear();
     OP_ABI_GPU_CHUNK_FIELDS(OP_GPU_ARGUMENT)
-    m_bind(args, record.opt_flags, m_arguments);
+    m_bind(args.data(), record.opt_flags, m_arguments);
     return m_arguments.data();
 }
 
@@ -94,23 +95,25 @@ const unsigned char *Loop::on_host(const op::rt::loop::Prepared& prepared, int n
     return m_on_host.data();
 }
 
-void Loop::prepare_globals(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs,
-                           int global_stride) {
+void Loop::prepare_globals(const op::rt::loop::Prepared& prepared,
+                           const op::rt::loop::Call& call, int global_stride) {
     m_global_stride = global_stride;
     m_exit_sync = false;
-    prepareDeviceGblsWithPolicy(args, nargs, m_global_stride, m_gbl_inc_atomic,
+    int nargs = static_cast<int>(call.args.size());
+    prepareDeviceGblsWithPolicy(call.args.data(), nargs, m_global_stride, m_gbl_inc_atomic,
                                 on_host(prepared, nargs));
 }
 
-int Loop::exchange_halos(op_set set, op_arg *args, int nargs) {
-    return op_mpi_halo_exchanges(set, nargs, args, 2);
+int Loop::exchange_halos(op_set set, std::span<op_arg> args) {
+    return op_mpi_halo_exchanges(set, args, 2);
 }
 
-void Loop::mark_dirty(op_arg *args, int nargs) { op_mpi_set_dirtybit_cuda(nargs, args); }
+void Loop::mark_dirty(std::span<op_arg> args) { op_mpi_set_dirtybit_cuda(args); }
 
-void Loop::combine_globals(op_arg *args, int nargs) {
-    m_exit_sync |= processDeviceGblsWithPolicy(args, nargs, m_global_stride, m_global_stride,
-                                               m_gbl_inc_atomic);
+void Loop::combine_globals(const op::rt::loop::Call& call) {
+    m_exit_sync |= processDeviceGblsWithPolicy(call.args.data(),
+                                               static_cast<int>(call.args.size()),
+                                               m_global_stride, m_global_stride, m_gbl_inc_atomic);
 }
 
 void Loop::end_call() {

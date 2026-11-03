@@ -64,6 +64,7 @@ typedef unsigned long long ull;
 
 #include <iostream>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <cstddef>
 
@@ -369,6 +370,22 @@ void op_mpi_test_all(int nargs, op_arg *args);
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
+
+/* The same over a span of arguments. */
+extern "C++" {
+inline int op_mpi_halo_exchanges(op_set set, std::span<op_arg> args, int device) {
+  return op_mpi_halo_exchanges(set, static_cast<int>(args.size()), args.data(), device);
+}
+inline void op_mpi_wait_all(std::span<op_arg> args) {
+  op_mpi_wait_all(static_cast<int>(args.size()), args.data());
+}
+inline void op_mpi_set_dirtybit(std::span<op_arg> args) {
+  op_mpi_set_dirtybit(static_cast<int>(args.size()), args.data());
+}
+inline void op_mpi_set_dirtybit_cuda(std::span<op_arg> args) {
+  op_mpi_set_dirtybit_cuda(static_cast<int>(args.size()), args.data());
+}
+}
 
 
 

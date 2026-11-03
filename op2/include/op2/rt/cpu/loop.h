@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -32,12 +33,12 @@ private:
     std::vector<char *> m_pointers;
 
     template<typename T>
-    void combine(op_arg *args, int index) const;
+    void combine(std::span<op_arg> args, int index) const;
 
 public:
     // Lay out and initialise every thread's copies: increments from zero,
     // the rest from the argument's value.
-    void prepare(op_arg *args, int nargs, int threads);
+    void prepare(std::span<op_arg> args, int threads);
 
     // Per thread its copy of each argument, nargs apart; null for an
     // argument not kept per thread.
@@ -45,7 +46,7 @@ public:
     int nargs() const { return m_nargs; }
 
     // Combine every thread's reductions into the arguments, in thread order.
-    void combine(op_arg *args, const char *loop) const;
+    void combine(std::span<op_arg> args, const char *loop) const;
 };
 
 class Loop : public op::rt::loop::Loop {
@@ -77,10 +78,10 @@ protected:
     // --- Per call ---
 
     // The call's threads, and each one's copy of the globals.
-    void begin_call(const op::rt::loop::Call& call, op_arg *args, int nargs) override;
+    void begin_call(const op::rt::loop::Call& call) override;
 
     // Combine the threads' copies into the arguments.
-    void combine_globals(op_arg *args, int nargs) override;
+    void combine_globals(const op::rt::loop::Call& call) override;
 };
 
 } // namespace op::rt::cpu

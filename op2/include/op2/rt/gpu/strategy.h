@@ -111,8 +111,8 @@ protected:
 
     // Launch one kernel with record.
     template<typename Record>
-    void launch(const op::rt::loop::Prepared& prepared, Record& record, op_arg *args,
-                Geometry geometry);
+    void launch(const op::rt::loop::Prepared& prepared, Record& record,
+                std::span<op_arg> args, Geometry geometry);
 
     // Run the phases of a call through the loop's, each phase's launches
     // bracketed by an event pair when timed.  launches(phase) gives the
@@ -138,8 +138,9 @@ public:
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
 
     // The device copies of the call's globals, a copy per launched thread.
-    void begin_call(const op::rt::loop::Prepared& prepared, op_arg *args, int nargs) override {
-        m_loop.prepare_globals(prepared, args, nargs, m_call_state.global_stride);
+    void begin_call(const op::rt::loop::Prepared& prepared,
+                    const op::rt::loop::Call& call) override {
+        m_loop.prepare_globals(prepared, call, m_call_state.global_stride);
     }
 
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }

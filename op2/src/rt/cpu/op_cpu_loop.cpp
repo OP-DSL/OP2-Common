@@ -18,7 +18,7 @@ namespace {
 
 constexpr std::size_t line = 64;
 
-bool per_thread(const op_arg& arg, const op_arg *args) {
+bool per_thread(const op_arg& arg, std::span<const op_arg> args) {
     if (arg.argtype == OP_ARG_INFO)
         return args[arg.acc].opt != 0;
     return arg.opt != 0 && arg.argtype == OP_ARG_GBL &&
@@ -29,7 +29,7 @@ bool per_thread(const op_arg& arg, const op_arg *args) {
 } // namespace
 
 template<typename T>
-void Globals::combine(op_arg *args, int index) const {
+void Globals::combine(std::span<op_arg> args, int index) const {
     auto& arg = args[index];
     T *result = reinterpret_cast<T *>(arg.data);
     for (int thread = 0; thread < m_threads; ++thread) {
@@ -59,7 +59,8 @@ void Globals::combine(op_arg *args, int index) const {
     }
 }
 
-void Globals::prepare(op_arg *args, int nargs, int threads) {
+void Globals::prepare(std::span<op_arg> args, int threads) {
+    int nargs = static_cast<int>(args.size());
     m_nargs = nargs;
     m_threads = threads;
     m_offsets.assign(static_cast<std::size_t>(nargs), SIZE_MAX);
@@ -97,7 +98,7 @@ void Globals::prepare(op_arg *args, int nargs, int threads) {
         }
 }
 
-void Globals::combine(op_arg *args, const char *loop) const {
+void Globals::combine(std::span<op_arg> args, const char *loop) const {
     for (int i = 0; i < m_nargs; ++i) {
         const auto& arg = args[i];
         if (m_offsets[static_cast<std::size_t>(i)] == SIZE_MAX ||
@@ -166,12 +167,14 @@ void Loop::reserve_scratch(std::size_t bytes) {
     }
 }
 
-void Loop::begin_call(const op::rt::loop::Call&, op_arg *args, int nargs) {
+void Loop::begin_call(const op::rt::loop::Call& call) {
     m_threads = m_max_threads();
-    m_globals.prepare(args, nargs, m_threads);
+    m_globals.prepare(call.args, m_threads);
 }
 
-void Loop::combine_globals(op_arg *args, int) { m_globals.combine(args, m_name.c_str()); }
+void Loop::combine_globals(const op::rt::loop::Call& call) {
+    m_globals.combine(call.args, m_name.c_str());
+}
 
 } // namespace op::rt::cpu
 

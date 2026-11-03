@@ -269,7 +269,7 @@ void test_defaults() {
     CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
 
     auto call = indirect_call();
-    loop::RunArgs run{call, args.data(), 1, true};
+    loop::RunArgs run{call, true};
     CHECK(fixture.atomics->run(fixture.ladder[1].prepare(call, loop::Urgency::later), run) ==
           1.0f);
 }

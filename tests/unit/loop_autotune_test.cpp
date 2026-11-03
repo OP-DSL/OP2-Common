@@ -140,8 +140,7 @@ struct Fixture : loop::Loop {
     // One call: let the tuner decide, run, sample.
     Fake *invoke(const loop::Call& call) {
         auto decision = m_tuner->choose(call, settled);
-        loop::RunArgs run{call, const_cast<op_arg *>(call.args.data()),
-                          static_cast<int>(call.args.size()), decision.timed != nullptr};
+        loop::RunArgs run{call, decision.timed != nullptr};
         auto us = decision.prepared.candidate->strategy->run(decision.prepared, run);
         if (us)
             m_tuner->sample(decision, *us);
@@ -363,7 +362,7 @@ void test_jit_report() {
             });
         }
         void observe(const loop::Call& call) {
-            m_params.update(nullptr, 0);
+            m_params.update({});
             m_params.observe_call(call);
         }
     };

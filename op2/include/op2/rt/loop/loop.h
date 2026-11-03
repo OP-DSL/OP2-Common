@@ -61,14 +61,10 @@ private:
     // needs its selection.  Every call counts in the parameters' statistics,
     // whichever candidate runs, so a specialised kernel meets settled modes,
     // and the tuner waits for them.
-    tune::Autotuner::Decision decide(const Call& call, op_arg *args, int nargs);
+    tune::Autotuner::Decision decide(const Call& call);
 
     // Run a decision, its time a sample for the tuner when it is timed.
-    void run(const tune::Autotuner::Decision& decision, const Call& call, op_arg *args,
-             int nargs);
-
-    // Whether the call under way writes a global.
-    bool m_global_output = false;
+    void run(const tune::Autotuner::Decision& decision, const Call& call);
 
     // Wait for the call's halo exchanges.
     void wait_halos(const RunArgs& run);
@@ -87,21 +83,21 @@ protected:
 
     // Exchange the call's halos where the backend keeps its data, the host's
     // unless it says otherwise; the elements the call runs.
-    virtual int exchange_halos(op_set set, op_arg *args, int nargs) {
-        return op_mpi_halo_exchanges(set, nargs, args, 1);
+    virtual int exchange_halos(op_set set, std::span<op_arg> args) {
+        return op_mpi_halo_exchanges(set, args, 1);
     }
 
     // Mark the halos of the dats the call wrote out of date, where the
     // backend keeps them.
-    virtual void mark_dirty(op_arg *args, int nargs) { op_mpi_set_dirtybit(nargs, args); }
+    virtual void mark_dirty(std::span<op_arg> args) { op_mpi_set_dirtybit(args); }
 
     // Prepare the call's globals for whichever candidate runs; the selected
     // strategy's own setup follows (Strategy::begin_call).
-    virtual void begin_call(const Call&, op_arg *, int) {}
+    virtual void begin_call(const Call&) {}
 
-    // Combine the run's partial reductions into the arguments, once the
-    // elements they cover have run.
-    virtual void combine_globals(op_arg *, int) {}
+    // Combine the run's partial reductions into the call's arguments, once
+    // the elements they cover have run.
+    virtual void combine_globals(const Call&) {}
 
     // Finish the run's globals before the host reduces them.
     virtual void end_call() {}
