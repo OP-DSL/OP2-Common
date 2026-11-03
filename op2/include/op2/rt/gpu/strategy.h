@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -126,10 +125,10 @@ protected:
     void launch(const op::rt::loop::Prepared& prepared, Record& record,
                 std::span<op_arg> args, Geometry geometry);
 
-    // Run the phases of a call through the loop's, each phase's launches
-    // bracketed by an event pair when timed.  launches(phase) gives the
-    // launch count, fill(phase, launch, record) the launch's record of type
-    // Record past its strides, and its geometry.
+    // Run the phases of a call through loop::run_phases, each phase's
+    // launches bracketed by an event pair when timed.  launches(phase) gives
+    // the launch count, fill(phase, launch, record) the launch's record of
+    // type Record past its strides, and its geometry.
     template<typename Record, typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::Call& call, bool timed,

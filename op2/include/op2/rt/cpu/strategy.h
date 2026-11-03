@@ -15,7 +15,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -39,8 +38,8 @@ protected:
     // Run [begin, end), or the positions of order, over the threads.
     void split(int begin, int end, const int *order, std::span<op_arg> args);
 
-    // Run the phases of a call through the loop's, phase(index) running one
-    // phase over the threads; the phases' own time when timed.
+    // Run the phases of a call through loop::run_phases, phase(index)
+    // running one phase over the threads; the phases' own time when timed.
     template<typename F>
     std::optional<float> run_phases(const op::rt::loop::Call& call, bool timed,
                                     const op::rt::loop::Phases& phases, F&& phase);

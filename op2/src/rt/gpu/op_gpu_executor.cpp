@@ -8,8 +8,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string_view>
-#include <utility>
 #include <vector>
 
 namespace op::rt::gpu {

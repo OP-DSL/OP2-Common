@@ -15,7 +15,6 @@
 #include <cstddef>
 #include <memory>
 #include <span>
-#include <string_view>
 #include <vector>
 
 namespace op::rt::cpu {

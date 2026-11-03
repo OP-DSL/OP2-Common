@@ -99,7 +99,7 @@ OP2-Common/
 
 The flat headers below are the long-standing API, included by name
 (`<op_seq.h>`). Newer headers live in the `op2/` tree and are included by
-path (`<op2/rt/gpu/loop.h>`); a header's path below `op2/` is its namespace
+path (`<op2/rt/gpu/executor.h>`); a header's path below `op2/` is its namespace
 below `op::`. This directory installs as `include/op2`, the package's one
 include directory, so both spellings work in the source tree and installed.
 
@@ -163,8 +163,8 @@ What generated code compiles against and calls to run its loops, in
 | `rt/kernel/` | `op::rt::kernel` | What a translated kernel compiles against (`Ptr`, `Span`, the Fortran intrinsics, the increment hooks, the staging helpers), also embedded as text for the JIT |
 | `rt/loop/` | `op::rt::loop` | Backend neutral: a loop's strategies, the ladder and autotuner, the JIT's policy, parameters and build cache, the reports |
 | `rt/plan/` | `op::rt::plan` | Hardware-free planning building blocks: set colouring, chunks, staging |
-| `rt/gpu/` | `op::rt::gpu` | The CUDA and HIP backend: strategies, the JIT compiler, chunk plans and their encoding, the loop generated code builds |
-| `rt/cpu/` | `op::rt::cpu` | The OpenMP backend: strategies, chunk plans, the loop generated code builds |
+| `rt/gpu/` | `op::rt::gpu` | The CUDA and HIP backend: strategies, the JIT compiler, chunk plans and their encoding, the executor a loop is made with |
+| `rt/cpu/` | `op::rt::cpu` | The OpenMP backend: strategies, chunk plans, the executor a loop is made with |
 
 ---
 

@@ -11,7 +11,6 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <utility>
 
 namespace op::rt::gpu {
