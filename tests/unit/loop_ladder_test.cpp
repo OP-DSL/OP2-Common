@@ -71,11 +71,11 @@ struct Fake : loop::Strategy {
         return prepared;
     }
 
-    std::optional<float> run(const loop::Prepared& prepared,
-                             const loop::RunArgs& run) override {
+    std::optional<float> run(const loop::Prepared& prepared, const loop::Call&,
+                             bool timed) override {
         CHECK(prepared.candidate->strategy == this);
         ++runs;
-        if (run.timed)
+        if (timed)
             return time;
         return std::nullopt;
     }
@@ -269,9 +269,8 @@ void test_defaults() {
     CHECK(fixture.colouring->prepares == before + 2 && fixture.colouring->waits == 1);
 
     auto call = indirect_call();
-    loop::RunArgs run{call, true};
-    CHECK(fixture.atomics->run(fixture.ladder[1].prepare(call, loop::Urgency::later), run) ==
-          1.0f);
+    CHECK(fixture.atomics->run(fixture.ladder[1].prepare(call, loop::Urgency::later), call,
+                               true) == 1.0f);
 }
 
 void test_variables() {

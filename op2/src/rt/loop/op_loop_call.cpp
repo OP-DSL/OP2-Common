@@ -113,7 +113,7 @@ std::string Call::describe() const {
 Sections Sections::direct(op_set set) {
     Sections sections;
     sections.m_sections[0] = {0, static_cast<int>(set->size)};
-    sections.m_count = 1;
+    sections.m_phases = {1, 0, 0};
     return sections;
 }
 
@@ -126,13 +126,11 @@ Sections Sections::indirect(op_set set, bool separate_owned, int run_size) {
         sections.m_sections = {{{0, set->core_size},
                                 {set->core_size, size},
                                 {size, end}}};
-        sections.m_count = 3;
+        sections.m_phases = {3, 1, 1};
     } else {
         sections.m_sections = {{{0, set->core_size}, {set->core_size, end}}};
-        sections.m_count = 2;
+        sections.m_phases = {2, 1, 1};
     }
-    sections.m_wait_before = 1;
-    sections.m_globals_after = 1;
     return sections;
 }
 

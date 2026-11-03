@@ -62,7 +62,7 @@ StrategyBase::Shape StrategyBase::shape(const op::rt::loop::Call& call,
     Shape shape;
     shape.stride = element_stride(call.set, m_loop.direct());
     shape.block_limit = m_loop.block_limit(call, m_block_size);
-    shape.max_blocks = max_blocks(call, entry, shape.block_limit);
+    shape.global_stride = m_block_size * max_blocks(call, entry, shape.block_limit);
     return shape;
 }
 
@@ -78,7 +78,7 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
     prepared.entry = planned.entry;
 
     auto& params = m_loop.params();
-    auto values = launch_values(global_stride(shape(call, planned.entry))).slots();
+    auto values = launch_values(shape(call, planned.entry).global_stride).slots();
     auto key = params.key(call, values);
     auto acquired = m_cache.acquire(
         key, urgency, [&] { return m_loop.compiler().job(params, values, m_family); });
@@ -112,7 +112,7 @@ void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record
 
 template<typename Record, typename Launches, typename Fill>
 std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prepared,
-                                              const op::rt::loop::RunArgs& run,
+                                              const op::rt::loop::Call& call, bool timed,
                                               const op::rt::loop::Phases& phases,
                                               const Shape& shape, Launches&& launches,
                                               Fill&& fill) {
@@ -122,26 +122,26 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
     if (prepared.kernel == nullptr)
         m_loop.upload();
     int timed_pairs = 0;
-    m_loop.run_phases(run, phases, [&](int phase) {
+    m_loop.run_phases(call, phases, [&](int phase) {
         int count = launches(phase);
-        bool timing = run.timed && count > 0;
+        bool timing = timed && count > 0;
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs), 0));
 
         for (int index = 0; index < count; ++index) {
             Record record;
             record.stride = shape.stride;
-            record.global_stride = global_stride(shape);
+            record.global_stride = shape.global_stride;
             Geometry geometry = fill(phase, index, record);
             if (geometry.blocks > 0)
-                launch(prepared, record, run.call.args, geometry);
+                launch(prepared, record, call.args, geometry);
         }
 
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
     });
 
-    if (!run.timed)
+    if (!timed)
         return std::nullopt;
     if (timed_pairs == 0)
         return 0.0f;
@@ -165,16 +165,16 @@ int Simple::max_blocks(const op::rt::loop::Call& call, const void *, int block_l
 }
 
 std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
-                                 const op::rt::loop::RunArgs& run) {
-    const auto& sections = run.call.sections;
-    auto launches = shape(run.call, prepared.entry);
+                                 const op::rt::loop::Call& call, bool timed) {
+    const auto& sections = call.sections;
+    auto call_shape = shape(call, prepared.entry);
     return run_phases<abi::gpu::Range>(
-        prepared, run, sections.phases(), launches,
+        prepared, call, timed, sections.phases(), call_shape,
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
         [&](int phase, int, abi::gpu::Range& record) {
             record.start = sections[phase].begin;
             record.end = sections[phase].end;
-            return Geometry{grid(sections[phase].size(), launches.block_limit), 0};
+            return Geometry{grid(sections[phase].size(), call_shape.block_limit), 0};
         });
 }
 
@@ -206,18 +206,18 @@ int Colouring::max_blocks(const op::rt::loop::Call&, const void *entry, int bloc
 }
 
 std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::RunArgs& run) {
+                                    const op::rt::loop::Call& call, bool timed) {
     const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     const auto& colouring = entry.colouring;
-    auto launches = shape(run.call, prepared.entry);
+    auto call_shape = shape(call, prepared.entry);
     // The core's colours come first, and run while the halo arrives.
     return run_phases<abi::gpu::Range>(
-        prepared, run, colouring.phases(), launches, [](int) { return 1; },
+        prepared, call, timed, colouring.phases(), call_shape, [](int) { return 1; },
         [&](int colour, int, abi::gpu::Range& record) {
             record.start = colouring.offsets[static_cast<std::size_t>(colour)];
             record.end = colouring.offsets[static_cast<std::size_t>(colour) + 1];
             record.order = entry.order_d;
-            return Geometry{grid(record.end - record.start, launches.block_limit), 0};
+            return Geometry{grid(record.end - record.start, call_shape.block_limit), 0};
         });
 }
 
@@ -330,11 +330,11 @@ int ChunkBase::batch_blocks(const ChunkPlan& plan, int chunks, int block_limit) 
 }
 
 std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::RunArgs& run) {
+                                    const op::rt::loop::Call& call, bool timed) {
     const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
-    const auto& sections = run.call.sections;
-    auto launches = shape(run.call, prepared.entry);
+    const auto& sections = call.sections;
+    auto call_shape = shape(call, prepared.entry);
 
     // Every section of a wavefront call takes its positions from zero.
     int epoch = 0;
@@ -345,7 +345,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     }
 
     return run_phases<abi::gpu::Chunk>(
-        prepared, run, sections.phases(), launches,
+        prepared, call, timed, sections.phases(), call_shape,
         [&](int section) { return plan.batches.batches(section); },
         [&](int section, int batch, abi::gpu::Chunk& record) {
             auto [begin, end] = plan.batches.positions(section, batch);
@@ -358,7 +358,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
             }
             auto bytes = plan.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
-            return Geometry{batch_blocks(plan, end - begin, launches.block_limit),
+            return Geometry{batch_blocks(plan, end - begin, call_shape.block_limit),
                             static_cast<int>(bytes)};
         });
 }

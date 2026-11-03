@@ -181,7 +181,8 @@ void Loop::combine_globals(const op::rt::loop::Call& call) {
 namespace op::rt::abi::cpu {
 
 void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
-    op::rt::loop::runtime<op::rt::cpu::Loop>(loop).invoke(set, args, nargs);
+    op::rt::loop::runtime<op::rt::cpu::Loop>(loop).invoke(
+        set, {args, static_cast<std::size_t>(nargs)});
 }
 
 } // namespace op::rt::abi::cpu

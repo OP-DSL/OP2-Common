@@ -71,11 +71,11 @@ struct Fake : loop::Strategy {
         return prepared;
     }
 
-    std::optional<float> run(const loop::Prepared& prepared,
-                             const loop::RunArgs& run) override {
+    std::optional<float> run(const loop::Prepared& prepared, const loop::Call&,
+                             bool timed) override {
         CHECK(prepared.candidate->strategy == this);
         ++runs;
-        if (!run.timed)
+        if (!timed)
             return std::nullopt;
         if (prepared.candidate->kind == loop::KernelKind::jit) {
             ++timed_jit_runs;
@@ -140,8 +140,8 @@ struct Fixture : loop::Loop {
     // One call: let the tuner decide, run, sample.
     Fake *invoke(const loop::Call& call) {
         auto decision = m_tuner->choose(call, settled);
-        loop::RunArgs run{call, decision.timed != nullptr};
-        auto us = decision.prepared.candidate->strategy->run(decision.prepared, run);
+        auto us = decision.prepared.candidate->strategy->run(decision.prepared, call,
+                                                             decision.timed != nullptr);
         if (us)
             m_tuner->sample(decision, *us);
         last = decision.prepared.candidate;

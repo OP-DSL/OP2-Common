@@ -135,7 +135,8 @@ void Loop::end_call() {
 namespace op::rt::abi::gpu {
 
 void invoke(Loop& loop, op_set set, op_arg *args, int nargs) {
-    op::rt::loop::runtime<op::rt::gpu::Loop>(loop).invoke(set, args, nargs);
+    op::rt::loop::runtime<op::rt::gpu::Loop>(loop).invoke(
+        set, {args, static_cast<std::size_t>(nargs)});
 }
 
 } // namespace op::rt::abi::gpu

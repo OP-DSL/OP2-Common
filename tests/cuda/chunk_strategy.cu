@@ -213,8 +213,7 @@ Outcome run(gpu::Loop& loop, Fixture& fixture) {
                             fixture.source.size + fixture.source.exec_size, false};
     auto chunk = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
     auto selection = loop.ladder().select(call);
-    loop.invoke(&fixture.source, fixture.args.data(),
-                static_cast<int>(fixture.args.size()));
+    loop.invoke(&fixture.source, fixture.args);
     GPU_CHECK(gpuDeviceSynchronize());
     GPU_CHECK(gpuMemcpy(output.data(), output_d, sizeof(output),
                         gpuMemcpyDeviceToHost));

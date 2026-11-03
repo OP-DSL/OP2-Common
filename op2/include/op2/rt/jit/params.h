@@ -56,6 +56,25 @@ private:
     int m_index;
     std::uint64_t m_hash = 0;
 
+    // The value's hash: a scalar's own bits, so a zero value hashes to 0,
+    // else its rapidhash.
+    void rehash() {
+        if (m_array) {
+            m_hash = rapidhash_withSeed(data(), bytes(), hash_seed);
+            return;
+        }
+        switch (m_elem_size) {
+        case 8: std::memcpy(&m_hash, data(), 8); break;
+        case 4: {
+            std::uint32_t bits;
+            std::memcpy(&bits, data(), 4);
+            m_hash = bits;
+            break;
+        }
+        default: m_hash = *static_cast<const unsigned char *>(data()); break;
+        }
+    }
+
 public:
     // A parameter of elems elements of type, each elem_size bytes, read from
     // data; an array_arg's data and elements are each call's.
@@ -94,28 +113,10 @@ public:
     // whether the mechanism can give the parameter at run time.
     void settle(std::string_view loop, bool runtime, const Options& options);
 
-    // The call's value, from its arguments; a dat's stride as the backend
-    // lays the dat out.
-    void update(std::span<const op_arg> args, DatStride dat_stride);
-
-    // Hash the call's value, once per call (ParamSet::update): a scalar's own
-    // bits, so a zero value hashes to 0, else its rapidhash.
-    void rehash() {
-        if (m_array) {
-            m_hash = rapidhash_withSeed(data(), bytes(), hash_seed);
-            return;
-        }
-        switch (m_elem_size) {
-        case 8: std::memcpy(&m_hash, data(), 8); break;
-        case 4: {
-            std::uint32_t bits;
-            std::memcpy(&bits, data(), 4);
-            m_hash = bits;
-            break;
-        }
-        default: m_hash = *static_cast<const unsigned char *>(data()); break;
-        }
-    }
+    // The call's value, from its arguments, and its hash; a dat's stride as
+    // the backend lays the dat out.  A strategy's value comes with each
+    // kernel's key, and one sized out is not hashed.
+    void update(std::span<const op_arg> args, DatStride dat_stride, const Options& options);
 
     // The call's hash; a strategy's value is hashed with the key instead.
     std::uint64_t hash() const { return m_hash; }

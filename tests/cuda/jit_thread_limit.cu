@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
     // A call of the loop, compared with the host.
     auto runs = [&](gpu::Loop& jit_loop, const std::string& what) {
         GPU_CHECK(gpuMemset(out_d, 0, elements * sizeof(double)));
-        jit_loop.invoke(&set, args.data(), static_cast<int>(args.size()));
+        jit_loop.invoke(&set, args);
         std::vector<double> out(elements);
         GPU_CHECK(gpuMemcpy(out.data(), out_d, elements * sizeof(double),
                             gpuMemcpyDeviceToHost));

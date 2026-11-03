@@ -40,28 +40,26 @@ struct Phases {
 class Sections {
 private:
     std::array<Section, 3> m_sections{};
-    int m_count = 0;
-    int m_wait_before = 0;
-    int m_globals_after = 0;
+    // A section a phase.
+    Phases m_phases;
 
 public:
     static Sections direct(op_set set);
     // Ending at run_size, which takes in the exec halo when the call runs it.
     static Sections indirect(op_set set, bool separate_owned, int run_size);
 
-    int size() const { return m_count; }
+    int size() const { return m_phases.count; }
     const Section& operator[](int index) const {
         return m_sections[static_cast<std::size_t>(index)];
     }
     std::span<const Section> span() const {
-        return {m_sections.data(), static_cast<std::size_t>(m_count)};
+        return {m_sections.data(), static_cast<std::size_t>(size())};
     }
 
     // The elements they cover, up to the last section's end.
-    int elements() const { return m_count > 0 ? m_sections[m_count - 1].end : 0; }
+    int elements() const { return size() > 0 ? m_sections[size() - 1].end : 0; }
 
-    // A section a phase.
-    Phases phases() const { return {m_count, m_wait_before, m_globals_after}; }
+    const Phases& phases() const { return m_phases; }
 };
 
 // One call, as a view: the set, the arguments, which its run may write, and
@@ -73,14 +71,14 @@ private:
     mutable bool m_keyed = false;
 
 public:
-    const op_set set;
-    const std::span<op_arg> args;
+    op_set set;
+    std::span<op_arg> args;
     // The elements the call runs, as op_mpi_halo_exchanges returned it: the
     // exec halo too when the exchange decided the call runs it.
-    const int run_size;
+    int run_size;
     // Direct, or indirect with the owned elements apart when it reduces a
     // global.
-    const Sections sections;
+    Sections sections;
 
     Call(op_set set_, std::span<op_arg> args_, int run_size_, bool direct)
         : set{set_}, args{args_}, run_size{run_size_},
@@ -102,13 +100,6 @@ public:
 
     // "edges (3.1M) via edge_nodes, reduction"; for reports only.
     std::string describe() const;
-};
-
-// What a strategy's run is given: the call, and whether to time its
-// launches.
-struct RunArgs {
-    const Call& call;
-    bool timed;
 };
 
 // A global's element type, from its C or Fortran spelling; none when OP2

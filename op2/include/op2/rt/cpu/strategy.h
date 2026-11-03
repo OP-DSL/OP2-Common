@@ -41,7 +41,7 @@ protected:
     // Run the phases of a call through the loop's, phase(index) running one
     // phase over the threads; the phases' own time when timed.
     template<typename F>
-    std::optional<float> run_phases(const op::rt::loop::RunArgs& run,
+    std::optional<float> run_phases(const op::rt::loop::Call& call, bool timed,
                                     const op::rt::loop::Phases& phases, F&& phase);
 
 public:
@@ -63,7 +63,8 @@ public:
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::RunArgs& run) override;
+                             const op::rt::loop::Call& call,
+                             bool timed) override;
 };
 
 // --- Colouring -----------------------------------------------------------------------
@@ -81,7 +82,8 @@ public:
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::RunArgs& run) override;
+                             const op::rt::loop::Call& call,
+                             bool timed) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
@@ -120,7 +122,8 @@ public:
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::RunArgs& run) override;
+                             const op::rt::loop::Call& call,
+                             bool timed) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
 };

@@ -220,7 +220,7 @@ void run(const char *strategy) {
             element(n, expected.data(), map_values.data(), w.data(), &expected_sum,
                     expected_max.data(), expected_loc.data(),
                     [](double& t, double v) { t += v; });
-        loop.invoke(&source, args.data(), static_cast<int>(args.size()));
+        loop.invoke(&source, args);
     }
 
     for (std::size_t i = 0; i < x.size(); ++i)

@@ -71,10 +71,10 @@ private:
     void run(const tune::Autotuner::Decision& decision, const Call& call);
 
     // Wait for the call's halo exchanges.
-    void wait_halos(const RunArgs& run);
+    void wait_halos(const Call& call);
 
     // Combine the call's global reductions, if it writes any.
-    void process_globals(const RunArgs& run);
+    void process_globals(const Call& call);
 
 protected:
     std::string m_name;
@@ -136,21 +136,21 @@ public:
     // Run one call: start the halo exchange, which decides what the call runs
     // and which the planning overlaps; decide; prepare the globals; run; and
     // finish, reduce and mark the globals and dats.
-    void invoke(op_set set, op_arg *args, int nargs);
+    void invoke(op_set set, std::span<op_arg> args);
 
     // Run a strategy's phases, phase(index) each, with the halo wait and the
     // globals' combine where phases puts them.
     template<typename Phase>
-    void run_phases(const RunArgs& run, const Phases& phases, Phase&& phase) {
+    void run_phases(const Call& call, const Phases& phases, Phase&& phase) {
         for (int index = 0; index < phases.count; ++index) {
             if (index == phases.wait_before)
-                wait_halos(run);
+                wait_halos(call);
             phase(index);
             if (index == phases.globals_after)
-                process_globals(run);
+                process_globals(call);
         }
         if (phases.count == phases.wait_before)
-            wait_halos(run);
+            wait_halos(call);
     }
 };
 

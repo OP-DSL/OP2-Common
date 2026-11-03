@@ -43,7 +43,7 @@ void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
 // The kernel's result after one call of loop.
 int run(gpu::Loop& loop, op_set_core& set, std::array<op_arg, 1>& args, int call) {
     value = call;
-    loop.invoke(&set, args.data(), static_cast<int>(args.size()));
+    loop.invoke(&set, args);
     int output = -1;
     GPU_CHECK(gpuMemcpy(&output, output_d, sizeof(output), gpuMemcpyDeviceToHost));
     return output;

@@ -45,49 +45,48 @@ void Param::settle(std::string_view loop, bool runtime, const Options& options) 
     m_mode = m_initial;
 }
 
-void Param::update(std::span<const op_arg> args, DatStride dat_stride) {
+void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Options& options) {
     switch (m_source) {
     case abi::ParamSource::scalar_arg:
         assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         // An inactive optional global's kernel never reads it.
-        if (args[m_index].opt == 0)
-            return;
-        assert(args[m_index].data != nullptr);
-        std::memcpy(m_data, args[m_index].data, m_elem_size);
-        return;
-    case abi::ParamSource::array_arg:
-        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
-        if (args[m_index].opt == 0) {
-            m_data = nullptr;
-            m_elems = 0;
-            return;
+        if (args[m_index].opt != 0) {
+            assert(args[m_index].data != nullptr);
+            std::memcpy(m_data, args[m_index].data, m_elem_size);
         }
-        m_data = args[m_index].data;
-        m_elems = static_cast<std::size_t>(args[m_index].dim);
-        return;
+        break;
+    case abi::ParamSource::array_arg: {
+        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
+        bool active = args[m_index].opt != 0;
+        m_data = active ? args[m_index].data : nullptr;
+        m_elems = active ? static_cast<std::size_t>(args[m_index].dim) : 0;
+        break;
+    }
     case abi::ParamSource::dat_stride:
         assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         assert(m_elem_size == sizeof(int) && m_elems == 1 && dat_stride != nullptr);
         *static_cast<int *>(m_data) = dat_stride(args[m_index]);
-        return;
+        break;
     case abi::ParamSource::dat_dim:
         assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
         assert(m_elem_size == sizeof(int) && m_elems == 1);
         *static_cast<int *>(m_data) = args[m_index].dim;
+        break;
+    case abi::ParamSource::strategy:
+        // Its value comes with each kernel's key.
         return;
     default:
-        return;
+        break;
     }
+    if (!sized_out(options))
+        rehash();
 }
 
 void ParamSet::update(std::span<const op_arg> args) {
     ++m_calls;
     const auto& options = jit::options();
-    for (auto& param : m_params) {
-        param.update(args, m_dat_stride);
-        if (param.source() != abi::ParamSource::strategy && !param.sized_out(options))
-            param.rehash();
-    }
+    for (auto& param : m_params)
+        param.update(args, m_dat_stride, options);
 }
 
 ParamSet::Histories *ParamSet::histories(const loop::Call& call) {

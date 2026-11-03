@@ -69,13 +69,14 @@ protected:
     };
 
     // A call's launches under its plan: the per-element arrays' stride, the
-    // most blocks a launch may use, and the largest launch, which the
-    // globals' device copies are laid out for.  Derived from the call and the
-    // plan wherever it is needed, so prepare, begin_call and run agree.
+    // most blocks a launch may use, and the stride between the blocks' copies
+    // of the globals, its block size times the largest launch.  Derived from
+    // the call and the plan wherever it is needed, so prepare, begin_call and
+    // run agree.
     struct Shape {
         int stride = 0;
         int block_limit = 0;
-        int max_blocks = 0;
+        int global_stride = 0;
     };
 
     // A call's plan, or why the configuration does not suit it.
@@ -117,9 +118,6 @@ protected:
 
     Shape shape(const op::rt::loop::Call& call, const void *entry) const;
 
-    // The stride between the blocks' copies of the globals.
-    int global_stride(const Shape& shape) const { return m_block_size * shape.max_blocks; }
-
     // Whether its offline kernel launches its block size.
     bool offline_usable() const { return m_offline.usable(m_block_size); }
 
@@ -134,7 +132,7 @@ protected:
     // Record past its strides, and its geometry.
     template<typename Record, typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::RunArgs& run,
+                                    const op::rt::loop::Call& call, bool timed,
                                     const op::rt::loop::Phases& phases, const Shape& shape,
                                     Launches&& launches, Fill&& fill);
 
@@ -161,7 +159,7 @@ public:
     // The device copies of the call's globals, a copy per launched thread.
     void begin_call(const op::rt::loop::Prepared& prepared,
                     const op::rt::loop::Call& call) override {
-        m_loop.prepare_globals(prepared, call, global_stride(shape(call, prepared.entry)));
+        m_loop.prepare_globals(prepared, call, shape(call, prepared.entry).global_stride);
     }
 
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
@@ -182,7 +180,8 @@ public:
         : StrategyBase{loop, point, family} {}
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::RunArgs& run) override;
+                             const op::rt::loop::Call& call,
+                             bool timed) override;
 };
 
 // --- Colouring -----------------------------------------------------------------------
@@ -202,7 +201,8 @@ public:
         : StrategyBase{loop, point, family} {}
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::RunArgs& run) override;
+                             const op::rt::loop::Call& call,
+                             bool timed) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
@@ -242,7 +242,8 @@ protected:
 
 public:
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
-                             const op::rt::loop::RunArgs& run) override;
+                             const op::rt::loop::Call& call,
+                             bool timed) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
     void forget(std::uint64_t key) override { m_plans.forget(key); }
 };
