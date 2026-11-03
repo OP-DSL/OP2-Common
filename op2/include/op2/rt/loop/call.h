@@ -28,6 +28,15 @@ struct Section {
     int size() const { return end - begin; }
 };
 
+// The phases a strategy runs a call in, sections or colours: how many, the
+// one the halo wait comes before (count for after the last), and the one the
+// globals are processed after, none when no phase holds owned elements.
+struct Phases {
+    int count = 0;
+    int wait_before = 0;
+    std::optional<int> globals_after;
+};
+
 class Sections {
 private:
     std::array<Section, 3> m_sections{};
@@ -51,10 +60,8 @@ public:
     // The elements they cover, up to the last section's end.
     int elements() const { return m_count > 0 ? m_sections[m_count - 1].end : 0; }
 
-    // The section the halo wait comes before, in [0, size()], size() for
-    // after the last; the section the globals are processed after.
-    int wait_index() const { return m_wait_before; }
-    int globals_index() const { return m_globals_after; }
+    // A section a phase.
+    Phases phases() const { return {m_count, m_wait_before, m_globals_after}; }
 };
 
 // One call, as a view: the set, the arguments and the sections they run in.

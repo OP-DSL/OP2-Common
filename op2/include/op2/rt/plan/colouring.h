@@ -7,6 +7,7 @@
 #include <op2/rt/loop/call.h>
 #include <op_lib_core.h>
 
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -23,6 +24,12 @@ struct SetColouring {
     int owned_colours = 0;
     std::vector<int> offsets;
     std::vector<int> order;
+
+    // A colour a phase, the globals processed after the last owned colour.
+    loop::Phases phases() const {
+        return {colours, core_colours,
+                owned_colours > 0 ? std::optional<int>{owned_colours - 1} : std::nullopt};
+    }
 };
 
 // Colour each section's elements apart, greedily in element order, a

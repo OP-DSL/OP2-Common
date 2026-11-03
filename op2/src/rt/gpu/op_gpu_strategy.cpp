@@ -109,8 +109,8 @@ void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record
 
 template<typename Record, typename Launches, typename Fill>
 std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prepared,
-                                              const op::rt::loop::RunArgs& run, int phases,
-                                              int wait_before, int globals_after,
+                                              const op::rt::loop::RunArgs& run,
+                                              const op::rt::loop::Phases& phases,
                                               Launches&& launches, Fill&& fill) {
     assert(prepared.candidate->strategy == this);
     // An offline kernel reads the call's constants and strides from device
@@ -118,7 +118,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
     if (prepared.kernel == nullptr)
         m_loop.upload();
     int timed_pairs = 0;
-    m_loop.run_phases(run, phases, wait_before, globals_after, [&](int phase) {
+    m_loop.run_phases(run, phases, [&](int phase) {
         int count = launches(phase);
         bool timing = run.timed && count > 0;
         if (timing)
@@ -166,7 +166,7 @@ std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
                                  const op::rt::loop::RunArgs& run) {
     const auto& sections = run.call.sections;
     return run_phases<abi::gpu::Range>(
-        prepared, run, sections.size(), sections.wait_index(), sections.globals_index(),
+        prepared, run, sections.phases(),
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
         [&](int phase, int, abi::gpu::Range& record) {
             record.start = sections[phase].begin;
@@ -210,8 +210,7 @@ std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
     const auto& colouring = entry.colouring;
     // The core's colours come first, and run while the halo arrives.
     return run_phases<abi::gpu::Range>(
-        prepared, run, colouring.colours, colouring.core_colours,
-        colouring.owned_colours - 1, [](int) { return 1; },
+        prepared, run, colouring.phases(), [](int) { return 1; },
         [&](int colour, int, abi::gpu::Range& record) {
             record.start = colouring.offsets[static_cast<std::size_t>(colour)];
             record.end = colouring.offsets[static_cast<std::size_t>(colour) + 1];
@@ -351,7 +350,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     }
 
     return run_phases<abi::gpu::Chunk>(
-        prepared, run, sections.size(), sections.wait_index(), sections.globals_index(),
+        prepared, run, sections.phases(),
         [&](int section) { return plan.batches.batches(section); },
         [&](int section, int batch, abi::gpu::Chunk& record) {
             auto [begin, end] = plan.batches.positions(section, batch);

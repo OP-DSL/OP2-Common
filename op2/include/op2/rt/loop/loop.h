@@ -142,20 +142,18 @@ public:
     // finish, reduce and mark the globals and dats.
     void invoke(op_set set, op_arg *args, int nargs);
 
-    // Run a strategy's phases, phase(index) each: the halo wait before phase
-    // wait_before, or after the last when it is phases, and the globals'
-    // combine after phase globals_after.
+    // Run a strategy's phases, phase(index) each, with the halo wait and the
+    // globals' combine where phases puts them.
     template<typename Phase>
-    void run_phases(const RunArgs& run, int phases, int wait_before, int globals_after,
-                    Phase&& phase) {
-        for (int index = 0; index < phases; ++index) {
-            if (index == wait_before)
+    void run_phases(const RunArgs& run, const Phases& phases, Phase&& phase) {
+        for (int index = 0; index < phases.count; ++index) {
+            if (index == phases.wait_before)
                 wait_halos(run);
             phase(index);
-            if (index == globals_after)
+            if (index == phases.globals_after)
                 process_globals(run);
         }
-        if (phases == wait_before)
+        if (phases.count == phases.wait_before)
             wait_halos(run);
     }
 };

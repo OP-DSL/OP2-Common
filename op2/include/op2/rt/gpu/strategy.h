@@ -120,9 +120,9 @@ protected:
     // Record past its strides, and its geometry.
     template<typename Record, typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
-                                    const op::rt::loop::RunArgs& run, int phases,
-                                    int wait_before, int globals_after,
-                                    Launches&& launches, Fill&& fill);
+                                    const op::rt::loop::RunArgs& run,
+                                    const op::rt::loop::Phases& phases, Launches&& launches,
+                                    Fill&& fill);
 
 public:
     static std::vector<op::rt::loop::Axis> axes() { return {block_size_axis()}; }

@@ -61,15 +61,16 @@ SetColouring colour_set(std::span<const op_arg> args, const op::rt::loop::Sectio
     };
 
     // A section at a time, so no colour holds elements of two.
+    auto phases = sections.phases();
     for (int section = 0; section < sections.size(); ++section) {
-        if (section == sections.wait_index())
+        if (section == phases.wait_before)
             colouring.core_colours = colouring.colours;
         colouring.colours += colour_range(sections[section].begin, sections[section].end,
                                           colouring.colours);
-        if (section == sections.globals_index())
+        if (section == phases.globals_after)
             colouring.owned_colours = colouring.colours;
     }
-    if (sections.wait_index() >= sections.size())
+    if (phases.wait_before >= sections.size())
         colouring.core_colours = colouring.colours;
 
     // Each colour's elements, in element order.

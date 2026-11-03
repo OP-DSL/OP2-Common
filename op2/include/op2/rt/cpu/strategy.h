@@ -41,8 +41,8 @@ protected:
     // Run the phases of a call through the loop's, phase(index) running one
     // phase over the threads; the phases' own time when timed.
     template<typename F>
-    std::optional<float> run_phases(const op::rt::loop::RunArgs& run, int phases,
-                                    int wait_before, int globals_after, F&& phase);
+    std::optional<float> run_phases(const op::rt::loop::RunArgs& run,
+                                    const op::rt::loop::Phases& phases, F&& phase);
 
 public:
     static std::vector<op::rt::loop::Axis> axes() { return {}; }

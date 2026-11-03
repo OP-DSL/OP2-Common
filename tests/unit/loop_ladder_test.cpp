@@ -199,19 +199,19 @@ void test_call() {
     // on their own when a global reduction follows them.
     auto direct = loop::Sections::direct(&source);
     CHECK(direct.size() == 1 && direct[0].begin == 0 && direct[0].end == 128);
-    CHECK(direct.wait_index() == 0 && direct.globals_index() == 0);
+    CHECK(direct.phases().wait_before == 0 && direct.phases().globals_after == 0);
     CHECK(direct.elements() == 128);
 
     auto indirect = loop::Sections::indirect(&source, false, all);
     CHECK(indirect.size() == 2);
     CHECK(indirect[0].end == 100 && indirect[1].begin == 100 && indirect[1].end == 136);
-    CHECK(indirect.wait_index() == 1 && indirect.globals_index() == 1);
+    CHECK(indirect.phases().wait_before == 1 && indirect.phases().globals_after == 1);
     CHECK(indirect.elements() == 136);
 
     auto separate = loop::Sections::indirect(&source, true, all);
     CHECK(separate.size() == 3);
     CHECK(separate[1].begin == 100 && separate[1].end == 128 && separate[2].end == 136);
-    CHECK(separate.wait_index() == 1 && separate.globals_index() == 1);
+    CHECK(separate.phases().wait_before == 1 && separate.phases().globals_after == 1);
 
     // A call's own: the owned elements apart only when it reduces, the exec
     // halo only when the exchange runs it.

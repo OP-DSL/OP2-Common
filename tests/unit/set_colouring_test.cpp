@@ -95,6 +95,13 @@ void test_set_colouring() {
     auto owned_first = check(true, 10);
     CHECK(owned_first.owned_colours < owned_first.colours);
 
+    // A colour a phase: the halo wait before the first colour past the core,
+    // the globals after the last owned colour, and none without one.
+    auto phases = owned_first.phases();
+    CHECK(phases.count == owned_first.colours && phases.wait_before == owned_first.core_colours &&
+          phases.globals_after == owned_first.owned_colours - 1);
+    CHECK(!op::rt::plan::SetColouring{}.phases().globals_after);
+
     // Only reads reach the halo, so the exchange runs the owned elements
     // alone, and only they are coloured: a colour for the core and one for
     // the rest.
