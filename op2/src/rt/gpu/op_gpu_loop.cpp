@@ -6,6 +6,7 @@
 #include <op2/rt/gpu/strategy.h>
 #include <op_cuda_rt_support.h>
 
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -52,9 +53,17 @@ void Loop::add_param(const abi::gpu::Param& param) {
 
 void Loop::upload() { m_symbols->upload(m_params); }
 
-int Loop::block_limit(std::span<op_arg> args, int block_size) const {
-    return getBlockLimitWithPolicy(args.data(), static_cast<int>(args.size()), block_size,
-                                   m_name.c_str(), m_gbl_inc_atomic);
+int Loop::block_limit(const op::rt::loop::Call& call, int block_size) const {
+    auto bytes = reductionBytesPerThread(call.args.data(), static_cast<int>(call.args.size()),
+                                         m_gbl_inc_atomic);
+    int limit = blockLimitForReductions(bytes, block_size);
+    // Without a cap the scratch is no limit, nor worth a warning.
+    if (limit != INT32_MAX && bytes > 8 * 1024 && !m_warned_reductions) {
+        m_warned_reductions = true;
+        op_printf("Warning: kernel %s needs %zu reduction bytes per thread\n", m_name.c_str(),
+                  bytes);
+    }
+    return limit;
 }
 
 #define OP_GPU_ARGUMENT(type, name, qualifier) m_arguments.push_back(&record.name);

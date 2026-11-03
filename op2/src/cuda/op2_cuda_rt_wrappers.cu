@@ -421,26 +421,34 @@ void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
     }
 }
 
-int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
-                            const char *name, bool use_gbl_inc_atomics) {
-    if (OP_cuda_reductions_mib < 0) return INT32_MAX;
-
-    size_t reduction_bytes_per_thread = 0;
+size_t reductionBytesPerThread(op_arg *args, int nargs, bool use_gbl_inc_atomics) {
+    size_t bytes = 0;
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (!needs_per_thread_storage(args[i], use_gbl_inc_atomics)) continue;
         if (args[i].acc == OP_WORK) continue;
 
-        reduction_bytes_per_thread += args[i].size * sizeof(char);
+        bytes += args[i].size * sizeof(char);
     }
+    return bytes;
+}
 
-    if (reduction_bytes_per_thread == 0) return INT32_MAX;
+int blockLimitForReductions(size_t bytes_per_thread, int block_size) {
+    if (OP_cuda_reductions_mib < 0 || bytes_per_thread == 0) return INT32_MAX;
 
+    size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
+    return std::max(max_total_reduction / ((size_t) block_size * bytes_per_thread), 1UL);
+}
+
+int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
+                            const char *name, bool use_gbl_inc_atomics) {
+    if (OP_cuda_reductions_mib < 0) return INT32_MAX;
+
+    size_t reduction_bytes_per_thread = reductionBytesPerThread(args, nargs, use_gbl_inc_atomics);
     if (reduction_bytes_per_thread > 8 * 1024)
         op_printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, reduction_bytes_per_thread);
 
-    size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
-    return std::max(max_total_reduction / ((size_t) block_size * reduction_bytes_per_thread), 1UL);
+    return blockLimitForReductions(reduction_bytes_per_thread, block_size);
 }
 
 bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,

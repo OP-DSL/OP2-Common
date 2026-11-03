@@ -44,6 +44,8 @@ private:
     // the host reads.
     int m_global_stride = 0;
     bool m_exit_sync = false;
+    // Whether a call has needed more than 8 KiB of reduction scratch a thread.
+    mutable bool m_warned_reductions = false;
 
     // Register a parameter, bound to the device copy an offline kernel reads
     // it from when it has one.
@@ -65,9 +67,10 @@ public:
     // Upload the changed values an offline kernel reads from device symbols.
     void upload();
 
-    // The most blocks a launch may use: as many as the reduction scratch
-    // allows.
-    int block_limit(std::span<op_arg> args, int block_size) const;
+    // The most blocks of block_size threads a launch of call may use: as
+    // many as the reduction scratch allows.  A call needing more than 8 KiB a
+    // thread is warned about once.
+    int block_limit(const op::rt::loop::Call& call, int block_size) const;
 
     // The call's device copies of the globals, global_stride apart as the
     // selected strategy launches its blocks; those its kernel has from the

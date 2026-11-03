@@ -57,24 +57,28 @@ std::string StrategyBase::statistics(const op::rt::loop::Prepared& prepared) con
     return "offline, " + describe(m_offline.resources());
 }
 
-void StrategyBase::begin(const op::rt::loop::Call& call) {
-    m_call_state = {};
-    m_call_state.stride = element_stride(call.set, m_loop.direct());
-    m_call_state.block_limit = m_loop.block_limit(call.args, m_block_size);
+StrategyBase::Shape StrategyBase::shape(const op::rt::loop::Call& call,
+                                        const void *entry) const {
+    Shape shape;
+    shape.stride = element_stride(call.set, m_loop.direct());
+    shape.block_limit = m_loop.block_limit(call, m_block_size);
+    shape.max_blocks = max_blocks(call, entry, shape.block_limit);
+    return shape;
 }
 
-op::rt::loop::Prepared StrategyBase::acquire(const op::rt::loop::Call& call,
+op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
                                              op::rt::loop::Urgency urgency,
-                                             op::rt::loop::KernelKind kind,
-                                             const void *entry) {
-    m_call_state.global_stride = m_block_size * m_call_state.max_blocks;
+                                             op::rt::loop::KernelKind kind) {
+    auto planned = plan(call, element_stride(call.set, m_loop.direct()));
+    if (!planned.rejected.empty())
+        return op::rt::loop::Prepared::unavailable(planned.rejected, planned.entry);
     if (kind == op::rt::loop::KernelKind::offline)
-        return op::rt::loop::Prepared::ready(entry);
+        return op::rt::loop::Prepared::ready(planned.entry);
     op::rt::loop::Prepared prepared;
-    prepared.entry = entry;
+    prepared.entry = planned.entry;
 
     auto& params = m_loop.params();
-    auto values = launch_values().slots();
+    auto values = launch_values(global_stride(shape(call, planned.entry))).slots();
     auto key = params.key(call, values);
     auto acquired = m_cache.acquire(
         key, urgency, [&] { return m_loop.compiler().job(params, values, m_family); });
@@ -110,7 +114,8 @@ template<typename Record, typename Launches, typename Fill>
 std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prepared,
                                               const op::rt::loop::RunArgs& run,
                                               const op::rt::loop::Phases& phases,
-                                              Launches&& launches, Fill&& fill) {
+                                              const Shape& shape, Launches&& launches,
+                                              Fill&& fill) {
     assert(prepared.candidate->strategy == this);
     // An offline kernel reads the call's constants and strides from device
     // symbols.
@@ -125,8 +130,8 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
 
         for (int index = 0; index < count; ++index) {
             Record record;
-            record.stride = m_call_state.stride;
-            record.global_stride = m_call_state.global_stride;
+            record.stride = shape.stride;
+            record.global_stride = global_stride(shape);
             Geometry geometry = fill(phase, index, record);
             if (geometry.blocks > 0)
                 launch(prepared, record, run.call.args, geometry);
@@ -152,40 +157,40 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
 
 // --- Plain and atomics ---
 
-op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call& call,
-                                       op::rt::loop::Urgency urgency,
-                                       op::rt::loop::KernelKind kind) {
-    begin(call);
+int Simple::max_blocks(const op::rt::loop::Call& call, const void *, int block_limit) const {
+    int blocks = 0;
     for (const auto& section : call.sections.span())
-        m_call_state.max_blocks = std::max(m_call_state.max_blocks, grid(section.size()));
-    return acquire(call, urgency, kind, nullptr);
+        blocks = std::max(blocks, grid(section.size(), block_limit));
+    return blocks;
 }
 
 std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
                                  const op::rt::loop::RunArgs& run) {
     const auto& sections = run.call.sections;
+    auto launches = shape(run.call, prepared.entry);
     return run_phases<abi::gpu::Range>(
-        prepared, run, sections.phases(),
+        prepared, run, sections.phases(), launches,
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
         [&](int phase, int, abi::gpu::Range& record) {
             record.start = sections[phase].begin;
             record.end = sections[phase].end;
-            return Geometry{grid(sections[phase].size()), 0};
+            return Geometry{grid(sections[phase].size(), launches.block_limit), 0};
         });
 }
 
 // --- Colouring ---
 
-op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
-                                          op::rt::loop::Urgency urgency,
-                                          op::rt::loop::KernelKind kind) {
-    begin(call);
+StrategyBase::Planned Colouring::plan(const op::rt::loop::Call& call, int) {
     const auto& entry = m_plans.get(call, [&] {
         op::rt::plan::PlanKey key{"colouring", call};
         return colouring_plans.get(key, [&] {
             auto plan = std::make_shared<ColouringPlan>();
             plan->colouring = op::rt::plan::colour_set(call.args, call.sections);
             upload(plan->colouring.order, plan->order_d);
+            const auto& offsets = plan->colouring.offsets;
+            for (std::size_t colour = 0; colour + 1 < offsets.size(); ++colour)
+                plan->max_colour =
+                    std::max(plan->max_colour, offsets[colour + 1] - offsets[colour]);
             if (OP_diags > 3)
                 op_printf("colouring: %s %d colours, %d over owned elements\n",
                           m_loop.name().c_str(), plan->colouring.colours,
@@ -193,28 +198,26 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
             return plan;
         });
     });
+    return {&entry, {}};
+}
 
-    const auto& colouring = entry.colouring;
-    for (int colour = 0; colour < colouring.colours; ++colour)
-        m_call_state.max_blocks =
-            std::max(m_call_state.max_blocks,
-                     grid(colouring.offsets[static_cast<std::size_t>(colour) + 1] -
-                          colouring.offsets[static_cast<std::size_t>(colour)]));
-    return acquire(call, urgency, kind, &entry);
+int Colouring::max_blocks(const op::rt::loop::Call&, const void *entry, int block_limit) const {
+    return grid(static_cast<const ColouringPlan *>(entry)->max_colour, block_limit);
 }
 
 std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::RunArgs& run) {
     const auto& entry = *static_cast<const ColouringPlan *>(prepared.entry);
     const auto& colouring = entry.colouring;
+    auto launches = shape(run.call, prepared.entry);
     // The core's colours come first, and run while the halo arrives.
     return run_phases<abi::gpu::Range>(
-        prepared, run, colouring.phases(), [](int) { return 1; },
+        prepared, run, colouring.phases(), launches, [](int) { return 1; },
         [&](int colour, int, abi::gpu::Range& record) {
             record.start = colouring.offsets[static_cast<std::size_t>(colour)];
             record.end = colouring.offsets[static_cast<std::size_t>(colour) + 1];
             record.order = entry.order_d;
-            return Geometry{grid(record.end - record.start), 0};
+            return Geometry{grid(record.end - record.start, launches.block_limit), 0};
         });
 }
 
@@ -269,9 +272,9 @@ std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
 // The configuration's plan, the shared one when another strategy holds the
 // same: the same planner, call shape, groups, block size, stride and
 // variant; a chunk is a block's elements.
-const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
-    return m_plans.get(call, [&] {
-        ChunkSpec spec{m_block_size, device().shared_bytes, m_call_state.stride};
+StrategyBase::Planned ChunkBase::plan(const op::rt::loop::Call& call, int stride) {
+    const auto& entry = m_plans.get(call, [&] {
+        ChunkSpec spec{m_block_size, device().shared_bytes, stride};
         op::rt::plan::PlanKey key{m_family.name, call};
         key.add(m_groups).add(spec.block_size).add(spec.shared_bytes).add(spec.stride);
         add_key(key);
@@ -283,10 +286,17 @@ const ChunkEntry& ChunkBase::entry_for(const op::rt::loop::Call& call) {
             if (*entry) {
                 entry->device = DevicePlan(*entry->plan);
                 entry->plan->release_uploaded();
+                const auto& batches = entry->plan->batches;
+                for (int section = 0; section < call.sections.size(); ++section)
+                    for (int batch = 0; batch < batches.batches(section); ++batch) {
+                        auto [begin, end] = batches.positions(section, batch);
+                        entry->max_batch = std::max(entry->max_batch, end - begin);
+                    }
             }
             return entry;
         });
     });
+    return {&entry, entry ? std::string_view{} : entry.rejected};
 }
 
 void ChunkBase::report(const ChunkResult& result) const {
@@ -304,31 +314,16 @@ void ChunkBase::report(const ChunkResult& result) const {
               figures(plan).c_str(), plan.compression);
 }
 
-op::rt::loop::Prepared ChunkBase::prepare(const op::rt::loop::Call& call,
-                                          op::rt::loop::Urgency urgency,
-                                          op::rt::loop::KernelKind kind) {
-    begin(call);
-    const auto *entry = &entry_for(call);
-    if (!*entry)
-        return op::rt::loop::Prepared::unavailable(entry->rejected, entry);
-
-    // Reduction scratch uses the capped physical grid.  A wavefront batch's
-    // blocks take chunks in turn, so it needs no more of them than the
-    // device holds at once.
-    const auto& batches = entry->plan->batches;
-    for (int section = 0; section < call.sections.size(); ++section)
-        for (int batch = 0; batch < batches.batches(section); ++batch) {
-            auto [begin, end] = batches.positions(section, batch);
-            m_call_state.max_blocks =
-                std::max(m_call_state.max_blocks, batch_blocks(*entry->plan, begin, end));
-        }
-    return acquire(call, urgency, kind, entry);
+// Reduction scratch uses the capped physical grid.  A wavefront batch's
+// blocks take chunks in turn, so it needs no more of them than the device
+// holds at once.
+int ChunkBase::max_blocks(const op::rt::loop::Call&, const void *entry, int block_limit) const {
+    const auto& chunks = *static_cast<const ChunkEntry *>(entry);
+    return batch_blocks(*chunks.plan, chunks.max_batch, block_limit);
 }
 
-// A block per chunk up to the call's limit, and for a wavefront no more
-// than the device holds at once.
-int ChunkBase::batch_blocks(const ChunkPlan& plan, int begin, int end) const {
-    int blocks = std::min(end - begin, m_call_state.block_limit);
+int ChunkBase::batch_blocks(const ChunkPlan& plan, int chunks, int block_limit) const {
+    int blocks = std::min(chunks, block_limit);
     if (plan.wavefront)
         blocks = std::min(blocks, device().resident_blocks(m_block_size));
     return blocks;
@@ -339,6 +334,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     const auto& entry = *static_cast<const ChunkEntry *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = run.call.sections;
+    auto launches = shape(run.call, prepared.entry);
 
     // Every section of a wavefront call takes its positions from zero.
     int epoch = 0;
@@ -349,7 +345,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     }
 
     return run_phases<abi::gpu::Chunk>(
-        prepared, run, sections.phases(),
+        prepared, run, sections.phases(), launches,
         [&](int section) { return plan.batches.batches(section); },
         [&](int section, int batch, abi::gpu::Chunk& record) {
             auto [begin, end] = plan.batches.positions(section, batch);
@@ -362,7 +358,8 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
             }
             auto bytes = plan.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
-            return Geometry{batch_blocks(plan, begin, end), static_cast<int>(bytes)};
+            return Geometry{batch_blocks(plan, end - begin, launches.block_limit),
+                            static_cast<int>(bytes)};
         });
 }
 

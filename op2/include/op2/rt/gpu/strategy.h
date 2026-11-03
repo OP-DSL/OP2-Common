@@ -38,10 +38,12 @@ op::rt::loop::Axis block_size_axis();
 
 // --- Plans ------------------------------------------------------------------------
 
-// A set colouring and its element order on the device, freed with it.
+// A set colouring and its element order on the device, freed with it, and
+// its largest colour's elements.
 struct ColouringPlan {
     op::rt::plan::SetColouring colouring;
     int *order_d = nullptr;
+    int max_colour = 0;
 
     ColouringPlan() = default;
     ColouringPlan(const ColouringPlan&) = delete;
@@ -49,9 +51,11 @@ struct ColouringPlan {
     ~ColouringPlan();
 };
 
-// A chunk plan, or why the call does not suit it, and the plan as uploaded.
+// A chunk plan, or why the call does not suit it, the plan as uploaded, and
+// the most chunks a batch launches.
 struct ChunkEntry : ChunkResult {
     DevicePlan device;
+    int max_batch = 0;
 };
 
 // --- The base of every GPU strategy ------------------------------------------------
@@ -64,13 +68,20 @@ protected:
         int shared_bytes;
     };
 
-    // The call being prepared: its per-element arrays' stride, the most
-    // blocks a launch may use, and the largest launch.
-    struct CallState {
+    // A call's launches under its plan: the per-element arrays' stride, the
+    // most blocks a launch may use, and the largest launch, which the
+    // globals' device copies are laid out for.  Derived from the call and the
+    // plan wherever it is needed, so prepare, begin_call and run agree.
+    struct Shape {
         int stride = 0;
         int block_limit = 0;
         int max_blocks = 0;
-        int global_stride = 0;
+    };
+
+    // A call's plan, or why the configuration does not suit it.
+    struct Planned {
+        const void *entry = nullptr;
+        std::string_view rejected;
     };
 
     Loop& m_loop;
@@ -79,35 +90,38 @@ protected:
     int m_block_size;
     OfflineKernel m_offline;
     op::rt::jit::Cache<JitKernel> m_cache;
-    CallState m_call_state;
 
     StrategyBase(Loop& loop, const op::rt::loop::Point& point,
                  const abi::gpu::Family& family);
 
-    // This strategy's values for its kernel, from the call being prepared;
-    // a chunked variant adds its switch.
-    virtual LaunchValues launch_values() const {
-        return {m_call_state.global_stride, m_block_size, false, false};
+    // The configuration's plan for call, its per-element arrays stride
+    // apart.
+    virtual Planned plan(const op::rt::loop::Call& call, int stride) = 0;
+
+    // The largest launch's blocks for call under its plan's entry, at most
+    // block_limit.
+    virtual int max_blocks(const op::rt::loop::Call& call, const void *entry,
+                           int block_limit) const = 0;
+
+    // This strategy's values for its kernel under global_stride; a chunked
+    // variant adds its switch.
+    virtual LaunchValues launch_values(int global_stride) const {
+        return {global_stride, m_block_size, false, false};
     }
 
-    // Blocks of a grid-stride launch over elements.
-    int grid(int elements) const {
+    // Blocks of a grid-stride launch over elements, at most block_limit.
+    int grid(int elements, int block_limit) const {
         int blocks = (elements + m_block_size - 1) / m_block_size;
-        return std::min(blocks, m_call_state.block_limit);
+        return std::min(blocks, block_limit);
     }
 
-    // Begin a call: its stride and the blocks the reduction scratch allows.
-    void begin(const op::rt::loop::Call& call);
+    Shape shape(const op::rt::loop::Call& call, const void *entry) const;
+
+    // The stride between the blocks' copies of the globals.
+    int global_stride(const Shape& shape) const { return m_block_size * shape.max_blocks; }
 
     // Whether its offline kernel launches its block size.
     bool offline_usable() const { return m_offline.usable(m_block_size); }
-
-    // Finish a call: the launch parameters and the kernel of kind, as a
-    // Prepared value over entry; a specialised kernel is pending while it
-    // builds.
-    op::rt::loop::Prepared acquire(const op::rt::loop::Call& call,
-                               op::rt::loop::Urgency urgency, op::rt::loop::KernelKind kind,
-                               const void *entry);
 
     // Launch one kernel with record.
     template<typename Record>
@@ -121,8 +135,8 @@ protected:
     template<typename Record, typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::RunArgs& run,
-                                    const op::rt::loop::Phases& phases, Launches&& launches,
-                                    Fill&& fill);
+                                    const op::rt::loop::Phases& phases, const Shape& shape,
+                                    Launches&& launches, Fill&& fill);
 
 public:
     static std::vector<op::rt::loop::Axis> axes() { return {block_size_axis()}; }
@@ -137,10 +151,17 @@ public:
     // The kernel kind and its registers, local and shared memory.
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
 
+    // Plan the call, then find or request its kernel of kind, as urgency
+    // asks: an offline one is ready with the plan, a specialised one pending
+    // while it builds.
+    op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
+                                   op::rt::loop::Urgency urgency,
+                                   op::rt::loop::KernelKind kind) final;
+
     // The device copies of the call's globals, a copy per launched thread.
     void begin_call(const op::rt::loop::Prepared& prepared,
                     const op::rt::loop::Call& call) override {
-        m_loop.prepare_globals(prepared, call, m_call_state.global_stride);
+        m_loop.prepare_globals(prepared, call, global_stride(shape(call, prepared.entry)));
     }
 
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
@@ -151,13 +172,14 @@ public:
 // One grid-stride launch per section; the family names the kernel's
 // increments: none for plain, global atomics for atomics.
 class Simple : public StrategyBase {
+protected:
+    Planned plan(const op::rt::loop::Call&, int) override { return {}; }
+    int max_blocks(const op::rt::loop::Call& call, const void *entry,
+                   int block_limit) const override;
+
 public:
     Simple(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
         : StrategyBase{loop, point, family} {}
-
-    op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
-                               op::rt::loop::Urgency urgency,
-                               op::rt::loop::KernelKind kind) override;
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::RunArgs& run) override;
@@ -170,13 +192,15 @@ class Colouring : public StrategyBase {
 private:
     op::rt::plan::PlanSlots<ColouringPlan> m_plans;
 
+protected:
+    Planned plan(const op::rt::loop::Call& call, int stride) override;
+    int max_blocks(const op::rt::loop::Call& call, const void *entry,
+                   int block_limit) const override;
+
 public:
     Colouring(Loop& loop, const op::rt::loop::Point& point, const abi::gpu::Family& family)
         : StrategyBase{loop, point, family} {}
 
-    op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
-                               op::rt::loop::Urgency urgency,
-                               op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
@@ -207,14 +231,16 @@ protected:
         return {block_size_axis(), std::move(variant)};
     }
 
-    const ChunkEntry& entry_for(const op::rt::loop::Call& call);
     void report(const ChunkResult& result) const;
-    int batch_blocks(const ChunkPlan& plan, int begin, int end) const;
+    // A batch's blocks: one per chunk up to block_limit, and for a wavefront
+    // no more than the device holds at once.
+    int batch_blocks(const ChunkPlan& plan, int chunks, int block_limit) const;
+
+    Planned plan(const op::rt::loop::Call& call, int stride) override;
+    int max_blocks(const op::rt::loop::Call& call, const void *entry,
+                   int block_limit) const override;
 
 public:
-    op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
-                               op::rt::loop::Urgency urgency,
-                               op::rt::loop::KernelKind kind) override;
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
                              const op::rt::loop::RunArgs& run) override;
     std::string statistics(const op::rt::loop::Prepared& prepared) const override;
@@ -226,8 +252,8 @@ class ChunkAtomics : public ChunkBase {
 protected:
     bool m_unstaged_singles;
 
-    LaunchValues launch_values() const override {
-        auto values = ChunkBase::launch_values();
+    LaunchValues launch_values(int global_stride) const override {
+        auto values = ChunkBase::launch_values(global_stride);
         values.unstaged_singles = m_unstaged_singles;
         return values;
     }
@@ -255,8 +281,8 @@ class ChunkColouring : public ChunkBase {
 protected:
     bool m_wavefront;
 
-    LaunchValues launch_values() const override {
-        auto values = ChunkBase::launch_values();
+    LaunchValues launch_values(int global_stride) const override {
+        auto values = ChunkBase::launch_values(global_stride);
         values.wavefront = m_wavefront;
         return values;
     }

@@ -139,6 +139,12 @@ void mvReductArraysToHost(int reduct_bytes);
 int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
                             const char *name, bool gbl_inc_atomic);
 
+/* Its parts: the reduction scratch bytes each launched thread needs for the
+ * args, and the most blocks of block_size threads that allows, at least one,
+ * INT32_MAX with no cap or no scratch. */
+size_t reductionBytesPerThread(op_arg *args, int nargs, bool gbl_inc_atomic);
+int blockLimitForReductions(size_t bytes_per_thread, int block_size);
+
 void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
                                  bool gbl_inc_atomic, const unsigned char *on_host);
 
