@@ -39,11 +39,6 @@ private:
     std::vector<gpuEvent_t> m_events;
     // A launch's kernel arguments: its record's, then the loop's.
     std::vector<void *> m_arguments;
-    // The call under way: its strategy's stride between the blocks' global
-    // copies, and whether their processing needs a synchronisation before
-    // the host reads.
-    int m_global_stride = 0;
-    bool m_exit_sync = false;
     // Whether a call has needed more than 8 KiB of reduction scratch a thread.
     mutable bool m_warned_reductions = false;
 
@@ -78,6 +73,11 @@ public:
     void prepare_globals(const op::rt::loop::Prepared& prepared, const op::rt::loop::Call& call,
                          int global_stride);
 
+    // Combine the call's device copies of the globals, global_stride apart,
+    // into its arguments; whether the host must synchronise before reading
+    // them.
+    bool combine_globals(const op::rt::loop::Call& call, int global_stride);
+
     // A launch's kernel arguments: its record's fields, then the loop's
     // arguments, the active optional ones marked in the record.
     void **arguments(abi::gpu::Range& record, std::span<op_arg> args);
@@ -91,10 +91,6 @@ protected:
     // The data lives on the device.
     int exchange_halos(op_set set, std::span<op_arg> args) override;
     void mark_dirty(std::span<op_arg> args) override;
-
-    void combine_globals(const op::rt::loop::Call& call) override;
-
-    void end_call() override;
 };
 
 } // namespace op::rt::gpu

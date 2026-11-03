@@ -3,8 +3,8 @@
 // The base of every backend's loop, the object the generated code builds per
 // par_loop: its ladder, its tuner and its JIT parameters, and a call's steps,
 // phases and profile scopes, from src/rt/loop/op_loop.cpp.  A backend
-// derives its loop, prepares, combines and finishes the call's globals, and
-// times its strategies' phases.
+// derives its loop and prepares the call's globals; its strategies combine
+// them and time their phases.
 
 #include <op2/rt/abi/descriptor.h>
 #include <op2/rt/jit/params.h>
@@ -13,6 +13,7 @@
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/tune/autotune.h>
 #include <op_lib_core.h>
+#include <op_profile.h>
 
 #include <memory>
 #include <optional>
@@ -39,6 +40,27 @@ void write_reports(int rank, int ranks);
 // every loop, which frees its device state, and clear its descriptor, so a
 // later call makes a new one.
 void finalise(int rank, int ranks);
+
+// Wait for the call's halo exchanges.
+void wait_halos(const Call& call);
+
+// Run a strategy's phases, phase(index) each, with the halo wait and, when
+// the call writes globals, their combine() where phases puts them.
+template<typename Phase, typename Combine>
+void run_phases(const Call& call, const Phases& phases, Phase&& phase, Combine&& combine) {
+    for (int index = 0; index < phases.count; ++index) {
+        if (index == phases.wait_before)
+            wait_halos(call);
+        phase(index);
+        if (index == phases.globals_after && call.writes_globals()) {
+            op_profile_next("Process GBLs");
+            combine();
+            op_profile_next("Kernel");
+        }
+    }
+    if (phases.count == phases.wait_before)
+        wait_halos(call);
+}
 
 // The library's loop for a descriptor, a Backend made from it on its first
 // call: each backend's invoke runs it.  It lives until finalise, which clears
@@ -70,12 +92,6 @@ private:
     // Run a decision, its time a sample for the tuner when it is timed.
     void run(const tune::Autotuner::Decision& decision, const Call& call);
 
-    // Wait for the call's halo exchanges.
-    void wait_halos(const Call& call);
-
-    // Combine the call's global reductions, if it writes any.
-    void process_globals(const Call& call);
-
 protected:
     std::string m_name;
     Ladder m_ladder;
@@ -95,13 +111,6 @@ protected:
     // Prepare the call's globals for whichever candidate runs; the selected
     // strategy's own setup follows (Strategy::begin_call).
     virtual void begin_call(const Call&) {}
-
-    // Combine the run's partial reductions into the call's arguments, once
-    // the elements they cover have run.
-    virtual void combine_globals(const Call&) {}
-
-    // Finish the run's globals before the host reduces them.
-    virtual void end_call() {}
 
 public:
     // profile_target and profile_variant name the loop to the profiler.
@@ -137,21 +146,6 @@ public:
     // and which the planning overlaps; decide; prepare the globals; run; and
     // finish, reduce and mark the globals and dats.
     void invoke(op_set set, std::span<op_arg> args);
-
-    // Run a strategy's phases, phase(index) each, with the halo wait and the
-    // globals' combine where phases puts them.
-    template<typename Phase>
-    void run_phases(const Call& call, const Phases& phases, Phase&& phase) {
-        for (int index = 0; index < phases.count; ++index) {
-            if (index == phases.wait_before)
-                wait_halos(call);
-            phase(index);
-            if (index == phases.globals_after)
-                process_globals(call);
-        }
-        if (phases.count == phases.wait_before)
-            wait_halos(call);
-    }
 };
 
 } // namespace op::rt::loop

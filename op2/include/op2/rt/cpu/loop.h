@@ -73,15 +73,14 @@ public:
     // Give every thread bytes of chunk scratch, aligned to a cache line.
     void reserve_scratch(std::size_t bytes);
 
+    // Combine the threads' copies into the arguments.
+    void combine_globals(const op::rt::loop::Call& call);
 
 protected:
     // --- Per call ---
 
     // The call's threads, and each one's copy of the globals.
     void begin_call(const op::rt::loop::Call& call) override;
-
-    // Combine the threads' copies into the arguments.
-    void combine_globals(const op::rt::loop::Call& call) override;
 };
 
 } // namespace op::rt::cpu

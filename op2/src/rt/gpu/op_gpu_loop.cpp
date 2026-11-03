@@ -106,11 +106,14 @@ const unsigned char *Loop::on_host(const op::rt::loop::Prepared& prepared, int n
 
 void Loop::prepare_globals(const op::rt::loop::Prepared& prepared,
                            const op::rt::loop::Call& call, int global_stride) {
-    m_global_stride = global_stride;
-    m_exit_sync = false;
     int nargs = static_cast<int>(call.args.size());
-    prepareDeviceGblsWithPolicy(call.args.data(), nargs, m_global_stride, m_gbl_inc_atomic,
+    prepareDeviceGblsWithPolicy(call.args.data(), nargs, global_stride, m_gbl_inc_atomic,
                                 on_host(prepared, nargs));
+}
+
+bool Loop::combine_globals(const op::rt::loop::Call& call, int global_stride) {
+    return processDeviceGblsWithPolicy(call.args.data(), static_cast<int>(call.args.size()),
+                                       global_stride, global_stride, m_gbl_inc_atomic);
 }
 
 int Loop::exchange_halos(op_set set, std::span<op_arg> args) {
@@ -118,17 +121,6 @@ int Loop::exchange_halos(op_set set, std::span<op_arg> args) {
 }
 
 void Loop::mark_dirty(std::span<op_arg> args) { op_mpi_set_dirtybit_cuda(args); }
-
-void Loop::combine_globals(const op::rt::loop::Call& call) {
-    m_exit_sync |= processDeviceGblsWithPolicy(call.args.data(),
-                                               static_cast<int>(call.args.size()),
-                                               m_global_stride, m_global_stride, m_gbl_inc_atomic);
-}
-
-void Loop::end_call() {
-    if (m_exit_sync)
-        GPU_CHECK(gpuStreamSynchronize(0));
-}
 
 } // namespace op::rt::gpu
 

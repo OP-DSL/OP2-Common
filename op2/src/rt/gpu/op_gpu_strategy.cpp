@@ -122,7 +122,8 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
     if (prepared.kernel == nullptr)
         m_loop.upload();
     int timed_pairs = 0;
-    m_loop.run_phases(call, phases, [&](int phase) {
+    bool sync = false;
+    op::rt::loop::run_phases(call, phases, [&](int phase) {
         int count = launches(phase);
         bool timing = timed && count > 0;
         if (timing)
@@ -139,7 +140,10 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
 
         if (timing)
             GPU_CHECK(gpuEventRecord(m_loop.event(2 * timed_pairs++ + 1), 0));
-    });
+    }, [&] { sync |= m_loop.combine_globals(call, shape.global_stride); });
+    // The host reads the combined globals next.
+    if (sync)
+        GPU_CHECK(gpuStreamSynchronize(0));
 
     if (!timed)
         return std::nullopt;

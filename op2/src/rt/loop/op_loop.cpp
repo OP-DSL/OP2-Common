@@ -20,17 +20,9 @@ void Loop::run(const tune::Autotuner::Decision& decision, const Call& call) {
         m_tuner->sample(decision, *microseconds);
 }
 
-void Loop::wait_halos(const Call& call) {
+void wait_halos(const Call& call) {
     op_profile_next("MPI Wait");
     op_mpi_wait_all(call.args);
-    op_profile_next("Kernel");
-}
-
-void Loop::process_globals(const Call& call) {
-    if (!call.writes_globals())
-        return;
-    op_profile_next("Process GBLs");
-    combine_globals(call);
     op_profile_next("Kernel");
 }
 
@@ -53,7 +45,6 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
         op_profile_enter("Kernel");
         run(decision, call);
         op_profile_exit();
-        end_call();
     } else {
         op_profile_next("MPI Wait");
         op_mpi_wait_all(args);

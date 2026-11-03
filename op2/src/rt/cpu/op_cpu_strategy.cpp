@@ -37,11 +37,11 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Call& call, bo
                                               const op::rt::loop::Phases& phases, F&& phase) {
     using clock = std::chrono::steady_clock;
     clock::duration elapsed{};
-    m_loop.run_phases(call, phases, [&](int index) {
+    op::rt::loop::run_phases(call, phases, [&](int index) {
         auto start = clock::now();
         phase(index);
         elapsed += clock::now() - start;
-    });
+    }, [&] { m_loop.combine_globals(call); });
 
     if (!timed)
         return std::nullopt;
