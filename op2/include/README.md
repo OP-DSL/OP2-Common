@@ -187,7 +187,8 @@ op2/rt/abi/gpu/launch.h      (includes: op2/rt/abi/staging.h; the CUDA and
                               batch's, as X-macro field lists: the library
                               fills a record and pushes its fields, a kernel
                               takes them as its first parameters
-                              (OP_ABI_GPU_PARAM); the default block size)
+                              (OP_ABI_GPU_PARAM) and hands them on
+                              (OP_ABI_GPU_ARG); the default block size)
 op2/rt/abi/gpu/descriptor.h  (includes: op_lib_core.h,
                               op2/rt/abi/descriptor.h,
                               op2/rt/abi/gpu/launch.h; a loop as the CUDA and
@@ -244,7 +245,8 @@ op2/rt/kernel/gpu/range.h      (includes: op2/rt/kernel/gpu/device.h,
                                 op2/rt/kernel/prelude.h; the plain, atomics
                                 and colouring kernels' grid-stride walk of a
                                 range, with the element hook)
-op2/rt/kernel/gpu/chunk.h      (includes: op2/rt/kernel/gpu/device.h,
+op2/rt/kernel/gpu/chunk.h      (includes: op2/rt/abi/gpu/launch.h,
+                                op2/rt/kernel/gpu/device.h,
                                 op2/rt/kernel/gpu/wavefront.h,
                                 op2/rt/kernel/prelude.h; chunk_atomics,
                                 chunk_colouring and its parallel variant over
@@ -253,9 +255,9 @@ op2/rt/kernel/gpu/chunk.h      (includes: op2/rt/kernel/gpu/device.h,
 op2/rt/kernel/gpu/wavefront.h  (includes: op2/rt/kernel/gpu/device.h,
                                 op2/rt/kernel/prelude.h; chunk_colouring's
                                 wavefront primitives)
-op2/rt/kernel/gpu/offline.h    (includes: op2/gpu/check.h, op2/gpu/shims.h,
-                                op2/rt/abi/descriptor.h,
-                                op2/rt/abi/gpu/descriptor.h; an offline
+op2/rt/kernel/gpu/offline.h    (includes: op2/rt/abi/descriptor.h,
+                                op2/rt/abi/gpu/descriptor.h,
+                                op2/rt/kernel/prelude.h; an offline
                                 kernel's resources and launches and the device
                                 addresses of the application's symbols, made
                                 with the runtime that registered them)

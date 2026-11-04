@@ -84,4 +84,8 @@ struct Chunk {
 // or OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM).
 #define OP_ABI_GPU_PARAM(type, name, qualifier) [[maybe_unused]] type qualifier name,
 
+// A record field as an argument, its comma included: a kernel hands its
+// record on to a skeleton with OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_ARG).
+#define OP_ABI_GPU_ARG(type, name, qualifier) name,
+
 } // namespace op::rt::abi::gpu

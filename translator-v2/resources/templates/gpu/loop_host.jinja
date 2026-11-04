@@ -304,8 +304,8 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
     };
 
     {% if strategy == "chunk_atomics" %}
-    op::rt::kernel::gpu::chunk_atomics(chunk_begin, chunk_end, {{dats|length}}, chunk_offsets,
-        stage_counts, slot_offsets, op2_stage,
+    op::rt::kernel::gpu::chunk_atomics({{dats|length}}, OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_ARG)
+        op2_stage,
         [&](int n) {
             {{kernel_call(true, strategy, strategy)|indent(12)}}
         },
@@ -317,9 +317,7 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
         {% endfor %}
     };
     op::rt::kernel::gpu::chunk_colouring_parallel<op2_wavefront, op2_locals>(
-        chunk_begin, chunk_end, {{dats|length}}, chunk_order, chunk_offsets, stage_counts,
-        slot_offsets, thread_colours, chunk_thread_colours, wave_pred_offsets, wave_preds,
-        wave_done, wave_ticket, wave_epoch, op2_stage,
+        {{dats|length}}, OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_ARG) op2_stage,
         [&](int n, op2_locals& op2_l) {
             {{kernel_call(true, "chunk_colouring", "chunk_colouring", true)|indent(12)}}
         },
@@ -336,9 +334,7 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
         op2_write);
     {% else %}
     op::rt::kernel::gpu::chunk_colouring<op2_wavefront>(
-        chunk_begin, chunk_end, {{dats|length}}, chunk_order, chunk_offsets, stage_counts,
-        slot_offsets, thread_colours, chunk_thread_colours, wave_pred_offsets, wave_preds,
-        wave_done, wave_ticket, wave_epoch, op2_stage,
+        {{dats|length}}, OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_ARG) op2_stage,
         [&](int n) {
             {{kernel_call(true, strategy, strategy)|indent(12)}}
         },

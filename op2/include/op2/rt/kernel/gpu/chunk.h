@@ -3,49 +3,61 @@
 // The chunked strategies' kernels: a block takes a batch's chunks in turn
 // (op2/rt/abi/gpu/launch.h), stages the chunk's targets in shared memory,
 // applies its elements to them, then writes each target once, with the
-// barriers between.  Device code; the generated wrapper passes its record's
-// fields and its hooks: stage(counts, slots) lays out the chunk's regions,
-// counts[r] slots each, and under chunk_colouring seeds them from region r's
-// slot list at slots[r]; element(n) applies element n; and write(slots)
-// writes the slots back, flushing them with global atomics under
-// chunk_atomics and storing them under chunk_colouring.  The skeleton
-// derives a chunk's counts and slots from its own parameters as it starts
-// the chunk: a hook reading the record's arrays itself has them, under HIP,
-// as generic pointers, and slots derived at the write cost CUDA registers.
+// barriers between.  Device code; the generated wrapper passes the number of
+// staged regions, its record's fields (OP_ABI_GPU_ARG) and its hooks:
+// stage(counts, slots) lays out the chunk's regions, counts[r] slots each,
+// and under chunk_colouring seeds them from region r's slot list at
+// slots[r]; element(n) applies element n; and write(slots) writes the slots
+// back, flushing them with global atomics under chunk_atomics and storing
+// them under chunk_colouring.  The skeleton derives a chunk's counts and
+// slots from its own parameters as it starts the chunk: a hook reading the
+// record's arrays itself has them, under HIP, as generic pointers, and slots
+// derived at the write cost CUDA registers.
 
+#include <op2/rt/abi/gpu/launch.h>
 #include <op2/rt/kernel/gpu/device.h>
 #include <op2/rt/kernel/gpu/wavefront.h>
 #include <op2/rt/kernel/prelude.h>
 
 namespace op::rt::kernel::gpu {
 
+// One chunk: stage its targets, run body over its elements, then write each
+// target once.
+template<typename Stage, typename Body, typename Write>
+__device__ __forceinline__ void with_chunk(int chunk, int regions,
+                                           const int *__restrict stage_counts,
+                                           const int *__restrict slot_offsets, Stage&& stage,
+                                           Body&& body, Write&& write) {
+    const int *counts = stage_counts + chunk * regions;
+    const int *slots = slot_offsets + chunk * regions;
+    stage(counts, slots);
+    __syncthreads();
+
+    body();
+    __syncthreads();
+
+    // One write per distinct target reaches global memory.
+    write(slots);
+
+    // Keep the next chunk from reusing memory a warp is still writing.
+    __syncthreads();
+}
+
 // chunk_atomics: a batch's chunks may share targets, so a chunk accumulates
 // into its cleared slots with shared atomics and flushes them with global
 // ones.
 template<typename Stage, typename Element, typename Write>
-__device__ __forceinline__ void chunk_atomics(int chunk_begin, int chunk_end, int regions,
-                                              const int *__restrict chunk_offsets,
-                                              const int *__restrict stage_counts,
-                                              const int *__restrict slot_offsets,
+__device__ __forceinline__ void chunk_atomics(int regions,
+                                              OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM)
                                               Stage&& stage, Element&& element,
                                               Write&& write) {
     for (int chunk = chunk_begin + blockIdx.x; chunk < chunk_end; chunk += gridDim.x) {
         const int begin = chunk_offsets[chunk];
         const int end = chunk_offsets[chunk + 1];
-        const int *counts = stage_counts + chunk * regions;
-        const int *slots = slot_offsets + chunk * regions;
-        stage(counts, slots);
-        __syncthreads();
-
-        for (int n = begin + threadIdx.x; n < end; n += block_size())
-            element(n);
-        __syncthreads();
-
-        // One write per distinct target reaches global memory.
-        write(slots);
-
-        // Keep the next chunk from reusing memory a warp is still flushing.
-        __syncthreads();
+        with_chunk(chunk, regions, stage_counts, slot_offsets, stage, [&] {
+            for (int n = begin + threadIdx.x; n < end; n += block_size())
+                element(n);
+        }, write);
     }
 }
 
@@ -55,12 +67,8 @@ __device__ __forceinline__ void chunk_atomics(int chunk_begin, int chunk_end, in
 // positions sharing one of its targets are done.  visit(chunk, begin, end)
 // runs one, and signals it done under a wavefront.
 template<bool wavefront, typename Visit>
-__device__ __forceinline__ void colour_chunks(int chunk_begin, int chunk_end,
-                                              const int *__restrict chunk_order,
-                                              const int *__restrict chunk_offsets,
-                                              const int *__restrict wave_pred_offsets,
-                                              const int *__restrict wave_preds, int *wave_done,
-                                              int *wave_ticket, int wave_epoch, Visit&& visit) {
+__device__ __forceinline__ void colour_chunks(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM)
+                                              Visit&& visit) {
     __shared__ int taken;
     for (int i = wavefront ? wave_take(wave_ticket, chunk_begin, taken) : chunk_begin + blockIdx.x;
          i < chunk_end;
@@ -78,21 +86,12 @@ __device__ __forceinline__ void colour_chunks(int chunk_begin, int chunk_end,
 // and a chunk's elements apply one thread colour at a time, so slots are
 // read and written with plain loads and stores.
 template<bool wavefront, typename Stage, typename Element, typename Write>
-__device__ __forceinline__ void chunk_colouring(
-    int chunk_begin, int chunk_end, int regions, const int *__restrict chunk_order,
-    const int *__restrict chunk_offsets, const int *__restrict stage_counts,
-    const int *__restrict slot_offsets, const unsigned char *__restrict thread_colours,
-    const int *__restrict chunk_thread_colours, const int *__restrict wave_pred_offsets,
-    const int *__restrict wave_preds, int *wave_done, int *wave_ticket, int wave_epoch,
-    Stage&& stage, Element&& element, Write&& write) {
-    colour_chunks<wavefront>(
-        chunk_begin, chunk_end, chunk_order, chunk_offsets, wave_pred_offsets, wave_preds,
-        wave_done, wave_ticket, wave_epoch, [&](int chunk, int begin, int end) {
-            const int *counts = stage_counts + chunk * regions;
-            const int *slots = slot_offsets + chunk * regions;
-            stage(counts, slots);
-            __syncthreads();
-
+__device__ __forceinline__ void chunk_colouring(int regions,
+                                                OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM)
+                                                Stage&& stage, Element&& element,
+                                                Write&& write) {
+    auto visit = [&](int chunk, int begin, int end) {
+        with_chunk(chunk, regions, stage_counts, slot_offsets, stage, [&] {
             const int colours = chunk_thread_colours[chunk];
             for (int base = begin; base < end; base += block_size()) {
                 const int n = base + threadIdx.x;
@@ -105,11 +104,9 @@ __device__ __forceinline__ void chunk_colouring(
                     __syncthreads();
                 }
             }
-            __syncthreads();
-
-            write(slots);
-            __syncthreads();
-        });
+        }, write);
+    };
+    colour_chunks<wavefront>(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_ARG) visit);
 }
 
 // chunk_colouring when every element of a chunk can compute at once: its
@@ -118,21 +115,12 @@ __device__ __forceinline__ void chunk_colouring(
 // them to the slots (apply(n, locals)) goes one thread colour at a time.
 template<bool wavefront, typename Locals, typename Stage, typename Compute, typename Apply,
          typename Write>
-__device__ __forceinline__ void chunk_colouring_parallel(
-    int chunk_begin, int chunk_end, int regions, const int *__restrict chunk_order,
-    const int *__restrict chunk_offsets, const int *__restrict stage_counts,
-    const int *__restrict slot_offsets, const unsigned char *__restrict thread_colours,
-    const int *__restrict chunk_thread_colours, const int *__restrict wave_pred_offsets,
-    const int *__restrict wave_preds, int *wave_done, int *wave_ticket, int wave_epoch,
-    Stage&& stage, Compute&& compute, Apply&& apply, Write&& write) {
-    colour_chunks<wavefront>(
-        chunk_begin, chunk_end, chunk_order, chunk_offsets, wave_pred_offsets, wave_preds,
-        wave_done, wave_ticket, wave_epoch, [&](int chunk, int begin, int end) {
-            const int *counts = stage_counts + chunk * regions;
-            const int *slots = slot_offsets + chunk * regions;
-            stage(counts, slots);
-            __syncthreads();
-
+__device__ __forceinline__ void chunk_colouring_parallel(int regions,
+                                                         OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_PARAM)
+                                                         Stage&& stage, Compute&& compute,
+                                                         Apply&& apply, Write&& write) {
+    auto visit = [&](int chunk, int begin, int end) {
+        with_chunk(chunk, regions, stage_counts, slot_offsets, stage, [&] {
             const int colours = chunk_thread_colours[chunk];
             for (int base = begin; base < end; base += block_size()) {
                 const int n = base + threadIdx.x;
@@ -150,11 +138,9 @@ __device__ __forceinline__ void chunk_colouring_parallel(
                     __syncthreads();
                 }
             }
-            __syncthreads();
-
-            write(slots);
-            __syncthreads();
-        });
+        }, write);
+    };
+    colour_chunks<wavefront>(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_GPU_ARG) visit);
 }
 
 } // namespace op::rt::kernel::gpu
