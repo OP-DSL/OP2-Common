@@ -100,7 +100,7 @@ map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
     {%- elif arg is idx -%}
 {{abi.idx_arg("idx")}}
     {%- elif arg is opt and abi.guarded(arg) -%}
-(1 << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_element(arg, jit, staged, local)}} : {{abi.inactive(arg)}}
+(1u << {{lh.optIdx(arg)}}) & opt_flags ? {{arg_element(arg, jit, staged, local)}} : {{abi.inactive(arg)}}
     {%- else -%}
 {{arg_element(arg, jit, staged, local)}}
     {%- endif -%}
@@ -227,7 +227,7 @@ int op2_dim_dat{{dat.id}};
 true
     {%- else -%}
         {%- for arg in members -%}
-((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0{{" || " if not loop.last}}
+((1u << {{lh.optIdx(arg)}}) & opt_flags) != 0{{" || " if not loop.last}}
         {%- endfor -%}
     {%- endif -%}
 {%- endmacro -%}
@@ -326,7 +326,7 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
         [&](int n, op2_locals& op2_l) {
         {% for arg in groups.chunk_atomics.args %}
             {% if arg is opt %}
-            if (((1 << {{lh.optIdx(arg)}}) & opt_flags) != 0)
+            if (((1u << {{lh.optIdx(arg)}}) & opt_flags) != 0)
                 op::rt::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_l.op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
             {% else %}
             op::rt::kernel::stage_add({{stage_slot(arg, "chunk_colouring")}}, op2_l.op2_local{{arg.id}}, {{dat_dim(lh.dat(arg))}});
@@ -397,7 +397,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
 ) {
     using namespace op2_m_{{lh.name}}{{variant}};
     {% if per_thread %}
-    const int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    const int thread_id = threadIdx.x + blockIdx.x * op::rt::kernel::gpu::block_size();
     const int op2_stride_gbl = op::rt::kernel::gpu::param_value(op2_stride_gbl_d, global_stride);
     {% endif %}
     {% if jit %}
@@ -479,7 +479,7 @@ static int op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
     opt_flags = 0;
     {% for arg in lh.args|opt %}
     if (args[{{arg.id}}].opt)
-        opt_flags |= 1 << {{lh.optIdx(arg)}};
+        opt_flags |= 1u << {{lh.optIdx(arg)}};
     {% endfor %}
 {% else %}
     (void)opt_flags;

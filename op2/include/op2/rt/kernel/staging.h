@@ -44,7 +44,8 @@ OP_KERNEL_DEVICE inline T *stage_region(char *&cursor, IndexType count, IndexTyp
     return base;
 }
 
-// Cooperatively zero a region before accumulating into it.
+// Cooperatively zero a region before accumulating into it.  Signed: unsigned
+// indices cost CUDA registers.
 template<typename T>
 OP_KERNEL_DEVICE inline void stage_clear(T *region, IndexType elements, IndexType lane,
                                          IndexType lanes) {
