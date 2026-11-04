@@ -7,15 +7,6 @@
 
 namespace op::rt::cpu {
 
-namespace {
-
-// The live plans of each kind, which every strategy that would build the
-// same one shares.
-op::rt::plan::SharedPlans<op::rt::plan::SetColouring> colouring_plans;
-op::rt::plan::SharedPlans<ChunkResult> chunk_plans;
-
-} // namespace
-
 // --- The base of every OpenMP strategy ----------------------------------------------
 
 void StrategyBase::split(int begin, int end, const int *order, std::span<op_arg> args) {
@@ -71,7 +62,7 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
                                           op::rt::loop::Urgency, op::rt::loop::KernelKind) {
     const auto& colouring = m_plans.get(call, [&] {
         op::rt::plan::PlanKey key{"colouring", call};
-        return colouring_plans.get(key, [&] {
+        return m_executor.backend().colouring_plans.get(key, [&] {
             auto plan = std::make_shared<op::rt::plan::SetColouring>(
                 op::rt::plan::colour_set(call.args, call.sections));
             if (OP_diags > 3)
@@ -109,7 +100,7 @@ const ChunkResult& ChunkBase::entry_for(const op::rt::loop::Call& call) {
         op::rt::plan::PlanKey key{m_family.name, call};
         key.add(m_chunk_size);
         add_key(key);
-        return chunk_plans.get(key, [&] {
+        return m_executor.backend().chunk_plans.get(key, [&] {
             auto entry = std::make_shared<ChunkResult>(make_plan(call));
             if (OP_diags > 3) {
                 if (!*entry)

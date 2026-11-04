@@ -1,23 +1,32 @@
 #include <op2/rt/gpu/heuristics.h>
 
 #include <op2/env.h>
+#include <op2/rt/abi/gpu/launch.h>
 
 namespace op::rt::gpu {
 
-namespace {
-
-HeuristicOptions options;
-
-} // namespace
-
-const HeuristicOptions& heuristic_options() { return options; }
-
-void init_heuristics() {
-    options = {};
-    env::parse_number("OP_JIT_MIN_REGISTERS", options.min_registers);
+const Defaults& defaults() {
+#ifdef OP2_HIP
+    static const Defaults hip{.block_sizes = {abi::gpu::default_block_size, 256},
+                              .unstaged_singles = {1, 0},
+                              .chunk_atomics = true};
+    return hip;
+#else
+    static const Defaults cuda{.block_sizes = {abi::gpu::default_block_size, 64, 256},
+                               .unstaged_singles = {0},
+                               .chunk_atomics = false};
+    return cuda;
+#endif
 }
 
-loop::Estimate estimate(const KernelFacts& facts, loop::KernelKind kind) {
+HeuristicOptions read_heuristic_options() {
+    HeuristicOptions options;
+    env::parse_number("OP_JIT_MIN_REGISTERS", options.min_registers);
+    return options;
+}
+
+loop::Estimate estimate(const HeuristicOptions& options, const KernelFacts& facts,
+                        loop::KernelKind kind) {
     if (kind == loop::KernelKind::offline) {
         if (!facts.offline)
             return {.reason = "kernel_unavailable"};
@@ -25,7 +34,7 @@ loop::Estimate estimate(const KernelFacts& facts, loop::KernelKind kind) {
     }
     if (!facts.jit)
         return {.reason = "kernel_unavailable"};
-    bool prior = facts.resources && facts.resources->registers > options.min_registers;
+    bool prior = facts.resources.registers > options.min_registers;
     return {.available = true, .cost = prior ? 0.9f : 1.0f};
 }
 

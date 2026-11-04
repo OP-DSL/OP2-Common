@@ -156,7 +156,7 @@ op2/rt/lifecycle.h  (op::rt: the runtime's start, which makes its context,
                      op_profile_output and op_exit call;
                      from src/rt/op_rt_lifecycle.cpp, init_cpu from
                      src/rt/cpu/op_cpu_init.cpp, init_gpu from
-                     src/rt/gpu/op_gpu_options.cpp)
+                     src/rt/gpu/op_gpu_init.cpp)
 op2/rt/report.h     (op::rt::report: the text the reports share, counts,
                      CSV quoting, tallies, aligned tables and the CSV files;
                      from src/rt/op_rt_report.cpp)
@@ -393,11 +393,15 @@ op2/rt/plan/greedy_colour.h  (includes: op_lib_core.h; internal to the
 Internal to the library: the generated code reaches it through
 `op2/rt/abi/gpu/descriptor.h`.
 ```
-op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's, the
-                            wavefront window and launch synchronisation, and
-                            the device's facts; read by op_init, which
-                            declares the GPU families, from
-                            src/rt/gpu/op_gpu_options.cpp)
+op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's and
+                            the wavefront window, and the device's facts)
+op2/rt/gpu/backend.h       (includes: op2/rt/context.h,
+                            op2/rt/gpu/heuristics.h, op2/rt/gpu/options.h,
+                            op2/rt/plan/cache.h; the backend's part of the
+                            run's context: its options, the device's facts,
+                            the heuristics' options and the plans its loops
+                            share, made by op_init, which declares the GPU
+                            families; from src/rt/gpu/op_gpu_init.cpp)
 op2/rt/gpu/layout.h        (includes: op_lib_core.h, op_rt_support.h; the
                             device data layout the kernels index by: the
                             warp pitch, a loop's per-element arrays' stride
@@ -407,17 +411,20 @@ op2/rt/gpu/upload.h        (includes: op2/gpu/check.h, op2/gpu/shims.h; a
                             there)
 op2/rt/gpu/heuristics.h    (includes: op2/rt/abi/gpu/descriptor.h,
                             op2/rt/loop/strategy.h; the models of what pays
-                            on the device, which turn what the backend knows
-                            of a strategy's kernels into its estimates, the
-                            register rule first; OP_JIT_MIN_REGISTERS, read
-                            by op_init; from src/rt/gpu/op_gpu_heuristics.cpp)
+                            on the device: the defaults the families' axes
+                            start from, and what turns what the backend
+                            knows of a strategy's kernels into its
+                            estimates, the register rule first, with
+                            OP_JIT_MIN_REGISTERS; from
+                            src/rt/gpu/op_gpu_heuristics.cpp)
 op2/rt/gpu/executor.h      (includes: op_lib_core.h, op2/gpu/shims.h,
                             op2/rt/abi/gpu/descriptor.h,
-                            op2/rt/abi/gpu/launch.h, op2/rt/gpu/jit.h,
-                            op2/rt/gpu/kernel.h, op2/rt/jit/params.h,
-                            op2/rt/loop/call.h, op2/rt/loop/ladder.h,
-                            op2/rt/loop/loop.h; the executor a loop is made
-                            with from a descriptor: its parameters' device
+                            op2/rt/abi/gpu/launch.h, op2/rt/gpu/backend.h,
+                            op2/rt/gpu/jit.h, op2/rt/gpu/kernel.h,
+                            op2/rt/jit/params.h, op2/rt/loop/call.h,
+                            op2/rt/loop/ladder.h, op2/rt/loop/loop.h; the
+                            executor a loop is made with from a descriptor
+                            in the run's context: its parameters' device
                             symbols, its compiler, a launch's arguments, a
                             record's fields then the loop's, its halo
                             exchanges and dirty bits on the device, and the
@@ -453,10 +460,9 @@ op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
                             op2/rt/gpu/chunk_encode.h,
                             op2/rt/gpu/chunk_plan.h, op2/rt/gpu/executor.h,
                             op2/rt/gpu/jit.h, op2/rt/gpu/kernel.h,
-                            op2/rt/gpu/layout.h, op2/rt/gpu/options.h,
-                            op2/rt/jit/cache.h, op2/rt/loop/strategy.h,
-                            op2/rt/plan/cache.h, op2/rt/plan/colouring.h;
-                            the plain, atomics, colouring and chunked
+                            op2/rt/gpu/layout.h, op2/rt/jit/cache.h,
+                            op2/rt/loop/strategy.h, op2/rt/plan/cache.h,
+                            op2/rt/plan/colouring.h; the plain, atomics, colouring and chunked
                             strategies, their axes, block size, unstaged
                             singles and wavefront, their phases' launches,
                             and the table of the families the backend
@@ -467,12 +473,19 @@ op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
 Internal to the library: the generated code reaches it through
 `op2/rt/abi/cpu/descriptor.h`.
 ```
+op2/rt/cpu/backend.h     (includes: op2/rt/context.h,
+                          op2/rt/cpu/chunk_plan.h, op2/rt/plan/cache.h,
+                          op2/rt/plan/colouring.h; the backend's part of the
+                          run's context, the plans its loops share, made by
+                          the CPU libraries' op_init, which declares the
+                          CPU families; from src/rt/cpu/op_cpu_init.cpp)
 op2/rt/cpu/executor.h    (includes: op_lib_core.h,
                           op2/rt/abi/cpu/descriptor.h,
-                          op2/rt/abi/cpu/launch.h, op2/rt/jit/params.h,
-                          op2/rt/loop/call.h, op2/rt/loop/ladder.h,
-                          op2/rt/loop/loop.h; the executor a loop is made
-                          with from a descriptor: the call's threads, their
+                          op2/rt/abi/cpu/launch.h, op2/rt/cpu/backend.h,
+                          op2/rt/jit/params.h, op2/rt/loop/call.h,
+                          op2/rt/loop/ladder.h, op2/rt/loop/loop.h; the
+                          executor a loop is made with from a descriptor in
+                          the run's context: the call's threads, their
                           per-thread globals and chunk scratch, and the
                           records its phases run with; from
                           src/rt/cpu/op_cpu_executor.cpp)
@@ -487,8 +500,6 @@ op2/rt/cpu/strategy.h    (includes: op_lib_core.h, op2/rt/cpu/chunk_plan.h,
                           plain, atomics, colouring and chunked strategies
                           over host threads, each phase a record its
                           family's run is given, and the table of the
-                          families the backend offers, which the CPU
-                          libraries' op_init declares; from
-                          src/rt/cpu/op_cpu_strategy.cpp, the declaration
-                          from src/rt/cpu/op_cpu_init.cpp)
+                          families the backend offers; from
+                          src/rt/cpu/op_cpu_strategy.cpp)
 ```

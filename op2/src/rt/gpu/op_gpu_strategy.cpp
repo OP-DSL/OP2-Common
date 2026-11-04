@@ -14,25 +14,8 @@
 
 namespace op::rt::gpu {
 
-namespace {
-
-// The live plans of each kind, which every strategy that would build the
-// same one shares.
-op::rt::plan::SharedPlans<ColouringPlan> colouring_plans;
-op::rt::plan::SharedPlans<ChunkEntry> chunk_plans;
-
-} // namespace
-
 op::rt::loop::Axis block_size_axis() {
-#ifdef OP2_HIP
-    return {.variable = "BLOCK_SIZES",
-            .key = "block_size",
-            .defaults = {abi::gpu::default_block_size, 256}};
-#else
-    return {.variable = "BLOCK_SIZES",
-            .key = "block_size",
-            .defaults = {abi::gpu::default_block_size, 64, 256}};
-#endif
+    return {.variable = "BLOCK_SIZES", .key = "block_size", .defaults = defaults().block_sizes};
 }
 
 ColouringPlan::~ColouringPlan() { release(order_d); }
@@ -50,14 +33,15 @@ StrategyBase::StrategyBase(Executor& executor, const op::rt::loop::Point& point,
                            const abi::gpu::Family& family)
     : m_executor{executor}, m_name{point.name}, m_family{family},
       m_block_size{point.value("block_size")}, m_offline{family.offline, executor.calls()},
-      m_cache{family.kernel, executor.context().jit, options().build_threads} {}
+      m_cache{family.kernel, executor.context().jit,
+              executor.backend().options.build_threads} {}
 
 op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
     KernelFacts facts;
     facts.offline = offline_usable();
     facts.resources = m_offline.resources();
     facts.jit = m_family.source != nullptr && m_family.source[0] != '\0';
-    return gpu::estimate(facts, kind);
+    return gpu::estimate(m_executor.backend().heuristics, facts, kind);
 }
 
 std::string StrategyBase::statistics(const op::rt::loop::Prepared& prepared) const {
@@ -206,7 +190,7 @@ std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
 StrategyBase::Planned Colouring::plan(const op::rt::loop::Call& call, int) {
     const auto& entry = m_plans.get(call, [&] {
         op::rt::plan::PlanKey key{"colouring", call};
-        return colouring_plans.get(key, [&] {
+        return m_executor.backend().colouring_plans.get(key, [&] {
             auto plan = std::make_shared<ColouringPlan>();
             plan->colouring = op::rt::plan::colour_set(call.args, call.sections);
             upload(plan->colouring.order, plan->order_d);
@@ -274,11 +258,11 @@ std::string ChunkAtomics::extras(const ChunkPlan& plan) const {
 ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call,
                                       const ChunkSpec& spec) const {
     return plan_chunk_colouring(call.args, call.sections, m_family.groups, spec, m_wavefront,
-                                options().window);
+                                m_executor.backend().options.window);
 }
 
 void ChunkColouring::add_key(op::rt::plan::PlanKey& key) const {
-    key.add(m_wavefront).add(options().window);
+    key.add(m_wavefront).add(m_executor.backend().options.window);
 }
 
 std::string ChunkColouring::extras(const ChunkPlan& plan) const {
@@ -286,13 +270,10 @@ std::string ChunkColouring::extras(const ChunkPlan& plan) const {
 }
 
 std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
-#ifdef OP2_HIP
-    return chunk_axes(
-        {.variable = "UNSTAGED_SINGLES", .key = "singles", .binary = true, .defaults = {1, 0}});
-#else
-    return chunk_axes(
-        {.variable = "UNSTAGED_SINGLES", .key = "singles", .binary = true, .defaults = {0}});
-#endif
+    return chunk_axes({.variable = "UNSTAGED_SINGLES",
+                       .key = "singles",
+                       .binary = true,
+                       .defaults = defaults().unstaged_singles});
 }
 
 // The configuration's plan, the shared one when another strategy holds the
@@ -300,11 +281,13 @@ std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
 // variant; a chunk is a block's elements.
 StrategyBase::Planned ChunkBase::plan(const op::rt::loop::Call& call, int stride) {
     const auto& entry = m_plans.get(call, [&] {
-        ChunkSpec spec{m_block_size, device().shared_bytes, stride};
+        ChunkSpec spec{.block_size = m_block_size,
+                       .shared_bytes = m_executor.backend().device.shared_bytes,
+                       .stride = stride};
         op::rt::plan::PlanKey key{m_family.name, call};
         key.add(m_family.groups).add(spec.block_size).add(spec.shared_bytes).add(spec.stride);
         add_key(key);
-        return chunk_plans.get(key, [&] {
+        return m_executor.backend().chunk_plans.get(key, [&] {
             auto result = make_plan(call, spec);
             report(result);
             return std::make_shared<ChunkEntry>(std::move(result));
@@ -338,7 +321,7 @@ int ChunkBase::max_blocks(const op::rt::loop::Call&, const void *entry, int bloc
 int ChunkBase::batch_blocks(const ChunkPlan& plan, int chunks, int block_limit) const {
     int blocks = std::min(chunks, block_limit);
     if (plan.wavefront)
-        blocks = std::min(blocks, device().resident_blocks(m_block_size));
+        blocks = std::min(blocks, m_executor.backend().device.resident_blocks(m_block_size));
     return blocks;
 }
 
@@ -376,14 +359,9 @@ std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const 
 // --- Families ---
 
 std::span<const OfferedFamily> strategy_families() {
-#ifdef OP2_HIP
-    constexpr bool chunk_atomics = true;
-#else
-    constexpr bool chunk_atomics = false;
-#endif
     static const std::vector<OfferedFamily> families{
         OfferedFamily::of<Simple>("plain"),
-        OfferedFamily::of<ChunkAtomics>("chunk_atomics", chunk_atomics),
+        OfferedFamily::of<ChunkAtomics>("chunk_atomics", defaults().chunk_atomics),
         OfferedFamily::of<Simple>("atomics"),
         OfferedFamily::of<ChunkColouring>("chunk_colouring", false),
         OfferedFamily::of<Colouring>("colouring"),

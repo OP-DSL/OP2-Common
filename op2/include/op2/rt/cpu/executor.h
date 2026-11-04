@@ -6,6 +6,7 @@
 
 #include <op2/rt/abi/cpu/descriptor.h>
 #include <op2/rt/abi/cpu/launch.h>
+#include <op2/rt/cpu/backend.h>
 #include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/ladder.h>
@@ -57,6 +58,7 @@ class Executor final : public op::rt::loop::Executor {
 private:
     const abi::cpu::Loop& m_descriptor;
     op::rt::Context& m_context;
+    Backend& m_backend;
     // The call under way: its threads, their globals and chunk scratch.
     int m_threads = 1;
     Globals m_globals;
@@ -76,6 +78,7 @@ public:
 
     const char *name() const { return m_descriptor.name; }
     op::rt::Context& context() { return m_context; }
+    Backend& backend() { return m_backend; }
 
     // Start a run of call: its threads, and each one's copy of the globals.
     void begin_call(const op::rt::loop::Call& call);

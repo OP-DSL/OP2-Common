@@ -1,7 +1,6 @@
 #include <op2/rt/gpu/jit.h>
 
 #include <op2/gpu/check.h>
-#include <op2/rt/gpu/options.h>
 
 #include <cstddef>
 #include <cstdio>
@@ -57,7 +56,7 @@ Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params, std::span<const
         text += std::string{"#include <"} + name + ">\n";
     text += "\n" + op::rt::jit::format_cxx(params, values) +
             runtime_declarations(params, symbols) + std::string{family.source};
-    return {m_loop, m_headers, std::move(text), std::string{family.kernel},
+    return {m_loop, m_headers, m_arch, std::move(text), std::string{family.kernel},
             std::move(symbols), std::move(baked_globals)};
 }
 
@@ -69,7 +68,7 @@ std::unique_ptr<JitKernel> Compiler::Job::operator()() {
 
 #ifdef OP2_CUDA
     const char *opts[] = {
-        device().arch.c_str(),
+        arch.c_str(),
         "--std=c++20",
 #if CUDA_VERSION >= 12040
         "--minimal",

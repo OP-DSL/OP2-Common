@@ -164,8 +164,4 @@ using OfferedFamily = op::rt::loop::OfferedFamily<Executor, abi::cpu::Family>;
 // over the set colouring floor.
 std::span<const OfferedFamily> strategy_families();
 
-// Declare the families the generated code registers, in ladder order; the
-// CPU libraries' op_init calls it.
-void init();
-
 } // namespace op::rt::cpu

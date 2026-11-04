@@ -15,35 +15,35 @@ namespace loop = op::rt::loop;
 
 namespace {
 
-// Whether the specialised kernel of an offline kernel of registers
-// registers, or of unknown ones when negative, is estimated cheaper.
-bool jit_cheaper(int registers) {
-    gpu::KernelFacts facts{true, {}, true};
-    if (registers >= 0)
-        facts.resources = op::rt::abi::gpu::KernelResources{registers, 0, 0, 1024};
-    auto offline = gpu::estimate(facts, loop::KernelKind::offline);
-    auto jit = gpu::estimate(facts, loop::KernelKind::jit);
+// Whether, under options, the specialised kernel of an offline kernel of
+// registers registers, none known when 0, is estimated cheaper.
+bool jit_cheaper(const gpu::HeuristicOptions& options, int registers) {
+    gpu::KernelFacts facts{.offline = true,
+                           .resources = {.registers = registers, .max_threads = 1024},
+                           .jit = true};
+    auto offline = gpu::estimate(options, facts, loop::KernelKind::offline);
+    auto jit = gpu::estimate(options, facts, loop::KernelKind::jit);
     CHECK(offline.available && offline.cost && jit.available && jit.cost);
     return *jit.cost < *offline.cost;
 }
 
 void test_register_rule() {
-    gpu::init_heuristics();
-    CHECK(jit_cheaper(64));
-    CHECK(!jit_cheaper(32));
-    CHECK(!jit_cheaper(-1));
+    auto options = gpu::read_heuristic_options();
+    CHECK(jit_cheaper(options, 64));
+    CHECK(!jit_cheaper(options, 32));
+    CHECK(!jit_cheaper(options, 0));
     setenv("OP_JIT_MIN_REGISTERS", "64", 1);
-    gpu::init_heuristics();
-    CHECK(!jit_cheaper(64));
-    CHECK(jit_cheaper(65));
+    options = gpu::read_heuristic_options();
+    CHECK(!jit_cheaper(options, 64));
+    CHECK(jit_cheaper(options, 65));
     unsetenv("OP_JIT_MIN_REGISTERS");
-    gpu::init_heuristics();
 }
 
 void test_unavailable() {
-    auto none = gpu::estimate({false, {}, false}, loop::KernelKind::offline);
+    const gpu::HeuristicOptions options;
+    auto none = gpu::estimate(options, {}, loop::KernelKind::offline);
     CHECK(!none.available && none.reason == "kernel_unavailable" && !none.cost);
-    none = gpu::estimate({false, {}, false}, loop::KernelKind::jit);
+    none = gpu::estimate(options, {}, loop::KernelKind::jit);
     CHECK(!none.available && none.reason == "kernel_unavailable");
 }
 

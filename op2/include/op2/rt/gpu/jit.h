@@ -24,6 +24,7 @@ class Compiler {
 private:
     std::string m_loop;
     abi::gpu::JitHeaders m_headers;
+    std::string m_arch;
 
 public:
     // A build of one kernel, which returns it, or none when the compile
@@ -32,6 +33,7 @@ public:
     struct Job {
         std::string loop;
         abi::gpu::JitHeaders headers;
+        std::string arch;
         std::string text;
         std::string name;
         std::vector<RuntimeSymbol> symbols;
@@ -40,8 +42,10 @@ public:
         std::unique_ptr<JitKernel> operator()();
     };
 
-    Compiler(std::string_view loop, abi::gpu::JitHeaders headers)
-        : m_loop{loop}, m_headers{headers} {}
+    // The compiler of loop's kernels from headers, for arch, NVRTC's
+    // architecture flag (empty under HIP).
+    Compiler(std::string_view loop, abi::gpu::JitHeaders headers, std::string_view arch)
+        : m_loop{loop}, m_headers{headers}, m_arch{arch} {}
 
     // The job that builds family's kernel with the parameters' current values
     // and the strategy's, by slot, baked in, or at run time as their modes say.

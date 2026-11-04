@@ -1,45 +1,27 @@
-#include <op2/rt/gpu/options.h>
-
-#include <op2/rt/gpu/heuristics.h>
+#include <op2/rt/gpu/backend.h>
 
 #include <op2/env.h>
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
-#include <op2/rt/gpu/strategy.h>
 #include <op2/rt/context.h>
+#include <op2/rt/gpu/strategy.h>
 #include <op2/rt/lifecycle.h>
 #include <op_lib_core.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <memory>
 #include <string>
-#include <vector>
 
 namespace op::rt::gpu {
 
-namespace {
-
-Options run_options;
-Device run_device;
-
-} // namespace
-
-const Options& options() { return run_options; }
-const Device& device() { return run_device; }
-
-void init() {
-    namespace env = op::env;
-    auto& options = run_options;
-    auto& device = run_device;
-    options = {};
-    device = {};
-
+Backend::Backend() : heuristics{read_heuristic_options()} {
     // NVRTC compiles in parallel from CUDA 12.3; earlier, and hipRTC, still
     // gain from a few at once.
 #if defined(OP2_CUDA) && CUDART_VERSION >= 12030
     options.build_threads = 16;
 #endif
-
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", options.window);
-    init_heuristics();
 
     int id;
     GPU_CHECK(gpuGetDevice(&id));
@@ -56,20 +38,22 @@ void init() {
     device.shared_bytes = shared_bytes > static_bytes ? shared_bytes - static_bytes : 0;
     device.multiprocessors = props.multiProcessorCount;
     device.threads_per_multiprocessor = props.maxThreadsPerMultiProcessor;
-
 #ifdef OP2_CUDA
     device.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);
-    if (op::rt::context().jit.debug)
-        op_printf("JIT arch flag: %s\n", device.arch.c_str());
 #endif
-
-    op::rt::context().families.declare(strategy_families());
 }
 
 } // namespace op::rt::gpu
 
 namespace op::rt {
 
-void init_gpu() { gpu::init(); }
+void init_gpu() {
+    auto& run = context();
+    auto backend = std::make_unique<gpu::Backend>();
+    if (run.jit.debug && !backend->device.arch.empty())
+        op_printf("JIT arch flag: %s\n", backend->device.arch.c_str());
+    run.backend = std::move(backend);
+    run.families.declare(gpu::strategy_families());
+}
 
 } // namespace op::rt

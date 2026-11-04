@@ -9,6 +9,7 @@
 #include <op2/gpu/shims.h>
 #include <op2/rt/abi/gpu/descriptor.h>
 #include <op2/rt/abi/gpu/launch.h>
+#include <op2/rt/gpu/backend.h>
 #include <op2/rt/gpu/jit.h>
 #include <op2/rt/gpu/kernel.h>
 #include <op2/rt/jit/params.h>
@@ -28,6 +29,7 @@ private:
     const abi::gpu::Loop& m_descriptor;
     op::rt::jit::ParamSet& m_params;
     op::rt::Context& m_context;
+    Backend& m_backend;
     SymbolBindings m_symbols;
     Compiler m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
@@ -68,6 +70,7 @@ public:
     bool direct() const { return m_descriptor.direct; }
     op::rt::jit::ParamSet& params() { return m_params; }
     op::rt::Context& context() { return m_context; }
+    Backend& backend() { return m_backend; }
     const Compiler& compiler() const { return m_compiler; }
     const abi::gpu::OfflineCalls *calls() const { return m_descriptor.calls; }
 

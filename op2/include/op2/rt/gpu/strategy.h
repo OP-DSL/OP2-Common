@@ -14,7 +14,6 @@
 #include <op2/rt/gpu/jit.h>
 #include <op2/rt/gpu/kernel.h>
 #include <op2/rt/gpu/layout.h>
-#include <op2/rt/gpu/options.h>
 #include <op2/rt/jit/cache.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/cache.h>
@@ -34,8 +33,8 @@ namespace op::rt::gpu {
 
 // --- Variants -------------------------------------------------------------------
 
-// Every strategy's first axis: OP_<FAMILY>_BLOCK_SIZES, else OP_BLOCK_SIZES.
-// The tuner also tries 256 under HIP, and 64 and 256 under CUDA.
+// Every strategy's first axis: OP_<FAMILY>_BLOCK_SIZES, else OP_BLOCK_SIZES,
+// else the heuristics' defaults.
 op::rt::loop::Axis block_size_axis();
 
 // --- Plans ------------------------------------------------------------------------
@@ -264,11 +263,8 @@ public:
 
     // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
     // target increments global memory directly, as staging it would save no
-    // global atomic.  On by default under HIP, where shared and global fp64
-    // atomics are both native; under CUDA a pointer that may be either makes
-    // every increment a generic atomic, and shared fp64 adds are
-    // compare-and-swap loops.  The HIP tuner also tries it off, which some
-    // loops are faster with.
+    // global atomic; its values default as the heuristics say
+    // (op2/rt/gpu/heuristics.h).
     static std::vector<op::rt::loop::Axis> axes();
 };
 
@@ -300,9 +296,8 @@ public:
 // A strategy family as the GPU backend offers it.
 using OfferedFamily = op::rt::loop::OfferedFamily<Executor, abi::gpu::Family>;
 
-// The families in ladder order: plain, chunk_atomics (on by default under
-// HIP, where its unstaged singles are native atomics), atomics,
-// chunk_colouring and colouring.
+// The families in ladder order: plain, chunk_atomics (on by default as the
+// heuristics say), atomics, chunk_colouring and colouring.
 std::span<const OfferedFamily> strategy_families();
 
 } // namespace op::rt::gpu

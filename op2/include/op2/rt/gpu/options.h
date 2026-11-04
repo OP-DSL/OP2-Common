@@ -1,8 +1,7 @@
 #pragma once
 
-// The CUDA and HIP backend's run-wide options and the device's facts.  Read
-// by init, which the backend's op_init calls once the device is set, and
-// which also declares the backend's strategy families.
+// The CUDA and HIP backend's run-wide options and the device's facts, which
+// its part of the run's context holds (op2/rt/gpu/backend.h).
 
 #include <algorithm>
 #include <cstddef>
@@ -32,9 +31,5 @@ struct Device {
                std::max(threads_per_multiprocessor / block_size, 1);
     }
 };
-
-const Options& options();
-const Device& device();
-void init();
 
 } // namespace op::rt::gpu

@@ -84,7 +84,7 @@ set(_op2_rt_cpu_srcs
 # What touches the application's kernels and symbols is the generated code's
 # (op2/rt/kernel/gpu/offline.h).
 set(_op2_rt_gpu_srcs
-    "${_src}/rt/gpu/op_gpu_options.cpp"
+    "${_src}/rt/gpu/op_gpu_init.cpp"
     "${_src}/rt/gpu/op_gpu_executor.cpp"
     "${_src}/rt/gpu/op_gpu_strategy.cpp"
     "${_src}/rt/gpu/op_gpu_heuristics.cpp"
