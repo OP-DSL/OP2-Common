@@ -72,7 +72,7 @@ enum class LaunchValue {
     wavefront,
 };
 
-constexpr int launch_values = 4;
+constexpr int launch_values = static_cast<int>(LaunchValue::wavefront) + 1;
 
 constexpr Param launch_value(const char *name, LaunchValue value) {
     return {abi::strategy_value(name, static_cast<int>(value)), nullptr, nullptr, false};

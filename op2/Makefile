@@ -139,6 +139,7 @@ OP2_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_strategy+cuda.o \
 	rt/gpu/op_gpu_heuristics+cuda.o \
 	rt/gpu/op_gpu_jit+cuda.o \
+	rt/gpu/op_gpu_kernel+cuda.o \
 	rt/gpu/op_gpu_chunk_plan+cuda.o \
 	rt/gpu/op_gpu_chunk_encode+cuda.o \
 	cuda/op_cuda_decl+cuda.o \
@@ -152,6 +153,7 @@ OP2_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_strategy+hip.o \
 	rt/gpu/op_gpu_heuristics+hip.o \
 	rt/gpu/op_gpu_jit+hip.o \
+	rt/gpu/op_gpu_kernel+hip.o \
 	rt/gpu/op_gpu_chunk_plan+hip.o \
 	rt/gpu/op_gpu_chunk_encode+hip.o \
 	cuda/op_cuda_decl+hip.o \
@@ -203,6 +205,7 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_strategy+cuda.o \
 	rt/gpu/op_gpu_heuristics+cuda.o \
 	rt/gpu/op_gpu_jit+cuda.o \
+	rt/gpu/op_gpu_kernel+cuda.o \
 	rt/gpu/op_gpu_chunk_plan+cuda.o \
 	rt/gpu/op_gpu_chunk_encode+cuda.o \
 	cuda/op_cuda_rt_support+mpi+cuda.o \
@@ -226,6 +229,7 @@ OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	rt/gpu/op_gpu_strategy+hip.o \
 	rt/gpu/op_gpu_heuristics+hip.o \
 	rt/gpu/op_gpu_jit+hip.o \
+	rt/gpu/op_gpu_kernel+hip.o \
 	rt/gpu/op_gpu_chunk_plan+hip.o \
 	rt/gpu/op_gpu_chunk_encode+hip.o \
 	cuda/op_cuda_rt_support+mpi+hip.o \

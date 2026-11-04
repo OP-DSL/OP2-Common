@@ -41,7 +41,6 @@ void init() {
 #endif
 
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", options.window);
-    env::parse_bool("OP_JIT_DEBUG", options.sync_launches);
     init_heuristics();
 
     int id;

@@ -12,14 +12,17 @@
 #include <op2/rt/gpu/chunk_plan.h>
 #include <op2/rt/gpu/executor.h>
 #include <op2/rt/gpu/jit.h>
+#include <op2/rt/gpu/kernel.h>
 #include <op2/rt/gpu/layout.h>
 #include <op2/rt/gpu/options.h>
+#include <op2/rt/jit/cache.h>
 #include <op2/rt/loop/strategy.h>
 #include <op2/rt/plan/cache.h>
 #include <op2/rt/plan/colouring.h>
 #include <op_lib_core.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -89,6 +92,9 @@ protected:
     std::string m_name;
     const abi::gpu::Family& m_family;
     int m_block_size;
+    // A chunked variant's switches.
+    bool m_unstaged_singles = false;
+    bool m_wavefront = false;
     OfflineKernel m_offline;
     op::rt::jit::Cache<JitKernel> m_cache;
 
@@ -104,11 +110,9 @@ protected:
     virtual int max_blocks(const op::rt::loop::Call& call, const void *entry,
                            int block_limit) const = 0;
 
-    // This strategy's values for its kernel under global_stride; a chunked
-    // variant adds its switch.
-    virtual LaunchValues launch_values(int global_stride) const {
-        return {.global_stride = global_stride, .block_size = m_block_size};
-    }
+    // Its kernels' values by slot (abi::gpu::LaunchValue) under
+    // global_stride: the launch and its variant's switches.
+    std::array<int, abi::gpu::launch_values> launch_values(int global_stride) const;
 
     // Blocks of a grid-stride launch over elements, at most block_limit.
     int grid(int elements, int block_limit) const {
@@ -253,13 +257,6 @@ public:
 // Increments staged in shared memory and flushed with global atomics.
 class ChunkAtomics : public ChunkBase {
 protected:
-    bool m_unstaged_singles;
-
-    LaunchValues launch_values(int global_stride) const override {
-        auto values = ChunkBase::launch_values(global_stride);
-        values.unstaged_singles = m_unstaged_singles;
-        return values;
-    }
     ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
     void add_key(op::rt::plan::PlanKey& key) const override;
     std::string extras(const ChunkPlan& plan) const override;
@@ -267,7 +264,9 @@ protected:
 public:
     ChunkAtomics(Executor& executor, const op::rt::loop::Point& point,
                  const abi::gpu::Family& family)
-        : ChunkBase{executor, point, family}, m_unstaged_singles{point.value("singles") != 0} {}
+        : ChunkBase{executor, point, family} {
+        m_unstaged_singles = point.value("singles") != 0;
+    }
 
     // OP_CHUNK_ATOMICS_UNSTAGED_SINGLES: a chunk's only reference to a
     // target increments global memory directly, as staging it would save no
@@ -283,13 +282,6 @@ public:
 // seeded and stored with plain loads and stores.
 class ChunkColouring : public ChunkBase {
 protected:
-    bool m_wavefront;
-
-    LaunchValues launch_values(int global_stride) const override {
-        auto values = ChunkBase::launch_values(global_stride);
-        values.wavefront = m_wavefront;
-        return values;
-    }
     ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const override;
     void add_key(op::rt::plan::PlanKey& key) const override;
     std::string extras(const ChunkPlan& plan) const override;
@@ -297,7 +289,9 @@ protected:
 public:
     ChunkColouring(Executor& executor, const op::rt::loop::Point& point,
                    const abi::gpu::Family& family)
-        : ChunkBase{executor, point, family}, m_wavefront{point.value("wavefront") != 0} {}
+        : ChunkBase{executor, point, family} {
+        m_wavefront = point.value("wavefront") != 0;
+    }
 
     // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
     // in an order that keeps them after every earlier chunk sharing a target.

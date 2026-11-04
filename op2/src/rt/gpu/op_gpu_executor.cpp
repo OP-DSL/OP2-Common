@@ -1,20 +1,18 @@
 #include <op2/rt/gpu/executor.h>
 
 #include <op2/gpu/check.h>
-#include <op2/rt/gpu/jit.h>
 #include <op2/rt/gpu/layout.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op_cuda_rt_support.h>
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 namespace op::rt::gpu {
 
 Executor::Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& params)
-    : m_descriptor{descriptor}, m_params{params}, m_symbols{std::make_unique<SymbolBindings>()},
-      m_compiler{std::make_unique<Compiler>(descriptor.name, descriptor.headers)} {
+    : m_descriptor{descriptor}, m_params{params},
+      m_compiler{descriptor.name, descriptor.headers} {
     m_params.set_dat_stride(&dat_stride);
     for (const auto& param : descriptor.params)
         add_param(param);
@@ -32,7 +30,7 @@ void Executor::add_strategies(op::rt::loop::Ladder& ladder) {
 void Executor::add_param(const abi::gpu::Param& param) {
     auto index = m_params.add(param);
     if (param.symbol != nullptr)
-        m_symbols->bind(index, m_descriptor.calls->symbol(param.symbol), param.shared_hash);
+        m_symbols.bind(index, m_descriptor.calls->symbol(param.symbol), param.shared_hash);
     if (param.by_value) {
         auto arg = static_cast<std::size_t>(param.index);
         if (m_by_value.size() <= arg)
@@ -48,8 +46,6 @@ int Executor::exchange_halos(op_set set, std::span<op_arg> args) {
 void Executor::mark_dirty(std::span<op_arg> args) { op_mpi_set_dirtybit_cuda(args); }
 
 // --- For the strategies ---
-
-void Executor::upload() { m_symbols->upload(m_params); }
 
 int Executor::block_limit(const op::rt::loop::Call& call, int block_size) const {
     auto bytes = reductionBytesPerThread(call.args.data(), static_cast<int>(call.args.size()),

@@ -5,8 +5,8 @@
 
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
+#include <op2/rt/jit/options.h>
 #include <op2/rt/plan/options.h>
-#include <op_profile.h>
 
 #include <cassert>
 #include <cstdint>
@@ -88,7 +88,7 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
     prepared.entry = planned.entry;
 
     auto& params = m_executor.params();
-    auto values = launch_values(shape(call, planned.entry).global_stride).slots();
+    auto values = launch_values(shape(call, planned.entry).global_stride);
     auto key = params.key(call, values);
     auto acquired = m_cache.acquire(
         key, urgency, [&] { return m_executor.compiler().job(params, values, m_family); });
@@ -104,20 +104,28 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
     return prepared;
 }
 
+std::array<int, abi::gpu::launch_values> StrategyBase::launch_values(int global_stride) const {
+    using abi::gpu::LaunchValue;
+    std::array<int, abi::gpu::launch_values> values{};
+    values[static_cast<std::size_t>(LaunchValue::global_stride)] = global_stride;
+    values[static_cast<std::size_t>(LaunchValue::block_size)] = m_block_size;
+    values[static_cast<std::size_t>(LaunchValue::unstaged_singles)] = m_unstaged_singles;
+    values[static_cast<std::size_t>(LaunchValue::wavefront)] = m_wavefront;
+    return values;
+}
+
 template<typename Record>
 void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record,
                           std::span<op_arg> args, Geometry geometry) {
     void **arguments = m_executor.arguments(record, args);
-    if (prepared.kernel != nullptr) {
-        op_profile_next("JIT Kernel");
+    if (prepared.kernel != nullptr)
         static_cast<JitKernel *>(prepared.kernel)
-            ->launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes,
-                     m_executor.params());
-        return;
-    }
-
-    op_profile_next("Offline Kernel");
-    m_offline.launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes);
+            ->launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes);
+    else
+        m_offline.launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes);
+    // OP_JIT_DEBUG: each launch completes before the next, so a fault names its kernel.
+    if (op::rt::jit::options().debug)
+        GPU_CHECK(gpuStreamSynchronize(0));
 }
 
 template<typename Record, typename Launches, typename Fill>
@@ -127,10 +135,11 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
                                               const Shape& shape, Launches&& launches,
                                               Fill&& fill) {
     assert(prepared.candidate->strategy == this);
-    // An offline kernel reads the call's constants and strides from device
-    // symbols.
-    if (prepared.kernel == nullptr)
-        m_executor.upload();
+    // The kernel reads the call's run-time values from device symbols.
+    if (prepared.kernel != nullptr)
+        static_cast<JitKernel *>(prepared.kernel)->upload(m_executor.params());
+    else
+        m_executor.upload_symbols();
     int timed_pairs = 0;
     bool sync = false;
     op::rt::loop::run_phases(call, phases, [&](int phase) {

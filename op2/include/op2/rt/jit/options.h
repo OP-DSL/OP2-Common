@@ -17,7 +17,7 @@ struct Options {
     int level = 2;
     bool force = false;        // OP_JIT_FORCE: specialise every kernel
     bool seq_compile = false;  // OP_JIT_SEQ_COMPILE: build on the calling thread
-    bool debug = false;        // OP_JIT_DEBUG: print builds and moves
+    bool debug = false;        // OP_JIT_DEBUG: print builds and moves, sync launches
     // OP_JIT_MIN_CALLS: times a key is asked for before its build starts, so
     // values that change every call never build.
     int min_calls = 9;

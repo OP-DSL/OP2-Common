@@ -143,6 +143,8 @@ op2/renumber/hilbert_sfc.h  (the Hilbert space-filling curve over 2D or 3D
 ### The loop runtime (op2/rt/, sources under src/rt)
 
 ```
+op2/rt/hasher.h     (includes: extern/rapidhash.h; a rapidhash over words
+                     added one at a time, a block at a time)
 op2/rt/lifecycle.h  (op::rt: the runtime's start, reports and release,
                      which op_init, op_profile_output and op_exit call;
                      from src/rt/op_rt_lifecycle.cpp, init_cpu from
@@ -312,12 +314,12 @@ op2/rt/jit/options.h  (the JIT's policy as OP_JIT_* sets it, read by op_init:
                        whether and when kernels are specialised, what they
                        bake in, and its report)
 op2/rt/jit/params.h   (includes: extern/rapidhash.h, op_lib_core.h,
-                       op2/rt/abi/descriptor.h, op2/rt/jit/options.h,
-                       op2/rt/loop/call.h; the parameters a loop's kernels
-                       are specialised on, from its descriptor's rows, a
-                       dat's stride as the backend lays the dat out, and the
-                       statistics that move each between baked in and given
-                       at run time)
+                       op2/rt/abi/descriptor.h, op2/rt/hasher.h,
+                       op2/rt/jit/options.h, op2/rt/loop/call.h; the
+                       parameters a loop's kernels are specialised on, from
+                       its descriptor's rows, a dat's stride as the backend
+                       lays the dat out, and the statistics that move each
+                       between baked in and given at run time)
 op2/rt/jit/cache.h    (includes: op_lib_core.h, op2/rt/jit/options.h,
                        op2/rt/loop/strategy.h; a strategy's built kernels by
                        key, and when each is built)
@@ -363,7 +365,8 @@ op2/rt/plan/staging.h        (includes: op2/rt/abi/descriptor.h,
 op2/rt/plan/options.h        (the chunked strategies' run-wide options, read
                               by op_init)
 op2/rt/plan/cache.h          (includes: extern/rapidhash.h,
-                              op2/rt/abi/descriptor.h, op2/rt/loop/call.h;
+                              op2/rt/abi/descriptor.h, op2/rt/hasher.h,
+                              op2/rt/loop/call.h;
                               the plans strategies share, of any loop: a
                               planner's key over what it plans from, the live
                               plans by key, and each strategy's by
@@ -397,7 +400,8 @@ op2/rt/gpu/heuristics.h    (includes: op2/rt/abi/gpu/descriptor.h,
                             by op_init; from src/rt/gpu/op_gpu_heuristics.cpp)
 op2/rt/gpu/executor.h      (includes: op_lib_core.h, op2/gpu/shims.h,
                             op2/rt/abi/gpu/descriptor.h,
-                            op2/rt/abi/gpu/launch.h, op2/rt/jit/params.h,
+                            op2/rt/abi/gpu/launch.h, op2/rt/gpu/jit.h,
+                            op2/rt/gpu/kernel.h, op2/rt/jit/params.h,
                             op2/rt/loop/call.h, op2/rt/loop/ladder.h,
                             op2/rt/loop/loop.h; the executor a loop is made
                             with from a descriptor: its parameters' device
@@ -406,15 +410,19 @@ op2/rt/gpu/executor.h      (includes: op_lib_core.h, op2/gpu/shims.h,
                             exchanges and dirty bits on the device, and the
                             call's device globals; from
                             src/rt/gpu/op_gpu_executor.cpp)
-op2/rt/gpu/jit.h           (includes: op2/gpu/shims.h,
-                            op2/rt/abi/descriptor.h,
-                            op2/rt/abi/gpu/descriptor.h, op2/rt/jit/cache.h,
-                            op2/rt/jit/params.h; the JIT mechanism: offline
-                            kernels and the symbols they read, NVRTC or
-                            hipRTC compiles of a family's source after the
-                            embedded headers, run-time parameters as wrapper
-                            arguments or module symbols, launches; from
-                            src/rt/gpu/op_gpu_jit.cpp)
+op2/rt/gpu/kernel.h        (includes: op2/gpu/shims.h,
+                            op2/rt/abi/gpu/descriptor.h, op2/rt/jit/params.h;
+                            a strategy's kernels, one compiled with the
+                            application and one built at run time, each
+                            launched the same way, and the device symbols
+                            the offline kernels read their parameters from;
+                            from src/rt/gpu/op_gpu_kernel.cpp)
+op2/rt/gpu/jit.h           (includes: op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/gpu/kernel.h, op2/rt/jit/params.h; the
+                            JIT mechanism: NVRTC or hipRTC compiles of a
+                            family's source after the embedded headers, its
+                            run-time parameters as wrapper arguments or
+                            module symbols; from src/rt/gpu/op_gpu_jit.cpp)
 op2/rt/gpu/chunk_plan.h    (includes: op2/rt/abi/staging.h,
                             op2/rt/plan/chunks.h, op2/rt/plan/staging.h; the
                             chunk plans under the device's limits: a block's
@@ -422,17 +430,18 @@ op2/rt/gpu/chunk_plan.h    (includes: op2/rt/abi/staging.h,
                             words, 8-bit colours; from
                             src/rt/gpu/op_gpu_chunk_plan.cpp)
 op2/rt/gpu/chunk_encode.h  (includes: op2/rt/abi/gpu/launch.h,
-                            op2/rt/abi/staging.h, op2/rt/gpu/chunk_plan.h; a
-                            chunk plan uploaded as the kernels read it, which
-                            fills a chunk launch's record; from
+                            op2/rt/gpu/chunk_plan.h; a chunk plan uploaded
+                            as the kernels read it, which fills a chunk
+                            launch's record and runs a wavefront call; from
                             src/rt/gpu/op_gpu_chunk_encode.cpp)
 op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
                             op2/rt/abi/gpu/descriptor.h,
                             op2/rt/abi/gpu/launch.h,
                             op2/rt/gpu/chunk_encode.h,
                             op2/rt/gpu/chunk_plan.h, op2/rt/gpu/executor.h,
-                            op2/rt/gpu/jit.h, op2/rt/gpu/layout.h,
-                            op2/rt/gpu/options.h, op2/rt/loop/strategy.h,
+                            op2/rt/gpu/jit.h, op2/rt/gpu/kernel.h,
+                            op2/rt/gpu/layout.h, op2/rt/gpu/options.h,
+                            op2/rt/jit/cache.h, op2/rt/loop/strategy.h,
                             op2/rt/plan/cache.h, op2/rt/plan/colouring.h;
                             the plain, atomics, colouring and chunked
                             strategies, their axes, block size, unstaged

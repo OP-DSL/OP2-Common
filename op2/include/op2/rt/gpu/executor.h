@@ -9,6 +9,8 @@
 #include <op2/gpu/shims.h>
 #include <op2/rt/abi/gpu/descriptor.h>
 #include <op2/rt/abi/gpu/launch.h>
+#include <op2/rt/gpu/jit.h>
+#include <op2/rt/gpu/kernel.h>
 #include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/ladder.h>
@@ -16,21 +18,17 @@
 #include <op_lib_core.h>
 
 #include <cstddef>
-#include <memory>
 #include <span>
 #include <vector>
 
 namespace op::rt::gpu {
 
-class Compiler;
-class SymbolBindings;
-
 class Executor final : public op::rt::loop::Executor {
 private:
     const abi::gpu::Loop& m_descriptor;
     op::rt::jit::ParamSet& m_params;
-    std::unique_ptr<SymbolBindings> m_symbols;
-    std::unique_ptr<Compiler> m_compiler;
+    SymbolBindings m_symbols;
+    Compiler m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
     // flags, which add the READ globals the chosen kernel bakes in.
     std::vector<unsigned char> m_by_value;
@@ -66,11 +64,11 @@ public:
     const char *name() const { return m_descriptor.name; }
     bool direct() const { return m_descriptor.direct; }
     op::rt::jit::ParamSet& params() { return m_params; }
-    const Compiler& compiler() const { return *m_compiler; }
+    const Compiler& compiler() const { return m_compiler; }
     const abi::gpu::OfflineCalls *calls() const { return m_descriptor.calls; }
 
     // Upload the changed values an offline kernel reads from device symbols.
-    void upload();
+    void upload_symbols() { m_symbols.upload(m_params); }
 
     // The most blocks of block_size threads a launch of call may use: as
     // many as the reduction scratch allows.  A call needing more than 8 KiB a

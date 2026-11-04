@@ -87,6 +87,7 @@ set(_op2_rt_gpu_srcs
     "${_src}/rt/gpu/op_gpu_strategy.cpp"
     "${_src}/rt/gpu/op_gpu_heuristics.cpp"
     "${_src}/rt/gpu/op_gpu_jit.cpp"
+    "${_src}/rt/gpu/op_gpu_kernel.cpp"
     "${_src}/rt/gpu/op_gpu_chunk_plan.cpp"
     "${_src}/rt/gpu/op_gpu_chunk_encode.cpp"
 )
@@ -246,8 +247,8 @@ endfunction()
 
 # Generated kernels call constexpr host helpers from __global__ functions,
 # which nvcc rejects without --expt-relaxed-constexpr.
-# The JIT (src/rt/gpu/op_gpu_jit.cpp) builds through NVRTC and loads and
-# launches what it built through the driver API.
+# The JIT builds through NVRTC (src/rt/gpu/op_gpu_jit.cpp), and loads and
+# launches what it built through the driver API (src/rt/gpu/op_gpu_kernel.cpp).
 function(_op2_configure_cuda_target tgt)
     target_compile_features(${tgt} PUBLIC cuda_std_20)
     target_compile_options(${tgt} PUBLIC

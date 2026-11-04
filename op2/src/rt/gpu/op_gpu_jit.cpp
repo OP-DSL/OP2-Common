@@ -2,115 +2,13 @@
 
 #include <op2/gpu/check.h>
 #include <op2/rt/gpu/options.h>
-#include <op_lib_core.h>
 
-#include <cassert>
+#include <cstddef>
 #include <cstdio>
+#include <iterator>
 #include <utility>
 
 namespace op::rt::gpu {
-
-std::string describe(const op::rt::abi::gpu::KernelResources& resources) {
-    std::string out = std::to_string(resources.registers) + " regs";
-    if (resources.local_bytes > 0)
-        out += ", " + std::to_string(resources.local_bytes) + " B local";
-    if (resources.shared_bytes > 0)
-        out += ", " + std::to_string(resources.shared_bytes) + " B shared";
-    return out;
-}
-
-// --- Kernels --------------------------------------------------------------------------
-
-JitKernel::~JitKernel() {
-    if (m_loaded)
-        GPU_DRV_CHECK(gpuDrvModuleUnload(m_module));
-    delete[] m_cubin;
-}
-
-void JitKernel::ensure_loaded() {
-    if (m_loaded)
-        return;
-    GPU_DRV_CHECK(gpuDrvModuleLoadData(&m_module, m_cubin));
-    GPU_DRV_CHECK(gpuDrvModuleGetFunction(&m_kernel, m_module, m_name.c_str()));
-    auto attribute = [&](gpuDrvFuncAttribute_t which) {
-        int value = 0;
-        GPU_DRV_CHECK(gpuDrvFuncGetAttribute(&value, which, m_kernel));
-        return value;
-    };
-    m_resources = {attribute(gpuDrvFuncAttributeNumRegs),
-                   attribute(gpuDrvFuncAttributeLocalSizeBytes),
-                   attribute(gpuDrvFuncAttributeSharedSizeBytes),
-                   attribute(gpuDrvFuncAttributeMaxThreadsPerBlock)};
-    for (auto& symbol : m_symbols) {
-        std::size_t bytes = 0;
-        GPU_DRV_CHECK(
-            gpuDrvModuleGetGlobal(&symbol.address, &bytes, m_module, symbol.name.c_str()));
-    }
-    m_loaded = true;
-    delete[] m_cubin;
-    m_cubin = nullptr;
-}
-
-const op::rt::abi::gpu::KernelResources& JitKernel::resources() {
-    ensure_loaded();
-    return m_resources;
-}
-
-void JitKernel::launch(int num_blocks, int block_size, void **args, int shared_bytes,
-                       const op::rt::jit::ParamSet& params) {
-    ensure_loaded();
-    for (auto& symbol : m_symbols) {
-        const auto& param = params[symbol.param];
-        if (param.hash() == symbol.uploaded)
-            continue;
-        GPU_DRV_CHECK(gpuDrvMemcpyHtoDAsync(symbol.address, param.data(), param.bytes(), 0));
-        symbol.uploaded = param.hash();
-    }
-    if (shared_bytes > m_max_dynamic_shared_bytes) {
-        GPU_DRV_CHECK(gpuDrvFuncSetAttribute(
-            m_kernel, gpuDrvFuncAttributeMaxDynamicSharedMemorySize, shared_bytes));
-        m_max_dynamic_shared_bytes = shared_bytes;
-    }
-    GPU_DRV_CHECK(gpuDrvLaunchKernel(m_kernel, num_blocks, 1, 1, block_size, 1, 1,
-                                     shared_bytes, NULL, args, 0));
-    GPU_CHECK(gpuPeekAtLastError());
-    if (options().sync_launches)
-        GPU_CHECK(gpuStreamSynchronize(0));
-}
-
-OfflineKernel::OfflineKernel(const void *function, const abi::gpu::OfflineCalls *calls)
-    : m_function{function}, m_calls{calls} {
-    if (function != nullptr)
-        m_resources = calls->resources(function);
-}
-
-void OfflineKernel::launch(int num_blocks, int block_size, void **args, int shared_bytes) {
-    assert(m_function != nullptr);
-    if (shared_bytes > m_max_dynamic_shared_bytes) {
-        m_calls->allow_shared(m_function, shared_bytes);
-        m_max_dynamic_shared_bytes = shared_bytes;
-    }
-    m_calls->launch(m_function, num_blocks, block_size, args, shared_bytes);
-    if (options().sync_launches)
-        GPU_CHECK(gpuStreamSynchronize(0));
-}
-
-// --- Parameters ---------------------------------------------------------------------
-
-void SymbolBindings::upload(const op::rt::jit::ParamSet& params) {
-    for (auto& binding : m_bindings) {
-        const auto& param = params[binding.param];
-        auto& uploaded = binding.shared_hash != nullptr ? *binding.shared_hash : binding.hash;
-        auto hash = param.hash();
-        if (hash == uploaded)
-            continue;
-        GPU_CHECK(gpuMemcpyAsync(binding.data_d, param.data(), param.bytes(),
-                                 gpuMemcpyHostToDevice));
-        uploaded = hash;
-    }
-}
-
-// --- Builds -------------------------------------------------------------------------
 
 namespace {
 
@@ -185,15 +83,14 @@ std::unique_ptr<JitKernel> Compiler::Job::operator()() {
         "-munsafe-fp-atomics"
     };
 #endif
-    auto success =
-        gpuRtcCompileProgram(prog, static_cast<int>(sizeof(opts) / sizeof(opts[0])), opts);
+    auto success = gpuRtcCompileProgram(prog, static_cast<int>(std::size(opts)), opts);
     if (success != GPURTC_SUCCESS) {
-        size_t log_size;
+        std::size_t log_size;
         GPU_RTC_CHECK(gpuRtcGetProgramLogSize(prog, &log_size));
         if (log_size > 1) {
             std::string log(log_size, '\0');
             GPU_RTC_CHECK(gpuRtcGetProgramLog(prog, log.data()));
-            std::printf("%s\n", log.c_str());
+            std::fprintf(stderr, "%s\n", log.c_str());
         }
         std::fprintf(stderr, "error: JIT compile of %s failed (in %s)\n", name.c_str(),
                      loop.c_str());
@@ -201,12 +98,12 @@ std::unique_ptr<JitKernel> Compiler::Job::operator()() {
         return nullptr;
     }
 
-    size_t cubin_size;
-    GPU_RTC_CHECK(gpuRtcGetCodeSize(prog, &cubin_size));
-    char *cubin = new char[cubin_size];
-    GPU_RTC_CHECK(gpuRtcGetCode(prog, cubin));
+    std::size_t code_size;
+    GPU_RTC_CHECK(gpuRtcGetCodeSize(prog, &code_size));
+    std::vector<char> code(code_size);
+    GPU_RTC_CHECK(gpuRtcGetCode(prog, code.data()));
     GPU_RTC_CHECK(gpuRtcDestroyProgram(&prog));
-    return std::make_unique<JitKernel>(cubin, name, std::move(symbols),
+    return std::make_unique<JitKernel>(std::move(code), name, std::move(symbols),
                                        std::move(baked_globals));
 }
 
