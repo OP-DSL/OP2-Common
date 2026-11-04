@@ -128,7 +128,7 @@ std::string summary(std::span<const JitLoop> loops, int ranks) {
                 if (counts.runtime == 0 && counts.moved == 0)
                     continue;
                 params += params.empty() ? "" : ", ";
-                appendf(params, "%s %zu/%zu", counts.param->name().c_str(), counts.baked,
+                appendf(params, "%s %zu/%zu", counts.param->name(), counts.baked,
                         counts.runtime);
                 if (counts.moved > 0)
                     appendf(params, " (%zu)", counts.moved);
@@ -156,9 +156,12 @@ void rows(const JitLoop& loop, std::vector<std::string>& out) {
         std::string baked, runtime, moved;
         for (const auto& outcome : configuration.params) {
             auto& list = outcome.mode == ParamMode::baked ? baked : runtime;
-            list += (list.empty() ? "" : ";") + outcome.param->name();
-            if (outcome.moved)
-                moved += (moved.empty() ? "" : ";") + outcome.param->name();
+            list += list.empty() ? "" : ";";
+            list += outcome.param->name();
+            if (outcome.moved) {
+                moved += moved.empty() ? "" : ";";
+                moved += outcome.param->name();
+            }
         }
         out.push_back(std::string{loop.name} + "," +
                       report::quoted(configuration.description) + "," +

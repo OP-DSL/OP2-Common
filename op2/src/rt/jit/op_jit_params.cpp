@@ -4,20 +4,24 @@
 #include <op_lib_core.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
 
 namespace op::rt::jit {
 
-void Param::settle(std::string_view loop, bool runtime, const Options& options) {
+void Param::settle(std::string_view loop, const Options& options) {
+    bool runtime = m_row.runtime;
     auto named = [&](const std::vector<std::string>& names) {
         return std::any_of(names.begin(), names.end(), [&](std::string_view item) {
             if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
                 item[loop.size()] == ':')
                 item.remove_prefix(loop.size() + 1);
-            return item == m_name;
+            return item == name();
         });
     };
 
@@ -28,9 +32,9 @@ void Param::settle(std::string_view loop, bool runtime, const Options& options) 
         if (runtime)
             m_initial = ParamMode::runtime;
         else
-            env::warn("warning: " + std::string{loop} + "'s kernels cannot have " + m_name +
+            env::warn("warning: " + std::string{loop} + "'s kernels cannot have " + name() +
                       " at run time, from OP_JIT_RUNTIME_PARAMS\n");
-    } else if (runtime && m_source == abi::ParamSource::external) {
+    } else if (runtime && source() == abi::ParamSource::external) {
         if (bytes() > static_cast<std::size_t>(options.max_const_bytes))
             m_initial = ParamMode::runtime;
         else
@@ -39,38 +43,39 @@ void Param::settle(std::string_view loop, bool runtime, const Options& options) 
         // An array_arg's size is each call's, so its cap is checked per call.
         m_initial = ParamMode::runtime;
         m_fixed = options.level < 2 ||
-                  (m_source == abi::ParamSource::scalar_arg &&
+                  (source() == abi::ParamSource::scalar_arg &&
                    bytes() > static_cast<std::size_t>(options.max_gbl_bytes));
     }
     m_mode = m_initial;
 }
 
 void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Options& options) {
-    switch (m_source) {
+    int index = m_row.index;
+    switch (source()) {
     case abi::ParamSource::scalar_arg:
-        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
+        assert(index >= 0 && static_cast<std::size_t>(index) < args.size());
         // An inactive optional global's kernel never reads it.
-        if (args[m_index].opt != 0) {
-            assert(args[m_index].data != nullptr);
-            std::memcpy(m_data, args[m_index].data, m_elem_size);
+        if (args[index].opt != 0) {
+            assert(args[index].data != nullptr);
+            std::memcpy(m_data, args[index].data, elem_size());
         }
         break;
     case abi::ParamSource::array_arg: {
-        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
-        bool active = args[m_index].opt != 0;
-        m_data = active ? args[m_index].data : nullptr;
-        m_elems = active ? static_cast<std::size_t>(args[m_index].dim) : 0;
+        assert(index >= 0 && static_cast<std::size_t>(index) < args.size());
+        bool active = args[index].opt != 0;
+        m_data = active ? args[index].data : nullptr;
+        m_elems = active ? static_cast<std::size_t>(args[index].dim) : 0;
         break;
     }
     case abi::ParamSource::dat_stride:
-        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
-        assert(m_elem_size == sizeof(int) && m_elems == 1 && dat_stride != nullptr);
-        *static_cast<int *>(m_data) = dat_stride(args[m_index]);
+        assert(index >= 0 && static_cast<std::size_t>(index) < args.size());
+        assert(elem_size() == sizeof(int) && m_elems == 1 && dat_stride != nullptr);
+        *static_cast<int *>(m_data) = dat_stride(args[index]);
         break;
     case abi::ParamSource::dat_dim:
-        assert(m_index >= 0 && static_cast<std::size_t>(m_index) < args.size());
-        assert(m_elem_size == sizeof(int) && m_elems == 1);
-        *static_cast<int *>(m_data) = args[m_index].dim;
+        assert(index >= 0 && static_cast<std::size_t>(index) < args.size());
+        assert(elem_size() == sizeof(int) && m_elems == 1);
+        *static_cast<int *>(m_data) = args[index].dim;
         break;
     case abi::ParamSource::strategy:
         // Its value comes with each kernel's key.
@@ -153,7 +158,7 @@ void ParamSet::observe(const loop::Call& call) {
         if (entry.observe(param, options) && options.debug)
             op_printf("jit: %s %s %s for %s\n", m_loop.c_str(),
                         entry.mode == ParamMode::baked ? "bakes in" : "moves to run time",
-                        param.name().c_str(), call.describe().c_str());
+                        param.name(), call.describe().c_str());
         param.set_mode(entry.mode);
     }
 }
@@ -214,6 +219,23 @@ const char *cxx_type(abi::ElementType type) {
 
 namespace {
 
+template<typename T>
+T load(const char *bytes) {
+    T value;
+    std::memcpy(&value, bytes, sizeof(T));
+    return value;
+}
+
+// An integer as a literal; its type's minimum, whose magnitude no literal of
+// the type holds, as an expression.
+template<typename T>
+void format_int(std::ostream& os, T value) {
+    if (value == std::numeric_limits<T>::min())
+        os << "(" << value + 1 << " - 1)";
+    else
+        os << value;
+}
+
 // A finite value in hexfloat, exactly; a NaN or infinity, which hexfloat
 // writes as a word no compiler reads, as its bits.
 template<typename Bits, typename T>
@@ -222,29 +244,26 @@ void format_float(std::ostream& os, T value, const char *type, const char *suffi
         os << std::hexfloat << value;
         return;
     }
-    Bits bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    os << "__builtin_bit_cast(" << type << ", 0x" << std::hex << bits << std::dec
-       << suffix << ")";
+    os << "__builtin_bit_cast(" << type << ", 0x" << std::hex << std::bit_cast<Bits>(value)
+       << std::dec << suffix << ")";
 }
 
 std::string format_value(const Param& param) {
     std::ostringstream os;
     if (param.array())
         os << "{ ";
-    std::size_t elem_size = param.bytes() / param.elems();
     for (std::size_t i = 0; i < param.elems(); ++i) {
-        const char *elem = static_cast<const char *>(param.data()) + elem_size * i;
+        const char *elem = static_cast<const char *>(param.data()) + param.elem_size() * i;
         switch (param.type()) {
-        case abi::ElementType::i32:     os << *((const int *)elem); break;
-        case abi::ElementType::i64:     os << *((const int64_t *)elem); break;
+        case abi::ElementType::i32:     format_int(os, load<std::int32_t>(elem)); break;
+        case abi::ElementType::i64:     format_int(os, load<std::int64_t>(elem)); break;
         case abi::ElementType::f32:
-            format_float<uint32_t>(os, *((const float *)elem), "float", "u");
+            format_float<std::uint32_t>(os, load<float>(elem), "float", "u");
             break;
         case abi::ElementType::f64:
-            format_float<uint64_t>(os, *((const double *)elem), "double", "ull");
+            format_float<std::uint64_t>(os, load<double>(elem), "double", "ull");
             break;
-        case abi::ElementType::logical: os << std::boolalpha << *((const bool *)elem); break;
+        case abi::ElementType::logical: os << std::boolalpha << load<bool>(elem); break;
         }
         if (param.array() && i < param.elems() - 1)
             os << ", ";
@@ -258,13 +277,13 @@ std::string format_value(const Param& param) {
 
 std::string format_cxx(const ParamSet& params, std::span<const int> values) {
     std::string out;
-    for (std::size_t i = 0; i < params.size(); ++i) {
-        const auto& param = params[i];
+    for (const auto& param : params.params()) {
         if (param.mode() != ParamMode::baked)
             continue;
         out += "static constexpr ";
         out += cxx_type(param.type());
-        out += " " + param.name();
+        out += " ";
+        out += param.name();
         if (param.array())
             out += "[" + std::to_string(param.elems()) + "]";
         out += " = ";

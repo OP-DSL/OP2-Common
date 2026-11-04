@@ -77,8 +77,9 @@ struct Param {
     ElementType type;
     std::size_t elem_size;
     ParamSource source;
-    // The value, read in place; none for an array_arg, whose data is each
-    // call's.
+    // Where its value is: a constant's, read there, or the copy the library
+    // writes a scalar global's value, a dat's stride or its dimension to each
+    // call; none for an array_arg, whose data is each call's.
     void *data;
     // Its elements: one for a scalar, the call's dimension for an array_arg.
     std::size_t elems;

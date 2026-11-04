@@ -31,6 +31,26 @@ namespace loop = op::rt::loop;
 
 namespace {
 
+// A parameter row as generated code describes one: one T at data, or an
+// array of elems; runtime is whether a specialised kernel can have it at run
+// time.
+template<typename T>
+abi::Param row(const char *name, T *data, abi::ParamSource source, int index = -1,
+               bool runtime = false) {
+    return {.name = name, .type = abi::ElementTypes<T>::value, .elem_size = sizeof(T),
+            .source = source, .data = data, .elems = 1, .array = false, .index = index,
+            .runtime = runtime};
+}
+
+template<typename T>
+abi::Param array_row(const char *name, T *data, std::size_t elems, abi::ParamSource source,
+                     int index = -1, bool runtime = false) {
+    auto array = row(name, data, source, index, runtime);
+    array.elems = elems;
+    array.array = true;
+    return array;
+}
+
 constexpr auto later = loop::Urgency::later;
 constexpr auto now = loop::Urgency::now;
 constexpr auto wait = loop::Urgency::wait;
@@ -206,17 +226,17 @@ void test_params() {
     bool flag = true;
     int64_t big = int64_t{1} << 40;
 
-    jit::ParamSet params;
+    jit::ParamSet params{"flux"};
     params.set_dat_stride(&op::rt::gpu::dat_stride);
-    params.add("c", &constant, abi::ParamSource::external);
-    params.add_array("table", table, 3, abi::ParamSource::external);
-    params.add("g0", &gbl0, abi::ParamSource::scalar_arg, 0);
-    params.add("g2", &gbl2, abi::ParamSource::scalar_arg, 2);
-    params.add("stride", &stride, abi::ParamSource::dat_stride, 1);
-    params.add("dim", &dim, abi::ParamSource::dat_dim, 1);
-    params.add("block", static_cast<int *>(nullptr), abi::ParamSource::strategy, 1);
-    params.add("flag", &flag, abi::ParamSource::external);
-    params.add("big", &big, abi::ParamSource::external);
+    params.add(row("c", &constant, abi::ParamSource::external));
+    params.add(array_row("table", table, 3, abi::ParamSource::external));
+    params.add(row("g0", &gbl0, abi::ParamSource::scalar_arg, 0));
+    params.add(row("g2", &gbl2, abi::ParamSource::scalar_arg, 2));
+    params.add(row("stride", &stride, abi::ParamSource::dat_stride, 1));
+    params.add(row("dim", &dim, abi::ParamSource::dat_dim, 1));
+    params.add(row("block", static_cast<int *>(nullptr), abi::ParamSource::strategy, 1));
+    params.add(row("flag", &flag, abi::ParamSource::external));
+    params.add(row("big", &big, abi::ParamSource::external));
 
     loop::Call call{&set, {args, 3}, 100, false};
     params.update(args);
@@ -257,6 +277,9 @@ void test_key_words() {
     set.name = "set";
     loop::Call call{&set, {}, 0, false};
     std::array<double, 70> constants{};
+    std::vector<std::string> names;
+    for (std::size_t i = 0; i < constants.size(); ++i)
+        names.push_back("c" + std::to_string(i));
     auto key = [&](const char *runtime) {
         if (runtime != nullptr)
             policy({{"OP_JIT_RUNTIME_PARAMS", runtime}});
@@ -264,8 +287,7 @@ void test_key_words() {
             policy({});
         jit::ParamSet params{"flux"};
         for (std::size_t i = 0; i < constants.size(); ++i)
-            params.add("c" + std::to_string(i), &constants[i], abi::ParamSource::external,
-                       -1, true);
+            params.add(abi::constant(names[i].c_str(), &constants[i]));
         params.update({});
         return params.key(call, {});
     };
@@ -289,11 +311,11 @@ void test_modes() {
     int stride = 0;
     auto modes = [&] {
         jit::ParamSet params{"flux"};
-        params.add("c", &constant, abi::ParamSource::external, -1, true);
-        params.add_array("table", table, 3, abi::ParamSource::external, -1, true);
-        params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
-        params.add("stride", &stride, abi::ParamSource::dat_stride, 1, true);
-        params.add("fixed", &constant, abi::ParamSource::external);
+        params.add(row("c", &constant, abi::ParamSource::external, -1, true));
+        params.add(array_row("table", table, 3, abi::ParamSource::external, -1, true));
+        params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
+        params.add(row("stride", &stride, abi::ParamSource::dat_stride, 1, true));
+        params.add(row("fixed", &constant, abi::ParamSource::external));
         std::string out;
         for (std::size_t i = 0; i < params.size(); ++i) {
             out += params[i].initial() == baked ? "b" : "r";
@@ -336,8 +358,8 @@ void test_statistics() {
     double constant = 0.0;
     double global = 0.0;
     jit::ParamSet params{"flux"};
-    params.add("c", &constant, abi::ParamSource::external, -1, true);
-    params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
+    params.add(row("c", &constant, abi::ParamSource::external, -1, true));
+    params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     auto next = [&](int set) {
         params.update(args);
         loop::Call call{&sets[set], {args, 1}, sets[set].size, false};
@@ -459,10 +481,9 @@ void test_array_globals() {
     args[3].dim = 1000;
 
     jit::ParamSet params{"flux"};
+    const char *names[] = {"g0", "g1", "g2", "g3"};
     for (int i = 0; i < 4; ++i)
-        params.add_array(std::string{"g"} + std::to_string(i),
-                         static_cast<double *>(nullptr), 0,
-                         abi::ParamSource::array_arg, i, true);
+        params.add(abi::global<double>(names[i], i));
     loop::Call call{&set, {args, 4}, 10, false};
     auto next = [&] {
         params.update(args);
@@ -492,8 +513,7 @@ void test_array_globals() {
 
     policy({{"OP_JIT_MAX_GBL_BYTES", "16"}});
     jit::ParamSet capped{"flux"};
-    capped.add_array("g0", static_cast<double *>(nullptr), 0,
-                     abi::ParamSource::array_arg, 0, true);
+    capped.add(abi::global<double>("g0", 0));
     for (int i = 0; i < 40; ++i) {
         capped.update(args);
         capped.key(call, {});
@@ -519,7 +539,7 @@ void test_observe_every_call() {
     args[0].data = reinterpret_cast<char *>(&value);
     double global = 0.0;
     jit::ParamSet params{"flux"};
-    params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
+    params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     CHECK(params.moving());
 
     loop::Call call{&set, {args, 1}, 10, false};
@@ -553,7 +573,7 @@ void test_settled() {
 
     double global = 0.0;
     jit::ParamSet params{"flux"};
-    params.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
+    params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     for (std::uint64_t i = 0; i < jit::statistics_window; ++i) {
         CHECK(!params.settled(call));
         params.update(args);
@@ -563,11 +583,11 @@ void test_settled() {
 
     int stride = 0;
     jit::ParamSet fixed{"flux"};
-    fixed.add("stride", &stride, abi::ParamSource::dat_stride, 0, true);
+    fixed.add(row("stride", &stride, abi::ParamSource::dat_stride, 0, true));
     CHECK(!fixed.moving() && fixed.settled(call));
 
     jit::ParamSet unobserved{"flux"};
-    unobserved.add("g", &global, abi::ParamSource::scalar_arg, 0, true);
+    unobserved.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     policy({{"OP_JIT_LEVEL", "0"}});
     CHECK(unobserved.settled(call));
     policy({});

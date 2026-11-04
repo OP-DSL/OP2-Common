@@ -344,8 +344,7 @@ void test_jit_report() {
     };
     struct Jitted : loop::Executor {
         Jitted(Probe& probe, op::rt::jit::ParamSet& params) {
-            params.add("op2_const_c_d", &probe.constant, op::rt::abi::ParamSource::external, -1,
-                       true);
+            params.add(op::rt::abi::constant("op2_const_c_d", &probe.constant));
             probe.params = &params;
             const loop::Family declared[] = {{"atomics", {}}};
             loop::declare_families(declared);

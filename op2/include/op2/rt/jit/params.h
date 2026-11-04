@@ -38,32 +38,27 @@ using DatStride = int (*)(const op_arg& arg);
 
 class Param {
 private:
-    std::string m_name;
-    // The value, read in place; none for a strategy's, which comes with
-    // each kernel's key.
+    // As the generated code describes it, its name and value as long-lived
+    // as the descriptor.
+    abi::Param m_row;
+    // The value: an array_arg's data and elements are each call's.
     void *m_data;
     std::size_t m_elems;
-    std::size_t m_elem_size;
-    bool m_array;
-    abi::ElementType m_type;
-    abi::ParamSource m_source;
     // The mode before any statistics, whether they may move it, and the
     // call's.
     ParamMode m_initial = ParamMode::baked;
     bool m_fixed = true;
     ParamMode m_mode = ParamMode::baked;
-    // The argument the call's value comes from, or the strategy value's slot.
-    int m_index;
     std::uint64_t m_hash = 0;
 
     // The value's hash: a scalar's own bits, so a zero value hashes to 0,
     // else its rapidhash.
     void rehash() {
-        if (m_array) {
+        if (array()) {
             m_hash = rapidhash_withSeed(data(), bytes(), hash_seed);
             return;
         }
-        switch (m_elem_size) {
+        switch (elem_size()) {
         case 8: std::memcpy(&m_hash, data(), 8); break;
         case 4: {
             std::uint32_t bits;
@@ -76,42 +71,39 @@ private:
     }
 
 public:
-    // A parameter of elems elements of type, each elem_size bytes, read from
-    // data; an array_arg's data and elements are each call's.
-    Param(std::string_view name, abi::ElementType type, std::size_t elem_size, void *data,
-          std::size_t elems, bool array, abi::ParamSource source, int index)
-        : m_name{name}, m_data{data}, m_elems{elems}, m_elem_size{elem_size},
-          m_array{array}, m_type{type}, m_source{source}, m_index{index} {}
+    explicit Param(const abi::Param& row) : m_row{row}, m_data{row.data}, m_elems{row.elems} {}
 
-    const std::string& name() const { return m_name; }
-    abi::ElementType type() const { return m_type; }
-    abi::ParamSource source() const { return m_source; }
+    const char *name() const { return m_row.name; }
+    abi::ElementType type() const { return m_row.type; }
+    abi::ParamSource source() const { return m_row.source; }
     // A READ global argument, which the policy may give at run time or bake
     // in by its statistics; constants and the structural sources (strides,
     // dimensions, the strategy's values) are baked unless named otherwise.
     bool global() const {
-        return m_source == abi::ParamSource::scalar_arg || m_source == abi::ParamSource::array_arg;
+        return source() == abi::ParamSource::scalar_arg ||
+               source() == abi::ParamSource::array_arg;
     }
     ParamMode initial() const { return m_initial; }
     bool fixed() const { return m_fixed; }
     ParamMode mode() const { return m_mode; }
     void set_mode(ParamMode mode) { m_mode = mode; }
-    int index() const { return m_index; }
+    // The argument the call's value comes from, or the strategy value's slot.
+    int index() const { return m_row.index; }
     std::size_t elems() const { return m_elems; }
-    bool array() const { return m_array; }
-    std::size_t bytes() const { return m_elems * m_elem_size; }
+    std::size_t elem_size() const { return m_row.elem_size; }
+    bool array() const { return m_row.array; }
+    std::size_t bytes() const { return m_elems * elem_size(); }
     const void *data() const { return m_data; }
 
     // Whether an array_arg is at run time this call whatever its statistics:
     // inactive, or above OP_JIT_MAX_GBL_BYTES.  Its value is not hashed then.
     bool sized_out(const Options& options) const {
-        return m_source == abi::ParamSource::array_arg &&
+        return source() == abi::ParamSource::array_arg &&
                (m_elems == 0 || bytes() > static_cast<std::size_t>(options.max_gbl_bytes));
     }
 
-    // Settle the initial mode by the policy, for loop's kernels; runtime is
-    // whether the mechanism can give the parameter at run time.
-    void settle(std::string_view loop, bool runtime, const Options& options);
+    // Settle the initial mode by the policy, for loop's kernels.
+    void settle(std::string_view loop, const Options& options);
 
     // The call's value, from its arguments, and its hash; a dat's stride as
     // the backend lays the dat out.  A strategy's value comes with each
@@ -179,48 +171,23 @@ private:
     Histories *histories(const loop::Call& call);
     void observe(const loop::Call& call);
 
-    std::size_t insert(Param param, bool runtime) {
-        auto& added = m_params.emplace_back(std::move(param));
-        added.settle(m_loop, runtime, jit::options());
-        m_moving |= !added.fixed();
-        return m_params.size() - 1;
-    }
-
 public:
-    explicit ParamSet(std::string_view loop = {}) : m_loop{loop} {}
+    explicit ParamSet(std::string_view loop) : m_loop{loop} {}
     ParamSet(const ParamSet&) = delete;
 
     // Add a parameter as the generated code describes it, its mode settled
     // by the policy.  Its index.
-    std::size_t add(const abi::Param& param) {
-        return insert(Param{param.name, param.type, param.elem_size, param.data, param.elems,
-                            param.array, param.source, param.index},
-                      param.runtime);
-    }
-
-    // Add a scalar parameter; runtime is whether the mechanism can give it at
-    // run time.
-    template<typename T>
-    std::size_t add(std::string_view name, T *data, abi::ParamSource source,
-                    int index = -1, bool runtime = false) {
-        return insert(Param{name, abi::ElementTypes<T>::value, sizeof(T), data, 1, false,
-                            source, index},
-                      runtime);
-    }
-
-    // Add an array of elems elements, or of the call's dimension for an
-    // array_arg.
-    template<typename T>
-    std::size_t add_array(std::string_view name, T *data, std::size_t elems,
-                          abi::ParamSource source, int index = -1, bool runtime = false) {
-        return insert(Param{name, abi::ElementTypes<T>::value, sizeof(T), data, elems, true,
-                            source, index},
-                      runtime);
+    std::size_t add(const abi::Param& row) {
+        auto& added = m_params.emplace_back(row);
+        added.settle(m_loop, jit::options());
+        m_moving |= !added.fixed();
+        return m_params.size() - 1;
     }
 
     // How the backend lays out the dats a dat_stride parameter reads.
     void set_dat_stride(DatStride stride) { m_dat_stride = stride; }
 
+    std::span<const Param> params() const { return m_params; }
     std::size_t size() const { return m_params.size(); }
     const Param& operator[](std::size_t index) const { return m_params[index]; }
 

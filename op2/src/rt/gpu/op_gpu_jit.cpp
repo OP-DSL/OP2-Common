@@ -127,12 +127,15 @@ std::string runtime_declarations(const op::rt::jit::ParamSet& params,
             continue;
         if (param.source() == op::rt::abi::ParamSource::scalar_arg ||
             param.source() == op::rt::abi::ParamSource::array_arg) {
-            out += "static constexpr op::rt::kernel::gpu::RuntimeParam " + param.name() + "{};\n";
+            out += "static constexpr op::rt::kernel::gpu::RuntimeParam ";
+            out += param.name();
+            out += "{};\n";
             continue;
         }
         out += "__constant__ ";
         out += op::rt::jit::cxx_type(param.type());
-        out += " " + param.name();
+        out += " ";
+        out += param.name();
         if (param.array())
             out += "[" + std::to_string(param.elems()) + "]";
         out += ";\n";
