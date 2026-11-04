@@ -48,6 +48,13 @@ constexpr int default_block_size = 128;
     OP_ABI_GPU_COMMON_FIELDS(X)                                                          \
     X(int, chunk_begin, const)                                                           \
     X(int, chunk_end, const)                                                             \
+    OP_ABI_GPU_CHUNK_ARRAYS(X)                                                           \
+    X(int *, wave_ticket, )                                                              \
+    X(int, wave_epoch, const)
+
+// The chunk plan's arrays, which the library uploads once per plan and every
+// chunk launch's record carries.
+#define OP_ABI_GPU_CHUNK_ARRAYS(X)                                                       \
     X(const int *, source_offsets, __restrict)                                           \
     X(const ::op::rt::abi::StageWord *, stage_words, __restrict)                         \
     X(const int *, stage_counts, __restrict)                                             \
@@ -58,9 +65,7 @@ constexpr int default_block_size = 128;
     X(const int *, chunk_thread_colours, __restrict)                                     \
     X(const int *, wave_pred_offsets, __restrict)                                        \
     X(const int *, wave_preds, __restrict)                                               \
-    X(int *, wave_done, )                                                                \
-    X(int *, wave_ticket, )                                                              \
-    X(int, wave_epoch, const)
+    X(int *, wave_done, )
 
 #define OP_ABI_GPU_FIELD(type, name, qualifier) type name{};
 

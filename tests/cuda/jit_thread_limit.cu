@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "../loop_parts.h"
+
 namespace {
 
 namespace gpu = op::rt::gpu;
@@ -68,20 +70,19 @@ void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
 const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
     "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
 
-// A loop of plain alone, its kernel built from source, which the runtime
-// makes from the descriptor kept here; finalise ends the loop before the
-// descriptor goes.
+// A loop of plain alone, its kernel built from source, its parts made from
+// the descriptor kept here.
 struct Described {
     op::rt::abi::gpu::Family family;
     op::rt::abi::gpu::Loop descriptor;
-    op::rt::loop::Loop& loop;
+    LoopParts<gpu::Executor> loop;
 
     explicit Described(const char *source)
         : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
           descriptor{{"thread_limit", "cuda", "Direct", true}, false, params,
                      {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
-          loop{op::rt::loop::runtime<gpu::Executor>(descriptor)} {}
+          loop{descriptor} {}
 };
 
 std::vector<double> reference(const std::vector<double>& in) {
@@ -143,14 +144,14 @@ int main(int argc, char **argv) {
 
     // The loop's one candidate, as prepared: its specialised kernel, or the
     // offline candidate kept to refuse a point with no kernel.
-    auto prepare = [&](op::rt::loop::Loop& jit_loop) {
-        expect(jit_loop.ladder().size() == 1, "one candidate");
-        return jit_loop.ladder()[0].prepare(call, loop::Urgency::wait);
+    auto prepare = [&](LoopParts<gpu::Executor>& jit_loop) {
+        expect(jit_loop.ladder.size() == 1, "one candidate");
+        return jit_loop.ladder[0].prepare(call, loop::Urgency::wait);
     };
     // A call of the loop, compared with the host.
-    auto runs = [&](op::rt::loop::Loop& jit_loop, const std::string& what) {
+    auto runs = [&](LoopParts<gpu::Executor>& jit_loop, const std::string& what) {
         GPU_CHECK(gpuMemset(out_d, 0, elements * sizeof(double)));
-        jit_loop.invoke(&set, args);
+        jit_loop.run(call);
         std::vector<double> out(elements);
         GPU_CHECK(gpuMemcpy(out.data(), out_d, elements * sizeof(double),
                             gpuMemcpyDeviceToHost));
@@ -170,13 +171,11 @@ int main(int argc, char **argv) {
         expect(prepared.status == loop::Status::unavailable &&
                    prepared.reason == "thread_limit",
                "without launch bounds: thread_limit, not " + std::string{prepared.reason});
-        loop::finalise(0, 1);
     }
     {
         declare();
         Described described{bounded};
         runs(described.loop, "launch bounds");
-        loop::finalise(0, 1);
     }
 
     GPU_CHECK(gpuFree(in_d));

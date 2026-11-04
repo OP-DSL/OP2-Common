@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "../loop_parts.h"
+
 extern "C" __global__ void build_failure_offline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM)
                                                  int *result, int value) {
     if (threadIdx.x == 0 && blockIdx.x == 0)
@@ -41,9 +43,10 @@ void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
 }
 
 // The kernel's result after one call of loop.
-int run(op::rt::loop::Loop& loop, op_set_core& set, std::array<op_arg, 1>& args, int call) {
+int run(LoopParts<gpu::Executor>& loop, op_set_core& set, std::array<op_arg, 1>& args,
+        int call) {
     value = call;
-    loop.invoke(&set, args);
+    loop.run({&set, args, set.size, true});
     int output = -1;
     GPU_CHECK(gpuMemcpy(&output, output_d, sizeof(output), gpuMemcpyDeviceToHost));
     return output;
@@ -90,21 +93,20 @@ int main(int argc, char **argv) {
         op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
                                           params, kernels, &bind,
                                           &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
-        auto& loop = op::rt::loop::runtime<gpu::Executor>(descriptor);
+        LoopParts<gpu::Executor> loop{descriptor};
 
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");
 
         op::rt::loop::Call call{&set, args, set.size, true};
-        auto broken = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::now);
+        auto broken = loop.ladder[0].prepare(call, op::rt::loop::Urgency::now);
         passed &= check(broken.status == op::rt::loop::Status::unavailable,
                         "the broken strategy is available");
         passed &= check(broken.reason == "build_failed", "the broken strategy's reason");
-        auto selection = loop.ladder().select(call);
+        auto selection = loop.ladder.select(call);
         passed &= check(selection.candidate->name.starts_with("plain=") &&
                             selection.kernel == nullptr,
                         "the floor runs its offline kernel");
-        op::rt::loop::finalise(0, 1);
     }
 
     GPU_CHECK(gpuFree(output_d));

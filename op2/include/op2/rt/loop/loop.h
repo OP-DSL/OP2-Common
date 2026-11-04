@@ -120,8 +120,6 @@ public:
     Loop(const Loop&) = delete;
 
     const std::string& name() const { return m_name; }
-    Ladder& ladder() { return m_ladder; }
-    const Ladder& ladder() const { return m_ladder; }
     const jit::ParamSet& params() const { return m_params; }
     const tune::Autotuner *tuner() const { return m_tuner ? &*m_tuner : nullptr; }
 

@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "../loop_parts.h"
 #include "../test_support.h"
 #include "builders.h"
 
@@ -203,10 +204,10 @@ void run(const char *strategy) {
     };
     op::rt::abi::cpu::Loop descriptor{{"test_loop", "openmp_f2c", "Indirect", false}, families,
                                       &op::rt::kernel::cpu::max_threads};
-    auto& loop = op::rt::loop::runtime<cpu::Executor>(descriptor);
+    LoopParts<cpu::Executor> loop{descriptor};
     // The forced strategy itself runs, not one the ladder falls through to.
     op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};
-    auto selection = loop.ladder().select(call);
+    auto selection = loop.ladder.select(call);
     CHECK(selection.status == op::rt::loop::Status::ready &&
           selection.candidate->family == strategy);
 
@@ -220,14 +221,13 @@ void run(const char *strategy) {
             element(n, expected.data(), map_values.data(), w.data(), &expected_sum,
                     expected_max.data(), expected_loc.data(),
                     [](double& t, double v) { t += v; });
-        loop.invoke(&source, args);
+        loop.run(call);
     }
 
     for (std::size_t i = 0; i < x.size(); ++i)
         CHECK(std::abs(x[i] - expected[i]) <= 1e-9 * std::abs(expected[i]));
     CHECK(std::abs(sum - expected_sum) <= 1e-9 * expected_sum);
     CHECK(max == expected_max && loc == expected_loc);
-    op::rt::loop::finalise(0, 1);
     std::printf("%s passed\n", strategy);
 }
 

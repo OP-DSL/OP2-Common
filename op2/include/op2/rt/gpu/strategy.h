@@ -50,11 +50,12 @@ struct ColouringPlan {
     ~ColouringPlan();
 };
 
-// A chunk plan, or why the call does not suit it, the plan as uploaded, and
-// the most chunks a batch launches.
+// A chunk plan, or why the call does not suit it, and the plan as uploaded.
 struct ChunkEntry : ChunkResult {
     DevicePlan device;
-    int max_batch = 0;
+
+    // Upload result's plan, then drop what only the device reads.
+    explicit ChunkEntry(ChunkResult result);
 };
 
 // --- The base of every GPU strategy ------------------------------------------------

@@ -38,6 +38,13 @@ op::rt::loop::Axis block_size_axis() {
 
 ColouringPlan::~ColouringPlan() { release(order_d); }
 
+ChunkEntry::ChunkEntry(ChunkResult result) : ChunkResult{std::move(result)} {
+    if (plan == nullptr)
+        return;
+    device = DevicePlan(*plan);
+    plan->release_uploaded();
+}
+
 // --- The base of every GPU strategy ------------------------------------------------
 
 StrategyBase::StrategyBase(Executor& executor, const op::rt::loop::Point& point,
@@ -195,6 +202,7 @@ StrategyBase::Planned Colouring::plan(const op::rt::loop::Call& call, int) {
             auto plan = std::make_shared<ColouringPlan>();
             plan->colouring = op::rt::plan::colour_set(call.args, call.sections);
             upload(plan->colouring.order, plan->order_d);
+            plan->colouring.order = {};
             const auto& offsets = plan->colouring.offsets;
             for (std::size_t colour = 0; colour + 1 < offsets.size(); ++colour)
                 plan->max_colour =
@@ -291,19 +299,7 @@ StrategyBase::Planned ChunkBase::plan(const op::rt::loop::Call& call, int stride
         return chunk_plans.get(key, [&] {
             auto result = make_plan(call, spec);
             report(result);
-            auto entry = std::make_shared<ChunkEntry>();
-            static_cast<ChunkResult&>(*entry) = std::move(result);
-            if (*entry) {
-                entry->device = DevicePlan(*entry->plan);
-                entry->plan->release_uploaded();
-                const auto& batches = entry->plan->batches;
-                for (int section = 0; section < call.sections.size(); ++section)
-                    for (int batch = 0; batch < batches.batches(section); ++batch) {
-                        auto [begin, end] = batches.positions(section, batch);
-                        entry->max_batch = std::max(entry->max_batch, end - begin);
-                    }
-            }
-            return entry;
+            return std::make_shared<ChunkEntry>(std::move(result));
         });
     });
     return {&entry, entry ? std::string_view{} : entry.rejected};
@@ -327,8 +323,8 @@ void ChunkBase::report(const ChunkResult& result) const {
 // blocks take chunks in turn, so it needs no more of them than the device
 // holds at once.
 int ChunkBase::max_blocks(const op::rt::loop::Call&, const void *entry, int block_limit) const {
-    const auto& chunks = *static_cast<const ChunkEntry *>(entry);
-    return batch_blocks(*chunks.plan, chunks.max_batch, block_limit);
+    const auto& plan = *static_cast<const ChunkEntry *>(entry)->plan;
+    return batch_blocks(plan, plan.max_batch, block_limit);
 }
 
 int ChunkBase::batch_blocks(const ChunkPlan& plan, int chunks, int block_limit) const {
@@ -345,26 +341,15 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     const auto& sections = call.sections;
     auto call_shape = shape(call, prepared.entry);
 
-    // Every section of a wavefront call takes its positions from zero.
-    int epoch = 0;
-    if (plan.wavefront) {
-        epoch = entry.device.next_wave_epoch();
-        GPU_CHECK(gpuMemsetAsync(entry.device.wave_tickets, 0,
-                                 static_cast<std::size_t>(sections.size()) * sizeof(int), 0));
-    }
-
+    entry.device.begin_wavefront_call();
     return run_phases<abi::gpu::Chunk>(
         prepared, call, timed, sections.phases(), call_shape,
         [&](int section) { return plan.batches.batches(section); },
         [&](int section, int batch, abi::gpu::Chunk& record) {
             auto [begin, end] = plan.batches.positions(section, batch);
-            entry.device.fill(record);
+            entry.device.fill(record, section);
             record.chunk_begin = begin;
             record.chunk_end = end;
-            if (plan.wavefront) {
-                record.wave_ticket = entry.device.wave_tickets + section;
-                record.wave_epoch = epoch;
-            }
             auto bytes = plan.scratch_bytes(section, batch);
             assert(bytes <= static_cast<std::size_t>(INT32_MAX));
             return Geometry{batch_blocks(plan, end - begin, call_shape.block_limit),

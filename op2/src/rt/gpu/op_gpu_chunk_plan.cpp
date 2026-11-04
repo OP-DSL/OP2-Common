@@ -18,14 +18,16 @@ std::unique_ptr<ChunkPlan> staged_plan(plan::StagedChunks& staged) {
     return out;
 }
 
-// Size every batch's shared memory by its largest chunk.
+// Size every batch's shared memory by its largest chunk, and find the
+// largest batch.
 void size_batches(ChunkPlan& out) {
     out.batch_scratch_bytes.clear();
     for (int batch = 0; batch < out.batches.count(); ++batch) {
+        int begin = out.batches.batch_offsets[static_cast<std::size_t>(batch)];
+        int end = out.batches.batch_offsets[static_cast<std::size_t>(batch) + 1];
+        out.max_batch = std::max(out.max_batch, end - begin);
         std::size_t bytes = 0;
-        for (int position = out.batches.batch_offsets[static_cast<std::size_t>(batch)];
-             position < out.batches.batch_offsets[static_cast<std::size_t>(batch) + 1];
-             ++position)
+        for (int position = begin; position < end; ++position)
             bytes = std::max(bytes, out.staging.chunk_scratch_bytes[
                                         static_cast<std::size_t>(out.batches.chunk(position))]);
         out.batch_scratch_bytes.push_back(bytes);

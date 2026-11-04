@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "../loop_parts.h"
 #include "../test_support.h"
 
 extern "C" __global__ void chunk_strategy_baseline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM)
@@ -175,13 +176,12 @@ const op::rt::abi::gpu::Param params[] = {
     op::rt::abi::gpu::launch_value("op2_wavefront_d", op::rt::abi::gpu::LaunchValue::wavefront),
 };
 
-// A loop of chunk_atomics and atomics over fixture's groups, which the
-// runtime makes from the descriptor kept here; finalise ends the loop before
-// the descriptor goes.
+// A loop of chunk_atomics and atomics over fixture's groups, its parts made
+// from the descriptor kept here.
 struct Described {
     std::array<op::rt::abi::gpu::Family, 2> families;
     op::rt::abi::gpu::Loop descriptor;
-    op::rt::loop::Loop& loop;
+    LoopParts<gpu::Executor> loop;
 
     Described(const char *name, const Fixture& fixture)
         : families{{{{"chunk_atomics", fixture.groups()}, "chunk_strategy_staged",
@@ -191,7 +191,7 @@ struct Described {
                      baseline_source}}},
           descriptor{{name, "cuda", "Indirect", false}, false, params, families, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
-          loop{op::rt::loop::runtime<gpu::Executor>(descriptor)} {}
+          loop{descriptor} {}
 };
 
 std::array<int, 10> output{};
@@ -207,13 +207,12 @@ struct Outcome {
     int max_blocks;
 };
 
-Outcome run(op::rt::loop::Loop& loop, Fixture& fixture) {
+Outcome run(LoopParts<gpu::Executor>& loop, Fixture& fixture) {
     GPU_CHECK(gpuMemset(output_d, 0, sizeof(output)));
     op::rt::loop::Call call{&fixture.source, fixture.args,
                             fixture.source.size + fixture.source.exec_size, false};
-    auto chunk = loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
-    auto selection = loop.ladder().select(call);
-    loop.invoke(&fixture.source, fixture.args);
+    auto chunk = loop.ladder[0].prepare(call, op::rt::loop::Urgency::later);
+    auto selection = loop.run(call);
     GPU_CHECK(gpuDeviceSynchronize());
     GPU_CHECK(gpuMemcpy(output.data(), output_d, sizeof(output),
                         gpuMemcpyDeviceToHost));
@@ -244,7 +243,6 @@ int main(int argc, char **argv) {
         CHECK(outcome.strategy == "atomics");
         CHECK(output[0] == -1);
         CHECK(outcome.chunk_entry != nullptr);
-        op::rt::loop::finalise(0, 1);
     }
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
@@ -322,7 +320,6 @@ int main(int argc, char **argv) {
             CHECK(split_outcome.max_blocks == 1);
             // Before this scope's descriptor goes; it ends the outer loop
             // too, which nothing runs again.
-            op::rt::loop::finalise(0, 1);
         }
 
         // Every reference reaches a different target, so staging combines
@@ -340,7 +337,6 @@ int main(int argc, char **argv) {
             CHECK(spread_outcome.strategy == "atomics");
             CHECK(spread_outcome.chunk_reason == "low_compression");
             CHECK(output[0] == -1);
-            op::rt::loop::finalise(0, 1);
         }
 
         // A dim-64 dat whose 128 targets need 64 KB of staging, more than a
@@ -372,7 +368,6 @@ int main(int argc, char **argv) {
                 CHECK(large_outcome.strategy == "chunk_atomics");
                 CHECK(large_outcome.max_blocks == 1);
                 CHECK(output[8] == 42);
-                op::rt::loop::finalise(0, 1);
             }
         }
 
@@ -386,15 +381,14 @@ int main(int argc, char **argv) {
             auto& second_loop = second_described.loop;
             op::rt::loop::Call call{&alike.source, alike.args,
                                     alike.source.size + alike.source.exec_size, false};
-            auto first = first_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
-            auto second = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
+            auto first = first_loop.ladder[0].prepare(call, op::rt::loop::Urgency::later);
+            auto second = second_loop.ladder[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(first.entry != nullptr && first.entry == second.entry);
             // The second forgets it; the first still holds it, so the second
             // finds it again rather than planning anew.
-            second_loop.ladder()[0].strategy->forget(call.key());
-            auto again = second_loop.ladder()[0].prepare(call, op::rt::loop::Urgency::later);
+            second_loop.ladder[0].strategy->forget(call.key());
+            auto again = second_loop.ladder[0].prepare(call, op::rt::loop::Urgency::later);
             CHECK(again.entry == first.entry);
-            op::rt::loop::finalise(0, 1);
         }
 
         GPU_CHECK(gpuFree(output_d));

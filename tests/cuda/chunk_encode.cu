@@ -1,5 +1,6 @@
-// The device plan: every array a staged kernel reads is uploaded, the
-// wavefront state is zeroed, and release frees it.
+// The device plan: every array a staged kernel reads is uploaded and carried
+// by a launch's record, the wavefront state is zeroed and stepped per call,
+// and a moved plan takes the arrays.
 
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
@@ -83,28 +84,39 @@ void test_encode() {
 
     {
         op::rt::gpu::DevicePlan plan(chunk_plan);
-        CHECK(same(plan.source_offsets, chunk_plan.chunks.offsets));
-        CHECK(same(plan.stage_words, chunk_plan.stage_words));
+        plan.begin_wavefront_call();
+        abi::gpu::Chunk record;
+        plan.fill(record, 0);
+        CHECK(same(record.source_offsets, chunk_plan.chunks.offsets));
+        CHECK(same(record.stage_words, chunk_plan.stage_words));
         const auto& offsets = chunk_plan.staging.slot_offsets;
         std::vector<int> counts;
         for (std::size_t region = 0; region + 1 < offsets.size(); ++region)
             counts.push_back(offsets[region + 1] - offsets[region]);
-        CHECK(same(plan.stage_counts, counts));
-        CHECK(same(plan.slot_offsets, chunk_plan.staging.slot_offsets));
-        CHECK(same(plan.slot_targets, chunk_plan.staging.slot_targets));
-        CHECK(same(plan.chunk_order, chunk_plan.batches.order));
-        CHECK(same(plan.thread_colours, chunk_plan.thread_colours));
-        CHECK(same(plan.chunk_thread_colours, chunk_plan.chunk_thread_colours));
-        CHECK(same(plan.wave_pred_offsets, chunk_plan.wave_pred_offsets));
-        CHECK(same(plan.wave_preds, chunk_plan.wave_preds));
-        CHECK(plan.wave_tickets != nullptr);
+        CHECK(same(record.stage_counts, counts));
+        CHECK(same(record.slot_offsets, chunk_plan.staging.slot_offsets));
+        CHECK(same(record.slot_targets, chunk_plan.staging.slot_targets));
+        CHECK(same(record.chunk_order, chunk_plan.batches.order));
+        CHECK(same(record.thread_colours, chunk_plan.thread_colours));
+        CHECK(same(record.chunk_thread_colours, chunk_plan.chunk_thread_colours));
+        CHECK(same(record.wave_pred_offsets, chunk_plan.wave_pred_offsets));
+        CHECK(same(record.wave_preds, chunk_plan.wave_preds));
         auto chunks = static_cast<std::size_t>(chunk_plan.chunks.count());
-        CHECK(download(plan.wave_done, chunks) == std::vector<int>(chunks, 0));
-        CHECK(download(plan.wave_tickets, 1) == std::vector<int>{0});
-        CHECK(plan.next_wave_epoch() == 1 && plan.next_wave_epoch() == 2);
+        CHECK(download(record.wave_done, chunks) == std::vector<int>(chunks, 0));
+        CHECK(record.wave_ticket != nullptr);
+        CHECK(download(record.wave_ticket, 1) == std::vector<int>{0});
+        CHECK(record.wave_epoch == 1);
+        plan.begin_wavefront_call();
+        plan.fill(record, 0);
+        CHECK(record.wave_epoch == 2);
 
         op::rt::gpu::DevicePlan moved(std::move(plan));
-        CHECK(plan.source_offsets == nullptr && moved.source_offsets != nullptr);
+        abi::gpu::Chunk moved_record;
+        abi::gpu::Chunk emptied;
+        moved.fill(moved_record, 0);
+        plan.fill(emptied, 0);
+        CHECK(moved_record.source_offsets == record.source_offsets);
+        CHECK(emptied.source_offsets == nullptr && emptied.wave_ticket == nullptr);
     }
 
     // A chunk_atomics plan uploads no colour or wavefront arrays.
@@ -115,10 +127,11 @@ void test_encode() {
     CHECK(staged);
     {
         op::rt::gpu::DevicePlan plan(*staged.plan);
-        CHECK(same(plan.stage_words, staged.plan->stage_words));
-        CHECK(plan.thread_colours == nullptr && plan.wave_tickets == nullptr);
-        plan.release();
-        CHECK(plan.stage_words == nullptr && plan.source_offsets == nullptr);
+        abi::gpu::Chunk record;
+        plan.fill(record, 0);
+        CHECK(same(record.stage_words, staged.plan->stage_words));
+        CHECK(record.thread_colours == nullptr && record.wave_done == nullptr &&
+              record.wave_ticket == nullptr);
     }
 }
 

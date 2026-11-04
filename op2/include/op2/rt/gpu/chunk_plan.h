@@ -45,8 +45,10 @@ struct ChunkPlan : plan::ChunkPlan<abi::StageWord> {
     std::vector<int> wave_pred_offsets;
     std::vector<int> wave_preds;
 
-    // Per batch, the shared memory its largest chunk needs.
+    // Per batch, the shared memory its largest chunk needs, and the most
+    // chunks a batch launches.
     std::vector<std::size_t> batch_scratch_bytes;
+    int max_batch = 0;
 
     std::size_t references = 0;
     std::size_t distinct_targets = 0;

@@ -5,34 +5,32 @@
 // per-call wavefront state.  Defined in src/rt/gpu/op_gpu_chunk_encode.cpp.
 
 #include <op2/rt/abi/gpu/launch.h>
-#include <op2/rt/abi/staging.h>
 #include <op2/rt/gpu/chunk_plan.h>
 
 #include <cstddef>
-#include <cstdint>
+#include <type_traits>
+#include <utility>
 
 namespace op::rt::gpu {
 
-struct ChunkArrays {
-    int *source_offsets = nullptr;
-    abi::StageWord *stage_words = nullptr;
-    int *stage_counts = nullptr;
-    int *slot_offsets = nullptr;
-    int *slot_targets = nullptr;
-    int *chunk_order = nullptr;
-    std::uint8_t *thread_colours = nullptr;
-    int *chunk_thread_colours = nullptr;
-    int *wave_pred_offsets = nullptr;
-    int *wave_preds = nullptr;
-    int *wave_done = nullptr;
-    int *wave_tickets = nullptr;
-};
-
-class DevicePlan : public ChunkArrays {
+class DevicePlan {
 private:
-    // Calls are ordered on one stream, so each needs only a fresh epoch.
-    mutable int m_wave_epoch = 0;
+    // The record's plan arrays, as allocated.
+#define OP_GPU_PLAN_ARRAY(type, name, qualifier)                                         \
+    std::remove_const_t<std::remove_pointer_t<type>> *m_##name = nullptr;
+    OP_ABI_GPU_CHUNK_ARRAYS(OP_GPU_PLAN_ARRAY)
+#undef OP_GPU_PLAN_ARRAY
+    // A wavefront plan's next position per section, and its positions and
+    // sections; calls are ordered on one stream, so each needs only a fresh
+    // epoch.
+    int *m_wave_tickets = nullptr;
     std::size_t m_wave_positions = 0;
+    std::size_t m_wave_sections = 0;
+    mutable int m_wave_epoch = 0;
+
+    // OP2 selects one device at initialisation and never switches, so this
+    // frees on the device the arrays were allocated on.
+    void free_device();
 
 public:
     DevicePlan() = default;
@@ -45,17 +43,15 @@ public:
     // Upload the arrays a staged kernel reads.
     explicit DevicePlan(const ChunkPlan& plan);
 
-    ~DevicePlan() { release(); }
+    ~DevicePlan() { free_device(); }
 
-    // The epoch a wavefront call marks its positions done with.
-    int next_wave_epoch() const;
+    // Before a call's launches of a wavefront plan: every section's ticket
+    // from zero, and a fresh epoch to mark its positions done with.
+    void begin_wavefront_call() const;
 
-    // OP2 selects one device at initialisation and never switches, so these
-    // free on the device they were allocated on.
-    void release();
-
-    // A chunk launch's record carries the arrays.
-    void fill(abi::gpu::Chunk& record) const;
+    // A chunk launch's record of section: the arrays, and a wavefront plan's
+    // ticket and epoch.
+    void fill(abi::gpu::Chunk& record, int section) const;
 };
 
 } // namespace op::rt::gpu

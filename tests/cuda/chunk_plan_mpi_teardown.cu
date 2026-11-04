@@ -13,6 +13,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -22,15 +23,15 @@ namespace {
 
 // A loop whose executor frees its descriptor's device plan when it goes.
 struct Owned : op::rt::abi::Loop {
-    op::rt::gpu::DevicePlan *plan;
+    std::optional<op::rt::gpu::DevicePlan> *plan;
 };
 
 struct PlanOwner : op::rt::loop::Executor {
-    op::rt::gpu::DevicePlan& plan;
+    std::optional<op::rt::gpu::DevicePlan>& plan;
 
     PlanOwner(const Owned& owned, op::rt::jit::ParamSet&) : plan{*owned.plan} {}
 
-    ~PlanOwner() override { plan.release(); }
+    ~PlanOwner() override { plan.reset(); }
 
     void add_strategies(op::rt::loop::Ladder&) override {}
 };
@@ -100,8 +101,10 @@ int main(int argc, char **argv) {
     CHECK(result);
 
     // The descriptor and the plan outlive main when op_exit is skipped.
-    auto& plan = *new op::rt::gpu::DevicePlan(*result.plan);
-    CHECK(plan.source_offsets != nullptr && plan.stage_words != nullptr);
+    auto& plan = *new std::optional<op::rt::gpu::DevicePlan>(std::in_place, *result.plan);
+    op::rt::abi::gpu::Chunk record;
+    plan->fill(record, 0);
+    CHECK(record.source_offsets != nullptr && record.stage_words != nullptr);
     static Owned owned{{"teardown", "cuda", "Direct", true}, &plan};
     op::rt::loop::runtime<PlanOwner>(owned);
     if (no_exit) {
@@ -110,7 +113,7 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
     op_exit();
-    CHECK(plan.source_offsets == nullptr && plan.stage_words == nullptr);
+    CHECK(!plan.has_value());
     CHECK(owned.runtime == nullptr);
     delete &plan;
 

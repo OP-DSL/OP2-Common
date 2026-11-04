@@ -21,78 +21,76 @@ std::vector<int> slot_counts(const plan::Staging& staging) {
     return counts;
 }
 
-void allocate_zeroed(std::size_t count, int *&destination) {
+int *allocate_zeroed(std::size_t count) {
+    int *destination = nullptr;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&destination), count * sizeof(int)));
     GPU_CHECK(gpuMemset(destination, 0, count * sizeof(int)));
+    return destination;
 }
 
 } // namespace
 
-void DevicePlan::fill(abi::gpu::Chunk& record) const {
-    record.source_offsets = source_offsets;
-    record.stage_words = stage_words;
-    record.stage_counts = stage_counts;
-    record.slot_offsets = slot_offsets;
-    record.slot_targets = slot_targets;
-    record.chunk_order = chunk_order;
-    record.thread_colours = thread_colours;
-    record.chunk_thread_colours = chunk_thread_colours;
-    record.wave_pred_offsets = wave_pred_offsets;
-    record.wave_preds = wave_preds;
-    record.wave_done = wave_done;
+DevicePlan::DevicePlan(const ChunkPlan& plan) {
+    upload(plan.chunks.offsets, m_source_offsets);
+    upload(plan.stage_words, m_stage_words);
+    upload(slot_counts(plan.staging), m_stage_counts);
+    upload(plan.staging.slot_offsets, m_slot_offsets);
+    upload(plan.staging.slot_targets, m_slot_targets);
+    upload(plan.batches.order, m_chunk_order);
+    upload(plan.thread_colours, m_thread_colours);
+    upload(plan.chunk_thread_colours, m_chunk_thread_colours);
+    if (plan.wavefront) {
+        upload(plan.wave_pred_offsets, m_wave_pred_offsets);
+        upload(plan.wave_preds, m_wave_preds);
+        m_wave_positions = plan.batches.order.size();
+        m_wave_sections = plan.batches.section_batches.size() - 1;
+        m_wave_done = allocate_zeroed(m_wave_positions);
+        m_wave_tickets = allocate_zeroed(m_wave_sections);
+    }
 }
 
 DevicePlan& DevicePlan::operator=(DevicePlan&& other) noexcept {
     if (this != &other) {
-        release();
-        std::swap(static_cast<ChunkArrays&>(*this), static_cast<ChunkArrays&>(other));
-        std::swap(m_wave_epoch, other.m_wave_epoch);
+        free_device();
+#define OP_GPU_PLAN_SWAP(type, name, qualifier) std::swap(m_##name, other.m_##name);
+        OP_ABI_GPU_CHUNK_ARRAYS(OP_GPU_PLAN_SWAP)
+#undef OP_GPU_PLAN_SWAP
+        std::swap(m_wave_tickets, other.m_wave_tickets);
         std::swap(m_wave_positions, other.m_wave_positions);
+        std::swap(m_wave_sections, other.m_wave_sections);
+        std::swap(m_wave_epoch, other.m_wave_epoch);
     }
     return *this;
 }
 
-DevicePlan::DevicePlan(const ChunkPlan& plan) {
-    upload(plan.chunks.offsets, source_offsets);
-    upload(plan.stage_words, stage_words);
-    upload(slot_counts(plan.staging), stage_counts);
-    upload(plan.staging.slot_offsets, slot_offsets);
-    upload(plan.staging.slot_targets, slot_targets);
-    upload(plan.batches.order, chunk_order);
-    upload(plan.thread_colours, thread_colours);
-    upload(plan.chunk_thread_colours, chunk_thread_colours);
-    if (plan.wavefront) {
-        upload(plan.wave_pred_offsets, wave_pred_offsets);
-        upload(plan.wave_preds, wave_preds);
-        m_wave_positions = plan.batches.order.size();
-        allocate_zeroed(m_wave_positions, wave_done);
-        allocate_zeroed(plan.batches.section_batches.size() - 1, wave_tickets);
-    }
-}
-
-int DevicePlan::next_wave_epoch() const {
+void DevicePlan::begin_wavefront_call() const {
+    if (m_wave_tickets == nullptr)
+        return;
     // The done flags hold earlier calls' epochs: before the epoch overflows,
     // clear them and count from one again.
     if (m_wave_epoch == std::numeric_limits<int>::max()) {
-        GPU_CHECK(gpuMemsetAsync(wave_done, 0, m_wave_positions * sizeof(int), 0));
+        GPU_CHECK(gpuMemsetAsync(m_wave_done, 0, m_wave_positions * sizeof(int), 0));
         m_wave_epoch = 0;
     }
-    return ++m_wave_epoch;
+    ++m_wave_epoch;
+    GPU_CHECK(gpuMemsetAsync(m_wave_tickets, 0, m_wave_sections * sizeof(int), 0));
 }
 
-void DevicePlan::release() {
-    gpu::release(source_offsets);
-    gpu::release(stage_words);
-    gpu::release(stage_counts);
-    gpu::release(slot_offsets);
-    gpu::release(slot_targets);
-    gpu::release(chunk_order);
-    gpu::release(thread_colours);
-    gpu::release(chunk_thread_colours);
-    gpu::release(wave_pred_offsets);
-    gpu::release(wave_preds);
-    gpu::release(wave_done);
-    gpu::release(wave_tickets);
+void DevicePlan::fill(abi::gpu::Chunk& record, int section) const {
+#define OP_GPU_PLAN_FILL(type, name, qualifier) record.name = m_##name;
+    OP_ABI_GPU_CHUNK_ARRAYS(OP_GPU_PLAN_FILL)
+#undef OP_GPU_PLAN_FILL
+    if (m_wave_tickets != nullptr) {
+        record.wave_ticket = m_wave_tickets + section;
+        record.wave_epoch = m_wave_epoch;
+    }
+}
+
+void DevicePlan::free_device() {
+#define OP_GPU_PLAN_FREE(type, name, qualifier) release(m_##name);
+    OP_ABI_GPU_CHUNK_ARRAYS(OP_GPU_PLAN_FREE)
+#undef OP_GPU_PLAN_FREE
+    release(m_wave_tickets);
 }
 
 } // namespace op::rt::gpu
