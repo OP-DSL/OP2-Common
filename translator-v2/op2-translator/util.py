@@ -135,7 +135,7 @@ class SourceBuffer:
         return self._source
 
     def get(self, index: int) -> str:
-        return self._rawLines[index]
+        return self._updates.get(index, self._rawLines[index])
 
     def remove(self, index: int) -> None:
         self._updates[index] = ""

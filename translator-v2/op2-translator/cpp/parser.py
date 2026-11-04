@@ -9,7 +9,7 @@ from clang.cindex import Config, Cursor, CursorKind, Diagnostic, Index, Translat
 from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
-from store import Function, Location, ParseError, Program, Type
+from store import Application, Function, Location, ParseError, Program, Type
 
 logger = logging.getLogger(__name__)
 
@@ -395,7 +395,7 @@ def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
 
     return next(node.get_children(), None)
 
-def findLoopConsts(program: Program, consts: Dict[str, OP.Const]) -> None:
+def findLoopConsts(app: Application, program: Program, consts: Dict[str, OP.Const]) -> None:
     for loop in program.loops:
         visited = set()
 
@@ -413,8 +413,15 @@ def findLoopConsts(program: Program, consts: Dict[str, OP.Const]) -> None:
                         loop.addConst(const)
                 elif node.kind == CursorKind.CALL_EXPR:
                     callee = node.referenced
-                    if callee is not None and callee.kind == CursorKind.FUNCTION_DECL:
-                        visit_function(callee)
+                    if callee is None or callee.kind != CursorKind.FUNCTION_DECL:
+                        continue
+                    # A prototype has no body: take the definition, here or in another file.
+                    definition = callee.get_definition()
+                    if definition is not None:
+                        visit_function(definition)
+                    else:
+                        for entity in app.findEntities(callee.spelling, program):
+                            visit_function(entity.ast)
 
-        for entity in program.findEntities(loop.kernel, []):
+        for entity in app.findEntities(loop.kernel, program):
             visit_function(entity.ast)

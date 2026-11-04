@@ -58,7 +58,7 @@ class Cpp(Lang):
         # The consts a loop reads may be declared in any of the app's files.
         consts = {const.ptr: const for const in app.consts()}
         for program in app.programs:
-            cpp.parser.findLoopConsts(program, consts)
+            cpp.parser.findLoopConsts(app, program, consts)
 
     @lru_cache(maxsize=None)
     def parseFile(
