@@ -2,9 +2,13 @@
 // misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
 // (an OP_INC one only to increment), an info argument that doesn't match its
 // maximum, a map index a legacy target needs as a constant, a non-constant
-// const dim, or a recursive helper.
+// const dim, a recursive helper, or an include that isn't there.
 
 #include <cstring>
+
+#if defined(MISSING_INCLUDE)
+#include <op2_no_such_header.h>
+#endif
 
 #include "op_seq.h"
 

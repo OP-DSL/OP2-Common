@@ -54,11 +54,17 @@ def parseTranslationUnit(path: Path, source: str, args: List[str]) -> Translatio
         options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
     )
 
+    errors = []
     for diagnostic in iter(translation_unit.diagnostics):
-        # if diagnostic.severity >= Diagnostic.Error:
-        #     raise ParseError(diagnostic.spelling, parseLocation(diagnostic))
-
         logger.log(_DIAGNOSTIC_LEVELS.get(diagnostic.severity, logging.WARNING), str(diagnostic))
+        if diagnostic.severity >= Diagnostic.Error:
+            errors.append(diagnostic)
+
+    # A file that does not parse would translate wrongly or not at all.
+    if errors:
+        location = errors[0].location
+        file = location.file.name if location.file else str(path)
+        raise ParseError(errors[0].spelling, Location(file, location.line, location.column))
 
     return translation_unit
 

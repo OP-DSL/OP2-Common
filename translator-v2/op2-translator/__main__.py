@@ -181,7 +181,11 @@ def main(argv=None) -> None:
 
     # Generate program translations
     for i, program in enumerate(app.programs, 1):
-        source = lang.translateProgram(program, include_dirs, defines, args.force_soa)
+        try:
+            source = lang.translateProgram(program, include_dirs, defines, args.force_soa)
+        except ParseError as e:
+            logger.error(str(e))
+            sys.exit(1)
 
         new_file = os.path.splitext(os.path.basename(program.path))[0]
         ext = os.path.splitext(os.path.basename(program.path))[1]

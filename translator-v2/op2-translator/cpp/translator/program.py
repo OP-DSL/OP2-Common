@@ -1,6 +1,6 @@
 import re
 
-from store import Program
+from store import ParseError, Program
 from util import SourceBuffer
 
 
@@ -30,15 +30,16 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
             buffer.update(index, line)
 
     # 3. Update headers
-    index = buffer.search(r'\s*#include\s+"op_seq\.h"')
-    assert index is not None
-    index += 2
-
-    buffer.insert(index, '#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
-    for loop in program.loops:
-        prototype = f'void op_par_loop_{loop.name}(char const *, op_set{", op_arg" * len(loop.args)});\n'
-        buffer.insert(index, prototype)
-    buffer.insert(index, "#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n")
+    index = buffer.search(r'\s*#include\s+["<]op_seq\.h[">]')
+    if index is None and program.loops:
+        raise ParseError("a file with op_par_loop calls must #include op_seq.h", program.loops[0].loc)
+    if index is not None:
+        index += 2
+        buffer.insert(index, '#ifdef OPENACC\n#ifdef __cplusplus\nextern "C" {\n#endif\n#endif\n')
+        for loop in program.loops:
+            prototype = f'void op_par_loop_{loop.name}(char const *, op_set{", op_arg" * len(loop.args)});\n'
+            buffer.insert(index, prototype)
+        buffer.insert(index, "#ifdef OPENACC\n#ifdef __cplusplus\n}\n#endif\n#endif\n")
 
     # 4. Update init call TODO: Use a line number from the program
     source = buffer.translate()
@@ -47,6 +48,6 @@ def translateProgram(source: str, program: Program, force_soa: bool) -> str:
         source = re.sub(r"\bop_mpi_init\b\s*\((.*)\)", "op_mpi_init_soa(\\1,1)", source)
 
     # Substitude the op_seq.h include for op_lib_cpp.h
-    source = re.sub(r'#include\s+"op_seq\.h"', '#include "op_lib_cpp.h"', source)
+    source = re.sub(r'#include\s+["<]op_seq\.h[">]', '#include "op_lib_cpp.h"', source)
 
     return source
