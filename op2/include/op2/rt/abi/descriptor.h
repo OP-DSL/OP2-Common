@@ -31,12 +31,11 @@ struct Family {
     ArgGroups groups;
 };
 
-// A loop: its name, how the profiler names it, whether it is direct, and
+// A loop: its name, its target for the profiler, whether it is direct, and
 // the library's loop, made on its first call and cleared by op_exit.
 struct Loop {
     const char *name;
     const char *target;
-    const char *variant;
     bool direct;
     void *runtime = nullptr;
 };

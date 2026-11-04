@@ -94,7 +94,8 @@ public:
     template<typename Make>
     Loop(const abi::Loop& descriptor, const Context& context, Make&& make)
         : m_jit{context.jit}, m_name{descriptor.name}, m_profile_target{descriptor.target},
-          m_profile_variant{descriptor.variant}, m_direct{descriptor.direct},
+          m_profile_variant{descriptor.direct ? "Direct" : "Indirect"},
+          m_direct{descriptor.direct},
           m_params{m_name, context.jit}, m_executor{make(m_params)},
           m_ladder{m_name, context.autotune.report, context.families, context.jit} {
         m_executor->add_strategies(m_ladder);

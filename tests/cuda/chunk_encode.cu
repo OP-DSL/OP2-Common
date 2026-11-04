@@ -87,7 +87,7 @@ void test_encode() {
         plan.begin_wavefront_call();
         abi::gpu::Chunk record;
         plan.fill(record, 0);
-        CHECK(same(record.source_offsets, chunk_plan.chunks.offsets));
+        CHECK(same(record.chunk_offsets, chunk_plan.chunks.offsets));
         CHECK(same(record.stage_words, chunk_plan.stage_words));
         const auto& offsets = chunk_plan.staging.slot_offsets;
         std::vector<int> counts;
@@ -115,8 +115,8 @@ void test_encode() {
         abi::gpu::Chunk emptied;
         moved.fill(moved_record, 0);
         plan.fill(emptied, 0);
-        CHECK(moved_record.source_offsets == record.source_offsets);
-        CHECK(emptied.source_offsets == nullptr && emptied.wave_ticket == nullptr);
+        CHECK(moved_record.chunk_offsets == record.chunk_offsets);
+        CHECK(emptied.chunk_offsets == nullptr && emptied.wave_ticket == nullptr);
     }
 
     // A chunk_atomics plan uploads no colour or wavefront arrays.

@@ -18,6 +18,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -39,8 +40,8 @@ extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_
     __syncthreads();
 
     if (blockIdx.x == 0 && threadIdx.x == 0) {
-        result[0] = source_offsets[chunk_begin];
-        result[1] = source_offsets[chunk_end];
+        result[0] = chunk_offsets[chunk_begin];
+        result[1] = chunk_offsets[chunk_end];
         result[2] = stage_counts[chunk_begin];
         result[3] = static_cast<int>(stage_words[0]);
         result[4] = static_cast<int>(stage_words[1]);
@@ -74,8 +75,8 @@ extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_
     __syncthreads();
 
     if (blockIdx.x == 0 && threadIdx.x == 0) {
-        result[0] = source_offsets[chunk_begin];
-        result[1] = source_offsets[chunk_end];
+        result[0] = chunk_offsets[chunk_begin];
+        result[1] = chunk_offsets[chunk_end];
         result[2] = stage_counts[chunk_begin];
         result[3] = static_cast<int>(stage_words[0]);
         result[4] = static_cast<int>(stage_words[1]);
@@ -91,8 +92,10 @@ extern "C" __global__ void chunk_strategy_staged(OP_ABI_GPU_CHUNK_FIELDS(OP_ABI_
 int *output_d = nullptr;
 int last_shared_byte = 0;
 
-void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
-    arguments.insert(arguments.end(), {(void *)&output_d, (void *)&last_shared_byte});
+int bind(op_arg *, unsigned&, std::span<void *> arguments) {
+    arguments[0] = &output_d;
+    arguments[1] = &last_shared_byte;
+    return 2;
 }
 
 // 256 sources, each pair reaching one of 4 targets of a dim-1 double dat,
@@ -189,7 +192,8 @@ struct Described {
                     {{"atomics", {}}, "chunk_strategy_baseline",
                      reinterpret_cast<const void *>(chunk_strategy_baseline),
                      baseline_source}}},
-          descriptor{{name, "cuda", "Indirect", false}, false, params, families, &bind,
+          descriptor{{.name = name, .target = "cuda", .direct = false},
+                     false, params, families, 2, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
           loop{descriptor, op::rt::context()} {}
 };

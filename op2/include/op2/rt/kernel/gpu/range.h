@@ -11,9 +11,9 @@
 namespace op::rt::kernel::gpu {
 
 template<bool ordered, typename Element>
-__device__ __forceinline__ void range(int start, int end, const int *__restrict order,
+__device__ __forceinline__ void range(int begin, int end, const int *__restrict order,
                                       Element&& element) {
-    for (int i = threadIdx.x + blockIdx.x * block_size() + start; i < end;
+    for (int i = threadIdx.x + blockIdx.x * block_size() + begin; i < end;
          i += block_size() * gridDim.x)
         element(ordered ? order[i] : i);
 }

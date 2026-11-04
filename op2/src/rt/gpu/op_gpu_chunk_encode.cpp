@@ -31,7 +31,7 @@ int *allocate_zeroed(std::size_t count) {
 } // namespace
 
 DevicePlan::DevicePlan(const ChunkPlan& plan) {
-    upload(plan.chunks.offsets, m_source_offsets);
+    upload(plan.chunks.offsets, m_chunk_offsets);
     upload(plan.stage_words, m_stage_words);
     upload(slot_counts(plan.staging), m_stage_counts);
     upload(plan.staging.slot_offsets, m_slot_offsets);

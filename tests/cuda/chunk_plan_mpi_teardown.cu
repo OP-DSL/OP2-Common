@@ -105,8 +105,8 @@ int main(int argc, char **argv) {
     auto& plan = *new std::optional<op::rt::gpu::DevicePlan>(std::in_place, *result.plan);
     op::rt::abi::gpu::Chunk record;
     plan->fill(record, 0);
-    CHECK(record.source_offsets != nullptr && record.stage_words != nullptr);
-    static Owned owned{{"teardown", "cuda", "Direct", true}, &plan};
+    CHECK(record.chunk_offsets != nullptr && record.stage_words != nullptr);
+    static Owned owned{{.name = "teardown", .target = "cuda", .direct = true}, &plan};
     op::rt::loop::runtime<PlanOwner>(owned);
     if (no_exit) {
         MPI_Finalize();

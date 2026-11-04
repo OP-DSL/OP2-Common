@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -35,7 +36,7 @@ constexpr int elements = 4096;
 #define KERNEL_BODY R"op2(
 void thread_limit_kernel(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM) double *out,
                          const double *in) {
-    for (int e = start + threadIdx.x + blockIdx.x * blockDim.x; e < end;
+    for (int e = begin + threadIdx.x + blockIdx.x * blockDim.x; e < end;
          e += blockDim.x * gridDim.x) {
         double a[64];
 #pragma unroll
@@ -63,8 +64,10 @@ constexpr char bounded[] =
 double *out_d = nullptr;
 double *in_d = nullptr;
 
-void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
-    arguments.insert(arguments.end(), {(void *)&out_d, (void *)&in_d});
+int bind(op_arg *, unsigned&, std::span<void *> arguments) {
+    arguments[0] = &out_d;
+    arguments[1] = &in_d;
+    return 2;
 }
 
 // The block size a bounded kernel reads.
@@ -80,8 +83,8 @@ struct Described {
 
     explicit Described(const char *source)
         : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
-          descriptor{{"thread_limit", "cuda", "Direct", true}, false, params,
-                     {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
+          descriptor{{.name = "thread_limit", .target = "cuda", .direct = true}, false, params,
+                     {&family, 1}, 2, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
           loop{descriptor, op::rt::context()} {}
 };

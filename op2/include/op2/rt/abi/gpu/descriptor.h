@@ -12,7 +12,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <vector>
 
 namespace op::rt::abi::gpu {
 
@@ -100,10 +99,11 @@ struct OfflineCalls {
     void *(*symbol)(const void *symbol);
 };
 
-// Append a launch's kernel arguments after its record's fields, the same for
-// every family's kernels: the loop's dats, maps, globals and indices; and
-// mark its active optional arguments in opt_flags.
-using Binder = void (*)(op_arg *args, unsigned& opt_flags, std::vector<void *>& arguments);
+// Write a launch's kernel arguments, those after its record's fields and the
+// same for every family's kernels: the loop's dats, maps, globals and
+// indices, as many as its descriptor says; and mark its active optional
+// arguments in opt_flags.  The count written.
+using Binder = int (*)(op_arg *args, unsigned& opt_flags, std::span<void *> arguments);
 
 // The headers a specialised kernel's source includes, in order, embedded in
 // the translation unit (op2/rt/kernel/gpu/jit_embed.h).
@@ -126,6 +126,8 @@ struct Loop : abi::Loop {
     bool gbl_inc_atomic;
     std::span<const Param> params;
     std::span<const Family> families;
+    // The kernel arguments its binder writes.
+    int arguments;
     Binder bind;
     const OfflineCalls *calls;
     JitHeaders headers;

@@ -1,7 +1,3 @@
-{%- macro variant_str() -%}
-{{"Direct" if lh is direct else "Indirect"}}
-{%- endmacro -%}
-
 {%- set strategies = config.strategies -%}
 
 {#- Globals each thread keeps its own copy of. -#}
@@ -264,7 +260,7 @@ static const op::rt::abi::cpu::Family op2_k_{{lh.name}}{{variant}}_families[] = 
 };
 
 static op::rt::abi::cpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
-    {"{{lh.name}}", "{{target.name}}", "{{variant_str()}}", {{"true" if lh is direct else "false"}}},
+    {.name = "{{lh.name}}", .target = "{{target.name}}", .direct = {{"true" if lh is direct else "false"}}},
     op2_k_{{lh.name}}{{variant}}_families,
     &op::rt::kernel::cpu::max_threads};
 

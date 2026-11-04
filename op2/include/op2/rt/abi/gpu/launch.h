@@ -29,11 +29,11 @@ constexpr int default_block_size = 128;
     X(int, global_stride, const)                                                         \
     X(unsigned, opt_flags, const)
 
-// A range of elements, [start, end), or under a set colouring the positions
+// A range of elements, [begin, end), or under a set colouring the positions
 // of order.
 #define OP_ABI_GPU_RANGE_FIELDS(X)                                                       \
     OP_ABI_GPU_COMMON_FIELDS(X)                                                          \
-    X(int, start, const)                                                                 \
+    X(int, begin, const)                                                                 \
     X(int, end, const)                                                                   \
     X(const int *, order, __restrict)
 
@@ -55,7 +55,7 @@ constexpr int default_block_size = 128;
 // The chunk plan's device arrays, which every chunk launch's record carries:
 // uploaded once per plan, but for wave_done, which the library zeroes.
 #define OP_ABI_GPU_CHUNK_ARRAYS(X)                                                       \
-    X(const int *, source_offsets, __restrict)                                           \
+    X(const int *, chunk_offsets, __restrict)                                           \
     X(const ::op::rt::abi::StageWord *, stage_words, __restrict)                         \
     X(const int *, stage_counts, __restrict)                                             \
     X(const int *, slot_offsets, __restrict)                                             \

@@ -365,7 +365,7 @@ void test_jit_report() {
     setenv("OP_JIT_REPORT", path.c_str(), 1);
     op::rt::init();
 
-    Probe probe{{"flux_jit", "test", "Indirect", false}};
+    Probe probe{{.name = "flux_jit", .target = "test", .direct = false}};
     auto& jitted = loop::runtime<Jitted>(probe);
     auto observe = [&](const loop::Call& call) {
         probe.params->update({});
@@ -431,7 +431,7 @@ void test_loop_registry() {
     unsetenv("OP_AUTOTUNE_REPORT");
     op::rt::init();
 
-    Counts counts{{"counted", "test", "Direct", true}};
+    Counts counts{{.name = "counted", .target = "test", .direct = true}};
     auto *first = &loop::runtime<Counted>(counts);
     CHECK(&loop::runtime<Counted>(counts) == first);
     op::rt::finalise(0, 1);

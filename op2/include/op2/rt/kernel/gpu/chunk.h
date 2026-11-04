@@ -24,14 +24,14 @@ namespace op::rt::kernel::gpu {
 // ones.
 template<typename Stage, typename Element, typename Write>
 __device__ __forceinline__ void chunk_atomics(int chunk_begin, int chunk_end, int regions,
-                                              const int *__restrict source_offsets,
+                                              const int *__restrict chunk_offsets,
                                               const int *__restrict stage_counts,
                                               const int *__restrict slot_offsets,
                                               Stage&& stage, Element&& element,
                                               Write&& write) {
     for (int chunk = chunk_begin + blockIdx.x; chunk < chunk_end; chunk += gridDim.x) {
-        const int begin = source_offsets[chunk];
-        const int end = source_offsets[chunk + 1];
+        const int begin = chunk_offsets[chunk];
+        const int end = chunk_offsets[chunk + 1];
         const int *counts = stage_counts + chunk * regions;
         const int *slots = slot_offsets + chunk * regions;
         stage(counts, slots);
@@ -57,7 +57,7 @@ __device__ __forceinline__ void chunk_atomics(int chunk_begin, int chunk_end, in
 template<bool wavefront, typename Visit>
 __device__ __forceinline__ void colour_chunks(int chunk_begin, int chunk_end,
                                               const int *__restrict chunk_order,
-                                              const int *__restrict source_offsets,
+                                              const int *__restrict chunk_offsets,
                                               const int *__restrict wave_pred_offsets,
                                               const int *__restrict wave_preds, int *wave_done,
                                               int *wave_ticket, int wave_epoch, Visit&& visit) {
@@ -68,7 +68,7 @@ __device__ __forceinline__ void colour_chunks(int chunk_begin, int chunk_end,
         if (wavefront)
             wave_wait(wave_pred_offsets, wave_preds, wave_done, i, wave_epoch);
         const int chunk = chunk_order[i];
-        visit(chunk, source_offsets[chunk], source_offsets[chunk + 1]);
+        visit(chunk, chunk_offsets[chunk], chunk_offsets[chunk + 1]);
         if (wavefront)
             wave_signal(wave_done, i, wave_epoch);
     }
@@ -80,13 +80,13 @@ __device__ __forceinline__ void colour_chunks(int chunk_begin, int chunk_end,
 template<bool wavefront, typename Stage, typename Element, typename Write>
 __device__ __forceinline__ void chunk_colouring(
     int chunk_begin, int chunk_end, int regions, const int *__restrict chunk_order,
-    const int *__restrict source_offsets, const int *__restrict stage_counts,
+    const int *__restrict chunk_offsets, const int *__restrict stage_counts,
     const int *__restrict slot_offsets, const unsigned char *__restrict thread_colours,
     const int *__restrict chunk_thread_colours, const int *__restrict wave_pred_offsets,
     const int *__restrict wave_preds, int *wave_done, int *wave_ticket, int wave_epoch,
     Stage&& stage, Element&& element, Write&& write) {
     colour_chunks<wavefront>(
-        chunk_begin, chunk_end, chunk_order, source_offsets, wave_pred_offsets, wave_preds,
+        chunk_begin, chunk_end, chunk_order, chunk_offsets, wave_pred_offsets, wave_preds,
         wave_done, wave_ticket, wave_epoch, [&](int chunk, int begin, int end) {
             const int *counts = stage_counts + chunk * regions;
             const int *slots = slot_offsets + chunk * regions;
@@ -120,13 +120,13 @@ template<bool wavefront, typename Locals, typename Stage, typename Compute, type
          typename Write>
 __device__ __forceinline__ void chunk_colouring_parallel(
     int chunk_begin, int chunk_end, int regions, const int *__restrict chunk_order,
-    const int *__restrict source_offsets, const int *__restrict stage_counts,
+    const int *__restrict chunk_offsets, const int *__restrict stage_counts,
     const int *__restrict slot_offsets, const unsigned char *__restrict thread_colours,
     const int *__restrict chunk_thread_colours, const int *__restrict wave_pred_offsets,
     const int *__restrict wave_preds, int *wave_done, int *wave_ticket, int wave_epoch,
     Stage&& stage, Compute&& compute, Apply&& apply, Write&& write) {
     colour_chunks<wavefront>(
-        chunk_begin, chunk_end, chunk_order, source_offsets, wave_pred_offsets, wave_preds,
+        chunk_begin, chunk_end, chunk_order, chunk_offsets, wave_pred_offsets, wave_preds,
         wave_done, wave_ticket, wave_epoch, [&](int chunk, int begin, int end) {
             const int *counts = stage_counts + chunk * regions;
             const int *slots = slot_offsets + chunk * regions;

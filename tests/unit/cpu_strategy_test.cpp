@@ -203,8 +203,9 @@ void run(const char *strategy) {
         {{"chunk_colouring", {}}, nullptr, &colouring_run},
         {{"colouring", {}}, &range_run<false, true>, nullptr},
     };
-    op::rt::abi::cpu::Loop descriptor{{"test_loop", "openmp_f2c", "Indirect", false}, families,
-                                      &op::rt::kernel::cpu::max_threads};
+    op::rt::abi::cpu::Loop descriptor{
+        {.name = "test_loop", .target = "openmp_f2c", .direct = false}, families,
+        &op::rt::kernel::cpu::max_threads};
     LoopParts<cpu::Executor> loop{descriptor, op::rt::context()};
     // The forced strategy itself runs, not one the ladder falls through to.
     op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};

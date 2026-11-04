@@ -38,7 +38,8 @@ private:
     std::vector<unsigned char> m_on_host;
     // Event pairs bracketing each phase's launches of a timed call.
     std::vector<gpuEvent_t> m_events;
-    // A launch's kernel arguments: its record's, then the loop's.
+    // A launch's kernel arguments: its record's, then the loop's; sized for
+    // the larger record.
     std::vector<void *> m_arguments;
     // Whether a call has needed more than 8 KiB of reduction scratch a thread.
     mutable bool m_warned_reductions = false;
@@ -46,6 +47,9 @@ private:
     // Register a parameter, bound to the device copy an offline kernel reads
     // it from when it has one.
     void add_param(const abi::gpu::Param& param);
+
+    // Have the binder write the loop's arguments after a record's fields.
+    void bind(std::span<op_arg> args, unsigned& opt_flags, std::size_t fields);
 
     // Per argument, whether the kernel that runs has it from the host side
     // and so needs no device copy of it.

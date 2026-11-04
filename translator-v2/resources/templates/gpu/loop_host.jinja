@@ -1,7 +1,3 @@
-{%- macro variant_str() -%}
-{{"Direct" if lh is direct else "Indirect"}}
-{%- endmacro -%}
-
 {%- set strategies = config.strategies -%}
 {#- The chunked strategies are built only as JIT kernels, which know every
     dimension and setting as a constant; offline builds hold the rest. -#}
@@ -297,7 +293,7 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
     };
 
     {% if strategy == "chunk_atomics" %}
-    op::rt::kernel::gpu::chunk_atomics(chunk_begin, chunk_end, {{dats|length}}, source_offsets,
+    op::rt::kernel::gpu::chunk_atomics(chunk_begin, chunk_end, {{dats|length}}, chunk_offsets,
         stage_counts, slot_offsets, op2_stage,
         [&](int n) {
             {{kernel_call(true, strategy, strategy)|indent(12)}}
@@ -310,7 +306,7 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
         {% endfor %}
     };
     op::rt::kernel::gpu::chunk_colouring_parallel<op2_wavefront, op2_locals>(
-        chunk_begin, chunk_end, {{dats|length}}, chunk_order, source_offsets, stage_counts,
+        chunk_begin, chunk_end, {{dats|length}}, chunk_order, chunk_offsets, stage_counts,
         slot_offsets, thread_colours, chunk_thread_colours, wave_pred_offsets, wave_preds,
         wave_done, wave_ticket, wave_epoch, op2_stage,
         [&](int n, op2_locals& op2_l) {
@@ -329,7 +325,7 @@ op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
         op2_write);
     {% else %}
     op::rt::kernel::gpu::chunk_colouring<op2_wavefront>(
-        chunk_begin, chunk_end, {{dats|length}}, chunk_order, source_offsets, stage_counts,
+        chunk_begin, chunk_end, {{dats|length}}, chunk_order, chunk_offsets, stage_counts,
         slot_offsets, thread_colours, chunk_thread_colours, wave_pred_offsets, wave_preds,
         wave_done, wave_ticket, wave_epoch, op2_stage,
         [&](int n) {
@@ -407,7 +403,7 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
 {{chunk_body(strategy)}}
 }
     {% else %}
-    op::rt::kernel::gpu::range<{{"true" if strategy == "colouring" else "false"}}>(start, end, order, [&](int n) {
+    op::rt::kernel::gpu::range<{{"true" if strategy == "colouring" else "false"}}>(begin, end, order, [&](int n) {
         {{kernel_call(jit, strategy)|indent(8)}}
     });
 }
@@ -429,46 +425,41 @@ namespace op2_m_{{lh.name}}{{variant}} {
 )_op2_k";
 
 {% endfor %}
-{#- An inactive optional scalar global may have no data, so its by-value
-    argument is read from the JIT's copy. -#}
 {#- A launch's kernel arguments after its record, for every family's
     offline and JIT kernels alike.  An inactive optional scalar global may have
     no data, so its by-value argument is read from the JIT's copy. -#}
-{% macro kernel_arguments() %}
-    {% for dat in lh.dats %}
-        (void *)&args[{{dat.arg_id}}].data_d,
-    {% endfor %}
-    {% for map in lh.maps %}
-        (void *)&args[{{map.arg_id}}].map_data_d,
-    {% endfor %}
-    {% for arg in lh.args|gbl if not (arg is read and arg is scalar) and arg not in gbls_by_value %}
-        (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for arg in lh.args|info %}
-        (void *)&args[{{arg.id}}].data_d,
-    {% endfor %}
-    {% for arg in lh.args|runtime_map_idx %}
-        (void *)&args[{{arg.id}}].idx,
-    {% endfor %}
-    {% for arg in lh.args|gbl|read|scalar %}
-        {% if arg is opt %}
-        args[{{arg.id}}].opt ? (void *)args[{{arg.id}}].data
-                    : (void *)&op2_m_{{lh.name}}{{variant}}::op2_gbl{{arg.id}},
-        {% else %}
-        (void *)args[{{arg.id}}].data,
-        {% endif %}
-    {% endfor %}
-    {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
-        (void *)&args[{{dat.arg_id}}].dim,
-    {% endfor %}
-    {% for arg in gbls_by_value %}
-        (void *)args[{{arg.id}}].data,
-    {% endfor %}
-{%- endmacro %}
+{% set bound = namespace(items=[]) %}
+{% for dat in lh.dats %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].data_d" % dat.arg_id] %}
+{% endfor %}
+{% for map in lh.maps %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].map_data_d" % map.arg_id] %}
+{% endfor %}
+{% for arg in lh.args|gbl if not (arg is read and arg is scalar) and arg not in gbls_by_value %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].data_d" % arg.id] %}
+{% endfor %}
+{% for arg in lh.args|info %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].data_d" % arg.id] %}
+{% endfor %}
+{% for arg in lh.args|runtime_map_idx %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].idx" % arg.id] %}
+{% endfor %}
+{% for arg in lh.args|gbl|read|scalar %}
+    {% if arg is opt %}
+    {% set bound.items = bound.items + ["args[%s].opt ? (void *)args[%s].data : (void *)&op2_m_%s%s::op2_gbl%s" % (arg.id, arg.id, lh.name, variant, arg.id)] %}
+    {% else %}
+    {% set bound.items = bound.items + ["(void *)args[%s].data" % arg.id] %}
+    {% endif %}
+{% endfor %}
+{% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].dim" % dat.arg_id] %}
+{% endfor %}
+{% for arg in gbls_by_value %}
+    {% set bound.items = bound.items + ["(void *)args[%s].data" % arg.id] %}
+{% endfor %}
 
-{% set no_arguments = not (lh.dats or lh.maps or lh.args|gbl|list or lh.args|info|list or lh.args|runtime_map_idx|list) %}
-static void op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
-                                         std::vector<void *>& arguments) {
+static int op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
+                                        std::span<void *> arguments) {
 {% if lh.args|opt|length > 0 %}
     opt_flags = 0;
     {% for arg in lh.args|opt %}
@@ -478,14 +469,18 @@ static void op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
 {% else %}
     (void)opt_flags;
 {% endif %}
-{% if no_arguments %}
+{% if bound.items %}
+    void *const bound[] = {
+        {{bound.items|join(",\n        ")}}};
+{% else %}
     (void)args;
     static const void *op2_no_arguments = nullptr;
-    arguments.push_back(&op2_no_arguments);
-{% else %}
-    arguments.insert(arguments.end(), {
-{{kernel_arguments()}}    });
+    void *const bound[] = {&op2_no_arguments};
 {% endif %}
+    int count = 0;
+    for (void *argument : bound)
+        arguments[count++] = argument;
+    return count;
 }
 
 {#- The loop as the library builds it: the parameters its kernels may be
@@ -540,10 +535,11 @@ static const op::rt::abi::gpu::Family op2_k_{{lh.name}}{{variant}}_families[] = 
 };
 
 static op::rt::abi::gpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
-    {"{{lh.name}}", "{{target.name}}", "{{variant_str()}}", {{"true" if lh is direct else "false"}}},
+    {.name = "{{lh.name}}", .target = "{{target.name}}", .direct = {{"true" if lh is direct else "false"}}},
     {{"true" if config.gbl_inc_atomic else "false"}},
     op2_k_{{lh.name}}{{variant}}_params,
     op2_k_{{lh.name}}{{variant}}_families,
+    {{bound.items|length or 1}},
     &op2_k_{{lh.name}}{{variant}}_bind,
     &op::rt::kernel::gpu::calls,
     OP_KERNEL_JIT_HEADERS};

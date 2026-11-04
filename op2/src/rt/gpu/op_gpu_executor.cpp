@@ -5,10 +5,24 @@
 #include <op2/rt/gpu/strategy.h>
 #include <op_cuda_rt_support.h>
 
+#include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <vector>
 
 namespace op::rt::gpu {
+
+namespace {
+
+#define OP_GPU_FIELD(type, name, qualifier) +1
+
+// The larger launch record's fields.
+constexpr std::size_t record_fields = std::max(0 OP_ABI_GPU_RANGE_FIELDS(OP_GPU_FIELD),
+                                               0 OP_ABI_GPU_CHUNK_FIELDS(OP_GPU_FIELD));
+
+#undef OP_GPU_FIELD
+
+} // namespace
 
 Executor::Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& params,
                    op::rt::Context& context)
@@ -18,6 +32,7 @@ Executor::Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& para
     m_params.set_dat_stride(&dat_stride);
     for (const auto& param : descriptor.params)
         add_param(param);
+    m_arguments.resize(record_fields + static_cast<std::size_t>(descriptor.arguments));
 }
 
 Executor::~Executor() {
@@ -83,19 +98,26 @@ bool Executor::combine_globals(const op::rt::loop::Call& call, int global_stride
                                        m_descriptor.gbl_inc_atomic);
 }
 
-#define OP_GPU_ARGUMENT(type, name, qualifier) m_arguments.push_back(&record.name);
+void Executor::bind(std::span<op_arg> args, unsigned& opt_flags, std::size_t fields) {
+    auto arguments = std::span{m_arguments}.subspan(
+        fields, static_cast<std::size_t>(m_descriptor.arguments));
+    [[maybe_unused]] int written = m_descriptor.bind(args.data(), opt_flags, arguments);
+    assert(written == m_descriptor.arguments);
+}
+
+#define OP_GPU_ARGUMENT(type, name, qualifier) m_arguments[fields++] = &record.name;
 
 void **Executor::arguments(abi::gpu::Range& record, std::span<op_arg> args) {
-    m_arguments.clear();
+    std::size_t fields = 0;
     OP_ABI_GPU_RANGE_FIELDS(OP_GPU_ARGUMENT)
-    m_descriptor.bind(args.data(), record.opt_flags, m_arguments);
+    bind(args, record.opt_flags, fields);
     return m_arguments.data();
 }
 
 void **Executor::arguments(abi::gpu::Chunk& record, std::span<op_arg> args) {
-    m_arguments.clear();
+    std::size_t fields = 0;
     OP_ABI_GPU_CHUNK_FIELDS(OP_GPU_ARGUMENT)
-    m_descriptor.bind(args.data(), record.opt_flags, m_arguments);
+    bind(args, record.opt_flags, fields);
     return m_arguments.data();
 }
 

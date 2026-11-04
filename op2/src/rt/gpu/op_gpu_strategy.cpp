@@ -178,7 +178,7 @@ std::optional<float> Simple::run(const op::rt::loop::Prepared& prepared,
         prepared, call, timed, sections.phases(), call_shape,
         [&](int phase) { return sections[phase].size() > 0 ? 1 : 0; },
         [&](int phase, int, abi::gpu::Range& record) {
-            record.start = sections[phase].begin;
+            record.begin = sections[phase].begin;
             record.end = sections[phase].end;
             return Geometry{grid(sections[phase].size(), call_shape.block_limit), 0};
         });
@@ -221,10 +221,10 @@ std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
     return run_phases<abi::gpu::Range>(
         prepared, call, timed, colouring.phases(), call_shape, [](int) { return 1; },
         [&](int colour, int, abi::gpu::Range& record) {
-            record.start = colouring.offsets[static_cast<std::size_t>(colour)];
+            record.begin = colouring.offsets[static_cast<std::size_t>(colour)];
             record.end = colouring.offsets[static_cast<std::size_t>(colour) + 1];
             record.order = entry.order_d;
-            return Geometry{grid(record.end - record.start, call_shape.block_limit), 0};
+            return Geometry{grid(record.end - record.begin, call_shape.block_limit), 0};
         });
 }
 

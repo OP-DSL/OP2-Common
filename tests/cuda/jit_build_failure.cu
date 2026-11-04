@@ -14,8 +14,8 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
 #include <string>
-#include <vector>
 
 #include "../loop_parts.h"
 
@@ -39,8 +39,10 @@ extern "C" __global__ void build_failure_offline(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_
 int *output_d = nullptr;
 int value = 0;
 
-void bind(op_arg *, unsigned&, std::vector<void *>& arguments) {
-    arguments.insert(arguments.end(), {(void *)&output_d, (void *)&value});
+int bind(op_arg *, unsigned&, std::span<void *> arguments) {
+    arguments[0] = &output_d;
+    arguments[1] = &value;
+    return 2;
 }
 
 // The kernel's result after one call of loop.
@@ -91,9 +93,9 @@ int main(int argc, char **argv) {
         };
         const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
             "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
-        op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
-                                          params, kernels, &bind,
-                                          &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
+        op::rt::abi::gpu::Loop descriptor{
+            {.name = "build_failure", .target = "cuda", .direct = true}, false, params, kernels,
+            2, &bind, &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
         LoopParts<gpu::Executor> loop{descriptor, op::rt::context()};
 
         for (int call = 1; call <= 3; ++call)
