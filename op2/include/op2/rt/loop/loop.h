@@ -132,8 +132,8 @@ public:
     }
 
     // Run one call: start the halo exchange, which decides what the call runs
-    // and which the planning overlaps; decide; prepare the globals; run; and
-    // reduce and mark the globals and dats.
+    // and which the planning overlaps; decide; run; and reduce and mark the
+    // globals and dats.
     void invoke(op_set set, std::span<op_arg> args);
 };
 

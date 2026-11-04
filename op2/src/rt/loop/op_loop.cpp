@@ -37,9 +37,6 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
         const Call call{set, args, n_exec, m_direct};
         auto decision = decide(call);
 
-        op_profile_next("Prepare GBLs");
-        decision.prepared.candidate->strategy->begin_call(decision.prepared, call);
-
         op_profile_next("Computation");
         op_profile_enter("Kernel");
         run(decision, call);

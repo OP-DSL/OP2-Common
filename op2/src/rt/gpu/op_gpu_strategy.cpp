@@ -134,7 +134,7 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Prepared& prep
                                               const op::rt::loop::Phases& phases,
                                               const Shape& shape, Launches&& launches,
                                               Fill&& fill) {
-    assert(prepared.candidate->strategy == this);
+    m_executor.prepare_globals(prepared, call, shape.global_stride);
     // The kernel reads the call's run-time values from device symbols.
     if (prepared.kernel != nullptr)
         static_cast<JitKernel *>(prepared.kernel)->upload(m_executor.params());

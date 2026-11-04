@@ -59,17 +59,30 @@ void Globals::combine(std::span<op_arg> args, int index) const {
     }
 }
 
-void Globals::prepare(std::span<op_arg> args, int threads) {
+void Globals::prepare(std::span<op_arg> args, int threads, const char *loop) {
     int nargs = static_cast<int>(args.size());
     m_nargs = nargs;
     m_threads = threads;
     m_offsets.assign(static_cast<std::size_t>(nargs), SIZE_MAX);
+    m_types.assign(static_cast<std::size_t>(nargs), std::nullopt);
     m_stride = 0;
-    for (int i = 0; i < nargs; ++i)
-        if (per_thread(args[i], args)) {
-            m_offsets[static_cast<std::size_t>(i)] = m_stride;
-            m_stride += (static_cast<std::size_t>(args[i].size) + line - 1) / line * line;
+    for (int i = 0; i < nargs; ++i) {
+        const auto& arg = args[i];
+        if (!per_thread(arg, args))
+            continue;
+        m_offsets[static_cast<std::size_t>(i)] = m_stride;
+        m_stride += (static_cast<std::size_t>(arg.size) + line - 1) / line * line;
+        if (arg.argtype != OP_ARG_GBL || arg.acc == OP_WORK)
+            continue;
+        auto type = op::rt::loop::element_type(arg.type);
+        if (type != abi::ElementType::f64 && type != abi::ElementType::f32 &&
+            type != abi::ElementType::i32) {
+            std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n", arg.type,
+                         loop);
+            std::exit(1);
         }
+        m_types[static_cast<std::size_t>(i)] = type;
+    }
 
     m_pointers.assign(static_cast<std::size_t>(threads * nargs), nullptr);
     if (m_stride == 0)
@@ -98,24 +111,15 @@ void Globals::prepare(std::span<op_arg> args, int threads) {
         }
 }
 
-void Globals::combine(std::span<op_arg> args, const char *loop) const {
+void Globals::combine(std::span<op_arg> args) const {
     for (int i = 0; i < m_nargs; ++i) {
-        const auto& arg = args[i];
-        if (m_offsets[static_cast<std::size_t>(i)] == SIZE_MAX ||
-            arg.argtype != OP_ARG_GBL || arg.acc == OP_WORK)
-            continue;
-        auto type = op::rt::loop::element_type(arg.type);
-        if (type == abi::ElementType::f64) {
+        auto type = m_types[static_cast<std::size_t>(i)];
+        if (type == abi::ElementType::f64)
             combine<double>(args, i);
-        } else if (type == abi::ElementType::f32) {
+        else if (type == abi::ElementType::f32)
             combine<float>(args, i);
-        } else if (type == abi::ElementType::i32) {
+        else if (type == abi::ElementType::i32)
             combine<int>(args, i);
-        } else {
-            std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n",
-                         arg.type, loop);
-            std::exit(1);
-        }
     }
 }
 
@@ -162,11 +166,11 @@ void Executor::reserve_scratch(std::size_t bytes) {
 
 void Executor::begin_call(const op::rt::loop::Call& call) {
     m_threads = m_descriptor.max_threads();
-    m_globals.prepare(call.args, m_threads);
+    m_globals.prepare(call.args, m_threads, name());
 }
 
 void Executor::combine_globals(const op::rt::loop::Call& call) {
-    m_globals.combine(call.args, name());
+    m_globals.combine(call.args);
 }
 
 } // namespace op::rt::cpu

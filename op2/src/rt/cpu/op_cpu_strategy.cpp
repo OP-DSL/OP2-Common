@@ -2,7 +2,6 @@
 
 #include <op2/rt/plan/options.h>
 
-#include <cassert>
 #include <chrono>
 #include <string>
 
@@ -35,6 +34,10 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Call& call, bo
     using clock = std::chrono::steady_clock;
     clock::duration elapsed{};
     op::rt::loop::run_phases(call, phases, [&](int index) {
+        if (!timed) {
+            phase(index);
+            return;
+        }
         auto start = clock::now();
         phase(index);
         elapsed += clock::now() - start;
@@ -52,9 +55,9 @@ op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call&, op::rt::loop::
     return op::rt::loop::Prepared::ready();
 }
 
-std::optional<float> Simple::run([[maybe_unused]] const op::rt::loop::Prepared& prepared,
-                                 const op::rt::loop::Call& call, bool timed) {
-    assert(prepared.candidate->strategy == this);
+std::optional<float> Simple::run(const op::rt::loop::Prepared&, const op::rt::loop::Call& call,
+                                 bool timed) {
+    m_executor.begin_call(call);
     const auto& sections = call.sections;
     return run_phases(call, timed, sections.phases(), [&](int section) {
                           split(sections[section].begin, sections[section].end, nullptr,
@@ -83,6 +86,7 @@ op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
 std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::Call& call, bool timed) {
     const auto& colouring = *static_cast<const op::rt::plan::SetColouring *>(prepared.entry);
+    m_executor.begin_call(call);
     // The core's colours come first, and run while the halo arrives.
     return run_phases(call, timed, colouring.phases(), [&](int colour) {
                           split(colouring.offsets[static_cast<std::size_t>(colour)],
@@ -134,6 +138,7 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
     const auto& plan = *entry.plan;
     const auto& sections = call.sections;
+    m_executor.begin_call(call);
     m_executor.reserve_scratch(plan.max_scratch_bytes);
 
     abi::cpu::Chunk chunks = m_executor.chunks();

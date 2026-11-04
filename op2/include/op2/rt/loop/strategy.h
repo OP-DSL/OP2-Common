@@ -121,16 +121,9 @@ public:
     // Urgency::wait, or when the backend builds synchronously.
     virtual Prepared prepare(const Call& call, Urgency urgency, KernelKind kind) = 0;
 
-    // Once its candidate is selected for the call, before the run: set up
-    // what the run needs of the call's globals.
-    virtual void begin_call(const Prepared& prepared, const Call& call) {
-        (void)prepared;
-        (void)call;
-    }
-
-    // Run what prepare returned for call; microseconds when timed.  What the
-    // run needs comes from the call and the prepared entry, and what
-    // strategies share from their executor, as begin_call set it up.
+    // Run what prepare returned for call, its globals set up first;
+    // microseconds when timed.  What the run needs comes from the call, the
+    // prepared entry and what strategies share from their executor.
     virtual std::optional<float> run(const Prepared& prepared, const Call& call,
                                      bool timed) = 0;
 

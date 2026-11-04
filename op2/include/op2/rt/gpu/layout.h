@@ -7,10 +7,14 @@
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
+#include <cstddef>
+
 namespace op::rt::gpu {
 
 // A per-element array's stride for elements: rounded up to a warp.
-constexpr int pitch(int elements) { return (elements + 31) & ~31; }
+constexpr int pitch(int elements) {
+    return static_cast<int>(round32(static_cast<std::size_t>(elements)));
+}
 
 // The stride of a loop's per-element device arrays: the set's elements, and
 // for an indirect loop its exec halo too.

@@ -34,7 +34,6 @@ struct LoopParts {
         auto& strategy = *selection.candidate->strategy;
         op_profile_enter_kernel(name, "test", "test");
         op_profile_enter("Kernel");
-        strategy.begin_call(selection, call);
         strategy.run(selection, call, false);
         op_profile_exit();
         op_profile_exit();

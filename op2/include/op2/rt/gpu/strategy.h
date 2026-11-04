@@ -74,8 +74,7 @@ protected:
     // A call's launches under its plan: the per-element arrays' stride, the
     // most blocks a launch may use, and the stride between the blocks' copies
     // of the globals, its block size times the largest launch.  Derived from
-    // the call and the plan wherever it is needed, so prepare, begin_call and
-    // run agree.
+    // the call and the plan wherever it is needed, so prepare and run agree.
     struct Shape {
         int stride = 0;
         int block_limit = 0;
@@ -130,10 +129,11 @@ protected:
     void launch(const op::rt::loop::Prepared& prepared, Record& record,
                 std::span<op_arg> args, Geometry geometry);
 
-    // Run the phases of a call through loop::run_phases, each phase's
-    // launches bracketed by an event pair when timed.  launches(phase) gives
-    // the launch count, fill(phase, launch, record) the launch's record of
-    // type Record past its strides, and its geometry.
+    // Run the phases of a call through loop::run_phases, its globals and
+    // run-time values on the device first, each phase's launches bracketed
+    // by an event pair when timed.  launches(phase) gives the launch count,
+    // fill(phase, launch, record) the launch's record of type Record past its
+    // strides, and its geometry.
     template<typename Record, typename Launches, typename Fill>
     std::optional<float> run_phases(const op::rt::loop::Prepared& prepared,
                                     const op::rt::loop::Call& call, bool timed,
@@ -159,12 +159,6 @@ public:
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
                                    op::rt::loop::Urgency urgency,
                                    op::rt::loop::KernelKind kind) final;
-
-    // The device copies of the call's globals, a copy per launched thread.
-    void begin_call(const op::rt::loop::Prepared& prepared,
-                    const op::rt::loop::Call& call) override {
-        m_executor.prepare_globals(prepared, call, shape(call, prepared.entry).global_stride);
-    }
 
     op::rt::loop::BuildCounts builds() const override { return m_cache.counts(); }
 };

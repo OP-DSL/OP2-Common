@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -28,6 +29,8 @@ private:
     int m_threads = 0;
     std::size_t m_stride = 0;
     std::vector<std::size_t> m_offsets;
+    // Per argument, the element type it reduces in; none if it reduces none.
+    std::vector<std::optional<abi::ElementType>> m_types;
     std::unique_ptr<char[]> m_storage;
     std::size_t m_capacity = 0;
     std::vector<char *> m_pointers;
@@ -37,8 +40,9 @@ private:
 
 public:
     // Lay out and initialise every thread's copies: increments from zero,
-    // the rest from the argument's value.
-    void prepare(std::span<op_arg> args, int threads);
+    // the rest from the argument's value.  A reduction of a type it cannot
+    // combine stops the run, naming loop.
+    void prepare(std::span<op_arg> args, int threads, const char *loop);
 
     // Per thread its copy of each argument, nargs apart; null for an
     // argument not kept per thread.
@@ -46,7 +50,7 @@ public:
     int nargs() const { return m_nargs; }
 
     // Combine every thread's reductions into the arguments, in thread order.
-    void combine(std::span<op_arg> args, const char *loop) const;
+    void combine(std::span<op_arg> args) const;
 };
 
 class Executor final : public op::rt::loop::Executor {
@@ -69,7 +73,7 @@ public:
 
     const char *name() const { return m_descriptor.name; }
 
-    // Start a call: its threads, and each one's copy of the globals.
+    // Start a run of call: its threads, and each one's copy of the globals.
     void begin_call(const op::rt::loop::Call& call);
 
     // A range and a chunk phase over the call's threads and their globals,

@@ -48,11 +48,6 @@ public:
     static std::vector<op::rt::loop::Axis> axes() { return {}; }
 
     std::string_view name() const override { return m_name; }
-
-    // The call's threads and their copies of the globals.
-    void begin_call(const op::rt::loop::Prepared&, const op::rt::loop::Call& call) override {
-        m_executor.begin_call(call);
-    }
 };
 
 // --- Plain and atomics ------------------------------------------------------------

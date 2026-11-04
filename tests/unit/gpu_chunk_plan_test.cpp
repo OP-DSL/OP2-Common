@@ -3,6 +3,7 @@
 // wavefront, and the rejections.
 
 #include <op2/rt/gpu/chunk_plan.h>
+#include <op2/rt/gpu/layout.h>
 #include <op2/rt/kernel/staging.h>
 
 #include <algorithm>
@@ -32,7 +33,9 @@ namespace {
 // The device's stride for the elements the sections cover, as
 // gpu::element_stride gives a set of them.
 gpu::ChunkSpec spec(const Sections& sections, int block_size, std::size_t shared_bytes) {
-    return {block_size, shared_bytes, (sections.elements() + 31) & ~31};
+    return {.block_size = block_size,
+            .shared_bytes = shared_bytes,
+            .stride = gpu::pitch(sections.elements())};
 }
 
 // chunk_atomics with no compression floor, so small fixtures are never
