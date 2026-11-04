@@ -79,8 +79,7 @@ OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(OBJ)/rt/op_rt_report.o $(addprefix $(OBJ
 	op_tune_report.o) $(addprefix $(OBJ)/rt/plan/,\
 	op_plan_colouring.o \
 	op_plan_chunks.o \
-	op_plan_staging.o \
-	op_plan_options.o)
+	op_plan_staging.o)
 
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\

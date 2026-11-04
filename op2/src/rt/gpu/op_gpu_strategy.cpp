@@ -240,11 +240,11 @@ ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call,
                                     const ChunkSpec& spec) const {
     return plan_chunk_atomics(call.args, call.sections, m_family.groups, spec,
                               m_unstaged_singles,
-                              m_executor.context().chunk.min_compression);
+                              m_executor.backend().options.min_compression);
 }
 
 void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
-    key.add(m_unstaged_singles).add(m_executor.context().chunk.min_compression);
+    key.add(m_unstaged_singles).add(m_executor.backend().options.min_compression);
 }
 
 std::string ChunkAtomics::extras(const ChunkPlan& plan) const {

@@ -66,7 +66,6 @@ set(_op2_rt_srcs
     "${_src}/rt/plan/op_plan_colouring.cpp"
     "${_src}/rt/plan/op_plan_chunks.cpp"
     "${_src}/rt/plan/op_plan_staging.cpp"
-    "${_src}/rt/plan/op_plan_options.cpp"
 )
 
 # The OpenMP backend's runtime (src/rt/cpu): its executor, strategies and

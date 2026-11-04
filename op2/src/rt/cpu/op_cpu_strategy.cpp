@@ -151,11 +151,11 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
 
 ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call) const {
     return plan_chunk_atomics(call.args, call.sections, m_family.groups, m_chunk_size,
-                              m_executor.context().chunk.min_compression);
+                              m_executor.backend().options.min_compression);
 }
 
 void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
-    key.add(m_family.groups).add(m_executor.context().chunk.min_compression);
+    key.add(m_family.groups).add(m_executor.backend().options.min_compression);
 }
 
 ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call) const {

@@ -22,6 +22,7 @@ Backend::Backend() : heuristics{read_heuristic_options()} {
     options.build_threads = 16;
 #endif
     env::parse_number("OP_CHUNK_COLOURING_WINDOW", options.window);
+    env::parse_number("OP_CHUNK_ATOMICS_MIN_COMPRESSION", options.min_compression);
 
     int id;
     GPU_CHECK(gpuGetDevice(&id));

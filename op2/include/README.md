@@ -145,7 +145,7 @@ op2/renumber/hilbert_sfc.h  (the Hilbert space-filling curve over 2D or 3D
 ```
 op2/rt/context.h    (includes: op2/rt/jit/options.h, op2/rt/jit/pool.h,
                      op2/rt/loop/family.h, op2/rt/loop/registry.h,
-                     op2/rt/plan/options.h, op2/rt/tune/options.h; op::rt:
+                     op2/rt/tune/options.h; op::rt:
                      the run's context from op_init to op_exit: its options,
                      the families the backend declared, the threads kernels
                      build on, what the backend keeps for its loops, and the
@@ -380,8 +380,6 @@ op2/rt/plan/staging.h        (includes: op2/rt/abi/descriptor.h,
                               chunk plan holds: its chunks, batches and
                               staging, the slots taken as the backend's stage
                               words, and its figures)
-op2/rt/plan/options.h        (the chunked strategies' run-wide options, read
-                              into the run's context)
 op2/rt/plan/cache.h          (includes: extern/rapidhash.h,
                               op2/rt/abi/descriptor.h, op2/rt/hasher.h,
                               op2/rt/loop/call.h;
@@ -398,8 +396,9 @@ op2/rt/plan/greedy_colour.h  (includes: op_lib_core.h; internal to the
 Internal to the library: the generated code reaches it through
 `op2/rt/abi/gpu/descriptor.h`.
 ```
-op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's and
-                            the wavefront window, and the device's facts)
+op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's,
+                            the wavefront window and chunk_atomics' least
+                            compression, and the device's facts)
 op2/rt/gpu/backend.h       (includes: op2/rt/context.h,
                             op2/rt/gpu/heuristics.h, op2/rt/gpu/options.h,
                             op2/rt/plan/cache.h; the backend's part of the
@@ -482,7 +481,8 @@ Internal to the library: the generated code reaches it through
 op2/rt/cpu/backend.h     (includes: op2/rt/context.h,
                           op2/rt/cpu/chunk_plan.h, op2/rt/plan/cache.h,
                           op2/rt/plan/colouring.h; the backend's part of the
-                          run's context, the plans its loops share, made by
+                          run's context, its options (chunk_atomics' least
+                          compression) and the plans its loops share, made by
                           the CPU libraries' op_init, which declares the
                           CPU families; from src/rt/cpu/op_cpu_init.cpp)
 op2/rt/cpu/executor.h    (includes: op_lib_core.h,

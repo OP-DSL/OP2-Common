@@ -1,7 +1,7 @@
 #pragma once
 
-// The OpenMP backend's part of the run's context (op2/rt/context.h): the
-// plans its loops share.  op::rt::init_cpu makes it, from
+// The OpenMP backend's part of the run's context (op2/rt/context.h): its
+// options and the plans its loops share.  op::rt::init_cpu makes it, from
 // src/rt/cpu/op_cpu_init.cpp.
 
 #include <op2/rt/context.h>
@@ -11,11 +11,21 @@
 
 namespace op::rt::cpu {
 
+struct Options {
+    // OP_CHUNK_ATOMICS_MIN_COMPRESSION: a chunk_atomics plan averaging fewer
+    // references per flushed target than this is rejected; 0 accepts all.
+    double min_compression = 1.5;
+};
+
 struct Backend final : op::rt::Backend {
+    Options options;
     // The live plans of each kind, which every strategy that would build the
     // same one shares.
     op::rt::plan::SharedPlans<op::rt::plan::SetColouring> colouring_plans;
     op::rt::plan::SharedPlans<ChunkResult> chunk_plans;
+
+    // Read the variables.
+    Backend();
 };
 
 // The CPU part of context, which init_cpu made.

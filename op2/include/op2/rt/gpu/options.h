@@ -16,6 +16,10 @@ struct Options {
     // OP_CHUNK_COLOURING_WINDOW: chunks a wavefront colours at a time; 0
     // colours a section at once.
     int window = 4096;
+
+    // OP_CHUNK_ATOMICS_MIN_COMPRESSION: a chunk_atomics plan averaging fewer
+    // references per flushed target than this is rejected; 0 accepts all.
+    double min_compression = 1.5;
 };
 
 struct Device {

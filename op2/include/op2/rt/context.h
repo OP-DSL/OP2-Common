@@ -11,7 +11,6 @@
 #include <op2/rt/jit/pool.h>
 #include <op2/rt/loop/family.h>
 #include <op2/rt/loop/registry.h>
-#include <op2/rt/plan/options.h>
 #include <op2/rt/tune/options.h>
 
 #include <memory>
@@ -28,7 +27,6 @@ public:
 struct Context {
     jit::Options jit = jit::read_options();
     tune::AutotuneOptions autotune = tune::read_options();
-    plan::ChunkOptions chunk = plan::read_chunk_options();
     loop::Families families;
     // Limited by the backend, which builds on it.
     jit::BuildPool builds;
