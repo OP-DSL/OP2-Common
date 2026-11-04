@@ -8,12 +8,13 @@
 
 #include <extern/rapidhash.h>
 #include <op2/rt/abi/descriptor.h>
+#include <op2/rt/hasher.h>
 #include <op2/rt/loop/call.h>
 
 #include <algorithm>
+#include <bit>
 #include <concepts>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <string_view>
 #include <unordered_map>
@@ -26,33 +27,22 @@ namespace op::rt::plan {
 // lays regions out by, and the planner's other inputs, as it adds them.
 class PlanKey {
 private:
-    std::uint64_t m_hash;
-
-    void mix(const void *data, std::size_t bytes) {
-        m_hash = rapidhash_withSeed(data, bytes, m_hash);
-    }
+    Hasher<std::int64_t, 32> m_hash;
 
 public:
     PlanKey(std::string_view planner, const loop::Call& call) : m_hash{call.key()} {
-        mix(planner.data(), planner.size());
-        for (const auto& arg : call.args) {
-            int bytes = arg.opt != 0 ? arg.size : 0;
-            mix(&bytes, sizeof(bytes));
-        }
+        add(rapidhash(planner.data(), planner.size()));
+        for (const auto& arg : call.args)
+            add(arg.opt != 0 ? arg.size : 0);
     }
 
     template<std::integral T>
     PlanKey& add(T value) {
-        std::int64_t word = value;
-        mix(&word, sizeof(word));
+        m_hash.add(static_cast<std::int64_t>(value));
         return *this;
     }
 
-    PlanKey& add(double value) {
-        std::int64_t bits;
-        std::memcpy(&bits, &value, sizeof(bits));
-        return add(bits);
-    }
+    PlanKey& add(double value) { return add(std::bit_cast<std::int64_t>(value)); }
 
     PlanKey& add(const abi::ArgGroups& groups) {
         add(groups.groups);
@@ -61,7 +51,7 @@ public:
         return *this;
     }
 
-    std::uint64_t value() const { return m_hash; }
+    std::uint64_t value() const { return m_hash.value(); }
 };
 
 // The live plans of one kind, by key; it holds none of them.

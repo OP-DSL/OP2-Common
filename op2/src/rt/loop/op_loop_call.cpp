@@ -1,6 +1,6 @@
 #include <op2/rt/loop/call.h>
 
-#include <extern/rapidhash.h>
+#include <op2/rt/hasher.h>
 #include <op_lib_core.h>
 
 #include <algorithm>
@@ -40,15 +40,11 @@ std::uint64_t Call::key() const {
     if (m_keyed)
         return m_key;
 
-    // The words that shape the call, hashed a buffer at a time: per
-    // argument its activity, kind, access and map index in one word, then
-    // the first argument on its dat, its map and dimension.
-    constexpr std::size_t arg_words = 4;
-    std::array<std::int32_t, 2 + 32 * arg_words> words;
-    std::size_t count = 0;
-    std::uint64_t hash = RAPID_SEED;
-    words[count++] = set->index;
-    words[count++] = run_size;
+    // The words that shape the call: its set and size, then per argument its
+    // activity, kind, access and map index in one word, the first argument
+    // on its dat, its map and dimension.
+    Hasher<std::int32_t, 128> hash;
+    hash.add(set->index).add(run_size);
     auto first_on_dat = [&](std::size_t i) {
         for (std::size_t j = 0; j < i; ++j)
             if (args[j].opt != 0 && args[j].dat == args[i].dat)
@@ -57,21 +53,17 @@ std::uint64_t Call::key() const {
     };
     for (std::size_t i = 0; i < args.size(); ++i) {
         const op_arg& arg = args[i];
-        if (count + arg_words > words.size()) {
-            hash = rapidhash_withSeed(words.data(), count * sizeof(words[0]), hash);
-            count = 0;
-        }
         if (arg.opt == 0) {
-            words[count++] = 0;
+            hash.add(0);
             continue;
         }
-        words[count++] = 1 | arg.argtype << 1 | arg.acc << 4 | (arg.idx & 0xffff) << 16;
-        words[count++] = arg.dat != nullptr ? first_on_dat(i) : -1;
-        words[count++] = arg.map != nullptr ? arg.map->index : -1;
-        words[count++] = arg.dim;
+        hash.add(1 | arg.argtype << 1 | arg.acc << 4 | (arg.idx & 0xffff) << 16)
+            .add(arg.dat != nullptr ? first_on_dat(i) : -1)
+            .add(arg.map != nullptr ? arg.map->index : -1)
+            .add(arg.dim);
     }
 
-    m_key = rapidhash_withSeed(words.data(), count * sizeof(words[0]), hash);
+    m_key = hash.value();
     m_keyed = true;
     return m_key;
 }

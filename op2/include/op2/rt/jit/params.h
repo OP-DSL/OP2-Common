@@ -5,6 +5,7 @@
 
 #include <extern/rapidhash.h>
 #include <op2/rt/abi/descriptor.h>
+#include <op2/rt/hasher.h>
 #include <op2/rt/jit/options.h>
 #include <op2/rt/loop/call.h>
 #include <op_lib_core.h>
@@ -235,10 +236,9 @@ public:
     // bits.  The call's statistics are observed first.
     std::uint64_t key(const loop::Call& call, std::span<const int> values) {
         observe_call(call);
-        std::array<std::uint64_t, 65> words;
+        Hasher<std::uint64_t, 65> key{hash_seed};
         std::size_t count = 0;
         std::uint64_t runtime = 0;
-        std::uint64_t key = hash_seed;
         for (const auto& param : m_params) {
             std::uint64_t value = 0;
             if (param.mode() == ParamMode::baked) {
@@ -249,16 +249,14 @@ public:
             } else {
                 runtime |= std::uint64_t{1} << count;
             }
-            words[count++] = value;
-            if (count == 64) {
-                words[count++] = runtime;
-                key = rapidhash_withSeed(words.data(), count * sizeof(words[0]), key);
+            key.add(value);
+            if (++count == 64) {
+                key.add(runtime);
                 count = 0;
                 runtime = 0;
             }
         }
-        words[count++] = runtime;
-        return rapidhash_withSeed(words.data(), count * sizeof(words[0]), key);
+        return key.add(runtime).value();
     }
 };
 
