@@ -29,6 +29,9 @@ struct Axis {
     std::string_view key;
     bool binary = false;
     std::vector<int> defaults;
+
+    // value as a strategy's name gives it: "block_size=64", "singles=off".
+    std::string item(int value) const;
 };
 
 // A strategy's place on its family's axes: its name and a value per axis,

@@ -4,13 +4,16 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cctype>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
 
 namespace op::rt::loop {
+
+std::string Axis::item(int value) const {
+    return std::string{key} + "=" +
+           (binary ? (value != 0 ? "on" : "off") : std::to_string(value));
+}
 
 int Point::value(std::string_view key) const {
     auto found = std::find(keys.begin(), keys.end(), key);
@@ -19,13 +22,6 @@ int Point::value(std::string_view key) const {
 }
 
 namespace {
-
-std::string upper(std::string_view text) {
-    std::string out{text};
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return std::toupper(c); });
-    return out;
-}
 
 // An axis's values from one variable, in order without repeats; empty when
 // the variable is unset or holds nothing usable.
@@ -38,11 +34,8 @@ std::vector<int> axis_values(const std::string& variable, const Axis& axis) {
         if (axis.binary) {
             if (auto parsed = env::switch_value(item))
                 value = *parsed ? 1 : 0;
-        } else {
-            char *end = nullptr;
-            long parsed = std::strtol(item.c_str(), &end, 10);
-            if (end != item.c_str() && *end == '\0' && parsed > 0 && parsed <= INT32_MAX)
-                value = static_cast<int>(parsed);
+        } else if (auto parsed = env::number_value(item, 1)) {
+            value = *parsed;
         }
         if (value < 0)
             env::warn("warning: ignoring " + variable + " item '" + item +
@@ -61,7 +54,7 @@ std::vector<std::vector<int>> family_values(std::string_view family,
     std::vector<std::vector<int>> values;
     for (const auto& axis : axes) {
         auto variable = std::string{axis.variable};
-        auto chosen = axis_values("OP_" + upper(family) + "_" + variable, axis);
+        auto chosen = axis_values("OP_" + env::upper(family) + "_" + variable, axis);
         if (chosen.empty())
             chosen = axis_values("OP_" + variable, axis);
         if (chosen.empty())
@@ -83,9 +76,7 @@ std::vector<Point> Families::Settings::points(std::string_view family) const {
             int value = values[i][index[i]];
             point.keys.push_back(axes[i].key);
             point.values.push_back(value);
-            point.name += ";" + std::string{axes[i].key} + "=" +
-                          (axes[i].binary ? (value != 0 ? "on" : "off")
-                                          : std::to_string(value));
+            point.name += ";" + axes[i].item(value);
         }
         out.push_back(std::move(point));
 
@@ -107,7 +98,7 @@ void Families::declare(std::span<const Family> families) {
         Settings settings;
         settings.axes = family.axes;
         settings.enabled_by_default = family.enabled;
-        env::parse_bool(("OP_" + upper(family.name)).c_str(), settings.enabled);
+        env::parse_bool(("OP_" + env::upper(family.name)).c_str(), settings.enabled);
         settings.values = family_values(family.name, family.axes);
         settings.rank = m_declared++;
         m_settings.insert_or_assign(std::string{family.name}, std::move(settings));
@@ -128,13 +119,9 @@ const Families::Settings *Families::find(std::string_view family) const {
 std::vector<std::string> Families::forced_for(std::string_view loop) const {
     std::vector<std::string> specific;
     std::vector<std::string> every;
-    for (std::string_view item : m_forced) {
-        if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
-            item[loop.size()] == ':')
-            specific.emplace_back(item.substr(loop.size() + 1));
-        else if (item.find(':') == std::string_view::npos)
-            every.emplace_back(item);
-    }
+    for (std::string_view item : m_forced)
+        if (auto scoped = env::scoped_item(item, loop))
+            (scoped->own ? specific : every).emplace_back(scoped->name);
     specific.insert(specific.end(), every.begin(), every.end());
     return specific;
 }

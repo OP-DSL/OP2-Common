@@ -30,15 +30,12 @@ namespace {
 
 // The family, and the axis values where point differs from first:
 // "chunk_atomics (block_size=64 singles=off)".
-std::string label(std::string_view family, const Point& point, const Point& first) {
+std::string label(std::string_view family, std::span<const Axis> axes, const Point& point,
+                  const Point& first) {
     std::string differing;
-    std::string_view items = point.name;
-    for (std::size_t i = 0; i < point.values.size(); ++i) {
-        items.remove_prefix(items.find(';') + 1);
+    for (std::size_t i = 0; i < point.values.size(); ++i)
         if (point.values[i] != first.values[i])
-            differing += (differing.empty() ? "" : " ") +
-                         std::string{items.substr(0, items.find(';'))};
-    }
+            differing += (differing.empty() ? "" : " ") + axes[i].item(point.values[i]);
     std::string text{family};
     return differing.empty() ? text : text + " (" + differing + ")";
 }
@@ -62,14 +59,11 @@ void Ladder::add(std::string_view family, const Make& make) {
     bool off = !enabled && settings.enabled.has_value();
     const auto& options = m_jit;
 
-    // The family's other points, when the ladder explores, ahead of its point
-    // of first values.
-    auto all = settings.points(family);
-    if (!m_explore)
-        all.resize(1);
-    std::rotate(all.begin(), all.begin() + 1, all.end());
-    for (std::size_t i = 0; i < all.size(); ++i) {
-        auto& strategy = *m_strategies.emplace_back(make(all[i]));
+    auto points = settings.points(family);
+    const auto& first = points.front();
+    // A strategy at point, member when the ladder runs it, and its candidates.
+    auto add_point = [&](const Point& point, bool member) {
+        auto& strategy = *m_strategies.emplace_back(make(point));
         for (const auto& other : m_strategies)
             if (other.get() != &strategy && other->name() == strategy.name()) {
                 std::fprintf(stderr, "error: strategy %s registered twice (in %s)\n",
@@ -77,10 +71,9 @@ void Ladder::add(std::string_view family, const Make& make) {
                 std::exit(1);
             }
 
-        bool member = i + 1 == all.size();
         auto add = [&](KernelKind kind, std::string_view refused = {}) {
             std::string name{strategy.name()};
-            std::string short_name = label(family, all[i], all.back());
+            std::string short_name = label(family, settings.axes, point, first);
             if (kind == KernelKind::jit) {
                 name += ";kernel=jit";
                 short_name += " jit";
@@ -114,7 +107,13 @@ void Ladder::add(std::string_view family, const Make& make) {
                 !jit.reason.empty()       ? jit.reason
                 : !offline.reason.empty() ? offline.reason
                                           : std::string_view{"kernel_unavailable"});
-    }
+    };
+    // The family's other points, when the ladder explores, ahead of its
+    // point of first values.
+    if (m_explore)
+        for (std::size_t i = 1; i < points.size(); ++i)
+            add_point(points[i], false);
+    add_point(first, true);
     order();
 }
 

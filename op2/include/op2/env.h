@@ -19,6 +19,22 @@ namespace op::env {
 // anything else.
 std::optional<bool> switch_value(std::string_view text);
 
+// An integer's text, in [min, max]; none for anything else.
+std::optional<int> number_value(std::string_view text, int min = 0,
+                                int max = std::numeric_limits<int>::max());
+
+// text in upper case, as a variable spells a name: OP_<NAME>.
+std::string upper(std::string_view text);
+
+// An item of a list a loop may scope: "<loop>:<name>" for that loop alone,
+// or "<name>" for every loop.  Its name, and whether loop named it; none
+// when it is another loop's.
+struct ScopedItem {
+    std::string_view name;
+    bool own;
+};
+std::optional<ScopedItem> scoped_item(std::string_view item, std::string_view loop);
+
 // A name a choice variable takes, matched ignoring case, and its value.
 struct Choice {
     std::string_view name;

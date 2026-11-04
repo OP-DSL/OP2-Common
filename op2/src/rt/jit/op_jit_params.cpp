@@ -18,17 +18,17 @@ void Param::settle(std::string_view loop, const Options& options) {
     bool runtime = m_row.runtime;
     auto named = [&](const std::vector<std::string>& names) {
         return std::any_of(names.begin(), names.end(), [&](std::string_view item) {
-            if (item.size() > loop.size() && item.substr(0, loop.size()) == loop &&
-                item[loop.size()] == ':')
-                item.remove_prefix(loop.size() + 1);
-            return item == name();
+            auto scoped = env::scoped_item(item, loop);
+            return scoped && scoped->name == name();
         });
     };
 
     m_fixed = true;
     m_initial = ParamMode::baked;
-    if (named(options.constant_params)) {
-    } else if (named(options.runtime_params)) {
+    m_mode = m_initial;
+    if (named(options.constant_params))
+        return;
+    if (named(options.runtime_params)) {
         if (runtime)
             m_initial = ParamMode::runtime;
         else

@@ -44,6 +44,33 @@ std::string lower(std::string_view text) {
 
 } // namespace
 
+std::optional<int> number_value(std::string_view text, int min, int max) {
+    std::string digits{text};
+    char *end = nullptr;
+    errno = 0;
+    long parsed = std::strtol(digits.c_str(), &end, 10);
+    if (end == digits.c_str() || *end != '\0' || errno == ERANGE || parsed < min ||
+        parsed > max)
+        return std::nullopt;
+    return static_cast<int>(parsed);
+}
+
+std::string upper(std::string_view text) {
+    std::string out{text};
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    return out;
+}
+
+std::optional<ScopedItem> scoped_item(std::string_view item, std::string_view loop) {
+    auto colon = item.find(':');
+    if (colon == std::string_view::npos)
+        return ScopedItem{item, false};
+    if (item.substr(0, colon) != loop)
+        return std::nullopt;
+    return ScopedItem{item.substr(colon + 1), true};
+}
+
 std::optional<bool> switch_value(std::string_view text) {
     auto lowered = lower(text);
     if (lowered == "on" || lowered == "1" || lowered == "yes" || lowered == "true")
@@ -99,18 +126,15 @@ bool parse_number(const char *variable, std::optional<int>& value, int min, int 
     const char *text = std::getenv(variable);
     bool read = false;
     if (text != nullptr) {
-        char *end = nullptr;
-        errno = 0;
-        long parsed = std::strtol(text, &end, 10);
-        if (end == text || *end != '\0' || errno == ERANGE || parsed < min || parsed > max) {
+        if (auto parsed = number_value(text, min, max)) {
+            value = *parsed;
+            read = true;
+        } else {
             ignore(variable, text,
                    max == std::numeric_limits<int>::max()
                        ? "an integer of at least " + std::to_string(min)
                        : "an integer from " + std::to_string(min) + " to " +
                              std::to_string(max));
-        } else {
-            value = static_cast<int>(parsed);
-            read = true;
         }
     }
     record(variable, value ? std::to_string(*value) : "", read);
