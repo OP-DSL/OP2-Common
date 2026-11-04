@@ -197,7 +197,7 @@ const loop::Candidate *Autotuner::winner(const Summary& summary) const {
     if (summary.fastest == nullptr || summary.fastest == summary.ladder)
         return nullptr;
     return summary.speedup * (1.0 - m_options.margin) > 1.0 ? summary.fastest->candidate
-                                                          : nullptr;
+                                                            : nullptr;
 }
 
 void Autotuner::sample(const Decision& decision, float microseconds) {

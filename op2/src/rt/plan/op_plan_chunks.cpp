@@ -162,10 +162,11 @@ ChunkBatches colour_chunks(const Chunks& chunks, const ChunkTargets& targets,
             }
 
             batches.order.resize(static_cast<std::size_t>(position));
-            for (int chunk = 0; chunk < count; ++chunk)
-                batches.order[static_cast<std::size_t>(
-                    next[static_cast<std::size_t>(colours[static_cast<std::size_t>(chunk)])]++)] =
-                    window_first + chunk;
+            for (int chunk = 0; chunk < count; ++chunk) {
+                auto colour = colours[static_cast<std::size_t>(chunk)];
+                auto& slot = next[static_cast<std::size_t>(colour)];
+                batches.order[static_cast<std::size_t>(slot++)] = window_first + chunk;
+            }
         }
         batches.section_batches.push_back(batches.count());
     }
@@ -200,8 +201,8 @@ Wavefront wavefront(const ChunkBatches& coloured, const ChunkTargets& targets) {
             auto first = wave.preds.size();
             targets.for_each(coloured.chunk(position), [&](std::size_t group, int target) {
                 int& last = latest[group][static_cast<std::size_t>(target)];
-                if (last >= 0 && std::find(wave.preds.begin() + static_cast<std::ptrdiff_t>(first),
-                                           wave.preds.end(), last) == wave.preds.end())
+                auto begin = wave.preds.begin() + static_cast<std::ptrdiff_t>(first);
+                if (last >= 0 && std::find(begin, wave.preds.end(), last) == wave.preds.end())
                     wave.preds.push_back(last);
                 last = position;
             });

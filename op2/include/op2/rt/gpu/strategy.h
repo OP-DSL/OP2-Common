@@ -11,7 +11,6 @@
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/chunk_plan.h>
 #include <op2/rt/gpu/executor.h>
-#include <op2/rt/gpu/jit.h>
 #include <op2/rt/gpu/kernel.h>
 #include <op2/rt/gpu/layout.h>
 #include <op2/rt/jit/cache.h>
@@ -220,7 +219,8 @@ protected:
     // The variant's plan of the call under spec, its inputs to the plan's key
     // beyond the shared ones, and its figures of a plan beyond the shared
     // ones.
-    virtual ChunkResult make_plan(const op::rt::loop::Call& call, const ChunkSpec& spec) const = 0;
+    virtual ChunkResult make_plan(const op::rt::loop::Call& call,
+                                  const ChunkSpec& spec) const = 0;
     virtual void add_key(op::rt::plan::PlanKey& key) const = 0;
     virtual std::string extras(const ChunkPlan& plan) const = 0;
 
@@ -285,10 +285,7 @@ public:
 
     // OP_CHUNK_COLOURING_WAVEFRONT: one launch per section, its chunks taken
     // in an order that keeps them after every earlier chunk sharing a target.
-    static std::vector<op::rt::loop::Axis> axes() {
-        return chunk_axes(
-            {.variable = "WAVEFRONT", .key = "wavefront", .binary = true, .defaults = {0}});
-    }
+    static std::vector<op::rt::loop::Axis> axes();
 };
 
 // --- Families -------------------------------------------------------------------
@@ -296,8 +293,8 @@ public:
 // A strategy family as the GPU backend offers it.
 using OfferedFamily = op::rt::loop::OfferedFamily<Executor, abi::gpu::Family>;
 
-// The families in ladder order: plain, chunk_atomics (on by default as the
-// heuristics say), atomics, chunk_colouring and colouring.
+// The families in ladder order: plain, chunk_atomics, atomics, chunk_colouring
+// and colouring, the chunked ones on by default as the heuristics say.
 std::span<const OfferedFamily> strategy_families();
 
 } // namespace op::rt::gpu

@@ -295,11 +295,11 @@ op2/rt/loop/family.h    (includes: op2/rt/loop/strategy.h; the families a
                          src/rt/loop/op_loop_family.cpp)
 op2/rt/loop/ladder.h    (includes: op2/rt/jit/options.h, op2/rt/loop/call.h,
                          op2/rt/loop/family.h, op2/rt/loop/strategy.h; a
-                         loop's candidates, a
-                         strategy with one of its kernels each, in ladder
-                         order, the families the loop registers as its
-                         backend offers them, and the one each call runs;
-                         from src/rt/loop/op_loop_ladder.cpp)
+                         loop's candidates, a strategy with one of its
+                         kernels each, in ladder order, the families the
+                         loop registers as its backend offers them, and the
+                         one each call runs; from
+                         src/rt/loop/op_loop_ladder.cpp)
 op2/rt/loop/loop.h      (includes: op_lib_core.h, op_profile.h,
                          op2/rt/abi/descriptor.h, op2/rt/context.h,
                          op2/rt/jit/params.h, op2/rt/loop/call.h,
@@ -323,14 +323,16 @@ supplies the compiler.
 ```
 op2/rt/jit/options.h  (the JIT's policy as OP_JIT_* sets it, read into the
                        run's context: whether and when kernels are
-                       specialised, what they bake in, and its report)
+                       specialised, what they bake in, and its report; from
+                       src/rt/jit/op_jit_options.cpp)
 op2/rt/jit/params.h   (includes: extern/rapidhash.h, op_lib_core.h,
                        op2/rt/abi/descriptor.h, op2/rt/hasher.h,
                        op2/rt/jit/options.h, op2/rt/loop/call.h; the
                        parameters a loop's kernels are specialised on, from
                        its descriptor's rows, a dat's stride as the backend
                        lays the dat out, and the statistics that move each
-                       between baked in and given at run time)
+                       between baked in and given at run time; from
+                       src/rt/jit/op_jit_params.cpp)
 op2/rt/jit/pool.h     (the threads specialised kernels build on, shared by
                        every cache, at most as many builds under way as the
                        backend's limit; from src/rt/jit/op_jit_pool.cpp)
@@ -365,12 +367,14 @@ op2/rt/cpu/chunk_plan.h).
 ```
 op2/rt/plan/colouring.h      (includes: op_lib_core.h, op2/rt/loop/call.h;
                               the set colouring of a call's sections, as
-                              op_plan's OP_COLOR2)
+                              op_plan's OP_COLOR2; from
+                              src/rt/plan/op_plan_colouring.cpp)
 op2/rt/plan/chunks.h         (includes: op2/rt/loop/call.h; the references a
                               planner follows, chunks within sections, each
                               chunk's targets, coloured batches, the
                               wavefront order, element colours, and the
-                              result a backend's plan comes back in)
+                              result a backend's plan comes back in; from
+                              src/rt/plan/op_plan_chunks.cpp)
 op2/rt/plan/staging.h        (includes: op2/rt/abi/descriptor.h,
                               op2/rt/loop/call.h, op2/rt/plan/chunks.h; the
                               staged kernels' scratch slots, a slot per
@@ -379,7 +383,8 @@ op2/rt/plan/staging.h        (includes: op2/rt/abi/descriptor.h,
                               slot limit and stride, and what every backend's
                               chunk plan holds: its chunks, batches and
                               staging, the slots taken as the backend's stage
-                              words, and its figures)
+                              words, and its figures; from
+                              src/rt/plan/op_plan_staging.cpp)
 op2/rt/plan/cache.h          (includes: extern/rapidhash.h,
                               op2/rt/abi/descriptor.h, op2/rt/hasher.h,
                               op2/rt/loop/call.h;
@@ -456,22 +461,21 @@ op2/rt/gpu/chunk_plan.h    (includes: op2/rt/abi/staging.h,
 op2/rt/gpu/chunk_encode.h  (includes: op2/rt/abi/gpu/launch.h,
                             op2/rt/gpu/chunk_plan.h; a chunk plan uploaded
                             as the kernels read it, which fills a chunk
-                            launch's record and runs a wavefront call; from
+                            launch's record and begins a wavefront call; from
                             src/rt/gpu/op_gpu_chunk_encode.cpp)
 op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
                             op2/rt/abi/gpu/descriptor.h,
                             op2/rt/abi/gpu/launch.h,
                             op2/rt/gpu/chunk_encode.h,
                             op2/rt/gpu/chunk_plan.h, op2/rt/gpu/executor.h,
-                            op2/rt/gpu/jit.h, op2/rt/gpu/kernel.h,
-                            op2/rt/gpu/layout.h, op2/rt/jit/cache.h,
-                            op2/rt/loop/strategy.h, op2/rt/plan/cache.h,
-                            op2/rt/plan/colouring.h; the plain, atomics,
-                            colouring and chunked strategies, their axes,
-                            block size, unstaged singles and wavefront,
-                            their phases' launches, and the table of the
-                            families the backend offers; from
-                            src/rt/gpu/op_gpu_strategy.cpp)
+                            op2/rt/gpu/kernel.h, op2/rt/gpu/layout.h,
+                            op2/rt/jit/cache.h, op2/rt/loop/strategy.h,
+                            op2/rt/plan/cache.h, op2/rt/plan/colouring.h;
+                            the plain, atomics, colouring and chunked
+                            strategies, their axes, block size, unstaged
+                            singles and wavefront, their phases' launches,
+                            and the table of the families the backend
+                            offers; from src/rt/gpu/op_gpu_strategy.cpp)
 ```
 
 #### OpenMP backend (op::rt::cpu, sources under src/rt/cpu)

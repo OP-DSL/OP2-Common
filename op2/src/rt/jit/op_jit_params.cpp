@@ -7,9 +7,8 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
-#include <limits>
-#include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <sstream>
 
 namespace op::rt::jit {
@@ -89,9 +88,8 @@ void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Opt
 
 void ParamSet::update(std::span<const op_arg> args) {
     ++m_calls;
-    const auto& options = m_options;
     for (auto& param : m_params)
-        param.update(args, m_dat_stride, options);
+        param.update(args, m_dat_stride, m_options);
 }
 
 ParamSet::Histories *ParamSet::histories(const loop::Call& call) {
@@ -138,7 +136,6 @@ std::vector<ParamSet::ConfigurationModes> ParamSet::configurations() const {
 }
 
 void ParamSet::observe(const loop::Call& call) {
-    const auto& options = m_options;
     auto *history = m_moving ? histories(call) : nullptr;
     if (history != nullptr)
         ++history->calls;
@@ -146,7 +143,7 @@ void ParamSet::observe(const loop::Call& call) {
         auto& param = m_params[i];
         if (param.source() == abi::ParamSource::strategy)
             continue;
-        if (param.sized_out(options)) {
+        if (param.sized_out(m_options)) {
             param.set_mode(ParamMode::runtime);
             continue;
         }
@@ -155,7 +152,7 @@ void ParamSet::observe(const loop::Call& call) {
             continue;
         }
         auto& entry = history->params[i];
-        if (entry.observe(param, options) && options.debug)
+        if (entry.observe(param, m_options) && m_options.debug)
             op_printf("jit: %s %s %s for %s\n", m_loop.c_str(),
                         entry.mode == ParamMode::baked ? "bakes in" : "moves to run time",
                         param.name(), call.describe().c_str());

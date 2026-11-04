@@ -275,6 +275,13 @@ std::vector<op::rt::loop::Axis> ChunkAtomics::axes() {
                        .defaults = defaults().unstaged_singles});
 }
 
+std::vector<op::rt::loop::Axis> ChunkColouring::axes() {
+    return chunk_axes({.variable = "WAVEFRONT",
+                       .key = "wavefront",
+                       .binary = true,
+                       .defaults = defaults().wavefront});
+}
+
 // The configuration's plan, the shared one when another strategy holds the
 // same: the same planner, call shape, groups, block size, stride and
 // variant; a chunk is a block's elements.
@@ -362,7 +369,7 @@ std::span<const OfferedFamily> strategy_families() {
         OfferedFamily::of<Simple>("plain"),
         OfferedFamily::of<ChunkAtomics>("chunk_atomics", defaults().chunk_atomics),
         OfferedFamily::of<Simple>("atomics"),
-        OfferedFamily::of<ChunkColouring>("chunk_colouring", false),
+        OfferedFamily::of<ChunkColouring>("chunk_colouring", defaults().chunk_colouring),
         OfferedFamily::of<Colouring>("colouring"),
     };
     return families;

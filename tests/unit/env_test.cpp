@@ -22,6 +22,25 @@ bool unread(const char *variable) {
     return std::find(names.begin(), names.end(), variable) != names.end();
 }
 
+// A value's text: an integer within its bounds, a name in upper case, and an
+// item a loop may scope.
+void test_values() {
+    CHECK(env::number_value("12") == 12);
+    CHECK(env::number_value("0", 1) == std::nullopt);
+    CHECK(env::number_value("7", 0, 6) == std::nullopt);
+    CHECK(env::number_value("12x") == std::nullopt);
+    CHECK(env::number_value("") == std::nullopt);
+    CHECK(env::number_value("99999999999") == std::nullopt);
+    CHECK(env::upper("chunk_atomics") == "CHUNK_ATOMICS");
+
+    auto own = env::scoped_item("flux:atomics", "flux");
+    CHECK(own && own->name == "atomics" && own->own);
+    auto every = env::scoped_item("atomics", "flux");
+    CHECK(every && every->name == "atomics" && !every->own);
+    CHECK(!env::scoped_item("other:atomics", "flux"));
+    CHECK(!env::scoped_item("flu:atomics", "flux"));
+}
+
 // Each parse reads a usable value, keeps the default otherwise, and says
 // whether it read.
 void test_parse() {
@@ -102,6 +121,7 @@ void test_unread() {
 
 int main() {
     try {
+        test_values();
         test_parse();
         test_unread();
     } catch (const std::exception& error) {

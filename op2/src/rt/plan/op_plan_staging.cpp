@@ -121,7 +121,8 @@ Staging stage(const Chunks& chunks, const ChunkTargets& targets,
                  ++entry) {
                 int target = targets.targets[static_cast<std::size_t>(entry)];
                 int& slot = slots[group][static_cast<std::size_t>(target)];
-                if (unstaged_singles && targets.references[static_cast<std::size_t>(entry)] == 1) {
+                if (unstaged_singles &&
+                    targets.references[static_cast<std::size_t>(entry)] == 1) {
                     slot = unstaged_slot;
                     ++staging.unstaged_singles;
                     continue;

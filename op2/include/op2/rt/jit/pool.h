@@ -28,16 +28,17 @@ private:
     std::condition_variable m_wake;
     std::deque<Task> m_tasks;
     std::vector<std::thread> m_threads;
-    int m_limit;
-    // Builds started and not yet published, queued ones included; never
-    // more than the threads.
+    // At most this many builds under way; one until the backend sets it.
+    int m_limit = 1;
+    // Builds started and not yet finished, queued ones included; never more
+    // than the threads.
     int m_under_way = 0;
     bool m_stopping = false;
 
     void work();
 
 public:
-    explicit BuildPool(int limit = 1) : m_limit{limit} {}
+    BuildPool() = default;
     BuildPool(const BuildPool&) = delete;
     ~BuildPool();
 

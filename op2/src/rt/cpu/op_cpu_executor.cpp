@@ -18,12 +18,16 @@ namespace {
 
 constexpr std::size_t line = 64;
 
+// Whether arg is a global the loop reduces.
+bool reduces(const op_arg& arg) {
+    return arg.argtype == OP_ARG_GBL &&
+           (arg.acc == OP_INC || arg.acc == OP_MIN || arg.acc == OP_MAX);
+}
+
 bool per_thread(const op_arg& arg, std::span<const op_arg> args) {
     if (arg.argtype == OP_ARG_INFO)
         return args[arg.acc].opt != 0;
-    return arg.opt != 0 && arg.argtype == OP_ARG_GBL &&
-           (arg.acc == OP_INC || arg.acc == OP_MIN || arg.acc == OP_MAX ||
-            arg.acc == OP_WORK);
+    return arg.opt != 0 && (reduces(arg) || (arg.argtype == OP_ARG_GBL && arg.acc == OP_WORK));
 }
 
 } // namespace
@@ -59,34 +63,31 @@ void Globals::combine(std::span<op_arg> args, int index) const {
     }
 }
 
-void Globals::prepare(std::span<op_arg> args, int threads, const char *loop) {
+std::optional<int> Globals::prepare(std::span<op_arg> args, int threads) {
     int nargs = static_cast<int>(args.size());
+    if (m_types.size() != args.size())
+        for (const auto& arg : args)
+            m_types.push_back(reduces(arg) ? op::rt::loop::element_type(arg.type)
+                                           : std::nullopt);
     m_nargs = nargs;
     m_threads = threads;
     m_offsets.assign(static_cast<std::size_t>(nargs), SIZE_MAX);
-    m_types.assign(static_cast<std::size_t>(nargs), std::nullopt);
     m_stride = 0;
     for (int i = 0; i < nargs; ++i) {
         const auto& arg = args[i];
         if (!per_thread(arg, args))
             continue;
+        auto type = m_types[static_cast<std::size_t>(i)];
+        if (reduces(arg) && type != abi::ElementType::f64 && type != abi::ElementType::f32 &&
+            type != abi::ElementType::i32)
+            return i;
         m_offsets[static_cast<std::size_t>(i)] = m_stride;
         m_stride += (static_cast<std::size_t>(arg.size) + line - 1) / line * line;
-        if (arg.argtype != OP_ARG_GBL || arg.acc == OP_WORK)
-            continue;
-        auto type = op::rt::loop::element_type(arg.type);
-        if (type != abi::ElementType::f64 && type != abi::ElementType::f32 &&
-            type != abi::ElementType::i32) {
-            std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n", arg.type,
-                         loop);
-            std::exit(1);
-        }
-        m_types[static_cast<std::size_t>(i)] = type;
     }
 
     m_pointers.assign(static_cast<std::size_t>(threads * nargs), nullptr);
     if (m_stride == 0)
-        return;
+        return std::nullopt;
 
     std::size_t bytes = m_stride * static_cast<std::size_t>(threads) + line;
     if (m_capacity < bytes) {
@@ -109,10 +110,13 @@ void Globals::prepare(std::span<op_arg> args, int threads, const char *loop) {
                 std::memcpy(copy, args[i].data, size);
             m_pointers[static_cast<std::size_t>(thread * nargs + i)] = copy;
         }
+    return std::nullopt;
 }
 
 void Globals::combine(std::span<op_arg> args) const {
     for (int i = 0; i < m_nargs; ++i) {
+        if (m_offsets[static_cast<std::size_t>(i)] == SIZE_MAX)
+            continue;
         auto type = m_types[static_cast<std::size_t>(i)];
         if (type == abi::ElementType::f64)
             combine<double>(args, i);
@@ -127,7 +131,7 @@ void Globals::combine(std::span<op_arg> args) const {
 
 Executor::Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet&,
                    op::rt::Context& context)
-    : m_descriptor{descriptor}, m_context{context}, m_backend{cpu::backend(context)} {}
+    : m_descriptor{descriptor}, m_backend{cpu::backend(context)} {}
 
 void Executor::add_strategies(op::rt::loop::Ladder& ladder) {
     ladder.add_families(m_descriptor.families, strategy_families(), *this, "OpenMP");
@@ -167,7 +171,11 @@ void Executor::reserve_scratch(std::size_t bytes) {
 
 void Executor::begin_call(const op::rt::loop::Call& call) {
     m_threads = m_descriptor.max_threads();
-    m_globals.prepare(call.args, m_threads, name());
+    if (auto unsupported = m_globals.prepare(call.args, m_threads)) {
+        std::fprintf(stderr, "error: unsupported reduction type '%s' (in %s)\n",
+                     call.args[*unsupported].type, name());
+        std::exit(1);
+    }
 }
 
 void Executor::combine_globals(const op::rt::loop::Call& call) {

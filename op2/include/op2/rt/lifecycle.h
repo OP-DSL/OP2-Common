@@ -8,9 +8,9 @@
 namespace op::rt {
 
 // Make the run's context (op2/rt/context.h), reading the run-wide
-// variables: the ladder's, the JIT's, the tuner's and the chunked
-// strategies'; op_init_core calls it before the backend declares its
-// families.  A later call replaces the context.
+// variables: OP_STRATEGY, the JIT's and the tuner's; op_init_core calls it
+// before the backend declares its families.  A later call replaces the
+// context.
 void init();
 
 // Add the CPU backend's part to the run's context and declare its families;

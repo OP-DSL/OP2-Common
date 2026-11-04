@@ -104,7 +104,8 @@ void policy(std::initializer_list<std::pair<const char *, const char *>> variabl
 void test_min_calls() {
     policy({{"OP_JIT_MIN_CALLS", "3"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    jit::BuildPool pool{4};
+    jit::BuildPool pool;
+    pool.set_limit(4);
     Cache cache{"kernel", options, pool};
     for (int call = 0; call < 2; ++call) {
         auto pending = cache.acquire(1, later, builds.job(1));
@@ -123,7 +124,8 @@ void test_min_calls() {
 void test_urgency() {
     policy({{"OP_JIT_MIN_CALLS", "100"}});
     Builds builds;
-    jit::BuildPool pool{4};
+    jit::BuildPool pool;
+    pool.set_limit(4);
     Cache cache{"kernel", options, pool};
     builds.open = false;
     auto acquired = cache.acquire(1, now, builds.job(1));
@@ -148,7 +150,8 @@ void test_urgency() {
 void test_failed_build() {
     policy({{"OP_JIT_MIN_CALLS", "1"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    jit::BuildPool pool{4};
+    jit::BuildPool pool;
+    pool.set_limit(4);
     Cache cache{"kernel", options, pool};
     for (auto urgency : {later, later, wait}) {
         auto failed = cache.acquire(1, urgency, builds.job(1, true));
@@ -162,7 +165,8 @@ void test_failed_build() {
 void test_eviction() {
     policy({{"OP_JIT_MIN_CALLS", "1000"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    jit::BuildPool pool{4};
+    jit::BuildPool pool;
+    pool.set_limit(4);
     Cache cache{"kernel", options, pool};
     CHECK(cache.acquire(1000, now, builds.job(1000)).kernel != nullptr);
     for (std::uint64_t key = 1; key <= 300; ++key)
@@ -182,7 +186,8 @@ void test_eviction() {
 void test_pool() {
     policy({{"OP_JIT_MIN_CALLS", "100"}});
     Builds builds;
-    jit::BuildPool pool{1};
+    jit::BuildPool pool;
+    pool.set_limit(1);
     Cache cache{"kernel", options, pool};
     Cache other{"other", options, pool};
     builds.open = false;

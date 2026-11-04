@@ -67,7 +67,7 @@ public:
 
 class Loop final {
 private:
-    const Context& m_context;
+    const jit::Options& m_jit;
     std::string m_name;
     std::string m_profile_target;
     std::string m_profile_variant;
@@ -93,7 +93,7 @@ public:
     // registers the loop's parameters in params.
     template<typename Make>
     Loop(const abi::Loop& descriptor, const Context& context, Make&& make)
-        : m_context{context}, m_name{descriptor.name}, m_profile_target{descriptor.target},
+        : m_jit{context.jit}, m_name{descriptor.name}, m_profile_target{descriptor.target},
           m_profile_variant{descriptor.variant}, m_direct{descriptor.direct},
           m_params{m_name, context.jit}, m_executor{make(m_params)},
           m_ladder{m_name, context.autotune.report, context.families, context.jit} {

@@ -50,14 +50,14 @@ Ladder::Ladder(std::string_view loop_name, bool explore, const Families& familie
 void Ladder::add(std::string_view family, const Make& make) {
     const auto *found = m_families.find(family);
     if (found == nullptr) {
-        std::fprintf(stderr, "error: %s registers strategy family %s, which no backend declared\n",
+        std::fprintf(stderr,
+                     "error: %s registers strategy family %s, which no backend declared\n",
                      m_name.c_str(), std::string{family}.c_str());
         std::exit(1);
     }
     const auto& settings = *found;
     bool enabled = settings.enabled.value_or(settings.enabled_by_default);
     bool off = !enabled && settings.enabled.has_value();
-    const auto& options = m_jit;
 
     auto points = settings.points(family);
     const auto& first = points.front();
@@ -90,9 +90,9 @@ void Ladder::add(std::string_view family, const Make& make) {
                                     .refused = refused});
         };
         auto offline = strategy.estimate(KernelKind::offline);
-        auto jit = options.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};
+        auto jit = m_jit.enabled() ? strategy.estimate(KernelKind::jit) : Estimate{};
         bool jit_first = jit.available &&
-                         (!offline.available || options.force ||
+                         (!offline.available || m_jit.force ||
                           (jit.cost && offline.cost && *jit.cost < *offline.cost));
         if (jit_first)
             add(KernelKind::jit);

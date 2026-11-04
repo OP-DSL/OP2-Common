@@ -30,7 +30,8 @@ private:
     int m_threads = 0;
     std::size_t m_stride = 0;
     std::vector<std::size_t> m_offsets;
-    // Per argument, the element type it reduces in; none if it reduces none.
+    // Per argument, the element type it reduces in, resolved on the loop's
+    // first call; none if it reduces none or OP2 knows no such type.
     std::vector<std::optional<abi::ElementType>> m_types;
     std::unique_ptr<char[]> m_storage;
     std::size_t m_capacity = 0;
@@ -41,9 +42,9 @@ private:
 
 public:
     // Lay out and initialise every thread's copies: increments from zero,
-    // the rest from the argument's value.  A reduction of a type it cannot
-    // combine stops the run, naming loop.
-    void prepare(std::span<op_arg> args, int threads, const char *loop);
+    // the rest from the argument's value; or the argument whose reduction it
+    // cannot combine, if any.
+    std::optional<int> prepare(std::span<op_arg> args, int threads);
 
     // Per thread its copy of each argument, nargs apart; null for an
     // argument not kept per thread.
@@ -57,7 +58,6 @@ public:
 class Executor final : public op::rt::loop::Executor {
 private:
     const abi::cpu::Loop& m_descriptor;
-    op::rt::Context& m_context;
     Backend& m_backend;
     // The call under way: its threads, their globals and chunk scratch.
     int m_threads = 1;
@@ -77,7 +77,6 @@ public:
     // --- For the strategies ---
 
     const char *name() const { return m_descriptor.name; }
-    op::rt::Context& context() { return m_context; }
     Backend& backend() { return m_backend; }
 
     // Start a run of call: its threads, and each one's copy of the globals.

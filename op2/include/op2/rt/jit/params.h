@@ -10,7 +10,6 @@
 #include <op2/rt/loop/call.h>
 #include <op_lib_core.h>
 
-#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -19,7 +18,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace op::rt::jit {

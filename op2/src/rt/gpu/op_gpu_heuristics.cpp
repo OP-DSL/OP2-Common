@@ -7,14 +7,20 @@ namespace op::rt::gpu {
 
 const Defaults& defaults() {
 #ifdef OP2_HIP
+    // Shared and global fp64 atomics are native: singles unstaged.
     static const Defaults hip{.block_sizes = {abi::gpu::default_block_size, 256},
                               .unstaged_singles = {1, 0},
-                              .chunk_atomics = true};
+                              .wavefront = {0},
+                              .chunk_atomics = true,
+                              .chunk_colouring = false};
     return hip;
 #else
+    // Shared fp64 adds are compare-and-swap loops: singles stay staged.
     static const Defaults cuda{.block_sizes = {abi::gpu::default_block_size, 64, 256},
                                .unstaged_singles = {0},
-                               .chunk_atomics = false};
+                               .wavefront = {0},
+                               .chunk_atomics = false,
+                               .chunk_colouring = false};
     return cuda;
 #endif
 }

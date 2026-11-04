@@ -318,8 +318,6 @@ int main(int argc, char **argv) {
             CHECK(output[5] == 1);
             CHECK(output[6] == 2);
             CHECK(split_outcome.max_blocks == 1);
-            // Before this scope's descriptor goes; it ends the outer loop
-            // too, which nothing runs again.
         }
 
         // Every reference reaches a different target, so staging combines

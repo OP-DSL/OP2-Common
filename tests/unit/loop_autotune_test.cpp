@@ -415,8 +415,8 @@ void test_jit_report() {
 }
 
 // The context's registry owns the loop made for a descriptor, and op_exit's
-// finalise destroys it and clears the descriptor, so the next run makes
-// another.
+// finalise, or a later init replacing the context, destroys it and clears the
+// descriptor, so the next run makes another.
 void test_loop_registry() {
     struct Counts : op::rt::abi::Loop {
         int destroyed = 0;
@@ -439,8 +439,11 @@ void test_loop_registry() {
 
     op::rt::init();
     loop::runtime<Counted>(counts);
-    op::rt::finalise(0, 1);
+    op::rt::init();
     CHECK(counts.destroyed == 2 && counts.runtime == nullptr);
+    loop::runtime<Counted>(counts);
+    op::rt::finalise(0, 1);
+    CHECK(counts.destroyed == 3 && counts.runtime == nullptr);
 }
 
 } // namespace

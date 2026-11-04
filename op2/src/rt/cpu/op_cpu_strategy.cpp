@@ -1,7 +1,5 @@
 #include <op2/rt/cpu/strategy.h>
 
-#include <op2/rt/context.h>
-
 #include <chrono>
 #include <string>
 

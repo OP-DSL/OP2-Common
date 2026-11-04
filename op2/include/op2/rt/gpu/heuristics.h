@@ -14,18 +14,15 @@
 
 namespace op::rt::gpu {
 
-// What pays by default on the device the library is built for: the block
-// sizes and chunk_atomics' unstaged-singles switch, each the ladder's value
-// first and the tuner's others after it, and whether the ladder runs
-// chunk_atomics.  Under HIP shared and global fp64 atomics are both native,
-// so chunk_atomics runs with its singles unstaged, and the tuner also tries
-// them staged, which some loops are faster with; under CUDA a pointer that
-// may be either makes every increment a generic atomic, and shared fp64
-// adds are compare-and-swap loops, so singles stay staged.
+// What pays by default on the device the library is built for: each axis's
+// values, the ladder's first and the tuner's others after it, and which
+// chunked families the ladder runs.
 struct Defaults {
     std::vector<int> block_sizes;
     std::vector<int> unstaged_singles;
+    std::vector<int> wavefront;
     bool chunk_atomics;
+    bool chunk_colouring;
 };
 
 const Defaults& defaults();

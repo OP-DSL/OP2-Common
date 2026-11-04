@@ -8,8 +8,8 @@ namespace op::rt {
 
 namespace {
 
-// Never destroyed without finalise: a program that skips op_exit must not
-// free device state after the driver has shut down.
+// Destroyed by finalise or a later init, never at exit: a program that skips
+// op_exit must not free device state after the driver has shut down.
 Context *current = nullptr;
 
 } // namespace

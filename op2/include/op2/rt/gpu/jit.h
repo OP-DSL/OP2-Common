@@ -29,7 +29,7 @@ private:
 public:
     // A build of one kernel, which returns it, or none when the compile
     // failed after printing the compiler's log.  It holds what it reads, so
-    // its loop's compiler may go before the build is joined.
+    // its loop's compiler may go before the build finishes.
     struct Job {
         std::string loop;
         abi::gpu::JitHeaders headers;

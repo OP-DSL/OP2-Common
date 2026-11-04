@@ -52,8 +52,8 @@ constexpr int default_block_size = 128;
     X(int *, wave_ticket, )                                                              \
     X(int, wave_epoch, const)
 
-// The chunk plan's arrays, which the library uploads once per plan and every
-// chunk launch's record carries.
+// The chunk plan's device arrays, which every chunk launch's record carries:
+// uploaded once per plan, but for wave_done, which the library zeroes.
 #define OP_ABI_GPU_CHUNK_ARRAYS(X)                                                       \
     X(const int *, source_offsets, __restrict)                                           \
     X(const ::op::rt::abi::StageWord *, stage_words, __restrict)                         \
