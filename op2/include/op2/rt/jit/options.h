@@ -21,8 +21,8 @@ struct Options {
     // OP_JIT_MIN_CALLS: times a key is asked for before its build starts, so
     // values that change every call never build.
     int min_calls = 9;
-    // OP_JIT_MAX_THREADS: builds on threads at once, across every cache; the
-    // mechanism's default when unset.
+    // OP_JIT_MAX_THREADS: builds under way at once on the run's build pool,
+    // across every cache; the backend's default when unset.
     std::optional<int> max_threads;
     // OP_JIT_VARYING: changes within a baked value's last 32 calls past
     // which it moves to run time for the rest of the run.

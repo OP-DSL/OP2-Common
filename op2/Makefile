@@ -72,7 +72,7 @@ OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(OBJ)/rt/op_rt_report.o $(addprefix $(OBJ
 	op_loop_report.o) $(addprefix $(OBJ)/rt/jit/,\
 	op_jit_options.o \
 	op_jit_params.o \
-	op_jit_cache.o \
+	op_jit_pool.o \
 	op_jit_report.o) $(addprefix $(OBJ)/rt/tune/,\
 	op_tune_options.o \
 	op_tune_autotune.o \

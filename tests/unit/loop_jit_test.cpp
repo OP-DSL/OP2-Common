@@ -104,29 +104,31 @@ void policy(std::initializer_list<std::pair<const char *, const char *>> variabl
 void test_min_calls() {
     policy({{"OP_JIT_MIN_CALLS", "3"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    Cache cache{"kernel", options, 4};
+    jit::BuildPool pool{4};
+    Cache cache{"kernel", options, pool};
     for (int call = 0; call < 2; ++call) {
         auto pending = cache.acquire(1, later, builds.job(1));
         CHECK(pending.status == loop::Status::pending && pending.reason == "compiling");
     }
-    CHECK(builds.started == 0 && cache.state(1) == jit::BuildState::seen);
+    CHECK(builds.started == 0 && cache.counts().waiting == 1);
 
     auto first = cache.acquire(1, later, builds.job(1));
     CHECK(first.status == ready && first.kernel != nullptr && first.kernel->id == 1);
     CHECK(cache.acquire(1, later, builds.job(1)).kernel == first.kernel);
-    CHECK(builds.started == 1);
+    CHECK(builds.started == 1 && cache.counts().built == 1);
 }
 
-// now starts a build on a thread at once, pending meanwhile; wait builds
-// here, and joins a build already running.
+// now starts a build on the pool at once, pending meanwhile; wait builds
+// here, and waits for a build under way.
 void test_urgency() {
     policy({{"OP_JIT_MIN_CALLS", "100"}});
     Builds builds;
-    Cache cache{"kernel", options, 4};
+    jit::BuildPool pool{4};
+    Cache cache{"kernel", options, pool};
     builds.open = false;
     auto acquired = cache.acquire(1, now, builds.job(1));
     CHECK(acquired.status == loop::Status::pending);
-    CHECK(cache.state(1) == jit::BuildState::building && builds.started == 1);
+    CHECK(cache.counts().building == 1 && builds.started == 1);
     acquired = cache.acquire(3, now, builds.job(3));
     CHECK(acquired.status == loop::Status::pending);
 
@@ -146,12 +148,13 @@ void test_urgency() {
 void test_failed_build() {
     policy({{"OP_JIT_MIN_CALLS", "1"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    Cache cache{"kernel", options, 4};
+    jit::BuildPool pool{4};
+    Cache cache{"kernel", options, pool};
     for (auto urgency : {later, later, wait}) {
         auto failed = cache.acquire(1, urgency, builds.job(1, true));
         CHECK(failed.status == loop::Status::unavailable && failed.reason == "build_failed");
     }
-    CHECK(builds.started == 1 && cache.state(1) == jit::BuildState::failed);
+    CHECK(builds.started == 1 && cache.counts().failed == 1);
 }
 
 // Past 256 keys the least recently asked-for half of those not started go;
@@ -159,43 +162,46 @@ void test_failed_build() {
 void test_eviction() {
     policy({{"OP_JIT_MIN_CALLS", "1000"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    Cache cache{"kernel", options, 4};
+    jit::BuildPool pool{4};
+    Cache cache{"kernel", options, pool};
     CHECK(cache.acquire(1000, now, builds.job(1000)).kernel != nullptr);
     for (std::uint64_t key = 1; key <= 300; ++key)
         cache.acquire(key, later, builds.job(1));
-    CHECK(builds.started == 1);
-    CHECK(cache.state(1) == jit::BuildState::unseen);
-    CHECK(cache.state(300) == jit::BuildState::seen);
-    CHECK(cache.state(1000) == jit::BuildState::ready);
-    CHECK(cache.state(5000) == jit::BuildState::unseen);
+    // The 257th entry evicted keys 1 to 128.
+    auto counts = cache.counts();
+    CHECK(builds.started == 1 && counts.built == 1 && counts.waiting == 172);
+    cache.acquire(300, later, builds.job(1));
+    CHECK(cache.counts().waiting == 172);
+    cache.acquire(1, later, builds.job(1));
+    CHECK(cache.counts().waiting == 173);
 }
 
-// Builds on threads share OP_JIT_MAX_THREADS slots, the cache's default
-// when it is unset; a build that is waited for takes none.
-void test_build_slots() {
-    for (bool variable : {true, false}) {
-        if (variable)
-            policy({{"OP_JIT_MIN_CALLS", "100"}, {"OP_JIT_MAX_THREADS", "1"}});
-        else
-            policy({{"OP_JIT_MIN_CALLS", "100"}});
-        Builds builds;
-        Cache cache{"kernel", options, variable ? 8 : 1};
-        builds.open = false;
-        cache.acquire(1, now, builds.job(1));
-        cache.acquire(2, now, builds.job(2));
-        CHECK(cache.state(1) == jit::BuildState::building);
-        CHECK(cache.state(2) == jit::BuildState::seen && builds.started == 1);
+// Builds on the pool start while fewer than its limit are under way, across
+// every cache, a later call starting one that could not; a build that is
+// waited for runs here, taking no place.
+void test_pool() {
+    policy({{"OP_JIT_MIN_CALLS", "100"}});
+    Builds builds;
+    jit::BuildPool pool{1};
+    Cache cache{"kernel", options, pool};
+    Cache other{"other", options, pool};
+    builds.open = false;
+    cache.acquire(1, now, builds.job(1));
+    cache.acquire(2, now, builds.job(2));
+    other.acquire(1, now, builds.job(1));
+    CHECK(cache.counts().building == 1 && cache.counts().waiting == 1);
+    CHECK(other.counts().waiting == 1 && builds.started == 1);
 
-        Builds waited;
-        CHECK(cache.acquire(3, wait, waited.job(3)).kernel->id == 3);
+    Builds waited;
+    CHECK(cache.acquire(3, wait, waited.job(3)).kernel->id == 3);
 
-        // Once the running build is joined its slot is free: the next starts.
-        builds.open = true;
-        CHECK(cache.acquire(1, wait, builds.job(1)).kernel->id == 1);
-        cache.acquire(2, now, builds.job(2));
-        CHECK(builds.started == 2);
-        CHECK(cache.acquire(2, wait, builds.job(2)).kernel->id == 2 && builds.started == 2);
-    }
+    // Once the build under way is published its place is free: the next
+    // starts.
+    builds.open = true;
+    CHECK(cache.acquire(1, wait, builds.job(1)).kernel->id == 1);
+    cache.acquire(2, now, builds.job(2));
+    CHECK(builds.started == 2);
+    CHECK(cache.acquire(2, wait, builds.job(2)).kernel->id == 2 && builds.started == 2);
 }
 
 // The parameters take the call's and the strategy's values, key a build by
@@ -604,7 +610,7 @@ int main() {
         test_urgency();
         test_failed_build();
         test_eviction();
-        test_build_slots();
+        test_pool();
         test_params();
         test_key_words();
         test_modes();

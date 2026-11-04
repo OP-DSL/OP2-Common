@@ -33,8 +33,7 @@ StrategyBase::StrategyBase(Executor& executor, const op::rt::loop::Point& point,
                            const abi::gpu::Family& family)
     : m_executor{executor}, m_name{point.name}, m_family{family},
       m_block_size{point.value("block_size")}, m_offline{family.offline, executor.calls()},
-      m_cache{family.kernel, executor.context().jit,
-              executor.backend().options.build_threads} {}
+      m_cache{family.kernel, executor.context().jit, executor.context().builds} {}
 
 op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
     KernelFacts facts;

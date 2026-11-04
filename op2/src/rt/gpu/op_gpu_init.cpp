@@ -52,6 +52,7 @@ void init_gpu() {
     auto backend = std::make_unique<gpu::Backend>();
     if (run.jit.debug && !backend->device.arch.empty())
         op_printf("JIT arch flag: %s\n", backend->device.arch.c_str());
+    run.builds.set_limit(run.jit.max_threads.value_or(backend->options.build_threads));
     run.backend = std::move(backend);
     run.families.declare(gpu::strategy_families());
 }

@@ -58,7 +58,7 @@ set(_op2_rt_srcs
     "${_src}/rt/loop/op_loop_report.cpp"
     "${_src}/rt/jit/op_jit_options.cpp"
     "${_src}/rt/jit/op_jit_params.cpp"
-    "${_src}/rt/jit/op_jit_cache.cpp"
+    "${_src}/rt/jit/op_jit_pool.cpp"
     "${_src}/rt/jit/op_jit_report.cpp"
     "${_src}/rt/tune/op_tune_options.cpp"
     "${_src}/rt/tune/op_tune_autotune.cpp"

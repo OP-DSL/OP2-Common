@@ -143,12 +143,13 @@ op2/renumber/hilbert_sfc.h  (the Hilbert space-filling curve over 2D or 3D
 ### The loop runtime (op2/rt/, sources under src/rt)
 
 ```
-op2/rt/context.h    (includes: op2/rt/jit/options.h, op2/rt/loop/family.h,
-                     op2/rt/loop/registry.h, op2/rt/plan/options.h,
-                     op2/rt/tune/options.h; op::rt: the run's context from
-                     op_init to op_exit: its options, the families the
-                     backend declared, what the backend keeps for its loops,
-                     and the loops made; from src/rt/op_rt_lifecycle.cpp)
+op2/rt/context.h    (includes: op2/rt/jit/options.h, op2/rt/jit/pool.h,
+                     op2/rt/loop/family.h, op2/rt/loop/registry.h,
+                     op2/rt/plan/options.h, op2/rt/tune/options.h; op::rt:
+                     the run's context from op_init to op_exit: its options,
+                     the families the backend declared, the threads kernels
+                     build on, what the backend keeps for its loops, and the
+                     loops made; from src/rt/op_rt_lifecycle.cpp)
 op2/rt/hasher.h     (includes: extern/rapidhash.h; a rapidhash over words
                      added one at a time, a block at a time)
 op2/rt/lifecycle.h  (op::rt: the runtime's start, which makes its context,
@@ -330,9 +331,13 @@ op2/rt/jit/params.h   (includes: extern/rapidhash.h, op_lib_core.h,
                        its descriptor's rows, a dat's stride as the backend
                        lays the dat out, and the statistics that move each
                        between baked in and given at run time)
+op2/rt/jit/pool.h     (the threads specialised kernels build on, shared by
+                       every cache, at most as many builds under way as the
+                       backend's limit; from src/rt/jit/op_jit_pool.cpp)
 op2/rt/jit/cache.h    (includes: op_lib_core.h, op2/rt/jit/options.h,
-                       op2/rt/loop/strategy.h; a strategy's built kernels by
-                       key, and when each is built)
+                       op2/rt/jit/pool.h, op2/rt/loop/strategy.h; a
+                       strategy's built kernels by key, and when each is
+                       built)
 op2/rt/jit/report.h   (includes: op2/rt/jit/params.h,
                        op2/rt/loop/strategy.h; the JIT's summary of every
                        loop and its CSV rows; from
@@ -462,11 +467,12 @@ op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
                             op2/rt/gpu/jit.h, op2/rt/gpu/kernel.h,
                             op2/rt/gpu/layout.h, op2/rt/jit/cache.h,
                             op2/rt/loop/strategy.h, op2/rt/plan/cache.h,
-                            op2/rt/plan/colouring.h; the plain, atomics, colouring and chunked
-                            strategies, their axes, block size, unstaged
-                            singles and wavefront, their phases' launches,
-                            and the table of the families the backend
-                            offers; from src/rt/gpu/op_gpu_strategy.cpp)
+                            op2/rt/plan/colouring.h; the plain, atomics,
+                            colouring and chunked strategies, their axes,
+                            block size, unstaged singles and wavefront,
+                            their phases' launches, and the table of the
+                            families the backend offers; from
+                            src/rt/gpu/op_gpu_strategy.cpp)
 ```
 
 #### OpenMP backend (op::rt::cpu, sources under src/rt/cpu)
