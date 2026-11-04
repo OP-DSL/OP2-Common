@@ -101,7 +101,7 @@ __global__ void op_hip_{{lh.name}}(
     const int *__restrict map{{map.id}},
     {% endfor %}
     {% for arg in lh.args|gbl %}
-    {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *__restrict gbl{{arg.id}},
+    {{arg.typ}} *__restrict gbl{{arg.id}},
     {% endfor %}
     {% for arg in lh.args|info %}
     {{arg.typ.c()}} *__restrict info{{arg.id}},

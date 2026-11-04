@@ -60,6 +60,7 @@ arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : zero_{{zero_type}}
         {%- set cast = lh.dat(arg).typ.c() -%}
     {%- endif -%}
 
+    {%- set offset = "" -%}
     {%- if arg is direct -%}
         {%- set offset = " + n" -%}
     {%- elif arg is indirect -%}

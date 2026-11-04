@@ -273,7 +273,7 @@ void {{lh.name}}_wrapper(
         }
 
         block_offset += num_blocks;
-        {% if direct or lh.args|gbl|reduction|length > 0 %}
+        {% if lh.args|gbl|reduction|length > 0 %}
 
         if (col != plan->ncolors_owned - 1)
             continue;

@@ -224,7 +224,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     do n = block, end
         call {{lh.kernel}}( &
     {% for arg in lh.args %}
-            {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"(1)" if arg.dim == 1 }}{{"," if not loop.last}} &
+            {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"(1)" if (arg is gbl or arg is info) and arg.dim == 1 }}{{"," if not loop.last}} &
     {% endfor %}
         )
     end do
@@ -232,7 +232,7 @@ subroutine {{lh.kernel}}_wrapper2( &
     do n = start, end
         call {{lh.kernel}}( &
     {% for arg in lh.args %}
-            {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"(1)" if arg.dim == 1 }}{{"," if not loop.last}} &
+            {{arg_to_pointer(arg, rank1_as_scalar=true)}}{{"(1)" if (arg is gbl or arg is info) and arg.dim == 1 }}{{"," if not loop.last}} &
     {% endfor %}
         )
     end do
