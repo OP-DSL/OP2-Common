@@ -239,7 +239,8 @@ std::string Colouring::statistics(const op::rt::loop::Prepared& prepared) const 
 
 ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call,
                                     const ChunkSpec& spec) const {
-    return plan_chunk_atomics(call.args, call.sections, m_family.groups, spec, m_unstaged_singles,
+    return plan_chunk_atomics(call.args, call.sections, m_family.groups, spec,
+                              m_unstaged_singles,
                               op::rt::plan::chunk_options().min_compression);
 }
 

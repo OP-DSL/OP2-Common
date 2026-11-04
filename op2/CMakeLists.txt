@@ -67,8 +67,8 @@ set(_op2_rt_srcs
     "${_src}/rt/plan/op_plan_options.cpp"
 )
 
-# The OpenMP backend's runtime (src/rt/cpu): its loop, strategies and chunk
-# plans.  Built without OpenMP: the regions are the generated code's
+# The OpenMP backend's runtime (src/rt/cpu): its executor, strategies and
+# chunk plans.  Built without OpenMP: the regions are the generated code's
 # (op2/rt/kernel/cpu/range.h, op2/rt/kernel/cpu/chunk.h).
 set(_op2_rt_cpu_srcs
     "${_src}/rt/cpu/op_cpu_init.cpp"
@@ -77,9 +77,9 @@ set(_op2_rt_cpu_srcs
     "${_src}/rt/cpu/op_cpu_chunk_plan.cpp"
 )
 
-# The CUDA and HIP backend's runtime (src/rt/gpu): its options, loop,
-# strategies, heuristics, JIT mechanism and chunk plans.  What touches the
-# application's kernels and symbols is the generated code's
+# The CUDA and HIP backend's runtime (src/rt/gpu): its options, executor,
+# strategies, heuristics, JIT mechanism, and chunk plans and their encoding.
+# What touches the application's kernels and symbols is the generated code's
 # (op2/rt/kernel/gpu/offline.h).
 set(_op2_rt_gpu_srcs
     "${_src}/rt/gpu/op_gpu_options.cpp"

@@ -154,8 +154,8 @@ Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params, std::span<const
     std::string text;
     for (const char *name : m_headers.names)
         text += std::string{"#include <"} + name + ">\n";
-    text += "\n" + op::rt::jit::format_cxx(params, values) + runtime_declarations(params, symbols) +
-            std::string{family.source};
+    text += "\n" + op::rt::jit::format_cxx(params, values) +
+            runtime_declarations(params, symbols) + std::string{family.source};
     return {m_loop, m_headers, std::move(text), std::string{family.kernel},
             std::move(symbols), std::move(baked_globals)};
 }

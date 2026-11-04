@@ -128,11 +128,9 @@ public:
         (void)call;
     }
 
-    // Run what prepare returned for call; microseconds when timed.  A run
-    // always follows this strategy's prepare for the same call, so the
-    // strategy may keep per-call state from it.  Its other kernel's prepare
-    // and other strategies' may come in between, so that state must not
-    // depend on the kind, and state strategies share must not carry it.
+    // Run what prepare returned for call; microseconds when timed.  What the
+    // run needs comes from the call and the prepared entry, and what
+    // strategies share from their executor, as begin_call set it up.
     virtual std::optional<float> run(const Prepared& prepared, const Call& call,
                                      bool timed) = 0;
 

@@ -80,7 +80,8 @@ private:
     op::rt::plan::PlanSlots<op::rt::plan::SetColouring> m_plans;
 
 public:
-    Colouring(Executor& executor, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+    Colouring(Executor& executor, const op::rt::loop::Point& point,
+              const abi::cpu::Family& family)
         : StrategyBase{executor, point, family} {}
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,
@@ -105,7 +106,8 @@ protected:
     int m_chunk_size;
     op::rt::plan::PlanSlots<ChunkResult> m_plans;
 
-    ChunkBase(Executor& executor, const op::rt::loop::Point& point, const abi::cpu::Family& family)
+    ChunkBase(Executor& executor, const op::rt::loop::Point& point,
+              const abi::cpu::Family& family)
         : StrategyBase{executor, point, family}, m_chunk_size{point.value("chunk_size")} {}
 
     // The variant's plan of the call, and its inputs to the plan's key beyond
@@ -118,7 +120,9 @@ protected:
 public:
     // Elements per chunk: OP_<FAMILY>_CHUNK_SIZES, else OP_CHUNK_SIZES.
     static std::vector<op::rt::loop::Axis> axes() {
-        return {{.variable = "CHUNK_SIZES", .key = "chunk_size", .defaults = {default_chunk_size}}};
+        return {{.variable = "CHUNK_SIZES",
+                 .key = "chunk_size",
+                 .defaults = {default_chunk_size}}};
     }
 
     op::rt::loop::Prepared prepare(const op::rt::loop::Call& call,

@@ -196,7 +196,8 @@ protected:
                    int block_limit) const override;
 
 public:
-    Colouring(Executor& executor, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+    Colouring(Executor& executor, const op::rt::loop::Point& point,
+              const abi::gpu::Family& family)
         : StrategyBase{executor, point, family} {}
 
     std::optional<float> run(const op::rt::loop::Prepared& prepared,
@@ -214,7 +215,8 @@ class ChunkBase : public StrategyBase {
 protected:
     op::rt::plan::PlanSlots<ChunkEntry> m_plans;
 
-    ChunkBase(Executor& executor, const op::rt::loop::Point& point, const abi::gpu::Family& family)
+    ChunkBase(Executor& executor, const op::rt::loop::Point& point,
+              const abi::gpu::Family& family)
         : StrategyBase{executor, point, family} {}
 
     // The variant's plan of the call under spec, its inputs to the plan's key

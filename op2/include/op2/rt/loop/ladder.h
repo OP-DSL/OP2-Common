@@ -108,7 +108,8 @@ public:
                       std::span<const OfferedFamily<BackendExecutor, AbiFamily>> offered,
                       BackendExecutor& executor, std::string_view backend) {
         for (const auto& family : registered) {
-            auto found = std::ranges::find(offered, std::string_view{family.name}, &Family::name);
+            auto found =
+                std::ranges::find(offered, std::string_view{family.name}, &Family::name);
             if (found == offered.end())
                 missing_family(family.name, m_name, backend);
             add(family.name, [&](const Point& point) {
