@@ -116,6 +116,8 @@ class CppCudaLegacy(Scheme):
 
         if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
@@ -172,6 +174,8 @@ class CppHipLegacy(Scheme):
 
         if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:

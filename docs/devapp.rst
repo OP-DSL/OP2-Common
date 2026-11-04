@@ -702,17 +702,16 @@ The following parallel versions will be generated from the code generator. These
   #On 4 mpi procs with each proc running 8 OpenMP threads
   export OMP_NUM_THREADS=8; $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
-(4) Code-gen CUDA and MPI + Code-gen CUDA, with a thread-block size of 192: the JIT build (``airfoil_cuda``) takes its block size from the environment, the legacy one (``airfoil_cuda_legacy``) as an argument with its mini-partition size
+(4) Code-gen CUDA and MPI + Code-gen CUDA, with a thread-block size of 192, which the build takes from the environment
 
 .. code-block:: bash
 
   #On a single GPU
   OP_BLOCK_SIZES=192 ./airfoil_cuda
-  ./airfoil_cuda_legacy OP_PART_SIZE=128 OP_BLOCK_SIZE=192
   #On 4 mpi procs, each proc having a GPU
   OP_BLOCK_SIZES=192 $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_cuda
 
-The HIP builds (``airfoil_hip``, ``airfoil_hip_legacy``) run the same way.  See :ref:`strategies` for how the JIT builds choose and tune each loop's execution strategy.
+The HIP build (``airfoil_hip``) runs the same way. Airfoil has no ``cuda_legacy`` or ``hip_legacy`` build: its ``update`` loop reports where an error occurs through :c:func:`op_arg_info`, which those targets don't support.  See :ref:`strategies` for how the JIT builds choose and tune each loop's execution strategy.
 
 
 Optimizations

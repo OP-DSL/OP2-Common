@@ -14,7 +14,7 @@ op2_add_functional_tests(
     EXCLUDE_VARIANTS *seq *openmp *_legacy)
 
 # A two-component maximum with an info argument, serial only: info is not
-# reduced across ranks, and the legacy GPU templates pass a dummy for it.
+# reduced across ranks, and the legacy GPU targets reject it.
 op2_add_functional_tests(
     LANGUAGE cpp
     NAME     gbl_info

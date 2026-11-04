@@ -2,7 +2,8 @@
 // misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
 // (an OP_INC one only to increment), an info argument that doesn't match its
 // maximum, a map index a legacy target needs as a constant, a non-constant
-// const dim, a recursive helper, or an include that isn't there.
+// const dim, a recursive helper, an include that isn't there, or an info
+// argument, which the legacy GPU targets don't support.
 
 #include <cstring>
 
@@ -41,7 +42,7 @@ void kernel(const double *q, double *r, double *p) {
 #endif
 }
 
-#if defined(INFO_DIM) || defined(INFO_REF)
+#if defined(INFO_DIM) || defined(INFO_REF) || defined(LEGACY_INFO)
 void extreme(const double *q, double *max, int *loc) {
     for (int d = 0; d < 2; ++d)
         if (q[d] > max[d]) {
@@ -75,7 +76,7 @@ int main(int argc, char **argv) {
     int n = argc;
     op_decl_const(n, "double", q);
 #endif
-#if defined(INFO_DIM) || defined(INFO_REF)
+#if defined(INFO_DIM) || defined(INFO_REF) || defined(LEGACY_INFO)
     double max[2] = {};
     int loc[2] = {};
 #if defined(INFO_DIM)
@@ -83,6 +84,11 @@ int main(int argc, char **argv) {
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
                 op_arg_gbl(max, 2, "double", OP_MAX),
                 op_arg_info(loc, 1, "int", 1));
+#elif defined(LEGACY_INFO)
+    op_par_loop(extreme, "extreme", edges,
+                op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
+                op_arg_gbl(max, 2, "double", OP_MAX),
+                op_arg_info(loc, 2, "int", 1));
 #else
     op_par_loop(extreme, "extreme", edges,
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),

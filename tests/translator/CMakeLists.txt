@@ -43,3 +43,5 @@ _op2_translator_falls_back(fortran_implied_save cuda_f2c rejects.F90 "SAVE local
 _op2_translator_rejects(fortran_vector_map cuda_f2c rejects.F90 "assign_k: vector map arguments are not supported in Fortran" -D VECTOR_MAP)
 _op2_translator_rejects(missing_include cuda rejects.cpp "'op2_no_such_header.h' file not found" -D MISSING_INCLUDE)
 _op2_translator_test(angle_include OFF cuda angle_include.cpp "Translated program 1 of 1" -v)
+_op2_translator_rejects(legacy_info cuda_legacy rejects.cpp "extreme: op_arg_info is not supported by cuda_legacy" -D LEGACY_INFO)
+_op2_translator_rejects(legacy_info_hip hip_legacy rejects.cpp "extreme: op_arg_info is not supported by hip_legacy" -D LEGACY_INFO)

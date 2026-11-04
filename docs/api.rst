@@ -357,7 +357,7 @@ Parallel Loops
    :param ref: The position of that minimum or maximum's :c:func:`op_arg_gbl()` among the loop's arguments, counting from 0 (from 1 in Fortran).
 
    .. warning::
-      This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types.
+      This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types. The C++ ``cuda_legacy`` and ``hip_legacy`` targets reject a loop with this argument.
 
 HDF5 I/O
 ^^^^^^^^
