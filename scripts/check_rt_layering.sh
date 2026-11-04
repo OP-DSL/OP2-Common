@@ -9,7 +9,13 @@
 #    so no library source or header includes it, and it includes only
 #    op2/rt/abi and itself;
 #  - the generated code includes from op2/rt only op2/rt/abi and
-#    op2/rt/kernel.
+#    op2/rt/kernel;
+#  - the neutral layers (loop, jit, tune, plan, the top-level headers) include
+#    neither backend nor a backend's part of op2/rt/abi, and each backend
+#    includes neither the other nor its part;
+#  - device headers appear only in the GPU backend and op2/rt/kernel;
+#  - variables are read only by their owners: each layer's options, the
+#    families, and the backends' inits.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,5 +51,22 @@ report "op2/rt/kernel includes the loop runtime beyond op2/rt/abi and op2/rt/ker
 
 report "the generated code includes the loop runtime beyond op2/rt/abi and op2/rt/kernel" \
     "$(grep -rnE "$include" translator-v2/resources/templates | grep -vE "$contract" || true)"
+
+neutral='^op2/(include/op2/rt|src/rt)/(loop|jit|tune|plan|[^/]+$)'
+report "the neutral layers include a backend" \
+    "$(grep -rnE "$include" op2/include/op2/rt op2/src/rt | grep -E "$neutral" |
+        grep -E '[<"]op2/rt/(gpu|cpu|abi/gpu|abi/cpu)/' || true)"
+
+report "a backend includes the other" \
+    "$(grep -rnE "$include" op2/include/op2/rt/gpu op2/src/rt/gpu | grep -E '[<"]op2/rt/(abi/)?cpu/' || true;
+       grep -rnE "$include" op2/include/op2/rt/cpu op2/src/rt/cpu | grep -E '[<"]op2/rt/(abi/)?gpu/' || true)"
+
+report "device headers outside the GPU backend and op2/rt/kernel" \
+    "$(grep -rnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"](op2/gpu/|op_cuda|op_hip|cuda|hip|nvrtc)' \
+        op2/include/op2/rt op2/src/rt | grep -vE '^op2/(include/op2/rt|src/rt)/(gpu|kernel|abi/gpu)/' || true)"
+
+report "variables read outside their owners" \
+    "$(grep -rnE 'env::parse_|getenv\(' op2/include/op2/rt op2/src/rt |
+        grep -vE '^op2/src/rt/(jit/op_jit_options|tune/op_tune_options|loop/op_loop_family|gpu/op_gpu_init|gpu/op_gpu_heuristics|cpu/op_cpu_init)\.cpp:' || true)"
 
 exit $status
