@@ -42,7 +42,7 @@ OP_KERNEL_JIT_EMBED(op_app_params_, OP_KERNEL_JIT_PARAMS)
 #endif
 
 [[maybe_unused]] static const char *const OP_KERNEL_JIT_CAT(op_kernel_jit_data_,
-                                                           OP_KERNEL_JIT_TAG)[] = {
+                                                            OP_KERNEL_JIT_TAG)[] = {
     OP_KERNEL_JIT_FILES(OP_KERNEL_JIT_DATA)
 #ifdef OP_KERNEL_JIT_PARAMS
     OP_KERNEL_JIT_DATA(op_app_params_, OP_KERNEL_JIT_PARAMS)
@@ -50,7 +50,7 @@ OP_KERNEL_JIT_EMBED(op_app_params_, OP_KERNEL_JIT_PARAMS)
 };
 
 [[maybe_unused]] static const char *const OP_KERNEL_JIT_CAT(op_kernel_jit_names_,
-                                                           OP_KERNEL_JIT_TAG)[] = {
+                                                            OP_KERNEL_JIT_TAG)[] = {
     OP_KERNEL_JIT_FILES(OP_KERNEL_JIT_NAME)
 #ifdef OP_KERNEL_JIT_PARAMS
     OP_KERNEL_JIT_PARAMS,

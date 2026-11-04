@@ -47,7 +47,7 @@ OP_KERNEL_DEVICE inline T *stage_region(char *&cursor, IndexType count, IndexTyp
 // Cooperatively zero a region before accumulating into it.
 template<typename T>
 OP_KERNEL_DEVICE inline void stage_clear(T *region, IndexType elements, IndexType lane,
-                               IndexType lanes) {
+                                         IndexType lanes) {
     for (IndexType i = lane; i < elements; i += lanes)
         region[i] = 0;
 }
@@ -55,43 +55,34 @@ OP_KERNEL_DEVICE inline void stage_clear(T *region, IndexType elements, IndexTyp
 // Seed a slot from its target's current value.
 template<typename T, typename Source>
 OP_KERNEL_DEVICE inline void stage_seed(Ptr<Source> target, T *region, IndexType slot,
-                              IndexType dim) {
+                                        IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
-        region[slot * dim + c] = target.data[c * target.stride];
+        region[slot * dim + c] = target[c];
 }
 
 // Add one element's per-thread increments into its staged slot.
 template<typename T>
 OP_KERNEL_DEVICE inline void stage_add(Ptr<T> slot, const T *increment, IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
-        slot.data[c * slot.stride] += increment[c];
+        slot[c] += increment[c];
 }
 
 // Store a slot back to its target, which no other chunk running alongside
 // this one reaches.
 template<typename T>
 OP_KERNEL_DEVICE inline void stage_store(Ptr<T> target, const T *region, IndexType slot,
-                               IndexType dim) {
+                                         IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
-        target.data[c * target.stride] = region[slot * dim + c];
+        target[c] = region[slot * dim + c];
 }
 
 // Add a slot's accumulated increments into its target, which other chunks
 // of the section may be adding to as well.
-#if !defined(OP_KERNEL_GPU)
-template<typename T>
-inline void stage_flush(Ptr<T> target, const T *region, IndexType slot,
-                        IndexType dim) {
-    for (IndexType c = 0; c < dim; ++c)
-        atomic_inc(target.data[c * target.stride], region[slot * dim + c]);
-}
-#else
 template<typename T>
 OP_KERNEL_DEVICE inline void stage_flush(Ptr<T> target, const T *region, IndexType slot,
-                               IndexType dim) {
+                                         IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
-        atomicAdd(&target.data[c * target.stride], region[slot * dim + c]);
+        atomic_inc(target[c], region[slot * dim + c]);
 }
-#endif
 
 } // namespace op::rt::kernel

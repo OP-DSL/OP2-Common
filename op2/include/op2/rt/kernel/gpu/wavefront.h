@@ -15,7 +15,7 @@ namespace op::rt::kernel::gpu {
    acquire fence once it is seen, so a chunk's seeds see the stores of
    predecessors that ran on another multiprocessor (or XCD) while a poll
    invalidates no cache. */
-OP_KERNEL_DEVICE inline int wave_poll(const int *flag) {
+__device__ __forceinline__ int wave_poll(const int *flag) {
 #if defined(__HIP_DEVICE_COMPILE__)
     return __hip_atomic_load(const_cast<int *>(flag), __ATOMIC_RELAXED,
                              __HIP_MEMORY_SCOPE_AGENT);
@@ -29,7 +29,7 @@ OP_KERNEL_DEVICE inline int wave_poll(const int *flag) {
 #endif
 }
 
-OP_KERNEL_DEVICE inline void wave_acquire() {
+__device__ __forceinline__ void wave_acquire() {
 #if defined(__HIP_DEVICE_COMPILE__)
     __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent");
 #elif defined(__CUDA_ARCH__)
@@ -37,7 +37,7 @@ OP_KERNEL_DEVICE inline void wave_acquire() {
 #endif
 }
 
-OP_KERNEL_DEVICE inline void wave_release(int *flag, int value) {
+__device__ __forceinline__ void wave_release(int *flag, int value) {
 #if defined(__HIP_DEVICE_COMPILE__)
     __hip_atomic_store(flag, value, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_AGENT);
 #elif defined(__CUDA_ARCH__)
@@ -48,7 +48,7 @@ OP_KERNEL_DEVICE inline void wave_release(int *flag, int value) {
 #endif
 }
 
-OP_KERNEL_DEVICE inline void wave_pause() {
+__device__ __forceinline__ void wave_pause() {
 #if defined(__HIP_DEVICE_COMPILE__)
     __builtin_amdgcn_s_sleep(1);
 #elif defined(__CUDA_ARCH__)
@@ -57,7 +57,7 @@ OP_KERNEL_DEVICE inline void wave_pause() {
 }
 
 // Take the block's next position; every thread returns it.
-OP_KERNEL_DEVICE inline int wave_take(int *ticket, int begin, int& taken) {
+__device__ __forceinline__ int wave_take(int *ticket, int begin, int& taken) {
     if (threadIdx.x == 0)
         taken = begin + atomicAdd(ticket, 1);
     __syncthreads();
@@ -65,8 +65,8 @@ OP_KERNEL_DEVICE inline int wave_take(int *ticket, int begin, int& taken) {
 }
 
 // Wait until every predecessor of position is done in this call.
-OP_KERNEL_DEVICE inline void wave_wait(const int *pred_offsets, const int *preds,
-                             const int *done, int position, int epoch) {
+__device__ __forceinline__ void wave_wait(const int *pred_offsets, const int *preds,
+                                          const int *done, int position, int epoch) {
     bool waited = false;
     for (int p = pred_offsets[position] + (int)threadIdx.x;
          p < pred_offsets[position + 1]; p += block_size()) {
@@ -81,7 +81,7 @@ OP_KERNEL_DEVICE inline void wave_wait(const int *pred_offsets, const int *preds
 
 // Mark position done; call after the barrier that ends its stores, which
 // orders every thread's stores before the release.
-OP_KERNEL_DEVICE inline void wave_signal(int *done, int position, int epoch) {
+__device__ __forceinline__ void wave_signal(int *done, int position, int epoch) {
     if (threadIdx.x == 0)
         wave_release(done + position, epoch);
 }
