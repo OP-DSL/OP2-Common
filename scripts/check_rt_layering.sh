@@ -10,17 +10,21 @@
 #    op2/rt/abi and itself;
 #  - the generated code includes from op2/rt only op2/rt/abi and
 #    op2/rt/kernel;
-#  - the neutral layers (loop, jit, tune, plan, the top-level headers) include
-#    neither backend nor a backend's part of op2/rt/abi, and each backend
-#    includes neither the other nor its part;
-#  - device headers appear only in the GPU backend and op2/rt/kernel;
-#  - variables are read only by their owners: each layer's options, the
-#    families, and the backends' inits.
+#  - the neutral layers (loop, jit, tune, plan, the top-level files) include
+#    neither backend nor a backend's part of op2/rt/abi, nor do the top-level
+#    headers of op2/rt/abi and op2/rt/kernel;
+#  - each backend, with its parts of op2/rt/abi and op2/rt/kernel, includes
+#    neither the other backend nor its parts;
+#  - device headers appear only in the GPU backend, its parts, and the shared
+#    headers of op2/rt/kernel;
+#  - only these files read variables: each layer's options, the families,
+#    and the backends' inits.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 include='^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/rt/'
 contract='[<"]op2/rt/(abi|kernel)/'
+sources=(--include='*.h' --include='*.hpp' --include='*.cpp' --include='*.cu')
 status=0
 
 report() {
@@ -32,41 +36,53 @@ report() {
 }
 
 report "core sources include the loop runtime beyond op2/rt/lifecycle.h" \
-    "$(grep -rnE "$include" op2/include op2/src |
+    "$(grep -rnE "${sources[@]}" "$include" op2/include op2/src |
         grep -vE '^op2/(include/op2/rt|src/rt|src/fortran)/' |
         grep -vE '[<"]op2/rt/lifecycle\.h[>"]' || true)"
 
 report "op2/rt/abi includes the loop runtime beyond op2/rt/abi" \
-    "$(grep -rnE "$include" op2/include/op2/rt/abi | grep -vE '[<"]op2/rt/abi/' || true)"
+    "$(grep -rnE "${sources[@]}" "$include" op2/include/op2/rt/abi |
+        grep -vE '[<"]op2/rt/abi/' || true)"
 
 report "library sources include op2/rt/kernel, which only op2_kernels compiles" \
-    "$(grep -rnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/rt/kernel/' op2/src || true)"
+    "$(grep -rnE "${sources[@]}" "${include}kernel/" op2/src || true)"
 
 report "library headers include op2/rt/kernel, which only op2_kernels compiles" \
-    "$(grep -rnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/rt/kernel/' op2/include/op2/rt |
+    "$(grep -rnE "${sources[@]}" "${include}kernel/" op2/include/op2/rt |
         grep -vE '^op2/include/op2/rt/kernel/' || true)"
 
 report "op2/rt/kernel includes the loop runtime beyond op2/rt/abi and op2/rt/kernel" \
-    "$(grep -rnE "$include" op2/include/op2/rt/kernel | grep -vE "$contract" || true)"
+    "$(grep -rnE "${sources[@]}" "$include" op2/include/op2/rt/kernel |
+        grep -vE "$contract" || true)"
 
 report "the generated code includes the loop runtime beyond op2/rt/abi and op2/rt/kernel" \
     "$(grep -rnE "$include" translator-v2/resources/templates | grep -vE "$contract" || true)"
 
-neutral='^op2/(include/op2/rt|src/rt)/(loop|jit|tune|plan|[^/]+$)'
-report "the neutral layers include a backend" \
-    "$(grep -rnE "$include" op2/include/op2/rt op2/src/rt | grep -E "$neutral" |
-        grep -E '[<"]op2/rt/(gpu|cpu|abi/gpu|abi/cpu)/' || true)"
+neutral='^op2/(include/op2/rt|src/rt)/((loop|jit|tune|plan)/|[^/:]+:)'
+shared='^op2/include/op2/rt/(abi|kernel)/[^/:]+:'
+report "the neutral layers include a backend or its parts" \
+    "$(grep -rnE "${sources[@]}" "$include" op2/include/op2/rt op2/src/rt |
+        grep -E "$neutral|$shared" | grep -E '[<"]op2/rt/((abi|kernel)/)?(gpu|cpu)/' || true)"
 
-report "a backend includes the other" \
-    "$(grep -rnE "$include" op2/include/op2/rt/gpu op2/src/rt/gpu | grep -E '[<"]op2/rt/(abi/)?cpu/' || true;
-       grep -rnE "$include" op2/include/op2/rt/cpu op2/src/rt/cpu | grep -E '[<"]op2/rt/(abi/)?gpu/' || true)"
+report "a backend includes the other or its parts" \
+    "$(grep -rnE "${sources[@]}" "$include" op2/include/op2/rt op2/src/rt |
+        grep -E '^op2/(include/op2/rt|src/rt)/((abi|kernel)/)?gpu/' |
+        grep -E '[<"]op2/rt/((abi|kernel)/)?cpu/' || true;
+       grep -rnE "${sources[@]}" "$include" op2/include/op2/rt op2/src/rt |
+        grep -E '^op2/(include/op2/rt|src/rt)/((abi|kernel)/)?cpu/' |
+        grep -E '[<"]op2/rt/((abi|kernel)/)?gpu/' || true)"
 
-report "device headers outside the GPU backend and op2/rt/kernel" \
-    "$(grep -rnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"](op2/gpu/|op_cuda|op_hip|cuda|hip|nvrtc)' \
-        op2/include/op2/rt op2/src/rt | grep -vE '^op2/(include/op2/rt|src/rt)/(gpu|kernel|abi/gpu)/' || true)"
+device='^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]'
+device+='(op2/gpu/|op_cuda|op_hip|cuda|hip|nvrtc|thrust/|cub/|cooperative_groups)'
+report "device headers outside the GPU backend and op2/rt/kernel's shared headers" \
+    "$(grep -rnE "${sources[@]}" "$device" op2/include/op2/rt op2/src/rt |
+        grep -vE '^op2/(include/op2/rt|src/rt)/((abi|kernel)/)?gpu/' |
+        grep -vE '^op2/include/op2/rt/kernel/[^/:]+:' || true)"
 
-report "variables read outside their owners" \
-    "$(grep -rnE 'env::parse_|getenv\(' op2/include/op2/rt op2/src/rt |
-        grep -vE '^op2/src/rt/(jit/op_jit_options|tune/op_tune_options|loop/op_loop_family|gpu/op_gpu_init|gpu/op_gpu_heuristics|cpu/op_cpu_init)\.cpp:' || true)"
+readers='^op2/src/rt/(jit/op_jit_options|tune/op_tune_options|loop/op_loop_family|'
+readers+='gpu/op_gpu_init|gpu/op_gpu_heuristics|cpu/op_cpu_init)\.cpp:'
+report "variables read outside their readers" \
+    "$(grep -rnE "${sources[@]}" '\bparse_(bool|number|text|list|choice)\(|getenv\(' \
+        op2/include/op2/rt op2/src/rt | grep -vE "$readers" || true)"
 
 exit $status

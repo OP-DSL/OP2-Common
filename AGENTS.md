@@ -13,11 +13,12 @@ dats are translated per target (`translator-v2/`) and run by the library
 - `apps/`, `tests/`, `docs/`.
 
 ## Building and testing
-- Configure with CMake (`OP2_ENABLE_*`); build with
-  `cmake --build <dir> -jN -- -k`: without `-k` a failing target stops the
-  build and later test binaries stay stale.
-- `ctest -L <label>` or `-R <regex>`; labels unit, functional, translator,
-  apps.  GPU tests need a device.
+- Configure with CMake (`OP2_ENABLE_*`; the tests need `OP2_ENABLE_TESTS`, the
+  applications' `OP2_ENABLE_APP_TESTS`).  Build past a failing target
+  (`-- -k` under Make): otherwise later test binaries stay stale.
+- `ctest -L <label>` or `-R <regex>`; labels unit, cuda, translator,
+  functional and apps, plus the language, serial or mpi, and strategy.  GPU
+  tests need a device.
 - Check each change by what it can break: the affected targets build without
   warnings, and the tests or runs that reach the change pass.  Full validation
   only at checkpoints and before a merge.
@@ -25,8 +26,8 @@ dats are translated per target (`translator-v2/`) and run by the library
 ## Conventions
 - C++20 throughout: place code where it belongs (an overload beside the API
   it extends), not by worries about older standards.  Lines up to 96 columns.
-- Every header lives under `op2/include`, internal ones included; sources are
-  named `op_<dir>_<header>.cpp`.
+- Every library header lives under `op2/include`, internal ones included;
+  sources are named `op_<dir>_<topic>.cpp`.
 - Comments are short: what code is for, or the trap it guards.  Reasoning
   belongs in the commit or the review.
 - Tests use the real interfaces: nothing exists only for a test.

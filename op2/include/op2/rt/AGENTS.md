@@ -14,22 +14,23 @@ backend's kernel.  `op2/include/README.md` maps every header.
 | `gpu/`, `cpu/` | the backends: executors, strategies, chunk plans, kernels, options, heuristics, device facts | the neutral layers, their own abi part |
 
 `abi/gpu`, `abi/cpu`, `kernel/gpu` and `kernel/cpu` belong to their backend
-alone.  `scripts/check_rt_layering.sh` (ctest `rt_layering`) checks these
-includes, the core's (only `lifecycle.h`), device headers, and which files
-read variables.
+alone, and the top-level headers of `abi/` and `kernel/` include neither.
+`scripts/check_rt_layering.sh` (ctest `rt_layering`) checks these includes,
+the core's (only `lifecycle.h`), device headers, and which files read
+variables.
 
 ## Rules
 - Neutral code holds only what every backend shares and none decides.  A
   backend owns its options, defaults, limits, encodings, heuristics and device
   facts, and gives the core neutral values (`loop::Estimate`, `Prepared`).
 - Building blocks take every policy value as an argument.
-- Run state lives in `rt::Context` (`context.h`): `op::rt::init` makes it,
-  `init_cpu`/`init_gpu` add the backend's part, `finalise` destroys it.
-  Loops and their parts take what they read from it; no globals.  Each
-  variable is read once, by its owner.
-- A run that skips op_exit must still exit cleanly: only finalise destroys
-  the context.
-- A backend extends a neutral type by inheriting it (`gpu::Param :
+- Run state lives in `rt::Context` (`context.h`): `op::rt::init` makes it
+  (a later call replaces it), `init_cpu`/`init_gpu` add the backend's part,
+  `finalise` destroys it.  Loops and their parts take what they read from
+  it; no globals.  Each variable is read once, by its owner.
+- A run that skips op_exit must still exit cleanly: nothing destroys the
+  context at exit.
+- A backend extends a neutral type by inheriting it (`abi::gpu::Param :
   abi::Param`), and composes the neutral loop's parts rather than deriving
   from a loop that owns them.
 - `op_profile` scopes are not an interface: restructure them freely.

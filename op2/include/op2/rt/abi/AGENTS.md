@@ -8,8 +8,8 @@ knows a library internal.
 - A change here changes the ABI: change the C++ and Fortran templates with
   it, regenerate, and check the generated code builds and its kernels'
   registers do not rise.
-- Launch records are X-macro field lists (`OP_ABI_GPU_*_FIELDS`): a field is
-  added there, once.
+- The GPU launch records are X-macro field lists (`OP_ABI_GPU_*_FIELDS`): a
+  field is added there, once.
 - `abi/gpu` and `abi/cpu` are each backend's part; the top-level headers are
   neutral.
 - Descriptors are static in the generated code and outlive every loop.
