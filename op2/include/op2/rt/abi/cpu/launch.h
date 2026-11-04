@@ -44,10 +44,9 @@ struct Range {
 };
 
 // Batches of chunks shared out over the threads, one after another: per
-// batch its first position, then the last batch's end; per position its
-// chunk, the position itself when chunk_order is null; per chunk its first
-// element, then the last chunk's end.  Per thread its globals and scratch;
-// chunk_atomics' staging.
+// batch its first position, then the last batch's end; under chunk_colouring
+// per position its chunk; per chunk its first element, then the last chunk's
+// end.  Per thread its globals and scratch; chunk_atomics' staging.
 struct Chunk {
     int threads = 1;
     char *const *globals = nullptr;

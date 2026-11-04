@@ -169,7 +169,7 @@ static void op2_k_{{lh.name}}{{variant}}_chunk_colouring(const op::rt::abi::cpu:
                                                   op_arg *args) {
     namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
 {{prologue()}}
-    op::rt::kernel::cpu::chunks(op2_chunks, [&]([[maybe_unused]] const op::rt::abi::cpu::Thread& op2_thread) {
+    op::rt::kernel::cpu::chunks<true>(op2_chunks, [&]([[maybe_unused]] const op::rt::abi::cpu::Thread& op2_thread) {
 {% if args_per_thread %}
 {{thread_prologue()}}
 {% endif %}
@@ -198,7 +198,7 @@ static void op2_k_{{lh.name}}{{variant}}_chunk_atomics(const op::rt::abi::cpu::C
     const int *const op2_slot_offsets = op2_chunks.staging.slot_offsets;
     const int *const op2_slot_targets = op2_chunks.staging.slot_targets;
 
-    op::rt::kernel::cpu::chunks(op2_chunks, [&]([[maybe_unused]] const op::rt::abi::cpu::Thread& op2_thread) {
+    op::rt::kernel::cpu::chunks<false>(op2_chunks, [&]([[maybe_unused]] const op::rt::abi::cpu::Thread& op2_thread) {
 {% if args_per_thread %}
 {{thread_prologue()}}
 {% endif %}

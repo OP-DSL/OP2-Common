@@ -91,7 +91,7 @@ void colouring_run(const op::rt::abi::cpu::Chunk& chunks, op_arg *args) {
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
-    op::rt::kernel::cpu::chunks(chunks, [&](const op::rt::abi::cpu::Thread& thread) {
+    op::rt::kernel::cpu::chunks<true>(chunks, [&](const op::rt::abi::cpu::Thread& thread) {
         return [=](int, int begin, int end) {
             for (int n = begin; n < end; ++n)
                 element(n, x, map, w, thread.global<double>(3), thread.global<double>(4),
@@ -106,7 +106,7 @@ void staged_run(const op::rt::abi::cpu::Chunk& chunks, op_arg *args) {
     auto *x = reinterpret_cast<double *>(args[0].data);
     const int *map = args[0].map_data;
     auto *w = reinterpret_cast<const double *>(args[2].data);
-    op::rt::kernel::cpu::chunks(chunks, [&](const op::rt::abi::cpu::Thread& thread) {
+    op::rt::kernel::cpu::chunks<false>(chunks, [&](const op::rt::abi::cpu::Thread& thread) {
         return [&, thread](int chunk, int begin, int end) {
             char *cursor = thread.scratch;
             const int first = staging.slot_offsets[static_cast<std::size_t>(chunk)];
