@@ -12,17 +12,17 @@
 namespace op::rt::kernel::cpu {
 
 template<bool ordered, typename Make>
-void range(const op::rt::abi::cpu::Range& range, Make&& make) {
-    const long long size = static_cast<long long>(range.end) - range.begin;
-#pragma omp parallel num_threads(range.threads)
+void range(const op::rt::abi::cpu::Range& record, Make&& make) {
+    const long long size = static_cast<long long>(record.end) - record.begin;
+#pragma omp parallel num_threads(record.threads)
     {
         const long long thread = omp_get_thread_num();
         const long long count = omp_get_num_threads();
-        auto element = make(op::rt::abi::cpu::Thread{range.globals + thread * range.nargs});
-        const int begin = static_cast<int>(range.begin + size * thread / count);
-        const int end = static_cast<int>(range.begin + size * (thread + 1) / count);
+        auto element = make(op::rt::abi::cpu::Thread{record.globals + thread * record.nargs});
+        const int begin = static_cast<int>(record.begin + size * thread / count);
+        const int end = static_cast<int>(record.begin + size * (thread + 1) / count);
         for (int i = begin; i < end; ++i)
-            element(ordered ? range.order[i] : i);
+            element(ordered ? record.order[i] : i);
     }
 }
 
