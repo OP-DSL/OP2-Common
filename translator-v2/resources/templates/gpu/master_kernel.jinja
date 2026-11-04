@@ -17,13 +17,12 @@
 #include <op2/rt/kernel/staging.h>
 
 #include <op_lib_cpp.h>
-#include <op_profile.h>
 
+#include <algorithm>
 #include <array>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
-#include <vector>
 
 {{abi.master_extras()}}
 {% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}

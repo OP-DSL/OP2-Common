@@ -7,6 +7,7 @@
 #define OP_KERNEL_JIT_TAG chunk_strategy_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
+#include <op2/gpu/check.h>
 #include <op2/rt/context.h>
 #include <op2/rt/gpu/executor.h>
 #include <op2/rt/gpu/strategy.h>

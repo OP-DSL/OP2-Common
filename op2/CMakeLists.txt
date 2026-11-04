@@ -246,8 +246,8 @@ function(_op2_configure_target tgt)
     endif()
 endfunction()
 
-# Generated kernels call constexpr host helpers from __global__ functions,
-# which nvcc rejects without --expt-relaxed-constexpr.
+# Application kernels may call constexpr host functions from __global__
+# functions, which nvcc rejects without --expt-relaxed-constexpr.
 # The JIT builds through NVRTC (src/rt/gpu/op_gpu_jit.cpp), and loads and
 # launches what it built through the driver API (src/rt/gpu/op_gpu_kernel.cpp).
 function(_op2_configure_cuda_target tgt)

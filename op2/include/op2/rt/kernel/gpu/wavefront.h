@@ -6,11 +6,6 @@
 #include <op2/rt/kernel/gpu/device.h>
 #include <op2/rt/kernel/prelude.h>
 
-// Declares atomicAdd under offline HIP.
-#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
-#include <hip/hip_runtime.h>
-#endif
-
 namespace op::rt::kernel::gpu {
 
 /* Wavefront colouring (OP_CHUNK_COLOURING_WAVEFRONT): a block takes positions

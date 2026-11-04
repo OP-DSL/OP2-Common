@@ -7,10 +7,6 @@
     {% endif %}
 {% endif %}
 
-#define INCBIN_STYLE INCBIN_STYLE_SNAKE
-#define INCBIN_PREFIX
-#include <extern/incbin.h>
-
 {% if lang.user_consts_module is none %}
 #include <cstdint>
 
@@ -27,9 +23,8 @@ extern {{const.typ.c()}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.d
     {% endfor %}
 
 {% else %}
-#define OP_KERNEL_PARAMS OP_KERNEL_PARAMS_{{tag}}
-#define OP_KERNEL_PARAMS_DATA OP_KERNEL_PARAMS_{{tag}}_data
-INCTXT(OP_KERNEL_PARAMS, "hydra_const_list_params.h");
+// The constants header a specialised kernel includes (jit_embed.h).
+#define OP_KERNEL_JIT_PARAMS "hydra_const_list_params.h"
 
 {% endif %}
 {% include "gpu/master_kernel.jinja" %}

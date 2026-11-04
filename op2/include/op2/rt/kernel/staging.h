@@ -78,7 +78,7 @@ OP_KERNEL_DEVICE inline void stage_store(Ptr<T> target, const T *region, IndexTy
 
 // Add a slot's accumulated increments into its target, which other chunks
 // of the section may be adding to as well.
-#if !defined(__CUDACC__) && !defined(__HIPCC__)
+#if !defined(OP_KERNEL_GPU)
 template<typename T>
 inline void stage_flush(Ptr<T> target, const T *region, IndexType slot,
                         IndexType dim) {

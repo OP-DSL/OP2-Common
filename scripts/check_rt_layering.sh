@@ -6,7 +6,7 @@
 #  - op2/rt/abi, the contract between the library and op2_kernels, includes
 #    nothing else of op2/rt;
 #  - op2/rt/kernel is compiled into op2_kernels alone, never into a library,
-#    so no library source or header includes it, and it includes only
+#    so no library source or header includes it, and it includes of op2 only
 #    op2/rt/abi and itself;
 #  - the generated code includes from op2/rt only op2/rt/abi and
 #    op2/rt/kernel;
@@ -51,9 +51,9 @@ report "library headers include op2/rt/kernel, which only op2_kernels compiles" 
     "$(grep -rnE "${sources[@]}" "${include}kernel/" op2/include/op2/rt |
         grep -vE '^op2/include/op2/rt/kernel/' || true)"
 
-report "op2/rt/kernel includes the loop runtime beyond op2/rt/abi and op2/rt/kernel" \
-    "$(grep -rnE "${sources[@]}" "$include" op2/include/op2/rt/kernel |
-        grep -vE "$contract" || true)"
+report "op2/rt/kernel includes op2 beyond op2/rt/abi and op2/rt/kernel" \
+    "$(grep -rnE "${sources[@]}" '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]op2/' \
+        op2/include/op2/rt/kernel | grep -vE "$contract" || true)"
 
 report "the generated code includes the loop runtime beyond op2/rt/abi and op2/rt/kernel" \
     "$(grep -rnE "$include" translator-v2/resources/templates | grep -vE "$contract" || true)"

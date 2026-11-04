@@ -1,16 +1,22 @@
 #pragma once
 
-#if defined(__CUDACC__) && !defined(__CUDACC_RTC__)
-#include <cassert>
-#endif
+// What every translated kernel builds on, on the host and on the device:
+// Fortran-style array views and the Fortran intrinsics.  OP_KERNEL_GPU marks
+// a CUDA or HIP compile, offline or JIT, and OP_KERNEL_DEVICE the functions a
+// device kernel calls.
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
+#define OP_KERNEL_GPU 1
 #define OP_KERNEL_DEVICE __device__
 #else
 #include <cmath>
-#include <cassert>
 
 #define OP_KERNEL_DEVICE
+#endif
+
+// Declares the device runtime under offline HIP.
+#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
+#include <hip/hip_runtime.h>
 #endif
 
 #if defined(__CUDACC_RTC__) || defined(__HIPCC_RTC__)
@@ -43,9 +49,12 @@ template<typename U> struct is_integer_type { static constexpr bool value = fals
 template<> struct is_integer_type<int> { static constexpr bool value = true; };
 template<> struct is_integer_type<long> { static constexpr bool value = true; };
 template<> struct is_integer_type<long long> { static constexpr bool value = true; };
+template<> struct is_integer_type<unsigned> { static constexpr bool value = true; };
+template<> struct is_integer_type<unsigned long> { static constexpr bool value = true; };
+template<> struct is_integer_type<unsigned long long> { static constexpr bool value = true; };
 
-template<bool B, typename R = void> struct enable_if {};
-template<typename R> struct enable_if<true, R> { using type = R; };
+template<typename T>
+concept Integer = is_integer_type<T>::value;
 
 // A kernel argument's data and the stride between its components.  A
 // translated C++ kernel only indexes or dereferences it, or passes it on.
@@ -54,24 +63,26 @@ struct Ptr {
     T* data;
     IndexType stride = 1;
 
-    constexpr Ptr(T* data) : data{data} {}
-    constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
+    OP_KERNEL_DEVICE constexpr Ptr(T* data) : data{data} {}
+    OP_KERNEL_DEVICE constexpr Ptr(T* data, IndexType stride) : data{data}, stride{stride} {}
 
     // A Ptr to const from one to the same type.
-    template<typename U, typename = typename enable_if<is_same_type<const U, T>::value &&
-                                                       !is_const_type<U>::value>::type>
-    constexpr Ptr(const Ptr<U>& other) : data{other.data}, stride{other.stride} {}
+    template<typename U>
+        requires(is_same_type<const U, T>::value && !is_const_type<U>::value)
+    OP_KERNEL_DEVICE constexpr Ptr(const Ptr<U>& other)
+        : data{other.data}, stride{other.stride} {}
 
-    constexpr T& operator[](IndexType i) const { return data[i * stride]; }
-    constexpr T& operator*() const { return data[0]; }
+    OP_KERNEL_DEVICE constexpr T& operator[](IndexType i) const { return data[i * stride]; }
+    OP_KERNEL_DEVICE constexpr T& operator*() const { return data[0]; }
 };
 
 struct Extent {
     const IndexType lower;
     const IndexType upper;
 
-    constexpr Extent(IndexType lower, IndexType upper) : lower{lower}, upper{upper} {}
-    constexpr IndexType size() const { return upper - lower + 1; }
+    OP_KERNEL_DEVICE constexpr Extent(IndexType lower, IndexType upper)
+        : lower{lower}, upper{upper} {}
+    OP_KERNEL_DEVICE constexpr IndexType size() const { return upper - lower + 1; }
 };
 
 template<typename T, unsigned N>
@@ -83,7 +94,7 @@ private:
     const Ptr<T> m_data;
     const Extent m_extents[N];
 
-    constexpr Slice<T, N> slice_all(auto... extents) const {
+    OP_KERNEL_DEVICE constexpr Slice<T, N> slice_all(auto... extents) const {
         if constexpr (sizeof...(extents) == N)
             return slice(extents...);
         else
@@ -91,10 +102,10 @@ private:
     }
 
 public:
-    constexpr Span(Ptr<T> data, auto... extents)
+    OP_KERNEL_DEVICE constexpr Span(Ptr<T> data, auto... extents)
         : m_data{data}, m_extents{extents...} {}
 
-    constexpr T& operator()(auto... indices) const {
+    OP_KERNEL_DEVICE constexpr T& operator()(auto... indices) const {
         static_assert(sizeof...(indices) == N);
         IndexType indicies[sizeof...(indices)] = {indices...};
 
@@ -109,32 +120,24 @@ public:
         return m_data.data[offset * m_data.stride];
     }
 
-    constexpr Ptr<T> ptr_at(auto... indices) const {
+    OP_KERNEL_DEVICE constexpr Ptr<T> ptr_at(auto... indices) const {
         auto& elem = operator()(indices...);
         return Ptr{&elem, m_data.stride};
     }
 
-    constexpr Slice<T, N> slice(auto... es) const {
+    OP_KERNEL_DEVICE constexpr Slice<T, N> slice(auto... es) const {
         static_assert(sizeof...(es) == N);
         return Slice(*this, es...);
     }
 
-    constexpr Span operator=(const T& v) const {
+    OP_KERNEL_DEVICE constexpr Span operator=(const T& v) const {
         slice_all() = v;
         return *this;
     }
 
     template<typename S>
-    constexpr operator Ptr<S>() const { return m_data; }
+    OP_KERNEL_DEVICE constexpr operator Ptr<S>() const { return m_data; }
 };
-
-/* - Deduction guides not working with current ROCm (6.2) -
-template<typename T, typename... Es>
-Span(Ptr<T>, Es...) -> Span<T, sizeof...(Es)>;
-
-template<typename T, typename... Es>
-Span(Ptr<const T>, Es...) -> Span<const T, sizeof...(Es)>;
-*/
 
 template<typename T, unsigned N>
 class Slice {
@@ -142,7 +145,7 @@ private:
     const Span<T, N>& m_span;
     const Extent m_extents[N];
 
-    constexpr void set(const T& v, auto... is) const {
+    OP_KERNEL_DEVICE constexpr void set(const T& v, auto... is) const {
         if constexpr (sizeof...(is) == N) {
             m_span(is...) = v;
         } else {
@@ -153,10 +156,10 @@ private:
     }
 
 public:
-    constexpr Slice(const Span<T, N>& span, auto... extents)
+    OP_KERNEL_DEVICE constexpr Slice(const Span<T, N>& span, auto... extents)
         : m_span{span}, m_extents{extents...} {}
 
-    constexpr Slice operator=(const T& v) const {
+    OP_KERNEL_DEVICE constexpr Slice operator=(const T& v) const {
         set(v);
         return *this;
     }
@@ -168,7 +171,7 @@ public:
 // negative exponent gives 1/x**|e| for a real base, and for an integer one
 // 0 unless the base is 1 or -1.
 template<typename T>
-inline constexpr T pow(T x, int e) {
+OP_KERNEL_DEVICE inline constexpr T pow(T x, int e) {
     if constexpr (is_integer_type<T>::value) {
         if (e < 0)
             return x == 1 ? 1 : x == -1 ? ((e & 1) ? -1 : 1) : 0;
@@ -187,49 +190,76 @@ inline constexpr T pow(T x, int e) {
     return e < 0 ? T(1) / r : r;
 }
 
-inline constexpr float pow(float x, float e) { return powf(x, e); }
-inline constexpr double pow(double x, double e) { return ::pow(x, e); }
+OP_KERNEL_DEVICE inline constexpr float pow(float x, float e) { return powf(x, e); }
+OP_KERNEL_DEVICE inline constexpr double pow(double x, double e) { return ::pow(x, e); }
 
-inline constexpr double pow(float x, double e) { return ::pow((double) x, e); }
-inline constexpr double pow(double x, float e) { return ::pow(x, (double) e); }
+OP_KERNEL_DEVICE inline constexpr double pow(float x, double e) { return ::pow((double) x, e); }
+OP_KERNEL_DEVICE inline constexpr double pow(double x, float e) { return ::pow(x, (double) e); }
 
-inline constexpr float pow(int x, float e) { return powf((float) x, e); }
-inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
+OP_KERNEL_DEVICE inline constexpr float pow(int x, float e) { return powf((float) x, e); }
+OP_KERNEL_DEVICE inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
 
 // An integer intrinsic is a template, so it takes whichever type int64_t is;
 // a float or double argument picks the non-template overload.
-template<typename T> OP_KERNEL_DEVICE inline T abs(T x) { return x < 0 ? -x : x; }
-inline constexpr float abs(float x) { return fabsf(x); }
-inline constexpr double abs(double x) { return fabs(x); }
+template<Integer T> OP_KERNEL_DEVICE inline constexpr T abs(T x) { return x < 0 ? -x : x; }
+OP_KERNEL_DEVICE inline constexpr float abs(float x) { return fabsf(x); }
+OP_KERNEL_DEVICE inline constexpr double abs(double x) { return fabs(x); }
 
-template<typename T> inline constexpr double dble(T x) { return static_cast<double>(x); }
+template<typename T> OP_KERNEL_DEVICE inline constexpr double dble(T x) {
+    return static_cast<double>(x);
+}
 
-inline constexpr float aint(float x) { return truncf(x); }
-inline constexpr double aint(double x) { return ::trunc(x); }
+OP_KERNEL_DEVICE inline constexpr float aint(float x) { return truncf(x); }
+OP_KERNEL_DEVICE inline constexpr double aint(double x) { return ::trunc(x); }
 
-template<typename T> OP_KERNEL_DEVICE inline T min(T x0, T x1) { return x1 < x0 ? x1 : x0; }
-template<typename T> OP_KERNEL_DEVICE inline T max(T x0, T x1) { return x1 > x0 ? x1 : x0; }
+// Integers of mixed kinds compare as the larger kind, as Fortran's do.
+template<Integer T0, Integer T1>
+OP_KERNEL_DEVICE inline constexpr auto min(T0 x0, T1 x1) {
+    using T = decltype(x0 + x1);
+    return static_cast<T>(x1) < static_cast<T>(x0) ? static_cast<T>(x1) : static_cast<T>(x0);
+}
+template<Integer T0, Integer T1>
+OP_KERNEL_DEVICE inline constexpr auto max(T0 x0, T1 x1) {
+    using T = decltype(x0 + x1);
+    return static_cast<T>(x1) > static_cast<T>(x0) ? static_cast<T>(x1) : static_cast<T>(x0);
+}
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
-inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
-inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
-inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
-inline constexpr double max(double x0, double x1) { return fmax(x0, x1); }
+OP_KERNEL_DEVICE inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
+OP_KERNEL_DEVICE inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
+OP_KERNEL_DEVICE inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
+OP_KERNEL_DEVICE inline constexpr double max(double x0, double x1) { return fmax(x0, x1); }
 #else
 // libm's fmin and fmax, a NaN argument giving the other (Fortran leaves a
 // NaN's result to the processor), as selects: GCC does not vectorise the
 // calls.
-inline constexpr float min(float x0, float x1) { return ((x1 < x0) | (x0 != x0)) ? x1 : x0; }
-inline constexpr double min(double x0, double x1) { return ((x1 < x0) | (x0 != x0)) ? x1 : x0; }
-inline constexpr float max(float x0, float x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
-inline constexpr double max(double x0, double x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
+OP_KERNEL_DEVICE inline constexpr float min(float x0, float x1) {
+    return ((x1 < x0) | (x0 != x0)) ? x1 : x0;
+}
+OP_KERNEL_DEVICE inline constexpr double min(double x0, double x1) {
+    return ((x1 < x0) | (x0 != x0)) ? x1 : x0;
+}
+OP_KERNEL_DEVICE inline constexpr float max(float x0, float x1) {
+    return ((x1 > x0) | (x0 != x0)) ? x1 : x0;
+}
+OP_KERNEL_DEVICE inline constexpr double max(double x0, double x1) {
+    return ((x1 > x0) | (x0 != x0)) ? x1 : x0;
+}
 #endif
 
 // A float and a double compare as doubles, as Fortran's mixed kinds do.
-inline constexpr double min(float x0, double x1) { return min(static_cast<double>(x0), x1); }
-inline constexpr double min(double x0, float x1) { return min(x0, static_cast<double>(x1)); }
-inline constexpr double max(float x0, double x1) { return max(static_cast<double>(x0), x1); }
-inline constexpr double max(double x0, float x1) { return max(x0, static_cast<double>(x1)); }
+OP_KERNEL_DEVICE inline constexpr double min(float x0, double x1) {
+    return min(static_cast<double>(x0), x1);
+}
+OP_KERNEL_DEVICE inline constexpr double min(double x0, float x1) {
+    return min(x0, static_cast<double>(x1));
+}
+OP_KERNEL_DEVICE inline constexpr double max(float x0, double x1) {
+    return max(static_cast<double>(x0), x1);
+}
+OP_KERNEL_DEVICE inline constexpr double max(double x0, float x1) {
+    return max(x0, static_cast<double>(x1));
+}
 
 // Fortran's MIN and MAX take any number of arguments.
 template<typename T0, typename T1, typename T2, typename... Ts>
@@ -241,59 +271,69 @@ OP_KERNEL_DEVICE inline constexpr auto max(T0 x0, T1 x1, T2 x2, Ts... xs) {
     return max(max(x0, x1), x2, xs...);
 }
 
-template<typename T> inline constexpr T mod(T a, T p) { return a % p; }
-inline constexpr float mod(float a, float p) { return fmodf(a, p); }
-inline constexpr double mod(double a, double p) { return fmod(a, p); }
+template<Integer T0, Integer T1>
+OP_KERNEL_DEVICE inline constexpr auto mod(T0 a, T1 p) {
+    using T = decltype(a + p);
+    return static_cast<T>(a) % static_cast<T>(p);
+}
+OP_KERNEL_DEVICE inline constexpr float mod(float a, float p) { return fmodf(a, p); }
+OP_KERNEL_DEVICE inline constexpr double mod(double a, double p) { return fmod(a, p); }
 
-inline constexpr int nint(float x) { return lroundf(x); }
-inline constexpr int nint(double x) { return lround(x); }
+OP_KERNEL_DEVICE inline constexpr int nint(float x) { return lroundf(x); }
+OP_KERNEL_DEVICE inline constexpr int nint(double x) { return lround(x); }
 
-template<typename T> OP_KERNEL_DEVICE inline T copysign(T x, T y) { return y >= 0 ? abs(x) : -abs(x); }
-inline constexpr float copysign(float x, float y) { return copysignf(x, y); }
-inline constexpr double copysign(double x, double y) { return ::copysign(x, y); }
+template<Integer T0, Integer T1>
+OP_KERNEL_DEVICE inline constexpr auto copysign(T0 x, T1 y) {
+    using T = decltype(x + y);
+    return y >= 0 ? static_cast<T>(abs(x)) : static_cast<T>(-abs(x));
+}
+OP_KERNEL_DEVICE inline constexpr float copysign(float x, float y) { return copysignf(x, y); }
+OP_KERNEL_DEVICE inline constexpr double copysign(double x, double y) {
+    return ::copysign(x, y);
+}
 
 // ----------
 
-inline constexpr float acos(float x) { return acosf(x); }
-inline constexpr double acos(double x) { return ::acos(x); }
+OP_KERNEL_DEVICE inline constexpr float acos(float x) { return acosf(x); }
+OP_KERNEL_DEVICE inline constexpr double acos(double x) { return ::acos(x); }
 
-inline constexpr float asin(float x) { return asinf(x); }
-inline constexpr double asin(double x) { return ::asin(x); }
+OP_KERNEL_DEVICE inline constexpr float asin(float x) { return asinf(x); }
+OP_KERNEL_DEVICE inline constexpr double asin(double x) { return ::asin(x); }
 
-inline constexpr float atan(float x) { return atanf(x); }
-inline constexpr double atan(double x) { return ::atan(x); }
+OP_KERNEL_DEVICE inline constexpr float atan(float x) { return atanf(x); }
+OP_KERNEL_DEVICE inline constexpr double atan(double x) { return ::atan(x); }
 
-inline constexpr float atan2(float x, float y) { return atan2f(x, y); }
-inline constexpr double atan2(double x, double y) { return ::atan2(x, y); }
+OP_KERNEL_DEVICE inline constexpr float atan2(float x, float y) { return atan2f(x, y); }
+OP_KERNEL_DEVICE inline constexpr double atan2(double x, double y) { return ::atan2(x, y); }
 
-inline constexpr float cos(float x) { return cosf(x); }
-inline constexpr double cos(double x) { return ::cos(x); }
+OP_KERNEL_DEVICE inline constexpr float cos(float x) { return cosf(x); }
+OP_KERNEL_DEVICE inline constexpr double cos(double x) { return ::cos(x); }
 
-inline constexpr float cosh(float x) { return coshf(x); }
-inline constexpr double cosh(double x) { return ::cosh(x); }
+OP_KERNEL_DEVICE inline constexpr float cosh(float x) { return coshf(x); }
+OP_KERNEL_DEVICE inline constexpr double cosh(double x) { return ::cosh(x); }
 
-inline constexpr float exp(float x) { return expf(x); }
-inline constexpr double exp(double x) { return ::exp(x); }
+OP_KERNEL_DEVICE inline constexpr float exp(float x) { return expf(x); }
+OP_KERNEL_DEVICE inline constexpr double exp(double x) { return ::exp(x); }
 
-inline constexpr float log(float x) { return logf(x); }
-inline constexpr double log(double x) { return ::log(x); }
+OP_KERNEL_DEVICE inline constexpr float log(float x) { return logf(x); }
+OP_KERNEL_DEVICE inline constexpr double log(double x) { return ::log(x); }
 
-inline constexpr float log10(float x) { return log10f(x); }
-inline constexpr double log10(double x) { return ::log10(x); }
+OP_KERNEL_DEVICE inline constexpr float log10(float x) { return log10f(x); }
+OP_KERNEL_DEVICE inline constexpr double log10(double x) { return ::log10(x); }
 
-inline constexpr float sin(float x) { return sinf(x); }
-inline constexpr double sin(double x) { return ::sin(x); }
+OP_KERNEL_DEVICE inline constexpr float sin(float x) { return sinf(x); }
+OP_KERNEL_DEVICE inline constexpr double sin(double x) { return ::sin(x); }
 
-inline constexpr float sinh(float x) { return sinhf(x); }
-inline constexpr double sinh(double x) { return ::sinh(x); }
+OP_KERNEL_DEVICE inline constexpr float sinh(float x) { return sinhf(x); }
+OP_KERNEL_DEVICE inline constexpr double sinh(double x) { return ::sinh(x); }
 
-inline constexpr float sqrt(float x) { return sqrtf(x); }
-inline constexpr double sqrt(double x) { return ::sqrt(x); }
+OP_KERNEL_DEVICE inline constexpr float sqrt(float x) { return sqrtf(x); }
+OP_KERNEL_DEVICE inline constexpr double sqrt(double x) { return ::sqrt(x); }
 
-inline constexpr float tan(float x) { return tanf(x); }
-inline constexpr double tan(double x) { return ::tan(x); }
+OP_KERNEL_DEVICE inline constexpr float tan(float x) { return tanf(x); }
+OP_KERNEL_DEVICE inline constexpr double tan(double x) { return ::tan(x); }
 
-inline constexpr float tanh(float x) { return tanhf(x); }
-inline constexpr double tanh(double x) { return ::tanh(x); }
+OP_KERNEL_DEVICE inline constexpr float tanh(float x) { return tanhf(x); }
+OP_KERNEL_DEVICE inline constexpr double tanh(double x) { return ::tanh(x); }
 
 } // namespace op::rt::kernel

@@ -4,11 +4,6 @@
 
 #include <op2/rt/kernel/prelude.h>
 
-// Declares blockDim under offline HIP.
-#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
-#include <hip/hip_runtime.h>
-#endif
-
 namespace op::rt::kernel::gpu {
 
 // The block's thread count, for a function a kernel inlines.  HIP's

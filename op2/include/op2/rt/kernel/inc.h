@@ -5,12 +5,7 @@
 
 #include <op2/rt/kernel/prelude.h>
 
-// Declares atomicAdd under offline HIP.
-#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
-#include <hip/hip_runtime.h>
-#endif
-
-#if !defined(__CUDACC__) && !defined(__HIPCC__)
+#if !defined(OP_KERNEL_GPU)
 #include <atomic>
 #endif
 
@@ -25,7 +20,7 @@ OP_KERNEL_DEVICE inline void plain_inc(T& target, U value) {
     target = static_cast<T>(target + value);
 }
 
-#if !defined(__CUDACC__) && !defined(__HIPCC__)
+#if !defined(OP_KERNEL_GPU)
 // Host threads: a compare-and-swap loop for a floating-point target, a
 // locked add for an integer one.
 template<typename T, typename U>
