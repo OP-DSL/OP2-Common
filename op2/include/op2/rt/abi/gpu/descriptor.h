@@ -113,11 +113,14 @@ struct JitHeaders {
 };
 
 // A strategy family the generated code built a kernel for: the kernel's
-// name, its offline build if any, and the source of a specialised one.
+// name, its offline build if any, and the source of a specialised one, which
+// follows translated: the translated kernel under the family's increment
+// hook, shared by the families with the same hook; none when source holds it.
 struct Family : abi::Family {
     const char *kernel;
     const void *offline;
     const char *source;
+    const char *translated = nullptr;
 };
 
 struct Loop : abi::Loop {

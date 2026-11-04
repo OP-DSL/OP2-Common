@@ -55,7 +55,10 @@ Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params, std::span<const
     for (const char *name : m_headers.names)
         text += std::string{"#include <"} + name + ">\n";
     text += "\n" + op::rt::jit::format_cxx(params, values) +
-            runtime_declarations(params, symbols) + std::string{family.source};
+            runtime_declarations(params, symbols);
+    if (family.translated != nullptr)
+        text += family.translated;
+    text += family.source;
     return {m_loop, m_headers, m_arch, std::move(text), std::string{family.kernel},
             std::move(symbols), std::move(baked_globals)};
 }

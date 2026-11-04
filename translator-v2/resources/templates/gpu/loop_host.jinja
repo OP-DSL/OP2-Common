@@ -34,28 +34,39 @@
     increments in registers until its colour's turn. -#}
 {%- set chunk_colouring_parallel = groups.chunk_colouring.args|reject("inc")|reject("read")|list|length == 0 -%}
 
-{#- How each strategy applies the translated kernel's increments: an indirect
-    dat's through op2_dat_inc, and under gbl_inc_atomic a global's, which every
+{#- The increment hook each strategy's kernel applies: plain, in place, or
+    atomic; the translated kernel is written once per hook. -#}
+{%- set hook_of = {"plain": "plain", "colouring": "plain", "chunk_colouring": "plain",
+                   "atomics": "atomic", "chunk_atomics": "atomic"} -%}
+{%- set hooks = namespace(offline=[], all=[]) -%}
+{%- for strategy in strategies -%}
+    {%- if hook_of[strategy] not in hooks.all -%}
+        {%- set hooks.all = hooks.all + [hook_of[strategy]] -%}
+    {%- endif -%}
+    {%- if strategy in offline_strategies and hook_of[strategy] not in hooks.offline -%}
+        {%- set hooks.offline = hooks.offline + [hook_of[strategy]] -%}
+    {%- endif -%}
+{%- endfor -%}
+
+{#- How a hook applies the translated kernel's increments: an indirect dat's
+    through op2_dat_inc, and under gbl_inc_atomic a global's, which every
     thread adds to the one copy of, through op2_gbl_inc. -#}
-{%- macro inc_hook(strategy) -%}
-    {%- if strategy != "plain" %}
+{%- macro inc_hook(hook) -%}
 template<typename T, typename U>
 static __device__ inline void op2_dat_inc(T& target, U value) {
-    op::rt::kernel::{{"atomic_inc" if strategy in ["atomics", "chunk_atomics"] else "plain_inc"}}(target, value);
+    op::rt::kernel::{{hook}}_inc(target, value);
 }
-    {% endif %}
 template<typename T, typename U>
 static __device__ inline void op2_gbl_inc(T& target, U value) {
     op::rt::kernel::atomic_inc(target, value);
 }
 {%- endmacro -%}
 
-{#- The translated kernel, in a namespace of its own for each strategy
-    named. -#}
+{#- The translated kernel, in a namespace of its own for each hook named. -#}
 {%- macro kernel_namespaces(names) -%}
-    {%- for strategy in names %}
-namespace op2_s_{{strategy}} {
-{{inc_hook(strategy)}}
+    {%- for hook in names %}
+namespace op2_s_{{hook}} {
+{{inc_hook(hook)}}
 {{kernel_func}}}
 
     {% endfor -%}
@@ -174,7 +185,7 @@ int idx = n{{" + 1" if abi.index_base}};
 {% for arg in lh.args|idx|indirect %}
 int idx{{arg.id}} = {{map_lookup(arg)}}{{" + 1" if abi.index_base}};
 {% endfor %}
-op2_s_{{strategy}}::{{lh.kernel}}(
+op2_s_{{hook_of[strategy]}}::{{lh.kernel}}(
 {% for arg in lh.args %}
     {{arg_value(arg, jit, staged, local)}}{{"," if not loop.last}}
 {% endfor %}
@@ -206,7 +217,7 @@ int op2_dim_dat{{dat.id}};
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
 
-{{kernel_namespaces(offline_strategies)}}
+{{kernel_namespaces(hooks.offline)}}
 }
 
 {#- Whether any argument in a staged group is active for this launch. -#}
@@ -410,17 +421,21 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endif %}
 {% endmacro %}
 
+{% for hook in hooks.all %}
+const char op2_k_{{lh.name}}{{variant}}_{{hook}}_translated[] = R"_op2_k(
+namespace op2_m_{{lh.name}}{{variant}} {
+
+{{kernel_namespaces([hook])}}
+}
+)_op2_k";
+
+{% endfor %}
 {% for strategy in strategies %}
     {% if strategy in offline_strategies %}
 {{kernel_wrapper(strategy)}}
     {% endif %}
 
 const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
-namespace op2_m_{{lh.name}}{{variant}} {
-
-{{kernel_namespaces([strategy])}}
-}
-
 {{kernel_wrapper(strategy, jit=true)}}
 )_op2_k";
 
@@ -530,7 +545,8 @@ static const op::rt::abi::gpu::Family op2_k_{{lh.name}}{{variant}}_families[] = 
     {{"{{"}}"{{strategy}}", {{"op::rt::abi::ArgGroups{op2_k_%s%s_%s_groups, %d}" % (lh.name, variant, strategy, groups[strategy].dats|length) if strategy in chunk_strategies else "{}"}}},
      "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
      {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
-     op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
+     op2_k_{{lh.name}}{{variant}}_{{strategy}}_src,
+     op2_k_{{lh.name}}{{variant}}_{{hook_of[strategy]}}_translated},
 {% endfor %}
 };
 

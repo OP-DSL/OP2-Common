@@ -449,9 +449,10 @@ op2/rt/gpu/kernel.h        (includes: op2/gpu/shims.h,
 op2/rt/gpu/jit.h           (includes: op2/rt/abi/gpu/descriptor.h,
                             op2/rt/gpu/kernel.h, op2/rt/jit/params.h; the
                             JIT mechanism: NVRTC or hipRTC compiles of a
-                            family's source after the embedded headers, its
-                            run-time parameters as wrapper arguments or
-                            module symbols; from src/rt/gpu/op_gpu_jit.cpp)
+                            family's translated kernel and source after the
+                            embedded headers, its run-time parameters as
+                            wrapper arguments or module symbols; from
+                            src/rt/gpu/op_gpu_jit.cpp)
 op2/rt/gpu/chunk_plan.h    (includes: op2/rt/abi/staging.h,
                             op2/rt/plan/chunks.h, op2/rt/plan/staging.h; the
                             chunk plans under the device's limits: a block's
