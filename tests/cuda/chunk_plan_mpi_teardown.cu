@@ -1,5 +1,6 @@
 // A device plan under the MPI CUDA library is released by op_exit through
-// its loop's destruction, while the device is still up.
+// its loop's destruction, while the device is still up.  With no_exit the
+// program skips op_exit, and nothing is torn down after the driver has.
 
 #include <op2/rt/gpu/chunk_encode.h>
 #include <op2/rt/gpu/layout.h>
@@ -7,9 +8,12 @@
 #include <op2/rt/loop/loop.h>
 #include <op_lib_c.h>
 
+#include <mpi.h>
+
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <string_view>
 #include <vector>
 
 #include "../test_support.h"
@@ -34,6 +38,7 @@ struct PlanOwner : op::rt::loop::Executor {
 } // namespace
 
 int main(int argc, char **argv) {
+    bool no_exit = argc > 1 && std::string_view{argv[1]} == "no_exit";
     op_init(argc, argv, 2);
 
     op_set_core source{};
@@ -94,13 +99,20 @@ int main(int argc, char **argv) {
         false, 1.5);
     CHECK(result);
 
-    op::rt::gpu::DevicePlan plan(*result.plan);
+    // The descriptor and the plan outlive main when op_exit is skipped.
+    auto& plan = *new op::rt::gpu::DevicePlan(*result.plan);
     CHECK(plan.source_offsets != nullptr && plan.stage_words != nullptr);
-    Owned owned{{"teardown", "cuda", "Direct", true}, &plan};
+    static Owned owned{{"teardown", "cuda", "Direct", true}, &plan};
     op::rt::loop::runtime<PlanOwner>(owned);
+    if (no_exit) {
+        MPI_Finalize();
+        std::printf("MPI chunk plan exit without op_exit test passed\n");
+        return EXIT_SUCCESS;
+    }
     op_exit();
     CHECK(plan.source_offsets == nullptr && plan.stage_words == nullptr);
     CHECK(owned.runtime == nullptr);
+    delete &plan;
 
     std::printf("MPI chunk plan teardown test passed\n");
     return EXIT_SUCCESS;

@@ -20,7 +20,9 @@ struct Registered {
     abi::Loop *descriptor;
 };
 
-std::vector<Registered> loops;
+// Never destroyed: finalise empties it, and a program that skips op_exit
+// must not free device state after the driver has shut down.
+std::vector<Registered>& loops = *new std::vector<Registered>;
 // Whether write_reports printed the summaries since the last finalise.
 bool printed = false;
 

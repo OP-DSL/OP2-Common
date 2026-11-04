@@ -373,7 +373,9 @@ struct ExchangeContext {
     }
 };
 
-ExchangeContext ctx;
+// Never destroyed: op_mpi_halo_exchanges_exit empties it, and a program that
+// skips op_exit must not free device buffers after the driver has shut down.
+ExchangeContext& ctx = *new ExchangeContext;
 
 // Every exchange is followed by exactly one wait before the next exchange, even
 // when it moved nothing. A caller that skips the wait may already have read a

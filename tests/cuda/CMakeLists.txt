@@ -67,4 +67,11 @@ if(TARGET op2_mpi_cuda AND MPIEXEC_EXECUTABLE)
                 $<TARGET_FILE:chunk_plan_mpi_teardown>)
     set_tests_properties(chunk_plan_mpi_teardown PROPERTIES
         LABELS "cuda;mpi;unit")
+
+    # A program that skips op_exit, its loops still holding device state.
+    add_test(NAME chunk_plan_mpi_no_exit
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
+                $<TARGET_FILE:chunk_plan_mpi_teardown> no_exit)
+    set_tests_properties(chunk_plan_mpi_no_exit PROPERTIES
+        LABELS "cuda;mpi;unit")
 endif()
