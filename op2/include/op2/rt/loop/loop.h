@@ -7,6 +7,7 @@
 // call's globals and time their phases.
 
 #include <op2/rt/abi/descriptor.h>
+#include <op2/rt/context.h>
 #include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/ladder.h>
@@ -21,24 +22,6 @@
 #include <string>
 
 namespace op::rt::loop {
-
-class Loop;
-
-// Every loop made for a descriptor, which the reports read: the registry
-// owns it until finalise.
-void register_loop(std::unique_ptr<Loop> loop, abi::Loop& descriptor);
-
-// At op_profile_output and op_exit: write the tuner's and the JIT's reports,
-// OP_AUTOTUNE_REPORT and OP_JIT_REPORT, suffixed with the rank when there
-// is more than one, and print their summaries of this rank's loops once, on
-// rank 0.  A later call writes the files again, so applications that never
-// call op_exit still get them.
-void write_reports(int rank, int ranks);
-
-// At op_exit, while the device is still up: write the reports, then destroy
-// every loop, which frees its device state, and clear its descriptor, so a
-// later call makes a new one.
-void finalise(int rank, int ranks);
 
 // Wait for the call's halo exchanges.
 void wait_halos(const Call& call);
@@ -84,6 +67,7 @@ public:
 
 class Loop final {
 private:
+    const Context& m_context;
     std::string m_name;
     std::string m_profile_target;
     std::string m_profile_variant;
@@ -104,17 +88,18 @@ private:
     void run(const tune::Autotuner::Decision& decision, const Call& call);
 
 public:
-    // The loop of descriptor, which names it to the profiler, and its
-    // executor make(params), which registers the loop's parameters in params.
+    // The loop of descriptor in context, which must outlive it: the
+    // descriptor names it to the profiler, and its executor make(params)
+    // registers the loop's parameters in params.
     template<typename Make>
-    Loop(const abi::Loop& descriptor, Make&& make)
-        : m_name{descriptor.name}, m_profile_target{descriptor.target},
+    Loop(const abi::Loop& descriptor, const Context& context, Make&& make)
+        : m_context{context}, m_name{descriptor.name}, m_profile_target{descriptor.target},
           m_profile_variant{descriptor.variant}, m_direct{descriptor.direct},
-          m_params{m_name}, m_executor{make(m_params)},
-          m_ladder{m_name, tune::autotune_options().report} {
+          m_params{m_name, context.jit}, m_executor{make(m_params)},
+          m_ladder{m_name, context.autotune.report, context.families, context.jit} {
         m_executor->add_strategies(m_ladder);
-        if (tune::autotune_options().report)
-            m_tuner.emplace(m_ladder);
+        if (context.autotune.report)
+            m_tuner.emplace(m_ladder, context.autotune);
     }
 
     Loop(const Loop&) = delete;
@@ -137,19 +122,20 @@ public:
     void invoke(op_set set, std::span<op_arg> args);
 };
 
-// The library's loop for a descriptor, made on its first call with a
-// BackendExecutor from the descriptor and the loop's parameters: each
-// backend's invoke runs it.  It lives until finalise, which clears the
-// descriptor, so the descriptor must outlive it: the generated code's are
-// static.
+// The library's loop for a descriptor, made on its first call in the run's
+// context with a BackendExecutor from the descriptor, the loop's parameters
+// and the context: each backend's invoke runs it.  The context's registry
+// owns it until finalise, which clears the descriptor, so the descriptor
+// must outlive it: the generated code's are static.
 template<typename BackendExecutor, typename Descriptor>
 Loop& runtime(Descriptor& descriptor) {
     if (descriptor.runtime == nullptr) {
-        auto made = std::make_unique<Loop>(descriptor, [&](jit::ParamSet& params) {
-            return std::make_unique<BackendExecutor>(descriptor, params);
+        auto& context = op::rt::context();
+        auto made = std::make_unique<Loop>(descriptor, context, [&](jit::ParamSet& params) {
+            return std::make_unique<BackendExecutor>(descriptor, params, context);
         });
         descriptor.runtime = made.get();
-        register_loop(std::move(made), descriptor);
+        context.loops.add(std::move(made), descriptor);
     }
     return *static_cast<Loop *>(descriptor.runtime);
 }

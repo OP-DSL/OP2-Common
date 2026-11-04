@@ -125,8 +125,9 @@ void Globals::combine(std::span<op_arg> args) const {
 
 // --- The executor -----------------------------------------------------------------
 
-Executor::Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet&)
-    : m_descriptor{descriptor} {}
+Executor::Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet&,
+                   op::rt::Context& context)
+    : m_descriptor{descriptor}, m_context{context} {}
 
 void Executor::add_strategies(op::rt::loop::Ladder& ladder) {
     ladder.add_families(m_descriptor.families, strategy_families(), *this, "OpenMP");

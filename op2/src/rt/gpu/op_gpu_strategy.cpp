@@ -5,8 +5,7 @@
 
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
-#include <op2/rt/jit/options.h>
-#include <op2/rt/plan/options.h>
+#include <op2/rt/context.h>
 
 #include <cassert>
 #include <cstdint>
@@ -51,7 +50,7 @@ StrategyBase::StrategyBase(Executor& executor, const op::rt::loop::Point& point,
                            const abi::gpu::Family& family)
     : m_executor{executor}, m_name{point.name}, m_family{family},
       m_block_size{point.value("block_size")}, m_offline{family.offline, executor.calls()},
-      m_cache{family.kernel, options().build_threads} {}
+      m_cache{family.kernel, executor.context().jit, options().build_threads} {}
 
 op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
     KernelFacts facts;
@@ -124,7 +123,7 @@ void StrategyBase::launch(const op::rt::loop::Prepared& prepared, Record& record
     else
         m_offline.launch(geometry.blocks, m_block_size, arguments, geometry.shared_bytes);
     // OP_JIT_DEBUG: each launch completes before the next, so a fault names its kernel.
-    if (op::rt::jit::options().debug)
+    if (m_executor.context().jit.debug)
         GPU_CHECK(gpuStreamSynchronize(0));
 }
 
@@ -258,11 +257,11 @@ ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call,
                                     const ChunkSpec& spec) const {
     return plan_chunk_atomics(call.args, call.sections, m_family.groups, spec,
                               m_unstaged_singles,
-                              op::rt::plan::chunk_options().min_compression);
+                              m_executor.context().chunk.min_compression);
 }
 
 void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
-    key.add(m_unstaged_singles).add(op::rt::plan::chunk_options().min_compression);
+    key.add(m_unstaged_singles).add(m_executor.context().chunk.min_compression);
 }
 
 std::string ChunkAtomics::extras(const ChunkPlan& plan) const {

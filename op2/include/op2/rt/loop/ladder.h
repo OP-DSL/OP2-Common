@@ -3,6 +3,7 @@
 // A loop's candidates, its strategies each with one of their kernels, in
 // ladder order, and the selection of one per call.
 
+#include <op2/rt/jit/options.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/family.h>
 #include <op2/rt/loop/strategy.h>
@@ -58,7 +59,7 @@ struct Candidate {
 // runs and OP_STRATEGY forces, and, in a ladder that explores, one for each
 // other point of its axes, which only the tuner tries.  OP_<FAMILY>=on/off,
 // read when the family is declared, wins over the default, and off turns all
-// of the family off; OP_STRATEGY, read by init, is <family> or
+// of the family off; OP_STRATEGY, read with the families, is <family> or
 // <loop>:<family> (a comma-separated list of either), a loop's own item
 // winning over a family for every loop.
 class Ladder {
@@ -66,6 +67,8 @@ private:
     std::string m_name;
     // Whether the families add their other points, for the tuner.
     bool m_explore;
+    const Families& m_families;
+    const jit::Options& m_jit;
     // OP_STRATEGY's families for this loop, most specific first.
     std::vector<std::string> m_forced_names;
     std::vector<std::unique_ptr<Strategy>> m_strategies;
@@ -92,7 +95,10 @@ private:
 public:
     using Make = std::function<std::unique_ptr<Strategy>(const Point& point)>;
 
-    Ladder(std::string_view loop_name, bool explore);
+    // The ladder of loop_name's loop, its families from families under the
+    // JIT's policy jit, which must outlive it.
+    Ladder(std::string_view loop_name, bool explore, const Families& families,
+           const jit::Options& jit);
     Ladder(const Ladder&) = delete;
 
     const std::string& name() const { return m_name; }

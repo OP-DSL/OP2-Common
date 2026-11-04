@@ -7,11 +7,11 @@
 #define OP_KERNEL_JIT_TAG chunk_strategy_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
+#include <op2/rt/context.h>
 #include <op2/rt/gpu/executor.h>
-#include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/kernel/gpu/offline.h>
-#include <op2/rt/jit/options.h>
+#include <op2/rt/lifecycle.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -191,7 +191,7 @@ struct Described {
                      baseline_source}}},
           descriptor{{name, "cuda", "Indirect", false}, false, params, families, &bind,
                      &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS},
-          loop{descriptor} {}
+          loop{descriptor, op::rt::context()} {}
 };
 
 std::array<int, 10> output{};
@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
     // Every source in one chunk: a block's elements.
     setenv("OP_CHUNK_ATOMICS_BLOCK_SIZES", "256", 1);
     op_init(argc, argv, 2);
-    const bool expect_jit = op::rt::jit::options().level > 0;
+    const bool expect_jit = op::rt::context().jit.level > 0;
 
     Fixture fixture;
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(output)));
@@ -247,7 +247,7 @@ int main(int argc, char **argv) {
 
     setenv("OP_STRATEGY", "chunk_atomics", 1);
     op::rt::init();
-    op::rt::gpu::init();
+    op::rt::init_gpu();
     {
         Described loop_described{"chunk_strategy", fixture};
         auto& loop = loop_described.loop;

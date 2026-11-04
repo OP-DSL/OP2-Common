@@ -1,6 +1,5 @@
 #include <op2/rt/tune/autotune.h>
 
-#include <op2/env.h>
 #include <op2/rt/report.h>
 
 #include <algorithm>
@@ -9,31 +8,6 @@
 #include <vector>
 
 namespace op::rt::tune {
-
-// --- Options -------------------------------------------------------------------
-
-namespace {
-
-AutotuneOptions options;
-
-} // namespace
-
-const AutotuneOptions& autotune_options() { return options; }
-
-void init_autotune() {
-    options = {};
-    constexpr env::Choice modes[] = {{"off", 0}, {"0", 0},      {"no", 0},
-                                     {"false", 0}, {"report", 1}, {"select", 2}};
-    int mode = 0;
-    env::parse_choice("OP_AUTOTUNE", modes, mode);
-    options.report = mode > 0;
-    options.select = mode == 2;
-    env::parse_text("OP_AUTOTUNE_REPORT", options.report_file);
-    env::parse_number("OP_AUTOTUNE_MARGIN", options.margin);
-    env::parse_number("OP_AUTOTUNE_WARMUP", options.warmup);
-    env::parse_number("OP_AUTOTUNE_SAMPLES", options.samples, 1);
-    env::parse_number("OP_AUTOTUNE_MIN_CALLS", options.min_calls);
-}
 
 // --- Per-loop tuning --------------------------------------------------------------
 
@@ -49,7 +23,7 @@ float median(std::vector<float> values) {
 
 } // namespace
 
-bool Autotuner::Trial::done() const {
+bool Autotuner::Trial::done(const AutotuneOptions& options) const {
     return !live ||
            (warmups >= options.warmup &&
             static_cast<int>(samples.size()) >= options.samples);
@@ -85,7 +59,7 @@ Autotuner::Decision Autotuner::choose(const loop::Call& call, bool settled) {
     auto& state = found->second;
     ++state.calls;
     state.ladder = selection.candidate;
-    if (state.calls < static_cast<std::size_t>(options.min_calls) || !settled)
+    if (state.calls < static_cast<std::size_t>(m_options.min_calls) || !settled)
         return ladder;
     if (state.trials.empty()) {
         add_trials(state, call, selection);
@@ -98,7 +72,7 @@ Autotuner::Decision Autotuner::choose(const loop::Call& call, bool settled) {
     for (std::size_t step = 0; step < state.trials.size(); ++step) {
         std::size_t index = (state.cursor + step) % state.trials.size();
         auto& trial = state.trials[index];
-        if (trial.done())
+        if (trial.done(m_options))
             continue;
 
         loop::Prepared prepared = trial.candidate == selection.candidate
@@ -114,7 +88,7 @@ Autotuner::Decision Autotuner::choose(const loop::Call& call, bool settled) {
 
         state.cursor = index + 1;
         Decision decision{prepared};
-        if (trial.warmups < options.warmup)
+        if (trial.warmups < m_options.warmup)
             ++trial.warmups;
         else
             decision.timed = &trial;
@@ -122,10 +96,10 @@ Autotuner::Decision Autotuner::choose(const loop::Call& call, bool settled) {
     }
 
     for (const auto& trial : state.trials)
-        if (!trial.done())
+        if (!trial.done(m_options))
             return ladder;
 
-    if (options.select)
+    if (m_options.select)
         state.selected = winner(summarise(state));
     finish(state, call);
     return run_selected(state, call, selection);
@@ -200,7 +174,7 @@ Autotuner::Summary Autotuner::summarise(const State& state) const {
     Summary summary;
     float fastest = 0.0f;
     for (const auto& trial : state.trials) {
-        summary.complete &= trial.done();
+        summary.complete &= trial.done(m_options);
         if (trial.candidate == state.ladder)
             summary.ladder = &trial;
         if (trial.samples.empty())
@@ -222,7 +196,7 @@ Autotuner::Summary Autotuner::summarise(const State& state) const {
 const loop::Candidate *Autotuner::winner(const Summary& summary) const {
     if (summary.fastest == nullptr || summary.fastest == summary.ladder)
         return nullptr;
-    return summary.speedup * (1.0 - options.margin) > 1.0 ? summary.fastest->candidate
+    return summary.speedup * (1.0 - m_options.margin) > 1.0 ? summary.fastest->candidate
                                                           : nullptr;
 }
 
@@ -231,7 +205,7 @@ void Autotuner::sample(const Decision& decision, float microseconds) {
     if (trial == nullptr)
         return;
     trial->samples.push_back(microseconds);
-    if (trial->done())
+    if (trial->done(m_options))
         trial->statistics = trial->candidate->strategy->statistics(decision.prepared);
 }
 

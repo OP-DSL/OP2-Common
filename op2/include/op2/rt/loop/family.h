@@ -2,23 +2,22 @@
 
 // The strategy families a backend declares, the axes their strategies vary
 // along, and OP_STRATEGY, which forces a family.  Defined in
-// src/rt/loop/op_loop_ladder.cpp, whose ladders take the declared families'
+// src/rt/loop/op_loop_family.cpp; ladders take the declared families'
 // settings.
 
 #include <op2/rt/loop/strategy.h>
 
+#include <cstddef>
+#include <functional>
+#include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace op::rt::loop {
-
-// Read OP_STRATEGY and forget the families declared; op_init calls it, through
-// op::rt::init, before the backend declares its families, and a later call
-// reads it again.
-void init();
 
 // One way a family's strategies vary, such as their block size.  Its values
 // are OP_<FAMILY>_<VARIABLE>, else OP_<VARIABLE>, else the defaults: one
@@ -70,16 +69,51 @@ struct OfferedFamily : Family {
     }
 };
 
-// Read each family's variables, OP_<FAMILY> and its axes'; the backend
-// declares its families in ladder order as op_init runs, and a ladder takes
-// their settings and order from here.
-void declare_families(std::span<const Family> families);
+// The families the backend declared, in ladder order, each with the
+// settings its variables give it, and OP_STRATEGY's items, which force a
+// family.  The run's context holds them (op2/rt/context.h).
+class Families {
+public:
+    // A declared family's axes, default, OP_<FAMILY>, each axis's values, and
+    // its place in ladder order.
+    struct Settings {
+        std::vector<Axis> axes;
+        bool enabled_by_default;
+        std::optional<bool> enabled;
+        std::vector<std::vector<int>> values;
+        std::size_t rank;
 
-template<typename BackendExecutor, typename AbiFamily>
-void declare_families(std::span<const OfferedFamily<BackendExecutor, AbiFamily>> offered) {
-    std::vector<Family> families(offered.begin(), offered.end());
-    declare_families(families);
-}
+        // Every point of the values, the first values' first, named
+        // "<family>=on;<key>=<value>;...", a switch's value on or off.
+        std::vector<Point> points(std::string_view family) const;
+    };
+
+    // Read OP_STRATEGY.
+    Families();
+
+    // Read each family's variables, OP_<FAMILY> and its axes'; the backend
+    // declares its families in ladder order as op_init runs, and a ladder
+    // takes their settings and order from here.
+    void declare(std::span<const Family> families);
+
+    template<typename BackendExecutor, typename AbiFamily>
+    void declare(std::span<const OfferedFamily<BackendExecutor, AbiFamily>> offered) {
+        std::vector<Family> families(offered.begin(), offered.end());
+        declare(families);
+    }
+
+    // A declared family's settings; none if no backend declared it.
+    const Settings *find(std::string_view family) const;
+
+    // The families forced on loop, most specific first: "<loop>:<family>"
+    // forces that loop, a bare family every loop that has it.
+    std::vector<std::string> forced_for(std::string_view loop) const;
+
+private:
+    std::vector<std::string> m_forced;
+    std::map<std::string, Settings, std::less<>> m_settings;
+    std::size_t m_declared = 0;
+};
 
 // Stop the run: loop registers a family the backend lacks.
 [[noreturn]] void missing_family(std::string_view name, std::string_view loop,

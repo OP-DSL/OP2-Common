@@ -84,6 +84,9 @@ struct Builds {
     }
 };
 
+// The policy every cache and parameter set here follows.
+jit::Options options;
+
 // Read the policy from these variables alone.
 void policy(std::initializer_list<std::pair<const char *, const char *>> variables) {
     for (const char *name :
@@ -94,14 +97,14 @@ void policy(std::initializer_list<std::pair<const char *, const char *>> variabl
         unsetenv(name);
     for (const auto& [name, value] : variables)
         setenv(name, value, 1);
-    jit::init();
+    options = jit::read_options();
 }
 
 // A key builds once asked for OP_JIT_MIN_CALLS times, pending until then.
 void test_min_calls() {
     policy({{"OP_JIT_MIN_CALLS", "3"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    Cache cache{"kernel", 4};
+    Cache cache{"kernel", options, 4};
     for (int call = 0; call < 2; ++call) {
         auto pending = cache.acquire(1, later, builds.job(1));
         CHECK(pending.status == loop::Status::pending && pending.reason == "compiling");
@@ -119,7 +122,7 @@ void test_min_calls() {
 void test_urgency() {
     policy({{"OP_JIT_MIN_CALLS", "100"}});
     Builds builds;
-    Cache cache{"kernel", 4};
+    Cache cache{"kernel", options, 4};
     builds.open = false;
     auto acquired = cache.acquire(1, now, builds.job(1));
     CHECK(acquired.status == loop::Status::pending);
@@ -143,7 +146,7 @@ void test_urgency() {
 void test_failed_build() {
     policy({{"OP_JIT_MIN_CALLS", "1"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    Cache cache{"kernel", 4};
+    Cache cache{"kernel", options, 4};
     for (auto urgency : {later, later, wait}) {
         auto failed = cache.acquire(1, urgency, builds.job(1, true));
         CHECK(failed.status == loop::Status::unavailable && failed.reason == "build_failed");
@@ -156,7 +159,7 @@ void test_failed_build() {
 void test_eviction() {
     policy({{"OP_JIT_MIN_CALLS", "1000"}, {"OP_JIT_SEQ_COMPILE", "1"}});
     Builds builds;
-    Cache cache{"kernel", 4};
+    Cache cache{"kernel", options, 4};
     CHECK(cache.acquire(1000, now, builds.job(1000)).kernel != nullptr);
     for (std::uint64_t key = 1; key <= 300; ++key)
         cache.acquire(key, later, builds.job(1));
@@ -176,7 +179,7 @@ void test_build_slots() {
         else
             policy({{"OP_JIT_MIN_CALLS", "100"}});
         Builds builds;
-        Cache cache{"kernel", variable ? 8 : 1};
+        Cache cache{"kernel", options, variable ? 8 : 1};
         builds.open = false;
         cache.acquire(1, now, builds.job(1));
         cache.acquire(2, now, builds.job(2));
@@ -226,7 +229,7 @@ void test_params() {
     bool flag = true;
     int64_t big = int64_t{1} << 40;
 
-    jit::ParamSet params{"flux"};
+    jit::ParamSet params{"flux", options};
     params.set_dat_stride(&op::rt::gpu::dat_stride);
     params.add(row("c", &constant, abi::ParamSource::external));
     params.add(array_row("table", table, 3, abi::ParamSource::external));
@@ -285,7 +288,7 @@ void test_key_words() {
             policy({{"OP_JIT_RUNTIME_PARAMS", runtime}});
         else
             policy({});
-        jit::ParamSet params{"flux"};
+        jit::ParamSet params{"flux", options};
         for (std::size_t i = 0; i < constants.size(); ++i)
             params.add(abi::constant(names[i].c_str(), &constants[i]));
         params.update({});
@@ -310,7 +313,7 @@ void test_modes() {
     double global = 0.0;
     int stride = 0;
     auto modes = [&] {
-        jit::ParamSet params{"flux"};
+        jit::ParamSet params{"flux", options};
         params.add(row("c", &constant, abi::ParamSource::external, -1, true));
         params.add(array_row("table", table, 3, abi::ParamSource::external, -1, true));
         params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
@@ -357,7 +360,7 @@ void test_statistics() {
 
     double constant = 0.0;
     double global = 0.0;
-    jit::ParamSet params{"flux"};
+    jit::ParamSet params{"flux", options};
     params.add(row("c", &constant, abi::ParamSource::external, -1, true));
     params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     auto next = [&](int set) {
@@ -480,7 +483,7 @@ void test_array_globals() {
     args[3].data = reinterpret_cast<char *>(big.data());
     args[3].dim = 1000;
 
-    jit::ParamSet params{"flux"};
+    jit::ParamSet params{"flux", options};
     const char *names[] = {"g0", "g1", "g2", "g3"};
     for (int i = 0; i < 4; ++i)
         params.add(abi::global<double>(names[i], i));
@@ -512,7 +515,7 @@ void test_array_globals() {
           "static constexpr double g2[1] = { 0x1p+0 };\n");
 
     policy({{"OP_JIT_MAX_GBL_BYTES", "16"}});
-    jit::ParamSet capped{"flux"};
+    jit::ParamSet capped{"flux", options};
     capped.add(abi::global<double>("g0", 0));
     for (int i = 0; i < 40; ++i) {
         capped.update(args);
@@ -538,7 +541,7 @@ void test_observe_every_call() {
     args[0].dim = 1;
     args[0].data = reinterpret_cast<char *>(&value);
     double global = 0.0;
-    jit::ParamSet params{"flux"};
+    jit::ParamSet params{"flux", options};
     params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     CHECK(params.moving());
 
@@ -572,7 +575,7 @@ void test_settled() {
     loop::Call call{&set, {args, 1}, 10, false};
 
     double global = 0.0;
-    jit::ParamSet params{"flux"};
+    jit::ParamSet params{"flux", options};
     params.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     for (std::uint64_t i = 0; i < jit::statistics_window; ++i) {
         CHECK(!params.settled(call));
@@ -582,11 +585,11 @@ void test_settled() {
     CHECK(params.settled(call));
 
     int stride = 0;
-    jit::ParamSet fixed{"flux"};
+    jit::ParamSet fixed{"flux", options};
     fixed.add(row("stride", &stride, abi::ParamSource::dat_stride, 0, true));
     CHECK(!fixed.moving() && fixed.settled(call));
 
-    jit::ParamSet unobserved{"flux"};
+    jit::ParamSet unobserved{"flux", options};
     unobserved.add(row("g", &global, abi::ParamSource::scalar_arg, 0, true));
     policy({{"OP_JIT_LEVEL", "0"}});
     CHECK(unobserved.settled(call));

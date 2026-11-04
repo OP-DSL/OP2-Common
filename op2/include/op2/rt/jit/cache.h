@@ -64,6 +64,7 @@ private:
     static constexpr std::size_t max_entries = 256;
 
     std::string m_name;
+    const Options& m_options;
     int m_threads;
     std::unordered_map<std::uint64_t, Entry> m_entries;
     std::uint64_t m_clock = 0;
@@ -98,9 +99,10 @@ private:
     }
 
 public:
-    // name, the kernel's, for messages; threads, the mechanism's default for
-    // OP_JIT_MAX_THREADS.
-    Cache(std::string_view name, int threads) : m_name{name}, m_threads{threads} {}
+    // name, the kernel's, for messages; options, which must outlive it;
+    // threads, the mechanism's default for OP_JIT_MAX_THREADS.
+    Cache(std::string_view name, const Options& options, int threads)
+        : m_name{name}, m_options{options}, m_threads{threads} {}
     Cache(const Cache&) = delete;
     // Joins the builds still running.
     ~Cache() {
@@ -129,7 +131,7 @@ public:
 
         auto& entry = entry_for(key);
         ++entry.calls;
-        const auto& options = jit::options();
+        const auto& options = m_options;
         bool here = urgency == loop::Urgency::wait || options.seq_compile;
         bool due = urgency != loop::Urgency::later ||
                    entry.calls >= static_cast<std::size_t>(options.min_calls);

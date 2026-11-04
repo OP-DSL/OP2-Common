@@ -6,10 +6,11 @@
 #define OP_KERNEL_JIT_TAG jit_thread_limit_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
+#include <op2/rt/context.h>
 #include <op2/rt/gpu/executor.h>
-#include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/kernel/gpu/offline.h>
+#include <op2/rt/lifecycle.h>
 #include <op_lib_c.h>
 
 #include <algorithm>
@@ -82,7 +83,7 @@ struct Described {
           descriptor{{"thread_limit", "cuda", "Direct", true}, false, params,
                      {&family, 1}, &bind, &op::rt::kernel::gpu::calls,
                      OP_KERNEL_JIT_HEADERS},
-          loop{descriptor} {}
+          loop{descriptor, op::rt::context()} {}
 };
 
 std::vector<double> reference(const std::vector<double>& in) {
@@ -114,9 +115,9 @@ void expect(bool condition, const std::string& what) {
 // Declare plain, and read the JIT variables.
 void declare() {
     op::rt::init();
-    gpu::init();
+    op::rt::init_gpu();
     const loop::Family families[] = {{"plain", gpu::Simple::axes()}};
-    loop::declare_families(families);
+    op::rt::context().families.declare(families);
 }
 
 } // namespace

@@ -27,6 +27,7 @@ class Executor final : public op::rt::loop::Executor {
 private:
     const abi::gpu::Loop& m_descriptor;
     op::rt::jit::ParamSet& m_params;
+    op::rt::Context& m_context;
     SymbolBindings m_symbols;
     Compiler m_compiler;
     // Per argument, whether every kernel has it by value; and the call's
@@ -49,8 +50,10 @@ private:
     const unsigned char *on_host(const op::rt::loop::Prepared& prepared, int nargs);
 
 public:
-    // The executor of descriptor's loop, its parameters registered in params.
-    Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& params);
+    // The executor of descriptor's loop in context, its parameters registered
+    // in params.
+    Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& params,
+             op::rt::Context& context);
     ~Executor() override;
 
     void add_strategies(op::rt::loop::Ladder& ladder) override;
@@ -64,6 +67,7 @@ public:
     const char *name() const { return m_descriptor.name; }
     bool direct() const { return m_descriptor.direct; }
     op::rt::jit::ParamSet& params() { return m_params; }
+    op::rt::Context& context() { return m_context; }
     const Compiler& compiler() const { return m_compiler; }
     const abi::gpu::OfflineCalls *calls() const { return m_descriptor.calls; }
 

@@ -89,7 +89,7 @@ void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Opt
 
 void ParamSet::update(std::span<const op_arg> args) {
     ++m_calls;
-    const auto& options = jit::options();
+    const auto& options = m_options;
     for (auto& param : m_params)
         param.update(args, m_dat_stride, options);
 }
@@ -113,7 +113,7 @@ ParamSet::Histories *ParamSet::histories(const loop::Call& call) {
 }
 
 bool ParamSet::settled(const loop::Call& call) const {
-    if (!m_moving || !jit::options().enabled())
+    if (!m_moving || !m_options.enabled())
         return true;
     auto found = m_histories.find(call.key());
     // Past max_histories a configuration keeps the initial modes.
@@ -138,7 +138,7 @@ std::vector<ParamSet::ConfigurationModes> ParamSet::configurations() const {
 }
 
 void ParamSet::observe(const loop::Call& call) {
-    const auto& options = jit::options();
+    const auto& options = m_options;
     auto *history = m_moving ? histories(call) : nullptr;
     if (history != nullptr)
         ++history->calls;

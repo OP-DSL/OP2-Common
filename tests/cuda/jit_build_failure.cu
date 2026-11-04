@@ -4,10 +4,11 @@
 #define OP_KERNEL_JIT_TAG jit_build_failure_test
 #include <op2/rt/kernel/gpu/jit_embed.h>
 
+#include <op2/rt/context.h>
 #include <op2/rt/gpu/executor.h>
-#include <op2/rt/lifecycle.h>
 #include <op2/rt/gpu/strategy.h>
 #include <op2/rt/kernel/gpu/offline.h>
+#include <op2/rt/lifecycle.h>
 #include <op_lib_c.h>
 
 #include <array>
@@ -64,11 +65,11 @@ int main(int argc, char **argv) {
     op_init(argc, argv, 2);
     setenv("OP_JIT_MIN_CALLS", "1", 1);
     op::rt::init();
-    op::rt::gpu::init();
+    op::rt::init_gpu();
     // A broken family, atomics' plain strategy, ahead of the working plain one.
     const op::rt::loop::Family families[] = {{"atomics", gpu::Simple::axes()},
                                          {"plain", gpu::Simple::axes()}};
-    op::rt::loop::declare_families(families);
+    op::rt::context().families.declare(families);
 
     GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&output_d), sizeof(int)));
 
@@ -93,7 +94,7 @@ int main(int argc, char **argv) {
         op::rt::abi::gpu::Loop descriptor{{"build_failure", "cuda", "Direct", true}, false,
                                           params, kernels, &bind,
                                           &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};
-        LoopParts<gpu::Executor> loop{descriptor};
+        LoopParts<gpu::Executor> loop{descriptor, op::rt::context()};
 
         for (int call = 1; call <= 3; ++call)
             passed &= check(run(loop, set, args, call) == call, "result");

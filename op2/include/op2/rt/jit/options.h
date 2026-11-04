@@ -42,9 +42,8 @@ struct Options {
     bool enabled() const { return level > 0; }
 };
 
-const Options& options();
-
-// Read the variables; op_init calls it through op::rt::init.
-void init();
+// The policy the variables set; op::rt::init reads it into the run's
+// context.
+Options read_options();
 
 } // namespace op::rt::jit

@@ -6,10 +6,8 @@
 #include <op2/gpu/check.h>
 #include <op2/gpu/shims.h>
 #include <op2/rt/gpu/strategy.h>
+#include <op2/rt/context.h>
 #include <op2/rt/lifecycle.h>
-#include <op2/rt/jit/cache.h>
-#include <op2/rt/jit/params.h>
-#include <op2/rt/loop/strategy.h>
 #include <op_lib_core.h>
 
 #include <string>
@@ -61,11 +59,11 @@ void init() {
 
 #ifdef OP2_CUDA
     device.arch = "-arch=sm_" + std::to_string(props.major * 10 + props.minor);
-    if (op::rt::jit::options().debug)
+    if (op::rt::context().jit.debug)
         op_printf("JIT arch flag: %s\n", device.arch.c_str());
 #endif
 
-    op::rt::loop::declare_families(strategy_families());
+    op::rt::context().families.declare(strategy_families());
 }
 
 } // namespace op::rt::gpu

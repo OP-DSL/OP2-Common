@@ -7,6 +7,7 @@
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/ladder.h>
 #include <op2/rt/loop/strategy.h>
+#include <op2/rt/tune/options.h>
 
 #include <cstdint>
 #include <optional>
@@ -17,34 +18,6 @@
 #include <vector>
 
 namespace op::rt::tune {
-
-// OP_AUTOTUNE=report times every candidate for each loop configuration and
-// reports how they compare with the ladder's choice, which still runs once a
-// configuration has been explored.
-struct AutotuneOptions {
-    bool report = false;
-    // OP_AUTOTUNE=select also reports, and once a configuration is explored
-    // runs its fastest candidate whenever that beats the ladder's current
-    // choice by more than OP_AUTOTUNE_MARGIN, a fraction of the ladder's
-    // time; otherwise the ladder's choice runs.
-    bool select = false;
-    double margin = 0.03;
-    // OP_AUTOTUNE_WARMUP untimed, then OP_AUTOTUNE_SAMPLES timed, runs of
-    // each candidate.
-    int warmup = 1;
-    int samples = 5;
-    // OP_AUTOTUNE_MIN_CALLS: calls a configuration must see before it is
-    // explored, so configurations seen once are never explored.
-    int min_calls = 2;
-    // OP_AUTOTUNE_REPORT: the report's file, ".<rank>" appended under MPI;
-    // no report when empty.
-    std::string report_file;
-};
-
-const AutotuneOptions& autotune_options();
-
-// Read the tuner's variables; op_init calls it through op::rt::init.
-void init_autotune();
 
 // A loop's tuning: the timings of each candidate for every configuration of
 // the loop seen often enough, and what to run from them.
@@ -77,7 +50,9 @@ public:
         bool complete;
     };
 
-    explicit Autotuner(loop::Ladder& ladder) : m_ladder{ladder} {}
+    // The tuner of ladder's loop under options, which must outlive it.
+    Autotuner(loop::Ladder& ladder, const AutotuneOptions& options)
+        : m_ladder{ladder}, m_options{options} {}
     Autotuner(const Autotuner&) = delete;
 
     // The ladder's selection, unless the configuration is being explored:
@@ -116,7 +91,7 @@ private:
         std::vector<float> samples;
         std::string statistics;
 
-        bool done() const;
+        bool done(const AutotuneOptions& options) const;
     };
 
     // One configuration of the loop; its trials are added once it has been
@@ -150,6 +125,7 @@ private:
 
     // Asked for its selection when a call needs it.
     loop::Ladder& m_ladder;
+    const AutotuneOptions& m_options;
     // Once this many configurations have state a new one gets none; those
     // dropped and those never explored are counted per loop.
     static constexpr std::size_t max_keys = 4096;
@@ -176,6 +152,7 @@ struct TunedLoop {
 };
 
 // The summary of the loops' tuning, empty when none was tuned.
-std::string summary(std::span<const TunedLoop> loops, int ranks);
+std::string summary(std::span<const TunedLoop> loops, const AutotuneOptions& options,
+                    int ranks);
 
 } // namespace op::rt::tune

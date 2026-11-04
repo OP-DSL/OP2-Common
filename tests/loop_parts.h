@@ -1,10 +1,11 @@
 #pragma once
 
-// A loop's parts as the runtime makes them from a descriptor: its parameters,
-// its backend's executor and the ladder of its strategies, for tests that
-// prepare and select its candidates themselves.  The descriptor must outlive
-// them.
+// A loop's parts as the runtime makes them from a descriptor in a context:
+// its parameters, its backend's executor and the ladder of its strategies,
+// for tests that prepare and select its candidates themselves.  The
+// descriptor and the context must outlive them.
 
+#include <op2/rt/context.h>
 #include <op2/rt/jit/params.h>
 #include <op2/rt/loop/call.h>
 #include <op2/rt/loop/ladder.h>
@@ -19,9 +20,10 @@ struct LoopParts {
     op::rt::loop::Ladder ladder;
 
     template<typename Descriptor>
-    explicit LoopParts(Descriptor& descriptor)
-        : name{descriptor.name}, params{descriptor.name}, executor{descriptor, params},
-          ladder{descriptor.name, false} {
+    LoopParts(Descriptor& descriptor, op::rt::Context& context)
+        : name{descriptor.name}, params{descriptor.name, context.jit},
+          executor{descriptor, params, context},
+          ladder{descriptor.name, false, context.families, context.jit} {
         executor.add_strategies(ladder);
     }
 

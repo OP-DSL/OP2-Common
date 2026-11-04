@@ -7,9 +7,10 @@
 
 namespace op::rt {
 
-// Read the run-wide variables: the ladder's, the JIT's, the tuner's and the
-// chunked strategies'; op_init_core calls it before the backend declares its
-// families.
+// Make the run's context (op2/rt/context.h), reading the run-wide
+// variables: the ladder's, the JIT's, the tuner's and the chunked
+// strategies'; op_init_core calls it before the backend declares its
+// families.  A later call replaces the context.
 void init();
 
 // Declare the CPU families; the CPU libraries' op_init calls it.
@@ -19,11 +20,11 @@ void init_cpu();
 // the GPU libraries' op_init calls it once the device is up.
 void init_gpu();
 
-// Write the tuner's and the JIT's reports; op_profile_output and op_exit.
+// Write the tuner's and the JIT's reports; op_profile_output.
 void write_reports(int rank, int ranks);
 
-// Write the reports, then destroy every loop; op_exit, while the device is
-// still up.
+// Write the reports, then destroy the context, its loops first; op_exit,
+// while the device is still up.
 void finalise(int rank, int ranks);
 
 } // namespace op::rt

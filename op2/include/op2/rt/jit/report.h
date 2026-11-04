@@ -23,7 +23,7 @@ struct JitLoop {
 
 // The summary printed under OP_JIT_REPORT when the loops built or observed
 // anything; empty otherwise.
-std::string summary(std::span<const JitLoop> loops, int ranks);
+std::string summary(std::span<const JitLoop> loops, const Options& options, int ranks);
 
 // The report's columns, and a row per configuration of loop whose parameters
 // may move: the names baked in, at run time, and moved, each list separated

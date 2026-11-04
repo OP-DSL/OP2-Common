@@ -143,10 +143,17 @@ op2/renumber/hilbert_sfc.h  (the Hilbert space-filling curve over 2D or 3D
 ### The loop runtime (op2/rt/, sources under src/rt)
 
 ```
+op2/rt/context.h    (includes: op2/rt/jit/options.h, op2/rt/loop/family.h,
+                     op2/rt/loop/registry.h, op2/rt/plan/options.h,
+                     op2/rt/tune/options.h; op::rt: the run's context from
+                     op_init to op_exit: its options, the families the
+                     backend declared, what the backend keeps for its loops,
+                     and the loops made; from src/rt/op_rt_lifecycle.cpp)
 op2/rt/hasher.h     (includes: extern/rapidhash.h; a rapidhash over words
                      added one at a time, a block at a time)
-op2/rt/lifecycle.h  (op::rt: the runtime's start, reports and release,
-                     which op_init, op_profile_output and op_exit call;
+op2/rt/lifecycle.h  (op::rt: the runtime's start, which makes its context,
+                     its reports and its release, which op_init,
+                     op_profile_output and op_exit call;
                      from src/rt/op_rt_lifecycle.cpp, init_cpu from
                      src/rt/cpu/op_cpu_init.cpp, init_gpu from
                      src/rt/gpu/op_gpu_options.cpp)
@@ -277,42 +284,45 @@ op2/rt/loop/strategy.h  (includes: op2/rt/loop/call.h; a strategy, with an
                          offline kernel, a specialised one or both, its
                          backend's estimate of each, available or why not
                          and a dimensionless cost the ladder orders them by,
-                         its answer for a call, and its own setup of the
-                         call's globals)
+                         and its answer for a call)
 op2/rt/loop/family.h    (includes: op2/rt/loop/strategy.h; the families a
                          backend declares, the axes their strategies vary
                          along, a family as a backend offers it with the
-                         strategy it makes at each point, and OP_STRATEGY,
-                         read by op_init; from src/rt/loop/op_loop_ladder.cpp)
-op2/rt/loop/ladder.h    (includes: op2/rt/loop/call.h, op2/rt/loop/family.h,
-                         op2/rt/loop/strategy.h; a loop's candidates, a
+                         strategy it makes at each point, and the declared
+                         families' settings with OP_STRATEGY, as the run's
+                         context holds them; from
+                         src/rt/loop/op_loop_family.cpp)
+op2/rt/loop/ladder.h    (includes: op2/rt/jit/options.h, op2/rt/loop/call.h,
+                         op2/rt/loop/family.h, op2/rt/loop/strategy.h; a
+                         loop's candidates, a
                          strategy with one of its kernels each, in ladder
                          order, the families the loop registers as its
                          backend offers them, and the one each call runs;
                          from src/rt/loop/op_loop_ladder.cpp)
 op2/rt/loop/loop.h      (includes: op_lib_core.h, op_profile.h,
-                         op2/rt/abi/descriptor.h, op2/rt/jit/params.h,
-                         op2/rt/loop/call.h, op2/rt/loop/ladder.h,
-                         op2/rt/loop/strategy.h, op2/rt/tune/autotune.h; the
-                         loop a descriptor's invoke runs: its JIT
+                         op2/rt/abi/descriptor.h, op2/rt/context.h,
+                         op2/rt/jit/params.h, op2/rt/loop/call.h,
+                         op2/rt/loop/ladder.h, op2/rt/loop/strategy.h,
+                         op2/rt/tune/autotune.h; the loop a descriptor's
+                         invoke runs, made in the run's context: its JIT
                          parameters, its backend's executor (what the
                          strategies share, and where the data lives for the
                          halo exchanges and dirty bits), its ladder and
-                         tuner, a call's steps, phases and profile scopes,
-                         and the registry of every loop, whose reports
-                         op_profile_output and op_exit write and which
-                         op_exit releases; from src/rt/loop/op_loop.cpp, the
-                         registry and files from
-                         src/rt/loop/op_loop_report.cpp)
+                         tuner, and a call's steps, phases and profile
+                         scopes; from src/rt/loop/op_loop.cpp)
+op2/rt/loop/registry.h  (includes: op2/rt/abi/descriptor.h; every loop the
+                         run made, which the context owns until op_exit, and
+                         the reports op_profile_output and op_exit write from
+                         them; from src/rt/loop/op_loop_report.cpp)
 ```
 
 #### Specialised kernels, backend neutral (op::rt::jit, sources under src/rt/jit)
 The policy, the parameters, the build cache and the report; a backend
 supplies the compiler.
 ```
-op2/rt/jit/options.h  (the JIT's policy as OP_JIT_* sets it, read by op_init:
-                       whether and when kernels are specialised, what they
-                       bake in, and its report)
+op2/rt/jit/options.h  (the JIT's policy as OP_JIT_* sets it, read into the
+                       run's context: whether and when kernels are
+                       specialised, what they bake in, and its report)
 op2/rt/jit/params.h   (includes: extern/rapidhash.h, op_lib_core.h,
                        op2/rt/abi/descriptor.h, op2/rt/hasher.h,
                        op2/rt/jit/options.h, op2/rt/loop/call.h; the
@@ -331,11 +341,14 @@ op2/rt/jit/report.h   (includes: op2/rt/jit/params.h,
 
 #### Choosing a strategy (op::rt::tune, sources under src/rt/tune)
 ```
+op2/rt/tune/options.h   (the tuner's options as OP_AUTOTUNE* sets them,
+                         read into the run's context; from
+                         src/rt/tune/op_tune_options.cpp)
 op2/rt/tune/autotune.h  (includes: op2/rt/loop/call.h, op2/rt/loop/ladder.h,
-                         op2/rt/loop/strategy.h; the autotuner, which times
-                         every candidate per configuration once its JIT
-                         modes have settled, its options, read by op_init,
-                         and its summary; from
+                         op2/rt/loop/strategy.h, op2/rt/tune/options.h; the
+                         autotuner, which times every candidate per
+                         configuration once its JIT modes have settled, and
+                         its summary; from
                          src/rt/tune/op_tune_autotune.cpp, the summary from
                          src/rt/tune/op_tune_report.cpp)
 ```
@@ -363,7 +376,7 @@ op2/rt/plan/staging.h        (includes: op2/rt/abi/descriptor.h,
                               staging, the slots taken as the backend's stage
                               words, and its figures)
 op2/rt/plan/options.h        (the chunked strategies' run-wide options, read
-                              by op_init)
+                              into the run's context)
 op2/rt/plan/cache.h          (includes: extern/rapidhash.h,
                               op2/rt/abi/descriptor.h, op2/rt/hasher.h,
                               op2/rt/loop/call.h;

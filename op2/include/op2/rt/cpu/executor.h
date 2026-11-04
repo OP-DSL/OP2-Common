@@ -56,6 +56,7 @@ public:
 class Executor final : public op::rt::loop::Executor {
 private:
     const abi::cpu::Loop& m_descriptor;
+    op::rt::Context& m_context;
     // The call under way: its threads, their globals and chunk scratch.
     int m_threads = 1;
     Globals m_globals;
@@ -64,14 +65,17 @@ private:
     std::size_t m_scratch_capacity = 0;
 
 public:
-    // The executor of descriptor's loop, whose kernels take no parameters.
-    Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet& params);
+    // The executor of descriptor's loop in context, whose kernels take no
+    // parameters.
+    Executor(const abi::cpu::Loop& descriptor, op::rt::jit::ParamSet& params,
+             op::rt::Context& context);
 
     void add_strategies(op::rt::loop::Ladder& ladder) override;
 
     // --- For the strategies ---
 
     const char *name() const { return m_descriptor.name; }
+    op::rt::Context& context() { return m_context; }
 
     // Start a run of call: its threads, and each one's copy of the globals.
     void begin_call(const op::rt::loop::Call& call);

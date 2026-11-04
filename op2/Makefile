@@ -67,12 +67,14 @@ clean:
 OP2_RT := $(OBJ)/rt/op_rt_lifecycle.o $(OBJ)/rt/op_rt_report.o $(addprefix $(OBJ)/rt/loop/,\
 	op_loop.o \
 	op_loop_call.o \
+	op_loop_family.o \
 	op_loop_ladder.o \
 	op_loop_report.o) $(addprefix $(OBJ)/rt/jit/,\
 	op_jit_options.o \
 	op_jit_params.o \
 	op_jit_cache.o \
 	op_jit_report.o) $(addprefix $(OBJ)/rt/tune/,\
+	op_tune_options.o \
 	op_tune_autotune.o \
 	op_tune_report.o) $(addprefix $(OBJ)/rt/plan/,\
 	op_plan_colouring.o \

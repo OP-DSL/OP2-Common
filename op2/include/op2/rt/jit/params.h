@@ -158,6 +158,7 @@ private:
     static constexpr std::size_t max_histories = 4096;
 
     std::string m_loop;
+    const Options& m_options;
     std::vector<Param> m_params;
     DatStride m_dat_stride = nullptr;
     // Calls so far, and the one whose values were last observed.
@@ -173,14 +174,16 @@ private:
     void observe(const loop::Call& call);
 
 public:
-    explicit ParamSet(std::string_view loop) : m_loop{loop} {}
+    // The parameters of loop under options, which must outlive them.
+    ParamSet(std::string_view loop, const Options& options)
+        : m_loop{loop}, m_options{options} {}
     ParamSet(const ParamSet&) = delete;
 
     // Add a parameter as the generated code describes it, its mode settled
     // by the policy.  Its index.
     std::size_t add(const abi::Param& row) {
         auto& added = m_params.emplace_back(row);
-        added.settle(m_loop, jit::options());
+        added.settle(m_loop, m_options);
         m_moving |= !added.fixed();
         return m_params.size() - 1;
     }

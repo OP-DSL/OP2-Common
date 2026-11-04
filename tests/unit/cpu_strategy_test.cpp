@@ -5,13 +5,14 @@
 // The edges split into core and owned sections, as a partition's do; the
 // MPI functional tests run the exec halo.
 
+#include <op2/rt/context.h>
 #include <op2/rt/cpu/executor.h>
 #include <op2/rt/cpu/strategy.h>
-#include <op2/rt/lifecycle.h>
 #include <op2/rt/kernel/cpu/chunk.h>
 #include <op2/rt/kernel/cpu/range.h>
 #include <op2/rt/kernel/cpu/threads.h>
 #include <op2/rt/kernel/staging.h>
+#include <op2/rt/lifecycle.h>
 #include <op_lib_c.h>
 #include <op_profile.h>
 
@@ -134,7 +135,7 @@ constexpr std::array<op::rt::abi::ArgGroup, 2> groups{{{0, 0}, {1, 0}}};
 void run(const char *strategy) {
     setenv("OP_STRATEGY", strategy, 1);
     op::rt::init();
-    cpu::init();
+    op::rt::init_cpu();
 
     op_set_core source{};
     op_set_core target{};
@@ -204,7 +205,7 @@ void run(const char *strategy) {
     };
     op::rt::abi::cpu::Loop descriptor{{"test_loop", "openmp_f2c", "Indirect", false}, families,
                                       &op::rt::kernel::cpu::max_threads};
-    LoopParts<cpu::Executor> loop{descriptor};
+    LoopParts<cpu::Executor> loop{descriptor, op::rt::context()};
     // The forced strategy itself runs, not one the ladder falls through to.
     op::rt::loop::Call call{&source, args, source.size + source.exec_size, false};
     auto selection = loop.ladder.select(call);

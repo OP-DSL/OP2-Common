@@ -1,7 +1,7 @@
 #pragma once
 
-// The chunked strategies' run-wide options, read by init_chunk_options,
-// which op_init calls.
+// The chunked strategies' run-wide options, which op::rt::init reads into
+// the run's context.
 
 namespace op::rt::plan {
 
@@ -11,7 +11,6 @@ struct ChunkOptions {
     double min_compression = 1.5;
 };
 
-const ChunkOptions& chunk_options();
-void init_chunk_options();
+ChunkOptions read_chunk_options();
 
 } // namespace op::rt::plan

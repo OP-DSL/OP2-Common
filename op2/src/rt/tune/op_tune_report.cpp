@@ -35,7 +35,8 @@ struct LoopTuning {
 
 } // namespace
 
-std::string summary(std::span<const TunedLoop> loops, int ranks) {
+std::string summary(std::span<const TunedLoop> loops, const AutotuneOptions& options,
+                    int ranks) {
     std::vector<LoopTuning> tunings;
     std::vector<Autotuner::Outcome> outcomes;
     std::size_t tuned = 0;
@@ -90,13 +91,13 @@ std::string summary(std::span<const TunedLoop> loops, int ranks) {
     if (partial > 0)
         appendf(out, " (%zu partly: a candidate was still pending)", partial);
     appendf(out, "; %zu not explored (seen fewer than %d times, or not settled)\n",
-            unexplored, autotune_options().min_calls);
+            unexplored, options.min_calls);
     if (configurations == 0)
         return out;
     appendf(out, "  over their calls: %.1f ms at the ladder's choices, %.1f ms at the "
                  "fastest (%.3fx)\n",
             ladder_ms, fastest_ms, fastest_ms > 0.0 ? ladder_ms / fastest_ms : 0.0);
-    if (autotune_options().select)
+    if (options.select)
         appendf(out, "  select runs a candidate other than the ladder's choice in %s\n",
                 counted(selected, "configuration").c_str());
 

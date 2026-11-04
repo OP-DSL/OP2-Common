@@ -29,7 +29,8 @@ struct Owned : op::rt::abi::Loop {
 struct PlanOwner : op::rt::loop::Executor {
     std::optional<op::rt::gpu::DevicePlan>& plan;
 
-    PlanOwner(const Owned& owned, op::rt::jit::ParamSet&) : plan{*owned.plan} {}
+    PlanOwner(const Owned& owned, op::rt::jit::ParamSet&, op::rt::Context&)
+        : plan{*owned.plan} {}
 
     ~PlanOwner() override { plan.reset(); }
 

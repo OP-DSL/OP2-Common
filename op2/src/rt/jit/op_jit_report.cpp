@@ -64,8 +64,8 @@ LoopJit loop_jit(const JitLoop& loop) {
 
 } // namespace
 
-std::string summary(std::span<const JitLoop> loops, int ranks) {
-    if (!options().enabled() || options().report_file.empty())
+std::string summary(std::span<const JitLoop> loops, const Options& options, int ranks) {
+    if (!options.enabled() || options.report_file.empty())
         return {};
     std::vector<LoopJit> jits;
     loop::BuildCounts builds;
@@ -97,7 +97,7 @@ std::string summary(std::span<const JitLoop> loops, int ranks) {
         appendf(out, ", %zu still building", builds.building);
     if (builds.waiting > 0)
         appendf(out, ", %zu not built (asked for fewer than %d times)", builds.waiting,
-                options().min_calls);
+                options.min_calls);
     out += "\n";
     if (moving == 0)
         return out;

@@ -3,6 +3,7 @@
 // selected by the margin.
 
 #include <op2/rt/abi/descriptor.h>
+#include <op2/rt/context.h>
 #include <op2/rt/jit/report.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/rt/loop/loop.h>
@@ -104,8 +105,8 @@ struct Settings {
 // A ladder of fakes and the tuner over it, as OP_AUTOTUNE says when they
 // are built.
 struct Fixture {
-    loop::Ladder ladder{"flux", true};
-    op::rt::tune::Autotuner tuner{ladder};
+    loop::Ladder ladder{"flux", true, op::rt::context().families, op::rt::context().jit};
+    op::rt::tune::Autotuner tuner{ladder, op::rt::context().autotune};
     Fake *chunk_atomics;
     Fake *atomics;
     Fake *chunk_colouring;
@@ -118,7 +119,7 @@ struct Fixture {
     Fake *add(std::string_view family, bool enabled, float time,
               std::optional<float> jit_time = {}) {
         const loop::Family declared[] = {{family, {}, enabled}};
-        loop::declare_families(declared);
+        op::rt::context().families.declare(declared);
         Fake *fake = nullptr;
         ladder.add(family, [&](const loop::Point& point) {
             auto made = std::make_unique<Fake>(point.name, time, jit_time);
@@ -163,7 +164,7 @@ void test_exploration() {
     setenv("OP_AUTOTUNE_MIN_CALLS", "2", 1);
     setenv("OP_CHUNK_COLOURING", "0", 1);
     op::rt::init();
-    CHECK(op::rt::tune::autotune_options().select);
+    CHECK(op::rt::context().autotune.select);
 
     Fixture fixture{Settings{}};
     loop::Call call{&edges, args, edges.size + edges.exec_size, false};
@@ -241,7 +242,7 @@ void test_exploration() {
     // calls, on cells atomics is fastest, so the loop takes 0.152 ms to the
     // ladder's 0.23.
     const op::rt::tune::TunedLoop tuned[] = {{"flux", &fixture.tuner}};
-    auto summary = op::rt::tune::summary(tuned, 1);
+    auto summary = op::rt::tune::summary(tuned, op::rt::context().autotune, 1);
     CHECK(summary.rfind("autotune summary:\n", 0) == 0);
     CHECK(summary.find("2 configurations of 1 loop explored; 0 not explored") !=
           std::string::npos);
@@ -343,11 +344,11 @@ void test_jit_report() {
         op::rt::jit::ParamSet *params = nullptr;
     };
     struct Jitted : loop::Executor {
-        Jitted(Probe& probe, op::rt::jit::ParamSet& params) {
+        Jitted(Probe& probe, op::rt::jit::ParamSet& params, op::rt::Context& context) {
             params.add(op::rt::abi::constant("op2_const_c_d", &probe.constant));
             probe.params = &params;
             const loop::Family declared[] = {{"atomics", {}}};
-            loop::declare_families(declared);
+            context.families.declare(declared);
         }
         // One strategy, whose builds the loop's are.
         void add_strategies(loop::Ladder& ladder) override {
@@ -379,12 +380,12 @@ void test_jit_report() {
     for (int i = 0; i < 10; ++i)
         observe(on_cells);
 
-    auto jit_summary = [&] {
+    auto jit_summary = [&](const op::rt::jit::Options& options) {
         const op::rt::jit::JitLoop loops[] = {
             {jitted.name(), jitted.builds(), &jitted.params()}};
-        return op::rt::jit::summary(loops, 1);
+        return op::rt::jit::summary(loops, options, 1);
     };
-    auto summary = jit_summary();
+    auto summary = jit_summary(op::rt::context().jit);
     CHECK(summary.rfind("JIT summary:\n", 0) == 0);
     CHECK(summary.find("3 kernels built for 1 loop, 1 failed, 2 not built (asked for "
                        "fewer than 9 times)\n") != std::string::npos);
@@ -393,7 +394,7 @@ void test_jit_report() {
     CHECK(summary.find("  flux_jit  3 (1 failed)               2        1  "
                        "op2_const_c_d 1/1 (1)\n") != std::string::npos);
 
-    loop::write_reports(0, 1);
+    op::rt::write_reports(0, 1);
     std::ifstream file(path);
     std::vector<std::string> rows;
     for (std::string line; std::getline(file, line);)
@@ -406,23 +407,24 @@ void test_jit_report() {
         kept += rows[i] == "flux_jit,\"cells (64)\",10,no,op2_const_c_d,,";
     }
     CHECK(moved == 1 && kept == 1);
-    std::remove(path.c_str());
 
     unsetenv("OP_JIT_REPORT");
-    op::rt::init();
-    CHECK(jit_summary().empty());
-    loop::finalise(0, 1);
+    CHECK(jit_summary(op::rt::jit::read_options()).empty());
+    op::rt::finalise(0, 1);
+    std::remove(path.c_str());
 }
 
-// The registry owns the loop made for a descriptor, and op_exit's finalise
-// destroys it and clears the descriptor, so the next call makes another.
+// The context's registry owns the loop made for a descriptor, and op_exit's
+// finalise destroys it and clears the descriptor, so the next run makes
+// another.
 void test_loop_registry() {
     struct Counts : op::rt::abi::Loop {
         int destroyed = 0;
     };
     struct Counted : loop::Executor {
         Counts& counts;
-        Counted(Counts& counts_, op::rt::jit::ParamSet&) : counts{counts_} {}
+        Counted(Counts& counts_, op::rt::jit::ParamSet&, op::rt::Context&)
+            : counts{counts_} {}
         ~Counted() override { ++counts.destroyed; }
         void add_strategies(loop::Ladder&) override {}
     };
@@ -432,11 +434,12 @@ void test_loop_registry() {
     Counts counts{{"counted", "test", "Direct", true}};
     auto *first = &loop::runtime<Counted>(counts);
     CHECK(&loop::runtime<Counted>(counts) == first);
-    loop::finalise(0, 1);
+    op::rt::finalise(0, 1);
     CHECK(counts.destroyed == 1 && counts.runtime == nullptr);
 
+    op::rt::init();
     loop::runtime<Counted>(counts);
-    loop::finalise(0, 1);
+    op::rt::finalise(0, 1);
     CHECK(counts.destroyed == 2 && counts.runtime == nullptr);
 }
 
