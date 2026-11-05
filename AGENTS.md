@@ -50,4 +50,5 @@ dats are translated per target (`translator-v2/`) and run by the library
 - Real runs are many MPI ranks: no single-rank specialisations.
 - Device code: never raise a kernel's registers for tidiness; compare
   per-kernel registers (sm_90, gfx942) for every kernel a change reaches.
-- Commit messages are one subject line.
+- Commit messages are one concise subject line, at most 72 columns: what changed,
+  not why.
