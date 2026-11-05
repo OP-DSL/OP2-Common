@@ -163,6 +163,11 @@ static void ensure_host_capacity(void **buffer, size_t *size, size_t capacity) {
 }
 
 ExchangeBuffers CudaBackend::alloc_buffers(size_t gather_size, size_t scatter_size) {
+    // A buffer that grows is freed, and the previous call's scatter may still be
+    // reading the scatter buffers: wait for it rather than rely on the free to.
+    if (scatter_size > scatter_buf_size || (!OP_gpu_direct && scatter_size > scatter_host_size))
+        wait_scatters();
+
     ensure_capacity(&gather_buf, &gather_buf_size, gather_size, false);
     ensure_capacity(&scatter_buf, &scatter_buf_size, scatter_size, false);
 

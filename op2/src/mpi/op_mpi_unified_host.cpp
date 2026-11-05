@@ -40,6 +40,8 @@ static void ensure_capacity(void **buffer, size_t *size, size_t capacity) {
 
     free(*buffer);
     *buffer = malloc(new_size);
+    if (*buffer == nullptr)
+        fail("op_mpi_halo_exchanges: cannot allocate a %zu-byte exchange buffer\n", new_size);
 
     *size = new_size;
 }
