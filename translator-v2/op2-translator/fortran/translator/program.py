@@ -3,7 +3,7 @@ import re
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
-from op import OpError
+from diagnostics import OpError
 from store import Program
 
 

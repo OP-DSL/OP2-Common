@@ -1,6 +1,7 @@
 import re
 
-from store import ParseError, Program
+from diagnostics import ParseError
+from store import Program
 from util import SourceBuffer
 
 

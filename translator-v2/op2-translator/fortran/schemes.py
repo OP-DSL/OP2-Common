@@ -9,7 +9,8 @@ import fortran.translator.kernels_c as ftk_c
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, ParseError, Program
+from diagnostics import ParseError
+from store import Application, Program
 from strategy import indirectRW, setChunkConfig
 from target import Target
 from util import find
@@ -35,7 +36,7 @@ class FortranSeq(Scheme):
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel function: {loop.kernel}")
+            raise ParseError(f"unable to find kernel function: {loop.kernel}", loop.loc)
 
         dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
@@ -79,7 +80,7 @@ class FortranOpenMPLegacy(Scheme):
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel function: {loop.kernel}")
+            raise ParseError(f"unable to find kernel function: {loop.kernel}", loop.loc)
 
         dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
@@ -164,7 +165,7 @@ class FortranCudaLegacy(Scheme):
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel function: {loop.kernel}")
+            raise ParseError(f"unable to find kernel function: {loop.kernel}", loop.loc)
 
         if len(kernel_entities) > 1:
             raise ParseError(f"ambiguous kernel function: {loop.kernel}")

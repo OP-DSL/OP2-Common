@@ -4,7 +4,8 @@ from typing import Any, Dict, List
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, ParseError, Program
+from diagnostics import ParseError
+from store import Application, Program
 from strategy import indirectRW, setChunkConfig
 from target import Target
 
@@ -39,7 +40,7 @@ class CppSeq(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
         return ctk.writeSource(extracted_entities)
@@ -80,7 +81,7 @@ class CppOpenMPLegacy(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
         return ctk.writeSource(extracted_entities)
@@ -121,7 +122,7 @@ class CppCudaLegacy(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -179,7 +180,7 @@ class CppHipLegacy(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -237,7 +238,7 @@ class CppCuda(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -315,7 +316,7 @@ class CppOpenMP(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 

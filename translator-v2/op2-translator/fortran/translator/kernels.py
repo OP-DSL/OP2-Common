@@ -6,7 +6,7 @@ import fparser.two.utils as fpu
 import fortran.util as fu
 import op as OP
 from language import Lang
-from op import OpError
+from diagnostics import OpError
 from store import Application, Entity, Function
 from util import find, safeFind
 

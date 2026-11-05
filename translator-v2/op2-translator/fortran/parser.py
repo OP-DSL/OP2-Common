@@ -6,7 +6,8 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
 import op as OP
-from store import Application, Function, Location, ParseError, Program
+from diagnostics import LineMap, Location, ParseError
+from store import Application, Function, Program
 from util import safeFind
 import fortran.util as fu
 
@@ -24,8 +25,8 @@ def getChildOpt(node: f2003.Base, node_type: Type[TN]) -> Optional[TN]:
     return fpu.get_child(node, node_type)
 
 
-def parseProgram(ast: f2003.Program, source: str, path: Path) -> Program:
-    program = Program(path, ast, source)
+def parseProgram(ast: f2003.Program, source: str, path: Path, line_map: LineMap) -> Program:
+    program = Program(path, ast, source, line_map=line_map)
     parseNode(ast, program, Location(str(program.path), 0, 0))
 
     return program
@@ -92,7 +93,7 @@ def parseNode(node: Any, program: Program, loc: Location) -> None:
         child_loc = loc
 
         if hasattr(child, "item") and child.item is not None:
-            child_loc = Location(str(program.path), child.item.span[0], 0)
+            child_loc = program.locate(child.item.span[0])
 
         parseNode(child, program, child_loc)
 
@@ -110,7 +111,7 @@ def parseSubprogram(
     name = parseIdentifier(name_node, loc)
     function = Function(name, node, program)
 
-    function.parameters = parseSubprogramParameters(program.path, node)
+    function.parameters = parseSubprogramParameters(program, node)
 
     for call in fpu.walk(node, f2003.Call_Stmt):
         name_node = getChildOpt(call, f2003.Name)
@@ -125,7 +126,7 @@ def parseSubprogram(
 
 
 def parseSubprogramParameters(
-    path: Path, node: Union[f2003.Subroutine_Subprogram, f2003.Function_Subprogram]
+    program: Program, node: Union[f2003.Subroutine_Subprogram, f2003.Function_Subprogram]
 ) -> List[str]:
     if isinstance(node, f2003.Subroutine_Subprogram):
         definition_statement = getChild(node, f2003.Subroutine_Stmt)
@@ -138,7 +139,7 @@ def parseSubprogramParameters(
         return []
 
     item = getattr(definition_statement, "item")
-    loc = Location(str(path), item.span[0], 0)
+    loc = program.locate(item.span[0])
 
     parameters = []
     for item in arg_list.items:

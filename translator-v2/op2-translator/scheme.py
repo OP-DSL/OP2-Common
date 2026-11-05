@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import sys
-import traceback
 import re
 from abc import abstractmethod
 from pathlib import Path
@@ -12,6 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from jinja2 import Environment
 
 import op as OP
+from diagnostics import TranslatorError
 from language import Lang
 from store import Application, Program
 from target import Target
@@ -79,7 +79,7 @@ class Scheme(Findable["Scheme"]):
         try:
             if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
                 main_args["kernel_func"] = self.translateKernel(loop, program, app, main_args["config"], kernel_idx)
-        except Exception as e:
+        except TranslatorError as e:
             # Without a fallback, a loop that does not translate is an error.
             if self.fallback is None:
                 raise
@@ -89,9 +89,6 @@ class Scheme(Findable["Scheme"]):
                 f"  fallback: {loop.fallback}, can generate: {self.canGenLoopHost(loop)}, force_generate: {force_generate}\n"
                 f"  {e}"
             )
-
-            if not isinstance(e, OP.OpError):
-                logger.debug("Traceback:\n%s", traceback.format_exc())
 
         if main_args["kernel_func"] is None and self.fallback is None:
             return None

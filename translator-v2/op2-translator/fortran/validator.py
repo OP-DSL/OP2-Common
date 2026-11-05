@@ -10,7 +10,7 @@ import fparser.two.utils as fpu
 import fortran.translator.kernels as ftk
 import fortran.util as fu
 import op as OP
-from op import OpError
+from diagnostics import OpError
 from store import Application, Entity, Function, Program
 from util import find, safeFind
 
@@ -25,9 +25,9 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
     kernel_entities = app.findEntities(loop.kernel, program, [])
 
     if len(kernel_entities) == 0:
-        raise OpError(f"unable to find kernel subroutine for {loop.kernel}")
+        raise OpError(f"unable to find kernel subroutine for {loop.kernel}", loop.loc)
     elif len(kernel_entities) > 1:
-        raise OpError(f"ambiguous kernel subroutine for {loop.kernel}")
+        raise OpError(f"ambiguous kernel subroutine for {loop.kernel}", loop.loc)
 
     dependencies, unknown_dependencies = ftk.extractDependencies(kernel_entities, app, [])
     entities = kernel_entities + list(filter(lambda e: isinstance(e, Function), dependencies))
@@ -39,7 +39,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
     seen_entity_names = []
     for entity in entities:
         if entity.name in seen_entity_names:
-            raise OpError(f"ambiguous subroutine/function {entity.name} used in kernel {loop.kernel}")
+            raise OpError(f"ambiguous subroutine/function {entity.name} used in kernel {loop.kernel}", loop.loc)
 
         seen_entity_names.append(entity.name)
 
@@ -238,9 +238,9 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
 
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:
     if arg is not None:
-        header = f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:"
+        header = f"{loop.loc}: warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:"
     else:
-        header = f"{loop.loc}: Warning: {loop.kernel} {warning}:"
+        header = f"{loop.loc}: warning: {loop.kernel} {warning}:"
 
     lines = [header] + [f"    {v}" for v in violations[:5]]
     if len(violations) > 5:

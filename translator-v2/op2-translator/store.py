@@ -2,39 +2,16 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from os.path import basename
 from pathlib import Path
 from textwrap import indent
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import op as OP
-from op import OpError
+from diagnostics import LineMap, Location, OpError
 from util import flatten, uniqueBy
 
 if TYPE_CHECKING:
     from language import Lang
-
-
-@dataclass(frozen=True)
-class Location:
-    file: str
-    line: int
-    column: int
-
-    def __str__(self) -> str:
-        return f"{basename(self.file)}/{self.line}:{self.column}"
-
-
-@dataclass
-class ParseError(Exception):
-    message: str
-    loc: Optional[Location] = None
-
-    def __str__(self) -> str:
-        if self.loc:
-            return f"Parse error at {self.loc}: {self.message}"
-        else:
-            return f"Parse error: {self.message}"
 
 
 @dataclass
@@ -94,6 +71,15 @@ class Program:
     # #includes, for build-system dependency tracking. Left empty by languages
     # that cannot report them.
     includes: Set[Path] = field(default_factory=set)
+
+    # Where each line of the preprocessed source came from.
+    line_map: Optional[LineMap] = None
+
+    # A place in the preprocessed source as a place in the user's sources.
+    def locate(self, line: int, column: int = 0) -> Location:
+        if self.line_map is None:
+            return Location(str(self.path), line, column)
+        return self.line_map.locate(line, column)
 
     def findEntities(self, name: str, scope: List[str] = []) -> List[Entity]:
         def in_scope(e):

@@ -12,7 +12,8 @@ import pcpp
 
 import op as OP
 from language import Lang
-from store import Application, Location, ParseError, Program
+from diagnostics import LineMap, Location, ParseError
+from store import Application, Program
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,6 @@ SYSTEM_INCLUDES = None
 class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
-        self.line_directive = None
 
     def on_error(self, file: str, line: int, msg: str) -> None:
         loc = Location(file, line, 0)
@@ -63,7 +63,7 @@ class Cpp(Lang):
     @lru_cache(maxsize=None)
     def parseFile(
         self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str], preprocess: bool = False
-    ) -> Tuple[Any, str]:
+    ) -> Tuple[Any, str, LineMap]:
         import cpp.parser
 
         global SYSTEM_INCLUDES
@@ -99,11 +99,13 @@ class Cpp(Lang):
             preprocessor.write(source_io)
 
             source_io.seek(0)
-            source = source_io.read()
+            source, line_map = LineMap.strip(source_io.read(), str(path.resolve()), pad=True)
+        else:
+            line_map = LineMap(str(path))
 
-        translation_unit = cpp.parser.parseTranslationUnit(path, source, args)
+        translation_unit = cpp.parser.parseTranslationUnit(path, source, args, line_map)
 
-        return translation_unit, source
+        return translation_unit, source, line_map
 
     def resolvedIncludes(self, translation_unit: Any) -> Set[Path]:
         # Headers reached from this translation unit, for depfile emission.
@@ -129,10 +131,10 @@ class Cpp(Lang):
     def parseProgram(self, path: Path, include_dirs: Tuple[Path, ...], defines: List[str]) -> Program:
         import cpp.parser
 
-        ast, source = self.parseFile(path, include_dirs, frozenset(defines))
-        ast_pp, source_pp = self.parseFile(path, include_dirs, frozenset(defines), preprocess=True)
+        ast, _, _ = self.parseFile(path, include_dirs, frozenset(defines))
+        ast_pp, source_pp, line_map = self.parseFile(path, include_dirs, frozenset(defines), preprocess=True)
 
-        program = Program(path, ast_pp, source_pp)
+        program = Program(path, ast_pp, source_pp, line_map=line_map)
 
         # From the unpreprocessed parse: pcpp has already expanded the includes
         # out of the preprocessed one.

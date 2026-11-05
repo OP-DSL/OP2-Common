@@ -20,8 +20,9 @@ import fortran.translator.program
 import fortran.util
 import fortran.validator
 import op as OP
+from diagnostics import LineMap, Location, ParseError
 from language import Lang
-from store import Application, Location, ParseError, Program
+from store import Application, Program
 
 logger = logging.getLogger(__name__)
 
@@ -128,22 +129,10 @@ def walk(node_list, types=None, indent=0, debug=False):
 fparser.two.utils.walk = walk
 
 
-class FortranSyntaxError(Exception):
-    def __init__(self, message, filename):
-        super().__init__()
-
-        self.message = message
-        self.filename = filename
-
-    def __reduce__(self):
-        return (FortranSyntaxError, (self.message, self.filename))
-
-
 class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
 
-        self.line_directive = None
         self.includes: Set[Path] = set()
 
     def on_file_open(self, is_system_include, includepath):
@@ -301,11 +290,13 @@ class Fortran(Lang):
 
         return includes
 
+    # The preprocessed source, without line markers, the files it included
+    # and where each of its lines came from.
     def preprocess(
         self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]
-    ) -> Tuple[str, Set[Path]]:
+    ) -> Tuple[str, Set[Path], LineMap]:
         if self.fpp:
-            args = [self.fpp, "-P", "-free", "-f90"]
+            args = [self.fpp, "-free", "-f90"]
 
             for dir in include_dirs:
                 args.append(f"-I{dir}")
@@ -316,7 +307,8 @@ class Fortran(Lang):
             args.append(str(path))
 
             res = subprocess.run(args, capture_output=True, check=True)
-            return res.stdout.decode("utf-8"), self.fppIncludes(path, include_dirs, defines)
+            source, line_map = LineMap.strip(res.stdout.decode("utf-8"), str(path), pad=False)
+            return source, self.fppIncludes(path, include_dirs, defines), line_map
 
         preprocessor = Preprocessor()
 
@@ -338,30 +330,35 @@ class Fortran(Lang):
 
         source.seek(0)
 
-        source = source.read()
+        source, line_map = LineMap.strip(source.read(), str(path), pad=True)
 
         source = re.sub(r"__FILE__", f'"{path}"', source)
         source = re.sub(r"__LINE__", "0", source)
 
-        return source, preprocessor.includes
+        return source, preprocessor.includes, line_map
 
     def parseFile(
         self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]
-    ) -> Tuple[f2003.Program, str, Set[Path]]:
-        source, includes = self.preprocess(path, include_dirs, defines)
+    ) -> Tuple[f2003.Program, str, Set[Path], LineMap]:
+        source, includes, line_map = self.preprocess(path, include_dirs, defines)
 
         try:
             reader = FortranStringReader(source, include_dirs=list(include_dirs))
             ast = self.parser(reader)
         except fparser.two.utils.FortranSyntaxError as err:
-            raise FortranSyntaxError(str(err), path.name)
+            # fparser says "at line N\n>>>text\nwhat", N in the preprocessed source.
+            found = re.match(r"at line (\d+)\n>>>(.*?)\n(.*)", str(err), re.S)
+            if found is None:
+                raise ParseError(f"syntax error: {err}", Location(str(path), 0))
+            what = found.group(3).strip() or "syntax error"
+            raise ParseError(f"{what}: {found.group(2).strip()}", line_map.locate(int(found.group(1))))
 
-        return ast, source, includes
+        return ast, source, includes, line_map
 
     def parseProgram(self, path: Path, include_dirs: Tuple[Path, ...], defines: List[str]) -> Program:
-        ast, source, includes = self.parseFile(path, include_dirs, frozenset(defines))
+        ast, source, includes, line_map = self.parseFile(path, include_dirs, frozenset(defines))
 
-        program = fortran.parser.parseProgram(ast, source, path)
+        program = fortran.parser.parseProgram(ast, source, path, line_map)
         program.includes = includes
 
         return program

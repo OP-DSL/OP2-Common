@@ -9,7 +9,7 @@ import fparser.two.utils as fpu
 import fortran.util as fu
 import op as OP
 from language import Lang
-from op import OpError
+from diagnostics import OpError
 from store import Application, Entity, Function, Program
 from util import find, safeFind
 
@@ -107,6 +107,8 @@ class Param:
 class SubprogramInfo:
     name: str
     ast: f2003.Base
+    # The program it was parsed from, which places its statements.
+    program: Optional[Program] = None
 
     params: List[Param] = field(default_factory=list)
     func_return_var: Optional[str] = None
@@ -152,17 +154,19 @@ class Context:
     def lookupType(self, name: str) -> Optional[FType]:
         return self.sub_info.types.get(name) or self.info.consts.get(name)
 
+    # Stop translating: the construct at node is not modelled.
     def error(self, msg: str, node: Optional[Any] = None):
-        full_msg = f"Error translating {self.sub_info.name}: {msg}"
+        item = fu.getItem(node) if node is not None else None
+        loc = None
+        if item is not None and self.sub_info.program is not None:
+            loc = self.sub_info.program.locate(item.span[0])
 
-        item = None
-        if node is not None:
-            item = fu.getItem(node)
-
+        text = f"{self.sub_info.name}: {msg}"
         if item is not None:
-            full_msg += f"\n  > {item.line}"
+            text += f"\n    {item.line.strip()}"
 
-        raise OpError(full_msg)
+        loop = self.info.loop
+        raise OpError(text, loc, (loop.loc, f"in the op_par_loop of {loop.kernel}"))
 
 
 def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: Dict[str, Any], const_rename: Optional[Callable[[str], str]] = None) -> Info:
@@ -217,7 +221,7 @@ def parseConstsModule(program: Program, info: Info) -> Dict[str, FType]:
     if module is None:
         raise OpError("Invalid consts module")
 
-    consts_info = SubprogramInfo("consts", None)
+    consts_info = SubprogramInfo("consts", None, program)
 
     spec_part = fpu.get_child(module, f2003.Specification_Part)
     return parseTypes(spec_part, Context(info, consts_info))
@@ -228,7 +232,7 @@ def parseSubroutineInfo(entity: Entity) -> SubprogramInfo:
     spec_part = fpu.get_child(entity.ast, f2003.Specification_Part)
 
     name = translateName(fpu.get_child(subroutine_stmt, f2003.Name))
-    sub_info = SubprogramInfo(name, entity.ast)
+    sub_info = SubprogramInfo(name, entity.ast, entity.program)
 
     param_names = fpu.walk(fpu.get_child(subroutine_stmt, f2003.Dummy_Arg_List), f2003.Name)
     sub_info.params = [Param(translateName(name)) for name in param_names]
@@ -241,7 +245,7 @@ def parseFunctionInfo(entity: Entity) -> SubprogramInfo:
     spec_part = fpu.get_child(entity.ast, f2003.Specification_Part)
 
     name = translateName(fpu.get_child(function_stmt, f2003.Name))
-    sub_info = SubprogramInfo(name, entity.ast)
+    sub_info = SubprogramInfo(name, entity.ast, entity.program)
 
     param_list = fpu.get_child(function_stmt, f2003.Dummy_Arg_List)
     if param_list is not None:

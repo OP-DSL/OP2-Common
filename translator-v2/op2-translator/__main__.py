@@ -15,11 +15,12 @@ from typing import List, Set
 
 import cpp
 import fortran
+from diagnostics import TranslatorError
 from jinja import env
 from language import Lang
-from op import OpError, Type
+from op import Type
 from scheme import Scheme
-from store import Application, ParseError
+from store import Application
 from target import Target, renamed
 from util import getVersion, safeFind
 
@@ -132,14 +133,20 @@ def main(argv=None) -> None:
     if len(args.target) == 0:
         args.target = [[name] for name in lang_targets]
 
+    # A mistake in the sources stops the translation; any other exception is
+    # a translator bug and keeps its traceback.
+    try:
+        translate(args, lang, lang_targets)
+    except TranslatorError as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+
+def translate(args: Namespace, lang: Lang, lang_targets: List[str]) -> None:
     include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
     defines = [define for [define] in args.D]
 
-    try:
-        app = parse(args, lang)
-    except ParseError as e:
-        logger.error(str(e))
-        sys.exit(1)
+    app = parse(args, lang)
 
     if args.consts_module is not None:
         app.consts_module = lang.parseProgram(Path(args.consts_module), include_dirs, defines)
@@ -160,13 +167,8 @@ def main(argv=None) -> None:
     if args.verbose >= 2:
         logger.debug("%s", app)
 
-    # Validation phase
-    try:
-        logger.info("Validating...")
-        validate(args, lang, app)
-    except OpError as e:
-        logger.error(str(e))
-        sys.exit(1)
+    logger.info("Validating...")
+    validate(args, lang, app)
 
     for [target] in args.target:
         target = Target.find(target)
@@ -181,11 +183,7 @@ def main(argv=None) -> None:
 
     # Generate program translations
     for i, program in enumerate(app.programs, 1):
-        try:
-            source = lang.translateProgram(program, include_dirs, defines, args.force_soa)
-        except ParseError as e:
-            logger.error(str(e))
-            sys.exit(1)
+        source = lang.translateProgram(program, include_dirs, defines, args.force_soa)
 
         new_file = os.path.splitext(os.path.basename(program.path))[0]
         ext = os.path.splitext(os.path.basename(program.path))[1]
@@ -277,19 +275,15 @@ def parse(args: Namespace, lang: Lang) -> Application:
     app = Application()
 
     if lang.ast_is_serializable:
-        try:
-            # Logging handlers are configured before this Pool() is constructed, so forked
-            # workers inherit them (fork start method, the Linux default). parse_file() has
-            # no logging calls today; if that changes, be aware forked workers would hold
-            # duplicated file descriptors over the same log file with no cross-process
-            # write synchronization, risking interleaved lines under -mp.
-            if args.multiprocess_parse:
-                app.programs = Pool().starmap(parse_file, f_args)
-            else:
-                app.programs = [parse_file(*args) for args in f_args]
-        except fortran.FortranSyntaxError as err:
-            logger.error(f"Syntax error in file {err.filename}:\n{err.message}")
-            sys.exit(1)
+        # Logging handlers are configured before this Pool() is constructed, so forked
+        # workers inherit them (fork start method, the Linux default). parse_file() has
+        # no logging calls today; if that changes, be aware forked workers would hold
+        # duplicated file descriptors over the same log file with no cross-process
+        # write synchronization, risking interleaved lines under -mp.
+        if args.multiprocess_parse:
+            app.programs = Pool().starmap(parse_file, f_args)
+        else:
+            app.programs = [parse_file(*args) for args in f_args]
     else:
         app.programs = []
         for a in f_args:
@@ -361,9 +355,10 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         force_generate = scheme.target == Target.find("seq")
 
         # Generate loop host source
+        # Report every loop that fails before stopping.
         try:
             res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
-        except (OpError, ParseError) as e:
+        except TranslatorError as e:
             logger.error(str(e))
             res = None
 

@@ -3,12 +3,10 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from typing import Callable, List, Optional, Union
 
+from diagnostics import Location, OpError
 from util import ABDC, findIdx
-
-if TYPE_CHECKING:
-    from store import Location
 
 
 class AccessType(Enum):
@@ -29,21 +27,6 @@ class AccessType(Enum):
     @staticmethod
     def names() -> List[str]:
         return [x.name for x in list(AccessType)]
-
-
-class OpError(Exception):
-    message: str
-    loc: Optional[Location]
-
-    def __init__(self, message: str, loc: Optional[Location] = None) -> None:
-        self.message = message
-        self.loc = loc
-
-    def __str__(self) -> str:
-        if self.loc is not None:
-            return f"{self.loc}: OP error: {self.message}"
-        else:
-            return f"OP error: {self.message}"
 
 
 class Type:

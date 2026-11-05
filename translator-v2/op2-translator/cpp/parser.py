@@ -9,7 +9,8 @@ from clang.cindex import Config, Cursor, CursorKind, Diagnostic, Index, Translat
 from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
-from store import Application, Function, Location, ParseError, Program, Type
+from diagnostics import LineMap, Location, ParseError
+from store import Application, Function, Program, Type
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ if _clang_lib.clang_Cursor_Evaluate.restype is not c_void_p:
     _clang_lib.clang_EvalResult_dispose.restype = None
 
 
-def parseTranslationUnit(path: Path, source: str, args: List[str]) -> TranslationUnit:
+def parseTranslationUnit(path: Path, source: str, args: List[str], line_map: LineMap) -> TranslationUnit:
     translation_unit = Index.create().parse(
         path,  # type: ignore
         unsaved_files=[(path, source)],  # type: ignore
@@ -63,8 +64,9 @@ def parseTranslationUnit(path: Path, source: str, args: List[str]) -> Translatio
     # A file that does not parse would translate wrongly or not at all.
     if errors:
         location = errors[0].location
-        file = location.file.name if location.file else str(path)
-        raise ParseError(errors[0].spelling, Location(file, location.line, location.column))
+        if location.file is None or Path(location.file.name).resolve() == path.resolve():
+            raise ParseError(errors[0].spelling, line_map.locate(location.line, location.column))
+        raise ParseError(errors[0].spelling, Location(location.file.name, location.line, location.column))
 
     return translation_unit
 
@@ -389,6 +391,14 @@ def parseType(typ: str, loc: Location, include_custom=False) -> Tuple[OP.Type, b
 
 def parseLocation(node: Cursor) -> Location:
     return Location(node.location.file.name, node.location.line, node.location.column)  # type: ignore
+
+
+# A node of program's preprocessed parse, at its place in the user's sources.
+def sourceLocation(node: Cursor, program: Program) -> Location:
+    file = node.location.file
+    if file is not None and Path(file.name).resolve() == program.path.resolve():
+        return program.locate(node.location.line, node.location.column)
+    return parseLocation(node)
 
 
 def descend(node: Cursor) -> Cursor:

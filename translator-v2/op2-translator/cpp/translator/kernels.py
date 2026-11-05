@@ -5,6 +5,7 @@ from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple
 from clang.cindex import Cursor, CursorKind, SourceRange, Token, TypeKind
 
 import op as OP
+from cpp.parser import sourceLocation
 from store import Application, Entity, Function, Type
 from util import Location, Rewriter, Span, find, safeFind
 
@@ -257,7 +258,8 @@ def insertIncrements(
                     raise OP.OpError(
                         f"{func.name}: {callee.spelling} takes an OP_INC argument as its parameter {idx}, "
                         f"so it may take nothing else there: {tokenText(node)}",
-                        loop.loc,
+                        sourceLocation(node, func.program),
+                        (loop.loc, f"in the op_par_loop of {loop.kernel}"),
                     )
 
 
@@ -281,7 +283,9 @@ def insertPtrs(
 
             def fail(node: Cursor, what: str, name: str = param.spelling, func: Function = func) -> None:
                 raise OP.OpError(
-                    f"{func.name}: argument {name} may only be indexed, but {what}: {tokenText(node)}", loop.loc
+                    f"{func.name}: argument {name} may only be indexed, but {what}: {tokenText(node)}",
+                    sourceLocation(node, func.program),
+                    (loop.loc, f"in the op_par_loop of {loop.kernel}"),
                 )
 
             for _, parents, use_index, _ in ptrUses(func, rewriters[func.name], param, targets, fail):
@@ -443,7 +447,9 @@ def rewriteIncrements(
 
     def fail(node: Cursor, what: str) -> None:
         raise OP.OpError(
-            f"{func.name}: OP_INC argument {name} may only be incremented, but {what}: {tokenText(node)}", loop.loc
+            f"{func.name}: OP_INC argument {name} may only be incremented, but {what}: {tokenText(node)}",
+            sourceLocation(node, func.program),
+            (loop.loc, f"in the op_par_loop of {loop.kernel}"),
         )
 
     consumed: Set[int] = set()
@@ -582,6 +588,10 @@ def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
                 break
         else:
             names = ", ".join(entity.name for entity, _ in entities)
-            raise OP.OpError(f"recursive kernel functions or types are not supported: {names}")
+            first = entities[0][0]
+            raise OP.OpError(
+                f"recursive kernel functions or types are not supported: {names}",
+                sourceLocation(first.ast, first.program),
+            )
 
     return source
