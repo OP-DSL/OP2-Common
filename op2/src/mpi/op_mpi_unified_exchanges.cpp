@@ -480,5 +480,8 @@ void op_mpi_halo_exchanges_exit() {
     if (!ctx.send_reqs.empty()) {
         MPI_Waitall(ctx.send_reqs.size(), ctx.send_reqs.data(), MPI_STATUSES_IGNORE);
     }
+    // Nor waits for the last scatter, which still reads what the backends free.
+    if (ctx.device_backend != nullptr)
+        ctx.device_backend->wait_scatters();
     ctx = {};
 }

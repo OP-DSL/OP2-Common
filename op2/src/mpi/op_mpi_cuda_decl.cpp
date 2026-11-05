@@ -65,6 +65,21 @@ MPI_Comm OP_MPI_GLOBAL;
 // CUDA-specific OP2 functions
 //
 
+// What op_init and op_mpi_init share once MPI is up: the communicators, then
+// the library's parts in order.
+static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Comm global) {
+  OP_MPI_WORLD = world;
+  OP_MPI_GLOBAL = global;
+  op_init_core(argc, argv, diags);
+  op_renumber_init();
+
+  cutilDeviceInit(argc, argv);
+  op::rt::init_gpu();
+  op_gpu_direct_init();
+  op_mpi_halo_exchanges_init();
+  op::env::finish();
+}
+
 void op_init(int argc, char **argv, int diags) {
   op_init_soa(argc, argv, diags, 0);
 }
@@ -76,16 +91,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   if (!flag) {
     MPI_Init(&argc, &argv);
   }
-  OP_MPI_WORLD = MPI_COMM_WORLD;
-  OP_MPI_GLOBAL = MPI_COMM_WORLD;
-  op_init_core(argc, argv, diags);
-  op_renumber_init();
-
-  cutilDeviceInit(argc, argv);
-  op::rt::init_gpu();
-  op_gpu_direct_init();
-  op_mpi_halo_exchanges_init();
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_COMM_WORLD, MPI_COMM_WORLD);
 }
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
@@ -103,16 +109,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
            "communicators\n");
     exit(-1);
   }
-  OP_MPI_WORLD = MPI_Comm_f2c(local);
-  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
-  op_init_core(argc, argv, diags);
-  op_renumber_init();
-
-  cutilDeviceInit(argc, argv);
-  op::rt::init_gpu();
-  op_gpu_direct_init();
-  op_mpi_halo_exchanges_init();
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_Comm_f2c(local), MPI_Comm_f2c(global));
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
@@ -280,11 +277,13 @@ void op_exit() {
     op::rt::finalise(rank, ranks);
   }
 
-  // free the device halo lists, while the device is still up
+  op_mpi_exit();
+
+  // free the device halo lists once the last exchange is done with them, while
+  // the device is still up
   OP_set_halos_d = std::vector<DeviceSetHalo>();
   OP_map_halos_d = std::vector<DeviceMapHalo>();
 
-  op_mpi_exit();
   op_cuda_exit(); // frees dat_d memory
   op_rt_exit();   // frees plan memory
   op_exit_core(); // frees lib core variables

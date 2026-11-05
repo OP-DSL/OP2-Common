@@ -60,6 +60,18 @@ MPI_Comm OP_MPI_GLOBAL;
  * op_lib.cu provides wrappers for CUDA version
  */
 
+// What op_init and op_mpi_init share once MPI is up: the communicators, then
+// the library's parts in order.
+static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Comm global) {
+  OP_MPI_WORLD = world;
+  OP_MPI_GLOBAL = global;
+  op_init_core(argc, argv, diags);
+  op_renumber_init();
+  op::rt::init_cpu();
+  op_mpi_halo_exchanges_init();
+  op::env::finish();
+}
+
 void op_init_soa(int argc, char **argv, int diags, int soa) {
   OP_auto_soa = soa;
   op_init(argc, argv, diags);
@@ -70,13 +82,7 @@ void op_init(int argc, char **argv, int diags) {
   if (!flag) {
     MPI_Init(&argc, &argv);
   }
-  OP_MPI_WORLD = MPI_COMM_WORLD;
-  OP_MPI_GLOBAL = MPI_COMM_WORLD;
-  op_init_core(argc, argv, diags);
-  op_renumber_init();
-  op::rt::init_cpu();
-  op_mpi_halo_exchanges_init();
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_COMM_WORLD, MPI_COMM_WORLD);
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
@@ -94,14 +100,7 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
            "communicators\n");
     exit(-1);
   }
-  OP_MPI_WORLD = MPI_Comm_f2c(local);
-  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
-
-  op_init_core(argc, argv, diags);
-  op_renumber_init();
-  op::rt::init_cpu();
-  op_mpi_halo_exchanges_init();
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_Comm_f2c(local), MPI_Comm_f2c(global));
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
