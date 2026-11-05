@@ -106,9 +106,11 @@ public:
 // does not reduce it.
 std::optional<abi::ElementType> element_type(const char *type);
 
-// Reduce a call's INC, MIN and MAX globals across the ranks once this rank's
-// elements are combined into them; an unsupported type stops the run, naming
-// loop.
-void reduce_mpi_globals(std::span<op_arg> args, const char *loop);
+// Reduce a call's INC, MIN and MAX globals, of the element types types, across
+// the ranks once this rank's elements are combined into them; an unsupported
+// type stops the run, naming loop.
+void reduce_mpi_globals(std::span<op_arg> args,
+                        std::span<const std::optional<abi::ElementType>> types,
+                        const char *loop);
 
 } // namespace op::rt::loop

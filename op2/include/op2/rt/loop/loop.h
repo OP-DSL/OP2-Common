@@ -77,9 +77,9 @@ private:
     std::unique_ptr<Executor> m_executor;
     Ladder m_ladder;
     std::optional<tune::Autotuner> m_tuner;
-    // Per argument, the element size its type names for a dat, or 0 when
-    // unknown: resolved on the first call.
-    std::vector<int> m_elem_sizes;
+    // Per argument, the element type its type names, none when unknown:
+    // resolved on the first call, as each call names the same types.
+    std::vector<std::optional<abi::ElementType>> m_types;
 
     // Stop the run on a dat argument whose dim or element size is not its
     // dat's, which the kernel would read past or between elements.

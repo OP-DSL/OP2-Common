@@ -31,22 +31,14 @@ void wait_halos(const Call& call) {
 }
 
 void Loop::check_dats(std::span<const op_arg> args) {
-    if (m_elem_sizes.size() != args.size())
-        for (const auto& arg : args) {
-            std::string type = arg.argtype == OP_ARG_DAT && arg.type != nullptr ? arg.type : "";
-            if (type.ends_with(":soa"))
-                type.resize(type.size() - 4);
-            auto element = element_type(type.c_str());
-            bool word = element == abi::ElementType::f32 || element == abi::ElementType::i32;
-            m_elem_sizes.push_back(element == abi::ElementType::f64 ? 8 : word ? 4 : 0);
-        }
-
     for (std::size_t i = 0; i < args.size(); ++i) {
         const auto& arg = args[i];
         if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.dat == nullptr)
             continue;
-        if (arg.dim != arg.dat->dim ||
-            (m_elem_sizes[i] != 0 && m_elem_sizes[i] * arg.dim != arg.dat->size)) {
+        auto type = m_types[i];
+        bool word = type == abi::ElementType::f32 || type == abi::ElementType::i32;
+        int size = type == abi::ElementType::f64 ? 8 : word ? 4 : 0;
+        if (arg.dim != arg.dat->dim || (size != 0 && size * arg.dim != arg.dat->size)) {
             std::fprintf(stderr,
                          "error: argument %zu of %s passes dat %s, of dim %d and %d-byte "
                          "elements, as dim %d of %s\n",
@@ -58,6 +50,13 @@ void Loop::check_dats(std::span<const op_arg> args) {
 }
 
 void Loop::invoke(op_set set, std::span<op_arg> args) {
+    if (m_types.size() != args.size())
+        for (const auto& arg : args) {
+            std::string type = arg.type != nullptr ? arg.type : "";
+            if (type.ends_with(":soa"))
+                type.resize(type.size() - 4);
+            m_types.push_back(element_type(type.c_str()));
+        }
     check_dats(args);
     op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                             m_profile_variant.c_str());
@@ -79,7 +78,7 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
     }
 
     op_profile_next("MPI Reduce");
-    reduce_mpi_globals(args, m_name.c_str());
+    reduce_mpi_globals(args, m_types, m_name.c_str());
     m_executor->mark_dirty(args);
     op_profile_exit();
     op_profile_exit();

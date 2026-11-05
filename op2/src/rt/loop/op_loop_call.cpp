@@ -144,13 +144,16 @@ std::optional<abi::ElementType> element_type(const char *type) {
     return std::nullopt;
 }
 
-void reduce_mpi_globals(std::span<op_arg> args, const char *loop) {
-    for (auto& arg : args) {
+void reduce_mpi_globals(std::span<op_arg> args,
+                        std::span<const std::optional<abi::ElementType>> types,
+                        const char *loop) {
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        auto& arg = args[i];
         if (arg.opt == 0 || arg.argtype != OP_ARG_GBL ||
             (arg.acc != OP_INC && arg.acc != OP_MIN && arg.acc != OP_MAX))
             continue;
 
-        auto type = element_type(arg.type);
+        auto type = types[i];
         if (type == abi::ElementType::f64) {
             op_mpi_reduce_double(&arg, reinterpret_cast<double *>(arg.data));
         } else if (type == abi::ElementType::f32) {
