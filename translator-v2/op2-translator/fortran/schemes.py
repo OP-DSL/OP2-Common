@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 import fortran.translator.kernels as ftk
 import fortran.translator.kernels_c as ftk_c
+import fortran.validator as fv
 import op as OP
 from language import Lang
 from scheme import Scheme
@@ -57,6 +58,9 @@ class FortranOpenMPLegacy(Scheme):
     target = Target.get("openmp_legacy")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
+
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
+        return fv.stridesInsertable(loop, program, app)
 
     consts_template = Path("fortran/openmp_legacy/consts.F90.jinja")
     loop_host_templates = [Path("fortran/openmp_legacy/loop_host.inc.jinja")]
@@ -132,12 +136,12 @@ class FortranCudaLegacy(Scheme):
     loop_host_templates = [Path("fortran/cuda_legacy/loop_host.CUF.jinja")]
     master_kernel_templates = [Path("fortran/cuda_legacy/master_kernel.F90.jinja")]
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
             if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
                 return False
 
-        return True
+        return fv.stridesInsertable(loop, program, app)
 
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
@@ -312,7 +316,7 @@ class FortranCudaF2C(Scheme):
     loop_host_templates = [Path("fortran/cuda_f2c/loop_host.F90.jinja"), Path("fortran/cuda_f2c/loop_host.cuh.jinja")]
     master_kernel_templates = [Path("fortran/cuda_f2c/master_kernel.F90.jinja"), Path("fortran/cuda_f2c/master_kernel.cu.jinja")]
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
             if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
                 return False
@@ -412,7 +416,7 @@ class FortranOpenMPF2C(Scheme):
     loop_host_templates = [Path("fortran/openmp_f2c/loop_host.F90.jinja"), Path("fortran/openmp_f2c/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("fortran/openmp_f2c/master_kernel.F90.jinja"), Path("fortran/openmp_f2c/master_kernel.cpp.jinja")]
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
             if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
                 return False

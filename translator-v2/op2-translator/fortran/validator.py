@@ -97,27 +97,6 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
     #         printViolations(loop, "invalid statements", violations)
     #         loop.fallback = True
 
-    # Check for slice expressions for args with stride insertion (gbl reductions, dats)
-    for idx, arg in enumerate(loop.args):
-        if not (
-            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC, OP.AccessType.WORK]
-        ) and not isinstance(arg, OP.ArgDat):
-            continue
-
-        if (isinstance(arg, OP.ArgGbl) and arg.dim == 1) or (isinstance(arg, OP.ArgDat) and loop.dat(arg).dim == 1):
-            continue
-
-        violations = []
-        fu.mapParam(kernel_entities[0], idx, entities, checkSlice, entities, violations)
-
-        if len(violations) > 0:
-            param_name = kernel_entities[0].parameters[idx]
-            printViolations(
-                loop, "element-wise access incompatible with stride insertion", violations, (idx, param_name)
-            )
-
-            loop.fallback = True
-
     # Check for args marked OP_READ or arg_idx but appear to be written
     for idx, arg in enumerate(loop.args):
         if isinstance(arg, OP.ArgInfo) or (hasattr(arg, "access_type") and arg.access_type != OP.AccessType.READ):
@@ -234,6 +213,38 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
 
     if len(violations) > 0:
         printViolations(loop, "runtime dimension local arrays", violations)
+
+
+# Whether the legacy targets, which rewrite each element access of a
+# reduction or a dat argument to insert its stride, can do so for every such
+# argument the kernel uses: a slice of one with dim > 1 makes them fall back
+# (the f2c targets take slices as spans).
+def stridesInsertable(loop: OP.Loop, program: Program, app: Application) -> bool:
+    kernel_entities = app.findEntities(loop.kernel, program, [])
+    dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])
+    entities = kernel_entities + list(filter(lambda e: isinstance(e, Function), dependencies))
+
+    insertable = True
+    for idx, arg in enumerate(loop.args):
+        if not (
+            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC, OP.AccessType.WORK]
+        ) and not isinstance(arg, OP.ArgDat):
+            continue
+
+        if (isinstance(arg, OP.ArgGbl) and arg.dim == 1) or (isinstance(arg, OP.ArgDat) and loop.dat(arg).dim == 1):
+            continue
+
+        violations = []
+        fu.mapParam(kernel_entities[0], idx, entities, checkSlice, entities, violations)
+
+        if len(violations) > 0:
+            param_name = kernel_entities[0].parameters[idx]
+            printViolations(
+                loop, "element-wise access incompatible with stride insertion", violations, (idx, param_name)
+            )
+            insertable = False
+
+    return insertable
 
 
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:

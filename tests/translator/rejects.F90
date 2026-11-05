@@ -2,7 +2,8 @@
 ! an OP_INC argument assigned rather than incremented; with INFO_DIM, also an
 ! info argument narrower than its maximum, which the translator rejects, and
 ! with VECTOR_MAP a vector map argument, which it rejects too; with IMPLIED_SAVE
-! an initialised local, which cuda_f2c leaves to seq.
+! an initialised local, which cuda_f2c leaves to seq; with SLICE slices of a
+! dim-4 argument, which only the legacy targets leave to seq.
 program rejects
     use OP2_FORTRAN_DECLARATIONS
     use OP2_FORTRAN_REFERENCE
@@ -14,6 +15,10 @@ program rejects
     type(op_set) :: nodes, edges
     type(op_map) :: p_edge_nodes
     type(op_dat) :: p_x, p_w
+#ifdef SLICE
+    real(8) :: q(16) = 0.0_8
+    type(op_dat) :: p_q
+#endif
 #ifdef INFO_DIM
     real(8) :: mx(2) = 0.0_8
     integer(4) :: loc(1) = 0
@@ -38,6 +43,11 @@ program rejects
     call op_par_loop_1(save_k, edges, &
         op_arg_dat(p_w, -1, OP_ID, 1, "real(8)", OP_RW))
 #endif
+#ifdef SLICE
+    call op_decl_dat(edges, 4, "real(8)", q, p_q, "q")
+    call op_par_loop_1(slice_k, edges, &
+        op_arg_dat(p_q, -1, OP_ID, 4, "real(8)", OP_RW))
+#endif
 #ifdef VECTOR_MAP
     call op_par_loop_2(assign_k, edges, &
         op_arg_dat(p_x, -2, p_edge_nodes, 1, "real(8)", OP_INC), &
@@ -58,6 +68,13 @@ contains
         real(8) :: s = 2.0_8
         w = w + s
     end subroutine save_k
+#endif
+#ifdef SLICE
+
+    subroutine slice_k(q)
+        real(8), dimension(4) :: q
+        q(1:2) = q(3:4)
+    end subroutine slice_k
 #endif
 #ifdef INFO_DIM
 

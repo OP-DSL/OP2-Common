@@ -657,7 +657,8 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             continue
 
         if name in parameters:
-            assert(not isinstance(type_, FArray))
+            if isinstance(type_, FArray):
+                ctx.error(f"PARAMETER array {name} is unsupported")
             src += f"constexpr {type_.asLocal(name)} = {parameters[name]};\n"
         elif isinstance(type_, FPrimitive):
             src += f"{type_.asLocal(name)};\n"

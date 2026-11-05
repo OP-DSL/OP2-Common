@@ -1,7 +1,7 @@
 # The translator's refusals: each case of rejects.cpp (chosen by -D) is a
-# loop the C++ cuda target rejects, and rejects.F90 one cuda_f2c rejects or
-# warns about and falls back to seq for; a test passes on the exit status and
-# the message.
+# loop the C++ cuda target rejects, and rejects.F90 one a Fortran target
+# rejects or warns about and falls back to seq for; a test passes on the exit
+# status and the message.
 
 function(_op2_translator_test name fails target source pattern)
     set(_out "${CMAKE_CURRENT_BINARY_DIR}/${name}")
@@ -41,6 +41,8 @@ _op2_translator_rejects(const_dim cuda rejects.cpp "expected a constant int expr
 _op2_translator_rejects(recursion cuda rejects.cpp "recursive kernel functions or types are not supported: fact" -D RECURSION)
 _op2_translator_falls_back(fortran_implied_save cuda_f2c rejects.F90 "SAVE local s is unsupported" -D IMPLIED_SAVE)
 _op2_translator_rejects(fortran_vector_map cuda_f2c rejects.F90 "assign_k: vector map arguments are not supported in Fortran" -D VECTOR_MAP)
+_op2_translator_falls_back(fortran_slice_legacy openmp_legacy rejects.F90 "slice_k element-wise access incompatible with stride insertion" -D SLICE)
+_op2_translator_test(fortran_slice_f2c OFF openmp_f2c rejects.F90 "of [0-9]+: rejects_[0-9]+_slice_k" -D SLICE -v)
 _op2_translator_rejects(missing_include cuda rejects.cpp "'op2_no_such_header.h' file not found" -D MISSING_INCLUDE)
 _op2_translator_test(angle_include OFF cuda angle_include.cpp "Translated program 1 of 1" -v)
 _op2_translator_rejects(legacy_info cuda_legacy rejects.cpp "extreme: op_arg_info is not supported by cuda_legacy" -D LEGACY_INFO)
