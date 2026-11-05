@@ -1,7 +1,7 @@
 // The OpenMP strategies against a serial reference, with hand-written
 // bodies: every strategy increments a node dat through a two-component map
 // and reduces a sum and a two-component maximum, each component's element
-// carried as info.
+// carried as info.  Then the regions' tests of an outstanding exchange.
 // The edges split into core and owned sections, as a partition's do; the
 // MPI functional tests run the exec halo.
 
@@ -18,6 +18,7 @@
 
 #include <omp.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -233,6 +234,57 @@ void run(const char *strategy) {
     std::printf("%s passed\n", strategy);
 }
 
+int tests = 0;
+void count_test() { ++tests; }
+
+// While an exchange is outstanding the calling thread tests it every
+// `every` elements of its share, or of its chunks; every element runs once.
+void progress() {
+    constexpr int size = 1000;
+    constexpr int every = 64;
+    std::vector<int> runs(size);
+    int share = 0;
+    op::rt::abi::cpu::Range range{.threads = 4, .begin = 0, .end = size};
+    range.progress = {&count_test, every};
+    op::rt::kernel::cpu::range<false>(range, [&](const op::rt::abi::cpu::Thread&) {
+        if (omp_get_thread_num() == 0)
+            share = size / omp_get_num_threads();
+        return [&](int n) { ++runs[static_cast<std::size_t>(n)]; };
+    });
+    CHECK(tests == (share + every - 1) / every);
+    CHECK(std::count(runs.begin(), runs.end(), 1) == size);
+
+    // Chunks of 50: the calling thread tests once 64 elements have run.
+    std::vector<int> chunk_offsets;
+    for (int n = 0; n <= size; n += 50)
+        chunk_offsets.push_back(n);
+    const int batch_offsets[] = {0, static_cast<int>(chunk_offsets.size()) - 1};
+    op::rt::abi::cpu::Chunk chunks{.threads = 4, .batches = 1, .batch_offsets = batch_offsets,
+                                   .chunk_offsets = chunk_offsets.data()};
+    chunks.progress = {&count_test, every};
+    tests = 0;
+    int chunks0 = 0;
+    op::rt::kernel::cpu::chunks<false>(chunks, [&](const op::rt::abi::cpu::Thread&) {
+        return [&](int, int begin, int end) {
+            if (omp_get_thread_num() == 0)
+                ++chunks0;
+            for (int n = begin; n < end; ++n)
+                ++runs[static_cast<std::size_t>(n)];
+        };
+    });
+    CHECK(tests == chunks0 / 2);
+    CHECK(std::count(runs.begin(), runs.end(), 2) == size);
+
+    // Nothing outstanding, no tests.
+    tests = 0;
+    range.progress = {};
+    op::rt::kernel::cpu::range<false>(range, [&](const op::rt::abi::cpu::Thread&) {
+        return [&](int n) { ++runs[static_cast<std::size_t>(n)]; };
+    });
+    CHECK(tests == 0 && std::count(runs.begin(), runs.end(), 3) == size);
+    std::printf("progress passed\n");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -241,6 +293,7 @@ int main(int argc, char **argv) {
     omp_set_num_threads(8);
     for (const char *strategy : {"chunk_atomics", "atomics", "chunk_colouring", "colouring"})
         run(strategy);
+    progress();
     op_profile_end();
     op_exit();
     std::printf("cpu strategy tests passed\n");

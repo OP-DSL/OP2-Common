@@ -11,6 +11,7 @@ namespace op::rt::cpu {
 
 Backend::Backend() {
     env::parse_number("OP_CHUNK_ATOMICS_MIN_COMPRESSION", options.min_compression);
+    env::parse_number("OP_MPI_TEST_INTERVAL", options.mpi_test_interval);
 }
 
 } // namespace op::rt::cpu

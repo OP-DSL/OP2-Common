@@ -31,6 +31,15 @@ struct Thread {
     }
 };
 
+// While a phase runs with the call's halo exchange outstanding, the thread
+// that made the call tests it every `every` elements it runs: an MPI that
+// progresses only inside its calls (Cray MPICH) then overlaps the exchange.
+// test is null when nothing is outstanding.
+struct Progress {
+    void (*test)() = nullptr;
+    int every = 0;
+};
+
 // A range of elements split over the threads: [begin, end), or under a set
 // colouring the positions of order.  Per thread its copy of each argument
 // kept per thread, nargs apart.
@@ -41,6 +50,7 @@ struct Range {
     int begin = 0;
     int end = 0;
     const int *order = nullptr;
+    Progress progress;
 };
 
 // Batches of chunks shared out over the threads, one after another: per
@@ -57,6 +67,7 @@ struct Chunk {
     const int *chunk_order = nullptr;
     const int *chunk_offsets = nullptr;
     StagingArrays staging;
+    Progress progress;
 };
 
 } // namespace op::rt::abi::cpu

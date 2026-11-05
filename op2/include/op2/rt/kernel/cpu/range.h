@@ -21,8 +21,17 @@ void range(const op::rt::abi::cpu::Range& record, Make&& make) {
         auto element = make(op::rt::abi::cpu::Thread{record.globals + thread * record.nargs});
         const int begin = static_cast<int>(record.begin + size * thread / count);
         const int end = static_cast<int>(record.begin + size * (thread + 1) / count);
-        for (int i = begin; i < end; ++i)
-            element(ordered ? record.order[i] : i);
+        // The calling thread tests the halo exchange between steps.
+        const bool tests = thread == 0 && record.progress.test != nullptr;
+        const int step = tests ? record.progress.every : end - begin;
+        for (int first = begin; first < end;) {
+            const int last = end - first > step ? first + step : end;
+            for (int i = first; i < last; ++i)
+                element(ordered ? record.order[i] : i);
+            if (tests)
+                record.progress.test();
+            first = last;
+        }
     }
 }
 

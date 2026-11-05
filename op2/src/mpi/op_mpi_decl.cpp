@@ -80,7 +80,9 @@ void op_init(int argc, char **argv, int diags) {
   int flag = 0;
   MPI_Initialized(&flag);
   if (!flag) {
-    MPI_Init(&argc, &argv);
+    // The OpenMP backend's calling thread tests halo exchanges in its regions.
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   }
   init_parts(argc, argv, diags, MPI_COMM_WORLD, MPI_COMM_WORLD);
 }

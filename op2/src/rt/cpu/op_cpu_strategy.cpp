@@ -7,10 +7,11 @@ namespace op::rt::cpu {
 
 // --- The base of every OpenMP strategy ----------------------------------------------
 
-void StrategyBase::split(int begin, int end, const int *order, std::span<op_arg> args) {
+void StrategyBase::split(int begin, int end, const int *order, std::span<op_arg> args,
+                         bool exchanging) {
     if (end <= begin)
         return;
-    abi::cpu::Range range = m_executor.range();
+    abi::cpu::Range range = m_executor.range(exchanging);
     range.begin = begin;
     range.end = end;
     range.order = order;
@@ -23,12 +24,13 @@ std::optional<float> StrategyBase::run_phases(const op::rt::loop::Call& call, bo
     using clock = std::chrono::steady_clock;
     clock::duration elapsed{};
     op::rt::loop::run_phases(call, phases, [&](int index) {
+        bool exchanging = index < phases.wait_before;
         if (!timed) {
-            phase(index);
+            phase(index, exchanging);
             return;
         }
         auto start = clock::now();
-        phase(index);
+        phase(index, exchanging);
         elapsed += clock::now() - start;
     }, [&] { m_executor.combine_globals(call); });
 
@@ -48,9 +50,9 @@ std::optional<float> Simple::run(const op::rt::loop::Prepared&, const op::rt::lo
                                  bool timed) {
     m_executor.begin_call(call);
     const auto& sections = call.sections;
-    return run_phases(call, timed, sections.phases(), [&](int section) {
+    return run_phases(call, timed, sections.phases(), [&](int section, bool exchanging) {
                           split(sections[section].begin, sections[section].end, nullptr,
-                                call.args);
+                                call.args, exchanging);
                       });
 }
 
@@ -77,10 +79,10 @@ std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
     const auto& colouring = *static_cast<const op::rt::plan::SetColouring *>(prepared.entry);
     m_executor.begin_call(call);
     // The core's colours come first, and run while the halo arrives.
-    return run_phases(call, timed, colouring.phases(), [&](int colour) {
+    return run_phases(call, timed, colouring.phases(), [&](int colour, bool exchanging) {
                           split(colouring.offsets[static_cast<std::size_t>(colour)],
                                 colouring.offsets[static_cast<std::size_t>(colour) + 1],
-                                colouring.order.data(), call.args);
+                                colouring.order.data(), call.args, exchanging);
                       });
 }
 
@@ -136,7 +138,8 @@ std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
     chunks.staging = {plan.staging.stride, plan.stage_words.data(),
                      plan.staging.slot_offsets.data(), plan.staging.slot_targets.data()};
 
-    return run_phases(call, timed, sections.phases(), [&](int section) {
+    return run_phases(call, timed, sections.phases(), [&](int section, bool exchanging) {
+                          chunks.progress = m_executor.progress(exchanging);
                           chunks.batches = plan.batches.batches(section);
                           if (chunks.batches == 0)
                               return;

@@ -75,7 +75,7 @@ A loop generated for the ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`
    * - ``chunk_colouring``
      - Chunks coloured so that no two running together share a target; each chunk's targets are staged, updated by its elements one thread colour at a time, and stored back.
 
-Under MPI every strategy runs a loop's core elements, which need no halo data, while the halo exchange is under way, and the rest once it has arrived: ``colouring`` colours the core apart and runs its colours first, and the chunked strategies never let a chunk span the two.
+Under MPI every strategy runs a loop's core elements, which need no halo data, while the halo exchange is under way, and the rest once it has arrived: ``colouring`` colours the core apart and runs its colours first, and the chunked strategies never let a chunk span the two.  On the host the calling thread tests the exchange every ``OP_MPI_TEST_INTERVAL`` elements it runs of the core (default 1024; 0 never tests), as an MPI that progresses messages only inside its calls, such as Cray MPICH, needs to overlap the exchange; ``op_init`` asks MPI for ``MPI_THREAD_FUNNELED`` when it initialises it.
 
 A loop with an indirect ``OP_RW`` or ``OP_WRITE`` argument never runs the atomic strategies.  On the GPU the chunked strategies exist only as JIT kernels, so a call waits for (or, until it is built, passes over) their kernel.
 
@@ -118,6 +118,8 @@ Environment variables (read by ``op_init``):
      - Integer, default 4096 (GPU, wavefront only): chunks coloured at a time; 0 colours a section at once.
    * - ``OP_CHUNK_ATOMICS_MIN_COMPRESSION``
      - Default 1.5: ``chunk_atomics`` declines a call whose chunks average fewer references per staged target; 0 accepts every call.  Ignored with unstaged singles.
+   * - ``OP_MPI_TEST_INTERVAL``
+     - Integer, default 1024 (host): elements the calling thread runs of a loop's core between tests of the outstanding halo exchange; 0 never tests.
 
 ``OP_BLOCK_SIZES``, ``OP_CHUNK_SIZES``, ``OP_CHUNK_ATOMICS_UNSTAGED_SINGLES`` and ``OP_CHUNK_COLOURING_WAVEFRONT`` are each a strategy's *axis*: ``OP_<STRATEGY>_<AXIS>`` (e.g. ``OP_CHUNK_ATOMICS_BLOCK_SIZES``) sets it for one strategy, and every axis takes one value or a comma-separated list, of which the first runs and the rest are only tried by the autotuner.
 

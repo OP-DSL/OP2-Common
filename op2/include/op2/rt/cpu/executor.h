@@ -82,9 +82,12 @@ public:
     // Start a run of call: its threads, and each one's copy of the globals.
     void begin_call(const op::rt::loop::Call& call);
 
+    // A phase's tests of the halo exchange: none unless it is outstanding.
+    abi::cpu::Progress progress(bool exchanging) const;
+
     // A range and a chunk phase over the call's threads and their globals,
     // the chunk phase's with their scratch.
-    abi::cpu::Range range() const;
+    abi::cpu::Range range(bool exchanging) const;
     abi::cpu::Chunk chunks() const;
 
     // Give every thread bytes of chunk scratch, aligned to a cache line.

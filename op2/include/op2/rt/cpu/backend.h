@@ -15,6 +15,9 @@ struct Options {
     // OP_CHUNK_ATOMICS_MIN_COMPRESSION: a chunk_atomics plan averaging fewer
     // references per flushed target than this is rejected; 0 accepts all.
     double min_compression = 1.5;
+    // OP_MPI_TEST_INTERVAL: elements the calling thread runs between tests
+    // of an outstanding halo exchange; 0 never tests.
+    int mpi_test_interval = 1024;
 };
 
 struct Backend final : op::rt::Backend {

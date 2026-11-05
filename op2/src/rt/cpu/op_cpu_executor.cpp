@@ -24,6 +24,8 @@ bool reduces(const op_arg& arg) {
            (arg.acc == OP_INC || arg.acc == OP_MIN || arg.acc == OP_MAX);
 }
 
+void test_halos() { op_mpi_test_all(0, nullptr); }
+
 bool per_thread(const op_arg& arg, std::span<const op_arg> args) {
     if (arg.argtype == OP_ARG_INFO)
         return args[arg.acc].opt != 0;
@@ -137,11 +139,19 @@ void Executor::add_strategies(op::rt::loop::Ladder& ladder) {
     ladder.add_families(m_descriptor.families, strategy_families(), *this, "OpenMP");
 }
 
-abi::cpu::Range Executor::range() const {
+abi::cpu::Progress Executor::progress(bool exchanging) const {
+    int every = m_backend.options.mpi_test_interval;
+    if (!exchanging || every == 0)
+        return {};
+    return {test_halos, every};
+}
+
+abi::cpu::Range Executor::range(bool exchanging) const {
     abi::cpu::Range range;
     range.threads = m_threads;
     range.globals = m_globals.pointers();
     range.nargs = m_globals.nargs();
+    range.progress = progress(exchanging);
     return range;
 }
 

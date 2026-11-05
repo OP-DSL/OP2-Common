@@ -36,10 +36,12 @@ protected:
         : m_executor{executor}, m_name{point.name}, m_family{family} {}
 
     // Run [begin, end), or the positions of order, over the threads.
-    void split(int begin, int end, const int *order, std::span<op_arg> args);
+    void split(int begin, int end, const int *order, std::span<op_arg> args,
+               bool exchanging);
 
-    // Run the phases of a call through loop::run_phases, phase(index)
-    // running one phase over the threads; the phases' own time when timed.
+    // Run the phases of a call through loop::run_phases, phase(index,
+    // exchanging) running one phase over the threads, exchanging while the
+    // halo exchange is outstanding; the phases' own time when timed.
     template<typename F>
     std::optional<float> run_phases(const op::rt::loop::Call& call, bool timed,
                                     const op::rt::loop::Phases& phases, F&& phase);

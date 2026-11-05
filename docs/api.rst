@@ -581,6 +581,8 @@ The following environment variables can be set at run time to control OP2 behavi
      - Timing every strategy and running the fastest: see :ref:`strategies`.
    * - ``OP_GPU_DIRECT``
      - ``on`` or ``off``: hands device buffers to MPI, or stages them through host memory, overriding the detection at ``op_init`` (see :ref:`perf`).
+   * - ``OP_MPI_TEST_INTERVAL``
+     - Integer, default 1024: elements the OpenMP backend's calling thread runs of a loop's core between tests of the outstanding halo exchange (see :ref:`strategies`); 0 never tests.
    * - ``OP_HYBRID_BALANCE``
      - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs (also an ``op_init`` argument).
    * - ``OP_WHITELIST``
