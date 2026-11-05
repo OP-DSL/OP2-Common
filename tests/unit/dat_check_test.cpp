@@ -40,7 +40,8 @@ int main(int argc, char **argv) {
     }
 
     bool dim = std::strcmp(argv[1], "dim") == 0;
-    op_arg wrong = op_arg_dat(q_dat, -1, nullptr, dim ? 1 : 2, dim ? "double" : "float", OP_READ);
+    op_arg wrong =
+        op_arg_dat(q_dat, -1, nullptr, dim ? 1 : 2, dim ? "double" : "float", OP_READ);
     op::rt::abi::cpu::invoke(loop, nodes, &wrong, 1);
     std::fprintf(stderr, "the mismatched call ran\n");
     return EXIT_FAILURE;

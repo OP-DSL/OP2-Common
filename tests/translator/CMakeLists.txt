@@ -1,7 +1,8 @@
 # The translator's refusals: each case of rejects.cpp (chosen by -D) is a
 # loop the C++ cuda target rejects, and rejects.F90 one a Fortran target
-# rejects or warns about and falls back to seq for; a test passes on the exit
-# status and the message.
+# rejects or warns about and falls back to seq for; and the Fortran corpus,
+# which every f2c target translates.  A test passes on the exit status and
+# the message.
 
 function(_op2_translator_test name fails target source pattern)
     set(_out "${CMAKE_CURRENT_BINARY_DIR}/${name}")
@@ -48,5 +49,12 @@ _op2_translator_falls_back(fortran_slice_legacy openmp_legacy rejects.F90 "slice
 _op2_translator_test(fortran_slice_f2c OFF openmp_f2c rejects.F90 "of [0-9]+: rejects_[0-9]+_slice_k" -D SLICE -v)
 _op2_translator_rejects(missing_include cuda rejects.cpp "'op2_no_such_header.h' file not found" -D MISSING_INCLUDE)
 _op2_translator_test(angle_include OFF cuda angle_include.cpp "Translated program 1 of 1" -v)
+# Every loop of the Fortran corpus (tests/functional/corpus_fortran) translated by each
+# f2c target, none left to its seq fallback, which the corpus runs correctly too.
+set(_corpus "../functional/corpus_fortran/corpus_kernels.F90;../functional/corpus_fortran/corpus_tests.F90")
+foreach(_target seq_f2c openmp_f2c cuda_f2c hip_f2c)
+    _op2_translator_test(corpus_fortran_${_target} OFF ${_target} "${_corpus}"
+        "1 of 5: corpus_tests_1_steps.*2 of 5: corpus_tests_2_logic.*3 of 5: corpus_tests_3_kinds.*4 of 5: corpus_tests_4_increments.*5 of 5: corpus_tests_5_control" -v)
+endforeach()
 _op2_translator_rejects(legacy_info cuda_legacy rejects.cpp "extreme: op_arg_info is not supported by cuda_legacy" -D LEGACY_INFO)
 _op2_translator_rejects(legacy_info_hip hip_legacy rejects.cpp "extreme: op_arg_info is not supported by hip_legacy" -D LEGACY_INFO)

@@ -35,8 +35,9 @@ if(TARGET op2_openmp)
     target_link_libraries(dat_check_test PRIVATE op2_openmp)
     add_test(NAME dat_check_dim COMMAND dat_check_test dim)
     add_test(NAME dat_check_type COMMAND dat_check_test type)
-    set_tests_properties(dat_check_dim PROPERTIES LABELS "unit" PASS_REGULAR_EXPRESSION
-        "error: argument 0 of check passes dat q, of dim 2 and 8-byte elements, as dim 1 of double")
-    set_tests_properties(dat_check_type PROPERTIES LABELS "unit" PASS_REGULAR_EXPRESSION
-        "error: argument 0 of check passes dat q, of dim 2 and 8-byte elements, as dim 2 of float")
+    set(_passes "error: argument 0 of check passes dat q, of dim 2 and 8-byte elements, as")
+    set_tests_properties(dat_check_dim PROPERTIES LABELS "unit"
+        PASS_REGULAR_EXPRESSION "${_passes} dim 1 of double")
+    set_tests_properties(dat_check_type PROPERTIES LABELS "unit"
+        PASS_REGULAR_EXPRESSION "${_passes} dim 2 of float")
 endif()

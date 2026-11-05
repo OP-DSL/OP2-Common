@@ -1,6 +1,7 @@
 include("${CMAKE_CURRENT_SOURCE_DIR}/OP2FunctionalTestSupport.cmake")
 
 add_subdirectory(const)
+add_subdirectory(corpus)
 add_subdirectory(dat_increments)
 add_subdirectory(dat_reductions)
 add_subdirectory(dat_read_write)
@@ -25,6 +26,7 @@ if(CMAKE_Fortran_COMPILER)
     endif()
 
     add_subdirectory(const_fortran)
+    add_subdirectory(corpus_fortran)
     add_subdirectory(dat_increments_fortran)
     add_subdirectory(dat_reductions_fortran)
     add_subdirectory(dat_read_write_fortran)
