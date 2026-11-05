@@ -2,8 +2,8 @@
 // rewrites (every accepted increment form, helpers taking arguments,
 // overloaded helpers, array parameters, a local array passed where an
 // argument is, branches and loops, map indices and dims known only at run
-// time), each loop checked against its kernel called directly, element by
-// element, on the same data.
+// time, a helper chosen by __cplusplus), each loop checked against its
+// kernel called directly, element by element, on the same data.
 
 #include "op_seq.h"
 
@@ -34,11 +34,17 @@ inline double dot(const double *u, const double *v) {
     return u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
 }
 
+#if __cplusplus >= 202002L
+inline double standard(double x) { return x; }
+#else
+inline double standard(double x) { return -x; }
+#endif
+
 void arrays(const double q[3], const double *n, double r[]) {
     const double unit[3] = {1.0, 1.0, 1.0};
     r[0] = dot(q, unit);
     r[1] = dot(unit, n);
-    r[2] = dot(q, n) + sqrt(fabs(q[0]));
+    r[2] = dot(q, n) + sqrt(fabs(q[0])) + standard(q[1]);
 }
 
 inline double weight(double x) { return 2.0 * x; }

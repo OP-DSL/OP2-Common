@@ -88,6 +88,11 @@ class Cpp(Lang):
             for dir in include_dirs:
                 preprocessor.add_path(str(dir.resolve()))
 
+            # The kernel text is compiled by the host compiler, nvcc, NVRTC,
+            # hipcc and hipRTC alike, so it is preprocessed with what C++20
+            # fixes for all of them; a compiler's own macros stay undefined.
+            preprocessor.define("__cplusplus 202002L")
+
             for define in defines:
                 if "=" not in define:
                     define = f"{define}=1"
