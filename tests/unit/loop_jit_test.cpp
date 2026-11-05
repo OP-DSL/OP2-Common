@@ -248,14 +248,14 @@ void test_params() {
     params.add(row("g2", &gbl2, abi::ParamSource::scalar_arg, 2));
     params.add(row("stride", &stride, abi::ParamSource::dat_stride, 1));
     params.add(row("dim", &dim, abi::ParamSource::dat_dim, 1));
-    params.add(row("block", static_cast<int *>(nullptr), abi::ParamSource::strategy, 1));
+    params.add(abi::strategy_value("block", "block_size"));
     params.add(row("flag", &flag, abi::ParamSource::external));
     params.add(row("big", &big, abi::ParamSource::external));
 
     loop::Call call{&set, {args, 3}, 100, false};
     params.update(args);
     CHECK(gbl0 == 2.5 && gbl2 == 7.0 && stride == 128 && dim == 3);
-    std::array<int, 2> slots{0, 64};
+    std::array<int, 1> slots{64};
     auto key = params.key(params.observe(call), slots);
     CHECK(params.key(params.observe(call), slots) == key);
 
@@ -265,9 +265,9 @@ void test_params() {
     global = 2.5;
     params.update(args);
     CHECK(params.key(params.observe(call), slots) == key);
-    slots[1] = 128;
+    slots[0] = 128;
     CHECK(params.key(params.observe(call), slots) != key);
-    slots[1] = 64;
+    slots[0] = 64;
     CHECK(params.key(params.observe(call), slots) == key);
 
     CHECK(jit::format_cxx(params, params.modes(), slots) ==

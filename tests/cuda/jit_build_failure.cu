@@ -92,8 +92,8 @@ int main(int argc, char **argv) {
             {{"plain", {}}, "build_failure_offline",
              reinterpret_cast<const void *>(build_failure_offline), broken_source},
         };
-        const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
-            "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
+        const op::rt::abi::gpu::Param params[] = {
+            op::rt::abi::gpu::strategy_value("op2_block_size_d", "block_size")};
         op::rt::abi::gpu::Loop descriptor{
             {.name = "build_failure", .target = "cuda", .direct = true}, false, params, kernels,
             2, &bind, &op::rt::kernel::gpu::calls, OP_KERNEL_JIT_HEADERS};

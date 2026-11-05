@@ -178,7 +178,7 @@ op2/rt/abi/descriptor.h      (what any backend's descriptor holds: the loop
                               parameters a loop's kernels may be specialised
                               on, as the JIT takes them, built with
                               constant, scalar_global, global, dat_stride,
-                              dat_dim and strategy_value)
+                              dat_dim, strategy_value and global_stride)
 op2/rt/abi/staging.h         (the 16-bit stage word both backends' staged
                               kernels read a slot as: the slot limit and the
                               unstaged word; no includes)

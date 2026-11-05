@@ -59,22 +59,17 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {abi::dat_dim(name, data, arg), nullptr, nullptr, false};
 }
 
-// Each value a strategy fixes for its kernels, by its slot, which the
-// generated code declares as a row under the name its kernels read it by:
-// op2_stride_gbl_d when a kernel keeps a copy per thread of some global,
-// op2_block_size_d always, and op2_unstaged_singles_d and op2_wavefront_d
-// when the loop has a chunked family.
-enum class LaunchValue {
-    global_stride,
-    block_size,
-    unstaged_singles,
-    wavefront,
-};
+// A value a strategy fixes for its kernels, its family's on the axis key
+// ("block_size", "singles", "wavefront"), under the name its kernels read it
+// by.
+constexpr Param strategy_value(const char *name, const char *key) {
+    return {abi::strategy_value(name, key), nullptr, nullptr, false};
+}
 
-constexpr int launch_values = static_cast<int>(LaunchValue::wavefront) + 1;
-
-constexpr Param launch_value(const char *name, LaunchValue value) {
-    return {abi::strategy_value(name, static_cast<int>(value)), nullptr, nullptr, false};
+// The stride between the blocks' copies of the globals, when a kernel keeps a
+// copy per thread of some global.
+constexpr Param global_stride(const char *name) {
+    return {abi::global_stride(name), nullptr, nullptr, false};
 }
 
 // A kernel's resources as its compiler left them: registers and local

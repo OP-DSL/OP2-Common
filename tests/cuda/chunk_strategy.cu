@@ -173,11 +173,9 @@ struct Fixture {
 
 // The values the chunked strategies fix for their kernels.
 const op::rt::abi::gpu::Param params[] = {
-    op::rt::abi::gpu::launch_value("op2_block_size_d",
-                                   op::rt::abi::gpu::LaunchValue::block_size),
-    op::rt::abi::gpu::launch_value("op2_unstaged_singles_d",
-                                   op::rt::abi::gpu::LaunchValue::unstaged_singles),
-    op::rt::abi::gpu::launch_value("op2_wavefront_d", op::rt::abi::gpu::LaunchValue::wavefront),
+    op::rt::abi::gpu::strategy_value("op2_block_size_d", "block_size"),
+    op::rt::abi::gpu::strategy_value("op2_unstaged_singles_d", "singles"),
+    op::rt::abi::gpu::strategy_value("op2_wavefront_d", "wavefront"),
 };
 
 // A loop of chunk_atomics and atomics over fixture's groups, its parts made

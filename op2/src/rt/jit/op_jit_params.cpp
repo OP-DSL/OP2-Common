@@ -75,6 +75,7 @@ void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Opt
         *static_cast<int *>(m_data) = args[index].dim;
         break;
     case abi::ParamSource::strategy:
+    case abi::ParamSource::global_stride:
         // Its value comes with each kernel's key.
         return;
     default:
@@ -277,8 +278,8 @@ std::string format_cxx(const ParamSet& params, std::span<const ParamMode> modes,
         if (param.array())
             out += "[" + std::to_string(param.elems()) + "]";
         out += " = ";
-        out += param.source() == abi::ParamSource::strategy
-                   ? std::to_string(values[static_cast<std::size_t>(param.index())])
+        out += param.slot() >= 0
+                   ? std::to_string(values[static_cast<std::size_t>(param.slot())])
                    : format_value(param);
         out += ";\n";
     }

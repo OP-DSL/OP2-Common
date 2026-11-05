@@ -52,12 +52,13 @@ enum class ElementType {
 // Where a parameter's value comes from: the application, the call, or the
 // strategy.
 enum class ParamSource {
-    external,    // a constant the application sets
-    scalar_arg,  // a scalar READ global argument
-    array_arg,   // a READ global argument of any dimension, read in place
-    dat_stride,  // a dat's SoA stride
-    dat_dim,     // a dat's run-time dimension
-    strategy,    // a value the strategy fixes, in its backend's slot
+    external,       // a constant the application sets
+    scalar_arg,     // a scalar READ global argument
+    array_arg,      // a READ global argument of any dimension, read in place
+    dat_stride,     // a dat's SoA stride
+    dat_dim,        // a dat's run-time dimension
+    strategy,       // a strategy's value on its family's axis of the row's key
+    global_stride,  // the stride between the copies of the globals a launch keeps
 };
 
 template<typename T> struct ElementTypes {};
@@ -87,6 +88,9 @@ struct Param {
     int index;
     // Whether a specialised kernel can have it at run time.
     bool runtime;
+    // A strategy value's axis key ("block_size"); a family without the axis
+    // gives 0.
+    const char *key = nullptr;
 };
 
 // A constant the application sets, of elems elements when an array.
@@ -134,11 +138,18 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
             .index = arg, .runtime = false};
 }
 
-// A value the strategy fixes, from its slot among the backend's.
-constexpr Param strategy_value(const char *name, int slot) {
+// A value the strategy fixes: its family's on the axis key.
+constexpr Param strategy_value(const char *name, const char *key) {
     return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
             .source = ParamSource::strategy, .data = nullptr, .elems = 1, .array = false,
-            .index = slot, .runtime = false};
+            .index = -1, .runtime = false, .key = key};
+}
+
+// The stride between the copies of the globals a launch keeps, each call's.
+constexpr Param global_stride(const char *name) {
+    return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
+            .source = ParamSource::global_stride, .data = nullptr, .elems = 1, .array = false,
+            .index = -1, .runtime = false};
 }
 
 } // namespace op::rt::abi

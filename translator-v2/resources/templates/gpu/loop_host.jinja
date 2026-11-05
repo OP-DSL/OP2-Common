@@ -483,13 +483,13 @@ static int op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
 {% for arg in lh.args|gbl|read|reject("scalar") %}
     op::rt::abi::gpu::global<{{arg.typ.c()}}>("op2_gbl{{arg.id}}_d", {{arg.id}}, {{"true" if arg in gbls_by_value else "false"}}),
 {% endfor %}
-    op::rt::abi::gpu::launch_value("op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size),
+    op::rt::abi::gpu::strategy_value("op2_block_size_d", "block_size"),
 {% if per_thread %}
-    op::rt::abi::gpu::launch_value("op2_stride_gbl_d", op::rt::abi::gpu::LaunchValue::global_stride),
+    op::rt::abi::gpu::global_stride("op2_stride_gbl_d"),
 {% endif %}
 {% if strategies|select("in", chunk_strategies)|list %}
-    op::rt::abi::gpu::launch_value("op2_unstaged_singles_d", op::rt::abi::gpu::LaunchValue::unstaged_singles),
-    op::rt::abi::gpu::launch_value("op2_wavefront_d", op::rt::abi::gpu::LaunchValue::wavefront),
+    op::rt::abi::gpu::strategy_value("op2_unstaged_singles_d", "singles"),
+    op::rt::abi::gpu::strategy_value("op2_wavefront_d", "wavefront"),
 {% endif %}
 {% endset %}
 static const op::rt::abi::gpu::Param op2_k_{{lh.name}}{{variant}}_params[] = {

@@ -21,6 +21,10 @@ int Point::value(std::string_view key) const {
     return values[static_cast<std::size_t>(found - keys.begin())];
 }
 
+bool Point::has(std::string_view key) const {
+    return std::find(keys.begin(), keys.end(), key) != keys.end();
+}
+
 namespace {
 
 // An axis's values from one variable, in order without repeats; empty when

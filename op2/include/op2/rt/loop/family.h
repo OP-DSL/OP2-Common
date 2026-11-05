@@ -42,6 +42,7 @@ struct Point {
     std::vector<int> values;
 
     int value(std::string_view key) const;
+    bool has(std::string_view key) const;
 };
 
 // A strategy family a backend offers, under the name the generated code

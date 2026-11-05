@@ -32,8 +32,18 @@ ChunkEntry::ChunkEntry(ChunkResult result) : ChunkResult{std::move(result)} {
 StrategyBase::StrategyBase(Executor& executor, const op::rt::loop::Point& point,
                            const abi::gpu::Family& family)
     : m_executor{executor}, m_name{point.name}, m_family{family},
-      m_block_size{point.value("block_size")}, m_offline{family.offline, executor.calls()},
-      m_cache{family.kernel, executor.context().jit, executor.context().builds} {}
+      m_block_size{point.value("block_size")},
+      m_values(static_cast<std::size_t>(executor.params().slots()), 0),
+      m_offline{family.offline, executor.calls()},
+      m_cache{family.kernel, executor.context().jit, executor.context().builds} {
+    for (const auto& param : executor.params().params()) {
+        auto slot = static_cast<std::size_t>(param.slot());
+        if (param.source() == abi::ParamSource::strategy && point.has(param.key()))
+            m_values[slot] = point.value(param.key());
+        else if (param.source() == abi::ParamSource::global_stride)
+            m_global_stride_slot = param.slot();
+    }
+}
 
 op::rt::loop::Estimate StrategyBase::estimate(op::rt::loop::KernelKind kind) const {
     KernelFacts facts;
@@ -71,10 +81,12 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
 
     auto& params = m_executor.params();
     auto modes = params.modes();
-    auto values = launch_values(shape(call, planned.entry).global_stride);
-    auto key = params.key(modes, values);
+    if (m_global_stride_slot >= 0)
+        m_values[static_cast<std::size_t>(m_global_stride_slot)] =
+            shape(call, planned.entry).global_stride;
+    auto key = params.key(modes, m_values);
     auto acquired = m_cache.acquire(key, urgency, [&] {
-        return m_executor.compiler().job(params, modes, values, m_family);
+        return m_executor.compiler().job(params, modes, m_values, m_family);
     });
     // A kernel without launch bounds may have too many registers for its block.
     if (acquired.status == op::rt::loop::Status::ready &&
@@ -86,16 +98,6 @@ op::rt::loop::Prepared StrategyBase::prepare(const op::rt::loop::Call& call,
     prepared.kernel = acquired.kernel;
     prepared.reason = acquired.reason;
     return prepared;
-}
-
-std::array<int, abi::gpu::launch_values> StrategyBase::launch_values(int global_stride) const {
-    using abi::gpu::LaunchValue;
-    std::array<int, abi::gpu::launch_values> values{};
-    values[static_cast<std::size_t>(LaunchValue::global_stride)] = global_stride;
-    values[static_cast<std::size_t>(LaunchValue::block_size)] = m_block_size;
-    values[static_cast<std::size_t>(LaunchValue::unstaged_singles)] = m_unstaged_singles;
-    values[static_cast<std::size_t>(LaunchValue::wavefront)] = m_wavefront;
-    return values;
 }
 
 template<typename Record>

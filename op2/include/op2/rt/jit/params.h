@@ -43,6 +43,8 @@ private:
     // The value: an array_arg's data and elements are each call's.
     void *m_data;
     std::size_t m_elems;
+    // Its place among the values a strategy gives, or -1.
+    int m_slot;
     // The mode before any statistics, and whether they may move it.
     ParamMode m_initial = ParamMode::baked;
     bool m_fixed = true;
@@ -68,7 +70,8 @@ private:
     }
 
 public:
-    explicit Param(const abi::Param& row) : m_row{row}, m_data{row.data}, m_elems{row.elems} {}
+    Param(const abi::Param& row, int slot)
+        : m_row{row}, m_data{row.data}, m_elems{row.elems}, m_slot{slot} {}
 
     const char *name() const { return m_row.name; }
     abi::ElementType type() const { return m_row.type; }
@@ -82,8 +85,12 @@ public:
     }
     ParamMode initial() const { return m_initial; }
     bool fixed() const { return m_fixed; }
-    // The argument the call's value comes from, or the strategy value's slot.
+    // The argument the call's value comes from.
     int index() const { return m_row.index; }
+    // Its place among the values a strategy gives (a strategy value or the
+    // global stride), or -1; and a strategy value's axis key.
+    int slot() const { return m_slot; }
+    const char *key() const { return m_row.key; }
     std::size_t elems() const { return m_elems; }
     std::size_t elem_size() const { return m_row.elem_size; }
     bool array() const { return m_row.array; }
@@ -153,6 +160,8 @@ private:
     std::string m_loop;
     const Options& m_options;
     std::vector<Param> m_params;
+    // The values a strategy gives, which have slots.
+    int m_slots = 0;
     DatStride m_dat_stride = nullptr;
     // The modes observe gave the call under way.
     std::vector<ParamMode> m_modes;
@@ -173,7 +182,9 @@ public:
     // Add a parameter as the generated code describes it, its mode settled
     // by the policy.  Its index.
     std::size_t add(const abi::Param& row) {
-        auto& added = m_params.emplace_back(row);
+        bool given = row.source == abi::ParamSource::strategy ||
+                     row.source == abi::ParamSource::global_stride;
+        auto& added = m_params.emplace_back(row, given ? m_slots++ : -1);
         added.settle(m_loop, m_options);
         m_modes.push_back(added.initial());
         m_moving |= !added.fixed();
@@ -223,6 +234,9 @@ public:
     // The modes observe gave the call under way.
     std::span<const ParamMode> modes() const { return m_modes; }
 
+    // The values a strategy gives, by slot: its own and the global stride.
+    int slots() const { return m_slots; }
+
     // The key a kernel specialised under modes and a strategy's values, by
     // slot, is built under: each baked parameter's value, hashed 64 at a time
     // with a mask of the run-time ones (a value's hash may be any 64 bits, so
@@ -236,9 +250,9 @@ public:
             const auto& param = m_params[i];
             std::uint64_t value = 0;
             if (modes[i] == ParamMode::baked) {
-                value = param.source() == abi::ParamSource::strategy
+                value = param.slot() >= 0
                             ? std::uint64_t{static_cast<std::uint32_t>(
-                                  values[static_cast<std::size_t>(param.index())])}
+                                  values[static_cast<std::size_t>(param.slot())])}
                             : param.hash();
             } else {
                 runtime |= std::uint64_t{1} << count;

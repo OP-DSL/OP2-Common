@@ -72,8 +72,8 @@ int bind(op_arg *, unsigned&, std::span<void *> arguments) {
 }
 
 // The block size a bounded kernel reads.
-const op::rt::abi::gpu::Param params[] = {op::rt::abi::gpu::launch_value(
-    "op2_block_size_d", op::rt::abi::gpu::LaunchValue::block_size)};
+const op::rt::abi::gpu::Param params[] = {
+    op::rt::abi::gpu::strategy_value("op2_block_size_d", "block_size")};
 
 // A loop of plain alone, its kernel built from source, its parts made from
 // the descriptor kept here.
