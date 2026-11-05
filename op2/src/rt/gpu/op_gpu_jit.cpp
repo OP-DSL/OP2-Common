@@ -16,11 +16,12 @@ namespace {
 // op::rt::kernel::gpu::param_value; any other as a symbol of its module, added to
 // symbols.
 std::string runtime_declarations(const op::rt::jit::ParamSet& params,
+                                 std::span<const op::rt::jit::ParamMode> modes,
                                  std::vector<RuntimeSymbol>& symbols) {
     std::string out;
     for (std::size_t i = 0; i < params.size(); ++i) {
         const auto& param = params[i];
-        if (param.mode() != op::rt::jit::ParamMode::runtime)
+        if (modes[i] != op::rt::jit::ParamMode::runtime)
             continue;
         if (param.source() == op::rt::abi::ParamSource::scalar_arg ||
             param.source() == op::rt::abi::ParamSource::array_arg) {
@@ -43,19 +44,20 @@ std::string runtime_declarations(const op::rt::jit::ParamSet& params,
 
 } // namespace
 
-Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params, std::span<const int> values,
-                            const abi::gpu::Family& family) const {
+Compiler::Job Compiler::job(const op::rt::jit::ParamSet& params,
+                            std::span<const op::rt::jit::ParamMode> modes,
+                            std::span<const int> values, const abi::gpu::Family& family) const {
     std::vector<RuntimeSymbol> symbols;
     std::vector<int> baked_globals;
     for (std::size_t i = 0; i < params.size(); ++i)
         if (params[i].source() == op::rt::abi::ParamSource::array_arg &&
-            params[i].mode() == op::rt::jit::ParamMode::baked)
+            modes[i] == op::rt::jit::ParamMode::baked)
             baked_globals.push_back(params[i].index());
     std::string text;
     for (const char *name : m_headers.names)
         text += std::string{"#include <"} + name + ">\n";
-    text += "\n" + op::rt::jit::format_cxx(params, values) +
-            runtime_declarations(params, symbols);
+    text += "\n" + op::rt::jit::format_cxx(params, modes, values) +
+            runtime_declarations(params, modes, symbols);
     if (m_translated != nullptr)
         text += m_translated;
     text += family.source;

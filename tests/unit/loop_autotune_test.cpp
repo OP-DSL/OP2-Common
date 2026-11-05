@@ -369,7 +369,7 @@ void test_jit_report() {
     auto& jitted = loop::runtime<Jitted>(probe);
     auto observe = [&](const loop::Call& call) {
         probe.params->update({});
-        probe.params->observe_call(call);
+        probe.params->observe(call);
     };
     loop::Call on_edges{&edges, args, edges.size + edges.exec_size, false};
     loop::Call on_cells{&cells, args, cells.size + cells.exec_size, false};

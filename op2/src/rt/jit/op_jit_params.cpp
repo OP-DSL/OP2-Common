@@ -24,7 +24,6 @@ void Param::settle(std::string_view loop, const Options& options) {
 
     m_fixed = true;
     m_initial = ParamMode::baked;
-    m_mode = m_initial;
     if (named(options.constant_params))
         return;
     if (named(options.runtime_params)) {
@@ -45,7 +44,6 @@ void Param::settle(std::string_view loop, const Options& options) {
                   (source() == abi::ParamSource::scalar_arg &&
                    bytes() > static_cast<std::size_t>(options.max_gbl_bytes));
     }
-    m_mode = m_initial;
 }
 
 void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Options& options) {
@@ -87,7 +85,6 @@ void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Opt
 }
 
 void ParamSet::update(std::span<const op_arg> args) {
-    ++m_calls;
     for (auto& param : m_params)
         param.update(args, m_dat_stride, m_options);
 }
@@ -135,20 +132,18 @@ std::vector<ParamSet::ConfigurationModes> ParamSet::configurations() const {
     return out;
 }
 
-void ParamSet::observe(const loop::Call& call) {
+std::span<const ParamMode> ParamSet::observe(const loop::Call& call) {
     auto *history = m_moving ? histories(call) : nullptr;
     if (history != nullptr)
         ++history->calls;
     for (std::size_t i = 0; i < m_params.size(); ++i) {
-        auto& param = m_params[i];
-        if (param.source() == abi::ParamSource::strategy)
-            continue;
+        const auto& param = m_params[i];
         if (param.sized_out(m_options)) {
-            param.set_mode(ParamMode::runtime);
+            m_modes[i] = ParamMode::runtime;
             continue;
         }
         if (param.fixed() || history == nullptr) {
-            param.set_mode(param.initial());
+            m_modes[i] = param.initial();
             continue;
         }
         auto& entry = history->params[i];
@@ -156,8 +151,9 @@ void ParamSet::observe(const loop::Call& call) {
             op_printf("jit: %s %s %s for %s\n", m_loop.c_str(),
                         entry.mode == ParamMode::baked ? "bakes in" : "moves to run time",
                         param.name(), call.describe().c_str());
-        param.set_mode(entry.mode);
+        m_modes[i] = entry.mode;
     }
+    return m_modes;
 }
 
 bool ParamSet::History::observe(const Param& param, const Options& options) {
@@ -267,10 +263,12 @@ std::string format_value(const Param& param) {
 
 } // namespace
 
-std::string format_cxx(const ParamSet& params, std::span<const int> values) {
+std::string format_cxx(const ParamSet& params, std::span<const ParamMode> modes,
+                       std::span<const int> values) {
     std::string out;
-    for (const auto& param : params.params()) {
-        if (param.mode() != ParamMode::baked)
+    for (std::size_t i = 0; i < params.size(); ++i) {
+        const auto& param = params[i];
+        if (modes[i] != ParamMode::baked)
             continue;
         out += "static constexpr ";
         out += cxx_type(param.type());

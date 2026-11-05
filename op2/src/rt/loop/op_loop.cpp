@@ -11,8 +11,8 @@ namespace op::rt::loop {
 
 tune::Autotuner::Decision Loop::decide(const Call& call) {
     m_params.update(call.args);
-    if (m_params.moving() && m_jit.enabled())
-        m_params.observe_call(call);
+    if (m_jit.enabled())
+        m_params.observe(call);
     return m_tuner ? m_tuner->choose(call, m_params.settled(call))
                    : tune::Autotuner::Decision{m_ladder.select(call)};
 }

@@ -43,11 +43,9 @@ private:
     // The value: an array_arg's data and elements are each call's.
     void *m_data;
     std::size_t m_elems;
-    // The mode before any statistics, whether they may move it, and the
-    // call's.
+    // The mode before any statistics, and whether they may move it.
     ParamMode m_initial = ParamMode::baked;
     bool m_fixed = true;
-    ParamMode m_mode = ParamMode::baked;
     std::uint64_t m_hash = 0;
 
     // The value's hash: a scalar's own bits, so a zero value hashes to 0,
@@ -84,8 +82,6 @@ public:
     }
     ParamMode initial() const { return m_initial; }
     bool fixed() const { return m_fixed; }
-    ParamMode mode() const { return m_mode; }
-    void set_mode(ParamMode mode) { m_mode = mode; }
     // The argument the call's value comes from, or the strategy value's slot.
     int index() const { return m_row.index; }
     std::size_t elems() const { return m_elems; }
@@ -158,9 +154,8 @@ private:
     const Options& m_options;
     std::vector<Param> m_params;
     DatStride m_dat_stride = nullptr;
-    // Calls so far, and the one whose values were last observed.
-    std::uint64_t m_calls = 0;
-    std::uint64_t m_observed = ~std::uint64_t{0};
+    // The modes observe gave the call under way.
+    std::vector<ParamMode> m_modes;
     // Whether any parameter's mode may move.
     bool m_moving = false;
     std::unordered_map<std::uint64_t, Histories> m_histories;
@@ -168,7 +163,6 @@ private:
     Histories *m_history = nullptr;
 
     Histories *histories(const loop::Call& call);
-    void observe(const loop::Call& call);
 
 public:
     // The parameters of loop under options, which must outlive them.
@@ -181,6 +175,7 @@ public:
     std::size_t add(const abi::Param& row) {
         auto& added = m_params.emplace_back(row);
         added.settle(m_loop, m_options);
+        m_modes.push_back(added.initial());
         m_moving |= !added.fixed();
         return m_params.size() - 1;
     }
@@ -220,28 +215,27 @@ public:
 
     std::vector<ConfigurationModes> configurations() const;
 
-    // Record the call's values in the configuration's statistics and take
-    // the modes they give, once per call.
-    void observe_call(const loop::Call& call) {
-        if (m_observed == m_calls)
-            return;
-        m_observed = m_calls;
-        observe(call);
-    }
+    // The call's modes: each parameter's under the call's configuration,
+    // whose statistics take the call's values first when a mode may move.
+    // Once per call, as it is decided; its kernels' keys and sources follow.
+    std::span<const ParamMode> observe(const loop::Call& call);
 
-    // The key a kernel specialised under a strategy's values, by slot, is
-    // built under: each baked parameter's value, hashed 64 at a time with a
-    // mask of the run-time ones (a value's hash may be any 64 bits, so no
-    // mark could stand in for it).  A strategy's value hashes to its own
-    // bits.  The call's statistics are observed first.
-    std::uint64_t key(const loop::Call& call, std::span<const int> values) {
-        observe_call(call);
+    // The modes observe gave the call under way.
+    std::span<const ParamMode> modes() const { return m_modes; }
+
+    // The key a kernel specialised under modes and a strategy's values, by
+    // slot, is built under: each baked parameter's value, hashed 64 at a time
+    // with a mask of the run-time ones (a value's hash may be any 64 bits, so
+    // no mark could stand in for it).  A strategy's value hashes to its own
+    // bits.
+    std::uint64_t key(std::span<const ParamMode> modes, std::span<const int> values) const {
         Hasher<std::uint64_t, 65> key{hash_seed};
         std::size_t count = 0;
         std::uint64_t runtime = 0;
-        for (const auto& param : m_params) {
+        for (std::size_t i = 0; i < m_params.size(); ++i) {
+            const auto& param = m_params[i];
             std::uint64_t value = 0;
-            if (param.mode() == ParamMode::baked) {
+            if (modes[i] == ParamMode::baked) {
                 value = param.source() == abi::ParamSource::strategy
                             ? std::uint64_t{static_cast<std::uint32_t>(
                                   values[static_cast<std::size_t>(param.index())])}
@@ -260,10 +254,11 @@ public:
     }
 };
 
-// The baked parameters as C++ constants, "static constexpr double name =
-// value;" a line each, for a compiler that takes source; a strategy's from
-// its values, by slot.
-std::string format_cxx(const ParamSet& params, std::span<const int> values);
+// The parameters baked in under modes as C++ constants, "static constexpr
+// double name = value;" a line each, for a compiler that takes source; a
+// strategy's from its values, by slot.
+std::string format_cxx(const ParamSet& params, std::span<const ParamMode> modes,
+                       std::span<const int> values);
 
 // A parameter's element type in C++: "double".
 const char *cxx_type(abi::ElementType type);

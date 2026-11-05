@@ -256,21 +256,21 @@ void test_params() {
     params.update(args);
     CHECK(gbl0 == 2.5 && gbl2 == 7.0 && stride == 128 && dim == 3);
     std::array<int, 2> slots{0, 64};
-    auto key = params.key(call, slots);
-    CHECK(params.key(call, slots) == key);
+    auto key = params.key(params.observe(call), slots);
+    CHECK(params.key(params.observe(call), slots) == key);
 
     global = 3.5;
     params.update(args);
-    CHECK(params.key(call, slots) != key);
+    CHECK(params.key(params.observe(call), slots) != key);
     global = 2.5;
     params.update(args);
-    CHECK(params.key(call, slots) == key);
+    CHECK(params.key(params.observe(call), slots) == key);
     slots[1] = 128;
-    CHECK(params.key(call, slots) != key);
+    CHECK(params.key(params.observe(call), slots) != key);
     slots[1] = 64;
-    CHECK(params.key(call, slots) == key);
+    CHECK(params.key(params.observe(call), slots) == key);
 
-    CHECK(jit::format_cxx(params, slots) ==
+    CHECK(jit::format_cxx(params, params.modes(), slots) ==
           "static constexpr double c = 0x1p+0;\n"
           "static constexpr double table[3] = { 0x1p+0, "
           "__builtin_bit_cast(double, 0x7ff8000000000000ull), "
@@ -303,7 +303,7 @@ void test_key_words() {
         for (std::size_t i = 0; i < constants.size(); ++i)
             params.add(abi::constant(names[i].c_str(), &constants[i]));
         params.update({});
-        return params.key(call, {});
+        return params.key(params.observe(call), {});
     };
 
     auto baked = key(nullptr);
@@ -377,24 +377,24 @@ void test_statistics() {
     auto next = [&](int set) {
         params.update(args);
         loop::Call call{&sets[set], {args, 1}, sets[set].size, false};
-        return params.key(call, {});
+        return params.key(params.observe(call), {});
     };
 
     // A ninth value moves the constant to run time, for good.
     for (int i = 0; i < 8; ++i) {
         constant = i;
         next(0);
-        CHECK(params[0].mode() == baked);
+        CHECK(params.modes()[0] == baked);
     }
     constant = 8.0;
     auto key = next(0);
-    CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
+    CHECK(params.modes()[0] == runtime && params.modes()[1] == runtime);
     // A run-time value is no part of the key.
     for (int i = 0; i < 40; ++i) {
         value = i;
         CHECK(next(0) == key);
     }
-    CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
+    CHECK(params.modes()[0] == runtime && params.modes()[1] == runtime);
 
     // A global invariant for 32 calls of another configuration is baked in,
     // the constant there still baked; taking a ninth value since, it moves
@@ -402,26 +402,26 @@ void test_statistics() {
     value = 5.0;
     for (int i = 0; i < 31; ++i) {
         next(1);
-        CHECK(params[1].mode() == runtime && params[0].mode() == baked);
+        CHECK(params.modes()[1] == runtime && params.modes()[0] == baked);
     }
     key = next(1);
-    CHECK(params[1].mode() == baked);
+    CHECK(params.modes()[1] == baked);
     value = 6.0;
     CHECK(next(1) != key);
     for (int i = 0; i < 6; ++i) {
         value = 7.0 + i;
         next(1);
-        CHECK(params[1].mode() == baked);
+        CHECK(params.modes()[1] == baked);
     }
     value = 100.0;
     next(1);
-    CHECK(params[1].mode() == runtime);
+    CHECK(params.modes()[1] == runtime);
     value = 5.0;
     for (int i = 0; i < 40; ++i)
         next(1);
-    CHECK(params[1].mode() == runtime);
+    CHECK(params.modes()[1] == runtime);
     next(0);
-    CHECK(params[0].mode() == runtime);
+    CHECK(params.modes()[0] == runtime);
 
     // Values are counted, not shares: a flag set in one call in ten, or in
     // one in three, is baked in alike.
@@ -429,35 +429,35 @@ void test_statistics() {
         value = i % 10 == 9 ? 1.0 : 2.0;
         next(2);
     }
-    CHECK(params[1].mode() == baked);
+    CHECK(params.modes()[1] == baked);
     for (int i = 0; i < 32; ++i) {
         value = i % 3 == 2 ? 1.0 : 2.0;
         next(3);
     }
-    CHECK(params[1].mode() == baked);
+    CHECK(params.modes()[1] == baked);
 
     // Values are counted, not changes: a constant cycling through eight
     // values every call stays baked, however long; a ninth value moves it.
     for (int i = 0; i < 128; ++i) {
         constant = i % 8;
         next(4);
-        CHECK(params[0].mode() == baked);
+        CHECK(params.modes()[0] == baked);
     }
     constant = 100.0;
     next(4);
-    CHECK(params[0].mode() == runtime);
+    CHECK(params.modes()[0] == runtime);
 
     // A global that varies, then settles, is baked in once it has: its values
     // are counted afresh every 32 calls.
     for (int i = 0; i < 40; ++i) {
         value = 10.0 + i;
         next(5);
-        CHECK(params[1].mode() == runtime);
+        CHECK(params.modes()[1] == runtime);
     }
     value = 3.0;
     for (int i = 0; i < 64; ++i)
         next(5);
-    CHECK(params[1].mode() == baked);
+    CHECK(params.modes()[1] == baked);
 
     // Each configuration's modes as the reports read them: c moved to run
     // time on sets 0 and 4, g baked in on sets 2 to 5 and moved on 1 to 5.
@@ -512,14 +512,14 @@ void test_array_globals() {
     loop::Call call{&set, {args, 4}, 10, false};
     auto next = [&] {
         params.update(args);
-        return params.key(call, {});
+        return params.key(params.observe(call), {});
     };
 
     auto key = next();
     CHECK(params[0].data() == g5 && params[0].elems() == 5 && params[0].array());
     CHECK(params[1].elems() == 0 && params[2].elems() == 1 && params[2].array());
     for (int i = 0; i < 4; ++i)
-        CHECK(params[i].mode() == runtime);
+        CHECK(params.modes()[i] == runtime);
     CHECK(params[0].hash() != 0 && params[3].hash() == 0);
     g5[0] = 10.0;
     CHECK(next() == key);
@@ -527,12 +527,12 @@ void test_array_globals() {
     // The new value leads from the third call, so 32 calls later it is in.
     for (int i = 0; i < 32; ++i)
         next();
-    CHECK(params[0].mode() == baked && params[2].mode() == baked);
-    CHECK(params[1].mode() == runtime && params[3].mode() == runtime);
+    CHECK(params.modes()[0] == baked && params.modes()[2] == baked);
+    CHECK(params.modes()[1] == runtime && params.modes()[3] == runtime);
     key = next();
     g5[1] = 20.0;
     CHECK(next() != key);
-    CHECK(jit::format_cxx(params, {}) ==
+    CHECK(jit::format_cxx(params, params.modes(), {}) ==
           "static constexpr double g0[5] = { 0x1.4p+3, 0x1.4p+4, 0x1.8p+1, 0x1p+2, 0x1.4p+2 };\n"
           "static constexpr double g2[1] = { 0x1p+0 };\n");
 
@@ -541,14 +541,14 @@ void test_array_globals() {
     capped.add(abi::global<double>("g0", 0));
     for (int i = 0; i < 40; ++i) {
         capped.update(args);
-        capped.key(call, {});
+        capped.key(capped.observe(call), {});
     }
-    CHECK(capped[0].mode() == runtime);
+    CHECK(capped.modes()[0] == runtime);
 }
 
-// A call observed without any key still counts: a global invariant for 32
-// such calls is baked in when the first key is asked for, and that key's
-// call is not counted twice.
+// Every call observed counts, whether or not a key is asked for: a global
+// invariant for 32 calls is baked in at the 32nd, and its key follows the
+// modes that call's observe gave.
 void test_observe_every_call() {
     policy({});
     op_set_core set{};
@@ -570,13 +570,12 @@ void test_observe_every_call() {
     loop::Call call{&set, {args, 1}, 10, false};
     for (int i = 0; i < 31; ++i) {
         params.update(args);
-        params.observe_call(call);
+        params.observe(call);
     }
-    CHECK(params[0].mode() == runtime);
+    CHECK(params.modes()[0] == runtime);
     params.update(args);
-    params.observe_call(call);
-    auto key = params.key(call, {});
-    CHECK(params[0].mode() == baked && params.key(call, {}) == key);
+    auto key = params.key(params.observe(call), {});
+    CHECK(params.modes()[0] == baked && params.key(params.modes(), {}) == key);
 }
 
 // A configuration's modes are settled once the statistics have seen a window
@@ -602,7 +601,7 @@ void test_settled() {
     for (std::uint64_t i = 0; i < jit::statistics_window; ++i) {
         CHECK(!params.settled(call));
         params.update(args);
-        params.observe_call(call);
+        params.observe(call);
     }
     CHECK(params.settled(call));
 
