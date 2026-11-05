@@ -113,7 +113,8 @@ public:
     std::uint64_t hash() const { return m_hash; }
 };
 
-// The calls the statistics look back over.
+// The calls a run-time READ global's values are counted over before it may
+// be baked in; a configuration seen this many times is settled.
 constexpr std::uint64_t statistics_window = 32;
 
 // A loop's parameters, in the order its generated code registers them,

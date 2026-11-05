@@ -9,7 +9,8 @@ dats are translated per target (`translator-v2/`) and run by the library
   `op2/include/op2/rt/AGENTS.md` before changing either.
 - `op2/` elsewhere: the core library and the legacy runtime (MPI, the CUDA and
   HIP data layer, Fortran bindings).
-- `translator-v2/`: the Python translator and its Jinja templates.
+- `translator-v2/`: the Python translator and its Jinja templates; read
+  `translator-v2/AGENTS.md` before changing it.
 - `apps/`, `tests/`, `docs/`.
 
 ## Building and testing

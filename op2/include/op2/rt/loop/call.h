@@ -102,8 +102,8 @@ public:
     std::string describe() const;
 };
 
-// A global's element type, from its C or Fortran spelling; none when OP2
-// does not reduce it.
+// An argument's element type, from its type's C or Fortran spelling; none
+// for a type OP2 does not know.
 std::optional<abi::ElementType> element_type(const char *type);
 
 // Reduce a call's INC, MIN and MAX globals, of the element types types, across
