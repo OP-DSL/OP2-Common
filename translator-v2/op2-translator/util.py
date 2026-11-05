@@ -30,19 +30,6 @@ def getVersion() -> str:
         return "unknown"
 
 
-def enumRegex(values: List[str]) -> str:
-    return "(" + ")|(".join(map(re.escape, values)) + ")"
-
-
-def indexSplit(s: str, i: int) -> Tuple[str, str]:
-    if i >= len(s):
-        return s, ""
-    elif i <= -len(s):
-        return "", s
-    else:
-        return s[:i], s[i:]
-
-
 def flatten(arr: List[List[T]]) -> List[T]:
     return functools.reduce(operator.iconcat, arr, [])
 
@@ -130,10 +117,6 @@ class SourceBuffer:
 
         self._rawLines = self._source.splitlines()
 
-    @property
-    def rawSource(self) -> str:
-        return self._source
-
     def get(self, index: int) -> str:
         return self._updates.get(index, self._rawLines[index])
 
@@ -150,12 +133,6 @@ class SourceBuffer:
 
     def apply(self, index: int, f: Callable[[str], str]):
         self.update(index, f(self.get(index)))
-
-    def applyAll(self, f: Callable[[str], str]):
-        for i in range(len(self._rawLines)):
-            update = f(self.get(i))
-            if update != self.get(i):
-                self.update(i, update)
 
     def search(self, pattern: str, flags: int = 0) -> Optional[int]:
         for i, line in enumerate(self._rawLines):

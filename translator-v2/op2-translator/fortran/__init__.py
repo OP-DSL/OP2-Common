@@ -6,7 +6,7 @@ import re
 import subprocess
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from pathlib import Path
-from typing import FrozenSet, List, Optional, Set, Tuple
+from typing import FrozenSet, List, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils
@@ -171,13 +171,11 @@ class Fortran(Lang):
     source_exts = ["F90", "F95", "f90"]
     include_ext = "inc"
 
-    com_delim = "!"
     ast_is_serializable = True
 
     fallback_wrapper_template = Path("fortran/fallback_wrapper.F90.jinja")
 
     consts_module = None
-    consts_module_ast = None
 
     extra_consts_list = None
     user_consts_module = None

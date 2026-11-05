@@ -6,7 +6,7 @@ import sys
 import re
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Environment
 

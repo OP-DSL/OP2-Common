@@ -2,7 +2,7 @@ import itertools
 import logging
 from collections import Counter
 from fractions import Fraction
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Set
+from typing import Dict, List, Optional, Tuple, Set
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -11,8 +11,8 @@ import fortran.translator.kernels as ftk
 import fortran.util as fu
 import op as OP
 from diagnostics import OpError
-from store import Application, Entity, Function, Program
-from util import find, safeFind
+from store import Application, Function, Program
+from util import safeFind
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +49,6 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
             f"(expected: {len(kernel_entities[0].parameters)}, kernel subroutine: {loop.kernel})",
             loop.loc,
         )
-        return
-
-    # for arg in loop.args:
-    #     if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.WRITE:
-    #         print(f"{loop.loc}: Warning: {loop.kernel} indirect OP_WRITE\n")
-    #         # loop.fallback = True
-    #         break
 
     # Check parameter/const conflict and const writes
     const_ptrs = app.constPtrs()
@@ -87,15 +80,6 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnin
         for name in fpu.walk(entity.ast, f2003.Name):
             if name.string.lower() in const_ptrs and name.string.lower() not in entity.parameters:
                 loop.addConst(name.string.lower())
-
-    # Check for disallowed statements (IO, exit, ...)
-    # for entity in entities:
-    #     violations = []
-    #     checkStatements(entity, violations)
-
-    #     if len(violations) > 0:
-    #         printViolations(loop, "invalid statements", violations)
-    #         loop.fallback = True
 
     # Check for args marked OP_READ or arg_idx but appear to be written
     for idx, arg in enumerate(loop.args):
@@ -259,29 +243,6 @@ def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Opt
 
     logger.warning("\n".join(lines))
 
-
-def checkStatements(func: Function, violations: List[str]) -> None:
-    for node in fpu.walk(
-        func.ast,
-        (
-            f2003.Allocate_Stmt,
-            f2003.Backspace_Stmt,
-            f2003.Close_Stmt,
-            f2003.Deallocate_Stmt,
-            f2003.Endfile_Stmt,
-            f2003.Exit_Stmt,
-            f2003.Flush_Stmt,
-            f2003.Inquire_Stmt,
-            f2003.Open_Stmt,
-            f2003.Print_Stmt,
-            f2003.Read_Stmt,
-            f2003.Rewind_Stmt,
-            f2003.Stop_Stmt,
-            f2003.Wait_Stmt,
-            f2003.Write_Stmt,
-        ),
-    ):
-        violations.append(f"In {func.name}: {fu.getItem(node).line}")
 
 
 def checkRuntimeDimensionArrays(func: Function, consts: Set[str], violations: List[str]) -> None:

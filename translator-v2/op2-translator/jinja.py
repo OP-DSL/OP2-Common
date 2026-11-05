@@ -92,7 +92,6 @@ def scalar(x, loop: Optional[OP.Loop] = None) -> bool:
 
 
 env.tests["scalar"] = scalar
-env.tests["multidim"] = lambda arg, loop=None: not scalar(arg, loop)
 
 
 env.tests["opt"] = lambda arg, loop=None: hasattr(arg, "opt") and arg.opt
@@ -123,10 +122,6 @@ env.tests["read_or_write"] = lambda arg, loop=None: hasattr(arg, "access_type") 
     OP.AccessType.RW,
 ]
 
-env.tests["min_or_max"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
-    OP.AccessType.MIN,
-    OP.AccessType.MAX,
-]
 
 env.tests["reduction"] = lambda arg, loop=None: hasattr(arg, "access_type") and arg.access_type in [
     OP.AccessType.INC,
@@ -185,7 +180,6 @@ env.filters["indirect"] = test_to_filter("indirect")
 env.filters["soa"] = test_to_filter("soa")
 
 env.filters["scalar"] = test_to_filter("scalar")
-env.filters["multidim"] = test_to_filter("multidim")
 
 env.filters["opt"] = test_to_filter("opt")
 
@@ -207,7 +201,6 @@ env.filters["max"] = test_to_filter("max")
 
 env.filters["work"] = test_to_filter("work")
 env.filters["read_or_write"] = test_to_filter("read_or_write")
-env.filters["min_or_max"] = test_to_filter("min_or_max")
 
 env.filters["reduction"] = test_to_filter("reduction")
 

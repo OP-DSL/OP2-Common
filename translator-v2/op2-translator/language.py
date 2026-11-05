@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, FrozenSet, List, Optional, Set, Dict, Tuple
+from typing import Any, FrozenSet, List, Optional, Tuple
 
 from op import Type
 from store import Application, Program
@@ -15,9 +15,7 @@ class Lang(Findable["Lang"]):
 
     source_exts: List[str]
     include_ext: str
-    kernel_dir: bool
 
-    com_delim: str
     ast_is_serializable: bool
 
     fallback_wrapper_template: Optional[Path]

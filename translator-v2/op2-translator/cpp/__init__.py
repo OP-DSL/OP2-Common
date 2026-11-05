@@ -1,12 +1,11 @@
 import logging
 import os
-import importlib
 import subprocess
 from argparse import ArgumentParser, Namespace
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Set, Tuple, Any
+from typing import Dict, FrozenSet, List, Set, Tuple, Any
 
 import pcpp
 
@@ -41,7 +40,6 @@ class Cpp(Lang):
     source_exts = ["cpp"]
     include_ext = "h"
 
-    com_delim = "//"
     ast_is_serializable = False
 
     fallback_wrapper_template = None

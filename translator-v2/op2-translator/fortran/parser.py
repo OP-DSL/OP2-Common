@@ -304,9 +304,6 @@ def parseArgInfo(loop: OP.Loop, args: Optional[f2003.Component_Spec_List], loc: 
 
 
 def parseIdentifier(node: Any, loc: Location) -> str:
-    # if not hasattr(node, "string"):
-    #    raise ParseError(f"Unable to parse identifier for node: {node}", loc)
-
     return node.string.lower()
 
 

@@ -115,9 +115,6 @@ def parseFunction(ref_node: Cursor, program: Program) -> None:
         if n.kind != CursorKind.PARM_DECL:
             continue
 
-        # param_type = n.type.get_canonical()
-        # typ, _ = parseType(param_type.spelling, parseLocation(n), True)
-
         function.parameters.append(n.spelling)
 
     addDependencies(function, node, program)
@@ -409,12 +406,6 @@ def sourceLocation(node: Cursor, program: Program) -> Location:
 def descend(node: Cursor) -> Cursor:
     return next(node.get_children())
 
-
-def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
-    if node is None:
-        return None
-
-    return next(node.get_children(), None)
 
 def findLoopConsts(app: Application, program: Program, consts: Dict[str, OP.Const]) -> None:
     for loop in program.loops:

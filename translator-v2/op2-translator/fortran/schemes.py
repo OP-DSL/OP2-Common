@@ -1,6 +1,4 @@
 import copy
-import traceback
-import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -14,7 +12,6 @@ from diagnostics import ParseError
 from store import Application, Program
 from strategy import indirectRW, setChunkConfig
 from target import Target
-from util import find
 
 
 class FortranSeq(Scheme):

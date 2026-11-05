@@ -81,15 +81,6 @@ def walkOut(node: f2003.Base, node_type) -> f2003.Base:
     return parent
 
 
-def walkOutUntil(node: f2003.Base, node_type) -> f2003.Base:
-    parent = node
-
-    while getattr(parent, "parent", None) is not None and not isinstance(parent.parent, node_type):
-        parent = parent.parent
-
-    return parent
-
-
 def getItem(node: f2003.Base) -> Optional[Any]:
     if getattr(node, "item", None) is not None:
         return node.item

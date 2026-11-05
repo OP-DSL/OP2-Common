@@ -3,15 +3,13 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
 import fparser.two.Fortran2003 as f2003
-import fparser.two.Fortran2008 as f2008
 import fparser.two.utils as fpu
 
 import fortran.util as fu
 import op as OP
-from language import Lang
 from diagnostics import OpError
-from store import Application, Entity, Function, Program
-from util import find, safeFind
+from store import Application, Entity, Program
+from util import safeFind
 
 
 def indent(src: str, width: int = 4) -> str:
@@ -136,7 +134,6 @@ class Info:
 
     consts: Dict[str, FType] = field(default_factory=dict)
 
-    entry_subprogram: Optional[str] = None
     subprograms: Dict[str, SubprogramInfo] = field(default_factory=dict)
     # Those templates over the kernel's increment hook.
     hooked: Set[str] = field(default_factory=set)
@@ -149,9 +146,6 @@ class Info:
 class Context:
     info: Info
     sub_info: SubprogramInfo
-
-    def isEntry(self) -> bool:
-        return self.sub_info.name == self.info.entry_subprogram
 
     def lookupType(self, name: str) -> Optional[FType]:
         return self.sub_info.types.get(name) or self.info.consts.get(name)
@@ -174,7 +168,6 @@ class Context:
 def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: Dict[str, Any], const_rename: Optional[Callable[[str], str]] = None) -> Info:
     info = Info(loop, config)
 
-    is_first = True
     for entity in entities:
         sub_info = None
 
@@ -186,10 +179,6 @@ def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: D
             raise OpError(f"Unknown top level entity AST type: {type(entity.ast)}")
 
         info.subprograms[sub_info.name] = sub_info
-
-        if is_first:
-            info.entry_subprogram = sub_info.name
-            is_first = False
 
     if app.consts_module is not None:
         consts = parseConstsModule(app.consts_module, info)
@@ -583,8 +572,6 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
     init_src = ""
     parameters = {}
 
-    has_implicit_none = False
-
     for node in spec_part.content:
         if isinstance(node, f2003.Use_Stmt):
             continue
@@ -592,7 +579,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
         if isinstance(node, f2003.Implicit_Part):
             for implicit_node in node.children:
                 if isinstance(implicit_node, f2003.Implicit_Stmt) and implicit_node.items[0] == "NONE":
-                    has_implicit_none = True
+                    continue
                 elif isinstance(implicit_node, f2003.Parameter_Stmt):
                     def_list = implicit_node.items[1]
 
@@ -651,9 +638,6 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             continue
 
         ctx.error(f"Unsupported specification statement", node)
-
-    # if not has_implicit_none:
-    #     ctx.error(f"No implicit none", spec_part)
 
     src = ""
     for name, type_ in ctx.sub_info.types.items():
@@ -1174,10 +1158,6 @@ def translateOrOperand(or_operand: f2003.Or_Operand, ctx: Context) -> str:
 
 def translateEquivOperand(equiv_operand: f2003.Equiv_Operand, ctx: Context) -> str:
     return f"{translateGeneric(equiv_operand.items[0], ctx)} || {translateGeneric(equiv_operand.items[2], ctx)}"
-
-
-# def translateExpr(expr: f2003.Expr, ctx: Context) -> str:
-#     return str(expr)
 
 
 def translateIntLiteralConstant(int_literal_constant: f2003.Int_Literal_Constant, ctx: Context) -> str:

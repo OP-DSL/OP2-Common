@@ -4,7 +4,7 @@ import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import indent
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
 import op as OP
 from diagnostics import LineMap, Location, OpError
@@ -57,7 +57,6 @@ class Type(Entity):
 @dataclass
 class Function(Entity):
     parameters: List[str] = field(default_factory=list)
-    returns: Optional[OP.Type] = None
     # Calls of the program's own function templates, which kernels cannot use.
     template_calls: List[Any] = field(default_factory=list)
 
@@ -107,7 +106,6 @@ class Program:
     def __str__(self) -> str:
         consts_str = "\n    ".join([str(const) for const in self.consts])
         loops_str = "\n".join([str(loop) for loop in self.loops])
-        entities_str = "\n".join([str(entity) for entity in self.entities])
 
         if len(self.consts) > 0:
             consts_str = f"    {consts_str}\n"
@@ -115,10 +113,7 @@ class Program:
         if len(self.loops) > 0:
             loops_str = indent(f"\n{loops_str}", "    ")
 
-        # if len(self.entities) > 0:
-        #     entities_str = indent(f"\n{entities_str}\n", "    ")
-
-        return f"Program in '{self.path}':\n" + consts_str + loops_str  # + entities_str
+        return f"Program in '{self.path}':\n" + consts_str + loops_str
 
 
 @dataclass

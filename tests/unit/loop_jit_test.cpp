@@ -91,7 +91,7 @@ jit::Options options;
 void policy(std::initializer_list<std::pair<const char *, const char *>> variables) {
     for (const char *name :
          {"OP_JIT_LEVEL", "OP_JIT_FORCE", "OP_JIT_SEQ_COMPILE", "OP_JIT_DEBUG",
-          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_VARYING",
+          "OP_JIT_MIN_CALLS", "OP_JIT_MAX_THREADS", "OP_JIT_MAX_VALUES",
           "OP_JIT_MAX_GBL_BYTES", "OP_JIT_MAX_CONST_BYTES", "OP_JIT_RUNTIME_PARAMS",
           "OP_JIT_CONSTANT_PARAMS"})
         unsetenv(name);
