@@ -553,7 +553,7 @@ MATLAB scripts in `apps/mesh_generators/`:
 
 | Package | Purpose |
 |---|---|
-| Python ≥ 3.8 | Runtime |
+| Python ≥ 3.9 | Runtime |
 | `libclang` | C/C++ source parsing in v2 translator |
 | See `translator-v2/requirements.txt` | All v2 dependencies |
 

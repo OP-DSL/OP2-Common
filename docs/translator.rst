@@ -22,7 +22,7 @@ Requirements
 
 The translator and its dependencies are bundled inside ``translator-v2/`` and are set up automatically by the OP2 Makefiles.  If you need to run the translator outside the Makefile (e.g., in a custom CI pipeline), install the dependencies manually:
 
-- Python >= 3.8
+- Python >= 3.9
 - Python packages: ``jinja2``, ``fparser`` (fparser2 API), ``libclang``, ``pcpp``
 
 .. code-block:: shell

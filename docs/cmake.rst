@@ -435,7 +435,7 @@ works" without any explicit ``-D`` on the command line.
 Translator dependency hints
 ---------------------------
 
-The translator needs Python 3.8+ with ``jinja2``, ``fparser``, ``pcpp``,
+The translator needs Python 3.9+ with ``jinja2``, ``fparser``, ``pcpp``,
 and ``libclang`` (importable as ``clang.cindex``) available at
 import time. Python is treated like any other OP2 dependency (MPI, HDF5, ...):
 CMake finds it, it doesn't provision it. There's no venv, no pip install, and
